@@ -1,8 +1,9 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import type { AnyVal, BrandOf, Input, Patch, PayloadOf } from "../src/index.ts";
+import type { AnyVal, Seed, Patch, PayloadOf } from "../src/index.ts";
 import { Val } from "../src/index.ts";
-// The default `equals`. Not part of the public surface, so it comes from the
+// `BrandOf` and `deepEquals` are internal to the package, so they come from the
 // implementation module rather than the entry point.
+import type { BrandOf } from "../src/val.ts";
 import { deepEquals } from "../src/val.ts";
 
 // ---------------------------------------------------------------------------
@@ -455,7 +456,7 @@ describe("sealer", () => {
 
   test("create and from compose: with routes through from, never re-running create", () => {
     type User = Val<"user/User", { id: string; name: string }>;
-    type Fields = Omit<Input<User>, "id">;
+    type Fields = Omit<Seed<User>, "id">;
 
     let minted = 0;
     const User = Val.companion<User>()
@@ -463,7 +464,7 @@ describe("sealer", () => {
         minted += 1;
         return Val.of<User>({ id: `id-${minted}`, ...f });
       })
-      .implFrom((u: Input<User>): User => Val.of<User>(u));
+      .implFrom((u: Seed<User>): User => Val.of<User>(u));
 
     const u = User.create({ name: "bob" });
     expect(u).toEqual({ id: "id-1", name: "bob" });
@@ -677,7 +678,7 @@ describe("implFrom", () => {
 
 describe("fields the update path must not touch", () => {
   type Account = Val<"app/Account", { id: string; owner: string; note: string }>;
-  type Fields = Omit<Input<Account>, "id">;
+  type Fields = Omit<Seed<Account>, "id">;
   type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
   let minted = 0;
@@ -686,7 +687,7 @@ describe("fields the update path must not touch", () => {
       minted += 1;
       return Val.of<Account>({ id: `id-${minted}`, ...f });
     })
-    .implFrom((a: Input<Account>): Account => Val.of<Account>(a))
+    .implFrom((a: Seed<Account>): Account => Val.of<Account>(a))
     .impl({
       with(a, patch: Patch<Fields>): Account {
         return Val.of<Account>({ ...a, ...patch });

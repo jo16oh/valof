@@ -94,7 +94,7 @@ emit its own declarations: a symbol would have to be in scope in every emitting 
 which fails with `TS4023` for anyone re-exporting a companion. The names are verbose to keep them
 from colliding with a real property, and say `phantom` so that meeting one in a hover
 or an error message tells you not to look for it at runtime. They are still ordinary
-keys, though, so they do appear in `keyof YourVal`. Reach for `PayloadOf<V>` or `Input<V>` when you want the
+keys, though, so they do appear in `keyof YourVal`. Reach for `PayloadOf<V>` or `Seed<V>` when you want the
 payload's keys alone.
 
 ### `Val.of`
@@ -462,12 +462,12 @@ them, `from` preserves them, and narrowing the patch keeps `with` off them.
 
 ```ts
 export type User = Val<"app/User", { id: string; name: string; email: string }>;
-type Fields = Omit<Input<User>, "id">;
+type Fields = Omit<Seed<User>, "id">;
 type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
 export const User = Val.companion<User>()
   .implCreate((f: Fields): User => Val.of<User>({ id: crypto.randomUUID(), ...f }))
-  .implFrom((u: Input<User>): User => Val.of<User>(u))
+  .implFrom((u: Seed<User>): User => Val.of<User>(u))
   .impl({
     with(u, patch: Patch<Fields>): User {
       return Val.of<User>({ ...u, ...patch });
@@ -557,9 +557,21 @@ Every companion carries `equals`, `with` and `update`. `equals` defaults to a st
 deep comparison, which is not exported on its own — an override receives it as a third
 argument instead (see _Equality_).
 
-Type utilities: `AnyVal`, `Primitive`, `Validate`, `DeepReadonly`, `Patch`,
-`OptionalKeys`, `Invalid`, `BrandOf`, `PayloadOf`, `Input`, `Companion`, `Sealed`,
-`Sealer`, `CompanionBuilder`, `CompanionMethods`, `Revalidator`.
+Exported types, the ones you write yourself: `AnyVal` (a constraint over any Val),
+`Seed` (what a value can be grown from — the payload as a constructor accepts it),
+`Patch` (a `with` patch) and `PayloadOf` (the payload behind the brand).
+
+`Seed<V>` is deep-readonly so that it accepts more, not to enforce anything —
+constructors copy their argument regardless. Without it, deriving a value from an
+existing Val, or from an `as const` literal, would not type-check.
+
+Exported types you never write, but your own `.d.ts` will reference if you re-export a
+companion: `Sealer`, `Sealed`, `Companion` and `CompanionBuilder`.
+
+Everything else is internal. `Primitive`, `Validate`, `DeepReadonly`, `OptionalKeys` and
+`Invalid` only ever appear inside a resolved `Val<K, T>` — `Invalid<"...">` still shows
+up by name in the diagnostics above. `.impl` and `.implFrom` type their arguments
+contextually, so there is no need to spell `CompanionMethods` or `Revalidator` either.
 
 ## Development
 

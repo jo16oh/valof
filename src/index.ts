@@ -16,21 +16,32 @@
  */
 export { Val } from "./val.ts";
 
+/**
+ * Two kinds of type, and nothing else.
+ *
+ * `Companion`, `CompanionBuilder`, `Sealed` and `Sealer` are what `Val.sealer` and
+ * `Val.companion` infer. A downstream package never writes them, but its emitted
+ * declarations reference them, and without a name TypeScript inlines the structure
+ * instead: dropping `CompanionBuilder` alone — it is self-referential through
+ * `implFrom` / `implCreate` — takes a small consumer's `.d.ts` from 3 KB to 956 KB.
+ *
+ * `AnyVal`, `Seed`, `Patch` and `PayloadOf` are the ones a caller writes for
+ * themselves: a constraint over any Val, a constructor's argument, a `with` patch, the
+ * payload behind the brand.
+ *
+ * Everything else is internal. `Primitive`, `Validate`, `DeepReadonly`, `OptionalKeys`
+ * and `Invalid` only ever appear inside a resolved `Val<K, T>` — `Invalid<"...">` still
+ * shows up by name in diagnostics without being exported. `BrandOf`, `CompanionMethods`
+ * and `Revalidator` are nameable but had no use worth a one-way door: `.impl` and
+ * `.implFrom` type their arguments contextually, so nobody has to spell the constraint.
+ */
 export type {
   AnyVal,
-  BrandOf,
   Companion,
   CompanionBuilder,
-  CompanionMethods,
-  DeepReadonly,
-  Input,
-  Invalid,
-  OptionalKeys,
   Patch,
   PayloadOf,
-  Primitive,
-  Revalidator,
   Sealed,
   Sealer,
-  Validate,
+  Seed,
 } from "./val.ts";

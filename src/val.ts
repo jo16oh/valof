@@ -12,7 +12,7 @@
  */
 
 /** Primitives allowed as values. `undefined` is deliberately excluded (design §3.5). */
-export type Primitive = string | number | boolean | bigint | null;
+type Primitive = string | number | boolean | bigint | null;
 
 /**
  * Any Val.
@@ -29,14 +29,14 @@ export type Primitive = string | number | boolean | bigint | null;
 export type AnyVal = { readonly __valof_internal_phantom_brand: string };
 
 /** Marker surfaced in the type when a payload violates the allowed-type rules. */
-export type Invalid<Msg extends string> = { readonly __valError: Msg };
+type Invalid<Msg extends string> = { readonly __valError: Msg };
 
 // ---------------------------------------------------------------------------
 // Allowed-type validation (design §3)
 // ---------------------------------------------------------------------------
 
 /** Extracts only the optional keys. `-?` keeps `undefined` out of the mapped value type. */
-export type OptionalKeys<T> = {
+type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
 }[keyof T];
 
@@ -45,7 +45,7 @@ export type OptionalKeys<T> = {
  * Offending positions are replaced by `Invalid<Msg>`, so the message shows up
  * directly in the resulting type.
  */
-export type Validate<T> = [T] extends [AnyVal]
+type Validate<T> = [T] extends [AnyVal]
   ? T
   : [T] extends [Primitive]
     ? T
@@ -71,7 +71,7 @@ export type Validate<T> = [T] extends [AnyVal]
 /**
  * Because nesting goes through Vals, the recursion stops as soon as it hits one.
  */
-export type DeepReadonly<T> = [T] extends [AnyVal]
+type DeepReadonly<T> = [T] extends [AnyVal]
   ? T
   : [T] extends [Primitive]
     ? T
@@ -122,8 +122,19 @@ export type PayloadOf<V extends AnyVal> = V extends {
   ? T
   : never;
 
-/** Input type accepted by constructors and `Val.of`. Mutable values pass through as-is. */
-export type Input<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
+/**
+ * What a value can be grown from: the payload as constructors, `Val.of` and `from`
+ * accept it.
+ *
+ * Deep-readonly, and that is about what it *accepts*, not about enforcing anything —
+ * ownership is already handled by the deep copy every constructor makes (design §4.1).
+ * Property `readonly` does not affect assignability and `T[]` is assignable to
+ * `readonly T[]`, so a readonly parameter takes strictly more callers than a mutable
+ * one. That matters because a Val is itself deep-readonly: without it, deriving a new
+ * value from an existing one — or from an `as const` literal, or from anything else
+ * already readonly — would not type-check against `PayloadOf<V>`.
+ */
+export type Seed<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
 
 // ---------------------------------------------------------------------------
 // patch (design §6.2)
@@ -165,7 +176,7 @@ type NonMethod = Primitive | undefined | readonly unknown[] | Record<string, unk
  * The smart constructor is the one thing that cannot live here, since its first
  * parameter is whatever it parses rather than the Val. It goes to `.implFrom`.
  */
-export type CompanionMethods<V extends AnyVal> = {
+type CompanionMethods<V extends AnyVal> = {
   /**
    * Overrides the default deep equals. Applies to top-level comparisons only (design §5).
    *
@@ -204,7 +215,7 @@ type Constructed<V extends AnyVal, F> = F extends (...args: never[]) => infer R 
  * Enforced at registration, so a constructor that cannot revalidate a payload fails
  * where it is written rather than at the `with` that later needs it (design §6.7).
  */
-export type Revalidator<V extends AnyVal> = (value: Input<V>, ...rest: never[]) => unknown;
+type Revalidator<V extends AnyVal> = (value: Seed<V>, ...rest: never[]) => unknown;
 
 /** `{ [K]: T }`, or nothing at all when there is no `T`. */
 type Slot<K extends string, T> = [T] extends [undefined] ? Record<never, never> : { [P in K]: T };
@@ -233,12 +244,12 @@ type Rebuild<V extends AnyVal, N, F, Arg> = [F] extends [undefined]
  */
 type WithMethod<V extends AnyVal, M, N, F> = "with" extends keyof M
   ? { with: M["with"] }
-  : Slot<"with", [Patch<Input<V>>] extends [never] ? undefined : Rebuild<V, N, F, Patch<Input<V>>>>;
+  : Slot<"with", [Patch<Seed<V>>] extends [never] ? undefined : Rebuild<V, N, F, Patch<Seed<V>>>>;
 
 /** Same as {@link WithMethod}: yours if you wrote one, the rebuilt default otherwise. */
 type UpdateMethod<V extends AnyVal, M, N, F> = "update" extends keyof M
   ? { update: M["update"] }
-  : Slot<"update", Rebuild<V, N, F, (value: V) => Input<V>>>;
+  : Slot<"update", Rebuild<V, N, F, (value: V) => Seed<V>>>;
 
 /**
  * A type's behaviour, and nothing else. Notably not callable: a constructor comes
@@ -259,7 +270,7 @@ export type Companion<
   };
 
 /** A companion that kept the constructor it was built from. */
-export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: Input<V>) => V) &
+export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: Seed<V>) => V) &
   Companion<V, M>;
 
 /**
@@ -396,7 +407,7 @@ function copy<T>(value: T): T {
  * Lifts a raw value into a Val. Use it inside custom constructors to avoid `as`
  * casts; it deep-copies, so the constructor owns the result.
  */
-function of<V extends AnyVal>(value: Input<V>): V {
+function of<V extends AnyVal>(value: Seed<V>): V {
   return copy(value) as unknown as V;
 }
 
@@ -485,14 +496,14 @@ function attach(target: object, methods: Record<string, unknown>, ctors: Ctors =
  * first parameter silently falls back to implicit `any` (design §6.5).
  */
 function sealer<V extends AnyVal>(): Sealer<V> {
-  const seal = (value: Input<V>): V => copy(value) as unknown as V;
+  const seal = (value: Seed<V>): V => copy(value) as unknown as V;
   attach(seal, {});
 
   define(
     seal,
     "impl",
     <M extends CompanionMethods<V> = Record<never, never>>(methods: M = {} as M): Sealed<V, M> => {
-      const sealed = (value: Input<V>): V => copy(value) as unknown as V;
+      const sealed = (value: Seed<V>): V => copy(value) as unknown as V;
       attach(sealed, methods);
       return sealed as unknown as Sealed<V, M>;
     },
@@ -518,7 +529,7 @@ function sealer<V extends AnyVal>(): Sealer<V> {
  * ```ts
  * export const User = Val.companion<User>()
  *   .implCreate((f: Fields) => Val.of<User>({ id: crypto.randomUUID(), ...f }))
- *   .implFrom((u: Input<User>) => validate(u));
+ *   .implFrom((u: Seed<User>) => validate(u));
  * ```
  *
  * Use `Val.of` inside `from` to lift the validated value. Since no constructor is
