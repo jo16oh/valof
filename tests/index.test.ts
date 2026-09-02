@@ -38,6 +38,49 @@ describe("basics", () => {
     expect(user).not.toBe(raw);
   });
 
+  test("Val.unwrap hands back a mutable copy", () => {
+    type Post = Val<"Post", { title: string; tags: string[] }>;
+    const Post = Val.sealer<Post>();
+    const post = Post({ title: "t", tags: ["a"] });
+
+    const raw = Val.unwrap(post);
+    expect(raw).toEqual({ title: "t", tags: ["a"] });
+    expect(raw).not.toBe(post);
+    expect(raw.tags).not.toBe(post.tags);
+
+    // The copy is what makes it safe to hand out under a mutable type.
+    raw.tags.push("b");
+    raw.title = "changed";
+    expect(post.tags).toEqual(["a"]);
+    expect(post.title).toBe("t");
+
+    // The payload type is the one the Val was declared with, mutable again.
+    expectTypeOf(raw).toEqualTypeOf<{ title: string; tags: string[] }>();
+  });
+
+  test("Val.unwrap works on primitive and array payloads", () => {
+    const IsoDate = Val.sealer<Val<"IsoDate", string>>();
+    expect(Val.unwrap(IsoDate("2026-01-01"))).toBe("2026-01-01");
+
+    const Tags = Val.sealer<Val<"Tags", readonly string[]>>();
+    const tags = Tags(["a", "b"]);
+    const raw = Val.unwrap(tags);
+    expect(raw).toEqual(["a", "b"]);
+    expect(raw).not.toBe(tags);
+  });
+
+  test("a nested Val survives unwrap as data", () => {
+    type Money = Val<"Money", { amount: number; currency: string }>;
+    type Order = Val<"Order", { id: string; total: Money }>;
+    const Money = Val.sealer<Money>();
+    const Order = Val.sealer<Order>();
+    const order = Order({ id: "o", total: Money({ amount: 1, currency: "JPY" }) });
+
+    const raw = Val.unwrap(order);
+    expect(raw).toEqual({ id: "o", total: { amount: 1, currency: "JPY" } });
+    expect(Money.equals(raw.total, Money({ amount: 1, currency: "JPY" }))).toBe(true);
+  });
+
   test("the brand does not exist at runtime", () => {
     const user = User({ id: "a", name: "bob" });
     expect(Object.keys(user)).toEqual(["id", "name"]);

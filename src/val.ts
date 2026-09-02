@@ -411,6 +411,25 @@ function of<V extends AnyVal>(value: Seed<V>): V {
   return copy(value) as unknown as V;
 }
 
+/**
+ * The other direction: the payload, mutable and detached from the Val.
+ *
+ * A Val is deep-readonly, which third-party code does not know about — `readonly T[]`
+ * is not a `T[]`, so even `Array.prototype.sort` refuses it (design §4). This hands
+ * back a plain, mutable copy to give away.
+ *
+ * It deep-copies for the same reason constructors do (design §4.1): the brand is
+ * phantom, so a Val *is* its payload at runtime, and returning it under a mutable type
+ * would let the caller write straight through into the value.
+ *
+ * Not the way to derive one value from another — `Seed<V>` already accepts a Val, so
+ * `Val.of` and `with` take one directly and copy once. Going through `unwrap` copies
+ * twice.
+ */
+function unwrap<V extends AnyVal>(value: V): PayloadOf<V> {
+  return copy(value) as unknown as PayloadOf<V>;
+}
+
 /** `Object.assign` onto a function throws on `name` / `length`, so define properties instead. */
 function define(target: object, key: string, value: unknown): void {
   Object.defineProperty(target, key, {
@@ -565,6 +584,7 @@ function build<V extends AnyVal>(ctors: Ctors): object {
  * The namespace sharing its name with the `Val` type.
  *
  * - `Val.of` — lifts a raw value into a Val, copying it (design §2.2, §4.1)
+ * - `Val.unwrap` — the reverse of `of`: a mutable copy of the payload
  * - `Val.sealer` — a constructor, and `.impl()` to attach behaviour to it
  * - `Val.companion` — the same, minus the constructor
  *
@@ -572,4 +592,4 @@ function build<V extends AnyVal>(ctors: Ctors): object {
  * phantom, so the type cannot be recovered from a value at runtime and there is
  * nothing to dispatch per-type behaviour on (design §5, §6.2).
  */
-export const Val = { of, sealer, companion } as const;
+export const Val = { of, unwrap, sealer, companion } as const;

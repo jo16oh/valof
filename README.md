@@ -105,6 +105,31 @@ Use it inside custom constructors to avoid `as` casts.
 Val.of<User>({ id: "a", name: "alice" });
 ```
 
+### `Val.unwrap`
+
+The other direction: a plain, mutable copy of the payload, for handing to code that
+does not know about `readonly`.
+
+```ts
+const post = Post({ title: "t", tags: ["a"] });
+
+post.tags.sort(); // ✗ readonly string[] has no sort
+Val.unwrap(post).tags.sort(); // ✓
+```
+
+It copies, for the same reason constructors do — a Val _is_ its payload at runtime, so
+returning it under a mutable type would let the caller write straight through into the
+value.
+
+Reach for it when something outside wants mutable data. It is **not** how you derive one
+value from another: `Seed<V>` already accepts a Val, so `Val.of` and `with` take one
+directly and copy once, where going through `unwrap` copies twice.
+
+```ts
+Post.with(post, { tags: [...post.tags, "b"] }); // ✓ one copy
+Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
+```
+
 ### Constructors take ownership
 
 Constructors deep-copy their argument, so keeping a reference to what you passed in
@@ -547,6 +572,7 @@ All of it follows from the one line: values are plain data.
 | ---------------------------------- | ----------------------------------------------- |
 | `Val<K, T>`                        | a branded value type                            |
 | `Val.of<V>(value)`                 | lifts a raw value into a Val, copying it        |
+| `Val.unwrap(value)`                | a mutable copy of the payload                   |
 | `Val.sealer<V>()`                  | the constructor, carrying the default behaviour |
 | `Val.sealer<V>().impl(fns)`        | the constructor plus your functions             |
 | `Val.companion<V>().impl(fns)`     | behaviour only — no constructor                 |
