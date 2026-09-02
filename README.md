@@ -94,7 +94,7 @@ emit its own declarations: a symbol would have to be in scope in every emitting 
 which fails with `TS4023` for anyone re-exporting a companion. The names are verbose to keep them
 from colliding with a real property, and say `phantom` so that meeting one in a hover
 or an error message tells you not to look for it at runtime. They are still ordinary
-keys, though, so they do appear in `keyof YourVal`. Reach for `PayloadOf<V>` or `Seed<V>` when you want the
+keys, though, so they do appear in `keyof YourVal`. Reach for `PayloadOf<V>` or `SeedOf<V>` when you want the
 payload's keys alone.
 
 ### `Val.of`
@@ -122,7 +122,7 @@ returning it under a mutable type would let the caller write straight through in
 value.
 
 Reach for it when something outside wants mutable data. It is **not** how you derive one
-value from another: `Seed<V>` already accepts a Val, so `Val.of` and `with` take one
+value from another: `SeedOf<V>` already accepts a Val, so `Val.of` and `with` take one
 directly and copy once, where going through `unwrap` copies twice.
 
 ```ts
@@ -487,12 +487,12 @@ them, `from` preserves them, and narrowing the patch keeps `with` off them.
 
 ```ts
 export type User = Val<"app/User", { id: string; name: string; email: string }>;
-type Fields = Omit<Seed<User>, "id">;
+type Fields = Omit<SeedOf<User>, "id">;
 type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
 export const User = Val.companion<User>()
   .implCreate((f: Fields): User => Val.of<User>({ id: crypto.randomUUID(), ...f }))
-  .implFrom((u: Seed<User>): User => Val.of<User>(u))
+  .implFrom((u: SeedOf<User>): User => Val.of<User>(u))
   .impl({
     with(u, patch: Patch<Fields>): User {
       return Val.of<User>({ ...u, ...patch });
@@ -584,12 +584,26 @@ deep comparison, which is not exported on its own — an override receives it as
 argument instead (see _Equality_).
 
 Exported types, the ones you write yourself: `AnyVal` (a constraint over any Val),
-`Seed` (what a value can be grown from — the payload as a constructor accepts it),
+`SeedOf` (what a value can be grown from — the payload as a constructor accepts it),
 `Patch` (a `with` patch) and `PayloadOf` (the payload behind the brand).
 
-`Seed<V>` is deep-readonly so that it accepts more, not to enforce anything —
+`SeedOf<V>` is deep-readonly so that it accepts more, not to enforce anything —
 constructors copy their argument regardless. Without it, deriving a value from an
 existing Val, or from an `as const` literal, would not type-check.
+
+The `-Of` marks a projection out of a Val, so `PayloadOf<V>` and `SeedOf<V>` take one.
+`Patch<T>` takes a payload instead, which is what lets a custom `with` accept a patch
+over a subset of the fields — how you keep a generated id out of one:
+
+```ts
+type Fields = Omit<SeedOf<Account>, "id">;
+
+Val.companion<Account>()
+  .implCreate((f: Fields) => Val.of<Account>({ id: mint(), ...f }))
+  .impl({
+    with: (a, patch: Patch<Fields>) => Val.of<Account>({ ...a, ...patch }), // id is not patchable
+  });
+```
 
 Exported types you never write, but your own `.d.ts` will reference if you re-export a
 companion: `Sealer`, `Sealed`, `Companion` and `CompanionBuilder`.

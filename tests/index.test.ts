@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import type { AnyVal, Seed, Patch, PayloadOf } from "../src/index.ts";
+import type { AnyVal, SeedOf, Patch, PayloadOf } from "../src/index.ts";
 import { Val } from "../src/index.ts";
 // `BrandOf` and `deepEquals` are internal to the package, so they come from the
 // implementation module rather than the entry point.
@@ -499,7 +499,7 @@ describe("sealer", () => {
 
   test("create and from compose: with routes through from, never re-running create", () => {
     type User = Val<"user/User", { id: string; name: string }>;
-    type Fields = Omit<Seed<User>, "id">;
+    type Fields = Omit<SeedOf<User>, "id">;
 
     let minted = 0;
     const User = Val.companion<User>()
@@ -507,7 +507,7 @@ describe("sealer", () => {
         minted += 1;
         return Val.of<User>({ id: `id-${minted}`, ...f });
       })
-      .implFrom((u: Seed<User>): User => Val.of<User>(u));
+      .implFrom((u: SeedOf<User>): User => Val.of<User>(u));
 
     const u = User.create({ name: "bob" });
     expect(u).toEqual({ id: "id-1", name: "bob" });
@@ -721,7 +721,7 @@ describe("implFrom", () => {
 
 describe("fields the update path must not touch", () => {
   type Account = Val<"app/Account", { id: string; owner: string; note: string }>;
-  type Fields = Omit<Seed<Account>, "id">;
+  type Fields = Omit<SeedOf<Account>, "id">;
   type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
   let minted = 0;
@@ -730,7 +730,7 @@ describe("fields the update path must not touch", () => {
       minted += 1;
       return Val.of<Account>({ id: `id-${minted}`, ...f });
     })
-    .implFrom((a: Seed<Account>): Account => Val.of<Account>(a))
+    .implFrom((a: SeedOf<Account>): Account => Val.of<Account>(a))
     .impl({
       with(a, patch: Patch<Fields>): Account {
         return Val.of<Account>({ ...a, ...patch });

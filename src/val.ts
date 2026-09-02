@@ -134,7 +134,7 @@ export type PayloadOf<V extends AnyVal> = V extends {
  * value from an existing one — or from an `as const` literal, or from anything else
  * already readonly — would not type-check against `PayloadOf<V>`.
  */
-export type Seed<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
+export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
 
 // ---------------------------------------------------------------------------
 // patch (design §6.2)
@@ -215,7 +215,7 @@ type Constructed<V extends AnyVal, F> = F extends (...args: never[]) => infer R 
  * Enforced at registration, so a constructor that cannot revalidate a payload fails
  * where it is written rather than at the `with` that later needs it (design §6.7).
  */
-type Revalidator<V extends AnyVal> = (value: Seed<V>, ...rest: never[]) => unknown;
+type Revalidator<V extends AnyVal> = (value: SeedOf<V>, ...rest: never[]) => unknown;
 
 /** `{ [K]: T }`, or nothing at all when there is no `T`. */
 type Slot<K extends string, T> = [T] extends [undefined] ? Record<never, never> : { [P in K]: T };
@@ -244,12 +244,15 @@ type Rebuild<V extends AnyVal, N, F, Arg> = [F] extends [undefined]
  */
 type WithMethod<V extends AnyVal, M, N, F> = "with" extends keyof M
   ? { with: M["with"] }
-  : Slot<"with", [Patch<Seed<V>>] extends [never] ? undefined : Rebuild<V, N, F, Patch<Seed<V>>>>;
+  : Slot<
+      "with",
+      [Patch<SeedOf<V>>] extends [never] ? undefined : Rebuild<V, N, F, Patch<SeedOf<V>>>
+    >;
 
 /** Same as {@link WithMethod}: yours if you wrote one, the rebuilt default otherwise. */
 type UpdateMethod<V extends AnyVal, M, N, F> = "update" extends keyof M
   ? { update: M["update"] }
-  : Slot<"update", Rebuild<V, N, F, (value: V) => Seed<V>>>;
+  : Slot<"update", Rebuild<V, N, F, (value: V) => SeedOf<V>>>;
 
 /**
  * A type's behaviour, and nothing else. Notably not callable: a constructor comes
@@ -270,7 +273,7 @@ export type Companion<
   };
 
 /** A companion that kept the constructor it was built from. */
-export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: Seed<V>) => V) &
+export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: SeedOf<V>) => V) &
   Companion<V, M>;
 
 /**
@@ -407,7 +410,7 @@ function copy<T>(value: T): T {
  * Lifts a raw value into a Val. Use it inside custom constructors to avoid `as`
  * casts; it deep-copies, so the constructor owns the result.
  */
-function of<V extends AnyVal>(value: Seed<V>): V {
+function of<V extends AnyVal>(value: SeedOf<V>): V {
   return copy(value) as unknown as V;
 }
 
@@ -422,7 +425,7 @@ function of<V extends AnyVal>(value: Seed<V>): V {
  * phantom, so a Val *is* its payload at runtime, and returning it under a mutable type
  * would let the caller write straight through into the value.
  *
- * Not the way to derive one value from another — `Seed<V>` already accepts a Val, so
+ * Not the way to derive one value from another — `SeedOf<V>` already accepts a Val, so
  * `Val.of` and `with` take one directly and copy once. Going through `unwrap` copies
  * twice.
  */
@@ -515,14 +518,14 @@ function attach(target: object, methods: Record<string, unknown>, ctors: Ctors =
  * first parameter silently falls back to implicit `any` (design §6.5).
  */
 function sealer<V extends AnyVal>(): Sealer<V> {
-  const seal = (value: Seed<V>): V => copy(value) as unknown as V;
+  const seal = (value: SeedOf<V>): V => copy(value) as unknown as V;
   attach(seal, {});
 
   define(
     seal,
     "impl",
     <M extends CompanionMethods<V> = Record<never, never>>(methods: M = {} as M): Sealed<V, M> => {
-      const sealed = (value: Seed<V>): V => copy(value) as unknown as V;
+      const sealed = (value: SeedOf<V>): V => copy(value) as unknown as V;
       attach(sealed, methods);
       return sealed as unknown as Sealed<V, M>;
     },
@@ -548,7 +551,7 @@ function sealer<V extends AnyVal>(): Sealer<V> {
  * ```ts
  * export const User = Val.companion<User>()
  *   .implCreate((f: Fields) => Val.of<User>({ id: crypto.randomUUID(), ...f }))
- *   .implFrom((u: Seed<User>) => validate(u));
+ *   .implFrom((u: SeedOf<User>) => validate(u));
  * ```
  *
  * Use `Val.of` inside `from` to lift the validated value. Since no constructor is
