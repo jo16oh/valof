@@ -1,6 +1,9 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import type { AnyVal, BrandOf, Input, Patch, PayloadOf } from "../src/index.ts";
-import { deepEquals, Val } from "../src/index.ts";
+import { Val } from "../src/index.ts";
+// The default `equals`. Not part of the public surface, so it comes from the
+// implementation module rather than the entry point.
+import { deepEquals } from "../src/val.ts";
 
 // ---------------------------------------------------------------------------
 // Basics
@@ -130,6 +133,39 @@ describe("equals", () => {
       equals: (a: Email, b: Email) => a.toLowerCase() === b.toLowerCase(),
     });
     expect(Email.equals(Email("A@b.com"), Email("a@B.com"))).toBe(true);
+  });
+
+  test("an override is handed the structural default as a third argument", () => {
+    type Doc = Val<"Doc", { id: string; body: string }>;
+    // Published docs are identified by id; drafts have no stable one, so they fall
+    // back to the structural comparison.
+    const Doc = Val.sealer<Doc>().impl({
+      equals: (a, b, deep) => (a.id.startsWith("draft:") ? deep(a, b) : a.id === b.id),
+    });
+
+    expect(Doc.equals(Doc({ id: "1", body: "x" }), Doc({ id: "1", body: "edited" }))).toBe(true);
+    expect(Doc.equals(Doc({ id: "1", body: "x" }), Doc({ id: "2", body: "x" }))).toBe(false);
+
+    const draft = { id: "draft:1", body: "x" } as const;
+    expect(Doc.equals(Doc(draft), Doc({ ...draft }))).toBe(true);
+    expect(Doc.equals(Doc(draft), Doc({ ...draft, body: "y" }))).toBe(false);
+  });
+
+  test("callers pass two arguments; the third is bound for the override", () => {
+    type N = Val<"N", number>;
+    // `deep` would be `undefined` here, and calling it would throw, if the override
+    // were attached raw instead of wrapped with the default bound to it.
+    const N = Val.sealer<N>().impl({ equals: (a, b, deep) => deep(a, b) });
+
+    expect(N.equals(N(1), N(1))).toBe(true);
+    expect(N.equals(N(1), N(2))).toBe(false);
+    expectTypeOf(N.equals).parameters.toEqualTypeOf<[N, N]>();
+  });
+
+  test("an override without the third parameter still works", () => {
+    type S = Val<"S", string>;
+    const S = Val.sealer<S>().impl({ equals: (a: S, b: S) => a.length === b.length });
+    expect(S.equals(S("ab"), S("cd"))).toBe(true);
   });
 });
 

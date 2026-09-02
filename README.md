@@ -232,6 +232,22 @@ The default `equals`:
 - **ignores keys whose value is `undefined`** (`{ a: undefined }` equals `{}`)
 - treats `NaN` as equal to `NaN`, and `-0` as equal to `0`
 
+An override receives it as a third argument, so it can fall back to it:
+
+```ts
+// Published docs are identified by id; drafts have no stable one.
+const Doc = Val.sealer<Doc>().impl({
+  equals: (a, b, deepEquals) => (a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id),
+});
+
+Doc.equals(a, b); // callers still pass two — the third is bound
+```
+
+That argument is the structural comparison, not "the `equals` you are overriding", so it
+does not reach a nested Val's own `equals` either. It is handed over here rather than
+exported, which keeps the fallback where it is meaningful: as a free function it would
+be a silent way past any type's `equals`.
+
 ## Smart constructors
 
 To make validation unskippable, build the value with `Val.companion`, which is the same
@@ -518,18 +534,19 @@ All of it follows from the one line: values are plain data.
 
 ## API
 
-|                                    |                                                    |
-| ---------------------------------- | -------------------------------------------------- |
-| `Val<K, T>`                        | a branded value type                               |
-| `Val.of<V>(value)`                 | lifts a raw value into a Val, copying it           |
-| `Val.sealer<V>()`                  | the constructor, carrying the default behaviour    |
-| `Val.sealer<V>().impl(fns)`        | the constructor plus your functions                |
-| `Val.companion<V>().impl(fns)`     | behaviour only — no constructor                    |
-| `Val.companion<V>().implFrom(f)`   | registers the payload revalidator as `from`        |
-| `Val.companion<V>().implCreate(f)` | registers a free-form constructor as `create`      |
-| `deepEquals(a, b)`                 | the default structural equality, usable on its own |
+|                                    |                                                 |
+| ---------------------------------- | ----------------------------------------------- |
+| `Val<K, T>`                        | a branded value type                            |
+| `Val.of<V>(value)`                 | lifts a raw value into a Val, copying it        |
+| `Val.sealer<V>()`                  | the constructor, carrying the default behaviour |
+| `Val.sealer<V>().impl(fns)`        | the constructor plus your functions             |
+| `Val.companion<V>().impl(fns)`     | behaviour only — no constructor                 |
+| `Val.companion<V>().implFrom(f)`   | registers the payload revalidator as `from`     |
+| `Val.companion<V>().implCreate(f)` | registers a free-form constructor as `create`   |
 
-Every companion carries `equals`, `with` and `update`.
+Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
+deep comparison, which is not exported on its own — an override receives it as a third
+argument instead (see _Equality_).
 
 Type utilities: `AnyVal`, `Primitive`, `Validate`, `DeepReadonly`, `Patch`,
 `OptionalKeys`, `Invalid`, `BrandOf`, `PayloadOf`, `Input`, `Companion`, `Sealed`,
