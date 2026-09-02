@@ -11,14 +11,22 @@
  * it that is public; anything exported here but missing there is internal.
  */
 
-declare const __brand: unique symbol;
-declare const __payload: unique symbol;
-
 /** Primitives allowed as values. `undefined` is deliberately excluded (design §3.5). */
 export type Primitive = string | number | boolean | bigint | null;
 
-/** Any Val. The brand key is a symbol, so it can never collide with a user property. */
-export type AnyVal = { readonly [__brand]: string };
+/**
+ * Any Val.
+ *
+ * The brand keys are phantom: nothing ever writes them, so they do not exist at
+ * runtime and never reach `Object.keys` or `JSON.stringify`. They are string keys
+ * rather than `unique symbol`s so that a declaration emitted by a downstream package
+ * can name them — a symbol would have to be in scope in the emitting file, which
+ * fails with TS4023 for anyone re-exporting a companion (design §2.1). The names are
+ * deliberately verbose to keep them from colliding with a real payload property, and
+ * say `phantom` so that anyone who meets one in a hover or an error message knows not
+ * to look for it at runtime.
+ */
+export type AnyVal = { readonly __valof_internal_phantom_brand: string };
 
 /** Marker surfaced in the type when a payload violates the allowed-type rules. */
 export type Invalid<Msg extends string> = { readonly __valError: Msg };
@@ -84,9 +92,9 @@ export type DeepReadonly<T> = [T] extends [AnyVal]
  * export type User = Val<"app/User", { id: string; name: string }>;
  * ```
  *
- * The brand key is a symbol; the discriminant is a string literal. Two Vals only
- * collide when they share the same string, so namespacing the key as `"app/User"`
- * is the recommended convention.
+ * The brand keys are phantom string keys (see {@link AnyVal}); the discriminant is a
+ * string literal. Two Vals only collide when they share the same string, so
+ * namespacing the key as `"app/User"` is the recommended convention.
  *
  * When `T` violates the allowed types, this resolves to `Validate<T>` — which
  * contains `Invalid<...>` and therefore does not satisfy `AnyVal`. Passing it to
@@ -98,17 +106,21 @@ export type DeepReadonly<T> = [T] extends [AnyVal]
  */
 export type Val<K extends string, T> = [T] extends [Validate<T>]
   ? DeepReadonly<T> & {
-      readonly [__brand]: K;
+      readonly __valof_internal_phantom_brand: K;
       /** Phantom. Exists only so the original payload type can be recovered. */
-      readonly [__payload]: T;
+      readonly __valof_internal_phantom_payload: T;
     }
   : Validate<T>;
 
 /** The Val's brand string. */
-export type BrandOf<V extends AnyVal> = V[typeof __brand];
+export type BrandOf<V extends AnyVal> = V["__valof_internal_phantom_brand"];
 
 /** The Val's raw payload type. */
-export type PayloadOf<V extends AnyVal> = V extends { readonly [__payload]: infer T } ? T : never;
+export type PayloadOf<V extends AnyVal> = V extends {
+  readonly __valof_internal_phantom_payload: infer T;
+}
+  ? T
+  : never;
 
 /** Input type accepted by constructors and `Val.of`. Mutable values pass through as-is. */
 export type Input<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;

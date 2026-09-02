@@ -83,10 +83,19 @@ The Val type is pinned by a type argument rather than inferred because TypeScrip
 infer type arguments partially; the methods are inferred by the following call (the same
 shape as zustand's `create<T>()(...)`).
 
-The brand key is an internal `unique symbol`, so it can **never** collide with one of
-your properties. The discriminant is a string literal, which means you don't have to
-declare a `unique symbol` per type. Two Vals only collide when they share the same
-string, so namespacing the key as `"app/User"` is the recommended convention.
+The discriminant is a string literal, which means you don't have to declare a
+`unique symbol` per type. Two Vals only collide when they share the same string, so
+namespacing the key as `"app/User"` is the recommended convention.
+
+The brand itself lives under the phantom keys `__valof_internal_phantom_brand` and
+`__valof_internal_phantom_payload`. Nothing ever writes them, so they do not exist at runtime.
+They are string keys rather than `unique symbol`s so that a package built on valof can
+emit its own declarations: a symbol would have to be in scope in every emitting file,
+which fails with `TS4023` for anyone re-exporting a companion. The names are verbose to keep them
+from colliding with a real property, and say `phantom` so that meeting one in a hover
+or an error message tells you not to look for it at runtime. They are still ordinary
+keys, though, so they do appear in `keyof YourVal`. Reach for `PayloadOf<V>` or `Input<V>` when you want the
+payload's keys alone.
 
 ### `Val.of`
 
