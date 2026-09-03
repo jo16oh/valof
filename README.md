@@ -7,16 +7,16 @@ behaviour attached to a type. Values stay **plain objects, arrays and primitives
 no classes, no prototypes.
 
 ```bash
-npm install valof
+pnpm install valof
 ```
 
 ## What you get
 
 Because values are plain, the following all hold:
 
-- they survive `structuredClone`
+- they can sit directly in React / Svelte / Vue state
 - they round-trip symmetrically through `JSON.stringify` / `JSON.parse`
-- they can sit directly in React state or a Redux store
+- they survive `structuredClone`
 - immutable updates never drop a prototype
 - the brand is a phantom type, so it costs nothing and shows up nowhere at runtime
 
