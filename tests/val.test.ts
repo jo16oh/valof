@@ -6,10 +6,6 @@ import { Val } from "../src/index.ts";
 import type { BrandOf } from "../src/val.ts";
 import { deepEquals } from "../src/val.ts";
 
-// ---------------------------------------------------------------------------
-// Basics
-// ---------------------------------------------------------------------------
-
 type User = Val<"app/User", { id: string; name: string; nickname?: string }>;
 
 const User = Val.sealer<User>().impl({
@@ -48,13 +44,11 @@ describe("basics", () => {
     expect(raw).not.toBe(post);
     expect(raw.tags).not.toBe(post.tags);
 
-    // The copy is what makes it safe to hand out under a mutable type.
     raw.tags.push("b");
     raw.title = "changed";
     expect(post.tags).toEqual(["a"]);
     expect(post.title).toBe("t");
 
-    // The payload type is the one the Val was declared with, mutable again.
     expectTypeOf(raw).toEqualTypeOf<{ title: string; tags: string[] }>();
   });
 
@@ -94,10 +88,6 @@ describe("basics", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Wrapping primitives, arrays and records
-// ---------------------------------------------------------------------------
-
 type IsoDate = Val<"IsoDate", string>;
 type Tags = Val<"Tags", Readonly<Record<string, true>>>;
 type Grid = Val<"Grid", ReadonlyArray<ReadonlyArray<number>>>;
@@ -126,10 +116,6 @@ describe("wrapping primitives and containers", () => {
     expect(g[1]?.[0]).toBe(3);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Equality (design §5)
-// ---------------------------------------------------------------------------
 
 describe("equals", () => {
   test("defaults to a structural deep comparison", () => {
@@ -190,15 +176,15 @@ describe("equals", () => {
     expect(Doc.equals(Doc({ id: "1", body: "x" }), Doc({ id: "1", body: "edited" }))).toBe(true);
     expect(Doc.equals(Doc({ id: "1", body: "x" }), Doc({ id: "2", body: "x" }))).toBe(false);
 
-    const draft = { id: "draft:1", body: "x" } as const;
+    const draft = { id: "draft:1", body: "x" };
     expect(Doc.equals(Doc(draft), Doc({ ...draft }))).toBe(true);
     expect(Doc.equals(Doc(draft), Doc({ ...draft, body: "y" }))).toBe(false);
   });
 
   test("callers pass two arguments; the third is bound for the override", () => {
     type N = Val<"N", number>;
-    // `deep` would be `undefined` here, and calling it would throw, if the override
-    // were attached raw instead of wrapped with the default bound to it.
+    // `deep` would be `undefined`, and throw when called, if the override were attached
+    // raw instead of wrapped with the default bound to it.
     const N = Val.sealer<N>().impl({ equals: (a, b, deep) => deep(a, b) });
 
     expect(N.equals(N(1), N(1))).toBe(true);
@@ -212,10 +198,6 @@ describe("equals", () => {
     expect(S.equals(S("ab"), S("cd"))).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// Smart constructors (design §6.1)
-// ---------------------------------------------------------------------------
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
@@ -231,7 +213,6 @@ const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
 
 describe("smart constructor", () => {
   test("a companion has no constructor to bypass", () => {
-    // Nothing is gated: the plain constructor was never created in the first place.
     expect(typeof Age).not.toBe("function");
   });
 
@@ -246,14 +227,10 @@ describe("smart constructor", () => {
       seal(s.trim().toLowerCase()),
     );
     expect(Email.seal("  A@B.com ")).toBe("a@b.com");
-    // Normalised at construction, so a structural comparison from a parent is correct
+    // normalised at construction, so a parent's structural comparison is correct
     expect(deepEquals(Email.seal(" a@b.com"), Email.seal("A@B.COM"))).toBe(true);
   });
 });
-
-// ---------------------------------------------------------------------------
-// with / update（§6.2 / §6.4）
-// ---------------------------------------------------------------------------
 
 describe("with", () => {
   test("omitting a key leaves it unchanged", () => {
@@ -337,10 +314,6 @@ describe("update", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Type level
-// ---------------------------------------------------------------------------
-
 describe("types", () => {
   test("different brands are not assignable", () => {
     type A = Val<"A", string>;
@@ -369,7 +342,7 @@ describe("types", () => {
   });
 
   test("a Val with a smart constructor cannot be called directly", () => {
-    // Calling it throws, so keep it in a block that is never evaluated — we only want the type check.
+    // never evaluated: only the type check matters, and calling it would throw
     const neverRun = (): unknown => {
       // @ts-expect-error Age has a smart constructor
       return Age(30);
@@ -397,14 +370,9 @@ describe("types", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// Allowed-type validation (design §3)
-// ---------------------------------------------------------------------------
-
 describe("validate", () => {
   test("undefined as a required key's value is rejected", () => {
     type Bad = Val<"Bad", { nickname: string | undefined }>;
-    // Contains Invalid<...>, so it does not satisfy AnyVal
     expectTypeOf<Bad>().not.toExtend<AnyVal>();
     const build = () =>
       // @ts-expect-error required property cannot be undefined
@@ -456,7 +424,7 @@ describe("sealer", () => {
   test("a companion has no constructor to reach", () => {
     const Priv = Val.companion<Age>().implSeal((n: number, seal) => seal(n));
     expect(typeof Priv).not.toBe("function");
-    // Calling it throws, so keep it in a block that is never evaluated.
+    // never evaluated: only the type check matters
     const neverRun = (): unknown =>
       // @ts-expect-error a companion is not callable
       Priv(1);
@@ -559,17 +527,12 @@ describe("sealer", () => {
 test("sealer > companion() mirrors sealer(), minus the constructor", () => {
   const bare = Val.companion<Age>();
   expect(typeof bare).not.toBe("function");
-  // the bare head already carries the defaults, exactly as a sealer does
   expect(bare.equals(Val.of<Age>(1), Val.of<Age>(1))).toBe(true);
 
   const built = bare.impl({ label: (a: Age) => `${a}` });
   expect(built.label(Val.of<Age>(7))).toBe("7");
   expect("label" in bare).toBe(false);
 });
-
-// ---------------------------------------------------------------------------
-// Ownership: constructors copy their argument
-// ---------------------------------------------------------------------------
 
 describe("ownership", () => {
   type Order = Val<"Order", { id: string; total: { amount: number; currency: string } }>;
@@ -629,10 +592,6 @@ describe("ownership", () => {
     expect(raw).toEqual(["b", "a"]);
   });
 });
-
-// ---------------------------------------------------------------------------
-// impl / implSeal（§6.5）
-// ---------------------------------------------------------------------------
 
 describe("impl", () => {
   test("the first parameter is contextually the Val, so it needs no annotation", () => {
@@ -770,10 +729,6 @@ describe("implSeal", () => {
     expect(Score.seal(s)).toEqual({ points: 3 });
   });
 });
-
-// ---------------------------------------------------------------------------
-// 慣用パターン（§8）
-// ---------------------------------------------------------------------------
 
 describe("unpatchable", () => {
   type Account = Val<"app/Account", { id: string; owner: string; note: string }>;
