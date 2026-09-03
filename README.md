@@ -76,11 +76,6 @@ raw.name = "mallory";
 user.name; // "alice"
 ```
 
-Constructors accept a plain mutable object, so the conversion from mutable to immutable
-has to happen somewhere. Doing it in the constructor keeps it off you: without the copy,
-the object you passed in would still _be_ the value, and never touching it again would be
-your discipline rather than something the type can promise.
-
 Values are not frozen, though: `readonly` is a promise in the type, not at runtime.
 
 ## Construct in normal form
