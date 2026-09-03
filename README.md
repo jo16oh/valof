@@ -240,16 +240,12 @@ Only four things can live inside a Val:
 |            |                                                     |
 | ---------- | --------------------------------------------------- |
 | Primitives | `string` / `number` / `boolean` / `bigint` / `null` |
-| Other Vals | nesting always goes through a Val                   |
+| Other Vals | any Val can hold another                            |
 | Arrays     | `ReadonlyArray<allowed>`                            |
 | Records    | `Readonly<Record<string, allowed>>`                 |
 
-**Avoid nested plain objects — make the nesting a Val.** `Date`, `Temporal`, `Map`,
-`Set`, functions and class instances cannot go in; see [Dates](#dates) and
-[Map / Set](#map--set) for what to reach for instead.
-
-Being made to compose Vals rather than nest object literals tends to produce better
-aggregates than you would have reached for on your own.
+`Date`, `Temporal`, `Map`, `Set`, functions and class instances cannot go in; see
+[Dates](#dates) and [Map / Set](#map--set) for what to reach for instead.
 
 ## Patterns
 
