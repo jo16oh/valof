@@ -188,16 +188,17 @@ them) and because it stringifies on `JSON.stringify` without coming back on
 `Set` are out because they don't survive JSON, and `structuredClone` breaks reference
 identity of keys (see [Map / Set](#map--set)).
 
-A type that violates the rules resolves to one containing `Invalid<"...">`, which fails
-with the reason the moment you hand it to `Val.of` / `Val.companion`:
+A type that violates the rules does not get a usable brand, so it fails with the reason
+the moment you hand it to `Val.of` / `Val.companion`:
 
 ```ts
 type Bad = Val<"Bad", { nickname: string | undefined }>;
 Val.companion<Bad>();
 //            ~~~
-// Property '[__brand]' is missing in type
-//   '{ nickname: Invalid<"required property cannot be undefined; use null or make it optional"> }'
-// but required in type 'AnyVal'.
+// Type 'Bad' does not satisfy the constraint 'AnyVal'.
+//   Types of property '__valof_internal_phantom_brand' are incompatible.
+//     Type '{ nickname: Invalid<"required property cannot be undefined; use null or make it optional"> }'
+//     is not assignable to type 'string'.
 ```
 
 ### The migration friction
