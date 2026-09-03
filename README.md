@@ -296,7 +296,7 @@ be a silent way past any type's `equals`.
 A payload becomes a value by being **sealed**. `Val.sealer` is the default seal — brand
 the payload and copy it. `Val.companion` is the same shape minus the constructor, and
 `.implSeal` replaces that seal with your own. The default one comes in as a second
-parameter, so you lift without naming the type again:
+parameter, so you seal without naming the type again:
 
 ```ts
 export type Age = Val<"Age", number>;
@@ -319,7 +319,7 @@ the payload either way.
 
 The first parameter is deep-readonly, which is about what it _accepts_: a caller's plain
 mutable object goes straight in, with no repacking. Normalize by deriving — `toSorted`,
-a spread — and let the lift you return through take ownership; that deep copy is the only
+a spread — and let the default seal you return through take ownership; that deep copy is the only
 one on the path. (`seal` is about closing a payload into a value, not about `Object.seal`
 — nothing is frozen at runtime.)
 
@@ -337,7 +337,7 @@ checked one beside it would be a hole straight past the first.
 
 `.implSeal` is optional. A companion without one has no constructor at all, which is the
 right shape when the values arrive from a boundary — a decoder, a database row, an
-external API — and `Val.of` is where you lift them:
+external API — and `Val.of` is where you seal them:
 
 ```ts
 export type UserId = Val<"UserId", string>;
@@ -528,7 +528,7 @@ export function parseUser(json: string): Result<User> {
 ```
 
 If the values are already validated when they reach you — a decoder, a database row —
-register no seal at all and lift at the boundary:
+register no seal of your own and seal at the boundary with `Val.of`:
 
 ```ts
 const rowSchema = z.object({ user_id: z.string().uuid() });
@@ -612,7 +612,7 @@ All of it follows from the one line: values are plain data.
 |                                       |                                                          |
 | ------------------------------------- | -------------------------------------------------------- |
 | `Val<K, T>`                           | a branded value type                                     |
-| `Val.of<V>(value)`                    | lifts a raw value into a Val, copying it                 |
+| `Val.of<V>(value)`                    | the default seal, with the type named explicitly         |
 | `Val.unwrap(value)`                   | a mutable copy of the payload                            |
 | `Val.sealer<V>()`                     | the default seal, carrying the default behaviour         |
 | `Val.sealer<V>().impl(fns)`           | the constructor plus your functions                      |

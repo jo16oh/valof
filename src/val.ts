@@ -241,7 +241,7 @@ type Constructed<V extends AnyVal, F> = F extends (...args: never[]) => infer R 
  * where it is written rather than at the `with` that later needs it (design §6.7).
  *
  * The parameter is deep-readonly, which is about what it *accepts* — a caller's mutable
- * object goes straight in. Ownership is taken at the other end, by the lift the seal
+ * object goes straight in. Ownership is taken at the other end, by the default seal it
  * returns through, so a seal never needs a copy of its argument to work from; normalising
  * means deriving (`toSorted`, spread), not writing (design §6.8).
  *
@@ -537,7 +537,7 @@ function copy<T>(value: T): T {
  * The same operation a `Val.sealer` performs when called, and the same one a custom seal
  * receives as its second parameter — the three differ only in where the type comes from.
  * So this is the constructor for a type that registered no seal of its own, and the way to
- * lift at a trusted boundary; where a type does have one, using this closes the payload
+ * way to seal at a trusted boundary; where a type does have one, using this closes the payload
  * with the default seal instead of that type's, which is to say it skips the checks
  * (design §2.2).
  */
@@ -704,7 +704,7 @@ function sealer<V extends AnyVal>(): Sealer<V> {
  *   .implSeal((u: SeedOf<User>) => check(u));
  * ```
  *
- * Use `Val.of` inside the seal to lift the checked payload. Since no constructor is ever
+ * The seal returns through the default seal handed to it. Since no constructor is ever
  * produced, and `create` hands its payload to the seal, there is nothing that reaches a
  * value without passing it.
  *
@@ -739,7 +739,7 @@ function build<V extends AnyVal>(ctors: Ctors): object {
 /**
  * The namespace sharing its name with the `Val` type.
  *
- * - `Val.of` — lifts a raw value into a Val, copying it (design §2.2, §4.1)
+ * - `Val.of` — the default seal, with the type named explicitly (design §2.2, §4.1)
  * - `Val.unwrap` — the reverse of `of`: a mutable copy of the payload
  * - `Val.sealer` — a constructor, and `.impl()` to attach behaviour to it
  * - `Val.companion` — the same, minus the constructor
