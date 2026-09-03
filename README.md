@@ -30,7 +30,7 @@ A class gives you none of these.
 ```ts
 import { Val } from "valof";
 
-export type User = Val<"app/User", { id: string; name: string; nickname?: string }>;
+export type User = Val<"User", { id: string; name: string; nickname?: string }>;
 
 export const User = Val.sealer<User>().impl({
   greet(u) {
@@ -58,10 +58,10 @@ first parameter is something else is rejected — constructors go to
 Only primitives, other Vals, arrays and records can live inside a Val — see
 [Allowed types](#allowed-types).
 
-Name the brand after the type it brands, so the two cannot drift apart. Two Vals collide
-only when they share a brand string — and when they do, and their payloads match, each is
-silently assignable to the other — so prefix a namespace once the same name could
-plausibly exist in another package: `"app/User"`.
+Name the brand after the type it brands, so the two cannot drift apart. Two Vals with the
+same brand string and the same payload are silently assignable to each other, so where the
+same name really does live in two places — `Id` in two domains of a monorepo — prefix it:
+`"billing/Id"`.
 
 ### Constructors copy their argument
 
@@ -252,7 +252,7 @@ An id minted inside the constructor, a `createdAt`, a version counter: `create` 
 them, the seal preserves them, and `.unpatchable` keeps the update path off them.
 
 ```ts
-export type User = Val<"app/User", { id: string; name: string; email: string }>;
+export type User = Val<"User", { id: string; name: string; email: string }>;
 
 export const User = Val.companion<User>()
   .implCreate((f: Omit<SeedOf<User>, "id">) => ({ id: crypto.randomUUID(), ...f }))
@@ -341,7 +341,7 @@ Validate in the seal, and every path to a value is validated with it — `with`,
 and `create` all route through it:
 
 ```ts
-export type User = Val<"app/User", { id: string; name: string }>;
+export type User = Val<"User", { id: string; name: string }>;
 
 export const User = Val.companion<User>().implSeal((u, seal): Result<User> =>
   u.name.length > 0 ? ok(seal(u)) : err("name must not be empty"),
