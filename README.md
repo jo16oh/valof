@@ -63,10 +63,6 @@ only when they share a brand string — and when they do, and their payloads mat
 silently assignable to the other — so prefix a namespace once the same name could
 plausibly exist in another package: `"app/User"`.
 
-The brand lives under two phantom keys that never exist at runtime. They do appear in
-`keyof YourVal`, so reach for `PayloadOf<V>` or `SeedOf<V>` when you want the payload's
-keys alone.
-
 ### Constructors copy their argument
 
 Constructors deep-copy what you pass them, so keeping a reference to it buys you
@@ -292,39 +288,11 @@ Only four things can live inside a Val:
 | Records    | `Readonly<Record<string, allowed>>`                 |
 
 **Avoid nested plain objects — make the nesting a Val.** `Date`, `Temporal`, `Map`,
-`Set`, functions and class instances cannot go in.
+`Set`, functions and class instances cannot go in; see [Dates](#dates) and
+[Map / Set](#map--set) for what to reach for instead.
 
-### Why
-
-1. **Type inference stays cheap** — nesting goes through Vals, so it never recurses far
-2. **Structural equality is well-defined** — no prototypes, no cycles to reason about
-3. **The serialization boundary is always crossable** — `structuredClone` and JSON are
-   always safe
-4. **It pushes the design the right way** — composing Vals is forced, which tends to
-   produce sane aggregates
-
-`Date` does not come back from a JSON round trip, and its mutators reach past
-`Object.freeze` — use an ISO 8601 string or epoch ms (see [Dates](#dates)). `Map` / `Set`
-do not survive JSON either (see [Map / Set](#map--set)).
-
-A type that violates the rules does not get a usable brand, so it fails with the reason
-the moment you hand it to `Val.of` / `Val.companion`:
-
-```ts
-type Bad = Val<"Bad", { nickname: string | undefined }>;
-Val.companion<Bad>();
-//            ~~~
-// Type 'Bad' does not satisfy the constraint 'AnyVal'.
-//   Types of property '__valof_internal_phantom_brand' are incompatible.
-//     Type '{ nickname: Invalid<"required property cannot be undefined; use null or make it optional"> }'
-//     is not assignable to type 'string'.
-```
-
-### The migration friction
-
-Plain nested objects from API responses or existing code cannot be passed straight
-through: you have to assemble the child Vals inside the seal. That is intentional — it
-gives normalization a place to live at the boundary.
+Being made to compose Vals rather than nest object literals tends to produce better
+aggregates than you would have reached for on your own.
 
 ## Recommended tsconfig, and `null` / `undefined`
 
