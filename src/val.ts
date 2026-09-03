@@ -382,7 +382,9 @@ export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: S
  * A sealer already carries the default behaviour, so a Val with no methods of its
  * own needs nothing further. There is no `.implSeal` here on purpose: a sealer *is*
  * the default seal, and a second, checked one beside it would be a hole straight past
- * the first (design §6.1).
+ * the first (design §6.1). Nor is there `.implCreate`: beside a callable constructor a
+ * `create` narrows nothing, so the name would promise a guarantee it cannot give
+ * (design §6.7).
  */
 export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
   impl: {

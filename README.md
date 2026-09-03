@@ -381,6 +381,12 @@ because the library never inspects one. Put the checks in the seal (`seal(v: unk
 type-checks, so schema-style parsing fits), and keep anything that can fail while
 _building_ the payload in an ordinary exported function.
 
+There is no `.implCreate` on a sealer. A sealer is callable, so a `create` beside it would
+narrow nothing — `Task.create({ title })` mints an id while `Task({ id: "forged", … })`
+sits right next to it — and the name would promise a guarantee it cannot give. If you want
+a multi-argument shorthand for a type with no invariants, export a function; if the minted
+field must be safe, that type wants a companion.
+
 ## `with` / `update`
 
 ```ts
