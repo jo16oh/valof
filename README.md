@@ -64,49 +64,6 @@ user.name; // "alice"
 
 Values are not frozen, though: `readonly` is a promise in the type, not at runtime.
 
-## Construct in normal form
-
-> Construct your Vals in normal form. Equality is defined structurally.
-
-```ts
-export type Email = Val<"Email", string>;
-
-export const Email = Val.companion<Email>().implSeal(
-  (s, seal) => seal(s.trim().toLowerCase()), // ← normalize here
-);
-```
-
-`equals` can be overridden, but the override **only applies to top-level comparisons,
-never when a parent compares its children.** The brand is phantom, so a parent's deep
-equals sees the child value and cannot tell that it is an `Email`.
-
-```ts
-Order.equals(o1, o2); // the Money inside is compared generically, not via Money.equals
-```
-
-**Normalize in the seal and structural equality becomes correct on its own.**
-
-The default `equals`:
-
-- compares structurally and deeply
-- is **independent of key order**
-- **ignores keys whose value is `undefined`** (`{ a: undefined }` equals `{}`)
-- treats `NaN` as equal to `NaN`, and `-0` as equal to `0`
-
-An override receives it as a third argument, so it can fall back to it:
-
-```ts
-// Published docs are identified by id; drafts have no stable one.
-const Doc = Val.sealer<Doc>().impl({
-  equals: (a, b, deepEquals) => (a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id),
-});
-
-Doc.equals(a, b); // callers still pass two — the third is bound
-```
-
-That argument is the structural comparison, not "the `equals` you are overriding", so it
-does not reach a nested Val's own `equals` either.
-
 ## Smart constructors
 
 A payload becomes a value by being **sealed**. `Val.sealer` is the default seal — brand
@@ -186,6 +143,49 @@ narrow nothing — `Task.create({ title })` mints an id while `Task({ id: "forge
 sits right next to it — and the name would promise a guarantee it cannot give. If you want
 a multi-argument shorthand for a type with no invariants, export a function; if the minted
 field must be safe, that type wants a companion.
+
+## Construct in normal form
+
+> Construct your Vals in normal form. Equality is defined structurally.
+
+```ts
+export type Email = Val<"Email", string>;
+
+export const Email = Val.companion<Email>().implSeal(
+  (s, seal) => seal(s.trim().toLowerCase()), // ← normalize here
+);
+```
+
+`equals` can be overridden, but the override **only applies to top-level comparisons,
+never when a parent compares its children.** The brand is phantom, so a parent's deep
+equals sees the child value and cannot tell that it is an `Email`.
+
+```ts
+Order.equals(o1, o2); // the Money inside is compared generically, not via Money.equals
+```
+
+**Normalize in the seal and structural equality becomes correct on its own.**
+
+The default `equals`:
+
+- compares structurally and deeply
+- is **independent of key order**
+- **ignores keys whose value is `undefined`** (`{ a: undefined }` equals `{}`)
+- treats `NaN` as equal to `NaN`, and `-0` as equal to `0`
+
+An override receives it as a third argument, so it can fall back to it:
+
+```ts
+// Published docs are identified by id; drafts have no stable one.
+const Doc = Val.sealer<Doc>().impl({
+  equals: (a, b, deepEquals) => (a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id),
+});
+
+Doc.equals(a, b); // callers still pass two — the third is bound
+```
+
+That argument is the structural comparison, not "the `equals` you are overriding", so it
+does not reach a nested Val's own `equals` either.
 
 ## `with` / `update`
 
