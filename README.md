@@ -114,17 +114,7 @@ export const User = Val.companion<User>()
 User.create(fields); // Result<User> — create's payload, sealed
 ```
 
-`create` therefore returns whatever the seal returns, and it is not a way past the seal.
-The flip side is that a `create` cannot fail on its own: it has no `Result` to hand back,
-because the library never inspects one. Put the checks in the seal (`seal(v: unknown)`
-type-checks, so schema-style parsing fits), and keep anything that can fail while
-_building_ the payload in an ordinary exported function.
-
-There is no `.implCreate` on a sealer. A sealer is callable, so a `create` beside it would
-narrow nothing — `Task.create({ title })` generates an id while `Task({ id: "forged", … })`
-sits right next to it, and the name would promise a guarantee it cannot give. If you want
-a multi-argument shorthand for a type with no invariants, export a function; if the
-generated field must be safe, that type wants a companion.
+Put the checks in the seal (`seal(v: unknown)` type-checks, so schema-style parsing fits).
 
 ## Construct in normal form
 
@@ -176,8 +166,7 @@ User.with(user, { name: "sue" });
 // internally seal({ ...user, ...patch }) — deriving a value means sealing again
 ```
 
-Both go through the seal, so they return what it returns: `Result<User>` with a custom
-seal, the Val itself with the default one. Neither is a way around a smart constructor.
+Both go through the seal, so they return what it returns.
 
 | patch              | meaning         |
 | ------------------ | --------------- |
@@ -204,8 +193,6 @@ const Point = Val.companion<Point>()
 
 Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 ```
-
-Taking the seal is optional: a two-parameter override is published as it stands.
 
 `with` only exists on object-shaped Vals. A `Val<"IsoDate", string>` has nothing to
 patch, so its companion does not carry it at all. `update` is still there, and is
