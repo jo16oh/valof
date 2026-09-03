@@ -100,7 +100,7 @@ describe("basics", () => {
 
 type IsoDate = Val<"IsoDate", string>;
 type Tags = Val<"Tags", Readonly<Record<string, true>>>;
-type Grid = Val<"Grid", readonly (readonly number[])[]>;
+type Grid = Val<"Grid", ReadonlyArray<ReadonlyArray<number>>>;
 
 describe("wrapping primitives and containers", () => {
   test("a primitive can be wrapped directly", () => {
@@ -223,7 +223,7 @@ type Result<T> = Ok<T> | Err;
 
 type Age = Val<"Age", number>;
 
-const Age = Val.companion<Age>().implFrom((n: number): Result<Age> =>
+const Age = Val.companion<Age>().implSeal((n: number): Result<Age> =>
   n >= 0 && Number.isInteger(n)
     ? { ok: true, value: Val.of<Age>(n) }
     : { ok: false, error: "age must be a non-negative integer" },
@@ -235,19 +235,19 @@ describe("smart constructor", () => {
     expect(typeof Age).not.toBe("function");
   });
 
-  test("from may return a Result (the library never inspects it)", () => {
-    expect(Age.from(30)).toEqual({ ok: true, value: 30 });
-    expect(Age.from(-1)).toEqual({ ok: false, error: "age must be a non-negative integer" });
+  test("seal may return a Result (the library never inspects it)", () => {
+    expect(Age.seal(30)).toEqual({ ok: true, value: 30 });
+    expect(Age.seal(-1)).toEqual({ ok: false, error: "age must be a non-negative integer" });
   });
 
   test("construct in normal form", () => {
     type Email = Val<"Email", string>;
-    const Email = Val.companion<Email>().implFrom((s: string) =>
+    const Email = Val.companion<Email>().implSeal((s: string) =>
       Val.of<Email>(s.trim().toLowerCase()),
     );
-    expect(Email.from("  A@B.com ")).toBe("a@b.com");
+    expect(Email.seal("  A@B.com ")).toBe("a@b.com");
     // Normalised at construction, so a structural comparison from a parent is correct
-    expect(deepEquals(Email.from(" a@b.com"), Email.from("A@B.COM"))).toBe(true);
+    expect(deepEquals(Email.seal(" a@b.com"), Email.seal("A@B.COM"))).toBe(true);
   });
 });
 
@@ -278,9 +278,9 @@ describe("with", () => {
     expect(u.name).toBe("bob");
   });
 
-  test("goes through from when from is defined", () => {
+  test("goes through a custom seal when one is defined", () => {
     type Account = Val<"Account", { id: string; balance: number }>;
-    const Account = Val.companion<Account>().implFrom(
+    const Account = Val.companion<Account>().implSeal(
       (a: { id: string; balance: number }): Result<Account> =>
         a.balance >= 0
           ? { ok: true, value: Val.of<Account>(a) }
@@ -300,7 +300,7 @@ describe("with", () => {
     expectTypeOf(Account.with(acc, { balance: 1 })).toEqualTypeOf<Result<Account>>();
   });
 
-  test("returns the Val itself when there is no from", () => {
+  test("returns the Val itself when the seal is the default", () => {
     const u = User({ id: "a", name: "bob" });
     expectTypeOf(User.with(u, { name: "x" })).toEqualTypeOf<User>();
   });
@@ -328,7 +328,7 @@ describe("update", () => {
     });
   });
 
-  test("goes through from when from is defined", () => {
+  test("goes through a custom seal when one is defined", () => {
     expect(Age.update(Val.of<Age>(30), (n) => n + 1)).toEqual({ ok: true, value: 31 });
     expect(Age.update(Val.of<Age>(0), (n) => n - 1)).toEqual({
       ok: false,
@@ -454,7 +454,7 @@ describe("sealer", () => {
   });
 
   test("a companion has no constructor to reach", () => {
-    const Priv = Val.companion<Age>().implFrom((n: number) => Val.of<Age>(n));
+    const Priv = Val.companion<Age>().implSeal((n: number) => Val.of<Age>(n));
     expect(typeof Priv).not.toBe("function");
     // Calling it throws, so keep it in a block that is never evaluated.
     const neverRun = (): unknown =>
@@ -463,10 +463,10 @@ describe("sealer", () => {
     expect(typeof neverRun).toBe("function");
   });
 
-  test("with routes through from, whatever from returns", () => {
+  test("with routes through the seal, whatever the seal returns", () => {
     type Box = Val<"Box", { n: number }>;
-    const seal = Val.sealer<Box>();
-    const Box = Val.companion<Box>().implFrom((b: { n: number }) => ({ tagged: seal(b) }));
+    const box = Val.sealer<Box>();
+    const Box = Val.companion<Box>().implSeal((b: { n: number }) => ({ tagged: box(b) }));
     const out = Box.with(Val.of<Box>({ n: 1 }), { n: 2 });
     expectTypeOf(out).toEqualTypeOf<{ tagged: Box }>();
     expect(out).toEqual({ tagged: { n: 2 } });
@@ -474,40 +474,50 @@ describe("sealer", () => {
 
   test("a constructor that cannot take the payload is rejected where it is written", () => {
     type Point = Val<"Point", { x: number; y: number }>;
-    const seal = Val.sealer<Point>();
-    Val.companion<Point>().implFrom(
-      // @ts-expect-error a from must accept the whole payload; this one takes two numbers
-      (x: number, y: number) => seal({ x, y }),
+    const point = Val.sealer<Point>();
+    Val.companion<Point>().implSeal(
+      // @ts-expect-error a seal must accept the whole payload; this one takes two numbers
+      (x: number, y: number) => point({ x, y }),
     );
   });
 
-  test("create alone leaves with / update out: there is nothing to rebuild through", () => {
+  test("create alone still rebuilds: the default seal is a payload function too", () => {
     type Point = Val<"Point", { x: number; y: number }>;
-    const seal = Val.sealer<Point>();
-    const Point = Val.companion<Point>().implCreate((x: number, y: number) => seal({ x, y }));
+    const Point = Val.companion<Point>().implCreate((x: number, y: number) => ({ x, y }));
 
-    expect(Point.create(1, 2)).toEqual({ x: 1, y: 2 });
-    expectTypeOf(Point).not.toHaveProperty("with");
-    expectTypeOf(Point).not.toHaveProperty("update");
-
-    const loose = Point as unknown as Record<string, (...args: unknown[]) => unknown>;
-    expect(() => loose.with(Val.of<Point>({ x: 1, y: 2 }), { x: 3 })).toThrow(/needs a `from`/);
-    expect(() => loose.update(Val.of<Point>({ x: 1, y: 2 }), (v: unknown) => v)).toThrow(
-      /needs a `from`/,
-    );
+    const p = Point.create(1, 2);
+    expect(p).toEqual({ x: 1, y: 2 });
+    expectTypeOf(p).toEqualTypeOf<Point>();
+    expect(Point.with(p, { x: 3 })).toEqual({ x: 3, y: 2 });
+    expect(Point.update(p, (v) => ({ ...v, y: 9 }))).toEqual({ x: 1, y: 9 });
   });
 
-  test("create and from compose: with routes through from, never re-running create", () => {
+  test("what create returns is sealed: it is not a way past the seal", () => {
+    type Score = Val<"Score", { points: number }>;
+    const Score = Val.companion<Score>()
+      .implCreate((points: number) => ({ points }))
+      .implSeal((s: SeedOf<Score>): Result<Score> =>
+        s.points >= 0
+          ? { ok: true, value: Val.of<Score>(s) }
+          : { ok: false, error: "points must not be negative" },
+      );
+
+    expect(Score.create(3)).toEqual({ ok: true, value: { points: 3 } });
+    expect(Score.create(-1)).toEqual({ ok: false, error: "points must not be negative" });
+    expectTypeOf(Score.create(1)).toEqualTypeOf<Result<Score>>();
+  });
+
+  test("create and seal compose: with re-seals, never re-running create", () => {
     type User = Val<"user/User", { id: string; name: string }>;
     type Fields = Omit<SeedOf<User>, "id">;
 
     let minted = 0;
     const User = Val.companion<User>()
-      .implCreate((f: Fields): User => {
+      .implCreate((f: Fields): SeedOf<User> => {
         minted += 1;
-        return Val.of<User>({ id: `id-${minted}`, ...f });
+        return { id: `id-${minted}`, ...f };
       })
-      .implFrom((u: SeedOf<User>): User => Val.of<User>(u));
+      .implSeal((u: SeedOf<User>): User => Val.of<User>(u));
 
     const u = User.create({ name: "bob" });
     expect(u).toEqual({ id: "id-1", name: "bob" });
@@ -518,10 +528,10 @@ describe("sealer", () => {
     expectTypeOf(v).toEqualTypeOf<User>();
   });
 
-  test("your own with still wins over a create-only companion's absence", () => {
+  test("your own with still wins over the default rebuild", () => {
     type Point = Val<"Point", { x: number; y: number }>;
-    const seal = Val.sealer<Point>();
-    const make = (x: number, y: number): Point => seal({ x, y });
+    const point = Val.sealer<Point>();
+    const make = (x: number, y: number): Point => point({ x, y });
 
     const Point = Val.companion<Point>()
       .implCreate(make)
@@ -602,20 +612,26 @@ describe("ownership", () => {
     expect(IsoDate("2026-09-02")).toBe("2026-09-02");
   });
 
-  test("`from` owns the copy, and Val.of is how it gets one", () => {
+  test("the seal takes ownership through Val.of, not by copying its argument", () => {
     type Point = Val<"Point", { x: number; y: number }>;
-    const Point = Val.companion<Point>().implFrom((p: { x: number; y: number }) =>
-      Val.of<Point>(p),
-    );
+    const Point = Val.companion<Point>().implSeal((p) => Val.of<Point>(p));
     const raw = { x: 1, y: 2 };
-    const p = Point.from(raw);
+    const p = Point.seal(raw);
     raw.x = 99;
     expect(p.x).toBe(1);
+  });
+
+  test("a seal normalises by deriving, and leaves the caller's object alone", () => {
+    type Tags = Val<"Tags", string[]>;
+    const Tags = Val.companion<Tags>().implSeal((t) => Val.of<Tags>(t.toSorted()));
+    const raw = ["b", "a"];
+    expect(Tags.seal(raw)).toEqual(["a", "b"]);
+    expect(raw).toEqual(["b", "a"]);
   });
 });
 
 // ---------------------------------------------------------------------------
-// impl / implFrom（§6.5）
+// impl / implSeal（§6.5）
 // ---------------------------------------------------------------------------
 
 describe("impl", () => {
@@ -653,18 +669,25 @@ describe("impl", () => {
     });
   });
 
-  test("`from` cannot be smuggled in as an ordinary method", () => {
+  test("`seal` cannot be smuggled in as an ordinary method", () => {
     Val.companion<Age>().impl({
-      // @ts-expect-error `from` belongs to .implFrom(), not to .impl()
-      from: (n: number) => Val.of<Age>(n),
+      // @ts-expect-error `seal` belongs to .implSeal(), not to .impl()
+      seal: (n: number) => Val.of<Age>(n),
+    });
+  });
+
+  test("`create` cannot be smuggled in either: it would never reach the seal", () => {
+    Val.companion<Age>().impl({
+      // @ts-expect-error `create` belongs to .implCreate(), not to .impl()
+      create: (n: number) => Val.of<Age>(n),
     });
   });
 });
 
-describe("implFrom", () => {
-  test("registers `from` and routes with / update through it, without any impl", () => {
+describe("implSeal", () => {
+  test("registers `seal` and routes with / update through it, without any impl", () => {
     type Score = Val<"Score", { points: number }>;
-    const Score = Val.companion<Score>().implFrom((s: { points: number }): Result<Score> =>
+    const Score = Val.companion<Score>().implSeal((s: { points: number }): Result<Score> =>
       s.points >= 0
         ? { ok: true, value: Val.of<Score>(s) }
         : { ok: false, error: "points must not be negative" },
@@ -682,7 +705,10 @@ describe("implFrom", () => {
   test("methods added afterwards keep the contextual type and the routing", () => {
     type Score = Val<"Score", { points: number }>;
     const Score = Val.companion<Score>()
-      .implFrom((s: { points: number }) => Val.of<Score>(s))
+      .implSeal((s) => {
+        expectTypeOf(s).toEqualTypeOf<{ readonly points: number }>();
+        return Val.of<Score>(s);
+      })
       .impl({
         double(v) {
           expectTypeOf(v).toEqualTypeOf<Score>();
@@ -690,12 +716,12 @@ describe("implFrom", () => {
         },
       });
 
-    const s = Score.from({ points: 3 });
+    const s = Score.seal({ points: 3 });
     expect(Score.double(s)).toBe(6);
     expectTypeOf(Score.with(s, { points: 1 })).toEqualTypeOf<Score>();
   });
 
-  test("is optional: a companion with no from is a behaviour bundle over Val.of", () => {
+  test("is optional: a companion with no seal is a behaviour bundle over Val.of", () => {
     type UserId = Val<"UserId", string>;
     const UserId = Val.companion<UserId>().impl({
       short(id) {
@@ -707,11 +733,18 @@ describe("implFrom", () => {
     const id = Val.of<UserId>("0123456789");
     expect(UserId.short(id)).toBe("01234567");
     expect(UserId.equals(id, Val.of<UserId>("0123456789"))).toBe(true);
-    expectTypeOf(UserId).not.toHaveProperty("from");
+    expectTypeOf(UserId).not.toHaveProperty("seal");
   });
 
-  test("a sealer has no implFrom: a smart constructor beside a plain one is a hole", () => {
-    expectTypeOf(Val.sealer<User>()).not.toHaveProperty("implFrom");
+  test("a sealer has no implSeal: a second, checked seal beside the plain one is a hole", () => {
+    expectTypeOf(Val.sealer<User>()).not.toHaveProperty("implSeal");
+  });
+
+  test("the seal accepts an existing value as readily as a raw payload", () => {
+    type Score = Val<"Score", { points: number }>;
+    const Score = Val.companion<Score>().implSeal((s) => Val.of<Score>(s));
+    const s = Val.of<Score>({ points: 3 });
+    expect(Score.seal(s)).toEqual({ points: 3 });
   });
 });
 
@@ -726,11 +759,11 @@ describe("fields the update path must not touch", () => {
 
   let minted = 0;
   const Account = Val.companion<Account>()
-    .implCreate((f: Fields): Account => {
+    .implCreate((f: Fields): SeedOf<Account> => {
       minted += 1;
-      return Val.of<Account>({ id: `id-${minted}`, ...f });
+      return { id: `id-${minted}`, ...f };
     })
-    .implFrom((a: SeedOf<Account>): Account => Val.of<Account>(a))
+    .implSeal((a: SeedOf<Account>): Account => Val.of<Account>(a))
     .impl({
       with(a, patch: Patch<Fields>): Account {
         return Val.of<Account>({ ...a, ...patch });

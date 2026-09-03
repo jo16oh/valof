@@ -75,9 +75,9 @@ Val.sealer<User>().impl({
 ```
 
 A function whose first parameter is something else is rejected. Factories that parse
-other input are not methods on a value: the smart constructor goes to
-[`.implFrom`](#smart-constructors), and anything beyond it is an ordinary exported
-function.
+other input are not methods on a value: constructors go to
+[`.implSeal` / `.implCreate`](#smart-constructors), and anything beyond them is an
+ordinary exported function.
 
 The Val type is pinned by a type argument rather than inferred because TypeScript cannot
 infer type arguments partially; the methods are inferred by the following call (the same
@@ -194,7 +194,7 @@ Val.companion<Bad>();
 ### The migration friction
 
 Plain nested objects from API responses or existing code cannot be passed straight
-through: you have to assemble the child Vals inside `from`. That is intentional — it
+through: you have to assemble the child Vals inside the seal. That is intentional — it
 gives normalization a place to live at the boundary.
 
 ## Recommended tsconfig, and `null` / `undefined`
@@ -242,7 +242,7 @@ boundary with `?? null`.**
 ```ts
 export type Email = Val<"Email", string>;
 
-export const Email = Val.companion<Email>().implFrom(
+export const Email = Val.companion<Email>().implSeal(
   (s: string) => Val.of<Email>(s.trim().toLowerCase()), // ← normalize here
 );
 ```
@@ -256,7 +256,7 @@ Order.equals(o1, o2); // the Money inside is compared generically, not via Money
 ```
 
 No implementation trick avoids this: it is the structural trade-off between "zero
-runtime cost" and "runtime polymorphism". **Normalize in `from` and structural equality
+runtime cost" and "runtime polymorphism". **Normalize in the seal and structural equality
 becomes correct on its own**, so the constraint pushes you toward the right design.
 
 The default `equals`:
@@ -284,30 +284,45 @@ be a silent way past any type's `equals`.
 
 ## Smart constructors
 
-To make validation unskippable, build the value with `Val.companion`, which is the same
-shape as `Val.sealer` minus the constructor. `.implFrom` registers the smart constructor;
-use `Val.of` inside it to lift the validated value:
+A payload becomes a value by being **sealed**. `Val.sealer` is the default seal — brand
+the payload and copy it. `Val.companion` is the same shape minus the constructor, and
+`.implSeal` replaces that seal with your own; use `Val.of` inside it to lift the checked
+payload:
 
 ```ts
 export type Age = Val<"Age", number>;
 
-export const Age = Val.companion<Age>().implFrom((n: number): Result<Age> =>
+export const Age = Val.companion<Age>().implSeal((n: number): Result<Age> =>
   n >= 0 && Number.isInteger(n) ? ok(Val.of<Age>(n)) : err("age must be a non-negative integer"),
 );
 
 Age(30); // type error: this expression is not callable
-Age.from(30); // Result<Age>
+Age.seal(30); // Result<Age>
 ```
 
-`from` gets its own step rather than sitting in `.impl` because `.impl` fixes every
-method's first parameter to the Val, and a smart constructor's first parameter is
-whatever it parses. `.impl` declares `from?: never`, so writing one there is a type
-error rather than a method that quietly never gets wired up.
+Checking is one thing a seal may do; normalizing and wrapping in a `Result` are others.
+What makes it the seal is that **every path to a value goes through it** — `with`,
+`update` and `create` included — so nothing reaches a value without passing it.
 
-There is no `.implFrom` on a sealer: a smart constructor sitting next to a plain
-constructor would be a hole straight past it.
+Its parameter is deep-readonly, which is about what it _accepts_: a caller's plain
+mutable object goes straight in, with no repacking. Normalize by deriving — `toSorted`,
+a spread — and let the `Val.of` you return through take ownership; that deep copy is the
+only one on the path. (`seal` is about closing a payload into a value, not about
+`Object.seal` — nothing is frozen at runtime.)
 
-`.implFrom` is optional. A companion without one has no constructor at all, which is the
+A seal must be **idempotent**: sealing a value's own payload has to give that value back.
+Minting — a generated id, a timestamp — belongs in [`create`](#create) instead, or `with`
+would mint a new id every time it re-seals.
+
+The seal gets its own step rather than sitting in `.impl` because `.impl` fixes every
+method's first parameter to the Val, and a seal's first parameter is the payload. `.impl`
+declares `seal?: never` and `create?: never`, so writing one there is a type error rather
+than a method that quietly never gets wired up.
+
+There is no `.implSeal` on a sealer: a sealer **is** the default seal, and a second,
+checked one beside it would be a hole straight past the first.
+
+`.implSeal` is optional. A companion without one has no constructor at all, which is the
 right shape when the values arrive from a boundary — a decoder, a database row, an
 external API — and `Val.of` is where you lift them:
 
@@ -323,40 +338,58 @@ export const UserId = Val.companion<UserId>().impl({
 const id = Val.of<UserId>(row.user_id); // trusted at the boundary
 ```
 
-Requiring `.implFrom` would close nothing — `Val.of` is public either way — and would
-only invite a rubber-stamp `from: (v) => Val.of<V>(v)`, which reads like validation and
-is not.
+Requiring `.implSeal` would close nothing — `Val.of` is public either way — and would
+only invite a rubber-stamp `(v) => Val.of<V>(v)`, which reads like validation and is not.
 
-Nothing is gated, and nothing inspects your methods for a magic `from` key. Callability
+Nothing is gated, and nothing inspects your methods for a magic `seal` key. Callability
 is provenance: **a sealer is a constructor, so anything built from one stays callable,
 and a companion built without one never was.** The plain constructor is not disabled —
 it was never created.
 
 **No `Result` type is provided.** neverthrow, Effect, fp-ts, or your own — all work. The
-library simply propagates `from`'s return type and never inspects its contents.
+library simply propagates the seal's return type and never inspects its contents.
+
+### `create`
+
+Constructors that are not payload functions — several arguments, a generated id, a wire
+format — are registered separately. A `create` builds a **payload**; the seal closes it:
+
+```ts
+export const User = Val.companion<User>()
+  .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }))
+  .implSeal((u: SeedOf<User>): Result<User> => check(u));
+
+User.create(fields); // Result<User> — create's payload, sealed
+```
+
+`create` therefore returns whatever the seal returns, and it is not a way past the seal.
+The flip side is that a `create` cannot fail on its own: it has no `Result` to hand back,
+because the library never inspects one. Put the checks in the seal (`seal(v: unknown)`
+type-checks, so schema-style parsing fits), and keep anything that can fail while
+_building_ the payload in an ordinary exported function.
 
 ## `with` / `update`
 
 ```ts
 User.with(user, { name: "sue" });
-// internally from({ ...user, ...patch }) — from is always applied when present
+// internally seal({ ...user, ...patch }) — deriving a value means sealing again
 ```
 
-When `from` is defined, `with` returns `ReturnType<typeof from>` (e.g. `Result<User>`);
-otherwise it returns the Val itself. **There is no hole through which `with` bypasses
-the smart constructor.**
+With a custom seal, `with` returns `ReturnType<typeof seal>` (e.g. `Result<User>`);
+with the default one it returns the Val itself. **There is no hole through which `with`
+bypasses the smart constructor.**
 
-This is the one place `from` keeps a special meaning, and it is why `from` is reserved
-for one job: **taking a whole payload and revalidating it.** A constructor that does
-anything else is rejected where it is written, not at the `with` that later needs it:
+This is why a seal takes the whole payload — `with` has to be able to feed it one. A
+constructor that does anything else is rejected where it is written, not at the `with`
+that later needs it:
 
 ```ts
-Val.companion<Point>().implFrom((x: number, y: number) => Val.of<Point>({ x, y }));
+Val.companion<Point>().implSeal((x: number, y: number) => Val.of<Point>({ x, y }));
 //                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// not assignable to 'Revalidator<Point>' — a `from` takes the whole payload
+// not assignable to 'SealImpl<Point>' — a seal takes the whole payload
 ```
 
-That one is a [`create`](#create-vs-from).
+That one is a [`create`](#create).
 
 | patch              | meaning         |
 | ------------------ | --------------- |
@@ -373,7 +406,7 @@ Accidental deletion is guarded in layers:
 
 1. **`undefined` on a required key is a type error** (with EOPT: true)
 2. deleting an optional key is a legitimate operation
-3. with EOPT off, a result that breaks the invariant is still caught by `from` — it
+3. with EOPT off, a result that breaks the invariant is still caught by the seal — it
    fails loudly rather than corrupting quietly
 
 `with` and `update` are defaults, not fixtures: define either one in `.impl` and yours
@@ -382,7 +415,7 @@ at, and it is also how a primitive Val — which has no `with` by default — ca
 
 ```ts
 const Point = Val.companion<Point>()
-  .implFrom(make)
+  .implCreate((x: number, y: number) => ({ x, y }))
   .impl({
     with(p, patch: { x?: number; y?: number }): Point {
       return make(patch.x ?? p.x, patch.y ?? p.y);
@@ -429,8 +462,8 @@ Caveats:
 
 ### Schema validation
 
-Validate in `from`, and the whole update path is validated with it — `with` and `update`
-both route through it:
+Validate in the seal, and every path to a value is validated with it — `with`, `update`
+and `create` all route through it:
 
 ```ts
 const schema = z.object({ id: z.string().uuid(), name: z.string().min(1) });
@@ -438,7 +471,7 @@ const schema = z.object({ id: z.string().uuid(), name: z.string().min(1) });
 export type User = Val<"app/User", { id: string; name: string }>;
 
 export const User = Val.companion<User>()
-  .implFrom((input: unknown): Result<User> => {
+  .implSeal((input: unknown): Result<User> => {
     const r = schema.safeParse(input);
     return r.success ? ok(Val.of<User>(r.data)) : err(r.error.message);
   })
@@ -448,26 +481,26 @@ export const User = Val.companion<User>()
     },
   });
 
-User.from({ id, name: "bob" }); // Result<User>
-User.with(user, { name: "sue" }); // Result<User> — revalidated
+User.seal({ id, name: "bob" }); // Result<User>
+User.with(user, { name: "sue" }); // Result<User> — sealed again
 ```
 
-`unknown` is a fine parameter type here: a `from` only has to _accept_ the payload.
+`unknown` is a fine parameter type here: a seal only has to _accept_ the payload.
 
-**Decoding a wire format does not belong in `from`.** `from` takes a payload; a function
-that takes a JSON string is a `create`, and a companion whose only constructor is a
-`create` has no `with`. Keep them separate:
+**Decoding a wire format does not belong in the seal.** A seal takes a payload; a
+function that takes a JSON string takes something else, and it can fail before there is
+a payload at all — which a `create` cannot express. Keep it separate:
 
 ```ts
-export const User = Val.companion<User>().implFrom((input: unknown): Result<User> => …);
+export const User = Val.companion<User>().implSeal((input: unknown): Result<User> => …);
 
 export function parseUser(json: string): Result<User> {
-  return User.from(JSON.parse(json));
+  return User.seal(JSON.parse(json));
 }
 ```
 
 If the values are already validated when they reach you — a decoder, a database row —
-register no constructor at all and lift at the boundary:
+register no seal at all and lift at the boundary:
 
 ```ts
 const rowSchema = z.object({ user_id: z.string().uuid() });
@@ -477,13 +510,14 @@ export function decodeUserRow(row: unknown): UserId {
 }
 ```
 
-The trade is that `with` and `update` then rebuild by copying and revalidate nothing.
+The trade is that `with` and `update` then rebuild through the default seal, which
+copies and checks nothing.
 Choose it when the boundary is the only place the invariant can be checked.
 
 ### Fields the update path must not touch
 
-An id minted inside the constructor, a `createdAt`, a version counter: `create` produces
-them, `from` preserves them, and narrowing the patch keeps `with` off them.
+An id minted inside the constructor, a `createdAt`, a version counter: `create` mints
+them, the seal preserves them, and narrowing the patch keeps `with` off them.
 
 ```ts
 export type User = Val<"app/User", { id: string; name: string; email: string }>;
@@ -491,8 +525,8 @@ type Fields = Omit<SeedOf<User>, "id">;
 type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
 export const User = Val.companion<User>()
-  .implCreate((f: Fields): User => Val.of<User>({ id: crypto.randomUUID(), ...f }))
-  .implFrom((u: SeedOf<User>): User => Val.of<User>(u))
+  .implCreate((f: Fields): SeedOf<User> => ({ id: crypto.randomUUID(), ...f }))
+  .implSeal((u: SeedOf<User>): User => Val.of<User>(u))
   .impl({
     with(u, patch: Patch<Fields>): User {
       return Val.of<User>({ ...u, ...patch });
@@ -538,7 +572,7 @@ unforgeable, `id` belongs outside the value.
 export type IsoDate = Val<"IsoDate", string>;
 
 export const IsoDate = Val.companion<IsoDate>()
-  .implFrom((s: string) => {
+  .implSeal((s: string) => {
     /* validate */
   })
   .impl({
@@ -568,16 +602,16 @@ All of it follows from the one line: values are plain data.
 
 ## API
 
-|                                    |                                                 |
-| ---------------------------------- | ----------------------------------------------- |
-| `Val<K, T>`                        | a branded value type                            |
-| `Val.of<V>(value)`                 | lifts a raw value into a Val, copying it        |
-| `Val.unwrap(value)`                | a mutable copy of the payload                   |
-| `Val.sealer<V>()`                  | the constructor, carrying the default behaviour |
-| `Val.sealer<V>().impl(fns)`        | the constructor plus your functions             |
-| `Val.companion<V>().impl(fns)`     | behaviour only — no constructor                 |
-| `Val.companion<V>().implFrom(f)`   | registers the payload revalidator as `from`     |
-| `Val.companion<V>().implCreate(f)` | registers a free-form constructor as `create`   |
+|                                    |                                                          |
+| ---------------------------------- | -------------------------------------------------------- |
+| `Val<K, T>`                        | a branded value type                                     |
+| `Val.of<V>(value)`                 | lifts a raw value into a Val, copying it                 |
+| `Val.unwrap(value)`                | a mutable copy of the payload                            |
+| `Val.sealer<V>()`                  | the default seal, carrying the default behaviour         |
+| `Val.sealer<V>().impl(fns)`        | the constructor plus your functions                      |
+| `Val.companion<V>().impl(fns)`     | behaviour only — no constructor                          |
+| `Val.companion<V>().implSeal(f)`   | replaces the seal — payload in, value out                |
+| `Val.companion<V>().implCreate(f)` | registers `create`: any arguments, a payload out, sealed |
 
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
 deep comparison, which is not exported on its own — an override receives it as a third
@@ -610,8 +644,9 @@ companion: `Sealer`, `Sealed`, `Companion` and `CompanionBuilder`.
 
 Everything else is internal. `Primitive`, `Validate`, `DeepReadonly`, `OptionalKeys` and
 `Invalid` only ever appear inside a resolved `Val<K, T>` — `Invalid<"...">` still shows
-up by name in the diagnostics above. `.impl` and `.implFrom` type their arguments
-contextually, so there is no need to spell `CompanionMethods` or `Revalidator` either.
+up by name in the diagnostics above. `.impl`, `.implSeal` and `.implCreate` type their
+arguments contextually, so there is no need to spell `CompanionMethods` or `SealImpl`
+either.
 
 ## Development
 

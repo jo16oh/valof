@@ -123,8 +123,8 @@ export type PayloadOf<V extends AnyVal> = V extends {
   : never;
 
 /**
- * What a value can be grown from: the payload as constructors, `Val.of` and `from`
- * accept it.
+ * What a value can be grown from: the payload as constructors, `Val.of` and a custom
+ * seal accept it.
  *
  * Deep-readonly, and that is about what it *accepts*, not about enforcing anything —
  * ownership is already handled by the deep copy every constructor makes (design §4.1).
@@ -173,8 +173,9 @@ type NonMethod = Primitive | undefined | readonly unknown[] | Record<string, unk
  * mapped constraint both type-check but leave the parameter implicitly `any`
  * (design §6.5).
  *
- * The smart constructor is the one thing that cannot live here, since its first
- * parameter is whatever it parses rather than the Val. It goes to `.implFrom`.
+ * Constructors are the one thing that cannot live here, since their first parameter
+ * is a payload or an argument list rather than the Val. They go to `.implSeal` and
+ * `.implCreate`.
  */
 type CompanionMethods<V extends AnyVal> = {
   /**
@@ -195,44 +196,56 @@ type CompanionMethods<V extends AnyVal> = {
    */
   equals?: (a: V, b: V, deepEquals: (a: V, b: V) => boolean) => boolean;
   /**
-   * Rejected here so it cannot be mistaken for a registration. A `from` whose first
+   * Rejected here so they cannot be mistaken for registrations. A `seal` whose first
    * parameter happens to accept the Val — common for primitive payloads — would
    * otherwise satisfy the index signature and be attached as an ordinary method,
-   * silently leaving `with` / `update` unrouted. Use `.implFrom` instead.
+   * silently leaving `with` / `update` unrouted and, for `create`, minting values that
+   * never went through the seal. Use `.implSeal` / `.implCreate` instead.
    */
-  from?: never;
+  seal?: never;
+  create?: never;
   // oxlint-disable-next-line no-explicit-any -- `never[]` would type unannotated extra parameters as `never`
   [key: string]: ((value: V, ...rest: any[]) => unknown) | NonMethod;
 };
 /**
- * What `from` produces, propagated verbatim. The library stays ignorant of
+ * What the seal produces, propagated verbatim. The library stays ignorant of
  * `Result` and friends: it only ever infers this type and passes it along.
  */
 type Constructed<V extends AnyVal, F> = F extends (...args: never[]) => infer R ? R : V;
 
 /**
- * What `from` must be: a function that takes a whole payload and hands back a value.
- * Enforced at registration, so a constructor that cannot revalidate a payload fails
+ * What a custom seal must be: a function that takes a whole payload and closes it into
+ * a value. Enforced at registration, so a constructor that cannot seal a payload fails
  * where it is written rather than at the `with` that later needs it (design §6.7).
+ *
+ * The parameter is deep-readonly, which is about what it *accepts* — a caller's mutable
+ * object goes straight in. Ownership is taken at the other end, by the `Val.of` the seal
+ * returns through, so a seal never needs a copy of its argument to work from; normalising
+ * means deriving (`toSorted`, spread), not writing (design §6.8).
  */
-type Revalidator<V extends AnyVal> = (value: SeedOf<V>, ...rest: never[]) => unknown;
+type SealImpl<V extends AnyVal> = (value: SeedOf<V>, ...rest: never[]) => unknown;
+
+/**
+ * What `create` must be: any arguments at all, a payload out. The payload it returns is
+ * not a value yet — the type's seal closes it (design §6.7), which is what keeps `create`
+ * from being a way past the seal.
+ */
+type Minter<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
+
+/** The public face of `create`: its own arguments, and whatever the seal returns. */
+type Minting<V extends AnyVal, N, F> = N extends (...args: infer A) => unknown
+  ? (...args: A) => Constructed<V, F>
+  : undefined;
 
 /** `{ [K]: T }`, or nothing at all when there is no `T`. */
 type Slot<K extends string, T> = [T] extends [undefined] ? Record<never, never> : { [P in K]: T };
 
 /**
- * How `with` and `update` rebuild a value.
- *
- * - `from` present → route through it, propagating whatever it returns
- * - neither registered → the value is its own payload, so a copy is the constructor
- * - `create` only → no payload revalidator exists, so there is no default to offer
- *   and the method is left out of the type (design §6.7)
+ * How `with` and `update` rebuild a value: by sealing the new payload, since the seal is
+ * the only way a payload becomes a value. With a custom one they propagate whatever it
+ * returns; without one the default seal is the copy, so they hand back the Val itself.
  */
-type Rebuild<V extends AnyVal, N, F, Arg> = [F] extends [undefined]
-  ? [N] extends [undefined]
-    ? (value: V, arg: Arg) => V
-    : undefined
-  : (value: V, arg: Arg) => Constructed<V, F>;
+type Rebuild<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 
 /**
  * `with` exists only when there is something to patch. `Patch` is `never` for
@@ -242,17 +255,14 @@ type Rebuild<V extends AnyVal, N, F, Arg> = [F] extends [undefined]
  * A `with` supplied in `.impl` wins, the way `equals` does. That is the escape hatch
  * for everything the default cannot express (design §6.6).
  */
-type WithMethod<V extends AnyVal, M, N, F> = "with" extends keyof M
+type WithMethod<V extends AnyVal, M, F> = "with" extends keyof M
   ? { with: M["with"] }
-  : Slot<
-      "with",
-      [Patch<SeedOf<V>>] extends [never] ? undefined : Rebuild<V, N, F, Patch<SeedOf<V>>>
-    >;
+  : Slot<"with", [Patch<SeedOf<V>>] extends [never] ? undefined : Rebuild<V, F, Patch<SeedOf<V>>>>;
 
 /** Same as {@link WithMethod}: yours if you wrote one, the rebuilt default otherwise. */
-type UpdateMethod<V extends AnyVal, M, N, F> = "update" extends keyof M
+type UpdateMethod<V extends AnyVal, M, F> = "update" extends keyof M
   ? { update: M["update"] }
-  : Slot<"update", Rebuild<V, N, F, (value: V) => SeedOf<V>>>;
+  : Slot<"update", Rebuild<V, F, (value: V) => SeedOf<V>>>;
 
 /**
  * A type's behaviour, and nothing else. Notably not callable: a constructor comes
@@ -264,10 +274,10 @@ export type Companion<
   N = undefined,
   F = undefined,
 > = Omit<M, "equals" | "with" | "update"> &
-  Slot<"create", N> &
-  Slot<"from", F> &
-  WithMethod<V, M, N, F> &
-  UpdateMethod<V, M, N, F> & {
+  Slot<"create", Minting<V, N, F>> &
+  Slot<"seal", F> &
+  WithMethod<V, M, F> &
+  UpdateMethod<V, M, F> & {
     /** Structural equality: key-order independent, ignoring `undefined`-valued keys (design §5). */
     equals: (a: V, b: V) => boolean;
   };
@@ -283,8 +293,9 @@ export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: S
  * built from one stays callable, and a companion built without one never was.
  *
  * A sealer already carries the default behaviour, so a Val with no methods of its
- * own needs nothing further. There is no `.implFrom` here on purpose: a smart
- * constructor next to a plain one would be a hole straight past it (design §6.1).
+ * own needs nothing further. There is no `.implSeal` here on purpose: a sealer *is*
+ * the default seal, and a second, checked one beside it would be a hole straight past
+ * the first (design §6.1).
  */
 export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
   impl: {
@@ -299,14 +310,19 @@ export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
  *
  * The two registration steps are deliberately separate (design §6.7):
  *
- * - `implFrom` takes a whole payload and revalidates it. `with` / `update` route
- *   through it, so it is the one the library can build on.
- * - `implCreate` is free-form — generated ids, wire formats, several arguments. It
- *   is not a payload function, so it leaves `with` / `update` with nothing to route
- *   through and they are left out of the type.
+ * - `implSeal` replaces the seal — the single gate a payload passes to become a value.
+ *   Checking, normalising and wrapping in a `Result` are all things a seal may do.
+ *   `with` / `update` go through it, because re-deriving a value means sealing again.
+ * - `implCreate` is free-form — generated ids, wire formats, several arguments — but it
+ *   only ever builds a *payload*. What it returns is sealed like anything else, so it is
+ *   not a way past the seal.
  *
- * They compose: `create` mints a value, `from` reconstitutes a stored one, and `with`
- * goes through `from` without ever re-running `create`.
+ * They compose: `create` mints the payload, the seal closes it, and `with` re-seals an
+ * existing value without ever re-running `create`.
+ *
+ * A seal must be idempotent — sealing a value's own payload has to give that value back.
+ * Minting belongs in `create` for that reason; the type system cannot check it
+ * (design §6.7).
  */
 export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined> = Companion<
   V,
@@ -318,10 +334,10 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined> = C
     (): Companion<V, Record<never, never>, N, F>;
     <M extends CompanionMethods<V>>(methods: M): Companion<V, M, N, F>;
   };
-  /** Registers the free-form constructor as `create`. Any signature at all. */
-  implCreate: <G extends AnyFn>(create: G) => CompanionBuilder<V, G, F>;
-  /** Registers the payload revalidator as `from`. `with` / `update` route through it. */
-  implFrom: <G extends Revalidator<V>>(from: G) => CompanionBuilder<V, N, G>;
+  /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
+  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F>;
+  /** Replaces the seal. `create`, `with` and `update` all go through it. */
+  implSeal: <G extends SealImpl<V>>(seal: G) => CompanionBuilder<V, N, G>;
 };
 
 // ---------------------------------------------------------------------------
@@ -444,25 +460,26 @@ function define(target: object, key: string, value: unknown): void {
 }
 
 /** The constructors a companion was given, if any. */
-type Ctors = { create?: AnyFn; from?: (value: unknown) => unknown };
+type Ctors = { create?: AnyFn; seal?: (value: unknown) => unknown };
 
-/** Attaches the default behaviour plus the user's methods to `target`. */
+/**
+ * Attaches the default behaviour plus the user's methods to `target`.
+ *
+ * Everything that produces a value goes through one function, `seal`: the registered one,
+ * or a copy when the type did not replace it. Nothing copies on the way *in* — the seal's
+ * parameter is readonly, so it reads its argument rather than owning it, and the deep copy
+ * that takes ownership happens once, in the `Val.of` the seal returns through (design
+ * §4.1, §6.8).
+ */
 function attach(target: object, methods: Record<string, unknown>, ctors: Ctors = {}): void {
-  const { create, from } = ctors;
-  // Without `from`, `with` / `update` are the constructor, so they copy like one.
-  // With it, ownership is `from`'s business — `Val.of` is how it gets a copy.
-  const construct: (value: unknown) => unknown = from ?? copy;
-  // `create` alone is not a payload function, so there is nothing to rebuild through.
-  const rebuildable = from !== undefined || create === undefined;
+  const { create } = ctors;
+  const seal: (value: unknown) => unknown = ctors.seal ?? copy;
 
   define(target, "equals", deepEquals);
-  if (create) define(target, "create", create);
-  if (from) define(target, "from", from);
+  if (create) define(target, "create", (...args: never[]) => seal(create(...args)));
+  if (ctors.seal) define(target, "seal", seal);
 
   define(target, "with", (value: unknown, patch: Record<string, unknown>) => {
-    if (!rebuildable) {
-      throw new TypeError("`with` needs a `from`; `create` alone cannot rebuild a payload.");
-    }
     if (!isPlainRecord(value)) {
       throw new TypeError("`with` is only available for object-shaped Vals.");
     }
@@ -470,15 +487,10 @@ function attach(target: object, methods: Record<string, unknown>, ctors: Ctors =
     for (const key of Object.keys(merged)) {
       if (merged[key] === undefined) delete merged[key];
     }
-    return construct(merged);
+    return seal(merged);
   });
 
-  define(target, "update", (value: unknown, fn: (value: unknown) => unknown) => {
-    if (!rebuildable) {
-      throw new TypeError("`update` needs a `from`; `create` alone cannot rebuild a payload.");
-    }
-    return construct(fn(value));
-  });
+  define(target, "update", (value: unknown, fn: (value: unknown) => unknown) => seal(fn(value)));
 
   for (const key of Object.keys(methods)) {
     // A custom `equals` is handed the structural default as a third argument, so an
@@ -539,23 +551,24 @@ function sealer<V extends AnyVal>(): Sealer<V> {
  *
  * ```ts
  * export const Age = Val.companion<Age>()
- *   .implFrom((n: number): Result<Age> => …)
+ *   .implSeal((n: number): Result<Age> => …)
  *   .impl({
  *     next(a) { … }, // `a` is contextually an Age
  *   });
  * ```
  *
- * `implFrom` is for the payload; anything else — a generated id, a wire format,
- * several arguments — is `implCreate` (design §6.7):
+ * `implSeal` takes the payload; anything else — a generated id, a wire format, several
+ * arguments — is `implCreate`, which builds a payload for the seal to close (design §6.7):
  *
  * ```ts
  * export const User = Val.companion<User>()
- *   .implCreate((f: Fields) => Val.of<User>({ id: crypto.randomUUID(), ...f }))
- *   .implFrom((u: SeedOf<User>) => validate(u));
+ *   .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }))
+ *   .implSeal((u: SeedOf<User>) => check(u));
  * ```
  *
- * Use `Val.of` inside `from` to lift the validated value. Since no constructor is
- * ever produced, there is nothing for a caller to reach past `from`.
+ * Use `Val.of` inside the seal to lift the checked payload. Since no constructor is ever
+ * produced, and `create` hands its payload to the seal, there is nothing that reaches a
+ * value without passing it.
  *
  * Constructors are registered by their own steps rather than sitting in `.impl`,
  * because `.impl` fixes every method's first parameter to the Val and a constructor's
@@ -578,7 +591,7 @@ function build<V extends AnyVal>(ctors: Ctors): object {
 
   define(target, "implCreate", (create: AnyFn) => build<V>({ ...ctors, create }));
 
-  define(target, "implFrom", (from: (value: unknown) => unknown) => build<V>({ ...ctors, from }));
+  define(target, "implSeal", (seal: (value: unknown) => unknown) => build<V>({ ...ctors, seal }));
 
   return target;
 }
