@@ -79,23 +79,15 @@ other input are not methods on a value: constructors go to
 [`.implSeal` / `.implCreate`](#smart-constructors), and anything beyond them is an
 ordinary exported function.
 
-The Val type is pinned by a type argument rather than inferred because TypeScript cannot
-infer type arguments partially; the methods are inferred by the following call (the same
-shape as zustand's `create<T>()(...)`).
-
-The discriminant is a string literal, which means you don't have to declare a
-`unique symbol` per type. Two Vals only collide when they share the same string, so
+The discriminant is a string literal. Two Vals only collide when they share the same
+string, so
 namespacing the key as `"app/User"` is the recommended convention.
 
 The brand itself lives under the phantom keys `__valof_internal_phantom_brand` and
-`__valof_internal_phantom_payload`. Nothing ever writes them, so they do not exist at runtime.
-They are string keys rather than `unique symbol`s so that a package built on valof can
-emit its own declarations: a symbol would have to be in scope in every emitting file,
-which fails with `TS4023` for anyone re-exporting a companion. The names are verbose to keep them
-from colliding with a real property, and say `phantom` so that meeting one in a hover
-or an error message tells you not to look for it at runtime. They are still ordinary
-keys, though, so they do appear in `keyof YourVal`. Reach for `PayloadOf<V>` or `SeedOf<V>` when you want the
-payload's keys alone.
+`__valof_internal_phantom_payload`. Nothing ever writes them, so they do not exist at
+runtime — meeting one in a hover or an error message is not something to go looking for.
+They are still ordinary keys, though, so they do appear in `keyof YourVal`. Reach for
+`PayloadOf<V>` or `SeedOf<V>` when you want the payload's keys alone.
 
 ### `Val.of`
 
@@ -141,8 +133,8 @@ Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
 
 ### Constructors copy their argument
 
-Constructors deep-copy their argument, so keeping a reference to what you passed in
-buys you nothing:
+Constructors deep-copy what you pass them, so keeping a reference to it buys you
+nothing:
 
 ```ts
 const raw = { id: "a", name: "alice" };
@@ -175,8 +167,7 @@ Only four things can live inside a Val:
 
 ### Why
 
-1. **Type inference stays cheap** — `DeepReadonly` recursion stops after one level
-   (children are already readonly Vals)
+1. **Type inference stays cheap** — nesting goes through Vals, so it never recurses far
 2. **Structural equality is well-defined** — no prototypes, no cycles to reason about
 3. **The serialization boundary is always crossable** — `structuredClone` and JSON are
    always safe
@@ -289,9 +280,7 @@ Doc.equals(a, b); // callers still pass two — the third is bound
 ```
 
 That argument is the structural comparison, not "the `equals` you are overriding", so it
-does not reach a nested Val's own `equals` either. It is handed over here rather than
-exported, which keeps the fallback where it is meaningful: as a free function it would
-be a silent way past any type's `equals`.
+does not reach a nested Val's own `equals` either.
 
 ## Smart constructors
 
@@ -329,13 +318,11 @@ A seal must be **idempotent**: sealing a value's own payload has to give that va
 Minting — a generated id, a timestamp — belongs in [`create`](#create) instead, or `with`
 would mint a new id every time it re-seals.
 
-The seal gets its own step rather than sitting in `.impl` because `.impl` fixes every
-method's first parameter to the Val, and a seal's first parameter is the payload. `.impl`
-declares `seal?: never` and `create?: never`, so writing one there is a type error rather
-than a method that quietly never gets wired up.
+Constructors get their own steps. `.impl` declares `seal?: never` and `create?: never`, so
+writing one there is a type error rather than a method that never gets wired up.
 
-There is no `.implSeal` on a sealer: a sealer **is** the default seal, and a second,
-checked one beside it would be a hole straight past the first.
+There is no `.implSeal` on a sealer — a sealer **is** the default seal. A type that needs a
+checked one wants a companion.
 
 `.implSeal` is optional. A companion without one has no constructor at all, which is the
 right shape when the values arrive from a boundary — a decoder, a database row, an
@@ -352,14 +339,6 @@ export const UserId = Val.companion<UserId>().impl({
 
 const id = Val.of<UserId>(row.user_id); // trusted at the boundary
 ```
-
-Requiring `.implSeal` would close nothing — `Val.of` is public either way — and would
-only invite a rubber-stamp `(v) => Val.of<V>(v)`, which reads like validation and is not.
-
-Nothing is gated, and nothing inspects your methods for a magic `seal` key. Callability
-is provenance: **a sealer is a constructor, so anything built from one stays callable,
-and a companion built without one never was.** The plain constructor is not disabled —
-it was never created.
 
 **No `Result` type is provided.** neverthrow, Effect, fp-ts, or your own — all work. The
 library simply propagates the seal's return type and never inspects its contents.
@@ -454,13 +433,10 @@ Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 Taking the seal is optional — a two-parameter override is published as it stands.
 
 `with` only exists on object-shaped Vals. A `Val<"IsoDate", string>` has nothing to
-patch, so its companion does not carry the method at all rather than offering one whose
-argument is uninhabitable. `update` is still there — a primitive can perfectly well be
-transformed into another one.
+patch, so its companion does not carry the method at all. `update` is still there — a
+primitive can perfectly well be transformed into another one.
 
-`update` is the function-based variant, deliberately **restricted to value → value**.
-Allowing fallible transforms here would produce `Result<Result<...>>` when chained;
-those belong in `with` plus your own `andThen`.
+`update` is the function-based variant, **restricted to value → value**.
 
 ```ts
 Age.update(age, (n) => n + 1); // Result<Age>
@@ -593,21 +569,6 @@ export const IsoDate = Val.companion<IsoDate>()
 Do the date arithmetic with whatever library you like (Temporal, date-fns, Luxon). The
 value itself is an ISO 8601 string or epoch ms.
 
-## Deliberately not provided
-
-All of it follows from the one line: values are plain data.
-
-|                                          | why                                                                                                                               |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| A constructor gate                       | unnecessary once the constructor comes from `Val.sealer`: don't create one and there is nothing to bypass                         |
-| Runtime `freeze`                         | constructors copy, which closes the aliasing hole; what freeze adds on top needs a deliberate write past `readonly`               |
-| `Map` / `Set`                            | they don't survive JSON, and `structuredClone` breaks reference identity of keys                                                  |
-| `Date` / `Temporal`                      | incompatible with immutability and symmetric JSON round-tripping; wrapping them means writing a date library                      |
-| TaggedEnum                               | the discriminant has to exist as real data, which breaks the phantom-brand premise; and ts-pattern already does the matching well |
-| A `Result` type                          | plenty of good implementations exist, and `with` works without one                                                                |
-| Dispatching to a child's custom `equals` | the type cannot be recovered from a value at runtime (see _Construct in normal form_)                                             |
-| Free-function `Val.equals` / `Val.with`  | same reason; they live on the companion instead                                                                                   |
-
 ## API
 
 |                                       |                                                          |
@@ -630,9 +591,8 @@ Exported types, the ones you write yourself: `AnyVal` (a constraint over any Val
 `SeedOf` (what a value can be grown from — the payload as a constructor accepts it),
 `Patch` (a `with` patch) and `PayloadOf` (the payload behind the brand).
 
-`SeedOf<V>` is deep-readonly so that it accepts more, not to enforce anything —
-constructors copy their argument regardless. Without it, deriving a value from an
-existing Val, or from an `as const` literal, would not type-check.
+`SeedOf<V>` is deep-readonly, which is about what it accepts: an existing Val, an
+`as const` literal, or a plain mutable object all go in.
 
 The `-Of` marks a projection out of a Val, so `PayloadOf<V>` and `SeedOf<V>` take one.
 `Patch<T>` takes a payload instead, which is what lets a custom `with` accept a patch
