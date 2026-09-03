@@ -89,8 +89,8 @@ A caller's plain mutable object goes straight in, so normalize by deriving — `
 a spread — and the seal you return through makes the copy.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back.
-Minting — a generated id, a timestamp — belongs in [`create`](#create) instead, or `with`
-would mint a new id every time it re-seals.
+Generating a value — an id, a timestamp — belongs in [`create`](#create) instead, or
+`with` would produce a new id every time it re-seals.
 
 Constructors get their own steps. `.impl` declares `seal?: never` and `create?: never`, so
 writing one there is a type error rather than a function that never gets wired up.
@@ -139,10 +139,10 @@ type-checks, so schema-style parsing fits), and keep anything that can fail whil
 _building_ the payload in an ordinary exported function.
 
 There is no `.implCreate` on a sealer. A sealer is callable, so a `create` beside it would
-narrow nothing — `Task.create({ title })` mints an id while `Task({ id: "forged", … })`
+narrow nothing — `Task.create({ title })` generates an id while `Task({ id: "forged", … })`
 sits right next to it — and the name would promise a guarantee it cannot give. If you want
-a multi-argument shorthand for a type with no invariants, export a function; if the minted
-field must be safe, that type wants a companion.
+a multi-argument shorthand for a type with no invariants, export a function; if the
+generated field must be safe, that type wants a companion.
 
 ## Construct in normal form
 
@@ -235,8 +235,9 @@ Age.update(age, (n) => n + 1); // Result<Age>
 
 ### Fields the update path must not touch
 
-An id minted inside the constructor, a `createdAt`, a version counter: `create` mints
-them, the seal preserves them, and `.unpatchable` keeps the update path off them.
+An id generated inside the constructor, a `createdAt`, a version counter: `create`
+produces them, the seal preserves them, and `.unpatchable` keeps the update path off
+them.
 
 ```ts
 export type User = Val<"User", { id: string; name: string; email: string }>;
