@@ -443,11 +443,11 @@ Val.unwrap(post).tags.sort(); // ✓
 ```
 
 It is **not** how you derive one value from another: `SeedOf<V>` already accepts a Val, so
-`Val.of` and `with` take one directly and copy once, where going through `unwrap` copies
-twice.
+`Val.of` and `with` take one directly and deep-copy once, where going through `unwrap`
+deep-copies twice.
 
 ```ts
-Post.with(post, { tags: [...post.tags, "b"] }); // ✓ one copy
+Post.with(post, { tags: [...post.tags, "b"] }); // ✓ one deep copy
 Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
 ```
 
