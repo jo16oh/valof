@@ -2,28 +2,21 @@
 
 > **Values are plain data; behaviour lives outside them.**
 
-Value-object helpers for TypeScript: branded types, plus a companion that collects the
-functions for a type. Values stay **plain objects, arrays and primitives** —
+Value-object helpers for TypeScript: branded types, a constructor, and a companion that
+collects the functions for the type. Values stay **plain objects, arrays and primitives** —
 no classes, no prototypes.
+
+What you get:
+
+- nominal typing with a phantom brand — nothing to pay at runtime
+- no `as` cast anywhere in your code
+- one place for a type's constructor and its functions
+- symmetric JSON round trips
+- interoperable with React / Svelte / Vue state
 
 ```bash
 pnpm install valof
 ```
-
-## What you get
-
-Because values are plain, the following all hold:
-
-- they round-trip symmetrically through JSON
-- they sit directly in React / Svelte / Vue state, and no update can drop a prototype
-- the brand is a phantom type, so it costs nothing and shows up nowhere at runtime
-
-```ts
-const user = User({ id: "a", name: "bob" });
-Object.keys(user); // ["id", "name"] — the brand does not exist at runtime
-```
-
-A class gives you none of these.
 
 ## Basics
 
