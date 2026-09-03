@@ -2,8 +2,8 @@
 
 > **Values are plain data; behaviour lives outside them.**
 
-Value-object helpers for TypeScript: branded types, plus a companion that holds the
-behaviour attached to a type. Values stay **plain objects, arrays and primitives** —
+Value-object helpers for TypeScript: branded types, plus a companion that collects the
+functions for a type. Values stay **plain objects, arrays and primitives** —
 no classes, no prototypes.
 
 ```bash
@@ -46,11 +46,12 @@ User.greet(user);
 User.equals(user, User({ id: "a", name: "bob" })); // true
 ```
 
-`Val.sealer<User>()` is the constructor, and `.impl({…})` attaches behaviour without
-taking that away — what comes back is still callable. A Val with no methods of its own
-needs nothing beyond the sealer, which already carries `equals`, `with` and `update`.
+`Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions for the
+type without taking that away — what comes back is still callable. A type with no
+functions of its own needs nothing beyond the sealer, which already carries `equals`,
+`with` and `update`.
 
-Every method takes its Val first, which is what lets `u` go unannotated. A function whose
+Every function takes its Val first, which is what lets `u` go unannotated. A function whose
 first parameter is something else is rejected — constructors go to
 [`.implSeal` / `.implCreate`](#smart-constructors).
 
@@ -150,7 +151,7 @@ Minting — a generated id, a timestamp — belongs in [`create`](#create) inste
 would mint a new id every time it re-seals.
 
 Constructors get their own steps. `.impl` declares `seal?: never` and `create?: never`, so
-writing one there is a type error rather than a method that never gets wired up.
+writing one there is a type error rather than a function that never gets wired up.
 
 There is no `.implSeal` on a sealer — a sealer **is** the default seal. A type that needs a
 checked one wants a companion.
@@ -240,7 +241,7 @@ Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 Taking the seal is optional — a two-parameter override is published as it stands.
 
 `with` only exists on object-shaped Vals. A `Val<"IsoDate", string>` has nothing to
-patch, so its companion does not carry the method at all. `update` is still there, and is
+patch, so its companion does not carry it at all. `update` is still there, and is
 **restricted to value → value**.
 
 ```ts
@@ -416,8 +417,8 @@ value itself is an ISO 8601 string or epoch ms.
 ### `Val.of`
 
 Brands a payload with the type named explicitly, for where a value has to be built and no
-seal is in scope: a trusted boundary — a decoder, a database row — or a companion method
-returning a fresh value of its own type.
+seal is in scope: a trusted boundary — a decoder, a database row — or a companion
+function returning a fresh value of its own type.
 
 ```ts
 Val.of<User>({ id: "a", name: "alice" });
@@ -455,9 +456,9 @@ Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
 | `Val<K, T>`                           | a branded value type                                     |
 | `Val.of<V>(value)`                    | the default seal, with the type named explicitly         |
 | `Val.unwrap(value)`                   | a mutable copy of the payload                            |
-| `Val.sealer<V>()`                     | the default seal, carrying the default behaviour         |
+| `Val.sealer<V>()`                     | the default seal, carrying the defaults                  |
 | `Val.sealer<V>().impl(fns)`           | the constructor plus your functions                      |
-| `Val.companion<V>().impl(fns)`        | behaviour only — no constructor                          |
+| `Val.companion<V>().impl(fns)`        | functions only — no constructor                          |
 | `Val.companion<V>().implSeal(f)`      | replaces the seal — payload in, value out                |
 | `Val.companion<V>().implCreate(f)`    | registers `create`: any arguments, a payload out, sealed |
 | `Val.companion<V>().unpatchable<K>()` | takes keys out of `with` / `update`                      |

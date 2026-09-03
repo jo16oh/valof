@@ -146,18 +146,18 @@ export type Patch<T> = T extends object
 
 type AnyFn = (...args: never[]) => unknown;
 
-/** What a companion may hold besides methods: constants, lookup tables, and so on. */
-type NonMethod = Primitive | undefined | readonly unknown[] | Record<string, unknown>;
+/** What a companion may hold besides functions: constants, lookup tables, and so on. */
+type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown>;
 
 /**
- * The methods a companion accepts, each taking its Val first, which is what lets that parameter
+ * The functions a companion accepts, each taking its Val first, which is what lets that parameter
  * go unannotated.
  *
  * The index signature is a *single* function type — the only shape TypeScript uses as a
  * contextual type. A union or an F-bounded mapped constraint type-check but leave the parameter
  * implicitly `any`.
  */
-type CompanionMethods<V extends AnyVal, F = undefined> = {
+type CompanionFns<V extends AnyVal, F = undefined> = {
   /**
    * Overrides the default deep equals, for top-level comparisons only. That default arrives as a
    * third argument so an override can fall back to it; callers never pass it, and
@@ -167,7 +167,7 @@ type CompanionMethods<V extends AnyVal, F = undefined> = {
   /**
    * Rejected here so they cannot be mistaken for registrations. A `seal` whose first parameter
    * happens to accept the Val — common for primitive payloads — would otherwise satisfy the
-   * index signature and attach as an ordinary method, leaving `with` / `update` unrouted. Use
+   * index signature and attach as an ordinary function, leaving `with` / `update` unrouted. Use
    * `.implSeal` / `.implCreate`.
    */
   seal?: never;
@@ -185,7 +185,7 @@ type CompanionMethods<V extends AnyVal, F = undefined> = {
   // oxlint-disable-next-line no-explicit-any -- same as `with`
   update?: (value: V, fn: any, seal: (value: SeedOf<V>) => Constructed<V, F>) => unknown;
   // oxlint-disable-next-line no-explicit-any -- `never[]` would type unannotated extra parameters as `never`
-  [key: string]: ((value: V, ...rest: any[]) => unknown) | NonMethod;
+  [key: string]: ((value: V, ...rest: any[]) => unknown) | NonFn;
 };
 /**
  * What the seal produces, propagated verbatim. The library stays ignorant of `Result` and
@@ -238,7 +238,7 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
 type Rebuild<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 
 /**
- * Drops the trailing seal parameter from an override, so callers see the two-parameter method
+ * Drops the trailing seal parameter from an override, so callers see the two-parameter function
  * they actually call. An override written without it is published unchanged — a two-element
  * parameter list does not match the three-element pattern.
  */
@@ -276,7 +276,7 @@ type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
 /**
  * `with` exists only when there is something to patch: `Patch` is `never` for primitives and
- * arrays, so for those the method is left out of the type entirely. A `with` supplied in
+ * arrays, so for those the function is left out of the type entirely. A `with` supplied in
  * `.impl` wins, the way `equals` does.
  */
 type WithMethod<V extends AnyVal, M, F, P> = "with" extends keyof M
@@ -323,14 +323,14 @@ type UpdateMethod<V extends AnyVal, M, F, P> = "update" extends keyof M
     };
 
 /**
- * A type's behaviour, and nothing else. Notably not callable: a constructor comes from
+ * A type's functions, and nothing else. Notably not callable: a constructor comes from
  * `Val.sealer`, so a companion built without one cannot be used to build values.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  */
 export type Companion<
   V extends AnyVal,
-  M extends CompanionMethods<V, F>,
+  M extends CompanionFns<V, F>,
   N = undefined,
   F = undefined,
   P = never,
@@ -348,11 +348,11 @@ export type Companion<
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  */
-export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: SeedOf<V>) => V) &
+export type Sealed<V extends AnyVal, M extends CompanionFns<V>> = ((value: SeedOf<V>) => V) &
   Companion<V, M>;
 
 /**
- * A constructor for `V`, which can grow methods without ceasing to be one.
+ * A constructor for `V`, which can grow functions without ceasing to be one.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
@@ -362,12 +362,12 @@ export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: S
  */
 export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
   /**
-   * Attaches behaviour to the constructor. What comes back is still a constructor, and every
-   * method takes its Val as the first parameter, so that parameter needs no annotation.
+   * Collects the functions for the type. What comes back is still a constructor, and each
+   * takes its Val as the first parameter, so that parameter needs no annotation.
    */
   impl: {
     (): Sealed<V, Record<never, never>>;
-    <M extends CompanionMethods<V>>(methods: M): Sealed<V, M>;
+    <M extends CompanionFns<V>>(fns: M): Sealed<V, M>;
   };
 };
 
@@ -390,12 +390,12 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
   P
 > & {
   /**
-   * Attaches behaviour. Every method takes its Val as the first parameter, so that parameter
-   * needs no annotation; constructors go to `.implSeal` / `.implCreate` instead.
+   * Collects the functions for the type. Each takes its Val as the first parameter, so that
+   * parameter needs no annotation; constructors go to `.implSeal` / `.implCreate` instead.
    */
   impl: {
     (): Companion<V, Record<never, never>, N, F, P>;
-    <M extends CompanionMethods<V, F>>(methods: M): Companion<V, M, N, F, P>;
+    <M extends CompanionFns<V, F>>(fns: M): Companion<V, M, N, F, P>;
   };
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
   implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P>;
@@ -438,7 +438,7 @@ const isPlainRecord = (v: unknown): v is Record<string, unknown> =>
  *
  * Deliberately absent from `./index.ts`: as a free function it cannot dispatch to a type's own
  * `equals`, so comparing two Vals with it would silently bypass a custom one. An override
- * receives it as a third argument instead (see {@link CompanionMethods}).
+ * receives it as a third argument instead (see {@link CompanionFns}).
  */
 export function deepEquals(a: unknown, b: unknown): boolean {
   if (a === b) return true;
@@ -541,13 +541,13 @@ type Ctors = {
 };
 
 /**
- * Attaches the default behaviour plus the user's methods to `target`.
+ * Attaches the defaults plus the user's functions to `target`.
  *
  * Everything that produces a value goes through one function, `seal`: the registered one, or a
  * copy when the type did not replace it. Nothing copies on the way *in* — the one deep copy
  * happens in the default seal the custom one returns through.
  */
-function attach(target: object, methods: Record<string, unknown>, ctors: Ctors = {}): void {
+function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {}): void {
   const { create } = ctors;
   const custom = ctors.seal;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, copy) : copy;
@@ -576,21 +576,21 @@ function attach(target: object, methods: Record<string, unknown>, ctors: Ctors =
     ),
   );
 
-  for (const key of Object.keys(methods)) {
+  for (const key of Object.keys(fns)) {
     // Bound here rather than attached raw, which is what keeps callers at two arguments.
-    if (key === "equals" && typeof methods[key] === "function") {
-      const custom = methods[key] as (a: unknown, b: unknown, deep: typeof deepEquals) => boolean;
+    if (key === "equals" && typeof fns[key] === "function") {
+      const custom = fns[key] as (a: unknown, b: unknown, deep: typeof deepEquals) => boolean;
       define(target, key, (a: unknown, b: unknown) => custom(a, b, deepEquals));
       continue;
     }
     // Same idea for a hand-written rebuild, which cannot reach the companion it is being
     // defined on.
-    if ((key === "with" || key === "update") && typeof methods[key] === "function") {
-      const custom = methods[key] as (value: unknown, arg: unknown, seal: unknown) => unknown;
+    if ((key === "with" || key === "update") && typeof fns[key] === "function") {
+      const custom = fns[key] as (value: unknown, arg: unknown, seal: unknown) => unknown;
       define(target, key, (value: unknown, arg: unknown) => custom(value, arg, seal));
       continue;
     }
-    define(target, key, methods[key]);
+    define(target, key, fns[key]);
   }
 }
 
@@ -599,9 +599,9 @@ function attach(target: object, methods: Record<string, unknown>, ctors: Ctors =
  * constructor, minus the callability.
  *
  * TypeScript cannot infer type arguments partially, so `V` is pinned by a type argument here
- * and the methods are inferred by `.impl()`. `.impl` is overloaded rather than given a default
+ * and the functions are inferred by `.impl()`. `.impl` is overloaded rather than given a default
  * `M`: a defaulted type parameter stops TypeScript using the constraint as a contextual type,
- * and every method's first parameter falls back to implicit `any`.
+ * and every function's first parameter falls back to implicit `any`.
  */
 function sealer<V extends AnyVal>(): Sealer<V> {
   const seal = (value: SeedOf<V>): V => copy(value) as unknown as V;
@@ -610,9 +610,9 @@ function sealer<V extends AnyVal>(): Sealer<V> {
   define(
     seal,
     "impl",
-    <M extends CompanionMethods<V> = Record<never, never>>(methods: M = {} as M): Sealed<V, M> => {
+    <M extends CompanionFns<V> = Record<never, never>>(fns: M = {} as M): Sealed<V, M> => {
       const sealed = (value: SeedOf<V>): V => copy(value) as unknown as V;
-      attach(sealed, methods);
+      attach(sealed, fns);
       return sealed as unknown as Sealed<V, M>;
     },
   );
@@ -621,11 +621,11 @@ function sealer<V extends AnyVal>(): Sealer<V> {
 }
 
 /**
- * Bundles a type's behaviour without a constructor.
+ * Bundles a type's functions without a constructor.
  *
  * No constructor is ever produced and `create` hands its payload to the seal, so nothing reaches
  * a value without passing it. Constructors get their own steps rather than sitting in `.impl`,
- * which fixes every method's first parameter to the Val — a shape a constructor does not fit.
+ * which fixes every function's first parameter to the Val — a shape a constructor does not fit.
  */
 function companion<V extends AnyVal>(): CompanionBuilder<V> {
   return build<V>({}) as CompanionBuilder<V>;
@@ -636,9 +636,9 @@ function build<V extends AnyVal>(ctors: Ctors): object {
   const target = {};
   attach(target, {}, ctors);
 
-  define(target, "impl", (methods: Record<string, unknown> = {}) => {
+  define(target, "impl", (fns: Record<string, unknown> = {}) => {
     const built = {};
-    attach(built, methods, ctors);
+    attach(built, fns, ctors);
     return built;
   });
 
