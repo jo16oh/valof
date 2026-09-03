@@ -242,8 +242,8 @@ describe("smart constructor", () => {
 
   test("construct in normal form", () => {
     type Email = Val<"Email", string>;
-    const Email = Val.companion<Email>().implSeal((s: string) =>
-      Val.of<Email>(s.trim().toLowerCase()),
+    const Email = Val.companion<Email>().implSeal((s: string, seal) =>
+      seal(s.trim().toLowerCase()),
     );
     expect(Email.seal("  A@B.com ")).toBe("a@b.com");
     // Normalised at construction, so a structural comparison from a parent is correct
@@ -281,9 +281,9 @@ describe("with", () => {
   test("goes through a custom seal when one is defined", () => {
     type Account = Val<"Account", { id: string; balance: number }>;
     const Account = Val.companion<Account>().implSeal(
-      (a: { id: string; balance: number }): Result<Account> =>
+      (a: { id: string; balance: number }, seal): Result<Account> =>
         a.balance >= 0
-          ? { ok: true, value: Val.of<Account>(a) }
+          ? { ok: true, value: seal(a) }
           : { ok: false, error: "balance must not be negative" },
     );
 
@@ -454,7 +454,7 @@ describe("sealer", () => {
   });
 
   test("a companion has no constructor to reach", () => {
-    const Priv = Val.companion<Age>().implSeal((n: number) => Val.of<Age>(n));
+    const Priv = Val.companion<Age>().implSeal((n: number, seal) => seal(n));
     expect(typeof Priv).not.toBe("function");
     // Calling it throws, so keep it in a block that is never evaluated.
     const neverRun = (): unknown =>
@@ -496,9 +496,9 @@ describe("sealer", () => {
     type Score = Val<"Score", { points: number }>;
     const Score = Val.companion<Score>()
       .implCreate((points: number) => ({ points }))
-      .implSeal((s: SeedOf<Score>): Result<Score> =>
+      .implSeal((s: SeedOf<Score>, seal): Result<Score> =>
         s.points >= 0
-          ? { ok: true, value: Val.of<Score>(s) }
+          ? { ok: true, value: seal(s) }
           : { ok: false, error: "points must not be negative" },
       );
 
@@ -517,7 +517,7 @@ describe("sealer", () => {
         minted += 1;
         return { id: `id-${minted}`, ...f };
       })
-      .implSeal((u: SeedOf<User>): User => Val.of<User>(u));
+      .implSeal((u: SeedOf<User>, seal) => seal(u));
 
     const u = User.create({ name: "bob" });
     expect(u).toEqual({ id: "id-1", name: "bob" });
@@ -623,7 +623,7 @@ describe("ownership", () => {
 
   test("a seal normalises by deriving, and leaves the caller's object alone", () => {
     type Tags = Val<"Tags", string[]>;
-    const Tags = Val.companion<Tags>().implSeal((t) => Val.of<Tags>(t.toSorted()));
+    const Tags = Val.companion<Tags>().implSeal((t, seal) => seal(t.toSorted()));
     const raw = ["b", "a"];
     expect(Tags.seal(raw)).toEqual(["a", "b"]);
     expect(raw).toEqual(["b", "a"]);
@@ -687,9 +687,9 @@ describe("impl", () => {
 describe("implSeal", () => {
   test("registers `seal` and routes with / update through it, without any impl", () => {
     type Score = Val<"Score", { points: number }>;
-    const Score = Val.companion<Score>().implSeal((s: { points: number }): Result<Score> =>
+    const Score = Val.companion<Score>().implSeal((s: { points: number }, seal): Result<Score> =>
       s.points >= 0
-        ? { ok: true, value: Val.of<Score>(s) }
+        ? { ok: true, value: seal(s) }
         : { ok: false, error: "points must not be negative" },
     );
 
@@ -705,9 +705,9 @@ describe("implSeal", () => {
   test("methods added afterwards keep the contextual type and the routing", () => {
     type Score = Val<"Score", { points: number }>;
     const Score = Val.companion<Score>()
-      .implSeal((s) => {
+      .implSeal((s, seal) => {
         expectTypeOf(s).toEqualTypeOf<{ readonly points: number }>();
-        return Val.of<Score>(s);
+        return seal(s);
       })
       .impl({
         double(v) {
@@ -765,7 +765,7 @@ describe("implSeal", () => {
 
   test("the seal accepts an existing value as readily as a raw payload", () => {
     type Score = Val<"Score", { points: number }>;
-    const Score = Val.companion<Score>().implSeal((s) => Val.of<Score>(s));
+    const Score = Val.companion<Score>().implSeal((s, seal) => seal(s));
     const s = Val.of<Score>({ points: 3 });
     expect(Score.seal(s)).toEqual({ points: 3 });
   });
@@ -785,7 +785,7 @@ describe("unpatchable", () => {
       minted += 1;
       return { id: `id-${minted}`, ...f };
     })
-    .implSeal((a) => Val.of<Account>({ ...a, owner: a.owner.trim().toLowerCase() }))
+    .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim().toLowerCase() }))
     .unpatchable<"id">();
 
   test("create mints the id; with and update preserve it", () => {
@@ -827,7 +827,7 @@ describe("a hand-written with / update is handed the seal", () => {
   type Point = Val<"Point", { x: number; y: number }>;
 
   const Point = Val.companion<Point>()
-    .implSeal((p): Point => Val.of<Point>({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
+    .implSeal((p, seal) => seal({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
     .impl({
       with(p, patch: { x?: number; y?: number }, seal) {
         return seal({ ...p, ...patch });
