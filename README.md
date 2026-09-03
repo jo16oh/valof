@@ -581,7 +581,14 @@ value itself is an ISO 8601 string or epoch ms.
 | `AnyVal`                              | a constraint over any Val                                |
 | `SeedOf<V>`                           | what a value can be grown from                           |
 | `PayloadOf<V>`                        | the payload behind the brand                             |
-| `Patch<T>`                            | a `with` patch, taken over a payload                     |
+| `Sealer<V>`                           | what `Val.sealer<V>()` returns                           |
+| `Sealed<V, M>`                        | what its `.impl(fns)` returns                            |
+| `CompanionBuilder<V>`                 | what `Val.companion<V>()` returns                        |
+| `Companion<V, M>`                     | what its `.impl(fns)` returns                            |
+
+The last four are inferred, never written. They are exported only so that your own `.d.ts`
+can name them when you re-export a companion — there is no reason to import one yourself.
+| `Patch<T>` | a `with` patch, taken over a payload |
 
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
 deep comparison, which is not exported on its own — an override receives it as a third
