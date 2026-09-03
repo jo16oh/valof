@@ -241,11 +241,21 @@ type Constructed<V extends AnyVal, F> = F extends (...args: never[]) => infer R 
  * where it is written rather than at the `with` that later needs it (design §6.7).
  *
  * The parameter is deep-readonly, which is about what it *accepts* — a caller's mutable
- * object goes straight in. Ownership is taken at the other end, by the `Val.of` the seal
+ * object goes straight in. Ownership is taken at the other end, by the lift the seal
  * returns through, so a seal never needs a copy of its argument to work from; normalising
  * means deriving (`toSorted`, spread), not writing (design §6.8).
+ *
+ * The default seal — brand and copy, which is `Val.of` bound to this type — comes in as a
+ * second parameter, the way `equals` receives the deep comparison:
+ *
+ * ```ts
+ * .implSeal((n, seal) => (n >= 0 ? ok(seal(n)) : err("negative")))
+ * ```
+ *
+ * It is optional to take: a one-parameter seal is registered unchanged, and `Val.of` does
+ * the same job with the type argument spelled out.
  */
-type SealImpl<V extends AnyVal> = (value: SeedOf<V>, ...rest: never[]) => unknown;
+type SealImpl<V extends AnyVal> = (value: SeedOf<V>, seal: (value: SeedOf<V>) => V) => unknown;
 
 /**
  * What `create` must be: any arguments at all, a payload out. The payload it returns is
@@ -279,6 +289,17 @@ type WithoutSeal<T> = T extends (...args: infer A) => infer R
     ? (value: Value, arg: Arg) => R
     : T
   : T;
+
+/**
+ * Drops the trailing default-seal parameter from a registered seal, for the same reason
+ * {@link WithoutSeal} does on an override: callers pass the payload and nothing else. A
+ * seal written with one parameter is published unchanged.
+ */
+type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
+  ? A extends [infer Value, unknown]
+    ? (value: Value) => R
+    : F
+  : F;
 
 /** The payload minus the keys `.unpatchable` took out of the update path (design §6.10). */
 type Patchable<V extends AnyVal, P> = [P] extends [never]
@@ -341,7 +362,7 @@ export type Companion<
   P = never,
 > = Omit<M, "equals" | "with" | "update"> &
   Slot<"create", Minting<V, N, F>> &
-  Slot<"seal", F> &
+  Slot<"seal", WithoutDefaultSeal<F>> &
   WithMethod<V, M, F, P> &
   UpdateMethod<V, M, F, P> & {
     /** Structural equality: key-order independent, ignoring `undefined`-valued keys (design §5). */
@@ -546,7 +567,11 @@ function define(target: object, key: string, value: unknown): void {
 }
 
 /** The constructors a companion was given, plus whether `.unpatchable` was called. */
-type Ctors = { create?: AnyFn; seal?: (value: unknown) => unknown; unpatchable?: boolean };
+type Ctors = {
+  create?: AnyFn;
+  seal?: (value: unknown, seal: (value: unknown) => unknown) => unknown;
+  unpatchable?: boolean;
+};
 
 /**
  * Attaches the default behaviour plus the user's methods to `target`.
@@ -559,11 +584,14 @@ type Ctors = { create?: AnyFn; seal?: (value: unknown) => unknown; unpatchable?:
  */
 function attach(target: object, methods: Record<string, unknown>, ctors: Ctors = {}): void {
   const { create } = ctors;
-  const seal: (value: unknown) => unknown = ctors.seal ?? copy;
+  // A custom seal is handed the default one — brand and copy — so it does not have to
+  // name its own type through `Val.of` (design §6.8).
+  const custom = ctors.seal;
+  const seal: (value: unknown) => unknown = custom ? (value) => custom(value, copy) : copy;
 
   define(target, "equals", deepEquals);
   if (create) define(target, "create", (...args: never[]) => seal(create(...args)));
-  if (ctors.seal) define(target, "seal", seal);
+  if (custom) define(target, "seal", seal);
 
   define(target, "with", (value: unknown, patch: Record<string, unknown>) => {
     if (!isPlainRecord(value)) {
@@ -693,7 +721,7 @@ function build<V extends AnyVal>(ctors: Ctors): object {
 
   define(target, "implCreate", (create: AnyFn) => build<V>({ ...ctors, create }));
 
-  define(target, "implSeal", (seal: (value: unknown) => unknown) => build<V>({ ...ctors, seal }));
+  define(target, "implSeal", (seal: NonNullable<Ctors["seal"]>) => build<V>({ ...ctors, seal }));
 
   define(target, "unpatchable", () => build<V>({ ...ctors, unpatchable: true }));
 

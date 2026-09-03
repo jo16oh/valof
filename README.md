@@ -243,7 +243,7 @@ boundary with `?? null`.**
 export type Email = Val<"Email", string>;
 
 export const Email = Val.companion<Email>().implSeal(
-  (s: string) => Val.of<Email>(s.trim().toLowerCase()), // ← normalize here
+  (s: string, seal) => seal(s.trim().toLowerCase()), // ← normalize here
 );
 ```
 
@@ -286,14 +286,14 @@ be a silent way past any type's `equals`.
 
 A payload becomes a value by being **sealed**. `Val.sealer` is the default seal — brand
 the payload and copy it. `Val.companion` is the same shape minus the constructor, and
-`.implSeal` replaces that seal with your own; use `Val.of` inside it to lift the checked
-payload:
+`.implSeal` replaces that seal with your own. The default one comes in as a second
+parameter, so you lift without naming the type again:
 
 ```ts
 export type Age = Val<"Age", number>;
 
-export const Age = Val.companion<Age>().implSeal((n: number): Result<Age> =>
-  n >= 0 && Number.isInteger(n) ? ok(Val.of<Age>(n)) : err("age must be a non-negative integer"),
+export const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
+  n >= 0 && Number.isInteger(n) ? ok(seal(n)) : err("age must be a non-negative integer"),
 );
 
 Age(30); // type error: this expression is not callable
@@ -304,11 +304,15 @@ Checking is one thing a seal may do; normalizing and wrapping in a `Result` are 
 What makes it the seal is that **every path to a value goes through it** — `with`,
 `update` and `create` included — so nothing reaches a value without passing it.
 
-Its parameter is deep-readonly, which is about what it _accepts_: a caller's plain
+Taking that second parameter is optional — a one-parameter seal is registered unchanged,
+and `Val.of<Age>(n)` does the same job with the type argument spelled out. Callers pass
+the payload either way.
+
+The first parameter is deep-readonly, which is about what it _accepts_: a caller's plain
 mutable object goes straight in, with no repacking. Normalize by deriving — `toSorted`,
-a spread — and let the `Val.of` you return through take ownership; that deep copy is the
-only one on the path. (`seal` is about closing a payload into a value, not about
-`Object.seal` — nothing is frozen at runtime.)
+a spread — and let the lift you return through take ownership; that deep copy is the only
+one on the path. (`seal` is about closing a payload into a value, not about `Object.seal`
+— nothing is frozen at runtime.)
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back.
 Minting — a generated id, a timestamp — belongs in [`create`](#create) instead, or `with`
@@ -420,7 +424,7 @@ initialized, so `Point.seal(...)` is not in scope inside its own `.impl`.
 
 ```ts
 const Point = Val.companion<Point>()
-  .implSeal((p) => Val.of<Point>({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
+  .implSeal((p, seal) => seal({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
   .impl({
     with(p, patch: { x?: number; y?: number }, seal) {
       return seal({ ...p, ...patch });
@@ -480,9 +484,9 @@ const schema = z.object({ id: z.string().uuid(), name: z.string().min(1) });
 export type User = Val<"app/User", { id: string; name: string }>;
 
 export const User = Val.companion<User>()
-  .implSeal((input: unknown): Result<User> => {
+  .implSeal((input: unknown, seal): Result<User> => {
     const r = schema.safeParse(input);
-    return r.success ? ok(Val.of<User>(r.data)) : err(r.error.message);
+    return r.success ? ok(seal(r.data)) : err(r.error.message);
   })
   .impl({
     greet(u) {
@@ -501,7 +505,7 @@ function that takes a JSON string takes something else, and it can fail before t
 a payload at all — which a `create` cannot express. Keep it separate:
 
 ```ts
-export const User = Val.companion<User>().implSeal((input: unknown): Result<User> => …);
+export const User = Val.companion<User>().implSeal((input: unknown, seal): Result<User> => …);
 
 export function parseUser(json: string): Result<User> {
   return User.seal(JSON.parse(json));
@@ -534,7 +538,7 @@ type Fields = Omit<SeedOf<User>, "id">;
 
 export const User = Val.companion<User>()
   .implCreate((f: Fields): SeedOf<User> => ({ id: crypto.randomUUID(), ...f }))
-  .implSeal((u) => Val.of<User>(normalize(u)))
+  .implSeal((u, seal) => seal(normalize(u)))
   .unpatchable<"id">();
 
 User.with(user, { name: "sue" }); // OK
@@ -622,9 +626,9 @@ over a subset of the fields — how you keep a generated id out of one:
 type Fields = Omit<SeedOf<Account>, "id">;
 
 Val.companion<Account>()
-  .implCreate((f: Fields) => Val.of<Account>({ id: mint(), ...f }))
+  .implCreate((f: Fields) => ({ id: mint(), ...f }))
   .impl({
-    with: (a, patch: Patch<Fields>) => Val.of<Account>({ ...a, ...patch }), // id is not patchable
+    with: (a, patch: Patch<Fields>, seal) => seal({ ...a, ...patch }), // id is not patchable
   });
 ```
 

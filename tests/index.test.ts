@@ -223,9 +223,9 @@ type Result<T> = Ok<T> | Err;
 
 type Age = Val<"Age", number>;
 
-const Age = Val.companion<Age>().implSeal((n: number): Result<Age> =>
+const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
   n >= 0 && Number.isInteger(n)
-    ? { ok: true, value: Val.of<Age>(n) }
+    ? { ok: true, value: seal(n) }
     : { ok: false, error: "age must be a non-negative integer" },
 );
 
@@ -738,6 +738,29 @@ describe("implSeal", () => {
 
   test("a sealer has no implSeal: a second, checked seal beside the plain one is a hole", () => {
     expectTypeOf(Val.sealer<User>()).not.toHaveProperty("implSeal");
+  });
+
+  test("the default seal comes in as a second parameter, so Val.of is not needed", () => {
+    type Email = Val<"Email", string>;
+    const Email = Val.companion<Email>().implSeal((s: string, seal) => {
+      expectTypeOf(seal).toEqualTypeOf<(value: string) => Email>();
+      return seal(s.trim().toLowerCase());
+    });
+
+    const e = Email.seal("  A@B.com ");
+    expectTypeOf(e).toEqualTypeOf<Email>();
+    expect(e).toBe("a@b.com");
+    // callers pass the payload only
+    expectTypeOf(Email.seal).parameters.toEqualTypeOf<[string]>();
+  });
+
+  test("the default seal copies, so the value owns its payload", () => {
+    type Box = Val<"Box", { tags: string[] }>;
+    const Box = Val.companion<Box>().implSeal((b, seal) => seal(b));
+    const raw = { tags: ["a"] };
+    const b = Box.seal(raw);
+    raw.tags.push("b");
+    expect(b.tags).toEqual(["a"]);
   });
 
   test("the seal accepts an existing value as readily as a raw payload", () => {
