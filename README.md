@@ -556,8 +556,8 @@ export const IsoDate = Val.companion<IsoDate>()
     /* validate */
   })
   .impl({
-    toTemporal(d) {
-      return Temporal.Instant.from(d);
+    showLocal(d) {
+      return Temporal.Instant.from(d).toLocaleString();
     },
   });
 ```
