@@ -530,8 +530,14 @@ function copy<T>(value: T): T {
 }
 
 /**
- * Lifts a raw value into a Val. Use it inside custom constructors to avoid `as`
- * casts; it deep-copies, so the constructor owns the result.
+ * The default seal, with the type named explicitly: brand the payload and copy it.
+ *
+ * The same operation a `Val.sealer` performs when called, and the same one a custom seal
+ * receives as its second parameter — the three differ only in where the type comes from.
+ * So this is the constructor for a type that registered no seal of its own, and the way to
+ * lift at a trusted boundary; where a type does have one, using this closes the payload
+ * with the default seal instead of that type's, which is to say it skips the checks
+ * (design §2.2).
  */
 function of<V extends AnyVal>(value: SeedOf<V>): V {
   return copy(value) as unknown as V;

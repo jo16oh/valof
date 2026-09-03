@@ -99,11 +99,20 @@ payload's keys alone.
 
 ### `Val.of`
 
-Use it inside custom constructors to avoid `as` casts.
+**The default seal, with the type named explicitly.** Brand the payload and copy it —
+the same operation a `Val.sealer` performs when you call it, and the same one handed to a
+custom seal as its second parameter. The three differ only in where the type comes from.
 
 ```ts
 Val.of<User>({ id: "a", name: "alice" });
 ```
+
+Reach for it where a value has to be built and no seal is in scope: at a trusted boundary
+(a decoder, a database row), or in a companion method that returns a fresh value of its
+own type. Where the type has a seal of its own, use that instead — `Val.of` would close
+the payload with the default seal rather than the type's, which is to say: skip its
+checks. That makes it the visible escape hatch, spelled with the type argument in plain
+sight.
 
 ### `Val.unwrap`
 
