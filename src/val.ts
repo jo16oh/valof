@@ -177,7 +177,7 @@ type NonMethod = Primitive | undefined | readonly unknown[] | Record<string, unk
  * is a payload or an argument list rather than the Val. They go to `.implSeal` and
  * `.implCreate`.
  */
-type CompanionMethods<V extends AnyVal> = {
+type CompanionMethods<V extends AnyVal, F = undefined> = {
   /**
    * Overrides the default deep equals. Applies to top-level comparisons only (design §5).
    *
@@ -204,6 +204,28 @@ type CompanionMethods<V extends AnyVal> = {
    */
   seal?: never;
   create?: never;
+  /**
+   * Overrides the default `with` / `update`, in the type as well as at runtime.
+   *
+   * The seal is handed over as the last parameter, the way `equals` receives the deep
+   * comparison: a hand-written rebuild is the one place that could step around the type's
+   * own seal, and the companion is still being initialised, so `YourVal.seal` cannot be
+   * referenced from inside `.impl` (design §6.6).
+   *
+   * ```ts
+   * with(u, patch: Patch<Fields>, seal) {
+   *   return seal({ ...u, ...patch });
+   * },
+   * ```
+   *
+   * Callers never pass it: the published signature drops the trailing parameter. Writing
+   * the two-parameter form is still fine — nothing forces you to take the seal.
+   */
+  // oxlint-disable-next-line no-explicit-any -- the patch is yours to choose; `never` would not fit the index signature
+  with?: (value: V, patch: any, seal: (value: SeedOf<V>) => Constructed<V, F>) => unknown;
+  /** Same as `with`, for the function-shaped update. */
+  // oxlint-disable-next-line no-explicit-any -- same as `with`
+  update?: (value: V, fn: any, seal: (value: SeedOf<V>) => Constructed<V, F>) => unknown;
   // oxlint-disable-next-line no-explicit-any -- `never[]` would type unannotated extra parameters as `never`
   [key: string]: ((value: V, ...rest: any[]) => unknown) | NonMethod;
 };
@@ -248,6 +270,32 @@ type Slot<K extends string, T> = [T] extends [undefined] ? Record<never, never> 
 type Rebuild<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 
 /**
+ * Drops the trailing seal parameter from an override, so callers see the two-parameter
+ * method they actually call. An override written without it is published unchanged — a
+ * two-element parameter list does not match the three-element pattern.
+ */
+type WithoutSeal<T> = T extends (...args: infer A) => infer R
+  ? A extends [infer Value, infer Arg, unknown]
+    ? (value: Value, arg: Arg) => R
+    : T
+  : T;
+
+/** The payload minus the keys `.unpatchable` took out of the update path (design §6.10). */
+type Patchable<V extends AnyVal, P> = [P] extends [never]
+  ? SeedOf<V>
+  : Omit<SeedOf<V>, P & keyof SeedOf<V>>;
+
+/**
+ * `T`, with every key it has beyond `S`'s mapped to `never`.
+ *
+ * Narrowing `update`'s callback to a return type is not enough: excess-property checking
+ * only fires when an object literal meets its target directly, and an un-annotated arrow
+ * body is inferred first, so `(v) => ({ ...v, id: "forged" })` slips through. Making the
+ * extra key structurally uninhabitable catches it instead (design §6.10).
+ */
+type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
+
+/**
  * `with` exists only when there is something to patch. `Patch` is `never` for
  * primitives and arrays, so for those the method is left out of the type entirely
  * rather than being offered with an uninhabitable argument (design §6.2).
@@ -255,14 +303,31 @@ type Rebuild<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, 
  * A `with` supplied in `.impl` wins, the way `equals` does. That is the escape hatch
  * for everything the default cannot express (design §6.6).
  */
-type WithMethod<V extends AnyVal, M, F> = "with" extends keyof M
-  ? { with: M["with"] }
-  : Slot<"with", [Patch<SeedOf<V>>] extends [never] ? undefined : Rebuild<V, F, Patch<SeedOf<V>>>>;
+type WithMethod<V extends AnyVal, M, F, P> = "with" extends keyof M
+  ? { with: WithoutSeal<M["with"]> }
+  : Slot<
+      "with",
+      [Patch<Patchable<V, P>>] extends [never] ? undefined : Rebuild<V, F, Patch<Patchable<V, P>>>
+    >;
 
-/** Same as {@link WithMethod}: yours if you wrote one, the rebuilt default otherwise. */
-type UpdateMethod<V extends AnyVal, M, F> = "update" extends keyof M
-  ? { update: M["update"] }
-  : Slot<"update", Rebuild<V, F, (value: V) => SeedOf<V>>>;
+/**
+ * Same as {@link WithMethod}: yours if you wrote one, the rebuilt default otherwise.
+ *
+ * With keys taken out of the patch path, the callback returns only what is left and the
+ * default merges it onto the value, so the untouched keys survive without the library
+ * knowing their names (design §6.10).
+ */
+type UpdateMethod<V extends AnyVal, M, F, P> = "update" extends keyof M
+  ? { update: WithoutSeal<M["update"]> }
+  : Slot<
+      "update",
+      [P] extends [never]
+        ? Rebuild<V, F, (value: V) => SeedOf<V>>
+        : <T extends Patchable<V, P>>(
+            value: V,
+            fn: (value: V) => NoExtra<T, Patchable<V, P>>,
+          ) => Constructed<V, F>
+    >;
 
 /**
  * A type's behaviour, and nothing else. Notably not callable: a constructor comes
@@ -270,14 +335,15 @@ type UpdateMethod<V extends AnyVal, M, F> = "update" extends keyof M
  */
 export type Companion<
   V extends AnyVal,
-  M extends CompanionMethods<V>,
+  M extends CompanionMethods<V, F>,
   N = undefined,
   F = undefined,
+  P = never,
 > = Omit<M, "equals" | "with" | "update"> &
   Slot<"create", Minting<V, N, F>> &
   Slot<"seal", F> &
-  WithMethod<V, M, F> &
-  UpdateMethod<V, M, F> & {
+  WithMethod<V, M, F, P> &
+  UpdateMethod<V, M, F, P> & {
     /** Structural equality: key-order independent, ignoring `undefined`-valued keys (design §5). */
     equals: (a: V, b: V) => boolean;
   };
@@ -324,20 +390,40 @@ export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
  * Minting belongs in `create` for that reason; the type system cannot check it
  * (design §6.7).
  */
-export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined> = Companion<
+export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P = never> = Companion<
   V,
   Record<never, never>,
   N,
-  F
+  F,
+  P
 > & {
   impl: {
-    (): Companion<V, Record<never, never>, N, F>;
-    <M extends CompanionMethods<V>>(methods: M): Companion<V, M, N, F>;
+    (): Companion<V, Record<never, never>, N, F, P>;
+    <M extends CompanionMethods<V, F>>(methods: M): Companion<V, M, N, F, P>;
   };
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
-  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F>;
+  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P>;
   /** Replaces the seal. `create`, `with` and `update` all go through it. */
-  implSeal: <G extends SealImpl<V>>(seal: G) => CompanionBuilder<V, N, G>;
+  implSeal: <G extends SealImpl<V>>(seal: G) => CompanionBuilder<V, N, G, P>;
+  /**
+   * Takes keys out of the update path: `with` stops accepting them in its patch, and
+   * `update`'s callback returns only what is left, with the rest merged back on.
+   *
+   * For what a `create` mints and nothing afterwards may change — an id, a `createdAt`,
+   * a version counter:
+   *
+   * ```ts
+   * Val.companion<User>()
+   *   .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }))
+   *   .implSeal(seal)
+   *   .unpatchable<"id">();
+   * ```
+   *
+   * The keys are a type argument: they never exist at runtime, so this is a guarantee
+   * about the update path, not about the value. `Val.of` can still forge one, exactly as
+   * it can forge anything else (design §6.10).
+   */
+  unpatchable: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K>;
 };
 
 // ---------------------------------------------------------------------------
@@ -459,8 +545,8 @@ function define(target: object, key: string, value: unknown): void {
   });
 }
 
-/** The constructors a companion was given, if any. */
-type Ctors = { create?: AnyFn; seal?: (value: unknown) => unknown };
+/** The constructors a companion was given, plus whether `.unpatchable` was called. */
+type Ctors = { create?: AnyFn; seal?: (value: unknown) => unknown; unpatchable?: boolean };
 
 /**
  * Attaches the default behaviour plus the user's methods to `target`.
@@ -490,7 +576,15 @@ function attach(target: object, methods: Record<string, unknown>, ctors: Ctors =
     return seal(merged);
   });
 
-  define(target, "update", (value: unknown, fn: (value: unknown) => unknown) => seal(fn(value)));
+  // With keys out of the patch path the callback returns only what is left, so its result
+  // is merged onto the value; the keys it may not touch survive without being named here.
+  define(target, "update", (value: unknown, fn: (value: unknown) => unknown) =>
+    seal(
+      ctors.unpatchable && isPlainRecord(value)
+        ? { ...value, ...(fn(value) as Record<string, unknown>) }
+        : fn(value),
+    ),
+  );
 
   for (const key of Object.keys(methods)) {
     // A custom `equals` is handed the structural default as a third argument, so an
@@ -499,6 +593,14 @@ function attach(target: object, methods: Record<string, unknown>, ctors: Ctors =
     if (key === "equals" && typeof methods[key] === "function") {
       const custom = methods[key] as (a: unknown, b: unknown, deep: typeof deepEquals) => boolean;
       define(target, key, (a: unknown, b: unknown) => custom(a, b, deepEquals));
+      continue;
+    }
+    // Same idea for a hand-written rebuild: it is handed the seal, since it cannot reach
+    // the companion it is being defined on, and `Val.of` in its place would step around
+    // the type's own seal (design §6.6).
+    if ((key === "with" || key === "update") && typeof methods[key] === "function") {
+      const custom = methods[key] as (value: unknown, arg: unknown, seal: unknown) => unknown;
+      define(target, key, (value: unknown, arg: unknown) => custom(value, arg, seal));
       continue;
     }
     define(target, key, methods[key]);
@@ -592,6 +694,8 @@ function build<V extends AnyVal>(ctors: Ctors): object {
   define(target, "implCreate", (create: AnyFn) => build<V>({ ...ctors, create }));
 
   define(target, "implSeal", (seal: (value: unknown) => unknown) => build<V>({ ...ctors, seal }));
+
+  define(target, "unpatchable", () => build<V>({ ...ctors, unpatchable: true }));
 
   return target;
 }

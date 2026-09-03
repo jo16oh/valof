@@ -752,31 +752,18 @@ describe("implSeal", () => {
 // 慣用パターン（§8）
 // ---------------------------------------------------------------------------
 
-describe("fields the update path must not touch", () => {
+describe("unpatchable", () => {
   type Account = Val<"app/Account", { id: string; owner: string; note: string }>;
   type Fields = Omit<SeedOf<Account>, "id">;
-  type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
   let minted = 0;
-  // Named so the custom `with` / `update` can route through it. Calling `Val.of` in their
-  // place would build a value that never passed the type's own seal.
-  const seal = (a: SeedOf<Account>): Account =>
-    Val.of<Account>({ ...a, owner: a.owner.trim().toLowerCase() });
-
   const Account = Val.companion<Account>()
     .implCreate((f: Fields): SeedOf<Account> => {
       minted += 1;
       return { id: `id-${minted}`, ...f };
     })
-    .implSeal(seal)
-    .impl({
-      with(a, patch: Patch<Fields>): Account {
-        return seal({ ...a, ...patch });
-      },
-      update<T extends Fields>(a: Account, fn: (value: Account) => NoExtra<T, Fields>): Account {
-        return seal({ ...a, ...fn(a) });
-      },
-    });
+    .implSeal((a) => Val.of<Account>({ ...a, owner: a.owner.trim().toLowerCase() }))
+    .unpatchable<"id">();
 
   test("create mints the id; with and update preserve it", () => {
     const a = Account.create({ owner: "bob", note: "" });
@@ -787,13 +774,60 @@ describe("fields the update path must not touch", () => {
 
     const c = Account.update(b, (v) => ({ owner: v.owner, note: "seen" }));
     expect(c).toEqual({ id: "id-1", owner: "sue", note: "seen" });
+    expect(minted).toBe(1);
   });
 
   test("the id is not reachable through either update path", () => {
     const a = Account.create({ owner: "bob", note: "" });
+    expectTypeOf(Account.with).parameters.toEqualTypeOf<[Account, Patch<Fields>]>();
     // @ts-expect-error id is not patchable
     Account.with(a, { id: "forged" });
     // @ts-expect-error the transform cannot return an id either
     Account.update(a, (v) => ({ ...v, id: "forged" }));
+  });
+
+  test("the callback returns only what is left, and the rest is merged back on", () => {
+    const a = Account.create({ owner: "bob", note: "x" });
+    expectTypeOf(
+      Account.update(a, (v) => ({ owner: v.owner, note: "y" })),
+    ).toEqualTypeOf<Account>();
+    expect(Account.update(a, (v) => ({ owner: v.owner, note: "y" })).id).toBe(a.id);
+  });
+
+  test("keys must exist on the payload", () => {
+    // @ts-expect-error there is no such field
+    Val.companion<Account>().unpatchable<"nope">();
+  });
+});
+
+describe("a hand-written with / update is handed the seal", () => {
+  type Point = Val<"Point", { x: number; y: number }>;
+
+  const Point = Val.companion<Point>()
+    .implSeal((p): Point => Val.of<Point>({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
+    .impl({
+      with(p, patch: { x?: number; y?: number }, seal) {
+        return seal({ ...p, ...patch });
+      },
+    });
+
+  test("the override rebuilds through the type's own seal", () => {
+    const p = Point.seal({ x: 1, y: 2 });
+    expect(Point.with(p, { x: 3.7 })).toEqual({ x: 3, y: 2 }); // truncated by the seal
+  });
+
+  test("callers still pass two arguments", () => {
+    const p = Point.seal({ x: 1, y: 2 });
+    expectTypeOf(Point.with).parameters.toEqualTypeOf<[Point, { x?: number; y?: number }]>();
+    expectTypeOf(Point.with(p, { y: 9 })).toEqualTypeOf<Point>();
+  });
+
+  test("the two-parameter form still works", () => {
+    const Plain = Val.companion<Point>().impl({
+      with(p, patch: { x?: number }): Point {
+        return Val.of<Point>({ ...p, ...patch });
+      },
+    });
+    expect(Plain.with(Val.of<Point>({ x: 1, y: 2 }), { x: 5 })).toEqual({ x: 5, y: 2 });
   });
 });

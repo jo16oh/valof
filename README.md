@@ -410,18 +410,27 @@ Accidental deletion is guarded in layers:
    fails loudly rather than corrupting quietly
 
 `with` and `update` are defaults, not fixtures: define either one in `.impl` and yours
-wins, in the type as well as at runtime. That is the escape hatch the message above points
-at, and it is also how a primitive Val — which has no `with` by default — can get one:
+wins, in the type as well as at runtime. It is also how a primitive Val — which has no
+`with` by default — can get one.
+
+Your override is handed the seal as a last parameter, the way an `equals` override is
+handed the deep comparison. Use it rather than `Val.of`: a hand-written rebuild is the
+one place that can step around the type's own seal, and the companion is still being
+initialized, so `Point.seal(...)` is not in scope inside its own `.impl`.
 
 ```ts
 const Point = Val.companion<Point>()
-  .implCreate((x: number, y: number) => ({ x, y }))
+  .implSeal((p) => Val.of<Point>({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
   .impl({
-    with(p, patch: { x?: number; y?: number }): Point {
-      return make(patch.x ?? p.x, patch.y ?? p.y);
+    with(p, patch: { x?: number; y?: number }, seal) {
+      return seal({ ...p, ...patch });
     },
   });
+
+Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 ```
+
+Taking the seal is optional — a two-parameter override is published as it stands.
 
 `with` only exists on object-shaped Vals. A `Val<"IsoDate", string>` has nothing to
 patch, so its companion does not carry the method at all rather than offering one whose
@@ -517,61 +526,33 @@ Choose it when the boundary is the only place the invariant can be checked.
 ### Fields the update path must not touch
 
 An id minted inside the constructor, a `createdAt`, a version counter: `create` mints
-them, the seal preserves them, and narrowing the patch keeps `with` off them.
+them, the seal preserves them, and `.unpatchable` keeps the update path off them.
 
 ```ts
 export type User = Val<"app/User", { id: string; name: string; email: string }>;
 type Fields = Omit<SeedOf<User>, "id">;
-type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
-
-// named so the custom `with` / `update` can route through it
-const seal = (u: SeedOf<User>): User => Val.of<User>(normalize(u));
 
 export const User = Val.companion<User>()
   .implCreate((f: Fields): SeedOf<User> => ({ id: crypto.randomUUID(), ...f }))
-  .implSeal(seal)
-  .impl({
-    with(u, patch: Patch<Fields>): User {
-      return seal({ ...u, ...patch });
-    },
-    update<T extends Fields>(u: User, fn: (value: User) => NoExtra<T, Fields>): User {
-      return seal({ ...u, ...fn(u) });
-    },
-  });
+  .implSeal((u) => Val.of<User>(normalize(u)))
+  .unpatchable<"id">();
 
 User.with(user, { name: "sue" }); // OK
 User.with(user, { id: "forged" }); // type error
+User.update(user, (u) => ({ name: u.name, email: u.email })); // id survives
 User.update(user, (u) => ({ ...u, id: "forged" })); // type error
 ```
 
-Cover both paths — `update` hands back a whole payload, so narrowing `with` alone still
-leaves `id` reachable.
+Both paths need covering — `update` hands back a payload, so narrowing `with` alone
+would still leave `id` reachable. With keys declared unpatchable, `update`'s callback
+returns only what is left and the rest is merged back on, so deleting an optional key
+goes through `with(v, { k: undefined })` instead.
 
-Call the seal from them rather than `Val.of`: a hand-written `with` is the one place that
-can step around the type's own seal, and the companion is still being initialized, so
-`User.seal(...)` is not available inside its own `.impl`.
-
-`update` needs the `NoExtra` detour because the obvious version does not work:
-
-```ts
-update(u, fn: (value: User) => Fields): User { … }
-User.update(user, (u) => ({ ...u, id: "forged" })); // no error!
-```
-
-Excess-property checking only fires when an object literal is matched against its target
-directly. With no return annotation on the callback, TypeScript first infers its return
-type from the body and then checks function assignability, by which point the literal is
-no longer fresh and the extra key is simply ignored. `NoExtra` sidesteps that by making
-the extra key a structural error — `T` is inferred as what the callback actually returns,
-and every key outside `Fields` is mapped to `never`.
-
-(Writing the constraint as `T extends NoExtra<T, Fields>` looks tidier but is TS2313, a
-circular constraint. It has to sit in the parameter type.)
-
-Even so, this is **not** privacy. `user.id` is readable, `readonly` is erased at runtime, and
-`Val.of<User>({ id: "forged", … })` still builds one. What you get is that no ordinary
-update can move `id` — which is usually the thing you actually wanted. If it must be
-unforgeable, `id` belongs outside the value.
+The keys are a type argument, so they do not exist at runtime. That makes this a
+guarantee about the update path, not about the value: `user.id` is readable, `readonly`
+is erased at runtime, and `Val.of<User>({ id: "forged", … })` still builds one. What you
+get is that no ordinary update can move `id` — usually the thing you actually wanted. If
+it must be unforgeable, `id` belongs outside the value.
 
 ### Dates
 
@@ -609,16 +590,17 @@ All of it follows from the one line: values are plain data.
 
 ## API
 
-|                                    |                                                          |
-| ---------------------------------- | -------------------------------------------------------- |
-| `Val<K, T>`                        | a branded value type                                     |
-| `Val.of<V>(value)`                 | lifts a raw value into a Val, copying it                 |
-| `Val.unwrap(value)`                | a mutable copy of the payload                            |
-| `Val.sealer<V>()`                  | the default seal, carrying the default behaviour         |
-| `Val.sealer<V>().impl(fns)`        | the constructor plus your functions                      |
-| `Val.companion<V>().impl(fns)`     | behaviour only — no constructor                          |
-| `Val.companion<V>().implSeal(f)`   | replaces the seal — payload in, value out                |
-| `Val.companion<V>().implCreate(f)` | registers `create`: any arguments, a payload out, sealed |
+|                                       |                                                          |
+| ------------------------------------- | -------------------------------------------------------- |
+| `Val<K, T>`                           | a branded value type                                     |
+| `Val.of<V>(value)`                    | lifts a raw value into a Val, copying it                 |
+| `Val.unwrap(value)`                   | a mutable copy of the payload                            |
+| `Val.sealer<V>()`                     | the default seal, carrying the default behaviour         |
+| `Val.sealer<V>().impl(fns)`           | the constructor plus your functions                      |
+| `Val.companion<V>().impl(fns)`        | behaviour only — no constructor                          |
+| `Val.companion<V>().implSeal(f)`      | replaces the seal — payload in, value out                |
+| `Val.companion<V>().implCreate(f)`    | registers `create`: any arguments, a payload out, sealed |
+| `Val.companion<V>().unpatchable<K>()` | takes keys out of `with` / `update`                      |
 
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
 deep comparison, which is not exported on its own — an override receives it as a third
