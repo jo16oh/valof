@@ -446,25 +446,21 @@ Age.update(age, (n) => n + 1); // Result<Age>
 
 ### Map / Set
 
-```ts
-// Set
-type Tags = Val<"Tags", Readonly<Record<string, true>>>;
+Use an object's properties.
 
-// Map
-type PriceTable = Val<"PriceTable", Readonly<Record<string, Money>>>;
+```ts
+type Tags = Val<"Tags", Readonly<Record<string, true>>>; // a Set
+type PriceTable = Val<"PriceTable", Readonly<Record<string, Money>>>; // a Map
 ```
 
-Prefer `Record<K, true>` over `Record<K, null>`: with `true`, `if (s[key])` is already
-the membership test. The record representation also means **structural equality is
-exactly set equality** (an array representation would make `[1,2]` and `[2,1]` differ).
-The default `equals` is key-order independent, so this works.
+`true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`
+ignores key order, which makes comparing two of these set equality.
 
-Caveats:
+Numeric keys come back as strings through a JSON round trip. `ReadonlyArray<number>` avoids
+that, at the cost of comparing by order.
 
-- **Numeric keys become strings through a JSON round trip.** For sets of numeric IDs,
-  prefer `ReadonlyArray<number>`
-- **Prototype-pollution keys** (`"__proto__"` / `"constructor"`). When keys come from
-  user input, test membership with `Object.hasOwn`
+Keys from user input want `Object.hasOwn` for the membership test — the usual `__proto__`
+caveat applies here as much as to any object.
 
 ### Schema validation
 
