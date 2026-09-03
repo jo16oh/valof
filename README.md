@@ -294,7 +294,7 @@ Only four things can live inside a Val:
 Being made to compose Vals rather than nest object literals tends to produce better
 aggregates than you would have reached for on your own.
 
-## Idiomatic patterns
+## Patterns
 
 ### Reusing a Val
 
