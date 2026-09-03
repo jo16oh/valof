@@ -325,14 +325,10 @@ gives normalization a place to live at the boundary.
 
 ## Recommended tsconfig, and `null` / `undefined`
 
-```jsonc
-{
-  "compilerOptions": {
-    "strict": true,
-    "exactOptionalPropertyTypes": true, // strongly recommended
-  },
-}
-```
+`strict` (the default from TypeScript 7 on), plus `exactOptionalPropertyTypes`. The
+second is not required, but it is what keeps the rule below enforced: without it
+TypeScript cannot tell `{ a?: string }` from `{ a?: string | undefined }`, so `undefined`
+leaks in uncast.
 
 |                            |                                          |
 | -------------------------- | ---------------------------------------- |
@@ -341,22 +337,12 @@ gives normalization a place to live at the boundary.
 | `undefined` as a value     | **forbidden**                            |
 | `undefined` inside a patch | reserved to mean **delete the property** |
 
-"key present, value `undefined`" is the only case that breaks, because the two
-serialization paths disagree about it:
-
-```ts
-JSON.parse(JSON.stringify({ a: undefined })); // {} — the key disappears
-structuredClone({ a: undefined }); // { a: undefined } — the key survives
-```
-
-Without `exactOptionalPropertyTypes`, TypeScript cannot tell `{ a?: string }` from
-`{ a?: string | undefined }`, so `undefined` leaks in uncast. It is not required — the
-default `equals` ignores `undefined`-valued keys, which hides the divergence — but it is
-what keeps the rule enforced.
+"Key present, value `undefined`" is the only case that breaks: a JSON round trip drops the
+key and `structuredClone` keeps it, so the two disagree about what the value was.
 
 `undefined` seeps in from everywhere in TypeScript (`Array.prototype.find`, `Map.get`,
-`noUncheckedIndexedAccess`, code generators, form libraries). **Normalize at the
-boundary with `?? null`.**
+`noUncheckedIndexedAccess`, code generators, form libraries). **Normalize at the boundary
+with `?? null`.**
 
 ## Idiomatic patterns
 
