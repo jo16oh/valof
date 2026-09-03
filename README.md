@@ -39,27 +39,21 @@ User.greet(user);
 User.equals(user, User({ id: "a", name: "bob" })); // true
 ```
 
-`Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions for the
-type without taking that away — what comes back is still callable. A type with no
-functions of its own needs nothing beyond the sealer, which already carries `equals`,
-`with` and `update`.
-
-Every function takes its Val first, which is what lets `u` go unannotated. A function whose
-first parameter is something else is rejected — constructors go to
-[`.implSeal` / `.implCreate`](#smart-constructors).
+`Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions related to
+that type. Every function in `impl` must take its Val first. A sealer carries default
+functions — `equals`, `with` and `update` — which `.impl({…})` can override.
 
 Only primitives, other Vals, arrays and records can live inside a Val — see
 [Allowed types](#allowed-types).
 
-Name the brand after the type it brands, so the two cannot drift apart. Two Vals with the
-same brand string and the same payload are silently assignable to each other, so where the
-same name really does live in two places — `Id` in two domains of a monorepo — prefix it:
+**Name the brand after the type it brands.** Two Vals with the same brand string and the
+same payload are silently assignable to each other. So where the same name really does live
+in two places — `Id` in two domains of a monorepo — prefix it with a namespace:
 `"billing/Id"`.
 
 ### Constructors copy their argument
 
-Constructors deep-copy what you pass them, so keeping a reference to it buys you
-nothing:
+Constructors deep-copy what you pass them:
 
 ```ts
 const raw = { id: "a", name: "alice" };
