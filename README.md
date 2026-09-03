@@ -253,7 +253,7 @@ boundary with `?? null`.**
 export type Email = Val<"Email", string>;
 
 export const Email = Val.companion<Email>().implSeal(
-  (s: string, seal) => seal(s.trim().toLowerCase()), // ← normalize here
+  (s, seal) => seal(s.trim().toLowerCase()), // ← normalize here
 );
 ```
 
@@ -302,7 +302,7 @@ parameter, so you seal without naming the type again:
 ```ts
 export type Age = Val<"Age", number>;
 
-export const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
+export const Age = Val.companion<Age>().implSeal((n, seal): Result<Age> =>
   n >= 0 && Number.isInteger(n) ? ok(seal(n)) : err("age must be a non-negative integer"),
 );
 
@@ -371,7 +371,7 @@ format — are registered separately. A `create` builds a **payload**; the seal 
 ```ts
 export const User = Val.companion<User>()
   .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }))
-  .implSeal((u: SeedOf<User>): Result<User> => check(u));
+  .implSeal((u): Result<User> => check(u));
 
 User.create(fields); // Result<User> — create's payload, sealed
 ```
@@ -550,10 +550,9 @@ them, the seal preserves them, and `.unpatchable` keeps the update path off them
 
 ```ts
 export type User = Val<"app/User", { id: string; name: string; email: string }>;
-type Fields = Omit<SeedOf<User>, "id">;
 
 export const User = Val.companion<User>()
-  .implCreate((f: Fields): SeedOf<User> => ({ id: crypto.randomUUID(), ...f }))
+  .implCreate((f: Omit<SeedOf<User>, "id">) => ({ id: crypto.randomUUID(), ...f }))
   .implSeal((u, seal) => seal(normalize(u)))
   .unpatchable<"id">();
 
@@ -580,7 +579,7 @@ it must be unforgeable, `id` belongs outside the value.
 export type IsoDate = Val<"IsoDate", string>;
 
 export const IsoDate = Val.companion<IsoDate>()
-  .implSeal((s: string) => {
+  .implSeal((s) => {
     /* validate */
   })
   .impl({
