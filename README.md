@@ -317,6 +317,14 @@ with `?? null`.**
 
 ## Idiomatic patterns
 
+### Reusing a Val
+
+`PayloadOf<V>` is the payload without the brand, so one type can build on another:
+
+```ts
+type SuperUser = Val<"SuperUser", PayloadOf<User> & { privileges: readonly string[] }>;
+```
+
 ### Map / Set
 
 Use an object's properties.
