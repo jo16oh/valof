@@ -58,8 +58,10 @@ first parameter is something else is rejected — constructors go to
 Only primitives, other Vals, arrays and records can live inside a Val — see
 [Allowed types](#allowed-types).
 
-Two Vals collide only when they share the same brand string, so namespace it:
-`"app/User"`.
+Name the brand after the type it brands, so the two cannot drift apart. Two Vals collide
+only when they share a brand string — and when they do, and their payloads match, each is
+silently assignable to the other — so prefix a namespace once the same name could
+plausibly exist in another package: `"app/User"`.
 
 The brand lives under two phantom keys that never exist at runtime. They do appear in
 `keyof YourVal`, so reach for `PayloadOf<V>` or `SeedOf<V>` when you want the payload's
@@ -477,6 +479,18 @@ can name them when you re-export a companion — there is no reason to import on
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
 deep comparison, which is not exported on its own — an override receives it as a third
 argument instead (see _Construct in normal form_).
+
+## Caveats
+
+**Do not build a library's public surface out of valof.** A companion's functions are
+reached through the object rather than as exports, so a bundler keeps every one of them and
+an unused-export check never reports one. `Val` is itself a companion, which means the
+import alone brings `sealer`, `companion`, `unwrap` and everything they reach: a module
+that calls only `Val.of` still carries the whole runtime.
+
+In an app that is worth knowing, because nothing will tell you when a companion function
+goes dead. In a published library your consumers carry it instead, so keep valof on the
+inside and expose plain types and functions.
 
 ## Development
 
