@@ -648,15 +648,6 @@ Val.companion<Account>()
   });
 ```
 
-Exported types you never write, but your own `.d.ts` will reference if you re-export a
-companion: `Sealer`, `Sealed`, `Companion` and `CompanionBuilder`.
-
-Everything else is internal. `Primitive`, `Validate`, `DeepReadonly`, `OptionalKeys` and
-`Invalid` only ever appear inside a resolved `Val<K, T>` — `Invalid<"...">` still shows
-up by name in the diagnostics above. `.impl`, `.implSeal` and `.implCreate` type their
-arguments contextually, so there is no need to spell `CompanionMethods` or `SealImpl`
-either.
-
 ## Development
 
 ```bash

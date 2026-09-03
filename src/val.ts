@@ -322,6 +322,8 @@ type UpdateMethod<V extends AnyVal, M, F, P> = "update" extends keyof M
 /**
  * A type's behaviour, and nothing else. Notably not callable: a constructor comes from
  * `Val.sealer`, so a companion built without one cannot be used to build values.
+ *
+ * Inferred, not written: it is exported so your own declarations can name it.
  */
 export type Companion<
   V extends AnyVal,
@@ -338,12 +340,18 @@ export type Companion<
     equals: (a: V, b: V) => boolean;
   };
 
-/** A companion that kept the constructor it was built from. */
+/**
+ * A companion that kept the constructor it was built from.
+ *
+ * Inferred, not written: it is exported so your own declarations can name it.
+ */
 export type Sealed<V extends AnyVal, M extends CompanionMethods<V>> = ((value: SeedOf<V>) => V) &
   Companion<V, M>;
 
 /**
  * A constructor for `V`, which can grow methods without ceasing to be one.
+ *
+ * Inferred, not written: it is exported so your own declarations can name it.
  *
  * No `.implSeal` here on purpose: a sealer *is* the default seal, and a second, checked one
  * beside it would be a hole straight past the first. No `.implCreate` either: beside a callable
@@ -363,6 +371,8 @@ export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
 /**
  * What `Val.companion` returns: the mirror of {@link Sealer}, differing only in that nothing
  * was ever callable.
+ *
+ * Inferred, not written: it is exported so your own declarations can name it.
  *
  * The two registration steps are deliberately separate. `implSeal` replaces the single gate a
  * payload passes to become a value; `implCreate` is free-form but only ever builds a *payload*,
