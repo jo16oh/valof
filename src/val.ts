@@ -112,9 +112,9 @@ export type PayloadOf<V extends AnyVal> = V extends {
  * What a value can be grown from: the payload as constructors, `Val.of` and a custom seal
  * accept it.
  *
- * Deep-readonly to *accept* more, not to enforce anything — the deep copy every constructor
- * makes already takes ownership. A Val is itself deep-readonly, so without it, deriving a value
- * from an existing one would not type-check.
+ * Deep-readonly to *accept* more, not to enforce anything — every constructor deep-copies its
+ * argument, so there is nothing left to enforce. A Val is itself deep-readonly, so without it,
+ * deriving a value from an existing one would not type-check.
  */
 export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
 
@@ -465,8 +465,12 @@ export function deepEquals(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Deep-copies a payload, which is how a constructor takes ownership of its argument, since
- * `DeepReadonly` is erased at runtime.
+ * Deep-copies a payload.
+ *
+ * Constructors accept a plain mutable object, so the conversion from mutable to immutable has
+ * to happen somewhere. Doing it here keeps it inside the library: without the copy the value
+ * would share structure with the caller's object, and never touching that object again would
+ * be the caller's discipline rather than something the type can promise.
  *
  * Payloads are primitives, arrays, plain objects and nested Vals — themselves plain data — so
  * the recursion needs no special cases. The result is deliberately not frozen.
@@ -498,8 +502,8 @@ function of<V extends AnyVal>(value: SeedOf<V>): V {
  * The other direction: a plain, mutable copy of the payload, for code that does not know about
  * `readonly`.
  *
- * It copies for the same reason constructors do: the brand is phantom, so a Val *is* its
- * payload at runtime, and handing it back under a mutable type would let the caller write
+ * It copies for the mirror of that reason: the brand is phantom, so a Val *is* its payload at
+ * runtime, and handing that object back under a mutable type would put the caller's writes
  * straight into the value.
  */
 function unwrap<V extends AnyVal>(value: V): PayloadOf<V> {
@@ -527,8 +531,8 @@ type Ctors = {
  * Attaches the default behaviour plus the user's methods to `target`.
  *
  * Everything that produces a value goes through one function, `seal`: the registered one, or a
- * copy when the type did not replace it. Nothing copies on the way *in* — the deep copy that
- * takes ownership happens once, in the default seal the custom one returns through.
+ * copy when the type did not replace it. Nothing copies on the way *in* — the one deep copy
+ * happens in the default seal the custom one returns through.
  */
 function attach(target: object, methods: Record<string, unknown>, ctors: Ctors = {}): void {
   const { create } = ctors;

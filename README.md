@@ -139,7 +139,7 @@ Post.with(post, { tags: [...post.tags, "b"] }); // ✓ one copy
 Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
 ```
 
-### Constructors take ownership
+### Constructors copy their argument
 
 Constructors deep-copy their argument, so keeping a reference to what you passed in
 buys you nothing:
@@ -151,9 +151,10 @@ raw.name = "mallory";
 user.name; // "alice"
 ```
 
-`readonly` is erased at runtime, so nothing else would stop that write. The copy is
-the only thing standing between an aliased argument and a value that changes behind
-your back — a value object that can is not one.
+Constructors accept a plain mutable object, so the conversion from mutable to immutable
+has to happen somewhere. Doing it in the constructor keeps it off you: without the copy,
+the object you passed in would still _be_ the value, and never touching it again would be
+your discipline rather than something the type can promise.
 
 Values are not frozen, though. Reaching past `readonly` to write to a value is a
 deliberate act, and freezing costs on every construction and slows array reads.
@@ -320,8 +321,8 @@ the payload either way.
 
 The first parameter is deep-readonly, which is about what it _accepts_: a caller's plain
 mutable object goes straight in, with no repacking. Normalize by deriving — `toSorted`,
-a spread — and let the default seal you return through take ownership; that deep copy is the only
-one on the path. (`seal` is about closing a payload into a value, not about `Object.seal`
+a spread — and let the default seal you return through make the copy; it is the only one
+on the path. (`seal` is about closing a payload into a value, not about `Object.seal`
 — nothing is frozen at runtime.)
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back.

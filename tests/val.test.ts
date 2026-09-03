@@ -534,7 +534,7 @@ test("sealer > companion() mirrors sealer(), minus the constructor", () => {
   expect("label" in bare).toBe(false);
 });
 
-describe("ownership", () => {
+describe("constructors copy their argument", () => {
   type Order = Val<"Order", { id: string; total: { amount: number; currency: string } }>;
   const Order = Val.sealer<Order>();
 
@@ -575,7 +575,7 @@ describe("ownership", () => {
     expect(IsoDate("2026-09-02")).toBe("2026-09-02");
   });
 
-  test("the seal takes ownership through Val.of, not by copying its argument", () => {
+  test("the seal copies through Val.of, not by copying its argument itself", () => {
     type Point = Val<"Point", { x: number; y: number }>;
     const Point = Val.companion<Point>().implSeal((p) => Val.of<Point>(p));
     const raw = { x: 1, y: 2 };
@@ -713,7 +713,7 @@ describe("implSeal", () => {
     expectTypeOf(Email.seal).parameters.toEqualTypeOf<[string]>();
   });
 
-  test("the default seal copies, so the value owns its payload", () => {
+  test("the default seal copies, so the value is detached from the raw payload", () => {
     type Box = Val<"Box", { tags: string[] }>;
     const Box = Val.companion<Box>().implSeal((b, seal) => seal(b));
     const raw = { tags: ["a"] };
