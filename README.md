@@ -435,14 +435,14 @@ Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
 | `AnyVal`                              | a constraint over any Val                                |
 | `SeedOf<V>`                           | what a value can be grown from                           |
 | `PayloadOf<V>`                        | the payload behind the brand                             |
-| `Sealer<V>`                           | what `Val.sealer<V>()` returns                           |
-| `Sealed<V, M>`                        | what its `.impl(fns)` returns                            |
-| `CompanionBuilder<V>`                 | what `Val.companion<V>()` returns                        |
-| `Companion<V, M>`                     | what its `.impl(fns)` returns                            |
+| `Patch<T>`                            | a `with` patch, taken over a payload                     |
+| `Sealer<V>`                           | what `Val.sealer<V>()` returns, never written            |
+| `Sealed<V, M>`                        | what its `.impl(fns)` returns, never written             |
+| `CompanionBuilder<V>`                 | what `Val.companion<V>()` returns, never written         |
+| `Companion<V, M>`                     | what its `.impl(fns)` returns, never written             |
 
-The last four are inferred, never written. They are exported only so that your own `.d.ts`
-can name them when you re-export a companion — there is no reason to import one yourself.
-| `Patch<T>` | a `with` patch, taken over a payload |
+The last four are exported only so that your own `.d.ts` can name them when you re-export
+a companion — there is no reason to import one yourself.
 
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
 deep comparison, which is not exported on its own — an override receives it as a third
