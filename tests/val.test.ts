@@ -385,6 +385,12 @@ describe("validate", () => {
     expectTypeOf<Bad>().not.toExtend<AnyVal>();
   });
 
+  test("number and symbol keys are rejected", () => {
+    expectTypeOf<Val<"Bad", Readonly<Record<number, true>>>>().not.toExtend<AnyVal>();
+    expectTypeOf<Val<"Bad", Readonly<Record<symbol, string>>>>().not.toExtend<AnyVal>();
+    expectTypeOf<Val<"Bad", { readonly 1: string }>>().not.toExtend<AnyVal>();
+  });
+
   test("optional keys are allowed", () => {
     type Ok = Val<"Ok", { nickname?: string }>;
     expectTypeOf<Ok>().toExtend<AnyVal>();

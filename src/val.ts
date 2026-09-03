@@ -36,13 +36,15 @@ type Validate<T> = [T] extends [AnyVal]
         [T] extends [Function]
         ? Invalid<"functions are not allowed">
         : [T] extends [object]
-          ? {
-              [K in keyof T]: K extends OptionalKeys<T>
-                ? Validate<Exclude<T[K], undefined>> | undefined
-                : undefined extends T[K]
-                  ? Invalid<"required property cannot be undefined; use null or make it optional">
-                  : Validate<T[K]>;
-            }
+          ? [Exclude<keyof T, string>] extends [never]
+            ? {
+                [K in keyof T]: K extends OptionalKeys<T>
+                  ? Validate<Exclude<T[K], undefined>> | undefined
+                  : undefined extends T[K]
+                    ? Invalid<"required property cannot be undefined; use null or make it optional">
+                    : Validate<T[K]>;
+              }
+            : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
           : Invalid<"not a plain value">;
 
 // ---------------------------------------------------------------------------

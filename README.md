@@ -337,8 +337,9 @@ type PriceTable = Val<"PriceTable", Readonly<Record<string, Money>>>; // a Map
 `true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`
 ignores key order, which makes comparing two of these set equality.
 
-Numeric keys come back as strings through a JSON round trip. `ReadonlyArray<number>` avoids
-that, at the cost of comparing by order.
+Keys have to be strings — `Record<number, ...>` is rejected, because the keys come back as
+strings through a JSON round trip. For a set of numbers, `ReadonlyArray<number>` keeps them
+numbers, at the cost of comparing by order.
 
 Keys from user input want `Object.hasOwn` for the membership test — the usual `__proto__`
 caveat applies here as much as to any object.
