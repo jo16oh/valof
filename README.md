@@ -82,11 +82,11 @@ Age(30); // type error: this expression is not callable
 Age.seal(30); // Result<Age>
 ```
 
-**Every path to a value goes through it** — `with`, `update` and `create` included.
+**Every path to a value goes through `seal`** — `with`, `update` and `create` included.
 
-Taking that second parameter is optional; a one-parameter seal is registered unchanged.
-A caller's plain mutable object goes straight in, so normalize by deriving — `toSorted`,
-a spread — and the seal you return through makes the copy.
+A caller's plain mutable object goes straight in, so normalize without mutating it —
+`toSorted`, a spread. Return through the `seal` passed as the second parameter: that is what
+brands the value and deep-copies it.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back.
 Generating a value — an id, a timestamp — belongs in [`create`](#create) instead, or
