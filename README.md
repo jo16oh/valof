@@ -582,31 +582,14 @@ value itself is an ISO 8601 string or epoch ms.
 | `Val.companion<V>().implSeal(f)`      | replaces the seal — payload in, value out                |
 | `Val.companion<V>().implCreate(f)`    | registers `create`: any arguments, a payload out, sealed |
 | `Val.companion<V>().unpatchable<K>()` | takes keys out of `with` / `update`                      |
+| `AnyVal`                              | a constraint over any Val                                |
+| `SeedOf<V>`                           | what a value can be grown from                           |
+| `PayloadOf<V>`                        | the payload behind the brand                             |
+| `Patch<T>`                            | a `with` patch, taken over a payload                     |
 
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
 deep comparison, which is not exported on its own — an override receives it as a third
 argument instead (see _Equality_).
-
-Exported types, the ones you write yourself: `AnyVal` (a constraint over any Val),
-`SeedOf` (what a value can be grown from — the payload as a constructor accepts it),
-`Patch` (a `with` patch) and `PayloadOf` (the payload behind the brand).
-
-`SeedOf<V>` is deep-readonly, which is about what it accepts: an existing Val, an
-`as const` literal, or a plain mutable object all go in.
-
-The `-Of` marks a projection out of a Val, so `PayloadOf<V>` and `SeedOf<V>` take one.
-`Patch<T>` takes a payload instead, which is what lets a custom `with` accept a patch
-over a subset of the fields — how you keep a generated id out of one:
-
-```ts
-type Fields = Omit<SeedOf<Account>, "id">;
-
-Val.companion<Account>()
-  .implCreate((f: Fields) => ({ id: mint(), ...f }))
-  .impl({
-    with: (a, patch: Patch<Fields>, seal) => seal({ ...a, ...patch }), // id is not patchable
-  });
-```
 
 ## Development
 

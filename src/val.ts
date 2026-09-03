@@ -125,6 +125,9 @@ export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
 /**
  * The patch accepted by `with`.
  *
+ * Taken over a payload rather than a Val, which is what lets a custom `with` accept a patch
+ * over a subset of the fields — `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out of one.
+ *
  * - omit the key → leave it unchanged
  * - `{ k: undefined }` → delete it (only optional keys allow this at the type level)
  * - `{ k: value }` → set it
