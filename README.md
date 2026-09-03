@@ -524,15 +524,18 @@ export type User = Val<"app/User", { id: string; name: string; email: string }>;
 type Fields = Omit<SeedOf<User>, "id">;
 type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
+// named so the custom `with` / `update` can route through it
+const seal = (u: SeedOf<User>): User => Val.of<User>(normalize(u));
+
 export const User = Val.companion<User>()
   .implCreate((f: Fields): SeedOf<User> => ({ id: crypto.randomUUID(), ...f }))
-  .implSeal((u: SeedOf<User>): User => Val.of<User>(u))
+  .implSeal(seal)
   .impl({
     with(u, patch: Patch<Fields>): User {
-      return Val.of<User>({ ...u, ...patch });
+      return seal({ ...u, ...patch });
     },
     update<T extends Fields>(u: User, fn: (value: User) => NoExtra<T, Fields>): User {
-      return Val.of<User>({ ...u, ...fn(u) });
+      return seal({ ...u, ...fn(u) });
     },
   });
 
@@ -543,6 +546,10 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // type error
 
 Cover both paths — `update` hands back a whole payload, so narrowing `with` alone still
 leaves `id` reachable.
+
+Call the seal from them rather than `Val.of`: a hand-written `with` is the one place that
+can step around the type's own seal, and the companion is still being initialized, so
+`User.seal(...)` is not available inside its own `.impl`.
 
 `update` needs the `NoExtra` detour because the obvious version does not work:
 

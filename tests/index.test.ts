@@ -758,18 +758,23 @@ describe("fields the update path must not touch", () => {
   type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
   let minted = 0;
+  // Named so the custom `with` / `update` can route through it. Calling `Val.of` in their
+  // place would build a value that never passed the type's own seal.
+  const seal = (a: SeedOf<Account>): Account =>
+    Val.of<Account>({ ...a, owner: a.owner.trim().toLowerCase() });
+
   const Account = Val.companion<Account>()
     .implCreate((f: Fields): SeedOf<Account> => {
       minted += 1;
       return { id: `id-${minted}`, ...f };
     })
-    .implSeal((a: SeedOf<Account>): Account => Val.of<Account>(a))
+    .implSeal(seal)
     .impl({
       with(a, patch: Patch<Fields>): Account {
-        return Val.of<Account>({ ...a, ...patch });
+        return seal({ ...a, ...patch });
       },
       update<T extends Fields>(a: Account, fn: (value: Account) => NoExtra<T, Fields>): Account {
-        return Val.of<Account>({ ...a, ...fn(a) });
+        return seal({ ...a, ...fn(a) });
       },
     });
 
@@ -777,8 +782,8 @@ describe("fields the update path must not touch", () => {
     const a = Account.create({ owner: "bob", note: "" });
     expect(a.id).toBe("id-1");
 
-    const b = Account.with(a, { owner: "sue" });
-    expect(b).toEqual({ id: "id-1", owner: "sue", note: "" });
+    const b = Account.with(a, { owner: " SUE " });
+    expect(b).toEqual({ id: "id-1", owner: "sue", note: "" }); // normalised by the seal
 
     const c = Account.update(b, (v) => ({ owner: v.owner, note: "seen" }));
     expect(c).toEqual({ id: "id-1", owner: "sue", note: "seen" });
