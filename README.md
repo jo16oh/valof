@@ -40,8 +40,8 @@ User.equals(user, User({ id: "a", name: "bob" })); // true
 ```
 
 `Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions related to
-that type. Every function in `impl` must take its Val first. A sealer carries default
-functions `equals`, `with` and `update`, which `.impl({…})` can override.
+that type. Every function in `impl` must take its Val first. A sealer already carries
+`equals`, `with` and `update`, which `.impl({…})` can override.
 
 Only primitives, other Vals, arrays and records can live inside a Val. See
 [Allowed types](#allowed-types).
@@ -82,16 +82,15 @@ Age(30); // type error: this expression is not callable
 Age.seal(30); // Result<Age>
 ```
 
-**Every path to a value goes through `seal`**, `with`, `update` and `create` included.
+**Every path to a value goes through `seal`**, including `with`, `update` and `create`.
 
-A caller's plain mutable object goes straight in, so normalize without mutating it,
-with `toSorted` or a spread. Return through the `seal` passed as the second parameter: that is what
-brands the value and deep-copies it.
+A caller's plain mutable object goes straight in, so normalize without mutating it, with
+`toSorted` or a spread. Return through the `seal` passed as the second parameter: that is
+what brands the value and deep-copies it.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back.
 Generating a value, such as an id or a timestamp, belongs in [`create`](#create) instead,
-or
-`with` would produce a new id every time it re-seals.
+otherwise `with` would produce a new id every time it re-seals.
 
 Constructors get their own steps. `.impl` declares `seal?: never` and `create?: never`, so
 writing one there is a type error rather than a function that never gets wired up.
@@ -99,32 +98,13 @@ writing one there is a type error rather than a function that never gets wired u
 There is no `.implSeal` on a sealer. A sealer **is** the default seal. A type that needs a
 checked one wants a companion.
 
-`.implSeal` is optional. A companion without one has no constructor at all, which fits
-values that arrive already checked, such as a decoder or a database row, and are sealed
-with
-`Val.of`:
-
-```ts
-export type UserId = Val<"UserId", string>;
-
-export const UserId = Val.companion<UserId>().impl({
-  short(id) {
-    return id.slice(0, 8);
-  },
-});
-
-const id = Val.of<UserId>(row.user_id); // trusted at the boundary
-```
-
-`with` and `update` then rebuild through the default seal, which checks nothing.
-
-**No `Result` type is provided.** neverthrow, Effect, fp-ts or your own all work: the
+**No `Result` type is provided.** neverthrow, better-result or your own all work: the
 seal's return type is propagated, never inspected.
 
 ### `create`
 
 Constructors that are not payload functions (several arguments, a generated id, a wire
-format) are registered separately. A `create` builds a **payload**; the seal closes it:
+format) are registered separately. A `create` builds a payload; the seal closes it:
 
 ```ts
 export const User = Val.companion<User>()
