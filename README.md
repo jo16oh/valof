@@ -14,10 +14,8 @@ pnpm install valof
 
 Because values are plain, the following all hold:
 
-- they can sit directly in React / Svelte / Vue state
-- they round-trip symmetrically through `JSON.stringify` / `JSON.parse`
-- they survive `structuredClone`
-- immutable updates never drop a prototype
+- they round-trip symmetrically through JSON, and survive `structuredClone`
+- they sit directly in React / Svelte / Vue state, and no update can drop a prototype
 - the brand is a phantom type, so it costs nothing and shows up nowhere at runtime
 
 ```ts
@@ -32,53 +30,32 @@ A class gives you none of these.
 ```ts
 import { Val } from "valof";
 
-export type User = Val<
-  "app/User",
-  {
-    id: string;
-    name: string;
-    nickname?: string;
-  }
->;
+export type User = Val<"app/User", { id: string; name: string; nickname?: string }>;
 
 export const User = Val.sealer<User>().impl({
   greet(u) {
-    console.log(`Hi, I'm ${u.name}.`);
+    return `Hi, I'm ${u.name}.`; // u is User — the first parameter needs no annotation
+  },
+  label(u, sep: string) {
+    return u.id + sep + u.name; // anything after the Val is yours to type
   },
 });
 
 const user = User({ id: "a", name: "bob" });
 User.greet(user);
+User.equals(user, User({ id: "a", name: "bob" })); // true
 ```
+
+`Val.sealer<User>()` is the constructor, and `.impl({…})` attaches behaviour without
+taking that away — what comes back is still callable. A Val with no methods of its own
+needs nothing beyond the sealer, which already carries `equals`, `with` and `update`.
+
+Every method takes its Val first, which is what lets `u` go unannotated. A function whose
+first parameter is something else is rejected — constructors go to
+[`.implSeal` / `.implCreate`](#smart-constructors).
 
 Only primitives, other Vals, arrays and records can live inside a Val — see
 [Allowed types](#allowed-types).
-
-`Val.sealer<User>()` is the constructor. `.impl({…})` attaches behaviour to it, so what
-comes back is still a constructor. A Val with no methods of its own needs nothing
-beyond the sealer, which already carries the defaults:
-
-```ts
-export const Tags = Val.sealer<Tags>();
-Tags({ typescript: true });
-Tags.equals(a, b);
-```
-
-Every method in `.impl` takes its Val as the first parameter, so that parameter needs no
-annotation — `greet(u)`, not `greet(u: User)`. Anything after it is yours to type:
-
-```ts
-Val.sealer<User>().impl({
-  greet(u, sep: string) {
-    return u.id + sep + u.name; // u is User
-  },
-  anonymous: () => "anonymous", // taking no value is fine
-  LABEL: "user", // so are plain constants
-});
-```
-
-A function whose first parameter is something else is rejected — constructors go to
-[`.implSeal` / `.implCreate`](#smart-constructors).
 
 Two Vals collide only when they share the same brand string, so namespace it:
 `"app/User"`.
@@ -406,39 +383,29 @@ that, at the cost of comparing by order.
 Keys from user input want `Object.hasOwn` for the membership test — the usual `__proto__`
 caveat applies here as much as to any object.
 
-### Schema validation
+### Validation
 
 Validate in the seal, and every path to a value is validated with it — `with`, `update`
 and `create` all route through it:
 
 ```ts
-const schema = z.object({ id: z.string().uuid(), name: z.string().min(1) });
-
 export type User = Val<"app/User", { id: string; name: string }>;
 
-export const User = Val.companion<User>()
-  .implSeal((input: unknown, seal): Result<User> => {
-    const r = schema.safeParse(input);
-    return r.success ? ok(seal(r.data)) : err(r.error.message);
-  })
-  .impl({
-    greet(u) {
-      return `Hi, ${u.name}`;
-    },
-  });
+export const User = Val.companion<User>().implSeal((u, seal): Result<User> =>
+  u.name.length > 0 ? ok(seal(u)) : err("name must not be empty"),
+);
 
 User.seal({ id, name: "bob" }); // Result<User>
 User.with(user, { name: "sue" }); // Result<User> — sealed again
 ```
 
-`unknown` is a fine parameter type here: a seal only has to _accept_ the payload.
+The parameter can be `unknown` instead, which is what lets a schema library parse
+straight into the seal: a seal only has to _accept_ the payload.
 
-**Decoding a wire format does not belong in the seal.** A seal takes a payload, and a
-JSON string is not one. Keep it separate:
+**Decoding a wire format does not belong there.** A seal takes a payload, and a JSON
+string is not one:
 
 ```ts
-export const User = Val.companion<User>().implSeal((input: unknown, seal): Result<User> => …);
-
 export function parseUser(json: string): Result<User> {
   return User.seal(JSON.parse(json));
 }
