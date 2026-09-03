@@ -1,7 +1,7 @@
 {
   "name": "valof",
   "version": "0.0.0",
-  "description": "Value-object helpers for TypeScript: branded types and companions, kept as plain data with zero runtime cost.",
+  "description": "Value-object helpers for TypeScript: branded types and companions, kept as plain data.",
   "keywords": [
     "branded-types",
     "ddd",
