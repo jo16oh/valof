@@ -9,7 +9,7 @@ import { deepEquals } from "../src/val.ts";
 type User = Val<"app/User", { id: string; name: string; nickname?: string }>;
 
 const User = Val.sealer<User>().impl({
-  greet(u: User) {
+  greet(u) {
     return `Hi, I'm ${u.name}.`;
   },
 });
@@ -160,7 +160,7 @@ describe("equals", () => {
   test("equals can be overridden", () => {
     type Email = Val<"Email", string>;
     const Email = Val.sealer<Email>().impl({
-      equals: (a: Email, b: Email) => a.toLowerCase() === b.toLowerCase(),
+      equals: (a, b) => a.toLowerCase() === b.toLowerCase(),
     });
     expect(Email.equals(Email("A@b.com"), Email("a@B.com"))).toBe(true);
   });
@@ -194,7 +194,7 @@ describe("equals", () => {
 
   test("an override without the third parameter still works", () => {
     type S = Val<"S", string>;
-    const S = Val.sealer<S>().impl({ equals: (a: S, b: S) => a.length === b.length });
+    const S = Val.sealer<S>().impl({ equals: (a, b) => a.length === b.length });
     expect(S.equals(S("ab"), S("cd"))).toBe(true);
   });
 });
@@ -409,7 +409,7 @@ describe("sealer", () => {
 
   test("impl() keeps the constructor it was built from", () => {
     const seal = Val.sealer<User>();
-    const withMethods = seal.impl({ shout: (u: User) => u.name.toUpperCase() });
+    const withMethods = seal.impl({ shout: (u) => u.name.toUpperCase() });
     expect(typeof withMethods).toBe("function");
     expect(withMethods({ id: "a", name: "bob" })).toEqual({ id: "a", name: "bob" });
     expect(withMethods.shout(Val.of<User>({ id: "a", name: "bob" }))).toBe("BOB");
@@ -417,7 +417,7 @@ describe("sealer", () => {
 
   test("impl() does not mutate the sealer it was built from", () => {
     const seal = Val.sealer<User>();
-    seal.impl({ shout: (u: User) => u.name });
+    seal.impl({ shout: (u) => u.name });
     expect("shout" in seal).toBe(false);
   });
 
@@ -529,7 +529,7 @@ test("sealer > companion() mirrors sealer(), minus the constructor", () => {
   expect(typeof bare).not.toBe("function");
   expect(bare.equals(Val.of<Age>(1), Val.of<Age>(1))).toBe(true);
 
-  const built = bare.impl({ label: (a: Age) => `${a}` });
+  const built = bare.impl({ label: (a) => `${a}` });
   expect(built.label(Val.of<Age>(7))).toBe("7");
   expect("label" in bare).toBe(false);
 });
