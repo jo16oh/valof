@@ -77,20 +77,15 @@ Val.sealer<User>().impl({
 });
 ```
 
-A function whose first parameter is something else is rejected. Factories that parse
-other input are not methods on a value: constructors go to
-[`.implSeal` / `.implCreate`](#smart-constructors), and anything beyond them is an
-ordinary exported function.
+A function whose first parameter is something else is rejected — constructors go to
+[`.implSeal` / `.implCreate`](#smart-constructors).
 
-The discriminant is a string literal. Two Vals only collide when they share the same
-string, so
-namespacing the key as `"app/User"` is the recommended convention.
+Two Vals collide only when they share the same brand string, so namespace it:
+`"app/User"`.
 
-The brand itself lives under the phantom keys `__valof_internal_phantom_brand` and
-`__valof_internal_phantom_payload`. Nothing ever writes them, so they do not exist at
-runtime — meeting one in a hover or an error message is not something to go looking for.
-They are still ordinary keys, though, so they do appear in `keyof YourVal`. Reach for
-`PayloadOf<V>` or `SeedOf<V>` when you want the payload's keys alone.
+The brand lives under two phantom keys that never exist at runtime. They do appear in
+`keyof YourVal`, so reach for `PayloadOf<V>` or `SeedOf<V>` when you want the payload's
+keys alone.
 
 ### Constructors copy their argument
 
@@ -109,8 +104,7 @@ has to happen somewhere. Doing it in the constructor keeps it off you: without t
 the object you passed in would still _be_ the value, and never touching it again would be
 your discipline rather than something the type can promise.
 
-Values are not frozen, though. Reaching past `readonly` to write to a value is a
-deliberate act, and freezing costs on every construction and slows array reads.
+Values are not frozen, though: `readonly` is a promise in the type, not at runtime.
 
 ## Construct in normal form
 
@@ -125,16 +119,14 @@ export const Email = Val.companion<Email>().implSeal(
 ```
 
 `equals` can be overridden, but the override **only applies to top-level comparisons,
-never when a parent compares its children.** The brand is phantom, so a parent's default
-deep equals looks at the child value and cannot tell that it is an `Email`.
+never when a parent compares its children.** The brand is phantom, so a parent's deep
+equals sees the child value and cannot tell that it is an `Email`.
 
 ```ts
 Order.equals(o1, o2); // the Money inside is compared generically, not via Money.equals
 ```
 
-No implementation trick avoids this: it is the structural trade-off between "zero
-runtime cost" and "runtime polymorphism". **Normalize in the seal and structural equality
-becomes correct on its own**, so the constraint pushes you toward the right design.
+**Normalize in the seal and structural equality becomes correct on its own.**
 
 The default `equals`:
 
@@ -175,19 +167,11 @@ Age(30); // type error: this expression is not callable
 Age.seal(30); // Result<Age>
 ```
 
-Checking is one thing a seal may do; normalizing and wrapping in a `Result` are others.
-What makes it the seal is that **every path to a value goes through it** — `with`,
-`update` and `create` included — so nothing reaches a value without passing it.
+**Every path to a value goes through it** — `with`, `update` and `create` included.
 
-Taking that second parameter is optional — a one-parameter seal is registered unchanged,
-and `Val.of<Age>(n)` does the same job with the type argument spelled out. Callers pass
-the payload either way.
-
-The first parameter is deep-readonly, which is about what it _accepts_: a caller's plain
-mutable object goes straight in, with no repacking. Normalize by deriving — `toSorted`,
-a spread — and let the default seal you return through make the copy; it is the only one
-on the path. (`seal` is about closing a payload into a value, not about `Object.seal`
-— nothing is frozen at runtime.)
+Taking that second parameter is optional; a one-parameter seal is registered unchanged.
+A caller's plain mutable object goes straight in, so normalize by deriving — `toSorted`,
+a spread — and the seal you return through makes the copy.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back.
 Minting — a generated id, a timestamp — belongs in [`create`](#create) instead, or `with`
@@ -199,9 +183,9 @@ writing one there is a type error rather than a method that never gets wired up.
 There is no `.implSeal` on a sealer — a sealer **is** the default seal. A type that needs a
 checked one wants a companion.
 
-`.implSeal` is optional. A companion without one has no constructor at all, which is the
-right shape when the values arrive from a boundary — a decoder, a database row, an
-external API — and `Val.of` is where you seal them:
+`.implSeal` is optional. A companion without one has no constructor at all, which fits
+values that arrive already checked — a decoder, a database row — and are sealed with
+`Val.of`:
 
 ```ts
 export type UserId = Val<"UserId", string>;
@@ -215,8 +199,10 @@ export const UserId = Val.companion<UserId>().impl({
 const id = Val.of<UserId>(row.user_id); // trusted at the boundary
 ```
 
-**No `Result` type is provided.** neverthrow, Effect, fp-ts, or your own — all work. The
-library simply propagates the seal's return type and never inspects its contents.
+`with` and `update` then rebuild through the default seal, which checks nothing.
+
+**No `Result` type is provided.** neverthrow, Effect, fp-ts or your own all work: the
+seal's return type is propagated, never inspected.
 
 ### `create`
 
@@ -250,21 +236,8 @@ User.with(user, { name: "sue" });
 // internally seal({ ...user, ...patch }) — deriving a value means sealing again
 ```
 
-With a custom seal, `with` returns `ReturnType<typeof seal>` (e.g. `Result<User>`);
-with the default one it returns the Val itself. **There is no hole through which `with`
-bypasses the smart constructor.**
-
-This is why a seal takes the whole payload — `with` has to be able to feed it one. A
-constructor that does anything else is rejected where it is written, not at the `with`
-that later needs it:
-
-```ts
-Val.companion<Point>().implSeal((x: number, y: number) => Val.of<Point>({ x, y }));
-//                              ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-// not assignable to 'SealImpl<Point>' — a seal takes the whole payload
-```
-
-That one is a [`create`](#create).
+Both go through the seal, so they return what it returns — `Result<User>` with a custom
+seal, the Val itself with the default one. Neither is a way around a smart constructor.
 
 | patch              | meaning         |
 | ------------------ | --------------- |
@@ -272,26 +245,13 @@ That one is a [`create`](#create).
 | `{ k: undefined }` | **delete**      |
 | `{ k: value }`     | set             |
 
-`undefined` sits outside the value space, which makes it the one available sentinel, and
-that scarce slot goes to "delete" — the operation with no other way to express it. (Same
-idea as JSON Merge Patch using `null` for deletion; valof allows `null` as a real value,
-so it uses `undefined` instead.)
-
-Accidental deletion is guarded in layers:
-
-1. **`undefined` on a required key is a type error** (with EOPT: true)
-2. deleting an optional key is a legitimate operation
-3. with EOPT off, a result that breaks the invariant is still caught by the seal — it
-   fails loudly rather than corrupting quietly
+`undefined` on a required key is a type error with `exactOptionalPropertyTypes` on. With
+it off, a patch that breaks the invariant is caught by the seal instead.
 
 `with` and `update` are defaults, not fixtures: define either one in `.impl` and yours
 wins, in the type as well as at runtime. It is also how a primitive Val — which has no
-`with` by default — can get one.
-
-Your override is handed the seal as a last parameter, the way an `equals` override is
-handed the deep comparison. Use it rather than `Val.of`: a hand-written rebuild is the
-one place that can step around the type's own seal, and the companion is still being
-initialized, so `Point.seal(...)` is not in scope inside its own `.impl`.
+`with` by default — can get one. The seal comes in as a last parameter, since
+`Point.seal(...)` is not in scope inside its own `.impl`:
 
 ```ts
 const Point = Val.companion<Point>()
@@ -308,10 +268,8 @@ Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 Taking the seal is optional — a two-parameter override is published as it stands.
 
 `with` only exists on object-shaped Vals. A `Val<"IsoDate", string>` has nothing to
-patch, so its companion does not carry the method at all. `update` is still there — a
-primitive can perfectly well be transformed into another one.
-
-`update` is the function-based variant, **restricted to value → value**.
+patch, so its companion does not carry the method at all. `update` is still there, and is
+**restricted to value → value**.
 
 ```ts
 Age.update(age, (n) => n + 1); // Result<Age>
@@ -370,11 +328,9 @@ Only four things can live inside a Val:
 4. **It pushes the design the right way** — composing Vals is forced, which tends to
    produce sane aggregates
 
-`Date` is out because its mutators touch internal slots (so `Object.freeze` cannot stop
-them) and because it stringifies on `JSON.stringify` without coming back on
-`JSON.parse`. Use an ISO 8601 string or epoch ms instead (see [Dates](#dates)). `Map` /
-`Set` are out because they don't survive JSON, and `structuredClone` breaks reference
-identity of keys (see [Map / Set](#map--set)).
+`Date` does not come back from a JSON round trip, and its mutators reach past
+`Object.freeze` — use an ISO 8601 string or epoch ms (see [Dates](#dates)). `Map` / `Set`
+do not survive JSON either (see [Map / Set](#map--set)).
 
 A type that violates the rules does not get a usable brand, so it fails with the reason
 the moment you hand it to `Val.of` / `Val.companion`:
@@ -413,21 +369,18 @@ gives normalization a place to live at the boundary.
 | `undefined` as a value     | **forbidden**                            |
 | `undefined` inside a patch | reserved to mean **delete the property** |
 
-The reason is that the two serialization paths disagree:
+"key present, value `undefined`" is the only case that breaks, because the two
+serialization paths disagree about it:
 
 ```ts
 JSON.parse(JSON.stringify({ a: undefined })); // {} — the key disappears
 structuredClone({ a: undefined }); // { a: undefined } — the key survives
 ```
 
-Optional properties themselves are harmless (the key simply isn't there), so they are
-allowed. Only "key present, value `undefined`" breaks, and only that is forbidden.
-
-With `exactOptionalPropertyTypes` off, the language has no way to distinguish
-`{ a?: string }` from `{ a?: string | undefined }`, so `undefined` leaks in without a
-cast. **That is why EOPT: true is strongly recommended** — though not required. Even
-when it does leak, the default `equals` ignores keys whose value is `undefined`, which
-makes the divergence between the two paths unobservable.
+Without `exactOptionalPropertyTypes`, TypeScript cannot tell `{ a?: string }` from
+`{ a?: string | undefined }`, so `undefined` leaks in uncast. It is not required — the
+default `equals` ignores `undefined`-valued keys, which hides the divergence — but it is
+what keeps the rule enforced.
 
 `undefined` seeps in from everywhere in TypeScript (`Array.prototype.find`, `Map.get`,
 `noUncheckedIndexedAccess`, code generators, form libraries). **Normalize at the
@@ -480,9 +433,8 @@ User.with(user, { name: "sue" }); // Result<User> — sealed again
 
 `unknown` is a fine parameter type here: a seal only has to _accept_ the payload.
 
-**Decoding a wire format does not belong in the seal.** A seal takes a payload; a
-function that takes a JSON string takes something else, and it can fail before there is
-a payload at all — which a `create` cannot express. Keep it separate:
+**Decoding a wire format does not belong in the seal.** A seal takes a payload, and a
+JSON string is not one. Keep it separate:
 
 ```ts
 export const User = Val.companion<User>().implSeal((input: unknown, seal): Result<User> => …);
@@ -491,21 +443,6 @@ export function parseUser(json: string): Result<User> {
   return User.seal(JSON.parse(json));
 }
 ```
-
-If the values are already validated when they reach you — a decoder, a database row —
-register no seal of your own and seal at the boundary with `Val.of`:
-
-```ts
-const rowSchema = z.object({ user_id: z.string().uuid() });
-
-export function decodeUserRow(row: unknown): UserId {
-  return Val.of<UserId>(rowSchema.parse(row).user_id);
-}
-```
-
-The trade is that `with` and `update` then rebuild through the default seal, which
-copies and checks nothing.
-Choose it when the boundary is the only place the invariant can be checked.
 
 ### Dates
 
