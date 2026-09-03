@@ -41,14 +41,14 @@ User.equals(user, User({ id: "a", name: "bob" })); // true
 
 `Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions related to
 that type. Every function in `impl` must take its Val first. A sealer carries default
-functions — `equals`, `with` and `update` — which `.impl({…})` can override.
+functions `equals`, `with` and `update`, which `.impl({…})` can override.
 
-Only primitives, other Vals, arrays and records can live inside a Val — see
+Only primitives, other Vals, arrays and records can live inside a Val. See
 [Allowed types](#allowed-types).
 
 **Name the brand after the type it brands.** Two Vals with the same brand string and the
 same payload are silently assignable to each other. So where the same name really does live
-in two places — `Id` in two domains of a monorepo — prefix it with a namespace:
+in two places, such as `Id` in two domains of a monorepo, prefix it with a namespace:
 `"billing/Id"`.
 
 ### Constructors copy their argument
@@ -66,7 +66,7 @@ Values are not frozen, though: `readonly` is a promise in the type, not at runti
 
 ## Smart constructors
 
-A payload becomes a value by being **sealed**. `Val.sealer` is the default seal — brand
+A payload becomes a value by being **sealed**. `Val.sealer` is the default seal: brand
 the payload and copy it. `Val.companion` is the same shape minus the constructor, and
 `.implSeal` replaces that seal with your own. The default one comes in as a second
 parameter, so you seal without naming the type again:
@@ -82,24 +82,26 @@ Age(30); // type error: this expression is not callable
 Age.seal(30); // Result<Age>
 ```
 
-**Every path to a value goes through `seal`** — `with`, `update` and `create` included.
+**Every path to a value goes through `seal`**, `with`, `update` and `create` included.
 
-A caller's plain mutable object goes straight in, so normalize without mutating it —
-`toSorted`, a spread. Return through the `seal` passed as the second parameter: that is what
+A caller's plain mutable object goes straight in, so normalize without mutating it,
+with `toSorted` or a spread. Return through the `seal` passed as the second parameter: that is what
 brands the value and deep-copies it.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back.
-Generating a value — an id, a timestamp — belongs in [`create`](#create) instead, or
+Generating a value, such as an id or a timestamp, belongs in [`create`](#create) instead,
+or
 `with` would produce a new id every time it re-seals.
 
 Constructors get their own steps. `.impl` declares `seal?: never` and `create?: never`, so
 writing one there is a type error rather than a function that never gets wired up.
 
-There is no `.implSeal` on a sealer — a sealer **is** the default seal. A type that needs a
+There is no `.implSeal` on a sealer. A sealer **is** the default seal. A type that needs a
 checked one wants a companion.
 
 `.implSeal` is optional. A companion without one has no constructor at all, which fits
-values that arrive already checked — a decoder, a database row — and are sealed with
+values that arrive already checked, such as a decoder or a database row, and are sealed
+with
 `Val.of`:
 
 ```ts
@@ -121,8 +123,8 @@ seal's return type is propagated, never inspected.
 
 ### `create`
 
-Constructors that are not payload functions — several arguments, a generated id, a wire
-format — are registered separately. A `create` builds a **payload**; the seal closes it:
+Constructors that are not payload functions (several arguments, a generated id, a wire
+format) are registered separately. A `create` builds a **payload**; the seal closes it:
 
 ```ts
 export const User = Val.companion<User>()
@@ -140,7 +142,7 @@ _building_ the payload in an ordinary exported function.
 
 There is no `.implCreate` on a sealer. A sealer is callable, so a `create` beside it would
 narrow nothing — `Task.create({ title })` generates an id while `Task({ id: "forged", … })`
-sits right next to it — and the name would promise a guarantee it cannot give. If you want
+sits right next to it, and the name would promise a guarantee it cannot give. If you want
 a multi-argument shorthand for a type with no invariants, export a function; if the
 generated field must be safe, that type wants a companion.
 
@@ -194,7 +196,7 @@ User.with(user, { name: "sue" });
 // internally seal({ ...user, ...patch }) — deriving a value means sealing again
 ```
 
-Both go through the seal, so they return what it returns — `Result<User>` with a custom
+Both go through the seal, so they return what it returns: `Result<User>` with a custom
 seal, the Val itself with the default one. Neither is a way around a smart constructor.
 
 | patch              | meaning         |
@@ -207,8 +209,8 @@ seal, the Val itself with the default one. Neither is a way around a smart const
 it off, a patch that breaks the invariant is caught by the seal instead.
 
 `with` and `update` are defaults, not fixtures: define either one in `.impl` and yours
-wins, in the type as well as at runtime. It is also how a primitive Val — which has no
-`with` by default — can get one. The seal comes in as a last parameter, since
+wins, in the type as well as at runtime. It is also how a primitive Val, which has no
+`with` by default, can get one. The seal comes in as a last parameter, since
 `Point.seal(...)` is not in scope inside its own `.impl`:
 
 ```ts
@@ -223,7 +225,7 @@ const Point = Val.companion<Point>()
 Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 ```
 
-Taking the seal is optional — a two-parameter override is published as it stands.
+Taking the seal is optional: a two-parameter override is published as it stands.
 
 `with` only exists on object-shaped Vals. A `Val<"IsoDate", string>` has nothing to
 patch, so its companion does not carry it at all. `update` is still there, and is
@@ -253,7 +255,7 @@ User.update(user, (u) => ({ name: u.name, email: u.email })); // id survives
 User.update(user, (u) => ({ ...u, id: "forged" })); // type error
 ```
 
-Both paths need covering — `update` hands back a payload, so narrowing `with` alone
+Both paths need covering: `update` hands back a payload, so narrowing `with` alone
 would still leave `id` reachable. With keys declared unpatchable, `update`'s callback
 returns only what is left and the rest is merged back on, so deleting an optional key
 goes through `with(v, { k: undefined })` instead.
@@ -261,7 +263,7 @@ goes through `with(v, { k: undefined })` instead.
 The keys are a type argument, so they do not exist at runtime. That makes this a
 guarantee about the update path, not about the value: `user.id` is readable, `readonly`
 is erased at runtime, and `Val.of<User>({ id: "forged", … })` still builds one. What you
-get is that no ordinary update can move `id` — usually the thing you actually wanted. If
+get is that no ordinary update can move `id`, usually the thing you actually wanted. If
 it must be unforgeable, `id` belongs outside the value.
 
 ## Allowed types
@@ -356,7 +358,7 @@ value itself is an ISO 8601 string or epoch ms.
 ### `Val.of`
 
 Brands a payload with the type named explicitly, for where a value has to be built and no
-seal is in scope: a trusted boundary — a decoder, a database row — or a companion
+seal is in scope: a trusted boundary such as a decoder or a database row, or a companion
 function returning a fresh value of its own type.
 
 ```ts
@@ -364,7 +366,7 @@ Val.of<User>({ id: "a", name: "alice" });
 ```
 
 Where the type has a seal of its own, use that instead. `Val.of` closes the payload with
-the default seal rather than the type's, which is to say it skips the checks — the escape
+the default seal rather than the type's, which is to say it skips the checks: the escape
 hatch, spelled with the type argument in plain sight.
 
 ### `Val.unwrap`
@@ -414,7 +416,7 @@ The last four are exported only so that your own `.d.ts` can name them when you 
 a companion — there is no reason to import one yourself.
 
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
-deep comparison, which is not exported on its own — an override receives it as a third
+deep comparison, which is not exported on its own; an override receives it as a third
 argument instead (see _Construct in normal form_).
 
 ## Recommended tsconfig
