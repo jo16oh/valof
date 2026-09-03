@@ -498,9 +498,9 @@ function copy<T>(value: T): T {
   }
 
   const source = value as Record<string, unknown>;
-  const out: Record<string, unknown> = {};
-  for (const key of Object.keys(source)) out[key] = copy(source[key]);
-  return out as T;
+  // `out[key] = …` would invoke the `__proto__` setter on that one key, moving it into the
+  // prototype instead of copying it. `fromEntries` defines every key as an own property.
+  return Object.fromEntries(Object.keys(source).map((key) => [key, copy(source[key])])) as T;
 }
 
 /**

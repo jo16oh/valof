@@ -576,6 +576,16 @@ describe("constructors copy their argument", () => {
     expect(order.total.amount).toBe(100);
   });
 
+  test("a `__proto__` key stays an own property", () => {
+    type Tags = Val<"Tags", Readonly<Record<string, true>>>;
+    const Tags = Val.sealer<Tags>();
+    const tags = Tags(JSON.parse('{"a":true,"__proto__":{"isAdmin":true}}'));
+    expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
+    expect(Object.getPrototypeOf(tags)).toBe(Object.prototype);
+    expect((tags as Record<string, unknown>)["isAdmin"]).toBeUndefined();
+    expect(JSON.parse(JSON.stringify(tags))).toEqual(JSON.parse(JSON.stringify(Val.unwrap(tags))));
+  });
+
   test("primitives pass through as-is", () => {
     const IsoDate = Val.sealer<IsoDate>();
     expect(IsoDate("2026-09-02")).toBe("2026-09-02");
