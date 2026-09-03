@@ -51,6 +51,9 @@ const user = User({ id: "a", name: "bob" });
 User.greet(user);
 ```
 
+Only primitives, other Vals, arrays and records can live inside a Val — see
+[Allowed types](#allowed-types).
+
 `Val.sealer<User>()` is the constructor. `.impl({…})` attaches behaviour to it, so what
 comes back is still a constructor. A Val with no methods of its own needs nothing
 beyond the sealer, which already carries the defaults:
@@ -89,48 +92,6 @@ runtime — meeting one in a hover or an error message is not something to go lo
 They are still ordinary keys, though, so they do appear in `keyof YourVal`. Reach for
 `PayloadOf<V>` or `SeedOf<V>` when you want the payload's keys alone.
 
-### `Val.of`
-
-**The default seal, with the type named explicitly.** Brand the payload and copy it —
-the same operation a `Val.sealer` performs when you call it, and the same one handed to a
-custom seal as its second parameter. The three differ only in where the type comes from.
-
-```ts
-Val.of<User>({ id: "a", name: "alice" });
-```
-
-Reach for it where a value has to be built and no seal is in scope: at a trusted boundary
-(a decoder, a database row), or in a companion method that returns a fresh value of its
-own type. Where the type has a seal of its own, use that instead — `Val.of` would close
-the payload with the default seal rather than the type's, which is to say: skip its
-checks. That makes it the visible escape hatch, spelled with the type argument in plain
-sight.
-
-### `Val.unwrap`
-
-The other direction: a plain, mutable copy of the payload, for handing to code that
-does not know about `readonly`.
-
-```ts
-const post = Post({ title: "t", tags: ["a"] });
-
-post.tags.sort(); // ✗ readonly string[] has no sort
-Val.unwrap(post).tags.sort(); // ✓
-```
-
-It copies, for the same reason constructors do — a Val _is_ its payload at runtime, so
-returning it under a mutable type would let the caller write straight through into the
-value.
-
-Reach for it when something outside wants mutable data. It is **not** how you derive one
-value from another: `SeedOf<V>` already accepts a Val, so `Val.of` and `with` take one
-directly and copy once, where going through `unwrap` copies twice.
-
-```ts
-Post.with(post, { tags: [...post.tags, "b"] }); // ✓ one copy
-Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
-```
-
 ### Constructors copy their argument
 
 Constructors deep-copy what you pass them, so keeping a reference to it buys you
@@ -150,92 +111,6 @@ your discipline rather than something the type can promise.
 
 Values are not frozen, though. Reaching past `readonly` to write to a value is a
 deliberate act, and freezing costs on every construction and slows array reads.
-
-## Allowed types — read this part first
-
-Only four things can live inside a Val:
-
-|            |                                                     |
-| ---------- | --------------------------------------------------- |
-| Primitives | `string` / `number` / `boolean` / `bigint` / `null` |
-| Other Vals | nesting always goes through a Val                   |
-| Arrays     | `ReadonlyArray<allowed>`                            |
-| Records    | `Readonly<Record<string, allowed>>`                 |
-
-**Avoid nested plain objects — make the nesting a Val.** `Date`, `Temporal`, `Map`,
-`Set`, functions and class instances cannot go in.
-
-### Why
-
-1. **Type inference stays cheap** — nesting goes through Vals, so it never recurses far
-2. **Structural equality is well-defined** — no prototypes, no cycles to reason about
-3. **The serialization boundary is always crossable** — `structuredClone` and JSON are
-   always safe
-4. **It pushes the design the right way** — composing Vals is forced, which tends to
-   produce sane aggregates
-
-`Date` is out because its mutators touch internal slots (so `Object.freeze` cannot stop
-them) and because it stringifies on `JSON.stringify` without coming back on
-`JSON.parse`. Use an ISO 8601 string or epoch ms instead (see [Dates](#dates)). `Map` /
-`Set` are out because they don't survive JSON, and `structuredClone` breaks reference
-identity of keys (see [Map / Set](#map--set)).
-
-A type that violates the rules does not get a usable brand, so it fails with the reason
-the moment you hand it to `Val.of` / `Val.companion`:
-
-```ts
-type Bad = Val<"Bad", { nickname: string | undefined }>;
-Val.companion<Bad>();
-//            ~~~
-// Type 'Bad' does not satisfy the constraint 'AnyVal'.
-//   Types of property '__valof_internal_phantom_brand' are incompatible.
-//     Type '{ nickname: Invalid<"required property cannot be undefined; use null or make it optional"> }'
-//     is not assignable to type 'string'.
-```
-
-### The migration friction
-
-Plain nested objects from API responses or existing code cannot be passed straight
-through: you have to assemble the child Vals inside the seal. That is intentional — it
-gives normalization a place to live at the boundary.
-
-## Recommended tsconfig, and `null` / `undefined`
-
-```jsonc
-{
-  "compilerOptions": {
-    "strict": true,
-    "exactOptionalPropertyTypes": true, // strongly recommended
-  },
-}
-```
-
-|                            |                                          |
-| -------------------------- | ---------------------------------------- |
-| `null` as a value          | allowed                                  |
-| `?` (absent key)           | allowed                                  |
-| `undefined` as a value     | **forbidden**                            |
-| `undefined` inside a patch | reserved to mean **delete the property** |
-
-The reason is that the two serialization paths disagree:
-
-```ts
-JSON.parse(JSON.stringify({ a: undefined })); // {} — the key disappears
-structuredClone({ a: undefined }); // { a: undefined } — the key survives
-```
-
-Optional properties themselves are harmless (the key simply isn't there), so they are
-allowed. Only "key present, value `undefined`" breaks, and only that is forbidden.
-
-With `exactOptionalPropertyTypes` off, the language has no way to distinguish
-`{ a?: string }` from `{ a?: string | undefined }`, so `undefined` leaks in without a
-cast. **That is why EOPT: true is strongly recommended** — though not required. Even
-when it does leak, the default `equals` ignores keys whose value is `undefined`, which
-makes the divergence between the two paths unobservable.
-
-`undefined` seeps in from everywhere in TypeScript (`Array.prototype.find`, `Map.get`,
-`noUncheckedIndexedAccess`, code generators, form libraries). **Normalize at the
-boundary with `?? null`.**
 
 ## Construct in normal form
 
@@ -442,6 +317,122 @@ primitive can perfectly well be transformed into another one.
 Age.update(age, (n) => n + 1); // Result<Age>
 ```
 
+### Fields the update path must not touch
+
+An id minted inside the constructor, a `createdAt`, a version counter: `create` mints
+them, the seal preserves them, and `.unpatchable` keeps the update path off them.
+
+```ts
+export type User = Val<"app/User", { id: string; name: string; email: string }>;
+
+export const User = Val.companion<User>()
+  .implCreate((f: Omit<SeedOf<User>, "id">) => ({ id: crypto.randomUUID(), ...f }))
+  .implSeal((u, seal) => seal(normalize(u)))
+  .unpatchable<"id">();
+
+User.with(user, { name: "sue" }); // OK
+User.with(user, { id: "forged" }); // type error
+User.update(user, (u) => ({ name: u.name, email: u.email })); // id survives
+User.update(user, (u) => ({ ...u, id: "forged" })); // type error
+```
+
+Both paths need covering — `update` hands back a payload, so narrowing `with` alone
+would still leave `id` reachable. With keys declared unpatchable, `update`'s callback
+returns only what is left and the rest is merged back on, so deleting an optional key
+goes through `with(v, { k: undefined })` instead.
+
+The keys are a type argument, so they do not exist at runtime. That makes this a
+guarantee about the update path, not about the value: `user.id` is readable, `readonly`
+is erased at runtime, and `Val.of<User>({ id: "forged", … })` still builds one. What you
+get is that no ordinary update can move `id` — usually the thing you actually wanted. If
+it must be unforgeable, `id` belongs outside the value.
+
+## Allowed types
+
+Only four things can live inside a Val:
+
+|            |                                                     |
+| ---------- | --------------------------------------------------- |
+| Primitives | `string` / `number` / `boolean` / `bigint` / `null` |
+| Other Vals | nesting always goes through a Val                   |
+| Arrays     | `ReadonlyArray<allowed>`                            |
+| Records    | `Readonly<Record<string, allowed>>`                 |
+
+**Avoid nested plain objects — make the nesting a Val.** `Date`, `Temporal`, `Map`,
+`Set`, functions and class instances cannot go in.
+
+### Why
+
+1. **Type inference stays cheap** — nesting goes through Vals, so it never recurses far
+2. **Structural equality is well-defined** — no prototypes, no cycles to reason about
+3. **The serialization boundary is always crossable** — `structuredClone` and JSON are
+   always safe
+4. **It pushes the design the right way** — composing Vals is forced, which tends to
+   produce sane aggregates
+
+`Date` is out because its mutators touch internal slots (so `Object.freeze` cannot stop
+them) and because it stringifies on `JSON.stringify` without coming back on
+`JSON.parse`. Use an ISO 8601 string or epoch ms instead (see [Dates](#dates)). `Map` /
+`Set` are out because they don't survive JSON, and `structuredClone` breaks reference
+identity of keys (see [Map / Set](#map--set)).
+
+A type that violates the rules does not get a usable brand, so it fails with the reason
+the moment you hand it to `Val.of` / `Val.companion`:
+
+```ts
+type Bad = Val<"Bad", { nickname: string | undefined }>;
+Val.companion<Bad>();
+//            ~~~
+// Type 'Bad' does not satisfy the constraint 'AnyVal'.
+//   Types of property '__valof_internal_phantom_brand' are incompatible.
+//     Type '{ nickname: Invalid<"required property cannot be undefined; use null or make it optional"> }'
+//     is not assignable to type 'string'.
+```
+
+### The migration friction
+
+Plain nested objects from API responses or existing code cannot be passed straight
+through: you have to assemble the child Vals inside the seal. That is intentional — it
+gives normalization a place to live at the boundary.
+
+## Recommended tsconfig, and `null` / `undefined`
+
+```jsonc
+{
+  "compilerOptions": {
+    "strict": true,
+    "exactOptionalPropertyTypes": true, // strongly recommended
+  },
+}
+```
+
+|                            |                                          |
+| -------------------------- | ---------------------------------------- |
+| `null` as a value          | allowed                                  |
+| `?` (absent key)           | allowed                                  |
+| `undefined` as a value     | **forbidden**                            |
+| `undefined` inside a patch | reserved to mean **delete the property** |
+
+The reason is that the two serialization paths disagree:
+
+```ts
+JSON.parse(JSON.stringify({ a: undefined })); // {} — the key disappears
+structuredClone({ a: undefined }); // { a: undefined } — the key survives
+```
+
+Optional properties themselves are harmless (the key simply isn't there), so they are
+allowed. Only "key present, value `undefined`" breaks, and only that is forbidden.
+
+With `exactOptionalPropertyTypes` off, the language has no way to distinguish
+`{ a?: string }` from `{ a?: string | undefined }`, so `undefined` leaks in without a
+cast. **That is why EOPT: true is strongly recommended** — though not required. Even
+when it does leak, the default `equals` ignores keys whose value is `undefined`, which
+makes the divergence between the two paths unobservable.
+
+`undefined` seeps in from everywhere in TypeScript (`Array.prototype.find`, `Map.get`,
+`noUncheckedIndexedAccess`, code generators, form libraries). **Normalize at the
+boundary with `?? null`.**
+
 ## Idiomatic patterns
 
 ### Map / Set
@@ -516,36 +507,6 @@ The trade is that `with` and `update` then rebuild through the default seal, whi
 copies and checks nothing.
 Choose it when the boundary is the only place the invariant can be checked.
 
-### Fields the update path must not touch
-
-An id minted inside the constructor, a `createdAt`, a version counter: `create` mints
-them, the seal preserves them, and `.unpatchable` keeps the update path off them.
-
-```ts
-export type User = Val<"app/User", { id: string; name: string; email: string }>;
-
-export const User = Val.companion<User>()
-  .implCreate((f: Omit<SeedOf<User>, "id">) => ({ id: crypto.randomUUID(), ...f }))
-  .implSeal((u, seal) => seal(normalize(u)))
-  .unpatchable<"id">();
-
-User.with(user, { name: "sue" }); // OK
-User.with(user, { id: "forged" }); // type error
-User.update(user, (u) => ({ name: u.name, email: u.email })); // id survives
-User.update(user, (u) => ({ ...u, id: "forged" })); // type error
-```
-
-Both paths need covering — `update` hands back a payload, so narrowing `with` alone
-would still leave `id` reachable. With keys declared unpatchable, `update`'s callback
-returns only what is left and the rest is merged back on, so deleting an optional key
-goes through `with(v, { k: undefined })` instead.
-
-The keys are a type argument, so they do not exist at runtime. That makes this a
-guarantee about the update path, not about the value: `user.id` is readable, `readonly`
-is erased at runtime, and `Val.of<User>({ id: "forged", … })` still builds one. What you
-get is that no ordinary update can move `id` — usually the thing you actually wanted. If
-it must be unforgeable, `id` belongs outside the value.
-
 ### Dates
 
 ```ts
@@ -564,6 +525,43 @@ export const IsoDate = Val.companion<IsoDate>()
 
 Do the date arithmetic with whatever library you like (Temporal, date-fns, Luxon). The
 value itself is an ISO 8601 string or epoch ms.
+
+## Utilities
+
+### `Val.of`
+
+Brands a payload with the type named explicitly, for where a value has to be built and no
+seal is in scope: a trusted boundary — a decoder, a database row — or a companion method
+returning a fresh value of its own type.
+
+```ts
+Val.of<User>({ id: "a", name: "alice" });
+```
+
+Where the type has a seal of its own, use that instead. `Val.of` closes the payload with
+the default seal rather than the type's, which is to say it skips the checks — the escape
+hatch, spelled with the type argument in plain sight.
+
+### `Val.unwrap`
+
+A plain, mutable copy of the payload, for handing to code that does not know about
+`readonly`.
+
+```ts
+const post = Post({ title: "t", tags: ["a"] });
+
+post.tags.sort(); // ✗ readonly string[] has no sort
+Val.unwrap(post).tags.sort(); // ✓
+```
+
+It is **not** how you derive one value from another: `SeedOf<V>` already accepts a Val, so
+`Val.of` and `with` take one directly and copy once, where going through `unwrap` copies
+twice.
+
+```ts
+Post.with(post, { tags: [...post.tags, "b"] }); // ✓ one copy
+Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
+```
 
 ## API
 
@@ -592,7 +590,7 @@ can name them when you re-export a companion — there is no reason to import on
 
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
 deep comparison, which is not exported on its own — an override receives it as a third
-argument instead (see _Equality_).
+argument instead (see _Construct in normal form_).
 
 ## Development
 
