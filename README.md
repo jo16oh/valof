@@ -14,7 +14,7 @@ pnpm install valof
 
 Because values are plain, the following all hold:
 
-- they round-trip symmetrically through JSON, and survive `structuredClone`
+- they round-trip symmetrically through JSON
 - they sit directly in React / Svelte / Vue state, and no update can drop a prototype
 - the brand is a phantom type, so it costs nothing and shows up nowhere at runtime
 
@@ -294,27 +294,6 @@ Only four things can live inside a Val:
 Being made to compose Vals rather than nest object literals tends to produce better
 aggregates than you would have reached for on your own.
 
-## Recommended tsconfig, and `null` / `undefined`
-
-`strict` (the default from TypeScript 7 on), plus `exactOptionalPropertyTypes`. The
-second is not required, but it is what keeps the rule below enforced: without it
-TypeScript cannot tell `{ a?: string }` from `{ a?: string | undefined }`, so `undefined`
-leaks in uncast.
-
-|                            |                                          |
-| -------------------------- | ---------------------------------------- |
-| `null` as a value          | allowed                                  |
-| `?` (absent key)           | allowed                                  |
-| `undefined` as a value     | **forbidden**                            |
-| `undefined` inside a patch | reserved to mean **delete the property** |
-
-"Key present, value `undefined`" is the only case that breaks: a JSON round trip drops the
-key and `structuredClone` keeps it, so the two disagree about what the value was.
-
-`undefined` seeps in from everywhere in TypeScript (`Array.prototype.find`, `Map.get`,
-`noUncheckedIndexedAccess`, code generators, form libraries). **Normalize at the boundary
-with `?? null`.**
-
 ## Idiomatic patterns
 
 ### Reusing a Val
@@ -449,6 +428,14 @@ a companion — there is no reason to import one yourself.
 Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
 deep comparison, which is not exported on its own — an override receives it as a third
 argument instead (see _Construct in normal form_).
+
+## Recommended tsconfig
+
+- `strict` (the default from TypeScript 6 on)
+- `exactOptionalPropertyTypes`
+
+Without `exactOptionalPropertyTypes`, `{ a?: string }` also accepts `undefined`, and that
+key is dropped when the value is serialized into JSON.
 
 ## Caveats
 
