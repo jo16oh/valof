@@ -18,11 +18,16 @@ export default defineConfig({
       },
     },
   },
+  // Deliberately unresolvable and deliberately dead: the fixtures are input to `valof-lint`,
+  // not code this package compiles.
   lint: {
+    ignorePatterns: ["tests/fixtures/**"],
     options: {
       typeAware: true,
       typeCheck: true,
     },
   },
-  fmt: {},
+  fmt: {
+    ignorePatterns: ["tests/fixtures/**"],
+  },
 });

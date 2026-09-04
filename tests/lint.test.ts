@@ -1,170 +1,135 @@
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterAll, describe, expect, test } from "vite-plus/test";
-import { lint } from "../src/lint.ts";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import { describe, expect, test } from "vite-plus/test";
 
-const dir = mkdtempSync(join(tmpdir(), "valof-unused-"));
-afterAll(() => rmSync(dir, { recursive: true, force: true }));
+const root = fileURLToPath(new URL("..", import.meta.url));
 
-let n = 0;
-/** Writes each source to its own file and reports the findings across the set. */
-async function scan(...sources: string[]): Promise<string[]> {
-  const root = join(dir, `case-${n++}`);
-  mkdirSync(root);
-  const files = sources.map((source, i) => {
-    const file = join(root, `f${i}.ts`);
-    writeFileSync(file, source);
-    return file;
+/**
+ * Runs the CLI over one fixture directory, the way a user would.
+ *
+ * Node strips the types, so this exercises `src/` without a build step in between. Findings
+ * come back with the fixture's own directory trimmed off the path, which is what keeps the
+ * expectations below readable.
+ */
+function lint(fixture: string): { status: number; findings: string[]; summary: string } {
+  const directory = `tests/fixtures/${fixture}/`;
+  const result = spawnSync(process.execPath, ["src/lint-cli.ts", `${directory}**/*.ts`], {
+    cwd: root,
+    encoding: "utf8",
   });
-  return (await lint(files)).map((finding) =>
-    finding.kind === "unused-member"
-      ? `${finding.companion}.${finding.member}`
-      : `brand ${finding.brand} @ ${finding.alias}`,
-  );
+  if (result.error) throw result.error;
+  return {
+    status: result.status ?? -1,
+    findings: result.stdout
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => line.replace(directory, "")),
+    summary: result.stderr.trim(),
+  };
 }
 
 describe("unused companion members", () => {
-  test("reports a member nothing reads, and spares the one that is read", async () => {
-    expect(
-      await scan(`
-        const User = Val.sealer<User>().impl({
-          greet: (u) => u.name,
-          shout: (u) => u.name.toUpperCase(),
-        });
-        console.log(User.greet(u));
-      `),
-    ).toEqual(["User.shout"]);
+  test("reports a member nothing reads, and spares the one that is read", () => {
+    expect(lint("unused/dead-member").findings).toEqual(["a.ts:3  Id.shout is never read"]);
   });
 
-  test("finds the reader in another file, through a renamed import", async () => {
-    expect(
-      await scan(
-        `export const User = Val.sealer<User>().impl({ greet: (u) => u.name, shout: (u) => u });`,
-        `import { User as U } from "./f0.ts";\nU.greet(u);`,
-      ),
-    ).toEqual(["User.shout"]);
+  test("finds the reader in another file, through a renamed import", () => {
+    expect(lint("unused/renamed-import").findings).toEqual(["user.ts:3  User.shout is never read"]);
   });
 
-  const readers = {
-    "bracket access": `User["greet"](u);`,
-    destructuring: `const { greet } = User;`,
-    "renaming destructure": `const { greet: hello } = User;`,
-  };
-  for (const [label, read] of Object.entries(readers)) {
-    test(`counts ${label} as a read`, async () => {
-      const source = `const User = Val.sealer<User>().impl({ greet: (u) => u.name });\n${read}`;
-      expect(await scan(source)).toEqual([]);
-    });
-  }
-
-  test("collects method shorthand and non-function members", async () => {
-    expect(
-      await scan(`
-        const User = Val.sealer<User>().impl({
-          slug(u) { return u.name; },
-          MAX: 10,
-        });
-      `),
-    ).toEqual(["User.slug", "User.MAX"]);
+  test("counts bracket access, destructuring and a renaming destructure as reads", () => {
+    expect(lint("unused/reads").findings).toEqual([]);
   });
 
-  test("ignores the members the library attaches or a type overrides", async () => {
-    expect(
-      await scan(`
-        const User = Val.companion<User>().impl({
-          equals: (a, b) => a === b,
-          with: (v, p, seal) => seal({ ...v, ...p }),
-          update: (v, f, seal) => seal(f(v)),
-        });
-      `),
-    ).toEqual([]);
+  test("collects method shorthand and non-function members", () => {
+    expect(lint("unused/shorthand-and-const").findings).toEqual([
+      "a.ts:2  User.slug is never read",
+      "a.ts:5  User.MAX is never read",
+    ]);
   });
 
-  test("reads through a builder chain", async () => {
-    expect(
-      await scan(`
-        const Doc = Val.companion<Doc>()
-          .implSeal((v) => v)
-          .unpatchable<"id">()
-          .impl({ title: (d) => d.title, subtitle: (d) => d.title });
-        Doc.title(d);
-      `),
-    ).toEqual(["Doc.subtitle"]);
+  test("ignores the members the library attaches or a type overrides", () => {
+    expect(lint("unused/builtins").findings).toEqual([]);
   });
 
-  test("keeps both declarations when two modules name a companion alike", async () => {
-    expect(
-      await scan(
-        `const User = Val.sealer<User>().impl({ greet: (u) => u.name });`,
-        `const User = Val.sealer<User>().impl({ greet: (u) => u.id });`,
-      ),
-    ).toEqual(["User.greet", "User.greet"]);
+  test("reads through a builder chain", () => {
+    expect(lint("unused/builder-chain").findings).toEqual(["a.ts:6  Doc.subtitle is never read"]);
   });
 
-  test("does not credit a read to a same-named companion in another file", async () => {
-    expect(
-      await scan(
-        `import { Other as User } from "./elsewhere.ts";\nUser.greet(u);`,
-        `const User = Val.sealer<User>().impl({ greet: (u) => u.id });`,
-      ),
-    ).toEqual(["User.greet"]);
+  test("keeps both declarations when two modules name a companion alike", () => {
+    expect(lint("unused/same-name").findings).toEqual([
+      "a.ts:1  User.greet is never read",
+      "b.ts:1  User.greet is never read",
+    ]);
   });
 
-  test("says nothing about a companion with no members", async () => {
-    expect(await scan(`const User = Val.sealer<User>().impl({});`)).toEqual([]);
+  test("does not credit a read to a same-named companion in another file", () => {
+    expect(lint("unused/no-cross-file-credit").findings).toEqual([
+      "declaration.ts:1  User.greet is never read",
+    ]);
+  });
+
+  test("says nothing about a companion with no members", () => {
+    expect(lint("unused/empty-impl").findings).toEqual([]);
   });
 });
 
 describe("duplicate brands", () => {
-  test("reports every alias that claims a brand another one claims", async () => {
-    expect(
-      await scan(`export type Id = Val<"Id", string>;`, `export type OtherId = Val<"Id", string>;`),
-    ).toEqual(["brand Id @ Id", "brand Id @ OtherId"]);
+  test("reports every alias that claims a brand another one claims", () => {
+    expect(lint("brand/duplicate").findings).toEqual([
+      'billing.ts:1  Id claims the brand "Id", and so does another type',
+      'orders.ts:1  OrderId claims the brand "Id", and so does another type',
+    ]);
   });
 
-  test("says nothing when each brand is claimed once", async () => {
-    expect(
-      await scan(
-        `export type Id = Val<"billing/Id", string>;`,
-        `export type OtherId = Val<"orders/Id", string>;`,
-      ),
-    ).toEqual([]);
+  test("says nothing when each brand is claimed once", () => {
+    expect(lint("brand/namespaced").findings).toEqual([]);
   });
 
-  test("finds the collision when Val is imported under another name", async () => {
-    expect(
-      await scan(
-        `import { Val as V } from "valof";\nexport type Id = V<"Id", string>;`,
-        `import { Val } from "valof";\nexport type OtherId = Val<"Id", string>;`,
-      ),
-    ).toEqual(["brand Id @ Id", "brand Id @ OtherId"]);
+  test("finds the collision when Val is imported under another name", () => {
+    expect(lint("brand/renamed-val").findings).toEqual([
+      'billing.ts:3  Id claims the brand "Id", and so does another type',
+      'orders.ts:3  OrderId claims the brand "Id", and so does another type',
+    ]);
   });
 
-  test("ignores an alias over something that is not a Val", async () => {
-    expect(await scan(`type A = Other<"Id", string>;`, `type B = Other<"Id", string>;`)).toEqual(
-      [],
-    );
+  test("ignores an alias over something that is not a Val", () => {
+    expect(lint("brand/not-a-val").findings).toEqual([]);
   });
 
-  test("ignores an alias that is not at the top level, which nothing can import", async () => {
-    expect(
-      await scan(
-        `describe("a", () => {\n  type Id = Val<"Id", string>;\n});`,
-        `describe("b", () => {\n  type Id = Val<"Id", string>;\n});`,
-      ),
-    ).toEqual([]);
+  test("ignores an alias that is not at the top level, which nothing can import", () => {
+    expect(lint("brand/block-scoped").findings).toEqual([]);
   });
 
-  test("ignores a generic brand, which names nothing to collide over", async () => {
-    expect(
-      await scan(`type Wrapper<K extends string> = Val<K, string>;`, `type B = Val<K, string>;`),
-    ).toEqual([]);
+  test("ignores a generic brand, which names nothing to collide over", () => {
+    expect(lint("brand/generic").findings).toEqual([]);
   });
 });
 
-describe("the repository's own sources", () => {
-  test("have nothing to report", async () => {
-    expect(await lint(["src/val.ts", "src/index.ts", "tests/val.test.ts"])).toEqual([]);
+describe("the command itself", () => {
+  test("exits 1 with a summary when it finds something", () => {
+    const { status, summary } = lint("unused/dead-member");
+    expect(status).toBe(1);
+    expect(summary).toBe("valof-lint: 1 finding(s) in 1 file(s)");
+  });
+
+  test("exits 0 with a summary when it does not", () => {
+    const { status, summary } = lint("unused/reads");
+    expect(status).toBe(0);
+    expect(summary).toBe("valof-lint: nothing to report in 1 file(s)");
+  });
+
+  test("exits 2 when nothing matches the glob", () => {
+    const { status, summary } = lint("no-such-directory");
+    expect(status).toBe(2);
+    expect(summary).toBe("valof-lint: no files matched");
+  });
+
+  test("has nothing to report about the package's own sources", () => {
+    const result = spawnSync(process.execPath, ["src/lint-cli.ts"], {
+      cwd: root,
+      encoding: "utf8",
+    });
+    expect([result.status, result.stdout]).toEqual([0, ""]);
   });
 });
