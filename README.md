@@ -23,6 +23,19 @@ pnpm install valof
 ```ts
 import { Val } from "valof";
 
+export type UserId = Val<"UserId", string>;
+export type OrderId = Val<"OrderId", string>;
+
+const UserId = Val.sealer<UserId>();
+let orderId: OrderId;
+
+orderId = UserId("u_1"); // type error: UserId is not an OrderId
+orderId = "o_1"; // type error: a plain string is not an OrderId
+```
+
+Two Vals over the same payload stay apart, and neither accepts a bare string.
+
+```ts
 export type User = Val<"User", { id: string; name: string; nickname?: string }>;
 
 export const User = Val.sealer<User>().impl({
