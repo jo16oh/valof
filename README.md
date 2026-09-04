@@ -303,21 +303,17 @@ export function parseUser(json: string): Result<User> {
 ### Dates
 
 ```ts
-export type IsoDate = Val<"IsoDate", string>;
+export type UnixEpochMs = Val<"UnixEpochMs", number>;
 
-export const IsoDate = Val.companion<IsoDate>()
-  .implSeal((s) => {
-    /* validate */
-  })
-  .impl({
-    showLocal(d) {
-      return Temporal.Instant.from(d).toLocaleString();
-    },
-  });
+export const UnixEpochMs = Val.sealer<UnixEpochMs>().impl({
+  showLocal(d) {
+    return Temporal.Instant.fromEpochMilliseconds(d).toLocaleString();
+  },
+});
 ```
 
 Do the date arithmetic with whatever library you like (Temporal, date-fns, Luxon). The
-value itself is an ISO 8601 string or epoch ms.
+value itself is an epoch ms.
 
 ## Utilities
 
