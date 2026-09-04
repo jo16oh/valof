@@ -43,7 +43,7 @@ User.equals(user, User({ id: "a", name: "bob" })); // true
 that type. Every function in `impl` must take its Val first. A sealer already carries
 `equals`, `with` and `update`, which `.impl({…})` can override.
 
-Only primitives, other Vals, arrays and records can live inside a Val. See
+Only primitives, arrays and plain objects can live inside a Val. See
 [Allowed types](#allowed-types).
 
 **Name the brand after the type it brands.** Two Vals with the same brand string and the
@@ -235,17 +235,20 @@ it must be unforgeable, `id` belongs outside the value.
 
 ## Allowed types
 
-Only four things can live inside a Val:
+Only three things can live inside a Val:
 
 |            |                                                                   |
 | ---------- | ----------------------------------------------------------------- |
 | Primitives | `string` / `number` / `boolean` / `bigint` / `null`               |
-| Other Vals | any Val can hold another                                          |
 | Arrays     | `ReadonlyArray<allowed>`                                          |
 | Objects    | `{ readonly k: allowed }`, or `Readonly<Record<string, allowed>>` |
 
-`Date`, `Temporal`, `Map`, `Set`, functions and class instances cannot go in; see
-[Dates](#dates) and [Map / Set](#map--set) for what to reach for instead.
+A Val is one of these itself, so Vals nest.
+
+`Date`, `Temporal`, `Map`, `Set` and functions cannot go in; see [Dates](#dates) and
+[Map / Set](#map--set) for what to reach for instead. Nor can a class instance: one with
+methods is a type error, and one without them is indistinguishable from a plain object to
+TypeScript, so sealing it throws in a development build.
 
 ## Patterns
 
