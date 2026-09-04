@@ -498,9 +498,25 @@ function copy<T>(value: T): T {
   }
 
   const source = value as Record<string, unknown>;
-  // `out[key] = …` would invoke the `__proto__` setter on that one key, moving it into the
-  // prototype instead of copying it. `fromEntries` defines every key as an own property.
-  return Object.fromEntries(Object.keys(source).map((key) => [key, copy(source[key])])) as T;
+
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(source)) {
+    const copied = copy(source[key]);
+    // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
+    // the prototype instead of copying it. Defining it keeps it an own property, and only
+    // that key pays for the slower path.
+    if (key === "__proto__") {
+      Object.defineProperty(out, key, {
+        value: copied,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    } else {
+      out[key] = copied;
+    }
+  }
+  return out as T;
 }
 
 /**
