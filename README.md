@@ -312,29 +312,23 @@ export const UnixEpochMs = Val.sealer<UnixEpochMs>().impl({
 });
 ```
 
-Do the date arithmetic with whatever library you like (Temporal, date-fns, Luxon). The
-value itself is an epoch ms.
-
 ## Utilities
 
 ### `Val.of`
 
-Brands a payload with the type named explicitly, for where a value has to be built and no
-seal is in scope: a trusted boundary such as a decoder or a database row, or a companion
-function returning a fresh value of its own type.
+Brands a payload with the type named explicitly.
 
 ```ts
 Val.of<User>({ id: "a", name: "alice" });
 ```
 
-Where the type has a seal of its own, use that instead. `Val.of` closes the payload with
-the default seal rather than the type's, which is to say it skips the checks: the escape
-hatch, spelled with the type argument in plain sight.
+Where the type has a `seal` of its own, use that instead. `Val.of` skips the checks: it is
+the escape hatch.
 
 ### `Val.unwrap`
 
-A plain, mutable copy of the payload, for handing to code that does not know about
-`readonly`.
+A plain, mutable deep-copy of the payload, for handing to code that does not know about
+`readonly`. It strips the brand as well.
 
 ```ts
 const post = Post({ title: "t", tags: ["a"] });
@@ -343,43 +337,32 @@ post.tags.sort(); // ✗ readonly string[] has no sort
 Val.unwrap(post).tags.sort(); // ✓
 ```
 
-It is **not** how you derive one value from another: `SeedOf<V>` already accepts a Val, so
-`Val.of` and `with` take one directly and deep-copy once, where going through `unwrap`
-deep-copies twice.
-
-```ts
-Post.with(post, { tags: [...post.tags, "b"] }); // ✓ one deep copy
-Post.with(post, { tags: [...Val.unwrap(post).tags, "b"] }); // ✗ two
-```
-
 ## API
 
-|                                       |                                                          |
-| ------------------------------------- | -------------------------------------------------------- |
-| `Val<K, T>`                           | a branded value type                                     |
-| `Val.of<V>(value)`                    | the default seal, with the type named explicitly         |
-| `Val.unwrap(value)`                   | a mutable copy of the payload                            |
-| `Val.sealer<V>()`                     | the default seal, carrying the defaults                  |
-| `Val.sealer<V>().impl(fns)`           | the constructor plus your functions                      |
-| `Val.companion<V>().impl(fns)`        | functions only — no constructor                          |
-| `Val.companion<V>().implSeal(f)`      | replaces the seal — payload in, value out                |
-| `Val.companion<V>().implCreate(f)`    | registers `create`: any arguments, a payload out, sealed |
-| `Val.companion<V>().unpatchable<K>()` | takes keys out of `with` / `update`                      |
-| `AnyVal`                              | a constraint over any Val                                |
-| `SeedOf<V>`                           | what a value can be grown from                           |
-| `PayloadOf<V>`                        | the payload behind the brand                             |
-| `Patch<T>`                            | a `with` patch, taken over a payload                     |
-| `Sealer<V>`                           | what `Val.sealer<V>()` returns, never written            |
-| `Sealed<V, M>`                        | what its `.impl(fns)` returns, never written             |
-| `CompanionBuilder<V>`                 | what `Val.companion<V>()` returns, never written         |
-| `Companion<V, M>`                     | what its `.impl(fns)` returns, never written             |
+|                                       |                                                                   |
+| ------------------------------------- | ----------------------------------------------------------------- |
+| `Val<K, T>`                           | a branded value type                                              |
+| `Val.of<V>(value)`                    | the default seal, with the type named explicitly                  |
+| `Val.unwrap(value)`                   | a mutable copy of the payload                                     |
+| `Val.sealer<V>()`                     | the default seal, carrying the defaults                           |
+| `Val.sealer<V>().impl(fns)`           | the constructor plus your functions                               |
+| `Val.companion<V>().impl(fns)`        | functions only — no constructor                                   |
+| `Val.companion<V>().implSeal(f)`      | replaces the `seal`: a constructor that can validate inputs       |
+| `Val.companion<V>().implCreate(f)`    | registers `create`: a constructor that generates values inside it |
+| `Val.companion<V>().unpatchable<K>()` | takes keys out of `with` / `update`                               |
+| `AnyVal`                              | a constraint over any Val                                         |
+| `SeedOf<V>`                           | what a value can be grown from                                    |
+| `PayloadOf<V>`                        | the payload behind the brand                                      |
+| `Patch<T>`                            | a `with` patch, taken over a payload                              |
+| `Sealer<V>`                           | what `Val.sealer<V>()` returns, never written                     |
+| `Sealed<V, M>`                        | what its `.impl(fns)` returns, never written                      |
+| `CompanionBuilder<V>`                 | what `Val.companion<V>()` returns, never written                  |
+| `Companion<V, M>`                     | what its `.impl(fns)` returns, never written                      |
 
 The last four are exported only so that your own `.d.ts` can name them when you re-export
 a companion — there is no reason to import one yourself.
 
-Every companion carries `equals`, `with` and `update`. `equals` defaults to a structural
-deep comparison, which is not exported on its own; an override receives it as a third
-argument instead (see _Construct in normal form_).
+Every companion carries `equals`, `with` and `update` (see _Construct in normal form_).
 
 ## Recommended tsconfig
 
@@ -391,15 +374,12 @@ key is dropped when the value is serialized into JSON.
 
 ## Caveats
 
-**Do not build a library's public surface out of valof.** A companion's functions are
-reached through the object rather than as exports, so a bundler keeps every one of them and
-an unused-export check never reports one. `Val` is itself a companion, which means the
-import alone brings `sealer`, `companion`, `unwrap` and everything they reach: a module
-that calls only `Val.of` still carries the whole runtime.
+**Do not use valof to build a library.** A companion's functions aren't tree-shakeable. Plus
+`Val` is itself a companion, which means the import alone brings `sealer`, `companion`,
+`unwrap` and everything they reach.
 
-In an app that is worth knowing, because nothing will tell you when a companion function
-goes dead. In a published library your consumers carry it instead, so keep valof on the
-inside and expose plain types and functions.
+In an app that is worth knowing, because [Knip](https://knip.dev/) cannot tell you when a
+companion function goes dead.
 
 ## Development
 
