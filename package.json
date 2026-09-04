@@ -39,6 +39,7 @@
     "dev": "vp pack --watch",
     "test": "vp test",
     "check": "vp check",
+    "size": "node scripts/size.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config"
   },
