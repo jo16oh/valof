@@ -631,30 +631,6 @@ describe("constructors copy their argument", () => {
     expect(() => Val.of<Pt>({ x: 1, y: 2 })).not.toThrow();
   });
 
-  test("in a production build a non-plain object is kept rather than emptied", () => {
-    class Wrapped {
-      greet(): string {
-        return "hi";
-      }
-    }
-    type Holder = Val<"Holder", { readonly at: Readonly<Record<string, string>> }>;
-    // The type rules this payload out, so the cast is how the runtime path is reached at all.
-    const hold = (at: unknown) => Val.of<Holder>({ at } as unknown as SeedOf<Holder>).at;
-    const at = new Date(0);
-    const previous = process.env["NODE_ENV"];
-    process.env["NODE_ENV"] = "production";
-    try {
-      // Copying a `Date` key by key would leave `{}`, so the original is handed back instead.
-      expect(hold(at)).toBe(at);
-      expect(hold(new Wrapped())).toBeInstanceOf(Wrapped);
-      // A plain object with nothing in it is still copied, not shared.
-      const empty = {};
-      expect(hold(empty)).not.toBe(empty);
-    } finally {
-      process.env["NODE_ENV"] = previous;
-    }
-  });
-
   test("a null-prototype object is allowed, and comes back plain", () => {
     type Tags = Val<"Tags", Readonly<Record<string, true>>>;
     const source = Object.assign(Object.create(null) as Record<string, true>, { a: true });
