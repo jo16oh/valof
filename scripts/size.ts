@@ -1,3 +1,5 @@
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { gzipSync, brotliCompressSync, constants } from "node:zlib";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -78,10 +80,15 @@ function table(rows: [string, Record<string, number>][]): string {
   ].join("\n");
 }
 
-const declarations = await readFile(new URL(types, root), "utf8").catch(() => {
-  console.error(`${types} is missing. Run \`vp run build\` first.`);
+await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), ["pack"], {
+  cwd: fileURLToPath(root),
+}).catch((error: { stdout?: string; stderr?: string }) => {
+  console.error(error.stdout ?? "");
+  console.error(error.stderr ?? "");
   process.exit(1);
 });
+
+const declarations = await readFile(new URL(types, root), "utf8");
 const bundles = await Promise.all(modes.map(async (mode) => measure(await bundle(mode))));
 
 const measured = {

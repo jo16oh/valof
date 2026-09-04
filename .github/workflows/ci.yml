@@ -26,6 +26,4 @@ jobs:
 
       - run: vp test
 
-      - run: vp run build
-
       - run: vp run size
