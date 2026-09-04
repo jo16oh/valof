@@ -428,7 +428,7 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
 // Implementation
 // ---------------------------------------------------------------------------
 
-const isPlainRecord = (v: unknown): v is Record<string, unknown> =>
+const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
 function assertPlainObject(value: object): void {
@@ -589,7 +589,7 @@ function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {})
   if (custom) define(target, "seal", seal);
 
   define(target, "with", (value: unknown, patch: Record<string, unknown>) => {
-    if (!isPlainRecord(value)) {
+    if (!isObjectShaped(value)) {
       throw new TypeError("`with` is only available for object-shaped Vals.");
     }
     const merged: Record<string, unknown> = { ...value, ...patch };
@@ -602,7 +602,7 @@ function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {})
   // The merge is what lets the untouched keys survive without the library knowing their names.
   define(target, "update", (value: unknown, fn: (value: unknown) => unknown) =>
     seal(
-      ctors.unpatchable && isPlainRecord(value)
+      ctors.unpatchable && isObjectShaped(value)
         ? { ...value, ...(fn(value) as Record<string, unknown>) }
         : fn(value),
     ),
