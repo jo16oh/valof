@@ -405,6 +405,39 @@ describe("validate", () => {
   });
 });
 
+describe("a seal cannot take a wire format", () => {
+  type Age = Val<"Age", number>;
+  type Email = Val<"Email", string>;
+
+  test("a parameter wider than the payload is fine while it excludes strings", () => {
+    const wide = Val.companion<User>().implSeal((u: object, seal) => seal(u as SeedOf<User>));
+    const record = Val.companion<User>().implSeal((u: Record<string, unknown>, seal) =>
+      seal(u as SeedOf<User>),
+    );
+    expect(typeof wide.seal).toBe("function");
+    expect(typeof record.seal).toBe("function");
+  });
+
+  test("a parameter that also accepts a string is rejected", () => {
+    const build = () => {
+      // @ts-expect-error a seal takes the payload, not a wire format
+      Val.companion<User>().implSeal((u: unknown, seal) => seal(u as SeedOf<User>));
+      // @ts-expect-error `{}` accepts a string too
+      Val.companion<User>().implSeal((u: {}, seal) => seal(u as SeedOf<User>));
+      // @ts-expect-error a primitive payload has nothing to parse
+      Val.companion<Age>().implSeal((n: unknown, seal) => seal(n as number));
+      // @ts-expect-error widening to include a string is the same hole
+      Val.companion<Age>().implSeal((n: number | string, seal) => seal(n as number));
+    };
+    expect(typeof build).toBe("function");
+  });
+
+  test("a payload that is a string is exempt", () => {
+    const Email = Val.companion<Email>().implSeal((e: unknown, seal) => seal(e as string));
+    expect(typeof Email.seal).toBe("function");
+  });
+});
+
 describe("sealer", () => {
   test("a bare sealer is a complete companion", () => {
     const IsoDate = Val.sealer<IsoDate>();

@@ -203,6 +203,23 @@ type Constructed<V extends AnyVal, F> = F extends (...args: never[]) => infer R 
 type SealImpl<V extends AnyVal> = (value: SeedOf<V>, seal: (value: SeedOf<V>) => V) => unknown;
 
 /**
+ * The seal's parameter may be wider than the payload, which is what lets a schema library parse
+ * into it, but not so wide that it also accepts a wire format. `with` and `update` hand a payload
+ * back to the seal, so one written to decode a JSON string breaks the moment a value is derived
+ * from another.
+ *
+ * Being assignable to {@link SealImpl} already fixes the lower bound at `SeedOf<V>`. This is the
+ * upper one: the parameter must not accept a string. That rules out `unknown` and `{}` while
+ * leaving `object` and `Record<string, unknown>` alone. A payload that is a string of course
+ * cannot be told apart from a wire format, so those types are exempt.
+ */
+type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = [string] extends [SeedOf<V>]
+  ? G
+  : [string] extends [Parameters<G>[0]]
+    ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
+    : G;
+
+/**
  * What `create` must be: any arguments at all, a payload out. What it returns is not a value yet
  — the type's seal closes it, which is what keeps `create` from being a way past the seal.
  */
@@ -402,7 +419,7 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
   implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P>;
   /** Replaces the seal. `create`, `with` and `update` all go through it. */
-  implSeal: <G extends SealImpl<V>>(seal: G) => CompanionBuilder<V, N, G, P>;
+  implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P>;
   /**
    * Takes keys out of the update path: `with` stops accepting them in its patch, and `update`'s
    * callback returns only what is left, with the rest merged back on.
