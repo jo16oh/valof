@@ -79,6 +79,16 @@ describe("unused companion members", () => {
     ]);
   });
 
+  test("sees a builder held in a variable before its impl is called", () => {
+    expect(lint("unused/held-in-a-variable").findings).toEqual([
+      "a.ts:5  User.shout is never read",
+    ]);
+  });
+
+  test("leaves an unrelated library's impl alone", () => {
+    expect(lint("unused/foreign-impl").findings).toEqual([]);
+  });
+
   test("says nothing about a companion with no members", () => {
     expect(lint("unused/empty-impl").findings).toEqual([]);
   });

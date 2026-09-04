@@ -66,6 +66,26 @@ function valName(typeName: Node, namespaces: ReadonlySet<string>): string | unde
   return right.type === "Identifier" ? (right["name"] as string) : undefined;
 }
 
+/**
+ * The dotted name a call chain is rooted at: `Val.sealer<X>().impl` gives `Val.sealer`, and
+ * `valof.Val.companion<X>().implSeal(f)` gives `valof.Val.companion`. Type arguments and call
+ * parentheses carry no name, so they drop out.
+ */
+function rootPath(node: Node): string[] | undefined {
+  if (node.type === "Identifier") return [node["name"] as string];
+  if (node.type === "CallExpression") {
+    const callee = node["callee"];
+    return isNode(callee) ? rootPath(callee) : undefined;
+  }
+  if (node.type !== "MemberExpression") return undefined;
+  const object = node["object"];
+  const property = node["property"];
+  if (!isNode(object) || !isNode(property)) return undefined;
+  const left = rootPath(object);
+  const name = keyName(property, node["computed"] === true);
+  return left && name ? [...left, name] : left;
+}
+
 /** Byte offset -> 1-based line, from a prefix scan done once per file. */
 function lineIndex(source: string): (offset: number) => number {
   const starts = [0];
@@ -104,9 +124,9 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * Resolution is by name, not by type. A read is followed across files through a plain import, a
  * renamed one, a namespace import and an `export { X as Y }` rename.
  *
- * A companion is matched by shape, so any `.impl({…})` counts, whatever it was called on. That
- * is what lets a sealer held in a variable work, at the price of an unrelated library's `.impl`
- * landing in the report.
+ * A companion is matched by where its chain grows from, `Val.sealer` or `Val.companion`, rather
+ * than by the shape of `.impl({…})` alone, so an unrelated library's `.impl` stays out. A
+ * builder bound to a local first counts too, since that binding is itself Val-rooted.
  *
  * Two ways it is wrong, in opposite directions. A read that spells no name, `User[method]` or a
  * companion reached through a default export, is not seen, so the member is reported although it
@@ -140,8 +160,23 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
     /** `import * as ns`: reads through one arrive already named as the other module names them. */
     const namespaces = new Set<string>();
     const namespaceReads = new Map<string, Set<string>>();
+    /** Locals holding a builder, so `const seal = Val.sealer<X>(); seal.impl({…})` is seen. */
+    const builders = new Set<string>();
     /** Resolved against `imported` once the file is walked, so `Val` may be imported renamed. */
     const aliases: { typeName: string; brand: string; alias: string; line: number }[] = [];
+
+    /** Whether a chain grows from `Val.sealer` or `Val.companion`, however `Val` was bound. */
+    const fromVal = (node: Node): boolean => {
+      const path = rootPath(node);
+      if (!path || path.length === 0) return false;
+      const [first, second, third] = path as [string, string?, string?];
+      if (path.length === 1) return builders.has(first);
+      // `valof.Val.sealer`: step past the namespace, which only says where the name came from.
+      const qualified = namespaces.has(first);
+      const name = qualified ? second : (imported.get(first) ?? first);
+      const step = qualified ? third : second;
+      return name === "Val" && (step === "sealer" || step === "companion");
+    };
 
     const visit = (node: Node): void => {
       switch (node.type) {
@@ -160,11 +195,26 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
             }
             break;
           }
-          if (id.type !== "Identifier" || init.type !== "CallExpression") break;
+          if (id.type !== "Identifier") break;
+          // `const seal = Val.sealer<X>()`, whose `.impl` is called later on the binding.
+          if (init.type !== "CallExpression") {
+            if (fromVal(init)) builders.add(id["name"] as string);
+            break;
+          }
           const callee = init["callee"];
-          if (!isNode(callee) || callee.type !== "MemberExpression") break;
+          if (!isNode(callee) || callee.type !== "MemberExpression") {
+            if (fromVal(init)) builders.add(id["name"] as string);
+            break;
+          }
           const property = callee["property"];
-          if (!isNode(property) || keyName(property, callee["computed"] === true) !== "impl") break;
+          if (!isNode(property) || keyName(property, callee["computed"] === true) !== "impl") {
+            if (fromVal(init)) builders.add(id["name"] as string);
+            break;
+          }
+          const receiver = callee["object"];
+          // Matched by where the chain grows from, not by the shape of `.impl` alone, so an
+          // unrelated library's `.impl({…})` stays out of the report.
+          if (!isNode(receiver) || !fromVal(receiver)) break;
           // `.impl()` takes no argument, and `.impl(fns)` passes a variable this cannot see into.
           const object = (init["arguments"] as unknown[])[0];
           if (!isNode(object) || object.type !== "ObjectExpression") break;

@@ -409,9 +409,9 @@ imported and assigned elsewhere. `Val` is recognised however you bind it: rename
 (`valof.Val<…>`), or re-exported from a barrel. Something else bound to the name `Val` is
 left alone.
 
-Companions are matched by shape, so any `.impl({…})` counts, whatever it was called on. That
-is what lets a sealer held in a variable work, and it also means an unrelated library's
-`.impl` lands in the report.
+A companion is matched by where its chain grows from, `Val.sealer` or `Val.companion`, so an
+unrelated library's `.impl({…})` stays out of the report. A builder held in a variable first
+counts too.
 
 ## Caveats
 
