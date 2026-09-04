@@ -106,11 +106,22 @@ describe("duplicate brands", () => {
     expect(lint("brand/namespaced").findings).toEqual([]);
   });
 
-  test("finds the collision when Val is imported under another name", () => {
+  test("finds the collision when Val is renamed, or imported for its type alone", () => {
     expect(lint("brand/renamed-val").findings).toEqual([
       'billing.ts:3  Id claims the brand "Id", and so does another type',
       'orders.ts:3  OrderId claims the brand "Id", and so does another type',
     ]);
+  });
+
+  test("finds the collision when Val is reached through a namespace import", () => {
+    expect(lint("brand/namespaced-val").findings).toEqual([
+      'billing.ts:3  Id claims the brand "Id", and so does another type',
+      'orders.ts:3  OrderId claims the brand "Id", and so does another type',
+    ]);
+  });
+
+  test("ignores something else bound to the name Val", () => {
+    expect(lint("brand/shadowed-val").findings).toEqual([]);
   });
 
   test("ignores an alias over something that is not a Val", () => {

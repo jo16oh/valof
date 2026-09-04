@@ -1,3 +1,3 @@
-import { Val } from "valof";
+import type { Val } from "valof";
 
 export type OrderId = Val<"Id", string>;

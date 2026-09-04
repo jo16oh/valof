@@ -47,6 +47,25 @@ function keyName(node: Node, computed: boolean): string | undefined {
   return undefined;
 }
 
+/**
+ * The name a type reference is written under, or `undefined` when it is not a plain one.
+ *
+ * `Val<…>` gives `Val`, and `valof.Val<…>` through a namespace import gives the same, since the
+ * namespace only says where the name came from. The caller still resolves the result against
+ * the file's import aliases, which is what tells `Val` apart from something else bound to that
+ * name.
+ */
+function valName(typeName: Node, namespaces: ReadonlySet<string>): string | undefined {
+  if (typeName.type === "Identifier") return typeName["name"] as string;
+  if (typeName.type !== "TSQualifiedName") return undefined;
+  const left = typeName["left"];
+  const right = typeName["right"];
+  if (!isNode(left) || !isNode(right) || left.type !== "Identifier") return undefined;
+  if (!namespaces.has(left["name"] as string)) return undefined;
+  // Qualified by a namespace import, so the name is already the exporting module's own.
+  return right.type === "Identifier" ? (right["name"] as string) : undefined;
+}
+
 /** Byte offset -> 1-based line, from a prefix scan done once per file. */
 function lineIndex(source: string): (offset: number) => number {
   const starts = [0];
@@ -84,6 +103,10 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  *
  * Resolution is by name, not by type. A read is followed across files through a plain import, a
  * renamed one, a namespace import and an `export { X as Y }` rename.
+ *
+ * A companion is matched by shape, so any `.impl({…})` counts, whatever it was called on. That
+ * is what lets a sealer held in a variable work, at the price of an unrelated library's `.impl`
+ * landing in the report.
  *
  * Two ways it is wrong, in opposite directions. A read that spells no name, `User[method]` or a
  * companion reached through a default export, is not seen, so the member is reported although it
@@ -233,14 +256,16 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
       if (!isNode(id) || !isNode(annotation) || annotation.type !== "TSTypeReference") continue;
       const typeName = annotation["typeName"];
       const args = annotation["typeArguments"];
-      if (!isNode(typeName) || typeName.type !== "Identifier" || !isNode(args)) continue;
+      if (!isNode(typeName) || !isNode(args)) continue;
+      const named = valName(typeName, namespaces);
+      if (named === undefined) continue;
       const first = (args["params"] as unknown[])[0];
       if (!isNode(first) || first.type !== "TSLiteralType") continue;
       const literal = first["literal"];
       // A generic brand, `Val<K, T>` inside a helper, names nothing to collide over.
       if (!isNode(literal) || typeof literal["value"] !== "string") continue;
       aliases.push({
-        typeName: typeName["name"] as string,
+        typeName: named,
         brand: literal["value"],
         alias: id["name"] as string,
         line: lineOf(node["start"] as number),

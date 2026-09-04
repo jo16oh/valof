@@ -404,7 +404,14 @@ spell it once somewhere, or leave that companion out of the glob. And a spread i
 dead they are.
 
 Only top-level aliases are considered for a brand collision, since nothing else can be
-imported and assigned elsewhere.
+imported and assigned elsewhere. `Val` is recognised however you bind it: renamed
+(`import { Val as V }`), imported for its type alone, reached through a namespace
+(`valof.Val<…>`), or re-exported from a barrel. Something else bound to the name `Val` is
+left alone.
+
+Companions are matched by shape, so any `.impl({…})` counts, whatever it was called on. That
+is what lets a sealer held in a variable work, and it also means an unrelated library's
+`.impl` lands in the report.
 
 ## Caveats
 
