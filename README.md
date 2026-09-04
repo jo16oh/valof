@@ -1,4 +1,4 @@
-# valof
+# Valof
 
 > **Values are plain data; behaviour lives outside them.**
 
@@ -356,7 +356,7 @@ key is dropped when the value is serialized into JSON.
 
 ## Caveats
 
-**Do not use valof to build a library.** A companion's functions are not tree-shakeable,
+**Do not use Valof to build a library.** A companion's functions are not tree-shakeable,
 and `Val` is itself a companion, so the import alone brings `sealer`, `companion`, `unwrap`
 and everything they reach.
 
