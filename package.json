@@ -40,8 +40,8 @@
     "size": "node scripts/size.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config",
-    "release": "bumpp --no-tag",
-    "release:tag": "git tag v$npm_package_version && git push origin v$npm_package_version"
+    "bump-version": "bumpp --no-tag",
+    "push-tag": "git branch --show-current | grep -qx main || { echo 'run this on main'; exit 1; }; git tag v$npm_package_version && git push origin v$npm_package_version"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
