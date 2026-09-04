@@ -1,5 +1,8 @@
 # Valof
 
+[![npm](https://img.shields.io/npm/v/valof.svg)](https://www.npmjs.com/package/valof)
+[![license](https://img.shields.io/npm/l/valof.svg)](./LICENSE)
+
 > **Values are plain data; behaviour lives outside them.**
 
 Value-object helpers for TypeScript: branded types, a constructor and a companion that

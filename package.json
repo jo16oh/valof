@@ -24,6 +24,7 @@
     "dist"
   ],
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": "./dist/index.mjs",
     "./package.json": "./package.json"
@@ -38,7 +39,9 @@
     "check": "vp check",
     "size": "node scripts/size.ts",
     "prepublishOnly": "vp run build",
-    "prepare": "vp config"
+    "prepare": "vp config",
+    "release": "bumpp --no-tag",
+    "release:tag": "git tag v$npm_package_version && git push origin v$npm_package_version"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",
