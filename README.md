@@ -109,7 +109,7 @@ instead; otherwise `with` would produce a new id every time it re-seals.
 There is no `.implSeal` on a sealer. A sealer **is** the default seal. For a checked one,
 use a companion.
 
-**No `Result` type is provided.** neverthrow, better-result or your own all work: the
+**No `Result` type is provided.** [neverthrow](https://github.com/supermacro/neverthrow), [better-result](https://github.com/dmmulroy/better-result) or your own all work: the
 seal's return type is propagated, never inspected.
 
 ### `create`
