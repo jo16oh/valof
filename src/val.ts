@@ -448,14 +448,17 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-function assertPlainObject(value: object): void {
+const isPlainObject = (value: object): boolean => {
   const proto = Object.getPrototypeOf(value) as object | null;
-  if (proto !== Object.prototype && proto !== null) {
-    const name = (value.constructor as { name?: string } | undefined)?.name;
-    throw new TypeError(
-      `a Val holds plain objects only; received ${name ? `an instance of ${name}` : "an object with a prototype"}`,
-    );
-  }
+  return proto === Object.prototype || proto === null;
+};
+
+function assertPlainObject(value: object): void {
+  if (isPlainObject(value)) return;
+  const name = (value.constructor as { name?: string } | undefined)?.name;
+  throw new TypeError(
+    `a Val holds plain objects only; received ${name ? `an instance of ${name}` : "an object with a prototype"}`,
+  );
 }
 
 /**
@@ -525,13 +528,20 @@ function copy<T>(value: T): T {
   }
 
   const source = value as Record<string, unknown>;
+  const keys = Object.keys(source);
 
   if (typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production") {
     assertPlainObject(source);
+  } else if (keys.length === 0 && !isPlainObject(source)) {
+    // A `Date` or a `Map` reaches here only in a build where the check above is gone. Copying
+    // one key by key produces `{}`, throwing the data away; handing back the original keeps it,
+    // at the price of sharing it with the caller. The prototype lookup is paid only where there
+    // was nothing to copy in the first place, so ordinary payloads never see it.
+    return value;
   }
 
   const out: Record<string, unknown> = {};
-  for (const key of Object.keys(source)) {
+  for (const key of keys) {
     const copied = copy(source[key]);
     // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
     // the prototype instead of copying it. Defining it keeps it an own property, and only

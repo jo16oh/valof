@@ -265,6 +265,9 @@ A Val is itself one of these, so Vals nest.
 methods is a type error, and one without them is indistinguishable from a plain object to
 TypeScript, so sealing it throws in a development build.
 
+A production build skips that check. Nothing is caught there, and an object the copy cannot
+reproduce, a `Date` among them, is stored as it was passed in rather than copied.
+
 ## Patterns
 
 ### Reusing a Val
