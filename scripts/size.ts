@@ -13,6 +13,8 @@ const api = "Val";
 
 const modes = ["production", "development"] as const;
 
+const budget = { gzip: 1024, types: 24 * 1024 };
+
 type Sizes = { minified: number; gzip: number; brotli: number };
 
 async function bundle(mode: string): Promise<string> {
@@ -90,6 +92,26 @@ const measured = {
   types: { raw: Buffer.byteLength(declarations, "utf8") },
 };
 
+const checks = [
+  ["production gzip", measured.bundle.production.gzip, budget.gzip],
+  ["types raw", measured.types.raw, budget.types],
+] as const;
+
+function budgets(): string {
+  const label = Math.max(...checks.map(([name]) => name.length));
+  const used = Math.max(...checks.map(([, size]) => format(size).length));
+  const limit = Math.max(...checks.map(([, , max]) => format(max).length));
+  return checks
+    .map(([name, size, max]) => {
+      const left =
+        size > max
+          ? `${format(size - max)} over`
+          : `${format(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
+      return `  ${name.padEnd(label)}  ${format(size).padStart(used)} / ${format(max).padStart(limit)}  ${left}`;
+    })
+    .join("\n");
+}
+
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify(measured, null, 2));
 } else {
@@ -98,4 +120,17 @@ if (process.argv.includes("--json")) {
   console.log();
   console.log(`types   ${types.replace("./dist/", "")}`);
   console.log(`  raw           ${format(measured.types.raw)}`);
+  console.log();
+  console.log("budget");
+  console.log(budgets());
+}
+
+const over = checks.filter(([, size, max]) => size > max);
+
+if (over.length > 0) {
+  console.error();
+  for (const [name, size, max] of over) {
+    console.error(`over budget: ${name} is ${format(size)}, budget ${format(max)}`);
+  }
+  process.exit(1);
 }
