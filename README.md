@@ -365,6 +365,12 @@ and everything they reach.
 That matters in an app too: [Knip](https://knip.dev/) cannot tell you when a companion
 function goes dead.
 
+**A `__proto__` key survives.** It is a legal JSON key, and round trips come first, so
+sealing keeps it as an own property rather than dropping data. That is inert inside a
+value, but not in code that merges a payload with `Object.assign` or a recursive merge:
+there, assigning the key sets a prototype instead of copying it. Sanitize untrusted input
+yourself.
+
 ## Development
 
 ```bash
