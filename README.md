@@ -106,10 +106,6 @@ A seal must be **idempotent**: sealing a value's own payload has to give that va
 Generating something new, such as an id or a timestamp, belongs in [`create`](#create)
 instead; otherwise `with` would produce a new id every time it re-seals.
 
-Constructors have their own builder steps. `.impl` declares `seal?: never` and
-`create?: never`, so writing one there is a type error rather than a function that never
-gets wired up.
-
 There is no `.implSeal` on a sealer. A sealer **is** the default seal. For a checked one,
 use a companion.
 
@@ -118,9 +114,7 @@ seal's return type is propagated, never inspected.
 
 ### `create`
 
-A constructor that does not simply take the payload (several arguments, a generated id, a
-wire format) is registered separately. A `create` builds a payload; the seal makes it a
-value:
+A `create` builds a payload; the seal makes it a value:
 
 ```ts
 export const User = Val.companion<User>()
@@ -240,14 +234,12 @@ User.update(user, (u) => ({ name: u.name, email: u.email })); // id survives
 User.update(user, (u) => ({ ...u, id: "forged" })); // type error
 ```
 
-Both paths need covering. `update` hands back a payload, so narrowing `with` alone would
-still leave `id` reachable. With keys declared unpatchable, `update`'s callback
-returns only what is left and the rest is merged back on, so deleting an optional key
-goes through `with(v, { k: undefined })` instead.
+With keys declared unpatchable, `update`'s callback returns only what is left and the rest
+is merged back on, so deleting an optional key goes through `with(v, { k: undefined })`
+instead.
 
 The keys are a type argument, so they do not exist at runtime. This guarantees the update
-path, not the value: `user.id` is readable, `readonly`
-is erased at runtime, and `Val.of<User>({ id: "forged", … })` still builds one. No ordinary
+path, not the value. `Val.of<User>({ id: "forged", … })` still builds one. No ordinary
 update can move `id`, which is usually what you wanted. If it must be unforgeable, `id`
 belongs outside the value.
 
