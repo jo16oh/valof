@@ -130,7 +130,12 @@ export const User = Val.companion<User>()
 User.create(fields); // Result<User> — create's payload, sealed
 ```
 
-Put the checks in the seal (`seal(v: unknown)` type-checks, so schema-style parsing fits).
+Put the checks in the seal. Widen the parameter to `object` and a schema library can parse
+straight into it.
+
+**A seal cannot take a wire format.** `with` and `update` hand a payload back to it, so one
+that expects a JSON string would break as soon as a value is derived from another. A
+parameter that also accepts a string, `unknown` included, is a type error.
 
 ## Construct in normal form
 
@@ -288,33 +293,6 @@ type PriceTable = Val<"PriceTable", Readonly<Record<string, Money>>>; // a Map
 
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`
 ignores key order, so comparing two of them is set equality.
-
-### Validation
-
-Validate in the seal, and every path to a value is validated:
-
-```ts
-export type User = Val<"User", { id: string; name: string }>;
-
-export const User = Val.companion<User>().implSeal((u, seal): Result<User> =>
-  u.name.length > 0 ? ok(seal(u)) : err("name must not be empty"),
-);
-
-User.seal({ id, name: "bob" }); // Result<User>
-User.with(user, { name: "sue" }); // Result<User> — sealed again
-```
-
-A seal only has to _accept_ the payload, so typing the parameter `unknown` lets a schema
-library parse straight into it.
-
-**Decoding a wire format does not belong there.** A seal takes a payload, and a JSON
-string is not one:
-
-```ts
-export function parseUser(json: string): Result<User> {
-  return User.seal(JSON.parse(json));
-}
-```
 
 ### Dates
 
