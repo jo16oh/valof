@@ -365,31 +365,39 @@ Every companion carries `equals`, `with` and `update` (see _Normalize in the sea
 Without `exactOptionalPropertyTypes`, `{ a?: string }` also accepts `undefined`, and that
 key is dropped when the value is serialized into JSON.
 
-## Finding unused companion functions
+## `valof-lint`
 
-A function registered in `.impl({…})` is attached at runtime, so static analysis sees an
-object literal passed to a function and nothing more. Knip does not report it when it goes
-dead, and a bundler does not drop it. The package ships a command that does:
+The package ships a command for the two mistakes the type checker cannot catch.
+
+**A dead companion function.** A function registered in `.impl({…})` is attached at runtime,
+so static analysis sees an object literal passed to a function and nothing more. Knip does
+not report it when it goes dead, and a bundler does not drop it.
+
+**A brand claimed twice.** Two top-level aliases with the same brand string and the same
+payload are silently assignable to each other, which is the whole failure the brand exists
+to prevent.
 
 ```bash
-pnpm add -D @ast-grep/napi   # valof does not install it for you
-pnpm exec valof-unused 'src/**/*.ts'
+pnpm add -D oxc-parser   # valof does not install it for you
+pnpm exec valof-lint 'src/**/*.ts'
 ```
 
 ```
-src/user.ts:7  User.shout
-valof-unused: 1 unused companion member(s) in 12 file(s)
+src/user.ts:7   User.shout is never read
+src/order.ts:3  OrderId claims the brand "Id", and so does another type
+valof-lint: 2 finding(s) in 12 file(s)
 ```
 
 It exits 1 when it finds something, so it drops into CI or a `vp run` task as it is.
 
-The parser is a 7 MB native binary, and most projects never run this, so it is an optional
+The parser is a 3 MB native binary, and most projects never run this, so it is an optional
 peer dependency: `pnpm add valof` does not pull it in, and the command tells you what to
 install if you reach for it without.
 
 It resolves by name rather than by type, and only ever errs toward silence. A member read
 through `export { X as Y }`, `import * as ns`, a computed key, or a spread of another object
-into `.impl` is counted as used.
+into `.impl` is counted as used, and only top-level aliases are considered for a brand
+collision, since nothing else can be imported and assigned elsewhere.
 
 ## Caveats
 
@@ -398,7 +406,7 @@ and `Val` is itself a companion, so the import alone brings `sealer`, `companion
 and everything they reach.
 
 That matters in an app too: [Knip](https://knip.dev/) cannot tell you when a companion
-function goes dead. `valof-unused` can (see _Finding unused companion functions_).
+function goes dead. `valof-lint` can.
 
 **A `__proto__` key survives.** It is a legal JSON key, and round trips come first, so
 sealing keeps it as an own property rather than dropping data. That is inert inside a

@@ -21,7 +21,7 @@
     "url": "git+https://github.com/jo16oh/valof.git"
   },
   "bin": {
-    "valof-unused": "./dist/unused-cli.mjs"
+    "valof-lint": "./dist/lint-cli.mjs"
   },
   "files": [
     "dist"
@@ -47,18 +47,18 @@
     "push-tag": "git branch --show-current | grep -qx main || { echo 'run this on main'; exit 1; }; git tag v$npm_package_version && git push origin v$npm_package_version"
   },
   "devDependencies": {
-    "@ast-grep/napi": "^0.45.3",
     "@types/node": "^26.1.1",
     "bumpp": "^11.1.0",
+    "oxc-parser": "^0.148.0",
     "typescript": "^7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "@ast-grep/napi": ">=0.45"
+    "oxc-parser": ">=0.148"
   },
   "peerDependenciesMeta": {
-    "@ast-grep/napi": {
+    "oxc-parser": {
       "optional": true
     }
   },
