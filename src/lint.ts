@@ -82,9 +82,13 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * That is the safe direction: the reads side over-approximates and the declarations side does
  * not lose one.
  *
- * Resolution is by name, not by type, and only ever errs toward silence. A member reached in a
- * way no name follows (through `export { X as Y }`, `import * as ns`, a computed key, or a
- * spread of another object into `.impl`) is assumed to be used.
+ * Resolution is by name, not by type. A read is followed across files through a plain import, a
+ * renamed one, a namespace import and an `export { X as Y }` rename.
+ *
+ * Two ways it is wrong, in opposite directions. A read that spells no name, `User[method]` or a
+ * companion reached through a default export, is not seen, so the member is reported although it
+ * is used. And a spread into `.impl({ ...base })` contributes no keys at all, so those members
+ * are never reported however dead they are.
  *
  * The parser is loaded here rather than imported at the top: it is an optional peer dependency,
  * and a static import would be hoisted above the caller's own error handling once bundled,
@@ -94,8 +98,13 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
   const { parseSync, visitorKeys } = await import("oxc-parser");
 
   const declared: UnusedMember[] = [];
-  /** companion name -> the keys read off it, anywhere */
-  const read = new Map<string, Set<string>>();
+  /**
+   * Every read, as the name it was reached by. Resolved after the walk, because the module that
+   * renames a companion on the way out may be parsed after the one that reads it.
+   */
+  const pending: { name: string; key: string }[] = [];
+  /** `export { User as Public }`: the name outside -> the name at the declaration. */
+  const exportedAs = new Map<string, string>();
   /** brand string -> every alias that claims it */
   const brands = new Map<string, DuplicateBrand[]>();
 
@@ -105,6 +114,9 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
     // File-local, both of them: a name imported here says nothing about the same name elsewhere.
     const imported = new Map<string, string>();
     const reads = new Map<string, Set<string>>();
+    /** `import * as ns`: reads through one arrive already named as the other module names them. */
+    const namespaces = new Set<string>();
+    const namespaceReads = new Map<string, Set<string>>();
     /** Resolved against `imported` once the file is walked, so `Val` may be imported renamed. */
     const aliases: { typeName: string; brand: string; alias: string; line: number }[] = [];
 
@@ -153,9 +165,37 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
         case "MemberExpression": {
           const object = node["object"];
           const property = node["property"];
-          if (!isNode(object) || !isNode(property) || object.type !== "Identifier") break;
+          if (!isNode(object) || !isNode(property)) break;
           const name = keyName(property, node["computed"] === true);
-          if (name) collect(reads, object["name"] as string, name);
+          if (!name) break;
+          if (object.type === "Identifier") {
+            collect(reads, object["name"] as string, name);
+            break;
+          }
+          // `ns.User.greet`: the companion is the middle name, and it is the exporting module's
+          // name for it, so it skips this file's import aliases.
+          if (object.type !== "MemberExpression") break;
+          const namespace = object["object"];
+          const companion = object["property"];
+          if (!isNode(namespace) || !isNode(companion)) break;
+          if (namespace.type !== "Identifier" || !namespaces.has(namespace["name"] as string))
+            break;
+          const through = keyName(companion, object["computed"] === true);
+          if (through) collect(namespaceReads, through, name);
+          break;
+        }
+        case "ImportNamespaceSpecifier": {
+          const local = node["local"];
+          if (isNode(local) && local.type === "Identifier") namespaces.add(local["name"] as string);
+          break;
+        }
+        case "ExportSpecifier": {
+          const local = node["local"];
+          const exported = node["exported"];
+          if (!isNode(local) || !isNode(exported)) break;
+          const outside = keyName(exported, false);
+          const inside = keyName(local, false);
+          if (outside && inside) exportedAs.set(outside, inside);
           break;
         }
         case "ImportSpecifier": {
@@ -209,7 +249,10 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
 
     for (const [local, keys] of reads) {
       const name = imported.get(local) ?? local;
-      for (const key of keys) collect(read, name, key);
+      for (const key of keys) pending.push({ name, key });
+    }
+    for (const [name, keys] of namespaceReads) {
+      for (const key of keys) pending.push({ name, key });
     }
 
     for (const { typeName, brand, alias, line } of aliases) {
@@ -219,6 +262,22 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
       brands.set(brand, claims);
     }
   }
+
+  /** Walks `export { A as B }` back to the declared name, tolerating a chain of them. */
+  const declaredName = (name: string): string => {
+    const seen = new Set<string>();
+    let current = name;
+    while (!seen.has(current)) {
+      seen.add(current);
+      const inside = exportedAs.get(current);
+      if (inside === undefined || inside === current) break;
+      current = inside;
+    }
+    return current;
+  };
+
+  const read = new Map<string, Set<string>>();
+  for (const { name, key } of pending) collect(read, declaredName(name), key);
 
   const duplicates = [...brands.values()].filter((claims) => claims.length > 1).flat();
 

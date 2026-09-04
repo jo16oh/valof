@@ -37,6 +37,16 @@ describe("unused companion members", () => {
     expect(lint("unused/renamed-import").findings).toEqual(["user.ts:3  User.shout is never read"]);
   });
 
+  test("follows a read made through a namespace import", () => {
+    expect(lint("unused/namespace-import").findings).toEqual([
+      "user.ts:3  User.shout is never read",
+    ]);
+  });
+
+  test("follows a read of a companion that was renamed on the way out", () => {
+    expect(lint("unused/re-export").findings).toEqual(["user.ts:3  User.shout is never read"]);
+  });
+
   test("counts bracket access, destructuring and a renaming destructure as reads", () => {
     expect(lint("unused/reads").findings).toEqual([]);
   });
@@ -71,6 +81,16 @@ describe("unused companion members", () => {
 
   test("says nothing about a companion with no members", () => {
     expect(lint("unused/empty-impl").findings).toEqual([]);
+  });
+});
+
+describe("what name resolution cannot reach", () => {
+  test("reports a member that is only ever read through a computed key", () => {
+    expect(lint("unused/computed-key").findings).toEqual(["a.ts:1  User.greet is never read"]);
+  });
+
+  test("reports nothing about members spread into the impl, dead or not", () => {
+    expect(lint("unused/spread").findings).toEqual([]);
   });
 });
 

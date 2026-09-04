@@ -394,10 +394,17 @@ The parser is a 3 MB native binary, and most projects never run this, so it is a
 peer dependency: `pnpm add valof` does not pull it in, and the command tells you what to
 install if you reach for it without.
 
-It resolves by name rather than by type, and only ever errs toward silence. A member read
-through `export { X as Y }`, `import * as ns`, a computed key, or a spread of another object
-into `.impl` is counted as used, and only top-level aliases are considered for a brand
-collision, since nothing else can be imported and assigned elsewhere.
+It resolves by name rather than by type. A read is followed across files through a plain
+import, a renamed one, a namespace import and an `export { X as Y }` rename.
+
+It is wrong in two opposite ways. A read that spells no name, `User[method]` or a companion
+reached through a default export, is not seen, so the member is reported although it is used:
+spell it once somewhere, or leave that companion out of the glob. And a spread into
+`.impl({ ...base })` contributes no keys at all, so those members are never reported however
+dead they are.
+
+Only top-level aliases are considered for a brand collision, since nothing else can be
+imported and assigned elsewhere.
 
 ## Caveats
 
