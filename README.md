@@ -365,6 +365,32 @@ Every companion carries `equals`, `with` and `update` (see _Normalize in the sea
 Without `exactOptionalPropertyTypes`, `{ a?: string }` also accepts `undefined`, and that
 key is dropped when the value is serialized into JSON.
 
+## Finding unused companion functions
+
+A function registered in `.impl({…})` is attached at runtime, so static analysis sees an
+object literal passed to a function and nothing more. Knip does not report it when it goes
+dead, and a bundler does not drop it. The package ships a command that does:
+
+```bash
+pnpm add -D @ast-grep/napi   # valof does not install it for you
+pnpm exec valof-unused 'src/**/*.ts'
+```
+
+```
+src/user.ts:7  User.shout
+valof-unused: 1 unused companion member(s) in 12 file(s)
+```
+
+It exits 1 when it finds something, so it drops into CI or a `vp run` task as it is.
+
+The parser is a 7 MB native binary, and most projects never run this, so it is an optional
+peer dependency: `pnpm add valof` does not pull it in, and the command tells you what to
+install if you reach for it without.
+
+It resolves by name rather than by type, and only ever errs toward silence. A member read
+through `export { X as Y }`, `import * as ns`, a computed key, or a spread of another object
+into `.impl` is counted as used.
+
 ## Caveats
 
 **Do not use Valof to build a library.** A companion's functions are not tree-shakeable,
@@ -372,7 +398,7 @@ and `Val` is itself a companion, so the import alone brings `sealer`, `companion
 and everything they reach.
 
 That matters in an app too: [Knip](https://knip.dev/) cannot tell you when a companion
-function goes dead.
+function goes dead. `valof-unused` can (see _Finding unused companion functions_).
 
 **A `__proto__` key survives.** It is a legal JSON key, and round trips come first, so
 sealing keeps it as an own property rather than dropping data. That is inert inside a
