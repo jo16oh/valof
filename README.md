@@ -4,7 +4,7 @@
 
 Value-object helpers for TypeScript: branded types, a constructor and a companion that
 collects the functions for the type. Values stay **plain objects, arrays and primitives** —
-no classes, no prototypes.
+no classes, no prototypes. Under 1 kB gzipped.
 
 What you get:
 
@@ -390,6 +390,7 @@ vp install   # install dependencies
 vp test      # run the tests
 vp check     # format, lint, type check
 vp pack      # build
+vp run size  # measure the bundle against its budget
 ```
 
 ## License
