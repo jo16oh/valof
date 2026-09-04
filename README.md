@@ -137,9 +137,9 @@ straight into it.
 that expects a JSON string would break as soon as a value is derived from another. A
 parameter that also accepts a string, `unknown` included, is a type error.
 
-## Construct in normal form
+## Normalize in the seal
 
-> Construct your Vals in normal form. Equality is defined structurally.
+**Equality is structural, so normalize where values are made.**
 
 ```ts
 export type Email = Val<"Email", string>;
@@ -157,8 +157,6 @@ equals sees the child value and cannot tell that it is an `Email`.
 Order.equals(o1, o2); // the Money inside is compared generically, not via Money.equals
 ```
 
-**Normalize in the seal, and structural equality follows.**
-
 The default `equals`:
 
 - compares structurally and deeply
@@ -174,8 +172,6 @@ it:
 const Doc = Val.sealer<Doc>().impl({
   equals: (a, b, deepEquals) => (a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id),
 });
-
-Doc.equals(a, b); // callers still pass two — the third is bound
 ```
 
 That argument is the structural comparison, not "the `equals` you are overriding", so it
@@ -185,10 +181,10 @@ does not reach a nested Val's own `equals` either.
 
 ```ts
 User.with(user, { name: "sue" });
-// internally seal({ ...user, ...patch }) — deriving a value means sealing again
+User.update(user, (u) => ({ ...u, name: u.name.toUpperCase() }));
 ```
 
-Both go through the seal, so they return what it returns.
+**Both go through the seal**, so they return what it returns.
 
 | patch              | meaning         |
 | ------------------ | --------------- |
@@ -356,7 +352,7 @@ Val.unwrap(post).tags.sort(); // ✓
 The last four are exported only so that your own `.d.ts` can name them when you re-export
 a companion — there is no reason to import one yourself.
 
-Every companion carries `equals`, `with` and `update` (see _Construct in normal form_).
+Every companion carries `equals`, `with` and `update` (see _Normalize in the seal_).
 
 ## Recommended tsconfig
 
