@@ -2,7 +2,7 @@
 
 > **Values are plain data; behaviour lives outside them.**
 
-Value-object helpers for TypeScript: branded types, a constructor, and a companion that
+Value-object helpers for TypeScript: branded types, a constructor and a companion that
 collects the functions for the type. Values stay **plain objects, arrays and primitives** —
 no classes, no prototypes.
 
@@ -33,7 +33,8 @@ orderId = UserId("u_1"); // type error: UserId is not an OrderId
 orderId = "o_1"; // type error: a plain string is not an OrderId
 ```
 
-Two Vals over the same payload stay apart, and neither accepts a bare string.
+Two Vals over the same payload are not interchangeable, and neither accepts a bare
+string.
 
 ```ts
 export type User = Val<"User", { id: string; name: string; nickname?: string }>;
@@ -52,16 +53,16 @@ User.greet(user);
 User.equals(user, User({ id: "a", name: "bob" })); // true
 ```
 
-`Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions related to
-that type. Every function in `impl` must take its Val first. A sealer already carries
+`Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions for that
+type. Every function in `impl` must take its Val first. A sealer already carries
 `equals`, `with` and `update`, which `.impl({…})` can override.
 
 Only primitives, arrays and plain objects can live inside a Val. See
 [Allowed types](#allowed-types).
 
 **Name the brand after the type it brands.** Two Vals with the same brand string and the
-same payload are silently assignable to each other. So where the same name really does live
-in two places, such as `Id` in two domains of a monorepo, prefix it with a namespace:
+same payload are silently assignable to each other. Where the same name lives in two
+places, such as `Id` in two domains of a monorepo, prefix it with a namespace:
 `"billing/Id"`.
 
 ### Constructors copy their argument
@@ -75,12 +76,12 @@ raw.name = "mallory";
 user.name; // "alice"
 ```
 
-Values are not frozen, though: `readonly` is a promise in the type, not at runtime.
+Values are not frozen. `readonly` is a promise in the type, not at runtime.
 
 ## Smart constructors
 
-A payload becomes a value by being **sealed**. `Val.sealer` is the default seal: brand
-the payload and copy it. `Val.companion` is the same shape minus the constructor, and
+**Sealing** turns a payload into a value. `Val.sealer` is the default seal: brand the
+payload and copy it. `Val.companion` is the same shape minus the constructor, and
 `.implSeal` replaces that seal with your own. The default one comes in as a second
 parameter, so you seal without naming the type again:
 
@@ -97,27 +98,29 @@ Age.seal(30); // Result<Age>
 
 **Every path to a value goes through `seal`**, including `with`, `update` and `create`.
 
-A caller's plain mutable object goes straight in, so normalize without mutating it, with
-`toSorted` or a spread. Return through the `seal` passed as the second parameter: that is
-what brands the value and deep-copies it.
+Nothing copies on the way in, so normalize without mutating the caller's object: derive a
+new one with `toSorted` or a spread. Return through the `seal` passed as the second
+parameter: that is what brands the value and deep-copies it.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back.
-Generating a value, such as an id or a timestamp, belongs in [`create`](#create) instead,
-otherwise `with` would produce a new id every time it re-seals.
+Generating something new, such as an id or a timestamp, belongs in [`create`](#create)
+instead; otherwise `with` would produce a new id every time it re-seals.
 
-Constructors get their own steps. `.impl` declares `seal?: never` and `create?: never`, so
-writing one there is a type error rather than a function that never gets wired up.
+Constructors have their own builder steps. `.impl` declares `seal?: never` and
+`create?: never`, so writing one there is a type error rather than a function that never
+gets wired up.
 
-There is no `.implSeal` on a sealer. A sealer **is** the default seal. A type that needs a
-checked one wants a companion.
+There is no `.implSeal` on a sealer. A sealer **is** the default seal. For a checked one,
+use a companion.
 
 **No `Result` type is provided.** neverthrow, better-result or your own all work: the
 seal's return type is propagated, never inspected.
 
 ### `create`
 
-Constructors that are not payload functions (several arguments, a generated id, a wire
-format) are registered separately. A `create` builds a payload; the seal closes it:
+A constructor that does not simply take the payload (several arguments, a generated id, a
+wire format) is registered separately. A `create` builds a payload; the seal makes it a
+value:
 
 ```ts
 export const User = Val.companion<User>()
@@ -149,7 +152,7 @@ equals sees the child value and cannot tell that it is an `Email`.
 Order.equals(o1, o2); // the Money inside is compared generically, not via Money.equals
 ```
 
-**Normalize in the seal and structural equality becomes correct on its own.**
+**Normalize in the seal, and structural equality follows.**
 
 The default `equals`:
 
@@ -158,7 +161,8 @@ The default `equals`:
 - **ignores keys whose value is `undefined`** (`{ a: undefined }` equals `{}`)
 - treats `NaN` as equal to `NaN`, and `-0` as equal to `0`
 
-An override receives it as a third argument, so it can fall back to it:
+An override receives the structural comparison as a third argument and can fall back to
+it:
 
 ```ts
 // Published docs are identified by id; drafts have no stable one.
@@ -190,7 +194,7 @@ Both go through the seal, so they return what it returns.
 `undefined` on a required key is a type error with `exactOptionalPropertyTypes` on. With
 it off, a patch that breaks the invariant is caught by the seal instead.
 
-`with` and `update` are defaults, not fixtures: define either one in `.impl` and yours
+`with` and `update` are defaults you can replace: define either one in `.impl` and yours
 wins, in the type as well as at runtime. It is also how a primitive Val, which has no
 `with` by default, can get one. The seal comes in as a last parameter, since
 `Point.seal(...)` is not in scope inside its own `.impl`:
@@ -207,7 +211,7 @@ const Point = Val.companion<Point>()
 Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 ```
 
-`with` only exists on object-shaped Vals. A `Val<"IsoDate", string>` has nothing to
+`with` only exists on object-shaped Vals. A `Val<"UnixEpochMs", number>` has nothing to
 patch, so its companion does not carry it at all. `update` is still there, and is
 **restricted to value → value**.
 
@@ -235,16 +239,16 @@ User.update(user, (u) => ({ name: u.name, email: u.email })); // id survives
 User.update(user, (u) => ({ ...u, id: "forged" })); // type error
 ```
 
-Both paths need covering: `update` hands back a payload, so narrowing `with` alone
-would still leave `id` reachable. With keys declared unpatchable, `update`'s callback
+Both paths need covering. `update` hands back a payload, so narrowing `with` alone would
+still leave `id` reachable. With keys declared unpatchable, `update`'s callback
 returns only what is left and the rest is merged back on, so deleting an optional key
 goes through `with(v, { k: undefined })` instead.
 
-The keys are a type argument, so they do not exist at runtime. That makes this a
-guarantee about the update path, not about the value: `user.id` is readable, `readonly`
-is erased at runtime, and `Val.of<User>({ id: "forged", … })` still builds one. What you
-get is that no ordinary update can move `id`, usually the thing you actually wanted. If
-it must be unforgeable, `id` belongs outside the value.
+The keys are a type argument, so they do not exist at runtime. This guarantees the update
+path, not the value: `user.id` is readable, `readonly`
+is erased at runtime, and `Val.of<User>({ id: "forged", … })` still builds one. No ordinary
+update can move `id`, which is usually what you wanted. If it must be unforgeable, `id`
+belongs outside the value.
 
 ## Allowed types
 
@@ -256,7 +260,7 @@ Only three things can live inside a Val:
 | Arrays     | `ReadonlyArray<allowed>`                                          |
 | Objects    | `{ readonly k: allowed }`, or `Readonly<Record<string, allowed>>` |
 
-A Val is one of these itself, so Vals nest.
+A Val is itself one of these, so Vals nest.
 
 `Date`, `Temporal`, `Map`, `Set` and functions cannot go in; see [Dates](#dates) and
 [Map / Set](#map--set) for what to reach for instead. Nor can a class instance: one with
@@ -282,13 +286,12 @@ type Tags = Val<"Tags", Readonly<Record<string, true>>>; // a Set
 type PriceTable = Val<"PriceTable", Readonly<Record<string, Money>>>; // a Map
 ```
 
-`true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`
-ignores key order, which makes comparing two of these set equality.
+Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`
+ignores key order, so comparing two of them is set equality.
 
 ### Validation
 
-Validate in the seal, and every path to a value is validated with it — `with`, `update`
-and `create` all route through it:
+Validate in the seal, and every path to a value is validated:
 
 ```ts
 export type User = Val<"User", { id: string; name: string }>;
@@ -301,8 +304,8 @@ User.seal({ id, name: "bob" }); // Result<User>
 User.with(user, { name: "sue" }); // Result<User> — sealed again
 ```
 
-The parameter can be `unknown` instead, which is what lets a schema library parse
-straight into the seal: a seal only has to _accept_ the payload.
+A seal only has to _accept_ the payload, so typing the parameter `unknown` lets a schema
+library parse straight into it.
 
 **Decoding a wire format does not belong there.** A seal takes a payload, and a JSON
 string is not one:
@@ -340,7 +343,7 @@ the escape hatch.
 
 ### `Val.unwrap`
 
-A plain, mutable deep-copy of the payload, for handing to code that does not know about
+A plain, mutable deep copy of the payload, for handing to code that does not know about
 `readonly`. It strips the brand as well.
 
 ```ts
@@ -357,7 +360,7 @@ Val.unwrap(post).tags.sort(); // ✓
 | `Val<K, T>`                           | a branded value type                                              |
 | `Val.of<V>(value)`                    | the default seal, with the type named explicitly                  |
 | `Val.unwrap(value)`                   | a mutable copy of the payload                                     |
-| `Val.sealer<V>()`                     | the default seal, carrying the defaults                           |
+| `Val.sealer<V>()`                     | the default seal, carrying `equals` / `with` / `update`           |
 | `Val.sealer<V>().impl(fns)`           | the constructor plus your functions                               |
 | `Val.companion<V>().impl(fns)`        | functions only — no constructor                                   |
 | `Val.companion<V>().implSeal(f)`      | replaces the `seal`: a constructor that can validate inputs       |
@@ -387,12 +390,12 @@ key is dropped when the value is serialized into JSON.
 
 ## Caveats
 
-**Do not use valof to build a library.** A companion's functions aren't tree-shakeable. Plus
-`Val` is itself a companion, which means the import alone brings `sealer`, `companion`,
-`unwrap` and everything they reach.
+**Do not use valof to build a library.** A companion's functions are not tree-shakeable,
+and `Val` is itself a companion, so the import alone brings `sealer`, `companion`, `unwrap`
+and everything they reach.
 
-In an app that is worth knowing, because [Knip](https://knip.dev/) cannot tell you when a
-companion function goes dead.
+That matters in an app too: [Knip](https://knip.dev/) cannot tell you when a companion
+function goes dead.
 
 ## Development
 
