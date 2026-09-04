@@ -76,7 +76,8 @@ raw.name = "mallory";
 user.name; // "alice"
 ```
 
-Values are not frozen. `readonly` is a promise in the type, not at runtime.
+Values are not frozen. Neither `Object.freeze` nor `Object.seal` is called, and `readonly`
+is a promise in the type, not at runtime.
 
 ## Smart constructors
 
