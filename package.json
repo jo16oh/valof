@@ -1,16 +1,24 @@
 {
   "name": "valof",
   "version": "0.0.0",
-  "description": "A starter for creating a TypeScript package.",
-  "homepage": "https://github.com/author/library#readme",
+  "description": "Value-object helpers for TypeScript: branded types, a constructor and a companion, kept as plain data. Under 1 kB gzipped.",
+  "keywords": [
+    "branded-types",
+    "ddd",
+    "immutable",
+    "nominal-typing",
+    "typescript",
+    "value-object"
+  ],
+  "homepage": "https://github.com/jo16oh/valof#readme",
   "bugs": {
-    "url": "https://github.com/author/library/issues"
+    "url": "https://github.com/jo16oh/valof/issues"
   },
   "license": "MIT",
-  "author": "Author Name <author.name@mail.com>",
+  "author": "Joichiro Hayashi <jo16oh@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/author/library.git"
+    "url": "git+https://github.com/jo16oh/valof.git"
   },
   "files": [
     "dist"
@@ -28,6 +36,7 @@
     "dev": "vp pack --watch",
     "test": "vp test",
     "check": "vp check",
+    "size": "node scripts/size.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config"
   },
