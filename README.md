@@ -129,6 +129,9 @@ User.create(fields); // Result<User> — create's payload, sealed
 Put the checks in the seal. Widen the parameter to `object` and a schema library can parse
 straight into it.
 
+Unknown keys are one of those checks. A patch is merged as given, so a key the payload does
+not declare survives into the value unless the seal drops it.
+
 **A seal cannot take a wire format.** `with` and `update` hand a payload back to it, so one
 that expects a JSON string would break as soon as a value is derived from another. A
 parameter that also accepts a string, `unknown` included, is a type error.
@@ -241,9 +244,9 @@ is merged back on, so deleting an optional key goes through `with(v, { k: undefi
 instead.
 
 The keys are a type argument, so they do not exist at runtime. This guarantees the update
-path, not the value. `Val.of<User>({ id: "forged", … })` still builds one. No ordinary
-update can move `id`, which is usually what you wanted. If it must be unforgeable, `id`
-belongs outside the value.
+path, not the value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a
+patch typed `any`. No ordinary update can move `id`, which is usually what you wanted. If
+it must be unforgeable, `id` belongs outside the value.
 
 ## Allowed types
 
