@@ -586,6 +586,26 @@ describe("constructors copy their argument", () => {
     expect(JSON.parse(JSON.stringify(tags))).toEqual(JSON.parse(JSON.stringify(Val.unwrap(tags))));
   });
 
+  test("a class instance is rejected in development", () => {
+    class Point {
+      constructor(
+        public x = 1,
+        public y = 2,
+      ) {}
+    }
+    type Pt = Val<"Pt", { readonly x: number; readonly y: number }>;
+    expect(() => Val.of<Pt>(new Point())).toThrow(TypeError);
+    expect(() => Val.of<Pt>({ x: 1, y: 2 })).not.toThrow();
+  });
+
+  test("a null-prototype object is allowed, and comes back plain", () => {
+    type Tags = Val<"Tags", Readonly<Record<string, true>>>;
+    const source = Object.assign(Object.create(null) as Record<string, true>, { a: true });
+    const tags = Val.of<Tags>(source);
+    expect(Object.getPrototypeOf(tags)).toBe(Object.prototype);
+    expect(tags["a"]).toBe(true);
+  });
+
   test("primitives pass through as-is", () => {
     const IsoDate = Val.sealer<IsoDate>();
     expect(IsoDate("2026-09-02")).toBe("2026-09-02");

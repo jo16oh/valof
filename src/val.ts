@@ -431,6 +431,16 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
 const isPlainRecord = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
+function assertPlainObject(value: object): void {
+  const proto = Object.getPrototypeOf(value) as object | null;
+  if (proto !== Object.prototype && proto !== null) {
+    const name = (value.constructor as { name?: string } | undefined)?.name;
+    throw new TypeError(
+      `a Val holds plain objects only; received ${name ? `an instance of ${name}` : "an object with a prototype"}`,
+    );
+  }
+}
+
 /**
  * Structural deep comparison. Every companion carries it as the default `equals`.
  *
@@ -498,6 +508,10 @@ function copy<T>(value: T): T {
   }
 
   const source = value as Record<string, unknown>;
+
+  if (typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production") {
+    assertPlainObject(source);
+  }
 
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(source)) {
