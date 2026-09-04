@@ -377,6 +377,11 @@ value, but not in code that merges a payload with `Object.assign` or a recursive
 there, assigning the key sets a prototype instead of copying it. Sanitize untrusted input
 yourself.
 
+**A deeply nested payload overflows the stack.** Copying and comparing are both recursive,
+so a payload a few thousand levels deep, or a cyclic one, throws a `RangeError`. What you
+build yourself never comes close; input parsed from a request can, so bound its depth
+before sealing it.
+
 ## Development
 
 ```bash
