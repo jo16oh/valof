@@ -397,6 +397,17 @@ install if you reach for it without.
 It resolves by name rather than by type. A read is followed across files through a plain
 import, a renamed one, a namespace import and an `export { X as Y }` rename.
 
+Silence one line with a comment above it:
+
+```ts
+// valof-lint-disable-next-line unused-member -- called from the CLI by name
+shout: (u) => u.toUpperCase(),
+```
+
+Listing no kind silences both. The whole comment block above the line is read, not only the
+comment touching it, so the directive sits anywhere among another linter's comments. A blank
+line, or code, ends the block.
+
 It is wrong in two opposite ways. A read that spells no name, `User[method]` or a companion
 reached through a default export, is not seen, so the member is reported although it is used:
 spell it once somewhere, or leave that companion out of the glob. And a spread into

@@ -102,6 +102,76 @@ function lineIndex(source: string): (offset: number) => number {
   };
 }
 
+/**
+ * The kinds one comment silences, or `undefined` when it carries no directive. An empty set
+ * stands for every kind, which is what a bare `valof-lint-disable-next-line` means.
+ */
+function directive(text: string): Set<string> | undefined {
+  const match = /(?:^|\s)valof-lint-disable-next-line(?:[^\S\n]+([^\n]*))?/.exec(text);
+  if (!match) return undefined;
+  // Everything after `--` is a note for the reader, the way other linters spell it.
+  const listed = (match[1] ?? "").split("--")[0] ?? "";
+  return new Set(listed.split(/[\s,]+/).filter(Boolean));
+}
+
+/** Whether nothing but whitespace precedes `start` on its line. */
+function ownLine(source: string, start: number): boolean {
+  for (let index = start - 1; index >= 0; index--) {
+    const character = source[index];
+    if (character === "\n") return true;
+    if (character !== " " && character !== "\t" && character !== "\r") return false;
+  }
+  return true;
+}
+
+/** An empty set already covers every kind, so it wins over any list. */
+function widen(left: Set<string>, right: Set<string>): Set<string> {
+  if (left.size === 0 || right.size === 0) return new Set();
+  return new Set([...left, ...right]);
+}
+
+/**
+ * 1-based line -> the kinds a directive silences there.
+ *
+ * The whole comment block above a line is read, not only the comment touching it, so a
+ * `valof-lint-disable-next-line` may sit among another linter's directives in any order. A block
+ * is a run of own-line comments with no blank line and no code between them; a trailing comment
+ * after code belongs to no block, and a blank line starts a new one.
+ */
+function disabledLines(
+  comments: readonly { value: string; start: number; end: number }[],
+  source: string,
+  lineOf: (offset: number) => number,
+): Map<number, Set<string>> {
+  const byLine = new Map<number, Set<string>>();
+  /** The last line of the block being read, or -1 when the previous comment closed one. */
+  let blockEnd = -1;
+  /** Where that comment ended, so code written after it on its own line breaks the block. */
+  let blockEndOffset = 0;
+  /** What the block has silenced so far, or `undefined` while it holds no directive. */
+  let kinds: Set<string> | undefined;
+
+  for (const comment of comments) {
+    if (!ownLine(source, comment.start)) {
+      blockEnd = -1;
+      kinds = undefined;
+      continue;
+    }
+    const joins =
+      blockEnd !== -1 &&
+      lineOf(comment.start) <= blockEnd + 1 &&
+      source.slice(blockEndOffset, comment.start).trim() === "";
+    if (!joins) kinds = undefined;
+    const found = directive(comment.value);
+    if (found) kinds = kinds ? widen(kinds, found) : found;
+    blockEnd = lineOf(comment.end);
+    blockEndOffset = comment.end;
+    // Rewritten as the block grows, so the entry lands on the line that follows all of it.
+    if (kinds) byLine.set(blockEnd + 1, kinds);
+  }
+  return byLine;
+}
+
 function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   let set = map.get(key);
   if (!set) map.set(key, (set = new Set()));
@@ -133,6 +203,9 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * is used. And a spread into `.impl({ ...base })` contributes no keys at all, so those members
  * are never reported however dead they are.
  *
+ * A finding is dropped when the comment block directly above its line holds a
+ * `valof-lint-disable-next-line`, optionally followed by the kinds to silence.
+ *
  * The parser is loaded here rather than imported at the top: it is an optional peer dependency,
  * and a static import would be hoisted above the caller's own error handling once bundled,
  * turning a missing install into a stack trace instead of an instruction.
@@ -150,6 +223,8 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
   const exportedAs = new Map<string, string>();
   /** brand string -> every alias that claims it */
   const brands = new Map<string, DuplicateBrand[]>();
+  /** file -> the lines a comment directive silences there, applied once every file is read. */
+  const disabled = new Map<string, Map<number, Set<string>>>();
 
   for (const file of files) {
     const source = readFileSync(file, "utf8");
@@ -291,7 +366,9 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
       }
     };
 
-    const program = parseSync(file, source).program as unknown as Node;
+    const parsed = parseSync(file, source);
+    const program = parsed.program as unknown as Node;
+    disabled.set(file, disabledLines(parsed.comments, source, lineOf));
     visit(program);
 
     // Only a top-level alias can be imported and assigned somewhere else, which is the collision
@@ -356,8 +433,21 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
 
   const duplicates = [...brands.values()].filter((claims) => claims.length > 1).flat();
 
+  /**
+   * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
+   * brand is still reported, since silencing it is its own line's decision.
+   */
+  const silenced = ({ file, line, kind }: Finding): boolean => {
+    const kinds = disabled.get(file)?.get(line);
+    return kinds !== undefined && (kinds.size === 0 || kinds.has(kind));
+  };
+
   return [
     ...declared.filter(({ companion, member }) => !read.get(companion)?.has(member)),
     ...duplicates,
-  ].sort((a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.kind.localeCompare(b.kind));
+  ]
+    .filter((finding) => !silenced(finding))
+    .sort(
+      (a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.kind.localeCompare(b.kind),
+    );
 }

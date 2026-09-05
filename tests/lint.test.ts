@@ -147,6 +147,38 @@ describe("duplicate brands", () => {
   });
 });
 
+describe("ignore comments", () => {
+  test("silences every kind when the directive lists none", () => {
+    expect(lint("ignore/whole-line").findings).toEqual(["a.ts:4  User.whisper is never read"]);
+  });
+
+  test("silences the kind it lists, and ignores the note after `--`", () => {
+    expect(lint("ignore/by-kind").findings).toEqual([]);
+  });
+
+  test("leaves a finding of another kind alone", () => {
+    expect(lint("ignore/wrong-kind").findings).toEqual(["a.ts:3  User.shout is never read"]);
+  });
+
+  test("reads the whole comment block, not only the comment touching the line", () => {
+    expect(lint("ignore/comment-block").findings).toEqual([]);
+  });
+
+  test("silences a duplicate brand, and only at the alias that asked", () => {
+    expect(lint("ignore/duplicate-brand").findings).toEqual([
+      'orders.ts:1  OrderId claims the brand "Id", and so does another type',
+    ]);
+  });
+
+  test("stops at a blank line, which starts a block of its own", () => {
+    expect(lint("ignore/not-a-block").findings).toEqual(["a.ts:4  User.shout is never read"]);
+  });
+
+  test("ignores a directive trailing code, which belongs to no block", () => {
+    expect(lint("ignore/after-code").findings).toEqual(["a.ts:2  User.shout is never read"]);
+  });
+});
+
 describe("the command itself", () => {
   test("exits 1 with a summary when it finds something", () => {
     const { status, summary } = lint("unused/dead-member");
