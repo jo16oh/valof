@@ -527,11 +527,14 @@ const owned = new WeakSet<object>();
  * later copy would share, and must not be frozen. One flag for the three because they answer
  * one question.
  *
- * {@link unwrap} restores what it found rather than `true`. A payload can carry a getter, so
- * copying one can run someone else's code, and that code can seal or unwrap. Restoring `true`
- * happens to be right for the nesting that is reachable today — a value never holds a getter,
- * since copying evaluates it, so only an `unwrap` inside a seal can nest — but that is an
- * argument about reachability, and this is two bytes.
+ * {@link unwrap} restores what it found rather than `true`, because copying a payload can run
+ * someone else's code, and that code can seal or unwrap. A payload is whatever the caller
+ * passes: `{ get name() { … } }` type-checks as `{ name: string }`, and a framework proxy such
+ * as Vue's `reactive()` reports `Object.prototype`, so both reach the copy with traps attached.
+ *
+ * Restoring `true` happens to be right for the nesting that is reachable today — copying
+ * evaluates a getter into a plain property, so a *value* never holds one and only an `unwrap`
+ * inside a seal can nest — but that is an argument about reachability, and this is two bytes.
  */
 let sealing = true;
 
