@@ -637,8 +637,7 @@ const attach = <T extends object>(
   fns: Record<string, unknown>,
   ctors: Ctors = {},
 ): T => {
-  const { create } = ctors;
-  const custom = ctors.seal;
+  const { create, seal: custom } = ctors;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
   // A rebuild that changed nothing gives back the value it started from, so a framework
   // comparing by identity sees no update. A custom seal owns the return shape, so there the
