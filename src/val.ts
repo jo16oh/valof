@@ -601,31 +601,11 @@ function deepCopy(owning: boolean) {
  * and with a new identity for a component memoised on it.
  */
 const own = deepCopy(true);
+// Published as `Val.of`, with only a cast between them: the type says which Val is being made,
+// and nothing at run time needs to know. `detach` is `Val.unwrap` on the same terms.
 
 /** A plain deep copy, with none of that: what {@link unwrap} hands back is not the library's. */
 const detach = deepCopy(false);
-
-/**
- * The default seal, with the type named explicitly: brand the payload and copy it.
- *
- * The same operation a `Val.sealer` performs when called, and the same one a custom seal
- * receives as its second parameter — the three differ only in where the type comes from.
- */
-function of<V extends AnyVal>(value: SeedOf<V>): V {
-  return own(value) as unknown as V;
-}
-
-/**
- * The other direction: a plain, mutable copy of the payload, for code that does not know about
- * `readonly`.
- *
- * It copies for the mirror of that reason: the brand is phantom, so a Val *is* its payload at
- * runtime, and handing that object back under a mutable type would put the caller's writes
- * straight into the value.
- */
-function unwrap<V extends AnyVal>(value: V): PayloadOf<V> {
-  return detach(value) as unknown as PayloadOf<V>;
-}
 
 /** `Object.assign` onto a function throws on `name` / `length`, so define properties instead. */
 function define(target: object, key: string, value: unknown): void {
@@ -773,4 +753,23 @@ function build<V extends AnyVal>(ctors: Ctors): object {
   return target;
 }
 
-export const Val = { of, unwrap, sealer, companion } as const;
+export const Val = {
+  /**
+   * The default seal, with the type named explicitly: brand the payload and copy it.
+   *
+   * The same operation a `Val.sealer` performs when called, and the same one a custom seal
+   * receives as its second parameter — the three differ only in where the type comes from.
+   */
+  of: own as <V extends AnyVal>(value: SeedOf<V>) => V,
+  /**
+   * The other direction: a plain, mutable copy of the payload, for code that does not know
+   * about `readonly`.
+   *
+   * It copies for the mirror of that reason: the brand is phantom, so a Val *is* its payload at
+   * run time, and handing that object back under a mutable type would put the caller's writes
+   * straight into the value.
+   */
+  unwrap: detach as <V extends AnyVal>(value: V) => PayloadOf<V>,
+  sealer,
+  companion,
+} as const;
