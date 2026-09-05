@@ -646,8 +646,14 @@ const attach = (target: object, fns: Record<string, unknown>, ctors: Ctors = {})
   if (custom) define(target, "seal", seal);
 
   define(target, "with", (value: unknown, patch: Record<string, unknown>) => {
+    // The type leaves `with` off a primitive or array Val, so getting here takes a cast. It
+    // still throws in production: without the guard the spread turns the value into an object
+    // and seals it, so a number comes back as `{}` and a string as its own character map. The
+    // explanation is worth its bytes only where someone is reading them.
     if (!isObjectShaped(value)) {
-      throw new TypeError("`with` is only available for object-shaped Vals.");
+      throw new TypeError(
+        development ? "`with` is only available for object-shaped Vals." : "with",
+      );
     }
     const merged: Record<string, unknown> = { ...value, ...patch };
     // Nodes are shared and never mutated, so identical children mean equal subtrees: one level
