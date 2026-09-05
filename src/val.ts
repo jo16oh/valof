@@ -709,32 +709,6 @@ const attach = <T extends object>(
   return target;
 };
 
-/**
- * Creates the constructor for a Val. {@link companion} is the same shape for a type with a smart
- * constructor, minus the callability.
- *
- * TypeScript cannot infer type arguments partially, so `V` is pinned by a type argument here
- * and the functions are inferred by `.impl()`. `.impl` is overloaded rather than given a default
- * `M`: a defaulted type parameter stops TypeScript using the constraint as a contextual type,
- * and every function's first parameter falls back to implicit `any`.
- */
-const sealer = <V extends AnyVal>(): Sealer<V> =>
-  define(
-    attach((value: SeedOf<V>): V => own(value) as unknown as V, {}),
-    "impl",
-    <M extends CompanionFns<V> = Record<never, never>>(fns: M = {} as M): Sealed<V, M> =>
-      attach((value: SeedOf<V>): V => own(value) as unknown as V, fns) as unknown as Sealed<V, M>,
-  ) as unknown as Sealer<V>;
-
-/**
- * Bundles a type's functions without a constructor.
- *
- * No constructor is ever produced and `create` hands its payload to the seal, so nothing reaches
- * a value without passing it. Constructors get their own steps rather than sitting in `.impl`,
- * which fixes every function's first parameter to the Val — a shape a constructor does not fit.
- */
-const companion = <V extends AnyVal>(): CompanionBuilder<V> => build<V>({}) as CompanionBuilder<V>;
-
 /** One builder state: the constructors registered so far, plus the steps still open. */
 const build = <V extends AnyVal>(ctors: Ctors): object => {
   const target = attach({}, {}, ctors);
@@ -763,6 +737,29 @@ export const Val = {
    * straight into the value.
    */
   unwrap: detach as <V extends AnyVal>(value: V) => PayloadOf<V>,
-  sealer,
-  companion,
+  /**
+   * Creates the constructor for a Val. `Val.companion` is the same shape for a type with a
+   * smart constructor, minus the callability.
+   *
+   * TypeScript cannot infer type arguments partially, so `V` is pinned by a type argument here
+   * and the functions are inferred by `.impl()`. `.impl` is overloaded rather than given a default
+   * `M`: a defaulted type parameter stops TypeScript using the constraint as a contextual type,
+   * and every function's first parameter falls back to implicit `any`.
+   */
+  sealer: <V extends AnyVal>(): Sealer<V> =>
+    define(
+      attach((value: SeedOf<V>): V => own(value) as unknown as V, {}),
+      "impl",
+      <M extends CompanionFns<V> = Record<never, never>>(fns: M = {} as M): Sealed<V, M> =>
+        attach((value: SeedOf<V>): V => own(value) as unknown as V, fns) as unknown as Sealed<V, M>,
+    ) as unknown as Sealer<V>,
+  /**
+   * Bundles a type's functions without a constructor.
+   *
+   * No constructor is ever produced and `create` hands its payload to the seal, so nothing
+   * reaches a value without passing it. Constructors get their own steps rather than sitting in
+   * `.impl`, which fixes every function's first parameter to the Val — a shape a constructor
+   * does not fit.
+   */
+  companion: <V extends AnyVal>(): CompanionBuilder<V> => build<V>({}) as CompanionBuilder<V>,
 } as const;
