@@ -83,8 +83,22 @@ describe("basics", () => {
     expect(structuredClone(user)).toEqual({ id: "a", name: "bob" });
   });
 
-  test("values are not frozen", () => {
-    expect(Object.isFrozen(User({ id: "a", name: "bob" }))).toBe(false);
+  test("values are frozen in development, all the way down", () => {
+    type Post = Val<"Post", { title: string; author: { name: string }; tags: readonly string[] }>;
+    const Post = Val.sealer<Post>();
+    const post = Post({ title: "t", author: { name: "alice" }, tags: ["a"] });
+
+    expect(Object.isFrozen(post)).toBe(true);
+    expect(Object.isFrozen(post.author)).toBe(true);
+    expect(Object.isFrozen(post.tags)).toBe(true);
+    // A production build folds the check away and pays nothing; see `copy` in ../src/val.ts.
+  });
+
+  test("a mutable copy is not frozen", () => {
+    const raw = Val.unwrap(User({ id: "a", name: "bob" }));
+    expect(Object.isFrozen(raw)).toBe(false);
+    raw.name = "sue";
+    expect(raw.name).toBe("sue");
   });
 });
 
@@ -327,10 +341,15 @@ describe("types", () => {
     type Post = Val<"Post", { title: string; tags: string[] }>;
     const post = Val.of<Post>({ title: "t", tags: ["a"] });
     expectTypeOf(post.tags).toEqualTypeOf<readonly string[]>();
-    // @ts-expect-error readonly, so it cannot be assigned
-    post.title = "x";
-    // @ts-expect-error a readonly array cannot be pushed to
-    post.tags.push("b");
+    // The type is the guarantee; in development the freeze catches a write that casts past it.
+    expect(() => {
+      // @ts-expect-error readonly, so it cannot be assigned
+      post.title = "x";
+    }).toThrow(TypeError);
+    expect(() => {
+      // @ts-expect-error a readonly array cannot be pushed to
+      post.tags.push("b");
+    }).toThrow(TypeError);
   });
 
   test("nested Vals keep their brand", () => {
@@ -740,6 +759,17 @@ describe("a value reuses the nodes it already owns", () => {
     expect(resealed.lines).not.toBe(raw.lines);
     (raw.lines[0] as unknown as { qty: number }).qty = 999;
     expect(resealed.lines[0]!.qty).toBe(1);
+  });
+
+  test("a write into a reused node is caught in development", () => {
+    // The reason the freeze earns its keep: without it this write would land in both values.
+    const before = order();
+    const after = Order.with(before, { note: "changed" });
+    expect(after.lines).toBe(before.lines);
+    expect(() => {
+      (after.lines[0] as unknown as { qty: number }).qty = 999;
+    }).toThrow(TypeError);
+    expect(before.lines[0]!.qty).toBe(1);
   });
 
   test("reuse does not change what `equals` answers", () => {

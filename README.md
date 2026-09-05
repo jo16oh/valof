@@ -78,8 +78,12 @@ raw.name = "mallory";
 user.name; // "alice"
 ```
 
-Values are not frozen. Neither `Object.freeze` nor `Object.seal` is called, and `readonly`
-is a promise in the type, not at runtime.
+`readonly` is a promise in the type, not at runtime. **In development, values are frozen**, so
+a write that casts past the type throws where it happens. A production build pays nothing:
+the freeze is behind `process.env.NODE_ENV`, and `Object.isFrozen` is `false` there.
+
+Deriving a value keeps the subtrees it did not touch, so `with` on a large value copies the
+spine rather than the whole tree.
 
 ## Smart constructors
 
