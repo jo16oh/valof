@@ -448,7 +448,7 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-function assertPlainObject(value: object): void {
+const assertPlainObject = (value: object): void => {
   const proto = Object.getPrototypeOf(value) as object | null;
   if (proto !== Object.prototype && proto !== null) {
     const name = (value.constructor as { name?: string } | undefined)?.name;
@@ -456,7 +456,7 @@ function assertPlainObject(value: object): void {
       `a Val holds plain objects only; received ${name ? `an instance of ${name}` : "an object with a prototype"}`,
     );
   }
-}
+};
 
 /**
  * Structural deep comparison. Every companion carries it as the default `equals`.
@@ -469,7 +469,7 @@ function assertPlainObject(value: object): void {
  * `equals`, so comparing two Vals with it would silently bypass a custom one. An override
  * receives it as a third argument instead (see {@link CompanionFns}).
  */
-export function deepEquals(a: unknown, b: unknown): boolean {
+export const deepEquals = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   // `-0` and `0` are already equal via `===`, which matches JSON round-tripping
   // (`JSON.stringify(-0)` is `"0"`), so only NaN is left to handle.
@@ -504,7 +504,7 @@ export function deepEquals(a: unknown, b: unknown): boolean {
     if (!deepEquals(x[k], y[k])) return false;
   }
   return true;
-}
+};
 
 /**
  * The nodes this module built. A value's subtrees are immutable, so re-copying one is waste:
@@ -548,7 +548,7 @@ const development =
  * in every value sharing that node rather than in one. Freezing measured at a flat 25-30% with
  * nothing bought at run time, so production does not pay for the check.
  */
-function deepCopy(owning: boolean) {
+const deepCopy = (owning: boolean) => {
   const copy = <T>(value: T): T => {
     if (value === null || typeof value !== "object") return value;
     if (owning && owned.has(value)) return value;
@@ -589,7 +589,7 @@ function deepCopy(owning: boolean) {
     return out as T;
   };
   return copy;
-}
+};
 
 /**
  * Deep-copies a payload and takes ownership of the result: reuses the nodes this module already
@@ -608,14 +608,14 @@ const own = deepCopy(true);
 const detach = deepCopy(false);
 
 /** `Object.assign` onto a function throws on `name` / `length`, so define properties instead. */
-function define(target: object, key: string, value: unknown): void {
+const define = (target: object, key: string, value: unknown): void => {
   Object.defineProperty(target, key, {
     value,
     writable: true,
     enumerable: true,
     configurable: true,
   });
-}
+};
 
 /** The constructors a companion was given, plus whether `.unpatchable` was called. */
 type Ctors = {
@@ -631,7 +631,7 @@ type Ctors = {
  * copy when the type did not replace it. Nothing copies on the way *in* — the one deep copy
  * happens in the default seal the custom one returns through.
  */
-function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {}): void {
+const attach = (target: object, fns: Record<string, unknown>, ctors: Ctors = {}): void => {
   const { create } = ctors;
   const custom = ctors.seal;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
@@ -694,7 +694,7 @@ function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {})
     }
     define(target, key, fns[key]);
   }
-}
+};
 
 /**
  * Creates the constructor for a Val. {@link companion} is the same shape for a type with a smart
@@ -705,7 +705,7 @@ function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {})
  * `M`: a defaulted type parameter stops TypeScript using the constraint as a contextual type,
  * and every function's first parameter falls back to implicit `any`.
  */
-function sealer<V extends AnyVal>(): Sealer<V> {
+const sealer = <V extends AnyVal>(): Sealer<V> => {
   const seal = (value: SeedOf<V>): V => own(value) as unknown as V;
   attach(seal, {});
 
@@ -720,7 +720,7 @@ function sealer<V extends AnyVal>(): Sealer<V> {
   );
 
   return seal as unknown as Sealer<V>;
-}
+};
 
 /**
  * Bundles a type's functions without a constructor.
@@ -729,12 +729,12 @@ function sealer<V extends AnyVal>(): Sealer<V> {
  * a value without passing it. Constructors get their own steps rather than sitting in `.impl`,
  * which fixes every function's first parameter to the Val — a shape a constructor does not fit.
  */
-function companion<V extends AnyVal>(): CompanionBuilder<V> {
+const companion = <V extends AnyVal>(): CompanionBuilder<V> => {
   return build<V>({}) as CompanionBuilder<V>;
-}
+};
 
 /** One builder state: the constructors registered so far, plus the steps still open. */
-function build<V extends AnyVal>(ctors: Ctors): object {
+const build = <V extends AnyVal>(ctors: Ctors): object => {
   const target = {};
   attach(target, {}, ctors);
 
@@ -751,7 +751,7 @@ function build<V extends AnyVal>(ctors: Ctors): object {
   define(target, "unpatchable", () => build<V>({ ...ctors, unpatchable: true }));
 
   return target;
-}
+};
 
 export const Val = {
   /**
