@@ -608,13 +608,14 @@ const own = deepCopy(true);
 const detach = deepCopy(false);
 
 /** `Object.assign` onto a function throws on `name` / `length`, so define properties instead. */
-const define = (target: object, key: string, value: unknown): void => {
+const define = <T extends object>(target: T, key: string, value: unknown): T => {
   Object.defineProperty(target, key, {
     value,
     writable: true,
     enumerable: true,
     configurable: true,
   });
+  return target;
 };
 
 /** The constructors a companion was given, plus whether `.unpatchable` was called. */
@@ -631,7 +632,11 @@ type Ctors = {
  * copy when the type did not replace it. Nothing copies on the way *in* — the one deep copy
  * happens in the default seal the custom one returns through.
  */
-const attach = (target: object, fns: Record<string, unknown>, ctors: Ctors = {}): void => {
+const attach = <T extends object>(
+  target: T,
+  fns: Record<string, unknown>,
+  ctors: Ctors = {},
+): T => {
   const { create } = ctors;
   const custom = ctors.seal;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
@@ -700,6 +705,8 @@ const attach = (target: object, fns: Record<string, unknown>, ctors: Ctors = {})
     }
     define(target, key, fns[key]);
   }
+
+  return target;
 };
 
 /**
@@ -711,22 +718,13 @@ const attach = (target: object, fns: Record<string, unknown>, ctors: Ctors = {})
  * `M`: a defaulted type parameter stops TypeScript using the constraint as a contextual type,
  * and every function's first parameter falls back to implicit `any`.
  */
-const sealer = <V extends AnyVal>(): Sealer<V> => {
-  const seal = (value: SeedOf<V>): V => own(value) as unknown as V;
-  attach(seal, {});
-
+const sealer = <V extends AnyVal>(): Sealer<V> =>
   define(
-    seal,
+    attach((value: SeedOf<V>): V => own(value) as unknown as V, {}),
     "impl",
-    <M extends CompanionFns<V> = Record<never, never>>(fns: M = {} as M): Sealed<V, M> => {
-      const sealed = (value: SeedOf<V>): V => own(value) as unknown as V;
-      attach(sealed, fns);
-      return sealed as unknown as Sealed<V, M>;
-    },
-  );
-
-  return seal as unknown as Sealer<V>;
-};
+    <M extends CompanionFns<V> = Record<never, never>>(fns: M = {} as M): Sealed<V, M> =>
+      attach((value: SeedOf<V>): V => own(value) as unknown as V, fns) as unknown as Sealed<V, M>,
+  ) as unknown as Sealer<V>;
 
 /**
  * Bundles a type's functions without a constructor.
@@ -735,28 +733,17 @@ const sealer = <V extends AnyVal>(): Sealer<V> => {
  * a value without passing it. Constructors get their own steps rather than sitting in `.impl`,
  * which fixes every function's first parameter to the Val — a shape a constructor does not fit.
  */
-const companion = <V extends AnyVal>(): CompanionBuilder<V> => {
-  return build<V>({}) as CompanionBuilder<V>;
-};
+const companion = <V extends AnyVal>(): CompanionBuilder<V> => build<V>({}) as CompanionBuilder<V>;
 
 /** One builder state: the constructors registered so far, plus the steps still open. */
 const build = <V extends AnyVal>(ctors: Ctors): object => {
-  const target = {};
-  attach(target, {}, ctors);
+  const target = attach({}, {}, ctors);
 
-  define(target, "impl", (fns: Record<string, unknown> = {}) => {
-    const built = {};
-    attach(built, fns, ctors);
-    return built;
-  });
-
+  define(target, "impl", (fns: Record<string, unknown> = {}) => attach({}, fns, ctors));
   define(target, "implCreate", (create: AnyFn) => build<V>({ ...ctors, create }));
-
   define(target, "implSeal", (seal: NonNullable<Ctors["seal"]>) => build<V>({ ...ctors, seal }));
 
-  define(target, "unpatchable", () => build<V>({ ...ctors, unpatchable: true }));
-
-  return target;
+  return define(target, "unpatchable", () => build<V>({ ...ctors, unpatchable: true }));
 };
 
 export const Val = {
