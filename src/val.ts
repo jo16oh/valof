@@ -523,7 +523,14 @@ let nested = false;
 /**
  * Whether the copy in progress becomes a value. Cleared while {@link unwrap} runs, since that
  * copy is handed to the caller as mutable: it must not share a node, must not become one a
- * later copy would share, and must not be frozen.
+ * later copy would share, and must not be frozen. One flag for the three because they answer
+ * one question.
+ *
+ * {@link unwrap} restores what it found rather than `true`. A payload can carry a getter, so
+ * copying one can run someone else's code, and that code can seal or unwrap. Restoring `true`
+ * happens to be right for the nesting that is reachable today — a value never holds a getter,
+ * since copying evaluates it, so only an `unwrap` inside a seal can nest — but that is an
+ * argument about reachability, and this is two bytes.
  */
 let sealing = true;
 
@@ -621,11 +628,12 @@ function of<V extends AnyVal>(value: SeedOf<V>): V {
  * straight into the value.
  */
 function unwrap<V extends AnyVal>(value: V): PayloadOf<V> {
+  const outer = sealing;
   sealing = false;
   try {
     return copy(value) as unknown as PayloadOf<V>;
   } finally {
-    sealing = true;
+    sealing = outer;
   }
 }
 

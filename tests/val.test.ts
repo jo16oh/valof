@@ -94,6 +94,26 @@ describe("basics", () => {
     // A production build folds the check away and pays nothing; see `copy` in ../src/val.ts.
   });
 
+  test("a payload's getter cannot leave a value half-sealed", () => {
+    // Copying a payload runs its getters, so someone else's code can run mid-copy and reach
+    // back into the library. Whatever it does, the value it interrupted still comes out sealed.
+    type Note = Val<"Note", { id: string; body: { text: string } }>;
+    const Note = Val.sealer<Note>();
+    const other = Note({ id: "b", body: { text: "b" } });
+
+    const note = Note({
+      id: "a",
+      get body() {
+        Val.unwrap(other);
+        return { text: "a" };
+      },
+    });
+
+    expect(Object.isFrozen(note)).toBe(true);
+    expect(Object.isFrozen(note.body)).toBe(true);
+    expect(note.body.text).toBe("a");
+  });
+
   test("a mutable copy is not frozen", () => {
     const raw = Val.unwrap(User({ id: "a", name: "bob" }));
     expect(Object.isFrozen(raw)).toBe(false);
