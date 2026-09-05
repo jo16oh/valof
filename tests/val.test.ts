@@ -662,6 +662,95 @@ describe("constructors copy their argument", () => {
   });
 });
 
+describe("a value reuses the nodes it already owns", () => {
+  type Money = Val<"Money", { amount: number; currency: string }>;
+  type Line = Val<"Line", { sku: string; qty: number }>;
+  type Order = Val<"Order", { id: string; note: string; total: Money; lines: readonly Line[] }>;
+  const Money = Val.sealer<Money>();
+  const Line = Val.sealer<Line>();
+  const Order = Val.sealer<Order>();
+  const order = () =>
+    Order({
+      id: "o",
+      note: "n",
+      total: Money({ amount: 1, currency: "JPY" }),
+      lines: [Line({ sku: "s", qty: 1 })],
+    });
+
+  test("`with` keeps the subtrees it did not touch", () => {
+    const before = order();
+    const after = Order.with(before, { note: "changed" });
+    expect(after).not.toBe(before);
+    expect(after.lines).toBe(before.lines);
+    expect(after.lines[0]).toBe(before.lines[0]);
+  });
+
+  test("`update` keeps them too", () => {
+    const before = order();
+    const after = Order.update(before, (o) => ({ ...o, note: "changed" }));
+    expect(after.lines).toBe(before.lines);
+  });
+
+  test("a node holding only primitives is copied rather than reused", () => {
+    // Recording a node costs about twenty times a lookup, so on a leaf it would never earn
+    // itself back. Copying one is cheaper, and nothing observable changes either way.
+    const before = order();
+    expect(Order.with(before, { note: "changed" }).total).not.toBe(before.total);
+  });
+
+  test("a subtree arriving through a patch is copied, not adopted", () => {
+    const foreign = [{ sku: "s", qty: 2 }];
+    const after = Order.with(order(), { lines: foreign as unknown as readonly Line[] });
+    foreign[0]!.qty = 999;
+    expect(after.lines[0]!.qty).toBe(2);
+  });
+
+  test("two values built from one caller object do not share it", () => {
+    const foreign = [Line({ sku: "s", qty: 1 })];
+    const a = Order({
+      id: "a",
+      note: "n",
+      total: Money({ amount: 1, currency: "JPY" }),
+      lines: foreign,
+    });
+    const b = Order({
+      id: "b",
+      note: "n",
+      total: Money({ amount: 1, currency: "JPY" }),
+      lines: foreign,
+    });
+    expect(a.lines).not.toBe(foreign);
+    expect(a.lines).not.toBe(b.lines);
+  });
+
+  test("`Val.unwrap` shares nothing, including with a value built by reuse", () => {
+    const derived = Order.with(order(), { note: "changed" });
+    const raw = Val.unwrap(derived);
+    expect(raw.lines).not.toBe(derived.lines);
+    expect(raw.lines[0]).not.toBe(derived.lines[0]);
+    // `PayloadOf` keeps a nested Val a Val, so the write goes through an untyped view: the
+    // claim under test is about what the copy shares at runtime, not about its type.
+    (raw.lines[0] as unknown as { qty: number }).qty = 999;
+    expect(derived.lines[0]!.qty).toBe(1);
+  });
+
+  test("an unwrapped payload is not adopted when it is sealed again", () => {
+    const raw = Val.unwrap(order());
+    const resealed = Order(raw);
+    expect(resealed.lines).not.toBe(raw.lines);
+    (raw.lines[0] as unknown as { qty: number }).qty = 999;
+    expect(resealed.lines[0]!.qty).toBe(1);
+  });
+
+  test("reuse does not change what `equals` answers", () => {
+    const a = order();
+    const b = Order.with(a, { note: "changed" });
+    expect(Order.equals(a, b)).toBe(false);
+    expect(Order.equals(b, Order.with(a, { note: "changed" }))).toBe(true);
+    expect(Line.equals(a.lines[0]!, b.lines[0]!)).toBe(true);
+  });
+});
+
 describe("impl", () => {
   test("the first parameter is contextually the Val, so it needs no annotation", () => {
     const Greeter = Val.sealer<User>().impl({

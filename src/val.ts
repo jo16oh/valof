@@ -507,7 +507,27 @@ export function deepEquals(a: unknown, b: unknown): boolean {
 }
 
 /**
- * Deep-copies a payload.
+ * The nodes this module built. A value's subtrees are immutable, so re-copying one is waste:
+ * recognising it here is what lets `with` rebuild the spine and share everything below it.
+ *
+ * Only nodes that hold another object go in. Recording one costs about twenty times what
+ * looking one up does, so on a leaf — the shape most values are — the record would never earn
+ * itself back. Missing a node only costs a copy, never correctness, which is why the set can
+ * be forgotten across a `structuredClone` or a JSON round trip with nothing to repair.
+ */
+const owned = new WeakSet<object>();
+
+/** Set by every return of {@link copy}: was the value it just copied an object? */
+let nested = false;
+
+/**
+ * Cleared while {@link unwrap} runs. That copy is handed out as mutable, so it must neither
+ * share a node nor become one that a later copy would share.
+ */
+let sharing = true;
+
+/**
+ * Deep-copies a payload, reusing the nodes this module already owns.
  *
  * Constructors accept a plain mutable object, so the conversion from mutable to immutable has
  * to happen somewhere. Doing it here keeps it inside the library: without the copy the value
@@ -518,35 +538,53 @@ export function deepEquals(a: unknown, b: unknown): boolean {
  * the recursion needs no special cases. The result is deliberately not frozen.
  */
 function copy<T>(value: T): T {
-  if (value === null || typeof value !== "object") return value;
+  if (value === null || typeof value !== "object") {
+    nested = false;
+    return value;
+  }
+  nested = true;
+  if (sharing && owned.has(value)) return value;
+
+  // Whether this node holds another object, which is what decides if it is worth recording.
+  let holdsObject = false;
+  let out: unknown;
 
   if (Array.isArray(value)) {
-    return (value as unknown[]).map((element) => copy(element)) as T;
-  }
+    out = (value as unknown[]).map((element) => {
+      const copied = copy(element);
+      if (nested) holdsObject = true;
+      return copied;
+    });
+  } else {
+    const source = value as Record<string, unknown>;
 
-  const source = value as Record<string, unknown>;
-
-  if (typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production") {
-    assertPlainObject(source);
-  }
-
-  const out: Record<string, unknown> = {};
-  for (const key of Object.keys(source)) {
-    const copied = copy(source[key]);
-    // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
-    // the prototype instead of copying it. Defining it keeps it an own property, and only
-    // that key pays for the slower path.
-    if (key === "__proto__") {
-      Object.defineProperty(out, key, {
-        value: copied,
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      });
-    } else {
-      out[key] = copied;
+    if (typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production") {
+      assertPlainObject(source);
     }
+
+    const target: Record<string, unknown> = {};
+    for (const key of Object.keys(source)) {
+      const copied = copy(source[key]);
+      if (nested) holdsObject = true;
+      // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
+      // the prototype instead of copying it. Defining it keeps it an own property, and only
+      // that key pays for the slower path.
+      if (key === "__proto__") {
+        Object.defineProperty(target, key, {
+          value: copied,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+      } else {
+        target[key] = copied;
+      }
+    }
+    out = target;
   }
+
+  if (holdsObject && sharing) owned.add(out as object);
+  nested = true;
   return out as T;
 }
 
@@ -569,7 +607,12 @@ function of<V extends AnyVal>(value: SeedOf<V>): V {
  * straight into the value.
  */
 function unwrap<V extends AnyVal>(value: V): PayloadOf<V> {
-  return copy(value) as unknown as PayloadOf<V>;
+  sharing = false;
+  try {
+    return copy(value) as unknown as PayloadOf<V>;
+  } finally {
+    sharing = true;
+  }
 }
 
 /** `Object.assign` onto a function throws on `name` / `length`, so define properties instead. */
