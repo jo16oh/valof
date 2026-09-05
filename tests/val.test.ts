@@ -730,11 +730,12 @@ describe("a value reuses the nodes it already owns", () => {
     expect(after.lines).toBe(before.lines);
   });
 
-  test("a node holding only primitives is copied rather than reused", () => {
-    // Recording a node costs about twenty times a lookup, so on a leaf it would never earn
-    // itself back. Copying one is cheaper, and nothing observable changes either way.
+  test("a leaf is reused too, so a nested Val keeps its identity", () => {
+    // By copying time alone a leaf would not earn its record back. What a framework compares
+    // is identity: without this, changing `note` would hand `total` a new one and a memoised
+    // component reading it would re-render for a change it never saw.
     const before = order();
-    expect(Order.with(before, { note: "changed" }).total).not.toBe(before.total);
+    expect(Order.with(before, { note: "changed" }).total).toBe(before.total);
   });
 
   test("a subtree arriving through a patch is copied, not adopted", () => {
@@ -790,6 +791,50 @@ describe("a value reuses the nodes it already owns", () => {
       (after.lines[0] as unknown as { qty: number }).qty = 999;
     }).toThrow(TypeError);
     expect(before.lines[0]!.qty).toBe(1);
+  });
+
+  test("a patch that changes nothing gives back the value itself", () => {
+    const before = order();
+    expect(Order.with(before, { note: "n" })).toBe(before);
+    expect(Order.with(before, {})).toBe(before);
+  });
+
+  test("removing a key the value does not have is not a change", () => {
+    const user = User({ id: "a", name: "bob" });
+    expect(User.with(user, { nickname: undefined })).toBe(user);
+    expect(
+      User.with(User({ id: "a", name: "bob", nickname: "b" }), { nickname: undefined }),
+    ).toEqual({
+      id: "a",
+      name: "bob",
+    });
+  });
+
+  test("a transform that returns its argument gives back the value itself", () => {
+    const before = order();
+    expect(Order.update(before, (o) => o)).toBe(before);
+    expect(Order.update(before, (o) => ({ ...o }))).not.toBe(before);
+  });
+
+  test("a freshly built child counts as a change", () => {
+    // It went through a constructor, so a new instance is what the caller asked for.
+    const before = order();
+    expect(Order.with(before, { total: Money({ amount: 1, currency: "JPY" }) })).not.toBe(before);
+  });
+
+  test("a no-op still goes through a custom seal, which keeps the identity", () => {
+    type Age = Val<"Age", { years: number }>;
+    const seen: number[] = [];
+    const Age = Val.companion<Age>().implSeal((a, seal) => {
+      seen.push(a.years);
+      return { ok: seal(a) };
+    });
+    const age = Age.seal({ years: 30 }).ok;
+    seen.length = 0;
+
+    const same = Age.with(age, { years: 30 });
+    expect(seen).toEqual([30]); // the seal ran: it owns the return shape
+    expect(same.ok).toBe(age); // and the copy inside it handed the value back
   });
 
   test("reuse does not change what `equals` answers", () => {

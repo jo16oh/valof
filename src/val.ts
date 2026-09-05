@@ -510,15 +510,16 @@ export function deepEquals(a: unknown, b: unknown): boolean {
  * The nodes this module built. A value's subtrees are immutable, so re-copying one is waste:
  * recognising it here is what lets `with` rebuild the spine and share everything below it.
  *
- * Only nodes that hold another object go in. Recording one costs about twenty times what
- * looking one up does, so on a leaf — the shape most values are — the record would never earn
- * itself back. Missing a node only costs a copy, never correctness, which is why the set can
- * be forgotten across a `structuredClone` or a JSON round trip with nothing to repair.
+ * Every node goes in, leaves included. Recording one costs about twenty times what looking one
+ * up does, so by copying time alone a leaf would not earn its record back — but what a
+ * framework compares is identity, not copying time. Leaving leaves out would give every small
+ * nested Val a new identity on each `with`, and a memoised component reading one would re-render
+ * for a change it never saw.
+ *
+ * Missing a node only costs a copy, never correctness, which is why the set can be forgotten
+ * across a `structuredClone` or a JSON round trip with nothing to repair.
  */
 const owned = new WeakSet<object>();
-
-/** Set by every return of {@link copy}: was the value it just copied an object? */
-let nested = false;
 
 /**
  * Whether the copy in progress becomes a value. Cleared while {@link unwrap} runs, since that
@@ -558,23 +559,13 @@ const development =
  * nothing bought at run time, so production does not pay for the check.
  */
 function copy<T>(value: T): T {
-  if (value === null || typeof value !== "object") {
-    nested = false;
-    return value;
-  }
-  nested = true;
+  if (value === null || typeof value !== "object") return value;
   if (sealing && owned.has(value)) return value;
 
-  // Whether this node holds another object, which is what decides if it is worth recording.
-  let holdsObject = false;
   let out: unknown;
 
   if (Array.isArray(value)) {
-    out = (value as unknown[]).map((element) => {
-      const copied = copy(element);
-      if (nested) holdsObject = true;
-      return copied;
-    });
+    out = (value as unknown[]).map((element) => copy(element));
   } else {
     const source = value as Record<string, unknown>;
 
@@ -583,7 +574,6 @@ function copy<T>(value: T): T {
     const target: Record<string, unknown> = {};
     for (const key of Object.keys(source)) {
       const copied = copy(source[key]);
-      if (nested) holdsObject = true;
       // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
       // the prototype instead of copying it. Defining it keeps it an own property, and only
       // that key pays for the slower path.
@@ -602,10 +592,9 @@ function copy<T>(value: T): T {
   }
 
   if (sealing) {
-    if (holdsObject) owned.add(out as object);
+    owned.add(out as object);
     if (development) Object.freeze(out);
   }
-  nested = true;
   return out as T;
 }
 
@@ -665,6 +654,11 @@ function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {})
   const { create } = ctors;
   const custom = ctors.seal;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, copy) : copy;
+  // A rebuild that changed nothing gives back the value it started from, so a framework
+  // comparing by identity sees no update. A custom seal owns the return shape, so there the
+  // value goes back through it rather than around it; the copy inside recognises the value and
+  // hands the same node back, leaving the identity intact inside whatever the seal returns.
+  const keep: (value: unknown) => unknown = custom ? seal : (value) => value;
 
   define(target, "equals", deepEquals);
   if (create) define(target, "create", (...args: never[]) => seal(create(...args)));
@@ -675,20 +669,33 @@ function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {})
       throw new TypeError("`with` is only available for object-shaped Vals.");
     }
     const merged: Record<string, unknown> = { ...value, ...patch };
+    // Nodes are shared and never mutated, so identical children mean equal subtrees: one level
+    // answers whether the patch changed anything, and that walk is already happening. A patch
+    // holding a freshly built child is a change, since it went through a constructor.
+    let same = true;
+    let kept = 0;
     for (const key of Object.keys(merged)) {
-      if (merged[key] === undefined) delete merged[key];
+      if (merged[key] === undefined) {
+        delete merged[key];
+        if (Object.hasOwn(value, key)) same = false;
+        continue;
+      }
+      kept++;
+      if (!Object.is(merged[key], value[key])) same = false;
     }
-    return seal(merged);
+    return same && kept === Object.keys(value).length ? keep(value) : seal(merged);
   });
 
   // The merge is what lets the untouched keys survive without the library knowing their names.
-  define(target, "update", (value: unknown, fn: (value: unknown) => unknown) =>
-    seal(
+  define(target, "update", (value: unknown, fn: (value: unknown) => unknown) => {
+    const next =
       ctors.unpatchable && isObjectShaped(value)
         ? { ...value, ...(fn(value) as Record<string, unknown>) }
-        : fn(value),
-    ),
-  );
+        : fn(value);
+    // Only the transform that hands its argument straight back. Recognising a fresh object that
+    // happens to be equal is `with`'s job, where the walk is already paid for.
+    return Object.is(next, value) ? keep(value) : seal(next);
+  });
 
   for (const key of Object.keys(fns)) {
     // Bound here rather than attached raw, which is what keeps callers at two arguments.
