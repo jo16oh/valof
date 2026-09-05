@@ -96,7 +96,8 @@ describe("basics", () => {
 
   test("a payload's getter cannot leave a value half-sealed", () => {
     // Copying a payload runs its getters, so someone else's code can run mid-copy and reach
-    // back into the library. Whatever it does, the value it interrupted still comes out sealed.
+    // back into the library. Ownership is closed over per copy rather than held in a variable
+    // the nested call could change, so the value it interrupted still comes out sealed.
     type Note = Val<"Note", { id: string; body: { text: string } }>;
     const Note = Val.sealer<Note>();
     const other = Note({ id: "b", body: { text: "b" } });

@@ -522,23 +522,6 @@ export function deepEquals(a: unknown, b: unknown): boolean {
 const owned = new WeakSet<object>();
 
 /**
- * Whether the copy in progress becomes a value. Cleared while {@link unwrap} runs, since that
- * copy is handed to the caller as mutable: it must not share a node, must not become one a
- * later copy would share, and must not be frozen. One flag for the three because they answer
- * one question.
- *
- * {@link unwrap} restores what it found rather than `true`, because copying a payload can run
- * someone else's code, and that code can seal or unwrap. A payload is whatever the caller
- * passes: `{ get name() { … } }` type-checks as `{ name: string }`, and a framework proxy such
- * as Vue's `reactive()` reports `Object.prototype`, so both reach the copy with traps attached.
- *
- * Restoring `true` happens to be right for the nesting that is reachable today — copying
- * evaluates a getter into a plain property, so a *value* never holds one and only an `unwrap`
- * inside a seal can nest — but that is an argument about reachability, and this is two bytes.
- */
-let sealing = true;
-
-/**
  * True outside a production build. Written as a module constant so a bundler that defines
  * `process.env.NODE_ENV` folds it away, taking the development-only branches with it.
  */
@@ -546,7 +529,11 @@ const development =
   typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production";
 
 /**
- * Deep-copies a payload, reusing the nodes this module already owns.
+ * Builds the recursive deep copy, in an owning and a non-owning form.
+ *
+ * `owning` is closed over rather than passed, so it costs nothing per node and cannot be
+ * changed underneath a copy in progress: copying runs a payload's getters, and that is
+ * someone else's code, which can seal or unwrap from there.
  *
  * Constructors accept a plain mutable object, so the conversion from mutable to immutable has
  * to happen somewhere. Doing it here keeps it inside the library: without the copy the value
@@ -561,45 +548,62 @@ const development =
  * in every value sharing that node rather than in one. Freezing measured at a flat 25-30% with
  * nothing bought at run time, so production does not pay for the check.
  */
-function copy<T>(value: T): T {
-  if (value === null || typeof value !== "object") return value;
-  if (sealing && owned.has(value)) return value;
+function deepCopy(owning: boolean) {
+  const copy = <T>(value: T): T => {
+    if (value === null || typeof value !== "object") return value;
+    if (owning && owned.has(value)) return value;
 
-  let out: unknown;
+    let out: unknown;
 
-  if (Array.isArray(value)) {
-    out = (value as unknown[]).map((element) => copy(element));
-  } else {
-    const source = value as Record<string, unknown>;
+    if (Array.isArray(value)) {
+      out = (value as unknown[]).map((element) => copy(element));
+    } else {
+      const source = value as Record<string, unknown>;
 
-    if (development) assertPlainObject(source);
+      if (development) assertPlainObject(source);
 
-    const target: Record<string, unknown> = {};
-    for (const key of Object.keys(source)) {
-      const copied = copy(source[key]);
-      // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
-      // the prototype instead of copying it. Defining it keeps it an own property, and only
-      // that key pays for the slower path.
-      if (key === "__proto__") {
-        Object.defineProperty(target, key, {
-          value: copied,
-          writable: true,
-          enumerable: true,
-          configurable: true,
-        });
-      } else {
-        target[key] = copied;
+      const target: Record<string, unknown> = {};
+      for (const key of Object.keys(source)) {
+        const copied = copy(source[key]);
+        // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
+        // the prototype instead of copying it. Defining it keeps it an own property, and only
+        // that key pays for the slower path.
+        if (key === "__proto__") {
+          Object.defineProperty(target, key, {
+            value: copied,
+            writable: true,
+            enumerable: true,
+            configurable: true,
+          });
+        } else {
+          target[key] = copied;
+        }
       }
+      out = target;
     }
-    out = target;
-  }
 
-  if (sealing) {
-    owned.add(out as object);
-    if (development) Object.freeze(out);
-  }
-  return out as T;
+    if (owning) {
+      owned.add(out as object);
+      if (development) Object.freeze(out);
+    }
+    return out as T;
+  };
+  return copy;
 }
+
+/**
+ * Deep-copies a payload and takes ownership of the result: reuses the nodes this module already
+ * owns, records the ones it makes, and freezes them in development.
+ *
+ * Ownership is recorded here rather than in `seal` because that is where the nodes are. A seal
+ * sees only the root, and recording roots alone would leave the containers between them out:
+ * deriving a value would hand a list of 200 Vals a new array every time, at ten times the cost
+ * and with a new identity for a component memoised on it.
+ */
+const own = deepCopy(true);
+
+/** A plain deep copy, with none of that: what {@link unwrap} hands back is not the library's. */
+const detach = deepCopy(false);
 
 /**
  * The default seal, with the type named explicitly: brand the payload and copy it.
@@ -608,7 +612,7 @@ function copy<T>(value: T): T {
  * receives as its second parameter — the three differ only in where the type comes from.
  */
 function of<V extends AnyVal>(value: SeedOf<V>): V {
-  return copy(value) as unknown as V;
+  return own(value) as unknown as V;
 }
 
 /**
@@ -620,13 +624,7 @@ function of<V extends AnyVal>(value: SeedOf<V>): V {
  * straight into the value.
  */
 function unwrap<V extends AnyVal>(value: V): PayloadOf<V> {
-  const outer = sealing;
-  sealing = false;
-  try {
-    return copy(value) as unknown as PayloadOf<V>;
-  } finally {
-    sealing = outer;
-  }
+  return detach(value) as unknown as PayloadOf<V>;
 }
 
 /** `Object.assign` onto a function throws on `name` / `length`, so define properties instead. */
@@ -656,7 +654,7 @@ type Ctors = {
 function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {}): void {
   const { create } = ctors;
   const custom = ctors.seal;
-  const seal: (value: unknown) => unknown = custom ? (value) => custom(value, copy) : copy;
+  const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
   // A rebuild that changed nothing gives back the value it started from, so a framework
   // comparing by identity sees no update. A custom seal owns the return shape, so there the
   // value goes back through it rather than around it; the copy inside recognises the value and
@@ -728,14 +726,14 @@ function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {})
  * and every function's first parameter falls back to implicit `any`.
  */
 function sealer<V extends AnyVal>(): Sealer<V> {
-  const seal = (value: SeedOf<V>): V => copy(value) as unknown as V;
+  const seal = (value: SeedOf<V>): V => own(value) as unknown as V;
   attach(seal, {});
 
   define(
     seal,
     "impl",
     <M extends CompanionFns<V> = Record<never, never>>(fns: M = {} as M): Sealed<V, M> => {
-      const sealed = (value: SeedOf<V>): V => copy(value) as unknown as V;
+      const sealed = (value: SeedOf<V>): V => own(value) as unknown as V;
       attach(sealed, fns);
       return sealed as unknown as Sealed<V, M>;
     },
