@@ -21,7 +21,7 @@ import { Val } from "valof";
   - **4.2** タプルが潰れる既知のバグと修正案
 - **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、コンビネータ `Val.eqBy` の設計
 - **§6 スマートコンストラクタと更新**
-  - **6.1** コンストラクタは出自で決まる / **6.2** `with` / `update` と patch の `undefined` / **6.3** Result 非依存 / **6.4** `update` は値→値
+  - **6.1** コンストラクタは出自で決まる / **6.2** `with` / `update`、patch の `undefined`、深さを問わない patch / **6.3** Result 非依存 / **6.4** `update` は値→値
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `with` の上書きと第 3 引数の seal
   - **6.7** seal（冪等）と create（鋳造）の分離 / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `unpatchable` と余剰プロパティ検査
@@ -524,6 +524,16 @@ DeepReadonly・ブランド・コンパニオンのオーバーロード判定�
 
 いずれの並べ方でも **instantiations は両コンパイラでほぼ同一**（943,921 / 943,425）なので、回帰の監視は時間ではなくこちらを見る。
 
+deep patch（§6.2）を入れたあとに測り直した。同じ 200 型 × 30 フィールド × 3 段で、`with` の呼び出しだけを変える。
+
+| 変種                        | Types   | Instantiations | Check (TS 7.0.2) |
+| --------------------------- | ------- | -------------- | ---------------- |
+| deep patch 前、1 段の patch | 120,172 | 870,532        | 0.29s            |
+| deep patch 後、1 段の patch | 120,281 | 870,851        | 0.28s            |
+| deep patch 後、3 段の patch | 177,885 | 1,177,941      | 0.40s            |
+
+**再帰する型を置くこと自体はタダ**で、増えるのは実際に深い patch を書いた箇所だけ（+35% instantiations）。呼び出しの深さに比例し、型数に対しては線形のまま（3 段の patch で 50 型 307K / 100 型 577K / 200 型 1,117K / 400 型 2,198K）。
+
 DeepReadonly をオプトインにする案は不要と判断する。コストの大半は `Val` 型の定義側（コンパニオンなしで既に 765K instantiations）にあり、`with` / `update` / `equals` のオーバーロード判定が上乗せするのは 23% にすぎない。
 
 ### 4.2 タプルは保持されない（要修正）
@@ -851,6 +861,69 @@ type Patch<T> = { [K in Exclude<keyof T, OptionalKeys<T>>]?: T[K] } & {
 **3. EOPT off でも seal が拾う。** EOPT が off なら required キーへの `undefined` は型で止まらない。その結果は不変条件を満たさないのでカスタム seal が `Err` を返す。**静かに壊れず、大きな音で失敗する**。
 
 穴が残るのは「EOPT off かつカスタム seal 未定義」の組み合わせのみ。§3.5 と同じ立て付けで、README の EOPT 推奨がここでも効く。
+
+#### patch は深さを問わず届く
+
+`Patch` が shallow optional だと、深い更新のたびに深さの分だけ spread を書かされる。
+
+```ts
+User.with(u, { profile: { name: "x" } }); // 型エラー: age が無い
+User.with(u, { profile: { ...u.profile, name: "x" } }); // これを毎回書く
+```
+
+React の state 更新はこれが日常なので、interop の看板を掲げる以上ここは塞ぐ。`Patch` を再帰させ、`with` を deep merge にした。
+
+```ts
+type PatchValue<T> = [Patch<T>] extends [never] ? T : Patch<T>;
+```
+
+**patch できる対象がない型（Val・配列・プリミティブ）は丸ごと差し替え。** optional / required の分岐は再帰でそのまま各段に効くので、誤削除への防御も余剰プロパティ検査も深い位置で同じように働く。追加の細工は要らなかった。
+
+**Val で再帰を止めるのは §6.8 の帰結。** patch がネストした値の中まで届くと、その値の seal が一度も見ていない payload ができる。外側の `with` は外側しか seal しない。
+
+書く側が失うものはない。ネストした値はその型自身の `with` で導出すればよく、そちらは自分の seal を通り、触っていない部分木の参照も保つ。
+
+```ts
+Shop.with(shop, { city: City.with(shop.city, { name: "Osaka" }) });
+```
+
+外側から見ると「コンストラクタが作ったノード」なので、§6.2 の owned 規則で差し替えになる。深い patch と同じ結果に、seal を 1 つも飛ばさずに着く。
+
+#### 実行時の境界は `owned`
+
+ブランドはファントムなので、実行時に「これは Val だ」とは読めない。読めるのはノードの出自だけで、それは §4.1 のコピーで既に記録している。
+
+**owned なノードは patch ではなく値なので、merge せず差し替える。** 型側の「Val で止める」の実行時対応物であり、`{ owner: other.owner }` のように既存の部分木を渡す場合も同じ規則で差し替えになる。意図と一致する。
+
+記録を失った payload（`structuredClone` や JSON 往復を越えたもの）では、ネストした値が merge に落ちる。壊れ方は「差し替えたつもりが optional キーの消し残りが出る」だけで、正しさの他の部分は保たれる。渡す前に seal し直すのが正しい対処。
+
+#### 代償: ネストしたオブジェクトを縮められない
+
+merge が既定になると、キーの少ないオブジェクトで置き換えられなくなる。§8 の Record-as-Map が一番刺さる。
+
+```ts
+Shop.with(shop, { staff: computed }); // 古いエントリが残る
+Shop.update(shop, (s) => ({ ...s, staff: computed })); // 置換はこちら
+```
+
+新しい API は足さない。既存の 2 経路が意味で割れるだけである。
+
+- `with` = patch。プレーンなオブジェクトを下まで merge、`undefined` で削除
+- `update` = 置換。payload 丸ごとを返す
+
+`{ staff: { u1: undefined } }` で 1 エントリだけ消せるので、Map 用途は以前より書きやすくなった。
+
+#### 却下した案
+
+- **patch の値に updater 関数を許す**（`{ profile: (p) => ... }`）。1 段しか砂糖が効かず、同じ操作に 2 通りの書き方ができる
+- **パス指定 API**（`with(u, "profile.name", x)`）。template literal 型が型チェック速度と d.ts 予算を食い、API も増える。v2 候補
+- **現状維持**。`update` と spread で書けるが、それなら `with` が存在する意味が薄い
+
+#### コスト
+
+production gzip 901 → 944 B（予算 1 kB、残り 80 B）。d.ts は 15.03 → 15.55 kB。`with` の既存ループがそのまま再帰関数 `patched` になるので、純増が小さい。
+
+`patched` は各段で「何も変わらなければ元のノードを返す」ので、参照同一性は以前より細かく保たれる。
 
 ### 6.3 Result 型は提供しない
 
@@ -1366,6 +1439,7 @@ README に書く注意点。
 - **数値キーは JSON 往復で文字列になる。** 数値 ID の集合には `ReadonlyArray<number>` を勧める
 - **キーの順序**はオブジェクトの仕様上、数値っぽい文字列が昇順で先に来る。Set 用途なら実害はないが、デフォルト equals がキー順に依存していると壊れる
 - **プロトタイプ汚染系のキー**（`"__proto__"` / `"constructor"`）。ユーザー入力をキーにする場合は `Object.hasOwn` で判定する。ヘルパを companion 側に置くのが素直
+- **`Object.entries` にファントムキーが混ざる。** Val はブランドとの交差型なので、`Object.entries(table)` の値型が `"PriceTable" | Record<...> | Money` の union になる。実行時にそのキーは存在しないので、型だけの問題。`Object.entries<Money>(table)` と値型を書けば消える（`Object.keys` は `string[]` なので無害）
 
 ### 8.2 日付
 
@@ -1443,6 +1517,9 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~README に性能の一行を足す（§4.1）~~ → `Constructors copy their argument` に、コピーが owned ノードで止まることと、変化のない patch が値をそのまま返すことを追記
 - [x] ~~README の `Reusing a Val` に一行足す（§4.1）~~ → フィールド位置の警告を追記
 - [x] ~~README の validation 節を zod で書き直す（§8.3）~~ → `With a schema library`。`seal(input: unknown)` は §6.7 の制約に落ちるので `object` で widen する
+- [ ] `unpatchable` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
+- [ ] `owned` の記録を失った payload では、ネストした値が差し替えではなく merge に落ちる（§6.2）。README の Caveats に載せるか、`structuredClone` の往復を実測してから決める
+- [ ] Record payload を回す糖衣（`Val.entries` など）を足すか（§8.1）。`Object.entries<Money>(t)` で回避できるので優先度は低い。バンドル予算の残りは 80 B
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
 - [ ] **npm で `valof` を予約する**（プレースホルダを publish しておく）
@@ -1450,7 +1527,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~`null` と `undefined` の扱い~~ → §3.5
 - [x] ~~`Validate<T>` の自己参照制約~~ → 型エイリアスでは TS2313。条件型に変更（§3.5）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
-- [x] ~~型チェック速度のベンチマーク~~ → §4 のベンチマーク
+- [x] ~~型チェック速度のベンチマーク~~ → §4 のベンチマーク（deep patch 後に再測、同節）
 - [x] ~~コピーの WeakSet 再利用を入れるか~~ → 入れた。全ノード登録（§4.1）。symbol キー案と閾値案は実測して却下
 - [x] ~~パッケージ名~~ → `valof`（§12）
 - [x] ~~GitHub リポジトリ名 `valof` の確保~~
