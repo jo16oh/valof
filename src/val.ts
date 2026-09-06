@@ -354,7 +354,10 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
   };
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
   implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P>;
-  /** Replaces the seal. */
+  /**
+   * Replaces the seal. Its parameter may be wider than the payload, so a schema library can parse
+   * into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
+   */
   implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P>;
   /**
    * Takes keys out of the update path: `with` stops accepting them in its patch, and `update`'s
