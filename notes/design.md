@@ -2204,147 +2204,131 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 
 ## 14. valof-lint
 
-Investigated 2026-09-03, implemented on the `feat/valof-lint` branch (not merged into
-`main` as of 2026-09-06).
+2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-06 時点で `main` 未マージ。
 
-A function inside `.impl({...})` is never reported as dead and never dropped from a bundle,
-because `attach` puts it on the companion with `Object.defineProperty` at runtime. Static
-analysis only sees an object literal passed to a function.
+`.impl({...})` の中の関数は、dead と報告されることもバンドルから落ちることもない。`attach` が実行時に
+`Object.defineProperty` で companion に載せるので、静的解析からは「関数に渡されたオブジェクトリテラル」にしか見えない。
 
-Measured, not assumed:
+推測ではなく実測:
 
-- **knip 6.34.0** flags a plain unused `export function`, and says nothing about an unused
-  companion function beside it. Its `--exports` shortcut and every other issue type miss it.
-- **vite/rolldown** drops the unused exported function from the bundle and keeps the
-  companion one.
+- **knip 6.34.0** は素の未使用 `export function` を報告するが、その隣にある未使用の companion 関数には
+  何も言わない。`--exports` ショートカットも、他のどの issue type も検出しない
+- **vite/rolldown** は未使用の export された関数をバンドルから落とし、companion のほうは残す
 
-### 14.1 Why it is a standalone script
+### 14.1 なぜ独立したスクリプトなのか
 
-- **A knip plugin cannot do it.** `IssueType = keyof Issues`, and `Issues` is a fixed record
-  in core (files, dependencies, exports, types, enumMembers, namespaceMembers, cycles, ...) —
-  there is no member-of-an-exported-object category, and a plugin cannot add one. The plugin
-  hooks (`resolveFromAST`, `registerVisitors`, ...) only ever return `Input[]`: they add
-  things to treat as used, never report unused ones.
-- **Lint cannot do it.** ESLint and oxlint are per-file: a rule sees one file's AST and must
-  anchor its report there. Cross-file rules like `import/no-unused-modules` walk the project
-  themselves, outside the lint model. oxlint also lints in parallel, so state accumulated
-  across files in a custom JS plugin is unreliable. ast-grep's own `sg scan` rules fail for
-  the same reason.
+- **knip プラグインでは書けない。** `IssueType = keyof Issues` であり、`Issues` は core 側の固定レコード
+  （files, dependencies, exports, types, enumMembers, namespaceMembers, cycles, ...）。「export された
+  オブジェクトのメンバ」というカテゴリは存在せず、プラグインから追加もできない。プラグインのフック
+  （`resolveFromAST`, `registerVisitors`, ...）が返せるのは `Input[]` だけで、使用済みとして足すことは
+  できても未使用を報告することはできない
+- **lint でも書けない。** ESLint も oxlint もファイル単位で、ルールは1ファイルの AST を見てその中に
+  報告を紐付ける。`import/no-unused-modules` のようなクロスファイルのルールは自前でプロジェクトを
+  走査しており、lint のモデルの外にいる。oxlint は並列に走るので、カスタム JS プラグインでファイルを
+  またいで状態を貯めても信用できない。ast-grep の `sg scan` ルールも同じ理由で不可
 
-Companion members are only ever reached as `Companion.member`, so collecting the top-level
-keys of each `.impl({...})` and counting `Name.key` across the project is enough.
+companion のメンバは `Companion.member` の形でしか到達されない。各 `.impl({...})` のトップレベルキーを
+集めて、プロジェクト全体で `Name.key` を数えれば足りる。
 
-### 14.2 Parser: `oxc-parser`, not `@ast-grep/napi`
+### 14.2 パーサ: `@ast-grep/napi` ではなく `oxc-parser`
 
-Both were prototyped and gave identical results. Measured on a 400-file corpus: oxc 3.2 MB
-installed and 21 ms, ast-grep 7.2 MB and 76 ms. oxc costs 33 more lines, since ast-grep's
-pattern DSL (`const $N = $B.impl($OBJ)`) is replaced by a hand-written ESTree walk;
-`oxc-parser` exports `visitorKeys`, so the generic descent is ten lines. It also shares
-lineage with oxlint, oxfmt and Rolldown. The deciding argument: the optional peer dependency
-is what a user pays to run this at all, so halving it beats the DSL.
+両方プロトタイプを作り、結果は一致した。400 ファイルのコーパスで実測すると、oxc はインストール 3.2 MB で
+21 ms、ast-grep は 7.2 MB で 76 ms。oxc のほうが 33 行多い。ast-grep のパターン DSL
+（`const $N = $B.impl($OBJ)`）を手書きの ESTree walk で置き換えるためだが、`oxc-parser` は `visitorKeys` を export
+しているので汎用の降下は 10 行で済む。oxlint / oxfmt / Rolldown と系譜も共通する。決め手は、
+optional な peer dependency がこれを動かすために利用者が払う唯一のコストだということ。DSL より、それを
+半分にするほうが勝つ。
 
-The first prototype was text-based and missed `User["greet"]`, renamed imports,
-destructuring and nested `.impl`. What is still out of reach is anything name resolution
-cannot follow: `export { X as Y }` chains, `import * as ns`, computed keys, and a spread
-into `.impl({...base})`.
+最初のプロトタイプはテキストベースで、`User["greet"]`、リネームした import、分割代入、ネストした `.impl` を取りこぼした。今も届かないのは名前解決が追えないもの: `export { X as Y }` の連鎖、`import * as ns`、
+computed key、`.impl({...base})` へのスプレッド。
 
-### 14.3 Shipping it inside valof
+### 14.3 valof に同梱する
 
-Verified by packing and installing a test package on 2026-09-04: a `bin` entry plus
-`oxc-parser` as an _optional_ `peerDependencies` entry costs a consumer who does not want it
-nothing at all. Measured consumer `node_modules`: 36 KB with valof alone (no parser pulled
-in, no install warning, the bin exits 2 with an install message), 7.3 MB once opted in.
-`dependencies` stays empty, so the zero-runtime-dependency and sub-1 kB claims hold:
-`scripts/size.ts` bundles `./dist/index.mjs` only, and a sibling `dist/lint-cli.mjs` is not
-reachable from it.
+2026-09-04 にテスト用パッケージを pack してインストールし検証した。`bin` エントリと、_optional_ な
+`peerDependencies` としての `oxc-parser` は、欲しくない利用者に何のコストも課さない。利用者側の
+`node_modules` を実測すると、valof だけなら 36 KB（パーサは引かれず、インストール警告も出ず、bin は
+インストールを促して exit 2）、opt-in すると 7.3 MB。`dependencies` は空のままなので、実行時依存ゼロと
+1 kB 未満の主張は保たれる。`scripts/size.ts` がバンドルするのは `./dist/index.mjs` だけで、隣にある
+`dist/lint-cli.mjs` はそこから到達できない。
 
-Preferred over the two alternatives: a README recipe has no tests and no version, and a
-separate package is another release surface, while a bin inside valof rides the existing
-release workflow and can be tested here.
+他の2案より優れている。README のレシピにはテストもバージョンもなく、別パッケージはリリース面が増える。
+valof 内の bin なら既存のリリースワークフローに乗り、ここでテストできる。
 
-### 14.4 Rules
+### 14.4 ルール
 
-Two, both reporting on syntax:
+2つ。どちらも構文で判定する。
 
-- a companion member nothing reads
-- a brand string claimed by more than one **top-level** type alias
+- 誰も読まない companion のメンバ
+- 複数の**トップレベル**型エイリアスが主張しているブランド文字列
 
-Top-level only matters: without that restriction this repo's own tests report 30 collisions
-from fixtures scoped inside `describe` and `test` bodies.
+トップレベル限定であることが効く。この制限がないと、このリポジトリ自身のテストで `describe` や `test` の
+中にスコープされたフィクスチャから 30 件の衝突が報告される。
 
-This repo's own `src` uses no companions. Running the detector over `src` + `tests` finds 14
-companion declarations, 15 members and zero dead ones, so the dead-member rule can never
-fire here. Its audience is _consumers_ of valof.
+このリポジトリの `src` は companion を使っていない。`src` + `tests` に検出器をかけると companion 宣言 14、
+メンバ 15、dead はゼロで、dead メンバのルールはここでは絶対に発火しない。対象は valof の_利用者_である。
 
-### 14.5 Rejected: ts-morph, 2026-09-04
+### 14.5 却下: ts-morph、2026-09-04
 
-A full ts-morph port of both checks is 50 non-comment lines against the current 252:
-`findReferencesAsNodes()` replaces the whole read-tracking pass, and
-`getType().getAliasSymbol()` identifies a companion as `Sealer` / `Sealed` /
-`CompanionBuilder` instead of the name-based root check. It costs 15 MB installed against
-3.2 MB, and 0.31 s against 0.06 s on two files.
+両方のチェックを ts-morph で書き直すと、現在の 252 行に対してコメントを除いて 50 行になる。
+`findReferencesAsNodes()` が読み取り追跡のパス全体を置き換え、`getType().getAliasSymbol()` が名前ベースの
+ルート判定の代わりに companion を `Sealer` / `Sealed` / `CompanionBuilder` として識別する。コストは
+インストール 3.2 MB に対して 15 MB、2 ファイルで 0.06 秒に対して 0.31 秒。
 
-**ts-morph does not use TypeScript 7.** `@ts-morph/common` has no `typescript` dependency;
-it bundles its own compiler (12 MB of the 15). So waiting for TS 7.1's API is waiting for a
-ts-morph port, not for a TypeScript release. `typescript@7.0.2` exports four symbols total:
-`default`, `module.exports`, `version`, `versionMajorMinor`.
+**ts-morph は TypeScript 7 を使っていない。** `@ts-morph/common` に `typescript` への依存はなく、自前の
+コンパイラを同梱している（15 MB のうち 12 MB）。つまり TS 7.1 の API を待つことは、
+TypeScript のリリースではなく ts-morph の移植を待つことになる。`typescript@7.0.2` が export するのは `default`、
+`module.exports`、`version`、`versionMajorMinor` の4つだけ。
 
-Two type-only rules were prototyped to justify the cost, and both were rejected:
+コストを正当化するために型ベースのルールを2つ試作し、どちらも却下した。
 
-- **Refining the duplicate-brand check by payload assignability is wrong.** Structural
-  subtyping means "different payloads" does not mean "separated":
-  `Val<"Id", {a: string; b: number}>` is assignable to `Val<"Id", {a: string}>`, verified.
-  A bidirectional `isAssignableTo` test would downgrade exactly that leak. The library
-  exists to enforce nominal typing, so a brand collision is a defect whatever the payloads.
-- **Flagging a nested Val whose custom `equals` the parent ignores is too strict to use.**
-  It works (verified through a local alias, an array and two files, and it stays quiet for a
-  nested Val with no override), but overrides not propagating is the design (§5, §7.6), so
-  it fires N×M times with nothing to do about it. If ever revisited, report once at the
-  override site listing where it is nested, which points at the "build in normal form"
-  recipe instead.
+- **ブランド重複の判定を payload の代入可能性で絞るのは誤り。** 構造的部分型があるので「payload が違う」は
+  「分離されている」を意味しない。`Val<"Id", {a: string; b: number}>` は `Val<"Id", {a: string}>` に代入
+  できる（検証済み）。双方向の `isAssignableTo` 判定は、まさにその漏れを見逃す方向に働く。このライブラリは
+  公称型を強制するために存在するので、ブランドの衝突は payload が何であれ欠陥である
+- **カスタム `equals` を持つ子を親が構造比較していることの検出は、厳しすぎて使えない。** 動作はする
+  （ローカルの型エイリアス、配列、2ファイルにまたがる場合で検証し、オーバーライドのない子では黙る）。
+  だがオーバーライドが伝播しないのは設計そのもの（§5、§7.6）なので、対処のしようがないまま N×M 回発火する。
+  再検討するならオーバーライドの定義箇所で一度だけ報告し、どこにネストされているかを列挙する形にする。
+  それは「正規形で構築する」レシピを指すことになる
 
-Detecting _who overrides_ `equals` is syntactic either way: `Companion<V, M>` types `equals`
-as `(a, b) => boolean` whether or not it was overridden.
+`equals` を_誰がオーバーライドしたか_の検出は、どちらの方式でも構文の話になる。`Companion<V, M>` は
+オーバーライドの有無にかかわらず `equals` を `(a, b) => boolean` と型付けするため。
 
-### 14.6 Bundle size of the namespace itself
+### 14.6 名前空間自身のバンドルサイズ
 
-`Val` is a companion, so §14's blindness reaches the library's own surface: a module calling
-only `Val.of` bundled at 6,791 B with `sealer`, `companion`, `unwrap`, `attach` and
-`deepEquals` all retained, against 1,538 B when `of` was exported by name instead. Using
-only `import type` costs nothing at all (226 B, the consumer's own code).
+`Val` 自身が companion なので、§14 の盲点はこのライブラリの表面にも及ぶ。`Val.of` だけを呼ぶモジュールは
+6,791 B になり、`sealer`、`companion`、`unwrap`、`attach`、`deepEquals` がすべて残る。`of` を名前付き
+export にした場合は 1,538 B。`import type` だけなら 226 B で、これは利用者自身のコードの分。
 
-Splitting the namespace into named exports was considered and rejected on 2026-09-03: it
-would not help user companions, it duplicates the API, and a library that wants only
-branding is a few lines of its own.
+名前空間を名前付き export に分割する案は 2026-09-03 に検討して却下した。利用者の companion には効かず、
+API が二重化し、ブランドだけが欲しいライブラリなら数行で自作できる。
 
 ---
 
-## 15. v2 candidates
+## 15. v2 候補
 
 ### 15.1 `Val.trait`
 
-Raised 2026-09-03, explicitly for v2.
+2026-09-03 に提起。v1 ではなく v2 向けであることを明示する。
 
-**The gap.** A companion function is pinned to its own Val, so `User.greet(superUser)` is
-rejected even when `SuperUser` was built from `PayloadOf<User>`. Behaviour shared by two
-Vals therefore has to become an ordinary exported function over a structural type. That
-works, but it is the one thing in valof with no companion-shaped home.
+**欠けているもの。** companion の関数は自分の Val に固定されるので、`SuperUser` が `PayloadOf<User>` から
+作られていても `User.greet(superUser)` は弾かれる。2つの Val が共有する振る舞いは、構造的な型に対する
+普通の export 関数にするしかない。それで動くが、valof の中で companion の形の居場所を持たない唯一のものに
+なる。
 
-Measured while discussing it: annotating the first parameter widely _does_ type-check inside
-`.impl` (`greet(u: Named)` is assignable to `(value: User) => unknown` by parameter
-contravariance) and `User.greet(superUser)` then compiles. Rejected as a pattern: it reaches
-through one type's companion to operate on another, and loses contextual typing.
+議論中に実測したこと: 第1引数を広く注釈すると `.impl` の中でも型チェックは_通る_（`greet(u: Named)` は
+パラメータの反変性により `(value: User) => unknown` に代入できる）。`User.greet(superUser)` もコンパイルできる。ただしパターンとしては却下した。ある型の companion を通して別の型を操作することになり、文脈型付けも
+失われる。
 
-**Sketch.** `Val.trait<Shape>().impl({...})`, giving contextual typing for the first
-parameter and a namespace to group the functions.
+**スケッチ。** `Val.trait<Shape>().impl({...})`。第1引数に文脈型付けを与え、関数をまとめる名前空間になる。
 
-Open questions to settle before building it:
+作る前に決めること:
 
-- It must not carry `equals` / `with` / `update`: with no brand and no seal there is nothing
-  to rebuild, so `attach` needs a variant that adds no defaults.
-- The shape wants `DeepReadonly` applied, or an array field makes a Val fail to match.
-- "Trait" implies per-type implementations; this would be one implementation over a
-  structural constraint, so the name may promise dispatch it does not have.
-- The real bar is §6.7's: `Sealer` has no `.implCreate` because beside a callable
-  constructor a `create` "narrows nothing". `Val.trait` has to clear that same test, and
-  parameter annotation plus grouping alone may not be a guarantee worth an API.
+- `equals` / `with` / `update` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない。
+  既定を足さない `attach` の変種が要る
+- Shape には `DeepReadonly` を適用する必要がある。さもないと配列フィールドを持つ Val が一致しなくなる
+- 「trait」は型ごとの実装を含意するが、これは構造的制約に対する単一の実装になる。名前がディスパッチを
+  約束してしまう可能性がある
+- 本当の基準は §6.7 のもの。`Sealer` に `.implCreate` がないのは、callable なコンストラクタの隣では
+  `create` が「何も絞らない」から。`Val.trait` も同じ試験を通らなければならず、引数の注釈とグルーピング
+  だけでは API に値する保証にならないかもしれない
