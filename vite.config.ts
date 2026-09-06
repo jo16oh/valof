@@ -16,5 +16,7 @@ export default defineConfig({
       typeCheck: true,
     },
   },
-  fmt: {},
+  fmt: {
+    proseWrap: "always",
+  },
 });
