@@ -406,7 +406,7 @@ companion — there is no reason to import one yourself.
 
 ## TypeScript
 
-**TypeScript 5.0 or later.**
+**TypeScript 5.9 or later.**
 
 Recommended compiler options:
 

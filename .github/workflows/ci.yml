@@ -27,3 +27,5 @@ jobs:
       - run: vp test
 
       - run: vp run size
+
+      - run: vp run ts-compatibility
