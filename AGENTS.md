@@ -86,6 +86,9 @@ itself, and show it in a code block rather than a paragraph.
 Use `## Why` and `## What changed` once the body is long enough to need navigation. A short one
 reads better without them.
 
+Leave `notes/*.md` out of the body. It is the working record, not something the reviewer acts on.
+Where a memo correction drove the code change, say what the code does now.
+
 No `Generated with Claude Code` footer, for the same reason as the commit trailer.
 
 <!--VITE PLUS START-->
