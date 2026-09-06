@@ -56,9 +56,9 @@ error that raised the question.
 
 ### Commit Messages
 
-Conventional Commits, imperative and lowercase. The subject alone is the default. Write a body only
-where the diff cannot carry the intent, the same test a comment has to pass. Bullets, as brief as
-they go, fragments rather than full sentences.
+Conventional Commits, lowercase subject. Stay imperative in the body and the PR too. The subject
+alone is the default. Write a body only where the diff cannot carry the intent, the same test a
+comment has to pass. Bullets, as brief as they go, fragments rather than full sentences.
 
 Local commits are working history. Squash merge takes the PR title as the subject and the PR body as
 the body, so what lands on `main` is the PR, not these messages.
@@ -68,8 +68,8 @@ unattributed changes, and an `noreply@anthropic.com` co-author trips that rule, 
 
 ### Pull Requests
 
-Lead with the problem and show it, then list what changed. A code block beats a paragraph describing
-behaviour.
+Bullets, one line each, saying what changed. Lead with the problem where the change does not explain
+itself, and show it in a code block rather than a paragraph.
 
 Use `## Why` and `## What changed` once the body is long enough to need navigation. A short one
 reads better without them.
