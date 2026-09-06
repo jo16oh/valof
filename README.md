@@ -273,10 +273,11 @@ Only three things can live inside a Val:
 
 A Val is itself one of these, so Vals nest.
 
-`Date`, `Temporal`, `Map`, `Set` and functions cannot go in; see [Dates](#dates) and
-[Map / Set](#map--set) for what to reach for instead. Nor can a class instance: one with methods is
-a type error, and one without them is indistinguishable from a plain object to TypeScript, so
-sealing it throws in a development build.
+Neither a class instance nor a function can go in. `Date`, `Temporal`, `Map` and `Set` are all
+classes; see [Dates](#dates) and [Map / Set](#map--set) for what to reach for instead. TypeScript
+rejects those. The error lands on the first use of the Val, not on the `type` line. TypeScript
+cannot tell a class of plain fields from an object, so what stops that one is the throw (dev env
+only).
 
 A production build skips that check. What is copied there is the own enumerable keys and nothing
 else, so a `Date` comes out as `{}`, and an instance loses whatever lived on its prototype while its
