@@ -38,7 +38,6 @@
     "test": "vp test",
     "check": "vp check",
     "size": "node scripts/size.ts",
-    "bench": "node scripts/bench-ownership.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config",
     "bump-version": "bumpp --no-tag",
