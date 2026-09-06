@@ -45,10 +45,15 @@ at the canonical site, and `{@link}` it from elsewhere.
 
 `/**` on an exported symbol is the reader's hover, so type-level mechanics belong in a `//` comment.
 Do not convert a non-exported symbol's JSDoc to `//`: `{@link}` resolves only inside JSDoc, and
-maintainers hover internals too.
+maintainers hover internals too. Phrase what stays in the user's terms: "a payload taken from an
+existing value fits", not "would not type-check".
 
 Prefer a test to a comment, but check that the test can fail: mutate the source and see whether
 anything goes red. When nothing can, the comment is the only record.
+
+Verify a type-system claim with a throwaway probe before writing it, and before defending one
+already in the file: `node_modules/.bin/tsc --ignoreConfig --noEmit --strict probe.ts`. To read a
+resolved type, assign it to an impossible target (`const x: 0 = value`) and read it out of TS2322.
 
 ### Docs
 
