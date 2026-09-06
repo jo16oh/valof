@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "lib": ["es2023"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": [],
+    "paths": { "valof": ["../../dist/index.d.mts"] }
+  },
+  "include": ["public-api.ts"]
+}

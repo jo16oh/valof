@@ -28,7 +28,7 @@ import { Val } from "valof";
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド
 - **§9 未解決 / 要確認** 次の作業はここ。タプル対応 → `Val.eqBy` の順
-- **§10 v1 のスコープ** / **§11 README の構成案**
+- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降） / **§11 README の構成案**
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph
@@ -1555,6 +1555,30 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 **入れない:**
 
 TaggedEnum、Map/Set のラッパー、Result、実行時 freeze（dev を除く）、Date/Temporal、親からの equals ディスパッチ、自由関数版 `Val.equals` / `Val.with` / `deepEquals`、コンストラクタのゲート、sealer への `implSeal` / `implCreate`
+
+### 10.1 サポートする TypeScript
+
+**各メジャーラインの最終リリース以降を支える。** 現在の下限は 5.9.3 で、README は `TypeScript 5.9 or later` と書く。
+
+下限は「動く最古のバージョン」ではない。実測では **4 系も 5.0.4 も通る**。それでも切り上げるのは、ラインの途中のバージョンが持ち込むエッジケース（半端に入ったフラグ、まだ効いていない非推奨）を支える相手がいないからで、ラインの最終リリースはその系列の意味が固まった点である。TS 7 が最新の今、2 つ前のラインの最後が 5.9.3 に当たる。
+
+CI は `vp run ts-compatibility`（`scripts/ts-compatibility/`）で、**公開する `dist/index.d.mts` に対して** 各ラインの最終版を回す。src ではなく宣言ファイルを見るのは、tsgo の出力が古いコンパイラで読めない可能性がそこにあるため。
+
+**固定するのは下限だけで、その上のラインはレジストリから読む。** ラインの一覧も番号も書かない。書き下した瞬間に古くなり（6.1 が出ても 6.0 を見続ける）、新しいメジャーは誰かが気づくまで CI に入らないため。人間の判断として残るのは下限をどこに置くかだけになる。
+
+代償は CI が外部の状態に依存すること。TS が新しいリリースを出した日に、こちらの変更なしで赤くなりうるが、それはまさに知りたい情報である。プレリリースは除外するので beta / rc では動かない。
+
+7 系も回す。`vp check` の tsgo と同じラインだが、npm の `typescript@7` は別物として配られるので、利用者が踏む経路をそのまま踏む。Go 実装で速いので追加コストはほぼない。
+
+fixture は `scripts/ts-compatibility/public-api.ts` の 1 本。`valof` を隣の tsconfig が `dist/index.d.mts` に向けるので、**利用者と同じ経路で公開面だけを見る**。
+
+この 1 本はリポジトリ本体の型検査からは外す（`lint.ignorePatterns`）。oxlint は tsconfig の include / exclude に関わらず全ファイルを見に行き、そこでは `valof` が解決できないため。壊れれば `vp run ts-compatibility` が赤くなるので、検査されない状態にはならない。
+
+`@ts-expect-error` は未使用ならエラーになるので、否定ケースもそのまま検証になる。vitest の glob（`*.test.ts`）に当たらないため、テストとしては走らない。
+
+この規則を入れた時点で、6.0.3 だけが落ちた。ライブラリではなく fixture の `baseUrl` が TS 6 で非推奨（TS5101）になっていたためで、**ラインごとに回さなければ気づかない類のもの**だった。
+
+---
 
 ---
 

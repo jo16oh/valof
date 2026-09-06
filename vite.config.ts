@@ -11,6 +11,9 @@ export default defineConfig({
     exports: true,
   },
   lint: {
+    // Its `valof` import resolves through `scripts/ts-compatibility/tsconfig.json`, which aims the
+    // name at the built declarations. That config owns the file; this one cannot see it.
+    ignorePatterns: ["scripts/ts-compatibility/public-api.ts"],
     options: {
       typeAware: true,
       typeCheck: true,
