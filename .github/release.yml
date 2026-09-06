@@ -4,11 +4,13 @@ changelog:
   exclude:
     labels: ["skip-changelog"]
   categories:
-    - title: Breaking
+    - title: 💥 Breaking
       labels: ["breaking"]
-    - title: Features
+    - title: ✨ Features
       labels: ["enhancement"]
-    - title: Fixes
+    - title: 🔧 Fixes
       labels: ["bug"]
-    - title: Everything else
+    - title: 📝 Docs
+      labels: ["documentation"]
+    - title: 🧹 Everything else
       labels: ["*"]
