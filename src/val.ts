@@ -15,7 +15,15 @@ type Validate<T> = [T] extends [AnyVal]
   : [T] extends [Primitive]
     ? T
     : [T] extends [ReadonlyArray<infer E>]
-      ? ReadonlyArray<Validate<E>>
+      ? number extends T["length"]
+        ? ReadonlyArray<Validate<E>>
+        : {
+            // An optional element is the tuple's form of an optional key: absent, it round trips.
+            // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+            [I in keyof T]: undefined extends Required<T>[I]
+              ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+              : Validate<Exclude<T[I], undefined>>;
+          }
       : // oxlint-disable-next-line no-unsafe-function-type
         [T] extends [Function]
         ? Invalid<"functions are not allowed">
@@ -37,7 +45,9 @@ type DeepReadonly<T> = [T] extends [AnyVal]
   : [T] extends [Primitive]
     ? T
     : [T] extends [ReadonlyArray<infer E>]
-      ? ReadonlyArray<DeepReadonly<E>>
+      ? number extends T["length"]
+        ? ReadonlyArray<DeepReadonly<E>>
+        : { readonly [I in keyof T]: DeepReadonly<T[I]> }
       : [T] extends [object]
         ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
         : T;

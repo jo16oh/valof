@@ -18,7 +18,7 @@ import { Val } from "valof";
 - **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。3.5 `undefined` を値として禁じる理由と、EOPT の壁
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが引数をコピーする理由。所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
-  - **4.2** タプルが潰れる既知のバグと修正案
+  - **4.2** タプルを保つ。optional 要素と `Required<T>`、rest 要素の限界
 - **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、コンビネータ `Val.eqBy` の設計
 - **§6 スマートコンストラクタと更新**
   - **6.1** コンストラクタは出自で決まる / **6.2** `with` / `update`、patch の `undefined`、深さを問わない patch / **6.3** Result 非依存 / **6.4** `update` は値→値
@@ -536,31 +536,11 @@ deep patch（§6.2）を入れたあとに測り直した。同じ 200 型 × 30
 
 DeepReadonly をオプトインにする案は不要と判断する。コストの大半は `Val` 型の定義側（コンパニオンなしで既に 765K instantiations）にあり、`with` / `update` / `equals` のオーバーロード判定が上乗せするのは 23% にすぎない。
 
-### 4.2 タプルは保持されない（要修正）
+### 4.2 タプルを保つ
 
-現状、タプルの payload は `DeepReadonly` で潰れる。
+かつてタプルの payload は `DeepReadonly` で潰れていた。`ReadonlyArray<infer E>` がタプルも受けて `ReadonlyArray<DeepReadonly<E>>` に均すためで、`SeedOf` もその上に乗るので、そこから導く API（`with` の patch、§5 の `eqBy` の spec）では位置ごとの扱いが書けなかった。
 
-```ts
-type Pair = Val<"Pair", { at: readonly [Money, Tag] }>;
-declare const check: Pair["at"];
-const b: Tag = check[1]; // error TS2322: Type 'Money | Tag' is not assignable to type 'Tag'
-const len: 2 = check.length; // error TS2322: Type 'number' is not assignable to type '2'
-```
-
-配列分岐の `ReadonlyArray<infer E>` がタプルも受けて `ReadonlyArray<DeepReadonly<E>>` に均す。`SeedOf` も `DeepReadonly<PayloadOf<V>>` なので同じく潰れる。つまり **`SeedOf<V>` から導く API（`with` の patch、§5 の `eqBy` の spec）では位置ごとの扱いがそもそも書けない**。
-
-`Validate` はタプルを通す（`[A, B] extends ReadonlyArray<A|B>` が真）。違反時のメッセージだけ劣化する。
-
-```
-Val<"InTuple", { t: readonly [string, () => void] }>
-  → Invalid<"not a plain value">         // 要素の union が Function 分岐に入らず object 分岐に落ちる
-Val<"InArray", { t: readonly (() => void)[] }>
-  → Invalid<"functions are not allowed"> // こちらは正しい
-```
-
-弾けてはいるので実害はメッセージのみ。
-
-**修正**: `DeepReadonly` に分岐を足す。`number extends T["length"]` で配列とタプルを分け、タプル側は同形マップ型にすればタプル性も `readonly` も保たれる（動作確認済み: `t.at[1]` が `Tag`、`t.at.length` が `2`、要素への代入は依然エラー）。
+**`number extends T["length"]` で配列とタプルを分ける。** タプル側は同形マップ型なので、位置も長さもラベルも `readonly` も保たれる。`Validate` と `DeepReadonly` の両方に同じ分岐を入れた。
 
 ```ts
 : [T] extends [ReadonlyArray<infer E>]
@@ -569,7 +549,36 @@ Val<"InArray", { t: readonly (() => void)[] }>
     : { readonly [I in keyof T]: DeepReadonly<T[I]> }
 ```
 
-`Validate` にも同じ分岐を入れればメッセージも直る。
+#### optional な要素と `undefined`
+
+タプルの optional 要素（`readonly [string, number?]`）は、オブジェクトの optional キーと同じ立て付けで許す。要素が無ければ配列が短くなるだけで JSON を往復する。一方 `readonly [string | undefined, number]` は required なキーに `undefined` を置くのと同じで、弾く（§3.5）。配列の `undefined` は `JSON.stringify` で `null` になるので、静かに値が変わる。
+
+マップ型の中でこの 2 つを見分けるのが `Required<T>` である。optional 要素だけが `undefined` を失う。
+
+```ts
+[I in keyof T]: undefined extends Required<T>[I]
+  ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+  : Validate<Exclude<T[I], undefined>>;
+```
+
+#### rest 要素は配列に落ちる
+
+`readonly [string, ...number[]]` は `length` が `number` なので、判定がそのまま配列側に倒れる。位置は失われるが不健全ではない。**判定基準が「長さが固定か」である以上、これは仕様の裏面**であって、直すなら別の判定が要る。要求が出るまで置く。
+
+#### メッセージも直った
+
+以前は要素の union が `Function` 分岐に入らず object 分岐に落ちて、`Invalid<"not a plain value">` になっていた。今は位置ごとに `Validate` を通るので、配列と同じ文言が出る。
+
+```
+Val<"InTuple", { t: readonly [string, () => void] }>
+  → readonly [string, Invalid<"functions are not allowed">]
+```
+
+#### コスト
+
+同じ形の payload を配列とタプルで測ると、200 型 × 3 段で Types +69 / Instantiations +147（0.06%）。同一のタプル型は 1 度しかインスタンス化されないので、効くのは**異なるタプル型の数**である。タプルを含まない payload への影響は +0.01% で、実行時は無変更。
+
+型としては破壊的変更で、0.3.0 に入れる。`readonly [A, B]` の payload を持つ型は、これまで `ReadonlyArray<A | B>` として通っていた代入が通らなくなる。
 
 ---
 
@@ -1509,7 +1518,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 
 ## 9. 未解決 / 要確認
 
-- [ ] **タプル対応（§4.2）→ `Val.eqBy`（§5）の順で進める。** eqBy の spec を `SeedOf<V>` から導く以上、タプルが潰れたままだと位置ごとの指定が書けない。タプル対応は `DeepReadonly` と `Validate` の分岐追加で閉じる
+- [x] ~~タプル対応（§4.2）~~ → 入れた。0.3.0 で出す（型だけの破壊的変更）
+- [ ] **`Val.eqBy`（§5）。** タプルが位置を保つようになったので、spec を `SeedOf<V>` から導ける eqBy の spec を `SeedOf<V>` から導く以上、タプルが潰れたままだと位置ごとの指定が書けない。タプル対応は `DeepReadonly` と `Validate` の分岐追加で閉じる
 - [ ] `eqBy` の `V` が戻り値の文脈から推論されるか（§5）。落ちたらビルダー段（`implEq`）に降ろす
 - [ ] `eqBy` を `Val` のプロパティにするか独立エクスポートにするか（§5）。前者はバンドラが落としにくく、使わない人にサイズを負わせる。予算の残りは 123 B（§4.1）
 - [ ] valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）。§14.5 で ts-morph 版を試して却下しているので、報告の粒度から設計し直す
@@ -1518,7 +1528,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~README の `Reusing a Val` に一行足す（§4.1）~~ → フィールド位置の警告を追記
 - [x] ~~README の validation 節を zod で書き直す（§8.3）~~ → `With a schema library`。`seal(input: unknown)` は §6.7 の制約に落ちるので `object` で widen する
 - [ ] `unpatchable` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
-- [ ] `owned` の記録を失った payload では、ネストした値が差し替えではなく merge に落ちる（§6.2）。README の Caveats に載せるか、`structuredClone` の往復を実測してから決める
+- [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
+- [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
 - [ ] Record payload を回す糖衣（`Val.entries` など）を足すか（§8.1）。`Object.entries<Money>(t)` で回避できるので優先度は低い。バンドル予算の残りは 80 B
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
