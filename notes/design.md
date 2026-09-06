@@ -999,7 +999,7 @@ type WithoutSeal<T> = T extends (...args: infer A) => infer R
 
 `SeedOf<User>`（`{id, name, email}`）は `Fields`（`{name, email}`）に代入可能なので `with` は型検査を通る。しかし実際に走るのは `seal({ id, name, email })` で、この関数は渡された `id` を捨てて新しい `id` を振る。**型エラーなしに ID が毎回変わる。**
 
-構造的にこれを弾くことはできない。「引数がペイロードそのもの」を要求すると `seal(input: unknown)` という zod の正当な形が消える。`unknown` も `Fields` も同じく `SeedOf<V>` の真の supertype で、区別がつかない。
+構造的にこれを弾くことはできない。「引数がペイロードそのもの」を要求すると `seal(input: object)` という zod の正当な形が消える。`object` も `Fields` も同じく `SeedOf<V>` の真の supertype で、区別がつかない。
 
 #### 規約: seal は冪等（鋳造は `create` へ）
 
@@ -1021,6 +1021,20 @@ type Rebuild<V, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 サブセット形（`seal(f: { name: string })`）は今も `SealImpl<V>` の制約を通る。`seal?: never` と同じで、型では閉じない。冪等性も型では書けない。`create` という別ステップを用意し、そこに鋳造の置き場を作ることで、**規約を守る側が楽になる**という形で担保する。
 
 **名前は `create`。** `new` はプロパティ名としては合法（`User.new(...)` は動く）だが、型リテラルで `{ new(x: number): Y }` と書くと構築シグネチャとして解析される罠があり、予約語でもある。
+
+#### seal の引数の上限: `string` を受け取れてはいけない
+
+`SealImpl<V>` が決めるのは下限（`SeedOf<V>` を受け取れること）だけ。上限は `CheckedSeal<V, G>` が別に見て、**引数が `string` を受け取れたら型エラー**にする。
+
+```ts
+.implSeal((json: string, seal) => seal(JSON.parse(json))); // 型エラー
+.implSeal((input: unknown, seal) => seal(schema.parse(input))); // 型エラー
+.implSeal((input: object, seal) => seal(schema.parse(input))); // OK
+```
+
+`with` / `update` はペイロードを seal に返す（§6.8）ので、ワイヤ形式のデコーダを seal に置くと、値から値を派生した瞬間に壊れる。落ちるのは `unknown` と `{}` で、スキーマライブラリに要る広さは `object` と `Record<string, unknown>` で足りる。
+
+ペイロード自体が `string` の Val（`Val<"Email", string>`）は除外する。ペイロードとワイヤ形式を型で区別する手段がない。
 
 #### sealer には `create` を生やさない
 
@@ -1054,7 +1068,7 @@ User.create(fields); // → Result<User>
 - **ユーザーコードから `Val.of` が 1 つ減る**
 - **カスタム seal がないときは既定の seal（コピー）に落ちる。** `implCreate` の制約を `F` の有無で変えると登録順で `create` の型が変わるので、常に `SeedOf<V>` を要求して実行時にどちらの seal を使うかを決める
 
-失うのは **`create` 自身が失敗できること**。`Result<SeedOf<V>>` を返されるとライブラリが bind しなければならず、「ライブラリは `Result` を知らない」（§6.3）に反する。壊れうる入力の検査は seal 側に寄せる（`seal(v: unknown)` は制約を通るので zod 形はそのまま書ける）。どうしてもペイロードを組む段階で失敗するものは素の export 関数に分ける。
+失うのは **`create` 自身が失敗できること**。`Result<SeedOf<V>>` を返されるとライブラリが bind しなければならず、「ライブラリは `Result` を知らない」（§6.3）に反する。壊れうる入力の検査は seal 側に寄せる（`seal(v: object)` は制約を通るので zod 形はそのまま書ける）。どうしてもペイロードを組む段階で失敗するものは素の export 関数に分ける。
 
 #### seal の引数は不変のまま、コピーは `Val.of` の 1 回だけ
 
@@ -1068,7 +1082,7 @@ seal の引数を可変（`PayloadOf<V>`）にして、公開 `seal` が入口�
 
 失うのは、可変ペイロードを要求する他人の関数に payload をそのまま渡せないこと。`Val.unwrap` か spread を挟む（§4）。
 
-公開される `seal` の型は登録された関数そのもの。zod 形（`seal(u: unknown)`）が任意の入力を受け取れる性質もそのまま残る。
+公開される `seal` の型は登録された関数そのもの。zod 形（`seal(u: object)`）が広い入力を受け取れる性質もそのまま残る。
 
 #### 経路とコピー回数
 
@@ -1357,18 +1371,20 @@ export const IsoDate = Val.companion<IsoDate>()
 
 ### 8.3 スキーマライブラリとの併用
 
-検証を seal に置けば、更新経路（`with` / `update`）も鋳造経路（`create`）も全部そこを通る（§6.2 / §6.8）。引数は `unknown` でよい。`SealImpl<V>` はペイロードを**受け取れる**ことしか要求しない。
+検証を seal に置けば、更新経路（`with` / `update`）も鋳造経路（`create`）も全部そこを通る（§6.2 / §6.8）。引数は `object` まで広げてよい。`SealImpl<V>` はペイロードを**受け取れる**ことしか要求しない。`unknown` は `string` も受けるので落ちる（§6.7）。
 
 ```ts
 export const User = Val.companion<User>()
-  .implSeal((input: unknown, seal): Result<User> => {
+  .implSeal((input: object, seal): Result<User> => {
     const r = schema.safeParse(input);
     return r.success ? ok(seal(r.data)) : err(r.error.message);
   })
   .impl({ greet(u) { … } });
 ```
 
-**ワイヤ形式のデコードは seal に入れない。** `seal(json: string)` はペイロード関数ではないので `SealImpl<V>` に落ちる（§6.7）。形式のパースは手前の別関数に分ける。
+zod の `.brand()` との違いはここに出る。あちらの検査はパースの一度きりで、結果から派生した `{ ...user, name: "" }` はブランド付きの型のまま再検査されない。valof の `with` / `update` は seal を通り直す。**README にはこの対比を書かない。** 詳細に寄りすぎるので、一行（「派生のたびにスキーマが走る」）だけ置き、対比は宣伝記事に回す。
+
+**ワイヤ形式のデコードは seal に入れない。** `seal(json: string)` は `CheckedSeal` に落ちる（§6.7）。形式のパースは手前の別関数に分ける。
 
 ```ts
 export function parseUser(json: string): Result<User> {
@@ -1409,8 +1425,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）。§14.5 で ts-morph 版を試して却下しているので、報告の粒度から設計し直す
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [ ] **README に性能の一行を足す（§4.1）**: `with` は何も変わらなければ値そのものを返すので、**手書きの spread より速くなる場合がある**。フレームワークの state に置くなら `with` を通したほうが再レンダリングが減る、という形で書く。併せて「派生した値は触っていない部分木の参照を保つ」ことも interop の節に載せる
-- [ ] **README の `Reusing a Val` に一行足す（§4.1）**: 「`PayloadOf` は payload をトップレベルで合成するためのもの。フィールドには Val そのものを書く」。フィールド位置に置くとブランドが落ち、子の seal・子の `equals`・共有を失う
-- [ ] **README の validation 節を zod で書き直す（§8.3）。** 素朴な検査より、スキーマライブラリとの併用のほうがライブラリの強みが出る
+- [x] ~~README の `Reusing a Val` に一行足す（§4.1）~~ → フィールド位置の警告を追記
+- [x] ~~README の validation 節を zod で書き直す（§8.3）~~ → `With a schema library`。`seal(input: unknown)` は §6.7 の制約に落ちるので `object` で widen する
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
 - [ ] **npm で `valof` を予約する**（プレースホルダを publish しておく）

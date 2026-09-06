@@ -103,22 +103,22 @@ Age(30); // type error: this expression is not callable
 Age.seal(30); // Result<Age>
 ```
 
-**Every path to a value goes through `seal`**, including `with`, `update` and `create`.
+**No `Result` type is provided.** [neverthrow](https://github.com/supermacro/neverthrow),
+[better-result](https://better-result.dev) or your own all work: the seal's return type is
+propagated, never inspected.
 
-Nothing copies on the way in, so normalize without mutating the caller's object: derive a new one
-with `toSorted` or a spread. Return through the `seal` passed as the second parameter: that is what
-brands the value and deep-copies it.
+**Every path to a value goes through `seal`**, including `with`, `update` and `create`.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back. Generating
 something new, such as an id or a timestamp, belongs in [`create`](#create) instead; otherwise
 `with` would produce a new id every time it re-seals.
 
-There is no `.implSeal` on a sealer. A sealer **is** the default seal. For a checked one, use a
-companion.
+Nothing copies on the way in, so normalize without mutating the caller's object: derive a new one
+with `toSorted` or a spread. Return through the `seal` passed as the second parameter: that is what
+brands the value and deep-copies it.
 
-**No `Result` type is provided.** [neverthrow](https://github.com/supermacro/neverthrow),
-[better-result](https://better-result.dev) or your own all work: the seal's return type is
-propagated, never inspected.
+Unknown keys are yours to reject. A patch is merged as given, so a key the payload does not declare
+survives into the value unless the seal drops it.
 
 ### `create`
 
@@ -132,15 +132,7 @@ export const User = Val.companion<User>()
 User.create(fields); // Result<User> — create's payload, sealed
 ```
 
-Put the checks in the seal. Widen the parameter to `object` and a schema library can parse straight
-into it.
-
-Unknown keys are one of those checks. A patch is merged as given, so a key the payload does not
-declare survives into the value unless the seal drops it.
-
-**A seal cannot take a wire format.** `with` and `update` hand a payload back to it, so one that
-expects a JSON string would break as soon as a value is derived from another. A parameter that also
-accepts a string, `unknown` included, is a type error.
+Put the checks in the seal.
 
 ## Normalize in the seal
 
@@ -154,13 +146,23 @@ export const Email = Val.companion<Email>().implSeal(
 );
 ```
 
-`equals` can be overridden, but the override **only applies to top-level comparisons, never when a
-parent compares its children.** The brand is phantom, so a parent's deep equals sees the child value
-and cannot tell that it is an `Email`.
+### With a schema library
+
+Widen the parameter to `object` and a schema parses straight into the seal:
 
 ```ts
-Order.equals(o1, o2); // the Money inside is compared generically, not via Money.equals
+const schema = z.object({ id: z.uuid(), name: z.string().min(1), email: z.email().toLowerCase() });
+
+export const User = Val.companion<User>().implSeal((input: object, seal): Result<User> => {
+  const r = schema.safeParse(input);
+  return r.success ? ok(seal(r.data)) : err(z.prettifyError(r.error));
+});
 ```
+
+The schema runs on every derivation, not just the first parse: `with` and `update` go back through
+the seal.
+
+## Equality
 
 The default `equals`:
 
@@ -168,6 +170,14 @@ The default `equals`:
 - is **independent of key order**
 - **ignores keys whose value is `undefined`** (`{ a: undefined }` equals `{}`)
 - treats `NaN` as equal to `NaN`, and `-0` as equal to `0`
+
+It can be overridden, but the override **only applies to top-level comparisons, never when a parent
+compares its children.** The brand is phantom, so a parent's deep equals sees the child value and
+cannot tell that it is an `Email`.
+
+```ts
+Order.equals(o1, o2); // the Money inside is compared generically, not via Money.equals
+```
 
 An override receives the structural comparison as a third argument and can fall back to it:
 
@@ -263,10 +273,11 @@ Only three things can live inside a Val:
 
 A Val is itself one of these, so Vals nest.
 
-`Date`, `Temporal`, `Map`, `Set` and functions cannot go in; see [Dates](#dates) and
-[Map / Set](#map--set) for what to reach for instead. Nor can a class instance: one with methods is
-a type error, and one without them is indistinguishable from a plain object to TypeScript, so
-sealing it throws in a development build.
+Neither a class instance nor a function can go in. `Date`, `Temporal`, `Map` and `Set` are all
+classes; see [Dates](#dates) and [Map / Set](#map--set) for what to reach for instead. TypeScript
+rejects those. The error lands on the first use of the Val, not on the `type` line. TypeScript
+cannot tell a class of plain fields from an object, so what stops that one is the throw (dev env
+only).
 
 A production build skips that check. What is copied there is the own enumerable keys and nothing
 else, so a `Date` comes out as `{}`, and an instance loses whatever lived on its prototype while its
@@ -281,6 +292,9 @@ own fields survive.
 ```ts
 type SuperUser = Val<"SuperUser", PayloadOf<User> & { privileges: readonly string[] }>;
 ```
+
+**In a field, write the Val itself:** `PayloadOf<Money>` there drops the brand, and with it
+`Money`'s seal and its `equals`.
 
 ### Map / Set
 
@@ -356,9 +370,13 @@ Val.unwrap(post).tags.sort(); // ✓
 The last four are exported only so that your own `.d.ts` can name them when you re-export a
 companion — there is no reason to import one yourself.
 
-Every companion carries `equals`, `with` and `update` (see _Normalize in the seal_).
+Every companion carries `equals`, `with` and `update` (see _Equality_).
 
-## Recommended tsconfig
+## TypeScript
+
+**TypeScript 5.0 or later.**
+
+Recommended compiler options:
 
 - `strict` (the default from TypeScript 6 on)
 - `exactOptionalPropertyTypes`
