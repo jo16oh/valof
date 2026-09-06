@@ -658,7 +658,7 @@ describe("with", () => {
         },
       });
 
-    test("the override rebuilds through the type's own seal", () => {
+    test("the override derives through the type's own seal", () => {
       const p = Point.seal({ x: 1, y: 2 });
       expect(Point.with(p, { x: 3.7 })).toEqual({ x: 3, y: 2 }); // truncated by the seal
     });
@@ -678,7 +678,7 @@ describe("with", () => {
       expect(Plain.with(Val.of<Point>({ x: 1, y: 2 }), { x: 5 })).toEqual({ x: 5, y: 2 });
     });
 
-    test("your own with still wins over the default rebuild", () => {
+    test("your own with still wins over the default derivation", () => {
       const point = Val.sealer<Point>();
       const make = (x: number, y: number): Point => point({ x, y });
       const Manual = Val.companion<Point>()
@@ -952,7 +952,7 @@ describe("building", () => {
   });
 
   describe("implCreate", () => {
-    test("alone it still rebuilds: the default seal is a payload function too", () => {
+    test("alone it still derives: the default seal is a payload function too", () => {
       type Point = Val<"Point", { x: number; y: number }>;
       const Point = Val.companion<Point>().implCreate((x: number, y: number) => ({ x, y }));
 

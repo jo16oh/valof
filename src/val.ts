@@ -197,10 +197,10 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
     };
 
 /**
- * `with` and `update` rebuild by sealing the new payload. With a custom seal they propagate
+ * `with` and `update` derive by sealing the new payload. With a custom seal they propagate
  * whatever it returns. Without one the default seal is the copy, so they hand back the Val.
  */
-type Rebuild<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
+type Derive<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 
 /**
  * Drops the trailing seal parameter from an override, so callers see the two-parameter function
@@ -244,38 +244,38 @@ type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
  */
 type WithMethod<V extends AnyVal, M, F, P> = "with" extends keyof M
   ? {
-      /** Rebuilds the value with the patch applied, through the type's own seal. */
+      /** Derives a value with the patch applied, through the type's own seal. */
       with: WithoutSeal<M["with"]>;
     }
   : [Patch<Patchable<V, P>>] extends [never]
     ? Record<never, never>
     : {
         /**
-         * Rebuilds by sealing, so it returns whatever the seal returns: there is no hole through
+         * Derives by sealing, so it returns whatever the seal returns: there is no hole through
          * which `with` bypasses a smart constructor.
          */
-        with: Rebuild<V, F, Patch<Patchable<V, P>>>;
+        with: Derive<V, F, Patch<Patchable<V, P>>>;
       };
 
 /**
- * Same as {@link WithMethod}: yours if you wrote one, the rebuilt default otherwise. With keys
+ * Same as {@link WithMethod}: yours if you wrote one, the default derivation otherwise. With keys
  * taken out of the patch path, the callback returns only what is left and the default merges it
  * onto the value.
  */
 type UpdateMethod<V extends AnyVal, M, F, P> = "update" extends keyof M
   ? {
-      /** Rebuilds the value from a transform of it, through the type's own seal. */
+      /** Derives a value from a transform of it, through the type's own seal. */
       update: WithoutSeal<M["update"]>;
     }
   : {
       /**
-       * Rebuilds the value from a transform of it, by sealing the result.
+       * Derives a value from a transform of it, by sealing the result.
        *
        * Value to value on purpose: a fallible transform chains into `Result<Result<...>>`.
        * Use `with` and a combinator of your own for that.
        */
       update: [P] extends [never]
-        ? Rebuild<V, F, (value: V) => SeedOf<V>>
+        ? Derive<V, F, (value: V) => SeedOf<V>>
         : <T extends Patchable<V, P>>(
             value: V,
             fn: (value: V) => NoExtra<T, Patchable<V, P>>,
@@ -438,8 +438,8 @@ export const deepEquals = (a: unknown, b: unknown): boolean => {
 };
 
 /**
- * The nodes this module built. Subtrees are immutable, so recognising one lets `with` rebuild
- * the spine and share everything below it.
+ * The nodes this module built. Subtrees are immutable, so recognising one lets a derivation
+ * copy only the path down to what changed and share everything below it.
  *
  * Leaves are recorded too. A record costs about 20x a lookup and never earns that back in
  * copying time, but frameworks compare identity: without it every small nested Val gets a new
@@ -551,7 +551,7 @@ const attach = <T extends object>(
 ): T => {
   const { create, seal: custom } = ctors;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
-  // A rebuild that changed nothing returns the value it started from, so a framework comparing
+  // A derivation that changed nothing returns the value it started from, so a framework comparing
   // by identity sees no update. A custom seal owns the return shape, so the value goes back
   // through it: the copy inside recognises the node and hands the same one back.
   const keep: (value: unknown) => unknown = custom ? seal : (value) => value;
@@ -605,7 +605,7 @@ const attach = <T extends object>(
       define(target, key, (a: unknown, b: unknown) => custom(a, b, deepEquals));
       continue;
     }
-    // Same idea for a hand-written rebuild, which cannot reach the companion it is being
+    // Same idea for a hand-written derivation, which cannot reach the companion it is being
     // defined on.
     if ((key === "with" || key === "update") && typeof fns[key] === "function") {
       const custom = fns[key] as (value: unknown, arg: unknown, seal: unknown) => unknown;
