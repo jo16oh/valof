@@ -647,6 +647,139 @@ describe("with", () => {
     User.with(u, { nickname: undefined });
   });
 
+  describe("nested", () => {
+    type City = Val<"City", { name: string; zip?: string }>;
+    const City = Val.sealer<City>();
+
+    type Shop = Val<
+      "Shop",
+      {
+        id: string;
+        owner: { name: string; contact: { email: string; phone?: string } };
+        city: City;
+        tags: readonly string[];
+        staff: Readonly<Record<string, { role: string }>>;
+      }
+    >;
+    const Shop = Val.sealer<Shop>();
+    const shop = () =>
+      Shop({
+        id: "s",
+        owner: { name: "bob", contact: { email: "b@example.com", phone: "1" } },
+        city: City({ name: "Kyoto", zip: "600" }),
+        tags: ["a"],
+        staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
+      });
+
+    test("patches a nested object at any depth, leaving its other keys alone", () => {
+      expect(Shop.with(shop(), { owner: { contact: { email: "c@example.com" } } })).toEqual({
+        id: "s",
+        owner: { name: "bob", contact: { email: "c@example.com", phone: "1" } },
+        city: { name: "Kyoto", zip: "600" },
+        tags: ["a"],
+        staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
+      });
+    });
+
+    test("undefined deletes at depth too", () => {
+      const next = Shop.with(shop(), { owner: { contact: { phone: undefined } } });
+      expect(Object.hasOwn(next.owner.contact, "phone")).toBe(false);
+      expect(next.owner.contact.email).toBe("b@example.com");
+    });
+
+    test("undefined on a required key is a type error at depth too", () => {
+      // @ts-expect-error a required key cannot be deleted, however deep it sits
+      Shop.with(shop(), { owner: { contact: { email: undefined } } });
+    });
+
+    test("an unknown key is a type error at depth too", () => {
+      // @ts-expect-error excess-property checking reaches the nested literal
+      Shop.with(shop(), { owner: { contact: { fax: "1" } } });
+    });
+
+    test("only the path down to the change is rebuilt", () => {
+      const before = shop();
+      const after = Shop.with(before, { owner: { contact: { email: "c@example.com" } } });
+      expect(after.owner).not.toBe(before.owner);
+      expect(after.owner.contact).not.toBe(before.owner.contact);
+      expect(after.city).toBe(before.city);
+      expect(after.tags).toBe(before.tags);
+      expect(after.staff).toBe(before.staff);
+    });
+
+    test("a patch that changes nothing at depth gives back the value itself", () => {
+      const before = shop();
+      expect(Shop.with(before, { owner: { contact: { email: "b@example.com" } } })).toBe(before);
+      expect(Shop.with(before, { owner: {} })).toBe(before);
+    });
+
+    test("a nested Val is replaced whole, never merged", () => {
+      // Merging into it would build a payload its own seal never saw.
+      // @ts-expect-error a Val takes a Val, not a patch
+      Shop.with(shop(), { city: { name: "Osaka" } });
+
+      const before = shop();
+      const after = Shop.with(before, { city: City({ name: "Osaka" }) });
+      expect(Object.hasOwn(after.city, "zip")).toBe(false);
+      expect(after.city).not.toBe(before.city);
+    });
+
+    test("deriving the nested Val is how you reach inside one", () => {
+      const before = shop();
+      const after = Shop.with(before, { city: City.with(before.city, { name: "Osaka" }) });
+      expect(after.city).toEqual({ name: "Osaka", zip: "600" }); // its own `with` kept the zip
+      expect(after.owner).toBe(before.owner);
+    });
+
+    test("a subtree taken from another value replaces, since it is a value and not a patch", () => {
+      const other = Shop({
+        id: "o",
+        owner: { name: "sue", contact: { email: "s@example.com" } },
+        city: City({ name: "Nara" }),
+        tags: [],
+        staff: {},
+      });
+      const after = Shop.with(shop(), { owner: other.owner });
+      expect(after.owner).toBe(other.owner);
+      expect(Object.hasOwn(after.owner.contact, "phone")).toBe(false);
+    });
+
+    test("an array is replaced, not merged", () => {
+      const before = Shop.with(shop(), { tags: ["a", "b"] });
+      expect(Shop.with(before, { tags: ["c"] }).tags).toEqual(["c"]);
+
+      const other = Shop.with(before, { tags: ["d"] });
+      expect(Shop.with(before, { tags: other.tags }).tags).toBe(other.tags);
+    });
+
+    test("a record of values patches one entry and deletes another", () => {
+      const next = Shop.with(shop(), { staff: { u1: { role: "chef" }, u2: undefined } });
+      expect(next.staff).toEqual({ u1: { role: "chef" } });
+      expect(Object.hasOwn(next.staff, "u2")).toBe(false);
+    });
+
+    test("`update` replaces a nested object where `with` merges it", () => {
+      const before = shop();
+      const staff = { u3: { role: "host" } };
+      expect(Shop.with(before, { staff }).staff).toEqual({
+        u1: { role: "cook" },
+        u2: { role: "waiter" },
+        u3: { role: "host" },
+      });
+      expect(Shop.update(before, (s) => ({ ...s, staff })).staff).toEqual(staff);
+    });
+
+    test("goes through the seal, which sees the merged payload", () => {
+      type Box = Val<"Box", { inner: { n: number; seen: number } }>;
+      const Box = Val.companion<Box>().implSeal((b, seal) =>
+        seal({ inner: { ...b.inner, seen: b.inner.seen + 1 } }),
+      );
+      // `Val.of` skips the seal, so `seen` counts the calls `with` made: one, at the root.
+      const box = Val.of<Box>({ inner: { n: 1, seen: 0 } });
+      expect(Box.with(box, { inner: { n: 2 } })).toEqual({ inner: { n: 2, seen: 1 } });
+    });
+  });
+
   describe("overrides", () => {
     type Point = Val<"Point", { x: number; y: number }>;
 

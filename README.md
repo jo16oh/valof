@@ -80,10 +80,20 @@ user.name; // "alice"
 write that casts past the type throws where it happens. A production build pays nothing: the freeze
 is behind `process.env.NODE_ENV`, and `Object.isFrozen` is `false` there.
 
-Deriving a value keeps the subtrees it did not touch, so `with` on a large value copies only the
-path down to what changed, not the whole tree. Those untouched subtrees keep their reference
-identity, so anything comparing by reference, such as a React dependency array, sees no change and
-skips its work.
+The copy stops at any node the library already owns, so **what you pay is set by the part you built
+fresh**, not by the size of the value:
+
+```ts
+type City = Val<"City", { name: string; zip: string }>;
+
+City({ ...raw, name: "Osaka" }); // every node is new: copies the whole payload
+City.with(city, { name: "Osaka" }); // the rest of the value comes back as it stands
+```
+
+So deriving a value copies only the path down to what changed, not the whole tree. The untouched
+subtrees keep their reference identity, so anything comparing by reference, such as a React
+dependency array, sees no change and skips its work. A patch that changes nothing hands the same
+value back, which makes `with` cheaper than the spread you would have written by hand.
 
 ## Smart constructors
 
@@ -209,10 +219,25 @@ User.update(user, (u) => ({ ...u, name: u.name.toUpperCase() }));
 `undefined` on a required key is a type error with `exactOptionalPropertyTypes` on. With it off, a
 patch that breaks the invariant is caught by the seal instead.
 
+A patch reaches any depth, and only the keys it names change:
+
+```ts
+type City = Val<"City", { name: string; zip: string }>;
+type Shop = Val<"Shop", { owner: { name: string; email: string }; city: City }>;
+
+Shop.with(shop, { owner: { email: "e@example.com" } }); // the owner's name stays
+Shop.with(shop, { city: City.with(shop.city, { name: "Osaka" }) }); // a Val is replaced, not patched
+Shop.update(shop, (s) => ({ ...s, owner: newOwner })); // `with` merges, so it cannot shrink `owner`
+```
+
+A nested Val, an array and a primitive are replaced whole: a patch reaching inside a Val would build
+a payload its own seal never saw. Derive it with its own `with`, which goes through that seal and
+keeps the parts it did not touch.
+
 `with` and `update` are defaults you can replace: define either one in `.impl` and yours wins, in
-the type as well as at runtime. It is also how a primitive Val, which has no `with` by default, can
-get one. The seal comes in as a last parameter, since `Point.seal(...)` is not in scope inside its
-own `.impl`:
+the type as well as at runtime. It is also how a primitive Val gets a `with`: it has nothing to
+patch, so it carries none by default. The seal comes in as a last parameter, since `Point.seal(...)`
+is not in scope inside its own `.impl`:
 
 ```ts
 const Point = Val.companion<Point>()
@@ -226,12 +251,12 @@ const Point = Val.companion<Point>()
 Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 ```
 
-`with` only exists on object-shaped Vals. A `Val<"UnixEpochMs", number>` has nothing to patch, so
-its companion does not carry it at all. `update` is still there, and is **restricted to value →
-value**.
+`update` is always there. **Its callback cannot fail**: it takes the value and returns a payload,
+never a `Result`, or a chain of them would nest. Run a fallible transform yourself and hand the
+outcome to `with`.
 
 ```ts
-Age.update(age, (n) => n + 1); // Result<Age>
+Age.update(age, (n) => n + 1); // Result<Age> — the seal's, not the callback's
 ```
 
 ### Fields the update path must not touch
@@ -274,14 +299,12 @@ Only three things can live inside a Val:
 A Val is itself one of these, so Vals nest.
 
 Neither a class instance nor a function can go in. `Date`, `Temporal`, `Map` and `Set` are all
-classes; see [Dates](#dates) and [Map / Set](#map--set) for what to reach for instead. TypeScript
-rejects those. The error lands on the first use of the Val, not on the `type` line. TypeScript
-cannot tell a class of plain fields from an object, so what stops that one is the throw (dev env
-only).
+classes; see [Dates](#dates) and [Map / Set](#map--set) instead. TypeScript rejects them, on the
+first use of the Val rather than on the `type` line.
 
-A production build skips that check. What is copied there is the own enumerable keys and nothing
-else, so a `Date` comes out as `{}`, and an instance loses whatever lived on its prototype while its
-own fields survive.
+A class of plain fields is the one TypeScript cannot distinguish from an object. Sealing one throws
+in development. A production build skips that check and copies the own enumerable keys, so a `Date`
+comes out as `{}`, and an instance keeps its fields but loses its prototype.
 
 ## Patterns
 
@@ -307,6 +330,17 @@ type PriceTable = Val<"PriceTable", Readonly<Record<string, Money>>>; // a Map
 
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`
 ignores key order, so comparing two of them is set equality.
+
+`with` reaches one entry at a time and `undefined` drops it; `update` rebuilds the whole table.
+
+```ts
+PriceTable.with(table, { apple: Money({ amount: 120, currency: "JPY" }), fig: undefined });
+
+PriceTable.update(table, (t) =>
+  // the value type is named because a Val carries its phantom keys in the type as well
+  Object.fromEntries(Object.entries<Money>(t).filter(([, m]) => m.amount < 500)),
+);
+```
 
 ### Dates
 
@@ -369,8 +403,6 @@ Val.unwrap(post).tags.sort(); // ✓
 
 The last four are exported only so that your own `.d.ts` can name them when you re-export a
 companion — there is no reason to import one yourself.
-
-Every companion carries `equals`, `with` and `update` (see _Equality_).
 
 ## TypeScript
 
