@@ -566,7 +566,7 @@ const attach = <T extends object>(
     // `{}` and a string into a character map. Only the message is development-only.
     if (!isObjectShaped(value)) {
       throw new TypeError(
-        development ? "`with` is only available for object-shaped Vals." : "with",
+        development ? "`with` is only available for object-shaped Vals." : undefined,
       );
     }
     const merged: Record<string, unknown> = { ...value, ...patch };
