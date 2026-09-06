@@ -83,7 +83,7 @@ export type PayloadOf<V extends AnyVal> = V extends {
 export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
 
 /**
- * The patch accepted by `with`.
+ * The patch accepted by `with`, at every depth.
  *
  * Taken over a payload rather than a Val, so a custom `with` can patch a subset of the fields:
  * `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
@@ -91,14 +91,24 @@ export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
  * - omit the key → leave it unchanged
  * - `{ k: undefined }` → delete it (only optional keys allow this at the type level)
  * - `{ k: value }` → set it
+ * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone
  */
 export type Patch<T> = T extends object
-  ? T extends ReadonlyArray<unknown>
+  ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
-    : { [K in Exclude<keyof T, OptionalKeys<T>>]?: T[K] } & {
-        [K in OptionalKeys<T>]?: T[K] | undefined;
+    : { [K in Exclude<keyof T, OptionalKeys<T>>]?: PatchValue<T[K]> } & {
+        [K in OptionalKeys<T>]?: PatchValue<T[K]> | undefined;
       }
   : never;
+
+/**
+ * A nested plain object is patched in turn. Everything else is replaced whole.
+ *
+ * The stop at a Val is what keeps {@link Companion.seal} the only gate: a patch reaching into a
+ * nested value would build a payload its own seal never saw, and the outer `with` seals the
+ * outer value alone. Replace it with one built by its constructor.
+ */
+type PatchValue<T> = [Patch<T>] extends [never] ? T : Patch<T>;
 
 type AnyFn = (...args: never[]) => unknown;
 
@@ -253,6 +263,10 @@ type WithMethod<V extends AnyVal, M, F, P> = "with" extends keyof M
         /**
          * Derives by sealing, so it returns whatever the seal returns: there is no hole through
          * which `with` bypasses a smart constructor.
+         *
+         * A nested object merges, so a patch cannot shrink one. `{ staff: { u1: undefined } }`
+         * drops one entry; handing over a whole smaller object leaves the rest in place. Use
+         * `update` to replace it outright. See {@link Patch}.
          */
         with: Derive<V, F, Patch<Patchable<V, P>>>;
       };
@@ -541,6 +555,46 @@ type Ctors = {
 };
 
 /**
+ * Merges a patch onto a value node, and hands the node itself back when nothing changed.
+ *
+ * Nodes are shared and never mutated, so identical children mean equal subtrees. The walk that
+ * applies the patch answers whether anything changed, per level, which is what lets an untouched
+ * subtree keep its identity all the way up to the root.
+ *
+ * An owned node is a value, not a patch, so it replaces rather than merges. That is the runtime
+ * form of {@link PatchValue} stopping at a Val: the brand is a phantom, and a node's origin is
+ * the only thing left to read. Losing the record costs a wrong merge on a nested value that
+ * dropped an optional key, so a payload that crossed `structuredClone` should be re-sealed.
+ */
+const patched = (
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> => {
+  const merged: Record<string, unknown> = { ...base, ...patch };
+  let same = true;
+  let kept = 0;
+  for (const key of Object.keys(merged)) {
+    const value = merged[key];
+    // A deletion needs no flag of its own: it shows up in the count. `kept` rises only for a
+    // surviving key, and a key added in place of the deleted one cannot match the base's absent
+    // one, so `same` is already false there.
+    if (value === undefined) {
+      delete merged[key];
+      continue;
+    }
+    kept++;
+    const before = base[key];
+    const child =
+      isObjectShaped(before) && isObjectShaped(value) && !owned.has(value)
+        ? patched(before, value)
+        : value;
+    merged[key] = child;
+    if (!Object.is(child, before)) same = false;
+  }
+  return same && kept === Object.keys(base).length ? base : merged;
+};
+
+/**
  * Attaches the defaults plus the user's functions to `target`.
  *
  * Everything that produces a value goes through `seal`: the registered one, or a copy when the
@@ -572,24 +626,8 @@ const attach = <T extends object>(
         development ? "`with` is only available for object-shaped Vals." : undefined,
       );
     }
-    const merged: Record<string, unknown> = { ...value, ...patch };
-    // Nodes are shared and never mutated, so identical children mean equal subtrees. One level
-    // answers whether the patch changed anything, and that walk is already happening. A patch
-    // holding a freshly built child is a change: it went through a constructor.
-    let same = true;
-    let kept = 0;
-    for (const key of Object.keys(merged)) {
-      // A deletion needs no flag of its own: it shows up in the count. `kept` rises only for a
-      // surviving key, and a key added in place of the deleted one cannot match the value's
-      // absent one, so `same` is already false there.
-      if (merged[key] === undefined) {
-        delete merged[key];
-        continue;
-      }
-      kept++;
-      if (!Object.is(merged[key], value[key])) same = false;
-    }
-    return same && kept === Object.keys(value).length ? keep(value) : seal(merged);
+    const merged = patched(value, patch);
+    return Object.is(merged, value) ? keep(value) : seal(merged);
   });
 
   // The merge is what lets the untouched keys survive without the library knowing their names.
