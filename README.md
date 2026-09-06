@@ -80,10 +80,20 @@ user.name; // "alice"
 write that casts past the type throws where it happens. A production build pays nothing: the freeze
 is behind `process.env.NODE_ENV`, and `Object.isFrozen` is `false` there.
 
-Deriving a value keeps the subtrees it did not touch, so `with` on a large value copies only the
-path down to what changed, not the whole tree. Those untouched subtrees keep their reference
-identity, so anything comparing by reference, such as a React dependency array, sees no change and
-skips its work.
+The copy stops at any node the library already owns, so **what you pay is set by the part you built
+fresh**, not by the size of the value:
+
+```ts
+type City = Val<"City", { name: string; zip: string }>;
+
+City({ ...raw, name: "Osaka" }); // every node is new: copies the whole payload
+City.with(city, { name: "Osaka" }); // the rest of the value comes back as it stands
+```
+
+So deriving a value copies only the path down to what changed, not the whole tree. The untouched
+subtrees keep their reference identity, so anything comparing by reference, such as a React
+dependency array, sees no change and skips its work. A patch that changes nothing hands the same
+value back, which makes `with` cheaper than the spread you would have written by hand.
 
 ## Smart constructors
 
