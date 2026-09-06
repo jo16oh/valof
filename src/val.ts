@@ -579,9 +579,11 @@ const attach = <T extends object>(
     let same = true;
     let kept = 0;
     for (const key of Object.keys(merged)) {
+      // A deletion needs no flag of its own: it shows up in the count. `kept` rises only for a
+      // surviving key, and a key added in place of the deleted one cannot match the value's
+      // absent one, so `same` is already false there.
       if (merged[key] === undefined) {
         delete merged[key];
-        if (Object.hasOwn(value, key)) same = false;
         continue;
       }
       kept++;
