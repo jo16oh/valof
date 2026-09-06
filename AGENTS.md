@@ -1,5 +1,11 @@
 # valof
 
+## Design Memo
+
+`notes/design.md` holds every design decision and the alternatives rejected along the way. Its index
+is at the top. Read the sections it points you to before proposing anything about equality, copying,
+wrapper types, the linter, or new API. §9 lists the open questions. New deliberation goes there.
+
 ## Bundle Size
 
 Run `vp run size` after changing `src/`. It measures the bundle and the declarations against their
@@ -48,7 +54,8 @@ anything goes red. When nothing can, the comment is the only record.
 
 Keep only what changes the reader's behaviour. That cuts machinery they never touch, the reasoning
 behind a choice defended against an alternative nobody proposed, and prose restating the example
-above it.
+above it. `notes/` is the exception: a rejected alternative stays there, since that record is what
+stops the idea coming back.
 
 The README carries what a reader needs before writing code. What they need only once they get it
 wrong goes in the JSDoc of the thing it describes, where the hover arrives together with the type
