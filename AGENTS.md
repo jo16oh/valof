@@ -1,3 +1,80 @@
+# valof
+
+## Bundle Size
+
+Run `vp run size` after changing `src/`. It measures the bundle and the declarations against
+their budgets and exits non-zero over either. Neither `vp check` nor `vp test` covers this.
+
+## Committing and Pushing
+
+Commit or amend only on an explicit go-ahead. Draft the message, show it, and wait.
+
+Never push, and never open a PR. I do both myself, opening the PR from the web UI. Hand me
+the PR title and body as a draft and stop there.
+
+## Writing Style
+
+Remember how limited humans are, especially me, since English isn't my first language. We don't have a large context window like you do, and we can't read as fast as you can. Reducing redundant expressions really matters, and it helps you save context too. Keep only the essential parts. Keep it brief.
+
+The repo is English: README, source comments, commit messages, PRs.
+
+Write direct. Conclusion first, declaratives, no hedges, no filler concessives, no passive
+where an actor exists. Short sentences, and a concrete example before the general statement.
+Prefer the common word to the rarer, more precise-sounding one, and let a code block do what
+a metaphor would.
+
+Avoid the em dash. Splitting the sentence in two is usually the fix, and commas, "such as"
+or parentheses cover the rest. Keep a colon where the second half gives the reason or the
+detail for the first.
+
+Models: Kent Beck, t_wada, Dan Abramov, mizchi. Take their plainness.
+
+### Code and Comments
+
+Self-documenting code first: a comment earns its place only where the declaration cannot
+carry the fact. Keep the finding that shaped the code, drop the reasoning that reached it.
+State a fact once, at the canonical site, and `{@link}` it from elsewhere.
+
+`/**` on an exported symbol is the reader's hover, so type-level mechanics belong in a `//`
+comment. Do not convert a non-exported symbol's JSDoc to `//`: `{@link}` resolves only
+inside JSDoc, and maintainers hover internals too.
+
+Prefer a test to a comment, but check that the test can fail: mutate the source and see
+whether anything goes red. When nothing can, the comment is the only record.
+
+### Docs
+
+Keep only what changes the reader's behaviour. That cuts machinery they never touch, the
+reasoning behind a choice defended against an alternative nobody proposed, and prose
+restating the example above it.
+
+The README carries what a reader needs before writing code. What they need only once they
+get it wrong goes in the JSDoc of the thing it describes, where the hover arrives together
+with the type error that raised the question.
+
+### Commit Messages
+
+Conventional Commits, imperative and lowercase. The subject alone is the default. Write a
+body only where the diff cannot carry the intent, the same test a comment has to pass.
+Bullets, as brief as they go, fragments rather than full sentences.
+
+Local commits are working history. Squash merge takes the PR title as the subject and the PR
+body as the body, so what lands on `main` is the PR, not these messages.
+
+Do not add a `Co-Authored-By: Claude ...` trailer. The `main` ruleset requires an extra
+approval for unattributed changes, and an `noreply@anthropic.com` co-author trips that rule,
+blocking merges.
+
+### Pull Requests
+
+Lead with the problem and show it, then list what changed. A code block beats a paragraph
+describing behaviour.
+
+Use `## Why` and `## What changed` once the body is long enough to need navigation. A short
+one reads better without them.
+
+No `Generated with Claude Code` footer, for the same reason as the commit trailer.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web
@@ -25,7 +102,3 @@ release. Add a tool name to select part of the graph. For example, run
 - [ ] If setup, runtime, or package-manager behavior looks wrong, run `vp env doctor` and include its output when asking for help.
 
 <!--VITE PLUS END-->
-
-## Commit Messages
-
-Do not add a `Co-Authored-By: Claude ...` trailer to commits. The `main` ruleset requires an extra approval for unattributed changes, and an `noreply@anthropic.com` co-author trips that rule, blocking merges.
