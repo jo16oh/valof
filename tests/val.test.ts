@@ -411,6 +411,23 @@ describe("types", () => {
 });
 
 describe("validate", () => {
+  // `BrandOf` constrains its argument to `AnyVal`, which an invalid Val fails by design.
+  type BrandOfInvalid<V> = V extends { readonly __valof_internal_phantom_brand: infer B }
+    ? B
+    : never;
+
+  test("the rule that rejected a payload is carried in the brand", () => {
+    type BadFn = Val<"Bad", { run: () => void }>;
+    expectTypeOf<BrandOfInvalid<BadFn>>().toEqualTypeOf<{
+      run: { readonly __valError: "functions are not allowed" };
+    }>();
+
+    type BadSymbol = Val<"Bad", symbol>;
+    expectTypeOf<BrandOfInvalid<BadSymbol>>().toEqualTypeOf<{
+      readonly __valError: "not a plain value";
+    }>();
+  });
+
   test("undefined as a required key's value is rejected", () => {
     type Bad = Val<"Bad", { nickname: string | undefined }>;
     expectTypeOf<Bad>().not.toExtend<AnyVal>();
