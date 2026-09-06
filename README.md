@@ -290,13 +290,15 @@ belongs outside the value.
 
 Only three things can live inside a Val:
 
-|            |                                                                   |
-| ---------- | ----------------------------------------------------------------- |
-| Primitives | `string` / `number` / `boolean` / `bigint` / `null`               |
-| Arrays     | `ReadonlyArray<allowed>`                                          |
-| Objects    | `{ readonly k: allowed }`, or `Readonly<Record<string, allowed>>` |
+|            |                                                                     |
+| ---------- | ------------------------------------------------------------------- |
+| Primitives | `string` / `number` / `boolean` / `bigint` / `null`                 |
+| Arrays     | `ReadonlyArray<allowed>`, or a tuple: `readonly [allowed, allowed]` |
+| Objects    | `{ readonly k: allowed }`, or `Readonly<Record<string, allowed>>`   |
 
-A Val is itself one of these, so Vals nest.
+A Val is itself one of these, so Vals nest. A tuple keeps its positions and its length. One with a
+rest element (`readonly [string, ...number[]]`) reads as an array instead, since a fixed length is
+what tells the two apart.
 
 Neither a class instance nor a function can go in. `Date`, `Temporal`, `Map` and `Set` are all
 classes; see [Dates](#dates) and [Map / Set](#map--set) instead. TypeScript rejects them, on the

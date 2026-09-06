@@ -14,6 +14,7 @@ type Shop = Val<
     owner: { name: string; contact: { email: string; phone?: string } };
     city: City;
     tags: readonly string[];
+    at: readonly [City, number];
     staff: Readonly<Record<string, { role: string }>>;
   }
 >;
@@ -46,4 +47,5 @@ export const wrong: City = { name: "Kyoto" };
 declare const patch: Patch<SeedOf<Shop>>;
 export const email = patch.owner?.contact?.email;
 export const name: PayloadOf<City>["name"] = shop.city.name;
+export const positioned: readonly [City, number] = shop.at;
 export const companion: Companion<City, Record<never, never>> = City;

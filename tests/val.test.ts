@@ -111,6 +111,35 @@ describe("Val", () => {
       expectTypeOf<Val<"E", { at: Val<"A", string>; n: number | null }>>().toExtend<AnyVal>();
     });
 
+    test("a tuple keeps its positions, its length and its labels", () => {
+      type Point = Val<"Point", string>;
+      const Point = Val.sealer<Point>();
+      type Pair = Val<"Pair", { at: readonly [Point, number] }>;
+      const Pair = Val.sealer<Pair>();
+
+      const p = Pair({ at: [Point("a"), 1] });
+
+      expectTypeOf(p.at).toEqualTypeOf<readonly [Point, number]>();
+      expectTypeOf(p.at[0]).toEqualTypeOf<Point>();
+      expectTypeOf(p.at.length).toEqualTypeOf<2>();
+      expect(Val.unwrap(p).at).toEqual(["a", 1]);
+
+      // @ts-expect-error the positions are not interchangeable
+      Pair({ at: [1, Point("a")] });
+    });
+
+    test("an optional element is allowed; a rest element falls back to an array", () => {
+      type Opt = Val<"Opt", { at: readonly [string, number?] }>;
+      expectTypeOf<Opt>().toExtend<AnyVal>();
+      expectTypeOf<SeedOf<Opt>["at"][0]>().toEqualTypeOf<string>();
+      expectTypeOf<SeedOf<Opt>["at"][1]>().toEqualTypeOf<number | undefined>();
+
+      // A rest element makes `length` plain `number`, which is what tells a tuple from an array,
+      // so this one is read as an array. Positions are lost, nothing is unsound.
+      type Rest = Val<"Rest", { at: readonly [string, ...number[]] }>;
+      expectTypeOf<SeedOf<Rest>["at"]>().toEqualTypeOf<readonly (string | number)[]>();
+    });
+
     test("nested arrays", () => {
       const Grid = Val.sealer<Grid>();
       const g = Grid([
@@ -137,6 +166,20 @@ describe("Val", () => {
       expectTypeOf<BrandOfInvalid<BadSymbol>>().toEqualTypeOf<{
         readonly __valError: "not a plain value";
       }>();
+    });
+
+    test("the rules reach inside a tuple", () => {
+      type Element<V> = BrandOfInvalid<V> extends { at: readonly [infer A, unknown] } ? A : never;
+
+      type BadFn = Val<"Bad", { at: readonly [string, () => void] }>;
+      expectTypeOf<Element<BadFn>>().toEqualTypeOf<string>();
+      expectTypeOf<BadFn>().not.toExtend<AnyVal>();
+
+      type BadUndefined = Val<"Bad", { at: readonly [string | undefined, number] }>;
+      expectTypeOf<Element<BadUndefined>>().toEqualTypeOf<{
+        readonly __valError: "a tuple element cannot be undefined; use null or make it optional";
+      }>();
+      expectTypeOf<BadUndefined>().not.toExtend<AnyVal>();
     });
 
     test("undefined as a required key's value is rejected", () => {
