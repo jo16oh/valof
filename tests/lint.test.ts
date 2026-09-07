@@ -11,9 +11,12 @@ const root = fileURLToPath(new URL("..", import.meta.url));
  * come back with the fixture's own directory trimmed off the path, which is what keeps the
  * expectations below readable.
  */
-function lint(fixture: string): { status: number; findings: string[]; summary: string } {
+function lint(
+  fixture: string,
+  ...flags: string[]
+): { status: number; findings: string[]; summary: string } {
   const directory = `tests/fixtures/${fixture}/`;
-  const result = spawnSync(process.execPath, ["src/lint/cli.ts", `${directory}**/*.ts`], {
+  const result = spawnSync(process.execPath, ["src/lint/cli.ts", ...flags, `${directory}**/*.ts`], {
     cwd: root,
     encoding: "utf8",
   });
@@ -227,6 +230,45 @@ describe("ignore comments", () => {
 
   test("ignores a directive trailing code, which belongs to no block", () => {
     expect(lint("ignore/after-code").findings).toEqual(["a.ts:2  User.shout is never read"]);
+  });
+});
+
+describe("turning a rule off", () => {
+  test("leaves out the kind the flag names, and only that one", () => {
+    expect(lint("mixed").findings).toEqual([
+      'a.ts:3  Id claims the brand "Id", and so does another type',
+      "a.ts:6  User.shout is never read",
+      'b.ts:3  UserId claims the brand "Id", and so does another type',
+    ]);
+    expect(lint("mixed", "--no-duplicate-brand").findings).toEqual([
+      "a.ts:6  User.shout is never read",
+    ]);
+    expect(lint("mixed", "--no-unused-member").findings).toEqual([
+      'a.ts:3  Id claims the brand "Id", and so does another type',
+      'b.ts:3  UserId claims the brand "Id", and so does another type',
+    ]);
+  });
+
+  test("takes more than one flag, and exits 0 once nothing is left to report", () => {
+    const { status, findings } = lint("mixed", "--no-duplicate-brand", "--no-unused-member");
+    expect(findings).toEqual([]);
+    expect(status).toBe(0);
+  });
+
+  test("skips the structural-equals rule without starting a TypeScript for it", () => {
+    expect(lint("equals/plain").findings).toEqual([
+      "order.ts:6  Order.total holds Money, which has its own equals",
+    ]);
+    expect(lint("equals/plain", "--no-structural-equals").findings).toEqual([]);
+  });
+
+  test("names the known rules when the flag names none of them", () => {
+    const { status, summary } = lint("mixed", "--no-typo");
+    expect(status).toBe(2);
+    expect(summary).toBe(
+      'valof-lint: no rule called "typo"\n' +
+        "  known rules: unused-member, duplicate-brand, structural-equals",
+    );
   });
 });
 

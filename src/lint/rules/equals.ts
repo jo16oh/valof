@@ -5,6 +5,7 @@ import type { Query, Resolver } from "../definitions.ts";
 import type { Alias } from "../aliases.ts";
 import type { CompanionSite } from "../chains.ts";
 import type { Scan } from "../scan.ts";
+import type { Rule } from "./rule.ts";
 
 /** A parent that structurally compares a child carrying its own equality. */
 export type StructuralEquals = {
@@ -159,7 +160,7 @@ const isOverride = (spec: Node): boolean =>
  * With no `.implEquals` there is no custom equality to miss, so the caller can skip starting a
  * TypeScript at all: a project that never writes one pays nothing for this rule.
  */
-export const needsTypes = (scans: readonly Scan[]): boolean =>
+const needsTypes = (scans: readonly Scan[]): boolean =>
   scans.some(({ sites }) => sites.some(({ spec }) => spec));
 
 /**
@@ -281,3 +282,11 @@ function prefixes(path: string): string[] {
   }
   return found;
 }
+
+export const rule: Rule<StructuralEquals> = {
+  kind: "structural-equals",
+  description: "a payload holding a Val whose own `equals` the parent never dispatches to",
+  // Asked for only once something could dispatch, so a project that never writes `.implEquals`
+  // never starts a language server. See {@link needsTypes}.
+  run: (scans, { types }) => (needsTypes(scans) ? structuralEquals(scans, types()) : []),
+};

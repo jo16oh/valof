@@ -1,5 +1,6 @@
 import { original } from "../bindings.ts";
 import type { Scan } from "../scan.ts";
+import type { Rule } from "./rule.ts";
 
 /**
  * A brand string that more than one type alias claims. Two Vals with the same brand and the same
@@ -38,3 +39,9 @@ export function duplicateBrands(scans: readonly Scan[]): DuplicateBrand[] {
   }
   return [...claims.values()].filter((claimed) => claimed.length > 1).flat();
 }
+
+export const rule: Rule<DuplicateBrand> = {
+  kind: "duplicate-brand",
+  description: "a brand string claimed by more than one type alias",
+  run: duplicateBrands,
+};

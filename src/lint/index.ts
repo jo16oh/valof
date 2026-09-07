@@ -1,40 +1,61 @@
-import { duplicateBrands, type DuplicateBrand } from "./rules/brands.ts";
-import { resolver } from "./definitions.ts";
-import { needsTypes, structuralEquals, type StructuralEquals } from "./rules/equals.ts";
+import { resolver, type Resolver } from "./definitions.ts";
+import { kinds, RULES, type Finding, type Kind } from "./rules/index.ts";
 import { scan, type Parser } from "./scan.ts";
-import { unusedMembers, type UnusedMember } from "./rules/unused.ts";
 
 export type { UnusedMember } from "./rules/unused.ts";
 export type { DuplicateBrand } from "./rules/brands.ts";
 export type { StructuralEquals } from "./rules/equals.ts";
+export {
+  RULES,
+  kinds,
+  isKind,
+  type Context,
+  type Finding,
+  type Kind,
+  type Rule,
+} from "./rules/index.ts";
 
-export type Finding = UnusedMember | DuplicateBrand | StructuralEquals;
+export type Options = {
+  /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
+  skip?: ReadonlySet<Kind>;
+};
 
 /**
- * Reports what the type checker cannot: companion members nothing reads, a brand string claimed
- * by more than one type alias, and a parent that structurally compares a child carrying its own
- * equality.
+ * Reports what the type checker cannot. See {@link RULES} for what each rule looks for.
  *
- * Every file is walked once, by {@link scan}, and the rules run over what it collected. They see
- * every file rather than one, which is what lets a read in one module answer for a declaration in
- * another.
+ * Every file is walked once, by {@link scan}, and each rule runs over what it collected. There is
+ * no branch per rule here: a rule is the object in `RULES`, and adding one changes nothing in
+ * this function.
  *
  * The parser is loaded here rather than imported at the top: it is an optional peer dependency,
  * and a static import would be hoisted above the caller's own error handling once bundled,
  * turning a missing install into a stack trace instead of an instruction.
  */
-export async function lint(files: readonly string[]): Promise<Finding[]> {
+export async function lint(files: readonly string[], { skip }: Options = {}): Promise<Finding[]> {
   const parser = (await import("oxc-parser")) as unknown as Parser;
   const scans = files.map((file) => scan(file, parser));
 
-  // Only the structural-equals rule resolves type references, which costs a TypeScript the
-  // project may not have. Absent one it reports nothing. See {@link needsTypes}.
-  const types = needsTypes(scans) ? resolver(process.cwd(), files) : undefined;
-  let structural: StructuralEquals[] = [];
+  // Started by the first rule that asks for it, and closed however the run ends. Resolving type
+  // references costs a TypeScript the project may not have; absent one, the rule asking gets
+  // `undefined` and reports nothing.
+  let started = false;
+  let opened: Resolver | undefined;
+  const types = (): Resolver | undefined => {
+    if (!started) {
+      started = true;
+      opened = resolver(process.cwd(), files);
+    }
+    return opened;
+  };
+
+  const findings: Finding[] = [];
   try {
-    structural = await structuralEquals(scans, types);
+    for (const kind of kinds) {
+      if (skip?.has(kind)) continue;
+      findings.push(...(await RULES[kind].run(scans, { types })));
+    }
   } finally {
-    types?.close();
+    opened?.close();
   }
 
   /**
@@ -43,11 +64,11 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
    */
   const disabled = new Map(scans.map(({ file, disabled: lines }) => [file, lines]));
   const silenced = ({ file, line, kind }: Finding): boolean => {
-    const kinds = disabled.get(file)?.get(line);
-    return kinds !== undefined && (kinds.size === 0 || kinds.has(kind));
+    const silences = disabled.get(file)?.get(line);
+    return silences !== undefined && (silences.size === 0 || silences.has(kind));
   };
 
-  return [...unusedMembers(scans), ...duplicateBrands(scans), ...structural]
+  return findings
     .filter((finding) => !silenced(finding))
     .sort(
       (a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.kind.localeCompare(b.kind),

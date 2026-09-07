@@ -1,5 +1,6 @@
 import { original } from "../bindings.ts";
 import type { Scan } from "../scan.ts";
+import type { Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
 export type UnusedMember = {
@@ -81,3 +82,9 @@ export function unusedMembers(scans: readonly Scan[]): UnusedMember[] {
       })),
   );
 }
+
+export const rule: Rule<UnusedMember> = {
+  kind: "unused-member",
+  description: "functions and constants registered with `.impl({…})` that nothing reads",
+  run: unusedMembers,
+};

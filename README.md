@@ -462,6 +462,14 @@ valof-lint: 3 finding(s) in 12 file(s)
 
 It exits 1 when it finds something, so it drops into CI or a `vp run` task as it is.
 
+Leave a rule out of the run with `--no-<rule>`, by the same names the disable comment uses. A
+skipped rule does no work rather than merely reporting nothing, so `--no-structural-equals` is also
+how you keep it from starting a TypeScript at all.
+
+```bash
+pnpm exec valof-lint --no-structural-equals 'src/**/*.ts'
+```
+
 The parser is a 3 MB native binary, and most projects never run this, so it is an optional peer
 dependency: `pnpm add valof` does not pull it in, and the command tells you what to install if you
 reach for it without.
