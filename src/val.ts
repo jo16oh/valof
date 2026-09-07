@@ -657,7 +657,11 @@ const own = deepCopy(true);
 /** A plain deep copy. What `Val.unwrap` hands back is not the library's. */
 const detach = deepCopy(false);
 
-/** `Object.assign` onto a function throws on `name` / `length`, so define properties instead. */
+/**
+ * Assignment cannot carry a user's function: a sealer's target is a function, whose `name` and
+ * `length` are read-only, so `impl({ name })` would throw. Both are configurable, so defining
+ * works. The library's own keys never collide and are assigned.
+ */
 const define = <T extends object>(target: T, key: string, value: unknown): T => {
   Object.defineProperty(target, key, {
     value,
@@ -725,7 +729,11 @@ const patched = (
  * type did not replace it. Nothing copies on the way in. The one deep copy happens in the
  * default seal that a custom one returns through.
  */
-const attach = <T extends object>(target: T, fns: Record<string, unknown>, ctors: Ctors): T => {
+const attach = (
+  target: Record<string, unknown>,
+  fns: Record<string, unknown>,
+  ctors: Ctors,
+): Record<string, unknown> => {
   const { create, seal: custom, equals, with: withImpl, update: updateImpl } = ctors;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
   // A derivation that changed nothing returns the value it started from, so a framework comparing
@@ -735,60 +743,49 @@ const attach = <T extends object>(target: T, fns: Record<string, unknown>, ctors
 
   // Bound here rather than attached raw, which is what keeps callers at two arguments. A spec
   // is not callable, so it takes the other branch.
-  define(
-    target,
-    "equals",
+  target.equals =
     typeof equals === "function"
       ? (a: unknown, b: unknown) =>
           (equals as (a: unknown, b: unknown, deep: typeof deepEquals) => boolean)(a, b, deepEquals)
       : equals === undefined
         ? deepEquals
-        : toEq(equals),
-  );
+        : toEq(equals);
 
-  if (create) define(target, "create", (...args: never[]) => seal(create(...args)));
-  if (custom) define(target, "seal", seal);
+  if (create) target.create = (...args: never[]) => seal(create(...args));
+  if (custom) target.seal = seal;
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
-  define(
-    target,
-    "with",
-    withImpl
-      ? (value: unknown, patch: unknown) =>
-          (withImpl as AnyFn as (v: unknown, p: unknown, s: unknown) => unknown)(value, patch, seal)
-      : (value: unknown, patch: Record<string, unknown>) => {
-          // The type leaves `with` off a primitive or array Val, so reaching this takes a cast.
-          // Still throws in production: without the guard the spread seals an object, turning a
-          // number into `{}` and a string into a character map. Only the message is
-          // development-only.
-          if (!isObjectShaped(value)) {
-            throw new TypeError(
-              development ? "`with` is only available for object-shaped Vals." : undefined,
-            );
-          }
-          const merged = patched(value, patch);
-          return Object.is(merged, value) ? keep(value) : seal(merged);
-        },
-  );
+  target.with = withImpl
+    ? (value: unknown, patch: unknown) =>
+        (withImpl as AnyFn as (v: unknown, p: unknown, s: unknown) => unknown)(value, patch, seal)
+    : (value: unknown, patch: Record<string, unknown>) => {
+        // The type leaves `with` off a primitive or array Val, so reaching this takes a cast.
+        // Still throws in production: without the guard the spread seals an object, turning a
+        // number into `{}` and a string into a character map. Only the message is
+        // development-only.
+        if (!isObjectShaped(value)) {
+          throw new TypeError(
+            development ? "`with` is only available for object-shaped Vals." : undefined,
+          );
+        }
+        const merged = patched(value, patch);
+        return Object.is(merged, value) ? keep(value) : seal(merged);
+      };
 
   // The merge is what lets the untouched keys survive without the library knowing their names.
-  define(
-    target,
-    "update",
-    updateImpl
-      ? (value: unknown, fn: unknown) =>
-          (updateImpl as AnyFn as (v: unknown, f: unknown, s: unknown) => unknown)(value, fn, seal)
-      : (value: unknown, fn: (value: unknown) => unknown) => {
-          const next =
-            ctors.unpatchable && isObjectShaped(value)
-              ? { ...value, ...(fn(value) as Record<string, unknown>) }
-              : fn(value);
-          // Only the transform that hands its argument straight back. Recognising a fresh object
-          // that happens to be equal is `with`'s job, where the walk is already paid for.
-          return Object.is(next, value) ? keep(value) : seal(next);
-        },
-  );
+  target.update = updateImpl
+    ? (value: unknown, fn: unknown) =>
+        (updateImpl as AnyFn as (v: unknown, f: unknown, s: unknown) => unknown)(value, fn, seal)
+    : (value: unknown, fn: (value: unknown) => unknown) => {
+        const next =
+          ctors.unpatchable && isObjectShaped(value)
+            ? { ...value, ...(fn(value) as Record<string, unknown>) }
+            : fn(value);
+        // Only the transform that hands its argument straight back. Recognising a fresh object
+        // that happens to be equal is `with`'s job, where the walk is already paid for.
+        return Object.is(next, value) ? keep(value) : seal(next);
+      };
 
   for (const key of Object.keys(fns)) define(target, key, fns[key]);
 
@@ -802,19 +799,26 @@ const attach = <T extends object>(target: T, fns: Record<string, unknown>, ctors
  * something still callable. `.impl` closes the chain either way.
  */
 const build = <V extends AnyVal>(ctors: Ctors, callable: boolean): object => {
-  const base = (): object => (callable ? (value: SeedOf<V>): V => own(value) as unknown as V : {});
+  // A function is not a `Record`, so the cast is here rather than at every assignment in
+  // `attach`.
+  const base = () =>
+    (callable ? (value: SeedOf<V>): V => own(value) as unknown as V : {}) as unknown as Record<
+      string,
+      unknown
+    >;
   const target = attach(base(), {}, ctors);
   const step = (next: Ctors): object => build<V>(next, callable);
 
-  define(target, "impl", (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors));
-  define(target, "implEquals", (spec: unknown) => step({ ...ctors, equals: spec }));
-  define(target, "implWith", (fn: AnyFn) => step({ ...ctors, with: fn }));
-  define(target, "implUpdate", (fn: AnyFn) => step({ ...ctors, update: fn }));
+  target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors);
+  target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
+  target.implWith = (fn: AnyFn) => step({ ...ctors, with: fn });
+  target.implUpdate = (fn: AnyFn) => step({ ...ctors, update: fn });
   if (callable) return target;
 
-  define(target, "implCreate", (create: AnyFn) => step({ ...ctors, create }));
-  define(target, "implSeal", (seal: NonNullable<Ctors["seal"]>) => step({ ...ctors, seal }));
-  return define(target, "unpatchable", () => step({ ...ctors, unpatchable: true }));
+  target.implCreate = (create: AnyFn) => step({ ...ctors, create });
+  target.implSeal = (seal: NonNullable<Ctors["seal"]>) => step({ ...ctors, seal });
+  target.unpatchable = () => step({ ...ctors, unpatchable: true });
+  return target;
 };
 
 export const Val = {

@@ -1104,6 +1104,16 @@ describe("building", () => {
       expect(Counter.LABEL).toBe("user");
     });
 
+    test("`name` and `length` attach, though a sealer is a function that owns both", () => {
+      const Person = Val.sealer<User>().impl({
+        name: (u) => u.name.toUpperCase(),
+        length: (u) => u.name.length,
+      });
+      const bob = Person({ id: "a", name: "bob" });
+      expect(Person.name(bob)).toBe("BOB");
+      expect(Person.length(bob)).toBe(3);
+    });
+
     test("a method whose first parameter is not the Val is rejected", () => {
       Val.sealer<User>().impl({
         // @ts-expect-error the first parameter must be the Val; a factory belongs elsewhere
