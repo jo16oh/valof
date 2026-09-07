@@ -1,32 +1,8 @@
 import { resolve } from "node:path";
 
-import { child as at, children, keyName, type Node } from "./ast.ts";
-import type { Query, Resolver } from "./definitions.ts";
-
-/**
- * A top-level `type X = Val<"brand", payload>`, as the collector found it.
- *
- * `span` is the whole declaration, which is what a resolved definition is tested against: the
- * server points at the name, and containment turns that back into the alias.
- */
-export type Alias = {
-  file: string;
-  alias: string;
-  span: [number, number];
-  /** The second type argument. Absent when the alias is generic over its payload. */
-  payload: Node | undefined;
-};
-
-/** A `Val.sealer<X>()` / `Val.companion<X>()` chain, whatever else it registered. */
-export type CompanionSite = {
-  file: string;
-  line: number;
-  /** The type argument, resolved to an alias after the walk. */
-  typeName: string;
-  typeOffset: number;
-  /** The argument to `.implEquals(…)`, when the chain called it. */
-  spec: Node | undefined;
-};
+import { child as at, children, keyName, type Node } from "../ast.ts";
+import type { Query, Resolver } from "../definitions.ts";
+import type { Alias, CompanionSite, Scan } from "../scan.ts";
 
 /** A parent that structurally compares a child carrying its own equality. */
 export type StructuralEquals = {
@@ -176,6 +152,15 @@ const isOverride = (spec: Node): boolean =>
   spec.type === "ArrowFunctionExpression" || spec.type === "FunctionExpression";
 
 /**
+ * Whether anything in the scanned files could dispatch.
+ *
+ * With no `.implEquals` there is no custom equality to miss, so the caller can skip starting a
+ * TypeScript at all: a project that never writes one pays nothing for this rule.
+ */
+export const needsTypes = (scans: readonly Scan[]): boolean =>
+  scans.some(({ sites }) => sites.some(({ spec }) => spec));
+
+/**
  * Reports a parent whose payload holds a child that carries its own equality, where the parent's
  * spec says nothing about it.
  *
@@ -184,11 +169,12 @@ const isOverride = (spec: Node): boolean =>
  * alone, which keeps silence the safe direction.
  */
 export async function structuralEquals(
-  aliases: readonly Alias[],
-  sites: readonly CompanionSite[],
+  scans: readonly Scan[],
   resolver: Resolver | undefined,
 ): Promise<StructuralEquals[]> {
   if (!resolver) return [];
+  const aliases: Alias[] = scans.flatMap(({ valAliases }) => valAliases);
+  const sites: CompanionSite[] = scans.flatMap(({ sites: found }) => found);
 
   // Keyed absolute: the scanned paths are whatever the glob produced, while a resolved
   // definition is always absolute.

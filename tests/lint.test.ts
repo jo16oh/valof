@@ -13,7 +13,7 @@ const root = fileURLToPath(new URL("..", import.meta.url));
  */
 function lint(fixture: string): { status: number; findings: string[]; summary: string } {
   const directory = `tests/fixtures/${fixture}/`;
-  const result = spawnSync(process.execPath, ["src/lint-cli.ts", `${directory}**/*.ts`], {
+  const result = spawnSync(process.execPath, ["src/lint/cli.ts", `${directory}**/*.ts`], {
     cwd: root,
     encoding: "utf8",
   });
@@ -250,7 +250,7 @@ describe("the command itself", () => {
   });
 
   test("has nothing to report about the package's own sources", () => {
-    const result = spawnSync(process.execPath, ["src/lint-cli.ts"], {
+    const result = spawnSync(process.execPath, ["src/lint/cli.ts"], {
       cwd: root,
       encoding: "utf8",
     });

@@ -21,7 +21,7 @@
     "url": "git+https://github.com/jo16oh/valof.git"
   },
   "bin": {
-    "valof-lint": "./dist/lint-cli.mjs"
+    "valof-lint": "./dist/lint/cli.mjs"
   },
   "files": [
     "dist"

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { globSync } from "node:fs";
-import { lint, type Finding } from "./lint.ts";
+import { lint, type Finding } from "./index.ts";
 
 const patterns = process.argv.slice(2);
 if (patterns.includes("--help") || patterns.includes("-h")) {
