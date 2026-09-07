@@ -13,10 +13,10 @@ export type UnusedMember = {
   member: string;
 };
 
-export const rule: Rule<UnusedMember> = {
+export const UnusedMember: Rule<UnusedMember> = {
   kind: "unused-member",
   description: "functions and constants registered with `.impl({…})` that nothing reads",
-  run: unusedMembers,
+  run: findings,
 };
 
 /**
@@ -35,7 +35,7 @@ export const rule: Rule<UnusedMember> = {
  * is used. And a spread into `.impl({ ...base })` contributes no keys at all, so those members
  * are never reported however dead they are.
  */
-function unusedMembers(scans: readonly Scan[]): UnusedMember[] {
+function findings(scans: readonly Scan[]): UnusedMember[] {
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
   for (const scan of scans)

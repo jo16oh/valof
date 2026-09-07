@@ -1,7 +1,7 @@
-import { rule as duplicateBrand, type DuplicateBrand } from "./brands.ts";
-import { rule as structuralEquals, type StructuralEquals } from "./equals.ts";
+import { DuplicateBrand } from "./brands.ts";
+import { StructuralEquals } from "./equals.ts";
 import type { Rule } from "./rule.ts";
-import { rule as unusedMember, type UnusedMember } from "./unused.ts";
+import { UnusedMember } from "./unused.ts";
 
 export type Finding = UnusedMember | DuplicateBrand | StructuralEquals;
 
@@ -15,9 +15,9 @@ export type Kind = Finding["kind"];
  * listed here. Nothing else enumerates them: the runner and `--help` both read this.
  */
 export const RULES: Record<Kind, Rule<Finding>> = {
-  "unused-member": unusedMember,
-  "duplicate-brand": duplicateBrand,
-  "structural-equals": structuralEquals,
+  "unused-member": UnusedMember,
+  "duplicate-brand": DuplicateBrand,
+  "structural-equals": StructuralEquals,
 };
 
 /** The kinds, in the order the rules run and `--help` lists them. */

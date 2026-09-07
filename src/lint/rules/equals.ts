@@ -20,12 +20,12 @@ export type StructuralEquals = {
   child: string;
 };
 
-export const rule: Rule<StructuralEquals> = {
+export const StructuralEquals: Rule<StructuralEquals> = {
   kind: "structural-equals",
   description: "a payload holding a Val whose own `equals` the parent never dispatches to",
   // Asked for only once something could dispatch, so a project that never writes `.implEquals`
   // never starts a language server. See {@link needsTypes}.
-  run: (scans, { types }) => (needsTypes(scans) ? structuralEquals(scans, types()) : []),
+  run: (scans, { types }) => (needsTypes(scans) ? findings(scans, types()) : []),
 };
 
 /**
@@ -179,7 +179,7 @@ const needsTypes = (scans: readonly Scan[]): boolean =>
  * helper alias, a re-export or an `interface` is still seen. Names that do not resolve are left
  * alone, which keeps silence the safe direction.
  */
-async function structuralEquals(
+async function findings(
   scans: readonly Scan[],
   resolver: Resolver | undefined,
 ): Promise<StructuralEquals[]> {
