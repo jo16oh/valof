@@ -145,7 +145,7 @@ function buildLineMap(source: string): LineMap {
 }
 
 /** TypeScript 7, over `tsc --lsp --stdio`. Its in-process API is down to two exports. */
-function overLsp(bin: string, root: string, files: readonly string[]): Resolver {
+function overLsp(bin: string, root: string): Resolver {
   const child = spawn(process.execPath, [bin, "--lsp", "--stdio"], {
     stdio: ["pipe", "pipe", "ignore"],
   });
@@ -206,28 +206,18 @@ function overLsp(bin: string, root: string, files: readonly string[]): Resolver 
   const uri = (file: string) => pathToFileURL(file).href;
   const folder = { uri: pathToFileURL(root).href, name: "valof-lint" };
 
-  const ready = (async () => {
-    await request("initialize", {
-      processId: process.pid,
-      rootUri: folder.uri,
-      capabilities: {},
-      workspaceFolders: [folder],
-    });
+  // No `textDocument/didOpen`. The server reads committed files from disk and opens one lazily
+  // when a request names it; `didOpen` is for buffers an editor holds unsaved. Sending the whole
+  // scanned set makes the server build a document for each and the first query wait on all of
+  // them: 436 ms against 45 ms for the same answers.
+  const ready = request("initialize", {
+    processId: process.pid,
+    rootUri: folder.uri,
+    capabilities: {},
+    workspaceFolders: [folder],
+  }).then(() => {
     write({ method: "initialized", params: {} });
-    for (const file of files) {
-      write({
-        method: "textDocument/didOpen",
-        params: {
-          textDocument: {
-            uri: uri(file),
-            languageId: "typescript",
-            version: 1,
-            text: readFileSync(file, "utf8"),
-          },
-        },
-      });
-    }
-  })();
+  });
 
   return {
     resolveAll: async (queries) => {
@@ -268,5 +258,5 @@ function overLsp(bin: string, root: string, files: readonly string[]): Resolver 
 export function resolver(root: string, files: readonly string[]): Resolver | undefined {
   const found = locate(root);
   if (!found) return undefined;
-  return found.major >= 7 ? overLsp(found.bin, root, files) : inProcess(found.main, root, files);
+  return found.major >= 7 ? overLsp(found.bin, root) : inProcess(found.main, root, files);
 }

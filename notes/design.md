@@ -2001,6 +2001,23 @@ type DefinitionAt = (file: string, offset: number) => { file: string; offset: nu
 
 **結果、floor 5.9.3 から 7.x まで隙間なく覆える。** 合わせて 100 行程度。取り残される利用者はいない。
 
+#### `textDocument/didOpen` を送らない
+
+2026-09-07 の実装時に実測。**スキャン対象を全部 `didOpen` すると初回クエリが 10 倍遅くなる。**
+
+```
+rootUri=repo, didOpen 65 件   init 24 ms | didOpen 2 ms | 初回クエリ 436 ms
+rootUri=repo, didOpen なし    init 30 ms | didOpen 0 ms | 初回クエリ  45 ms
+```
+
+答えは同じ。`didOpen` はエディタが未保存で抱えているバッファのためのもので、リンタが読むのはディスク上のファイルである。サーバは `rootUri` からプロジェクトを読み、リクエストが名指したファイルを遅延して開く。全件送ると 1 件ずつ document を構築し、初回クエリがその全部を待つ。
+
+CLI 全体で 65 ファイル 580 ms → 213 ms。**ファイル数が増えるほど差が開く**ので、実プロジェクトほど効く。
+
+`tsconfig.json` の `exclude` に入っているファイルでも解決できた（このリポジトリの `tests/fixtures` がまさにそれ）。サーバが inferred project を作るため。
+
+残るコストは init 30 ms と初回クエリ 45 ms で、1 実行に 1 回。**プロセスを常駐させて償却する案は取らない。** 1 回の lint 実行が起動する LS は元から 1 つで、実行をまたいで持ち回るにはライフサイクルと陳腐化の管理が要る。CI で 1 回走るリンタが 75 ms のために払う複雑さではない。
+
 #### `typescript` は peer dependency にしない
 
 `oxc-parser` が optional peer dependency なのは**自分のプロセスに `import` する**から。モジュール解決がユーザのコピーを見つける必要があり、2 つあれば 2 つのパーサになる。
