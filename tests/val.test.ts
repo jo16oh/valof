@@ -322,9 +322,9 @@ describe("copying", () => {
       expect(grid).toEqual([[1, 2], [3]]);
     });
 
-    test("a patch handed to `with` is copied as well", () => {
+    test("a patch handed to `patch` is copied as well", () => {
       const total = { amount: 100, currency: "JPY" };
-      const order = Order.with(Order({ id: "o", total: { amount: 1, currency: "JPY" } }), {
+      const order = Order.patch(Order({ id: "o", total: { amount: 1, currency: "JPY" } }), {
         total,
       });
       total.amount = 999;
@@ -399,9 +399,9 @@ describe("copying", () => {
         lines: [Line({ sku: "s", qty: 1 })],
       });
 
-    test("`with` keeps the subtrees it did not touch", () => {
+    test("`patch` keeps the subtrees it did not touch", () => {
       const before = order();
-      const after = Order.with(before, { note: "changed" });
+      const after = Order.patch(before, { note: "changed" });
       expect(after).not.toBe(before);
       expect(after.lines).toBe(before.lines);
       expect(after.lines[0]).toBe(before.lines[0]);
@@ -418,12 +418,12 @@ describe("copying", () => {
       // is identity: without this, changing `note` would hand `total` a new one and a memoised
       // component reading it would re-render for a change it never saw.
       const before = order();
-      expect(Order.with(before, { note: "changed" }).total).toBe(before.total);
+      expect(Order.patch(before, { note: "changed" }).total).toBe(before.total);
     });
 
     test("a subtree arriving through a patch is copied, not adopted", () => {
       const foreign = [{ sku: "s", qty: 2 }];
-      const after = Order.with(order(), { lines: foreign as unknown as readonly Line[] });
+      const after = Order.patch(order(), { lines: foreign as unknown as readonly Line[] });
       foreign[0]!.qty = 999;
       expect(after.lines[0]!.qty).toBe(2);
     });
@@ -447,7 +447,7 @@ describe("copying", () => {
     });
 
     test("`Val.unwrap` shares nothing, including with a value built by reuse", () => {
-      const derived = Order.with(order(), { note: "changed" });
+      const derived = Order.patch(order(), { note: "changed" });
       const raw = Val.unwrap(derived);
       expect(raw.lines).not.toBe(derived.lines);
       expect(raw.lines[0]).not.toBe(derived.lines[0]);
@@ -468,7 +468,7 @@ describe("copying", () => {
     test("a write into a reused node is caught in development", () => {
       // The reason the freeze earns its keep: without it this write would land in both values.
       const before = order();
-      const after = Order.with(before, { note: "changed" });
+      const after = Order.patch(before, { note: "changed" });
       expect(after.lines).toBe(before.lines);
       expect(() => {
         (after.lines[0] as unknown as { qty: number }).qty = 999;
@@ -478,15 +478,15 @@ describe("copying", () => {
 
     test("a patch that changes nothing gives back the value itself", () => {
       const before = order();
-      expect(Order.with(before, { note: "n" })).toBe(before);
-      expect(Order.with(before, {})).toBe(before);
+      expect(Order.patch(before, { note: "n" })).toBe(before);
+      expect(Order.patch(before, {})).toBe(before);
     });
 
     test("removing a key the value does not have is not a change", () => {
       const user = User({ id: "a", name: "bob" });
-      expect(User.with(user, { nickname: undefined })).toBe(user);
+      expect(User.patch(user, { nickname: undefined })).toBe(user);
       expect(
-        User.with(User({ id: "a", name: "bob", nickname: "b" }), { nickname: undefined }),
+        User.patch(User({ id: "a", name: "bob", nickname: "b" }), { nickname: undefined }),
       ).toEqual({
         id: "a",
         name: "bob",
@@ -502,7 +502,9 @@ describe("copying", () => {
     test("a freshly built child counts as a change", () => {
       // It went through a constructor, so a new instance is what the caller asked for.
       const before = order();
-      expect(Order.with(before, { total: Money({ amount: 1, currency: "JPY" }) })).not.toBe(before);
+      expect(Order.patch(before, { total: Money({ amount: 1, currency: "JPY" }) })).not.toBe(
+        before,
+      );
     });
 
     test("a no-op still goes through a custom seal, which keeps the identity", () => {
@@ -515,16 +517,16 @@ describe("copying", () => {
       const tenure = Tenure.seal({ years: 30 }).ok;
       seen.length = 0;
 
-      const same = Tenure.with(tenure, { years: 30 });
+      const same = Tenure.patch(tenure, { years: 30 });
       expect(seen).toEqual([30]); // the seal ran: it owns the return shape
       expect(same.ok).toBe(tenure); // and the copy inside it handed the value back
     });
 
     test("reuse does not change what `equals` answers", () => {
       const a = order();
-      const b = Order.with(a, { note: "changed" });
+      const b = Order.patch(a, { note: "changed" });
       expect(Order.equals(a, b)).toBe(false);
-      expect(Order.equals(b, Order.with(a, { note: "changed" }))).toBe(true);
+      expect(Order.equals(b, Order.patch(a, { note: "changed" }))).toBe(true);
       expect(Line.equals(a.lines[0]!, b.lines[0]!)).toBe(true);
     });
   });
@@ -736,10 +738,10 @@ describe("equals", () => {
   });
 });
 
-describe("with", () => {
+describe("patch", () => {
   test("omitting a key leaves it unchanged", () => {
     const u = User({ id: "a", name: "bob", nickname: "bo" });
-    expect(User.with(u, { name: "sue" })).toEqual({
+    expect(User.patch(u, { name: "sue" })).toEqual({
       id: "a",
       name: "sue",
       nickname: "bo",
@@ -748,14 +750,14 @@ describe("with", () => {
 
   test("undefined deletes the key", () => {
     const u = User({ id: "a", name: "bob", nickname: "bo" });
-    const next = User.with(u, { nickname: undefined });
+    const next = User.patch(u, { nickname: undefined });
     expect(Object.hasOwn(next, "nickname")).toBe(false);
     expect(next).toEqual({ id: "a", name: "bob" });
   });
 
   test("does not mutate the original value", () => {
     const u = User({ id: "a", name: "bob" });
-    User.with(u, { name: "sue" });
+    User.patch(u, { name: "sue" });
     expect(u.name).toBe("bob");
   });
 
@@ -769,26 +771,26 @@ describe("with", () => {
     );
 
     const acc = Val.of<Account>({ id: "a", balance: 100 });
-    expect(Account.with(acc, { balance: 50 })).toEqual({
+    expect(Account.patch(acc, { balance: 50 })).toEqual({
       ok: true,
       value: { id: "a", balance: 50 },
     });
-    expect(Account.with(acc, { balance: -1 })).toEqual({
+    expect(Account.patch(acc, { balance: -1 })).toEqual({
       ok: false,
       error: "balance must not be negative",
     });
 
-    expectTypeOf(Account.with(acc, { balance: 1 })).toEqualTypeOf<Result<Account>>();
+    expectTypeOf(Account.patch(acc, { balance: 1 })).toEqualTypeOf<Result<Account>>();
   });
 
   test("returns the Val itself when the seal is the default", () => {
     const u = User({ id: "a", name: "bob" });
-    expectTypeOf(User.with(u, { name: "x" })).toEqualTypeOf<User>();
+    expectTypeOf(User.patch(u, { name: "x" })).toEqualTypeOf<User>();
   });
 
   test("is not offered at all on a non-object Val", () => {
     const ArticleId = Val.sealer<ArticleId>();
-    expectTypeOf(ArticleId).not.toHaveProperty("with");
+    expectTypeOf(ArticleId).not.toHaveProperty("patch");
   });
 
   test("still guards at runtime, for callers without types", () => {
@@ -796,14 +798,14 @@ describe("with", () => {
       string,
       (...args: unknown[]) => unknown
     >;
-    expect(() => ArticleId.with("a1b2c3", {})).toThrow(/object-shaped/);
+    expect(() => ArticleId.patch("a1b2c3", {})).toThrow(/object-shaped/);
   });
 
   test("with routes through the seal, whatever the seal returns", () => {
     type Box = Val<"Box", { n: number }>;
     const box = Val.sealer<Box>();
     const Box = Val.companion<Box>().implSeal((b: { n: number }) => ({ tagged: box(b) }));
-    const out = Box.with(Val.of<Box>({ n: 1 }), { n: 2 });
+    const out = Box.patch(Val.of<Box>({ n: 1 }), { n: 2 });
     expectTypeOf(out).toEqualTypeOf<{ tagged: Box }>();
     expect(out).toEqual({ tagged: { n: 2 } });
   });
@@ -811,9 +813,9 @@ describe("with", () => {
   test("undefined on a required key is a type error", () => {
     const u = User({ id: "a", name: "bob" });
     // @ts-expect-error a required key cannot be deleted
-    User.with(u, { name: undefined });
+    User.patch(u, { name: undefined });
     // optional keys can be deleted
-    User.with(u, { nickname: undefined });
+    User.patch(u, { nickname: undefined });
   });
 
   describe("nested", () => {
@@ -841,7 +843,7 @@ describe("with", () => {
       });
 
     test("patches a nested object at any depth, leaving its other keys alone", () => {
-      expect(Shop.with(shop(), { owner: { contact: { email: "c@example.com" } } })).toEqual({
+      expect(Shop.patch(shop(), { owner: { contact: { email: "c@example.com" } } })).toEqual({
         id: "s",
         owner: { name: "bob", contact: { email: "c@example.com", phone: "1" } },
         city: { name: "Kyoto", zip: "600" },
@@ -851,24 +853,24 @@ describe("with", () => {
     });
 
     test("undefined deletes at depth too", () => {
-      const next = Shop.with(shop(), { owner: { contact: { phone: undefined } } });
+      const next = Shop.patch(shop(), { owner: { contact: { phone: undefined } } });
       expect(Object.hasOwn(next.owner.contact, "phone")).toBe(false);
       expect(next.owner.contact.email).toBe("b@example.com");
     });
 
     test("undefined on a required key is a type error at depth too", () => {
       // @ts-expect-error a required key cannot be deleted, however deep it sits
-      Shop.with(shop(), { owner: { contact: { email: undefined } } });
+      Shop.patch(shop(), { owner: { contact: { email: undefined } } });
     });
 
     test("an unknown key is a type error at depth too", () => {
       // @ts-expect-error excess-property checking reaches the nested literal
-      Shop.with(shop(), { owner: { contact: { fax: "1" } } });
+      Shop.patch(shop(), { owner: { contact: { fax: "1" } } });
     });
 
     test("only the path down to the change is rebuilt", () => {
       const before = shop();
-      const after = Shop.with(before, { owner: { contact: { email: "c@example.com" } } });
+      const after = Shop.patch(before, { owner: { contact: { email: "c@example.com" } } });
       expect(after.owner).not.toBe(before.owner);
       expect(after.owner.contact).not.toBe(before.owner.contact);
       expect(after.city).toBe(before.city);
@@ -878,25 +880,25 @@ describe("with", () => {
 
     test("a patch that changes nothing at depth gives back the value itself", () => {
       const before = shop();
-      expect(Shop.with(before, { owner: { contact: { email: "b@example.com" } } })).toBe(before);
-      expect(Shop.with(before, { owner: {} })).toBe(before);
+      expect(Shop.patch(before, { owner: { contact: { email: "b@example.com" } } })).toBe(before);
+      expect(Shop.patch(before, { owner: {} })).toBe(before);
     });
 
     test("a nested Val is replaced whole, never merged", () => {
       // Merging into it would build a payload its own seal never saw.
       // @ts-expect-error a Val takes a Val, not a patch
-      Shop.with(shop(), { city: { name: "Osaka" } });
+      Shop.patch(shop(), { city: { name: "Osaka" } });
 
       const before = shop();
-      const after = Shop.with(before, { city: City({ name: "Osaka" }) });
+      const after = Shop.patch(before, { city: City({ name: "Osaka" }) });
       expect(Object.hasOwn(after.city, "zip")).toBe(false);
       expect(after.city).not.toBe(before.city);
     });
 
     test("deriving the nested Val is how you reach inside one", () => {
       const before = shop();
-      const after = Shop.with(before, { city: City.with(before.city, { name: "Osaka" }) });
-      expect(after.city).toEqual({ name: "Osaka", zip: "600" }); // its own `with` kept the zip
+      const after = Shop.patch(before, { city: City.patch(before.city, { name: "Osaka" }) });
+      expect(after.city).toEqual({ name: "Osaka", zip: "600" }); // its own `patch` kept the zip
       expect(after.owner).toBe(before.owner);
     });
 
@@ -908,29 +910,29 @@ describe("with", () => {
         tags: [],
         staff: {},
       });
-      const after = Shop.with(shop(), { owner: other.owner });
+      const after = Shop.patch(shop(), { owner: other.owner });
       expect(after.owner).toBe(other.owner);
       expect(Object.hasOwn(after.owner.contact, "phone")).toBe(false);
     });
 
     test("an array is replaced, not merged", () => {
-      const before = Shop.with(shop(), { tags: ["a", "b"] });
-      expect(Shop.with(before, { tags: ["c"] }).tags).toEqual(["c"]);
+      const before = Shop.patch(shop(), { tags: ["a", "b"] });
+      expect(Shop.patch(before, { tags: ["c"] }).tags).toEqual(["c"]);
 
-      const other = Shop.with(before, { tags: ["d"] });
-      expect(Shop.with(before, { tags: other.tags }).tags).toBe(other.tags);
+      const other = Shop.patch(before, { tags: ["d"] });
+      expect(Shop.patch(before, { tags: other.tags }).tags).toBe(other.tags);
     });
 
     test("a record of values patches one entry and deletes another", () => {
-      const next = Shop.with(shop(), { staff: { u1: { role: "chef" }, u2: undefined } });
+      const next = Shop.patch(shop(), { staff: { u1: { role: "chef" }, u2: undefined } });
       expect(next.staff).toEqual({ u1: { role: "chef" } });
       expect(Object.hasOwn(next.staff, "u2")).toBe(false);
     });
 
-    test("`update` replaces a nested object where `with` merges it", () => {
+    test("`update` replaces a nested object where `patch` merges it", () => {
       const before = shop();
       const staff = { u3: { role: "host" } };
-      expect(Shop.with(before, { staff }).staff).toEqual({
+      expect(Shop.patch(before, { staff }).staff).toEqual({
         u1: { role: "cook" },
         u2: { role: "waiter" },
         u3: { role: "host" },
@@ -943,9 +945,9 @@ describe("with", () => {
       const Box = Val.companion<Box>().implSeal((b, seal) =>
         seal({ inner: { ...b.inner, seen: b.inner.seen + 1 } }),
       );
-      // `Val.of` skips the seal, so `seen` counts the calls `with` made: one, at the root.
+      // `Val.of` skips the seal, so `seen` counts the calls `patch` made: one, at the root.
       const box = Val.of<Box>({ inner: { n: 1, seen: 0 } });
-      expect(Box.with(box, { inner: { n: 2 } })).toEqual({ inner: { n: 2, seen: 1 } });
+      expect(Box.patch(box, { inner: { n: 2 } })).toEqual({ inner: { n: 2, seen: 1 } });
     });
   });
 
@@ -954,24 +956,24 @@ describe("with", () => {
 
     const Point = Val.companion<Point>()
       .implSeal((p, seal) => seal({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
-      .implWith((p, patch: { x?: number; y?: number }, seal) => seal({ ...p, ...patch }));
+      .implPatch((p, patch: { x?: number; y?: number }, seal) => seal({ ...p, ...patch }));
 
     test("the override derives through the type's own seal", () => {
       const p = Point.seal({ x: 1, y: 2 });
-      expect(Point.with(p, { x: 3.7 })).toEqual({ x: 3, y: 2 }); // truncated by the seal
+      expect(Point.patch(p, { x: 3.7 })).toEqual({ x: 3, y: 2 }); // truncated by the seal
     });
 
     test("callers still pass two arguments", () => {
       const p = Point.seal({ x: 1, y: 2 });
-      expectTypeOf(Point.with).parameters.toEqualTypeOf<[Point, { x?: number; y?: number }]>();
-      expectTypeOf(Point.with(p, { y: 9 })).toEqualTypeOf<Point>();
+      expectTypeOf(Point.patch).parameters.toEqualTypeOf<[Point, { x?: number; y?: number }]>();
+      expectTypeOf(Point.patch(p, { y: 9 })).toEqualTypeOf<Point>();
     });
 
     test("the two-parameter form still works", () => {
-      const Plain = Val.companion<Point>().implWith((p, patch: { x?: number }): Point =>
+      const Plain = Val.companion<Point>().implPatch((p, patch: { x?: number }): Point =>
         Val.of<Point>({ ...p, ...patch }),
       );
-      expect(Plain.with(Val.of<Point>({ x: 1, y: 2 }), { x: 5 })).toEqual({ x: 5, y: 2 });
+      expect(Plain.patch(Val.of<Point>({ x: 1, y: 2 }), { x: 5 })).toEqual({ x: 5, y: 2 });
     });
 
     test("your own with still wins over the default derivation", () => {
@@ -979,21 +981,21 @@ describe("with", () => {
       const make = (x: number, y: number): Point => point({ x, y });
       const Manual = Val.companion<Point>()
         .implCreate(make)
-        .implWith((p, patch: { x?: number; y?: number }): Point =>
+        .implPatch((p, patch: { x?: number; y?: number }): Point =>
           make(patch.x ?? p.x, patch.y ?? p.y),
         );
 
       const p = Val.of<Point>({ x: 1, y: 2 });
-      expectTypeOf(Manual.with(p, { x: 3 })).toEqualTypeOf<Point>();
-      expect(Manual.with(p, { x: 3 })).toEqual({ x: 3, y: 2 });
+      expectTypeOf(Manual.patch(p, { x: 3 })).toEqualTypeOf<Point>();
+      expect(Manual.patch(p, { x: 3 })).toEqual({ x: 3, y: 2 });
     });
 
     test("an explicit with reaches even a primitive Val, which has none by default", () => {
       type UnixEpoch = Val<"UnixEpoch", number>;
-      const UnixEpoch = Val.companion<UnixEpoch>().implWith((t, seconds: number): UnixEpoch =>
+      const UnixEpoch = Val.companion<UnixEpoch>().implPatch((t, seconds: number): UnixEpoch =>
         Val.of<UnixEpoch>(t + seconds),
       );
-      expect(UnixEpoch.with(Val.of<UnixEpoch>(1_756_771_200), 60)).toBe(1_756_771_260);
+      expect(UnixEpoch.patch(Val.of<UnixEpoch>(1_756_771_200), 60)).toBe(1_756_771_260);
     });
   });
 });
@@ -1151,8 +1153,8 @@ describe("building", () => {
       );
 
       const s = Val.of<Score>({ points: 3 });
-      expectTypeOf(Score.with(s, { points: 1 })).toEqualTypeOf<Result<Score>>();
-      expect(Score.with(s, { points: -1 })).toEqual({
+      expectTypeOf(Score.patch(s, { points: 1 })).toEqualTypeOf<Result<Score>>();
+      expect(Score.patch(s, { points: -1 })).toEqual({
         ok: false,
         error: "points must not be negative",
       });
@@ -1174,7 +1176,7 @@ describe("building", () => {
 
       const s = Score.seal({ points: 3 });
       expect(Score.double(s)).toBe(6);
-      expectTypeOf(Score.with(s, { points: 1 })).toEqualTypeOf<Score>();
+      expectTypeOf(Score.patch(s, { points: 1 })).toEqualTypeOf<Score>();
     });
 
     test("is optional: a companion with no seal is a behaviour bundle over Val.of", () => {
@@ -1280,7 +1282,7 @@ describe("building", () => {
       const p = Point.create(1, 2);
       expect(p).toEqual({ x: 1, y: 2 });
       expectTypeOf(p).toEqualTypeOf<Point>();
-      expect(Point.with(p, { x: 3 })).toEqual({ x: 3, y: 2 });
+      expect(Point.patch(p, { x: 3 })).toEqual({ x: 3, y: 2 });
       expect(Point.update(p, (v) => ({ ...v, y: 9 }))).toEqual({ x: 1, y: 9 });
     });
 
@@ -1314,14 +1316,14 @@ describe("building", () => {
       const m = Member.create({ name: "bob" });
       expect(m).toEqual({ id: "id-1", name: "bob" });
 
-      const renamed = Member.with(m, { name: "sue" });
+      const renamed = Member.patch(m, { name: "sue" });
       expect(renamed).toEqual({ id: "id-1", name: "sue" });
       expect(minted).toBe(1);
       expectTypeOf(renamed).toEqualTypeOf<Member>();
     });
   });
 
-  describe("unpatchable", () => {
+  describe("fixed", () => {
     type Account = Val<"app/Account", { id: string; owner: string; note: string }>;
     type Fields = Omit<SeedOf<Account>, "id">;
 
@@ -1334,7 +1336,7 @@ describe("building", () => {
           return { id: `id-${minted}`, ...f };
         })
         .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim().toLowerCase() }))
-        .unpatchable<"id">();
+        .fixed<"id">();
     };
 
     test("create mints the id; with and update preserve it", () => {
@@ -1343,7 +1345,7 @@ describe("building", () => {
       expect(a.id).toBe("id-1");
 
       // still `id-1`, so neither path re-ran create
-      const b = Account.with(a, { owner: " SUE " });
+      const b = Account.patch(a, { owner: " SUE " });
       expect(b).toEqual({ id: "id-1", owner: "sue", note: "" }); // normalised by the seal
 
       const c = Account.update(b, (v) => ({ owner: v.owner, note: "seen" }));
@@ -1353,9 +1355,9 @@ describe("building", () => {
     test("the id is not reachable through either update path", () => {
       const Account = account();
       const a = Account.create({ owner: "bob", note: "" });
-      expectTypeOf(Account.with).parameters.toEqualTypeOf<[Account, Patch<Fields>]>();
+      expectTypeOf(Account.patch).parameters.toEqualTypeOf<[Account, Patch<Fields>]>();
       // @ts-expect-error id is not patchable
-      Account.with(a, { id: "forged" });
+      Account.patch(a, { id: "forged" });
       // @ts-expect-error the transform cannot return an id either
       Account.update(a, (v) => ({ ...v, id: "forged" }));
     });
@@ -1371,7 +1373,7 @@ describe("building", () => {
 
     test("keys must exist on the payload", () => {
       // @ts-expect-error there is no such field
-      Val.companion<Account>().unpatchable<"nope">();
+      Val.companion<Account>().fixed<"nope">();
     });
   });
 });
