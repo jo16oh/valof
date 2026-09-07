@@ -173,7 +173,7 @@ type EqSpec<T> = [T] extends [AnyVal]
 /**
  * An array takes one spec for every element. A tuple takes one per position, all of them: a
  * shorter spec would be indistinguishable at run time from the single-element form, since the
- * spec is all `toEq` sees. `undefined` leaves a position on the default.
+ * spec is all the comparison sees. `undefined` leaves a position on the default.
  */
 type EqElements<T> = T extends readonly unknown[]
   ? number extends T["length"]
@@ -499,7 +499,26 @@ const assertPlainObject = (value: object): void => {
  * comparing two Vals with it would bypass a custom one. Overrides receive it as a third
  * argument instead (see {@link CompanionFns}).
  */
-export const deepEquals = (a: unknown, b: unknown): boolean => {
+export const deepEquals = (a: unknown, b: unknown): boolean => eq(a, b, undefined);
+
+/**
+ * The comparison itself, with the spec that steers it. Absent, it is the deep comparison above;
+ * present, it replaces the default at the children it names and leaves the rest alone. That
+ * fallback is what lets a spec name only the children structure gets wrong.
+ *
+ * A companion is told from a nested spec by its `equals`: a payload cannot hold a function
+ * (see {@link Validate}), so an object whose `equals` is one can only be a companion. That test
+ * comes first because a sealer is itself callable, and reading it as the comparison would run
+ * the constructor and take its value for `true`. It also comes before `a === b`, since a
+ * comparison you wrote owns the answer for every pair.
+ */
+const eq = (a: unknown, b: unknown, spec: unknown): boolean => {
+  if (spec !== undefined) {
+    const own = (spec as { equals?: unknown }).equals;
+    const fn = typeof own === "function" ? own : typeof spec === "function" ? spec : undefined;
+    if (fn) return (fn as Eq<unknown>)(a, b);
+  }
+
   if (a === b) return true;
   // `-0` and `0` are already equal via `===`, which matches JSON round-tripping
   // (`JSON.stringify(-0)` is `"0"`), so only NaN is left to handle.
@@ -516,68 +535,26 @@ export const deepEquals = (a: unknown, b: unknown): boolean => {
   if (aIsArray) {
     const x = a as readonly unknown[];
     const y = b as readonly unknown[];
-    if (x.length !== y.length) return false;
-    for (let i = 0; i < x.length; i++) {
-      if (!deepEquals(x[i], y[i])) return false;
-    }
-    return true;
+    // One spec compares every element, two or more compare by position. The readings coincide
+    // for a one-element tuple, the only shape both can describe.
+    const each = Array.isArray(spec) ? (spec as readonly unknown[]) : undefined;
+    const every = each?.length === 1 ? each[0] : undefined;
+    return x.length === y.length && x.every((v, i) => eq(v, y[i], every ?? each?.[i]));
   }
 
   const x = a as Record<string, unknown>;
   const y = b as Record<string, unknown>;
+  const named = spec as Record<string, unknown> | undefined;
   const xKeys = Object.keys(x).filter((k) => x[k] !== undefined);
   const yKeys = Object.keys(y).filter((k) => y[k] !== undefined);
+  // A key the spec names but only one side carries still fails on the count.
   if (xKeys.length !== yKeys.length) return false;
 
   for (const k of xKeys) {
     if (!Object.hasOwn(y, k)) return false;
-    if (!deepEquals(x[k], y[k])) return false;
+    if (!eq(x[k], y[k], named?.[k])) return false;
   }
   return true;
-};
-
-/**
- * Builds the comparison a spec describes, falling back to {@link deepEquals} wherever it says
- * nothing. That fallback is what lets a spec name only the children structure gets wrong.
- *
- * A companion is told from a nested spec by its `equals`: a payload cannot hold a function
- * (see {@link Validate}), so an object whose `equals` is one can only be a companion. That test
- * comes first because a sealer is itself callable, and reading it as the comparison would run
- * the constructor and take its value for `true`.
- */
-const toEq = (spec: unknown): ((a: unknown, b: unknown) => boolean) => {
-  if (spec === undefined) return deepEquals;
-
-  const companion = (spec as { equals?: unknown }).equals;
-  if (typeof companion === "function") return companion as (a: unknown, b: unknown) => boolean;
-  if (typeof spec === "function") return spec as (a: unknown, b: unknown) => boolean;
-
-  if (Array.isArray(spec)) {
-    // One spec compares every element, two or more compare by position. The readings coincide
-    // for a one-element tuple, the only shape both can describe.
-    const eqs = (spec as readonly unknown[]).map(toEq);
-    const every = eqs.length === 1 ? eqs[0] : undefined;
-    return (a, b) =>
-      Array.isArray(a) &&
-      Array.isArray(b) &&
-      a.length === b.length &&
-      a.every((x, i) => (every ?? eqs[i] ?? deepEquals)(x, b[i]));
-  }
-
-  const named = new Map(Object.entries(spec as object).map(([k, s]) => [k, toEq(s)]));
-  // The key rules are `deepEquals`', so a key the spec names but only one side carries still
-  // fails on the count.
-  return (a, b) => {
-    if (a === b) return true;
-    if (!isObjectShaped(a) || !isObjectShaped(b)) return false;
-    const keys = Object.keys(a).filter((k) => a[k] !== undefined);
-    if (keys.length !== Object.keys(b).filter((k) => b[k] !== undefined).length) return false;
-    for (const key of keys) {
-      if (!Object.hasOwn(b, key)) return false;
-      if (!(named.get(key) ?? deepEquals)(a[key], b[key])) return false;
-    }
-    return true;
-  };
 };
 
 /**
@@ -627,12 +604,7 @@ const deepCopy = (owning: boolean) => {
         // the prototype instead of copying it. Defining it keeps it an own property, and only
         // that key pays for the slower path.
         if (key === "__proto__") {
-          Object.defineProperty(target, key, {
-            value: copied,
-            writable: true,
-            enumerable: true,
-            configurable: true,
-          });
+          define(target, key, copied);
         } else {
           target[key] = copied;
         }
@@ -739,16 +711,14 @@ const attach = <T extends object>(target: T, fns: Record<string, unknown>, ctors
   const keep: (value: unknown) => unknown = custom ? seal : (value) => value;
 
   // Bound here rather than attached raw, which is what keeps callers at two arguments. A spec
-  // is not callable, so it takes the other branch.
+  // is not callable, so it takes the other branch, where an absent one is the default.
   define(
     target,
     "equals",
     typeof equals === "function"
       ? (a: unknown, b: unknown) =>
           (equals as (a: unknown, b: unknown, deep: typeof deepEquals) => boolean)(a, b, deepEquals)
-      : equals === undefined
-        ? deepEquals
-        : toEq(equals),
+      : (a: unknown, b: unknown) => eq(a, b, equals),
   );
 
   if (create) define(target, "create", (...args: never[]) => seal(create(...args)));

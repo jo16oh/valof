@@ -360,7 +360,7 @@ payload はプリミティブ・配列・プレーンオブジェクト・ネス
 
 テストは 7 件。`with` / `update` が触っていない部分木を保つ、patch 由来のノードは採用せず必ずコピーする、`Val.unwrap` は何も共有しない、unwrap した payload は再 seal しても採用されない、`equals` の答えは変わらない。
 
-**バンドルサイズ: 追跡なしの 853 B に対して production gzip 901 B。予算 1 kB に対して残り 123 B。** `implEquals` の spec（§5）はこの予算に収まらず、1.25 kB に引き上げた（実績 1.13 kB）。
+**バンドルサイズ: 追跡なしの 853 B に対して production gzip 901 B。予算 1 kB に対して残り 123 B。** `implEquals` の spec（§5）はこの予算に収まらず、1.25 kB に引き上げた（実績 1.02 kB。spec を deepEquals に畳んだ後。§5 参照）。
 
 値は freeze していないので、キャストして値を書き換えると**共有先の値にも波及する**。破るのに `as` が要る点は §7.1 と同じだが、影響範囲は広がった。dev 限定の freeze はこれを受けて採った（§7.1）。
 
@@ -717,6 +717,14 @@ rest タプル（`readonly [string, ...number[]]`）は `number extends T["lengt
 **この検査は裸の関数の検査より先に置く。** sealer は呼び出し可能なので、`typeof spec === "function"` を先に見ると companion がコンストラクタとして比較に使われ、返ってきた値が truthy なので常に等しくなる。実装中に踏んだ。
 
 **再帰はネストした Val で止まる。** `{ total: { amount: eq } }` と手で降りることはできない。`DeepReadonly` と `Patch` が同じ位置で止まるのと同じ規則で、これが `Money.equals` を黙って迂回する経路を閉じる。
+
+**実装は `deepEquals` そのもの。** spec を比較器に事前コンパイルする `toEq` を別に置くと、配列とオブジェクトの走査が `deepEquals` と二重になる。spec を第 3 引数に取る 1 本の再帰にすると、`deepEquals(a, b)` は `eq(a, b, undefined)` になり、spec が何も言わない子は同じ経路でそのまま既定に落ちる。production gzip 1.13 kB → 1.02 kB。
+
+事前コンパイルで消えるのはノードごとの `typeof` 2 回で、走査そのものに比べて無視できる。逆に spec ごとの `Map` 構築がなくなる。
+
+#### 却下: with / update の seal 束縛を 1 つのヘルパにまとめる
+
+`attach` の `impl ? (v, a) => impl(v, a, seal) : 既定` が 2 か所あるので `bind` に括る案。**実測で gzip +6 B。** 三項が繰り返しでよく縮むぶん、ヘルパの名前と呼び出しのほうが高い。
 
 **型**
 
