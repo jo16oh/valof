@@ -1913,7 +1913,7 @@ companion のメンバは `Companion.member` の形でしか到達されない�
 
 ### 14.6 名前空間自身のバンドルサイズ
 
-`Val` 自身が companion なので、§14 の盲点はこのライブラリの表面にも及ぶ。`Val.of` だけを呼ぶモジュールに `sealer`、`companion`、`unwrap`、`attach`、`deepEquals` がすべて残る。`of` を名前付き export にすれば 4 分の 1 以下、`import type` だけなら 30 分の 1 になる。
+`Val` 自身が companion なので、§14 の盲点はこのライブラリの表面にも及ぶ。バンドラは `const Val = {...}` のプロパティを落とせないので、`Val.of` だけを呼ぶモジュールにも `sealer`、`companion`、`unwrap`、`attach`、`deepEquals` が残る（§5 の `eqBy` が当たったのと同じ壁）。
 
 名前空間を名前付き export に分割する案は 2026-09-03 に検討して却下した。利用者の companion には効かず、API が二重化し、ブランドだけが欲しいライブラリなら数行で自作できる。
 
