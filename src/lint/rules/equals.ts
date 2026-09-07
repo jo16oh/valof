@@ -175,7 +175,7 @@ export async function structuralEquals(
   resolver: Resolver | undefined,
 ): Promise<StructuralEquals[]> {
   if (!resolver) return [];
-  const aliases: Alias[] = scans.flatMap(({ valAliases }) => valAliases);
+  const aliases: Alias[] = scans.flatMap(({ aliases: found }) => found);
   const sites: CompanionSite[] = scans.flatMap(({ sites: found }) => found);
 
   // Keyed absolute: the scanned paths are whatever the glob produced, while a resolved

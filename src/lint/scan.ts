@@ -6,23 +6,33 @@ import { bindings, type Bindings } from "./bindings.ts";
 import { companionSite, fromVal, type CompanionSite } from "./chains.ts";
 import { disabledLines } from "./directives.ts";
 
-/** What one file contributes, before any rule has an opinion about it. */
+/** A member `.impl({…})` registered, under the local name of its companion. */
+export type Member = { companion: string; member: string; line: number };
+
+/**
+ * What one file says about itself.
+ *
+ * Syntactic facts, not any rule's input. Nothing here is named for the rule that happens to read
+ * it today, and more than one may: `aliases` and `brands` come from the same pass over the same
+ * declarations, and two rules take one each. A new rule needing something new is a reason to add
+ * a fact here; it is not a reason for a fact to belong to it.
+ */
 export type Scan = {
   file: string;
   /** How the file bound the names it uses. */
   bound: Bindings;
-  /** `export { A as B }`: the name outside -> the name at the declaration. */
-  exportedAs: Map<string, string>;
-  /** Members an `.impl({…})` registered here, with the local name of their companion. */
-  members: { companion: string; member: string; line: number }[];
+  /** What `.impl({…})` registered here. */
+  members: Member[];
   /** Keys read off a local name. */
   reads: Map<string, Set<string>>;
   /** Keys read through a namespace, already named as the exporting module names them. */
   namespaceReads: Map<string, Set<string>>;
-  /** Top-level `type X = Val<"brand", …>`, for the duplicate-brand rule. */
+  /** `export { A as B }`: the name outside -> the name at the declaration. */
+  exportedAs: Map<string, string>;
+  /** Top-level `type X = Val<…>`, with the payload. */
+  aliases: Alias[];
+  /** The brand each of those claims, where it spelled one as a literal. */
   brands: BrandClaim[];
-  /** The same aliases with their payload, for the structural-equals rule. */
-  valAliases: Alias[];
   /** `Val.sealer<X>()` / `Val.companion<X>()` chains, and what they registered. */
   sites: CompanionSite[];
   /** 1-based line -> the kinds a comment directive silences there. */
@@ -63,7 +73,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
 
   const bound = bindings();
   const exportedAs = new Map<string, string>();
-  const members: Scan["members"] = [];
+  const members: Member[] = [];
   const reads = new Map<string, Set<string>>();
   const namespaceReads = new Map<string, Set<string>>();
   const sites: CompanionSite[] = [];
@@ -185,12 +195,12 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
   return {
     file,
     bound,
-    exportedAs,
     members,
     reads,
     namespaceReads,
+    exportedAs,
+    aliases,
     brands,
-    valAliases: aliases,
     sites,
     disabled: disabledLines(parsed.comments, source, lineOf),
   };
