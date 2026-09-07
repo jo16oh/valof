@@ -24,13 +24,13 @@ for (const argument of process.argv.slice(2)) {
 }
 
 if (help) {
-  const width = Math.max(...kinds.map((kind) => kind.length));
+  const width = Math.max(...RULES.map(({ kind }) => kind.length));
   console.log(
     [
       "valof-lint [--no-<rule>...] [glob...]",
       "",
       "Reports what the type checker cannot:",
-      ...kinds.map((kind) => `  ${kind.padEnd(width)}  ${RULES[kind].description}`),
+      ...RULES.map(({ kind, description }) => `  ${kind.padEnd(width)}  ${description}`),
       "",
       "Defaults to src/**/*.ts. Exits 1 when something is found.",
       "",

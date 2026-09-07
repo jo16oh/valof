@@ -1,5 +1,5 @@
 import { resolver, type Resolver } from "./definitions.ts";
-import { kinds, RULES, type Finding, type Kind } from "./rules/index.ts";
+import { RULES, type Finding, type Kind } from "./rules/index.ts";
 import { scan, type Parser } from "./scan.ts";
 
 export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
@@ -39,9 +39,9 @@ export async function lint(files: readonly string[], { skip }: Options = {}): Pr
 
   const findings: Finding[] = [];
   try {
-    for (const kind of kinds) {
-      if (skip?.has(kind)) continue;
-      findings.push(...(await RULES[kind].run(scans, { types })));
+    for (const rule of RULES) {
+      if (skip?.has(rule.kind)) continue;
+      findings.push(...(await rule.run(scans, { types })));
     }
   } finally {
     opened?.close();

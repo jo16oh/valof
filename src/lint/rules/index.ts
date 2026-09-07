@@ -3,24 +3,22 @@ import { StructuralEquals } from "./equals.ts";
 import type { Rule } from "./rule.ts";
 import { UnusedMember } from "./unused.ts";
 
-export type Finding = UnusedMember | DuplicateBrand | StructuralEquals;
+/**
+ * Every rule, in the order they run and `--help` lists them.
+ *
+ * The only enumeration. A rule carries its own kind, so listing it here says nothing twice, and
+ * {@link Kind} and {@link Finding} are read back off this array rather than written again.
+ */
+export const RULES = [UnusedMember, DuplicateBrand, StructuralEquals] as const;
+
+/** The payload a rule reports, recovered from the rule itself. */
+type ReportedBy<R> = R extends Rule<infer F> ? F : never;
+
+export type Finding = ReportedBy<(typeof RULES)[number]>;
 
 /** What a finding is called, in a `--no-<kind>` flag and in a disable comment alike. */
 export type Kind = Finding["kind"];
 
-/**
- * Every rule, keyed by the kind it reports.
- *
- * A `Record` over the kinds, so a rule added to {@link Finding} fails to compile until it is
- * listed here. Nothing else enumerates them: the runner and `--help` both read this.
- */
-export const RULES: Record<Kind, Rule<Finding>> = {
-  "unused-member": UnusedMember,
-  "duplicate-brand": DuplicateBrand,
-  "structural-equals": StructuralEquals,
-};
+export const kinds: readonly Kind[] = RULES.map(({ kind }) => kind);
 
-/** The kinds, in the order the rules run and `--help` lists them. */
-export const kinds = Object.keys(RULES) as Kind[];
-
-export const isKind = (name: string): name is Kind => name in RULES;
+export const isKind = (name: string): name is Kind => kinds.includes(name as Kind);
