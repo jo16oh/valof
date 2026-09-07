@@ -16,6 +16,12 @@ export type DuplicateBrand = {
   alias: string;
 };
 
+export const rule: Rule<DuplicateBrand> = {
+  kind: "duplicate-brand",
+  description: "a brand string claimed by more than one type alias",
+  run: duplicateBrands,
+};
+
 /**
  * Reports every alias claiming a brand another alias also claims.
  *
@@ -27,7 +33,7 @@ export type DuplicateBrand = {
  * The alias must spell `Val<…>` itself. A user's helper around it, `type Branded<K, T> =
  * Val<K, T>`, is invisible here and to the structural-equals rule with it.
  */
-export function duplicateBrands(scans: readonly Scan[]): DuplicateBrand[] {
+function duplicateBrands(scans: readonly Scan[]): DuplicateBrand[] {
   const claims = new Map<string, DuplicateBrand[]>();
   for (const { file, brands, bound } of scans) {
     for (const { typeName, brand, alias, line } of brands) {
@@ -39,9 +45,3 @@ export function duplicateBrands(scans: readonly Scan[]): DuplicateBrand[] {
   }
   return [...claims.values()].filter((claimed) => claimed.length > 1).flat();
 }
-
-export const rule: Rule<DuplicateBrand> = {
-  kind: "duplicate-brand",
-  description: "a brand string claimed by more than one type alias",
-  run: duplicateBrands,
-};

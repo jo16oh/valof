@@ -2,20 +2,9 @@ import { resolver, type Resolver } from "./definitions.ts";
 import { kinds, RULES, type Finding, type Kind } from "./rules/index.ts";
 import { scan, type Parser } from "./scan.ts";
 
-export type { UnusedMember } from "./rules/unused.ts";
-export type { DuplicateBrand } from "./rules/brands.ts";
-export type { StructuralEquals } from "./rules/equals.ts";
-export {
-  RULES,
-  kinds,
-  isKind,
-  type Context,
-  type Finding,
-  type Kind,
-  type Rule,
-} from "./rules/index.ts";
+export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
 
-export type Options = {
+type Options = {
   /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
   skip?: ReadonlySet<Kind>;
 };

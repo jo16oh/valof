@@ -7,7 +7,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 export type Query = { file: string; offset: number };
 
 /** A declaration site, in the same terms. */
-export type Definition = { file: string; offset: number };
+type Definition = { file: string; offset: number };
 
 /**
  * Resolves every query in one batch, answers positionally.

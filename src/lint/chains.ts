@@ -26,7 +26,7 @@ export function fromVal(node: Node, bound: Bindings): boolean {
 }
 
 /** What a chain called, and the type argument at its root. */
-export type Chain = {
+type Chain = {
   /** step name -> its first argument. `.implEquals(spec)` gives `implEquals` -> `spec`. */
   steps: Map<string, Node>;
   /** The root call's type arguments, or `undefined` when the chain is not Val-rooted. */
@@ -41,7 +41,7 @@ export type Chain = {
  * A call whose receiver is not itself a call is the root, which is what tells `Val.sealer<X>()`
  * apart from the steps chained onto it.
  */
-export function readChain(node: Node, bound: Bindings): Chain {
+function readChain(node: Node, bound: Bindings): Chain {
   const steps = new Map<string, Node>();
 
   const walk = (current: Node): Node | undefined => {

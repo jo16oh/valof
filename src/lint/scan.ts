@@ -7,7 +7,7 @@ import { companionSite, fromVal, type CompanionSite } from "./chains.ts";
 import { disabledLines } from "./directives.ts";
 
 /** A member `.impl({…})` registered, under the local name of its companion. */
-export type Member = { companion: string; member: string; line: number };
+type Member = { companion: string; member: string; line: number };
 
 /**
  * What one file says about itself.

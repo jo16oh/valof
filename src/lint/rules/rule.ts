@@ -2,10 +2,10 @@ import type { Resolver } from "../definitions.ts";
 import type { Scan } from "../scan.ts";
 
 /** The least every finding carries: what it is, and where to look. */
-export type Located = { kind: string; file: string; line: number };
+type Located = { kind: string; file: string; line: number };
 
 /** What a rule gets beyond the scans. */
-export type Context = {
+type Context = {
   /**
    * Resolves a type reference to its declaration, or `undefined` when the project has no
    * TypeScript.

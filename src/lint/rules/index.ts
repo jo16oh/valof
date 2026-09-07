@@ -3,8 +3,6 @@ import { rule as structuralEquals, type StructuralEquals } from "./equals.ts";
 import type { Rule } from "./rule.ts";
 import { rule as unusedMember, type UnusedMember } from "./unused.ts";
 
-export type { Context, Rule } from "./rule.ts";
-
 export type Finding = UnusedMember | DuplicateBrand | StructuralEquals;
 
 /** What a finding is called, in a `--no-<kind>` flag and in a disable comment alike. */

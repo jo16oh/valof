@@ -20,6 +20,14 @@ export type StructuralEquals = {
   child: string;
 };
 
+export const rule: Rule<StructuralEquals> = {
+  kind: "structural-equals",
+  description: "a payload holding a Val whose own `equals` the parent never dispatches to",
+  // Asked for only once something could dispatch, so a project that never writes `.implEquals`
+  // never starts a language server. See {@link needsTypes}.
+  run: (scans, { types }) => (needsTypes(scans) ? structuralEquals(scans, types()) : []),
+};
+
 /**
  * Type constructors whose shape a spec can mirror, so the walk descends into them.
  *
@@ -40,7 +48,7 @@ type Candidate = { path: string; offset: number; name: string };
  * Positions come out as spec paths, so the two walks meet on a string. `readonly Money[]` and
  * `ReadonlyArray<Money>` both give `[]`, the form `EqElements` takes for an array.
  */
-export function payloadPositions(payload: Node): Candidate[] {
+function payloadPositions(payload: Node): Candidate[] {
   const found: Candidate[] = [];
 
   const walk = (node: Node, path: string): void => {
@@ -119,7 +127,7 @@ export function payloadPositions(payload: Node): Candidate[] {
  * A path is covered by any prefix of itself, so `shipping: someFn` covers `shipping.zip`: the
  * function owns everything below it.
  */
-export function specPaths(spec: Node): Set<string> {
+function specPaths(spec: Node): Set<string> {
   const covered = new Set<string>();
 
   const walk = (node: Node, path: string): void => {
@@ -171,7 +179,7 @@ const needsTypes = (scans: readonly Scan[]): boolean =>
  * helper alias, a re-export or an `interface` is still seen. Names that do not resolve are left
  * alone, which keeps silence the safe direction.
  */
-export async function structuralEquals(
+async function structuralEquals(
   scans: readonly Scan[],
   resolver: Resolver | undefined,
 ): Promise<StructuralEquals[]> {
@@ -282,11 +290,3 @@ function prefixes(path: string): string[] {
   }
   return found;
 }
-
-export const rule: Rule<StructuralEquals> = {
-  kind: "structural-equals",
-  description: "a payload holding a Val whose own `equals` the parent never dispatches to",
-  // Asked for only once something could dispatch, so a project that never writes `.implEquals`
-  // never starts a language server. See {@link needsTypes}.
-  run: (scans, { types }) => (needsTypes(scans) ? structuralEquals(scans, types()) : []),
-};
