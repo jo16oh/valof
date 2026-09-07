@@ -28,19 +28,19 @@ const Shop = Val.sealer<Shop>().impl({
 declare const shop: Shop;
 
 export const patched = [
-  Shop.with(shop, { owner: { contact: { email: "a@example.com" } } }),
-  Shop.with(shop, { owner: { contact: { phone: undefined } } }),
-  Shop.with(shop, { city: City.with(shop.city, { name: "Osaka" }) }),
-  Shop.with(shop, { staff: { u1: { role: "chef" }, u2: undefined } }),
+  Shop.patch(shop, { owner: { contact: { email: "a@example.com" } } }),
+  Shop.patch(shop, { owner: { contact: { phone: undefined } } }),
+  Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) }),
+  Shop.patch(shop, { staff: { u1: { role: "chef" }, u2: undefined } }),
   Shop.update(shop, (s) => ({ ...s, id: "x" })),
 ];
 
 // @ts-expect-error a required key cannot be deleted, however deep it sits
-Shop.with(shop, { owner: { contact: { email: undefined } } });
+Shop.patch(shop, { owner: { contact: { email: undefined } } });
 // @ts-expect-error excess-property checking reaches the nested literal
-Shop.with(shop, { owner: { contact: { fax: "1" } } });
+Shop.patch(shop, { owner: { contact: { fax: "1" } } });
 // @ts-expect-error a Val takes a Val, not a patch
-Shop.with(shop, { city: { name: "Osaka" } });
+Shop.patch(shop, { city: { name: "Osaka" } });
 // @ts-expect-error a plain payload is not a Val
 export const wrong: City = { name: "Kyoto" };
 

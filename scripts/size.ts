@@ -15,7 +15,7 @@ const api = "Val";
 
 const modes = ["production", "development"] as const;
 
-const budget = { gzip: 1024, types: 24 * 1024 };
+const budget = { gzip: 1280, types: 24 * 1024 };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
 

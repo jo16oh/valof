@@ -6,7 +6,7 @@
 
 Value-object helpers for TypeScript: branded types, a constructor and a companion that collects the
 functions for the type. Values stay **plain objects, arrays and primitives** — no classes, no
-prototypes. Under 1 kB gzipped.
+prototypes. Around 1 kB gzipped.
 
 What you get:
 
@@ -55,8 +55,8 @@ User.equals(user, User({ id: "a", name: "bob" })); // true
 ```
 
 `Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions for that type.
-Every function in `impl` must take its Val first. A sealer already carries `equals`, `with` and
-`update`, which `.impl({…})` can override.
+Every function in `impl` must take its Val first. A sealer already carries `equals`, `patch` and
+`update`. Only `equals` can be replaced, through `.implEquals`.
 
 Only primitives, arrays and plain objects can live inside a Val. See
 [Allowed types](#allowed-types).
@@ -87,13 +87,13 @@ fresh**, not by the size of the value:
 type City = Val<"City", { name: string; zip: string }>;
 
 City({ ...raw, name: "Osaka" }); // every node is new: copies the whole payload
-City.with(city, { name: "Osaka" }); // the rest of the value comes back as it stands
+City.patch(city, { name: "Osaka" }); // the rest of the value comes back as it stands
 ```
 
 So deriving a value copies only the path down to what changed, not the whole tree. The untouched
 subtrees keep their reference identity, so anything comparing by reference, such as a React
 dependency array, sees no change and skips its work. A patch that changes nothing hands the same
-value back, which makes `with` cheaper than the spread you would have written by hand.
+value back, which makes `patch` cheaper than the spread you would have written by hand.
 
 ## Smart constructors
 
@@ -117,11 +117,11 @@ Age.seal(30); // Result<Age>
 [better-result](https://better-result.dev) or your own all work: the seal's return type is
 propagated, never inspected.
 
-**Every path to a value goes through `seal`**, including `with`, `update` and `create`.
+**Every path to a value goes through `seal`**, including `patch`, `update` and `create`.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back. Generating
 something new, such as an id or a timestamp, belongs in [`create`](#create) instead; otherwise
-`with` would produce a new id every time it re-seals.
+`patch` would produce a new id every time it re-seals.
 
 Nothing copies on the way in, so normalize without mutating the caller's object: derive a new one
 with `toSorted` or a spread. Return through the `seal` passed as the second parameter: that is what
@@ -169,7 +169,7 @@ export const User = Val.companion<User>().implSeal((input: object, seal): Result
 });
 ```
 
-The schema runs on every derivation, not just the first parse: `with` and `update` go back through
+The schema runs on every derivation, not just the first parse: `patch` and `update` go back through
 the seal.
 
 ## Equality
@@ -193,18 +193,35 @@ An override receives the structural comparison as a third argument and can fall 
 
 ```ts
 // Published docs are identified by id; drafts have no stable one.
-const Doc = Val.sealer<Doc>().impl({
-  equals: (a, b, deepEquals) => (a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id),
-});
+const Doc = Val.sealer<Doc>().implEquals((a, b, deepEquals) =>
+  a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id,
+);
 ```
 
 That argument is the structural comparison, not "the `equals` you are overriding", so it does not
 reach a nested Val's own `equals` either.
 
-## `with` / `update`
+Where the parent only needs a few children compared differently, `.implEquals` takes a spec instead
+of a function. Keys it does not name keep the structural default, so unrelated ones stay out of it.
 
 ```ts
-User.with(user, { name: "sue" });
+const Order = Val.sealer<Order>().implEquals({
+  total: Money, // hand over the companion: `Money.equals` is used
+  email: Email, // works for a child with a primitive payload too
+  lines: [OrderLine], // brackets compare element by element
+  shipping: { zip: Zip }, // a plain nested object: name only what is inside
+  span: [undefined, Money], // a tuple compares by position, all of them
+  updatedAt: () => true, // out of the comparison
+});
+```
+
+The spec stops at a nested Val: hand over its companion rather than walking its payload, which would
+go around the equality that type declared for itself.
+
+## `patch` / `update`
+
+```ts
+User.patch(user, { name: "sue" });
 User.update(user, (u) => ({ ...u, name: u.name.toUpperCase() }));
 ```
 
@@ -225,35 +242,32 @@ A patch reaches any depth, and only the keys it names change:
 type City = Val<"City", { name: string; zip: string }>;
 type Shop = Val<"Shop", { owner: { name: string; email: string }; city: City }>;
 
-Shop.with(shop, { owner: { email: "e@example.com" } }); // the owner's name stays
-Shop.with(shop, { city: City.with(shop.city, { name: "Osaka" }) }); // a Val is replaced, not patched
-Shop.update(shop, (s) => ({ ...s, owner: newOwner })); // `with` merges, so it cannot shrink `owner`
+Shop.patch(shop, { owner: { email: "e@example.com" } }); // the owner's name stays
+Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) }); // a Val is replaced, not patched
+Shop.update(shop, (s) => ({ ...s, owner: newOwner })); // `patch` merges, so it cannot shrink `owner`
 ```
 
 A nested Val, an array and a primitive are replaced whole: a patch reaching inside a Val would build
-a payload its own seal never saw. Derive it with its own `with`, which goes through that seal and
+a payload its own seal never saw. Derive it with its own `patch`, which goes through that seal and
 keeps the parts it did not touch.
 
-`with` and `update` are defaults you can replace: define either one in `.impl` and yours wins, in
-the type as well as at runtime. It is also how a primitive Val gets a `with`: it has nothing to
-patch, so it carries none by default. The seal comes in as a last parameter, since `Point.seal(...)`
-is not in scope inside its own `.impl`:
+`patch` and `update` are the library's, and neither can be replaced. They mean the same thing on
+every type, which is what makes them worth reading. A derivation with rules of its own gets a name
+of its own, in `.impl`, and seals inside it:
 
 ```ts
-const Point = Val.companion<Point>()
-  .implSeal((p, seal) => seal({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
+const Money = Val.companion<Money>()
+  .implSeal((m, seal) => seal({ ...m, amount: Math.round(m.amount) }))
   .impl({
-    with(p, patch: { x?: number; y?: number }, seal) {
-      return seal({ ...p, ...patch });
-    },
+    scale: (m, by: number): Money => Money.seal({ ...m, amount: m.amount * by }),
   });
-
-Point.with(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
 ```
+
+That is also the only route for a primitive Val, which carries no `patch`: it has nothing to merge.
 
 `update` is always there. **Its callback cannot fail**: it takes the value and returns a payload,
 never a `Result`, or a chain of them would nest. Run a fallible transform yourself and hand the
-outcome to `with`.
+outcome to `patch`.
 
 ```ts
 Age.update(age, (n) => n + 1); // Result<Age> — the seal's, not the callback's
@@ -262,7 +276,7 @@ Age.update(age, (n) => n + 1); // Result<Age> — the seal's, not the callback's
 ### Fields the update path must not touch
 
 An id generated inside the constructor, a `createdAt`, a version counter: `create` produces them,
-the seal preserves them, and `.unpatchable` keeps the update path off them.
+the seal preserves them, and `.fixed` keeps the update path off them.
 
 ```ts
 export type User = Val<"User", { id: string; name: string; email: string }>;
@@ -270,16 +284,16 @@ export type User = Val<"User", { id: string; name: string; email: string }>;
 export const User = Val.companion<User>()
   .implCreate((f: Omit<SeedOf<User>, "id">) => ({ id: crypto.randomUUID(), ...f }))
   .implSeal((u, seal) => seal(normalize(u)))
-  .unpatchable<"id">();
+  .fixed<"id">();
 
-User.with(user, { name: "sue" }); // OK
-User.with(user, { id: "forged" }); // type error
+User.patch(user, { name: "sue" }); // OK
+User.patch(user, { id: "forged" }); // type error
 User.update(user, (u) => ({ name: u.name, email: u.email })); // id survives
 User.update(user, (u) => ({ ...u, id: "forged" })); // type error
 ```
 
-With keys declared unpatchable, `update`'s callback returns only what is left and the rest is merged
-back on, so deleting an optional key goes through `with(v, { k: undefined })` instead.
+With keys declared fixed, `update`'s callback returns only what is left and the rest is merged back
+on, so deleting an optional key goes through `patch(v, { k: undefined })` instead.
 
 The keys are a type argument, so they do not exist at runtime. This guarantees the update path, not
 the value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. No
@@ -333,10 +347,10 @@ type PriceTable = Val<"PriceTable", Readonly<Record<string, Money>>>; // a Map
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`
 ignores key order, so comparing two of them is set equality.
 
-`with` reaches one entry at a time and `undefined` drops it; `update` rebuilds the whole table.
+`patch` reaches one entry at a time and `undefined` drops it; `update` rebuilds the whole table.
 
 ```ts
-PriceTable.with(table, { apple: Money({ amount: 120, currency: "JPY" }), fig: undefined });
+PriceTable.patch(table, { apple: Money({ amount: 120, currency: "JPY" }), fig: undefined });
 
 PriceTable.update(table, (t) =>
   // the value type is named because a Val carries its phantom keys in the type as well
@@ -383,25 +397,26 @@ Val.unwrap(post).tags.sort(); // ✓
 
 ## API
 
-|                                       |                                                                   |
-| ------------------------------------- | ----------------------------------------------------------------- |
-| `Val<K, T>`                           | a branded value type                                              |
-| `Val.of<V>(value)`                    | the default seal, with the type named explicitly                  |
-| `Val.unwrap(value)`                   | a mutable copy of the payload                                     |
-| `Val.sealer<V>()`                     | the default seal, carrying `equals` / `with` / `update`           |
-| `Val.sealer<V>().impl(fns)`           | the constructor plus your functions                               |
-| `Val.companion<V>().impl(fns)`        | functions only — no constructor                                   |
-| `Val.companion<V>().implSeal(f)`      | replaces the `seal`: a constructor that can validate inputs       |
-| `Val.companion<V>().implCreate(f)`    | registers `create`: a constructor that generates values inside it |
-| `Val.companion<V>().unpatchable<K>()` | takes keys out of `with` / `update`                               |
-| `AnyVal`                              | a constraint over any Val                                         |
-| `SeedOf<V>`                           | what a value can be grown from                                    |
-| `PayloadOf<V>`                        | the payload behind the brand                                      |
-| `Patch<T>`                            | a `with` patch, taken over a payload                              |
-| `Sealer<V>`                           | what `Val.sealer<V>()` returns, never written                     |
-| `Sealed<V, M>`                        | what its `.impl(fns)` returns, never written                      |
-| `CompanionBuilder<V>`                 | what `Val.companion<V>()` returns, never written                  |
-| `Companion<V, M>`                     | what its `.impl(fns)` returns, never written                      |
+|                                    |                                                                   |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| `Val<K, T>`                        | a branded value type                                              |
+| `Val.of<V>(value)`                 | the default seal, with the type named explicitly                  |
+| `Val.unwrap(value)`                | a mutable copy of the payload                                     |
+| `Val.sealer<V>()`                  | the default seal, carrying `equals` / `patch` / `update`          |
+| `Val.sealer<V>().impl(fns)`        | the constructor plus your functions                               |
+| `Val.companion<V>().impl(fns)`     | functions only — no constructor                                   |
+| `.implEquals(spec)`                | replaces `equals`: your own comparison, or a spec per child       |
+| `Val.companion<V>().implSeal(f)`   | replaces the `seal`: a constructor that can validate inputs       |
+| `Val.companion<V>().implCreate(f)` | registers `create`: a constructor that generates values inside it |
+| `Val.companion<V>().fixed<K>()`    | takes keys out of `patch` / `update`                              |
+| `AnyVal`                           | a constraint over any Val                                         |
+| `SeedOf<V>`                        | what a value can be grown from                                    |
+| `PayloadOf<V>`                     | the payload behind the brand                                      |
+| `Patch<T>`                         | what `patch` takes, over a payload                                |
+| `Sealer<V>`                        | what `Val.sealer<V>()` returns, never written                     |
+| `Sealed<V, M>`                     | what its `.impl(fns)` returns, never written                      |
+| `CompanionBuilder<V>`              | what `Val.companion<V>()` returns, never written                  |
+| `Companion<V, M>`                  | what its `.impl(fns)` returns, never written                      |
 
 The last four are exported only so that your own `.d.ts` can name them when you re-export a
 companion — there is no reason to import one yourself.
