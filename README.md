@@ -56,8 +56,7 @@ User.equals(user, User({ id: "a", name: "bob" })); // true
 
 `Val.sealer<User>()` is the constructor, and `.impl({…})` collects the functions for that type.
 Every function in `impl` must take its Val first. A sealer already carries `equals`, `patch` and
-`update`; each has a step of its own that replaces it (`.implEquals` / `.implPatch` /
-`.implUpdate`).
+`update`. Only `equals` can be replaced, through `.implEquals`.
 
 Only primitives, arrays and plain objects can live inside a Val. See
 [Allowed types](#allowed-types).
@@ -252,17 +251,19 @@ A nested Val, an array and a primitive are replaced whole: a patch reaching insi
 a payload its own seal never saw. Derive it with its own `patch`, which goes through that seal and
 keeps the parts it did not touch.
 
-`patch` and `update` are defaults you can replace, in the type as well as at runtime. It is also how
-a primitive Val gets a `patch`: it has nothing to patch, so it carries none by default. The seal
-comes in as a last parameter, since `Point.seal(...)` is not in scope inside its own step:
+`patch` and `update` are the library's, and neither can be replaced. They mean the same thing on
+every type, which is what makes them worth reading. A derivation with rules of its own gets a name
+of its own, in `.impl`, and seals inside it:
 
 ```ts
-const Point = Val.companion<Point>()
-  .implSeal((p, seal) => seal({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
-  .implPatch((p, patch: { x?: number; y?: number }, seal) => seal({ ...p, ...patch }));
-
-Point.patch(p, { x: 3.7 }); // callers pass two arguments; the seal truncates
+const Money = Val.companion<Money>()
+  .implSeal((m, seal) => seal({ ...m, amount: Math.round(m.amount) }))
+  .impl({
+    scale: (m, by: number): Money => Money.seal({ ...m, amount: m.amount * by }),
+  });
 ```
+
+That is also the only route for a primitive Val, which carries no `patch`: it has nothing to merge.
 
 `update` is always there. **Its callback cannot fail**: it takes the value and returns a payload,
 never a `Result`, or a chain of them would nest. Run a fallible transform yourself and hand the
@@ -405,7 +406,6 @@ Val.unwrap(post).tags.sort(); // ✓
 | `Val.sealer<V>().impl(fns)`        | the constructor plus your functions                               |
 | `Val.companion<V>().impl(fns)`     | functions only — no constructor                                   |
 | `.implEquals(spec)`                | replaces `equals`: your own comparison, or a spec per child       |
-| `.implPatch(f)` / `.implUpdate(f)` | replace the derivations, in the type as well as at runtime        |
 | `Val.companion<V>().implSeal(f)`   | replaces the `seal`: a constructor that can validate inputs       |
 | `Val.companion<V>().implCreate(f)` | registers `create`: a constructor that generates values inside it |
 | `Val.companion<V>().fixed<K>()`    | takes keys out of `patch` / `update`                              |

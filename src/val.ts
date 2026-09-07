@@ -131,9 +131,9 @@ type CompanionFns<V extends AnyVal> = {
    * Rejected so they cannot be mistaken for registrations: everything the library wires has a
    * step of its own. A `seal` whose first parameter accepts the Val, common for primitive
    * payloads, would otherwise satisfy the index signature and attach as an ordinary function,
-   * leaving `patch` / `update` unrouted. An `equals` or a `patch` written here would attach
-   * without the argument its step binds for it. Use `.implEquals` / `.implPatch` /
-   * `.implUpdate` / `.implSeal` / `.implCreate`.
+   * leaving `patch` / `update` unrouted. `equals` has a step of its own, and `patch` / `update`
+   * are the library's, not yours: a derivation with different rules deserves its own name, and
+   * can seal inside it. Use `.implEquals` / `.implSeal` / `.implCreate`.
    */
   equals?: never;
   patch?: never;
@@ -201,18 +201,6 @@ type EqPayload<T> = [T] extends [AnyVal]
         : never;
 
 /**
- * What `.implPatch` and `.implUpdate` take. The second parameter is yours to choose: a patch, or
- * the transform `update` runs. The seal arrives last, as `deepEquals` does on an override,
- * because the companion is still being built and `YourVal.seal` is not yet in scope.
- */
-type DeriveImpl<V extends AnyVal, F> = (
-  value: V,
-  // oxlint-disable-next-line no-explicit-any -- the patch is yours to choose; `never` would not fit
-  arg: any,
-  seal: (value: SeedOf<V>) => Constructed<V, F>,
-) => unknown;
-
-/**
  * What the seal produces, propagated verbatim. The library never inspects it, so `Result` and
  * friends need no support here.
  */
@@ -273,18 +261,8 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
 type Derive<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 
 /**
- * Drops the trailing seal parameter from an override, so callers see the two-parameter function
- * they actually call. An override written without it is published unchanged.
- */
-type WithoutSeal<T> = T extends (...args: infer A) => infer R
-  ? A extends [infer Value, infer Arg, unknown]
-    ? (value: Value, arg: Arg) => R
-    : T
-  : T;
-
-/**
- * Drops the trailing default-seal parameter from a registered seal, for the same reason
- * {@link WithoutSeal} does on an override: callers pass the payload and nothing else.
+ * Drops the trailing default-seal parameter from a registered seal: callers pass the payload and
+ * nothing else.
  */
 type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
   ? A extends [infer Value, unknown]
@@ -309,52 +287,41 @@ type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
 /**
  * `patch` exists only when there is something to patch: `Patch` is `never` for primitives and
- * arrays, so for those the function is left out of the type. A registered `.implPatch` wins,
- * and puts one back.
+ * arrays, so for those the function is left out of the type. Write a named derivation of your
+ * own instead, and seal inside it.
  */
-type PatchMethod<V extends AnyVal, W, F, P> = [W] extends [undefined]
-  ? [Patch<Derivable<V, P>>] extends [never]
-    ? Record<never, never>
-    : {
-        /**
-         * Derives by sealing, so it returns whatever the seal returns: there is no hole through
-         * which `patch` bypasses a smart constructor.
-         *
-         * A nested object merges, so a patch cannot shrink one. `{ staff: { u1: undefined } }`
-         * drops one entry; handing over a whole smaller object leaves the rest in place. Use
-         * `update` to replace it outright. See {@link Patch}.
-         */
-        patch: Derive<V, F, Patch<Derivable<V, P>>>;
-      }
+type PatchMethod<V extends AnyVal, F, P> = [Patch<Derivable<V, P>>] extends [never]
+  ? Record<never, never>
   : {
-      /** Derives a value with the patch applied, through the type's own seal. */
-      patch: WithoutSeal<W>;
+      /**
+       * Derives by sealing, so it returns whatever the seal returns: there is no hole through
+       * which `patch` bypasses a smart constructor.
+       *
+       * A nested object merges, so a patch cannot shrink one. `{ staff: { u1: undefined } }`
+       * drops one entry; handing over a whole smaller object leaves the rest in place. Use
+       * `update` to replace it outright. See {@link Patch}.
+       */
+      patch: Derive<V, F, Patch<Derivable<V, P>>>;
     };
 
 /**
- * Same as {@link PatchMethod}: yours if you registered one, the default derivation otherwise.
  * With keys taken out of the patch path, the callback returns only what is left and the default
  * merges it onto the value.
  */
-type UpdateMethod<V extends AnyVal, U, F, P> = [U] extends [undefined]
-  ? {
-      /**
-       * Derives a value from a transform of it, by sealing the result.
-       *
-       * Value to value on purpose: a fallible transform chains into `Result<Result<...>>`.
-       * Use `patch` and a combinator of your own for that.
-       */
-      update: [P] extends [never]
-        ? Derive<V, F, (value: V) => SeedOf<V>>
-        : <T extends Derivable<V, P>>(
-            value: V,
-            fn: (value: V) => NoExtra<T, Derivable<V, P>>,
-          ) => Constructed<V, F>;
-    }
-  : {
-      /** Derives a value from a transform of it, through the type's own seal. */
-      update: WithoutSeal<U>;
-    };
+type UpdateMethod<V extends AnyVal, F, P> = {
+  /**
+   * Derives a value from a transform of it, by sealing the result.
+   *
+   * Value to value on purpose: a fallible transform chains into `Result<Result<...>>`.
+   * Use `patch` and a combinator of your own for that.
+   */
+  update: [P] extends [never]
+    ? Derive<V, F, (value: V) => SeedOf<V>>
+    : <T extends Derivable<V, P>>(
+        value: V,
+        fn: (value: V) => NoExtra<T, Derivable<V, P>>,
+      ) => Constructed<V, F>;
+};
 
 /**
  * A type's functions, and nothing else. Not callable: constructors come from `Val.sealer`, so a
@@ -368,13 +335,11 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
-  W = undefined,
-  U = undefined,
 > = Omit<M, "equals" | "patch" | "update"> &
   CreateMethod<V, N, F> &
   SealMethod<F> &
-  PatchMethod<V, W, F, P> &
-  UpdateMethod<V, U, F, P> & {
+  PatchMethod<V, F, P> &
+  UpdateMethod<V, F, P> & {
     /** Structural equality: key-order independent, ignoring `undefined`-valued keys. */
     equals: (a: V, b: V) => boolean;
   };
@@ -384,10 +349,8 @@ export type Companion<
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  */
-export type Sealed<V extends AnyVal, M extends CompanionFns<V>, W = undefined, U = undefined> = ((
-  value: SeedOf<V>,
-) => V) &
-  Companion<V, M, undefined, undefined, never, W, U>;
+export type Sealed<V extends AnyVal, M extends CompanionFns<V>> = ((value: SeedOf<V>) => V) &
+  Companion<V, M>;
 
 /**
  * A constructor for `V`, which can grow functions without ceasing to be one.
@@ -398,26 +361,17 @@ export type Sealed<V extends AnyVal, M extends CompanionFns<V>, W = undefined, U
  * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
  * nothing.
  */
-export type Sealer<V extends AnyVal, W = undefined, U = undefined> = Sealed<
-  V,
-  Record<never, never>,
-  W,
-  U
-> & {
+export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
   /** Collects the functions for the type. */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
-    (): Sealed<V, Record<never, never>, W, U>;
-    <M extends CompanionFns<V>>(fns: M): Sealed<V, M, W, U>;
+    (): Sealed<V, Record<never, never>>;
+    <M extends CompanionFns<V>>(fns: M): Sealed<V, M>;
   };
   /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => Sealer<V, W, U>;
-  /** Replaces the default `patch`, in the type as well as at run time. */
-  implPatch: <G extends DeriveImpl<V, undefined>>(fn: G) => Sealer<V, G, U>;
-  /** Same as `.implPatch`, for the function-shaped derivation. */
-  implUpdate: <G extends DeriveImpl<V, undefined>>(fn: G) => Sealer<V, W, G>;
+  implEquals: (spec: EqImpl<V>) => Sealer<V>;
 };
 
 /**
@@ -429,32 +383,27 @@ export type Sealer<V extends AnyVal, W = undefined, U = undefined> = Sealed<
  * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Minting
  * belongs in `create`, whose payload is then sealed like any other.
  */
-export type CompanionBuilder<
-  V extends AnyVal,
-  N = undefined,
-  F = undefined,
-  P = never,
-  W = undefined,
-  U = undefined,
-> = Companion<V, Record<never, never>, N, F, P, W, U> & {
+export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P = never> = Companion<
+  V,
+  Record<never, never>,
+  N,
+  F,
+  P
+> & {
   /** Collects the functions for the type. Everything the library wires has its own step. */
   impl: {
-    (): Companion<V, Record<never, never>, N, F, P, W, U>;
-    <M extends CompanionFns<V>>(fns: M): Companion<V, M, N, F, P, W, U>;
+    (): Companion<V, Record<never, never>, N, F, P>;
+    <M extends CompanionFns<V>>(fns: M): Companion<V, M, N, F, P>;
   };
   /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P, W, U>;
-  /** Replaces the default `patch`, in the type as well as at run time. */
-  implPatch: <G extends DeriveImpl<V, F>>(fn: G) => CompanionBuilder<V, N, F, P, G, U>;
-  /** Same as `.implPatch`, for the function-shaped derivation. */
-  implUpdate: <G extends DeriveImpl<V, F>>(fn: G) => CompanionBuilder<V, N, F, P, W, G>;
+  implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P>;
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
-  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P, W, U>;
+  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P>;
   /**
    * Replaces the seal. Its parameter may be wider than the payload, so a schema library can parse
    * into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
    */
-  implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P, W, U>;
+  implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P>;
   /**
    * Takes keys out of the update path: `patch` stops accepting them in its patch, and `update`'s
    * callback returns only what is left, with the rest merged back on.
@@ -472,7 +421,7 @@ export type CompanionBuilder<
    * The keys are a type argument and do not exist at runtime. This constrains the update path,
    * not the value: `Val.of` can still forge one.
    */
-  fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K, W, U>;
+  fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K>;
 };
 
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
@@ -677,8 +626,6 @@ type Ctors = {
   create?: AnyFn;
   seal?: (value: unknown, seal: (value: unknown) => unknown) => unknown;
   equals?: unknown;
-  patch?: AnyFn;
-  update?: AnyFn;
   fixed?: boolean;
 };
 
@@ -734,7 +681,7 @@ const attach = (
   fns: Record<string, unknown>,
   ctors: Ctors,
 ): Record<string, unknown> => {
-  const { create, seal: custom, equals, patch: patchImpl, update: updateImpl } = ctors;
+  const { create, seal: custom, equals } = ctors;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
   // A derivation that changed nothing returns the value it started from, so a framework comparing
   // by identity sees no update. A custom seal owns the return shape, so the value goes back
@@ -756,36 +703,29 @@ const attach = (
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
-  target.patch = patchImpl
-    ? (value: unknown, patch: unknown) =>
-        (patchImpl as AnyFn as (v: unknown, p: unknown, s: unknown) => unknown)(value, patch, seal)
-    : (value: unknown, patch: Record<string, unknown>) => {
-        // The type leaves `patch` off a primitive or array Val, so reaching this takes a cast.
-        // Still throws in production: without the guard the spread seals an object, turning a
-        // number into `{}` and a string into a character map. Only the message is
-        // development-only.
-        if (!isObjectShaped(value)) {
-          throw new TypeError(
-            development ? "`patch` is only available for object-shaped Vals." : undefined,
-          );
-        }
-        const merged = patched(value, patch);
-        return Object.is(merged, value) ? keep(value) : seal(merged);
-      };
+  target.patch = (value: unknown, patch: Record<string, unknown>) => {
+    // The type leaves `patch` off a primitive or array Val, so reaching this takes a cast.
+    // Still throws in production: without the guard the spread seals an object, turning a
+    // number into `{}` and a string into a character map. Only the message is development-only.
+    if (!isObjectShaped(value)) {
+      throw new TypeError(
+        development ? "`patch` is only available for object-shaped Vals." : undefined,
+      );
+    }
+    const merged = patched(value, patch);
+    return Object.is(merged, value) ? keep(value) : seal(merged);
+  };
 
   // The merge is what lets the untouched keys survive without the library knowing their names.
-  target.update = updateImpl
-    ? (value: unknown, fn: unknown) =>
-        (updateImpl as AnyFn as (v: unknown, f: unknown, s: unknown) => unknown)(value, fn, seal)
-    : (value: unknown, fn: (value: unknown) => unknown) => {
-        const next =
-          ctors.fixed && isObjectShaped(value)
-            ? { ...value, ...(fn(value) as Record<string, unknown>) }
-            : fn(value);
-        // Only the transform that hands its argument straight back. Recognising a fresh object
-        // that happens to be equal is `patch`'s job, where the walk is already paid for.
-        return Object.is(next, value) ? keep(value) : seal(next);
-      };
+  target.update = (value: unknown, fn: (value: unknown) => unknown) => {
+    const next =
+      ctors.fixed && isObjectShaped(value)
+        ? { ...value, ...(fn(value) as Record<string, unknown>) }
+        : fn(value);
+    // Only the transform that hands its argument straight back. Recognising a fresh object that
+    // happens to be equal is `patch`'s job, where the walk is already paid for.
+    return Object.is(next, value) ? keep(value) : seal(next);
+  };
 
   for (const key of Object.keys(fns)) define(target, key, fns[key]);
 
@@ -811,8 +751,6 @@ const build = <V extends AnyVal>(ctors: Ctors, callable: boolean): object => {
 
   target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors);
   target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
-  target.implPatch = (fn: AnyFn) => step({ ...ctors, patch: fn });
-  target.implUpdate = (fn: AnyFn) => step({ ...ctors, update: fn });
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });

@@ -951,51 +951,28 @@ describe("patch", () => {
     });
   });
 
-  describe("overrides", () => {
+  describe("a derivation of your own", () => {
     type Point = Val<"Point", { x: number; y: number }>;
 
-    const Point = Val.companion<Point>()
-      .implSeal((p, seal) => seal({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
-      .implPatch((p, patch: { x?: number; y?: number }, seal) => seal({ ...p, ...patch }));
+    test("a named function in `.impl` reaches the type's own seal", () => {
+      const Point = Val.companion<Point>()
+        .implSeal((p, seal) => seal({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
+        // The return type is annotated because `Point` is referenced in its own initializer.
+        .impl({
+          moved: (p, by: { x: number; y: number }): Point =>
+            Point.seal({ x: p.x + by.x, y: p.y + by.y }),
+        });
 
-    test("the override derives through the type's own seal", () => {
-      const p = Point.seal({ x: 1, y: 2 });
-      expect(Point.patch(p, { x: 3.7 })).toEqual({ x: 3, y: 2 }); // truncated by the seal
+      expect(Point.moved(Point.seal({ x: 1, y: 2 }), { x: 2.7, y: 0 })).toEqual({ x: 3, y: 2 });
     });
 
-    test("callers still pass two arguments", () => {
-      const p = Point.seal({ x: 1, y: 2 });
-      expectTypeOf(Point.patch).parameters.toEqualTypeOf<[Point, { x?: number; y?: number }]>();
-      expectTypeOf(Point.patch(p, { y: 9 })).toEqualTypeOf<Point>();
-    });
-
-    test("the two-parameter form still works", () => {
-      const Plain = Val.companion<Point>().implPatch((p, patch: { x?: number }): Point =>
-        Val.of<Point>({ ...p, ...patch }),
-      );
-      expect(Plain.patch(Val.of<Point>({ x: 1, y: 2 }), { x: 5 })).toEqual({ x: 5, y: 2 });
-    });
-
-    test("your own with still wins over the default derivation", () => {
-      const point = Val.sealer<Point>();
-      const make = (x: number, y: number): Point => point({ x, y });
-      const Manual = Val.companion<Point>()
-        .implCreate(make)
-        .implPatch((p, patch: { x?: number; y?: number }): Point =>
-          make(patch.x ?? p.x, patch.y ?? p.y),
-        );
-
-      const p = Val.of<Point>({ x: 1, y: 2 });
-      expectTypeOf(Manual.patch(p, { x: 3 })).toEqualTypeOf<Point>();
-      expect(Manual.patch(p, { x: 3 })).toEqual({ x: 3, y: 2 });
-    });
-
-    test("an explicit with reaches even a primitive Val, which has none by default", () => {
+    test("which is the only route for a primitive Val, since it carries no `patch`", () => {
       type UnixEpoch = Val<"UnixEpoch", number>;
-      const UnixEpoch = Val.companion<UnixEpoch>().implPatch((t, seconds: number): UnixEpoch =>
-        Val.of<UnixEpoch>(t + seconds),
-      );
-      expect(UnixEpoch.patch(Val.of<UnixEpoch>(1_756_771_200), 60)).toBe(1_756_771_260);
+      const UnixEpoch = Val.companion<UnixEpoch>()
+        .implSeal((t: number, seal) => seal(Math.trunc(t)))
+        .impl({ plus: (t, seconds: number): UnixEpoch => UnixEpoch.seal(t + seconds) });
+
+      expect(UnixEpoch.plus(Val.of<UnixEpoch>(1_756_771_200), 60.5)).toBe(1_756_771_260);
     });
   });
 });
@@ -1015,16 +992,6 @@ describe("update", () => {
       ok: false,
       error: "age must be a non-negative integer",
     });
-  });
-
-  test("implUpdate overrides the derivation, and is handed the seal", () => {
-    type Counter = Val<"Counter", { n: number; touched: number }>;
-    const Counter = Val.companion<Counter>()
-      .implSeal((c, seal) => seal({ ...c, touched: c.touched + 1 }))
-      .implUpdate((c, by: number, seal) => seal({ ...c, n: c.n + by }));
-
-    expect(Counter.update(Counter.seal({ n: 1, touched: 0 }), 5)).toEqual({ n: 6, touched: 2 });
-    expectTypeOf(Counter.update).parameters.toEqualTypeOf<[Counter, number]>();
   });
 });
 
@@ -1136,6 +1103,17 @@ describe("building", () => {
       Val.companion<Age>().impl({
         // @ts-expect-error `create` belongs to .implCreate(), not to .impl()
         create: (n: number) => Val.of<Age>(n),
+      });
+    });
+
+    test("`patch` and `update` are the library's, not yours", () => {
+      Val.companion<User>().impl({
+        // @ts-expect-error a derivation with different rules deserves its own name
+        patch: (u: User) => u,
+      });
+      Val.companion<User>().impl({
+        // @ts-expect-error same
+        update: (u: User) => u,
       });
     });
   });

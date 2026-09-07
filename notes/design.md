@@ -22,7 +22,7 @@ import { Val } from "valof";
 - **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、`implEquals` の spec の設計
 - **§6 スマートコンストラクタと更新**
   - **6.1** コンストラクタは出自で決まる / **6.2** `patch` / `update`、patch の `undefined`、深さを問わない patch / **6.3** Result 非依存 / **6.4** `update` は値→値
-  - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` の上書きと第 3 引数の seal
+  - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` / `update` を上書きさせない
   - **6.7** seal（冪等）と create（鋳造）の分離 / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
@@ -983,7 +983,7 @@ Order.with(order, {}); // 前置詞の主語が引数に落ちて宙に浮く
 
 §1 で振る舞いを値の外に置くと決めた以上、companion の第一引数は値になる。メソッド形式の語をそのまま持ってこられない。
 
-`patch` は命令形なので `equals` / `create` / `seal` / `of` / `unwrap` と register が揃い、引数の型 `Patch<T>` と名前が一致する。関数が `with` で引数の型が `Patch` というずれが消えた。登録の段も `implWith` → `implPatch`。
+`patch` は命令形なので `equals` / `create` / `seal` / `of` / `unwrap` と register が揃い、引数の型 `Patch<T>` と名前が一致する。関数が `with` で引数の型が `Patch` というずれが消えた。
 
 **語が部分更新を意味するのも上乗せ。** HTTP `PATCH` / JSON Merge Patch（RFC 7386）/ `git patch` はどれも「全体を送らず差分を当てる」で、深い merge という実装とも一致する。`with` は部分か全体かを何も言わなかった。ずれるのは削除の sentinel だけで、merge patch は `null`、valof は `undefined`（§3.5）。
 
@@ -1107,47 +1107,48 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 第一引数が Val でない補助ファクトリ（`Money.fromCents(n)` / `IsoDate.parse(s)`）は companion に置けない。これらは「値に対する振る舞い」ではないので、素の export 関数に分離されるほうが筋が通る。多引数のコンストラクタ（`Point.create(x, y)`）は `implCreate` が引き受けるので影響なし。
 
-### 6.6 `patch` / `update` は上書き可能にする（強制はしない）
+### 6.6 `patch` / `update` は上書きさせない
 
-カスタム seal があるとき `patch` / `update` の手動定義を必須にするか。**必須にはしない。ただし書けるようにする。**
+**語彙は契約である。** どの型でも `Foo.patch(v, p)` は「深く merge、`undefined` で削除、seal を通る」、`Foo.update(v, f)` は「変換の結果を seal に通す」。上書きできる限りこれは約束にならず、読み手は型ごとに定義を確かめることになる。固定した小さな面から得られるものが、そこで消える。
 
-必須にすべきでない理由は `implSeal` 必須化と同じで、**ラバースタンプを書かせる**から。自前の `patch` は `seal({ ...v, ...patch })` というライブラリの既定そのものになる。
-
-一方で**逆向きの穴**が空いていた。既定の `patch` が「自分で updater を書け」と言うのに、**書く場所が型に存在しなかった**。`.impl` に自前の `patch` を書くと `attach` が既定の後にユーザーのメソッドを定義するので**実行時には正しく上書きされる**が、型は `Omit<M, "with" | "update">` で捨てていたため既定のシグネチャのまま。呼び出し側は相変わらずエラーになる。
-
-`implPatch` / `implUpdate` を足した。型は登録された上書きをビルダーの型引数で運ぶ（`implSeal` の `F` と同じ形）。
+規則の違う派生は**自分の名前を持つ**。`.impl` に書き、中で自分の seal を呼ぶ。
 
 ```ts
-type PatchMethod<V, W, F, P> = [W] extends [undefined]
-  ? [Patch<Derivable<V, P>>] extends [never]
-    ? Record<never, never>
-    : { with: Derive<V, F, Patch<Derivable<V, P>>> }
-  : { with: WithoutSeal<W> };
+const Money = Val.companion<Money>()
+  .implSeal((m, seal) => seal({ ...m, amount: Math.round(m.amount) }))
+  .impl({
+    scale: (m, by: number): Money => Money.seal({ ...m, amount: m.amount * by }),
+  });
 ```
 
-副次的に、既定では `patch` を持たないプリミティブ Val（§6.2）にも、明示的に定義すれば `patch` を生やせる。既定を消すことと、書くことを禁じることは別。
+戻り型の注釈が要る。`Money` を自身の初期化子の中で参照するので、無いと TS7022 / TS7023（implicitly has type 'any'）になる。TypeScript の一般的な事実であって valof の事情ではないので、README にも JSDoc にも書かない。
 
-#### 上書きには seal を第 3 引数で渡す
+#### 却下: `implPatch` / `implUpdate`（一度入れて外した）
 
-自前の `patch` は「新しいペイロードを型の seal に通す」だけのことが多いが、**その seal を参照する手段がなかった**。`YourVal.seal(...)` は companion 自身の初期化中なので書けず、`Val.of` を直に呼ぶと型の seal を迂回する。名前付きの関数に括り出して両方から呼ぶ、という定型をドキュメントに書いていたが、定型は API の不足の兆候だった。
+上書きの段を足したことがある。動機は 3 つあり、**すべて他の場所で解決していた**。
 
-`equals` が `deepEquals` を第 3 引数で受け取るのと同じ形にした。理由も同じで、**自由関数として公開すると型の seal を迂回する経路になる**ので、必要な場所にだけ手渡す。
+| 当時の動機                           | 現在                                                                                                       |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| 生成した `id` を更新経路から外す     | `.fixed`（§6.10）                                                                                          |
+| seal の引数が payload より狭い       | `CheckedSeal` が `implSeal` の登録時に落とす（§6.10）                                                      |
+| プリミティブ Val に `patch` を生やす | 患部が無い。merge するものを持たない型に `patch` は嘘。配列も §6.2 が「`update` が正しい経路」と書いている |
 
-```ts
-.implPatch((u, patch: Patch<Fields>, seal) => seal({ ...u, ...patch }));
+**「自前の派生から seal に届かない」も解決していた。** 当時は「`YourVal.seal(...)` は companion 自身の初期化中なので書けない」と判断して seal を第 3 引数で手渡したが、実際には**戻り型を注釈すれば `.impl` の中から呼べる**。実行時は関数の本体が走るのは初期化後なので元から動いていて、止めていたのは型推論の循環だけだった。カスタム seal が `Result` を返す型でも同じ。
+
+README に載っていた `Point` の例（`implSeal` で切り捨て、`implPatch` で `seal({ ...p, ...patch })`）は**ラバースタンプだった**。落として実行すると既定の `patch` / `update` が同じ答えを返す。
+
+```
+default patch:  {"x":3,"y":2}   // 3.7 が seal で切り捨てられている
+default update: {"x":1,"y":9}
 ```
 
-公開側は 2 引数に潰す（`WithoutSeal<T>`）。パラメータの数で分岐するので、seal を取らない 2 引数の上書きはそのまま公開される。
+§6.6 は「ラバースタンプを書かせない」ために足した段なのに、唯一の用例がそれだった。
 
-```ts
-type WithoutSeal<T> = T extends (...args: infer A) => infer R
-  ? A extends [infer Value, infer Arg, unknown]
-    ? (value: Value, arg: Arg) => R
-    : T
-  : T;
-```
+外して消えたもの: 型引数 `W` / `U`（`Companion` / `Sealed` / `Sealer` / `CompanionBuilder` の 4 つを貫いていた）、`WithoutSeal<T>`、`DeriveImpl<V, F>`、`Ctors` の 2 フィールドと `attach` の 2 分岐。
 
-第 3 引数の型を与えるために `CompanionMethods<V, F>` に `with?` / `update?` を宣言した。patch の型は利用者が決めるものなので `any` にしてある。`never` にすると index signature（`(value: V, ...rest: any[]) => unknown`）に代入できず TS2411 になる。`any` は `never` に代入できないため。
+**production gzip 1.11 → 1.07 kB、d.ts 18.57 → 16.67 kB。** 型引数を 2 つ抜いた効果が d.ts に大きく出る。
+
+`patch` / `update` は `CompanionFns` で `never` のまま。上書きできないことと、同名の関数を素通しで生やせることは別で、後者は既定を実行時に踏み潰す。
 
 ### 6.7 seal と create を分ける
 
@@ -1515,23 +1516,21 @@ const Order = Val.sealer<Order>().implEquals(
 
 ### 7.7 `equals` / `patch` / `update` を `.impl` に置いたままにする
 
-**却下。専用の段（`implEquals` / `implPatch` / `implUpdate`）に出す。**
+**却下。`.impl` はそのまま生やすものだけの置き場にする。**
 
-`.impl` は「そのまま生やすもの」の置き場で、そこに置かれた関数は名前どおりに companion に付く。この 3 つだけは違う。ライブラリが配線する。
+`.impl` に置かれた関数は名前どおりに companion に付く。この 3 つだけは違う。ライブラリが配線する。
 
 - 戻り値の型が決まっている（`equals` は `boolean`、`patch` / `update` は seal の戻り）
-- 第 3 引数が束縛されて公開側から消える（`deepEquals`、既定の seal）
-- companion の型で `Omit<M, "equals" | "with" | "update">` されて、`M` から取り除かれる
+- `equals` は第 3 引数（`deepEquals`）が束縛されて公開側から消える
+- companion の型で `Omit<M, "equals" | "patch" | "update">` されて、`M` から取り除かれる
 
-実行時にもそれは出ていて、`attach` の `for` ループがこの 3 つを `continue` で特別扱いしている。「`.impl` は素通し」という建前が既に破れていた。
+実行時にもそれは出ていて、`attach` の `for` ループがこの 3 つを `continue` で特別扱いしていた。「`.impl` は素通し」という建前が既に破れていた。
 
 `seal` と `create` は最初から専用の段にあり、`.impl` 側では `never` で弾いている（§6.5）。規則を 1 本に揃えると全部そこに乗る。
 
 > **ライブラリが配線するものは専用の段。`.impl` はそのまま生やすものだけ。**
 
-型の側も既存の形に乗る。`PatchMethod<V, M, F, P>` の `"with" extends keyof M` は、ビルダーの型引数に対する `[W] extends [undefined]` になるだけで、これは `implSeal` の `F` が `SealMethod<F>` / `Derive<V, F, _>` / `Constructed<V, F>` でやっていることの写し。
-
-代償は 2 つ。**`Companion` の型引数が 5 から 8 に増える**（人は書かないが宣言に名前として出る）。**`Sealer` が段を持つ**ので `build()` と統合が要る。後者は `Val.sealer` が持っていた専用の実装が消えるぶん、実装は減った。`Sealer` に `implSeal` / `implCreate` を生やさない判断（§6.5）はそのまま。
+行き先は 3 つで同じではない。`equals` は `implEquals` に出た。`patch` / `update` は**どこにも出さず、上書きの手段ごと閉じた**（§6.6）。`.impl` から弾く `never` は 3 つとも残る。上書きさせないことと、同名の関数を素通しで生やせることは別で、後者は既定を実行時に踏み潰す。
 
 ---
 
