@@ -454,11 +454,14 @@ pnpm exec valof-lint 'src/**/*.ts'
 ```
 
 ```
-src/user.ts:7   User.shout is never read
-src/order.ts:3  OrderId claims the brand "Id", and so does another type
-src/order.ts:9  Order.total holds Money, which has its own equals
+src/user.ts:7   unused-member      User.shout is never read
+src/order.ts:3  duplicate-brand    OrderId claims the brand "Id", and so does another type
+src/order.ts:9  structural-equals  Order.total holds Money, which has its own equals
 valof-lint: 3 finding(s) in 12 file(s)
 ```
+
+The middle column is the rule, and it is the name `--no-<rule>` and the disable comment both take.
+Output is coloured on a terminal and plain in a pipe, and `NO_COLOR` and `FORCE_COLOR` are honoured.
 
 It exits 1 when it finds something, so it drops into CI or a `vp run` task as it is.
 

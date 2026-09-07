@@ -14,6 +14,7 @@ export type DuplicateBrand = {
   brand: string;
   /** The alias that claims it, as written. */
   alias: string;
+  message: string;
 };
 
 export const DuplicateBrand: Rule<DuplicateBrand> = {
@@ -39,7 +40,14 @@ function findings(scans: readonly Scan[]): DuplicateBrand[] {
     for (const { typeName, brand, alias, line } of brands) {
       if (original(bound, typeName) !== "Val") continue;
       const claimed = claims.get(brand) ?? [];
-      claimed.push({ kind: "duplicate-brand", file, line, brand, alias });
+      claimed.push({
+        kind: "duplicate-brand",
+        file,
+        line,
+        brand,
+        alias,
+        message: `${alias} claims the brand "${brand}", and so does another type`,
+      });
       claims.set(brand, claimed);
     }
   }

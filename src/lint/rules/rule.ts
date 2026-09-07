@@ -1,8 +1,13 @@
 import type { Resolver } from "../typecheck/index.ts";
 import type { Scan } from "../scan/index.ts";
 
-/** The least every finding carries: what it is, and where to look. */
-type Located = { kind: string; file: string; line: number };
+/**
+ * The least every finding carries: what it is, where to look, and what to say.
+ *
+ * The wording belongs to the rule, next to the `description` that names it. The command prints
+ * `message` as it stands, so nothing outside a rule needs to know what its finding holds.
+ */
+type Located = { kind: string; file: string; line: number; message: string };
 
 /** What a rule gets beyond the scans. */
 type Context = {

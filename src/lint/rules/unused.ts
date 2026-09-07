@@ -11,6 +11,7 @@ export type UnusedMember = {
   companion: string;
   /** The member's key. */
   member: string;
+  message: string;
 };
 
 export const UnusedMember: Rule<UnusedMember> = {
@@ -85,6 +86,7 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
         line,
         companion,
         member,
+        message: `${companion}.${member} is never read`,
       })),
   );
 }

@@ -16,6 +16,7 @@ export type StructuralEquals = {
   path: string;
   /** The child alias, as written. */
   child: string;
+  message: string;
 };
 
 export const StructuralEquals: Rule<StructuralEquals> = {
@@ -139,6 +140,7 @@ async function findings(
         parent: parent.alias,
         path,
         child: child.alias,
+        message: `${parent.alias}.${path} holds ${child.alias}, which has its own equals`,
       });
     }
   }

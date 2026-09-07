@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { globSync } from "node:fs";
+import { styleText, type InspectColor } from "node:util";
 import { isKind, kinds, lint, RULES, type Finding, type Kind } from "./index.ts";
 
 const patterns: string[] = [];
@@ -64,19 +65,27 @@ try {
   );
   process.exit(2);
 }
-for (const finding of findings) {
-  const at = `${finding.file}:${finding.line}`;
-  console.log(
-    finding.kind === "unused-member"
-      ? `${at}  ${finding.companion}.${finding.member} is never read`
-      : finding.kind === "duplicate-brand"
-        ? `${at}  ${finding.alias} claims the brand "${finding.brand}", and so does another type`
-        : `${at}  ${finding.parent}.${finding.path} holds ${finding.child}, which has its own equals`,
-  );
+/**
+ * Colour, or not, as the stream warrants.
+ *
+ * `styleText` decides: a TTY gets colour, a pipe does not, and `NO_COLOR` and `FORCE_COLOR` are
+ * honoured with the latter winning. Each stream is judged on its own, so piping the findings
+ * still leaves the summary on a terminal coloured. No library buys anything over this.
+ */
+const paint =
+  (stream: NodeJS.WriteStream) =>
+  (style: InspectColor, text: string): string =>
+    styleText(style, text, { stream });
+
+const out = paint(process.stdout);
+const err = paint(process.stderr);
+
+for (const { file, line, kind, message } of findings) {
+  console.log(`${out("cyan", `${file}:${line}`)}  ${out("yellow", kind)}  ${message}`);
 }
 console.error(
   findings.length === 0
-    ? `valof-lint: nothing to report in ${files.length} file(s)`
-    : `valof-lint: ${findings.length} finding(s) in ${files.length} file(s)`,
+    ? err("green", `valof-lint: nothing to report in ${files.length} file(s)`)
+    : err("red", `valof-lint: ${findings.length} finding(s) in ${files.length} file(s)`),
 );
 process.exit(findings.length === 0 ? 0 : 1);
