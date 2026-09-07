@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降） / **§11 README の構成案**
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph、TS 7.1 を待つ判断（§14.5）、カスタム equals を持つ子の規則（§14.7）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1631,7 +1631,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~`Val.eqBy`（§5）~~ → `implEquals` の spec として入れた。自由関数は却下（§5）
 - [x] ~~`eqBy` の `V` が戻り値の文脈から推論されるか~~ → ビルダーの段にしたので問いが消えた
 - [x] ~~`eqBy` を `Val` のプロパティにするか独立エクスポートにするか~~ → どちらでもない。`implEquals` の引数。gzip 予算は 1 kB から 1.25 kB に引き上げた
-- [ ] valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）。§14.5 で ts-morph 版を試して却下しているので、報告の粒度から設計し直す
+- [ ] valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）→ 設計は §14.7 に置いた。構文だけで足りることを確認済み。実装は未着手
+- [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [x] ~~README に性能の一行を足す（§4.1）~~ → `Constructors copy their argument` に、コピーが owned ノードで止まることと、変化のない patch が値をそのまま返すことを追記
 - [x] ~~README の `Reusing a Val` に一行足す（§4.1）~~ → フィールド位置の警告を追記
@@ -1871,7 +1872,19 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 ### 14.1 なぜ独立したスクリプトなのか
 
 - **knip プラグインでは書けない。** `IssueType = keyof Issues` であり、`Issues` は core 側の固定レコード（files, dependencies, exports, types, enumMembers, namespaceMembers, cycles, ...）。「export されたオブジェクトのメンバ」というカテゴリは存在せず、プラグインから追加もできない。プラグインのフック（`resolveFromAST`, `registerVisitors`, ...）が返せるのは `Input[]` だけで、使用済みとして足すことはできても未使用を報告することはできない
-- **lint でも書けない。** ESLint も oxlint もファイル単位で、ルールは 1 ファイルの AST を見てその中に報告を紐付ける。`import/no-unused-modules` のようなクロスファイルのルールは自前でプロジェクトを走査しており、lint のモデルの外にいる。oxlint は並列に走るので、カスタム JS プラグインでファイルをまたいで状態を貯めても信用できない。ast-grep の `sg scan` ルールも同じ理由で不可
+- **lint でも書けない。** ESLint も oxlint もファイル単位で、ルールは 1 ファイルの AST を見てその中に報告を紐付ける。`import/no-unused-modules` のようなクロスファイルのルールは自前でプロジェクトを走査しており、lint のモデルの外にいる。ast-grep の `sg scan` ルールも同じ理由で不可
+
+**2026-09-07 訂正。** 上は当初「oxlint は並列に走るので状態を貯めても信用できない」と書いていた。`@oxlint/plugins` の型定義を読むと `createOnce` があり、ルールを 1 度だけ作って使い回すので**状態を貯めること自体はできる**。
+
+```ts
+interface CreateOnceRule {
+  createOnce: (context: Context) => VisitorWithHooks; // + before / after
+}
+```
+
+結論は変わらないが理由が違う。**貯めても報告できない。** `before` / `after` はファイル 1 つの走査を挟むフックで、実行全体の終了フックではない。吐き出す場所が無く、`context.report` は今見ているファイルに紐づく。子の `implEquals` を知った時点で親のファイルは走査済みかもしれない。
+
+- **oxlint の type-aware linting にも触れない。** JS プラグインが貰えるのは `ast` / `scopeManager` / `visitorKeys` / `lines` / `lineStartIndices` で、型はゼロ。typescript-eslint が検査器を渡す口である `parserServices` は、型定義に「Oxlint does not offer any parser services」と明記されて常に空。型を持っているのは別プロセスの Go バイナリ（`oxlint-tsgolint`）で、type-aware なルールはその中の組み込みルールである。橋が無い
 
 companion のメンバは `Companion.member` の形でしか到達されない。各 `.impl({...})` のトップレベルキーを集めて、プロジェクト全体で `Name.key` を数えれば足りる。
 
@@ -1911,11 +1924,167 @@ companion のメンバは `Companion.member` の形でしか到達されない�
 
 `equals` を_誰がオーバーライドしたか_の検出は、どちらの方式でも構文の話になる。`Companion<V, M>` はオーバーライドの有無にかかわらず `equals` を `(a, b) => boolean` と型付けするため。
 
+#### 2026-09-07 再評価: TS 7.1 を待つ
+
+`implEquals` の spec が入り、§5 が忘れ検出をリンタに割り当てたので、型が要る規則が初めて具体化した（§14.7）。それを機に前提を測り直した。
+
+**TS 7 の API はまだ 2 キー。** 上の記録は今も正しい。
+
+```
+$ node -e "const ts=require('typescript'); console.log(ts.version, Object.keys(ts))"
+7.0.2 [ 'version', 'versionMajorMinor' ]
+```
+
+このリポジトリ自身が `typescript@^7.0.2` に乗っているので、ts-morph を採ると **TS 7 の利用者のコードを同梱の TS 5 系検査器で解析する**ことになる。
+
+**7.1 が安定化するのは Language Service API。** iteration plan（microsoft/TypeScript#63703、ベータ 2026-10-06、安定版 2026-11-24）が挙げるのは Language Service / Emit / Content Mapper の 3 つで、**TypeChecker は明言されていない**。
+
+それで足りる。§14.7 の規則が要るのは go-to-definition であって検査器ではないため。
+
+1. 「プロパティ位置の `Money` は Val か」→ 参照を宣言まで辿り、その宣言を構文で読む。LS で足りる
+2. 「その companion は `implEquals` を呼んだか」→ 上のとおり構文の話。検査器があっても変わらない
+
+`findReferencesAsNodes()` も `getDefinitionNodes()` も ts-morph の**検査器ラッパーではなく LS ラッパー**である。LS が安定化するなら素の `typescript` で同じものが手に入る。
+
+**ts-morph の TS 7 対応は再アーキテクチャになる。** `@ts-morph/common` は `typescript` に依存せず自前のコンパイラを同梱する設計で、Go のコンパイラを相手にする移植はバージョン上げではない。ts-morph の API は全同期なので、7.1 の API が非同期なら同期のまま移植する道も無い。2026-11 に間に合う前提は置けない。
+
+**残る優位性は `LanguageServiceHost` のボイラープレートだけ。** `getScriptFileNames` / `getScriptVersion` / `getScriptSnapshot` / `getCompilationSettings` / `getDefaultLibFileName` の実装で 60 行ほど。一度書けば終わる。改変 API は、出すのが「spec に `total: Money` を足せ」というテキスト提案である限り要らない。
+
+**LS がオフセットベースなのは oxc 側に有利。** `findReferences(fileName, position)` が返すのは `{ fileName, textSpan }` でノードではない。解析が ts-morph の中にあるならノードを返す API が便利だが、解析が oxc の AST にあるならノードは使えない。既に `lineIndex` でオフセットを扱っている。
+
+**素の `typescript` なら optional peer dependency が実質タダ。** TS プロジェクトには必ず入っているので、§14.3 の 3.2 MB 対 15 MB の議論ごと消える。
+
+したがって **ts-morph は選択肢から落とす。**
+
+#### 2026-09-07 続き: 待つ必要が無かった
+
+上は「7.1 を待って素の `typescript` を足す」と結論していた。**撤回する。** 7.0 で今できる。
+
+**TS 7.0.2 には `tsc --lsp --stdio` がある。** 実測した。
+
+```
+initialize                34 ms
+didOpen x200               5 ms
+serial 50 queries         76 ms   (1.52 ms/query)
+pipelined 200 queries      5 ms   (0.03 ms/query)
+non-empty results    200 / 200
+```
+
+`textDocument/definition` を `total: Money` の位置に投げると `money.ts` の型エイリアス宣言が返る。capabilities も揃っている（`definitionProvider` / `typeDefinitionProvider` / `referencesProvider` / `implementationProvider` / `hoverProvider`）。
+
+**落とし穴は 1 つだけ。** サーバが `client/registerCapability` を**リクエストとして**送ってくる。応答しないとデッドロックする。
+
+**速度は論点にならない。** warm は 0 ms でチェッカのキャッシュに乗る。LSP は id で多重化するのでパイプライン化でき、往復待ちが 1 回に畳まれる。「1 件ずつ往復するので絞る前段が要る」という懸念は消えた。
+
+**5.x / 6.x に LSP は無いが、in-process API がある。** 補完関係になっている。
+
+|               | in-process API                                    | LSP                                        |
+| ------------- | ------------------------------------------------- | ------------------------------------------ |
+| 5.9.3 / 6.0.3 | あり（2244 / 2248 keys、`createLanguageService`） | 無し（`--lsp` は Unknown compiler option） |
+| 7.0.2         | 無し（2 keys）                                    | あり                                       |
+
+両方で `getDefinitionAtPosition` / `textDocument/definition` を実測した。
+
+|       | 経路                    | cold   | per query                           | 結果    |
+| ----- | ----------------------- | ------ | ----------------------------------- | ------- |
+| 5.9.3 | `createLanguageService` | 166 ms | 0.15 ms                             | 200/200 |
+| 6.0.3 | 同上                    | 159 ms | 0.20 ms                             | 200/200 |
+| 7.0.2 | `tsc --lsp --stdio`     | 34 ms  | 1.52 ms 直列 / 0.03 ms パイプライン | 200/200 |
+
+**古い経路のほうが 1 件あたり速い。** IPC の往復が無いため。cold は tsgo が速い。`LanguageServiceHost` は 13 行で、当初 60 行と見積もったのは過大だった。
+
+どちらも `{ file, offset }` を返すので 1 つの関数の裏に隠せる。
+
+```ts
+type DefinitionAt = (file: string, offset: number) => { file: string; offset: number }[];
+```
+
+**結果、floor 5.9.3 から 7.x まで隙間なく覆える。** 合わせて 100 行程度。取り残される利用者はいない。
+
+#### `typescript` は peer dependency にしない
+
+`oxc-parser` が optional peer dependency なのは**自分のプロセスに `import` する**から。モジュール解決がユーザのコピーを見つける必要があり、2 つあれば 2 つのパーサになる。
+
+`tsc` は違う。7.x では subprocess として spawn し、5.x / 6.x では `require` するが、**TS のオブジェクトをユーザに返さない**ので共有すべき単一インスタンスが存在しない。シェルアウトする先のバイナリは `git` と同じ外部ツールである。
+
+実行時にユーザ自身の `typescript` を解決し、`typescript/package.json` の version をメジャーで分岐する。無ければこの規則だけ黙って飛ばし、理由を伝える。
+
+宣言しない利点。インストール footprint ゼロ、peer 警告も ERESOLVE も無し、TS のリリースに追随するバージョン範囲を持たない、monorepo が固定した TS でも動く。
+
+peer dependency にした場合を実測した限りでは、入れ子のコピーは作られず（peer の定義どおり）、pnpm v11 は `[WARN] Issues with peer dependencies found` の警告止まり。ユーザコードが壊れる経路は無い。ただし `typescript@7` は薄いシムで実体はプラットフォーム別の optional dependency 26 MB なので、重複したときの容量は誤差ではない。いずれにせよ宣言しないので問題は生じない。
+
+|              | 依存の形                           | 無いとき                      |
+| ------------ | ---------------------------------- | ----------------------------- |
+| `oxc-parser` | optional peer（import する）       | CLI 全体が exit 2、導入を促す |
+| `tsc`        | 宣言しない（spawn / require する） | equals の規則だけ飛ばす       |
+
+#### AST のパスは残る
+
+理由が速度から**正確さ**に変わった。ネガティブコントロールを取ると、`export type Gen0 = ...` の 0 桁目を問い合わせて `Gen0` 自身の定義が返る。**位置を厳密に渡さないと近くの別の識別子を解決する。** 正確なオフセットを出すのが oxc の walk であり、`valof` からの import を起点に使用箇所を辿るコードは、置き換えではなく**問い合わせ位置のフィルタとして**残る。
+
 ### 14.6 名前空間自身のバンドルサイズ
 
 `Val` 自身が companion なので、§14 の盲点はこのライブラリの表面にも及ぶ。バンドラは `const Val = {...}` のプロパティを落とせないので、`Val.of` だけを呼ぶモジュールにも `sealer`、`companion`、`unwrap`、`attach`、`deepEquals` が残る（§5 の `eqBy` が当たったのと同じ壁）。
 
 名前空間を名前付き export に分割する案は 2026-09-03 に検討して却下した。利用者の companion には効かず、API が二重化し、ブランドだけが欲しいライブラリなら数行で自作できる。
+
+### 14.7 規則: カスタム equals を持つ子の構造比較、2026-09-07 設計
+
+§5 が spec を全キー省略可にした際、忘れ検出をここに割り当てた。その規則の設計。§14.5 の「厳しすぎて使えない」という却下は `implEquals` の spec が入る前の判断で、**直し方が親の 1 行になったので当たらない**。
+
+**規則。** 親の payload の Val 位置のうち、その子が推移的にカスタム equals を持つものについて、親の spec に**何らかの**エントリがあること。
+
+「何らかの」で足りるのが要点。`total: Money` も `updatedAt: () => true`（等価性から外す）も `span: [undefined, Money]` も、著者がその位置を見た証拠になる。構文位置だけで区別がつく。
+
+| spec の形                              | 読み               |
+| -------------------------------------- | ------------------ |
+| `Identifier`                           | companion 委譲     |
+| `ObjectExpression` / `ArrayExpression` | 降りる             |
+| 関数                                   | 著者の判断、黙る   |
+| `implEquals` の引数が裸の関数          | 全体を手書き、黙る |
+
+**構文だけで足りる。** パーサ出力で確認した。
+
+- `Val.sealer<Order>()` の `typeArguments.params[0]` は素の `TSTypeReference`。companion と型エイリアスが繋がる
+- payload の型は spec と同じ形で降りられる。`TSPropertySignature` / `TSArrayType` / `TSTupleType` / ネストした `TSTypeLiteral` が `{k: spec}` / `[spec]` / 位置指定 / 素のオブジェクトに 1 対 1 で対応する
+
+両側は**エイリアス名**で出会う。companion の変数名ではない。unused-member の規則より素直になる。
+
+#### 決めたこと
+
+**報告先は親。** `Val.sealer<Order>()` の行。§14.5 は「オーバーライドの定義箇所で一度だけ報告し、ネスト先を列挙する」を提案していたが取らない。直すのは親であって `Money` ではないので、`Money` の行に出してもどのファイルを開くか分からない。既存の 2 規則とも揃う。
+
+**カスケードを推移閉包で防ぐ。** `Order → OrderLine → Money` で `Money` だけがカスタム equals を持つ場合、素朴に実装すると `OrderLine` にだけ発火し、**直すと次の実行で `Order` に新しい発火が出る**。「直したら増えた」は最悪の体験。自分か子孫の誰かがカスタム equals を持つなら要ディスパッチ、と閉じて最初から両方報告する。
+
+**名前衝突は duplicate-brand の責務。** 2 つのファイルがどちらも `type Money` を持つと名前解決で区別できず誤検出になる。エイリアス → ブランドの対応は既にあるので、**名前がスキャン範囲で 1 つのブランドにしか解決しないときだけ報告する**。衝突自体は別の規則が報告するので、そちらを直せば足りる。
+
+**`PayloadOf` 経路は意図的に対象外。** 見逃しではなく正しい挙動。
+
+```ts
+type OrderB = Val<"OrderB", { total: PayloadOf<Money> }>;
+```
+
+§9 のもう 1 つの規則は「フィールド位置に `PayloadOf` を置くな、`total: Money` にしろ」と言う。ここで equals の規則が発火すると「payload のまま `Money.equals` を spec に足せ」となり、**2 つの規則が同じ行に矛盾した指示を出す**。しかも本当の欠陥を隠す方向に直させる。§4.3 のとおりここではブランドごと落ちて子の seal も追跡下の共有も失われており、equals だけ戻しても直らない。`total: Money` に直せば自然に、正しく発火する。トップレベルの `PayloadOf<User> & { … }` も同じく黙る。`SuperUser` の中に `User` の値は無く、フィールドの型を再利用しているだけなので、ディスパッチする先が無い。
+
+**実装上の落とし穴。** これは素朴に書くと勝手に黙るので気づかないが、`ReadonlyArray<Money>` を `readonly Money[]` と同じに扱おうとした瞬間に壊れる。前者は `TSTypeReference` の型引数を降りる必要があり、そこを一般化すると `PayloadOf<Money>` の中の `Money` も拾う。walk は**「spec で写せる形」のホワイトリスト**にする。`TSTypeLiteral` / `TSArrayType` / `TSTupleType` / `ReadonlyArray` / `Array`。それ以外の型参照は不透明として黙る。`PayloadOf` も `SeedOf` も `Omit` も、そこから落ちる。
+
+#### 届かない範囲
+
+どれも誤検出ではなく見逃し側。
+
+- ジェネリック・条件型・マップ型の payload
+- スキャン範囲外の companion
+- `typescript` が見つからない、または解決に失敗した位置
+
+**go-to-definition が塞ぐのは参照の側だけ。** 2026-09-07 の実装時に一度「ヘルパ経由も塞がる」と書いたが誤り。訂正する。
+
+塞がるのは**子への到達経路**である。リネームした import、re-export、`interface`、エイリアス 1 ホップ、交差、`Money | null`。どれも参照を宣言まで辿るので構文で追う必要が無い。
+
+塞がらないのは**エイリアスが Val だと認める側**。`type Branded<K, T> = Val<K, T>` を経由した `type Money = Branded<"Money", X>` は、収集が「`Val<…>` が直接書かれている」ことを名前で見ているため候補集合に入らず、子として認識されない。**duplicate-brand が持つ穴と同じもので、リンタ全体がこの前提に立っている。** 塞ぐなら `Val` 自身も go-to-definition で同定することになる。見逃し側なので急がない。
+
+#### N×M を恐れなくてよい理由
+
+§5 の「正規形で構築する」原則により `implEquals` は非推奨の逃げ道である。この規則が発火するのは、既にその逃げ道を取った型に限られるので N は小さい。そして N×M 件の発火には N×M 件の**必要な**修正が対応する。ノイズではなく実数である。
 
 ---
 

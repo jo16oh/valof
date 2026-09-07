@@ -147,6 +147,57 @@ describe("duplicate brands", () => {
   });
 });
 
+describe("a child's own equals", () => {
+  test("reports a parent that structurally compares a child carrying its own equality", () => {
+    expect(lint("equals/plain").findings).toEqual([
+      "order.ts:6  Order.total holds Money, which has its own equals",
+    ]);
+  });
+
+  test("says nothing when the spec names the key", () => {
+    expect(lint("equals/covered").findings).toEqual([]);
+  });
+
+  test("says nothing when the parent wrote the whole comparison itself", () => {
+    expect(lint("equals/override").findings).toEqual([]);
+  });
+
+  test("counts dropping a key from equality as having looked at it", () => {
+    expect(lint("equals/excluded").findings).toEqual([]);
+  });
+
+  test("names the path through a plain nested object", () => {
+    expect(lint("equals/nested").findings).toEqual([
+      "order.ts:6  Order.shipping.fee holds Money, which has its own equals",
+    ]);
+  });
+
+  test("names the element position of an array", () => {
+    expect(lint("equals/array").findings).toEqual([
+      "order.ts:6  Order.charges[] holds Money, which has its own equals",
+    ]);
+  });
+
+  test("reports every level at once, so fixing one does not uncover another", () => {
+    expect(lint("equals/cascade").findings).toEqual([
+      "line.ts:6  OrderLine.total holds Money, which has its own equals",
+      "order.ts:6  Order.lines[] holds OrderLine, which has its own equals",
+    ]);
+  });
+
+  test("leaves a `PayloadOf` field alone, which has no brand to dispatch on", () => {
+    expect(lint("equals/payload-of").findings).toEqual([]);
+  });
+
+  test("says nothing about a type whose equals nothing can call", () => {
+    expect(lint("equals/no-companion").findings).toEqual([]);
+  });
+
+  test("is silenced by a directive above the companion", () => {
+    expect(lint("equals/silenced").findings).toEqual([]);
+  });
+});
+
 describe("ignore comments", () => {
   test("silences every kind when the directive lists none", () => {
     expect(lint("ignore/whole-line").findings).toEqual(["a.ts:4  User.whisper is never read"]);

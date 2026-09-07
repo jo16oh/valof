@@ -1,4 +1,12 @@
 import { readFileSync } from "node:fs";
+import { child, children, isNode, keyName, lineIndex, rootPath, type Node } from "./ast.ts";
+import { resolver } from "./definitions.ts";
+import {
+  structuralEquals,
+  type Alias,
+  type CompanionSite,
+  type StructuralEquals,
+} from "./equals-rule.ts";
 
 /** Where a finding sits. `line` is 1-based, for an editor. */
 type Where = { file: string; line: number };
@@ -24,27 +32,13 @@ export type DuplicateBrand = Where & {
   alias: string;
 };
 
-export type Finding = UnusedMember | DuplicateBrand;
+export type Finding = UnusedMember | DuplicateBrand | StructuralEquals;
 
 /**
  * Wired by the library, each through a step of its own. `.impl` rejects them at the type level,
  * so this only keeps a plain-JS caller from getting a finding for one.
  */
 const BUILTIN = new Set(["equals", "patch", "update", "seal", "create"]);
-
-/** The ESTree subset this walks. Narrow by `type` before reading anything past `type`. */
-type Node = { type: string; [key: string]: unknown };
-
-const isNode = (value: unknown): value is Node =>
-  typeof value === "object" && value !== null && typeof (value as Node).type === "string";
-
-/** The name a key node contributes, for `k: v`, `"k": v`, `k(){}` and shorthand alike. */
-function keyName(node: Node, computed: boolean): string | undefined {
-  // `[expr]: v` names nothing statically; `["k"]: v` is a literal and does.
-  if (node.type === "Identifier" && !computed) return node["name"] as string;
-  if (node.type === "Literal" && typeof node["value"] === "string") return node["value"];
-  return undefined;
-}
 
 /**
  * The name a type reference is written under, or `undefined` when it is not a plain one.
@@ -57,48 +51,12 @@ function keyName(node: Node, computed: boolean): string | undefined {
 function valName(typeName: Node, namespaces: ReadonlySet<string>): string | undefined {
   if (typeName.type === "Identifier") return typeName["name"] as string;
   if (typeName.type !== "TSQualifiedName") return undefined;
-  const left = typeName["left"];
-  const right = typeName["right"];
-  if (!isNode(left) || !isNode(right) || left.type !== "Identifier") return undefined;
+  const left = child(typeName, "left");
+  const right = child(typeName, "right");
+  if (!left || !right || left.type !== "Identifier") return undefined;
   if (!namespaces.has(left["name"] as string)) return undefined;
   // Qualified by a namespace import, so the name is already the exporting module's own.
   return right.type === "Identifier" ? (right["name"] as string) : undefined;
-}
-
-/**
- * The dotted name a call chain is rooted at: `Val.sealer<X>().impl` gives `Val.sealer`, and
- * `valof.Val.companion<X>().implSeal(f)` gives `valof.Val.companion`. Type arguments and call
- * parentheses carry no name, so they drop out.
- */
-function rootPath(node: Node): string[] | undefined {
-  if (node.type === "Identifier") return [node["name"] as string];
-  if (node.type === "CallExpression") {
-    const callee = node["callee"];
-    return isNode(callee) ? rootPath(callee) : undefined;
-  }
-  if (node.type !== "MemberExpression") return undefined;
-  const object = node["object"];
-  const property = node["property"];
-  if (!isNode(object) || !isNode(property)) return undefined;
-  const left = rootPath(object);
-  const name = keyName(property, node["computed"] === true);
-  return left && name ? [...left, name] : left;
-}
-
-/** Byte offset -> 1-based line, from a prefix scan done once per file. */
-function lineIndex(source: string): (offset: number) => number {
-  const starts = [0];
-  for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1)) starts.push(i + 1);
-  return (offset) => {
-    let low = 0;
-    let high = starts.length - 1;
-    while (low < high) {
-      const mid = (low + high + 1) >> 1;
-      if ((starts[mid] as number) <= offset) low = mid;
-      else high = mid - 1;
-    }
-    return low + 1;
-  };
 }
 
 /**
@@ -222,6 +180,10 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
   const exportedAs = new Map<string, string>();
   /** brand string -> every alias that claims it */
   const brands = new Map<string, DuplicateBrand[]>();
+  /** Every top-level Val alias, for the structural-equals rule to resolve references against. */
+  const valAliases: Alias[] = [];
+  /** Every `Val.sealer<X>()` / `Val.companion<X>()` chain, and what it registered. */
+  const sites: CompanionSite[] = [];
   /** file -> the lines a comment directive silences there, applied once every file is read. */
   const disabled = new Map<string, Map<number, Set<string>>>();
 
@@ -252,12 +214,54 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
       return name === "Val" && (step === "sealer" || step === "companion");
     };
 
+    /**
+     * Reads a builder chain from the outside in: the steps it called, and the type argument at
+     * its root. `Val.companion<Order>().implSeal(f).implEquals(spec).impl({…})` gives both
+     * `implEquals` and `Order`.
+     *
+     * A call whose receiver is not itself a call is the root, which is what tells
+     * `Val.sealer<X>()` apart from the steps chained onto it.
+     */
+    const chain = (node: Node, steps: Map<string, Node>): Node | undefined => {
+      if (node.type !== "CallExpression") return undefined;
+      const callee = child(node, "callee");
+      if (!callee || callee.type !== "MemberExpression") return undefined;
+      const receiver = child(callee, "object");
+      if (!receiver) return undefined;
+      if (receiver.type !== "CallExpression") {
+        return fromVal(callee) ? child(node, "typeArguments") : undefined;
+      }
+      const property = child(callee, "property");
+      const name = property && keyName(property, callee["computed"] === true);
+      const [argument] = children(node, "arguments");
+      if (name && argument) steps.set(name, argument);
+      return chain(receiver, steps);
+    };
+
+    /** Records the chain as a companion site, keyed later by resolving its type argument. */
+    const site = (node: Node): void => {
+      const steps = new Map<string, Node>();
+      const args = chain(node, steps);
+      const [first] = args ? children(args, "params") : [];
+      if (!first || first.type !== "TSTypeReference") return;
+      const typeName = child(first, "typeName");
+      if (!typeName || typeName.type !== "Identifier") return;
+      sites.push({
+        file,
+        line: lineOf(node["start"] as number),
+        typeName: typeName["name"] as string,
+        typeOffset: typeName["start"] as number,
+        spec: steps.get("implEquals"),
+      });
+    };
+
     const visit = (node: Node): void => {
       switch (node.type) {
         case "VariableDeclarator": {
           const id = node["id"];
           const init = node["init"];
           if (!isNode(id) || !isNode(init)) break;
+          site(init);
           // `const { a, b: c } = X` reads `a` and `b` off `X`.
           if (id.type === "ObjectPattern" && init.type === "Identifier") {
             for (const property of id["properties"] as unknown[]) {
@@ -385,6 +389,17 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
       if (!isNode(typeName) || !isNode(args)) continue;
       const named = valName(typeName, namespaces);
       if (named === undefined) continue;
+      if ((imported.get(named) ?? named) === "Val") {
+        // The payload is the second argument. Absent on `Val<K, T>` inside a helper, which
+        // describes no particular value.
+        const payload = children(args, "params")[1];
+        valAliases.push({
+          file,
+          alias: id["name"] as string,
+          span: [node["start"] as number, node["end"] as number],
+          payload,
+        });
+      }
       const first = (args["params"] as unknown[])[0];
       if (!isNode(first) || first.type !== "TSLiteralType") continue;
       const literal = first["literal"];
@@ -441,9 +456,23 @@ export async function lint(files: readonly string[]): Promise<Finding[]> {
     return kinds !== undefined && (kinds.size === 0 || kinds.has(kind));
   };
 
+  // Last, and only this rule needs it: resolving a type reference costs a TypeScript, which the
+  // project may not have. Absent one, `structuralEquals` reports nothing.
+  //
+  // Started only once something could dispatch. With no `.implEquals` in the scanned files there
+  // is no custom equality to miss, so a project that never writes one pays nothing for the rule.
+  const types = sites.some(({ spec }) => spec) ? resolver(process.cwd(), files) : undefined;
+  let structural: StructuralEquals[] = [];
+  try {
+    structural = await structuralEquals(valAliases, sites, types);
+  } finally {
+    types?.close();
+  }
+
   return [
     ...declared.filter(({ companion, member }) => !read.get(companion)?.has(member)),
     ...duplicates,
+    ...structural,
   ]
     .filter((finding) => !silenced(finding))
     .sort(

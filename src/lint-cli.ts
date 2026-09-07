@@ -11,11 +11,13 @@ if (patterns.includes("--help") || patterns.includes("-h")) {
       "Reports what the type checker cannot:",
       "  - functions and constants registered with `.impl({…})` that nothing reads",
       "  - a brand string claimed by more than one type alias",
+      "  - a payload holding a Val whose own `equals` the parent never dispatches to",
       "",
       "Defaults to src/**/*.ts. Exits 1 when something is found.",
       "",
       "Silence a line with a comment in the block above it:",
-      "  // valof-lint-disable-next-line [unused-member] [duplicate-brand] [-- why]",
+      "  // valof-lint-disable-next-line [unused-member] [duplicate-brand]",
+      "  //                               [structural-equals] [-- why]",
       "",
       "Needs oxc-parser, which valof leaves for you to install:",
       "  pnpm add -D oxc-parser",
@@ -46,7 +48,9 @@ for (const finding of findings) {
   console.log(
     finding.kind === "unused-member"
       ? `${at}  ${finding.companion}.${finding.member} is never read`
-      : `${at}  ${finding.alias} claims the brand "${finding.brand}", and so does another type`,
+      : finding.kind === "duplicate-brand"
+        ? `${at}  ${finding.alias} claims the brand "${finding.brand}", and so does another type`
+        : `${at}  ${finding.parent}.${finding.path} holds ${finding.child}, which has its own equals`,
   );
 }
 console.error(

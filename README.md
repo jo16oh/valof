@@ -444,6 +444,10 @@ it when it goes dead, and a bundler does not drop it.
 **A brand claimed twice.** Two top-level aliases with the same brand string and the same payload are
 silently assignable to each other, which is the whole failure the brand exists to prevent.
 
+**A child's own equality, skipped.** `implEquals` applies to the top-level comparison only, so a
+parent holding that Val compares it structurally and the child's rule is never reached (see
+[Equality](#equality)). Name the key in the parent's spec, or drop it from equality on purpose.
+
 ```bash
 pnpm add -D oxc-parser   # valof does not install it for you
 pnpm exec valof-lint 'src/**/*.ts'
@@ -452,7 +456,8 @@ pnpm exec valof-lint 'src/**/*.ts'
 ```
 src/user.ts:7   User.shout is never read
 src/order.ts:3  OrderId claims the brand "Id", and so does another type
-valof-lint: 2 finding(s) in 12 file(s)
+src/order.ts:9  Order.total holds Money, which has its own equals
+valof-lint: 3 finding(s) in 12 file(s)
 ```
 
 It exits 1 when it finds something, so it drops into CI or a `vp run` task as it is.
@@ -488,6 +493,18 @@ barrel. Something else bound to the name `Val` is left alone.
 A companion is matched by where its chain grows from, `Val.sealer` or `Val.companion`, so an
 unrelated library's `.impl({…})` stays out of the report. A builder held in a variable first counts
 too.
+
+The third rule needs your own TypeScript, to resolve a type reference to the alias it names. It runs
+`tsc --lsp` on TypeScript 7 and the compiler API on 5 and 6, whichever the project has; with none it
+reports nothing. Nothing is added to your `package.json` for it. It also stays out of the way
+entirely unless something calls `.implEquals`, since without one there is no custom equality to
+miss.
+
+It reports every level at once. Where `Order` holds `OrderLine` holds `Money`, fixing the inner one
+does not uncover a new finding on the outer. Any entry in the spec counts as having looked, a
+`() => true` that drops the key included, and a hand-written `implEquals` function silences the
+whole type. A `PayloadOf<Money>` field is left alone: the brand is gone there, so there is no child
+to dispatch to, and that field has its own problem.
 
 ## Caveats
 
