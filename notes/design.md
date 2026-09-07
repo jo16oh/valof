@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降） / **§11 README の構成案**
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1633,6 +1633,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~`eqBy` を `Val` のプロパティにするか独立エクスポートにするか~~ → どちらでもない。`implEquals` の引数。gzip 予算は 1 kB から 1.25 kB に引き上げた
 - [x] ~~valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）~~ → 入れた。設計は §14.7、実装は §14.8
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
+- [ ] エディタ統合（§14.9）。oxlint の `jsPlugins` から `--server` を叩く形まで調査済み、実装は未着手。`--format=json` と `column` はその土台
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [x] ~~README に性能の一行を足す（§4.1）~~ → `Constructors copy their argument` に、コピーが owned ノードで止まることと、変化のない patch が値をそのまま返すことを追記
 - [x] ~~README の `Reusing a Val` に一行足す（§4.1）~~ → フィールド位置の警告を追記
@@ -2235,6 +2236,117 @@ src/lint/
 `Scan` はルール固有のフィールドを持たない。**構文的事実であって、どのルールが読むかは型に書かない。** `aliases` と `brands` は同じ 1 パスが同じ宣言から作り、2 つの規則が 1 つずつ取る。所有関係を書くと、次にルールを足す人が「自分用のフィールドを足す」と読む。
 
 公開する名前は絞る。`src/lint/index.ts` はパッケージの `exports` に無く CLI 専用なので、`lint` 以外に出すものは無い。各ルールが出すのは finding 型と `rule` オブジェクトの 2 つだけ。
+
+### 14.9 エディタ統合、2026-09-08 調査。未実装
+
+**結論を先に。** oxlint の `jsPlugins` から CLI をラップすれば TS 7 で動く。ただしそれだけでは編集中のバッファが見えず、常駐プロセスでは結果が固まる。両方を解くには `--server` が要る。**このブランチではやらない。**
+
+#### CLI をラップするプラグインは書ける
+
+§14.1 の「lint では書けない」はクロスファイルのルールを**ルールとして書く**話だった。CLI を呼んで結果を配るのは lint のモデルの外で走らせる形なので、その指摘に当たらない。
+
+最初の 1 ファイルで CLI をプロジェクト全体に 1 回走らせ、結果をモジュールスコープに貯めて各ファイルに配る。30 行ほど。ESLint と oxlint の両方で実測した。
+
+```
+src/order.ts
+  6:1  error  structural-equals: Order.total holds Money, which has its own equals  valof/findings
+```
+
+- **CLI の起動は 1 回だけ。** ESLint は既定でメインスレッド（`--concurrency` の既定は `off`）。oxlint は 43 ファイル・`--threads 8` でも 1 回で、JS プラグインが Node 側の単一プロセスで動くため
+- **`eslint-disable-next-line` が効く**
+
+§14.1 の「並列だと状態を信用できない」はこの方式には当たらない。あれは状態を貯めて**後で**報告する話で、こちらは外部で集めた結果を今のファイルに紐付けるだけである。
+
+#### ESLint は入口が塞がっている。oxlint は通る
+
+```
+typescript-eslint does not support TS 7.0.
+https://github.com/typescript-eslint/typescript-eslint/issues/10940
+```
+
+`@typescript-eslint/parser` が TS 7 未対応で、上の ESLint 実証は TS 6.0.3 に落として取った。valof-lint 自体は TS 7 で動くのに、ESLint 側で TS を読むパーサが追いついていない。
+
+**oxlint の `jsPlugins` は TS 7 の環境でそのまま動いた。** 設定スキーマに「allows usage of ESLint plugins with Oxlint」とあり、ESLint 用に書いたプラグインがほぼ無改造で通る。型情報を使わない方式なので、JS プラグインが `parserServices` に触れない制約（§14.1）にも当たらない。
+
+#### 単発ラップは LSP で破綻する
+
+同一プロセスで 2 回 lint し、間でファイルを直して finding が消えるはずにした。
+
+```
+1回目             : 6: structural-equals: Order.total holds Money, ...
+修正を保存して2回目 : 6: structural-equals: Order.total holds Money, ...   ← 消えない
+spawn 回数        : 1
+```
+
+欠陥は 2 つあり、別物である。
+
+1. **キャッシュが固まる。** モジュールスコープの結果が常駐 LSP サーバの寿命だけ残る
+2. **未保存バッファが見えない。** valof-lint はディスクを読む。キャッシュを毎回捨てても、保存するまで結果が変わらない
+
+TTL も mtime も 1 を緩めるだけで 2 に効かない。毎回再実行すれば 1 は消えるが 206 ms を毎キーストローク払う。
+
+#### コストの内訳: キャッシュすべきはプロセスであって scan ではない
+
+```
+CLI 1 回（67 ファイル）           206 ms
+  Node 起動                      ~93 ms
+  oxc-parser の import             5 ms
+  scan 67 ファイル                11 ms
+  LSP spawn                        3 ms
+  structural-equals（init+query） 105 ms
+
+常駐した場合
+  1 回目（LSP cold）              96 ms
+  2 回目（LSP warm）              29 ms
+  3 回目（1 ファイル再 scan 後）   23 ms   うち再 scan 0 ms
+```
+
+**利得の 96% は「プロセスと LSP セッションを生かす」ことから来る。** scan のキャッシュが買うのは 11 ms で、差分 scan は 0 ms しか買わない。**変更を検知したら全部読み直すのが最も簡単で十分速い**、という結論になる。`fs.watch` と無効化の粒度は要らない。
+
+#### `didOpen` は 1 ファイルなら 0 ms
+
+§14.5 で `didOpen` を落としたのは「送るのが悪い」ではなく「**全部**送るのが悪い」だった。
+
+```
+didOpen 65 ファイル → 初回クエリ 436 ms
+didOpen  1 ファイル → 送信 0 ms、クエリ 2 ms
+```
+
+そして送った内容が実際に使われることを確認した。ディスクに存在しない型をバッファ側だけに書き、そこへ解決させた。
+
+```
+ディスクのまま `total: Money`              -> plain/money.ts:2
+オーバーレイ後 `total: Cash`（ディスクに無い）-> plain/order.ts:3
+オーバーレイ後、旧位置で `Money` を引く      -> EMPTY（行がずれた）
+```
+
+したがって設計は「通常はディスク、バッファがあるファイルだけ `didOpen`」になる。同じ内容を scan と LSP の両方に配る必要があるので、オーバーレイは 1 か所で持つ。
+
+#### `--server`。`--overlay` は公開しない
+
+狙いはエディタでの表示であって CI ではない（CI なら CLI を直接呼べばよく、lint に組み込む理由がない）。
+
+必要なのは行区切り JSON の往復だけで、LSP を喋る必要はない。
+
+```
+$ valof-lint --server 'src/**/*.ts'
+< {"overlay":{"/abs/src/order.ts":"…編集中…"}}
+> {"findings":[{"file":"src/order.ts","line":6,"kind":"structural-equals","message":"…"}]}
+```
+
+LSP との差は大きい。能力交渉も URI も位置エンコーディングも `publishDiagnostics` も初期化シーケンスも要らず、**クライアントは自分で書くプラグイン 1 つだけ**。oxlint と ESLint は既に各エディタで動くので、その上に乗れば**エディタ拡張を作らずに済む**。valof-lint 自身が LSP を喋る案を採らないのはこの一点による。
+
+**オーバーレイは CLI フラグとして露出しない。** `--server` プロトコルの一部であり、単発 CLI で使う場面が無い。露出すると表面が増えるだけになる。
+
+`--server` があれば `--watch` も要らない。聞かれたときに読み直せば済み、scan は 11 ms である。`--watch` が残る用途は「ターミナルに出しっぱなし」だけで、それは別の、より軽い機能。
+
+#### やるときの順序
+
+1. オーバーレイを内部に通す（`scan` の読み口、2 つのバックエンド、`Resolver.setOverlay`）
+2. `--server`
+3. `--format=json` と `column`（エディタの波線を行全体でなく語に当てるなら要る）
+
+1 の途中まで書いて戻した。`Resolver` に `setOverlay` が要るのは、常駐中に版を上げて LSP へ `didChange` を送り、in-process 側では `getScriptVersion` を上げて再読込させるため。ここが両バックエンドで形の違う唯一の場所になる。
 
 ---
 
