@@ -360,7 +360,7 @@ payload はプリミティブ・配列・プレーンオブジェクト・ネス
 
 テストは 7 件。`patch` / `update` が触っていない部分木を保つ、patch 由来のノードは採用せず必ずコピーする、`Val.unwrap` は何も共有しない、unwrap した payload は再 seal しても採用されない、`equals` の答えは変わらない。
 
-**バンドルサイズ: 追跡なしの 853 B に対して production gzip 901 B。予算 1 kB に対して残り 123 B。** `implEquals` の spec（§5）はこの予算に収まらず、1.25 kB に引き上げた（実績 1.13 kB）。この予算は妥協の結果で、削る案は §5 で却下した。React 単体が gzip 45 kB である以上、1.25 kB がフロントエンドでの採用をためらわせることはない。
+**バンドルサイズ: 所有権追跡は production gzip で +48 B。** `implEquals` の spec（§5）は当時の 1 kB 予算に収まらず、1.25 kB に引き上げた。この予算は妥協の結果で、削る案は §5 で却下した。React 単体が gzip 45 kB である以上、1.25 kB がフロントエンドでの採用をためらわせることはない。
 
 値は freeze していないので、キャストして値を書き換えると**共有先の値にも波及する**。破るのに `as` が要る点は §7.1 と同じだが、影響範囲は広がった。dev 限定の freeze はこれを受けて採った（§7.1）。
 
@@ -497,7 +497,7 @@ README の `Reusing a Val` が見せているのは**トップレベルでの合
 
 `unwrap` は外部に渡すための出口であって、値の派生に使うものではない。`SeedOf<V>` が Val をそのまま受けるので `Val.of` / `patch` は 1 回のコピーで済むが、`unwrap` を経由すると 2 回になる（92 → 184 ns/op、ネスト約 8 ノード）。
 
-`unwrap` を単体 export にしなかった理由。単体ならバンドラが落とせる（gzip 1,011 vs 1,023 B）が、44 B のために `unwrap` というありふれた名前をトップレベルに置くと `Result` 系ライブラリと衝突する。`Val.of` の逆操作であることも名前空間側に置く根拠になる。
+`unwrap` を単体 export にしなかった理由。単体ならバンドラが落とせるが、その 44 B のために `unwrap` というありふれた名前をトップレベルに置くと `Result` 系ライブラリと衝突する。`Val.of` の逆操作であることも名前空間側に置く根拠になる。
 
 ### ベンチマーク
 
@@ -722,7 +722,7 @@ rest タプル（`readonly [string, ...number[]]`）は `number extends T["lengt
 
 #### 却下: spec を `deepEquals` に畳む（サイズ削減）
 
-`toEq` を別に置くと、配列とオブジェクトの走査が `deepEquals` と二重になる。spec を第 3 引数に取る 1 本の再帰にすれば重複が消えて、`deepEquals(a, b)` は `eq(a, b, undefined)` になる。**production gzip 1.13 → 1.02 kB。実装して測って戻した。**
+`toEq` を別に置くと、配列とオブジェクトの走査が `deepEquals` と二重になる。spec を第 3 引数に取る 1 本の再帰にすれば重複が消えて、`deepEquals(a, b)` は `eq(a, b, undefined)` になる。**production gzip -116 B。実装して測って戻した。**
 
 実測（Node 24.19 / M シリーズ、production、ns/op）。
 
@@ -738,7 +738,7 @@ rest タプル（`readonly [string, ...number[]]`）は `number extends T["lengt
 
 走査だけ共有して事前コンパイルは残す中間案も測ったが 489 ns で、ほとんど戻らなかった。**つまり効いているのは「ノードごとの `typeof` 2 回」ではない。** 事前コンパイルは spec のノードごとに別のクロージャを作るので、呼び出し側が単相になって V8 がインラインキャッシュを効かせられる。1 本の再帰は全 spec 形状が同じ関数を通るので特殊化できない。共有した走査に `child(k)` を渡す形でも、間接呼び出しが 1 段増えた時点で同じだけ失う。（速度差は実測、説明は推論。）
 
-サイズは 116 B、予算残は 9% → 19%。予算はもともと逼迫していない。
+予算はもともと逼迫していないので、この 116 B に急ぐ理由がない。
 
 #### 却下: with / update の seal 束縛を 1 つのヘルパにまとめる
 
@@ -1008,7 +1008,7 @@ Order.with(order, {}); // 前置詞の主語が引数に落ちて宙に浮く
 
 #### コスト
 
-production gzip 901 → 944 B（予算 1 kB、残り 80 B）。d.ts は 15.03 → 15.55 kB。`patch` の既存ループがそのまま再帰関数 `patched` になるので、純増が小さい。
+production gzip +43 B、d.ts +0.52 kB。`patch` の既存ループがそのまま再帰関数 `patched` になるので、純増が小さい。
 
 `patched` は各段で「何も変わらなければ元のノードを返す」ので、参照同一性は以前より細かく保たれる。
 
@@ -1146,7 +1146,7 @@ default update: {"x":1,"y":9}
 
 外して消えたもの: 型引数 `W` / `U`（`Companion` / `Sealed` / `Sealer` / `CompanionBuilder` の 4 つを貫いていた）、`WithoutSeal<T>`、`DeriveImpl<V, F>`、`Ctors` の 2 フィールドと `attach` の 2 分岐。
 
-**production gzip 1.11 → 1.07 kB、d.ts 18.57 → 16.67 kB。** 型引数を 2 つ抜いた効果が d.ts に大きく出る。
+**production gzip -40 B、d.ts -1.90 kB。** 型引数を 2 つ抜いた効果が d.ts に大きく出る。
 
 `patch` / `update` は `CompanionFns` で `never` のまま。上書きできないことと、同名の関数を素通しで生やせることは別で、後者は既定を実行時に踏み潰す。
 
@@ -1421,7 +1421,7 @@ freeze は一律 25〜30% の上乗せ（ns/op）。読み出し側でも、オ�
 dev 限定で採る理由は、§4.1 のノード共有が**不変性違反の影響範囲を広げた**こと。キャストで値を書き換えたとき、以前はその値 1 つが壊れるだけだったが、共有しているすべての値に波及する。
 
 - 判定は `assertPlainObject` と同じ `process.env.NODE_ENV`。モジュール定数 `development` にまとめたので、production ビルドでは分岐ごと畳まれる
-- **production の gzip は変わらない**（development ビルドだけ 1.02 → 1.04 kB に増える）
+- **production の gzip は変わらない**（development ビルドだけ +20 B ほど増える）
 - `Val.unwrap` は `sealing = false` で走る。このフラグが「共有しない / 登録しない / freeze しない」の 3 つを同時に決める。可変なコピーを返す契約なので 3 つとも必要
 
 **freeze は保証ではなく開発時の検出**であり、production では `Object.isFrozen` は `false`。
@@ -1630,7 +1630,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~タプル対応（§4.2）~~ → 入れた。0.3.0 で出す（型だけの破壊的変更）
 - [x] ~~`Val.eqBy`（§5）~~ → `implEquals` の spec として入れた。自由関数は却下（§5）
 - [x] ~~`eqBy` の `V` が戻り値の文脈から推論されるか~~ → ビルダーの段にしたので問いが消えた
-- [x] ~~`eqBy` を `Val` のプロパティにするか独立エクスポートにするか~~ → どちらでもない。`implEquals` の引数。gzip 予算は 1.25 kB に引き上げ、実績 1.13 kB（残り 119 B）
+- [x] ~~`eqBy` を `Val` のプロパティにするか独立エクスポートにするか~~ → どちらでもない。`implEquals` の引数。gzip 予算は 1 kB から 1.25 kB に引き上げた
 - [ ] valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）。§14.5 で ts-morph 版を試して却下しているので、報告の粒度から設計し直す
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [x] ~~README に性能の一行を足す（§4.1）~~ → `Constructors copy their argument` に、コピーが owned ノードで止まることと、変化のない patch が値をそのまま返すことを追記
@@ -1639,10 +1639,9 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
-- [ ] Record payload を回す糖衣（`Val.entries` など）を足すか（§8.1）。`Object.entries<Money>(t)` で回避できるので優先度は低い。バンドル予算の残りは 80 B
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
-- [ ] **npm で `valof` を予約する**（プレースホルダを publish しておく）
+- [x] ~~**npm で `valof` を予約する**~~ → 0.1.0 の publish で済んだ
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [x] ~~`null` と `undefined` の扱い~~ → §3.5
 - [x] ~~`Validate<T>` の自己参照制約~~ → 型エイリアスでは TS2313。条件型に変更（§3.5）
@@ -1884,7 +1883,7 @@ companion のメンバは `Companion.member` の形でしか到達されない�
 
 ### 14.3 valof に同梱する
 
-2026-09-04 にテスト用パッケージを pack してインストールし検証した。`bin` エントリと、_optional_ な `peerDependencies` としての `oxc-parser` は、欲しくない利用者に何のコストも課さない。利用者側の `node_modules` を実測すると、valof だけなら 36 KB（パーサは引かれず、インストール警告も出ず、bin はインストールを促して exit 2）、opt-in すると 7.3 MB。`dependencies` は空のままなので、実行時依存ゼロと 1 kB 未満の主張は保たれる。`scripts/size.ts` がバンドルするのは `./dist/index.mjs` だけで、隣にある `dist/lint-cli.mjs` はそこから到達できない。
+2026-09-04 にテスト用パッケージを pack してインストールし検証した。`bin` エントリと、_optional_ な `peerDependencies` としての `oxc-parser` は、欲しくない利用者に何のコストも課さない。利用者側の `node_modules` を実測すると、valof だけなら 36 KB（パーサは引かれず、インストール警告も出ず、bin はインストールを促して exit 2）、opt-in すると 7.3 MB。`dependencies` は空のままなので、実行時依存ゼロと 1 kB 前後という主張は保たれる。`scripts/size.ts` がバンドルするのは `./dist/index.mjs` だけで、隣にある `dist/lint-cli.mjs` はそこから到達できない。
 
 他の 2 案より優れている。README のレシピにはテストもバージョンもなく、別パッケージはリリース面が増える。valof 内の bin なら既存のリリースワークフローに乗り、ここでテストできる。
 
@@ -1914,7 +1913,7 @@ companion のメンバは `Companion.member` の形でしか到達されない�
 
 ### 14.6 名前空間自身のバンドルサイズ
 
-`Val` 自身が companion なので、§14 の盲点はこのライブラリの表面にも及ぶ。`Val.of` だけを呼ぶモジュールは 6,791 B になり、`sealer`、`companion`、`unwrap`、`attach`、`deepEquals` がすべて残る。`of` を名前付き export にした場合は 1,538 B。`import type` だけなら 226 B。
+`Val` 自身が companion なので、§14 の盲点はこのライブラリの表面にも及ぶ。`Val.of` だけを呼ぶモジュールに `sealer`、`companion`、`unwrap`、`attach`、`deepEquals` がすべて残る。`of` を名前付き export にすれば 4 分の 1 以下、`import type` だけなら 30 分の 1 になる。
 
 名前空間を名前付き export に分割する案は 2026-09-03 に検討して却下した。利用者の companion には効かず、API が二重化し、ブランドだけが欲しいライブラリなら数行で自作できる。
 
