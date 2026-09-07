@@ -27,11 +27,10 @@ export type DuplicateBrand = Where & {
 export type Finding = UnusedMember | DuplicateBrand;
 
 /**
- * Attached by `attach` rather than written in `.impl`, or written there as an override of one.
- * An override is part of the type's contract even when this project never calls it, so none of
- * these are ever reported.
+ * Wired by the library, each through a step of its own. `.impl` rejects them at the type level,
+ * so this only keeps a plain-JS caller from getting a finding for one.
  */
-const BUILTIN = new Set(["equals", "with", "update", "seal", "create"]);
+const BUILTIN = new Set(["equals", "patch", "update", "seal", "create"]);
 
 /** The ESTree subset this walks. Narrow by `type` before reading anything past `type`. */
 type Node = { type: string; [key: string]: unknown };

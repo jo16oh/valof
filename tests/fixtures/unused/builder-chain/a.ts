@@ -1,6 +1,7 @@
 const Doc = Val.companion<Doc>()
   .implSeal((d, seal) => seal(d))
-  .unpatchable<"id">()
+  .implEquals({ title: (a, b) => a === b })
+  .fixed<"id">()
   .impl({
     title: (d) => d.title,
     subtitle: (d) => d.title,

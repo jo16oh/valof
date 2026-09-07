@@ -58,12 +58,12 @@ describe("unused companion members", () => {
     ]);
   });
 
-  test("ignores the members the library attaches or a type overrides", () => {
+  test("ignores the members the library wires, which `.impl` no longer accepts", () => {
     expect(lint("unused/builtins").findings).toEqual([]);
   });
 
-  test("reads through a builder chain", () => {
-    expect(lint("unused/builder-chain").findings).toEqual(["a.ts:6  Doc.subtitle is never read"]);
+  test("reads through a builder chain, past implSeal, implEquals and fixed", () => {
+    expect(lint("unused/builder-chain").findings).toEqual(["a.ts:7  Doc.subtitle is never read"]);
   });
 
   test("keeps both declarations when two modules name a companion alike", () => {

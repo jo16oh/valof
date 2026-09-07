@@ -8,7 +8,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write # the release is created below
       id-token: write # npm provenance
     steps:
       - uses: actions/checkout@v5
@@ -50,3 +50,10 @@ jobs:
       - run: pnpm publish --provenance --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Last: a release pointing at a version npm rejected would be a lie. The notes come from the
+      # PRs merged since the previous tag, grouped by `.github/release.yml`.
+      - name: Create the GitHub release
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}

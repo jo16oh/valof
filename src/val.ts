@@ -1,37 +1,29 @@
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
 type Primitive = string | number | boolean | bigint | null;
 
-/**
- * Any Val.
- *
- * The brand keys are phantom: nothing writes them. They are string keys, not `unique symbol`s,
- * so a downstream package can name them in its emitted declarations; a symbol would have to be
- * in scope in the emitting file, failing with TS4023 for anyone re-exporting a companion.
- */
 export type AnyVal = { readonly __valof_internal_phantom_brand: string };
 
 /** Marker surfaced in the type when a payload violates the allowed-type rules. */
 type Invalid<Msg extends string> = { readonly __valError: Msg };
 
-// ---------------------------------------------------------------------------
-// Allowed-type validation
-// ---------------------------------------------------------------------------
-
-/** Extracts only the optional keys. `-?` keeps `undefined` out of the mapped value type. */
 type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
 }[keyof T];
 
-/**
- * Allowed-type check, applied once from `Val<K, T>` rather than per call site. Offending
- * positions become `Invalid<Msg>`, so the message shows up in the resulting type.
- */
 type Validate<T> = [T] extends [AnyVal]
   ? T
   : [T] extends [Primitive]
     ? T
     : [T] extends [ReadonlyArray<infer E>]
-      ? ReadonlyArray<Validate<E>>
+      ? number extends T["length"]
+        ? ReadonlyArray<Validate<E>>
+        : {
+            // An optional element is the tuple's form of an optional key: absent, it round trips.
+            // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+            [I in keyof T]: undefined extends Required<T>[I]
+              ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+              : Validate<Exclude<T[I], undefined>>;
+          }
       : // oxlint-disable-next-line no-unsafe-function-type
         [T] extends [Function]
         ? Invalid<"functions are not allowed">
@@ -47,57 +39,39 @@ type Validate<T> = [T] extends [AnyVal]
             : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
           : Invalid<"not a plain value">;
 
-// ---------------------------------------------------------------------------
-// DeepReadonly
-// ---------------------------------------------------------------------------
-
-/**
- * Because nesting goes through Vals, the recursion stops as soon as it hits one.
- */
+/** Recursion stops at a nested Val: it is already deep-readonly. */
 type DeepReadonly<T> = [T] extends [AnyVal]
   ? T
   : [T] extends [Primitive]
     ? T
     : [T] extends [ReadonlyArray<infer E>]
-      ? ReadonlyArray<DeepReadonly<E>>
+      ? number extends T["length"]
+        ? ReadonlyArray<DeepReadonly<E>>
+        : { readonly [I in keyof T]: DeepReadonly<T[I]> }
       : [T] extends [object]
         ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
         : T;
-
-// ---------------------------------------------------------------------------
-// Val
-// ---------------------------------------------------------------------------
 
 /** The payload, or the annotated version of it when it breaks the allowed-type rules. */
 type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
 
 /**
- * The phantom half of a Val. An invalid payload gets a brand that is not a string, so it fails
- * `AnyVal` and `Val.of` / `Val.companion` reject it.
+ * The conditional lives here, not {@link Val}. An alias whose top level is a conditional loses
+ * its name once it resolves, so `User` would print as the expanded intersection, phantom keys
+ * included, in every hover. An alias over an intersection keeps the name.
  *
- * The brand carries `Validate<T>` rather than being withheld: a missing property is reported on
- * its own, while an incompatible one makes the checker print the type, which is what puts the
- * `Invalid<...>` message in the diagnostic.
- *
- * (`T extends Validate<T>` is the natural spelling, but on a type alias that is TS2313
- * "circular constraint", so this uses a conditional instead.)
+ * `T extends Validate<T>` is the natural spelling. On a type alias that is TS2313 "circular
+ * constraint", hence the conditional.
  */
 type Phantom<K extends string, T> = [T] extends [Validate<T>]
   ? {
       readonly __valof_internal_phantom_brand: K;
-      /** Phantom. Exists only so the original payload type can be recovered. */
+      /** Exists only so the original payload type can be recovered. */
       readonly __valof_internal_phantom_payload: T;
     }
   : { readonly __valof_internal_phantom_brand: Validate<T> };
 
-/**
- * A branded value type.
- *
- * The conditional lives in {@link Phantom}, not here: an alias whose top level is a conditional
- * loses its name once it resolves, so `User` would print as the whole expanded intersection —
- * phantom keys included — in every hover and diagnostic. An alias over an intersection keeps
- * it.
- */
+/** A branded value type. A payload that breaks the allowed-type rules is a type error. */
 export type Val<K extends string, T> = DeepReadonly<Checked<T>> & Phantom<K, T>;
 
 /** The Val's brand string. */
@@ -111,107 +85,138 @@ export type PayloadOf<V extends AnyVal> = V extends {
   : never;
 
 /**
- * What a value can be grown from: the payload as constructors, `Val.of` and a custom seal
- * accept it.
+ * The payload as constructors, `Val.of` and a custom seal accept it.
  *
- * Deep-readonly to *accept* more, not to enforce anything — every constructor deep-copies its
- * argument, so there is nothing left to enforce. A Val is itself deep-readonly, so without it,
- * deriving a value from an existing one would not type-check.
+ * Deep-readonly to accept more, not to enforce: every constructor deep-copies its argument. A
+ * Val is itself deep-readonly, so a payload taken from an existing value fits.
  */
 export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
 
-// ---------------------------------------------------------------------------
-// patch
-// ---------------------------------------------------------------------------
-
 /**
- * The patch accepted by `with`.
+ * The patch accepted by `patch`, at every depth.
  *
- * Taken over a payload rather than a Val, which is what lets a custom `with` accept a patch
- * over a subset of the fields — `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out of one.
+ * Taken over a payload rather than a Val, so a custom `patch` can patch a subset of the fields:
+ * `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
  *
  * - omit the key → leave it unchanged
  * - `{ k: undefined }` → delete it (only optional keys allow this at the type level)
  * - `{ k: value }` → set it
+ * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone
  */
 export type Patch<T> = T extends object
-  ? T extends ReadonlyArray<unknown>
+  ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
-    : { [K in Exclude<keyof T, OptionalKeys<T>>]?: T[K] } & {
-        [K in OptionalKeys<T>]?: T[K] | undefined;
+    : { [K in Exclude<keyof T, OptionalKeys<T>>]?: PatchValue<T[K]> } & {
+        [K in OptionalKeys<T>]?: PatchValue<T[K]> | undefined;
       }
   : never;
 
-// ---------------------------------------------------------------------------
-// sealer and companion
-// ---------------------------------------------------------------------------
+/**
+ * A nested plain object is patched in turn. Everything else is replaced whole.
+ *
+ * The stop at a Val is what keeps {@link Companion.seal} the only gate: a patch reaching into a
+ * nested value would build a payload its own seal never saw, and the outer `patch` seals the
+ * outer value alone. Replace it with one built by its constructor.
+ */
+type PatchValue<T> = [Patch<T>] extends [never] ? T : Patch<T>;
 
 type AnyFn = (...args: never[]) => unknown;
 
 /** What a companion may hold besides functions: constants, lookup tables, and so on. */
 type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown>;
 
-/**
- * The functions a companion accepts, each taking its Val first, which is what lets that parameter
- * go unannotated.
- *
- * The index signature is a *single* function type — the only shape TypeScript uses as a
- * contextual type. A union or an F-bounded mapped constraint type-check but leave the parameter
- * implicitly `any`.
- */
-type CompanionFns<V extends AnyVal, F = undefined> = {
+/** The functions a companion accepts, each taking its Val first. */
+type CompanionFns<V extends AnyVal> = {
   /**
-   * Overrides the default deep equals, for top-level comparisons only. That default arrives as a
-   * third argument so an override can fall back to it; callers never pass it, and
-   * `YourVal.equals` stays `(a, b) => boolean`.
+   * Rejected so they cannot be mistaken for registrations: everything the library wires has a
+   * step of its own. A `seal` whose first parameter accepts the Val, common for primitive
+   * payloads, would otherwise satisfy the index signature and attach as an ordinary function,
+   * leaving `patch` / `update` unrouted. `equals` has a step of its own, and `patch` / `update`
+   * are the library's, not yours: a derivation with different rules deserves its own name, and
+   * can seal inside it. Use `.implEquals` / `.implSeal` / `.implCreate`.
    */
-  equals?: (a: V, b: V, deepEquals: (a: V, b: V) => boolean) => boolean;
-  /**
-   * Rejected here so they cannot be mistaken for registrations. A `seal` whose first parameter
-   * happens to accept the Val — common for primitive payloads — would otherwise satisfy the
-   * index signature and attach as an ordinary function, leaving `with` / `update` unrouted. Use
-   * `.implSeal` / `.implCreate`.
-   */
+  equals?: never;
+  patch?: never;
+  update?: never;
   seal?: never;
   create?: never;
   /**
-   * Overrides the default `with` / `update`, in the type as well as at runtime.
-   *
-   * The seal arrives last, the way `equals` receives the deep comparison: the companion is still
-   * being initialised, so `YourVal.seal` is not in scope inside `.impl`. Callers never pass it,
-   * and taking it is optional — the two-parameter form is published as it stands.
+   * One callable member only. This is the contextual type for the Val parameter, and TypeScript
+   * takes one from a union only while a single constituent has a call signature. `NonFn` has
+   * none. A second function type would, and the parameter then falls back to implicit `any`
+   * with no error.
    */
-  // oxlint-disable-next-line no-explicit-any -- the patch is yours to choose; `never` would not fit the index signature
-  with?: (value: V, patch: any, seal: (value: SeedOf<V>) => Constructed<V, F>) => unknown;
-  /** Same as `with`, for the function-shaped update. */
-  // oxlint-disable-next-line no-explicit-any -- same as `with`
-  update?: (value: V, fn: any, seal: (value: SeedOf<V>) => Constructed<V, F>) => unknown;
   // oxlint-disable-next-line no-explicit-any -- `never[]` would type unannotated extra parameters as `never`
   [key: string]: ((value: V, ...rest: any[]) => unknown) | NonFn;
 };
+
+type Eq<T> = (a: T, b: T) => boolean;
+
 /**
- * What the seal produces, propagated verbatim. The library stays ignorant of `Result` and
- * friends: it only ever infers this type and passes it along.
+ * How to compare one child. Written where structure alone gives the wrong answer, and left out
+ * everywhere else, where the default deep comparison already agrees.
+ *
+ * The recursion stops at a nested Val, as {@link DeepReadonly} and {@link Patch} do: hand over
+ * its companion rather than walking its payload by hand, which would bypass the equality the
+ * type declared for itself.
+ */
+type EqSpec<T> = [T] extends [AnyVal]
+  ? Eq<T> | { equals: Eq<T> }
+  : [T] extends [Primitive]
+    ? Eq<T>
+    : [T] extends [readonly unknown[]]
+      ? Eq<T> | EqElements<T>
+      : [T] extends [object]
+        ? Eq<T> | { [K in keyof T]?: EqSpec<T[K]> }
+        : never;
+
+/**
+ * An array takes one spec for every element. A tuple takes one per position, all of them: a
+ * shorter spec would be indistinguishable at run time from the single-element form, since the
+ * spec is all `toEq` sees. `undefined` leaves a position on the default.
+ */
+type EqElements<T> = T extends readonly unknown[]
+  ? number extends T["length"]
+    ? readonly [EqSpec<T[number]>]
+    : { readonly [I in keyof T]: EqSpec<T[I]> | undefined }
+  : never;
+
+/**
+ * What `.implEquals` takes: your own comparison, or a spec for the payload's children. A bare
+ * function is the override, so the spec drops that form at this level alone.
+ *
+ * A primitive payload has no children, which leaves the override by itself. That falls out of
+ * the same rules rather than being a case of its own.
+ */
+type EqImpl<V extends AnyVal> = ((a: V, b: V, deepEquals: Eq<V>) => boolean) | EqPayload<SeedOf<V>>;
+
+type EqPayload<T> = [T] extends [AnyVal]
+  ? { equals: Eq<T> }
+  : [T] extends [Primitive]
+    ? never
+    : [T] extends [readonly unknown[]]
+      ? EqElements<T>
+      : [T] extends [object]
+        ? { [K in keyof T]?: EqSpec<T[K]> }
+        : never;
+
+/**
+ * What the seal produces, propagated verbatim. The library never inspects it, so `Result` and
+ * friends need no support here.
  */
 type Constructed<V extends AnyVal, F> = F extends (...args: never[]) => infer R ? R : V;
 
-/**
- * What a custom seal must be: a whole payload in, a value out. Checked at registration, so a
- * constructor that cannot seal a payload fails where it is written, not at the later `with`.
- * The default seal is the optional second parameter.
- */
 type SealImpl<V extends AnyVal> = (value: SeedOf<V>, seal: (value: SeedOf<V>) => V) => unknown;
 
 /**
- * The seal's parameter may be wider than the payload, which is what lets a schema library parse
- * into it, but not so wide that it also accepts a wire format. `with` and `update` hand a payload
- * back to the seal, so one written to decode a JSON string breaks the moment a value is derived
- * from another.
+ * The seal's parameter may be wider than the payload, so a schema library can parse into it,
+ * but not so wide that it accepts a wire format. `patch` and `update` hand a payload back to the
+ * seal, so one written to decode a JSON string breaks as soon as a value is derived from another.
  *
- * Being assignable to {@link SealImpl} already fixes the lower bound at `SeedOf<V>`. This is the
- * upper one: the parameter must not accept a string. That rules out `unknown` and `{}` while
- * leaving `object` and `Record<string, unknown>` alone. A payload that is a string of course
- * cannot be told apart from a wire format, so those types are exempt.
+ * {@link SealImpl} fixes the lower bound at `SeedOf<V>`. This is the upper one: the parameter
+ * must not accept a string. That rules out `unknown` and `{}`, leaving `object` and
+ * `Record<string, unknown>` alone. A string payload cannot be told apart from a wire format, so
+ * it is exempt.
  */
 type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = [string] extends [SeedOf<V>]
   ? G
@@ -220,8 +225,8 @@ type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = [string] extends [Se
     : G;
 
 /**
- * What `create` must be: any arguments at all, a payload out. What it returns is not a value yet
- — the type's seal closes it, which is what keeps `create` from being a way past the seal.
+ * What `create` must be: any arguments, a payload out. The result is not a value yet. The
+ * type's seal closes it, so `create` is not a way past the seal.
  */
 type Minter<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
 
@@ -243,34 +248,21 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
   ? Record<never, never>
   : {
       /**
-       * The single gate a payload passes to become a value. `create`, `with` and `update` all
-       * go through it, so nothing reaches a value without passing it.
+       * The single gate a payload passes to become a value. `create`, `patch` and `update` all
+       * go through it.
        */
       seal: WithoutDefaultSeal<F>;
     };
 
 /**
- * How `with` and `update` rebuild a value: by sealing the new payload, since sealing is the only
- * way a payload becomes one. With a custom seal they propagate whatever it returns; without one
- * the default seal is the copy, so they hand back the Val itself.
+ * `patch` and `update` derive by sealing the new payload. With a custom seal they propagate
+ * whatever it returns. Without one the default seal is the copy, so they hand back the Val.
  */
-type Rebuild<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
+type Derive<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 
 /**
- * Drops the trailing seal parameter from an override, so callers see the two-parameter function
- * they actually call. An override written without it is published unchanged — a two-element
- * parameter list does not match the three-element pattern.
- */
-type WithoutSeal<T> = T extends (...args: infer A) => infer R
-  ? A extends [infer Value, infer Arg, unknown]
-    ? (value: Value, arg: Arg) => R
-    : T
-  : T;
-
-/**
- * Drops the trailing default-seal parameter from a registered seal, for the same reason
- * {@link WithoutSeal} does on an override: callers pass the payload and nothing else. A seal
- * written with one parameter is published unchanged.
+ * Drops the trailing default-seal parameter from a registered seal: callers pass the payload and
+ * nothing else.
  */
 type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
   ? A extends [infer Value, unknown]
@@ -278,8 +270,8 @@ type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
     : F
   : F;
 
-/** The payload minus the keys `.unpatchable` took out of the update path. */
-type Patchable<V extends AnyVal, P> = [P] extends [never]
+/** The payload minus the keys `.fixed` took out of the derivation path. */
+type Derivable<V extends AnyVal, P> = [P] extends [never]
   ? SeedOf<V>
   : Omit<SeedOf<V>, P & keyof SeedOf<V>>;
 
@@ -289,75 +281,65 @@ type Patchable<V extends AnyVal, P> = [P] extends [never]
  * Narrowing `update`'s callback by return type is not enough: excess-property checking fires
  * only when an object literal meets its target directly, and an un-annotated arrow body is
  * inferred first, so `(v) => ({ ...v, id: "forged" })` slips through. An uninhabitable key
- * catches it instead.
+ * catches it.
  */
 type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
 
 /**
- * `with` exists only when there is something to patch: `Patch` is `never` for primitives and
- * arrays, so for those the function is left out of the type entirely. A `with` supplied in
- * `.impl` wins, the way `equals` does.
+ * `patch` exists only when there is something to patch: `Patch` is `never` for primitives and
+ * arrays, so for those the function is left out of the type. Write a named derivation of your
+ * own instead, and seal inside it.
  */
-type WithMethod<V extends AnyVal, M, F, P> = "with" extends keyof M
-  ? {
-      /** Rebuilds the value with the patch applied, through the type's own seal. */
-      with: WithoutSeal<M["with"]>;
-    }
-  : [Patch<Patchable<V, P>>] extends [never]
-    ? Record<never, never>
-    : {
-        /**
-         * Rebuilds the value with the patch applied: an omitted key stays, `undefined` deletes an
-         * optional one, anything else is set.
-         *
-         * It rebuilds by sealing, so it returns whatever the seal returns — there is no hole
-         * through which `with` bypasses a smart constructor.
-         */
-        with: Rebuild<V, F, Patch<Patchable<V, P>>>;
-      };
-
-/**
- * Same as {@link WithMethod}: yours if you wrote one, the rebuilt default otherwise. With keys
- * taken out of the patch path, the callback returns only what is left and the default merges it
- * onto the value.
- */
-type UpdateMethod<V extends AnyVal, M, F, P> = "update" extends keyof M
-  ? {
-      /** Rebuilds the value from a transform of it, through the type's own seal. */
-      update: WithoutSeal<M["update"]>;
-    }
+type PatchMethod<V extends AnyVal, F, P> = [Patch<Derivable<V, P>>] extends [never]
+  ? Record<never, never>
   : {
       /**
-       * Rebuilds the value from a transform of it, by sealing the result.
+       * Derives by sealing, so it returns whatever the seal returns: there is no hole through
+       * which `patch` bypasses a smart constructor.
        *
-       * Deliberately value → value: a fallible transform would give `Result<Result<...>>` when
-       * chained, and belongs in `with` plus a combinator of your own.
+       * A nested object merges, so a patch cannot shrink one. `{ staff: { u1: undefined } }`
+       * drops one entry; handing over a whole smaller object leaves the rest in place. Use
+       * `update` to replace it outright. See {@link Patch}.
        */
-      update: [P] extends [never]
-        ? Rebuild<V, F, (value: V) => SeedOf<V>>
-        : <T extends Patchable<V, P>>(
-            value: V,
-            fn: (value: V) => NoExtra<T, Patchable<V, P>>,
-          ) => Constructed<V, F>;
+      patch: Derive<V, F, Patch<Derivable<V, P>>>;
     };
 
 /**
- * A type's functions, and nothing else. Notably not callable: a constructor comes from
- * `Val.sealer`, so a companion built without one cannot be used to build values.
+ * With keys taken out of the patch path, the callback returns only what is left and the default
+ * merges it onto the value.
+ */
+type UpdateMethod<V extends AnyVal, F, P> = {
+  /**
+   * Derives a value from a transform of it, by sealing the result.
+   *
+   * Value to value on purpose: a fallible transform chains into `Result<Result<...>>`.
+   * Use `patch` and a combinator of your own for that.
+   */
+  update: [P] extends [never]
+    ? Derive<V, F, (value: V) => SeedOf<V>>
+    : <T extends Derivable<V, P>>(
+        value: V,
+        fn: (value: V) => NoExtra<T, Derivable<V, P>>,
+      ) => Constructed<V, F>;
+};
+
+/**
+ * A type's functions, and nothing else. Not callable: constructors come from `Val.sealer`, so a
+ * companion built without one cannot build values.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  */
 export type Companion<
   V extends AnyVal,
-  M extends CompanionFns<V, F>,
+  M extends CompanionFns<V>,
   N = undefined,
   F = undefined,
   P = never,
-> = Omit<M, "equals" | "with" | "update"> &
+> = Omit<M, "equals" | "patch" | "update"> &
   CreateMethod<V, N, F> &
   SealMethod<F> &
-  WithMethod<V, M, F, P> &
-  UpdateMethod<V, M, F, P> & {
+  PatchMethod<V, F, P> &
+  UpdateMethod<V, F, P> & {
     /** Structural equality: key-order independent, ignoring `undefined`-valued keys. */
     equals: (a: V, b: V) => boolean;
   };
@@ -375,19 +357,21 @@ export type Sealed<V extends AnyVal, M extends CompanionFns<V>> = ((value: SeedO
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
- * No `.implSeal` here on purpose: a sealer *is* the default seal, and a second, checked one
- * beside it would be a hole straight past the first. No `.implCreate` either: beside a callable
- * constructor a `create` narrows nothing.
+ * No `.implSeal` here: a sealer is the default seal, and a second one beside it would be a hole
+ * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
+ * nothing.
  */
 export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
-  /**
-   * Collects the functions for the type. What comes back is still a constructor, and each
-   * takes its Val as the first parameter, so that parameter needs no annotation.
-   */
+  /** Collects the functions for the type. */
   impl: {
+    // A separate step because TypeScript cannot infer type arguments partially, and two
+    // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
+    // the constraint as a contextual type, leaving every first parameter implicitly `any`.
     (): Sealed<V, Record<never, never>>;
     <M extends CompanionFns<V>>(fns: M): Sealed<V, M>;
   };
+  /** Replaces the default deep equality. See {@link EqImpl}. */
+  implEquals: (spec: EqImpl<V>) => Sealer<V>;
 };
 
 /**
@@ -396,10 +380,8 @@ export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
- * The two registration steps are deliberately separate. `implSeal` replaces the single gate a
- * payload passes to become a value; `implCreate` is free-form but only ever builds a *payload*,
- * which is then sealed like anything else. A seal must be idempotent — the type system cannot
- * check that, which is why minting belongs in `create`.
+ * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Minting
+ * belongs in `create`, whose payload is then sealed like any other.
  */
 export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P = never> = Companion<
   V,
@@ -408,47 +390,44 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
   F,
   P
 > & {
-  /**
-   * Collects the functions for the type. Each takes its Val as the first parameter, so that
-   * parameter needs no annotation; constructors go to `.implSeal` / `.implCreate` instead.
-   */
+  /** Collects the functions for the type. Everything the library wires has its own step. */
   impl: {
     (): Companion<V, Record<never, never>, N, F, P>;
-    <M extends CompanionFns<V, F>>(fns: M): Companion<V, M, N, F, P>;
+    <M extends CompanionFns<V>>(fns: M): Companion<V, M, N, F, P>;
   };
+  /** Replaces the default deep equality. See {@link EqImpl}. */
+  implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P>;
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
   implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P>;
-  /** Replaces the seal. `create`, `with` and `update` all go through it. */
+  /**
+   * Replaces the seal. Its parameter may be wider than the payload, so a schema library can parse
+   * into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
+   */
   implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P>;
   /**
-   * Takes keys out of the update path: `with` stops accepting them in its patch, and `update`'s
+   * Takes keys out of the update path: `patch` stops accepting them in its patch, and `update`'s
    * callback returns only what is left, with the rest merged back on.
    *
-   * For what a `create` mints and nothing afterwards may change — an id, a `createdAt`, a
-   * version counter:
+   * For what a `create` mints and nothing afterwards may change: an id, a `createdAt`, a
+   * version counter.
    *
    * ```ts
    * Val.companion<User>()
    *   .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }))
    *   .implSeal(seal)
-   *   .unpatchable<"id">();
+   *   .fixed<"id">();
    * ```
    *
-   * The keys are a type argument and never exist at runtime, so this guarantees something about
-   * the update path, not about the value: `Val.of` can still forge one, as it can forge
-   * anything else.
+   * The keys are a type argument and do not exist at runtime. This constrains the update path,
+   * not the value: `Val.of` can still forge one.
    */
-  unpatchable: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K>;
+  fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K>;
 };
-
-// ---------------------------------------------------------------------------
-// Implementation
-// ---------------------------------------------------------------------------
 
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
 
-function assertPlainObject(value: object): void {
+const assertPlainObject = (value: object): void => {
   const proto = Object.getPrototypeOf(value) as object | null;
   if (proto !== Object.prototype && proto !== null) {
     const name = (value.constructor as { name?: string } | undefined)?.name;
@@ -456,7 +435,7 @@ function assertPlainObject(value: object): void {
       `a Val holds plain objects only; received ${name ? `an instance of ${name}` : "an object with a prototype"}`,
     );
   }
-}
+};
 
 /**
  * Structural deep comparison. Every companion carries it as the default `equals`.
@@ -465,11 +444,11 @@ function assertPlainObject(value: object): void {
  * - ignores keys whose value is `undefined` (`{ a: undefined }` equals `{}`)
  * - `NaN` equals `NaN`, and `-0` equals `0`
  *
- * Deliberately absent from `./index.ts`: as a free function it cannot dispatch to a type's own
- * `equals`, so comparing two Vals with it would silently bypass a custom one. An override
- * receives it as a third argument instead (see {@link CompanionFns}).
+ * Not exported from `./index.ts`: a free function cannot dispatch to a type's own `equals`, so
+ * comparing two Vals with it would bypass a custom one. Overrides receive it as a third
+ * argument instead (see {@link CompanionFns}).
  */
-export function deepEquals(a: unknown, b: unknown): boolean {
+export const deepEquals = (a: unknown, b: unknown): boolean => {
   if (a === b) return true;
   // `-0` and `0` are already equal via `===`, which matches JSON round-tripping
   // (`JSON.stringify(-0)` is `"0"`), so only NaN is left to handle.
@@ -504,200 +483,309 @@ export function deepEquals(a: unknown, b: unknown): boolean {
     if (!deepEquals(x[k], y[k])) return false;
   }
   return true;
-}
+};
 
 /**
- * Deep-copies a payload.
+ * Builds the comparison a spec describes, falling back to {@link deepEquals} wherever it says
+ * nothing. That fallback is what lets a spec name only the children structure gets wrong.
  *
- * Constructors accept a plain mutable object, so the conversion from mutable to immutable has
- * to happen somewhere. Doing it here keeps it inside the library: without the copy the value
- * would share structure with the caller's object, and never touching that object again would
- * be the caller's discipline rather than something the type can promise.
- *
- * Payloads are primitives, arrays, plain objects and nested Vals — themselves plain data — so
- * the recursion needs no special cases. The result is deliberately not frozen.
+ * A companion is told from a nested spec by its `equals`: a payload cannot hold a function
+ * (see {@link Validate}), so an object whose `equals` is one can only be a companion. That test
+ * comes first because a sealer is itself callable, and reading it as the comparison would run
+ * the constructor and take its value for `true`.
  */
-function copy<T>(value: T): T {
-  if (value === null || typeof value !== "object") return value;
+const toEq = (spec: unknown): ((a: unknown, b: unknown) => boolean) => {
+  if (spec === undefined) return deepEquals;
 
-  if (Array.isArray(value)) {
-    return (value as unknown[]).map((element) => copy(element)) as T;
+  const companion = (spec as { equals?: unknown }).equals;
+  if (typeof companion === "function") return companion as (a: unknown, b: unknown) => boolean;
+  if (typeof spec === "function") return spec as (a: unknown, b: unknown) => boolean;
+
+  if (Array.isArray(spec)) {
+    // One spec compares every element, two or more compare by position. The readings coincide
+    // for a one-element tuple, the only shape both can describe.
+    const eqs = (spec as readonly unknown[]).map(toEq);
+    const every = eqs.length === 1 ? eqs[0] : undefined;
+    return (a, b) =>
+      Array.isArray(a) &&
+      Array.isArray(b) &&
+      a.length === b.length &&
+      a.every((x, i) => (every ?? eqs[i] ?? deepEquals)(x, b[i]));
   }
 
-  const source = value as Record<string, unknown>;
-
-  if (typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production") {
-    assertPlainObject(source);
-  }
-
-  const out: Record<string, unknown> = {};
-  for (const key of Object.keys(source)) {
-    const copied = copy(source[key]);
-    // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
-    // the prototype instead of copying it. Defining it keeps it an own property, and only
-    // that key pays for the slower path.
-    if (key === "__proto__") {
-      Object.defineProperty(out, key, {
-        value: copied,
-        writable: true,
-        enumerable: true,
-        configurable: true,
-      });
-    } else {
-      out[key] = copied;
+  const named = new Map(Object.entries(spec as object).map(([k, s]) => [k, toEq(s)]));
+  // The key rules are `deepEquals`', so a key the spec names but only one side carries still
+  // fails on the count.
+  return (a, b) => {
+    if (a === b) return true;
+    if (!isObjectShaped(a) || !isObjectShaped(b)) return false;
+    const keys = Object.keys(a).filter((k) => a[k] !== undefined);
+    if (keys.length !== Object.keys(b).filter((k) => b[k] !== undefined).length) return false;
+    for (const key of keys) {
+      if (!Object.hasOwn(b, key)) return false;
+      if (!(named.get(key) ?? deepEquals)(a[key], b[key])) return false;
     }
-  }
-  return out as T;
-}
+    return true;
+  };
+};
 
 /**
- * The default seal, with the type named explicitly: brand the payload and copy it.
+ * The nodes this module built. Subtrees are immutable, so recognising one lets a derivation
+ * copy only the path down to what changed and share everything below it.
  *
- * The same operation a `Val.sealer` performs when called, and the same one a custom seal
- * receives as its second parameter — the three differ only in where the type comes from.
+ * Leaves are recorded too. A record costs about 20x a lookup and never earns that back in
+ * copying time, but frameworks compare identity: without it every small nested Val gets a new
+ * identity on each `patch`, and a memoised component re-renders for a change it never saw.
+ *
+ * Missing a node costs a copy, never correctness, so the set can be lost across a
+ * `structuredClone` or a JSON round trip with nothing to repair.
  */
-function of<V extends AnyVal>(value: SeedOf<V>): V {
-  return copy(value) as unknown as V;
-}
+const owned = new WeakSet<object>();
+
+const development =
+  typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production";
 
 /**
- * The other direction: a plain, mutable copy of the payload, for code that does not know about
- * `readonly`.
+ * Builds the recursive deep copy, in an owning and a non-owning form.
  *
- * It copies for the mirror of that reason: the brand is phantom, so a Val *is* its payload at
- * runtime, and handing that object back under a mutable type would put the caller's writes
- * straight into the value.
+ * `owning` is closed over rather than passed, so it cannot change underneath a copy in progress:
+ * copying runs a payload's getters, which is someone else's code and can seal or unwrap.
+ *
+ * Values are frozen in development only. Breaking `readonly` takes a cast, and with nodes shared
+ * that write lands in every value holding the node. Freezing measured at 25-30% and buys nothing
+ * at run time, so production skips it.
  */
-function unwrap<V extends AnyVal>(value: V): PayloadOf<V> {
-  return copy(value) as unknown as PayloadOf<V>;
-}
+const deepCopy = (owning: boolean) => {
+  const copy = <T>(value: T): T => {
+    if (value === null || typeof value !== "object") return value;
+    if (owning && owned.has(value)) return value;
 
-/** `Object.assign` onto a function throws on `name` / `length`, so define properties instead. */
-function define(target: object, key: string, value: unknown): void {
+    let out: unknown;
+
+    if (Array.isArray(value)) {
+      out = (value as unknown[]).map((element) => copy(element));
+    } else {
+      const source = value as Record<string, unknown>;
+
+      if (development) assertPlainObject(source);
+
+      const target: Record<string, unknown> = {};
+      for (const key of Object.keys(source)) {
+        const copied = copy(source[key]);
+        // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
+        // the prototype instead of copying it. Defining it keeps it an own property, and only
+        // that key pays for the slower path.
+        if (key === "__proto__") {
+          define(target, key, copied);
+        } else {
+          target[key] = copied;
+        }
+      }
+      out = target;
+    }
+
+    if (owning) {
+      owned.add(out as object);
+      if (development) Object.freeze(out);
+    }
+    return out as T;
+  };
+  return copy;
+};
+
+/**
+ * Deep-copies a payload and takes ownership: reuses nodes this module owns, records the ones it
+ * makes, freezes them in development.
+ *
+ * Recorded here rather than in `seal` because this is where the nodes are. A seal sees only the
+ * root, so a list of 200 Vals would get a new array on every derive, at 10x the cost and with a
+ * new identity for anything memoised on it.
+ */
+const own = deepCopy(true);
+
+/** A plain deep copy. What `Val.unwrap` hands back is not the library's. */
+const detach = deepCopy(false);
+
+/**
+ * Assignment cannot carry a user's function: a sealer's target is a function, whose `name` and
+ * `length` are read-only, so `impl({ name })` would throw. Both are configurable, so defining
+ * works. The library's own keys never collide and are assigned.
+ */
+const define = <T extends object>(target: T, key: string, value: unknown): T => {
   Object.defineProperty(target, key, {
     value,
     writable: true,
     enumerable: true,
     configurable: true,
   });
-}
+  return target;
+};
 
-/** The constructors a companion was given, plus whether `.unpatchable` was called. */
+/** What the builder's steps registered, plus whether `.fixed` was called. */
 type Ctors = {
   create?: AnyFn;
   seal?: (value: unknown, seal: (value: unknown) => unknown) => unknown;
-  unpatchable?: boolean;
+  equals?: unknown;
+  fixed?: boolean;
 };
 
 /**
- * Attaches the defaults plus the user's functions to `target`.
+ * Merges a patch onto a value node, and hands the node itself back when nothing changed.
  *
- * Everything that produces a value goes through one function, `seal`: the registered one, or a
- * copy when the type did not replace it. Nothing copies on the way *in* — the one deep copy
- * happens in the default seal the custom one returns through.
+ * Nodes are shared and never mutated, so identical children mean equal subtrees. The walk that
+ * applies the patch answers whether anything changed, per level, which is what lets an untouched
+ * subtree keep its identity all the way up to the root.
+ *
+ * An owned node is a value, not a patch, so it replaces rather than merges. That is the runtime
+ * form of {@link PatchValue} stopping at a Val: the brand is a phantom, and a node's origin is
+ * the only thing left to read. Losing the record costs a wrong merge on a nested value that
+ * dropped an optional key, so a payload that crossed `structuredClone` should be re-sealed.
  */
-function attach(target: object, fns: Record<string, unknown>, ctors: Ctors = {}): void {
-  const { create } = ctors;
-  const custom = ctors.seal;
-  const seal: (value: unknown) => unknown = custom ? (value) => custom(value, copy) : copy;
+const patched = (
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> => {
+  const merged: Record<string, unknown> = { ...base, ...patch };
+  let same = true;
+  let kept = 0;
+  for (const key of Object.keys(merged)) {
+    const value = merged[key];
+    // A deletion needs no flag of its own: it shows up in the count. `kept` rises only for a
+    // surviving key, and a key added in place of the deleted one cannot match the base's absent
+    // one, so `same` is already false there.
+    if (value === undefined) {
+      delete merged[key];
+      continue;
+    }
+    kept++;
+    const before = base[key];
+    const child =
+      isObjectShaped(before) && isObjectShaped(value) && !owned.has(value)
+        ? patched(before, value)
+        : value;
+    merged[key] = child;
+    if (!Object.is(child, before)) same = false;
+  }
+  return same && kept === Object.keys(base).length ? base : merged;
+};
 
-  define(target, "equals", deepEquals);
-  if (create) define(target, "create", (...args: never[]) => seal(create(...args)));
-  if (custom) define(target, "seal", seal);
+/**
+ * Attaches what the steps registered, plus the user's own functions, to `target`.
+ *
+ * Everything that produces a value goes through `seal`: the registered one, or a copy when the
+ * type did not replace it. Nothing copies on the way in. The one deep copy happens in the
+ * default seal that a custom one returns through.
+ */
+const attach = (
+  target: Record<string, unknown>,
+  fns: Record<string, unknown>,
+  ctors: Ctors,
+): Record<string, unknown> => {
+  const { create, seal: custom, equals } = ctors;
+  const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
+  // A derivation that changed nothing returns the value it started from, so a framework comparing
+  // by identity sees no update. A custom seal owns the return shape, so the value goes back
+  // through it: the copy inside recognises the node and hands the same one back.
+  const keep: (value: unknown) => unknown = custom ? seal : (value) => value;
 
-  define(target, "with", (value: unknown, patch: Record<string, unknown>) => {
+  // Bound here rather than attached raw, which is what keeps callers at two arguments. A spec
+  // is not callable, so it takes the other branch.
+  target.equals =
+    typeof equals === "function"
+      ? (a: unknown, b: unknown) =>
+          (equals as (a: unknown, b: unknown, deep: typeof deepEquals) => boolean)(a, b, deepEquals)
+      : equals === undefined
+        ? deepEquals
+        : toEq(equals);
+
+  if (create) target.create = (...args: never[]) => seal(create(...args));
+  if (custom) target.seal = seal;
+
+  // Same idea for a registered derivation, which cannot reach the companion it is being
+  // defined on: the seal arrives as its third argument.
+  target.patch = (value: unknown, patch: Record<string, unknown>) => {
+    // The type leaves `patch` off a primitive or array Val, so reaching this takes a cast.
+    // Still throws in production: without the guard the spread seals an object, turning a
+    // number into `{}` and a string into a character map. Only the message is development-only.
     if (!isObjectShaped(value)) {
-      throw new TypeError("`with` is only available for object-shaped Vals.");
+      throw new TypeError(
+        development ? "`patch` is only available for object-shaped Vals." : undefined,
+      );
     }
-    const merged: Record<string, unknown> = { ...value, ...patch };
-    for (const key of Object.keys(merged)) {
-      if (merged[key] === undefined) delete merged[key];
-    }
-    return seal(merged);
-  });
+    const merged = patched(value, patch);
+    return Object.is(merged, value) ? keep(value) : seal(merged);
+  };
 
   // The merge is what lets the untouched keys survive without the library knowing their names.
-  define(target, "update", (value: unknown, fn: (value: unknown) => unknown) =>
-    seal(
-      ctors.unpatchable && isObjectShaped(value)
+  target.update = (value: unknown, fn: (value: unknown) => unknown) => {
+    const next =
+      ctors.fixed && isObjectShaped(value)
         ? { ...value, ...(fn(value) as Record<string, unknown>) }
-        : fn(value),
-    ),
-  );
+        : fn(value);
+    // Only the transform that hands its argument straight back. Recognising a fresh object that
+    // happens to be equal is `patch`'s job, where the walk is already paid for.
+    return Object.is(next, value) ? keep(value) : seal(next);
+  };
 
-  for (const key of Object.keys(fns)) {
-    // Bound here rather than attached raw, which is what keeps callers at two arguments.
-    if (key === "equals" && typeof fns[key] === "function") {
-      const custom = fns[key] as (a: unknown, b: unknown, deep: typeof deepEquals) => boolean;
-      define(target, key, (a: unknown, b: unknown) => custom(a, b, deepEquals));
-      continue;
-    }
-    // Same idea for a hand-written rebuild, which cannot reach the companion it is being
-    // defined on.
-    if ((key === "with" || key === "update") && typeof fns[key] === "function") {
-      const custom = fns[key] as (value: unknown, arg: unknown, seal: unknown) => unknown;
-      define(target, key, (value: unknown, arg: unknown) => custom(value, arg, seal));
-      continue;
-    }
-    define(target, key, fns[key]);
-  }
-}
-
-/**
- * Creates the constructor for a Val. {@link companion} is the same shape for a type with a smart
- * constructor, minus the callability.
- *
- * TypeScript cannot infer type arguments partially, so `V` is pinned by a type argument here
- * and the functions are inferred by `.impl()`. `.impl` is overloaded rather than given a default
- * `M`: a defaulted type parameter stops TypeScript using the constraint as a contextual type,
- * and every function's first parameter falls back to implicit `any`.
- */
-function sealer<V extends AnyVal>(): Sealer<V> {
-  const seal = (value: SeedOf<V>): V => copy(value) as unknown as V;
-  attach(seal, {});
-
-  define(
-    seal,
-    "impl",
-    <M extends CompanionFns<V> = Record<never, never>>(fns: M = {} as M): Sealed<V, M> => {
-      const sealed = (value: SeedOf<V>): V => copy(value) as unknown as V;
-      attach(sealed, fns);
-      return sealed as unknown as Sealed<V, M>;
-    },
-  );
-
-  return seal as unknown as Sealer<V>;
-}
-
-/**
- * Bundles a type's functions without a constructor.
- *
- * No constructor is ever produced and `create` hands its payload to the seal, so nothing reaches
- * a value without passing it. Constructors get their own steps rather than sitting in `.impl`,
- * which fixes every function's first parameter to the Val — a shape a constructor does not fit.
- */
-function companion<V extends AnyVal>(): CompanionBuilder<V> {
-  return build<V>({}) as CompanionBuilder<V>;
-}
-
-/** One builder state: the constructors registered so far, plus the steps still open. */
-function build<V extends AnyVal>(ctors: Ctors): object {
-  const target = {};
-  attach(target, {}, ctors);
-
-  define(target, "impl", (fns: Record<string, unknown> = {}) => {
-    const built = {};
-    attach(built, fns, ctors);
-    return built;
-  });
-
-  define(target, "implCreate", (create: AnyFn) => build<V>({ ...ctors, create }));
-
-  define(target, "implSeal", (seal: NonNullable<Ctors["seal"]>) => build<V>({ ...ctors, seal }));
-
-  define(target, "unpatchable", () => build<V>({ ...ctors, unpatchable: true }));
+  for (const key of Object.keys(fns)) define(target, key, fns[key]);
 
   return target;
-}
+};
 
-export const Val = { of, unwrap, sealer, companion } as const;
+/**
+ * One builder state: what the steps registered so far, plus the ones still open.
+ *
+ * A sealer's target is the default constructor itself, which is what lets its steps hand back
+ * something still callable. `.impl` closes the chain either way.
+ */
+const build = <V extends AnyVal>(ctors: Ctors, callable: boolean): object => {
+  // A function is not a `Record`, so the cast is here rather than at every assignment in
+  // `attach`.
+  const base = () =>
+    (callable ? (value: SeedOf<V>): V => own(value) as unknown as V : {}) as unknown as Record<
+      string,
+      unknown
+    >;
+  const target = attach(base(), {}, ctors);
+  const step = (next: Ctors): object => build<V>(next, callable);
+
+  target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors);
+  target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
+  if (callable) return target;
+
+  target.implCreate = (create: AnyFn) => step({ ...ctors, create });
+  target.implSeal = (seal: NonNullable<Ctors["seal"]>) => step({ ...ctors, seal });
+  target.fixed = () => step({ ...ctors, fixed: true });
+  return target;
+};
+
+export const Val = {
+  /**
+   * The default seal, with the type named explicitly: brand the payload and copy it. A called
+   * `Val.sealer` and the seal handed to a custom one do the same thing; only the type differs.
+   */
+  of: own as <V extends AnyVal>(value: SeedOf<V>) => V,
+  /**
+   * The other direction: a plain, mutable copy of the payload, for code that does not know
+   * about `readonly`.
+   *
+   * It copies because the brand is phantom: a Val is its payload at run time, so handing that
+   * object back under a mutable type would put the caller's writes into the value.
+   */
+  unwrap: detach as <V extends AnyVal>(value: V) => PayloadOf<V>,
+  /**
+   * Creates the constructor for a Val. `Val.companion` is the same shape for a type with a
+   * smart constructor, minus the callability.
+   *
+   * `V` is given as a type argument; the functions are inferred by `.impl()`.
+   */
+  sealer: <V extends AnyVal>(): Sealer<V> => build<V>({}, true) as Sealer<V>,
+  /**
+   * Bundles a type's functions without a constructor.
+   *
+   * Constructors get their own steps rather than sitting in `.impl`, which fixes every
+   * function's first parameter to the Val. A constructor does not fit that shape.
+   */
+  companion: <V extends AnyVal>(): CompanionBuilder<V> =>
+    build<V>({}, false) as CompanionBuilder<V>,
+} as const;
