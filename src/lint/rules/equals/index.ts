@@ -1,15 +1,15 @@
 import { resolve } from "node:path";
 
+import type { Where } from "../../ast.ts";
 import type { Alias, CompanionSite, Scan } from "../../scan/index.ts";
 import type { Query, Resolver } from "../../typecheck/index.ts";
 import type { Rule } from "../rule.ts";
 import { isOverride, payloadPositions, prefixes, specPaths } from "./paths.ts";
 
 /** A parent that structurally compares a child carrying its own equality. */
-export type StructuralEquals = {
+export type StructuralEquals = Where & {
   kind: "structural-equals";
   file: string;
-  line: number;
   /** The parent alias, as written. */
   parent: string;
   /** Where the child sits in the parent's payload: `total`, `shipping.zip`, `lines[]`. */
@@ -137,6 +137,7 @@ async function findings(
         kind: "structural-equals",
         file: site.file,
         line: site.line,
+        column: site.column,
         parent: parent.alias,
         path,
         child: child.alias,

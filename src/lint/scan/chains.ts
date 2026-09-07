@@ -1,10 +1,9 @@
-import { child, children, keyName, rootPath, type Node } from "../ast.ts";
+import { child, children, keyName, rootPath, type Node, type Where } from "../ast.ts";
 import { original, type Bindings } from "./bindings.ts";
 
 /** A `Val.sealer<X>()` / `Val.companion<X>()` chain, whatever else it registered. */
-export type CompanionSite = {
+export type CompanionSite = Where & {
   file: string;
-  line: number;
   /** The type argument, resolved to an alias after the walk. */
   typeName: string;
   typeOffset: number;
@@ -67,7 +66,7 @@ function readChain(node: Node, bound: Bindings): Chain {
 export function companionSite(
   node: Node,
   file: string,
-  line: number,
+  where: Where,
   bound: Bindings,
 ): CompanionSite | undefined {
   const { steps, typeArguments } = readChain(node, bound);
@@ -76,8 +75,8 @@ export function companionSite(
   const typeName = child(first, "typeName");
   if (!typeName || typeName.type !== "Identifier") return undefined;
   return {
+    ...where,
     file,
-    line,
     typeName: typeName["name"] as string,
     typeOffset: typeName["start"] as number,
     spec: steps.get("implEquals"),

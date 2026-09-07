@@ -80,8 +80,8 @@ const paint =
 const out = paint(process.stdout);
 const err = paint(process.stderr);
 
-for (const { file, line, kind, message } of findings) {
-  console.log(`${out("cyan", `${file}:${line}`)}  ${out("yellow", kind)}  ${message}`);
+for (const { file, line, column, kind, message } of findings) {
+  console.log(`${out("cyan", `${file}:${line}:${column}`)}  ${out("yellow", kind)}  ${message}`);
 }
 console.error(
   findings.length === 0

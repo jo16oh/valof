@@ -1,12 +1,12 @@
+import type { Where } from "../ast.ts";
 import { original } from "../scan/index.ts";
 import type { Scan } from "../scan/index.ts";
 import type { Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
-export type UnusedMember = {
+export type UnusedMember = Where & {
   kind: "unused-member";
   file: string;
-  line: number;
   /** The companion's declared name, as written at its declaration site. */
   companion: string;
   /** The member's key. */
@@ -80,10 +80,11 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
   return scans.flatMap(({ file, members }) =>
     members
       .filter(({ companion, member }) => !read.get(companion)?.has(member))
-      .map(({ companion, member, line }) => ({
+      .map(({ companion, member, line, column }) => ({
         kind: "unused-member" as const,
         file,
         line,
+        column,
         companion,
         member,
         message: `${companion}.${member} is never read`,

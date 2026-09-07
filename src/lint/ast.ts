@@ -44,8 +44,11 @@ export function rootPath(node: Node): string[] | undefined {
   return left && name ? [...left, name] : left;
 }
 
-/** Byte offset -> 1-based line, from a prefix scan done once per file. */
-export function lineIndex(source: string): (offset: number) => number {
+/** Where something sits, 1-based on both axes, the way an editor and every linter count. */
+export type Where = { line: number; column: number };
+
+/** Byte offset -> {@link Where}, from a prefix scan done once per file. */
+export function positions(source: string): (offset: number) => Where {
   const starts = [0];
   for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1)) starts.push(i + 1);
   return (offset) => {
@@ -56,6 +59,6 @@ export function lineIndex(source: string): (offset: number) => number {
       if ((starts[mid] as number) <= offset) low = mid;
       else high = mid - 1;
     }
-    return low + 1;
+    return { line: low + 1, column: offset - (starts[low] as number) + 1 };
   };
 }

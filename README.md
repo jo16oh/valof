@@ -454,9 +454,9 @@ pnpm exec valof-lint 'src/**/*.ts'
 ```
 
 ```
-src/user.ts:7   unused-member      User.shout is never read
-src/order.ts:3  duplicate-brand    OrderId claims the brand "Id", and so does another type
-src/order.ts:9  structural-equals  Order.total holds Money, which has its own equals
+src/user.ts:7:3    unused-member      User.shout is never read
+src/order.ts:3:13  duplicate-brand    OrderId claims the brand "Id", and so does another type
+src/order.ts:9:22  structural-equals  Order.total holds Money, which has its own equals
 valof-lint: 3 finding(s) in 12 file(s)
 ```
 

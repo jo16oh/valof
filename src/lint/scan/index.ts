@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { child, children, isNode, keyName, lineIndex, type Node } from "../ast.ts";
+import { child, children, isNode, keyName, positions, type Node, type Where } from "../ast.ts";
 import { valAliases, type Alias, type BrandClaim } from "./aliases.ts";
 import { bindings, type Bindings } from "./bindings.ts";
 import { companionSite, fromVal, type CompanionSite } from "./chains.ts";
@@ -14,7 +14,7 @@ export type { Alias, BrandClaim } from "./aliases.ts";
 export type { CompanionSite } from "./chains.ts";
 
 /** A member `.impl({…})` registered, under the local name of its companion. */
-type Member = { companion: string; member: string; line: number };
+type Member = Where & { companion: string; member: string };
 
 /**
  * What one file says about itself.
@@ -76,7 +76,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  */
 export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
   const source = readFileSync(file, "utf8");
-  const lineOf = lineIndex(source);
+  const at = positions(source);
 
   const bound = bindings();
   const exportedAs = new Map<string, string>();
@@ -91,7 +91,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
         const id = child(node, "id");
         const init = child(node, "init");
         if (!id || !init) break;
-        const site = companionSite(init, file, lineOf(init["start"] as number), bound);
+        const site = companionSite(init, file, at(init["start"] as number), bound);
         if (site) sites.push(site);
         // `const { a, b: c } = X` reads `a` and `b` off `X`.
         if (id.type === "ObjectPattern" && init.type === "Identifier") {
@@ -128,9 +128,9 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
           const name = keyName(key, member["computed"] === true);
           if (name && !BUILTIN.has(name)) {
             members.push({
+              ...at(member["start"] as number),
               companion: id["name"] as string,
               member: name,
-              line: lineOf(member["start"] as number),
             });
           }
         }
@@ -197,7 +197,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
   visit(program);
 
   // After the walk, which is what collected the imports `Val` is resolved against.
-  const { aliases, brands } = valAliases(program, file, bound, lineOf);
+  const { aliases, brands } = valAliases(program, file, bound, at);
 
   return {
     file,
@@ -209,6 +209,6 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
     aliases,
     brands,
     sites,
-    disabled: disabledLines(parsed.comments, source, lineOf),
+    disabled: disabledLines(parsed.comments, source, (offset) => at(offset).line),
   };
 }

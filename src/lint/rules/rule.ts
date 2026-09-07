@@ -7,7 +7,7 @@ import type { Scan } from "../scan/index.ts";
  * The wording belongs to the rule, next to the `description` that names it. The command prints
  * `message` as it stands, so nothing outside a rule needs to know what its finding holds.
  */
-type Located = { kind: string; file: string; line: number; message: string };
+type Located = { kind: string; file: string; line: number; column: number; message: string };
 
 /** What a rule gets beyond the scans. */
 type Context = {

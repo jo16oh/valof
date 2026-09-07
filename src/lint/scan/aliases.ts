@@ -1,4 +1,4 @@
-import { child, children, type Node } from "../ast.ts";
+import { child, children, type Node, type Where } from "../ast.ts";
 import { original, type Bindings } from "./bindings.ts";
 
 /**
@@ -16,12 +16,11 @@ export type Alias = {
 };
 
 /** The brand one alias claims, before anything is known about who else claims it. */
-export type BrandClaim = {
+export type BrandClaim = Where & {
   /** The name `Val` was written under here, resolved against the file's imports by the rule. */
   typeName: string;
   brand: string;
   alias: string;
-  line: number;
 };
 
 /**
@@ -56,7 +55,7 @@ export function valAliases(
   program: Node,
   file: string,
   bound: Bindings,
-  lineOf: (offset: number) => number,
+  at: (offset: number) => Where,
 ): { aliases: Alias[]; brands: BrandClaim[] } {
   const aliases: Alias[] = [];
   const brands: BrandClaim[] = [];
@@ -91,10 +90,10 @@ export function valAliases(
     // A generic brand, `Val<K, T>` inside a helper, names nothing to collide over.
     if (!literal || typeof literal["value"] !== "string") continue;
     brands.push({
+      ...at((id["start"] as number) ?? (node["start"] as number)),
       typeName: named,
       brand: literal["value"],
       alias: id["name"] as string,
-      line: lineOf(node["start"] as number),
     });
   }
 

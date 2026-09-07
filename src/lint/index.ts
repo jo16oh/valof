@@ -60,6 +60,10 @@ export async function lint(files: readonly string[], { skip }: Options = {}): Pr
   return findings
     .filter((finding) => !silenced(finding))
     .sort(
-      (a, b) => a.file.localeCompare(b.file) || a.line - b.line || a.kind.localeCompare(b.kind),
+      (a, b) =>
+        a.file.localeCompare(b.file) ||
+        a.line - b.line ||
+        a.column - b.column ||
+        a.kind.localeCompare(b.kind),
     );
 }

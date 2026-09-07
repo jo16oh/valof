@@ -1,3 +1,4 @@
+import type { Where } from "../ast.ts";
 import { original } from "../scan/index.ts";
 import type { Scan } from "../scan/index.ts";
 import type { Rule } from "./rule.ts";
@@ -7,10 +8,9 @@ import type { Rule } from "./rule.ts";
  * payload are silently assignable to each other, which is the whole failure the brand exists to
  * prevent.
  */
-export type DuplicateBrand = {
+export type DuplicateBrand = Where & {
   kind: "duplicate-brand";
   file: string;
-  line: number;
   brand: string;
   /** The alias that claims it, as written. */
   alias: string;
@@ -37,13 +37,14 @@ export const DuplicateBrand: Rule<DuplicateBrand> = {
 function findings(scans: readonly Scan[]): DuplicateBrand[] {
   const claims = new Map<string, DuplicateBrand[]>();
   for (const { file, brands, bound } of scans) {
-    for (const { typeName, brand, alias, line } of brands) {
+    for (const { typeName, brand, alias, line, column } of brands) {
       if (original(bound, typeName) !== "Val") continue;
       const claimed = claims.get(brand) ?? [];
       claimed.push({
         kind: "duplicate-brand",
         file,
         line,
+        column,
         brand,
         alias,
         message: `${alias} claims the brand "${brand}", and so does another type`,
