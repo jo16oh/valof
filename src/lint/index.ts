@@ -1,4 +1,4 @@
-import { resolver, type Resolver } from "./definitions.ts";
+import { resolver, type Resolver } from "./typecheck/index.ts";
 import { RULES, type Finding, type Kind } from "./rules/index.ts";
 import { scan, type Parser } from "./scan/index.ts";
 

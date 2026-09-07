@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
 import { child as at, children, keyName, type Node } from "../ast.ts";
-import type { Query, Resolver } from "../definitions.ts";
+import type { Query, Resolver } from "../typecheck/index.ts";
 import type { Alias } from "../scan/index.ts";
 import type { CompanionSite } from "../scan/index.ts";
 import type { Scan } from "../scan/index.ts";

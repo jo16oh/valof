@@ -1,4 +1,4 @@
-import type { Resolver } from "../definitions.ts";
+import type { Resolver } from "../typecheck/index.ts";
 import type { Scan } from "../scan/index.ts";
 
 /** The least every finding carries: what it is, and where to look. */
