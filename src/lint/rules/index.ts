@@ -1,5 +1,5 @@
 import { DuplicateBrand } from "./brands.ts";
-import { StructuralEquals } from "./equals.ts";
+import { StructuralEquals } from "./equals/index.ts";
 import type { Rule } from "./rule.ts";
 import { UnusedMember } from "./unused.ts";
 
