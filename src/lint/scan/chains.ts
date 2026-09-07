@@ -1,4 +1,4 @@
-import { child, children, keyName, rootPath, type Node } from "./ast.ts";
+import { child, children, keyName, rootPath, type Node } from "../ast.ts";
 import { original, type Bindings } from "./bindings.ts";
 
 /** A `Val.sealer<X>()` / `Val.companion<X>()` chain, whatever else it registered. */

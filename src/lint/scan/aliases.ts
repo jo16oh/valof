@@ -1,4 +1,4 @@
-import { child, children, type Node } from "./ast.ts";
+import { child, children, type Node } from "../ast.ts";
 import { original, type Bindings } from "./bindings.ts";
 
 /**

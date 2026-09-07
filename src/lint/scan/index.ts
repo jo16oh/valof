@@ -1,10 +1,17 @@
 import { readFileSync } from "node:fs";
 
+import { child, children, isNode, keyName, lineIndex, type Node } from "../ast.ts";
 import { valAliases, type Alias, type BrandClaim } from "./aliases.ts";
-import { child, children, isNode, keyName, lineIndex, type Node } from "./ast.ts";
 import { bindings, type Bindings } from "./bindings.ts";
 import { companionSite, fromVal, type CompanionSite } from "./chains.ts";
 import { disabledLines } from "./directives.ts";
+
+// The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
+// it into the walk that produced them.
+export { original } from "./bindings.ts";
+export type { Bindings } from "./bindings.ts";
+export type { Alias, BrandClaim } from "./aliases.ts";
+export type { CompanionSite } from "./chains.ts";
 
 /** A member `.impl({…})` registered, under the local name of its companion. */
 type Member = { companion: string; member: string; line: number };

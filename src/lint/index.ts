@@ -1,6 +1,6 @@
 import { resolver, type Resolver } from "./definitions.ts";
 import { RULES, type Finding, type Kind } from "./rules/index.ts";
-import { scan, type Parser } from "./scan.ts";
+import { scan, type Parser } from "./scan/index.ts";
 
 export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
 

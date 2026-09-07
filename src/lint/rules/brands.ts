@@ -1,5 +1,5 @@
-import { original } from "../bindings.ts";
-import type { Scan } from "../scan.ts";
+import { original } from "../scan/index.ts";
+import type { Scan } from "../scan/index.ts";
 import type { Rule } from "./rule.ts";
 
 /**

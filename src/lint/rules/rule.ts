@@ -1,5 +1,5 @@
 import type { Resolver } from "../definitions.ts";
-import type { Scan } from "../scan.ts";
+import type { Scan } from "../scan/index.ts";
 
 /** The least every finding carries: what it is, and where to look. */
 type Located = { kind: string; file: string; line: number };
