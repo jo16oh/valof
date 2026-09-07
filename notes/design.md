@@ -2369,6 +2369,46 @@ ESLint 既定（stylish）
 
 **検証の注意。** 既定フォーマットは stdout が TTY のときだけグラフィカルになる。パイプすると `unix` 相当に落ちるので、`| grep` を挟んだまま測ると 1 行形式に見える。一度それで誤った結論を出した。`vp check` 経由の oxlint が `unix` を指定しているのも紛らわしい。pty で `-f default` を明示して確かめること。
 
+#### プロトコルの書き方: 型定義を出す。RPC フレームワークは入れない
+
+「型が効く RPC」を 2026-09-08 に調べた。
+
+```
+birpc           v4.2.0   deps 0    25 kB   トランスポート非依存、vitest が使う
+json-rpc-2.0    v1.8.0   deps 0    58 kB
+rpc-anywhere    v1.7.0   deps 1   124 kB
+vscode-jsonrpc  v9.0.2   deps 0   220 kB   LSP の下回り
+@trpc/server   v11.18.0  deps 0  2043 kB   HTTP 前提、トランスポート自作が要る
+```
+
+**`birpc` が明確に良い。** `post` / `on` / `serialize` / `deserialize` を渡すだけなのでトランスポートを選ばず、stdio に素直に載る。実際に子プロセスと往復させて動かし、型が効くことも誤用で確認した。
+
+```ts
+export interface Lint {
+  lint(overlay: Record<string, string>): Promise<Finding[]>;
+}
+```
+
+```
+rpc.lint(123)          -> TS2345 引数の型
+rpc.linnt({})          -> TS2551 Did you mean 'lint'?
+const n: number = f[0].kind  -> TS2322 戻り値のプロパティ
+```
+
+**それでも入れない。** 理由は 3 つ。
+
+1. **メソッドが 1 つしかない。** フレームワークの価値は「メソッド名とシグネチャの対応を型が保証する」ことで、対応させる相手が 1 つならほぼ働かない
+2. **依存が配布物に乗る。** サーバ（valof-lint）とクライアント（プラグイン）の両方で要るので `dependencies` に入る。tarball 32 KB に対して 25 kB は無視できない比率で、§14.3 の「実行時依存ゼロ」とも噛み合わない
+3. **型は依存なしで効く。** 型定義を export すればクライアントは `import type` するだけ。`birpc` が捕まえた 3 つのうち引数と戻り値は素の型でも捕まる。捕まらないのはメソッド名の綴り違いだけで、1 メソッドならそこは問題にならない
+
+```ts
+// `valof/lint-protocol` として型だけ出す。ディスパッチは 20 行ほど。
+export type Request = { id: number; overlay?: Record<string, string> };
+export type Response = { id: number; findings: Finding[] } | { id: number; error: string };
+```
+
+**乗り換える条件: メソッドが 3 つを超えたら。** `shutdown`、設定変更、部分再 lint あたりが実際に要ると分かった時点。プロトコルが JSON である限り移行は容易で、`birpc` は独自のエンベロープを使うのでワイヤ形式は変わるが、クライアントは自分で書くプラグイン 1 つなので同時に差し替えられる。
+
 #### やるときの順序
 
 1. オーバーレイを内部に通す（`scan` の読み口、2 つのバックエンド、`Resolver.setOverlay`）
