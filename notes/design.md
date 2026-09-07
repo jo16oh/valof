@@ -19,15 +19,15 @@ import { Val } from "valof";
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが引数をコピーする理由。所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
   - **4.2** タプルを保つ。optional 要素と `Required<T>`、rest 要素の限界
-- **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、コンビネータ `Val.eqBy` の設計
+- **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、`implEquals` の spec の設計
 - **§6 スマートコンストラクタと更新**
   - **6.1** コンストラクタは出自で決まる / **6.2** `with` / `update`、patch の `undefined`、深さを問わない patch / **6.3** Result 非依存 / **6.4** `update` は値→値
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `with` の上書きと第 3 引数の seal
   - **6.7** seal（冪等）と create（鋳造）の分離 / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `unpatchable` と余剰プロパティ検査
-- **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ
+- **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド
-- **§9 未解決 / 要確認** 次の作業はここ。タプル対応 → `Val.eqBy` の順
+- **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降） / **§11 README の構成案**
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
@@ -360,7 +360,7 @@ payload はプリミティブ・配列・プレーンオブジェクト・ネス
 
 テストは 7 件。`with` / `update` が触っていない部分木を保つ、patch 由来のノードは採用せず必ずコピーする、`Val.unwrap` は何も共有しない、unwrap した payload は再 seal しても採用されない、`equals` の答えは変わらない。
 
-**バンドルサイズ: 追跡なしの 853 B に対して production gzip 901 B。予算 1 kB に対して残り 123 B。** この先 `Val.eqBy`（§5）を `Val` に生やすなら予算を上げる判断が要る。
+**バンドルサイズ: 追跡なしの 853 B に対して production gzip 901 B。予算 1 kB に対して残り 123 B。** `implEquals` の spec（§5）はこの予算に収まらず、1.25 kB に引き上げた（実績 1.13 kB）。
 
 値は freeze していないので、キャストして値を書き換えると**共有先の値にも波及する**。破るのに `as` が要る点は §7.1 と同じだが、影響範囲は広がった。dev 限定の freeze はこれを受けて採った（§7.1）。
 
@@ -538,7 +538,7 @@ DeepReadonly をオプトインにする案は不要と判断する。コスト�
 
 ### 4.2 タプルを保つ
 
-かつてタプルの payload は `DeepReadonly` で潰れていた。`ReadonlyArray<infer E>` がタプルも受けて `ReadonlyArray<DeepReadonly<E>>` に均すためで、`SeedOf` もその上に乗るので、そこから導く API（`with` の patch、§5 の `eqBy` の spec）では位置ごとの扱いが書けなかった。
+かつてタプルの payload は `DeepReadonly` で潰れていた。`ReadonlyArray<infer E>` がタプルも受けて `ReadonlyArray<DeepReadonly<E>>` に均すためで、`SeedOf` もその上に乗るので、そこから導く API（`with` の patch、§5 の `implEquals` の spec）では位置ごとの扱いが書けなかった。
 
 **`number extends T["length"]` で配列とタプルを分ける。** タプル側は同形マップ型なので、位置も長さもラベルも `readonly` も保たれる。`Validate` と `DeepReadonly` の両方に同じ分岐を入れた。
 
@@ -588,7 +588,7 @@ Val<"InTuple", { t: readonly [string, () => void] }>
 
 自由関数 `Val.equals` は**提供しない**。ファントムブランドのため実行時に型を特定できず、型ごとのカスタム等価性にディスパッチできない。
 
-代わりに `Val.companion` の返り値がデフォルトで `equals` を持ち、必要に応じてオーバーライドできる。
+代わりに companion がデフォルトで `equals` を持ち、`.implEquals` で差し替える。
 
 ```ts
 User.equals(a, b); // デフォルトは deep equal
@@ -599,14 +599,16 @@ User.equals(a, b); // デフォルトは deep equal
 代わりに**オーバーライドの第 3 引数として束縛して渡す**。委譲が意味を持つ場所にだけ、その Val の型が付いた状態で置く。
 
 ```ts
-const Doc = Val.sealer<Doc>().impl({
-  equals: (a, b, deepEquals) => (a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id),
-});
+const Doc = Val.sealer<Doc>().implEquals((a, b, deepEquals) =>
+  a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id,
+);
 
 Doc.equals(a, b); // 呼ぶ側は 2 引数のまま。第 3 引数は束縛済み
 ```
 
 渡すのは構造比較そのものであって「オーバーライド前の equals」ではない。下の「親から子のカスタム equals は呼べない」制約はこの引数にもそのまま当てはまる。
+
+プリミティブ payload でも第 3 引数は渡す。`deepEquals` は `===` ではなく、NaN を NaN と等しいとする（下の要件）。`Val<"Temp", number>` の上書きが `a === b` を書くと既定と挙動が割れるので、委譲先は残す。
 
 ### デフォルト実装の要件
 
@@ -617,9 +619,9 @@ Doc.equals(a, b); // 呼ぶ側は 2 引数のまま。第 3 引数は束縛済�
 ### 制約: 親から子のカスタム equals は呼べない
 
 ```ts
-const Money = Val.sealer<Money>().impl({
-  equals: (a, b) => a.currency === b.currency && normalize(a) === normalize(b),
-});
+const Money = Val.sealer<Money>().implEquals(
+  (a, b) => a.currency === b.currency && normalize(a) === normalize(b),
+);
 
 const Order = Val.sealer<Order>(); // デフォルトの deep equals
 
@@ -646,110 +648,122 @@ const Email = Val.companion<Email>().implSeal(
 );
 ```
 
-`Email.equals` のオーバーライドは不要になり、親から構造比較されても正しい。スマートコンストラクタで不変条件を確立するのは値オブジェクトの定石なので、この制約は正しい設計へ誘導している。
+`Email` の `implEquals` は不要になり、親から構造比較されても正しい。スマートコンストラクタで不変条件を確立するのは値オブジェクトの定石なので、この制約は正しい設計へ誘導している。
 
 **README にはこれを「制限」ではなく「原則」として書く。**
 
 > Val は正規形で構築してください。等価性は構造的に定義されます。`Email` を case-insensitive に扱いたいなら、`equals` をオーバーライドするのではなく seal で小文字化してください。この原則に従う限り、ネストした Val の等価性は自動的に正しくなります。
 
-`equals` のオーバーライド機能自体は残すが、「トップレベルの比較にのみ効き、親から呼ばれる際には適用されない」と明記する。逃げ道はあるが推奨経路ではない、という位置づけ。
+`implEquals` 自体は残すが、「トップレベルの比較にのみ効き、親から呼ばれる際には適用されない」と明記する。逃げ道はあるが推奨経路ではない、という位置づけ。
 
-### 等価性コンビネータ `Val.eqBy`
+### `implEquals` の spec
 
-正規化で表現できない等価性は残る（id だけで比べる、キャッシュ列を無視する、`updatedAt` を等価性から外す）。そのとき親が手で書く `equals` は、関係のないキーまで自分で並べることになって冗長。これを**親の型定義の場所にある静的な宣言**で書けるようにする。
+正規化で表現できない等価性は残る（id だけで比べる、キャッシュ列を無視する、`updatedAt` を等価性から外す）。そのとき親が手で書く `equals` は、関係のないキーまで自分で並べることになって冗長。`implEquals` は関数の代わりに**子ごとの指定**を受け取り、書かなかったキーは既定の `deepEquals` に落ちる。
 
 ```ts
-export const Order = Val.sealer<Order>().impl({
-  equals: Val.eqBy({
-    total: Money, // companion をそのまま渡す。Money.equals が使われる
-    email: Email, // プリミティブ payload の子でも動く（ここが要点）
-    lines: [OrderLine], // 配列は要素ごと
-    shipping: { zip: Zip }, // Val ではない素のネストは、中の指定だけ書く
-    updatedAt: () => true, // 等価性から外す
-  }),
+export const Order = Val.sealer<Order>().implEquals({
+  total: Money, // companion をそのまま渡す。Money.equals が使われる
+  email: Email, // プリミティブ payload の子でも動く（ここが要点）
+  lines: [OrderLine], // 配列は要素ごと
+  shipping: { zip: Zip }, // Val ではない素のネストは、中の指定だけ書く
+  span: [undefined, Money], // タプルは位置ごと
+  updatedAt: () => true, // 等価性から外す
 });
 ```
 
-指定のないキーは既定の `deepEquals` に落ちる。`id` や `note` を列挙する必要はない。
+`id` や `note` を列挙する必要はない。
 
 **spec が受け付ける形**
 
-| 書き方                         | 意味                               |
-| ------------------------------ | ---------------------------------- |
-| companion（`equals` を持つ値） | その `equals` を使う               |
-| `(a, b) => boolean`            | その関数を使う                     |
-| `[spec]`                       | 配列。長さ一致 + 要素ごとに `spec` |
-| `{ k: spec, ... }`             | 素のネストオブジェクトに降りる     |
+| 子の型           | 書き方                          | 意味                     |
+| ---------------- | ------------------------------- | ------------------------ |
+| Val              | companion / `(a, b) => boolean` | 値そのものを比べる       |
+| プリミティブ     | `(a, b) => boolean`             | 同上                     |
+| 長さ不定の配列   | `[spec]`                        | 要素ごと                 |
+| 長さ不定の配列   | `(a, b) => boolean`             | 配列全体（順序無視など） |
+| タプル           | `[spec, spec, ...]`             | 位置ごと。全位置を書く   |
+| 素のオブジェクト | `{ k: spec, ... }`              | 中に降りる               |
 
-companion と「`equals` というキーを持つネスト spec」の曖昧さは、`typeof spec.equals === "function"` を先に見れば解ける。payload に関数は入れられない（§3 の `Validate`）ので、`equals` が関数であるオブジェクトは companion 以外にあり得ない。
-
-**実装**（既存の `deepEquals` を再利用して 30 行ほど）
+トップレベル（`implEquals` の引数そのもの）だけは、裸の関数が `equals` の上書きになる。それ以外の形は同じ。
 
 ```ts
-function toEq(spec: unknown): Eq {
-  if (typeof spec === "function") return spec as Eq;
-  if (typeof (spec as any).equals === "function") return (spec as any).equals;
-  if (Array.isArray(spec)) {
-    const e = toEq(spec[0]);
-    return (a, b) =>
-      Array.isArray(a) &&
-      Array.isArray(b) &&
-      a.length === b.length &&
-      a.every((x, i) => e(x, b[i]));
-  }
-  const handlers = new Map(Object.entries(spec as object).map(([k, s]) => [k, toEq(s)]));
-  return (a, b) => {
-    if (a === b) return true;
-    if (!isObjectShaped(a) || !isObjectShaped(b)) return false;
-    const ka = Object.keys(a).filter((k) => a[k] !== undefined);
-    const kb = Object.keys(b).filter((k) => b[k] !== undefined);
-    if (ka.length !== kb.length) return false;
-    for (const k of ka) {
-      if (!Object.hasOwn(b, k)) return false;
-      const e = handlers.get(k);
-      if (!(e ? e(a[k], b[k]) : deepEquals(a[k], b[k]))) return false;
-    }
-    return true;
-  };
-}
+Val.sealer<Tags>().implEquals([Email]); // 要素ごとに Email.equals
+Val.sealer<Tags>().implEquals((a, b) => setEq(a, b)); // 配列全体の上書き
 ```
 
-キー数の一致と `hasOwn` を既定の `deepEquals` と同じ規則で先に見ているので、spec 指定キーが片方だけに存在する場合も落ちる。
+タプルは**全位置を書く**。`undefined` はその位置を既定に落とす。
+
+#### 却下: 配列の指定を裸の companion / 関数にする
+
+「配列は関数、タプルは位置指定」と読めて、タプルの位置省略も使えるようになる形（`lines: OrderLine` が要素ごと）。**実装中に実行時で破れた。**
+
+`toEq` は spec しか見ない。そこに payload が配列の Val（`Val<"Tags", readonly string[]>`）が子として現れると、区別がつかなくなる。
+
+```ts
+// 親の payload: { tags: Tags; raw: readonly Email[] }
+implEquals({ tags: Tags, raw: Email });
+```
+
+`tags` は `Tags.equals` を配列全体に、`raw` は `Email.equals` を要素ごとに適用しなければならない。spec はどちらも `{ equals }` を持つオブジェクトで、値はどちらも実行時に配列。**型では `[T] extends [AnyVal]` を先に見て分けられるが、実行時にはその情報が残っていない。** 静かに間違った等価性になる。
+
+角括弧が「要素ごと」の目印である限り、この曖昧さは起きない。`Array.isArray(spec)` が要素ごとか位置ごとかを決め、それ以外は必ず値そのもの。
+
+代償はタプルの位置省略。`[eq]` が「配列の全要素に `eq`」と「3 タプルの位置 0 だけ `eq`」の 2 通りに読めてしまうので、タプルは全位置を書く。曖昧なのは長さ 1 の spec だけで、そのとき 2 つの解釈は同じ結果になる。
+
+rest タプル（`readonly [string, ...number[]]`）は `number extends T["length"]` で配列側に落ち、要素型が `string | number` になる。位置は失われる（§4.2 の rest の限界）。
+
+**companion と「`equals` というキーを持つネスト spec」の曖昧さ**は、`typeof spec.equals === "function"` を先に見れば解ける。payload に関数は入れられない（§3 の `Validate`）ので、`equals` が関数であるオブジェクトは companion 以外にあり得ない。
+
+**この検査は裸の関数の検査より先に置く。** sealer は呼び出し可能なので、`typeof spec === "function"` を先に見ると companion がコンストラクタとして比較に使われ、返ってきた値が truthy なので常に等しくなる。実装中に踏んだ。
+
+**再帰はネストした Val で止まる。** `{ total: { amount: eq } }` と手で降りることはできない。`DeepReadonly` と `Patch` が同じ位置で止まるのと同じ規則で、これが `Money.equals` を黙って迂回する経路を閉じる。
 
 **型**
 
 ```ts
-type EqSpecOf<T> =
-  | ((a: T, b: T) => boolean)
-  | { equals: (a: T, b: T) => boolean }
-  | (T extends readonly (infer E)[] ? readonly [EqSpecOf<E>] : never)
-  | (T extends object ? { [K in keyof T]?: EqSpecOf<T[K]> } : never);
+type EqSpec<T> = [T] extends [AnyVal]
+  ? Eq<T> | { equals: Eq<T> }
+  : [T] extends [Primitive]
+    ? Eq<T>
+    : [T] extends [readonly unknown[]]
+      ? Eq<T> | EqElements<T>
+      : [T] extends [object]
+        ? Eq<T> | { [K in keyof T]?: EqSpec<T[K]> }
+        : never;
 
-declare function eqBy<V extends AnyVal>(spec: {
-  [K in keyof SeedOf<V>]?: EqSpecOf<SeedOf<V>[K]>;
-}): (a: V, b: V) => boolean;
-```
-
-`.impl({ equals: ... })` の位置では `equals` の文脈型が `(a: V, b: V, deep) => boolean` なので、`V` は戻り値の文脈から推論されるはず。2 引数関数は 3 引数スロットに代入可能なので、コア側の型は 1 行も変わらない。ただし「文脈の戻り値型からの推論 + マップ型の制約」は TypeScript の弱いところなので、実装時に要確認。落ちた場合の逃げは 2 つ。
-
-- `Val.eqBy<Order>({ ... })` と明示する（型名を 2 回書くことになり、方針とはずれる）
-- ビルダーの段にする（`Val.sealer<Order>().implEq({ total: Money })`）。`V` が固定済みなので推論の問題は消えるが、`equals` の書き方が 3 通りになり API 表面が増える
-
-まず自由関数で試し、推論が渋ければビルダー段に降ろす。
-
-#### タプルの位置ごとの指定
-
-§4.2 のタプル対応が入ってからなら、同形マップ型がタプルに対してタプルを返すので素直に書ける。
-
-```ts
-T extends readonly unknown[]
+type EqElements<T> = T extends readonly unknown[]
   ? number extends T["length"]
-    ? readonly [EqSpecOf<T[number]>]
-    : readonly [EqSpecOf<T[number]>] | { [I in keyof T]: EqSpecOf<T[I]> }
-  : never
+    ? readonly [EqSpec<T[number]>]
+    : { readonly [I in keyof T]: EqSpec<T[I]> | undefined }
+  : never;
+
+// トップレベルは裸の関数が上書きなので、spec 側から関数を落とす。
+type EqImpl<V extends AnyVal> = ((a: V, b: V, deepEquals: Eq<V>) => boolean) | EqPayload<SeedOf<V>>;
+
+type EqPayload<T> = [T] extends [AnyVal]
+  ? { equals: Eq<T> }
+  : [T] extends [Primitive]
+    ? never
+    : [T] extends [readonly unknown[]]
+      ? EqElements<T>
+      : [T] extends [object]
+        ? { [K in keyof T]?: EqSpec<T[K]> }
+        : never;
 ```
 
-実行時の規則は「spec の長さが 1 なら全要素に適用、2 以上なら位置ごとに対応」。曖昧なのは長さ 1 のタプルだけで、そのとき 2 つの解釈は同じ結果になる。
+プリミティブ payload では `EqPayload` が `never` になり、引数が上書き関数 1 本に潰れる。専用の分岐は要らない。
+
+#### 却下: 自由関数 `Val.eqBy`
+
+`.impl({ equals: Val.eqBy({ ... }) })` の形。3 つの理由で採らない。
+
+1. **推論が賭けになる。** `V` を戻り値の文脈から引くことになり、「文脈の戻り値型からの推論 + マップ型の制約」は TypeScript の弱いところ。ビルダーの段なら `V` は固定済みで、この問いが消える
+2. **`Val` に生やすと落とせない。** バンドラは `const Val = {...}` のプロパティを落とせないので、使わない人が gzip で 181 B 払う（`toEq` を既存バンドルに足して実測）。独立エクスポートなら落とせるが、「eqBy はどっちから import するんだっけ」が永久に残る
+3. **`equals` の書き方が 3 通りになる**（手書き / eqBy / 既定）
+
+#### 却下: 配線対象を `.impl` に置いたままにする
+
+→ §7.7
 
 #### 省略を許すか（許す）
 
@@ -759,16 +773,24 @@ spec のキーを必須にすればカスタム equals の指定忘れを型で�
 2. **子が Val であるキーだけ必須にする。** `HasVal<T>` を書けば型で計算できる。ただしカスタム equals を持たない子まで必ず書かされる。ネストした Val の大半は既定の `deepEquals` のままで、その場合は構造比較でも答えが同じ。機械的に埋める作業になり、その状態の「忘れ検出」はほぼ機能しない
 3. **子が `equals` を上書きしたキーだけ必須にする。** 理想だが型からは見えない。`Val<"Money", ...>` から companion の値の型への参照が存在しないため。宣言マージのレジストリを用意すれば書けるが、問題が「レジストリへの登録忘れ」にずれるだけ
 
-決定打は、**型で守れるのは `eqBy` を呼んだ人だけ**だということ。指定忘れが本当に危ないのは `equals: Val.eqBy(...)` を書いていない親、つまり何も書いていない親であり、そこに型の付け入る隙はない。一番忘れやすい人が一番守られない。
+全キー必須（1 の逆）も取らない。`id` や `note` まで並べることになり、それは `deepEquals` を手で書き写す作業。
 
-したがって **`eqBy` は全キー省略可にし、忘れ検出は valof-lint に置く。**
+決定打は、**型で守れるのは `implEquals` を呼んだ人だけ**だということ。指定忘れが本当に危ないのは `implEquals` を書いていない親、つまり何も書いていない親であり、そこに型の付け入る隙はない。一番忘れやすい人が一番守られない。
 
-- リンタは `.impl({ equals })` の存在をソースから直接見られるので、レジストリも型の仕掛けも要らない
+したがって **spec は全キー省略可にし、忘れ検出は valof-lint に置く。**
+
+- リンタは `.implEquals(` の存在をソースから直接見られるので、レジストリも型の仕掛けも要らない。専用の段にしたぶん、`.impl({ ... })` のオブジェクトリテラルからキーを探す必要がなくなった
 - 必要な解析は既存実装と同じ形。import / namespace import / renaming re-export の追跡と、チェーンの根での companion 同定は既に入っている
-- 規則: ある companion が `equals` を上書きしていて、その Val を payload に埋めている別の Val がある場合、親の companion は `equals` を上書きするか `eqBy` の spec でそのキーを指定していること
+- 規則: ある companion が `implEquals` を呼んでいて、その Val を payload に埋めている別の Val がある場合、親の companion は `implEquals` を呼ぶか、その spec でそのキーを指定していること
 - 直し方が一意なので提案（fix）まで出せる
 
 型は「spec に書いた比較が型に合っているか」を守り、リンタは「書き忘れていないか」を守る。
+
+#### 却下: 素の payload へのカスタム比較を禁じる
+
+spec を「どの子が自分の等価性を使い、どれを外すか」だけに絞る案。Val の位置には companion のみ、ブランドのない位置には除外指定（`Val.ignore`）のみ、というもの。等価性が型に属して 1 箇所で宣言される、という §5 の原則をそのまま型にした形になる。
+
+採らない。原則の残り半分が型で担保できないから。「ネストした子がカスタム equals を持つときだけ `implEquals` を必須にする」型が書けない以上（上の 3）、Val の位置だけ締めても不変条件は成立せず、表現力が減るだけになる。`Val.ignore` というセンチネルを 1 つ増やす価値もそこで消える。`updatedAt: () => true` のまま置く。
 
 ---
 
@@ -950,7 +972,9 @@ production gzip 901 → 944 B（予算 1 kB、残り 80 B）。d.ts は 15.03 �
 
 ```ts
 export type CompanionMethods<V extends AnyVal> = {
-  equals?: (a: V, b: V) => boolean;
+  equals?: never;
+  with?: never;
+  update?: never;
   seal?: never;
   create?: never;
   [key: string]: ((value: V, ...rest: any[]) => unknown) | NonMethod;
@@ -995,7 +1019,7 @@ export const Age = Val.companion<Age>()
 
 **名前は `implSeal`。** `.seal(fn)`（登録する）と `Age.seal(x)`（呼ぶ）が同名になる駄洒落を避けた。`smart` / `ctor` は短いが「生えるメソッドが何であるか」を名前が示さない。`impl` の第 2 スロットにする案は名前の問題は消えるが、意味が位置でしか決まらず、一番重要なコンストラクタが従属物に見える。`seal` に落ち着くまでの経緯は §6.9。
 
-#### `.impl({ seal })` / `.impl({ create })` は型エラーにする
+#### 配線対象を `.impl` に書いたら型エラーにする
 
 プリミティブ payload では `V` が第一引数の型に代入可能になることがある（`Val<"Age", number>` に対する `seal(n: number)`）。すると**関数が制約を通り、ただのメソッドとして生えて、`with` / `update` が配線されない**（`create` なら**seal を通らない鋳造経路ができる**）という無言の事故になる。移行中に実際に踏んだ。`seal?: never` / `create?: never` を宣言して弾く。
 
@@ -1006,6 +1030,8 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 ```
 
 引数の型としてしか情報を置けない場所ならメッセージ埋め込みが要る。ここは `seal` というキー名自体が何をしようとしたかを示していて、`implSeal` は API のすぐ隣にある。型の意図（「ここに `seal` は置けない」）をそのまま書けるほうを取る。
+
+`equals` / `with` / `update` も同じ理由で `never` にした。事故の形は違って、こちらは**生えはするが配線が外れる**（`equals` の第 3 引数が来ない、`with` の戻りが seal を通らない）。専用の段に出した経緯は §7.7。
 
 #### sealer に `implSeal` は生やさない
 
@@ -1033,14 +1059,14 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 一方で**逆向きの穴**が空いていた。既定の `with` が「自分で updater を書け」と言うのに、**書く場所が型に存在しなかった**。`.impl` に自前の `with` を書くと `attach` が既定の後にユーザーのメソッドを定義するので**実行時には正しく上書きされる**が、型は `Omit<M, "with" | "update">` で捨てていたため既定のシグネチャのまま。呼び出し側は相変わらずエラーになる。
 
-`equals` と同じ扱いに揃えた。
+`implWith` / `implUpdate` を足した。型は登録された上書きをビルダーの型引数で運ぶ（`implSeal` の `F` と同じ形）。
 
 ```ts
-type WithMethod<V, M, F> = "with" extends keyof M
-  ? { with: M["with"] }
-  : [Patch<SeedOf<V>>] extends [never]
+type WithMethod<V, W, F, P> = [W] extends [undefined]
+  ? [Patch<Patchable<V, P>>] extends [never]
     ? Record<never, never>
-    : { with: Rebuild<V, F, Patch<SeedOf<V>>> };
+    : { with: Derive<V, F, Patch<Patchable<V, P>>> }
+  : { with: WithoutSeal<W> };
 ```
 
 副次的に、既定では `with` を持たないプリミティブ Val（§6.2）にも、明示的に定義すれば `with` を生やせる。既定を消すことと、書くことを禁じることは別。
@@ -1052,11 +1078,7 @@ type WithMethod<V, M, F> = "with" extends keyof M
 `equals` が `deepEquals` を第 3 引数で受け取るのと同じ形にした。理由も同じで、**自由関数として公開すると型の seal を迂回する経路になる**ので、必要な場所にだけ手渡す。
 
 ```ts
-.impl({
-  with(u, patch: Patch<Fields>, seal) {
-    return seal({ ...u, ...patch });
-  },
-});
+.implWith((u, patch: Patch<Fields>, seal) => seal({ ...u, ...patch }));
 ```
 
 公開側は 2 引数に潰す（`WithoutSeal<T>`）。パラメータの数で分岐するので、seal を取らない 2 引数の上書きはそのまま公開される。
@@ -1391,12 +1413,12 @@ v1 では見送る。やるなら別エントリポイント。
 → §5。親が要るなら自分で書けばよい（親の型は静的に分かっている）。
 
 ```ts
-const Order = Val.sealer<Order>().impl({
-  equals: (a, b) => a.id === b.id && Money.equals(a.total, b.total),
-});
+const Order = Val.sealer<Order>().implEquals(
+  (a, b) => a.id === b.id && Money.equals(a.total, b.total),
+);
 ```
 
-新しい機構ゼロ、シリアライズに不変、プリミティブな子でも動く。冗長なぶんは §5 の「正規形で構築する」原則と `Val.eqBy` で消える。
+新しい機構ゼロ、シリアライズに不変、プリミティブな子でも動く。冗長なぶんは §5 の「正規形で構築する」原則と `implEquals` の spec で消える。
 
 **却下: 値に symbol キーで equals への参照を持たせる。** §5 で挙げた 3 経路のうち「値がタグを持つ」の変種。実行時に検証した結果、以下の理由で採らない。
 
@@ -1422,6 +1444,26 @@ const Order = Val.sealer<Order>().impl({
 5. **設計として class に劣位。** 値ごとに symbol キーで equals 参照を持つより、prototype に 1 つ置く class のほうが速くメモリも少ない。その class は §7.2 / §7.3 で `structuredClone` を理由に却下済みで、ラッパーは同じ壁に、より非効率な形でぶつかる
 
 プレーンなデータであることはこのライブラリの差別化のすべてで、それを捨てると Effect Schema / Data と同じ土俵に 1/50 の表面積で立つことになる。
+
+### 7.7 `equals` / `with` / `update` を `.impl` に置いたままにする
+
+**却下。専用の段（`implEquals` / `implWith` / `implUpdate`）に出す。**
+
+`.impl` は「そのまま生やすもの」の置き場で、そこに置かれた関数は名前どおりに companion に付く。この 3 つだけは違う。ライブラリが配線する。
+
+- 戻り値の型が決まっている（`equals` は `boolean`、`with` / `update` は seal の戻り）
+- 第 3 引数が束縛されて公開側から消える（`deepEquals`、既定の seal）
+- companion の型で `Omit<M, "equals" | "with" | "update">` されて、`M` から取り除かれる
+
+実行時にもそれは出ていて、`attach` の `for` ループがこの 3 つを `continue` で特別扱いしている。「`.impl` は素通し」という建前が既に破れていた。
+
+`seal` と `create` は最初から専用の段にあり、`.impl` 側では `never` で弾いている（§6.5）。規則を 1 本に揃えると全部そこに乗る。
+
+> **ライブラリが配線するものは専用の段。`.impl` はそのまま生やすものだけ。**
+
+型の側も既存の形に乗る。`WithMethod<V, M, F, P>` の `"with" extends keyof M` は、ビルダーの型引数に対する `[W] extends [undefined]` になるだけで、これは `implSeal` の `F` が `SealMethod<F>` / `Derive<V, F, _>` / `Constructed<V, F>` でやっていることの写し。
+
+代償は 2 つ。**`Companion` の型引数が 5 から 8 に増える**（人は書かないが宣言に名前として出る）。**`Sealer` が段を持つ**ので `build()` と統合が要る。後者は `Val.sealer` が持っていた専用の実装が消えるぶん、実装は減った。`Sealer` に `implSeal` / `implCreate` を生やさない判断（§6.5）はそのまま。
 
 ---
 
@@ -1519,9 +1561,9 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 ## 9. 未解決 / 要確認
 
 - [x] ~~タプル対応（§4.2）~~ → 入れた。0.3.0 で出す（型だけの破壊的変更）
-- [ ] **`Val.eqBy`（§5）。** タプルが位置を保つようになったので、spec を `SeedOf<V>` から導ける eqBy の spec を `SeedOf<V>` から導く以上、タプルが潰れたままだと位置ごとの指定が書けない。タプル対応は `DeepReadonly` と `Validate` の分岐追加で閉じる
-- [ ] `eqBy` の `V` が戻り値の文脈から推論されるか（§5）。落ちたらビルダー段（`implEq`）に降ろす
-- [ ] `eqBy` を `Val` のプロパティにするか独立エクスポートにするか（§5）。前者はバンドラが落としにくく、使わない人にサイズを負わせる。予算の残りは 123 B（§4.1）
+- [x] ~~`Val.eqBy`（§5）~~ → `implEquals` の spec として入れた。自由関数は却下（§5）
+- [x] ~~`eqBy` の `V` が戻り値の文脈から推論されるか~~ → ビルダーの段にしたので問いが消えた
+- [x] ~~`eqBy` を `Val` のプロパティにするか独立エクスポートにするか~~ → どちらでもない。`implEquals` の引数。gzip 予算は 1.25 kB に引き上げ、実績 1.13 kB（残り 119 B）
 - [ ] valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）。§14.5 で ts-morph 版を試して却下しているので、報告の粒度から設計し直す
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [x] ~~README に性能の一行を足す（§4.1）~~ → `Constructors copy their argument` に、コピーが owned ノードで止まることと、変化のない patch が値をそのまま返すことを追記

@@ -572,9 +572,7 @@ describe("equals", () => {
 
   test("equals can be overridden", () => {
     type Email = Val<"Email", string>;
-    const Email = Val.sealer<Email>().impl({
-      equals: (a, b) => a.toLowerCase() === b.toLowerCase(),
-    });
+    const Email = Val.sealer<Email>().implEquals((a, b) => a.toLowerCase() === b.toLowerCase());
     expect(Email.equals(Email("A@b.com"), Email("a@B.com"))).toBe(true);
   });
 
@@ -582,9 +580,9 @@ describe("equals", () => {
     type Doc = Val<"Doc", { id: string; body: string }>;
     // Published docs are identified by id; drafts have no stable one, so they fall
     // back to the structural comparison.
-    const Doc = Val.sealer<Doc>().impl({
-      equals: (a, b, deep) => (a.id.startsWith("draft:") ? deep(a, b) : a.id === b.id),
-    });
+    const Doc = Val.sealer<Doc>().implEquals((a, b, deep) =>
+      a.id.startsWith("draft:") ? deep(a, b) : a.id === b.id,
+    );
 
     expect(Doc.equals(Doc({ id: "1", body: "x" }), Doc({ id: "1", body: "edited" }))).toBe(true);
     expect(Doc.equals(Doc({ id: "1", body: "x" }), Doc({ id: "2", body: "x" }))).toBe(false);
@@ -596,7 +594,7 @@ describe("equals", () => {
 
   test("callers pass two arguments; the third is bound for the override", () => {
     type N = Val<"N", number>;
-    const N = Val.sealer<N>().impl({ equals: (a, b, deep) => deep(a, b) });
+    const N = Val.sealer<N>().implEquals((a, b, deep) => deep(a, b));
 
     expect(N.equals(N(1), N(1))).toBe(true);
     expect(N.equals(N(1), N(2))).toBe(false);
@@ -605,8 +603,136 @@ describe("equals", () => {
 
   test("an override without the third parameter still works", () => {
     type S = Val<"S", string>;
-    const S = Val.sealer<S>().impl({ equals: (a, b) => a.length === b.length });
+    const S = Val.sealer<S>().implEquals((a, b) => a.length === b.length);
     expect(S.equals(S("ab"), S("cd"))).toBe(true);
+  });
+
+  describe("a spec instead of a function", () => {
+    type Money = Val<"Money", { amount: number; currency: string }>;
+    type Email = Val<"Email", string>;
+    type Line = Val<"Line", { sku: string; qty: number }>;
+    type Order = Val<
+      "Order",
+      {
+        id: string;
+        note: string;
+        total: Money;
+        email: Email;
+        lines: readonly Line[];
+        shipping: { zip: string; city: string };
+        span: readonly [number, number];
+        updatedAt: number;
+      }
+    >;
+
+    // Compares on currency alone, so the amount is free to differ.
+    const Money = Val.sealer<Money>().implEquals((a, b) => a.currency === b.currency);
+    const Email = Val.sealer<Email>().implEquals((a, b) => a.toLowerCase() === b.toLowerCase());
+    const Line = Val.sealer<Line>().implEquals((a, b) => a.sku === b.sku);
+
+    const Order = Val.sealer<Order>().implEquals({
+      total: Money,
+      email: Email,
+      lines: [Line],
+      shipping: { zip: (a, b) => a.trim() === b.trim() },
+      span: [undefined, (a, b) => Math.abs(a - b) <= 1],
+      updatedAt: () => true,
+    });
+
+    const seed: SeedOf<Order> = {
+      id: "o1",
+      note: "hi",
+      total: Money({ amount: 100, currency: "JPY" }),
+      email: Email("a@b.com"),
+      lines: [Line({ sku: "s1", qty: 1 })],
+      shipping: { zip: "1000001", city: "Tokyo" },
+      span: [1, 5],
+      updatedAt: 1,
+    };
+    const order = Order(seed);
+    const like = (patch: Partial<typeof seed>): Order => Order({ ...seed, ...patch });
+
+    test("a companion compares the child by its own equality", () => {
+      expect(Order.equals(order, like({ total: Money({ amount: 999, currency: "JPY" }) }))).toBe(
+        true,
+      );
+      expect(Order.equals(order, like({ total: Money({ amount: 100, currency: "USD" }) }))).toBe(
+        false,
+      );
+    });
+
+    test("a child with a primitive payload works the same", () => {
+      expect(Order.equals(order, like({ email: Email("A@B.COM") }))).toBe(true);
+      expect(Order.equals(order, like({ email: Email("z@b.com") }))).toBe(false);
+    });
+
+    test("an array applies its one spec to every element", () => {
+      expect(Order.equals(order, like({ lines: [Line({ sku: "s1", qty: 99 })] }))).toBe(true);
+      expect(Order.equals(order, like({ lines: [Line({ sku: "s2", qty: 1 })] }))).toBe(false);
+      expect(Order.equals(order, like({ lines: [] }))).toBe(false);
+    });
+
+    test("a tuple applies its specs by position", () => {
+      expect(Order.equals(order, like({ span: [1, 6] }))).toBe(true);
+      expect(Order.equals(order, like({ span: [2, 5] }))).toBe(false);
+    });
+
+    test("a plain nested object descends, and its unnamed keys stay structural", () => {
+      expect(Order.equals(order, like({ shipping: { zip: " 1000001 ", city: "Tokyo" } }))).toBe(
+        true,
+      );
+      expect(Order.equals(order, like({ shipping: { zip: "1000001", city: "Osaka" } }))).toBe(
+        false,
+      );
+    });
+
+    test("a spec that ignores its arguments takes the key out of the comparison", () => {
+      expect(Order.equals(order, like({ updatedAt: 9999 }))).toBe(true);
+    });
+
+    test("keys the spec does not name fall back to the structural default", () => {
+      expect(Order.equals(order, like({ note: "bye" }))).toBe(false);
+      expect(Order.equals(order, like({ id: "o2" }))).toBe(false);
+    });
+
+    test("a key only one side carries fails, as it does structurally", () => {
+      type Opt = Val<"Opt", { a: string; b?: string }>;
+      const Opt = Val.sealer<Opt>().implEquals({ a: (x, y) => x === y });
+      // A key held as `undefined` counts as absent, as it does structurally. EOPT keeps the
+      // literal out of the constructor, so it arrives the way a looser caller would send it.
+      const absent = Val.of<Opt>({ a: "x", b: undefined } as unknown as SeedOf<Opt>);
+      expect(Opt.equals(Opt({ a: "x" }), Opt({ a: "x", b: "y" }))).toBe(false);
+      expect(Opt.equals(Opt({ a: "x" }), absent)).toBe(true);
+    });
+
+    test("a nested Val holding an array is compared whole, not element by element", () => {
+      type Tags = Val<"Tags", readonly string[]>;
+      type Post = Val<"Post", { tags: Tags; raw: readonly Email[] }>;
+      // Order-insensitive, which no elementwise walk could produce.
+      const Tags = Val.sealer<Tags>().implEquals(
+        (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join(),
+      );
+      const Post = Val.sealer<Post>().implEquals({ tags: Tags, raw: [Email] });
+
+      const post = Post({ tags: Tags(["a", "b"]), raw: [Email("x@y.com")] });
+      expect(Post.equals(post, Post({ tags: Tags(["b", "a"]), raw: [Email("X@Y.COM")] }))).toBe(
+        true,
+      );
+      expect(Post.equals(post, Post({ tags: Tags(["a", "c"]), raw: [Email("x@y.com")] }))).toBe(
+        false,
+      );
+    });
+
+    test("a spec reaches the top level of an array or tuple Val", () => {
+      type Emails = Val<"Emails", readonly Email[]>;
+      const Emails = Val.sealer<Emails>().implEquals([Email]);
+      expect(Emails.equals(Emails([Email("a@b.com")]), Emails([Email("A@B.COM")]))).toBe(true);
+      expect(Emails.equals(Emails([Email("a@b.com")]), Emails([]))).toBe(false);
+    });
+
+    test("callers still pass two arguments", () => {
+      expectTypeOf(Order.equals).parameters.toEqualTypeOf<[Order, Order]>();
+    });
   });
 });
 
@@ -828,11 +954,7 @@ describe("with", () => {
 
     const Point = Val.companion<Point>()
       .implSeal((p, seal) => seal({ x: Math.trunc(p.x), y: Math.trunc(p.y) }))
-      .impl({
-        with(p, patch: { x?: number; y?: number }, seal) {
-          return seal({ ...p, ...patch });
-        },
-      });
+      .implWith((p, patch: { x?: number; y?: number }, seal) => seal({ ...p, ...patch }));
 
     test("the override derives through the type's own seal", () => {
       const p = Point.seal({ x: 1, y: 2 });
@@ -846,11 +968,9 @@ describe("with", () => {
     });
 
     test("the two-parameter form still works", () => {
-      const Plain = Val.companion<Point>().impl({
-        with(p, patch: { x?: number }): Point {
-          return Val.of<Point>({ ...p, ...patch });
-        },
-      });
+      const Plain = Val.companion<Point>().implWith((p, patch: { x?: number }): Point =>
+        Val.of<Point>({ ...p, ...patch }),
+      );
       expect(Plain.with(Val.of<Point>({ x: 1, y: 2 }), { x: 5 })).toEqual({ x: 5, y: 2 });
     });
 
@@ -859,11 +979,9 @@ describe("with", () => {
       const make = (x: number, y: number): Point => point({ x, y });
       const Manual = Val.companion<Point>()
         .implCreate(make)
-        .impl({
-          with(p, patch: { x?: number; y?: number }): Point {
-            return make(patch.x ?? p.x, patch.y ?? p.y);
-          },
-        });
+        .implWith((p, patch: { x?: number; y?: number }): Point =>
+          make(patch.x ?? p.x, patch.y ?? p.y),
+        );
 
       const p = Val.of<Point>({ x: 1, y: 2 });
       expectTypeOf(Manual.with(p, { x: 3 })).toEqualTypeOf<Point>();
@@ -872,11 +990,9 @@ describe("with", () => {
 
     test("an explicit with reaches even a primitive Val, which has none by default", () => {
       type UnixEpoch = Val<"UnixEpoch", number>;
-      const UnixEpoch = Val.companion<UnixEpoch>().impl({
-        with(t, seconds: number): UnixEpoch {
-          return Val.of<UnixEpoch>(t + seconds);
-        },
-      });
+      const UnixEpoch = Val.companion<UnixEpoch>().implWith((t, seconds: number): UnixEpoch =>
+        Val.of<UnixEpoch>(t + seconds),
+      );
       expect(UnixEpoch.with(Val.of<UnixEpoch>(1_756_771_200), 60)).toBe(1_756_771_260);
     });
   });
@@ -898,6 +1014,16 @@ describe("update", () => {
       error: "age must be a non-negative integer",
     });
   });
+
+  test("implUpdate overrides the derivation, and is handed the seal", () => {
+    type Counter = Val<"Counter", { n: number; touched: number }>;
+    const Counter = Val.companion<Counter>()
+      .implSeal((c, seal) => seal({ ...c, touched: c.touched + 1 }))
+      .implUpdate((c, by: number, seal) => seal({ ...c, n: c.n + by }));
+
+    expect(Counter.update(Counter.seal({ n: 1, touched: 0 }), 5)).toEqual({ n: 6, touched: 2 });
+    expectTypeOf(Counter.update).parameters.toEqualTypeOf<[Counter, number]>();
+  });
 });
 
 describe("building", () => {
@@ -915,6 +1041,15 @@ describe("building", () => {
       expect(typeof withMethods).toBe("function");
       expect(withMethods({ id: "a", name: "bob" })).toEqual({ id: "a", name: "bob" });
       expect(withMethods.shout(Val.of<User>({ id: "a", name: "bob" }))).toBe("BOB");
+    });
+
+    test("a step keeps the sealer callable, and leaves the one before it alone", () => {
+      const plain = Val.sealer<ArticleId>();
+      const loose = plain.implEquals((a, b) => a.length === b.length);
+      expect(typeof loose).toBe("function");
+      expect(loose("a1b2c3")).toBe("a1b2c3");
+      expect(loose.equals(loose("ab"), loose("cd"))).toBe(true);
+      expect(plain.equals(plain("ab"), plain("cd"))).toBe(false);
     });
 
     test("impl() does not mutate the sealer it was built from", () => {
