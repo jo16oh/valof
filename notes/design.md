@@ -2340,11 +2340,30 @@ LSP との差は大きい。能力交渉も URI も位置エンコーディン�
 
 `--server` があれば `--watch` も要らない。聞かれたときに読み直せば済み、scan は 11 ms である。`--watch` が残る用途は「ターミナルに出しっぱなし」だけで、それは別の、より軽い機能。
 
+#### 表示は oxlint が持っている
+
+自前で凝った出力（ソース抜粋 + キャレット）を書く案は**要らない**。oxlint の既定フォーマットが miette 相当で、**プラグインの診断にも同じように効く**。
+
+```
+  x valof(findings): structural-equals: Order.lines[] holds OrderLine, which has its own equals
+   ,-[src/order.ts:6:15]
+ 5 |
+ 6 | export const Order = Val.sealer<Order>();
+   :               ^^^^^
+   `----
+```
+
+キャレットが `Val` に当たっているのは finding が `column` を持つため。エディタの波線も同じ位置に出る。`--format` 一式（json / sarif / github / gitlab / junit / checkstyle / stylish / unix）も、端末幅と色の扱いも付いてくる。
+
+自前で書いて勝てるのは valof-lint 単体をターミナルで叩くときだけで、そこは 1 行形式で足りている。CI ではむしろ 1 行のほうが読みやすい。
+
+**検証の注意。** 既定フォーマットは stdout が TTY のときだけグラフィカルになる。パイプすると `unix` 相当に落ちるので、`| grep` を挟んだまま測ると 1 行形式に見える。一度それで誤った結論を出した。`vp check` 経由の oxlint が `unix` を指定しているのも紛らわしい。pty で `-f default` を明示して確かめること。
+
 #### やるときの順序
 
 1. オーバーレイを内部に通す（`scan` の読み口、2 つのバックエンド、`Resolver.setOverlay`）
 2. `--server`
-3. `--format=json` と `column`（エディタの波線を行全体でなく語に当てるなら要る）
+3. ~~`column`~~ → 入れた。`--format=json` は oxlint 側が持つので、valof-lint に要るかは未定
 
 1 の途中まで書いて戻した。`Resolver` に `setOverlay` が要るのは、常駐中に版を上げて LSP へ `didChange` を送り、in-process 側では `getScriptVersion` を上げて再読込させるため。ここが両バックエンドで形の違う唯一の場所になる。
 
