@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降） / **§11 README の構成案**
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph、TS 7.1 を待つ判断（§14.5）、カスタム equals を持つ子の規則（§14.7）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1631,7 +1631,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~`Val.eqBy`（§5）~~ → `implEquals` の spec として入れた。自由関数は却下（§5）
 - [x] ~~`eqBy` の `V` が戻り値の文脈から推論されるか~~ → ビルダーの段にしたので問いが消えた
 - [x] ~~`eqBy` を `Val` のプロパティにするか独立エクスポートにするか~~ → どちらでもない。`implEquals` の引数。gzip 予算は 1 kB から 1.25 kB に引き上げた
-- [ ] valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）→ 設計は §14.7 に置いた。構文だけで足りることを確認済み。実装は未着手
+- [x] ~~valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）~~ → 入れた。設計は §14.7、実装は §14.8
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [x] ~~README に性能の一行を足す（§4.1）~~ → `Constructors copy their argument` に、コピーが owned ノードで止まることと、変化のない patch が値をそのまま返すことを追記
@@ -1860,7 +1860,7 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 
 ## 14. valof-lint
 
-2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-06 時点で `main` 未マージ。
+2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-07 時点で `main` 未マージ。規則は 3 つ（§14.4、§14.7）、構成は §14.8。
 
 `.impl({...})` の中の関数は、dead と報告されることもバンドルから落ちることもない。`attach` が実行時に `Object.defineProperty` で companion に載せるので、静的解析からは「関数に渡されたオブジェクトリテラル」にしか見えない。
 
@@ -2045,9 +2045,9 @@ peer dependency にした場合を実測した限りでは、入れ子のコピ�
 
 名前空間を名前付き export に分割する案は 2026-09-03 に検討して却下した。利用者の companion には効かず、API が二重化し、ブランドだけが欲しいライブラリなら数行で自作できる。
 
-### 14.7 規則: カスタム equals を持つ子の構造比較、2026-09-07 設計
+### 14.7 規則: カスタム equals を持つ子の構造比較、2026-09-07
 
-§5 が spec を全キー省略可にした際、忘れ検出をここに割り当てた。その規則の設計。§14.5 の「厳しすぎて使えない」という却下は `implEquals` の spec が入る前の判断で、**直し方が親の 1 行になったので当たらない**。
+§5 が spec を全キー省略可にした際、忘れ検出をここに割り当てた。その規則の設計。同日に実装し、TS 7.0.2 / 6.0.3 / 5.9.3 の 3 経路で同一の報告になることを確認した（§14.5）。§14.5 の「厳しすぎて使えない」という却下は `implEquals` の spec が入る前の判断で、**直し方が親の 1 行になったので当たらない**。
 
 **規則。** 親の payload の Val 位置のうち、その子が推移的にカスタム equals を持つものについて、親の spec に**何らかの**エントリがあること。
 
@@ -2102,6 +2102,100 @@ type OrderB = Val<"OrderB", { total: PayloadOf<Money> }>;
 #### N×M を恐れなくてよい理由
 
 §5 の「正規形で構築する」原則により `implEquals` は非推奨の逃げ道である。この規則が発火するのは、既にその逃げ道を取った型に限られるので N は小さい。そして N×M 件の発火には N×M 件の**必要な**修正が対応する。ノイズではなく実数である。
+
+### 14.8 ルールの表現と構成、2026-09-07
+
+3 つ目の規則を入れた時点で、ルールごとの分岐が `lint()` と `--help` と `Finding` の 3 か所に散った。整理した結果を残す。
+
+#### ルールは 1 つのオブジェクト
+
+`kind` と説明と実行を 1 か所に持たせる。呼び出し側にルールの知識を置かない。
+
+```ts
+type Rule<F extends Located> = {
+  kind: F["kind"];
+  description: string;
+  run: (scans: readonly Scan[], context: Context) => F[] | Promise<F[]>;
+};
+```
+
+**`Context.types` は値ではなく関数にする。** 言語サーバは最初に求めたルールが起こし、誰も求めなければ起動しない。スキップされたルールも、起動が要らないと自分で判断したルールも、何も払わない。`needsTypes` は equals ルールの内部に隠れる。
+
+```ts
+run: (scans, { types }) => (needsTypes(scans) ? findings(scans, types()) : []),
+```
+
+runner にルールごとの分岐が無くなる。
+
+```ts
+for (const rule of RULES) {
+  if (skip?.has(rule.kind)) continue;
+  findings.push(...(await rule.run(scans, { types })));
+}
+```
+
+#### `RULES` は配列。`Record` ではない
+
+一度 `Record<Kind, Rule<Finding>>` にした。網羅を型が強制するのが理由だったが、**キーと `rule.kind` が同じ文字列を 2 回書くことになる。**
+
+配列にして `Kind` と `Finding` をそこから読み戻す。
+
+```ts
+export const RULES = [UnusedMember, DuplicateBrand, StructuralEquals] as const;
+
+type ReportedBy<R> = R extends Rule<infer F> ? F : never;
+export type Finding = ReportedBy<(typeof RULES)[number]>;
+export type Kind = Finding["kind"];
+```
+
+`Finding` の手書き union も消えた。以前は同じ事実を 3 か所（`RULES` のキー、`rule.kind`、`Finding` の union）に書いていた。
+
+**網羅は弱まらない。むしろ強い。** 載せ忘れたルールは `Kind` に現れず、存在しないのと同じになる。`DuplicateBrand` を配列から外して確認した。
+
+```
+x typescript(TS6133): 'DuplicateBrand' is declared but its value is never read.
+x typescript(TS2367): '"structural-equals"' and '"duplicate-brand"' have no overlap
+x typescript(TS2339): Property 'alias' does not exist on type 'never'
+```
+
+CLI の出力分岐が `never` に落ちて止まる。`Record` の「キーを書き忘れたら落ちる」より検知が広い。
+
+`Awaited<O>[number]` で `run` の戻り値から取る形は TS2536 になるので使えない。`R extends Rule<infer F>` は通る。
+
+#### ルールは finding 型と同名
+
+```ts
+export type UnusedMember = { kind: "unused-member"; ... };
+export const UnusedMember: Rule<UnusedMember> = { ... };
+```
+
+型と値で名前空間が分かれるので共存する。**companion が Val と同名を取るのと同じイディオム**であり、このライブラリの中では一貫している。`import { UnusedMember }` 一つが型と値の両方を運ぶので、`rules/index.ts` の import から `type` 修飾も `as` 別名も消えた（`verbatimModuleSyntax` + `isolatedModules` で確認済み）。
+
+実装関数はどのファイルでも `findings`。`rule` が名前を取ったので、非公開の実装が固有名を持つ理由が無い。
+
+#### CLI から規則を切る
+
+`--no-<kind>`。名前は disable コメントと共通にする。覚えるものを増やさないため。
+
+**スキップは報告ではなく仕事を止める。** `--no-structural-equals` は言語サーバを起動しない。65 ファイルで 212 ms → 109 ms。
+
+#### 構成
+
+```
+src/lint/
+  cli.ts  index.ts  ast.ts
+  scan/       構文的事実を取り出す
+  typecheck/  go-to-definition（lsp / in-process）
+  rules/      判定
+```
+
+依存は一方向。`scan/` は閉じており、`rules/` は `scan/index.ts` と `typecheck/index.ts` の窓口だけを見る。`Alias` と `CompanionSite` は `Scan` の構成要素なので `scan/index.ts` が re-export する。ルールが走査の内部に手を伸ばさない。
+
+`ast.ts` は `scan/` の中に入れない。`rules/equals.ts` も payload と spec を歩くのに使うので、共有の道具として一段下に置く。
+
+`Scan` はルール固有のフィールドを持たない。**構文的事実であって、どのルールが読むかは型に書かない。** `aliases` と `brands` は同じ 1 パスが同じ宣言から作り、2 つの規則が 1 つずつ取る。所有関係を書くと、次にルールを足す人が「自分用のフィールドを足す」と読む。
+
+公開する名前は絞る。`src/lint/index.ts` はパッケージの `exports` に無く CLI 専用なので、`lint` 以外に出すものは無い。各ルールが出すのは finding 型と `rule` オブジェクトの 2 つだけ。
 
 ---
 
