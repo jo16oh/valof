@@ -1,3 +1,4 @@
+import { original } from "../bindings.ts";
 import type { Scan } from "../scan.ts";
 
 /**
@@ -27,9 +28,9 @@ export type DuplicateBrand = {
  */
 export function duplicateBrands(scans: readonly Scan[]): DuplicateBrand[] {
   const claims = new Map<string, DuplicateBrand[]>();
-  for (const { file, brands, imported } of scans) {
+  for (const { file, brands, bound } of scans) {
     for (const { typeName, brand, alias, line } of brands) {
-      if ((imported.get(typeName) ?? typeName) !== "Val") continue;
+      if (original(bound, typeName) !== "Val") continue;
       const claimed = claims.get(brand) ?? [];
       claimed.push({ kind: "duplicate-brand", file, line, brand, alias });
       claims.set(brand, claimed);

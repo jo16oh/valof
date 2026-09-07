@@ -2,7 +2,9 @@ import { resolve } from "node:path";
 
 import { child as at, children, keyName, type Node } from "../ast.ts";
 import type { Query, Resolver } from "../definitions.ts";
-import type { Alias, CompanionSite, Scan } from "../scan.ts";
+import type { Alias } from "../aliases.ts";
+import type { CompanionSite } from "../chains.ts";
+import type { Scan } from "../scan.ts";
 
 /** A parent that structurally compares a child carrying its own equality. */
 export type StructuralEquals = {

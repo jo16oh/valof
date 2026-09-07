@@ -1,3 +1,4 @@
+import { original } from "../bindings.ts";
 import type { Scan } from "../scan.ts";
 
 /** A companion member that nothing in the scanned files reads. */
@@ -61,7 +62,7 @@ export function unusedMembers(scans: readonly Scan[]): UnusedMember[] {
   };
   for (const scan of scans) {
     for (const [local, keys] of scan.reads) {
-      const name = scan.imported.get(local) ?? local;
+      const name = original(scan.bound, local);
       for (const key of keys) note(name, key);
     }
     // Already named as the exporting module names them, so this file's aliases do not apply.
