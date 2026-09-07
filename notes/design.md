@@ -2357,6 +2357,16 @@ LSP との差は大きい。能力交渉も URI も位置エンコーディン�
 
 自前で書いて勝てるのは valof-lint 単体をターミナルで叩くときだけで、そこは 1 行形式で足りている。CI ではむしろ 1 行のほうが読みやすい。
 
+**ESLint には一般化できない。** 組み込みフォーマッタは stylish / html / json / json-with-metadata の 4 つだけで、ソース抜粋を出すものが無い（`codeframe` は ESLint 7 で本体から外れ `eslint-formatter-codeframe` になった）。
+
+```
+ESLint 既定（stylish）
+  src/line.ts
+    6:26  error  structural-equals: OrderLine.total holds Money, ...  valof/findings
+```
+
+`column` はどちらでも効き、エディタの波線も両方で正しい位置に出る。差は端末表示だけ。もっとも ESLint は typescript-eslint が TS 7 未対応で入口が塞がっているので、利用者にとっての実質的な経路は oxlint である。
+
 **検証の注意。** 既定フォーマットは stdout が TTY のときだけグラフィカルになる。パイプすると `unix` 相当に落ちるので、`| grep` を挟んだまま測ると 1 行形式に見える。一度それで誤った結論を出した。`vp check` 経由の oxlint が `unix` を指定しているのも紛らわしい。pty で `-f default` を明示して確かめること。
 
 #### やるときの順序
