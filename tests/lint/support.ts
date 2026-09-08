@@ -21,7 +21,7 @@ export function fixtures(url: string): {
   files: (fixture: string) => string[];
   lint: (
     fixture: string,
-    options?: { skip?: Kind[]; types?: Resolver | undefined },
+    options?: { skip?: Kind[]; types?: Resolver | undefined; overlay?: Map<string, string> },
   ) => Promise<string[]>;
 } {
   const directory = fileURLToPath(new URL("fixtures/", url));
@@ -31,9 +31,10 @@ export function fixtures(url: string): {
   return {
     all: () => globSync(`${directory}**/*.ts`),
     files,
-    lint: async (fixture, { skip = [], types } = {}) => {
+    lint: async (fixture, { skip = [], types, overlay } = {}) => {
       const findings = await run(files(fixture), {
         ...(types ? { types } : {}),
+        ...(overlay ? { overlay } : {}),
         skip: new Set(skip),
       });
       return findings.map(
@@ -52,6 +53,7 @@ export function spy(): Resolver & { asked: () => number } {
       asked += queries.length;
       return Promise.resolve(queries.map(() => []));
     },
+    overlay: () => {},
     close: () => {},
     asked: () => asked,
   };
