@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、裸の disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1631,7 +1631,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`rules/equals/index.ts` の「最初が勝つ」
 - [ ] fixture を型検査するか（§14.10）。`rules/structural-equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので 0 error。他は除外のまま
-- [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`bare-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
+- [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
 
@@ -2776,9 +2776,9 @@ BillingId claims the brand "billing/Id", which should be "billing/BillingId"
 
 ## 15. v2 候補
 
-### 14.14 規則: 裸の disable コメント、2026-09-08
+### 14.14 規則: 欠けている disable コメント、2026-09-08
 
-**入れる。**`bare-disable`。`// valof-lint-disable-next-line` がルールを 1 つも挙げていなければ報告する。
+**入れる。**`incomplete-disable`（2026-09-08 に `bare-disable` から改名、§14.18）。指示がルールを 1 つも挙げていなければ報告する。
 既定で on。
 
 #### 根拠: 黙らせる範囲が本人の決定を離れる
@@ -2842,7 +2842,7 @@ valof-lint-disable-next-line names unused-member, which reports nothing here
 ```
 
 **名前ごとに 1 件。**`unused-member, duplicate-brand` の片方だけが働いているとき、どちらを消せばよいかを
-finding が名乗る。裸の指示は対象外で、`bare-disable` に任せる。名指しする名前がなく、求める修正も同じ。
+finding が名乗る。裸の指示は対象外で、`incomplete-disable` に任せる。名指しする名前がなく、求める修正も同じ。
 
 #### 他のルールの findings が要る
 
@@ -2894,7 +2894,7 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
 #### ファイル名を kind に揃えた
 
 `unused.ts` の隣に `unused-disable.ts` が並ぶのが読めない。`rules/` を `unused-member.ts` /
-`duplicate-brand.ts` / `brand-mismatch.ts` / `bare-disable.ts` / `unused-disable.ts` /
+`duplicate-brand.ts` / `brand-mismatch.ts` / `incomplete-disable.ts` / `unused-disable.ts` /
 `structural-equals/` にした。`tests/lint/rules/` が §14.11 で採った並びと同じで、`--help` の語彙とも一致する。
 
 ### 14.16 ファイル全体の disable、2026-09-08
@@ -2915,7 +2915,7 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
 
 最初はこれで実装した。ESLint の `/* eslint-disable */` に倣う形。**やめた。**行の綴りから
 `-next-line` を落としただけの形なので、書いた人がスコープを意識しない。しかも裸なら全ルールを
-黙らせるので、**自分についての `bare-disable` も黙る**。書いた人は何も知らされない。
+黙らせるので、**自分についての `incomplete-disable` も黙る**。書いた人は何も知らされない。
 
 #### 「名前を挙げない」の意味がスコープで違う
 
@@ -2926,7 +2926,7 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
   `-all-whole-file` という別の綴りの仕事
 
 `-all-whole-file` は自分についての finding も黙らせる。ファイルを run から外すとはそういうことなので、
-特例ではない。**副作用として `bare-disable` の `-all` 除外ガードは観測できない。**外しても赤にならないので、
+特例ではない。**副作用として `incomplete-disable` の `-all` 除外ガードは観測できない。**外しても赤にならないので、
 コードにコメントで記録した（CLAUDE.md「落とせないならコメントが唯一の記録」）。
 
 #### 実装
@@ -2939,6 +2939,97 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
 
 **綴りの後ろには空白以外を許さない**（`(?![-\w])`）。`valof-lint-disable-nextline` のような打ち間違いが
 「ファイル全体を黙らせる指示」に化ける道を塞ぐ。fixture `ignore/misspelled` が守る。
+
+### 14.17 `--no-<kind>` を受けない規則、2026-09-08
+
+`incomplete-disable` と `unused-disable` は `--no-` で外せない。`Rule` に `always?: true` を足した。
+
+**理由。**「黙らせたことについての報告」を切るスイッチは、**全部黙らせて何も聞かない**手段になる。
+2 つはまさにそれを防ぐために在るので、自分を外す口を持ってはならない。
+
+逃げ道はファイル側にだけ残る。`valof-lint-disable-all-whole-file` は自分についての finding も含めて
+そのファイルを外す。グローバルなスイッチと違い、**そのファイルに書いてあり、grep できる。**
+
+**代償。**`unused-disable` の glob 由来の誤検知（1 ファイルずつ lint すると相方の居ない duplicate-brand の
+指示が「効いていない」と出る）に、全体スイッチが無くなった。逃げ道はそのファイルの `-all-whole-file` だけ。
+再検討するなら `unused-disable` から `always` を外す。
+
+**解いた、2026-09-08。読む集合と報告する集合を引数で分ける。**
+
+```
+valof-lint src src/billing/id.ts                      第 1 引数がプロジェクト、以降が報告対象
+valof-lint --target src/billing/id.ts --project src   名前で渡せば順序は自由
+valof-lint src                                        報告対象を省けばプロジェクト全体
+```
+
+一度は「運用で解く、直すのはエディタ統合と同時」と書いた。**利用者がいないという理由が消えた。**
+lint-staged がそれで、末尾にパスを足す道具なので位置引数が報告対象であるほうが噛み合う。
+
+**第 1 引数は glob かディレクトリでなければエラー。**`valof-lint one.ts` が書けなくなる。単一ファイル実行
+こそ 3 規則が誤答する形なので、引数で不可能にする。`--project` フラグだけを足す案（位置引数は全部報告対象）
+も動いたが、**プロジェクトを渡し忘れた形が黙って通る。**
+
+**ディレクトリを受けると方針を 2 つ持つことになる。**`<dir>/**/*.{ts,tsx,mts,cts}`、`node_modules` は除外。
+今までは glob が全部決めていた。`valof-lint .` が `node_modules` を歩く事故が実在するので除外は要る。
+fixture `project/pkg/node_modules/dep.ts` が守る（除外を消すと赤）。
+
+`Options.report` は解決済みパスの集合。`lint()` は silencing と同じ最後の filter で落とす。**scan は
+`project ∪ 位置引数`。**プロジェクトの glob が拾わない新規ファイルを報告対象に渡したとき、それを読まずに
+「何も無い」と言わないため。fixture `project/outside/fresh.ts` が守る（union を消すと赤）。
+
+リンタが「run が完全か」を推測する案は採らない。判定できないものを推測させると、本当に効いていない指示を
+見逃す側に倒れる。**どこまでが自分のプロジェクトかは利用者が知っていて、引数で言える。**
+
+エディタ統合（§14.9）が要求するのも同じ形で、プラグインは `lint()` にプロジェクト全体を渡し、今開いている
+ファイルだけを報告対象にする。
+
+`-all-whole-file` を付けたファイルはこれに当たらない。run には入っていて、他のファイルの finding の根拠と
+して数えられ、自分だけが報告されない。指示は報告を消すのであって事実を消さない。
+
+**実装。**`lint()` は skip 集合を `isSkippable` で濾すだけ（ルール固有の分岐なし）。CLI は `--no-` に
+別のメッセージを返す。`--help` の「Leave a rule out of the run, but not …」もレジストリから組む。
+
+### 14.18 指示についての規則の見せ方、2026-09-08
+
+**内部は Rule のまま、`--help` で 2 群に分ける。**
+
+```
+Reports what the type checker cannot:
+  unused-member       …
+  duplicate-brand     …
+  brand-mismatch      …
+  structural-equals   …
+
+And about the disable comments themselves, which always run:
+  incomplete-disable  …
+  unused-disable      …
+```
+
+利用者から見て 2 つは他の 4 つと性質が違う。**コードではなくコメントについての指摘**で、行では黙らせられず、
+`--no-` も受けない（§14.17）。違和感の正体は名前ではなく**同じ列に並んでいること**なので、並べ方で解いた。
+
+**改名。**`bare-disable` → `incomplete-disable`。「ルールを挙げていない」と「スコープを挙げていない」を
+1 語で言える。`unused-disable`（欠けてはいないが効いていない）と対になる。
+
+#### 他のリンタの線引き（oxlint 1.77.0 で実測）
+
+```
+a.js:1:1: warning: Unused oxlint-disable directive (no problems were reported).
+```
+
+**ルール ID が付かない。**リンタ自身の診断で、`--report-unused-disable-directives` で入れる既定 off。
+裸の `/* oxlint-disable */` は報告しない。それを咎めるのは `eslint-plugin-eslint-comments` の
+`no-unlimited-disable` という**プラグインのルール**で、ID を持つ。**業界の線引きは「unused = 診断、
+unlimited = ルール」**で、うちの 2 つは両方にまたがる。
+
+#### 却下: kind を 1 つ（`disable-comment`）に統合
+
+名前としては正直だが、**直し方の違う 2 つの欠陥が 1 語に潰れる**（名前を挙げる / 指示を消す）。
+
+#### 却下: ESLint に倣って列を空にする
+
+kind を出力から外す案。**印字側にルール固有の分岐が入る**（§14.8 が消した種類のもの）。ID が無いので
+検索の手掛かりも減る。既定 off にする案も採らない。既定 on は §14.14 / §14.15 の判断。
 
 ### 14.13 `Val` の綴りを 1 箇所に、2026-09-08
 
