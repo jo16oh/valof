@@ -7,19 +7,29 @@ import type { Scan } from "../scan/index.ts";
  * The wording belongs to the rule, next to the `description` that names it. The command prints
  * `message` as it stands, so nothing outside a rule needs to know what its finding holds.
  */
-type Located = { kind: string; file: string; line: number; column: number; message: string };
+export type Located = { kind: string; file: string; line: number; column: number; message: string };
 
 /** What a rule gets beyond the scans. */
-type Context = {
+export type Context = {
   /**
-   * Resolves a type reference to its declaration, or `undefined` when the project has no
-   * TypeScript.
+   * What the rules before this one reported, silenced or not.
+   *
+   * Rules run in the order {@link RULES} lists them, so a rule reading this must sit last. Only
+   * a rule about the run itself needs it; a rule about the code reads the scans.
+   */
+  reported: readonly Located[];
+  /**
+   * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
+   */
+  notRun: ReadonlySet<string>;
+  /**
+   * Resolves a type reference to its declaration. Throws when the project has no TypeScript.
    *
    * A function, not a value: the language server is started by the first rule that asks and by
    * nothing else, so a rule that is skipped, or that decides it has nothing to resolve, costs
    * nothing. That is most of what the structural-equals rule costs.
    */
-  types: () => Resolver | undefined;
+  types: () => Resolver;
 };
 
 /**

@@ -44,11 +44,7 @@ const needsTypes = (scans: readonly Scan[]): boolean =>
  * helper alias, a re-export or an `interface` is still seen. Names that do not resolve are left
  * alone, which keeps silence the safe direction.
  */
-async function findings(
-  scans: readonly Scan[],
-  resolver: Resolver | undefined,
-): Promise<StructuralEquals[]> {
-  if (!resolver) return [];
+async function findings(scans: readonly Scan[], resolver: Resolver): Promise<StructuralEquals[]> {
   const aliases: Alias[] = scans.flatMap(({ aliases: found }) => found);
   const sites: CompanionSite[] = scans.flatMap(({ sites: found }) => found);
 

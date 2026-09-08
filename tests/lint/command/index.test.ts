@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { cli, cliWithoutParser } from "../support.ts";
+import { cli, cliWithoutParser, cliWithoutTypeScript } from "../support.ts";
 
 const under = (fixture: string): string => `tests/lint/command/fixtures/${fixture}`;
 
@@ -41,9 +41,18 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
       "  duplicate-brand    a brand string claimed by more than one type alias\n" +
       "  brand-mismatch     a brand whose last segment is not the name of the type it brands\n" +
       "  structural-equals  a payload holding a Val whose own `equals` the parent never dispatches to\n" +
-      "  bare-disable       a disable comment that names no rule, and so silences all of them\n",
+      "  bare-disable       a disable comment that names no rule, and so silences all of them\n" +
+      "  unused-disable     a disable comment naming a rule that reports nothing there\n",
   );
   expect(cli("-h").stdout).toBe(stdout);
+});
+
+test("refuses the run when the project it lints has no TypeScript", () => {
+  const { status, stderr } = cliWithoutTypeScript(under("finding.ts"));
+  expect(status).toBe(2);
+  expect(stderr).toBe(
+    "valof-lint found no typescript in the project it is linting.\n" + "  pnpm add -D typescript",
+  );
 });
 
 test("asks for oxc-parser when it is not installed", () => {

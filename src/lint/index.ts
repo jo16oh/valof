@@ -1,9 +1,9 @@
-import { resolver, type Resolver } from "./typecheck/index.ts";
+import { requireTypeScript, resolver, type Resolver } from "./typecheck/index.ts";
 import { RULES, type Finding, type Kind } from "./rules/index.ts";
-import { scan, type Parser } from "./scan/index.ts";
+import { scan, silences, type Parser } from "./scan/index.ts";
 
 export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
-export { resolver, type Resolver } from "./typecheck/index.ts";
+export { NO_TYPESCRIPT, resolver, type Resolver } from "./typecheck/index.ts";
 
 export type Options = {
   /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
@@ -34,28 +34,25 @@ export async function lint(
   files: readonly string[],
   { skip, types: given }: Options = {},
 ): Promise<Finding[]> {
+  // Before the scan, so a project with no TypeScript hears it at once rather than after the
+  // work. A caller holding its own resolver has one by definition.
+  if (!given) requireTypeScript(process.cwd());
   const parser = (await import("oxc-parser")) as unknown as Parser;
   const scans = files.map((file) => scan(file, parser));
 
-  // Started by the first rule that asks for it, and closed however the run ends. Resolving type
-  // references costs a TypeScript the project may not have; absent one, the rule asking gets
-  // `undefined` and reports nothing.
-  let started = false;
+  // Started by the first rule that asks for it, and closed however the run ends.
   let opened: Resolver | undefined;
-  const types = (): Resolver | undefined => {
+  const types = (): Resolver => {
     if (given) return given;
-    if (!started) {
-      started = true;
-      opened = resolver(process.cwd(), files);
-    }
-    return opened;
+    return (opened ??= resolver(process.cwd(), files));
   };
 
   const findings: Finding[] = [];
+  const notRun: ReadonlySet<string> = new Set(skip ?? []);
   try {
     for (const rule of RULES) {
       if (skip?.has(rule.kind)) continue;
-      findings.push(...(await rule.run(scans, { types })));
+      findings.push(...(await rule.run(scans, { types, reported: findings, notRun })));
     }
   } finally {
     // Only what this run opened. A resolver handed in belongs to the caller.
@@ -66,7 +63,7 @@ export async function lint(
    * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
    * brand is still reported, since silencing it is its own line's decision.
    */
-  const disabled = new Map(scans.map(({ file, disabled: lines }) => [file, lines]));
+  const disabled = new Map(scans.map(({ file, directives }) => [file, silences(directives)]));
   const silenced = ({ file, line, kind }: Finding): boolean => {
     const silences = disabled.get(file)?.get(line);
     return silences !== undefined && (silences.size === 0 || silences.has(kind));

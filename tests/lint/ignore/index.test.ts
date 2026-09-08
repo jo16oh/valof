@@ -17,6 +17,7 @@ test("silences the kind it lists, and ignores the note after `--`", async () => 
 
 test("leaves a finding of another kind alone", async () => {
   expect(await lint("wrong-kind")).toEqual([
+    "wrong-kind.ts:2:3  unused-disable  valof-lint-disable-next-line names duplicate-brand, which reports nothing here",
     "wrong-kind.ts:3:3  unused-member  User.shout is never read",
   ]);
 });

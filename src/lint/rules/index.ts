@@ -1,9 +1,10 @@
-import { BareDisable } from "./bare.ts";
-import { DuplicateBrand } from "./duplicate.ts";
-import { StructuralEquals } from "./equals/index.ts";
-import { BrandMismatch } from "./mismatch.ts";
+import { BareDisable } from "./bare-disable.ts";
+import { BrandMismatch } from "./brand-mismatch.ts";
+import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Rule } from "./rule.ts";
-import { UnusedMember } from "./unused.ts";
+import { StructuralEquals } from "./structural-equals/index.ts";
+import { UnusedDisable } from "./unused-disable.ts";
+import { UnusedMember } from "./unused-member.ts";
 
 /**
  * Every rule, in the order they run and `--help` lists them.
@@ -17,6 +18,7 @@ export const RULES = [
   BrandMismatch,
   StructuralEquals,
   BareDisable,
+  UnusedDisable,
 ] as const;
 
 /** The payload a rule reports, recovered from the rule itself. */

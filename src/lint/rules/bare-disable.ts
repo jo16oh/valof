@@ -26,13 +26,15 @@ export const BareDisable: Rule<BareDisable> = {
  * finding under the ones it was holding back.
  */
 function findings(scans: readonly Scan[]): BareDisable[] {
-  return scans.flatMap(({ file, bare }) =>
-    bare.map(({ line, column }) => ({
-      kind: "bare-disable" as const,
-      file,
-      line,
-      column,
-      message: "valof-lint-disable-next-line names no rule; name the ones it silences",
-    })),
+  return scans.flatMap(({ file, directives }) =>
+    directives
+      .filter(({ kinds }) => kinds.size === 0)
+      .map(({ line, column }) => ({
+        kind: "bare-disable" as const,
+        file,
+        line,
+        column,
+        message: "valof-lint-disable-next-line names no rule; name the ones it silences",
+      })),
   );
 }

@@ -74,3 +74,7 @@ export const cli = (...args: string[]): Run => spawn([], args);
 /** The same, with the parser out of reach, as it is before anyone installs it. */
 export const cliWithoutParser = (...args: string[]): Run =>
   spawn(["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))], args);
+
+/** The same, with no TypeScript in the project being linted. */
+export const cliWithoutTypeScript = (...args: string[]): Run =>
+  spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);

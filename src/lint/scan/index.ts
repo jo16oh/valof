@@ -4,7 +4,7 @@ import { child, children, isNode, keyName, positions, type Node, type Where } fr
 import { valAliases, type Alias, type BrandClaim } from "./aliases.ts";
 import { bindings, type Bindings } from "./bindings.ts";
 import { companionSite, fromVal, type CompanionSite } from "./chains.ts";
-import { disabledLines } from "./directives.ts";
+import { directives, type Directive } from "./directives.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
@@ -12,6 +12,8 @@ export { original } from "./bindings.ts";
 export type { Bindings } from "./bindings.ts";
 export type { Alias, BrandClaim } from "./aliases.ts";
 export type { CompanionSite } from "./chains.ts";
+export type { Directive } from "./directives.ts";
+export { silences } from "./directives.ts";
 
 /** A member `.impl({…})` registered, under the local name of its companion. */
 type Member = Where & { companion: string; member: string };
@@ -42,10 +44,8 @@ export type Scan = {
   brands: BrandClaim[];
   /** `Val.sealer<X>()` / `Val.companion<X>()` chains, and what they registered. */
   sites: CompanionSite[];
-  /** 1-based line -> the kinds a comment directive silences there. */
-  disabled: Map<number, Set<string>>;
-  /** Where a directive that took effect named no kind, at the comment itself. */
-  bare: Where[];
+  /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
+  directives: Directive[];
 };
 
 /** The parser's surface, passed in so the optional import stays at the caller. */
@@ -201,8 +201,6 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
   // After the walk, which is what collected the imports `Val` is resolved against.
   const { aliases, brands } = valAliases(program, file, bound, at);
 
-  const { disabled, bare } = disabledLines(parsed.comments, source, at);
-
   return {
     file,
     bound,
@@ -213,7 +211,6 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
     aliases,
     brands,
     sites,
-    disabled,
-    bare,
+    directives: directives(parsed.comments, source, at),
   };
 }

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { globSync } from "node:fs";
 import { styleText, type InspectColor } from "node:util";
-import { isKind, kinds, lint, RULES, type Finding, type Kind } from "./index.ts";
+import { isKind, kinds, lint, NO_TYPESCRIPT, RULES, type Finding, type Kind } from "./index.ts";
 
 const patterns: string[] = [];
 const skip = new Set<Kind>();
@@ -58,11 +58,19 @@ let findings: Finding[];
 try {
   findings = await lint(files, { skip });
 } catch (error) {
-  if ((error as { code?: string }).code !== "ERR_MODULE_NOT_FOUND") throw error;
-  console.error(
-    "valof-lint needs oxc-parser, which valof does not install for you.\n" +
-      "  pnpm add -D oxc-parser",
-  );
+  const { code } = error as { code?: string };
+  if (code === "ERR_MODULE_NOT_FOUND") {
+    console.error(
+      "valof-lint needs oxc-parser, which valof does not install for you.\n" +
+        "  pnpm add -D oxc-parser",
+    );
+  } else if (code === NO_TYPESCRIPT) {
+    console.error(
+      "valof-lint found no typescript in the project it is linting.\n" + "  pnpm add -D typescript",
+    );
+  } else {
+    throw error;
+  }
   process.exit(2);
 }
 /**

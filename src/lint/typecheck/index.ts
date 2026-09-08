@@ -46,14 +46,31 @@ function locate(root: string): { main: string; bin: string; major: number } | un
   }
 }
 
-/**
- * The backend for `files`, or `undefined` when the project has no TypeScript.
- *
- * Absent, the rule that needs it reports nothing rather than guessing. Silence is the safe
- * direction for every rule here.
- */
-export function resolver(root: string, files: readonly string[]): Resolver | undefined {
+/** The `code` on the error thrown when the project has no TypeScript. */
+export const NO_TYPESCRIPT = "ERR_NO_TYPESCRIPT";
+
+function required(root: string): NonNullable<ReturnType<typeof locate>> {
   const found = locate(root);
-  if (!found) return undefined;
+  if (found) return found;
+  throw Object.assign(new Error("no typescript in the project being linted"), {
+    code: NO_TYPESCRIPT,
+  });
+}
+
+/**
+ * Throws {@link NO_TYPESCRIPT} when the project has no TypeScript, before anything is scanned.
+ *
+ * Refusing beats reporting nothing: a rule that stays quiet for a missing tool reads as a clean
+ * run. Nobody writes Vals without TypeScript, so the case is a broken install, not a project to
+ * support. Checked up front rather than where it is needed, so the answer does not turn on
+ * whether some file happens to call `.implEquals` today.
+ *
+ * Resolving it is not starting it. The language server still waits for a rule to ask.
+ */
+export const requireTypeScript = (root: string): void => void required(root);
+
+/** The backend for `files`. */
+export function resolver(root: string, files: readonly string[]): Resolver {
+  const found = required(root);
   return found.major >= 7 ? overLsp(found.bin, root) : inProcess(found.main, root, files);
 }
