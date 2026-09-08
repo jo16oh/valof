@@ -376,17 +376,22 @@ A value is a plain object, so a state container holds it as it stands. Replace i
 untouched subtrees keep their identity, so a dependency array sees no change.
 
 ```ts
-const [user, setUser] = useState(User({ id: "a", name: "bob" }));
-setUser(User.patch(user, { name: "sue" }));
+const [shop, setShop] = useState(Shop({ owner, city }));
+setShop(Shop.patch(shop, { owner: { email: "e@example.com" } }));
+
+useEffect(() => showMap(shop.city), [shop.city]); // the patch left `city` alone: no re-run
 ```
 
 Solid reads the same with `createSignal`, and takes the companion's comparison:
 `createSignal(user, { equals: User.equals })`.
 
-**Svelte and Vue are deeply reactive by default, so ask for a shallow container.** A deep one wraps
-every node of the payload in a proxy, which costs what `patch` just saved and hands your code the
-proxy in place of the value. Values are frozen in development and not in production, so the two
-builds can differ there as well.
+**Svelte and Vue are deeply reactive by default, so ask for a shallow container.** A deep one hands
+your code a proxy in place of the value, and `patch` no longer recognizes the nodes it owns, so it
+copies them again.
+
+**Development hides this.** Values are frozen there, so Vue skips them and `ref` behaves like
+`shallowRef` until you build for production. A write through Vue's `ref` or Solid's `createStore`
+then mutates the value instead of throwing.
 
 | framework |                                   |
 | --------- | --------------------------------- |
