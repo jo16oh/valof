@@ -5,7 +5,7 @@ import { cli, cliWithoutParser, cliWithoutTypeScript } from "../support.ts";
 const under = (fixture: string): string => `tests/lint/command/fixtures/${fixture}`;
 
 test("prints a finding as location, kind, then message, and exits 1 with a summary", () => {
-  const { status, stdout, stderr } = cli(under("finding.ts"));
+  const { status, stdout, stderr } = cli(under("*.ts"), under("finding.ts"));
   expect(stdout).toBe(
     "tests/lint/command/fixtures/finding.ts:3:3  unused-member  Id.shout is never read\n",
   );
@@ -14,7 +14,7 @@ test("prints a finding as location, kind, then message, and exits 1 with a summa
 });
 
 test("exits 0 with a summary when it does not", () => {
-  const { status, stderr } = cli(under("clean.ts"));
+  const { status, stderr } = cli(under("*.ts"), under("clean.ts"));
   expect(status).toBe(0);
   expect(stderr).toBe("valof-lint: nothing to report in 1 file(s)");
 });
@@ -48,7 +48,7 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
 });
 
 test("refuses the run when the project it lints has no TypeScript", () => {
-  const { status, stderr } = cliWithoutTypeScript(under("finding.ts"));
+  const { status, stderr } = cliWithoutTypeScript(under("*.ts"));
   expect(status).toBe(2);
   expect(stderr).toBe(
     "valof-lint found no typescript in the project it is linting.\n" + "  pnpm add -D typescript",
@@ -56,7 +56,7 @@ test("refuses the run when the project it lints has no TypeScript", () => {
 });
 
 test("asks for oxc-parser when it is not installed", () => {
-  const { status, stderr } = cliWithoutParser(under("finding.ts"));
+  const { status, stderr } = cliWithoutParser(under("*.ts"));
   expect(status).toBe(2);
   expect(stderr).toBe(
     "valof-lint needs oxc-parser, which valof does not install for you.\n" +

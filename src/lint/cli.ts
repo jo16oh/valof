@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { globSync } from "node:fs";
+import { globSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 import { styleText, type InspectColor } from "node:util";
 import {
   isKind,
@@ -13,13 +14,50 @@ import {
   type Kind,
 } from "./index.ts";
 
-const patterns: string[] = [];
+/** A path with any of these is a glob, and stands for whatever it matches. */
+const GLOB = /[*?[\]{}]/;
+
+/** What a directory holds, for a caller who names one instead of writing the glob out. */
+const UNDER = "**/*.{ts,tsx,mts,cts}";
+
+const isDirectory = (path: string): boolean => {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * The files one argument stands for.
+ *
+ * A directory brings the TypeScript under it, never what its dependencies installed: a project
+ * given as `.` would otherwise walk `node_modules`.
+ */
+const expand = (path: string): string[] =>
+  globSync(isDirectory(path) ? `${path}/${UNDER}` : path, {
+    exclude: (found) => found.split(/[\\/]/).includes("node_modules"),
+  });
+
+const projects: string[] = [];
+const targets: string[] = [];
+const loose: string[] = [];
 const skip = new Set<Kind>();
 let help = false;
+let pending: "project" | "target" | undefined;
 
 for (const argument of process.argv.slice(2)) {
-  if (argument === "--help" || argument === "-h") {
+  if (pending) {
+    (pending === "project" ? projects : targets).push(argument);
+    pending = undefined;
+  } else if (argument === "--help" || argument === "-h") {
     help = true;
+  } else if (argument === "--project" || argument === "--target") {
+    pending = argument.slice("--".length) as "project" | "target";
+  } else if (argument.startsWith("--project=")) {
+    projects.push(argument.slice("--project=".length));
+  } else if (argument.startsWith("--target=")) {
+    targets.push(argument.slice("--target=".length));
   } else if (argument.startsWith("--no-")) {
     const kind = argument.slice("--no-".length);
     if (!isKind(kind)) {
@@ -37,7 +75,7 @@ for (const argument of process.argv.slice(2)) {
     }
     skip.add(kind);
   } else {
-    patterns.push(argument);
+    loose.push(argument);
   }
 }
 
@@ -45,12 +83,21 @@ if (help) {
   const width = Math.max(...RULES.map(({ kind }) => kind.length));
   console.log(
     [
-      "valof-lint [--no-<rule>...] [glob...]",
+      "valof-lint [--no-<rule>...] [project] [file...]",
       "",
       "Reports what the type checker cannot:",
       ...RULES.map(({ kind, description }) => `  ${kind.padEnd(width)}  ${description}`),
       "",
-      "Defaults to src/**/*.ts. Exits 1 when something is found.",
+      "The project is a directory or a glob, and defaults to src/**/*.ts. It is what the",
+      "run reads. Files named after it are what the run reports on; leave them out to",
+      "report on the whole project. Either can be given by name, in any order.",
+      "  valof-lint src src/billing/id.ts",
+      "  valof-lint --target src/billing/id.ts --project 'src/**/*.ts'",
+      "",
+      "Three rules need a second file to say anything, so a run narrowed to one file",
+      "loses their findings and calls the directives holding them back unused.",
+      "",
+      "Exits 1 when something is found.",
       "",
       `Leave a rule out of the run, but not ${RULES.filter(({ always }) => always)
         .map(({ kind }) => kind)
@@ -71,15 +118,44 @@ if (help) {
   process.exit(0);
 }
 
-const files = globSync(patterns.length > 0 ? patterns : "src/**/*.ts");
-if (files.length === 0) {
+if (pending) {
+  console.error(`valof-lint: --${pending} needs a path`);
+  process.exit(2);
+}
+
+// The first loose path is the project, unless one was named. A file there is the mistake this
+// catches: it would narrow the run rather than the report, which is the whole point of the two.
+if (projects.length === 0 && loose.length > 0) {
+  const first = loose.shift() as string;
+  if (!GLOB.test(first) && !isDirectory(first)) {
+    console.error(
+      `valof-lint: the project must be a directory or a glob, and ${JSON.stringify(first)} is` +
+        " neither\n  valof-lint 'src/**/*.ts' " +
+        first,
+    );
+    process.exit(2);
+  }
+  projects.push(first);
+}
+targets.push(...loose);
+
+const read = (projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand);
+const asked = targets.flatMap(expand);
+// Scanned together: a file to report on that the project glob does not cover is still read,
+// rather than passed over and called clean.
+const scanned = [...new Set([...read, ...asked])];
+const reported = targets.length > 0 ? asked : scanned;
+if (reported.length === 0) {
   console.error("valof-lint: no files matched");
   process.exit(2);
 }
 
 let findings: Finding[];
 try {
-  findings = await lint(files, { skip });
+  findings = await lint(scanned, {
+    skip,
+    ...(targets.length > 0 ? { report: new Set(asked.map((file) => resolve(file))) } : {}),
+  });
 } catch (error) {
   const { code } = error as { code?: string };
   if (code === "ERR_MODULE_NOT_FOUND") {
@@ -116,7 +192,7 @@ for (const { file, line, column, kind, message } of findings) {
 }
 console.error(
   findings.length === 0
-    ? err("green", `valof-lint: nothing to report in ${files.length} file(s)`)
-    : err("red", `valof-lint: ${findings.length} finding(s) in ${files.length} file(s)`),
+    ? err("green", `valof-lint: nothing to report in ${reported.length} file(s)`)
+    : err("red", `valof-lint: ${findings.length} finding(s) in ${reported.length} file(s)`),
 );
 process.exit(findings.length === 0 ? 0 : 1);

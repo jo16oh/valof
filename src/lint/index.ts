@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import { requireTypeScript, resolver, type Resolver } from "./typecheck/index.ts";
 import { isSkippable, RULES, type Finding, type Kind } from "./rules/index.ts";
 import { scan, silences, type Parser } from "./scan/index.ts";
@@ -29,6 +31,16 @@ export type Options = {
    * backend takes that list as the project.
    */
   types?: Resolver;
+  /**
+   * Files to report on, as paths resolved against the same root. Everything else in `files` is
+   * still scanned.
+   *
+   * Three rules need a second file to say anything: a duplicate brand needs the other alias, a
+   * child's own equality needs the parent holding it, and a member is read from wherever it is
+   * read. Narrowing the run instead of the report turns those into silence, and turns a
+   * directive that is doing its job into an `unused-disable`.
+   */
+  report?: ReadonlySet<string>;
 };
 
 /**
@@ -44,7 +56,7 @@ export type Options = {
  */
 export async function lint(
   files: readonly string[],
-  { skip, types: given }: Options = {},
+  { skip, types: given, report }: Options = {},
 ): Promise<Finding[]> {
   // Before the scan, so a project with no TypeScript hears it at once rather than after the
   // work. A caller holding its own resolver has one by definition.
@@ -78,9 +90,10 @@ export async function lint(
   const disabled = new Map(scans.map(({ file, directives }) => [file, silences(directives)]));
   const silenced = ({ file, line, kind }: Finding): boolean =>
     disabled.get(file)?.(line, kind) === true;
+  const asked = ({ file }: Finding): boolean => report === undefined || report.has(resolve(file));
 
   return findings
-    .filter((finding) => !silenced(finding))
+    .filter((finding) => asked(finding) && !silenced(finding))
     .sort(
       (a, b) =>
         a.file.localeCompare(b.file) ||
