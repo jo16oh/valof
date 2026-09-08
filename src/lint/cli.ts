@@ -81,12 +81,17 @@ for (const argument of process.argv.slice(2)) {
 
 if (help) {
   const width = Math.max(...RULES.map(({ kind }) => kind.length));
+  const listed = (which: (rule: (typeof RULES)[number]) => boolean): string[] =>
+    RULES.filter(which).map(({ kind, description }) => `  ${kind.padEnd(width)}  ${description}`);
   console.log(
     [
       "valof-lint [--no-<rule>...] [project] [file...]",
       "",
       "Reports what the type checker cannot:",
-      ...RULES.map(({ kind, description }) => `  ${kind.padEnd(width)}  ${description}`),
+      ...listed((rule) => !rule.always),
+      "",
+      "And about the disable comments themselves, which always run:",
+      ...listed((rule) => rule.always === true),
       "",
       "The project is a directory or a glob, and defaults to src/**/*.ts. It is what the",
       "run reads. Files named after it are what the run reports on; leave them out to",
@@ -99,9 +104,7 @@ if (help) {
       "",
       "Exits 1 when something is found.",
       "",
-      `Leave a rule out of the run, but not ${RULES.filter(({ always }) => always)
-        .map(({ kind }) => kind)
-        .join(" or ")}:`,
+      "Leave a rule out of the run:",
       "  valof-lint --no-structural-equals",
       "",
       "Silence one line with a comment in the block above it, by the same names:",

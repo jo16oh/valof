@@ -9,14 +9,14 @@ import type { Rule } from "./rule.ts";
  * hides grows without anyone deciding to. Over a whole file it silences nothing at all, since a
  * whole file is turned off by saying so: `valof-lint-disable-all-whole-file`.
  */
-export type BareDisable = Where & {
-  kind: "bare-disable";
+export type IncompleteDisable = Where & {
+  kind: "incomplete-disable";
   file: string;
   message: string;
 };
 
-export const BareDisable: Rule<BareDisable> = {
-  kind: "bare-disable",
+export const IncompleteDisable: Rule<IncompleteDisable> = {
+  kind: "incomplete-disable",
   description: "a disable comment leaving out the rules it silences, or its scope",
   always: true,
   run: findings,
@@ -43,14 +43,14 @@ function missing({ spelling, kinds }: Directive): string | undefined {
  * below is already written the way its author wanted, and turning the directive off here would
  * bury the finding under the ones it was holding back.
  */
-function findings(scans: readonly Scan[]): BareDisable[] {
+function findings(scans: readonly Scan[]): IncompleteDisable[] {
   return scans.flatMap(({ file, directives }) =>
     directives.flatMap((written) => {
       const left = missing(written);
       if (!left) return [];
       return [
         {
-          kind: "bare-disable" as const,
+          kind: "incomplete-disable" as const,
           file,
           line: written.line,
           column: written.column,

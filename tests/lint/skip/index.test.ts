@@ -27,17 +27,17 @@ test("takes more than one, and leaves nothing once every kind is out", async () 
 });
 
 test("keeps a rule guarding the directives in, whatever the caller asks", async () => {
-  expect(await lint("guarded", { skip: ["bare-disable", "unused-disable"] })).toEqual([
-    "guarded.ts:1:1  bare-disable  valof-lint-disable names no scope; write valof-lint-disable-next-line or valof-lint-disable-whole-file",
+  expect(await lint("guarded", { skip: ["incomplete-disable", "unused-disable"] })).toEqual([
+    "guarded.ts:1:1  incomplete-disable  valof-lint-disable names no scope; write valof-lint-disable-next-line or valof-lint-disable-whole-file",
     "guarded.ts:3:1  unused-disable  valof-lint-disable-whole-file names structural-equals, which reports nothing in this file",
   ]);
 });
 
 test("refuses the flag for one of those, and says which rules take it", () => {
-  const { status, stderr } = cli("--no-bare-disable", glob);
+  const { status, stderr } = cli("--no-incomplete-disable", glob);
   expect(status).toBe(2);
   expect(stderr).toBe(
-    "valof-lint: bare-disable always runs, since it guards the disable comments\n" +
+    "valof-lint: incomplete-disable always runs, since it guards the disable comments\n" +
       `  rules you can leave out: ${skippable.join(", ")}`,
   );
 });

@@ -1,4 +1,4 @@
-import { BareDisable } from "./bare-disable.ts";
+import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Rule } from "./rule.ts";
@@ -17,7 +17,7 @@ export const RULES = [
   DuplicateBrand,
   BrandMismatch,
   StructuralEquals,
-  BareDisable,
+  IncompleteDisable,
   UnusedDisable,
 ] as const;
 

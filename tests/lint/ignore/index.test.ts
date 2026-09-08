@@ -6,7 +6,7 @@ const { lint } = fixtures(import.meta.url);
 
 test("silences every kind when the directive lists none", async () => {
   expect(await lint("whole-line")).toEqual([
-    "whole-line.ts:2:3  bare-disable  valof-lint-disable-next-line names no rule; name the ones it silences",
+    "whole-line.ts:2:3  incomplete-disable  valof-lint-disable-next-line names no rule; name the ones it silences",
     "whole-line.ts:4:3  unused-member  User.whisper is never read",
   ]);
 });
@@ -45,7 +45,7 @@ test("silences the whole file, its own report with it, when the directive says s
 
 test("silences nothing when the directive names no scope, and says which to write", async () => {
   expect(await lint("no-scope")).toEqual([
-    "no-scope.ts:1:1  bare-disable  valof-lint-disable names no scope; write valof-lint-disable-next-line or valof-lint-disable-whole-file",
+    "no-scope.ts:1:1  incomplete-disable  valof-lint-disable names no scope; write valof-lint-disable-next-line or valof-lint-disable-whole-file",
     "no-scope.ts:4:3  unused-member  User.shout is never read",
   ]);
 });
@@ -64,7 +64,7 @@ test("takes neither spelling when something follows it, which is a typo and not 
 
 test("stops at a blank line, which starts a block of its own", async () => {
   expect(await lint("not-a-block")).toEqual([
-    "not-a-block.ts:2:3  bare-disable  valof-lint-disable-next-line names no rule; name the ones it silences",
+    "not-a-block.ts:2:3  incomplete-disable  valof-lint-disable-next-line names no rule; name the ones it silences",
     "not-a-block.ts:5:3  unused-member  User.shout is never read",
   ]);
 });

@@ -32,7 +32,7 @@ const answers = ({ file, line, kind }: { file: string; line: number; kind: strin
  * Reports every name in a directive that silenced nothing.
  *
  * One finding per name, so a directive whose other names still do their job says which one to
- * drop. A bare directive is left to the bare-disable rule: it names nothing to blame, and the
+ * drop. A bare directive is left to the incomplete-disable rule: it names nothing to blame, and the
  * two findings would ask for the same edit.
  *
  * A kind left out of the run is not blamed: `--no-<kind>` leaves a directive naming it looking
@@ -44,7 +44,7 @@ function findings(scans: readonly Scan[], { reported, notRun }: Context): Unused
   const used = new Set(reported.flatMap(answers));
   return scans.flatMap(({ file, directives }) =>
     directives.flatMap(({ line, column, covers, kinds, spelling }) =>
-      // One naming no scope silences nothing whatever it lists, which is bare-disable's to say.
+      // One naming no scope silences nothing whatever it lists, which is incomplete-disable's to say.
       spelling === "valof-lint-disable"
         ? []
         : [...kinds]
