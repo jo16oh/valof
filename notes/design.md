@@ -1830,7 +1830,7 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 
 ## 14. valof-lint
 
-2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-07 時点で `main` 未マージ。規則は 3 つ（§14.4、§14.7）、構成は §14.8。
+2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-07 時点で `main` 未マージ。規則は 4 つ（§14.4、§14.7、§14.12）、構成は §14.8。
 
 `.impl({...})` の中の関数は、dead と報告されることもバンドルから落ちることもない。`attach` が実行時に `Object.defineProperty` で companion に載せるので、静的解析からは「関数に渡されたオブジェクトリテラル」にしか見えない。
 
@@ -1910,10 +1910,11 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 ### 14.4 ルール
 
-構文だけで判定するものが 2 つ。3 つ目は go-to-definition を使う（§14.7）。
+構文だけで判定するものが 3 つ。4 つ目は go-to-definition を使う（§14.7）。
 
 - 誰も読まない companion のメンバ
 - 複数の**トップレベル**型エイリアスが主張しているブランド文字列
+- 型名で終わっていないブランド文字列（§14.12）
 
 トップレベル限定であることが効く。この制限がないと、このリポジトリ自身のテストで `describe` や `test` の中にスコープされたフィクスチャから 30 件の衝突が報告される。
 
@@ -2149,7 +2150,7 @@ for (const rule of RULES) {
 配列にして `Kind` と `Finding` をそこから読み戻す。
 
 ```ts
-export const RULES = [UnusedMember, DuplicateBrand, StructuralEquals] as const;
+export const RULES = [UnusedMember, DuplicateBrand, BrandMismatch, StructuralEquals] as const;
 
 type ReportedBy<R> = R extends Rule<infer F> ? F : never;
 export type Finding = ReportedBy<(typeof RULES)[number]>;
@@ -2755,6 +2756,19 @@ BillingId claims the brand "billing/Id", which should be "billing/BillingId"
 `BrandClaim` が既に `alias` / `brand` / 位置を持つ。`Rule` オブジェクト 1 つと `RULES` への 1 行だけで、
 `Scan` に足すものも resolver も要らない（§14.8）。バンドル予算は無関係。`scripts/size.ts` が測るのは
 `dist/index.mjs` だけで lint は入らない。
+
+**2026-09-08 実装。`rules/brands.ts` を `duplicate.ts` と `mismatch.ts` に割った。**1 ファイルに 2 つ置くと
+実装関数の名前が衝突する。§14.8 の「どのファイルでも `findings`」は 1 ファイル 1 ルールを前提にしていた。
+ファイル名は `unused.ts` / `equals/` と同じで、種別の中の区別する語だけを取る。
+
+**既存の fixture が 7 つ違反した。**duplicate-brand を観測する fixture は `OrderId = Val<"Id">` の形で、
+ブランドの重複と型名の不一致を同時に持っていた。別名を `Id` に揃えて直した。2 つのファイルが同じ
+`Id` を宣言する形になり、README が言う monorepo の例そのものになる。`namespaced` だけはブランドを
+`"orders/OrderId"` にした。
+
+**変異で 3 つ確認した。**`Val` ガードの除去は `bindings/not-a-val` が、最後のセグメントではなく全体を
+比べるのは `duplicate-brand/namespaced` が、メッセージから名前空間を落とすのは新しい `namespaced.ts` が
+赤くなる。
 
 ---
 

@@ -64,6 +64,7 @@ Only primitives, arrays and plain objects can live inside a Val. See
 **Name the brand after the type it brands.** Two Vals with the same brand string and the same
 payload are silently assignable to each other. Where the same name lives in two places, such as `Id`
 in two domains of a monorepo, prefix it with a namespace: `"billing/Id"`.
+[`valof-lint`](#valof-lint) reports a brand that does not end in the name of its type.
 
 ### Constructors copy their argument
 
@@ -435,7 +436,7 @@ dropped when the value is serialized into JSON.
 
 ## `valof-lint`
 
-The package ships a command for the two mistakes the type checker cannot catch.
+The package ships a command for the mistakes the type checker cannot catch.
 
 **A dead companion function.** A function registered in `.impl({…})` is attached at runtime, so
 static analysis sees an object literal passed to a function and nothing more. Knip does not report
@@ -443,6 +444,10 @@ it when it goes dead, and a bundler does not drop it.
 
 **A brand claimed twice.** Two top-level aliases with the same brand string and the same payload are
 silently assignable to each other, which is the whole failure the brand exists to prevent.
+
+**A brand that is not the type's name.** Renaming the type leaves the string literal behind, so the
+assignability error goes on naming a type that no longer exists. Only the last segment is compared,
+so `Val<"billing/BillingId">` passes and `billing/` is yours.
 
 **A child's own equality, skipped.** `implEquals` applies to the top-level comparison only, so a
 parent holding that Val compares it structurally and the child's rule is never reached (see
@@ -455,9 +460,10 @@ pnpm exec valof-lint 'src/**/*.ts'
 
 ```
 src/user.ts:7:3    unused-member      User.shout is never read
-src/order.ts:3:13  duplicate-brand    OrderId claims the brand "Id", and so does another type
+src/order.ts:3:13  duplicate-brand    Id claims the brand "Id", and so does another type
+src/order.ts:5:13  brand-mismatch     EmailAddress claims the brand "Email", which should be "EmailAddress"
 src/order.ts:9:22  structural-equals  Order.total holds Money, which has its own equals
-valof-lint: 3 finding(s) in 12 file(s)
+valof-lint: 4 finding(s) in 12 file(s)
 ```
 
 The middle column is the rule, and it is the name `--no-<rule>` and the disable comment both take.
@@ -487,9 +493,9 @@ Silence one line with a comment above it:
 shout: (u) => u.toUpperCase(),
 ```
 
-Listing no kind silences both. The whole comment block above the line is read, not only the comment
-touching it, so the directive sits anywhere among another linter's comments. A blank line, or code,
-ends the block.
+Listing no kind silences every one. The whole comment block above the line is read, not only the
+comment touching it, so the directive sits anywhere among another linter's comments. A blank line,
+or code, ends the block.
 
 It is wrong in two opposite ways. A read that spells no name, `User[method]` or a companion reached
 through a default export, is not seen, so the member is reported although it is used: spell it once
