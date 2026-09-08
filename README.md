@@ -453,6 +453,9 @@ so `Val<"billing/BillingId">` passes and `billing/` is yours.
 parent holding that Val compares it structurally and the child's rule is never reached (see
 [Equality](#equality)). Name the key in the parent's spec, or drop it from equality on purpose.
 
+**A disable comment that names no rule.** It silences every rule on the line below, rules written
+after it included, so what it hides grows without anyone deciding to.
+
 ```bash
 pnpm add -D oxc-parser   # valof does not install it for you
 pnpm exec valof-lint 'src/**/*.ts'
@@ -463,7 +466,8 @@ src/user.ts:7:3    unused-member      User.shout is never read
 src/order.ts:3:13  duplicate-brand    Id claims the brand "Id", and so does another type
 src/order.ts:5:13  brand-mismatch     EmailAddress claims the brand "Email", which should be "EmailAddress"
 src/order.ts:9:22  structural-equals  Order.total holds Money, which has its own equals
-valof-lint: 4 finding(s) in 12 file(s)
+src/cart.ts:12:3   bare-disable       valof-lint-disable-next-line names no rule; name the ones it silences
+valof-lint: 5 finding(s) in 12 file(s)
 ```
 
 The middle column is the rule, and it is the name `--no-<rule>` and the disable comment both take.
@@ -493,9 +497,10 @@ Silence one line with a comment above it:
 shout: (u) => u.toUpperCase(),
 ```
 
-Listing no kind silences every one. The whole comment block above the line is read, not only the
-comment touching it, so the directive sits anywhere among another linter's comments. A blank line,
-or code, ends the block.
+Name the rules it silences. A directive that names none silences all of them, which is the
+`bare-disable` finding above; it goes on silencing while it is there. The whole comment block above
+the line is read, not only the comment touching it, so the directive sits anywhere among another
+linter's comments. A blank line, or code, ends the block.
 
 It is wrong in two opposite ways. A read that spells no name, `User[method]` or a companion reached
 through a default export, is not seen, so the member is reported although it is used: spell it once
@@ -511,11 +516,11 @@ A companion is matched by where its chain grows from, `Val.sealer` or `Val.compa
 unrelated library's `.impl({…})` stays out of the report. A builder held in a variable first counts
 too.
 
-The third rule needs your own TypeScript, to resolve a type reference to the alias it names. It runs
-`tsc --lsp` on TypeScript 7 and the compiler API on 5 and 6, whichever the project has; with none it
-reports nothing. Nothing is added to your `package.json` for it. It also stays out of the way
-entirely unless something calls `.implEquals`, since without one there is no custom equality to
-miss.
+The `structural-equals` rule needs your own TypeScript, to resolve a type reference to the alias it
+names. It runs `tsc --lsp` on TypeScript 7 and the compiler API on 5 and 6, whichever the project
+has; with none it reports nothing. Nothing is added to your `package.json` for it. It also stays out
+of the way entirely unless something calls `.implEquals`, since without one there is no custom
+equality to miss.
 
 It reports every level at once. Where `Order` holds `OrderLine` holds `Money`, fixing the inner one
 does not uncover a new finding on the outer. Any entry in the spec counts as having looked, a
