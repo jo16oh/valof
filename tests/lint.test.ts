@@ -13,6 +13,9 @@ beforeAll(() => {
 });
 afterAll(() => types?.close());
 
+const filesOf = (fixture: string): string[] =>
+  globSync(`tests/fixtures/${fixture}/**/*.ts`, { cwd: root }).map((f) => `${root}${f}`);
+
 /**
  * Findings over one fixture directory, as the command would print them.
  *
@@ -21,23 +24,46 @@ afterAll(() => types?.close());
  */
 async function lint(fixture: string, ...skip: Kind[]): Promise<string[]> {
   const directory = `tests/fixtures/${fixture}/`;
-  const files = globSync(`${directory}**/*.ts`, { cwd: root }).map((f) => `${root}${f}`);
-  const findings = await run(files, { ...(types ? { types } : {}), skip: new Set(skip) });
+  const findings = await run(filesOf(fixture), {
+    ...(types ? { types } : {}),
+    skip: new Set(skip),
+  });
   return findings.map(
     ({ file, line, column, kind, message }) =>
       `${file.replace(`${root}${directory}`, "")}:${line}:${column}  ${kind}  ${message}`,
   );
 }
 
-/** The command, for what only the command does. */
-function cli(...args: string[]): { status: number; stdout: string; stderr: string } {
-  const result = spawnSync(process.execPath, ["src/lint/cli.ts", ...args], {
+/** A resolver that answers nothing, and counts what it was asked. */
+function spy(): Resolver & { asked: () => number } {
+  let asked = 0;
+  return {
+    resolveAll: (queries) => {
+      asked += queries.length;
+      return Promise.resolve(queries.map(() => []));
+    },
+    close: () => {},
+    asked: () => asked,
+  };
+}
+
+type Run = { status: number; stdout: string; stderr: string };
+
+function spawn(node: string[], args: string[]): Run {
+  const result = spawnSync(process.execPath, [...node, "src/lint/cli.ts", ...args], {
     cwd: root,
     encoding: "utf8",
   });
   if (result.error) throw result.error;
   return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr.trim() };
 }
+
+/** The command, for what only the command does. */
+const cli = (...args: string[]): Run => spawn([], args);
+
+/** The same, with the parser out of reach, as it is before anyone installs it. */
+const cliWithoutParser = (...args: string[]): Run =>
+  spawn(["--import", "./tests/support/no-oxc-parser.js"], args);
 
 describe("unused companion members", () => {
   test("reports a member nothing reads, and spares the one that is read", async () => {
@@ -49,6 +75,12 @@ describe("unused companion members", () => {
   test("finds the reader in another file, through a renamed import", async () => {
     expect(await lint("unused/renamed-import")).toEqual([
       "user.ts:3:3  unused-member  User.shout is never read",
+    ]);
+  });
+
+  test("reads a chain rooted at a namespaced Val", async () => {
+    expect(await lint("unused/namespaced-val")).toEqual([
+      "a.ts:5:3  unused-member  User.shout is never read",
     ]);
   });
 
@@ -201,9 +233,10 @@ describe("a child's own equals", () => {
     ]);
   });
 
-  test("names the element position of an array", async () => {
+  test("names the element position, spelled `readonly T[]` or `ReadonlyArray<T>`", async () => {
     expect(await lint("equals/array")).toEqual([
       "order.ts:6:22  structural-equals  Order.charges[] holds Money, which has its own equals",
+      "order.ts:6:22  structural-equals  Order.refunds[] holds Money, which has its own equals",
     ]);
   });
 
@@ -224,6 +257,12 @@ describe("a child's own equals", () => {
 
   test("is silenced by a directive above the companion", async () => {
     expect(await lint("equals/silenced")).toEqual([]);
+  });
+
+  test("asks the type checker nothing where no companion states its equality", async () => {
+    const types = spy();
+    await run(filesOf("unused/dead-member"), { types });
+    expect(types.asked()).toBe(0);
   });
 });
 
@@ -287,11 +326,14 @@ describe("turning a rule off", () => {
     expect(await lint("mixed", "duplicate-brand", "unused-member")).toEqual([]);
   });
 
-  test("skips the structural-equals rule without starting a TypeScript for it", async () => {
-    expect(await lint("equals/plain")).toEqual([
-      "order.ts:6:22  structural-equals  Order.total holds Money, which has its own equals",
-    ]);
-    expect(await lint("equals/plain", "structural-equals")).toEqual([]);
+  test("skips the structural-equals rule without asking the type checker anything", async () => {
+    const files = filesOf("equals/plain");
+    const types = spy();
+
+    await run(files, { types, skip: new Set<Kind>(["structural-equals"]) });
+    expect(types.asked()).toBe(0);
+    await run(files, { types, skip: new Set<Kind>() });
+    expect(types.asked()).toBeGreaterThan(0);
   });
 
   test("names the known rules when the flag names none of them", () => {
@@ -310,15 +352,11 @@ describe("turning a rule off", () => {
 });
 
 describe("the command itself", () => {
-  test("prints a finding as location, kind, then message", () => {
-    const { stdout } = cli("tests/fixtures/unused/dead-member/**/*.ts");
+  test("prints a finding as location, kind, then message, and exits 1 with a summary", () => {
+    const { status, stdout, stderr } = cli("tests/fixtures/unused/dead-member/**/*.ts");
     expect(stdout).toBe(
       "tests/fixtures/unused/dead-member/a.ts:3:3  unused-member  Id.shout is never read\n",
     );
-  });
-
-  test("exits 1 with a summary when it finds something", () => {
-    const { status, stderr } = cli("tests/fixtures/unused/dead-member/**/*.ts");
     expect(status).toBe(1);
     expect(stderr).toBe("valof-lint: 1 finding(s) in 1 file(s)");
   });
@@ -343,7 +381,28 @@ describe("the command itself", () => {
     expect(stderr).toBe("valof-lint: no files matched");
   });
 
+  test("names every rule and what it looks for, under --help and -h alike", () => {
+    const { status, stdout } = cli("--help");
+    expect(status).toBe(0);
+    expect(stdout).toContain(
+      "  unused-member      functions and constants registered with `.impl({…})` that nothing reads\n" +
+        "  duplicate-brand    a brand string claimed by more than one type alias\n" +
+        "  structural-equals  a payload holding a Val whose own `equals` the parent never dispatches to\n",
+    );
+    expect(cli("-h").stdout).toBe(stdout);
+  });
+
+  test("asks for oxc-parser when it is not installed", () => {
+    const { status, stderr } = cliWithoutParser("tests/fixtures/unused/dead-member/**/*.ts");
+    expect(status).toBe(2);
+    expect(stderr).toBe(
+      "valof-lint needs oxc-parser, which valof does not install for you.\n" +
+        "  pnpm add -D oxc-parser",
+    );
+  });
+
   test("has nothing to report about the package's own sources", () => {
-    expect([cli().status, cli().stdout]).toEqual([0, ""]);
+    const { status, stdout } = cli();
+    expect([status, stdout]).toEqual([0, ""]);
   });
 });
