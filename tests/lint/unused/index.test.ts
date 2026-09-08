@@ -1,19 +1,9 @@
-import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 
-import { resolver, type Resolver } from "../../../src/lint/index.ts";
-import { fixtures, root } from "../support.ts";
+import { fixtures } from "../support.ts";
 
-const { all, lint: over } = fixtures(import.meta.url);
-
-// `builder-chain` writes an `.implEquals`, which is enough for the structural-equals rule to ask
-// for a resolver. One shared here rather than one opened and closed per run.
-let types: Resolver | undefined;
-beforeAll(() => {
-  types = resolver(root, all());
-});
-afterAll(() => types?.close());
-
-const lint = (fixture: string): Promise<string[]> => over(fixture, { types });
+// No fixture here states its equality, so no fixture needs a language server.
+const { lint } = fixtures(import.meta.url);
 
 describe("what the rule finds", () => {
   test("reports a member nothing reads, and spares the one that is read", async () => {
@@ -55,9 +45,9 @@ describe("what the rule finds", () => {
     expect(await lint("builtins")).toEqual([]);
   });
 
-  test("reads through a builder chain, past implSeal, implEquals and fixed", async () => {
+  test("reads through a builder chain, past implSeal and fixed", async () => {
     expect(await lint("builder-chain")).toEqual([
-      "builder-chain.ts:7:5  unused-member  Doc.subtitle is never read",
+      "builder-chain.ts:6:5  unused-member  Doc.subtitle is never read",
     ]);
   });
 

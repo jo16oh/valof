@@ -2645,7 +2645,12 @@ tests/lint/
 
 **単一ファイルの fixture はフォルダを畳む。** `unused/dead-member/a.ts` → `unused/dead-member.ts`。`a.ts` は何を試しているかを 1 文字も語らない。複数ファイルのものは `billing.ts` / `orders.ts` のように中身で名づける。finding は `fixtures/` からの相対パスで出すので、期待値の 1 行目が自分の見ている fixture を名乗る。
 
-**resolver を持つのは 2 ファイルだけ。** `equals/` と `unused/`（`builder-chain` が `.implEquals` を書くので structural-equals が resolver を要求する）。残り 4 つは持たない。どのテストが language server を要るかがレイアウトに出る。
+**resolver を持つのは `equals/` だけ。** どのテストが language server を要るかがレイアウトに出る。
+
+以前は `unused/` も持っていた。`builder-chain` が `.implEquals` を書いていたためで、そこを観測するテストは 1 本もなかった。ステップを 2 つ（`implSeal` と `fixed`）残して `.implEquals` だけ落とし、抜けた分は `equals/plain` の chain にステップを足して受けた。変異で両方を確認した。
+
+- `rootPath` が呼び出しステップを 1 段しか降りない → `unused/builder-chain` だけが赤（58 本中 1 本）
+- `readChain` の walk が引数なしのステップ（`fixed<"id">()`）で止まる → `equals/plain` が赤。`covered` のような `[]` を期待する fixture では site ごと消えて緑のままなので、**finding を出す側**の fixture でしか押さえられない
 
 **設定は 3 箇所。** `vite.config.ts` の lint / fmt `ignorePatterns` が `tests/lint/**/fixtures/**`、`tsconfig.json` の `exclude` が `tests/lint/*/fixtures`。fixture に型エラーと崩れた整形を入れて `vp check` が黙ることを確認した。ここを間違えると fixture が検査に入る。
 
