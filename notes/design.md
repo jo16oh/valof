@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、裸の disable コメント（§14.14）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、裸の disable コメント（§14.14）、効いていない disable コメント（§14.15）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1631,7 +1631,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`rules/equals/index.ts` の「最初が勝つ」
 - [ ] fixture を型検査するか（§14.10）。`rules/structural-equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので 0 error。他は除外のまま
-- [ ] valof-lint の規則 `brand-mismatch` を実装する（§14.12）。判定は `brand.slice(brand.lastIndexOf("/") + 1) === alias`、既定で on。`Rule` 1 つと `RULES` への 1 行で足りる
+- [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`bare-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
 
@@ -1830,7 +1830,7 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 
 ## 14. valof-lint
 
-2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-07 時点で `main` 未マージ。規則は 5 つ（§14.4、§14.7、§14.12、§14.14）、構成は §14.8。
+2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-07 時点で `main` 未マージ。規則は 6 つ（§14.4、§14.7、§14.12、§14.14、§14.15）、構成は §14.8。
 
 `.impl({...})` の中の関数は、dead と報告されることもバンドルから落ちることもない。`attach` が実行時に `Object.defineProperty` で companion に載せるので、静的解析からは「関数に渡されたオブジェクトリテラル」にしか見えない。
 
@@ -1910,12 +1910,13 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 ### 14.4 ルール
 
-構文だけで判定するものが 4 つ。残る 1 つは go-to-definition を使う（§14.7）。
+構文だけで判定するものが 5 つ。残る 1 つは go-to-definition を使う（§14.7）。
 
 - 誰も読まない companion のメンバ
 - 複数の**トップレベル**型エイリアスが主張しているブランド文字列
 - 型名で終わっていないブランド文字列（§14.12）
 - ルールを名指ししていない disable コメント（§14.14）
+- 何も黙らせていない disable コメント（§14.15）
 
 トップレベル限定であることが効く。この制限がないと、このリポジトリ自身のテストで `describe` や `test` の中にスコープされたフィクスチャから 30 件の衝突が報告される。
 
@@ -2562,7 +2563,7 @@ cp /tmp/m.bak src/lint/rules/equals/paths.ts
 | `typecheck/in-process.ts` | TS5/6 バックエンド。開発機は TS 7.0.2 なので `overLsp` が選ばれ、**丸ごと走らない**。CI に TS5/6 を入れるかとセット（§10.1） |
 | `paths.ts` payload walk   | `TSTupleType` / `TSUnionType` / `TSIntersectionType` / `TSOptionalType`                                                      |
 | `unused.ts`               | 「同名 companion への read は両方に credit される」意図的な過剰近似                                                          |
-| `brands.ts`               | 同一ファイル内の衝突、3 つ以上の衝突                                                                                         |
+| `duplicate-brand.ts`      | 同一ファイル内の衝突、3 つ以上の衝突                                                                                         |
 | `index.ts` の sort        | 同一 file/line/column での kind によるタイブレーク                                                                           |
 | `cli.ts` の引数解析       | `--no-` の複数指定。in-process 側は覆えている                                                                                |
 
@@ -2824,7 +2825,77 @@ valof-lint-disable-next-line names no rule; name the ones it silences
 言うことがない。`ignore/after-code` が緑のままであることがそれを守る。
 
 **自分を黙らせられない。**finding は指示の行に、指示が黙らせるのは次の行に出るので、裸の指示が自分の
-報告を消すことはない。名指しの `// valof-lint-disable-next-line bare-disable` でなら消せる。
+報告を消すことはない。
+
+**2026-09-08 訂正。**「名指しの `// valof-lint-disable-next-line bare-disable` でなら消せる」と書いたが、
+消せていたのは**バグのおかげ**だった。`byLine.set(blockEnd + 1, kinds)` をコメントごとに書き直していたため、
+ブロックの途中の行（＝次のコメントの行）にエントリが残っていた。§14.15 でブロック単位に組み直したときに
+消えた。指示についての finding を黙らせる手段は `--no-<kind>` だけになる。
+
+### 14.15 規則: 効いていない disable コメント、2026-09-08
+
+**入れる。**`unused-disable`。指示が挙げた名前のうち、その行で何も黙らせなかったものを報告する。
+既定で on。
+
+```
+valof-lint-disable-next-line names unused-member, which reports nothing here
+```
+
+**名前ごとに 1 件。**`unused-member, duplicate-brand` の片方だけが働いているとき、どちらを消せばよいかを
+finding が名乗る。裸の指示は対象外で、`bare-disable` に任せる。名指しする名前がなく、求める修正も同じ。
+
+#### 他のルールの findings が要る
+
+これだけは `Scan` から決まらない。「この指示は何かを黙らせたか」は他のルールが何を報告したかの関数で、
+`run(scans, context)` からは見えなかった。**`Context` を 2 つ広げた。**
+
+```ts
+reported: readonly Located[];      // 前のルールが報告したもの、黙らされる前
+notRun: ReadonlySet<string>;       // 報告できなかった kind
+```
+
+`RULES` の順が実行順であることに、初めて意味が生まれる。このルールは**最後に置く**。
+
+**`notRun` は `--no-<kind>` だけ。**外したルールは指示を「効いていない」ように見せるが、指示のせいではない。
+
+**残る誤検知は glob。**duplicate-brand は相方のファイルが同じ run に要る。1 ファイルずつ lint すると、
+プロジェクト全体では働いている指示を報告する。README に書いた。
+
+#### TypeScript が無ければ走らない
+
+最初は「TS の無いプロジェクトの `structural-equals`」も誤検知の一つとして扱い、`types()` をルールごとに
+包んで「聞いて `undefined` が返った kind」を `notRun` に足していた。**やめた。**`resolver()` が
+`undefined` を返す経路そのものを消し、投げるようにした（`code: ERR_NO_TYPESCRIPT`）。CLI が受けて exit 2。
+
+- **Val を書く人で TypeScript を持たない人はいない。**「無い」は支援すべき構成ではなく壊れたインストール
+- **黙って何も報告しないのが一番悪い。**クリーンな run と見分けが付かない
+- **分岐が 3 つ消えた。**`Context.types` の `Resolver | undefined`、equals ルールの `if (!resolver) return []`、
+  runner の per-rule ラッパ。`Options.types` の `null` も要らなくなった
+
+**確認は起動時、1 回。**最初はルールが名前解決を求めたときに投げる形にした。**やめた。**落ちるかどうかが
+「今このファイル群に `.implEquals` があるか」で決まる。`.implEquals` を 1 つ足した日に、TS の無い機械の CI が
+初めて落ちる。`--no-structural-equals` でも要求する。
+
+**確認は起動ではない。**`require.resolve` するだけで、language server は今までどおりルールに聞かれるまで
+起動しない。§14.8 の 212 ms → 109 ms は保たれる。
+
+テストは `tests/lint/no-typescript.ts`。`no-oxc-parser.ts` と同じ `module.registerHooks` の resolve フックで、
+`typescript` の解決だけを失敗させる。TS のある機械から、無い機械の出口を通せる。
+
+#### 実装: `Scan.disabled` / `Scan.bare` → `Scan.directives`
+
+指示 1 つを `{ line, column, covers, kinds }` にした。`disabled`（行 → 種別）は `silences()` で導出する。
+
+**ブロック単位に組み直した。**以前はコメントごとに `byLine.set(blockEnd + 1, kinds)` を呼び、ブロックが
+伸びるたびに書き直していた。**途中の行のエントリが残る。**行の下ではなくブロックの中を指す幽霊で、
+`unused-disable` はそれを「効いている指示」と読んでしまう。ブロックを閉じるときに一度だけ書く形にした
+（§14.14 の訂正も参照）。
+
+#### ファイル名を kind に揃えた
+
+`unused.ts` の隣に `unused-disable.ts` が並ぶのが読めない。`rules/` を `unused-member.ts` /
+`duplicate-brand.ts` / `brand-mismatch.ts` / `bare-disable.ts` / `unused-disable.ts` /
+`structural-equals/` にした。`tests/lint/rules/` が §14.11 で採った並びと同じで、`--help` の語彙とも一致する。
 
 ### 14.13 `Val` の綴りを 1 箇所に、2026-09-08
 

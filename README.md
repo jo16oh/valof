@@ -456,6 +456,9 @@ parent holding that Val compares it structurally and the child's rule is never r
 **A disable comment that names no rule.** It silences every rule on the line below, rules written
 after it included, so what it hides grows without anyone deciding to.
 
+**A disable comment that silences nothing.** The finding it was written for is gone, and what stays
+is a claim about the code that is no longer true.
+
 ```bash
 pnpm add -D oxc-parser   # valof does not install it for you
 pnpm exec valof-lint 'src/**/*.ts'
@@ -467,7 +470,8 @@ src/order.ts:3:13  duplicate-brand    Id claims the brand "Id", and so does anot
 src/order.ts:5:13  brand-mismatch     EmailAddress claims the brand "Email", which should be "EmailAddress"
 src/order.ts:9:22  structural-equals  Order.total holds Money, which has its own equals
 src/cart.ts:12:3   bare-disable       valof-lint-disable-next-line names no rule; name the ones it silences
-valof-lint: 5 finding(s) in 12 file(s)
+src/cart.ts:20:3   unused-disable     valof-lint-disable-next-line names unused-member, which reports nothing here
+valof-lint: 6 finding(s) in 12 file(s)
 ```
 
 The middle column is the rule, and it is the name `--no-<rule>` and the disable comment both take.
@@ -499,9 +503,17 @@ shout: (u) => u.toUpperCase(),
 
 Name the rules it silences, as many as you like, separated by a space or a comma. A directive that
 names none silences all of them, which is the `bare-disable` finding above; it goes on silencing
-while it is there. The whole comment block above the line is read, not only the comment touching it,
-so the directive sits anywhere among another linter's comments. A blank line, or code, ends the
-block.
+while it is there. A name that silences nothing is reported in turn, one finding per name, so a
+directive that has outlived one of its reasons says which name to drop.
+
+A rule left out with `--no-<rule>` is never blamed for a directive that names it. A partial glob is
+not covered, though. A duplicate brand needs the other file in the run, so linting one file at a
+time can report a directive that is doing its job across the project.
+
+A finding about a directive cannot be silenced by a directive, since a directive covers the line
+below it and these land on the comment itself. Use `--no-bare-disable` or `--no-unused-disable`. The
+whole comment block above the line is read, not only the comment touching it, so the directive sits
+anywhere among another linter's comments. A blank line, or code, ends the block.
 
 It is wrong in two opposite ways. A read that spells no name, `User[method]` or a companion reached
 through a default export, is not seen, so the member is reported although it is used: spell it once
@@ -519,9 +531,12 @@ too.
 
 The `structural-equals` rule needs your own TypeScript, to resolve a type reference to the alias it
 names. It runs `tsc --lsp` on TypeScript 7 and the compiler API on 5 and 6, whichever the project
-has; with none it reports nothing. Nothing is added to your `package.json` for it. It also stays out
-of the way entirely unless something calls `.implEquals`, since without one there is no custom
-equality to miss.
+has. Nothing is added to your `package.json` for it.
+
+The command checks for it up front and stops when there is none, rather than reporting a clean file:
+writing Vals without TypeScript is a broken install, not a case to support. Checking is not
+starting. The language server still waits for something to call `.implEquals`, since without one
+there is no custom equality to miss, and `--no-structural-equals` keeps it from starting at all.
 
 It reports every level at once. Where `Order` holds `OrderLine` holds `Money`, fixing the inner one
 does not uncover a new finding on the outer. Any entry in the spec counts as having looked, a
