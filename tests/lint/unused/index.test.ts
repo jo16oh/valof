@@ -28,12 +28,6 @@ describe("what the rule finds", () => {
     ]);
   });
 
-  test("reads a chain rooted at a namespaced Val", async () => {
-    expect(await lint("namespaced-val")).toEqual([
-      "namespaced-val.ts:5:3  unused-member  User.shout is never read",
-    ]);
-  });
-
   test("follows a read made through a namespace import", async () => {
     expect(await lint("namespace-import")).toEqual([
       "namespace-import/user.ts:3:3  unused-member  User.shout is never read",

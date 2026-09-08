@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -93,7 +93,7 @@ type Val<K extends string, T> = DeepReadonly<T> & {
 `__valof_internal_phantom_payload` はペイロード型 `T` を復元するためだけに存在する。これがないと `Val<"IsoDate", string>` のようなプリミティブを包んだ Val からコンストラクタの引数型を導けない（`Omit` はプリミティブに効かない）。どちらも実行時には存在しない。
 
 - 判別が文字列リテラルなので、型ごとに `declare const XxxBrand: unique symbol` を書かずに済む
-- 衝突は同名の文字列同士のみ。`"app/User"` のように名前空間を付ける命名規約を推奨する
+- 衝突は同名の文字列同士のみ。**ブランドは型名と同じにする**（valof-lint が検査する、§14.12）。同じ名前が二か所に要るとき、monorepo の `Id` のような場合だけ `"billing/Id"` と名前空間を付ける
 
 symbol / 文字列を利用者に選ばせる案は却下。API 表面が増えるだけで、上のハイブリッドが両方の利点を持つ。
 
@@ -1631,6 +1631,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`equals/index.ts` の「最初が勝つ」
 - [ ] fixture を型検査するか（§14.10）。`equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので `equals/` は今 0 error。他は除外のまま
+- [ ] valof-lint の規則 `brand-mismatch` を実装する（§14.12）。判定は `brand.slice(brand.lastIndexOf("/") + 1) === alias`、既定で on。`Rule` 1 つと `RULES` への 1 行で足りる
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
 
@@ -2534,8 +2535,8 @@ cp /tmp/m.bak src/lint/rules/equals/paths.ts
 
 - **`paths.ts` `ARRAY_LIKE`。**`equals/array` の payload に `refunds: ReadonlyArray<Money>` を足した。
   `readonly Money[]` と同じ `charges[]` / `refunds[]` に落ちる。
-- **`chains.ts` `fromVal` の namespace 形。**`unused/namespaced-val` を足した。
-  `valof.Val.sealer<User>().impl({…})`。
+- **`chains.ts` `fromVal` の namespace 形。**`valof.Val.sealer<User>().impl({…})` の fixture を足した
+  （今は `bindings/namespaced-value`、§14.13）。
 - **`cli.ts` の `--help` / `-h`。**description とパディングを込みで見る。
 - **`cli.ts` の oxc-parser 未導入の案内。**`--import tests/lint/no-oxc-parser.ts` が resolve フックで
   `oxc-parser` だけ `ERR_MODULE_NOT_FOUND` にする。パーサが入っている機械で、入っていない機械の出口を通せる。
@@ -2626,15 +2627,17 @@ fixture とテストを離すと、1 本読むたびに別の木へ飛ぶ。§14
 tests/lint/
   support.ts          fixtures() / spy() / cli()
   no-oxc-parser.ts    --import で渡す resolve フック
+  self.test.ts        パッケージ自身を lint する 1 本
   unused/   {fixtures/, index.test.ts}
   brand/    …
   equals/   …
   ignore/   …
   skip/     …    fixture は mixed/
   command/  …
+  bindings/ …    §14.13 で追加
 ```
 
-**境界はルール 3 つ + 横断機構 3 つ。** 元の `turning a rule off` には性質の違う 3 つが同居していた。API の `skip`、CLI の `--no-` 解析、そして「TypeScript を起こさない」という費用の主張。前 2 つを `skip/` に、費用は `equals/` に移した。`skip/` は**何が報告されるか**、`equals/` は**何を払うか**を見る。
+**境界はルール 3 つ + 横断機構 3 つ。**（`bindings/` を足して 4 つ、§14.13） 元の `turning a rule off` には性質の違う 3 つが同居していた。API の `skip`、CLI の `--no-` 解析、そして「TypeScript を起こさない」という費用の主張。前 2 つを `skip/` に、費用は `equals/` に移した。`skip/` は**何が報告されるか**、`equals/` は**何を払うか**を見る。
 
 **fixture の重複は許す。** `command/` は出力の形が被写体なので、finding 1 件・0 件・`implEquals` ありの 3 つを自前で持つ。
 
@@ -2646,15 +2649,132 @@ tests/lint/
 
 **設定は 3 箇所。** `vite.config.ts` の lint / fmt `ignorePatterns` が `tests/lint/**/fixtures/**`、`tsconfig.json` の `exclude` が `tests/lint/*/fixtures`。fixture に型エラーと崩れた整形を入れて `vp check` が黙ることを確認した。ここを間違えると fixture が検査に入る。
 
+**自己 lint は `command/` から出した。** 引数なしの `cli()` は `src/**/*.ts` を見る。赤が言うのは「CLI が壊れた」ではなく「`src/` に finding が出た」で、`command/`（被写体は出力の形）とは別の主張。`tests/lint/self.test.ts` に 1 本で置いた。変異で確認: `src/index.ts` に読まれないメンバを足すと赤くなる。
+
+**却下: `vite.config.ts` のタスクにする。** lint の位置づけは出るが、`vp run size` と同じで回し忘れる。`vp test` に乗っていれば §14.11 のチェックリストが 1 つ減る。
+
+**ルール一覧を名乗るのは `--help` だけ。** `skip/` の `--no-typo` のエラーは `kinds` をレジストリから読んで組む。以前は 3 つのリテラルで、`--help` と 2 箇所が同じ列挙を持っていた。§14.12 の `brand-mismatch` を足したとき赤くなるのは 1 箇所。メッセージの形（前置き、字下げ、`, ` 区切り）は変異で赤を確認済み。
+
 **却下: 1 ファイルのまま describe を増やす。** fixture との距離が縮まらない。
 
 **却下: `command/` から他家族の fixture を参照する。** 重複はゼロになるが、コロケーションが 1 ファイルだけ崩れる。5 行の重複を取った。
 
 **却下: フックを `.js` のまま置く。** `--import` も type stripping を通るので `.ts` で動く。`.js` の理由になっていた「型検査から外れる」は、裏返すとリポジトリで 1 ファイルだけ検査から漏れるという話だった。フック本体は `data:` URL の文字列の中なので、`.ts` にしても型が付くのは外側の `register()` だけ。本体まで型を付けるには register 側と hooks 側の 2 ファイルに割る必要があり、5 行のフックには重い。
 
+### 14.12 規則: 型名と一致しないブランド、2026-09-08
+
+**入れる。** `brand-mismatch`。ブランドの最後の `/` 以降が型名と一致しなければ報告する。既定で on。
+
+```
+判定  brand.slice(brand.lastIndexOf("/") + 1) === alias
+```
+
+```ts
+type UserId = Val<"UserId", string>; // 通る
+type BillingId = Val<"billing/BillingId", string>; // 通る。/ 以前は見ない
+type EmailAddress = Val<"Email", string>; // 報告
+```
+
+#### 根拠: ブランドは言語が強制する重複
+
+`type X = Val<...>` から TypeScript は「これは `X` という名前だ」を導けない。だからブランド文字列は
+**型名を人間がもう一度書かされているだけ**で、情報を増やしていない。
+
+「事実は正典の場所に一度だけ書く」がここだけ守れない。守れないなら 2 つが食い違わないことを保証する
+のは lint しかない。既存 3 つと同じ「一致すべき 2 つの食い違い」の検出であり、スタイル規則ではない。
+
+リネームで顕在化する。LSP のリネームは文字列リテラルを書き換えないので、`OrderId` →
+`PurchaseOrderId` にするとブランドは `"OrderId"` のまま残る。コンパイラは永久に気づかない。代償は
+エラーメッセージで、読み手が「なぜ」を読む一番深い行が実在しない型名を指す。
+
+```
+Type 'PurchaseOrderId' is not assignable to type 'UserId'.
+      Type '"OrderId"' is not assignable to type '"UserId"'.   <- ここ
+```
+
+#### 根拠: README が既にそう言っている
+
+> **Name the brand after the type it brands.**
+
+規則は新しい規約を作らない。**既にある規約を機械が守るだけ。**既定で on にする根拠もこれ。
+
+#### 根拠: ブランドを選べること自体が思考コスト
+
+`type EmailAddress = Val<"Email", string>` を正当と認めた瞬間、「どこまでの略記を許すか」という判断が
+利用者に戻る。それが払わせたくないコストなので、認めない。移行中の `UserV2` も同じで、別の型なら
+別のブランドを持つべき。**誤検知は実質ない。**非リテラルのブランドと `Val` でないものは、
+duplicate-brand と同じ `original(bound, typeName) !== "Val"` ガードで落ちる。
+
+#### 却下: 型名と名前空間を混ぜる二本立て
+
+`type BillingId = Val<"billing/Id">` を通すために「最後のセグメント一致、または全セグメントの
+PascalCase 連結一致」を検討した。**通す理由がない。**型名を `BillingId` にしたならブランドも
+`"billing/BillingId"` にすればよい。名前空間と型名は直交していて、混ぜる必要がなかった。
+
+「型名がブランド末尾で終わればよい」（`BillingId`.endsWith(`Id`)）も却下。`type UserId = Val<"Id">`
+が通ってしまい、規則の目的が消える。
+
+#### 却下: `/` 以前にも規約を作る、名前空間を既定で推奨する
+
+**`/` 以前は見ない。**そこに規約を作らない理由は 2 つ。
+
+1. **跨ぎの衝突は実質 monorepo だけ。** valof はライブラリ構築を推奨しない（README の Caveats）。
+   monorepo なら全ディレクトリに scan をかければ duplicate-brand がそのまま見る。brand 系の規則は
+   resolver を使わないので、対象を広げる costs は scan だけ。
+2. **何を前置きにするかはプロジェクト構成に依存する。** 規約にできない。
+
+副産物として、**問題が起きるまで思考コストを払わなくてよい。**名前空間は要らないうちは書かない。
+`UserId` が 2 つできて duplicate-brand が鳴ってから、そのとき初めて分け方を考える。
+
+これに伴い §2.1 の「`"app/User"` のように名前空間を付ける命名規約を推奨する」を改めた。README
+（`Id` in two domains of a monorepo）が最初から monorepo 限定で書いていて、§2.1 だけが一般的な推奨に
+なっていた。
+
+#### メッセージは直し方を名指しする
+
+正解が機械的に導けるので、既存 3 つにできないことができる。
+
+```
+EmailAddress claims the brand "Email", which should be "EmailAddress"
+BillingId claims the brand "billing/Id", which should be "billing/BillingId"
+```
+
+`Id claims the brand "Id", and so does another type` と同じ構文で、後半だけが「どうすべきか」になる。
+
+#### 実装
+
+`BrandClaim` が既に `alias` / `brand` / 位置を持つ。`Rule` オブジェクト 1 つと `RULES` への 1 行だけで、
+`Scan` に足すものも resolver も要らない（§14.8）。バンドル予算は無関係。`scripts/size.ts` が測るのは
+`dist/index.mjs` だけで lint は入らない。
+
 ---
 
 ## 15. v2 候補
+
+### 14.13 `Val` の綴りを 1 箇所に、2026-09-08
+
+「`Val` をどう綴っても認識する」は 3 箇所が依存する共有の事実。`brands.ts:41`（型位置）、`aliases.ts:76`
+（型位置、equals のエイリアス収集）、`chains.ts` `fromVal`（値位置）。記録がルール別のディレクトリに散っていた
+ので `bindings/` に集めた（`src/lint/scan/bindings.ts` に対応）。
+
+移したもの: `brand/` から `renamed-val` / `namespaced-val` / `shadowed-val` / `not-a-val`、`unused/` から
+`namespaced-val`。名前は位置を名乗るように変えた（`renamed-type` / `namespaced-value`）。
+
+**集めて 2 つ穴が出た。** どちらも fixture 1 つで塞がり、変異で赤を確認した。
+
+- **値位置でリネームした `Val`。**`import { Val as V }` + `V.sealer<User>()`。`fromVal` の
+  `original(bound, first)` を通る唯一の形が未カバーだった。→ `renamed-value.ts`
+- **namespace import ではない修飾子。**`other.Val<"Id", string>`。`valName` の `namespaces.has` を消しても
+  `namespaced-type` は緑のまま（右側が `Val` なので通ってしまう）。ガードを守るのは**落ちる側**の fixture
+  だけ。→ `not-a-namespace/`
+
+**期待値は 2 ルールにまたがる。** 型位置は `duplicate-brand`、値位置は `unused-member`。ルールの名前が付いて
+いないディレクトリに両方が並ぶこと自体が「これはルールの話ではない」と言っている。被写体は結合の解決で、
+finding は**それを最も安く観測できるルール**のもの。
+
+**却下: `unused/` のリネーム追跡も動かす。** `renamed-import` / `re-export` / `same-name` /
+`no-cross-file-credit` が叩くのは `unused.ts` の `exportedAs` → `declaredName`。unused の中にしかなく、
+他のルールは呼ばない。共有機構ではなくルールの機能なので `unused/` に残す。
 
 ### 15.1 `Val.trait`
 

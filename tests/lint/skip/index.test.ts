@@ -1,5 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
+import { kinds } from "../../../src/lint/index.ts";
 import { cli, fixtures } from "../support.ts";
 
 const { lint } = fixtures(import.meta.url);
@@ -25,13 +26,12 @@ test("takes more than one, and leaves nothing once every kind is out", async () 
   expect(await lint("mixed", { skip: ["duplicate-brand", "unused-member"] })).toEqual([]);
 });
 
+// The list read off the registry, not written again: which rules exist is what `--help` names,
+// and that is the command's own test.
 test("names the known rules when the flag names none of them", () => {
   const { status, stderr } = cli("--no-typo", glob);
   expect(status).toBe(2);
-  expect(stderr).toBe(
-    'valof-lint: no rule called "typo"\n' +
-      "  known rules: unused-member, duplicate-brand, structural-equals",
-  );
+  expect(stderr).toBe('valof-lint: no rule called "typo"\n' + `  known rules: ${kinds.join(", ")}`);
 });
 
 test("passes the flag through to the run", () => {

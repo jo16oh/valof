@@ -52,8 +52,3 @@ test("asks for oxc-parser when it is not installed", () => {
       "  pnpm add -D oxc-parser",
   );
 });
-
-test("has nothing to report about the package's own sources", () => {
-  const { status, stdout } = cli();
-  expect([status, stdout]).toEqual([0, ""]);
-});
