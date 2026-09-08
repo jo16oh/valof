@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { fixtures } from "../support.ts";
+import { fixtures } from "../../support.ts";
 
 const { lint } = fixtures(import.meta.url);
 

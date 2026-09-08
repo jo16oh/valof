@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 
-import { resolver, type Resolver } from "../../../src/lint/index.ts";
-import { fixtures, root, spy } from "../support.ts";
+import { resolver, type Resolver } from "../../../../src/lint/index.ts";
+import { fixtures, root, spy } from "../../support.ts";
 
 const { all, lint: over } = fixtures(import.meta.url);
 

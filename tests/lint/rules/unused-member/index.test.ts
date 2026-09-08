@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { fixtures } from "../support.ts";
+import { fixtures } from "../../support.ts";
 
 // No fixture here states its equality, so no fixture needs a language server.
 const { lint } = fixtures(import.meta.url);

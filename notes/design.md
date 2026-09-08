@@ -1629,8 +1629,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
-- [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`equals/index.ts` の「最初が勝つ」
-- [ ] fixture を型検査するか（§14.10）。`equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので `equals/` は今 0 error。他は除外のまま
+- [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`rules/equals/index.ts` の「最初が勝つ」
+- [ ] fixture を型検査するか（§14.10）。`rules/structural-equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので 0 error。他は除外のまま
 - [ ] valof-lint の規則 `brand-mismatch` を実装する（§14.12）。判定は `brand.slice(brand.lastIndexOf("/") + 1) === alias`、既定で on。`Rule` 1 つと `RULES` への 1 行で足りる
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
@@ -2574,24 +2574,24 @@ cp /tmp/m.bak src/lint/rules/equals/paths.ts
 
 #### 未決: fixture を型検査するか
 
-`tsconfig.json` は `exclude: ["tests/lint/*/fixtures"]`。外すと **112 errors**。内訳が判断を分ける。
+`tsconfig.json` は `exclude: ["tests/lint/**/fixtures"]`。外すと **112 errors**。内訳が判断を分ける。
 
-|           | エラー                   |
-| --------- | ------------------------ |
-| `equals/` | **0**（TS1361 は直した） |
-| `mixed/`  | 1                        |
-| `unused/` | 73                       |
-| `ignore/` | 21                       |
-| `brand/`  | 16                       |
+|                      | エラー                   |
+| -------------------- | ------------------------ |
+| `structural-equals/` | **0**（TS1361 は直した） |
+| `mixed/`             | 1                        |
+| `unused-member/`     | 73                       |
+| `ignore/`            | 21                       |
+| `duplicate-brand/`   | 16                       |
 
-`equals/` は go-to-definition が解決しないと成立しないので最初から realistic に書くしかなく、ほぼ通る。
-**`tests/lint/equals/fixtures/tsconfig.json` を置いて equals サブツリーだけ検査する案が有力。**残りは除外のまま。
+structural-equals は go-to-definition が解決しないと成立しないので最初から realistic に書くしかなく、ほぼ通る。
+**`tests/lint/rules/structural-equals/fixtures/tsconfig.json` を置いてそのサブツリーだけ検査する案が有力。**残りは除外のまま。
 
-**却下: `unused/` `ignore/` `brand/` も通す。**
+**却下: `unused-member/` `ignore/` `duplicate-brand/` も通す。**
 
-- 型検査を通らないことが要件の fixture がある。`unused/builtins` は「`.impl` が型レベルで拒む入力」が
-  被写体。`brand/shadowed-val` と `no-cross-file-credit/reader.ts` の `./elsewhere.ts`、
-  `unused/foreign-impl` の `some-other-library` は**存在しないこと**が眼目。
+- 型検査を通らないことが要件の fixture がある。`unused-member/builtins` は「`.impl` が型レベルで拒む入力」が
+  被写体。`bindings/shadowed-type` と `no-cross-file-credit/reader.ts` の `./elsewhere.ts`、
+  `unused-member/foreign-impl` の `some-other-library` は**存在しないこと**が眼目。
 - `noUnusedLocals` が unused-member ルールの被写体（誰も読まない companion）を叩く。TS6133 が 12 件。
 - 通すには `Val` の import、payload 型、`user` / `id` の宣言、引数の型注釈が要り、6 行の fixture が倍以上に
   なる。効いている 3 行が埋もれる。
@@ -2627,31 +2627,34 @@ fixture とテストを離すと、1 本読むたびに別の木へ飛ぶ。§14
 tests/lint/
   support.ts          fixtures() / spy() / cli()
   no-oxc-parser.ts    --import で渡す resolve フック
-  unused/   {fixtures/, index.test.ts}
-  brand/    …
-  equals/   …
+  rules/
+    unused-member/      {fixtures/, index.test.ts}
+    duplicate-brand/    …
+    structural-equals/  …
+  bindings/ …    §14.13 で追加
   ignore/   …
   skip/     …    fixture は mixed/
   command/  …
-  bindings/ …    §14.13 で追加
 ```
 
-**境界はルール 3 つ + 横断機構 3 つ。**（`bindings/` を足して 4 つ、§14.13） 元の `turning a rule off` には性質の違う 3 つが同居していた。API の `skip`、CLI の `--no-` 解析、そして「TypeScript を起こさない」という費用の主張。前 2 つを `skip/` に、費用は `equals/` に移した。`skip/` は**何が報告されるか**、`equals/` は**何を払うか**を見る。
+**`tests/lint/` は `src/lint/` を映す。** ルールは `rules/` にまとめ、ディレクトリ名は**ルール種別そのもの**にした（`brand/` ではなく `duplicate-brand/`）。冗長だが、期待値の文字列と `--help` の一覧と一字一致する。横断機構 4 つは上の階層に残した。`ignore/` は `scan/directives.ts`、`bindings/` は `scan/bindings.ts` に当たるが、`ignore` と `skip` は**利用者から見た機能**の名前で、`directives` はどこにも露出しない。ルールだけは名前が `--help` に出るので、ソースの構造と利用者の語彙が一致する。
+
+**境界はルール 3 つ + 横断機構 4 つ。** 元の `turning a rule off` には性質の違う 3 つが同居していた。API の `skip`、CLI の `--no-` 解析、そして「TypeScript を起こさない」という費用の主張。前 2 つを `skip/` に、費用は `equals/` に移した。`skip/` は**何が報告されるか**、`equals/` は**何を払うか**を見る。
 
 **fixture の重複は許す。** `command/` は出力の形が被写体なので、finding 1 件・0 件・`implEquals` ありの 3 つを自前で持つ。
 
-**describe は撤去。** ディレクトリが主語になるので `describe("duplicate brands")` はパスの繰り返し。テスト名は元から単独で文になっている。`unused/` だけ 2 つ残した。`what name resolution cannot reach`（`computed-key` と `spread`）は「意図して見ない」の記録で、見つける側と並べる意味がある。
+**describe は撤去。** ディレクトリが主語になるので `describe("duplicate brands")` はパスの繰り返し。テスト名は元から単独で文になっている。`rules/unused-member/` だけ 2 つ残した。`what name resolution cannot reach`（`computed-key` と `spread`）は「意図して見ない」の記録で、見つける側と並べる意味がある。
 
-**単一ファイルの fixture はフォルダを畳む。** `unused/dead-member/a.ts` → `unused/dead-member.ts`。`a.ts` は何を試しているかを 1 文字も語らない。複数ファイルのものは `billing.ts` / `orders.ts` のように中身で名づける。finding は `fixtures/` からの相対パスで出すので、期待値の 1 行目が自分の見ている fixture を名乗る。
+**単一ファイルの fixture はフォルダを畳む。** `dead-member/a.ts` → `dead-member.ts`。`a.ts` は何を試しているかを 1 文字も語らない。複数ファイルのものは `billing.ts` / `orders.ts` のように中身で名づける。finding は `fixtures/` からの相対パスで出すので、期待値の 1 行目が自分の見ている fixture を名乗る。
 
-**resolver を持つのは `equals/` だけ。** どのテストが language server を要るかがレイアウトに出る。
+**resolver を持つのは `rules/structural-equals/` だけ。** どのテストが language server を要るかがレイアウトに出る。
 
 以前は `unused/` も持っていた。`builder-chain` が `.implEquals` を書いていたためで、そこを観測するテストは 1 本もなかった。ステップを 2 つ（`implSeal` と `fixed`）残して `.implEquals` だけ落とし、抜けた分は `equals/plain` の chain にステップを足して受けた。変異で両方を確認した。
 
 - `rootPath` が呼び出しステップを 1 段しか降りない → `unused/builder-chain` だけが赤（58 本中 1 本）
 - `readChain` の walk が引数なしのステップ（`fixed<"id">()`）で止まる → `equals/plain` が赤。`covered` のような `[]` を期待する fixture では site ごと消えて緑のままなので、**finding を出す側**の fixture でしか押さえられない
 
-**設定は 3 箇所。** `vite.config.ts` の lint / fmt `ignorePatterns` が `tests/lint/**/fixtures/**`、`tsconfig.json` の `exclude` が `tests/lint/*/fixtures`。fixture に型エラーと崩れた整形を入れて `vp check` が黙ることを確認した。ここを間違えると fixture が検査に入る。
+**設定は 3 箇所。** `vite.config.ts` の lint / fmt `ignorePatterns` が `tests/lint/**/fixtures/**`、`tsconfig.json` の `exclude` が `tests/lint/**/fixtures`（`rules/` を挟んだ時に `*/` では届かなくなった）。fixture に型エラーと崩れた整形を入れて `vp check` が黙ることを確認した。ここを間違えると fixture が検査に入る。
 
 **自己 lint は消した。** 引数なしの `cli()` が `src/**/*.ts` を lint し、`command/` に「finding は 0 件」という 1 本があった。まず `command/`（被写体は出力の形）から出して `self.test.ts` にしたが、そもそも赤になる道がない。`src/` の `Val.sealer` / `Val.companion` は全部コメントと文字列で、実際の使用は 0 件。`src/val.ts` は `Val` を実装している側なので自分を呼ばない。**このリポジトリで valof をドメインロジックに使う日が来るまで、この主張は空。** 手で使用を足せば赤くなるが、それは変異ではなく別のリポジトリを作る作業。
 
