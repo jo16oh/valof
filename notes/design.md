@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降） / **§11 README の構成案**
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1644,6 +1644,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
 - [x] ~~**npm で `valof` を予約する**~~ → 0.1.0 の publish で済んだ
+- [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`equals/index.ts` の「最初が勝つ」
+- [ ] fixture を型検査するか（§14.10）。`equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので `equals/` は今 0 error。他は除外のまま
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [x] ~~`null` と `undefined` の扱い~~ → §3.5
 - [x] ~~`Validate<T>` の自己参照制約~~ → 型エイリアスでは TS2313。条件型に変更（§3.5）
@@ -2054,7 +2056,7 @@ rootUri=repo, didOpen なし    init 30 ms | didOpen 0 ms | 初回クエリ  45 
 
 CLI 全体で 65 ファイル 580 ms → 213 ms。**ファイル数が増えるほど差が開く**ので、実プロジェクトほど効く。
 
-`tsconfig.json` の `exclude` に入っているファイルでも解決できた（このリポジトリの `tests/fixtures` がまさにそれ）。サーバが inferred project を作るため。
+`tsconfig.json` の `exclude` に入っているファイルでも解決できた（このリポジトリの fixture がまさにそれ）。サーバが inferred project を作るため。
 
 残るコストは init 30 ms と初回クエリ 45 ms で、1 実行に 1 回。**プロセスを常駐させて償却する案は取らない。** 1 回の lint 実行が起動する LS は元から 1 つで、実行をまたいで持ち回るにはライフサイクルと陳腐化の管理が要る。CI で 1 回走るリンタが 75 ms のために払う複雑さではない。
 
@@ -2537,6 +2539,153 @@ scan 全部（読み+parse+walk） 1.70 ms   ← walk が支配的
 ~~`--server`~~ は却下。~~`column`~~ と ~~`Options.types`~~ は入れた。`--format=json` は oxlint 側が持つので valof-lint に要るかは未定。
 
 1 の途中まで書いて戻した。`Resolver` に `setOverlay` が要るのは、常駐中に版を上げて LSP へ `didChange` を送り、in-process 側では `getScriptVersion` を上げて再読込させるため。ここが両バックエンドで形の違う唯一の場所になる。
+
+### 14.10 テストの穴、2026-09-08 棚卸し
+
+**検証方法を先に。** カバレッジ率ではなく**変異テスト**で見る。ソースの一箇所を壊し、`ne vp test
+tests/lint` が落ちるかを確かめる。落ちなければ、そこはテストが 1 行も守っていない。
+
+```sh
+cp src/lint/rules/equals/paths.ts /tmp/m.bak
+perl -0pi -e 's/const found = \[path\];/const found = [path];\n  return found;/' src/lint/rules/equals/paths.ts
+ne vp test tests/lint    # 通ってしまうなら未カバー
+cp /tmp/m.bak src/lint/rules/equals/paths.ts
+```
+
+これで「落ちないテスト」が 3 つ見つかった。`d827e00` で塞いだのがそれ。
+
+#### 塞いだもの、1 巡目（d827e00）
+
+- **CLI から equals fixture を叩く。** in-process の `lint()` は毎回 `types` を渡され、CLI 側は
+  `.implEquals` を持たない fixture しか触っていなかった。`index.ts` の「自前で resolver を開いて
+  `finally` で閉じる」経路が一度も走っていない。
+- **`ignore/not-a-block` の fixture。** ディレクティブが 3 行目に着地し finding が 4 行目だったので、
+  ブロック判定を丸ごと消してもテストが通った。ディレクティブ・空行・別コメント・コードの 4 段に直した。
+- **`equals/array-spec` と `equals/covered-above`。** `specPaths` の `ArrayExpression` 分岐が効くのは
+  **トップレベルの配列 payload だけ**。`{ charges: [...] }` の形は `covered.add(path)` が入口で親パスを
+  足すため、分岐を消しても `charges` の prefix で覆われて変異を殺せない。
+
+#### 塞いだもの、2 巡目
+
+- **`paths.ts` `ARRAY_LIKE`。**`equals/array` の payload に `refunds: ReadonlyArray<Money>` を足した。
+  `readonly Money[]` と同じ `charges[]` / `refunds[]` に落ちる。
+- **`chains.ts` `fromVal` の namespace 形。**`unused/namespaced-val` を足した。
+  `valof.Val.sealer<User>().impl({…})`。
+- **`cli.ts` の `--help` / `-h`。**description とパディングを込みで見る。
+- **`cli.ts` の oxc-parser 未導入の案内。**`--import tests/lint/no-oxc-parser.ts` が resolve フックで
+  `oxc-parser` だけ `ERR_MODULE_NOT_FOUND` にする。パーサが入っている機械で、入っていない機械の出口を通せる。
+- **`needsTypes` と `--no-structural-equals`。**resolver をスパイに差し替え、聞かれた query 数を数える。
+  `[]` を見るだけだった 2 つのテストが、これで主張どおりのものを観測する。
+- **`equals/covered/order.ts` の TS1361。**`import type { Money }` を値の import に直した。
+
+#### 残っている穴（変異で確認済み）
+
+| 箇所                               | 内容                                                                |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| `unused.ts` `declaredName`         | `export { A as B }` の**連鎖**。1 ホップは `re-export` で覆えている |
+| `directives.ts` `widen`            | 1 ブロックに 2 つのディレクティブ、「空集合が全 kind に勝つ」       |
+| `equals/index.ts`                  | 1 つの alias に 2 つの chain、「最初が勝つ」                        |
+| `directives.ts` `joins` の trim 節 | コメント間に**コード**が挟まる場合。空行の方は塞いだ                |
+
+#### 残っている穴（コード読み）
+
+| 箇所                      | 内容                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `typecheck/in-process.ts` | TS5/6 バックエンド。開発機は TS 7.0.2 なので `overLsp` が選ばれ、**丸ごと走らない**。CI に TS5/6 を入れるかとセット（§10.1） |
+| `paths.ts` payload walk   | `TSTupleType` / `TSUnionType` / `TSIntersectionType` / `TSOptionalType`                                                      |
+| `unused.ts`               | 「同名 companion への read は両方に credit される」意図的な過剰近似                                                          |
+| `brands.ts`               | 同一ファイル内の衝突、3 つ以上の衝突                                                                                         |
+| `index.ts` の sort        | 同一 file/line/column での kind によるタイブレーク                                                                           |
+| `cli.ts` の引数解析       | `--no-` の複数指定。in-process 側は覆えている                                                                                |
+
+#### 冗長
+
+`cli()` の spawn は 9 回から 10 回。`[cli().status, cli().stdout]` の 2 回 lint と `dead-member` の
+2 テストを畳んで 2 回減り、`--help` / `-h` / パーサ不在で 3 回増えた。
+
+`equals/covered` と `equals/excluded` は `specPaths` 上は同じ経路。**これは残す。**「値が何であれエントリ
+があれば覆う」という意図の記録になっている。
+
+#### 未決: fixture を型検査するか
+
+`tsconfig.json` は `exclude: ["tests/lint/*/fixtures"]`。外すと **112 errors**。内訳が判断を分ける。
+
+|           | エラー                   |
+| --------- | ------------------------ |
+| `equals/` | **0**（TS1361 は直した） |
+| `mixed/`  | 1                        |
+| `unused/` | 73                       |
+| `ignore/` | 21                       |
+| `brand/`  | 16                       |
+
+`equals/` は go-to-definition が解決しないと成立しないので最初から realistic に書くしかなく、ほぼ通る。
+**`tests/lint/equals/fixtures/tsconfig.json` を置いて equals サブツリーだけ検査する案が有力。**残りは除外のまま。
+
+**却下: `unused/` `ignore/` `brand/` も通す。**
+
+- 型検査を通らないことが要件の fixture がある。`unused/builtins` は「`.impl` が型レベルで拒む入力」が
+  被写体。`brand/shadowed-val` と `no-cross-file-credit/reader.ts` の `./elsewhere.ts`、
+  `unused/foreign-impl` の `some-other-library` は**存在しないこと**が眼目。
+- `noUnusedLocals` が unused-member ルールの被写体（誰も読まない companion）を叩く。TS6133 が 12 件。
+- 通すには `Val` の import、payload 型、`user` / `id` の宣言、引数の型注釈が要り、6 行の fixture が倍以上に
+  なる。効いている 3 行が埋もれる。
+- fixture が本物の `EqImpl` / `Sealer` を満たす必要が出て、equality 設計（§5）を触ると無関係な lint の
+  fixture が落ちる。
+
+**却下: `as any` で通す。**`(Val.sealer<User>() as any).impl({…})` は `rootPath` が `TSAsExpression` を
+辿れず `fromVal` が false を返し、companion site として認識されない。findings が 0 件になり、期待値を
+`[]` に書き換えれば「通る」が、それは落ちないテストそのもの。実測で確認した。
+
+**却下: `@ts-expect-error` を貼って回る。**TS6133 も含めて確かに黙る。だが `@ts-expect-error` は抑制では
+なく**逆向きのアサーション**で、不要になると TS2578（`Unused '@ts-expect-error' directive`）で落ちる。
+110 行に貼れば「この fixture は壊れている」という主張が 110 個立ち、型検査から得たいもの（`implEquals([Money])`
+が正当な形か）の正反対になる。
+
+**却下: `@ts-nocheck`。**TS2578 の churn は避けられるが、その行以下は検査されない。`exclude` をファイル
+ごとに散らして見えにくくしただけ。
+
+**却下: 緩い fixture 用 tsconfig。**`strict: false` にすると `Val` 自体が壊れる
+（`Type 'Money' does not satisfy the constraint 'AnyVal'` が 24 件）。緩いプロジェクトは成立しない。
+
+#### 着手順の目安
+
+次は `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`equals/index.ts` の「最初が勝つ」。
+どれも変異で穴だと確認済みで、fixture 1 つずつで塞がる。`in-process.ts` は CI に TS5/6 を入れるかの話
+なので別枠。
+
+### 14.11 テストの置き場所、2026-09-08
+
+fixture とテストを離すと、1 本読むたびに別の木へ飛ぶ。§14.10 の作業は「穴 1 つ = fixture 1 つ + テスト 1 本」なので、この往復が一番多い。コロケーションにした。
+
+```
+tests/lint/
+  support.ts          fixtures() / spy() / cli()
+  no-oxc-parser.ts    --import で渡す resolve フック
+  unused/   {fixtures/, index.test.ts}
+  brand/    …
+  equals/   …
+  ignore/   …
+  skip/     …    fixture は mixed/
+  command/  …
+```
+
+**境界はルール 3 つ + 横断機構 3 つ。** 元の `turning a rule off` には性質の違う 3 つが同居していた。API の `skip`、CLI の `--no-` 解析、そして「TypeScript を起こさない」という費用の主張。前 2 つを `skip/` に、費用は `equals/` に移した。`skip/` は**何が報告されるか**、`equals/` は**何を払うか**を見る。
+
+**fixture の重複は許す。** `command/` は出力の形が被写体なので、finding 1 件・0 件・`implEquals` ありの 3 つを自前で持つ。
+
+**describe は撤去。** ディレクトリが主語になるので `describe("duplicate brands")` はパスの繰り返し。テスト名は元から単独で文になっている。`unused/` だけ 2 つ残した。`what name resolution cannot reach`（`computed-key` と `spread`）は「意図して見ない」の記録で、見つける側と並べる意味がある。
+
+**単一ファイルの fixture はフォルダを畳む。** `unused/dead-member/a.ts` → `unused/dead-member.ts`。`a.ts` は何を試しているかを 1 文字も語らない。複数ファイルのものは `billing.ts` / `orders.ts` のように中身で名づける。finding は `fixtures/` からの相対パスで出すので、期待値の 1 行目が自分の見ている fixture を名乗る。
+
+**resolver を持つのは 2 ファイルだけ。** `equals/` と `unused/`（`builder-chain` が `.implEquals` を書くので structural-equals が resolver を要求する）。残り 4 つは持たない。どのテストが language server を要るかがレイアウトに出る。
+
+**設定は 3 箇所。** `vite.config.ts` の lint / fmt `ignorePatterns` が `tests/lint/**/fixtures/**`、`tsconfig.json` の `exclude` が `tests/lint/*/fixtures`。fixture に型エラーと崩れた整形を入れて `vp check` が黙ることを確認した。ここを間違えると fixture が検査に入る。
+
+**却下: 1 ファイルのまま describe を増やす。** fixture との距離が縮まらない。
+
+**却下: `command/` から他家族の fixture を参照する。** 重複はゼロになるが、コロケーションが 1 ファイルだけ崩れる。5 行の重複を取った。
+
+**却下: フックを `.js` のまま置く。** `--import` も type stripping を通るので `.ts` で動く。`.js` の理由になっていた「型検査から外れる」は、裏返すとリポジトリで 1 ファイルだけ検査から漏れるという話だった。フック本体は `data:` URL の文字列の中なので、`.ts` にしても型が付くのは外側の `register()` だけ。本体まで型を付けるには register 側と hooks 側の 2 ファイルに割る必要があり、5 行のフックには重い。
 
 ---
 
