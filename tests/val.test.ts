@@ -794,10 +794,9 @@ describe("patch", () => {
   });
 
   test("still guards at runtime, for callers without types", () => {
-    const ArticleId = Val.sealer<ArticleId>() as unknown as Record<
-      string,
-      (...args: unknown[]) => unknown
-    >;
+    const ArticleId = Val.sealer<ArticleId>() as unknown as {
+      patch: (...args: unknown[]) => unknown;
+    };
     expect(() => ArticleId.patch("a1b2c3", {})).toThrow(/object-shaped/);
   });
 
