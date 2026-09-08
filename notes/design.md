@@ -2663,7 +2663,9 @@ tests/lint/
 
 **却下: `command/` から他家族の fixture を参照する。** 重複はゼロになるが、コロケーションが 1 ファイルだけ崩れる。5 行の重複を取った。
 
-**却下: フックを `.js` のまま置く。** `--import` も type stripping を通るので `.ts` で動く。`.js` の理由になっていた「型検査から外れる」は、裏返すとリポジトリで 1 ファイルだけ検査から漏れるという話だった。フック本体は `data:` URL の文字列の中なので、`.ts` にしても型が付くのは外側の `register()` だけ。本体まで型を付けるには register 側と hooks 側の 2 ファイルに割る必要があり、5 行のフックには重い。
+**却下: フックを `.js` のまま置く。** `--import` も type stripping を通るので `.ts` で動く。`.js` の理由になっていた「型検査から外れる」は、裏返すとリポジトリで 1 ファイルだけ検査から漏れるという話だった。
+
+**`module.registerHooks` に移した。** `register()` は非推奨（@types/node 26 が `@deprecated Use module.registerHooks() instead` を出す）。`registerHooks` は同スレッド同期で、フックを**関数のまま**受ける。`data:` URL に本体を文字列で埋める必要がなくなり、本体にも型が付いた。1 ファイルのまま。変異で確認: 見張る specifier を変えると `command/` の「asks for oxc-parser」が赤。
 
 ### 14.12 規則: 型名と一致しないブランド、2026-09-08
 
