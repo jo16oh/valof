@@ -35,8 +35,6 @@ orderId = UserId("u_1"); // type error: UserId is not an OrderId
 orderId = "o_1"; // type error: a plain string is not an OrderId
 ```
 
-Two Vals over the same payload are not interchangeable, and neither accepts a bare string.
-
 ```ts
 export type User = Val<"User", { id: string; name: string; nickname?: string }>;
 
@@ -61,9 +59,10 @@ Every function in `impl` must take its Val first. A sealer already carries `equa
 Only primitives, arrays and plain objects can live inside a Val. See
 [Allowed types](#allowed-types).
 
-**Name the brand after the type it brands.** Two Vals with the same brand string and the same
-payload are silently assignable to each other. Where the same name lives in two places, such as `Id`
-in two domains of a monorepo, prefix it with a namespace: `"billing/Id"`.
+**Name the brand after the type it brands**: `type UserId = Val<"UserId", string>`. Two Vals with
+the same brand and the same payload are silently assignable to each other. Where the same name lives
+in two domains of a monorepo, put a namespace in front, `type Id = Val<"billing/Id", string>`: only
+the last segment has to match. [`valof-lint`](#valof-lint) reports a brand that does not.
 
 ### Constructors copy their argument
 
@@ -169,8 +168,7 @@ export const User = Val.companion<User>().implSeal((input: object, seal): Result
 });
 ```
 
-The schema runs on every derivation, not just the first parse: `patch` and `update` go back through
-the seal.
+The schema runs on every derivation, not just the first parse.
 
 ## Equality
 
@@ -218,6 +216,9 @@ const Order = Val.sealer<Order>().implEquals({
 The spec stops at a nested Val: hand over its companion rather than walking its payload, which would
 go around the equality that type declared for itself.
 
+[`valof-lint`](#valof-lint) reports a parent holding a Val whose own `equals` its spec says nothing
+about.
+
 ## `patch` / `update`
 
 ```ts
@@ -251,9 +252,8 @@ A nested Val, an array and a primitive are replaced whole: a patch reaching insi
 a payload its own seal never saw. Derive it with its own `patch`, which goes through that seal and
 keeps the parts it did not touch.
 
-`patch` and `update` are the library's, and neither can be replaced. They mean the same thing on
-every type, which is what makes them worth reading. A derivation with rules of its own gets a name
-of its own, in `.impl`, and seals inside it:
+`patch` and `update` mean the same thing on every type, which is what makes them worth reading. A
+derivation with rules of its own gets a name of its own, in `.impl`, and seals inside it:
 
 ```ts
 const Money = Val.companion<Money>()
@@ -433,14 +433,67 @@ Recommended compiler options:
 Without `exactOptionalPropertyTypes`, `{ a?: string }` also accepts `undefined`, and that key is
 dropped when the value is serialized into JSON.
 
+## `valof-lint`
+
+The package ships a command for the mistakes the type checker cannot catch.
+
+```bash
+pnpm add -D oxc-parser   # valof does not install it for you
+pnpm exec valof-lint src
+```
+
+### Rules
+
+| rule                | reports                                                                   |
+| ------------------- | ------------------------------------------------------------------------- |
+| `unused-member`     | a function registered with `.impl({…})` that nothing reads                |
+| `duplicate-brand`   | a brand string claimed by more than one top-level alias                   |
+| `brand-mismatch`    | a brand whose last segment is not the name of the type it brands          |
+| `structural-equals` | a payload holding a Val whose own `equals` the parent never dispatches to |
+
+A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
+dead.
+
+### Arguments
+
+| argument                | what it is                                                      |
+| ----------------------- | --------------------------------------------------------------- |
+| the first path          | the project to read, a directory or a glob                      |
+| the paths after it      | the files to report on, the whole project when there are none   |
+| `--project`, `--target` | the same two by name, in either order                           |
+| `--no-<rule>`           | a rule to leave out of the run, by the name the finding carries |
+
+A single file given as the project is refused: a duplicate brand needs the other alias to be seen.
+
+Pass the changed files after the project:
+
+```bash
+pnpm exec valof-lint src src/billing/id.ts
+```
+
+### Disable comments
+
+Silence one line with a comment above it,
+
+```ts
+// valof-lint-disable-next-line unused-member -- public API
+shout: (u) => u.toUpperCase(),
+```
+
+or a whole file with one anywhere in it:
+
+```ts
+// valof-lint-disable-whole-file unused-member -- every export here is public API
+// valof-lint-disable-all-whole-file -- generated, do not lint
+```
+
+Name the rules it silences, separated by a space or a comma. Unused or incomplete disable comments
+are reported in turn, and `--help` names those rules too.
+
 ## Caveats
 
 **Do not use Valof to build a library.** A companion's functions are not tree-shakeable, and `Val`
-is itself a companion, so the import alone brings `sealer`, `companion`, `unwrap` and everything
-they reach.
-
-That matters in an app too: [Knip](https://knip.dev/) cannot tell you when a companion function goes
-dead.
+is one object, so the import alone brings `sealer`, `companion`, `unwrap` and everything they reach.
 
 **A `__proto__` key survives.** It is a legal JSON key, and round trips come first, so sealing keeps
 it as an own property rather than dropping data. That is inert inside a value, but not in code that
@@ -454,11 +507,12 @@ never comes close; input parsed from a request can, so bound its depth before se
 ## Development
 
 ```bash
-vp install   # install dependencies
-vp test      # run the tests
-vp check     # format, lint, type check
-vp pack      # build
-vp run size  # measure the bundle against its budget
+vp install              # install dependencies
+vp test                 # run the tests
+vp check                # format, lint, type check
+vp pack                 # build
+vp run size             # measure the bundle against its budget
+vp run ts-compatibility # type check the published .d.mts against every TypeScript line
 ```
 
 ## License

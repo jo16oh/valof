@@ -20,6 +20,9 @@
     "type": "git",
     "url": "git+https://github.com/jo16oh/valof.git"
   },
+  "bin": {
+    "valof-lint": "./dist/lint/cli.mjs"
+  },
   "files": [
     "dist"
   ],
@@ -47,9 +50,18 @@
   "devDependencies": {
     "@types/node": "^26.1.1",
     "bumpp": "^11.1.0",
+    "oxc-parser": "^0.148.0",
     "typescript": "^7.0.2",
     "vite": "catalog:",
     "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "oxc-parser": ">=0.148"
+  },
+  "peerDependenciesMeta": {
+    "oxc-parser": {
+      "optional": true
+    }
   },
   "devEngines": {
     "packageManager": {

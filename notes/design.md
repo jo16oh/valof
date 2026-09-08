@@ -2,7 +2,7 @@
 
 TypeScript 向け値オブジェクトライブラリの設計記録。
 
-- **パッケージ名**: `valof`（npm 空き確認済み）
+- **パッケージ名**: `valof`
 - **主要エクスポート**: `Val`（型 + 名前空間）
 
 ```ts
@@ -28,10 +28,10 @@ import { Val } from "valof";
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド
 - **§9 未解決 / 要確認** 次の作業はここ
-- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降） / **§11 README の構成案**
+- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -93,7 +93,7 @@ type Val<K extends string, T> = DeepReadonly<T> & {
 `__valof_internal_phantom_payload` はペイロード型 `T` を復元するためだけに存在する。これがないと `Val<"IsoDate", string>` のようなプリミティブを包んだ Val からコンストラクタの引数型を導けない（`Omit` はプリミティブに効かない）。どちらも実行時には存在しない。
 
 - 判別が文字列リテラルなので、型ごとに `declare const XxxBrand: unique symbol` を書かずに済む
-- 衝突は同名の文字列同士のみ。`"app/User"` のように名前空間を付ける命名規約を推奨する
+- 衝突は同名の文字列同士のみ。**ブランドは型名と同じにする**（valof-lint が検査する、§14.12）。同じ名前が二か所に要るとき、monorepo の `Id` のような場合だけ `"billing/Id"` と名前空間を付ける
 
 symbol / 文字列を利用者に選ばせる案は却下。API 表面が増えるだけで、上のハイブリッドが両方の利点を持つ。
 
@@ -164,8 +164,6 @@ type Primitive = string | number | boolean | bigint | null;
 ### 移行の摩擦
 
 API レスポンスや既存コードのプレーンなネストオブジェクトは、そのまま渡せない。seal の中で子 Val を組み立てる作業が発生する。
-
-思想としては正しいが、**README の冒頭でこの制限の理由を説明しないと初見で離脱される**。最優先で書く。
 
 ### プリミティブを直接包める
 
@@ -650,10 +648,6 @@ const Email = Val.companion<Email>().implSeal(
 
 `Email` の `implEquals` は不要になり、親から構造比較されても正しい。スマートコンストラクタで不変条件を確立するのは値オブジェクトの定石なので、この制約は正しい設計へ誘導している。
 
-**README にはこれを「制限」ではなく「原則」として書く。**
-
-> Val は正規形で構築してください。等価性は構造的に定義されます。`Email` を case-insensitive に扱いたいなら、`equals` をオーバーライドするのではなく seal で小文字化してください。この原則に従う限り、ネストした Val の等価性は自動的に正しくなります。
-
 `implEquals` 自体は残すが、「トップレベルの比較にのみ効き、親から呼ばれる際には適用されない」と明記する。逃げ道はあるが推奨経路ではない、という位置づけ。
 
 ### `implEquals` の spec
@@ -876,7 +870,7 @@ User.patch(user, patch);
 ```ts
 type PatchMethod<V, M> = [Patch<SeedOf<V>>] extends [never]
   ? Record<never, never>
-  : { with: ... };
+  : { patch: ... };
 ```
 
 `[...] extends [never]` と裸でない形にするのは、`never` に対する条件型の分配を止めるため（分配すると条件全体が `never` に潰れる）。
@@ -1027,9 +1021,9 @@ production gzip +43 B、d.ts +0.52 kB。`patch` の既存ループがそのま�
 `greet(u: User)` の `: User` は、全 companion の全メソッドに書く定型だった。`impl` の index signature を Val 始まりの**単一の関数型**にすると contextual typing が効き、注釈が不要になる。
 
 ```ts
-export type CompanionMethods<V extends AnyVal> = {
+type CompanionFns<V extends AnyVal> = {
   equals?: never;
-  with?: never;
+  patch?: never;
   update?: never;
   seal?: never;
   create?: never;
@@ -1050,12 +1044,12 @@ contextual typing が生きる形は 1 つしかない。実測で全滅した�
 | intersection `{ from?: AnyFn } & Record<string, …>` | `Record` 側が全プロパティを見るので例外にならない                                         |
 | overload（strict → loose の 2 本）                  | `from` を含むと他のメソッドまで implicit any になり、loose 側が何でも通すので検証も消える |
 
-さらに、**`M` にデフォルト型引数を与えるだけで contextual typing が死ぬ**。`impl: <M extends CompanionMethods<V> = Record<never, never>>(methods?: M) => …` だと TS は制約を contextual type に使わなくなり、全メソッドの第一引数が implicit any に落ちる。引数なしの `.impl()` はオーバーロードで残した。
+さらに、**`M` にデフォルト型引数を与えるだけで contextual typing が死ぬ**。`impl: <M extends CompanionFns<V> = Record<never, never>>(fns?: M) => …` だと TS は制約を contextual type に使わなくなり、全メソッドの第一引数が implicit any に落ちる。引数なしの `.impl()` はオーバーロードで残した。
 
 ```ts
 impl: {
   (): Sealed<V, Record<never, never>>;
-  <M extends CompanionMethods<V>>(methods: M): Sealed<V, M>;
+  <M extends CompanionFns<V>>(fns: M): Sealed<V, M>;
 };
 ```
 
@@ -1534,7 +1528,7 @@ const Order = Val.sealer<Order>().implEquals(
 
 ---
 
-## 8. 慣用パターン（README に載せる）
+## 8. 慣用パターン
 
 ライブラリ側の追加実装は不要。ドキュメントで示すだけ。
 
@@ -1627,29 +1621,19 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 
 ## 9. 未解決 / 要確認
 
-- [x] ~~タプル対応（§4.2）~~ → 入れた。0.3.0 で出す（型だけの破壊的変更）
-- [x] ~~`Val.eqBy`（§5）~~ → `implEquals` の spec として入れた。自由関数は却下（§5）
-- [x] ~~`eqBy` の `V` が戻り値の文脈から推論されるか~~ → ビルダーの段にしたので問いが消えた
-- [x] ~~`eqBy` を `Val` のプロパティにするか独立エクスポートにするか~~ → どちらでもない。`implEquals` の引数。gzip 予算は 1 kB から 1.25 kB に引き上げた
-- [ ] valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）。§14.5 で ts-morph 版を試して却下しているので、報告の粒度から設計し直す
+- [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
+- [ ] エディタ統合（§14.9）。oxlint の `jsPlugins` から Worker 越しに `lint()` を呼ぶ形で決着、実装は未着手。`column` と `Options.types` はその土台
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
-- [x] ~~README に性能の一行を足す（§4.1）~~ → `Constructors copy their argument` に、コピーが owned ノードで止まることと、変化のない patch が値をそのまま返すことを追記
-- [x] ~~README の `Reusing a Val` に一行足す（§4.1）~~ → フィールド位置の警告を追記
-- [x] ~~README の validation 節を zod で書き直す（§8.3）~~ → `With a schema library`。`seal(input: unknown)` は §6.7 の制約に落ちるので `object` で widen する
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
-- [x] ~~**npm で `valof` を予約する**~~ → 0.1.0 の publish で済んだ
+- [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`rules/equals/index.ts` の「最初が勝つ」
+- [ ] fixture を型検査するか（§14.10）。`rules/structural-equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので 0 error。他は除外のまま
+- [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
-- [x] ~~`null` と `undefined` の扱い~~ → §3.5
-- [x] ~~`Validate<T>` の自己参照制約~~ → 型エイリアスでは TS2313。条件型に変更（§3.5）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
-- [x] ~~型チェック速度のベンチマーク~~ → §4 のベンチマーク（deep patch 後に再測、同節）
-- [x] ~~コピーの WeakSet 再利用を入れるか~~ → 入れた。全ノード登録（§4.1）。symbol キー案と閾値案は実測して却下
-- [x] ~~パッケージ名~~ → `valof`（§12）
-- [x] ~~GitHub リポジトリ名 `valof` の確保~~
 
 ---
 
@@ -1699,28 +1683,15 @@ fixture は `scripts/ts-compatibility/public-api.ts` の 1 本。`valof` を隣�
 
 ---
 
----
+## 11. 欠番
 
-## 11. README の構成案
-
-「何ができるか」より先に「なぜプレーンなのか」を書く。§1 の一行を冒頭に置けば、§7 で切ったものが**なぜ切られているのかがすべてそこから導ける**。
-
-1. 一行の思想
-2. 得られるもの（`structuredClone` / JSON / React state / ファントムブランド）
-3. 基本の例
-4. 許可型の制限とその理由（**離脱防止のため早い位置に**）
-5. 推奨 tsconfig（`exactOptionalPropertyTypes: true`）と `null` / `undefined` の方針
-6. 正規形で構築する原則（§5）
-7. 慣用パターン（Set/Map、日付）
-8. 設計上やらないこととその理由
+README の構成案があったが、README を書いたので落とした。README 自身が記録である。番号は §12 以降の参照を動かさないために空けてある。
 
 ---
 
 ## 12. 命名
 
 ### 12.1 パッケージ名: `valof`
-
-npm 空き確認済み。
 
 **採用理由:**
 
@@ -1859,7 +1830,7 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 
 ## 14. valof-lint
 
-2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-06 時点で `main` 未マージ。
+2026-09-03 に調査、`feat/valof-lint` ブランチで実装。2026-09-07 時点で `main` 未マージ。規則は 6 つ（§14.4、§14.7、§14.12、§14.14、§14.15）、構成は §14.8。
 
 `.impl({...})` の中の関数は、dead と報告されることもバンドルから落ちることもない。`attach` が実行時に `Object.defineProperty` で companion に載せるので、静的解析からは「関数に渡されたオブジェクトリテラル」にしか見えない。
 
@@ -1871,7 +1842,19 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 ### 14.1 なぜ独立したスクリプトなのか
 
 - **knip プラグインでは書けない。** `IssueType = keyof Issues` であり、`Issues` は core 側の固定レコード（files, dependencies, exports, types, enumMembers, namespaceMembers, cycles, ...）。「export されたオブジェクトのメンバ」というカテゴリは存在せず、プラグインから追加もできない。プラグインのフック（`resolveFromAST`, `registerVisitors`, ...）が返せるのは `Input[]` だけで、使用済みとして足すことはできても未使用を報告することはできない
-- **lint でも書けない。** ESLint も oxlint もファイル単位で、ルールは 1 ファイルの AST を見てその中に報告を紐付ける。`import/no-unused-modules` のようなクロスファイルのルールは自前でプロジェクトを走査しており、lint のモデルの外にいる。oxlint は並列に走るので、カスタム JS プラグインでファイルをまたいで状態を貯めても信用できない。ast-grep の `sg scan` ルールも同じ理由で不可
+- **lint でも書けない。** ESLint も oxlint もファイル単位で、ルールは 1 ファイルの AST を見てその中に報告を紐付ける。`import/no-unused-modules` のようなクロスファイルのルールは自前でプロジェクトを走査しており、lint のモデルの外にいる。ast-grep の `sg scan` ルールも同じ理由で不可
+
+**2026-09-07 訂正。** 上は当初「oxlint は並列に走るので状態を貯めても信用できない」と書いていた。`@oxlint/plugins` の型定義を読むと `createOnce` があり、ルールを 1 度だけ作って使い回すので**状態を貯めること自体はできる**。
+
+```ts
+interface CreateOnceRule {
+  createOnce: (context: Context) => VisitorWithHooks; // + before / after
+}
+```
+
+結論は変わらないが理由が違う。**貯めても報告できない。** `before` / `after` はファイル 1 つの走査を挟むフックで、実行全体の終了フックではない。吐き出す場所が無く、`context.report` は今見ているファイルに紐づく。子の `implEquals` を知った時点で親のファイルは走査済みかもしれない。
+
+- **oxlint の type-aware linting にも触れない。** JS プラグインが貰えるのは `ast` / `scopeManager` / `visitorKeys` / `lines` / `lineStartIndices` で、型はゼロ。typescript-eslint が検査器を渡す口である `parserServices` は、型定義に「Oxlint does not offer any parser services」と明記されて常に空。型を持っているのは別プロセスの Go バイナリ（`oxlint-tsgolint`）で、type-aware なルールはその中の組み込みルールである。橋が無い
 
 companion のメンバは `Companion.member` の形でしか到達されない。各 `.impl({...})` のトップレベルキーを集めて、プロジェクト全体で `Name.key` を数えれば足りる。
 
@@ -1887,16 +1870,57 @@ companion のメンバは `Companion.member` の形でしか到達されない�
 
 他の 2 案より優れている。README のレシピにはテストもバージョンもなく、別パッケージはリリース面が増える。valof 内の bin なら既存のリリースワークフローに乗り、ここでテストできる。
 
+#### 2026-09-07 再評価: 理由が変わった
+
+同梱の判断は維持する。**ただし上の 3 つは決定的な理由ではなかった。**
+
+判断時 252 行だったリンタは 1465 行になり、ライブラリ本体 809 行を追い越した。配布物でも逆転している。
+
+```
+ソース   library  809 行 / linter 1465 行
+配布物   library 27.0 kB / linter 36.6 kB   ← リンタが 58%
+tarball  32 KB
+```
+
+**本当の理由は、規則がライブラリの API の方言を追っていること。** 実証がある。`main` を取り込んだ際、`with` → `patch` の改名にリンタが追随した。
+
+```
+BUILTIN = ["equals", "with", "update", "seal", "create"]
+       →  ["equals", "patch", "update", "seal", "create"]
+```
+
+`.unpatchable` → `.fixed` も、`.implEquals` という段の追加も同じ。§14.7 の規則は `EqSpec` の綴り（配列は要素ごと、タプルは位置ごと、companion をそのまま渡す）にそのまま乗っており、チェーンの根が `Val.sealer` / `Val.companion` であることも `.impl` が拒む 5 つの名前も、すべてライブラリ側の決定である。
+
+**別パッケージならこのずれは必ず起きる。** 「valof 0.5.0 は `patch`、valof-lint 0.4.x はまだ `with` を見ている」という窓がリリースのたびに開く。同じリポジトリであることが、方言の整合を暗黙に保っている。
+
+#### 代償
+
+- **配布物の 58% がリンタ。** README の「1 kB gzipped」は**バンドルサイズ**であって、`scripts/size.ts` が測るのは `dist/index.mjs` だけなので主張は保たれる。だがダウンロードサイズは別物で、`npm i valof` した `node_modules` には 36 kB のリンタが入る
+- **リリース粒度が結合する。** リンタだけの修正でライブラリのバージョンが上がる。今はどちらも動いているので表面化していない
+
+#### 分ける条件
+
+先に決めておく。
+
+- ライブラリが安定し、**リンタだけのリリースが続く**ようになったとき
+- リンタの依存が実行時依存に漏れそうになったとき（今は `typescript` を宣言せず spawn しているので保たれている）
+- 配布物に占める割合がさらに大きくなったとき
+
+分けるなら monorepo。`pnpm-workspace.yaml` は既にあるので `packages/valof` と `packages/valof-lint` に割り、リリースワークフローは共有できる。上で「別パッケージはリリース面が増える」と却下したが、workspace ならその代償は小さい。代わりに `valof-lint` が `peerDependencies: valof` を持ち、**方言の整合を暗黙にではなく宣言で管理する**ことになる。
+
 ### 14.4 ルール
 
-2 つ。どちらも構文で判定する。
+構文だけで判定するものが 5 つ。残る 1 つは go-to-definition を使う（§14.7）。
 
 - 誰も読まない companion のメンバ
 - 複数の**トップレベル**型エイリアスが主張しているブランド文字列
+- 型名で終わっていないブランド文字列（§14.12）
+- ルールを名指ししていない disable コメント（§14.14）
+- 何も黙らせていない disable コメント（§14.15）
 
 トップレベル限定であることが効く。この制限がないと、このリポジトリ自身のテストで `describe` や `test` の中にスコープされたフィクスチャから 30 件の衝突が報告される。
 
-このリポジトリの `src` は companion を使っていない。`src` + `tests` に検出器をかけると companion 宣言 14、メンバ 15、dead はゼロで、dead メンバのルールはここでは絶対に発火しない。対象は valof の_利用者_である。
+このリポジトリの `src` は companion を使っていないので、dead メンバの規則はここでは発火しない。対象は valof の_利用者_である。
 
 ### 14.5 却下: ts-morph、2026-09-04
 
@@ -1911,15 +1935,1126 @@ companion のメンバは `Companion.member` の形でしか到達されない�
 
 `equals` を_誰がオーバーライドしたか_の検出は、どちらの方式でも構文の話になる。`Companion<V, M>` はオーバーライドの有無にかかわらず `equals` を `(a, b) => boolean` と型付けするため。
 
+#### 2026-09-07 再評価: TS 7.1 を待つ
+
+`implEquals` の spec が入り、§5 が忘れ検出をリンタに割り当てたので、型が要る規則が初めて具体化した（§14.7）。それを機に前提を測り直した。
+
+**TS 7 の API はまだ 2 キー。** 上の記録は今も正しい。
+
+```
+$ node -e "const ts=require('typescript'); console.log(ts.version, Object.keys(ts))"
+7.0.2 [ 'version', 'versionMajorMinor' ]
+```
+
+このリポジトリ自身が `typescript@^7.0.2` に乗っているので、ts-morph を採ると **TS 7 の利用者のコードを同梱の TS 5 系検査器で解析する**ことになる。
+
+**7.1 が安定化するのは Language Service API。** iteration plan（microsoft/TypeScript#63703、ベータ 2026-10-06、安定版 2026-11-24）が挙げるのは Language Service / Emit / Content Mapper の 3 つで、**TypeChecker は明言されていない**。
+
+それで足りる。§14.7 の規則が要るのは go-to-definition であって検査器ではないため。
+
+1. 「プロパティ位置の `Money` は Val か」→ 参照を宣言まで辿り、その宣言を構文で読む。LS で足りる
+2. 「その companion は `implEquals` を呼んだか」→ 上のとおり構文の話。検査器があっても変わらない
+
+`findReferencesAsNodes()` も `getDefinitionNodes()` も ts-morph の**検査器ラッパーではなく LS ラッパー**である。LS が安定化するなら素の `typescript` で同じものが手に入る。
+
+**ts-morph の TS 7 対応は再アーキテクチャになる。** `@ts-morph/common` は `typescript` に依存せず自前のコンパイラを同梱する設計で、Go のコンパイラを相手にする移植はバージョン上げではない。ts-morph の API は全同期なので、7.1 の API が非同期なら同期のまま移植する道も無い。2026-11 に間に合う前提は置けない。
+
+**残る優位性は `LanguageServiceHost` のボイラープレートだけ。** `getScriptFileNames` / `getScriptVersion` / `getScriptSnapshot` / `getCompilationSettings` / `getDefaultLibFileName` の実装で 60 行ほど。一度書けば終わる。改変 API は、出すのが「spec に `total: Money` を足せ」というテキスト提案である限り要らない。
+
+**LS がオフセットベースなのは oxc 側に有利。** `findReferences(fileName, position)` が返すのは `{ fileName, textSpan }` でノードではない。解析が ts-morph の中にあるならノードを返す API が便利だが、解析が oxc の AST にあるならノードは使えない。既に `lineIndex` でオフセットを扱っている。
+
+**素の `typescript` なら optional peer dependency が実質タダ。** TS プロジェクトには必ず入っているので、§14.3 の 3.2 MB 対 15 MB の議論ごと消える。
+
+したがって **ts-morph は選択肢から落とす。**
+
+#### 2026-09-07 続き: 待つ必要が無かった
+
+上は「7.1 を待って素の `typescript` を足す」と結論していた。**撤回する。** 7.0 で今できる。
+
+**TS 7.0.2 には `tsc --lsp --stdio` がある。** 実測した。
+
+```
+initialize                34 ms
+didOpen x200               5 ms
+serial 50 queries         76 ms   (1.52 ms/query)
+pipelined 200 queries      5 ms   (0.03 ms/query)
+non-empty results    200 / 200
+```
+
+`textDocument/definition` を `total: Money` の位置に投げると `money.ts` の型エイリアス宣言が返る。capabilities も揃っている（`definitionProvider` / `typeDefinitionProvider` / `referencesProvider` / `implementationProvider` / `hoverProvider`）。
+
+**落とし穴は 1 つだけ。** サーバが `client/registerCapability` を**リクエストとして**送ってくる。応答しないとデッドロックする。
+
+**速度は論点にならない。** warm は 0 ms でチェッカのキャッシュに乗る。LSP は id で多重化するのでパイプライン化でき、往復待ちが 1 回に畳まれる。「1 件ずつ往復するので絞る前段が要る」という懸念は消えた。
+
+**5.x / 6.x に LSP は無いが、in-process API がある。** 補完関係になっている。
+
+|               | in-process API                                    | LSP                                        |
+| ------------- | ------------------------------------------------- | ------------------------------------------ |
+| 5.9.3 / 6.0.3 | あり（2244 / 2248 keys、`createLanguageService`） | 無し（`--lsp` は Unknown compiler option） |
+| 7.0.2         | 無し（2 keys）                                    | あり                                       |
+
+両方で `getDefinitionAtPosition` / `textDocument/definition` を実測した。
+
+|       | 経路                    | cold   | per query                           | 結果    |
+| ----- | ----------------------- | ------ | ----------------------------------- | ------- |
+| 5.9.3 | `createLanguageService` | 166 ms | 0.15 ms                             | 200/200 |
+| 6.0.3 | 同上                    | 159 ms | 0.20 ms                             | 200/200 |
+| 7.0.2 | `tsc --lsp --stdio`     | 34 ms  | 1.52 ms 直列 / 0.03 ms パイプライン | 200/200 |
+
+**古い経路のほうが 1 件あたり速い。** IPC の往復が無いため。cold は tsgo が速い。`LanguageServiceHost` は 13 行で、当初 60 行と見積もったのは過大だった。
+
+どちらも `{ file, offset }` を返すので 1 つの関数の裏に隠せる。
+
+```ts
+type DefinitionAt = (file: string, offset: number) => { file: string; offset: number }[];
+```
+
+**結果、floor 5.9.3 から 7.x まで隙間なく覆える。** 合わせて 100 行程度。取り残される利用者はいない。
+
+#### `textDocument/didOpen` を送らない
+
+2026-09-07 の実装時に実測。**スキャン対象を全部 `didOpen` すると初回クエリが 10 倍遅くなる。**
+
+```
+rootUri=repo, didOpen 65 件   init 24 ms | didOpen 2 ms | 初回クエリ 436 ms
+rootUri=repo, didOpen なし    init 30 ms | didOpen 0 ms | 初回クエリ  45 ms
+```
+
+答えは同じ。`didOpen` はエディタが未保存で抱えているバッファのためのもので、リンタが読むのはディスク上のファイルである。サーバは `rootUri` からプロジェクトを読み、リクエストが名指したファイルを遅延して開く。全件送ると 1 件ずつ document を構築し、初回クエリがその全部を待つ。
+
+CLI 全体で 65 ファイル 580 ms → 213 ms。**ファイル数が増えるほど差が開く**ので、実プロジェクトほど効く。
+
+`tsconfig.json` の `exclude` に入っているファイルでも解決できた（このリポジトリの fixture がまさにそれ）。サーバが inferred project を作るため。
+
+残るコストは init 30 ms と初回クエリ 45 ms で、1 実行に 1 回。**プロセスを常駐させて償却する案は取らない。** 1 回の lint 実行が起動する LS は元から 1 つで、実行をまたいで持ち回るにはライフサイクルと陳腐化の管理が要る。CI で 1 回走るリンタが 75 ms のために払う複雑さではない。
+
+#### `typescript` は peer dependency にしない
+
+`oxc-parser` が optional peer dependency なのは**自分のプロセスに `import` する**から。モジュール解決がユーザのコピーを見つける必要があり、2 つあれば 2 つのパーサになる。
+
+`tsc` は違う。7.x では subprocess として spawn し、5.x / 6.x では `require` するが、**TS のオブジェクトをユーザに返さない**ので共有すべき単一インスタンスが存在しない。シェルアウトする先のバイナリは `git` と同じ外部ツールである。
+
+実行時にユーザ自身の `typescript` を解決し、`typescript/package.json` の version をメジャーで分岐する。無ければこの規則だけ黙って飛ばし、理由を伝える。
+
+宣言しない利点。インストール footprint ゼロ、peer 警告も ERESOLVE も無し、TS のリリースに追随するバージョン範囲を持たない、monorepo が固定した TS でも動く。
+
+peer dependency にした場合を実測した限りでは、入れ子のコピーは作られず（peer の定義どおり）、pnpm v11 は `[WARN] Issues with peer dependencies found` の警告止まり。ユーザコードが壊れる経路は無い。ただし `typescript@7` は薄いシムで実体はプラットフォーム別の optional dependency 26 MB なので、重複したときの容量は誤差ではない。いずれにせよ宣言しないので問題は生じない。
+
+|              | 依存の形                           | 無いとき                      |
+| ------------ | ---------------------------------- | ----------------------------- |
+| `oxc-parser` | optional peer（import する）       | CLI 全体が exit 2、導入を促す |
+| `tsc`        | 宣言しない（spawn / require する） | equals の規則だけ飛ばす       |
+
+#### AST のパスは残る
+
+理由が速度から**正確さ**に変わった。ネガティブコントロールを取ると、`export type Gen0 = ...` の 0 桁目を問い合わせて `Gen0` 自身の定義が返る。**位置を厳密に渡さないと近くの別の識別子を解決する。** 正確なオフセットを出すのが oxc の walk であり、`valof` からの import を起点に使用箇所を辿るコードは、置き換えではなく**問い合わせ位置のフィルタとして**残る。
+
 ### 14.6 名前空間自身のバンドルサイズ
 
 `Val` 自身が companion なので、§14 の盲点はこのライブラリの表面にも及ぶ。バンドラは `const Val = {...}` のプロパティを落とせないので、`Val.of` だけを呼ぶモジュールにも `sealer`、`companion`、`unwrap`、`attach`、`deepEquals` が残る（§5 の `eqBy` が当たったのと同じ壁）。
 
 名前空間を名前付き export に分割する案は 2026-09-03 に検討して却下した。利用者の companion には効かず、API が二重化し、ブランドだけが欲しいライブラリなら数行で自作できる。
 
+### 14.7 規則: カスタム equals を持つ子の構造比較、2026-09-07
+
+§5 が spec を全キー省略可にした際、忘れ検出をここに割り当てた。その規則の設計。同日に実装し、TS 7.0.2 / 6.0.3 / 5.9.3 の 3 経路で同一の報告になることを確認した（§14.5）。§14.5 の「厳しすぎて使えない」という却下は `implEquals` の spec が入る前の判断で、**直し方が親の 1 行になったので当たらない**。
+
+**規則。** 親の payload の Val 位置のうち、その子が推移的にカスタム equals を持つものについて、親の spec に**何らかの**エントリがあること。
+
+「何らかの」で足りるのが要点。`total: Money` も `updatedAt: () => true`（等価性から外す）も `span: [undefined, Money]` も、著者がその位置を見た証拠になる。構文位置だけで区別がつく。
+
+| spec の形                              | 読み               |
+| -------------------------------------- | ------------------ |
+| `Identifier`                           | companion 委譲     |
+| `ObjectExpression` / `ArrayExpression` | 降りる             |
+| 関数                                   | 著者の判断、黙る   |
+| `implEquals` の引数が裸の関数          | 全体を手書き、黙る |
+
+**構文だけで足りる。** パーサ出力で確認した。
+
+- `Val.sealer<Order>()` の `typeArguments.params[0]` は素の `TSTypeReference`。companion と型エイリアスが繋がる
+- payload の型は spec と同じ形で降りられる。`TSPropertySignature` / `TSArrayType` / `TSTupleType` / ネストした `TSTypeLiteral` が `{k: spec}` / `[spec]` / 位置指定 / 素のオブジェクトに 1 対 1 で対応する
+
+両側は**エイリアス名**で出会う。companion の変数名ではない。unused-member の規則より素直になる。
+
+#### 決めたこと
+
+**報告先は親。** `Val.sealer<Order>()` の行。§14.5 は「オーバーライドの定義箇所で一度だけ報告し、ネスト先を列挙する」を提案していたが取らない。直すのは親であって `Money` ではないので、`Money` の行に出してもどのファイルを開くか分からない。既存の 2 規則とも揃う。
+
+**カスケードを推移閉包で防ぐ。** `Order → OrderLine → Money` で `Money` だけがカスタム equals を持つ場合、素朴に実装すると `OrderLine` にだけ発火し、**直すと次の実行で `Order` に新しい発火が出る**。「直したら増えた」は最悪の体験。自分か子孫の誰かがカスタム equals を持つなら要ディスパッチ、と閉じて最初から両方報告する。
+
+**名前衝突は duplicate-brand の責務。** 2 つのファイルがどちらも `type Money` を持つと名前解決で区別できず誤検出になる。エイリアス → ブランドの対応は既にあるので、**名前がスキャン範囲で 1 つのブランドにしか解決しないときだけ報告する**。衝突自体は別の規則が報告するので、そちらを直せば足りる。
+
+**`PayloadOf` 経路は意図的に対象外。** 見逃しではなく正しい挙動。
+
+```ts
+type OrderB = Val<"OrderB", { total: PayloadOf<Money> }>;
+```
+
+§9 のもう 1 つの規則は「フィールド位置に `PayloadOf` を置くな、`total: Money` にしろ」と言う。ここで equals の規則が発火すると「payload のまま `Money.equals` を spec に足せ」となり、**2 つの規則が同じ行に矛盾した指示を出す**。しかも本当の欠陥を隠す方向に直させる。§4.3 のとおりここではブランドごと落ちて子の seal も追跡下の共有も失われており、equals だけ戻しても直らない。`total: Money` に直せば自然に、正しく発火する。トップレベルの `PayloadOf<User> & { … }` も同じく黙る。`SuperUser` の中に `User` の値は無く、フィールドの型を再利用しているだけなので、ディスパッチする先が無い。
+
+**実装上の落とし穴。** これは素朴に書くと勝手に黙るので気づかないが、`ReadonlyArray<Money>` を `readonly Money[]` と同じに扱おうとした瞬間に壊れる。前者は `TSTypeReference` の型引数を降りる必要があり、そこを一般化すると `PayloadOf<Money>` の中の `Money` も拾う。walk は**「spec で写せる形」のホワイトリスト**にする。`TSTypeLiteral` / `TSArrayType` / `TSTupleType` / `ReadonlyArray` / `Array`。それ以外の型参照は不透明として黙る。`PayloadOf` も `SeedOf` も `Omit` も、そこから落ちる。
+
+#### 届かない範囲
+
+どれも誤検出ではなく見逃し側。
+
+- ジェネリック・条件型・マップ型の payload
+- スキャン範囲外の companion
+- `typescript` が見つからない、または解決に失敗した位置
+
+**go-to-definition が塞ぐのは参照の側だけ。** 2026-09-07 の実装時に一度「ヘルパ経由も塞がる」と書いたが誤り。訂正する。
+
+塞がるのは**子への到達経路**である。リネームした import、re-export、`interface`、エイリアス 1 ホップ、交差、`Money | null`。どれも参照を宣言まで辿るので構文で追う必要が無い。
+
+塞がらないのは**エイリアスが Val だと認める側**。`type Branded<K, T> = Val<K, T>` を経由した `type Money = Branded<"Money", X>` は、収集が「`Val<…>` が直接書かれている」ことを名前で見ているため候補集合に入らず、子として認識されない。**duplicate-brand が持つ穴と同じもので、リンタ全体がこの前提に立っている。** 塞ぐなら `Val` 自身も go-to-definition で同定することになる。見逃し側なので急がない。
+
+#### N×M を恐れなくてよい理由
+
+§5 の「正規形で構築する」原則により `implEquals` は非推奨の逃げ道である。この規則が発火するのは、既にその逃げ道を取った型に限られるので N は小さい。そして N×M 件の発火には N×M 件の**必要な**修正が対応する。ノイズではなく実数である。
+
+### 14.8 ルールの表現と構成、2026-09-07
+
+3 つ目の規則を入れた時点で、ルールごとの分岐が `lint()` と `--help` と `Finding` の 3 か所に散った。整理した結果を残す。
+
+#### ルールは 1 つのオブジェクト
+
+`kind` と説明と実行を 1 か所に持たせる。呼び出し側にルールの知識を置かない。
+
+```ts
+type Rule<F extends Located> = {
+  kind: F["kind"];
+  description: string;
+  run: (scans: readonly Scan[], context: Context) => F[] | Promise<F[]>;
+};
+```
+
+**`Context.types` は値ではなく関数にする。** 言語サーバは最初に求めたルールが起こし、誰も求めなければ起動しない。スキップされたルールも、起動が要らないと自分で判断したルールも、何も払わない。`needsTypes` は equals ルールの内部に隠れる。
+
+```ts
+run: (scans, { types }) => (needsTypes(scans) ? findings(scans, types()) : []),
+```
+
+runner にルールごとの分岐が無くなる。
+
+```ts
+for (const rule of RULES) {
+  if (skip?.has(rule.kind)) continue;
+  findings.push(...(await rule.run(scans, { types })));
+}
+```
+
+#### `RULES` は配列。`Record` ではない
+
+一度 `Record<Kind, Rule<Finding>>` にした。網羅を型が強制するのが理由だったが、**キーと `rule.kind` が同じ文字列を 2 回書くことになる。**
+
+配列にして `Kind` と `Finding` をそこから読み戻す。
+
+```ts
+export const RULES = [UnusedMember, DuplicateBrand, BrandMismatch, StructuralEquals] as const;
+
+type ReportedBy<R> = R extends Rule<infer F> ? F : never;
+export type Finding = ReportedBy<(typeof RULES)[number]>;
+export type Kind = Finding["kind"];
+```
+
+`Finding` の手書き union も消えた。以前は同じ事実を 3 か所（`RULES` のキー、`rule.kind`、`Finding` の union）に書いていた。
+
+**網羅は弱まらない。むしろ強い。** 載せ忘れたルールは `Kind` に現れず、存在しないのと同じになる。`DuplicateBrand` を配列から外して確認した。
+
+```
+x typescript(TS6133): 'DuplicateBrand' is declared but its value is never read.
+x typescript(TS2367): '"structural-equals"' and '"duplicate-brand"' have no overlap
+x typescript(TS2339): Property 'alias' does not exist on type 'never'
+```
+
+CLI の出力分岐が `never` に落ちて止まる。`Record` の「キーを書き忘れたら落ちる」より検知が広い。
+
+`Awaited<O>[number]` で `run` の戻り値から取る形は TS2536 になるので使えない。`R extends Rule<infer F>` は通る。
+
+#### ルールは finding 型と同名
+
+```ts
+export type UnusedMember = { kind: "unused-member"; ... };
+export const UnusedMember: Rule<UnusedMember> = { ... };
+```
+
+型と値で名前空間が分かれるので共存する。**companion が Val と同名を取るのと同じイディオム**であり、このライブラリの中では一貫している。`import { UnusedMember }` 一つが型と値の両方を運ぶので、`rules/index.ts` の import から `type` 修飾も `as` 別名も消えた（`verbatimModuleSyntax` + `isolatedModules` で確認済み）。
+
+実装関数はどのファイルでも `findings`。`rule` が名前を取ったので、非公開の実装が固有名を持つ理由が無い。
+
+#### CLI から規則を切る
+
+`--no-<kind>`。名前は disable コメントと共通にする。覚えるものを増やさないため。
+
+**スキップは報告ではなく仕事を止める。** `--no-structural-equals` は言語サーバを起動しない。65 ファイルで 212 ms → 109 ms。
+
+#### 構成
+
+```
+src/lint/
+  cli.ts  index.ts  ast.ts
+  scan/       構文的事実を取り出す
+  typecheck/  go-to-definition（lsp / in-process）
+  rules/      判定
+```
+
+依存は一方向。`scan/` は閉じており、`rules/` は `scan/index.ts` と `typecheck/index.ts` の窓口だけを見る。`Alias` と `CompanionSite` は `Scan` の構成要素なので `scan/index.ts` が re-export する。ルールが走査の内部に手を伸ばさない。
+
+`ast.ts` は `scan/` の中に入れない。`rules/equals.ts` も payload と spec を歩くのに使うので、共有の道具として一段下に置く。
+
+`Scan` はルール固有のフィールドを持たない。**構文的事実であって、どのルールが読むかは型に書かない。** `aliases` と `brands` は同じ 1 パスが同じ宣言から作り、2 つの規則が 1 つずつ取る。所有関係を書くと、次にルールを足す人が「自分用のフィールドを足す」と読む。
+
+公開する名前は絞る。`src/lint/index.ts` はパッケージの `exports` に無く CLI 専用なので、`lint` 以外に出すものは無い。各ルールが出すのは finding 型と `rule` オブジェクトの 2 つだけ。
+
+### 14.9 エディタ統合、2026-09-08 調査。未実装
+
+**結論を先に。** oxlint の `jsPlugins` から、Worker 越しに `lint()` を**直接呼ぶ**。valof が出すのは `lint` と `Options.overlay` だけで、`--server` もプロトコルも要らない。**このブランチではやらない。**
+
+一度は「CLI をラップし、`--server` で常駐させ、行区切り JSON を往復させる」と設計した。下にその経緯も残す。**採らない理由は下の「却下」節にある。**
+
+#### CLI をラップするプラグインは書ける
+
+§14.1 の「lint では書けない」はクロスファイルのルールを**ルールとして書く**話だった。CLI を呼んで結果を配るのは lint のモデルの外で走らせる形なので、その指摘に当たらない。
+
+最初の 1 ファイルで CLI をプロジェクト全体に 1 回走らせ、結果をモジュールスコープに貯めて各ファイルに配る。30 行ほど。ESLint と oxlint の両方で実測した。
+
+```
+src/order.ts
+  6:1  error  structural-equals: Order.total holds Money, which has its own equals  valof/findings
+```
+
+- **CLI の起動は 1 回だけ。** ESLint は既定でメインスレッド（`--concurrency` の既定は `off`）。oxlint は 43 ファイル・`--threads 8` でも 1 回で、JS プラグインが Node 側の単一プロセスで動くため
+- **`eslint-disable-next-line` が効く**
+
+§14.1 の「並列だと状態を信用できない」はこの方式には当たらない。あれは状態を貯めて**後で**報告する話で、こちらは外部で集めた結果を今のファイルに紐付けるだけである。
+
+#### ESLint は入口が塞がっている。oxlint は通る
+
+```
+typescript-eslint does not support TS 7.0.
+https://github.com/typescript-eslint/typescript-eslint/issues/10940
+```
+
+`@typescript-eslint/parser` が TS 7 未対応で、上の ESLint 実証は TS 6.0.3 に落として取った。valof-lint 自体は TS 7 で動くのに、ESLint 側で TS を読むパーサが追いついていない。
+
+**oxlint の `jsPlugins` は TS 7 の環境でそのまま動いた。** 設定スキーマに「allows usage of ESLint plugins with Oxlint」とあり、ESLint 用に書いたプラグインがほぼ無改造で通る。型情報を使わない方式なので、JS プラグインが `parserServices` に触れない制約（§14.1）にも当たらない。
+
+#### 単発ラップは LSP で破綻する
+
+同一プロセスで 2 回 lint し、間でファイルを直して finding が消えるはずにした。
+
+```
+1回目             : 6: structural-equals: Order.total holds Money, ...
+修正を保存して2回目 : 6: structural-equals: Order.total holds Money, ...   ← 消えない
+spawn 回数        : 1
+```
+
+欠陥は 2 つあり、別物である。
+
+1. **キャッシュが固まる。** モジュールスコープの結果が常駐 LSP サーバの寿命だけ残る
+2. **未保存バッファが見えない。** valof-lint はディスクを読む。キャッシュを毎回捨てても、保存するまで結果が変わらない
+
+TTL も mtime も 1 を緩めるだけで 2 に効かない。毎回再実行すれば 1 は消えるが 206 ms を毎キーストローク払う。
+
+**どちらも Worker 方式で消える**（下）。1 は resolver を保持したまま毎回走らせられるので（23 ms）キャッシュ自体が要らなくなり、2 は overlay で解く。ここに書いた破綻は「CLI を spawn して結果を貯める」形に固有のものだった。
+
+#### コストの内訳: キャッシュすべきはプロセスであって scan ではない
+
+```
+CLI 1 回（67 ファイル）           206 ms
+  Node 起動                      ~93 ms
+  oxc-parser の import             5 ms
+  scan 67 ファイル                11 ms
+  LSP spawn                        3 ms
+  structural-equals（init+query） 105 ms
+
+常駐した場合
+  1 回目（LSP cold）              96 ms
+  2 回目（LSP warm）              29 ms
+  3 回目（1 ファイル再 scan 後）   23 ms   うち再 scan 0 ms
+```
+
+**利得の 96% は「プロセスと LSP セッションを生かす」ことから来る。** scan のキャッシュが買うのは 11 ms で、差分 scan は 0 ms しか買わない。**変更を検知したら全部読み直すのが最も簡単で十分速い**、という結論になる。`fs.watch` と無効化の粒度は要らない。
+
+（この 11 ms は初回実行の値で、ウォームアップ込み。定常状態は 1.70 ms である。下の「scan のキャッシュは要らない」を参照。結論は変わらず強まる。）
+
+#### `didOpen` は 1 ファイルなら 0 ms
+
+§14.5 で `didOpen` を落としたのは「送るのが悪い」ではなく「**全部**送るのが悪い」だった。
+
+```
+didOpen 65 ファイル → 初回クエリ 436 ms
+didOpen  1 ファイル → 送信 0 ms、クエリ 2 ms
+```
+
+そして送った内容が実際に使われることを確認した。ディスクに存在しない型をバッファ側だけに書き、そこへ解決させた。
+
+```
+ディスクのまま `total: Money`              -> plain/money.ts:2
+オーバーレイ後 `total: Cash`（ディスクに無い）-> plain/order.ts:3
+オーバーレイ後、旧位置で `Money` を引く      -> EMPTY（行がずれた）
+```
+
+したがって設計は「通常はディスク、バッファがあるファイルだけ `didOpen`」になる。同じ内容を scan と LSP の両方に配る必要があるので、オーバーレイは 1 か所で持つ。
+
+#### 却下: `--server` と行区切り JSON
+
+先に次の形を設計した。狙いはエディタでの表示であって CI ではない（CI なら CLI を直接呼べばよく、lint に組み込む理由がない）。
+
+```
+$ valof-lint --server 'src/**/*.ts'
+< {"overlay":{"/abs/src/order.ts":"…編集中…"}}
+> {"findings":[{"file":"src/order.ts","line":6,"column":22,"kind":"…","message":"…"}]}
+```
+
+**採らない。** 下の Worker 方式のほうが、valof 側にプロトコルもディスパッチも要求しない。ただしこの案の前提だった「エディタ拡張を作らずに済むこと」は Worker 方式でも同じで、valof-lint 自身が LSP を喋る案を却下する理由もそのまま残る。能力交渉も URI も位置エンコーディングも `publishDiagnostics` も初期化シーケンスも要らず、クライアントは自分で書くプラグイン 1 つだけである。
+
+**`--server` はテストも速くしない。** テストが遅かったのはプロセスの起動が原因で、`--server` は境界を跨ぐための仕組みだった。テストは境界そのものを無くせる（同一プロセスで `lint()` を呼ぶ）ので出番がない。実際そうして 4.40 s → 748 ms になった。そのとき入れた `Options.types` が、下の Worker 方式でも resolver を保持する口になる。
+
+#### 表示は oxlint が持っている
+
+自前で凝った出力（ソース抜粋 + キャレット）を書く案は**要らない**。oxlint の既定フォーマットが miette 相当で、**プラグインの診断にも同じように効く**。
+
+```
+  x valof(findings): structural-equals: Order.lines[] holds OrderLine, which has its own equals
+   ,-[src/order.ts:6:15]
+ 5 |
+ 6 | export const Order = Val.sealer<Order>();
+   :               ^^^^^
+   `----
+```
+
+キャレットが `Val` に当たっているのは finding が `column` を持つため。エディタの波線も同じ位置に出る。`--format` 一式（json / sarif / github / gitlab / junit / checkstyle / stylish / unix）も、端末幅と色の扱いも付いてくる。
+
+自前で書いて勝てるのは valof-lint 単体をターミナルで叩くときだけで、そこは 1 行形式で足りている。CI ではむしろ 1 行のほうが読みやすい。
+
+**ESLint には一般化できない。** 組み込みフォーマッタは stylish / html / json / json-with-metadata の 4 つだけで、ソース抜粋を出すものが無い（`codeframe` は ESLint 7 で本体から外れ `eslint-formatter-codeframe` になった）。
+
+```
+ESLint 既定（stylish）
+  src/line.ts
+    6:26  error  structural-equals: OrderLine.total holds Money, ...  valof/findings
+```
+
+`column` はどちらでも効き、エディタの波線も両方で正しい位置に出る。差は端末表示だけ。もっとも ESLint は typescript-eslint が TS 7 未対応で入口が塞がっているので、利用者にとっての実質的な経路は oxlint である。
+
+**検証の注意。** 既定フォーマットは stdout が TTY のときだけグラフィカルになる。パイプすると `unix` 相当に落ちるので、`| grep` を挟んだまま測ると 1 行形式に見える。一度それで誤った結論を出した。`vp check` 経由の oxlint が `unix` を指定しているのも紛らわしい。pty で `-f default` を明示して確かめること。
+
+#### プロトコルの書き方: 型定義を出す。RPC フレームワークは入れない
+
+「型が効く RPC」を 2026-09-08 に調べた。
+
+```
+birpc           v4.2.0   deps 0    25 kB   トランスポート非依存、vitest が使う
+json-rpc-2.0    v1.8.0   deps 0    58 kB
+rpc-anywhere    v1.7.0   deps 1   124 kB
+vscode-jsonrpc  v9.0.2   deps 0   220 kB   LSP の下回り
+@trpc/server   v11.18.0  deps 0  2043 kB   HTTP 前提、トランスポート自作が要る
+```
+
+**`birpc` が明確に良い。** `post` / `on` / `serialize` / `deserialize` を渡すだけなのでトランスポートを選ばず、stdio に素直に載る。実際に子プロセスと往復させて動かし、型が効くことも誤用で確認した。
+
+```ts
+export interface Lint {
+  lint(overlay: Record<string, string>): Promise<Finding[]>;
+}
+```
+
+```
+rpc.lint(123)          -> TS2345 引数の型
+rpc.linnt({})          -> TS2551 Did you mean 'lint'?
+const n: number = f[0].kind  -> TS2322 戻り値のプロパティ
+```
+
+**それでも入れない。** 理由は 3 つ。
+
+1. **メソッドが 1 つしかない。** フレームワークの価値は「メソッド名とシグネチャの対応を型が保証する」ことで、対応させる相手が 1 つならほぼ働かない
+2. **依存が配布物に乗る。** サーバ（valof-lint）とクライアント（プラグイン）の両方で要るので `dependencies` に入る。tarball 32 KB に対して 25 kB は無視できない比率で、§14.3 の「実行時依存ゼロ」とも噛み合わない
+3. **型は依存なしで効く。** 型定義を export すればクライアントは `import type` するだけ。`birpc` が捕まえた 3 つのうち引数と戻り値は素の型でも捕まる。捕まらないのはメソッド名の綴り違いだけで、1 メソッドならそこは問題にならない
+
+```ts
+// `valof/lint-protocol` として型だけ出す。ディスパッチは 20 行ほど。
+export type Request = { id: number; overlay?: Record<string, string> };
+export type Response = { id: number; findings: Finding[] } | { id: number; error: string };
+```
+
+**乗り換える条件: メソッドが 3 つを超えたら。** `shutdown`、設定変更、部分再 lint あたりが実際に要ると分かった時点。プロトコルが JSON である限り移行は容易で、`birpc` は独自のエンベロープを使うのでワイヤ形式は変わるが、クライアントは自分で書くプラグイン 1 つなので同時に差し替えられる。
+
+#### 採用: Worker 越しに `lint()` を直接呼ぶ
+
+**壁はプロセスの寿命ではなく、同期と非同期だった。**
+
+```ts
+create: (context: Context) => VisitorObject     // ルール API は同期
+BeforeHook = () => boolean | void               // フックも同期
+export async function lint(...)                 // lint は非同期
+```
+
+`lint()` の非同期は消せない。TS 7 のバックエンドが子プロセスの LSP だからである（TS 5 / 6 の in-process 側は同期だが、7 では原理的に待つしかない）。
+
+**Node のメインスレッドは `Atomics.wait` でブロックできる。** ブラウザでは禁止だが Node では通る。Worker で `lint()` を走らせ、ルール側が同期的に待てばよい。ESLint プラグイン界隈の定番で、`synckit`（95 kB、deps 1）や `make-synchronized`（68 kB、deps 0）がこれを提供する。最小実装で往復を確認した: 同期呼び出し 5 回で 106 ms、1 回あたり 21 ms、内訳は仕事そのもの。
+
+**プロセスの寿命はむしろ有利。** プラグインのモジュールスコープは ESLint / oxlint プロセスと同じ寿命なので、Worker が resolver を保持したまま 23 ms で再判定できる。CLI を毎回 spawn する案（206 ms）より速く、「常駐すると結果が固まる」欠陥も、毎回走らせられるので消える。oxlint は LSP でも JS プラグインを公式にサポートする（alpha）。
+
+`--server` と比べたとき valof 側に要るものが減る。
+
+|          | `--server`                             | Worker                               |
+| -------- | -------------------------------------- | ------------------------------------ |
+| valof 側 | サーバモード、プロトコル、ディスパッチ | **`lint` の export だけ**            |
+| 型       | プロトコル型を別に定義                 | 同じ TS モジュールなので自然に効く   |
+| overlay  | JSON にシリアライズ                    | 構造化クローンでそのまま             |
+| 依存     | なし                                   | プラグイン側に 68 kB。valof には無し |
+
+代償は `lint` が公開 API になること。今は `src/lint/index.ts` が CLI 専用で `exports` にも無い。§14.3 の同梱の議論に「API 表面が増える」が加わる。
+
+#### overlay は current buffer 1 枚だけ
+
+**プラグインは「今 lint しているファイル」の内容しか持てない。** 実測した。
+
+```
+lintFiles で見えたファイル: [ 'order.ts' ]
+他に開いているファイルの内容は: 見えない
+```
+
+蓄積して近似する案もあるが、**そもそも他のバッファの未保存編集を反映すべきでない。**
+
+- lint のモデルに合う。プラグイン API が「今のファイルの内容だけ渡す」形なのはそのため
+- 診断の原因が画面内に収まる。他のタブの未保存編集で目の前の診断が変わるのは追えない
+- 一番欲しい反応は即座に返る。structural-equals は親に報告されるので、親に `.implEquals({ total: Money })` を書いた瞬間に消える。子の未保存編集が効かないのは実用上ほとんど困らない
+
+したがって各ファイルの診断は「そのファイルのバッファ + 他はディスク」で計算する。overlay は 1 枚なので蓄積も `didClose` も要らず、**呼ぶたびに渡してその 1 回だけ使う**。保持しないのでライフサイクルの管理そのものが消える。
+
+```ts
+lint(files, { types: shared, overlay: { [context.filename]: context.sourceCode.text } });
+```
+
+#### 他のバッファを反映しないのは、この入口では正しい
+
+「未保存の他バッファを見ない」が異常でないかを確かめた。**ツールがクロスファイル解析をするかで分かれ、しかも同じツールの中でも層で分かれる。**
+
+**TypeScript の LSP は反映する。** 実測した。`order.ts` を開いてすらいないのに、`money.ts` のバッファを 2 行ずらすと `order.ts` からの解決先が動く。
+
+```
+order.ts から Money を引く（両方ディスク）      -> money.ts:2
+money.ts のバッファを 2 行ずらした後           -> money.ts:4
+```
+
+型解決はクロスファイルなので、反映しなければ型エラーが嘘になる。反映が要件である。
+
+**ESLint の LSP は反映しない。** これも実測済み（上の「単発ラップは LSP で破綻する」）。ルールがファイルローカルなので、他ファイルを渡す口が API に無い。
+
+**rust-analyzer は層で分かれる。** native analysis（補完・go-to-definition・型表示）は未保存バッファを反映する一方、`cargo check` 由来の診断は `checkOnSave`（既定 `true`）でディスクを読む。**クロスファイル解析をするツールでありながら、重い診断はディスクベースで保存契機**という構造で、valof-lint が置かれる位置と同じである。
+
+|                                   | 他バッファの未保存編集          |
+| --------------------------------- | ------------------------------- |
+| TypeScript LSP                    | 反映する（実測）                |
+| rust-analyzer の native analysis  | 反映する                        |
+| rust-analyzer の cargo check 診断 | **反映しない**（`checkOnSave`） |
+| ESLint LSP                        | **反映しない**（実測）          |
+
+valof-lint は性質としては TypeScript 側（クロスファイル解析）だが、入口が lint プラグインなので ESLint 側のモデルに縛られる。**渡す口が無いので、反映したくてもできない。** 選択肢は「lint プラグインを入口にして反映しない」か「自前で LSP を喋って反映する」の二択で、後者はエディタごとの拡張が要るため却下済み。前者の帰結であって欠陥ではなく、rust-analyzer の診断層に先例がある。
+
+#### CLI との整合
+
+**API は同じ。** CLI もプラグインも `lint(files, options)` を呼び、`overlay` を渡すかだけが違う。返るのもどちらも全ファイル分の findings で、プラグインは自分のファイルの分だけ報告する。「このファイルの分だけ返す」オプションは要らない。クロスファイル解析なので計算は全ファイル必要で、絞れるのは返す量だけである。
+
+**意味論は非対称になる。** CLI は「全ファイルがディスク」というひとつの世界を見るが、プラグイン経由では各ファイルの診断が別々の前提で計算される。
+
+```
+order.ts の診断 = order のバッファ + 他はディスク
+money.ts の診断 = money のバッファ + 他はディスク   ← 別の世界
+```
+
+診断の集合がどの単一の世界にも対応しない。**全ファイルが保存済みなら一致する**ので実用上は問題にならないが、`order.ts` に読みを書いても保存するまで `user.ts` の unused-member が消えない、という形で表面化する。README に書くとすればここ。
+
+**N ファイル開いていれば N 回計算する。** 毎回 23 ms で全 findings を作り、プラグインは 1 ファイル分しか使わない。大きなプロジェクトで効いてきたら overlay をキーにしたキャッシュを考えるが、それは「キャッシュの固着」を持ち込むので実測してからにする。
+
+#### 言語サーバはディスクに追随する。ただし遅れる
+
+`didOpen` を送っていないファイルについて、書き換えてから問い直した。
+
+```
+初回（ディスクのまま）      -> money.ts@42,  money.ts@116
+ディスクを書き換えた直後     -> money.ts@42,  money.ts@116   ← 古いまま
+300 ms 待ってから          -> money.ts@115, money.ts@13    ← 2 行ぶんずれて追随
+```
+
+サーバが自前で監視しているので、**valof 側に watcher は要らない**。ただし保存直後に lint が走ると古い答えを掴む窓がある。素直な対処は待つことではなく、そのファイルを `didOpen` / `didChange` で送ってしまうこと。1 ファイルなら 0 ms なので確実で安い。overlay の仕組みが未保存バッファと保存直後の競合の両方を解く。
+
+#### scan のキャッシュは要らない
+
+`didChange` ごとに全ファイルを読み直す形を疑ったが、測ると小さい。
+
+```
+readFileSync 67 ファイル   0.59 ms
+parseSync のみ             0.33 ms
+scan 全部（読み+parse+walk） 1.70 ms   ← walk が支配的
+```
+
+以前「11 ms」と記録したのは初回実行で、JIT のウォームアップ込みだった。定常状態はその 1/10。lint 1 回 23 ms に対して 7% しかない。
+
+**無効化には必ず正しさの責任が伴う。** 触っていないファイルがディスクで変わる経路（`git checkout`、フォーマッタ、生成コード）を閉じるには `didChangeWatchedFiles` か `fs.watch` が要る。1.7 ms のためにその責任を負う取引になる。§14.5 で差分 scan を捨てたのと同じ論法で、ここも捨てる。**毎回全部読み直すのは実装が最も単純で、構造的に古くならない。**
+
+1000 ファイル規模で scan が効いてきたら再考する。それまでは測ってから。
+
+#### やるときの順序
+
+1. オーバーレイを内部に通す（`scan` の読み口、2 つのバックエンド、`Resolver.setOverlay`）
+2. `lint` を `valof/lint` として export する
+3. プラグイン（`make-synchronized` + oxlint の `jsPlugins`）。valof には同梱せず README のレシピ
+
+~~`--server`~~ は却下。~~`column`~~ と ~~`Options.types`~~ は入れた。`--format=json` は oxlint 側が持つので valof-lint に要るかは未定。
+
+1 の途中まで書いて戻した。`Resolver` に `setOverlay` が要るのは、常駐中に版を上げて LSP へ `didChange` を送り、in-process 側では `getScriptVersion` を上げて再読込させるため。ここが両バックエンドで形の違う唯一の場所になる。
+
+### 14.10 テストの穴、2026-09-08 棚卸し
+
+**検証方法を先に。** カバレッジ率ではなく**変異テスト**で見る。ソースの一箇所を壊し、`ne vp test
+tests/lint` が落ちるかを確かめる。落ちなければ、そこはテストが 1 行も守っていない。
+
+```sh
+cp src/lint/rules/equals/paths.ts /tmp/m.bak
+perl -0pi -e 's/const found = \[path\];/const found = [path];\n  return found;/' src/lint/rules/equals/paths.ts
+ne vp test tests/lint    # 通ってしまうなら未カバー
+cp /tmp/m.bak src/lint/rules/equals/paths.ts
+```
+
+これで「落ちないテスト」が 3 つ見つかった。`d827e00` で塞いだのがそれ。
+
+#### 塞いだもの、1 巡目（d827e00）
+
+- **CLI から equals fixture を叩く。** in-process の `lint()` は毎回 `types` を渡され、CLI 側は
+  `.implEquals` を持たない fixture しか触っていなかった。`index.ts` の「自前で resolver を開いて
+  `finally` で閉じる」経路が一度も走っていない。
+- **`ignore/not-a-block` の fixture。** ディレクティブが 3 行目に着地し finding が 4 行目だったので、
+  ブロック判定を丸ごと消してもテストが通った。ディレクティブ・空行・別コメント・コードの 4 段に直した。
+- **`equals/array-spec` と `equals/covered-above`。** `specPaths` の `ArrayExpression` 分岐が効くのは
+  **トップレベルの配列 payload だけ**。`{ charges: [...] }` の形は `covered.add(path)` が入口で親パスを
+  足すため、分岐を消しても `charges` の prefix で覆われて変異を殺せない。
+
+#### 塞いだもの、2 巡目
+
+- **`paths.ts` `ARRAY_LIKE`。**`equals/array` の payload に `refunds: ReadonlyArray<Money>` を足した。
+  `readonly Money[]` と同じ `charges[]` / `refunds[]` に落ちる。
+- **`chains.ts` `fromVal` の namespace 形。**`valof.Val.sealer<User>().impl({…})` の fixture を足した
+  （今は `bindings/namespaced-value`、§14.13）。
+- **`cli.ts` の `--help` / `-h`。**description とパディングを込みで見る。
+- **`cli.ts` の oxc-parser 未導入の案内。**`--import tests/lint/no-oxc-parser.ts` が resolve フックで
+  `oxc-parser` だけ `ERR_MODULE_NOT_FOUND` にする。パーサが入っている機械で、入っていない機械の出口を通せる。
+- **`needsTypes` と `--no-structural-equals`。**resolver をスパイに差し替え、聞かれた query 数を数える。
+  `[]` を見るだけだった 2 つのテストが、これで主張どおりのものを観測する。
+- **`equals/covered/order.ts` の TS1361。**`import type { Money }` を値の import に直した。
+
+#### 残っている穴（変異で確認済み）
+
+| 箇所                               | 内容                                                                |
+| ---------------------------------- | ------------------------------------------------------------------- |
+| `unused.ts` `declaredName`         | `export { A as B }` の**連鎖**。1 ホップは `re-export` で覆えている |
+| `directives.ts` `widen`            | 1 ブロックに 2 つのディレクティブ、「空集合が全 kind に勝つ」       |
+| `equals/index.ts`                  | 1 つの alias に 2 つの chain、「最初が勝つ」                        |
+| `directives.ts` `joins` の trim 節 | コメント間に**コード**が挟まる場合。空行の方は塞いだ                |
+
+#### 残っている穴（コード読み）
+
+| 箇所                      | 内容                                                                                                                         |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `typecheck/in-process.ts` | TS5/6 バックエンド。開発機は TS 7.0.2 なので `overLsp` が選ばれ、**丸ごと走らない**。CI に TS5/6 を入れるかとセット（§10.1） |
+| `paths.ts` payload walk   | `TSTupleType` / `TSUnionType` / `TSIntersectionType` / `TSOptionalType`                                                      |
+| `unused.ts`               | 「同名 companion への read は両方に credit される」意図的な過剰近似                                                          |
+| `duplicate-brand.ts`      | 同一ファイル内の衝突、3 つ以上の衝突                                                                                         |
+| `index.ts` の sort        | 同一 file/line/column での kind によるタイブレーク                                                                           |
+| `cli.ts` の引数解析       | `--no-` の複数指定。in-process 側は覆えている                                                                                |
+
+#### 冗長
+
+`cli()` の spawn は 9 回から 10 回。`[cli().status, cli().stdout]` の 2 回 lint と `dead-member` の
+2 テストを畳んで 2 回減り、`--help` / `-h` / パーサ不在で 3 回増えた。
+
+`equals/covered` と `equals/excluded` は `specPaths` 上は同じ経路。**これは残す。**「値が何であれエントリ
+があれば覆う」という意図の記録になっている。
+
+#### 未決: fixture を型検査するか
+
+`tsconfig.json` は `exclude: ["tests/lint/**/fixtures"]`。外すと **112 errors**。内訳が判断を分ける。
+
+|                      | エラー                   |
+| -------------------- | ------------------------ |
+| `structural-equals/` | **0**（TS1361 は直した） |
+| `mixed/`             | 1                        |
+| `unused-member/`     | 73                       |
+| `ignore/`            | 21                       |
+| `duplicate-brand/`   | 16                       |
+
+structural-equals は go-to-definition が解決しないと成立しないので最初から realistic に書くしかなく、ほぼ通る。
+**`tests/lint/rules/structural-equals/fixtures/tsconfig.json` を置いてそのサブツリーだけ検査する案が有力。**残りは除外のまま。
+
+**却下: `unused-member/` `ignore/` `duplicate-brand/` も通す。**
+
+- 型検査を通らないことが要件の fixture がある。`unused-member/builtins` は「`.impl` が型レベルで拒む入力」が
+  被写体。`bindings/shadowed-type` と `no-cross-file-credit/reader.ts` の `./elsewhere.ts`、
+  `unused-member/foreign-impl` の `some-other-library` は**存在しないこと**が眼目。
+- `noUnusedLocals` が unused-member ルールの被写体（誰も読まない companion）を叩く。TS6133 が 12 件。
+- 通すには `Val` の import、payload 型、`user` / `id` の宣言、引数の型注釈が要り、6 行の fixture が倍以上に
+  なる。効いている 3 行が埋もれる。
+- fixture が本物の `EqImpl` / `Sealer` を満たす必要が出て、equality 設計（§5）を触ると無関係な lint の
+  fixture が落ちる。
+
+**却下: `as any` で通す。**`(Val.sealer<User>() as any).impl({…})` は `rootPath` が `TSAsExpression` を
+辿れず `fromVal` が false を返し、companion site として認識されない。findings が 0 件になり、期待値を
+`[]` に書き換えれば「通る」が、それは落ちないテストそのもの。実測で確認した。
+
+**却下: `@ts-expect-error` を貼って回る。**TS6133 も含めて確かに黙る。だが `@ts-expect-error` は抑制では
+なく**逆向きのアサーション**で、不要になると TS2578（`Unused '@ts-expect-error' directive`）で落ちる。
+110 行に貼れば「この fixture は壊れている」という主張が 110 個立ち、型検査から得たいもの（`implEquals([Money])`
+が正当な形か）の正反対になる。
+
+**却下: `@ts-nocheck`。**TS2578 の churn は避けられるが、その行以下は検査されない。`exclude` をファイル
+ごとに散らして見えにくくしただけ。
+
+**却下: 緩い fixture 用 tsconfig。**`strict: false` にすると `Val` 自体が壊れる
+（`Type 'Money' does not satisfy the constraint 'AnyVal'` が 24 件）。緩いプロジェクトは成立しない。
+
+#### 着手順の目安
+
+次は `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`equals/index.ts` の「最初が勝つ」。
+どれも変異で穴だと確認済みで、fixture 1 つずつで塞がる。`in-process.ts` は CI に TS5/6 を入れるかの話
+なので別枠。
+
+### 14.11 テストの置き場所、2026-09-08
+
+fixture とテストを離すと、1 本読むたびに別の木へ飛ぶ。§14.10 の作業は「穴 1 つ = fixture 1 つ + テスト 1 本」なので、この往復が一番多い。コロケーションにした。
+
+```
+tests/lint/
+  support.ts          fixtures() / spy() / cli()
+  no-oxc-parser.ts    --import で渡す resolve フック
+  rules/
+    unused-member/      {fixtures/, index.test.ts}
+    duplicate-brand/    …
+    structural-equals/  …
+  bindings/ …    §14.13 で追加
+  ignore/   …
+  skip/     …    fixture は mixed/
+  command/  …
+```
+
+**`tests/lint/` は `src/lint/` を映す。** ルールは `rules/` にまとめ、ディレクトリ名は**ルール種別そのもの**にした（`brand/` ではなく `duplicate-brand/`）。冗長だが、期待値の文字列と `--help` の一覧と一字一致する。横断機構 4 つは上の階層に残した。`ignore/` は `scan/directives.ts`、`bindings/` は `scan/bindings.ts` に当たるが、`ignore` と `skip` は**利用者から見た機能**の名前で、`directives` はどこにも露出しない。ルールだけは名前が `--help` に出るので、ソースの構造と利用者の語彙が一致する。
+
+**境界はルール 3 つ + 横断機構 4 つ。** 元の `turning a rule off` には性質の違う 3 つが同居していた。API の `skip`、CLI の `--no-` 解析、そして「TypeScript を起こさない」という費用の主張。前 2 つを `skip/` に、費用は `equals/` に移した。`skip/` は**何が報告されるか**、`equals/` は**何を払うか**を見る。
+
+**fixture の重複は許す。** `command/` は出力の形が被写体なので、finding 1 件・0 件・`implEquals` ありの 3 つを自前で持つ。
+
+**describe は撤去。** ディレクトリが主語になるので `describe("duplicate brands")` はパスの繰り返し。テスト名は元から単独で文になっている。`rules/unused-member/` だけ 2 つ残した。`what name resolution cannot reach`（`computed-key` と `spread`）は「意図して見ない」の記録で、見つける側と並べる意味がある。
+
+**単一ファイルの fixture はフォルダを畳む。** `dead-member/a.ts` → `dead-member.ts`。`a.ts` は何を試しているかを 1 文字も語らない。複数ファイルのものは `billing.ts` / `orders.ts` のように中身で名づける。finding は `fixtures/` からの相対パスで出すので、期待値の 1 行目が自分の見ている fixture を名乗る。
+
+**resolver を持つのは `rules/structural-equals/` だけ。** どのテストが language server を要るかがレイアウトに出る。
+
+以前は `unused/` も持っていた。`builder-chain` が `.implEquals` を書いていたためで、そこを観測するテストは 1 本もなかった。ステップを 2 つ（`implSeal` と `fixed`）残して `.implEquals` だけ落とし、抜けた分は `equals/plain` の chain にステップを足して受けた。変異で両方を確認した。
+
+- `rootPath` が呼び出しステップを 1 段しか降りない → `unused/builder-chain` だけが赤（58 本中 1 本）
+- `readChain` の walk が引数なしのステップ（`fixed<"id">()`）で止まる → `equals/plain` が赤。`covered` のような `[]` を期待する fixture では site ごと消えて緑のままなので、**finding を出す側**の fixture でしか押さえられない
+
+**設定は 3 箇所。** `vite.config.ts` の lint / fmt `ignorePatterns` が `tests/lint/**/fixtures/**`、`tsconfig.json` の `exclude` が `tests/lint/**/fixtures`（`rules/` を挟んだ時に `*/` では届かなくなった）。fixture に型エラーと崩れた整形を入れて `vp check` が黙ることを確認した。ここを間違えると fixture が検査に入る。
+
+**自己 lint は消した。** 引数なしの `cli()` が `src/**/*.ts` を lint し、`command/` に「finding は 0 件」という 1 本があった。まず `command/`（被写体は出力の形）から出して `self.test.ts` にしたが、そもそも赤になる道がない。`src/` の `Val.sealer` / `Val.companion` は全部コメントと文字列で、実際の使用は 0 件。`src/val.ts` は `Val` を実装している側なので自分を呼ばない。**このリポジトリで valof をドメインロジックに使う日が来るまで、この主張は空。** 手で使用を足せば赤くなるが、それは変異ではなく別のリポジトリを作る作業。
+
+`src/` で valof を使い始めたら戻す先は `tests/lint/self.test.ts`。`vite.config.ts` のタスクにする案は却下、`vp run size` と同じで回し忘れる。
+
+**ルール一覧を名乗るのは `--help` だけ。** `skip/` の `--no-typo` のエラーは `kinds` をレジストリから読んで組む。以前は 3 つのリテラルで、`--help` と 2 箇所が同じ列挙を持っていた。§14.12 の `brand-mismatch` を足したとき赤くなるのは 1 箇所。メッセージの形（前置き、字下げ、`, ` 区切り）は変異で赤を確認済み。
+
+**却下: 1 ファイルのまま describe を増やす。** fixture との距離が縮まらない。
+
+**却下: `command/` から他家族の fixture を参照する。** 重複はゼロになるが、コロケーションが 1 ファイルだけ崩れる。5 行の重複を取った。
+
+**却下: フックを `.js` のまま置く。** `--import` も type stripping を通るので `.ts` で動く。`.js` の理由になっていた「型検査から外れる」は、裏返すとリポジトリで 1 ファイルだけ検査から漏れるという話だった。
+
+**`module.registerHooks` に移した。** `register()` は非推奨（@types/node 26 が `@deprecated Use module.registerHooks() instead` を出す）。`registerHooks` は同スレッド同期で、フックを**関数のまま**受ける。`data:` URL に本体を文字列で埋める必要がなくなり、本体にも型が付いた。1 ファイルのまま。変異で確認: 見張る specifier を変えると `command/` の「asks for oxc-parser」が赤。
+
+### 14.12 規則: 型名と一致しないブランド、2026-09-08
+
+**入れる。** `brand-mismatch`。ブランドの最後の `/` 以降が型名と一致しなければ報告する。既定で on。
+
+```
+判定  brand.slice(brand.lastIndexOf("/") + 1) === alias
+```
+
+```ts
+type UserId = Val<"UserId", string>; // 通る
+type BillingId = Val<"billing/BillingId", string>; // 通る。/ 以前は見ない
+type EmailAddress = Val<"Email", string>; // 報告
+```
+
+#### 根拠: ブランドは言語が強制する重複
+
+`type X = Val<...>` から TypeScript は「これは `X` という名前だ」を導けない。だからブランド文字列は
+**型名を人間がもう一度書かされているだけ**で、情報を増やしていない。
+
+「事実は正典の場所に一度だけ書く」がここだけ守れない。守れないなら 2 つが食い違わないことを保証する
+のは lint しかない。既存 3 つと同じ「一致すべき 2 つの食い違い」の検出であり、スタイル規則ではない。
+
+リネームで顕在化する。LSP のリネームは文字列リテラルを書き換えないので、`OrderId` →
+`PurchaseOrderId` にするとブランドは `"OrderId"` のまま残る。コンパイラは永久に気づかない。代償は
+エラーメッセージで、読み手が「なぜ」を読む一番深い行が実在しない型名を指す。
+
+```
+Type 'PurchaseOrderId' is not assignable to type 'UserId'.
+      Type '"OrderId"' is not assignable to type '"UserId"'.   <- ここ
+```
+
+#### 根拠: README が既にそう言っている
+
+> **Name the brand after the type it brands.**
+
+規則は新しい規約を作らない。**既にある規約を機械が守るだけ。**既定で on にする根拠もこれ。
+
+#### 根拠: ブランドを選べること自体が思考コスト
+
+`type EmailAddress = Val<"Email", string>` を正当と認めた瞬間、「どこまでの略記を許すか」という判断が
+利用者に戻る。それが払わせたくないコストなので、認めない。移行中の `UserV2` も同じで、別の型なら
+別のブランドを持つべき。**誤検知は実質ない。**非リテラルのブランドと `Val` でないものは、
+duplicate-brand と同じ `original(bound, typeName) !== "Val"` ガードで落ちる。
+
+#### 却下: 型名と名前空間を混ぜる二本立て
+
+`type BillingId = Val<"billing/Id">` を通すために「最後のセグメント一致、または全セグメントの
+PascalCase 連結一致」を検討した。**通す理由がない。**型名を `BillingId` にしたならブランドも
+`"billing/BillingId"` にすればよい。名前空間と型名は直交していて、混ぜる必要がなかった。
+
+「型名がブランド末尾で終わればよい」（`BillingId`.endsWith(`Id`)）も却下。`type UserId = Val<"Id">`
+が通ってしまい、規則の目的が消える。
+
+#### 却下: `/` 以前にも規約を作る、名前空間を既定で推奨する
+
+**`/` 以前は見ない。**そこに規約を作らない理由は 2 つ。
+
+1. **跨ぎの衝突は実質 monorepo だけ。** valof はライブラリ構築を推奨しない（README の Caveats）。
+   monorepo なら全ディレクトリに scan をかければ duplicate-brand がそのまま見る。brand 系の規則は
+   resolver を使わないので、対象を広げる costs は scan だけ。
+2. **何を前置きにするかはプロジェクト構成に依存する。** 規約にできない。
+
+副産物として、**問題が起きるまで思考コストを払わなくてよい。**名前空間は要らないうちは書かない。
+`UserId` が 2 つできて duplicate-brand が鳴ってから、そのとき初めて分け方を考える。
+
+これに伴い §2.1 の「`"app/User"` のように名前空間を付ける命名規約を推奨する」を改めた。README
+（`Id` in two domains of a monorepo）が最初から monorepo 限定で書いていて、§2.1 だけが一般的な推奨に
+なっていた。
+
+#### メッセージは直し方を名指しする
+
+正解が機械的に導けるので、既存 3 つにできないことができる。
+
+```
+EmailAddress claims the brand "Email", which should be "EmailAddress"
+BillingId claims the brand "billing/Id", which should be "billing/BillingId"
+```
+
+`Id claims the brand "Id", and so does another type` と同じ構文で、後半だけが「どうすべきか」になる。
+
+#### 実装
+
+`BrandClaim` が既に `alias` / `brand` / 位置を持つ。`Rule` オブジェクト 1 つと `RULES` への 1 行だけで、
+`Scan` に足すものも resolver も要らない（§14.8）。バンドル予算は無関係。`scripts/size.ts` が測るのは
+`dist/index.mjs` だけで lint は入らない。
+
+**2026-09-08 実装。`rules/brands.ts` を `duplicate.ts` と `mismatch.ts` に割った。**1 ファイルに 2 つ置くと
+実装関数の名前が衝突する。§14.8 の「どのファイルでも `findings`」は 1 ファイル 1 ルールを前提にしていた。
+ファイル名は `unused.ts` / `equals/` と同じで、種別の中の区別する語だけを取る。
+
+**既存の fixture が 7 つ違反した。**duplicate-brand を観測する fixture は `OrderId = Val<"Id">` の形で、
+ブランドの重複と型名の不一致を同時に持っていた。別名を `Id` に揃えて直した。2 つのファイルが同じ
+`Id` を宣言する形になり、README が言う monorepo の例そのものになる。`namespaced` だけはブランドを
+`"orders/OrderId"` にした。
+
+**変異で 3 つ確認した。**`Val` ガードの除去は `bindings/not-a-val` が、最後のセグメントではなく全体を
+比べるのは `duplicate-brand/namespaced` が、メッセージから名前空間を落とすのは新しい `namespaced.ts` が
+赤くなる。
+
 ---
 
 ## 15. v2 候補
+
+### 14.14 規則: 欠けている disable コメント、2026-09-08
+
+**入れる。**`incomplete-disable`（2026-09-08 に `bare-disable` から改名、§14.18）。指示がルールを 1 つも挙げていなければ報告する。
+既定で on。
+
+#### 根拠: 黙らせる範囲が本人の決定を離れる
+
+裸の指示は次の行の**全ルール**を黙らせる。後から足したルールも含む。`brand-mismatch` を足した日に、
+`unused-member` のつもりで書かれた裸の指示が黙って範囲を広げた。書いた人は何も決めていない。
+
+#### 却下: CLI を落とす（exit 2）
+
+`--no-typo` と同じ「走れなかった」の扱いにする案。**往復が 1 回増える。**裸のコメントを直すまで
+他のルールの findings が出ない。直すものが 2 つあるとき、2 回走らせることになる。位置つきの finding
+なら 1 回で全部見える。エディタ統合（§14.9）にもそのまま乗る。
+
+**メッセージだけ exit 2 案から取った。**`--no-typo` が「知っているルールはこれだ」と言うのと同じ命令形。
+
+```
+valof-lint-disable-next-line names no rule; name the ones it silences
+```
+
+**ルール名は列挙しない。**`kinds` を読むには規則が `rules/index.ts` を import することになり、
+レジストリと規則の依存が循環する（§14.8 は「呼び出し側にルールの知識を置かない」の逆向き）。
+一覧を名乗るのは `--help` だけという §14.11 の線もそのまま保つ。
+
+#### 却下: 裸の指示を無効にする
+
+報告せず、単に何も黙らせない案。実装は一番小さいが、**なぜ finding が復活したのか読み手に伝わらない。**
+
+報告した上で**黙らせ続ける**。行の下は書いた人が望んだとおりに書かれていて、ここで指示を無効にすると
+本来の finding が裸の指示の下に埋もれる。
+
+#### 一行に複数のルール
+
+`// valof-lint-disable-next-line duplicate-brand brand-mismatch`。**元から動いていた。**`directive()` の
+分割が `/[\s,]+/` なので、空白でもカンマでも区切れる。テストも README も無く、変異（先頭 1 つだけ取る /
+空白だけで割る / カンマだけで割る）でどれも赤にならなかった。fixture 1 つ（`ignore/two-kinds`）で 3 つとも
+赤になる。`--help` の例も 1 つだけ挙げていたので 2 つに変えた。
+
+#### 実装
+
+`Scan.bare: Where[]` を足した。`disabled` は「行 → 種別」で、キーが**指示の次の行**なので指示自身の位置を
+持たない。`disabledLines` が両方を返す。
+
+**効いている指示だけを見る。**コードの後ろに書かれた指示（`ownLine` が false）は何も黙らせないので、
+言うことがない。`ignore/after-code` が緑のままであることがそれを守る。
+
+**自分を黙らせられない。**finding は指示の行に、指示が黙らせるのは次の行に出るので、裸の指示が自分の
+報告を消すことはない。
+
+**2026-09-08 訂正。**「名指しの `// valof-lint-disable-next-line bare-disable` でなら消せる」と書いたが、
+消せていたのは**バグのおかげ**だった。`byLine.set(blockEnd + 1, kinds)` をコメントごとに書き直していたため、
+ブロックの途中の行（＝次のコメントの行）にエントリが残っていた。§14.15 でブロック単位に組み直したときに
+消えた。指示についての finding を黙らせる手段は `--no-<kind>` だけになる。
+
+### 14.15 規則: 効いていない disable コメント、2026-09-08
+
+**入れる。**`unused-disable`。指示が挙げた名前のうち、その行で何も黙らせなかったものを報告する。
+既定で on。
+
+```
+valof-lint-disable-next-line names unused-member, which reports nothing here
+```
+
+**名前ごとに 1 件。**`unused-member, duplicate-brand` の片方だけが働いているとき、どちらを消せばよいかを
+finding が名乗る。裸の指示は対象外で、`incomplete-disable` に任せる。名指しする名前がなく、求める修正も同じ。
+
+#### 他のルールの findings が要る
+
+これだけは `Scan` から決まらない。「この指示は何かを黙らせたか」は他のルールが何を報告したかの関数で、
+`run(scans, context)` からは見えなかった。**`Context` を 2 つ広げた。**
+
+```ts
+reported: readonly Located[];      // 前のルールが報告したもの、黙らされる前
+notRun: ReadonlySet<string>;       // 報告できなかった kind
+```
+
+`RULES` の順が実行順であることに、初めて意味が生まれる。このルールは**最後に置く**。
+
+**`notRun` は `--no-<kind>` だけ。**外したルールは指示を「効いていない」ように見せるが、指示のせいではない。
+
+**残る誤検知は glob。**duplicate-brand は相方のファイルが同じ run に要る。1 ファイルずつ lint すると、
+プロジェクト全体では働いている指示を報告する。README に書いた。
+
+#### TypeScript が無ければ走らない
+
+最初は「TS の無いプロジェクトの `structural-equals`」も誤検知の一つとして扱い、`types()` をルールごとに
+包んで「聞いて `undefined` が返った kind」を `notRun` に足していた。**やめた。**`resolver()` が
+`undefined` を返す経路そのものを消し、投げるようにした（`code: ERR_NO_TYPESCRIPT`）。CLI が受けて exit 2。
+
+- **Val を書く人で TypeScript を持たない人はいない。**「無い」は支援すべき構成ではなく壊れたインストール
+- **黙って何も報告しないのが一番悪い。**クリーンな run と見分けが付かない
+- **分岐が 3 つ消えた。**`Context.types` の `Resolver | undefined`、equals ルールの `if (!resolver) return []`、
+  runner の per-rule ラッパ。`Options.types` の `null` も要らなくなった
+
+**確認は起動時、1 回。**最初はルールが名前解決を求めたときに投げる形にした。**やめた。**落ちるかどうかが
+「今このファイル群に `.implEquals` があるか」で決まる。`.implEquals` を 1 つ足した日に、TS の無い機械の CI が
+初めて落ちる。`--no-structural-equals` でも要求する。
+
+**確認は起動ではない。**`require.resolve` するだけで、language server は今までどおりルールに聞かれるまで
+起動しない。§14.8 の 212 ms → 109 ms は保たれる。
+
+テストは `tests/lint/no-typescript.ts`。`no-oxc-parser.ts` と同じ `module.registerHooks` の resolve フックで、
+`typescript` の解決だけを失敗させる。TS のある機械から、無い機械の出口を通せる。
+
+#### 実装: `Scan.disabled` / `Scan.bare` → `Scan.directives`
+
+指示 1 つを `{ line, column, covers, kinds }` にした。`disabled`（行 → 種別）は `silences()` で導出する。
+
+**ブロック単位に組み直した。**以前はコメントごとに `byLine.set(blockEnd + 1, kinds)` を呼び、ブロックが
+伸びるたびに書き直していた。**途中の行のエントリが残る。**行の下ではなくブロックの中を指す幽霊で、
+`unused-disable` はそれを「効いている指示」と読んでしまう。ブロックを閉じるときに一度だけ書く形にした
+（§14.14 の訂正も参照）。
+
+#### ファイル名を kind に揃えた
+
+`unused.ts` の隣に `unused-disable.ts` が並ぶのが読めない。`rules/` を `unused-member.ts` /
+`duplicate-brand.ts` / `brand-mismatch.ts` / `incomplete-disable.ts` / `unused-disable.ts` /
+`structural-equals/` にした。`tests/lint/rules/` が §14.11 で採った並びと同じで、`--help` の語彙とも一致する。
+
+### 14.16 ファイル全体の disable、2026-09-08
+
+**綴りにスコープを必ず出す。**4 つ。
+
+```
+// valof-lint-disable-next-line unused-member       行
+// valof-lint-disable-whole-file unused-member      ファイル
+// valof-lint-disable-all-whole-file                ファイル、全ルール
+// valof-lint-disable ...                           スコープ無し = 誤り。何も黙らせず報告する
+```
+
+`-all` の位置がスコープの前なので、行単位の `-all` が欲しくなれば
+`valof-lint-disable-all-next-line` が空いている。**今は入れない。**行で「全部」を欲しがる場面が無い。
+
+#### 却下: 裸の `valof-lint-disable` をファイル全体の意味にする
+
+最初はこれで実装した。ESLint の `/* eslint-disable */` に倣う形。**やめた。**行の綴りから
+`-next-line` を落としただけの形なので、書いた人がスコープを意識しない。しかも裸なら全ルールを
+黙らせるので、**自分についての `incomplete-disable` も黙る**。書いた人は何も知らされない。
+
+#### 「名前を挙げない」の意味がスコープで違う
+
+ここだけ非対称で、理由がある。
+
+- **行**: 全部黙らせて、かつ報告する（§14.14）。黙らせるのをやめると、本来の finding が指示の下に埋もれる
+- **ファイル**: 何も黙らせずに報告する。黙らせると**その報告自体が消える**。ファイルを丸ごと外すのは
+  `-all-whole-file` という別の綴りの仕事
+
+`-all-whole-file` は自分についての finding も黙らせる。ファイルを run から外すとはそういうことなので、
+特例ではない。**副作用として `incomplete-disable` の `-all` 除外ガードは観測できない。**外しても赤にならないので、
+コードにコメントで記録した（CLAUDE.md「落とせないならコメントが唯一の記録」）。
+
+#### 実装
+
+`Directive` に `spelling` を持たせ、`covers: number | "file"` と分けた。「何を黙らせるか」は
+`effect()` が綴りと名前から決める。**「空集合＝全種」の約束をやめた**（`Silenced = ReadonlySet | "every"`）。
+スコープで意味が割れた以上、空集合に 2 つの意味を持たせられない。
+
+`silences()` は Map ではなく述語を返す。ファイル全体と行の 2 段を呼び出し側で組み立てさせない。
+
+**綴りの後ろには空白以外を許さない**（`(?![-\w])`）。`valof-lint-disable-nextline` のような打ち間違いが
+「ファイル全体を黙らせる指示」に化ける道を塞ぐ。fixture `ignore/misspelled` が守る。
+
+### 14.17 `--no-<kind>` を受けない規則、2026-09-08
+
+`incomplete-disable` と `unused-disable` は `--no-` で外せない。`Rule` に `always?: true` を足した。
+
+**理由。**「黙らせたことについての報告」を切るスイッチは、**全部黙らせて何も聞かない**手段になる。
+2 つはまさにそれを防ぐために在るので、自分を外す口を持ってはならない。
+
+逃げ道はファイル側にだけ残る。`valof-lint-disable-all-whole-file` は自分についての finding も含めて
+そのファイルを外す。グローバルなスイッチと違い、**そのファイルに書いてあり、grep できる。**
+
+**代償。**`unused-disable` の glob 由来の誤検知（1 ファイルずつ lint すると相方の居ない duplicate-brand の
+指示が「効いていない」と出る）に、全体スイッチが無くなった。逃げ道はそのファイルの `-all-whole-file` だけ。
+再検討するなら `unused-disable` から `always` を外す。
+
+**解いた、2026-09-08。読む集合と報告する集合を引数で分ける。**
+
+```
+valof-lint src src/billing/id.ts                      第 1 引数がプロジェクト、以降が報告対象
+valof-lint --target src/billing/id.ts --project src   名前で渡せば順序は自由
+valof-lint src                                        報告対象を省けばプロジェクト全体
+```
+
+一度は「運用で解く、直すのはエディタ統合と同時」と書いた。**利用者がいないという理由が消えた。**
+lint-staged がそれで、末尾にパスを足す道具なので位置引数が報告対象であるほうが噛み合う。
+
+**第 1 引数は glob かディレクトリでなければエラー。**`valof-lint one.ts` が書けなくなる。単一ファイル実行
+こそ 3 規則が誤答する形なので、引数で不可能にする。`--project` フラグだけを足す案（位置引数は全部報告対象）
+も動いたが、**プロジェクトを渡し忘れた形が黙って通る。**
+
+**ディレクトリを受けると方針を 2 つ持つことになる。**`<dir>/**/*.{ts,tsx,mts,cts}`、`node_modules` は除外。
+今までは glob が全部決めていた。`valof-lint .` が `node_modules` を歩く事故が実在するので除外は要る。
+fixture `project/pkg/node_modules/dep.ts` が守る（除外を消すと赤）。
+
+`Options.report` は解決済みパスの集合。`lint()` は silencing と同じ最後の filter で落とす。**scan は
+`project ∪ 位置引数`。**プロジェクトの glob が拾わない新規ファイルを報告対象に渡したとき、それを読まずに
+「何も無い」と言わないため。fixture `project/outside/fresh.ts` が守る（union を消すと赤）。
+
+リンタが「run が完全か」を推測する案は採らない。判定できないものを推測させると、本当に効いていない指示を
+見逃す側に倒れる。**どこまでが自分のプロジェクトかは利用者が知っていて、引数で言える。**
+
+エディタ統合（§14.9）が要求するのも同じ形で、プラグインは `lint()` にプロジェクト全体を渡し、今開いている
+ファイルだけを報告対象にする。
+
+`-all-whole-file` を付けたファイルはこれに当たらない。run には入っていて、他のファイルの finding の根拠と
+して数えられ、自分だけが報告されない。指示は報告を消すのであって事実を消さない。
+
+**実装。**`lint()` は skip 集合を `isSkippable` で濾すだけ（ルール固有の分岐なし）。CLI は `--no-` に
+別のメッセージを返す。`--help` の「Leave a rule out of the run, but not …」もレジストリから組む。
+
+### 14.18 指示についての規則の見せ方、2026-09-08
+
+**内部は Rule のまま、`--help` で 2 群に分ける。**
+
+```
+Reports what the type checker cannot:
+  unused-member       …
+  duplicate-brand     …
+  brand-mismatch      …
+  structural-equals   …
+
+And about the disable comments themselves, which always run:
+  incomplete-disable  …
+  unused-disable      …
+```
+
+利用者から見て 2 つは他の 4 つと性質が違う。**コードではなくコメントについての指摘**で、行では黙らせられず、
+`--no-` も受けない（§14.17）。違和感の正体は名前ではなく**同じ列に並んでいること**なので、並べ方で解いた。
+
+**改名。**`bare-disable` → `incomplete-disable`。「ルールを挙げていない」と「スコープを挙げていない」を
+1 語で言える。`unused-disable`（欠けてはいないが効いていない）と対になる。
+
+#### 他のリンタの線引き（oxlint 1.77.0 で実測）
+
+```
+a.js:1:1: warning: Unused oxlint-disable directive (no problems were reported).
+```
+
+**ルール ID が付かない。**リンタ自身の診断で、`--report-unused-disable-directives` で入れる既定 off。
+裸の `/* oxlint-disable */` は報告しない。それを咎めるのは `eslint-plugin-eslint-comments` の
+`no-unlimited-disable` という**プラグインのルール**で、ID を持つ。**業界の線引きは「unused = 診断、
+unlimited = ルール」**で、うちの 2 つは両方にまたがる。
+
+#### 却下: kind を 1 つ（`disable-comment`）に統合
+
+名前としては正直だが、**直し方の違う 2 つの欠陥が 1 語に潰れる**（名前を挙げる / 指示を消す）。
+
+#### 却下: ESLint に倣って列を空にする
+
+kind を出力から外す案。**印字側にルール固有の分岐が入る**（§14.8 が消した種類のもの）。ID が無いので
+検索の手掛かりも減る。既定 off にする案も採らない。既定 on は §14.14 / §14.15 の判断。
+
+### 14.13 `Val` の綴りを 1 箇所に、2026-09-08
+
+「`Val` をどう綴っても認識する」は 3 箇所が依存する共有の事実。`brands.ts:41`（型位置）、`aliases.ts:76`
+（型位置、equals のエイリアス収集）、`chains.ts` `fromVal`（値位置）。記録がルール別のディレクトリに散っていた
+ので `bindings/` に集めた（`src/lint/scan/bindings.ts` に対応）。
+
+移したもの: `brand/` から `renamed-val` / `namespaced-val` / `shadowed-val` / `not-a-val`、`unused/` から
+`namespaced-val`。名前は位置を名乗るように変えた（`renamed-type` / `namespaced-value`）。
+
+**集めて 2 つ穴が出た。** どちらも fixture 1 つで塞がり、変異で赤を確認した。
+
+- **値位置でリネームした `Val`。**`import { Val as V }` + `V.sealer<User>()`。`fromVal` の
+  `original(bound, first)` を通る唯一の形が未カバーだった。→ `renamed-value.ts`
+- **namespace import ではない修飾子。**`other.Val<"Id", string>`。`valName` の `namespaces.has` を消しても
+  `namespaced-type` は緑のまま（右側が `Val` なので通ってしまう）。ガードを守るのは**落ちる側**の fixture
+  だけ。→ `not-a-namespace/`
+
+**期待値は 2 ルールにまたがる。** 型位置は `duplicate-brand`、値位置は `unused-member`。ルールの名前が付いて
+いないディレクトリに両方が並ぶこと自体が「これはルールの話ではない」と言っている。被写体は結合の解決で、
+finding は**それを最も安く観測できるルール**のもの。
+
+**却下: `unused/` のリネーム追跡も動かす。** `renamed-import` / `re-export` / `same-name` /
+`no-cross-file-credit` が叩くのは `unused.ts` の `exportedAs` → `declaredName`。unused の中にしかなく、
+他のルールは呼ばない。共有機構ではなくルールの機能なので `unused/` に残す。
 
 ### 15.1 `Val.trait`
 

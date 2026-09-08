@@ -1,0 +1,6 @@
+// valof-lint-disable-whole-file duplicate-brand
+
+const User = Val.sealer<User>().impl({
+  // valof-lint-disable-next-line unused-member
+  shout: (u) => u.toUpperCase(),
+});

@@ -5,21 +5,33 @@ export default defineConfig({
     "*": "vp check --fix",
   },
   pack: {
+    entry: ["src/index.ts", "src/lint/cli.ts"],
     dts: {
       tsgo: true,
     },
-    exports: true,
+    exports: {
+      // The CLI ships as a command, not as an import, so it stays out of the public exports.
+      // Naming it here as well: left to auto-detect, the command takes the package's own name.
+      exclude: ["lint/cli"],
+      bin: {
+        "valof-lint": "./src/lint/cli.ts",
+      },
+    },
   },
+  // Deliberately unresolvable and deliberately dead: the fixtures are input to `valof-lint`,
+  // not code this package compiles.
   lint: {
-    // Its `valof` import resolves through `scripts/ts-compatibility/tsconfig.json`, which aims the
-    // name at the built declarations. That config owns the file; this one cannot see it.
-    ignorePatterns: ["scripts/ts-compatibility/public-api.ts"],
+    // `public-api.ts` resolves its `valof` import through `scripts/ts-compatibility/tsconfig.json`,
+    // which aims the name at the built declarations. That config owns the file; this one cannot
+    // see it.
+    ignorePatterns: ["tests/lint/**/fixtures/**", "scripts/ts-compatibility/public-api.ts"],
     options: {
       typeAware: true,
       typeCheck: true,
     },
   },
   fmt: {
+    ignorePatterns: ["tests/lint/**/fixtures/**"],
     proseWrap: "always",
     overrides: [
       {
