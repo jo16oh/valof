@@ -395,6 +395,32 @@ builds can differ there as well.
 | Svelte 5  | `$state.raw`, not `$state`        |
 | Vue       | `shallowRef`, not `ref`           |
 
+### Crossing a serialization boundary
+
+**Return the payload, not the value.** A generated client derives its response type from the
+handler, so a Val there lands on the other side already typed as one, having never met the seal.
+
+```ts
+app.get("/user/:id", (c) => {
+  const body: PayloadOf<User> = user; // the brand drops, the object is the same one
+  return c.json(body);
+});
+```
+
+Now the other side cannot use what arrives until it seals it:
+
+```ts
+const plain = await res.json(); // the generated client types this as PayloadOf<User>
+const bad: User = plain; // type error: the brand is missing
+const user = User(plain); // sealed, and now it is one
+```
+
+`PayloadOf<V>` removes the brand from the type, not from the value, so it costs nothing at run time.
+`Val.unwrap` copies and drops `readonly` too, which a request body does not need.
+
+Seal on the way in, because the two sides deploy separately: the value was sealed by whichever build
+the server is running, and that seal may be older than yours.
+
 ## Utilities
 
 ### `Val.of`
