@@ -2,7 +2,7 @@
 
 TypeScript 向け値オブジェクトライブラリの設計記録。
 
-- **パッケージ名**: `valof`（npm 空き確認済み）
+- **パッケージ名**: `valof`
 - **主要エクスポート**: `Val`（型 + 名前空間）
 
 ```ts
@@ -28,7 +28,7 @@ import { Val } from "valof";
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド
 - **§9 未解決 / 要確認** 次の作業はここ
-- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降） / **§11 README の構成案**
+- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）
@@ -164,8 +164,6 @@ type Primitive = string | number | boolean | bigint | null;
 ### 移行の摩擦
 
 API レスポンスや既存コードのプレーンなネストオブジェクトは、そのまま渡せない。seal の中で子 Val を組み立てる作業が発生する。
-
-思想としては正しいが、**README の冒頭でこの制限の理由を説明しないと初見で離脱される**。最優先で書く。
 
 ### プリミティブを直接包める
 
@@ -650,10 +648,6 @@ const Email = Val.companion<Email>().implSeal(
 
 `Email` の `implEquals` は不要になり、親から構造比較されても正しい。スマートコンストラクタで不変条件を確立するのは値オブジェクトの定石なので、この制約は正しい設計へ誘導している。
 
-**README にはこれを「制限」ではなく「原則」として書く。**
-
-> Val は正規形で構築してください。等価性は構造的に定義されます。`Email` を case-insensitive に扱いたいなら、`equals` をオーバーライドするのではなく seal で小文字化してください。この原則に従う限り、ネストした Val の等価性は自動的に正しくなります。
-
 `implEquals` 自体は残すが、「トップレベルの比較にのみ効き、親から呼ばれる際には適用されない」と明記する。逃げ道はあるが推奨経路ではない、という位置づけ。
 
 ### `implEquals` の spec
@@ -876,7 +870,7 @@ User.patch(user, patch);
 ```ts
 type PatchMethod<V, M> = [Patch<SeedOf<V>>] extends [never]
   ? Record<never, never>
-  : { with: ... };
+  : { patch: ... };
 ```
 
 `[...] extends [never]` と裸でない形にするのは、`never` に対する条件型の分配を止めるため（分配すると条件全体が `never` に潰れる）。
@@ -1027,9 +1021,9 @@ production gzip +43 B、d.ts +0.52 kB。`patch` の既存ループがそのま�
 `greet(u: User)` の `: User` は、全 companion の全メソッドに書く定型だった。`impl` の index signature を Val 始まりの**単一の関数型**にすると contextual typing が効き、注釈が不要になる。
 
 ```ts
-export type CompanionMethods<V extends AnyVal> = {
+type CompanionFns<V extends AnyVal> = {
   equals?: never;
-  with?: never;
+  patch?: never;
   update?: never;
   seal?: never;
   create?: never;
@@ -1050,12 +1044,12 @@ contextual typing が生きる形は 1 つしかない。実測で全滅した�
 | intersection `{ from?: AnyFn } & Record<string, …>` | `Record` 側が全プロパティを見るので例外にならない                                         |
 | overload（strict → loose の 2 本）                  | `from` を含むと他のメソッドまで implicit any になり、loose 側が何でも通すので検証も消える |
 
-さらに、**`M` にデフォルト型引数を与えるだけで contextual typing が死ぬ**。`impl: <M extends CompanionMethods<V> = Record<never, never>>(methods?: M) => …` だと TS は制約を contextual type に使わなくなり、全メソッドの第一引数が implicit any に落ちる。引数なしの `.impl()` はオーバーロードで残した。
+さらに、**`M` にデフォルト型引数を与えるだけで contextual typing が死ぬ**。`impl: <M extends CompanionFns<V> = Record<never, never>>(fns?: M) => …` だと TS は制約を contextual type に使わなくなり、全メソッドの第一引数が implicit any に落ちる。引数なしの `.impl()` はオーバーロードで残した。
 
 ```ts
 impl: {
   (): Sealed<V, Record<never, never>>;
-  <M extends CompanionMethods<V>>(methods: M): Sealed<V, M>;
+  <M extends CompanionFns<V>>(fns: M): Sealed<V, M>;
 };
 ```
 
@@ -1534,7 +1528,7 @@ const Order = Val.sealer<Order>().implEquals(
 
 ---
 
-## 8. 慣用パターン（README に載せる）
+## 8. 慣用パターン
 
 ライブラリ側の追加実装は不要。ドキュメントで示すだけ。
 
@@ -1627,33 +1621,18 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 
 ## 9. 未解決 / 要確認
 
-- [x] ~~タプル対応（§4.2）~~ → 入れた。0.3.0 で出す（型だけの破壊的変更）
-- [x] ~~`Val.eqBy`（§5）~~ → `implEquals` の spec として入れた。自由関数は却下（§5）
-- [x] ~~`eqBy` の `V` が戻り値の文脈から推論されるか~~ → ビルダーの段にしたので問いが消えた
-- [x] ~~`eqBy` を `Val` のプロパティにするか独立エクスポートにするか~~ → どちらでもない。`implEquals` の引数。gzip 予算は 1 kB から 1.25 kB に引き上げた
-- [x] ~~valof-lint に「カスタム `equals` を持つ子を構造比較している親」の規則を足す（§5）~~ → 入れた。設計は §14.7、実装は §14.8
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
-- [ ] エディタ統合（§14.9）。oxlint の `jsPlugins` から `--server` を叩く形まで調査済み、実装は未着手。`--format=json` と `column` はその土台
+- [ ] エディタ統合（§14.9）。oxlint の `jsPlugins` から Worker 越しに `lint()` を呼ぶ形で決着、実装は未着手。`column` と `Options.types` はその土台
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
-- [x] ~~README に性能の一行を足す（§4.1）~~ → `Constructors copy their argument` に、コピーが owned ノードで止まることと、変化のない patch が値をそのまま返すことを追記
-- [x] ~~README の `Reusing a Val` に一行足す（§4.1）~~ → フィールド位置の警告を追記
-- [x] ~~README の validation 節を zod で書き直す（§8.3）~~ → `With a schema library`。`seal(input: unknown)` は §6.7 の制約に落ちるので `object` で widen する
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
-- [x] ~~**npm で `valof` を予約する**~~ → 0.1.0 の publish で済んだ
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`equals/index.ts` の「最初が勝つ」
 - [ ] fixture を型検査するか（§14.10）。`equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので `equals/` は今 0 error。他は除外のまま
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
-- [x] ~~`null` と `undefined` の扱い~~ → §3.5
-- [x] ~~`Validate<T>` の自己参照制約~~ → 型エイリアスでは TS2313。条件型に変更（§3.5）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
-- [x] ~~型チェック速度のベンチマーク~~ → §4 のベンチマーク（deep patch 後に再測、同節）
-- [x] ~~コピーの WeakSet 再利用を入れるか~~ → 入れた。全ノード登録（§4.1）。symbol キー案と閾値案は実測して却下
-- [x] ~~パッケージ名~~ → `valof`（§12）
-- [x] ~~GitHub リポジトリ名 `valof` の確保~~
 
 ---
 
@@ -1703,28 +1682,15 @@ fixture は `scripts/ts-compatibility/public-api.ts` の 1 本。`valof` を隣�
 
 ---
 
----
+## 11. 欠番
 
-## 11. README の構成案
-
-「何ができるか」より先に「なぜプレーンなのか」を書く。§1 の一行を冒頭に置けば、§7 で切ったものが**なぜ切られているのかがすべてそこから導ける**。
-
-1. 一行の思想
-2. 得られるもの（`structuredClone` / JSON / React state / ファントムブランド）
-3. 基本の例
-4. 許可型の制限とその理由（**離脱防止のため早い位置に**）
-5. 推奨 tsconfig（`exactOptionalPropertyTypes: true`）と `null` / `undefined` の方針
-6. 正規形で構築する原則（§5）
-7. 慣用パターン（Set/Map、日付）
-8. 設計上やらないこととその理由
+README の構成案があったが、README を書いたので落とした。README 自身が記録である。番号は §12 以降の参照を動かさないために空けてある。
 
 ---
 
 ## 12. 命名
 
 ### 12.1 パッケージ名: `valof`
-
-npm 空き確認済み。
 
 **採用理由:**
 
@@ -1930,7 +1896,6 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 - **配布物の 58% がリンタ。** README の「1 kB gzipped」は**バンドルサイズ**であって、`scripts/size.ts` が測るのは `dist/index.mjs` だけなので主張は保たれる。だがダウンロードサイズは別物で、`npm i valof` した `node_modules` には 36 kB のリンタが入る
 - **リリース粒度が結合する。** リンタだけの修正でライブラリのバージョンが上がる。今はどちらも動いているので表面化していない
-- **テストが 2.1 s → 4.5 s。** 言語サーバを起こすフィクスチャの分
 
 #### 分ける条件
 
@@ -1944,14 +1909,14 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 ### 14.4 ルール
 
-2 つ。どちらも構文で判定する。
+構文だけで判定するものが 2 つ。3 つ目は go-to-definition を使う（§14.7）。
 
 - 誰も読まない companion のメンバ
 - 複数の**トップレベル**型エイリアスが主張しているブランド文字列
 
 トップレベル限定であることが効く。この制限がないと、このリポジトリ自身のテストで `describe` や `test` の中にスコープされたフィクスチャから 30 件の衝突が報告される。
 
-このリポジトリの `src` は companion を使っていない。`src` + `tests` に検出器をかけると companion 宣言 14、メンバ 15、dead はゼロで、dead メンバのルールはここでは絶対に発火しない。対象は valof の_利用者_である。
+このリポジトリの `src` は companion を使っていないので、dead メンバの規則はここでは発火しない。対象は valof の_利用者_である。
 
 ### 14.5 却下: ts-morph、2026-09-04
 
