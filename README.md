@@ -438,124 +438,58 @@ dropped when the value is serialized into JSON.
 
 The package ships a command for the mistakes the type checker cannot catch.
 
-**A dead companion function.** A function registered in `.impl({…})` is attached at runtime, so
-static analysis sees an object literal passed to a function and nothing more. Knip does not report
-it when it goes dead, and a bundler does not drop it.
-
-**A brand claimed twice.** Two top-level aliases with the same brand string and the same payload are
-silently assignable to each other, which is the whole failure the brand exists to prevent.
-
-**A brand that is not the type's name.** Renaming the type leaves the string literal behind, so the
-assignability error goes on naming a type that no longer exists. Only the last segment is compared,
-so `Val<"billing/BillingId">` passes and `billing/` is yours.
-
-**A child's own equality, skipped.** `implEquals` applies to the top-level comparison only, so a
-parent holding that Val compares it structurally and the child's rule is never reached (see
-[Equality](#equality)). Name the key in the parent's spec, or drop it from equality on purpose.
-
-**A disable comment that leaves something out.** Naming no rule silences every one on the line
-below, rules written after it included, so what it hides grows without anyone deciding to. Naming no
-scope silences nothing, which is rarely what the writer thought.
-
-**A disable comment that silences nothing.** The finding it was written for is gone, and what stays
-is a claim about the code that is no longer true.
-
 ```bash
 pnpm add -D oxc-parser   # valof does not install it for you
-pnpm exec valof-lint 'src/**/*.ts'
+pnpm exec valof-lint src
 ```
 
-```
-src/user.ts:7:3    unused-member      User.shout is never read
-src/order.ts:3:13  duplicate-brand    Id claims the brand "Id", and so does another type
-src/order.ts:5:13  brand-mismatch     EmailAddress claims the brand "Email", which should be "EmailAddress"
-src/order.ts:9:22  structural-equals  Order.total holds Money, which has its own equals
-src/cart.ts:12:3   bare-disable       valof-lint-disable-next-line names no rule; name the ones it silences
-src/cart.ts:20:3   unused-disable     valof-lint-disable-next-line names unused-member, which reports nothing here
-valof-lint: 6 finding(s) in 12 file(s)
-```
+### Rules
 
-The middle column is the rule, and it is the name `--no-<rule>` and the disable comment both take.
-Output is coloured on a terminal and plain in a pipe, and `NO_COLOR` and `FORCE_COLOR` are honoured.
+| rule                | reports                                                                   |
+| ------------------- | ------------------------------------------------------------------------- |
+| `unused-member`     | a function registered with `.impl({…})` that nothing reads                |
+| `duplicate-brand`   | a brand string claimed by more than one top-level alias                   |
+| `brand-mismatch`    | a brand whose last segment is not the name of the type it brands          |
+| `structural-equals` | a payload holding a Val whose own `equals` the parent never dispatches to |
 
-It exits 1 when it finds something, so it drops into CI or a `vp run` task as it is.
+A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
+dead.
 
-Leave a rule out of the run with `--no-<rule>`, by the same names the disable comment uses. A
-skipped rule does no work rather than merely reporting nothing, so `--no-structural-equals` is also
-how you keep it from starting a TypeScript at all.
+### Arguments
+
+| argument                | what it is                                                      |
+| ----------------------- | --------------------------------------------------------------- |
+| the first path          | the project to read, a directory or a glob                      |
+| the paths after it      | the files to report on, the whole project when there are none   |
+| `--project`, `--target` | the same two by name, in either order                           |
+| `--no-<rule>`           | a rule to leave out of the run, by the name the finding carries |
+
+A single file given as the project is refused: a duplicate brand needs the other alias to be seen.
+
+Pass the changed files after the project:
 
 ```bash
-pnpm exec valof-lint --no-structural-equals 'src/**/*.ts'
+pnpm exec valof-lint src src/billing/id.ts
 ```
 
-The parser is a 3 MB native binary, and most projects never run this, so it is an optional peer
-dependency: `pnpm add valof` does not pull it in, and the command tells you what to install if you
-reach for it without.
+### Disable comments
 
-It resolves by name rather than by type. A read is followed across files through a plain import, a
-renamed one, a namespace import and an `export { X as Y }` rename.
-
-Silence one line with a comment above it, or a whole file with one anywhere in it:
+Silence one line with a comment above it,
 
 ```ts
-// valof-lint-disable-next-line unused-member, brand-mismatch -- called from the CLI by name
+// valof-lint-disable-next-line unused-member -- public API
 shout: (u) => u.toUpperCase(),
 ```
 
+or a whole file with one anywhere in it:
+
 ```ts
-// valof-lint-disable-whole-file unused-member -- every export here is called by name
+// valof-lint-disable-whole-file unused-member -- every export here is public API
 // valof-lint-disable-all-whole-file -- generated, do not lint
 ```
 
-The scope is always in the spelling, so a directive says what it covers where you read it.
-
-Name the rules it silences, as many as you like, separated by a space or a comma. Naming none is the
-`bare-disable` finding above. On a line it goes on silencing everything while it is there, so the
-finding it was written for stays hidden and only the directive is reported. Over a whole file it
-silences nothing, since silencing would hide that report too; write
-`valof-lint-disable-all-whole-file` when every rule is what you mean. A name that silences nothing
-is reported in turn, one finding per name, so a directive that has outlived one of its reasons says
-which name to drop.
-
-A rule left out with `--no-<rule>` is never blamed for a directive that names it. A partial glob is
-not covered, though. A duplicate brand needs the other file in the run, so linting one file at a
-time can report a directive that is doing its job across the project.
-
-A line directive cannot silence a finding about a directive, since it covers the line below and
-these land on the comment itself. `valof-lint-disable-all-whole-file` does, its own comment
-included, which is what leaving a file out of the run means. Otherwise use `--no-bare-disable` or
-`--no-unused-disable`. The whole comment block above the line is read, not only the comment touching
-it, so the directive sits anywhere among another linter's comments. A blank line, or code, ends the
-block.
-
-It is wrong in two opposite ways. A read that spells no name, `User[method]` or a companion reached
-through a default export, is not seen, so the member is reported although it is used: spell it once
-somewhere, or leave that companion out of the glob. And a spread into `.impl({ ...base })`
-contributes no keys at all, so those members are never reported however dead they are.
-
-Only top-level aliases are considered for a brand collision, since nothing else can be imported and
-assigned elsewhere. `Val` is recognised however you bind it: renamed (`import { Val as V }`),
-imported for its type alone, reached through a namespace (`valof.Val<…>`), or re-exported from a
-barrel. Something else bound to the name `Val` is left alone.
-
-A companion is matched by where its chain grows from, `Val.sealer` or `Val.companion`, so an
-unrelated library's `.impl({…})` stays out of the report. A builder held in a variable first counts
-too.
-
-The `structural-equals` rule needs your own TypeScript, to resolve a type reference to the alias it
-names. It runs `tsc --lsp` on TypeScript 7 and the compiler API on 5 and 6, whichever the project
-has. Nothing is added to your `package.json` for it.
-
-The command checks for it up front and stops when there is none, rather than reporting a clean file:
-writing Vals without TypeScript is a broken install, not a case to support. Checking is not
-starting. The language server still waits for something to call `.implEquals`, since without one
-there is no custom equality to miss, and `--no-structural-equals` keeps it from starting at all.
-
-It reports every level at once. Where `Order` holds `OrderLine` holds `Money`, fixing the inner one
-does not uncover a new finding on the outer. Any entry in the spec counts as having looked, a
-`() => true` that drops the key included, and a hand-written `implEquals` function silences the
-whole type. A `PayloadOf<Money>` field is left alone: the brand is gone there, so there is no child
-to dispatch to, and that field has its own problem.
+Name the rules it silences, separated by a space or a comma. Unused or incomplete disable comments
+are reported in turn, and `--help` names those rules too.
 
 ## Caveats
 
