@@ -18,6 +18,7 @@ export type BareDisable = Where & {
 export const BareDisable: Rule<BareDisable> = {
   kind: "bare-disable",
   description: "a disable comment leaving out the rules it silences, or its scope",
+  always: true,
   run: findings,
 };
 

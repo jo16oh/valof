@@ -1,7 +1,17 @@
 #!/usr/bin/env node
 import { globSync } from "node:fs";
 import { styleText, type InspectColor } from "node:util";
-import { isKind, kinds, lint, NO_TYPESCRIPT, RULES, type Finding, type Kind } from "./index.ts";
+import {
+  isKind,
+  isSkippable,
+  kinds,
+  lint,
+  NO_TYPESCRIPT,
+  RULES,
+  skippable,
+  type Finding,
+  type Kind,
+} from "./index.ts";
 
 const patterns: string[] = [];
 const skip = new Set<Kind>();
@@ -15,6 +25,13 @@ for (const argument of process.argv.slice(2)) {
     if (!isKind(kind)) {
       console.error(
         `valof-lint: no rule called ${JSON.stringify(kind)}\n  known rules: ${kinds.join(", ")}`,
+      );
+      process.exit(2);
+    }
+    if (!isSkippable(kind)) {
+      console.error(
+        `valof-lint: ${kind} always runs, since it guards the disable comments\n` +
+          `  rules you can leave out: ${skippable.join(", ")}`,
       );
       process.exit(2);
     }
@@ -35,7 +52,9 @@ if (help) {
       "",
       "Defaults to src/**/*.ts. Exits 1 when something is found.",
       "",
-      "Leave a rule out of the run:",
+      `Leave a rule out of the run, but not ${RULES.filter(({ always }) => always)
+        .map(({ kind }) => kind)
+        .join(" or ")}:`,
       "  valof-lint --no-structural-equals",
       "",
       "Silence one line with a comment in the block above it, by the same names:",

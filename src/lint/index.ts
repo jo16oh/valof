@@ -1,12 +1,24 @@
 import { requireTypeScript, resolver, type Resolver } from "./typecheck/index.ts";
-import { RULES, type Finding, type Kind } from "./rules/index.ts";
+import { isSkippable, RULES, type Finding, type Kind } from "./rules/index.ts";
 import { scan, silences, type Parser } from "./scan/index.ts";
 
-export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
+export {
+  RULES,
+  kinds,
+  isKind,
+  isSkippable,
+  skippable,
+  type Finding,
+  type Kind,
+} from "./rules/index.ts";
 export { NO_TYPESCRIPT, resolver, type Resolver } from "./typecheck/index.ts";
 
 export type Options = {
-  /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
+  /**
+   * Kinds to leave out of the run. A skipped rule does no work, not merely no reporting.
+   *
+   * A rule marked `always` stays in whatever this says. See {@link skippable}.
+   */
   skip?: ReadonlySet<Kind>;
   /**
    * A resolver to use instead of starting one, for a caller that runs `lint` more than once.
@@ -48,10 +60,10 @@ export async function lint(
   };
 
   const findings: Finding[] = [];
-  const notRun: ReadonlySet<string> = new Set(skip ?? []);
+  const notRun = new Set([...(skip ?? [])].filter(isSkippable));
   try {
     for (const rule of RULES) {
-      if (skip?.has(rule.kind)) continue;
+      if (notRun.has(rule.kind)) continue;
       findings.push(...(await rule.run(scans, { types, reported: findings, notRun })));
     }
   } finally {
