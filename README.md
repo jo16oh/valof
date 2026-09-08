@@ -14,7 +14,7 @@ What you get:
 - no `as` cast anywhere in your code
 - one place for a type's constructor and its functions
 - symmetric JSON round trips
-- interoperable with React / Svelte / Vue state
+- plain data, drops into React / Solid / Svelte / Vue state, see [Framework state](#framework-state)
 
 ```bash
 pnpm install valof
@@ -369,6 +369,31 @@ export const UnixEpochMs = Val.sealer<UnixEpochMs>().impl({
   },
 });
 ```
+
+### Framework state
+
+A value is a plain object, so a state container holds it as it stands. Replace it whole: the
+untouched subtrees keep their identity, so a dependency array sees no change.
+
+```ts
+const [user, setUser] = useState(User({ id: "a", name: "bob" }));
+setUser(User.patch(user, { name: "sue" }));
+```
+
+Solid reads the same with `createSignal`, and takes the companion's comparison:
+`createSignal(user, { equals: User.equals })`.
+
+**Svelte and Vue are deeply reactive by default, so ask for a shallow container.** A deep one wraps
+every node of the payload in a proxy, which costs what `patch` just saved and hands your code the
+proxy in place of the value. Values are frozen in development and not in production, so the two
+builds can differ there as well.
+
+| framework |                                   |
+| --------- | --------------------------------- |
+| React     | `useState`                        |
+| Solid     | `createSignal`, not `createStore` |
+| Svelte 5  | `$state.raw`, not `$state`        |
+| Vue       | `shallowRef`, not `ref`           |
 
 ## Utilities
 
