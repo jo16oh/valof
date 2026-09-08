@@ -20,6 +20,12 @@ test("names the one that silenced nothing, not the whole directive", async () =>
   ]);
 });
 
+test("says a whole-file directive reports nothing in the file, not here", async () => {
+  expect(await lint("whole-file")).toEqual([
+    "whole-file.ts:1:1  unused-disable  valof-lint-disable-whole-file names duplicate-brand, which reports nothing in this file",
+  ]);
+});
+
 test("blames no rule that was left out of the run", async () => {
   expect(await lint("unused", { skip: ["unused-member"] })).toEqual([]);
 });

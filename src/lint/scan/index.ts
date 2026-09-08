@@ -12,7 +12,7 @@ export { original } from "./bindings.ts";
 export type { Bindings } from "./bindings.ts";
 export type { Alias, BrandClaim } from "./aliases.ts";
 export type { CompanionSite } from "./chains.ts";
-export type { Directive } from "./directives.ts";
+export type { Directive, Spelling } from "./directives.ts";
 export { silences } from "./directives.ts";
 
 /** A member `.impl({…})` registered, under the local name of its companion. */

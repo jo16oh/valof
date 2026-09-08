@@ -21,9 +21,11 @@ export const UnusedDisable: Rule<UnusedDisable> = {
   run: findings,
 };
 
-/** `file`, `line` and `kind`, as one key. */
-const at = ({ file, line, kind }: { file: string; line: number; kind: string }): string =>
-  `${file}\0${line}\0${kind}`;
+/** What a finding answers for: its own line, and its file as a whole. */
+const answers = ({ file, line, kind }: { file: string; line: number; kind: string }): string[] => [
+  `${file}\0${line}\0${kind}`,
+  `${file}\0file\0${kind}`,
+];
 
 /**
  * Reports every name in a directive that silenced nothing.
@@ -38,19 +40,24 @@ const at = ({ file, line, kind }: { file: string; line: number; kind: string }):
  * directive that is doing its job in the whole project.
  */
 function findings(scans: readonly Scan[], { reported, notRun }: Context): UnusedDisable[] {
-  const used = new Set(reported.map(at));
+  const used = new Set(reported.flatMap(answers));
   return scans.flatMap(({ file, directives }) =>
-    directives.flatMap(({ line, column, covers, kinds }) =>
-      [...kinds]
-        .filter((kind) => !notRun.has(kind) && !used.has(at({ file, line: covers, kind })))
-        .map((kind) => ({
-          kind: "unused-disable" as const,
-          file,
-          line,
-          column,
-          silenced: kind,
-          message: `valof-lint-disable-next-line names ${kind}, which reports nothing here`,
-        })),
+    directives.flatMap(({ line, column, covers, kinds, spelling }) =>
+      // One naming no scope silences nothing whatever it lists, which is bare-disable's to say.
+      spelling === "valof-lint-disable"
+        ? []
+        : [...kinds]
+            .filter((kind) => !notRun.has(kind) && !used.has(`${file}\0${covers}\0${kind}`))
+            .map((kind) => ({
+              kind: "unused-disable" as const,
+              file,
+              line,
+              column,
+              silenced: kind,
+              message: `${spelling} names ${kind}, which reports nothing ${
+                covers === "file" ? "in this file" : "here"
+              }`,
+            })),
     ),
   );
 }

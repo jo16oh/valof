@@ -64,10 +64,8 @@ export async function lint(
    * brand is still reported, since silencing it is its own line's decision.
    */
   const disabled = new Map(scans.map(({ file, directives }) => [file, silences(directives)]));
-  const silenced = ({ file, line, kind }: Finding): boolean => {
-    const silences = disabled.get(file)?.get(line);
-    return silences !== undefined && (silences.size === 0 || silences.has(kind));
-  };
+  const silenced = ({ file, line, kind }: Finding): boolean =>
+    disabled.get(file)?.(line, kind) === true;
 
   return findings
     .filter((finding) => !silenced(finding))

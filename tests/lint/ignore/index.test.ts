@@ -39,6 +39,29 @@ test("silences a duplicate brand, and only at the alias that asked", async () =>
   ]);
 });
 
+test("silences the whole file, its own report with it, when the directive says so", async () => {
+  expect(await lint("whole-file")).toEqual([]);
+});
+
+test("silences nothing when the directive names no scope, and says which to write", async () => {
+  expect(await lint("no-scope")).toEqual([
+    "no-scope.ts:1:1  bare-disable  valof-lint-disable names no scope; write valof-lint-disable-next-line or valof-lint-disable-whole-file",
+    "no-scope.ts:4:3  unused-member  User.shout is never read",
+  ]);
+});
+
+test("silences the whole file for the kind it names, and leaves the others reporting", async () => {
+  expect(await lint("whole-file-kind")).toEqual([
+    'whole-file-kind.ts:3:13  brand-mismatch  OrderId claims the brand "Id", which should be "OrderId"',
+  ]);
+});
+
+test("takes neither spelling when something follows it, which is a typo and not a directive", async () => {
+  expect(await lint("misspelled")).toEqual([
+    "misspelled.ts:3:3  unused-member  User.shout is never read",
+  ]);
+});
+
 test("stops at a blank line, which starts a block of its own", async () => {
   expect(await lint("not-a-block")).toEqual([
     "not-a-block.ts:2:3  bare-disable  valof-lint-disable-next-line names no rule; name the ones it silences",
