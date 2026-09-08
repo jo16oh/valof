@@ -21,6 +21,13 @@ test("leaves a finding of another kind alone", async () => {
   ]);
 });
 
+test("takes more than one kind on a line, separated by a space or a comma", async () => {
+  expect(await lint("two-kinds")).toEqual([
+    'two-kinds.ts:7:13  brand-mismatch  CartId claims the brand "Id", which should be "CartId"',
+    'two-kinds.ts:7:13  duplicate-brand  CartId claims the brand "Id", and so does another type',
+  ]);
+});
+
 test("reads the whole comment block, not only the comment touching the line", async () => {
   expect(await lint("comment-block")).toEqual([]);
 });
