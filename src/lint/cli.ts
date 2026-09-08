@@ -39,7 +39,7 @@ if (help) {
       "  valof-lint --no-structural-equals",
       "",
       "Silence one line with a comment in the block above it, by the same names:",
-      "  // valof-lint-disable-next-line unused-member -- why",
+      "  // valof-lint-disable-next-line unused-member, brand-mismatch -- why",
       "",
       "Needs oxc-parser, which valof leaves for you to install:",
       "  pnpm add -D oxc-parser",

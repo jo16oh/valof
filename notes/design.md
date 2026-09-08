@@ -2808,6 +2808,13 @@ valof-lint-disable-next-line names no rule; name the ones it silences
 報告した上で**黙らせ続ける**。行の下は書いた人が望んだとおりに書かれていて、ここで指示を無効にすると
 本来の finding が裸の指示の下に埋もれる。
 
+#### 一行に複数のルール
+
+`// valof-lint-disable-next-line duplicate-brand brand-mismatch`。**元から動いていた。**`directive()` の
+分割が `/[\s,]+/` なので、空白でもカンマでも区切れる。テストも README も無く、変異（先頭 1 つだけ取る /
+空白だけで割る / カンマだけで割る）でどれも赤にならなかった。fixture 1 つ（`ignore/two-kinds`）で 3 つとも
+赤になる。`--help` の例も 1 つだけ挙げていたので 2 つに変えた。
+
 #### 実装
 
 `Scan.bare: Where[]` を足した。`disabled` は「行 → 種別」で、キーが**指示の次の行**なので指示自身の位置を

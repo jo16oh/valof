@@ -493,14 +493,15 @@ renamed one, a namespace import and an `export { X as Y }` rename.
 Silence one line with a comment above it:
 
 ```ts
-// valof-lint-disable-next-line unused-member -- called from the CLI by name
+// valof-lint-disable-next-line unused-member, brand-mismatch -- called from the CLI by name
 shout: (u) => u.toUpperCase(),
 ```
 
-Name the rules it silences. A directive that names none silences all of them, which is the
-`bare-disable` finding above; it goes on silencing while it is there. The whole comment block above
-the line is read, not only the comment touching it, so the directive sits anywhere among another
-linter's comments. A blank line, or code, ends the block.
+Name the rules it silences, as many as you like, separated by a space or a comma. A directive that
+names none silences all of them, which is the `bare-disable` finding above; it goes on silencing
+while it is there. The whole comment block above the line is read, not only the comment touching it,
+so the directive sits anywhere among another linter's comments. A blank line, or code, ends the
+block.
 
 It is wrong in two opposite ways. A read that spells no name, `User[method]` or a companion reached
 through a default export, is not seen, so the member is reported although it is used: spell it once
