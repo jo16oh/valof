@@ -2595,7 +2595,7 @@ oxlint   +  oxlint.config.ts      2 件（-c 無しでも見つける）
 ```ts
 // vite.config.ts
 import lint from "./oxlint.config.ts";
-export default defineConfig({ lint, /* … */ });
+export default defineConfig({ lint /* … */ });
 ```
 
 ```
@@ -2606,6 +2606,31 @@ oxlint（-c 無し）     0 件（自分の探索）
 `typeAware` / `typeCheck` も両経路で効く（`TS2322` と `no-floating-promises` を出すファイルで確認）。oxlint 側の `options` はこの 2 つだけで、Vite+ の `lint.options` はその素通しだった。
 
 これで `.bin/oxlint` が実体になっても設定が割れない。エディタが `.bin/oxlint --lsp` を起動する場合、ラッパが注入していた `OXLINT_TSGOLINT_PATH` は落ちるが、1.77.0 は env 無しでも tsgolint を見つけた。
+
+#### 規則を足す前に tsconfig、2026-09-09
+
+`reportUnusedDisableDirectives` を入れたついでにカテゴリを総当たりした。本物の情報を持っていたのは型認識の 2 つだけで、しかも**どちらも tsconfig の穴を指していた。**
+
+```
+no-unnecessary-type-assertion   19 件   `starts[mid] as number`
+no-unnecessary-condition        10 件   `const [argument] = children(…)` の後の `&& argument`
+```
+
+規則が正しい。`noUncheckedIndexedAccess` が無いので `starts[mid]` は `number`、`argument` は `Node` と見えていた。実行時にはどちらも `undefined` になり得る。**防御は正しく書いてあって、型システムだけが嘘をついていた。**
+
+有効にした結果。
+
+```
+tsc --noEmit         エラー 1 件（意図的な unsafe cast のテスト 1 行）
+2 規則               29 件 → 2 件
+dist/index.d.mts     差分なし。公開宣言は変わらない
+```
+
+残った 2 件はどちらも本物だった。`(id["start"] as number) ?? (node["start"] as number)` は `as` が自分の fallback を殺しており、もう 1 件はテストの死んだ `?.` である。
+
+**19 個の `as` は 1 つも消していない。フラグを入れて全部必要になった。**
+
+足さなかったものと理由。`no-useless-concat`（100 桁に収める意図的な分割）、`no-array-sort`（`filter().sort()` は既に新しい配列で、`toSorted` は 2 度コピーする）、`consistent-function-scoping`、`no-undefined` / `no-non-null-assertion` / `no-async-await`（このコードベースの選択そのもの）、`prefer-readonly-parameter-types`（174 件）、`no-shadow`（2 件のうち 1 件はテストの命名慣習）。
 
 ### 14.10 テストの穴、2026-09-08 棚卸し
 

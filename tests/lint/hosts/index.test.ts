@@ -35,7 +35,7 @@ test("eslint runs the same plugin", () => {
     "json",
     "src/app.js",
   ]);
-  const [file] = JSON.parse(output) as [{ messages: Record<string, unknown>[] }];
+  const [file] = JSON.parse(output) as { messages: Record<string, unknown>[] }[];
   expect(file?.messages).toEqual([
     expect.objectContaining({
       ruleId: "valof/findings",
