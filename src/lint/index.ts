@@ -41,6 +41,16 @@ export type Options = {
    * directive that is doing its job into an `unused-disable`.
    */
   report?: ReadonlySet<string>;
+  /**
+   * Source to read instead of the file on disk, keyed by path.
+   *
+   * For an editor: the buffer the user is typing in has not been saved, and a run over what disk
+   * holds answers about the file as it was. A path here that is not in `files` is scanned all the
+   * same, and the file need not exist.
+   *
+   * The type checker is told too, so a name declared only in the buffer still resolves.
+   */
+  overlay?: ReadonlyMap<string, string>;
 };
 
 /**
@@ -56,19 +66,31 @@ export type Options = {
  */
 export async function lint(
   files: readonly string[],
-  { skip, types: given, report }: Options = {},
+  { skip, types: given, report, overlay }: Options = {},
 ): Promise<Finding[]> {
   // Before the scan, so a project with no TypeScript hears it at once rather than after the
   // work. A caller holding its own resolver has one by definition.
   if (!given) requireTypeScript(process.cwd());
   const parser = (await import("oxc-parser")) as unknown as Parser;
-  const scans = files.map((file) => scan(file, parser));
+  const sources = new Map([...(overlay ?? [])].map(([file, text]) => [resolve(file), text]));
+  // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
+  // caller did not list joins them, as itself.
+  const listed = new Set(files.map((file) => resolve(file)));
+  const walk = [...files, ...[...sources.keys()].filter((file) => !listed.has(file))];
+  const scans = walk.map((file) => scan(file, parser, sources.get(resolve(file))));
 
   // Started by the first rule that asks for it, and closed however the run ends.
   let opened: Resolver | undefined;
+  let told = false;
   const types = (): Resolver => {
-    if (given) return given;
-    return (opened ??= resolver(process.cwd(), files));
+    const it = given ?? (opened ??= resolver(process.cwd(), files));
+    // Once per run, and even where the overlay is empty: a resolver handed in may still hold
+    // what the last run gave it.
+    if (!told) {
+      told = true;
+      it.overlay(sources);
+    }
+    return it;
   };
 
   const findings: Finding[] = [];

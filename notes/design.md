@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1622,7 +1622,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 ## 9. 未解決 / 要確認
 
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
-- [ ] エディタ統合（§14.9）。oxlint の `jsPlugins` から Worker 越しに `lint()` を呼ぶ形で決着、実装は未着手。`column` と `Options.types` はその土台
+- [ ] エディタ統合（§14.9）。oxlint の `jsPlugins` から Worker 越しに `lint()` を呼ぶ形で決着。`Options.overlay` は入れた。残りは `lint` の export とプラグイン本体
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
@@ -2208,7 +2208,7 @@ src/lint/
 
 公開する名前は絞る。`src/lint/index.ts` はパッケージの `exports` に無く CLI 専用なので、`lint` 以外に出すものは無い。各ルールが出すのは finding 型と `rule` オブジェクトの 2 つだけ。
 
-### 14.9 エディタ統合、2026-09-08 調査。未実装
+### 14.9 エディタ統合、2026-09-08 調査。overlay まで実装
 
 **結論を先に。** oxlint の `jsPlugins` から、Worker 越しに `lint()` を**直接呼ぶ**。valof が出すのは `lint` と `Options.overlay` だけで、`--server` もプロトコルも要らない。**このブランチではやらない。**
 
@@ -2501,13 +2501,32 @@ scan 全部（読み+parse+walk） 1.70 ms   ← walk が支配的
 
 #### やるときの順序
 
-1. オーバーレイを内部に通す（`scan` の読み口、2 つのバックエンド、`Resolver.setOverlay`）
+1. ~~オーバーレイを内部に通す~~ → 入れた（下）
 2. `lint` を `valof/lint` として export する
-3. プラグイン（`make-synchronized` + oxlint の `jsPlugins`）。valof には同梱せず README のレシピ
+3. プラグイン（`make-synchronized` + oxlint の `jsPlugins`）
 
 ~~`--server`~~ は却下。~~`column`~~ と ~~`Options.types`~~ は入れた。`--format=json` は oxlint 側が持つので valof-lint に要るかは未定。
 
-1 の途中まで書いて戻した。`Resolver` に `setOverlay` が要るのは、常駐中に版を上げて LSP へ `didChange` を送り、in-process 側では `getScriptVersion` を上げて再読込させるため。ここが両バックエンドで形の違う唯一の場所になる。
+**プラグインは valof に同梱する。** 上で「README のレシピ」としていたのを翻した。§14.3 が先に決めた「分ける条件」（リンタだけのリリースが続く / 実行時依存が漏れる / 配布物の比率）にどれも当たらず、プラグイン自身の依存は `node:worker_threads` と valof だけである。同じ理由で monorepo にもしない。flat config も `jsPlugins` もモジュール指定子を直接書くので、`eslint-plugin-` という名前は要らない。
+
+#### `Options.overlay`、2026-09-08 実装
+
+```ts
+lint(files, { overlay: new Map([["/abs/src/order.ts", "…編集中…"]]) });
+```
+
+`ReadonlyMap<string, string>`、キーは絶対パス。`files` に無いパスも走査するので、まだ保存していないファイルもそのまま渡せる。
+
+`Resolver` には `setOverlay` ではなく `overlay(sources)` として付けた。**毎回の run で 1 度、空でも呼ぶ。** 呼び出し側が持ち回す resolver は前の run の版を握っているので、「渡さない」と「空を渡す」を区別する必要がない。
+
+バックエンドの差は予想どおりここだけに出た。
+
+- **LSP（TS 7）**: 初回は `didOpen`、本文が変われば版を上げて `didChange`、抜けたら `didClose`。行マップは overlay の本文から作り直す。通知は `initialize` から続く 1 本のチェーンに載せ、`resolveAll` も同じチェーンを待つ（順序が要るため）
+- **in-process（TS 5 / 6）**: `getScriptVersion` を上げ、`getScriptSnapshot` が overlay を返す。`fileExists` / `readFile` も overlay を見るので、ディスクに無いファイルを他のファイルが import しても解決する
+
+**テストは行をずらして書く。** 「spec で覆って finding を消す」形では通らない。それは scan だけで決まるので、resolver に overlay を渡さなくても緑になる（実際に一度そう書いて、変異させても落ちなかった）。ディスクと同じ本文の先頭に `//` を足して 1 行ずつずらし、finding が付いてくることを見る形にすると、`didOpen` / `didChange` / `didClose` / 行マップ破棄のどれを壊しても落ちる。
+
+in-process 側は自動テストが無い（§14.10 の穴のまま）。TS 5.9.3 を temp に入れて `inProcess` を直接叩き、ずらした位置が同じ宣言に解決すること、overlay を渡さなければ解決しないことを手で確かめた。
 
 ### 14.10 テストの穴、2026-09-08 棚卸し
 
