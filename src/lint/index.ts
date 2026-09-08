@@ -3,10 +3,20 @@ import { RULES, type Finding, type Kind } from "./rules/index.ts";
 import { scan, type Parser } from "./scan/index.ts";
 
 export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
+export { resolver, type Resolver } from "./typecheck/index.ts";
 
-type Options = {
+export type Options = {
   /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
   skip?: ReadonlySet<Kind>;
+  /**
+   * A resolver to use instead of starting one, for a caller that runs `lint` more than once.
+   *
+   * Starting one costs about 85 ms, so many runs save most of their time by sharing a single
+   * one. Ownership stays with the caller: this never closes what it was handed, and the caller
+   * must build it over every file any of its runs will touch, since the TypeScript 5 / 6
+   * backend takes that list as the project.
+   */
+  types?: Resolver;
 };
 
 /**
@@ -20,7 +30,10 @@ type Options = {
  * and a static import would be hoisted above the caller's own error handling once bundled,
  * turning a missing install into a stack trace instead of an instruction.
  */
-export async function lint(files: readonly string[], { skip }: Options = {}): Promise<Finding[]> {
+export async function lint(
+  files: readonly string[],
+  { skip, types: given }: Options = {},
+): Promise<Finding[]> {
   const parser = (await import("oxc-parser")) as unknown as Parser;
   const scans = files.map((file) => scan(file, parser));
 
@@ -30,6 +43,7 @@ export async function lint(files: readonly string[], { skip }: Options = {}): Pr
   let started = false;
   let opened: Resolver | undefined;
   const types = (): Resolver | undefined => {
+    if (given) return given;
     if (!started) {
       started = true;
       opened = resolver(process.cwd(), files);
@@ -44,6 +58,7 @@ export async function lint(files: readonly string[], { skip }: Options = {}): Pr
       findings.push(...(await rule.run(scans, { types })));
     }
   } finally {
+    // Only what this run opened. A resolver handed in belongs to the caller.
     opened?.close();
   }
 
