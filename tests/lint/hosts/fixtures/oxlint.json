@@ -1,0 +1,4 @@
+{
+  "jsPlugins": ["../../../../src/lint/eslint-plugin.ts"],
+  "rules": { "valof/findings": "error" }
+}

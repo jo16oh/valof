@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -2533,6 +2533,13 @@ ESLint 10               3:3 error unused-member: Id.shout is never read  valof/f
 
 ESLint 側は typescript-eslint が TS 7 未対応（上）なので、パーサに依存しないことを見るために `.js` の fixture で確認した。規則は AST を見ず `Program` で自分のファイル名と本文しか使わないので、ホストの API 適合はこれで足りる。
 
+**ホストは実物を起動してテストする。** `tests/lint/hosts`。ルール API は valof が型で守れない契約で、どちらのホストも依存ではない。食い違えば形が合わないだけなので、実物を動かす以外に気づく手段がない。実際、両テストとも列の +1 とプラグインの `rules` のキー名の両方で落ちることを変異で確かめた。
+
+- **eslint と oxlint を devDependency に固定した。** finding を突き合わせる相手の版が動かないように。§14.19 参照
+- **走らせるのはソースのプラグイン。** 配布物は `vp pack` の後にしか無いので、そちらは手で確かめた
+
+列は両ホストとも finding の位置に出た。report が 0 始まり、出力が 1 始まりで、往復して元に戻る。
+
 **1 ファイルにつきプロジェクト 1 周する。** 検証中、`node_modules` へのシンボリックリンクを含むディレクトリを丸ごと lint させて詰まらせた。ホストが `node_modules` を除くのは既定の動作なので実プロジェクトでは起きないが、この形の代償が出る場所ではある。
 
 **entry に名前を付けた。** パスから導くと `valof/lint/eslint-plugin` になる。設定ファイルに書く名前なので、`vite.config.ts` の `pack.entry` をオブジェクトにして `valof/eslint-plugin` と `valof/lint` にした。bin は `dist/lint-cli.mjs` に移った。tarball は 39 KB → 41 KB。
@@ -2555,6 +2562,50 @@ lint(files, { overlay: new Map([["/abs/src/order.ts", "…編集中…"]]) });
 **テストは行をずらして書く。** 「spec で覆って finding を消す」形では通らない。それは scan だけで決まるので、resolver に overlay を渡さなくても緑になる（実際に一度そう書いて、変異させても落ちなかった）。ディスクと同じ本文の先頭に `//` を足して 1 行ずつずらし、finding が付いてくることを見る形にすると、`didOpen` / `didChange` / `didClose` / 行マップ破棄のどれを壊しても落ちる。
 
 in-process 側は自動テストが無い（§14.10 の穴のまま）。TS 5.9.3 を temp に入れて `inProcess` を直接叩き、ずらした位置が同じ宣言に解決すること、overlay を渡さなければ解決しないことを手で確かめた。
+
+### 14.19 oxlint の版を固定する、2026-09-09 実測
+
+統合テスト（§14.9）が突き合わせる oxlint の版を、vite-plus の更新で勝手に動かしたくなかった。調べた結果、**固定できるし、設定の正本も 1 つにできる。**
+
+#### `vp lint` はプロジェクトの oxlint を先に見る
+
+```js
+// vite-plus/dist/constants-*.js
+function resolve(path) {
+  return require.resolve(path, { paths: [process.cwd(), import.meta.dirname] });
+}
+```
+
+cwd が先で、vite-plus 同梱は後。`oxlint@1.82.0` を devDependency に入れて `vp lint` 実行中のプロセスを拾うと 1.82.0 だった。だから **固定すればテストと `vp lint` が同じ 1 つを使う**。ずれる余地が無い。
+
+Vitest だけは別で、`resolveBundled`（vite-plus 側優先）を使う。`vite-plus/test` が `export * from 'vitest'` する以上、ランナーと import がずれると壊れるため。
+
+#### `vp lint` は standalone の config を読まない
+
+```
+vp lint  +  oxlint.config.ts     26 件（設定が効かない）
+vp lint  +  .oxlintrc.json       26 件（JSON でも同じ）
+oxlint   +  oxlint.config.ts      2 件（-c 無しでも見つける）
+```
+
+**警告は出ない。** 気づく手段が結果の差しかない。argv を捕まえると `vp lint` は `-c` を渡しておらず、代わりに `VP_RESOLVING_CONFIG_METADATA=1` で oxlint の設定元を `vite.config.ts` に切り替えている。だから通常の探索が起きない。
+
+#### 採用: `oxlint.config.ts` を正本にして `vite.config.ts` から import する
+
+```ts
+// vite.config.ts
+import lint from "./oxlint.config.ts";
+export default defineConfig({ lint, /* … */ });
+```
+
+```
+vp lint              0 件（vite.config.ts 経由）
+oxlint（-c 無し）     0 件（自分の探索）
+```
+
+`typeAware` / `typeCheck` も両経路で効く（`TS2322` と `no-floating-promises` を出すファイルで確認）。oxlint 側の `options` はこの 2 つだけで、Vite+ の `lint.options` はその素通しだった。
+
+これで `.bin/oxlint` が実体になっても設定が割れない。エディタが `.bin/oxlint --lsp` を起動する場合、ラッパが注入していた `OXLINT_TSGOLINT_PATH` は落ちるが、1.77.0 は env 無しでも tsgolint を見つけた。
 
 ### 14.10 テストの穴、2026-09-08 棚卸し
 

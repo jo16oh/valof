@@ -1,5 +1,7 @@
 import { defineConfig } from "vite-plus";
 
+import lint from "./oxlint.config.ts";
+
 export default defineConfig({
   staged: {
     "*": "vp check --fix",
@@ -24,18 +26,7 @@ export default defineConfig({
       },
     },
   },
-  // Deliberately unresolvable and deliberately dead: the fixtures are input to `valof-lint`,
-  // not code this package compiles.
-  lint: {
-    // `public-api.ts` resolves its `valof` import through `scripts/ts-compatibility/tsconfig.json`,
-    // which aims the name at the built declarations. That config owns the file; this one cannot
-    // see it.
-    ignorePatterns: ["tests/lint/**/fixtures/**", "scripts/ts-compatibility/public-api.ts"],
-    options: {
-      typeAware: true,
-      typeCheck: true,
-    },
-  },
+  lint,
   fmt: {
     ignorePatterns: ["tests/lint/**/fixtures/**"],
     proseWrap: "always",
