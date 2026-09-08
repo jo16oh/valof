@@ -26,7 +26,7 @@ import { Val } from "valof";
   - **6.7** seal（冪等）と create（鋳造）の分離 / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
-- **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド
+- **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
@@ -1689,6 +1689,37 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 `update` も塞ぐ必要があるのは、コールバックがペイロード全体を返す経路だから。`patch` の patch だけ絞っても `id` は届く。
 
 **それでもこれは private ではない。** `user.id` は読めるし、`readonly` は実行時に消えるし、`Val.of<User>({ id: "forged", … })` で偽造できる。得られるのは「通常の更新経路が `id` を動かせない」だけ。偽造も防ぎたいなら `id` は値の外に持つ。
+
+### 8.5 フレームワークの状態コンテナ、2026-09-09 実測
+
+**結論: React / Solid は素の値をそのまま置ける。Svelte / Vue は浅いコンテナ（`$state.raw` /
+`shallowRef`）を要求する。** README §Framework state に表で載せた。
+
+危険なのは deep proxy そのものではなく、**dev で再現しないこと**。dev freeze（§7.1）が挙動を変えてしまう。
+
+実測: svelte 5.57.0 / vue 3.5.42 / solid-js 1.9.15（`dist/index.mjs` を `NODE_ENV` 両方で）。
+
+|                                | dev（freeze あり）                      | production（freeze なし）        |
+| ------------------------------ | --------------------------------------- | -------------------------------- |
+| Vue `ref(v)`                   | **proxy しない**。`ref.value === v`     | deep proxy。`ref.value !== v`    |
+| Vue `ref` 経由の書き込み       | `TypeError`                             | 通る。**元の値が書き換わる**     |
+| Svelte `$state`                | 最上位のみ proxy、frozen な子はスキップ | 全ノード proxy                   |
+| Svelte `$state` 経由の書き込み | `TypeError`（proxy invariant）          | 通る。元の値は無傷               |
+| Solid `createSignal`           | 値そのまま                              | 値そのまま                       |
+| Solid `createStore` の子       | proxy                                   | proxy                            |
+| Solid `setStore` / `produce`   | **例外なし**、元の値は無傷              | **例外なし**。元の値が書き換わる |
+
+- Vue が frozen なオブジェクトを reactive 化しないため、`ref` が dev では `shallowRef` と同じに見える。
+  テストも開発も通り、production ビルドで初めて deep proxy になる
+- Solid の store はどちらのビルドでも投げない。3 つの中で一番静かに壊れる。`produce` は dev freeze で
+  落ちる、という当初の見立ては誤り
+- `$state` から取り出した値を `patch` に戻すと、production では構造共有が落ちる（proxy が valof の
+  所有ノードでない別オブジェクトを返すので、コピーし直す）。dev では frozen な子がスキップされるぶん
+  識別子が残り、ここでも dev と production が食い違う
+
+**計測時の罠。** Node は `solid-js` の `node` 条件を引くので、素で import すると非リアクティブな SSR
+ビルドを測ってしまう（proxy されず、書き込みも素通りする）。`node --conditions=browser` が要る。
+`--conditions=development` は Solid のビルド選択で、valof の freeze を決める `NODE_ENV` とは別軸。
 
 ---
 
