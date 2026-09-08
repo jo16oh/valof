@@ -1622,7 +1622,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 ## 9. 未解決 / 要確認
 
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
-- [ ] エディタ統合（§14.9）。oxlint の `jsPlugins` から Worker 越しに `lint()` を呼ぶ形で決着。`Options.overlay` と `valof/lint` は入れた。残りはプラグイン本体
+- [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
@@ -2504,11 +2504,38 @@ scan 全部（読み+parse+walk） 1.70 ms   ← walk が支配的
 
 1. ~~オーバーレイを内部に通す~~ → 入れた（下）
 2. ~~`lint` を `valof/lint` として export する~~ → 入れた。`pack.entry` に `src/lint/index.ts` を足すだけで、`exports` は `vp pack` が書く
-3. プラグイン（`make-synchronized` + oxlint の `jsPlugins`）
+3. ~~プラグイン~~ → 入れた（下）
 
 ~~`--server`~~ は却下。~~`column`~~ と ~~`Options.types`~~ は入れた。`--format=json` は oxlint 側が持つので valof-lint に要るかは未定。
 
 **プラグインは valof に同梱する。** 上で「README のレシピ」としていたのを翻した。§14.3 が先に決めた「分ける条件」（リンタだけのリリースが続く / 実行時依存が漏れる / 配布物の比率）にどれも当たらず、プラグイン自身の依存は `node:worker_threads` と valof だけである。同じ理由で monorepo にもしない。flat config も `jsPlugins` もモジュール指定子を直接書くので、`eslint-plugin-` という名前は要らない。
+
+#### プラグイン、2026-09-09 実装
+
+`valof/eslint-plugin`。規則は `findings` 1 つで、6 種すべてがそこから出る。1 回の run がプロジェクト全体を答えるので、種類ごとに規則を分けると同じ仕事を 6 回することになる。外したい種類は `skip` で言う。
+
+```json
+{ "jsPlugins": ["valof/eslint-plugin"], "rules": { "valof/findings": "error" } }
+```
+
+**`make-synchronized` は入れなかった。** 68 kB・deps 0 で品質に問題は無いが、上の表で「プラグイン側の依存」と書いたのはプラグインが valof の外にいる前提だった。同梱すると valof の `dependencies` になり、§14.3 の「実行時依存ゼロ」を崩す。`Atomics.wait` + `receiveMessageOnPort` は 30 行ほどで、`SharedArrayBuffer` の版を worker が上げて notify するだけである。タイムアウト付きで待つので、worker が答えないときも 60 秒で言う。
+
+**worker はこのファイル自身。** `new Worker(new URL(import.meta.url))` として `isMainThread` で二役を分けた。別ファイルにすると、ソースツリーでは `./worker.ts`、配布物では `./worker.mjs` になり、どちらが動いているかをコードが当てにいくことになる。
+
+**渡し方は overlay 1 枚 + `report` 1 ファイル。** 計算はプロジェクト全体で、返るのも全部だが、報告するのは今のファイルの分だけ。`report` が先にあったのでプラグイン側に絞り込みは要らない。列は finding が 1 始まり、report が 0 始まりなので 1 引く。
+
+**両方のホストで実測した。**
+
+```
+oxlint 1.77 + TS 7      src/order.ts:6:22 valof(findings): structural-equals: …   0.14s
+ESLint 10               3:3 error unused-member: Id.shout is never read  valof/findings
+```
+
+ESLint 側は typescript-eslint が TS 7 未対応（上）なので、パーサに依存しないことを見るために `.js` の fixture で確認した。規則は AST を見ず `Program` で自分のファイル名と本文しか使わないので、ホストの API 適合はこれで足りる。
+
+**1 ファイルにつきプロジェクト 1 周する。** 検証中、`node_modules` へのシンボリックリンクを含むディレクトリを丸ごと lint させて詰まらせた。ホストが `node_modules` を除くのは既定の動作なので実プロジェクトでは起きないが、この形の代償が出る場所ではある。
+
+**entry に名前を付けた。** パスから導くと `valof/lint/eslint-plugin` になる。設定ファイルに書く名前なので、`vite.config.ts` の `pack.entry` をオブジェクトにして `valof/eslint-plugin` と `valof/lint` にした。bin は `dist/lint-cli.mjs` に移った。tarball は 39 KB → 41 KB。
 
 #### `Options.overlay`、2026-09-08 実装
 

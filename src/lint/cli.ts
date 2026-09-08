@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { globSync, statSync } from "node:fs";
 import { resolve } from "node:path";
 import { styleText, type InspectColor } from "node:util";
+import { expand, isDirectory } from "./files.ts";
 import {
   isKind,
   isSkippable,
@@ -16,28 +16,6 @@ import {
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
-
-/** What a directory holds, for a caller who names one instead of writing the glob out. */
-const UNDER = "**/*.{ts,tsx,mts,cts}";
-
-const isDirectory = (path: string): boolean => {
-  try {
-    return statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
-};
-
-/**
- * The files one argument stands for.
- *
- * A directory brings the TypeScript under it, never what its dependencies installed: a project
- * given as `.` would otherwise walk `node_modules`.
- */
-const expand = (path: string): string[] =>
-  globSync(isDirectory(path) ? `${path}/${UNDER}` : path, {
-    exclude: (found) => found.split(/[\\/]/).includes("node_modules"),
-  });
 
 const projects: string[] = [];
 const targets: string[] = [];

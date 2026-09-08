@@ -21,7 +21,7 @@
     "url": "git+https://github.com/jo16oh/valof.git"
   },
   "bin": {
-    "valof-lint": "./dist/lint/cli.mjs"
+    "valof-lint": "./dist/lint-cli.mjs"
   },
   "files": [
     "dist"
@@ -30,7 +30,8 @@
   "sideEffects": false,
   "exports": {
     ".": "./dist/index.mjs",
-    "./lint": "./dist/lint/index.mjs",
+    "./eslint-plugin": "./dist/eslint-plugin.mjs",
+    "./lint": "./dist/lint.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
