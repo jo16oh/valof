@@ -26,7 +26,7 @@ test("reads the whole comment block, not only the comment touching the line", as
 
 test("silences a duplicate brand, and only at the alias that asked", async () => {
   expect(await lint("duplicate-brand")).toEqual([
-    'duplicate-brand/orders.ts:1:13  duplicate-brand  OrderId claims the brand "Id", and so does another type',
+    'duplicate-brand/orders.ts:1:13  duplicate-brand  Id claims the brand "Id", and so does another type',
   ]);
 });
 

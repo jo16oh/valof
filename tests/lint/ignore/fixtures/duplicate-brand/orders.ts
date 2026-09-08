@@ -1,1 +1,1 @@
-export type OrderId = Val<"Id", string>;
+export type Id = Val<"Id", string>;

@@ -12,14 +12,14 @@ const { lint } = fixtures(import.meta.url);
 test("a renamed type import still spells Val", async () => {
   expect(await lint("renamed-type")).toEqual([
     'renamed-type/billing.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
-    'renamed-type/orders.ts:3:13  duplicate-brand  OrderId claims the brand "Id", and so does another type',
+    'renamed-type/orders.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
   ]);
 });
 
 test("a namespace import in a type position steps past the namespace", async () => {
   expect(await lint("namespaced-type")).toEqual([
     'namespaced-type/billing.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
-    'namespaced-type/orders.ts:3:13  duplicate-brand  OrderId claims the brand "Id", and so does another type',
+    'namespaced-type/orders.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
   ]);
 });
 

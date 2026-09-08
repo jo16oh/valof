@@ -1,3 +1,3 @@
 import { Val } from "valof";
 
-export type UserId = Val<"Id", string>;
+export type Id = Val<"Id", string>;

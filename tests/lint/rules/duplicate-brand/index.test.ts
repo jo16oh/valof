@@ -7,7 +7,7 @@ const { lint } = fixtures(import.meta.url);
 test("reports every alias that claims a brand another one claims", async () => {
   expect(await lint("duplicate")).toEqual([
     'duplicate/billing.ts:1:13  duplicate-brand  Id claims the brand "Id", and so does another type',
-    'duplicate/orders.ts:1:13  duplicate-brand  OrderId claims the brand "Id", and so does another type',
+    'duplicate/orders.ts:1:13  duplicate-brand  Id claims the brand "Id", and so does another type',
   ]);
 });
 

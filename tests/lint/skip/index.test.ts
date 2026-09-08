@@ -9,7 +9,7 @@ const glob = "tests/lint/skip/fixtures/mixed/**/*.ts";
 
 test("leaves out the kind the flag names, and only that one", async () => {
   expect(await lint("mixed")).toEqual([
-    'mixed/orders.ts:3:13  duplicate-brand  UserId claims the brand "Id", and so does another type',
+    'mixed/orders.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
     'mixed/users.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
     "mixed/users.ts:6:3  unused-member  User.shout is never read",
   ]);
@@ -17,7 +17,7 @@ test("leaves out the kind the flag names, and only that one", async () => {
     "mixed/users.ts:6:3  unused-member  User.shout is never read",
   ]);
   expect(await lint("mixed", { skip: ["unused-member"] })).toEqual([
-    'mixed/orders.ts:3:13  duplicate-brand  UserId claims the brand "Id", and so does another type',
+    'mixed/orders.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
     'mixed/users.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
   ]);
 });
