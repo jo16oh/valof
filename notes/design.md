@@ -2627,7 +2627,6 @@ fixture とテストを離すと、1 本読むたびに別の木へ飛ぶ。§14
 tests/lint/
   support.ts          fixtures() / spy() / cli()
   no-oxc-parser.ts    --import で渡す resolve フック
-  self.test.ts        パッケージ自身を lint する 1 本
   unused/   {fixtures/, index.test.ts}
   brand/    …
   equals/   …
@@ -2654,9 +2653,9 @@ tests/lint/
 
 **設定は 3 箇所。** `vite.config.ts` の lint / fmt `ignorePatterns` が `tests/lint/**/fixtures/**`、`tsconfig.json` の `exclude` が `tests/lint/*/fixtures`。fixture に型エラーと崩れた整形を入れて `vp check` が黙ることを確認した。ここを間違えると fixture が検査に入る。
 
-**自己 lint は `command/` から出した。** 引数なしの `cli()` は `src/**/*.ts` を見る。赤が言うのは「CLI が壊れた」ではなく「`src/` に finding が出た」で、`command/`（被写体は出力の形）とは別の主張。`tests/lint/self.test.ts` に 1 本で置いた。変異で確認: `src/index.ts` に読まれないメンバを足すと赤くなる。
+**自己 lint は消した。** 引数なしの `cli()` が `src/**/*.ts` を lint し、`command/` に「finding は 0 件」という 1 本があった。まず `command/`（被写体は出力の形）から出して `self.test.ts` にしたが、そもそも赤になる道がない。`src/` の `Val.sealer` / `Val.companion` は全部コメントと文字列で、実際の使用は 0 件。`src/val.ts` は `Val` を実装している側なので自分を呼ばない。**このリポジトリで valof をドメインロジックに使う日が来るまで、この主張は空。** 手で使用を足せば赤くなるが、それは変異ではなく別のリポジトリを作る作業。
 
-**却下: `vite.config.ts` のタスクにする。** lint の位置づけは出るが、`vp run size` と同じで回し忘れる。`vp test` に乗っていれば §14.11 のチェックリストが 1 つ減る。
+`src/` で valof を使い始めたら戻す先は `tests/lint/self.test.ts`。`vite.config.ts` のタスクにする案は却下、`vp run size` と同じで回し忘れる。
 
 **ルール一覧を名乗るのは `--help` だけ。** `skip/` の `--no-typo` のエラーは `kinds` をレジストリから読んで組む。以前は 3 つのリテラルで、`--help` と 2 箇所が同じ列挙を持っていた。§14.12 の `brand-mismatch` を足したとき赤くなるのは 1 箇所。メッセージの形（前置き、字下げ、`, ` 区切り）は変異で赤を確認済み。
 
