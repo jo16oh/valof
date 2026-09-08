@@ -24,14 +24,14 @@ export default defineConfig({
     // `public-api.ts` resolves its `valof` import through `scripts/ts-compatibility/tsconfig.json`,
     // which aims the name at the built declarations. That config owns the file; this one cannot
     // see it.
-    ignorePatterns: ["tests/fixtures/**", "scripts/ts-compatibility/public-api.ts"],
+    ignorePatterns: ["tests/lint/**/fixtures/**", "scripts/ts-compatibility/public-api.ts"],
     options: {
       typeAware: true,
       typeCheck: true,
     },
   },
   fmt: {
-    ignorePatterns: ["tests/fixtures/**"],
+    ignorePatterns: ["tests/lint/**/fixtures/**"],
     proseWrap: "always",
     overrides: [
       {

@@ -18,5 +18,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "exclude": ["tests/fixtures"]
+  "exclude": ["tests/lint/*/fixtures"]
 }
