@@ -30,6 +30,7 @@
   "sideEffects": false,
   "exports": {
     ".": "./dist/index.mjs",
+    "./lint": "./dist/lint/index.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
