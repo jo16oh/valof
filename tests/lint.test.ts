@@ -7,13 +7,6 @@ import { lint as run, resolver, type Kind, type Resolver } from "../src/lint/ind
 
 const root = fileURLToPath(new URL("..", import.meta.url));
 
-/**
- * One language server for the whole file.
- *
- * Starting one costs about 85 ms and eleven fixtures need it, so a fresh one per run would be
- * most of the time this file takes. It is built over every fixture, since the TypeScript 5 / 6
- * backend takes the file list as the project.
- */
 let types: Resolver | undefined;
 beforeAll(() => {
   types = resolver(root, globSync("tests/fixtures/**/*.ts", { cwd: root }));
@@ -186,6 +179,14 @@ describe("a child's own equals", () => {
     expect(await lint("equals/covered")).toEqual([]);
   });
 
+  test("says nothing when an entry above the path speaks for it", async () => {
+    expect(await lint("equals/covered-above")).toEqual([]);
+  });
+
+  test("takes a one-element array spec as speaking for every element", async () => {
+    expect(await lint("equals/array-spec")).toEqual([]);
+  });
+
   test("says nothing when the parent wrote the whole comparison itself", async () => {
     expect(await lint("equals/override")).toEqual([]);
   });
@@ -255,7 +256,7 @@ describe("ignore comments", () => {
 
   test("stops at a blank line, which starts a block of its own", async () => {
     expect(await lint("ignore/not-a-block")).toEqual([
-      "a.ts:4:3  unused-member  User.shout is never read",
+      "a.ts:5:3  unused-member  User.shout is never read",
     ]);
   });
 
@@ -326,6 +327,14 @@ describe("the command itself", () => {
     const { status, stderr } = cli("tests/fixtures/unused/reads/**/*.ts");
     expect(status).toBe(0);
     expect(stderr).toBe("valof-lint: nothing to report in 1 file(s)");
+  });
+
+  test("starts a TypeScript of its own when the caller hands it none", () => {
+    const { stdout } = cli("tests/fixtures/equals/plain/**/*.ts");
+    expect(stdout).toBe(
+      "tests/fixtures/equals/plain/order.ts:6:22  structural-equals  " +
+        "Order.total holds Money, which has its own equals\n",
+    );
   });
 
   test("exits 2 when nothing matches the glob", () => {
