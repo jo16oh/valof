@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、裸の disable コメント（§14.14）、効いていない disable コメント（§14.15）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、裸の disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -2896,6 +2896,49 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
 `unused.ts` の隣に `unused-disable.ts` が並ぶのが読めない。`rules/` を `unused-member.ts` /
 `duplicate-brand.ts` / `brand-mismatch.ts` / `bare-disable.ts` / `unused-disable.ts` /
 `structural-equals/` にした。`tests/lint/rules/` が §14.11 で採った並びと同じで、`--help` の語彙とも一致する。
+
+### 14.16 ファイル全体の disable、2026-09-08
+
+**綴りにスコープを必ず出す。**4 つ。
+
+```
+// valof-lint-disable-next-line unused-member       行
+// valof-lint-disable-whole-file unused-member      ファイル
+// valof-lint-disable-all-whole-file                ファイル、全ルール
+// valof-lint-disable ...                           スコープ無し = 誤り。何も黙らせず報告する
+```
+
+`-all` の位置がスコープの前なので、行単位の `-all` が欲しくなれば
+`valof-lint-disable-all-next-line` が空いている。**今は入れない。**行で「全部」を欲しがる場面が無い。
+
+#### 却下: 裸の `valof-lint-disable` をファイル全体の意味にする
+
+最初はこれで実装した。ESLint の `/* eslint-disable */` に倣う形。**やめた。**行の綴りから
+`-next-line` を落としただけの形なので、書いた人がスコープを意識しない。しかも裸なら全ルールを
+黙らせるので、**自分についての `bare-disable` も黙る**。書いた人は何も知らされない。
+
+#### 「名前を挙げない」の意味がスコープで違う
+
+ここだけ非対称で、理由がある。
+
+- **行**: 全部黙らせて、かつ報告する（§14.14）。黙らせるのをやめると、本来の finding が指示の下に埋もれる
+- **ファイル**: 何も黙らせずに報告する。黙らせると**その報告自体が消える**。ファイルを丸ごと外すのは
+  `-all-whole-file` という別の綴りの仕事
+
+`-all-whole-file` は自分についての finding も黙らせる。ファイルを run から外すとはそういうことなので、
+特例ではない。**副作用として `bare-disable` の `-all` 除外ガードは観測できない。**外しても赤にならないので、
+コードにコメントで記録した（CLAUDE.md「落とせないならコメントが唯一の記録」）。
+
+#### 実装
+
+`Directive` に `spelling` を持たせ、`covers: number | "file"` と分けた。「何を黙らせるか」は
+`effect()` が綴りと名前から決める。**「空集合＝全種」の約束をやめた**（`Silenced = ReadonlySet | "every"`）。
+スコープで意味が割れた以上、空集合に 2 つの意味を持たせられない。
+
+`silences()` は Map ではなく述語を返す。ファイル全体と行の 2 段を呼び出し側で組み立てさせない。
+
+**綴りの後ろには空白以外を許さない**（`(?![-\w])`）。`valof-lint-disable-nextline` のような打ち間違いが
+「ファイル全体を黙らせる指示」に化ける道を塞ぐ。fixture `ignore/misspelled` が守る。
 
 ### 14.13 `Val` の綴りを 1 箇所に、2026-09-08
 

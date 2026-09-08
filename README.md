@@ -453,8 +453,9 @@ so `Val<"billing/BillingId">` passes and `billing/` is yours.
 parent holding that Val compares it structurally and the child's rule is never reached (see
 [Equality](#equality)). Name the key in the parent's spec, or drop it from equality on purpose.
 
-**A disable comment that names no rule.** It silences every rule on the line below, rules written
-after it included, so what it hides grows without anyone deciding to.
+**A disable comment that leaves something out.** Naming no rule silences every one on the line
+below, rules written after it included, so what it hides grows without anyone deciding to. Naming no
+scope silences nothing, which is rarely what the writer thought.
 
 **A disable comment that silences nothing.** The finding it was written for is gone, and what stays
 is a claim about the code that is no longer true.
@@ -494,26 +495,38 @@ reach for it without.
 It resolves by name rather than by type. A read is followed across files through a plain import, a
 renamed one, a namespace import and an `export { X as Y }` rename.
 
-Silence one line with a comment above it:
+Silence one line with a comment above it, or a whole file with one anywhere in it:
 
 ```ts
 // valof-lint-disable-next-line unused-member, brand-mismatch -- called from the CLI by name
 shout: (u) => u.toUpperCase(),
 ```
 
-Name the rules it silences, as many as you like, separated by a space or a comma. A directive that
-names none silences all of them, which is the `bare-disable` finding above; it goes on silencing
-while it is there. A name that silences nothing is reported in turn, one finding per name, so a
-directive that has outlived one of its reasons says which name to drop.
+```ts
+// valof-lint-disable-whole-file unused-member -- every export here is called by name
+// valof-lint-disable-all-whole-file -- generated, do not lint
+```
+
+The scope is always in the spelling, so a directive says what it covers where you read it.
+
+Name the rules it silences, as many as you like, separated by a space or a comma. Naming none is the
+`bare-disable` finding above. On a line it goes on silencing everything while it is there, so the
+finding it was written for stays hidden and only the directive is reported. Over a whole file it
+silences nothing, since silencing would hide that report too; write
+`valof-lint-disable-all-whole-file` when every rule is what you mean. A name that silences nothing
+is reported in turn, one finding per name, so a directive that has outlived one of its reasons says
+which name to drop.
 
 A rule left out with `--no-<rule>` is never blamed for a directive that names it. A partial glob is
 not covered, though. A duplicate brand needs the other file in the run, so linting one file at a
 time can report a directive that is doing its job across the project.
 
-A finding about a directive cannot be silenced by a directive, since a directive covers the line
-below it and these land on the comment itself. Use `--no-bare-disable` or `--no-unused-disable`. The
-whole comment block above the line is read, not only the comment touching it, so the directive sits
-anywhere among another linter's comments. A blank line, or code, ends the block.
+A line directive cannot silence a finding about a directive, since it covers the line below and
+these land on the comment itself. `valof-lint-disable-all-whole-file` does, its own comment
+included, which is what leaving a file out of the run means. Otherwise use `--no-bare-disable` or
+`--no-unused-disable`. The whole comment block above the line is read, not only the comment touching
+it, so the directive sits anywhere among another linter's comments. A blank line, or code, ends the
+block.
 
 It is wrong in two opposite ways. A read that spells no name, `User[method]` or a companion reached
 through a default export, is not seen, so the member is reported although it is used: spell it once
