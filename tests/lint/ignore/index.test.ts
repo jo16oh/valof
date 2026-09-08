@@ -6,6 +6,7 @@ const { lint } = fixtures(import.meta.url);
 
 test("silences every kind when the directive lists none", async () => {
   expect(await lint("whole-line")).toEqual([
+    "whole-line.ts:2:3  bare-disable  valof-lint-disable-next-line names no rule; name the ones it silences",
     "whole-line.ts:4:3  unused-member  User.whisper is never read",
   ]);
 });
@@ -32,6 +33,7 @@ test("silences a duplicate brand, and only at the alias that asked", async () =>
 
 test("stops at a blank line, which starts a block of its own", async () => {
   expect(await lint("not-a-block")).toEqual([
+    "not-a-block.ts:2:3  bare-disable  valof-lint-disable-next-line names no rule; name the ones it silences",
     "not-a-block.ts:5:3  unused-member  User.shout is never read",
   ]);
 });

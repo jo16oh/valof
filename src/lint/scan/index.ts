@@ -44,6 +44,8 @@ export type Scan = {
   sites: CompanionSite[];
   /** 1-based line -> the kinds a comment directive silences there. */
   disabled: Map<number, Set<string>>;
+  /** Where a directive that took effect named no kind, at the comment itself. */
+  bare: Where[];
 };
 
 /** The parser's surface, passed in so the optional import stays at the caller. */
@@ -199,6 +201,8 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
   // After the walk, which is what collected the imports `Val` is resolved against.
   const { aliases, brands } = valAliases(program, file, bound, at);
 
+  const { disabled, bare } = disabledLines(parsed.comments, source, at);
+
   return {
     file,
     bound,
@@ -209,6 +213,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
     aliases,
     brands,
     sites,
-    disabled: disabledLines(parsed.comments, source, (offset) => at(offset).line),
+    disabled,
+    bare,
   };
 }

@@ -1,3 +1,4 @@
+import { BareDisable } from "./bare.ts";
 import { DuplicateBrand } from "./duplicate.ts";
 import { StructuralEquals } from "./equals/index.ts";
 import { BrandMismatch } from "./mismatch.ts";
@@ -10,7 +11,13 @@ import { UnusedMember } from "./unused.ts";
  * The only enumeration. A rule carries its own kind, so listing it here says nothing twice, and
  * {@link Kind} and {@link Finding} are read back off this array rather than written again.
  */
-export const RULES = [UnusedMember, DuplicateBrand, BrandMismatch, StructuralEquals] as const;
+export const RULES = [
+  UnusedMember,
+  DuplicateBrand,
+  BrandMismatch,
+  StructuralEquals,
+  BareDisable,
+] as const;
 
 /** The payload a rule reports, recovered from the rule itself. */
 type ReportedBy<R> = R extends Rule<infer F> ? F : never;
