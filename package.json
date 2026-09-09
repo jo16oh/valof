@@ -57,7 +57,8 @@
     "oxlint": "1.82.0",
     "typescript": "^7.0.2",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "vscode-langservers-extracted": "^4.10.0"
   },
   "peerDependencies": {
     "oxc-parser": ">=0.148"

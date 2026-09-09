@@ -18,12 +18,28 @@ const run = (bin: string, args: string[]): string => {
 const bin = (name: string): string =>
   fileURLToPath(new URL(`../../../node_modules/.bin/${name}`, import.meta.url));
 
+// Asked for as JSON, like ESLint below: what the default reporter draws is the terminal's, and
+// the same finding comes out as one line here and as a framed excerpt there.
 test("oxlint runs the plugin, and puts the finding where the finding says", () => {
-  const output = run(bin("oxlint"), ["--config", "oxlint.json", "src/order.ts", "src/money.ts"]);
-  expect(output).toContain(
-    "src/order.ts:6:22: error valof(structural-equals):" +
-      " Order.total holds Money, which has its own equals",
-  );
+  const output = run(bin("oxlint"), [
+    "--format",
+    "json",
+    "--config",
+    "oxlint.json",
+    "src/order.ts",
+    "src/money.ts",
+  ]);
+  const { diagnostics } = JSON.parse(output) as {
+    diagnostics: Record<string, unknown>[];
+  };
+  expect(diagnostics).toEqual([
+    expect.objectContaining({
+      code: "valof(structural-equals)",
+      message: "Order.total holds Money, which has its own equals",
+      filename: "src/order.ts",
+      labels: [{ span: expect.objectContaining({ line: 6, column: 22 }) }],
+    }),
+  ]);
 });
 
 test("eslint runs the same plugin", () => {
