@@ -111,13 +111,8 @@ export type TraitHost = { readonly __valof_traits: Members };
 
 /** What `Trait.companion` returns once `.impl` closed the chain. */
 export type TraitCompanion<Tr extends AnyTrait, D> = D & {
-  /**
-   * Boxes a value with one Val's implementation. See {@link Dyn}.
-   *
-   * A Val whose payload is a primitive cannot be boxed: a proxy needs an object to stand in
-   * front of. Call the companion directly there, where the type is known anyway.
-   */
-  readonly dyn: (companion: TraitHost, value: ShapeOf<Tr> & Record<string, unknown>) => Dyn<Tr>;
+  /** Boxes a value with one Val's implementation. See {@link Dyn}. */
+  readonly dyn: (companion: TraitHost, value: ShapeOf<Tr>) => Dyn<Tr>;
 };
 
 /**
@@ -146,15 +141,18 @@ const make = (fns: Record<string, unknown>): Record<string, unknown> => ({
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
   // trait holds.
-  dyn: (companion: TraitHost, value: object) =>
-    new Proxy(value, {
+  //
+  // A primitive cannot be a proxy's target, so it gets an empty one to stand behind. Nothing is
+  // lost: a trait a primitive Val can declare has no fields to read.
+  dyn: (companion: TraitHost, value: unknown) =>
+    new Proxy(value !== null && typeof value === "object" ? value : {}, {
       get(target, key) {
         const member = (companion.__valof_traits as unknown as Record<string, AnyFn>)[
           key as string
         ];
         return member
-          ? (...args: never[]) => member(target as never, ...args)
-          : (target as Record<string, unknown>)[key as string];
+          ? (...args: never[]) => member(value as never, ...args)
+          : (value as Record<string, unknown>)[key as string];
       },
     }),
 });

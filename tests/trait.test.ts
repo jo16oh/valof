@@ -116,7 +116,7 @@ type Marker = Trait<"Marker", Record<never, never>, { wire: (self: Self) => stri
 const Marker = Trait.companion<Marker>().impl({});
 type Email = Val<"Email", string, Marker>;
 const Email = Val.sealer<Email>().implTrait(Marker, { wire: (e) => e });
-// Never called: the negative case is the type, and `dyn` would run without one.
-export const boxingAPrimitive = (mail: Email): unknown =>
-  // @ts-expect-error a primitive payload cannot be boxed
-  Marker.dyn(Email, mail);
+test("a primitive payload gets an empty target to stand behind", () => {
+  const mail = Val.of<Email>("a@example.com");
+  expect(Marker.dyn(Email, mail).wire()).toBe("a@example.com");
+});
