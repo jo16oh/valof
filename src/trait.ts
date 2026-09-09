@@ -136,42 +136,45 @@ export type Implement<Tr extends AnyTrait, D, V> = Unbound<Omit<MembersOf<Tr>, k
   Partial<Unbound<Pick<MembersOf<Tr>, keyof D & keyof MembersOf<Tr>>, V>>;
 
 /**
- * The functions a trait keeps for itself: derived from the shape, the same for every Val. Their
+ * The functions a trait keeps for itself: computed from the shape, the same for every Val. Their
  * names may not be a member's, which is what keeps `Greetable.shout(u)` from disagreeing with
  * anything: nothing can override one.
  */
-export type Shared<Tr extends AnyTrait, S> = {
+export type Final<Tr extends AnyTrait, S> = {
   readonly [K in keyof S]: K extends keyof MembersOf<Tr>
-    ? "a shared function cannot take a member's name"
+    ? "a final function cannot take a member's name"
     : (self: Tr, ...args: never[]) => unknown;
 };
 
-/** Collects what a trait carries: its shared functions, then its default implementations. */
-export type TraitBuilder<Tr extends AnyTrait, S = Record<never, never>> = TraitCompanion<
-  Tr,
-  Record<never, never>,
-  S
-> & {
+/**
+ * Collects what a trait carries. Either step may come first, and the chain ends wherever the
+ * trait runs out of functions: a builder is a companion already.
+ */
+export type TraitBuilder<
+  Tr extends AnyTrait,
+  D = Record<never, never>,
+  S = Record<never, never>,
+> = TraitCompanion<Tr, D, S> & {
   /**
    * Groups functions on the trait itself and fixes their first parameter to it, which is what a
    * plain function over the shape cannot do. Not part of the contract: a Val implements none of
    * them, and none can be overridden.
    */
-  shared: <G extends Shared<Tr, G>>(fns: G) => TraitBuilder<Tr, S & G>;
+  final: <G extends Final<Tr, G>>(fns: G) => TraitBuilder<Tr, D, S & G>;
   /**
    * Implements members over the shape alone. A Val takes these unless `implTrait` passes its
    * own, so declaring one here is what makes that member optional there.
    */
-  impl: <D extends Defaults<Tr, D>>(fns: D) => TraitCompanion<Tr, D, S>;
+  impl: <G extends Defaults<Tr, G>>(fns: G) => TraitBuilder<Tr, D & G, S>;
 };
 
 type AnyFn = (...args: never[]) => unknown;
 
 const make = (
   defaults: Record<string, unknown>,
-  shared: Record<string, unknown>,
+  final: Record<string, unknown>,
 ): Record<string, unknown> => ({
-  ...shared,
+  ...final,
   defaults,
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
@@ -197,12 +200,15 @@ export const Trait = {
   companion: <Tr extends AnyTrait>(): MembersOf<Tr> extends ObjectSafe<MembersOf<Tr>>
     ? TraitBuilder<Tr>
     : ObjectSafe<MembersOf<Tr>> => {
-    const build = (shared: Record<string, unknown>): Record<string, unknown> => {
-      const target = make({}, shared);
-      target["shared"] = (fns: Record<string, unknown>) => build({ ...shared, ...fns });
-      target["impl"] = (fns: Record<string, unknown>) => make(fns, shared);
+    const build = (
+      defaults: Record<string, unknown>,
+      final: Record<string, unknown>,
+    ): Record<string, unknown> => {
+      const target = make(defaults, final);
+      target["final"] = (fns: Record<string, unknown>) => build(defaults, { ...final, ...fns });
+      target["impl"] = (fns: Record<string, unknown>) => build({ ...defaults, ...fns }, final);
       return target;
     };
-    return build({}) as never;
+    return build({}, {}) as never;
   },
 } as const;

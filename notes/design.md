@@ -3804,21 +3804,29 @@ const Admin = Val.companion<Admin>().implTrait(Greetable, {
 持つメンバは `implTrait` で省ける。全部が companion に登録されるので、`User.greet(u)` も箱の `p.greet()`
 も常にその Val の実装を呼ぶ。
 
-**`Greetable.greet` は存在しない。**上書きされうる関数は名前空間に出ない。出るのは `shared` の関数だけで、
+**`Greetable.greet` は存在しない。**上書きされうる関数は名前空間に出ない。出るのは `final` の関数だけで、
 そちらは上書きできない。
 
-#### `shared`: 上書きできない関数だけ名前空間に出す
+#### `final`: 上書きできない関数だけ名前空間に出す
 
 ```ts
 const Greetable = Trait.companion<Greetable>()
-  .shared({ shout: (g) => g.name.toUpperCase() }) // 第 1 引数は注釈なしで Greetable
-  .impl({ greet: (g) => `Hi, ${g.name}` });
+  .impl({ greet: (g) => `Hi, ${g.name}` }) // 既定。implTrait で上書きできる
+  .final({ shout: (g) => g.name.toUpperCase() }); // 上書きできない。第 1 引数は注釈なしで Greetable
 
 Greetable.shout(user); // Val も箱も渡せる
 ```
 
-**段を分けるのが要点。**`shared` の関数は契約に入らず、どの Val も実装せず、上書きもできない。だから
+**段を分けるのが要点。**`final` の関数は契約に入らず、どの Val も実装せず、上書きもできない。だから
 `Greetable.shout(u)` が誰かと食い違うことがない。メンバの名前は取れない（型で禁じる）。
+
+**2 つの段はどちらが先でもよく、どこで終わってもよい。**builder が companion を兼ねているため。`final` を
+先に置ける形だと「最後の段」に読めてしまうので、順序を固定しない意味はそこにもある。
+
+名前の候補は `final` / `derived` / `static` だった。`derived` は `patch` / `update` の「派生」と語彙が
+ぶつかる。`static` が軸としては一番正確（メンバが動的ディスパッチ、こちらが静的）だが、class の語彙を
+持ち込む。`seal` との混同は薄い。`seal` は値に対する操作で、`final` は関数の性質を言う。継承がないので
+Kotlin の `sealed` / `final` の対立もここには持ち込まれない。
 
 買えるものは 2 つ。**第 1 引数の文脈型付け**（§6.5 と同じ理由。ただの関数だと `(g: Greetable)` と書く）と、
 **名前空間としてのまとまり**。払うのは `Trait` 側だけで gzip 24 B、宣言 975 B。`Val` だけを import する人は
@@ -3835,7 +3843,7 @@ Greetable.shout(user); // Val も箱も渡せる
 **valof-lint で塞ぐ案も却下。**`Greetable.greet(x)` の `x` が具体的な Val なら型を追えるが、
 `Dyn<Greetable>` だと追えない。具体型を落とすのが `dyn` の仕事なので原理的に追えず、穴が残る。
 
-上書きされうるものは `impl` に置いて companion 経由で呼ぶ。上書きされないものは `shared` に置く。**名前空間
+上書きされうるものは `impl` に置いて companion 経由で呼ぶ。上書きされないものは `final` に置く。**名前空間
 に出るかどうかが、上書きできるかどうかと一致する。**
 
 #### 名前の衝突は型で禁じる

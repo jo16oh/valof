@@ -8,8 +8,8 @@ type Named = Trait<
   { label: (self: Self, sep: string) => string; greet: (self: Self) => string }
 >;
 const Named = Trait.companion<Named>()
-  .shared({ shout: (n) => n.name.toUpperCase() })
-  .impl({ greet: (n) => `Hi, ${n.name}` });
+  .impl({ greet: (n) => `Hi, ${n.name}` })
+  .final({ shout: (n) => n.name.toUpperCase() });
 
 type Sized = Trait<
   "Sized",

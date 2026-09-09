@@ -7,7 +7,7 @@ type Greetable = Trait<
   { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
 >;
 const Greetable = Trait.companion<Greetable>()
-  .shared({ shout: (g) => g.name.toUpperCase() }) // 上書きできない。第 1 引数は注釈なし
+  .final({ shout: (g) => g.name.toUpperCase() }) // cannot be overridden, and needs no annotation
   .impl({ greet: (g) => `Hi, ${g.name}` });
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
@@ -117,21 +117,36 @@ const shadowing = Val.companion<User>()
   .impl({ greet: (u) => `yo ${u.name}` });
 void shadowing;
 
-test("a shared function takes a Val and a box alike", () => {
+test("a final function takes a Val and a box alike", () => {
   const u = Val.of<User>({ id: "a", name: "alice" });
   expect([Greetable.shout(u), Greetable.shout(Greetable.dyn(User, u))]).toEqual(["ALICE", "ALICE"]);
 });
 
-// a shared function may not take a member's name
-const clashing = Trait.companion<Greetable>().shared({
-  // @ts-expect-error a shared function cannot take a member's name
+// a final function may not take a member's name
+const clashing = Trait.companion<Greetable>().final({
+  // @ts-expect-error a final function cannot take a member's name
   greet: (g) => g.name,
 });
 void clashing;
 
 // nor may a companion grow a function over one
-const overShared = Val.companion<User>()
+const overFinal = Val.companion<User>()
   .implTrait(Greetable, { toWire: (u, sep) => `${u.id}${sep}` })
   // @ts-expect-error a trait already answers to this name
   .impl({ shout: (u) => u.name });
-void overShared;
+void overFinal;
+
+// either step may come first
+const flipped = Trait.companion<Greetable>()
+  .impl({ greet: (g) => `Hi, ${g.name}` })
+  .final({ shout: (g) => g.name.toUpperCase() });
+
+test("the steps take either order", () => {
+  const u = Val.of<User>({ id: "a", name: "alice" });
+  expect(flipped.shout(u)).toBe("ALICE");
+  expect(
+    Val.companion<User>()
+      .implTrait(flipped, { toWire: (x, s) => x.id + s })
+      .greet(u),
+  ).toBe("Hi, alice");
+});
