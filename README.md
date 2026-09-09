@@ -437,14 +437,9 @@ Brands a payload with the type named explicitly.
 Val.of<User>({ id: "a", name: "alice" });
 ```
 
-Where the type has a `seal` of its own, use that instead. `Val.of` skips the checks: it is the
-escape hatch.
-
-Always name the type. Without the argument, `Val.of` takes one from whatever it is assigned to, and
-the escape hatch stops being greppable.
-
-[`valof-lint`](#valof-lint) reports both as warnings: a `Val.of` for a type that has a companion,
-and one that names no type.
+If the type has a `seal` of its own, use that instead. `Val.of` skips the checks as an escape hatch.
+[`valof-lint`](#valof-lint) reports latent misuse of it, such as calling `Val.of` on a type that has
+a companion or specifying no type.
 
 ### `Val.unwrap`
 
