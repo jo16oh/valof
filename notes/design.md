@@ -3466,6 +3466,9 @@ report に混ぜることになり、規則ごとに重複した finding が出�
 `Reports what the type checker cannot, and what a disable comment does not do:` にして 1 列にした。
 `Rule.directives`（分ける鍵として一度足したフラグ）も消した。改名の記録（下記）は残る。
 
+**README の表にも 2 つを載せた。**規則として同じなら、一覧も同じ表である。Disable comments の節に
+残したのは「コメントはこの 2 規則に答える」の 1 文だけで、説明は表が持つ。
+
 以下、当初の記録。
 
 **内部は Rule のまま、`--help` で 2 群に分ける。**
