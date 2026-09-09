@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -2700,6 +2700,52 @@ unusedVar: "'{{varName}}' is {{action}} but never used{{additional}}.";
 ```
 
 **ESLint で TypeScript を見るには TS 6 が要る。** typescript-eslint は TS 7 の隣で起動を拒む（§14.9）。check プロジェクトの ESLint 版は `typescript@6` を入れており、Microsoft が案内する side-by-side がそのまま回避策になっている。副産物として、**そこが TS 5 / 6 の in-process バックエンドが実ホストで動く唯一の場所**になった（§14.10 の穴。自動テストはまだ無い）。
+
+### 14.20 LSP でのホスト統合テスト、2026-09-09
+
+`tests/lint/lsp`。両ホストを**言語サーバとして起動**し、同じテスト本体を 2 つの describe から流す。`tests/lint/hosts` が CLI で押さえているのは「規則 API の形が合っていること」で、エディタ経路（未保存バッファ → `overlay` → `tsc --lsp`）はそこを通らない。
+
+```
+open → ディスクどおりの finding
+type → バッファだけ直すと消える
+type → バッファだけに書いた member が出る
+save → 開いていないファイルのディスク変更に追随する
+```
+
+**ESLint に言語サーバは無い。** VS Code 拡張のサーバ（`vscode-langservers-extracted` の `vscode-eslint-language-server`）を devDependency に入れた。設定は ESLint のものではなく拡張のもので、`workspace/configuration` に返す。`experimental.useFlatConfig` は **false** にする。true は ESLint 8 時代の実験の名前で、サーバは `eslint/use-at-your-own-risk` から `FlatESLint` を import しに行くが、ESLint 10 にその export は無い。false のとき素の `ESLint` クラスを読み、それはもう flat config しか受け付けない。
+
+**却下: `@typescript-eslint/parser`。** TS 7 の隣では import の時点で throw する（§14.19）。しかもサーバはそれを握り潰して診断 0 件で返すので、**プラグインが動いていなくてもテストは緑になる**。最悪の形。
+
+**却下: TS 6 を併置する。** 回避策としては成立する（§14.19）が、テストのためだけに、テスト対象とは別の型システムを持ち込むことになる。valof が実際に使うのは TS 7 の `tsc --lsp` である。
+
+**却下: fixture を `.js` にする。** `tests/lint/hosts` の ESLint 側はそれで通している。しかし `structural-equals` は親 Val の宣言サイト、つまり `.ts` の中でしか報告しない。JS に逃げると型解決の経路が丸ごと落ちて、この節が確かめたいものが残らない。
+
+**採用: 空の Program を返すパーサ。** fixture の `eslint.config.mjs` に 10 行置く。規則がホストから読むのは `context.filename` と `context.sourceCode.text` だけで、AST は一度も触らない（本文は oxc-parser で読み直す）。副産物として「ホストの AST に依存していない」が固定される。
+
+**診断は pull で取る。** 両サーバとも `textDocument/diagnostic` に答える。push を待つ形だと、あと何件来るかをテストが推測することになる。
+
+**比較はメッセージ本体だけ。** 位置と規則名の綴りはホストのもの（`valof(unused-member)` / `valof/unused-member`）で、そこは `tests/lint/hosts` が両ホストで押さえている。正規化は 1 行になった。
+
+**ディスク追随のテストが見ているのは scan であって resolver ではない。** `money.ts` から `.implEquals` が消えると `needsTypes` が false になり、規則は型検査に触らず黙る。resolver の追随は 300 ms 遅れる（§14.9）ので、そちらに触れる形で書くと不安定になる。
+
+**`tests/lint/hosts` の oxlint 側を JSON にした。** 既定のレポータは環境によって 1 行の compact と枠付きの excerpt を描き分ける。手元では前者、別の機械では後者で落ちた。`--format json` を渡せば、描き手ではなく finding を見ることになる。ESLint 側は元から JSON なので、両方が同じ形になった。
+
+#### 出てきたバグ 2 件
+
+**プラグインのキャッシュがパスをまたいで生きていた。** キーは「開いているファイル + その本文 + project」なので、他のファイルがディスクで変わっても一致する。`money.ts` を直して保存しても `order.ts` の診断が古いままになる。`queueMicrotask` でエントリを捨てるようにした。6 つの `Program` は同期で連続して走り、`ask` は `Atomics.wait` でスレッドを止めるので、マイクロタスクは割り込めない。**1 パス分のまとめは保ったまま、持ち越しだけが消える。**
+
+```
+同一 tick の 2 規則   → ask 1 回（変わらず）
+テストをまたぐ再実行   → order.ts への ask 2 回 → 4 回
+```
+
+キャッシュを潰すと両ホストとも緑になることで、原因がホストでも resolver でもないことを先に確かめた。
+
+**LSP クライアントが request と reply を id だけで見分けていた。** 双方が独立に採番するので、サーバの `client/registerCapability` の id がこちらの未応答クエリと一致すると、クエリが `undefined` で解決され、サーバは答えを待ったまま止まる。`method` の有無で先に振り分ける。同じ形が `src/lint/typecheck/lsp.ts` にもあったので直した。
+
+#### README
+
+**「バッファとディスク」の段落は README から落とした。** §14.9 で「README に書くとすればここ」としていたのを翻す。プラグイン利用者が設定を書く前に要る話ではない。記録はこの節と §14.9 に残る。
 
 ### 14.10 テストの穴、2026-09-08 棚卸し
 
