@@ -184,7 +184,7 @@ const make = (
   // lost: a trait a primitive Val can declare has no fields to read.
   dyn: (companion: TraitHost, value: unknown) =>
     new Proxy(value !== null && typeof value === "object" ? value : {}, {
-      get(target, key) {
+      get(_, key) {
         const member = (companion.__valof_traits as unknown as Record<string, AnyFn>)[
           key as string
         ];
