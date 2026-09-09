@@ -41,8 +41,6 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
       "  duplicate-brand     a brand string claimed by more than one type alias\n" +
       "  brand-mismatch      a brand whose last segment is not the name of the type it brands\n" +
       "  structural-equals   a payload holding a Val whose own `equals` the parent never dispatches to\n" +
-      "\n" +
-      "And about the disable comments themselves, which always run:\n" +
       "  incomplete-disable  a disable comment leaving out the rules it silences, or its scope\n" +
       "  unused-disable      a disable comment naming a rule that reports nothing there\n",
   );

@@ -1,11 +1,15 @@
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import { resolve } from "node:path";
 
 import type { Resolver } from "./index.ts";
 
 /** The subset of the TypeScript 5 / 6 API used here. It ships no types nameable from outside. */
 type TypeScriptApi = {
-  sys: Record<string, unknown>;
+  sys: Record<string, unknown> & {
+    fileExists: (file: string) => boolean;
+    readFile: (file: string, encoding?: string) => string | undefined;
+  };
   ScriptSnapshot: { fromString: (text: string) => unknown };
   getDefaultLibFilePath: (options: unknown) => string;
   createDocumentRegistry: () => unknown;
@@ -30,12 +34,19 @@ type TypeScriptApi = {
 export function inProcess(main: string, root: string, files: readonly string[]): Resolver {
   const ts = createRequire(import.meta.url)(main) as TypeScriptApi;
 
+  let open = new Map<string, string>();
+  // The service caches per file until its version changes, so an overlay that edits one has to
+  // move it. Which way it moves does not matter, only that it differs from what came before.
+  const versions = new Map<string, number>();
+  const bump = (file: string): void => void versions.set(file, (versions.get(file) ?? 0) + 1);
+
   const service = ts.createLanguageService(
     {
-      getScriptFileNames: () => [...files],
-      // Files are read once and never edited, so every snapshot stays at version 1.
-      getScriptVersion: () => "1",
+      getScriptFileNames: () => [...new Set([...files, ...open.keys()])],
+      getScriptVersion: (file: string) => String(versions.get(resolve(root, file)) ?? 0),
       getScriptSnapshot: (file: string) => {
+        const held = open.get(resolve(root, file));
+        if (held !== undefined) return ts.ScriptSnapshot.fromString(held);
         try {
           return ts.ScriptSnapshot.fromString(readFileSync(file, "utf8"));
         } catch {
@@ -45,8 +56,9 @@ export function inProcess(main: string, root: string, files: readonly string[]):
       getCurrentDirectory: () => root,
       getCompilationSettings: () => ({ strict: true, noEmit: true }),
       getDefaultLibFileName: (options: unknown) => ts.getDefaultLibFilePath(options),
-      fileExists: ts.sys["fileExists"],
-      readFile: ts.sys["readFile"],
+      // An overlaid file may have no disk copy at all, and another file may import it.
+      fileExists: (file: string) => open.has(resolve(root, file)) || ts.sys.fileExists(file),
+      readFile: (file: string) => open.get(resolve(root, file)) ?? ts.sys.readFile(file),
       readDirectory: ts.sys["readDirectory"],
       directoryExists: ts.sys["directoryExists"],
       getDirectories: ts.sys["getDirectories"],
@@ -55,6 +67,12 @@ export function inProcess(main: string, root: string, files: readonly string[]):
   );
 
   return {
+    overlay: (sources) => {
+      const wanted = new Map([...sources].map(([file, text]) => [resolve(root, file), text]));
+      for (const [file, text] of wanted) if (open.get(file) !== text) bump(file);
+      for (const file of open.keys()) if (!wanted.has(file)) bump(file);
+      open = wanted;
+    },
     resolveAll: (queries) =>
       Promise.resolve(
         queries.map(({ file, offset }) =>

@@ -21,6 +21,13 @@ type Definition = { file: string; offset: number };
  */
 export type Resolver = {
   resolveAll: (queries: readonly Query[]) => Promise<Definition[][]>;
+  /**
+   * Source to answer from instead of the file on disk, keyed by absolute path.
+   *
+   * Each call replaces the last, so a resolver held across runs follows the buffer being typed
+   * in. A file dropped from the map goes back to disk.
+   */
+  overlay: (sources: ReadonlyMap<string, string>) => void;
   close: () => void;
 };
 
