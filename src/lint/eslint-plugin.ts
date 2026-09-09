@@ -208,9 +208,16 @@ function ask(what: Ask): readonly Finding[] {
   return reply.findings;
 }
 
-/** The same two mistakes the command explains, in the terms a plugin's reader is in. */
+/** The mistakes the command explains, in the terms a plugin's reader is in, and one of its own. */
 function explain(error: unknown): string {
   const { code } = error as { code?: string };
+  if (code === "ENOMEM")
+    return (
+      "valof-lint could not start TypeScript. Linux refuses to fork a process that reserves more" +
+      " address space than the machine has memory, which oxlint does:" +
+      " https://github.com/oxc-project/oxc/issues/20331\n" +
+      "  RAYON_NUM_THREADS=1 oxlint"
+    );
   if (code === "ERR_MODULE_NOT_FOUND")
     return "valof-lint needs oxc-parser, which valof does not install for you.\n  pnpm add -D oxc-parser";
   if (code === NO_TYPESCRIPT)

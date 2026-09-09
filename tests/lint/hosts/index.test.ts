@@ -24,7 +24,8 @@ test("oxlint runs the plugin, and puts the finding where the finding says", () =
   const output = run(bin("oxlint"), [
     // One thread. Each reserves around 6 GB of address space, and Linux refuses to fork a
     // process whose mapping runs that far past the machine's memory, so the worker's
-    // `tsc --lsp` never starts: every file comes back as `spawn ENOMEM` instead.
+    // `tsc --lsp` never starts: every file comes back as `spawn ENOMEM` instead. The cap comes
+    // off once https://github.com/oxc-project/oxc/issues/20331 lands.
     "--threads",
     "1",
     "--format",
