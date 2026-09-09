@@ -84,6 +84,7 @@ test("names every rule, under the plugin's own name", () => {
     "valof/companion-mismatch": "error",
     "valof/duplicate-brand": "error",
     "valof/incomplete-disable": "error",
+    "valof/split-companion": "error",
     "valof/structural-equals": "error",
     // Dead weight, not a defect: the code around either of these works.
     "valof/unused-disable": "warn",

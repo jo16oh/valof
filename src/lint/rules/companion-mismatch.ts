@@ -30,7 +30,8 @@ export const CompanionMismatch: Rule<CompanionMismatch> = {
  * namespace at once. Two names split that, and the reader has to know both to find either.
  *
  * Compared as written, so `import type { User as Account }` passes with `const Account =
- * Val.sealer<Account>()`. The type belonging to another file is not this rule's finding.
+ * Val.sealer<Account>()`. The type belonging to another file is the split-companion
+ * rule's finding, not this one's.
  *
  * The chain is where the name is required, not the `.impl` on it, so holding a builder in a
  * variable is reported: `const seal = Val.sealer<User>()` is already the constructor for `User`

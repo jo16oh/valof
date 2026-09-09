@@ -507,6 +507,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `duplicate-brand`    | a brand string claimed by more than one top-level alias                   |
 | `brand-mismatch`     | a brand whose last segment is not the name of the type it brands          |
 | `companion-mismatch` | a companion bound to a name other than the type it is for                 |
+| `split-companion`    | a companion for a type that another file declares                         |
 | `structural-equals`  | a payload holding a Val whose own `equals` the parent never dispatches to |
 
 A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes

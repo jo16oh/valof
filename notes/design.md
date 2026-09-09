@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、型名と一致しない companion（§14.21）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -2029,12 +2029,13 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 ### 14.4 ルール
 
-構文だけで判定するものが 6 つ。残る 1 つは go-to-definition を使う（§14.7）。
+構文だけで判定するものが 7 つ。残る 1 つは go-to-definition を使う（§14.7）。
 
 - 誰も読まない companion のメンバ
 - 複数の**トップレベル**型エイリアスが主張しているブランド文字列
 - 型名で終わっていないブランド文字列（§14.12）
 - 型名と違う名前に束縛された companion（§14.21）
+- 別のファイルが宣言している型の companion（§14.22）
 - ルールを名指ししていない disable コメント（§14.14）
 - 何も黙らせていない disable コメント（§14.15）
 
@@ -2777,6 +2778,7 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 | `duplicate-brand`    | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
 | `brand-mismatch`     | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
 | `companion-mismatch` | error | §14.21。同じく「一致すべき 2 つの食い違い」                                               |
+| `split-companion`    | error | §14.22。型名で export できる形にならない                                                  |
 | `incomplete-disable` | error | 下記                                                                                      |
 | `unused-member`      | warn  | 死んだコード。周りは動く                                                                  |
 | `unused-disable`     | warn  | 何も黙らせていない指示。コードは変わらない                                                |
@@ -3473,7 +3475,7 @@ brand-mismatch（§14.12）と同じ「一致すべき 2 つの食い違い」�
 #### 判定は書かれたまま。別名の解決はしない
 
 `import type { User as Account }` の隣の `const Account = Val.sealer<Account>()` は通す。そのファイルの
-読み手には一貫していて、直す先も無い。型が別ファイルにあること自体は、この規則の担当ではない。
+読み手には一貫していて、直す先も無い。型が別ファイルにあること自体は §14.22 の規則が見る。
 
 #### builder を変数に置く形も報告する
 
@@ -3497,6 +3499,45 @@ export const User = seal.impl({ ... });
 
 chain の先頭ではなく束縛された名前を指す。エディタの下線は finding の位置にある語を覆うので（
 `eslint-plugin.ts` の `over`）、先頭を指すと `Val` に下線が引かれる。名前の話なら名前を指す。
+
+### 14.22 規則: 型と別ファイルの companion、2026-09-09
+
+**入れる。** `split-companion`。`Val.sealer<X>()` / `Val.companion<X>()` の `X` が import された名前なら
+報告する。既定で on、error。
+
+```ts
+// user.ts
+export type User = Val<"User", { id: string }>;
+
+// companion.ts
+import type { User } from "./user.ts";
+const User = Val.sealer<User>().impl({ ... }); // 報告
+```
+
+#### 根拠: 分けると型名で export できる
+
+宣言マージはファイル内でしか成立しない。実測（TS 7.0、`--strict`）:
+
+```
+type と const を別ファイルで両方 export       TS2395 must be all exported or all local
+2 つ目のファイルで型を再 export + const       TS2323 Cannot redeclare exported variable
+```
+
+残るのは「別名の companion」（§14.21 が報告する）か「型名で import できない companion」だけになる。
+つまりこの規則は新しい規約を作っていない。**型システムが既に閉じている形を、エラーが出る前に名指しする**
+だけである。
+
+#### 判定は import 1 つ。resolver は使わない
+
+`bound.imported.has(typeName)` が全部。型を解決しないので言語サーバは起動しない（`structural-equals` が
+`.implEquals` のあるときだけ起動するのと同じ理由で、起動しないほうがよい）。
+
+`Val` の綴りは無関係。`import { Val as Value } from "valof"` でも chain は `fromVal` →
+`original(bound, …)` で見つかる（fixture `renamed-val/`）。見るのは**型引数の名前**が import されているか
+だけである。
+
+**却下: go-to-definition で宣言ファイルを比べる。** helper 越しの別名（`type Local = Imported`）まで見える
+が、この規則のためだけに TypeScript を起動する。取りこぼすのはその 1 形だけで、黙るのは安全側。
 
 ### 15.1 `Val.trait`
 
