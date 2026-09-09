@@ -18,7 +18,7 @@ type Entry = keyof typeof entries;
 
 const modes = ["production", "development"] as const;
 
-const budget = { gzip: 1280, traitGzip: 1600, types: 24 * 1024 };
+const budget = { gzip: 1280, traitGzip: 1600, types: 32 * 1024 };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
 

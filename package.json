@@ -44,6 +44,7 @@
     "check": "vp check",
     "size": "node scripts/size.ts",
     "ts-compatibility": "node scripts/ts-compatibility/index.ts",
+    "type-perf": "node scripts/type-perf/index.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config && vp fmt AGENTS.md",
     "bump-version": "git branch --show-current | grep -qxv main || { echo 'run this on a branch, not main'; exit 1; }; bumpp --no-tag",
