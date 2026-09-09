@@ -479,7 +479,7 @@ own severity in the plugin.
 
 The same rules, one per kind: name one to give it its own severity, or turn it off. The project to
 read is one setting for all of them, a path or a list of them, and defaults to `src/**/*.ts`. A path
-opening with `!` comes off it.
+opening with `!` is excluded from it.
 
 ESLint needs a parser that reads your TypeScript.
 
@@ -529,7 +529,7 @@ pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree
 A single file given as the project is refused: a duplicate brand needs the other alias to be seen.
 
 A `!path` is excluded wherever it is written, and comes off the run rather than only the report, so
-what a generated tree declares stops answering for the rest.
+what a generated tree declares no longer applies to the rest.
 
 ## Caveats
 
