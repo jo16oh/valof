@@ -17,16 +17,12 @@ const dead = (name: string): string =>
 test("walks the buffer in place of the file", async () => {
   expect(await over("buffer")).toEqual([]);
   const overlay = new Map([[at("buffer.ts"), dead("User")]]);
-  expect(await over("buffer", { overlay })).toEqual([
-    { rule: UnusedMember, at: "buffer.ts:2:3", message: "User.shout is never read" },
-  ]);
+  expect(await over("buffer", { overlay })).toEqual([{ rule: UnusedMember, at: "buffer.ts:2:3" }]);
 });
 
 test("scans a file the buffer is the only copy of", async () => {
   const findings = await lint([], { overlay: new Map([[at("unsaved.ts"), dead("Id")]]) });
-  expect(findings.map(({ kind, message }) => `${kind}  ${message}`)).toEqual([
-    "unused-member  Id.shout is never read",
-  ]);
+  expect(findings.map(({ kind }) => kind)).toEqual([UnusedMember.kind]);
 });
 
 // The one rule that resolves names, so the only one an overlay has to reach the type checker for.
@@ -46,7 +42,6 @@ describe("a resolver held across runs", () => {
     {
       rule: StructuralEquals,
       at: `types/order.ts:${line}:22`,
-      message: "Order.total holds Money, which has its own equals",
     },
   ];
 

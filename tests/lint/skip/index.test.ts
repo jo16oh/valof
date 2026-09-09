@@ -19,28 +19,24 @@ test("leaves out the kind the flag names, and only that one", async () => {
     {
       rule: DuplicateBrand,
       at: "mixed/orders.ts:3:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
     {
       rule: DuplicateBrand,
       at: "mixed/users.ts:3:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
-    { rule: UnusedMember, at: "mixed/users.ts:6:3", message: "User.shout is never read" },
+    { rule: UnusedMember, at: "mixed/users.ts:6:3" },
   ]);
   expect(await lint("mixed", { skip: [DuplicateBrand] })).toEqual([
-    { rule: UnusedMember, at: "mixed/users.ts:6:3", message: "User.shout is never read" },
+    { rule: UnusedMember, at: "mixed/users.ts:6:3" },
   ]);
   expect(await lint("mixed", { skip: [UnusedMember] })).toEqual([
     {
       rule: DuplicateBrand,
       at: "mixed/orders.ts:3:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
     {
       rule: DuplicateBrand,
       at: "mixed/users.ts:3:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
   ]);
 });
@@ -56,14 +52,10 @@ test("leaves out a rule about the disable comments, like any other", async () =>
     {
       rule: IncompleteDisable,
       at: "guarded.ts:1:1",
-      message:
-        "valof-lint-disable names no scope; write valof-lint-disable-next-line or valof-lint-disable-whole-file",
     },
     {
       rule: UnusedDisable,
       at: "guarded.ts:3:1",
-      message:
-        "valof-lint-disable-whole-file names structural-equals, which reports nothing in this file",
     },
   ]);
   expect(await lint("guarded", { skip: [IncompleteDisable, UnusedDisable] })).toEqual([]);

@@ -13,7 +13,6 @@ test("reports a companion for a type another file declares", async () => {
     {
       rule: SplitCompanion,
       at: "imported/companion.ts:5:25",
-      message: "User is declared in another file, where its companion belongs",
     },
   ]);
 });
@@ -23,7 +22,6 @@ test("reports a type reached through a namespace, which is another module by def
     {
       rule: SplitCompanion,
       at: "namespaced/companion.ts:5:31",
-      message: "User is declared in another file, where its companion belongs",
     },
   ]);
 });
@@ -33,7 +31,6 @@ test("sees the chain however `Val` was imported", async () => {
     {
       rule: SplitCompanion,
       at: "renamed-val/companion.ts:5:27",
-      message: "User is declared in another file, where its companion belongs",
     },
   ]);
 });

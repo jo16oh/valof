@@ -2,15 +2,17 @@ import { expect, test } from "vite-plus/test";
 
 import { BypassedCompanion, fixtures } from "../../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 test("names the constructor a sealer already gives the type", async () => {
   expect(await lint("constructor")).toEqual([
     {
       rule: BypassedCompanion,
       at: "constructor.ts:9:52",
-      message: "Val.of<User> bypasses User, the constructor for it",
     },
+  ]);
+  expect(await messages("constructor")).toEqual([
+    "Val.of<User> bypasses User, the constructor for it",
   ]);
 });
 
@@ -19,8 +21,10 @@ test("names the seal that the lift skips", async () => {
     {
       rule: BypassedCompanion,
       at: "seal.ts:7:39",
-      message: "Val.of<Age> bypasses Age.seal, which checks the payload",
     },
+  ]);
+  expect(await messages("seal")).toEqual([
+    "Val.of<Age> bypasses Age.seal, which checks the payload",
   ]);
 });
 
@@ -29,9 +33,9 @@ test("says what is missing where the companion has no seal to name", async () =>
     {
       rule: BypassedCompanion,
       at: "no-seal.ts:9:68",
-      message: "Val.of<Row> brands a payload that no seal checked",
     },
   ]);
+  expect(await messages("no-seal")).toEqual(["Val.of<Row> brands a payload that no seal checked"]);
 });
 
 test("says nothing where the type has no companion", async () => {
@@ -43,7 +47,9 @@ test("follows a renamed import to the companion in the other file", async () => 
     {
       rule: BypassedCompanion,
       at: "renamed-import/boundary.ts:6:26",
-      message: "Val.of<Account> bypasses User, the constructor for it",
     },
+  ]);
+  expect(await messages("renamed-import")).toEqual([
+    "Val.of<Account> bypasses User, the constructor for it",
   ]);
 });

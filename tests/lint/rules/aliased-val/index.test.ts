@@ -2,16 +2,16 @@ import { expect, test } from "vite-plus/test";
 
 import { AliasedVal, fixtures } from "../../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 test("names the Val a second name stands for", async () => {
   expect(await lint("imported")).toEqual([
     {
       rule: AliasedVal,
       at: "imported/local.ts:3:13",
-      message: "Account is a second name for User; use User",
     },
   ]);
+  expect(await messages("imported")).toEqual(["Account is a second name for User; use User"]);
 });
 
 test("follows a chain of them, so fixing one does not uncover the next", async () => {
@@ -19,13 +19,15 @@ test("follows a chain of them, so fixing one does not uncover the next", async (
     {
       rule: AliasedVal,
       at: "chain/names.ts:3:13",
-      message: "Account is a second name for User; use User",
     },
     {
       rule: AliasedVal,
       at: "chain/names.ts:4:13",
-      message: "Customer is a second name for User; use User",
     },
+  ]);
+  expect(await messages("chain")).toEqual([
+    "Account is a second name for User; use User",
+    "Customer is a second name for User; use User",
   ]);
 });
 
@@ -36,9 +38,9 @@ test("reports the local alias a companion was built on", async () => {
     {
       rule: AliasedVal,
       at: "companion/local.ts:5:6",
-      message: "Local is a second name for User; use User",
     },
   ]);
+  expect(await messages("companion")).toEqual(["Local is a second name for User; use User"]);
 });
 
 test("leaves a union, a wrapped type and a generic alias alone", async () => {
