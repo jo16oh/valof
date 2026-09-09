@@ -42,12 +42,12 @@ export function fromVal(node: Node, bound: Bindings): boolean {
 }
 
 /**
- * A `Val.of<X>(…)` call, which brands a payload with the default seal.
+ * A `Val.of(…)` call, which brands a payload with the default seal.
  *
- * The type argument is what keys it, so a call spelling no type, `Val.of(payload)` inferred from
- * the target, is not one of these.
+ * `typeName` is absent where the call named no type and took one from its target. It sits at the
+ * type argument when there is one, and at `of` when there is not.
  */
-export type Lift = Where & { typeName: string; qualifier: string | undefined };
+export type Lift = Where & { typeName: string | undefined; qualifier: string | undefined };
 
 /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
 export function valOf(
@@ -66,7 +66,13 @@ export function valOf(
   if (name !== "Val" || step !== "of") return undefined;
   const args = child(node, "typeArguments");
   const [param] = args ? children(args, "params") : [];
-  if (!param || param.type !== "TSTypeReference") return undefined;
+  if (!param) {
+    const property = child(callee, "property");
+    if (!property) return undefined;
+    return { ...at(property["start"] as number), typeName: undefined, qualifier: undefined };
+  }
+  // A type argument that is not a plain reference, `Val.of<{ … }>`, names no Val to key it by.
+  if (param.type !== "TSTypeReference") return undefined;
   const written = child(param, "typeName");
   const named = written && typeReference(written, bound.namespaces);
   if (!named) return undefined;

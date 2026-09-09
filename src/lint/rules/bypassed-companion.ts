@@ -38,8 +38,8 @@ function instead(site: CompanionSite, type: string): string {
  * split-companion rule is what makes that enough, since it puts the alias and its companion in
  * one file.
  *
- * `Val.of` spelling no type argument is not seen. That form takes the type from the target it is
- * assigned to, and there is no name here to key it by.
+ * `Val.of` spelling no type argument is left to the unnamed-of rule. That form takes the type
+ * from the target it is assigned to, and there is no name here to key it by.
  */
 function findings(scans: readonly Scan[]): BypassedCompanion[] {
   const companions = new Map<string, CompanionSite>();
@@ -50,6 +50,9 @@ function findings(scans: readonly Scan[]): BypassedCompanion[] {
   const found: BypassedCompanion[] = [];
   for (const { file, lifts, bound } of scans) {
     for (const { typeName, qualifier, line, column } of lifts) {
+      // A lift naming no type is the unnamed-of rule's finding. Which companion it goes around,
+      // if any, is not written anywhere here.
+      if (typeName === undefined) continue;
       // A namespace-qualified name already arrives as the declaring module names it.
       const declared = qualifier === undefined ? original(bound, typeName) : typeName;
       const site = companions.get(declared);
