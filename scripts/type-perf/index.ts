@@ -13,9 +13,13 @@ const fixtures = ["core", "trait"] as const;
 type Fixture = (typeof fixtures)[number];
 
 /**
- * Instantiations over the baseline, which is the same lib with none of the library. Set about 20%
- * above the measurement, so a rewrite of one conditional does not have to move them and a runaway
- * recursion still trips.
+ * Instantiations over the baseline, which is the same lib with none of the library.
+ *
+ * Round, and well clear of the measurement. **This is an alarm for a blow-up, not a ratchet for
+ * creep.** A recursive conditional running away or a union distributing where it should not
+ * multiplies the count; growth from writing more types adds a few percent. A budget tight enough
+ * to catch the second has to be re-baselined on every change, and stops meaning anything. Read the
+ * printed number when you want to watch the drift.
  *
  * Instantiations alone. `Types` is printed and tracks it closely, at 3.2 instantiations each
  * across every measurement so far, and what this library risks is a recursive conditional running
@@ -24,7 +28,7 @@ type Fixture = (typeof fixtures)[number];
  *
  * The fixtures are not comparable to each other. Each carries its own history.
  */
-const budget: Record<Fixture, number> = { core: 6900, trait: 11000 };
+const budget: Record<Fixture, number> = { core: 10_000, trait: 15_000 };
 
 type Counts = { types: number; instantiations: number; check: number; total: number };
 
@@ -118,12 +122,6 @@ await forEachVersion([floor], async (tsc, version) => {
       ]),
     ),
   );
-  // Counts, not sizes: the column names are the units. Written out because a reader meets this
-  // table years after the last person who chose what to put in it.
-  console.log(
-    "\n  instantiations: type arguments applied, which is where a runaway conditional shows up.",
-  );
-  console.log("  types: distinct types the checker made. printed only, and it tracks the first.");
 });
 
 if (json) console.log(JSON.stringify(measured, null, 2));
@@ -142,6 +140,12 @@ if (!json) {
       checks.map((check) => [check[0], `${num(check[1])} / ${num(check[2])}`, left(check)]),
     ),
   );
+}
+
+if (!json) {
+  // A reader meets this table years after the last person who chose what to put in it.
+  console.log("\ninstantiations: type arguments applied, where a conditional running away shows.");
+  console.log("types: distinct types the checker made. printed only, and it tracks the first.");
 }
 
 if (checks.some(([, size, max]) => size > max)) process.exit(1);
