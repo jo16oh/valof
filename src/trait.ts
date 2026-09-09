@@ -43,7 +43,7 @@ type BrandsOf<Tr extends AnyTrait> = Tr["__valof_internal_phantom_trait_brands"]
 /** The members the trait leaves to each Val. */
 export type MembersOf<Tr extends AnyTrait> = BrandsOf<Tr>[keyof BrandsOf<Tr>];
 
-// Only parameters are walked: a member returning `Self` is rejected by `ObjectSafe`.
+// Only parameters are walked: a member returning `Self` is rejected by `Declarable`.
 type SubstArgs<A extends readonly unknown[], S> = {
   [I in keyof A]: [A[I]] extends [Self] ? S : A[I];
 };
@@ -76,16 +76,24 @@ type HasSelf<T> = [T] extends [Self]
           : true
         : false;
 
+/** Names the library wires onto a companion. A member taking one would shadow it. */
+type Wired = "equals" | "patch" | "update" | "seal" | "create" | "__valof_traits";
+
 /**
- * Rejects a member returning `Self`. What wants to return one is a constructor, and a trait has
- * no brand to seal with. Take the field out through a shared member instead.
+ * Rejects a member a Val could not carry: one returning `Self`, and one named after something
+ * the library wires.
+ *
+ * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
+ * the field out through a member instead.
  */
-export type ObjectSafe<M extends Members> = {
-  [K in keyof M]: M[K] extends (...args: never[]) => infer R
-    ? HasSelf<R> extends true
-      ? "a trait member cannot return Self"
-      : M[K]
-    : M[K];
+export type Declarable<M extends Members> = {
+  [K in keyof M]: K extends Wired
+    ? "a trait member cannot take a name the library wires"
+    : M[K] extends (...args: never[]) => infer R
+      ? HasSelf<R> extends true
+        ? "a trait member cannot return Self"
+        : M[K]
+      : M[K];
 };
 
 /**
@@ -143,7 +151,9 @@ export type Implement<Tr extends AnyTrait, D, V> = Unbound<Omit<MembersOf<Tr>, k
 export type Final<Tr extends AnyTrait, S> = {
   readonly [K in keyof S]: K extends keyof MembersOf<Tr>
     ? "a final function cannot take a member's name"
-    : (self: Tr, ...args: never[]) => unknown;
+    : K extends "dyn" | "defaults"
+      ? "a final function cannot take a name the trait itself uses"
+      : (self: Tr, ...args: never[]) => unknown;
 };
 
 /**
@@ -197,9 +207,9 @@ const make = (
 
 export const Trait = {
   /** Declares a trait's runtime side: what every Val implementing it shares. */
-  companion: <Tr extends AnyTrait>(): MembersOf<Tr> extends ObjectSafe<MembersOf<Tr>>
+  companion: <Tr extends AnyTrait>(): MembersOf<Tr> extends Declarable<MembersOf<Tr>>
     ? TraitBuilder<Tr>
-    : ObjectSafe<MembersOf<Tr>> => {
+    : Declarable<MembersOf<Tr>> => {
     const build = (
       defaults: Record<string, unknown>,
       final: Record<string, unknown>,

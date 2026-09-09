@@ -65,6 +65,8 @@ const Email = Val.sealer<Email>().implTrait(Marker);
 test("a primitive payload gets an empty target to stand behind", () => {
   const mail = Email("a@example.com");
   expect([Email.wire(mail), Marker.dyn(Email, mail).wire()]).toEqual(["marked", "marked"]);
+  // The one place a box does not stand in for its value: there is no object to forward to.
+  expect(JSON.stringify(Marker.dyn(Email, mail))).toBe("{}");
 });
 
 // negative cases
@@ -149,4 +151,53 @@ test("the steps take either order", () => {
       .implTrait(flipped, { toWire: (x, s) => x.id + s })
       .greet(u),
   ).toBe("Hi, alice");
+});
+
+// a member may not take a name the library wires onto a companion
+type Wiring = Trait<"Wiring", { n: number }, { equals: (self: Self) => boolean }>;
+// @ts-expect-error a trait member cannot take a name the library wires
+const Wiring = Trait.companion<Wiring>().impl({ equals: () => false });
+void Wiring;
+
+// nor may a final function take a name the trait itself uses
+const Owning = Trait.companion<Greetable>().final({
+  // @ts-expect-error a final function cannot take a name the trait itself uses
+  dyn: (g) => g.name,
+});
+void Owning;
+
+// a trait sits beside the other steps
+type Ticket = Val<"Ticket", { id: string; name: string }, Greetable>;
+const Ticket = Val.companion<Ticket>()
+  .implCreate((name: string) => ({ id: "t1", name }))
+  .implSeal((seed, seal) => seal(seed))
+  .fixed<"id">()
+  .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}${t.name}` });
+
+test("a trait keeps create, seal, fixed and patch working", () => {
+  const t = Ticket.create("alice");
+  expect([t.id, Ticket.greet(t), Greetable.shout(t)]).toEqual(["t1", "Hi, alice", "ALICE"]);
+  expect(Ticket.patch(t, { name: "bob" }).name).toBe("bob");
+  expect(Ticket.update(t, () => ({ name: "carol" })).id).toBe("t1");
+});
+
+test("a box serializes as the value it stands in front of", () => {
+  const u = Val.of<User>({ id: "a", name: "alice" });
+  const boxed = Greetable.dyn(User, u);
+  expect(JSON.stringify(boxed)).toBe(JSON.stringify(u));
+  expect(Object.keys(boxed)).toEqual(["id", "name"]);
+});
+
+test("two traits on one Val each box", () => {
+  type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+  const Weighed = Trait.companion<Weighed>().impl({ heavy: (w) => w.kg > 10 });
+  type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;
+  const Crate = Val.companion<Crate>()
+    .implTrait(Greetable, { toWire: (c, sep) => `${c.name}${sep}${c.kg}` })
+    .implTrait(Weighed);
+  const c = Val.of<Crate>({ name: "box", kg: 20 });
+  expect([Greetable.dyn(Crate, c).greet(), Weighed.dyn(Crate, c).heavy()]).toEqual([
+    "Hi, box",
+    true,
+  ]);
 });

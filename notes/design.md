@@ -3879,6 +3879,15 @@ Val.companion<User>()
 2 つの trait が 1 つの Val に同じ名前のメンバを持ち込むのも禁じる。どちらの実装が登録されたのか、記録が
 平らである以上わからなくなる。
 
+**ライブラリが配線する名前も禁じる。**`equals` という名前のメンバを持つ trait を実装すると、`attach` の
+登録が配線された構造比較を踏み潰し、`Box.equals(b, b)` が `false` を返した。`.impl` は `CompanionFns` が
+この 5 つ（`equals` / `patch` / `update` / `seal` / `create`）を弾いているが、trait の経路が素通りしていた。
+記録を持つ `__valof_traits` も同じ。`final` の側では `dyn` と `defaults` が trait 自身のキーで、こちらは
+黙って捨てられていた。
+
+**箱がその値の代わりにならない唯一の場所**は、プリミティブ payload の `JSON.stringify`。target が `{}` な
+ので `"{}"` になる。オブジェクトの箱は値と同じ JSON を出し、`Object.keys` も値のキーを返す。
+
 #### ブランドは交差できる形にする
 
 ```ts
