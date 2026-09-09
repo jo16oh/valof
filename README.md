@@ -76,8 +76,8 @@ user.name; // "alice"
 ```
 
 `readonly` is a promise in the type, not at runtime. **In development, values are frozen**, so a
-write that casts past the type throws where it happens. A production build pays nothing: the freeze
-is behind `process.env.NODE_ENV`, and `Object.isFrozen` is `false` there.
+write that uses a cast to bypass the type throws where it happens. A production build pays nothing:
+the freeze is behind `process.env.NODE_ENV`, and `Object.isFrozen` is `false` there.
 
 The copy stops at any node the library already owns, so **what you pay is set by the part you built
 fresh**, not by the size of the value:
@@ -86,7 +86,7 @@ fresh**, not by the size of the value:
 type City = Val<"City", { name: string; zip: string }>;
 
 City({ ...raw, name: "Osaka" }); // every node is new: copies the whole payload
-City.patch(city, { name: "Osaka" }); // the rest of the value comes back as it stands
+City.patch(city, { name: "Osaka" }); // the rest of the value is unchanged
 ```
 
 So deriving a value copies only the path down to what changed, not the whole tree. The untouched
@@ -98,7 +98,7 @@ value back, which makes `patch` cheaper than the spread you would have written b
 
 **Sealing** turns a payload into a value. `Val.sealer` is the default seal: brand the payload and
 copy it. `Val.companion` is the same shape minus the constructor, and `.implSeal` replaces that seal
-with your own. The default one comes in as a second parameter, so you seal without naming the type
+with your own. The default one is passed as a second parameter, so you seal without naming the type
 again:
 
 ```ts
@@ -122,8 +122,8 @@ A seal must be **idempotent**: sealing a value's own payload has to give that va
 something new, such as an id or a timestamp, belongs in [`create`](#create) instead; otherwise
 `patch` would produce a new id every time it re-seals.
 
-Nothing copies on the way in, so normalize without mutating the caller's object: derive a new one
-with `toSorted` or a spread. Return through the `seal` passed as the second parameter: that is what
+Nothing copies on input, so normalize without mutating the caller's object: derive a new one with
+`toSorted` or a spread. Return through the `seal` passed as the second parameter: that is what
 brands the value and deep-copies it.
 
 Unknown keys are yours to reject. A patch is merged as given, so a key the payload does not declare
@@ -214,7 +214,7 @@ const Order = Val.sealer<Order>().implEquals({
 ```
 
 The spec stops at a nested Val: hand over its companion rather than walking its payload, which would
-go around the equality that type declared for itself.
+bypass the equality that type declared for itself.
 
 [`valof-lint`](#valof-lint) reports a parent holding a Val whose own `equals` its spec says nothing
 about.
@@ -312,7 +312,7 @@ Only three things can live inside a Val:
 
 A Val is itself one of these, so Vals nest. A tuple keeps its positions and its length. One with a
 rest element (`readonly [string, ...number[]]`) reads as an array instead, since a fixed length is
-what tells the two apart.
+what distinguishes the two.
 
 Neither a class instance nor a function can go in. `Date`, `Temporal`, `Map` and `Set` are all
 classes; see [Dates](#dates) and [Map / Set](#map--set) instead. TypeScript rejects them, on the
@@ -379,7 +379,7 @@ untouched subtrees keep their identity, so a dependency array sees no change.
 const [shop, setShop] = useState(Shop({ owner, city }));
 setShop(Shop.patch(shop, { owner: { email: "e@example.com" } }));
 
-useEffect(() => showMap(shop.city), [shop.city]); // the patch left `city` alone: no re-run
+useEffect(() => showMap(shop.city), [shop.city]); // the patch did not touch `city`: no re-run
 ```
 
 Solid reads the same with `createSignal`, and takes the companion's comparison:
@@ -403,7 +403,8 @@ then mutates the value instead of throwing.
 ### Crossing a serialization boundary
 
 **Return the payload, not the value.** A generated client derives its response type from the
-handler, so a Val there lands on the other side already typed as one, having never met the seal.
+handler, so a Val there arrives on the other side already typed as one, without having passed
+through the seal.
 
 ```ts
 app.get("/user/:id", (c) => {
@@ -535,7 +536,7 @@ nothing there is an `unused-disable`, and one leaving out the rules or the scope
 
 The same rules, one per kind: name one to give it its own severity, or turn it off. The project to
 read is one setting for all of them, a path or a list of them, and defaults to `src/**/*.ts`. A path
-opening with `!` comes off it.
+opening with `!` is excluded from it.
 
 ESLint needs a parser that reads your TypeScript.
 
@@ -585,7 +586,7 @@ pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree
 A single file given as the project is refused: a duplicate brand needs the other alias to be seen.
 
 A `!path` is excluded wherever it is written, and comes off the run rather than only the report, so
-what a generated tree declares stops answering for the rest.
+what a generated tree declares no longer applies to the rest.
 
 ## Caveats
 
