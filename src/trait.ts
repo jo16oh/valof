@@ -93,11 +93,12 @@ export type ObjectSafe<M extends Members> = {
  * vtable passed rather than looked up. The concrete Val is gone, which is what lets values of
  * different types share an array.
  *
- * Not a Val. It has no `equals` and no `patch`, and `Checked` keeps it out of a payload.
+ * The trait's fields read straight off it, so a box goes anywhere the shape does.
+ *
+ * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
+ * `equals` and no `patch`, and `Checked` keeps it out of a payload.
  */
-export type Dyn<Tr extends AnyTrait> = {
-  readonly value: ShapeOf<Tr>;
-} & Bound<MembersOf<Tr>, ShapeOf<Tr>>;
+export type Dyn<Tr extends AnyTrait> = ShapeOf<Tr> & Bound<MembersOf<Tr>, ShapeOf<Tr>>;
 
 /**
  * Where a companion records what it implemented. Read by {@link TraitCompanion.dyn}.
@@ -110,8 +111,13 @@ export type TraitHost = { readonly __valof_traits: Members };
 
 /** What `Trait.companion` returns once `.impl` closed the chain. */
 export type TraitCompanion<Tr extends AnyTrait, D> = D & {
-  /** Boxes a value with one Val's implementation. See {@link Dyn}. */
-  readonly dyn: (companion: TraitHost, value: ShapeOf<Tr>) => Dyn<Tr>;
+  /**
+   * Boxes a value with one Val's implementation. See {@link Dyn}.
+   *
+   * A Val whose payload is a primitive cannot be boxed: a proxy needs an object to stand in
+   * front of. Call the companion directly there, where the type is known anyway.
+   */
+  readonly dyn: (companion: TraitHost, value: ShapeOf<Tr> & Record<string, unknown>) => Dyn<Tr>;
 };
 
 /**
@@ -137,14 +143,20 @@ type AnyFn = (...args: never[]) => unknown;
 
 const make = (fns: Record<string, unknown>): Record<string, unknown> => ({
   ...fns,
-  dyn: (companion: TraitHost, value: unknown) => {
-    const members = companion.__valof_traits as unknown as Record<string, AnyFn>;
-    const box: Record<string, unknown> = { value };
-    for (const key of Object.keys(members)) {
-      box[key] = (...args: never[]) => members[key]!(value as never, ...args);
-    }
-    return box;
-  },
+  // A proxy rather than a built object: a member is bound when it is called, and everything
+  // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
+  // trait holds.
+  dyn: (companion: TraitHost, value: object) =>
+    new Proxy(value, {
+      get(target, key) {
+        const member = (companion.__valof_traits as unknown as Record<string, AnyFn>)[
+          key as string
+        ];
+        return member
+          ? (...args: never[]) => member(target as never, ...args)
+          : (target as Record<string, unknown>)[key as string];
+      },
+    }),
 });
 
 export const Trait = {

@@ -31,7 +31,7 @@ test("dyn boxes a value with one Val's implementation", () => {
   const a = Val.of<Admin>({ name: "root", level: 9 });
   const party: Dyn<Greetable>[] = [Greetable.dyn(User, u), Greetable.dyn(Admin, a)];
   expect(party.map((p) => p.toWire("/"))).toEqual(["a/alice", "admin/root"]);
-  expect(party.map((p) => Greetable.greet(p.value))).toEqual(["Hi, alice", "Hi, root"]);
+  expect(party.map((p) => Greetable.greet(p))).toEqual(["Hi, alice", "Hi, root"]);
 });
 
 test("equals still works next to a trait", () => {
@@ -100,3 +100,23 @@ const Both = Val.companion<Both>().implTrait(
   Sized,
 );
 void Both;
+
+test("a box reads the trait's fields off the value", () => {
+  const u = Val.of<User>({ id: "a", name: "alice" });
+  const boxed = Greetable.dyn(User, u);
+  expect([boxed.name, boxed.toWire("/"), Greetable.greet(boxed)]).toEqual([
+    "alice",
+    "a/alice",
+    "Hi, alice",
+  ]);
+});
+
+// a primitive payload has nothing for a proxy to stand in front of
+type Marker = Trait<"Marker", Record<never, never>, { wire: (self: Self) => string }>;
+const Marker = Trait.companion<Marker>().impl({});
+type Email = Val<"Email", string, Marker>;
+const Email = Val.sealer<Email>().implTrait(Marker, { wire: (e) => e });
+// Never called: the negative case is the type, and `dyn` would run without one.
+export const boxingAPrimitive = (mail: Email): unknown =>
+  // @ts-expect-error a primitive payload cannot be boxed
+  Marker.dyn(Email, mail);

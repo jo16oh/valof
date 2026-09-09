@@ -46,7 +46,7 @@ declare const room: Room;
 declare const tag: Tag;
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
-export const labels = boxed.map((b) => `${b.label(":")} ${Named.greet(b.value)}`);
+export const labels = boxed.map((b) => `${b.label(":")} ${Named.greet(b)}`);
 export const point = Point({ name: "o", size: { w: 1, h: 2 } });
 export const direct = [
   Room.label(room, "/"),

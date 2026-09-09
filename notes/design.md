@@ -3906,12 +3906,12 @@ type Bound<M, S> = {
 
 `toWire: (self: Self, sep: string) => string` が箱の上で `(sep: string) => string` になる。
 
-**型引数は 1 つ。**`p.value` は trait の shape を返し、具体型は落とす。`Dyn<Serializable, User>` を持つと
+**型引数は 1 つ。**箱は trait の shape として通り、具体型は落とす。`Dyn<Serializable, User>` を持つと
 `Dyn<Serializable>[]` に混ぜたとき要素が union になる。具体型が要るなら `dyn` を通さず
 `User.toWire(u, ":")` を呼ぶ。
 
 **箱は Val ではない。**`equals` も `patch` も持たない。`Checked` が関数を弾くので payload にも入らない。
-`.value` を残して shape を展開しないのは、展開すると値に見えるため。
+proxy なので値とも別の identity を持つ。
 
 #### `dyn` は trait 側に置く
 
@@ -3928,24 +3928,34 @@ target.implTrait = (_trait, impl) => build(ctors, callable, { ...traits, ...impl
 target.__valof_traits = traits;
 for (const key of Object.keys(traits)) define(target, key, traits[key]);
 
-// trait.ts。束縛のループはこちらだけにある
-dyn: (companion, value) => {
-  const members = companion.__valof_traits;
-  const box = { value };
-  for (const k of Object.keys(members)) box[k] = (...a) => members[k](value, ...a);
-  return box;
-};
+// trait.ts。箱は proxy で、束縛は呼ばれたときに起きる
+dyn: (companion, value) =>
+  new Proxy(value, {
+    get(target, key) {
+      const member = companion.__valof_traits[key];
+      return member ? (...a) => member(target, ...a) : target[key];
+    },
+  });
 ```
 
 - **記録は平らな 1 つのオブジェクトで足りる。**どの trait のメンバかを覚える必要がない。2 つの trait が
   同じ名前を登録することを型で禁じ、`.impl` が `implTrait` より後に来ることは `.impl` が
-  `Companion` を返す時点で決まっているため。箱は Val が実装した全メンバを束縛するが、`Dyn` から見えるのは
+  `Companion` を返す時点で決まっているため。箱は Val が実装した全メンバを通すが、`Dyn` から見えるのは
   その trait のぶんだけ
 - **却下: `Map` で trait オブジェクトをキーにする。**名前が交わらないなら、どの trait のものかという
   情報を持つ理由がない。`Map` を外して production gzip が 15 B 減った
 - `implTrait` の増分はオブジェクトの複製 1 回。関数を生やす部分は `attach` の使い回しで、消せないぶんは軽い
-- **箱に既定実装は入れない。**`p.value` が shape なので `Greetable.greet(p.value)` がそのまま呼べる。箱に
-  入るのは Val ごとのメンバだけで、`dyn` のループも記録もそのぶん小さい
+- **箱に既定実装は入れない。**箱が shape そのものとして通るので `Greetable.greet(p)` がそのまま呼べる。
+  記録に入るのは Val ごとのメンバだけ
+- **箱は proxy。**`User.greet(u)` を `p.greet()` と書けるようにするのが目的なので、呼び出しを companion に
+  横流しすれば足りる。関数でないキーは値に横流しするので、**trait の共通フィールドが `p.name` で読める**。
+  `.value` は要らなくなり、shape に `value` というフィールドがあったときの衝突も消えた
+- **却下: メンバを 1 つずつ束縛した平のオブジェクトを作る。**箱 1 つにつき N 個のクロージャを作る。proxy
+  なら確保は 1 回で、束縛は呼ばれたときだけ。フィールドも通らない。proxy にして production gzip は 7 B
+  増えた
+- **プリミティブ payload の Val は箱に入らない。**proxy の target がオブジェクトである必要がある。`value`
+  の型を `ShapeOf<Tr> & Record<string, unknown>` にして型で落とす。`object` では落ちない。ブランドとの
+  交差はオブジェクトを含むため
 - **メンバ名を宣言する段は要らない。**`implTrait` の第 2 引数のキーがそのまま箱のメンバになる
 
 #### 却下: 記録をブランド文字列で引く
