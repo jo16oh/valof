@@ -97,7 +97,12 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
         const init = child(node, "init");
         if (!id || !init) break;
         const site = companionSite(init, file, at(init["start"] as number), bound);
-        if (site) sites.push(site);
+        if (site)
+          sites.push(
+            id.type === "Identifier"
+              ? { ...site, name: id["name"] as string, nameAt: at(id["start"] as number) }
+              : site,
+          );
         // `const { a, b: c } = X` reads `a` and `b` off `X`.
         if (id.type === "ObjectPattern" && init.type === "Identifier") {
           for (const property of children(id, "properties")) {

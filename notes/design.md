@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、型名と一致しない companion（§14.21）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1911,11 +1911,12 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 ### 14.4 ルール
 
-構文だけで判定するものが 5 つ。残る 1 つは go-to-definition を使う（§14.7）。
+構文だけで判定するものが 6 つ。残る 1 つは go-to-definition を使う（§14.7）。
 
 - 誰も読まない companion のメンバ
 - 複数の**トップレベル**型エイリアスが主張しているブランド文字列
 - 型名で終わっていないブランド文字列（§14.12）
+- 型名と違う名前に束縛された companion（§14.21）
 - ルールを名指ししていない disable コメント（§14.14）
 - 何も黙らせていない disable コメント（§14.15）
 
@@ -2657,6 +2658,7 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 | `structural-equals`  | error | equals が実行時に間違った答えを返す                                                       |
 | `duplicate-brand`    | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
 | `brand-mismatch`     | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
+| `companion-mismatch` | error | §14.21。同じく「一致すべき 2 つの食い違い」                                               |
 | `incomplete-disable` | error | 下記                                                                                      |
 | `unused-member`      | warn  | 死んだコード。周りは動く                                                                  |
 | `unused-disable`     | warn  | 何も黙らせていない指示。コードは変わらない                                                |
@@ -3363,6 +3365,52 @@ finding は**それを最も安く観測できるルール**のもの。
 **却下: `unused/` のリネーム追跡も動かす。** `renamed-import` / `re-export` / `same-name` /
 `no-cross-file-credit` が叩くのは `unused.ts` の `exportedAs` → `declaredName`。unused の中にしかなく、
 他のルールは呼ばない。共有機構ではなくルールの機能なので `unused/` に残す。
+
+### 14.21 規則: 型名と一致しない companion、2026-09-09
+
+**入れる。** `companion-mismatch`。`Val.sealer<X>()` / `Val.companion<X>()` を `X` 以外の名前に束縛したら
+報告する。既定で on、error。
+
+```ts
+const User = Val.sealer<User>().impl({ ... }); // 通る
+const Account = Val.sealer<User>().impl({ ... }); // 報告
+```
+
+#### 根拠: 名前が一致して初めて宣言マージになる
+
+`type User` と `const User` が同じ名前だから、`User` 1 つが型・コンストラクタ・名前空間を兼ねる（§2）。
+名前が割れると読み手は 2 つ覚えることになり、`Account.greet(user)` は型の名前をどこにも出さない。
+
+brand-mismatch（§14.12）と同じ「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない。リネームで
+顕在化するところまで同じ。型と const は別のシンボルなので、LSP のリネームは片方しか動かさない。
+
+#### 判定は書かれたまま。別名の解決はしない
+
+`import type { User as Account }` の隣の `const Account = Val.sealer<Account>()` は通す。そのファイルの
+読み手には一貫していて、直す先も無い。型が別ファイルにあること自体は、この規則の担当ではない。
+
+#### builder を変数に置く形も報告する
+
+```ts
+const seal = Val.sealer<User>(); // 報告
+export const User = seal.impl({ ... });
+```
+
+**却下: `.impl` が束縛された名前まで追う。** 最初はこの形を通した（walk のあとで「builder の局所名 → その
+`.impl` が束縛された名前」に置き換えた）。**得るものが無い形だった。**`Val.sealer<User>()` は `.impl` の前
+から callable なコンストラクタなので、`seal` は `User` のコンストラクタの 2 つ目の名前になる。分けて書いて
+得られる能力は 1 つも無く、chain を 1 つの `const User` に畳めば消える。
+
+規則の文は「chain は `X` に束縛する」の 1 文で済み、追う機構（`implemented` の map と walk 後の書き換え）も
+消えた。`unused-member` の `held-in-a-variable` fixture は 2 件の finding を持つ形になる。unused-member 側
+はこの形を今も見通す必要がある（利用者のコードにあるうちは正しく報告する）。
+
+分割代入（`const { greet } = Val.companion<User>().impl({...})`）は名前を持たないので黙る。
+
+#### 位置は const 名の上
+
+chain の先頭ではなく束縛された名前を指す。エディタの下線は finding の位置にある語を覆うので（
+`eslint-plugin.ts` の `over`）、先頭を指すと `Val` に下線が引かれる。名前の話なら名前を指す。
 
 ### 15.1 `Val.trait`
 

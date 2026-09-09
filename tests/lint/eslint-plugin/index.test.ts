@@ -81,6 +81,7 @@ test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
   expect(plugin.configs.recommended.rules).toEqual({
     "valof/brand-mismatch": "error",
+    "valof/companion-mismatch": "error",
     "valof/duplicate-brand": "error",
     "valof/incomplete-disable": "error",
     "valof/structural-equals": "error",

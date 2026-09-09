@@ -1,5 +1,6 @@
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
+import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Rule } from "./rule.ts";
 import { StructuralEquals } from "./structural-equals/index.ts";
@@ -16,6 +17,7 @@ export const RULES = [
   UnusedMember,
   DuplicateBrand,
   BrandMismatch,
+  CompanionMismatch,
   StructuralEquals,
   IncompleteDisable,
   UnusedDisable,
