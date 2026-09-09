@@ -80,10 +80,17 @@ test("covers the name it points at, and the line where there is no name", () => 
 test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
   expect(plugin.configs.recommended.rules).toEqual({
+    "valof/aliased-val": "error",
     "valof/brand-mismatch": "error",
+    // The value it makes is well formed; what it went around is the type's own way in.
+    "valof/bypassed-companion": "warn",
+    "valof/companion-mismatch": "error",
     "valof/duplicate-brand": "error",
     "valof/incomplete-disable": "error",
+    "valof/split-companion": "error",
     "valof/structural-equals": "error",
+    // The lift is sound; what it costs is the name that makes it greppable.
+    "valof/unnamed-of": "warn",
     // Dead weight, not a defect: the code around either of these works.
     "valof/unused-disable": "warn",
     "valof/unused-member": "warn",
