@@ -1681,7 +1681,11 @@ export function parseUser(json: string): Result<User> {
 }
 ```
 
-値が常に検証済みで届く型（デコーダ、DB 行）は、カスタム seal を登録せず境界で `Val.of` に持ち上げる（§6.5）。この場合 `patch` / `update` はコピーで再構築し、何も再検証しない。**境界を一度通れば以降は信頼する**という設計を選んだことになる。
+値が常に検証済みで届く型は、カスタム seal を登録せず境界で `Val.of` に持ち上げる（§6.5）。この場合 `patch` / `update` はコピーで再構築し、何も再検証しない。
+
+**信頼できるのは、両側が同じデプロイで出荷される経路だけである。** RSC / Server Function、同一アプリのプロセス間 JSON-RPC、Electron の chromium ↔ node の IPC。境界を分けるのは所有者ではなく**時間**である。
+
+**DB 行は信頼しない。2026-09-09 訂正。**ここは以前「デコーダ、DB 行」と書いていた。自分のアプリが書いた行でも、書いたのは古いバージョンかもしれない。行はコードより長生きするので、永続化層は常に検証する。
 
 ### 8.4 更新経路から外したいフィールド
 
@@ -1741,6 +1745,9 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
 - [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
+- [ ] valof-lint: ローカル別名（`type Local = ImportedUser`）を brand-mismatch で見る。`type A = B` の連鎖を
+      名前で辿ってブランドに解決すれば、`Local` は `"User"` を持つのに名前が `Local` である、と言える。
+      resolver は要らない。`split-companion` の唯一の穴もこれで塞がる（§14.22）
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
@@ -3536,8 +3543,14 @@ type と const を別ファイルで両方 export       TS2395 must be all expor
 `original(bound, …)` で見つかる（fixture `renamed-val/`）。見るのは**型引数の名前**が import されているか
 だけである。
 
+namespace 修飾の型引数（`Val.sealer<ns.User>()`）も報告する。namespace import を経ている時点で別のモジュール
+だからで、判定に import の表は要らない。`CompanionSite` は修飾を `qualifier` に持ち、`typeName` は宣言側の
+名前になる（`ns.User` → `User`）。それまでは `companionSite` が `Identifier` しか受けず、site 自体が記録
+されていなかった。**`companion-mismatch` と `structural-equals` も同時に見落としていた。**
+
 **却下: go-to-definition で宣言ファイルを比べる。** helper 越しの別名（`type Local = Imported`）まで見える
-が、この規則のためだけに TypeScript を起動する。取りこぼすのはその 1 形だけで、黙るのは安全側。
+が、この規則のためだけに TypeScript を起動する。取りこぼすのはその 1 形だけで、黙るのは安全側。ローカル
+別名は brand-mismatch 側で見るほうが筋がよい（§9）。
 
 ### 15.1 `Val.trait`
 

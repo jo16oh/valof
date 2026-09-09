@@ -14,6 +14,12 @@ test("reports a companion for a type another file declares", async () => {
   ]);
 });
 
+test("reports a type reached through a namespace, which is another module by definition", async () => {
+  expect(await lint("namespaced")).toEqual([
+    "namespaced/companion.ts:5:31  split-companion  User is declared in another file, where its companion belongs",
+  ]);
+});
+
 test("sees the chain however `Val` was imported", async () => {
   expect(await lint("renamed-val")).toEqual([
     "renamed-val/companion.ts:5:27  split-companion  User is declared in another file, where its companion belongs",

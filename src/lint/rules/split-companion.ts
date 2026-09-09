@@ -18,7 +18,8 @@ export const SplitCompanion: Rule<SplitCompanion> = {
 };
 
 /**
- * Reports every `Val.sealer<X>()` / `Val.companion<X>()` whose `X` was imported.
+ * Reports every `Val.sealer<X>()` / `Val.companion<X>()` whose `X` came from another module,
+ * imported by name or reached through a namespace.
  *
  * The merge is what the API is, and a merge is file-local. `type User` and `const User` in one
  * file give one `User` that is the type, the constructor and the namespace at once. Split over
@@ -34,8 +35,8 @@ export const SplitCompanion: Rule<SplitCompanion> = {
 function findings(scans: readonly Scan[]): SplitCompanion[] {
   const found: SplitCompanion[] = [];
   for (const { file, sites, bound } of scans) {
-    for (const { typeName, typeAt } of sites) {
-      if (!bound.imported.has(typeName)) continue;
+    for (const { typeName, typeAt, qualifier } of sites) {
+      if (qualifier === undefined && !bound.imported.has(typeName)) continue;
       found.push({
         kind: "split-companion",
         file,
