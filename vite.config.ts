@@ -27,11 +27,6 @@ export default defineConfig({
     },
   },
   lint,
-  test: {
-    // Some of these tests hold a language server, `tsc --lsp` behind it, for as long as the file
-    // runs. Where several such files overlap, a runner with 4 cores answers `spawn ENOMEM`.
-    maxWorkers: 2,
-  },
   fmt: {
     ignorePatterns: ["tests/lint/**/fixtures/**"],
     proseWrap: "always",
