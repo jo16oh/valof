@@ -11,6 +11,8 @@ export type CompanionSite = Where & {
   /** The type argument, resolved to an alias after the walk. */
   typeName: string;
   typeOffset: number;
+  /** Where the type argument is written. */
+  typeAt: Where;
   /** The argument to `.implEquals(…)`, when the chain called it. */
   spec: Node | undefined;
 };
@@ -72,6 +74,7 @@ export function companionSite(
   file: string,
   where: Where,
   bound: Bindings,
+  at: (offset: number) => Where,
 ): CompanionSite | undefined {
   const { steps, typeArguments } = readChain(node, bound);
   const [first] = typeArguments ? children(typeArguments, "params") : [];
@@ -85,6 +88,7 @@ export function companionSite(
     nameAt: where,
     typeName: typeName["name"] as string,
     typeOffset: typeName["start"] as number,
+    typeAt: at(typeName["start"] as number),
     spec: steps.get("implEquals"),
   };
 }

@@ -96,7 +96,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
         const id = child(node, "id");
         const init = child(node, "init");
         if (!id || !init) break;
-        const site = companionSite(init, file, at(init["start"] as number), bound);
+        const site = companionSite(init, file, at(init["start"] as number), bound, at);
         if (site)
           sites.push(
             id.type === "Identifier"
