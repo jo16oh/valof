@@ -241,3 +241,35 @@ describe("names", () => {
     );
   });
 });
+
+describe("nesting", () => {
+  type Team = Val<"Team", { id: string; name: string; lead: User }, Greetable>;
+  const Team = Val.companion<Team>().implTrait(Greetable, {
+    toWire: (t, sep) => `${t.id}${sep}${t.lead.name}`,
+    greet: (t) => `Team ${t.name}`,
+  });
+  const team = Val.of<Team>({ id: "t", name: "core", lead: user });
+
+  test("a Val with a trait nests as a payload field", () => {
+    expect([Team.greet(team), Team.toWire(team, "/"), User.greet(team.lead)]).toEqual([
+      "Team core",
+      "t/alice",
+      "Hi, alice",
+    ]);
+  });
+
+  test("the nested one boxes on its own", () => {
+    expect(Greetable.dyn(User, team.lead).greet()).toBe("Hi, alice");
+    expect(Greetable.dyn(Team, team).greet()).toBe("Team core");
+  });
+
+  test("patch replaces a nested Val whole, and keeps the untouched subtree", () => {
+    const next = Team.patch(team, { lead: Val.of<User>({ id: "b", name: "bob" }) });
+    expect([next.lead.name, User.greet(next.lead)]).toEqual(["bob", "Hi, bob"]);
+    expect(Team.patch(team, { name: "edge" }).lead).toBe(team.lead);
+  });
+
+  test("equality stays structural through the nesting", () => {
+    expect(Team.equals(team, Val.of<Team>({ id: "t", name: "core", lead: user }))).toBe(true);
+  });
+});

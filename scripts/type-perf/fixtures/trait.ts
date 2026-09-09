@@ -43,12 +43,31 @@ const Point = Val.sealer<Point>()
   .implTrait(Named, { label: (p, sep) => `${p.name}${sep}` })
   .implTrait(Sized, { scaled: (p, by) => p.size.w * by });
 
+// A Val carrying a trait, nested in one that carries another: the payload check has to stop at
+// the brand rather than walk the trait's own shape.
+type Floor = Val<
+  "Floor",
+  { name: string; size: { w: number; h: number }; main: Room },
+  Named & Sized
+>;
+const Floor = Val.companion<Floor>()
+  .implTrait(Named, { label: (f, sep) => `${f.name}${sep}${f.main.id}` })
+  .implTrait(Sized, { scaled: (f, by) => f.size.h * by });
+
+declare const floor: Floor;
 declare const room: Room;
 declare const tag: Tag;
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
 export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()} ${Named.shout(b)}`);
 export const point = Point({ name: "o", size: { w: 1, h: 2 } });
+export const nested = [
+  Floor.label(floor, "/"),
+  Floor.scaled(floor, 2),
+  Room.describe(floor.main),
+  Floor.patch(floor, { main: floor.main }),
+  Named.dyn(Floor, floor).greet(),
+];
 export const direct = [
   Room.label(room, "/"),
   Room.scaled(room, 2),

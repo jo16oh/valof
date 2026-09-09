@@ -24,7 +24,7 @@ type Fixture = (typeof fixtures)[number];
  *
  * The fixtures are not comparable to each other. Each carries its own history.
  */
-const budget: Record<Fixture, number> = { core: 6900, trait: 8200 };
+const budget: Record<Fixture, number> = { core: 6900, trait: 11000 };
 
 type Counts = { types: number; instantiations: number; check: number; total: number };
 
@@ -59,7 +59,7 @@ async function measure(tsc: string, name: string): Promise<Counts> {
 }
 
 const num = (value: number): string => value.toLocaleString("en-US");
-const secs = (value: number): string => `${value.toFixed(3)}s`;
+const secs = (value: number): string => value.toFixed(3);
 
 /** Right-aligned columns under a header, so the units are named once. */
 function table(heads: string[], rows: string[][]): string {
@@ -108,7 +108,7 @@ await forEachVersion([floor], async (tsc, version) => {
   console.log(`typescript@${version}, over a baseline of ${num(baseline.types)} types\n`);
   console.log(
     table(
-      ["", "instantiations", "types", "check", "total"],
+      ["", "instantiations", "types", "check (s)", "total (s)"],
       fixtures.map((name) => [
         name,
         num(measured[name].instantiations),
@@ -118,6 +118,12 @@ await forEachVersion([floor], async (tsc, version) => {
       ]),
     ),
   );
+  // Counts, not sizes: the column names are the units. Written out because a reader meets this
+  // table years after the last person who chose what to put in it.
+  console.log(
+    "\n  instantiations: type arguments applied, which is where a runaway conditional shows up.",
+  );
+  console.log("  types: distinct types the checker made. printed only, and it tracks the first.");
 });
 
 if (json) console.log(JSON.stringify(measured, null, 2));
