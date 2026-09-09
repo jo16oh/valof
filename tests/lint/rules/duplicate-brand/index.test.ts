@@ -9,12 +9,10 @@ test("reports every alias that claims a brand another one claims", async () => {
     {
       rule: DuplicateBrand,
       at: "duplicate/billing.ts:1:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
     {
       rule: DuplicateBrand,
       at: "duplicate/orders.ts:1:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
   ]);
 });

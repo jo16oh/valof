@@ -9,7 +9,6 @@ test("reports a lift that takes its type from what it is assigned to", async () 
     {
       rule: UnnamedOf,
       at: "unnamed.ts:5:31",
-      message: "Val.of names no type here, and takes one from its target",
     },
   ]);
 });
@@ -19,7 +18,6 @@ test("reports one that takes it from the parameter it is passed to", async () =>
     {
       rule: UnnamedOf,
       at: "in-an-argument.ts:7:56",
-      message: "Val.of names no type here, and takes one from its target",
     },
   ]);
 });

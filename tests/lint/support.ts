@@ -24,12 +24,13 @@ export {
 type Registered = (typeof RULES)[number];
 
 /**
- * A finding as a test names it: which rule reported it, where, and what it said.
+ * A finding as a test names it: which rule reported it, and where.
  *
  * The rule is the object, not its kind. The location keeps the fixture-relative path so an
- * expectation still says which file it came from.
+ * expectation still says which file it came from. What it said is {@link fixtures}' `messages`,
+ * asked for by the tests whose subject is the wording.
  */
-export type Reported = { rule: Registered; at: string; message: string };
+export type Reported = { rule: Registered; at: string };
 
 const reporting = (kind: string): Registered => {
   const rule = RULES.find((one) => one.kind === kind);
@@ -49,37 +50,40 @@ export const root = fileURLToPath(new URL("../../", import.meta.url));
  * In process, so a run costs no `node` start. The command itself is covered by {@link cli}: what
  * it adds over `lint` is argument parsing and the shape of a line.
  */
+type Options = {
+  skip?: readonly Registered[];
+  types?: Resolver | undefined;
+  overlay?: Map<string, string>;
+};
+
 export function fixtures(url: string): {
   all: () => string[];
   files: (fixture: string) => string[];
-  lint: (
-    fixture: string,
-    options?: {
-      skip?: readonly Registered[];
-      types?: Resolver | undefined;
-      overlay?: Map<string, string>;
-    },
-  ) => Promise<Reported[]>;
+  lint: (fixture: string, options?: Options) => Promise<Reported[]>;
+  /** The same run, as what each finding said. For a message that is the test's subject. */
+  messages: (fixture: string, options?: Options) => Promise<string[]>;
 } {
   const directory = fileURLToPath(new URL("fixtures/", url));
   const files = (fixture: string): string[] =>
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
+  const found = async (fixture: string, { skip = [], types, overlay }: Options = {}) =>
+    await run(files(fixture), {
+      ...(types ? { types } : {}),
+      ...(overlay ? { overlay } : {}),
+      skip: new Set(skip.map(({ kind }) => kind)),
+    });
+
   return {
     all: () => globSync(`${directory}**/*.ts`),
     files,
-    lint: async (fixture, { skip = [], types, overlay } = {}) => {
-      const findings = await run(files(fixture), {
-        ...(types ? { types } : {}),
-        ...(overlay ? { overlay } : {}),
-        skip: new Set(skip.map(({ kind }) => kind)),
-      });
-      return findings.map(({ file, line, column, kind, message }) => ({
+    lint: async (fixture, options) =>
+      (await found(fixture, options)).map(({ file, line, column, kind }) => ({
         rule: reporting(kind),
         at: `${file.replace(directory, "")}:${line}:${column}`,
-        message,
-      }));
-    },
+      })),
+    messages: async (fixture, options) =>
+      (await found(fixture, options)).map(({ message }) => message),
   };
 }
 

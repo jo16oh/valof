@@ -14,12 +14,10 @@ test("a renamed type import still spells Val", async () => {
     {
       rule: DuplicateBrand,
       at: "renamed-type/billing.ts:3:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
     {
       rule: DuplicateBrand,
       at: "renamed-type/orders.ts:3:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
   ]);
 });
@@ -29,12 +27,10 @@ test("a namespace import in a type position steps past the namespace", async () 
     {
       rule: DuplicateBrand,
       at: "namespaced-type/billing.ts:3:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
     {
       rule: DuplicateBrand,
       at: "namespaced-type/orders.ts:3:13",
-      message: 'Id claims the brand "Id", and so does another type',
     },
   ]);
 });
@@ -52,13 +48,11 @@ test("a helper around Val is not Val", async () => {
 });
 
 test("a renamed value import still roots a builder chain", async () => {
-  expect(await lint("renamed-value")).toEqual([
-    { rule: UnusedMember, at: "renamed-value.ts:5:3", message: "User.shout is never read" },
-  ]);
+  expect(await lint("renamed-value")).toEqual([{ rule: UnusedMember, at: "renamed-value.ts:5:3" }]);
 });
 
 test("a namespace import in a value position steps past the namespace", async () => {
   expect(await lint("namespaced-value")).toEqual([
-    { rule: UnusedMember, at: "namespaced-value.ts:5:3", message: "User.shout is never read" },
+    { rule: UnusedMember, at: "namespaced-value.ts:5:3" },
   ]);
 });

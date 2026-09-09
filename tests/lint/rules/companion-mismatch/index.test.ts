@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { CompanionMismatch, SplitCompanion, fixtures } from "../../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 test("says nothing when the companion carries the name of its type", async () => {
   expect(await lint("matching")).toEqual([]);
@@ -13,8 +13,10 @@ test("names the type the companion should have been named after", async () => {
     {
       rule: CompanionMismatch,
       at: "mismatched.ts:5:7",
-      message: "Account is the companion for User, and should be named User",
     },
+  ]);
+  expect(await messages("mismatched")).toEqual([
+    "Account is the companion for User, and should be named User",
   ]);
 });
 
@@ -23,8 +25,10 @@ test("reports a builder held in a variable, which names the constructor twice", 
     {
       rule: CompanionMismatch,
       at: "held-in-a-variable.ts:5:7",
-      message: "seal is the companion for User, and should be named User",
     },
+  ]);
+  expect(await messages("held-in-a-variable")).toEqual([
+    "seal is the companion for User, and should be named User",
   ]);
 });
 

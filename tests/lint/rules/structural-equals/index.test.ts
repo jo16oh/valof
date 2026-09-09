@@ -3,7 +3,7 @@ import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 import { resolver, type Resolver } from "../../../../src/lint/index.ts";
 import { StructuralEquals, fixtures, root, spy, type Reported } from "../../support.ts";
 
-const { all, lint: over } = fixtures(import.meta.url);
+const { all, lint: over, messages } = fixtures(import.meta.url);
 
 // The only rule that resolves names, so the only one that needs a language server. One shared
 // across the file: starting one costs about 85 ms.
@@ -20,9 +20,9 @@ test("reports a parent that structurally compares a child carrying its own equal
     {
       rule: StructuralEquals,
       at: "plain/order.ts:6:22",
-      message: "Order.total holds Money, which has its own equals",
     },
   ]);
+  expect(await messages("plain")).toEqual(["Order.total holds Money, which has its own equals"]);
 });
 
 test("says nothing when the spec names the key", async () => {
@@ -50,8 +50,10 @@ test("names the path through a plain nested object", async () => {
     {
       rule: StructuralEquals,
       at: "nested/order.ts:6:22",
-      message: "Order.shipping.fee holds Money, which has its own equals",
     },
+  ]);
+  expect(await messages("nested")).toEqual([
+    "Order.shipping.fee holds Money, which has its own equals",
   ]);
 });
 
@@ -60,13 +62,15 @@ test("names the element position, spelled `readonly T[]` or `ReadonlyArray<T>`",
     {
       rule: StructuralEquals,
       at: "array/order.ts:6:22",
-      message: "Order.charges[] holds Money, which has its own equals",
     },
     {
       rule: StructuralEquals,
       at: "array/order.ts:6:22",
-      message: "Order.refunds[] holds Money, which has its own equals",
     },
+  ]);
+  expect(await messages("array")).toEqual([
+    "Order.charges[] holds Money, which has its own equals",
+    "Order.refunds[] holds Money, which has its own equals",
   ]);
 });
 
@@ -75,13 +79,15 @@ test("reports every level at once, so fixing one does not uncover another", asyn
     {
       rule: StructuralEquals,
       at: "cascade/line.ts:6:26",
-      message: "OrderLine.total holds Money, which has its own equals",
     },
     {
       rule: StructuralEquals,
       at: "cascade/order.ts:6:22",
-      message: "Order.lines[] holds OrderLine, which has its own equals",
     },
+  ]);
+  expect(await messages("cascade")).toEqual([
+    "OrderLine.total holds Money, which has its own equals",
+    "Order.lines[] holds OrderLine, which has its own equals",
   ]);
 });
 

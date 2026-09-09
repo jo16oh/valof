@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { BrandMismatch, fixtures } from "../../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 test("says nothing when the brand ends in the name of the type it brands", async () => {
   expect(await lint("matching")).toEqual([]);
@@ -13,8 +13,10 @@ test("names the brand the type should have claimed", async () => {
     {
       rule: BrandMismatch,
       at: "mismatched.ts:3:13",
-      message: 'EmailAddress claims the brand "Email", which should be "EmailAddress"',
     },
+  ]);
+  expect(await messages("mismatched")).toEqual([
+    'EmailAddress claims the brand "Email", which should be "EmailAddress"',
   ]);
 });
 
@@ -23,7 +25,9 @@ test("keeps the namespace it was given, and requires nothing of it", async () =>
     {
       rule: BrandMismatch,
       at: "namespaced.ts:3:13",
-      message: 'BillingId claims the brand "billing/Id", which should be "billing/BillingId"',
     },
+  ]);
+  expect(await messages("namespaced")).toEqual([
+    'BillingId claims the brand "billing/Id", which should be "billing/BillingId"',
   ]);
 });
