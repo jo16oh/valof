@@ -11,15 +11,18 @@ const root = new URL("../", import.meta.url);
 const entry = "./dist/index.mjs";
 const types = "./dist/index.d.mts";
 
-const api = "Val";
+// Two entries: the second measures what a `Trait` user adds, and the first stays the budget
+// everyone else pays.
+const entries = { core: "Val", trait: "Val, Trait" } as const;
+type Entry = keyof typeof entries;
 
 const modes = ["production", "development"] as const;
 
-const budget = { gzip: 1280, types: 24 * 1024 };
+const budget = { gzip: 1280, traitGzip: 1600, types: 24 * 1024 };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
 
-async function bundle(mode: string): Promise<string> {
+async function bundle(mode: string, api: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "valof-size-"));
   const file = join(dir, "entry.mjs");
   const target = fileURLToPath(new URL(entry, root));
@@ -89,18 +92,29 @@ await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), 
 });
 
 const declarations = await readFile(new URL(types, root), "utf8");
-const bundles = await Promise.all(modes.map(async (mode) => measure(await bundle(mode))));
+const names = Object.keys(entries) as Entry[];
+const bundles = Object.fromEntries(
+  await Promise.all(
+    names.map(async (name) => [
+      name,
+      Object.fromEntries(
+        await Promise.all(
+          modes.map(async (mode) => [mode, measure(await bundle(mode, entries[name]))]),
+        ),
+      ) as Record<(typeof modes)[number], Sizes>,
+    ]),
+  ),
+) as Record<Entry, Record<(typeof modes)[number], Sizes>>;
 
 const measured = {
-  bundle: Object.fromEntries(modes.map((mode, index) => [mode, bundles[index]!])) as Record<
-    (typeof modes)[number],
-    Sizes
-  >,
+  bundle: bundles.core,
+  trait: bundles.trait,
   types: { raw: Buffer.byteLength(declarations, "utf8") },
 };
 
 const checks = [
   ["production gzip", measured.bundle.production.gzip, budget.gzip],
+  ["production gzip, with Trait", measured.trait.production.gzip, budget.traitGzip],
   ["types raw", measured.types.raw, budget.types],
 ] as const;
 
@@ -122,9 +136,11 @@ function budgets(): string {
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify(measured, null, 2));
 } else {
-  console.log(`bundle  import { ${api} }`);
-  console.log(table(modes.map((mode) => [mode, measured.bundle[mode]])));
-  console.log();
+  for (const name of names) {
+    console.log(`bundle  import { ${entries[name]} }`);
+    console.log(table(modes.map((mode) => [mode, bundles[name][mode]])));
+    console.log();
+  }
   console.log(`types   ${types.replace("./dist/", "")}`);
   console.log(`  raw           ${format(measured.types.raw)}`);
   console.log();

@@ -1,4 +1,5 @@
 export { Val } from "./val.ts";
+export { Trait } from "./trait.ts";
 
 /**
  * `Companion`, `CompanionBuilder`, `Sealed` and `Sealer` are exported for the names alone: a
@@ -16,3 +17,5 @@ export type {
   Sealer,
   SeedOf,
 } from "./val.ts";
+
+export type { AnyTrait, Dyn, Members, Self, TraitBuilder, TraitCompanion } from "./trait.ts";
