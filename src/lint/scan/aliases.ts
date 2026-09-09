@@ -15,6 +15,20 @@ export type Alias = {
   payload: Node | undefined;
 };
 
+/**
+ * A top-level `type A = B`, where `B` is a bare reference and nothing more.
+ *
+ * `A` is a second name for whatever `B` is. Whether that is a Val is not known here: it takes
+ * the other file's aliases, which the rule has and this walk does not.
+ */
+export type ReAlias = Where & {
+  alias: string;
+  /** The name on the right, as the declaring module names it when it was qualified. */
+  target: string;
+  /** Whether the target was reached through a namespace, which names the module already. */
+  qualified: boolean;
+};
+
 /** The brand one alias claims, before anything is known about who else claims it. */
 export type BrandClaim = Where & {
   /** The name `Val` was written under here, resolved against the file's imports by the rule. */
@@ -56,9 +70,10 @@ export function valAliases(
   file: string,
   bound: Bindings,
   at: (offset: number) => Where,
-): { aliases: Alias[]; brands: BrandClaim[] } {
+): { aliases: Alias[]; brands: BrandClaim[]; reAliases: ReAlias[] } {
   const aliases: Alias[] = [];
   const brands: BrandClaim[] = [];
+  const reAliases: ReAlias[] = [];
 
   for (const statement of children(program, "body")) {
     const node =
@@ -69,9 +84,21 @@ export function valAliases(
     if (!id || !annotation || annotation.type !== "TSTypeReference") continue;
     const typeName = child(annotation, "typeName");
     const args = child(annotation, "typeArguments");
-    if (!typeName || !args) continue;
+    if (!typeName) continue;
     const named = valName(typeName, bound.namespaces);
     if (named === undefined) continue;
+
+    if (!args) {
+      // `type Wrap<T> = T` describes no particular type, and its right side is a parameter.
+      if (child(node, "typeParameters")) continue;
+      reAliases.push({
+        ...at((id["start"] ?? node["start"]) as number),
+        alias: id["name"] as string,
+        target: named,
+        qualified: typeName.type === "TSQualifiedName",
+      });
+      continue;
+    }
 
     if (original(bound, named) === "Val") {
       // The payload is the second argument. Absent on `Val<K, T>` inside a helper, which
@@ -97,5 +124,5 @@ export function valAliases(
     });
   }
 
-  return { aliases, brands };
+  return { aliases, brands, reAliases };
 }

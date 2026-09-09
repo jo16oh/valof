@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 
 import { resolver, type Resolver } from "../../../../src/lint/index.ts";
-import { fixtures, root, spy } from "../../support.ts";
+import { StructuralEquals, fixtures, root, spy, type Reported } from "../../support.ts";
 
-const { all, lint: over } = fixtures(import.meta.url);
+const { all, lint: over, messages } = fixtures(import.meta.url);
 
 // The only rule that resolves names, so the only one that needs a language server. One shared
 // across the file: starting one costs about 85 ms.
@@ -13,12 +13,16 @@ beforeAll(() => {
 });
 afterAll(() => types?.close());
 
-const lint = (fixture: string): Promise<string[]> => over(fixture, { types });
+const lint = (fixture: string): Promise<Reported[]> => over(fixture, { types });
 
 test("reports a parent that structurally compares a child carrying its own equality", async () => {
   expect(await lint("plain")).toEqual([
-    "plain/order.ts:6:22  structural-equals  Order.total holds Money, which has its own equals",
+    {
+      rule: StructuralEquals,
+      at: "plain/order.ts:6:22",
+    },
   ]);
+  expect(await messages("plain")).toEqual(["Order.total holds Money, which has its own equals"]);
 });
 
 test("says nothing when the spec names the key", async () => {
@@ -43,21 +47,47 @@ test("counts dropping a key from equality as having looked at it", async () => {
 
 test("names the path through a plain nested object", async () => {
   expect(await lint("nested")).toEqual([
-    "nested/order.ts:6:22  structural-equals  Order.shipping.fee holds Money, which has its own equals",
+    {
+      rule: StructuralEquals,
+      at: "nested/order.ts:6:22",
+    },
+  ]);
+  expect(await messages("nested")).toEqual([
+    "Order.shipping.fee holds Money, which has its own equals",
   ]);
 });
 
 test("names the element position, spelled `readonly T[]` or `ReadonlyArray<T>`", async () => {
   expect(await lint("array")).toEqual([
-    "array/order.ts:6:22  structural-equals  Order.charges[] holds Money, which has its own equals",
-    "array/order.ts:6:22  structural-equals  Order.refunds[] holds Money, which has its own equals",
+    {
+      rule: StructuralEquals,
+      at: "array/order.ts:6:22",
+    },
+    {
+      rule: StructuralEquals,
+      at: "array/order.ts:6:22",
+    },
+  ]);
+  expect(await messages("array")).toEqual([
+    "Order.charges[] holds Money, which has its own equals",
+    "Order.refunds[] holds Money, which has its own equals",
   ]);
 });
 
 test("reports every level at once, so fixing one does not uncover another", async () => {
   expect(await lint("cascade")).toEqual([
-    "cascade/line.ts:6:26  structural-equals  OrderLine.total holds Money, which has its own equals",
-    "cascade/order.ts:6:22  structural-equals  Order.lines[] holds OrderLine, which has its own equals",
+    {
+      rule: StructuralEquals,
+      at: "cascade/line.ts:6:26",
+    },
+    {
+      rule: StructuralEquals,
+      at: "cascade/order.ts:6:22",
+    },
+  ]);
+  expect(await messages("cascade")).toEqual([
+    "OrderLine.total holds Money, which has its own equals",
+    "Order.lines[] holds OrderLine, which has its own equals",
   ]);
 });
 
@@ -84,7 +114,7 @@ test("asks the type checker nothing where no companion states its equality", asy
 
 test("asks it nothing either when the rule is left out of the run", async () => {
   const counted = spy();
-  await over("plain", { types: counted, skip: ["structural-equals"] });
+  await over("plain", { types: counted, skip: [StructuralEquals] });
   expect(counted.asked()).toBe(0);
   await over("plain", { types: counted });
   expect(counted.asked()).toBeGreaterThan(0);

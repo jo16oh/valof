@@ -1,13 +1,19 @@
 import { expect, test } from "vite-plus/test";
 
-import { cli, cliWithoutParser, cliWithoutTypeScript } from "../support.ts";
+import {
+  StructuralEquals,
+  UnusedMember,
+  cli,
+  cliWithoutParser,
+  cliWithoutTypeScript,
+} from "../support.ts";
 
 const under = (fixture: string): string => `tests/lint/command/fixtures/${fixture}`;
 
 test("prints a finding as location, kind, then message, and exits 1 with a summary", () => {
   const { status, stdout, stderr } = cli(under("*.ts"), under("finding.ts"));
   expect(stdout).toBe(
-    "tests/lint/command/fixtures/finding.ts:3:3  unused-member  Id.shout is never read\n",
+    `tests/lint/command/fixtures/finding.ts:3:3  ${UnusedMember.kind}  Id.shout is never read\n`,
   );
   expect(status).toBe(1);
   expect(stderr).toBe("valof-lint: 1 finding(s) in 1 file(s)");
@@ -22,7 +28,7 @@ test("exits 0 with a summary when it does not", () => {
 test("starts a TypeScript of its own when the caller hands it none", () => {
   const { stdout } = cli(under("equality/**/*.ts"));
   expect(stdout).toBe(
-    "tests/lint/command/fixtures/equality/order.ts:6:22  structural-equals  " +
+    `tests/lint/command/fixtures/equality/order.ts:6:22  ${StructuralEquals.kind}  ` +
       "Order.total holds Money, which has its own equals\n",
   );
 });
@@ -40,6 +46,11 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
     "  unused-member       functions and constants registered with `.impl({…})` that nothing reads\n" +
       "  duplicate-brand     a brand string claimed by more than one type alias\n" +
       "  brand-mismatch      a brand whose last segment is not the name of the type it brands\n" +
+      "  aliased-val         a type alias that is a second name for a Val\n" +
+      "  companion-mismatch  a companion bound to a name other than the type it is for\n" +
+      "  split-companion     a companion for a type that another file declares\n" +
+      "  bypassed-companion  a `Val.of` for a type whose companion is how it is built\n" +
+      "  unnamed-of          a `Val.of` that names no type, taking one from its target\n" +
       "  structural-equals   a payload holding a Val whose own `equals` the parent never dispatches to\n" +
       "  incomplete-disable  a disable comment leaving out the rules it silences, or its scope\n" +
       "  unused-disable      a disable comment naming a rule that reports nothing there\n",
