@@ -2616,11 +2616,27 @@ scan 全部（読み+parse+walk） 1.70 ms   ← walk が支配的
 
 #### プラグイン、2026-09-09 実装
 
-`valof/eslint-plugin`。規則は `findings` 1 つで、6 種すべてがそこから出る。1 回の run がプロジェクト全体を答えるので、種類ごとに規則を分けると同じ仕事を 6 回することになる。外したい種類は `skip` で言う。
+`valof/eslint-plugin`。**規則は種類ごとに 1 つ**で、ホスト側で重大度を決めたり外したりできる。
 
-```json
-{ "jsPlugins": ["valof/eslint-plugin"], "rules": { "valof/findings": "error" } }
+```ts
+// oxlint.config.ts
+export default defineConfig({
+  jsPlugins: ["valof/eslint-plugin"],
+  extends: [valof.configs.recommended],
+});
 ```
+
+最初は `findings` 1 つにしていた。1 回の run が全種類を答えるので、分けると同じ仕事を 6 回すると考えたためである。**そうならない。** ホストは 1 ファイル分の規則を全部 `create` してから走査に入るので、6 つの `Program` が同じテキストに対して続けて呼ばれる。直前の 1 件だけ覚えれば済む。
+
+```
+6 規則 x 2 ファイル  →  lint() の呼び出しは 2 回
+```
+
+`skip` は落とした。ホストが規則ごとに on / off を持っているのだから、そこに二重の仕組みを足す意味がない。読むプロジェクトの指定は `settings.valof.project` に移した。規則ごとのオプションだと 6 箇所が食い違える。**両ホストとも `settings` を渡すことは実測した。**
+
+メッセージから種類の接頭辞も外した。`valof(structural-equals): Order.total holds …` のように、ホストが規則名として出す。
+
+**却下: `create` の順序を使って `skip` を組み立てる。** 有効な規則は `create` が呼ばれた時点で分かるので、集めておいて `Program` で「それ以外を skip」にできる。両ホストでその順序も確認した。それでも採らない。仕様として保証された順序ではないうえ、得られるのは structural-equals を切ったときの分だけで、その規則は `.implEquals` がどこにも無ければ自分で何もしない（§14.9 の `needsTypes`）。
 
 **`make-synchronized` は入れなかった。** 68 kB・deps 0 で品質に問題は無いが、上の表で「プラグイン側の依存」と書いたのはプラグインが valof の外にいる前提だった。同梱すると valof の `dependencies` になり、§14.3 の「実行時依存ゼロ」を崩す。`Atomics.wait` + `receiveMessageOnPort` は 30 行ほどで、`SharedArrayBuffer` の版を worker が上げて notify するだけである。タイムアウト付きで待つので、worker が答えないときも 60 秒で言う。
 

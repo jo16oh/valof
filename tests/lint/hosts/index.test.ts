@@ -21,7 +21,7 @@ const bin = (name: string): string =>
 test("oxlint runs the plugin, and puts the finding where the finding says", () => {
   const output = run(bin("oxlint"), ["--config", "oxlint.json", "src/order.ts", "src/money.ts"]);
   expect(output).toContain(
-    "src/order.ts:6:22: error valof(findings): structural-equals:" +
+    "src/order.ts:6:22: error valof(structural-equals):" +
       " Order.total holds Money, which has its own equals",
   );
 });
@@ -38,8 +38,8 @@ test("eslint runs the same plugin", () => {
   const [file] = JSON.parse(output) as { messages: Record<string, unknown>[] }[];
   expect(file?.messages).toEqual([
     expect.objectContaining({
-      ruleId: "valof/findings",
-      message: "unused-member: Id.shout is never read",
+      ruleId: "valof/unused-member",
+      message: "Id.shout is never read",
       line: 3,
       column: 3,
     }),
