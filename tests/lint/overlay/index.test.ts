@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { lint, resolver, type Resolver } from "../../../src/lint/index.ts";
-import { fixtures, root } from "../support.ts";
+import { StructuralEquals, UnusedMember, fixtures, root, type Reported } from "../support.ts";
 
 // What an editor sends: the buffer being typed in, which disk does not have yet.
 
@@ -18,7 +18,7 @@ test("walks the buffer in place of the file", async () => {
   expect(await over("buffer")).toEqual([]);
   const overlay = new Map([[at("buffer.ts"), dead("User")]]);
   expect(await over("buffer", { overlay })).toEqual([
-    "buffer.ts:2:3  unused-member  User.shout is never read",
+    { rule: UnusedMember, at: "buffer.ts:2:3", message: "User.shout is never read" },
   ]);
 });
 
@@ -42,8 +42,12 @@ describe("a resolver held across runs", () => {
   const disk = readFileSync(at("types/order.ts"), "utf8");
   const shifted = (lines: number): Map<string, string> =>
     new Map([[at("types/order.ts"), `${"//\n".repeat(lines)}${disk}`]]);
-  const holding = (line: number): string[] => [
-    `types/order.ts:${line}:22  structural-equals  Order.total holds Money, which has its own equals`,
+  const holding = (line: number): Reported[] => [
+    {
+      rule: StructuralEquals,
+      at: `types/order.ts:${line}:22`,
+      message: "Order.total holds Money, which has its own equals",
+    },
   ];
 
   test("follows the buffer as it moves, and lets go of it", async () => {

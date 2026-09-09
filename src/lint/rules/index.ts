@@ -31,6 +31,25 @@ export const RULES = [
   UnusedDisable,
 ] as const;
 
+/**
+ * Each rule under its own name, so a caller can name one without spelling its kind.
+ *
+ * {@link RULES} is what the runner reads. This is for naming a single one.
+ */
+export {
+  AliasedVal,
+  BrandMismatch,
+  BypassedCompanion,
+  CompanionMismatch,
+  DuplicateBrand,
+  IncompleteDisable,
+  SplitCompanion,
+  StructuralEquals,
+  UnnamedOf,
+  UnusedDisable,
+  UnusedMember,
+};
+
 /** The payload a rule reports, recovered from the rule itself. */
 type ReportedBy<R> = R extends Rule<infer F> ? F : never;
 

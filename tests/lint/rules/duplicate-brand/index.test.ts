@@ -1,13 +1,21 @@
 import { expect, test } from "vite-plus/test";
 
-import { fixtures } from "../../support.ts";
+import { DuplicateBrand, fixtures } from "../../support.ts";
 
 const { lint } = fixtures(import.meta.url);
 
 test("reports every alias that claims a brand another one claims", async () => {
   expect(await lint("duplicate")).toEqual([
-    'duplicate/billing.ts:1:13  duplicate-brand  Id claims the brand "Id", and so does another type',
-    'duplicate/orders.ts:1:13  duplicate-brand  Id claims the brand "Id", and so does another type',
+    {
+      rule: DuplicateBrand,
+      at: "duplicate/billing.ts:1:13",
+      message: 'Id claims the brand "Id", and so does another type',
+    },
+    {
+      rule: DuplicateBrand,
+      at: "duplicate/orders.ts:1:13",
+      message: 'Id claims the brand "Id", and so does another type',
+    },
   ]);
 });
 
