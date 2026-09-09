@@ -2752,6 +2752,32 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 
 足さなかったものと理由。`no-useless-concat`（100 桁に収める意図的な分割）、`no-array-sort`（`filter().sort()` は既に新しい配列で、`toSorted` は 2 度コピーする）、`consistent-function-scoping`、`no-undefined` / `no-non-null-assertion` / `no-async-await`（このコードベースの選択そのもの）、`prefer-readonly-parameter-types`（174 件）、`no-shadow`（2 件のうち 1 件はテストの命名慣習）。
 
+#### エディタで確かめた、2026-09-09
+
+`~/tmp/valof-editor-check` に oxlint 版と ESLint 版を 1 つずつ作った。どちらも **tarball から `valof` を入れた利用者と同じ形**にしてある。リポジトリの中に置くと root の `oxlint.config.ts` の `ignorePatterns` とネストした設定が絡んで、見え方が本物と変わる。
+
+**oxlint 1.77 の LSP は JS プラグインの診断で panic する。**
+
+```
+thread '<unnamed>' panicked at crates/oxc_linter/src/fixer/disable_fix.rs:52:22:
+range end index 316 out of range for slice of length 0
+```
+
+診断が 1 件も返らないまま死ぬので、エディタからは「何も出ない」に見える。CLI では出るし、LSP でも組み込み規則なら出る。**JS プラグイン + LSP の組み合わせだけ。**1.82.0 で直っている。ピンを 1.82.0 に上げた。版を 1 箇所に固定してあったので、直しはそこだけで済んだ（§14.19）。
+
+**報告は点ではなく範囲を渡す。** finding は位置を 1 点しか持たないので、そのまま報告すると波線が 1 文字にしか掛からない。プラグイン側でその位置の語を測り、語の上なら語全体、語でなければ（disable コメントの `//`）行末までを渡す。
+
+コアの `Finding` に終端を足す案は採らない。6 つの規則すべてが終端オフセットを持ち回ることになる一方、終端が要るのは描画だけである。1 つの finding が複数トークンにまたがるようになったら考え直す。
+
+**メッセージは規則名を名乗らない。** 一度は入れた。Helix 25.07 のインライン診断が `message` しか描かず、`code`（`valof(unused-member)`）はホバー止まりだからである。**却下。VSCode と Zed は既定で規則名を出す**（2026-09-09 に実機で確認）。ESLint も oxlint も TypeScript も、メッセージ側は名乗らないのが慣例で、そこから外れる理由がホスト 1 つの描画では足りない。
+
+```js
+// eslint core / no-unused-vars
+unusedVar: "'{{varName}}' is {{action}} but never used{{additional}}.";
+```
+
+**ESLint で TypeScript を見るには TS 6 が要る。** typescript-eslint は TS 7 の隣で起動を拒む（§14.9）。check プロジェクトの ESLint 版は `typescript@6` を入れており、Microsoft が案内する side-by-side がそのまま回避策になっている。副産物として、**そこが TS 5 / 6 の in-process バックエンドが実ホストで動く唯一の場所**になった（§14.10 の穴。自動テストはまだ無い）。
+
 ### 14.10 テストの穴、2026-09-08 棚卸し
 
 **検証方法を先に。** カバレッジ率ではなく**変異テスト**で見る。ソースの一箇所を壊し、`ne vp test
