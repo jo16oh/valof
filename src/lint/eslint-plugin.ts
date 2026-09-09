@@ -133,9 +133,14 @@ export default {
   meta: { name: "valof" },
   rules,
   configs: {
-    /** Every rule as an error, for a project that wants the whole set. */
+    /**
+     * The whole set, at the severity each rule carries: a finding about code that does nothing
+     * warns, and one about code that is wrong errors. See `Rule.warns`.
+     */
     recommended: {
-      rules: Object.fromEntries(RULES.map(({ kind }) => [`valof/${kind}`, "error"])),
+      rules: Object.fromEntries(
+        RULES.map(({ kind, warns }) => [`valof/${kind}`, warns ? "warn" : "error"]),
+      ),
     },
   },
 };

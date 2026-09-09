@@ -52,6 +52,13 @@ export type Rule<F extends Located> = {
    */
   always?: true;
   /**
+   * Set on a rule whose finding is about code that does nothing, not code that is wrong.
+   *
+   * A host with severities takes this as a warning and the rest as errors. Nothing here reads it:
+   * the command reports every finding the same way and exits 1 on any of them.
+   */
+  warns?: true;
+  /**
    * Every finding, over every scanned file. Rules see all of them rather than one, which is what
    * lets a read in one module answer for a declaration in another.
    */

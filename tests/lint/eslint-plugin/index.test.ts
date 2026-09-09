@@ -67,7 +67,13 @@ test("covers the name it points at, and the line where there is no name", () => 
 
 test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
-  expect(plugin.configs.recommended.rules).toEqual(
-    Object.fromEntries(kinds.map((kind) => [`valof/${kind}`, "error"])),
-  );
+  expect(plugin.configs.recommended.rules).toEqual({
+    "valof/brand-mismatch": "error",
+    "valof/duplicate-brand": "error",
+    "valof/incomplete-disable": "error",
+    "valof/structural-equals": "error",
+    // Dead weight, not a defect: the code around either of these works.
+    "valof/unused-disable": "warn",
+    "valof/unused-member": "warn",
+  });
 });
