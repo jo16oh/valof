@@ -44,14 +44,6 @@ export type Rule<F extends Located> = {
   /** The line `--help` prints, after the kind. */
   description: string;
   /**
-   * Set on a rule that `--no-<kind>` may not leave out.
-   *
-   * For the two that guard the disable comments themselves. A switch that turns off the report
-   * about silencing is a way to silence everything and hear nothing about it, which is the thing
-   * they exist to prevent. A file is still left out of the run whole, by saying so in it.
-   */
-  always?: true;
-  /**
    * Set on a rule whose finding is about code that does nothing, not code that is wrong.
    *
    * A host with severities takes this as a warning and the rest as errors. Nothing here reads it:

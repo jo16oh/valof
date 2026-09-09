@@ -472,10 +472,8 @@ or a whole file with one anywhere in it:
 
 Name the rules it silences, separated by a space or a comma. A comment naming a rule that reports
 nothing there is an `unused-disable` (warning), and one leaving out the rules or the scope is an
-`incomplete-disable` (error). The command refuses `--no-` for these two, since a switch that turns
-off the report about silencing is a way to silence everything and hear nothing about it. A host
-config still sets their severity like any other rule: what it says is checked in, where a flag on
-one run is not.
+`incomplete-disable` (error). Both are ordinary rules: leave one out with `--no-`, or give it its
+own severity in the plugin.
 
 ### Plugin for ESLint and Oxlint
 
