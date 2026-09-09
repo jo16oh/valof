@@ -3818,9 +3818,24 @@ Box.same(b); // 3  .impl が implTrait の上書き
 Clash.dyn(Box, b).same(); // 2  箱は implTrait が記録したもの
 ```
 
-塞ぐ場所は 2 つ。trait 側の `.impl` は Val ごとのメンバの名前を取れない。companion 側の `.impl` は
-`implTrait` が登録した名前を取れない。後者はメンバ検査を**制約ではなく引数の型**に置く必要がある。制約に
-入れると `M & T` が `CompanionFns<V>` を満たさなくなり、`equals` が壊れる。
+塞ぐ場所は 3 つ。
+
+1. trait 側の `.impl` は Val ごとのメンバの名前を取れない
+2. companion 側の `.impl` は `implTrait` が登録した名前を取れない
+3. companion 側の `.impl` は **trait の共通関数の名前も**取れない
+
+3 を落としていた版では、`User.greet(u)` が `"yo alice"`、`Greetable.greet(u)` が `"Hi, alice"`、箱の
+`greet` が `undefined` になった。共通関数は companion に生えないので、`implTrait` が登録した名前だけを
+見ていると素通りする。名前を 2 系統ためる: メンバは型として、共通関数は名前の union として。
+
+2 と 3 の検査は**制約ではなく引数の型**に置く必要がある。制約に入れると `M & T` が `CompanionFns<V>` を
+満たさなくなり、`equals` が壊れる。
+
+2 つの trait の共通関数どうしが同じ名前を持つのは許す。`A.greet(v)` と `B.greet(v)` は呼び出し側が
+どちらか名指ししていて、曖昧さがない。
+
+**valof-lint に規則は要らない。**「カスタム実装がある型に既定の関数を呼んでいる」を検出する案が出たが、
+その状態を作れなくしたので探すものがない。
 
 #### ブランドは交差できる形にする
 

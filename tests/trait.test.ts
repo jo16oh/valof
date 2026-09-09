@@ -120,3 +120,10 @@ test("a primitive payload gets an empty target to stand behind", () => {
   const mail = Val.of<Email>("a@example.com");
   expect(Marker.dyn(Email, mail).wire()).toBe("a@example.com");
 });
+
+// a companion may not shadow a trait's shared function either
+const shadowing = Val.companion<User>()
+  .implTrait(Greetable, { toWire: (u, sep) => `${u.id}${sep}` })
+  // @ts-expect-error a trait already answers to this name
+  .impl({ greet: (u) => `yo ${u.name}` });
+void shadowing;
