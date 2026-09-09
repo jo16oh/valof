@@ -445,17 +445,23 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 ### Rules
 
-| rule                 | reports                                                                   |
-| -------------------- | ------------------------------------------------------------------------- |
-| `unused-member`      | a function registered with `.impl({…})` that nothing reads                |
-| `duplicate-brand`    | a brand string claimed by more than one top-level alias                   |
-| `brand-mismatch`     | a brand whose last segment is not the name of the type it brands          |
-| `aliased-val`        | a type alias that is a second name for a Val                              |
-| `companion-mismatch` | a companion bound to a name other than the type it is for                 |
-| `split-companion`    | a companion for a type that another file declares                         |
-| `bypassed-companion` | a `Val.of` for a type whose companion is how it is built                  |
-| `unnamed-of`         | a `Val.of` that names no type, taking one from its target                 |
-| `structural-equals`  | a payload holding a Val whose own `equals` the parent never dispatches to |
+| rule                 | reports                                                                   | default |
+| -------------------- | ------------------------------------------------------------------------- | ------- |
+| `unused-member`      | a function registered with `.impl({…})` that nothing reads                | warning |
+| `duplicate-brand`    | a brand string claimed by more than one top-level alias                   | error   |
+| `brand-mismatch`     | a brand whose last segment is not the name of the type it brands          | error   |
+| `aliased-val`        | a type alias that is a second name for a Val                              | error   |
+| `companion-mismatch` | a companion bound to a name other than the type it is for                 | error   |
+| `split-companion`    | a companion for a type that another file declares                         | error   |
+| `bypassed-companion` | a `Val.of` for a type whose companion is how it is built                  | warning |
+| `unnamed-of`         | a `Val.of` that names no type, taking one from its target                 | warning |
+| `structural-equals`  | a payload holding a Val whose own `equals` the parent never dispatches to | error   |
+
+A rule warns where the code around the finding still works, and errors where a Val is broken: two
+types the checker stops distinguishing, an `equals` answering wrongly, a name that has to agree with
+another and does not. The severity is what the [plugin](#plugin-for-eslint-and-oxlint) sets, and a
+project can give any rule its own. The [command](#cli) draws every finding the same way and exits 1
+on any of them.
 
 A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
 dead.
