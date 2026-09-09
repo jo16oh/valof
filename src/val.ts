@@ -428,7 +428,9 @@ export type Sealer<
   implTrait: <Tr extends AnyTrait, D, S>(
     trait: V extends ShapeOf<Tr>
       ? [keyof MembersOf<Tr> & keyof T] extends [never]
-        ? TraitCompanion<Tr, D, S>
+        ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
+          ? TraitCompanion<Tr, D, S>
+          : "a member cannot take the name of a field the payload holds"
         : "another trait already answers to one of these names"
       : "the payload does not hold what this trait requires",
     ...impl: [keyof Omit<MembersOf<Tr>, keyof D>] extends [never]
@@ -471,7 +473,9 @@ export type CompanionBuilder<
   implTrait: <Tr extends AnyTrait, D, S>(
     trait: V extends ShapeOf<Tr>
       ? [keyof MembersOf<Tr> & keyof T] extends [never]
-        ? TraitCompanion<Tr, D, S>
+        ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
+          ? TraitCompanion<Tr, D, S>
+          : "a member cannot take the name of a field the payload holds"
         : "another trait already answers to one of these names"
       : "the payload does not hold what this trait requires",
     ...impl: [keyof Omit<MembersOf<Tr>, keyof D>] extends [never]
@@ -506,6 +510,12 @@ export type CompanionBuilder<
    */
   fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K, T, R>;
 };
+
+/**
+ * The payload's own keys, which a trait member may not shadow: a box forwards everything but a
+ * member to the value, and a frozen field a member covered would break the proxy's invariant.
+ */
+type PayloadKeys<V extends AnyVal> = PayloadOf<V> extends object ? keyof PayloadOf<V> : never;
 
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);

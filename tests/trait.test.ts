@@ -201,3 +201,33 @@ test("two traits on one Val each box", () => {
     true,
   ]);
 });
+
+// two traits may require the same field, as long as one payload satisfies both
+type Weighing = Trait<"Weighing", { name: string }, { kilos: (self: Self) => number }>;
+const Weighing = Trait.companion<Weighing>().impl({ kilos: () => 0 });
+type Parcel = Val<"Parcel", { id: string; name: string }, Greetable & Weighing>;
+const Parcel = Val.companion<Parcel>()
+  .implTrait(Greetable, { toWire: (p, sep) => `${p.id}${sep}` })
+  .implTrait(Weighing);
+
+test("agreeing fields need no arbitration", () => {
+  const p = Val.of<Parcel>({ id: "p", name: "box" });
+  expect([Parcel.greet(p), Parcel.kilos(p)]).toEqual(["Hi, box", 0]);
+});
+
+// a member may not take the name of a field the payload holds. a box forwards every other key
+// to the value, and covering a frozen one breaks the proxy's invariant.
+type Loud = Trait<"Loud", { name: string }, { greet: (self: Self) => string }>;
+const Loud = Trait.companion<Loud>().impl({ greet: (l) => l.name });
+type Sign = Val<"Sign", { name: string; greet: string }, Loud>;
+const clashingField = Val.companion<Sign>().implTrait(
+  // @ts-expect-error a member cannot take the name of a field the payload holds
+  Loud,
+);
+void clashingField;
+
+// nor the name of a field its own shape requires
+type SelfClash = Trait<"SelfClash", { size: number }, { size: (self: Self) => number }>;
+// @ts-expect-error a trait member cannot take a field's name
+const SelfClash = Trait.companion<SelfClash>().impl({ size: (s) => s.size });
+void SelfClash;

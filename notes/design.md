@@ -3891,6 +3891,16 @@ Val.companion<User>()
 記録を持つ `__valof_traits` も同じ。`final` の側では `dyn` と `defaults` が trait 自身のキーで、こちらは
 黙って捨てられていた。
 
+**フィールド名も名前空間の一部。**メンバは、その Val の payload が持つフィールドの名前を取れない。箱は
+メンバ以外のキーを値に横流しするので、フィールドをメンバが覆うと dev の freeze と衝突して
+`TypeError: 'get' on proxy: property 'greet' is a read-only and non-configurable data property` で落ちる。
+production では freeze しないので、黙ってメンバが勝つ。trait 自身の shape のフィールドは
+`Trait.companion` で、Val の payload のフィールドは `implTrait` で落とす。
+
+複数の trait が**同じ名前のフィールド**を要求するのは問題ない。1 つの payload が両方を満たせばよく、
+満たせない組み合わせ（`name: string` と `name: number`）は 2 つ目の `implTrait` が落とす。片方が広い
+（`string` と `string | null`）ときも同じで、payload が満たさないほうで落ちる。
+
 **箱がその値の代わりにならない唯一の場所**は、プリミティブ payload の `JSON.stringify`。target が `{}` な
 ので `"{}"` になる。オブジェクトの箱は値と同じ JSON を出し、`Object.keys` も値のキーを返す。
 

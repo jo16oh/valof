@@ -86,14 +86,16 @@ type Wired = "equals" | "patch" | "update" | "seal" | "create" | "__valof_traits
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
  */
-export type Declarable<M extends Members> = {
-  [K in keyof M]: K extends Wired
-    ? "a trait member cannot take a name the library wires"
-    : M[K] extends (...args: never[]) => infer R
-      ? HasSelf<R> extends true
-        ? "a trait member cannot return Self"
-        : M[K]
-      : M[K];
+export type Declarable<Tr extends AnyTrait, M extends Members> = {
+  [K in keyof M]: K extends keyof ShapeOf<Tr>
+    ? "a trait member cannot take a field's name"
+    : K extends Wired
+      ? "a trait member cannot take a name the library wires"
+      : M[K] extends (...args: never[]) => infer R
+        ? HasSelf<R> extends true
+          ? "a trait member cannot return Self"
+          : M[K]
+        : M[K];
 };
 
 /**
@@ -207,9 +209,9 @@ const make = (
 
 export const Trait = {
   /** Declares a trait's runtime side: what every Val implementing it shares. */
-  companion: <Tr extends AnyTrait>(): MembersOf<Tr> extends Declarable<MembersOf<Tr>>
+  companion: <Tr extends AnyTrait>(): MembersOf<Tr> extends Declarable<Tr, MembersOf<Tr>>
     ? TraitBuilder<Tr>
-    : Declarable<MembersOf<Tr>> => {
+    : Declarable<Tr, MembersOf<Tr>> => {
     const build = (
       defaults: Record<string, unknown>,
       final: Record<string, unknown>,
