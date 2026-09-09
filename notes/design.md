@@ -1762,6 +1762,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`rules/equals/index.ts` の「最初が勝つ」
 - [ ] fixture を型検査するか（§14.10）。`rules/structural-equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので 0 error。他は除外のまま
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
+- [ ] valof-lint の規則: trait を名乗る Val に `implTrait` を呼ぶ companion がない（§15.1）。payload が
+      shape を満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
 
@@ -3990,5 +3992,11 @@ trait オブジェクトを受け取る。文字列は型に書いたブラン�
   位置でしかエラーにならず、メッセージが読めない。§14 の chains 解析にそのまま乗る
 - `equals` / `patch` / `update` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない
 - shape には `DeepReadonly` を適用する。さもないと配列フィールドを持つ Val が一致しなくなる
-- payload が shape を満たさない `Val<"User", P, Greetable>` をどう落とすか。`implTrait` 忘れと同じく、
-  型で出すとメッセージが読めない可能性がある
+
+**payload が shape を満たさない宣言は、`implTrait` 忘れと同じ 1 本で塞がる。**型エイリアスはエラーを
+出せないので、`type Bad = Val<"Bad", { id: string }, Greetable>` の行は通る。いまは trait ブランドの位置に
+`Invalid<...>` を置くだけで、誰も読まないので `Val.of<Bad>` も通り、`Greetable` へ代入した遠い場所で
+ブランド不一致という的外れなエラーになる。
+
+ただし companion を書けば `implTrait` の第 1 引数の shape 検査が宣言の隣で落とす。残るのは trait を
+名乗る Val が companion を持たない場合だけで、それは `implTrait` 忘れそのものである。
