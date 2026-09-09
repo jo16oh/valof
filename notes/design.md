@@ -3096,9 +3096,10 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
 **解いた、2026-09-08。読む集合と報告する集合を引数で分ける。**
 
 ```
-valof-lint src src/billing/id.ts                      第 1 引数がプロジェクト、以降が報告対象
-valof-lint --target src/billing/id.ts --project src   名前で渡せば順序は自由
-valof-lint src                                        報告対象を省けばプロジェクト全体
+valof-lint src src/billing/id.ts                         第 1 引数がプロジェクト、以降が報告対象
+valof-lint --report-on src/billing/id.ts --project src   名前で渡せば順序は自由
+valof-lint src                                           報告対象を省けばプロジェクト全体
+valof-lint 'src/**/*.ts' '!src/generated/**'             ! で除外
 ```
 
 一度は「運用で解く、直すのはエディタ統合と同時」と書いた。**利用者がいないという理由が消えた。**
@@ -3115,6 +3116,16 @@ fixture `project/pkg/node_modules/dep.ts` が守る（除外を消すと赤）�
 `Options.report` は解決済みパスの集合。`lint()` は silencing と同じ最後の filter で落とす。**scan は
 `project ∪ 位置引数`。**プロジェクトの glob が拾わない新規ファイルを報告対象に渡したとき、それを読まずに
 「何も無い」と言わないため。fixture `project/outside/fresh.ts` が守る（union を消すと赤）。
+
+**除外を `!` で足した、2026-09-09。** どちらの集合も最初から複数書けたが（`--project` も位置引数も配列に貯めている）、除外だけが無かった。`!` で始まるパスは project でも報告対象でもなく除外に集め、**展開してから両方の集合から引く。**
+
+走査からも消えるので、除外したファイルが持っていた別名や読みは他のファイルの答えに効かなくなる。生成コードを外したいという要求はそれ自体なので、これで正しい。「見はするが報告しない」が要るなら報告側だけ引く形に変えられるが、要求が出るまで持たない。
+
+glob マッチャは要らない。`expand("src/generated/**")` の結果を引き算するだけで、除外のパスは正のパスと同じ意味論で解決される。
+
+**`--target` を `--report-on` に改名した、2026-09-09。** 内部 API が `Options.report` と呼んでいるものが CLI で `--target` になっていて、同じものに 2 つの綴りがあった。ヘルプ本文も元から "what the run reports on" と書いている。
+
+却下した名前。`--files`（project も files である）、`--only`（「これだけ lint する」と読める。走査を絞ると答えが変わるという、この設計が一番避けたい誤解）、`--report`（1 語で済み、`--format` が形式フラグの慣用なので衝突は薄いと実測した。それでも `--report-on` のほうが動詞と前置詞が揃って読みやすいという判断）。`v0.4.0` に `bin` が無く未リリースなので改名は無料だった。
 
 リンタが「run が完全か」を推測する案は採らない。判定できないものを推測させると、本当に効いていない指示を
 見逃す側に倒れる。**どこまでが自分のプロジェクトかは利用者が知っていて、引数で言える。**

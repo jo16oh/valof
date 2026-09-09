@@ -69,7 +69,40 @@ test("leaves node_modules out of a directory, which a project of `.` would walk"
 });
 
 test("takes either by name, in either order", () => {
-  const { stdout } = cli("--target", `${under}/orders.ts`, "--project", under);
+  const { stdout } = cli("--report-on", `${under}/orders.ts`, "--project", under);
+  expect(stdout).toBe(
+    `${under}/orders.ts:1:13  duplicate-brand  Id claims the brand "Id", and so does another type\n`,
+  );
+});
+
+test("drops an excluded path from the run, and the finding that needed it with it", () => {
+  const { status, stdout, stderr } = cli(`${under}/*.ts`, `!${under}/billing.ts`);
+  expect(stdout).toBe("");
+  expect(status).toBe(0);
+  expect(stderr).toBe("valof-lint: nothing to report in 1 file(s)");
+});
+
+test("excludes a path given to --project, since the mark is on the path", () => {
+  const { stdout } = cli("--project", `${under}/*.ts`, `--project=!${under}/billing.ts`);
+  expect(stdout).toBe("");
+});
+
+test("says so when everything is excluded", () => {
+  const { status, stderr } = cli(`${under}/*.ts`, `!${under}/*.ts`);
+  expect(status).toBe(2);
+  expect(stderr).toBe("valof-lint: no files matched");
+});
+
+test("takes an excluded file off the report too, where it was named as a target", () => {
+  const both = cli(under, `${under}/orders.ts`, `${under}/outside/fresh.ts`);
+  expect(both.stdout.split("\n").filter(Boolean)).toHaveLength(2);
+
+  const { stdout } = cli(
+    under,
+    `${under}/orders.ts`,
+    `${under}/outside/fresh.ts`,
+    `!${under}/outside/fresh.ts`,
+  );
   expect(stdout).toBe(
     `${under}/orders.ts:1:13  duplicate-brand  Id claims the brand "Id", and so does another type\n`,
   );

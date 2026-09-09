@@ -19,23 +19,35 @@ const GLOB = /[*?[\]{}]/;
 
 const projects: string[] = [];
 const targets: string[] = [];
+const excluded: string[] = [];
 const loose: string[] = [];
 const skip = new Set<Kind>();
 let help = false;
-let pending: "project" | "target" | undefined;
+let pending: "project" | "report-on" | undefined;
+
+/**
+ * A path goes where it was written, unless it opens with `!`.
+ *
+ * An exclusion belongs to neither list: it comes off the run and the report alike, so a generated
+ * tree named once is out of the answer however it was reached.
+ */
+const take = (into: string[], path: string): void => {
+  if (path.startsWith("!")) excluded.push(path.slice(1));
+  else into.push(path);
+};
 
 for (const argument of process.argv.slice(2)) {
   if (pending) {
-    (pending === "project" ? projects : targets).push(argument);
+    take(pending === "project" ? projects : targets, argument);
     pending = undefined;
   } else if (argument === "--help" || argument === "-h") {
     help = true;
-  } else if (argument === "--project" || argument === "--target") {
-    pending = argument.slice("--".length) as "project" | "target";
+  } else if (argument === "--project" || argument === "--report-on") {
+    pending = argument.slice("--".length) as "project" | "report-on";
   } else if (argument.startsWith("--project=")) {
-    projects.push(argument.slice("--project=".length));
-  } else if (argument.startsWith("--target=")) {
-    targets.push(argument.slice("--target=".length));
+    take(projects, argument.slice("--project=".length));
+  } else if (argument.startsWith("--report-on=")) {
+    take(targets, argument.slice("--report-on=".length));
   } else if (argument.startsWith("--no-")) {
     const kind = argument.slice("--no-".length);
     if (!isKind(kind)) {
@@ -53,7 +65,7 @@ for (const argument of process.argv.slice(2)) {
     }
     skip.add(kind);
   } else {
-    loose.push(argument);
+    take(loose, argument);
   }
 }
 
@@ -73,9 +85,13 @@ if (help) {
       "",
       "The project is a directory or a glob, and defaults to src/**/*.ts. It is what the",
       "run reads. Files named after it are what the run reports on; leave them out to",
-      "report on the whole project. Either can be given by name, in any order.",
+      "report on the whole project. Either can be given by name, --project and",
+      "--report-on, in any order, and either can be given more than once.",
       "  valof-lint src src/billing/id.ts",
-      "  valof-lint --target src/billing/id.ts --project 'src/**/*.ts'",
+      "  valof-lint --report-on src/billing/id.ts --project 'src/**/*.ts'",
+      "",
+      "A path opening with ! is excluded, from the run as well as the report:",
+      "  valof-lint 'src/**/*.ts' '!src/generated/**'",
       "",
       "Three rules need a second file to say anything, so a run narrowed to one file",
       "loses their findings and calls the directives holding them back unused.",
@@ -120,8 +136,13 @@ if (projects.length === 0 && loose.length > 0) {
 }
 targets.push(...loose);
 
-const read = (projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand);
-const asked = targets.flatMap(expand);
+// Resolved, since a path reaches this from a glob the caller wrote and from one it excluded, and
+// the two spellings need not match.
+const dropped = new Set(excluded.flatMap(expand).map((file) => resolve(file)));
+const kept = (files: string[]): string[] => files.filter((file) => !dropped.has(resolve(file)));
+
+const read = kept((projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand));
+const asked = kept(targets.flatMap(expand));
 // Scanned together: a file to report on that the project glob does not cover is still read,
 // rather than passed over and called clean.
 const scanned = [...new Set([...read, ...asked])];
