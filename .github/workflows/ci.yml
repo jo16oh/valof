@@ -29,3 +29,5 @@ jobs:
       - run: vp run size
 
       - run: vp run ts-compatibility
+
+      - run: vp run type-perf
