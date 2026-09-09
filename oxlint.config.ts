@@ -10,7 +10,7 @@ export default defineConfig({
   ignorePatterns: [
     "tests/lint/**/fixtures/**",
     "scripts/ts-compatibility/public-api.ts",
-    "scripts/type-perf/*.ts",
+    "scripts/type-perf/fixtures/*.ts",
   ],
   options: {
     typeAware: true,

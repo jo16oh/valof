@@ -4068,8 +4068,13 @@ trait オブジェクトを受け取る。文字列は型に書いたブラン�
 予算がそのまま「Trait を使わない人」の予算になる。`Trait` を足したエントリを 2 本目として測り、別予算を
 持たせる。
 
-型推論のコストは `vp run type-perf`（`scripts/type-perf/`）。`--extendedDiagnostics` の `Instantiations`
-と `Types` を、公開する `dist/index.d.mts` に対して測る。時間は出すだけで検査しない。
+型推論のコストは `vp run type-perf`（`scripts/type-perf/`）。`--extendedDiagnostics` の数字を、公開する
+`dist/index.d.mts` に対して測る。fixture は `fixtures/` に置く。
+
+**予算は `Instantiations` だけに持たせる。**このライブラリが抱えるリスクは再帰する条件型が暴走することで、
+それを数えているのが instantiations である。`Types` は出すが検査しない。ここまでの全計測で両者は
+instantiations 3.2 個に types 1 個の比で連動していて、1 つの信号のために再ベースラインする数字が 2 つ
+あるのは 1 つ多い。時間は機械依存なので出すだけ。
 
 **下限のバージョンだけで測る。**`ts-compatibility` と同じ `floor`（5.9.3）で、ここで固定されている版は
 それだけである。上のラインはレジストリから読むので、数字が動いた理由が TS のリリースなのかこちらの変更
