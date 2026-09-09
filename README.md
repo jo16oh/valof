@@ -500,12 +500,13 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 ### Rules
 
-| rule                | reports                                                                   |
-| ------------------- | ------------------------------------------------------------------------- |
-| `unused-member`     | a function registered with `.impl({…})` that nothing reads                |
-| `duplicate-brand`   | a brand string claimed by more than one top-level alias                   |
-| `brand-mismatch`    | a brand whose last segment is not the name of the type it brands          |
-| `structural-equals` | a payload holding a Val whose own `equals` the parent never dispatches to |
+| rule                 | reports                                                                   |
+| -------------------- | ------------------------------------------------------------------------- |
+| `unused-member`      | a function registered with `.impl({…})` that nothing reads                |
+| `duplicate-brand`    | a brand string claimed by more than one top-level alias                   |
+| `brand-mismatch`     | a brand whose last segment is not the name of the type it brands          |
+| `companion-mismatch` | a companion bound to a name other than the type it is for                 |
+| `structural-equals`  | a payload holding a Val whose own `equals` the parent never dispatches to |
 
 A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
 dead.

@@ -4,6 +4,10 @@ import { original, type Bindings } from "./bindings.ts";
 /** A `Val.sealer<X>()` / `Val.companion<X>()` chain, whatever else it registered. */
 export type CompanionSite = Where & {
   file: string;
+  /** The name the chain was bound to, or `undefined` when it was not bound to a plain one. */
+  name: string | undefined;
+  /** Where that name is written. The chain's own position stands in when there is no name. */
+  nameAt: Where;
   /** The type argument, resolved to an alias after the walk. */
   typeName: string;
   typeOffset: number;
@@ -77,6 +81,8 @@ export function companionSite(
   return {
     ...where,
     file,
+    name: undefined,
+    nameAt: where,
     typeName: typeName["name"] as string,
     typeOffset: typeName["start"] as number,
     spec: steps.get("implEquals"),

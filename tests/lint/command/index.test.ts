@@ -40,6 +40,7 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
     "  unused-member       functions and constants registered with `.impl({…})` that nothing reads\n" +
       "  duplicate-brand     a brand string claimed by more than one type alias\n" +
       "  brand-mismatch      a brand whose last segment is not the name of the type it brands\n" +
+      "  companion-mismatch  a companion bound to a name other than the type it is for\n" +
       "  structural-equals   a payload holding a Val whose own `equals` the parent never dispatches to\n" +
       "\n" +
       "And about the disable comments themselves, which always run:\n" +

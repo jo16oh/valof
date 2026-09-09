@@ -66,6 +66,7 @@ describe("what the rule finds", () => {
 
   test("sees a builder held in a variable before its impl is called", async () => {
     expect(await lint("held-in-a-variable")).toEqual([
+      "held-in-a-variable.ts:1:7  companion-mismatch  seal is the companion for User, and should be named User",
       "held-in-a-variable.ts:5:3  unused-member  User.shout is never read",
     ]);
   });
