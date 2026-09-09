@@ -31,6 +31,10 @@ Write direct. Conclusion first, declaratives, no hedges, no filler concessives, 
 actor exists. Short sentences, and a concrete example before the general statement. Prefer the
 common word to the rarer, more precise-sounding one, and let a code block do what a metaphor would.
 
+Skip idiomatic phrasal verbs where a literal one carries the same meaning: "limit to one" over "hold
+to one", "fails with" over "comes back as", "the limit lifts" over "the cap comes off". A non-native
+reader has the vocabulary for the literal verb; the idiom, they guess at.
+
 Avoid the em dash. Splitting the sentence in two is usually the fix, and commas, "such as" or
 parentheses cover the rest. Keep a colon where the second half gives the reason or the detail for
 the first.
