@@ -381,6 +381,18 @@ export type Sealed<V extends AnyVal, M extends CompanionFns<V>> = ((value: SeedO
   Companion<V, M>;
 
 /**
+ * What `.impl` accepts once traits are registered: anything but a name one of them took.
+ *
+ * The check rides on the parameter rather than the constraint. In the constraint the inferred
+ * `M & T` stops satisfying {@link CompanionFns}, and `equals` breaks with it.
+ */
+type Grown<T, M> = M & {
+  [K in keyof M]: K extends keyof T
+    ? "a trait's member is already registered under this name"
+    : unknown;
+};
+
+/**
  * A constructor for `V`, which can grow functions without ceasing to be one.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
@@ -389,17 +401,27 @@ export type Sealed<V extends AnyVal, M extends CompanionFns<V>> = ((value: SeedO
  * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
  * nothing.
  */
-export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
+export type Sealer<V extends AnyVal, T extends CompanionFns<V> = Record<never, never>> = Sealed<
+  V,
+  T
+> & {
   /** Collects the functions for the type. */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
-    (): Sealed<V, Record<never, never>>;
-    <M extends CompanionFns<V>>(fns: M): Sealed<V, M>;
+    (): Sealed<V, T>;
+    <M extends CompanionFns<V>>(fns: Grown<T, M>): Sealed<V, M & T>;
   };
   /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => Sealer<V>;
+  implEquals: (spec: EqImpl<V>) => Sealer<V, T>;
+  /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
+  implTrait: <Tr extends AnyTrait, D>(
+    trait: V extends ShapeOf<Tr>
+      ? TraitCompanion<Tr, D>
+      : "the payload does not hold what this trait requires",
+    ...impl: [keyof MembersOf<Tr>] extends [never] ? [] : [Unbound<MembersOf<Tr>, V>]
+  ) => Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
 };
 
 /**
@@ -423,13 +445,7 @@ export type CompanionBuilder<
     (): Companion<V, T, N, F, P>;
     // A trait's member is registered, so `.impl` may not grow one over it: the type would keep
     // the trait's signature while `dyn` kept calling what `implTrait` recorded.
-    <M extends CompanionFns<V>>(
-      fns: M & {
-        [K in keyof M]: K extends keyof T
-          ? "a trait's member is already registered under this name"
-          : unknown;
-      },
-    ): Companion<V, M & T, N, F, P>;
+    <M extends CompanionFns<V>>(fns: Grown<T, M>): Companion<V, M & T, N, F, P>;
   };
   /**
    * Implements a trait the type declares. The members the trait leaves open arrive as a second

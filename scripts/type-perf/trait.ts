@@ -36,11 +36,18 @@ const Tag = Val.companion<Tag>().implTrait(Named, {
   label: (t, sep) => `${t.kind}${sep}${t.name}`,
 });
 
+// A sealer takes traits too, and stays callable.
+type Point = Val<"Point", { name: string; size: { w: number; h: number } }, Named & Sized>;
+const Point = Val.sealer<Point>()
+  .implTrait(Named, { label: (p, sep) => `${p.name}${sep}` })
+  .implTrait(Sized, { scaled: (p, by) => p.size.w * by });
+
 declare const room: Room;
 declare const tag: Tag;
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
 export const labels = boxed.map((b) => `${b.label(":")} ${Named.greet(b.value)}`);
+export const point = Point({ name: "o", size: { w: 1, h: 2 } });
 export const direct = [
   Room.label(room, "/"),
   Room.scaled(room, 2),

@@ -68,3 +68,15 @@ const Box = Val.companion<Box>()
   // @ts-expect-error a trait's member is already registered under this name
   .impl({ same: (b) => b.n * 3 });
 void Box;
+
+// a sealer implements a trait the same way, and stays callable
+type Point = Val<"Point", { name: string; x: number }, Greetable>;
+const Point = Val.sealer<Point>()
+  .implTrait(Greetable, { toWire: (p, sep) => `${p.name}${sep}${p.x}` })
+  .impl({ shifted: (p) => p.x + 1 });
+
+test("a sealer keeps its constructor next to a trait", () => {
+  const p = Point({ name: "o", x: 1 });
+  expect([Point.toWire(p, ":"), Point.shifted(p), Greetable.greet(p)]).toEqual(["o:1", 2, "Hi, o"]);
+  expect(Greetable.dyn(Point, p).toWire("/")).toBe("o/1");
+});
