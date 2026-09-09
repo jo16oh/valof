@@ -2861,6 +2861,33 @@ save → 開いていないファイルのディスク変更に追随する
 
 **LSP クライアントが request と reply を id だけで見分けていた。** 双方が独立に採番するので、サーバの `client/registerCapability` の id がこちらの未応答クエリと一致すると、クエリが `undefined` で解決され、サーバは答えを待ったまま止まる。`method` の有無で先に振り分ける。同じ形が `src/lint/typecheck/lsp.ts` にもあったので直した。
 
+#### oxlint の中からは子プロセスを起こせない、2026-09-09 実測
+
+CI が `spawn ENOMEM` で落ちた。**valof のメモリ問題ではない。oxlint の JS プラグインの中からは、`/bin/echo` すら起動できない。**
+
+```
+PROBE VmSize: 28,189,900 kB | VmRSS: 92,912 kB | MemAvailable: 7,614,808 kB
+PROBE echo: Error: spawnSync /bin/echo ENOMEM
+```
+
+oxlint はスレッド 1 本につき約 6.4 GB のアドレス空間を予約する。実メモリ (RSS 90 MB) は使わないが、Linux は `fork()` でその写しを勘定するので、搭載メモリを超える予約を持つプロセスからの起動を拒む。macOS はこの勘定をしないので手元では通る。
+
+| `--threads` | VmSize  | 子プロセス |
+| ----------- | ------- | ---------- |
+| 1           | 8.9 GB  | 起きる     |
+| 2           | 15.3 GB | ENOMEM     |
+| 4（既定）   | 28.2 GB | ENOMEM     |
+
+**上流の [oxc#20331](https://github.com/oxc-project/oxc/issues/20331) と同じ根。** 向こうの症状は「oxlint 自身が arena の確保に失敗して panic する」で、こちらは「確保には成功した後、その予約のせいでプラグインが子プロセスを起こせない」。被害者が違うだけである。Windows は 1.65.0 で `VirtualAlloc` に移して直っており、Unix も `mmap(MAP_NORESERVE)` に移す方針。`Committed_AS` に載らなくなれば、こちらも同時に直る。
+
+**テストは 1 スレッドで走らせる。** CLI は `--threads 1`、LSP は `RAYON_NUM_THREADS=1`。`--threads` は run 側のフラグで言語サーバのプールには届かず、`OXLINT_THREADS` / `OXC_THREADS` は無い。プールが rayon なので rayon の変数で絞る。
+
+**回避策は普遍ではない。** 1 スレッドでも 8.9 GB は予約するので、それを下回る機械では効かない（向こうの Android の報告では `--threads=1` でも panic する）。GitHub ランナーが 16 GB だから通っているだけである。上流が直ったら外す。
+
+**利用者にも起きる。** Linux + oxlint + TS 7 では全ファイルが `spawn ENOMEM` になる。ESLint（素の node、VmSize 1 GB）と TS 5 / 6（in-process で子プロセスを作らない）は無事。README の Caveats に回避策ごと書き、`explain()` に訳を足した。
+
+**Docker で再現した。** CI 往復より速く、`vitest` 抜きの oxlint 単体でも落ちるので、並列度が原因でないこともそこで分かった。最初に疑った「テストの並列度」は外れで、`maxWorkers: 2` は revert した。
+
 #### README
 
 **「バッファとディスク」の段落は README から落とした。** §14.9 で「README に書くとすればここ」としていたのを翻す。プラグイン利用者が設定を書く前に要る話ではない。記録はこの節と §14.9 に残る。
