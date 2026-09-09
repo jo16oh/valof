@@ -40,6 +40,21 @@ export type ShapeOf<Tr extends AnyTrait> = Omit<Tr, "__valof_internal_phantom_tr
 
 type BrandsOf<Tr extends AnyTrait> = Tr["__valof_internal_phantom_trait_brands"];
 
+/**
+ * The traits a Val declares, or `never` when it declares none.
+ *
+ * Read through a conditional rather than an index: intersecting a plain Val with {@link AnyTrait}
+ * to reach the key would hand back `string`, and every trait would look declared.
+ */
+export type TraitsOf<V> = V extends {
+  readonly __valof_internal_phantom_trait_brands: infer B;
+}
+  ? keyof B
+  : never;
+
+/** The names a trait answers to: one, or several when traits were intersected. */
+export type NamesOf<Tr extends AnyTrait> = keyof BrandsOf<Tr>;
+
 /** The members the trait leaves to each Val. */
 export type MembersOf<Tr extends AnyTrait> = BrandsOf<Tr>[keyof BrandsOf<Tr>];
 

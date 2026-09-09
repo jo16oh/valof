@@ -38,6 +38,15 @@ describe("implementing", () => {
     Val.companion<User>().implTrait(Greetable);
   });
 
+  test("the type must declare the trait", () => {
+    type Plain = Val<"Plain", { id: string; name: string }>;
+    Val.companion<Plain>().implTrait(
+      // @ts-expect-error the type does not declare this trait
+      Greetable,
+      { toWire: (p, sep) => `${p.id}${sep}` },
+    );
+  });
+
   test("the payload must hold what the trait requires", () => {
     type Bad = Val<"Bad", { id: string }, Greetable>;
     Val.companion<Bad>().implTrait(

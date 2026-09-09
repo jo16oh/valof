@@ -3891,6 +3891,14 @@ Val.companion<User>()
 記録を持つ `__valof_traits` も同じ。`final` の側では `dyn` と `defaults` が trait 自身のキーで、こちらは
 黙って捨てられていた。
 
+**型に書いた trait のリストが正本。**`implTrait` は payload が shape を満たすかだけでなく、その Val が
+その trait を宣言しているかも見る。見ていなかった版では、宣言していない trait を実装できて
+`Floor.scaled` は生えるのに `Floor` は `Sized` に代入できない、という食い違いが作れた。valof-lint の
+`implTrait` 忘れ規則と合わせて、宣言と実装の対応が両方向で閉じる。
+
+宣言を読むのは索引ではなく条件型で。素の Val を `AnyTrait` と交差させてキーを引くと `string` が返り、
+どの trait も宣言済みに見えてしまう。
+
 **フィールド名も名前空間の一部。**メンバは、その Val の payload が持つフィールドの名前を取れない。箱は
 メンバ以外のキーを値に横流しするので、フィールドをメンバが覆うと dev の freeze と衝突して
 `TypeError: 'get' on proxy: property 'greet' is a read-only and non-configurable data property` で落ちる。

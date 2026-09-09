@@ -3,8 +3,10 @@ import type {
   Implement,
   Members,
   MembersOf,
+  NamesOf,
   ShapeOf,
   TraitCompanion,
+  TraitsOf,
   Unbound,
 } from "./trait.ts";
 
@@ -426,13 +428,15 @@ export type Sealer<
   implEquals: (spec: EqImpl<V>) => Sealer<V, T, R>;
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
   implTrait: <Tr extends AnyTrait, D, S>(
-    trait: V extends ShapeOf<Tr>
-      ? [keyof MembersOf<Tr> & keyof T] extends [never]
-        ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
-          ? TraitCompanion<Tr, D, S>
-          : "a member cannot take the name of a field the payload holds"
-        : "another trait already answers to one of these names"
-      : "the payload does not hold what this trait requires",
+    trait: [NamesOf<Tr>] extends [TraitsOf<V>]
+      ? V extends ShapeOf<Tr>
+        ? [keyof MembersOf<Tr> & keyof T] extends [never]
+          ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
+            ? TraitCompanion<Tr, D, S>
+            : "a member cannot take the name of a field the payload holds"
+          : "another trait already answers to one of these names"
+        : "the payload does not hold what this trait requires"
+      : "the type does not declare this trait",
     ...impl: [keyof Omit<MembersOf<Tr>, keyof D>] extends [never]
       ? [impl?: Implement<Tr, D, V>]
       : [impl: Implement<Tr, D, V>]
@@ -471,13 +475,15 @@ export type CompanionBuilder<
    * The shared functions stay on the trait, where nothing can override them.
    */
   implTrait: <Tr extends AnyTrait, D, S>(
-    trait: V extends ShapeOf<Tr>
-      ? [keyof MembersOf<Tr> & keyof T] extends [never]
-        ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
-          ? TraitCompanion<Tr, D, S>
-          : "a member cannot take the name of a field the payload holds"
-        : "another trait already answers to one of these names"
-      : "the payload does not hold what this trait requires",
+    trait: [NamesOf<Tr>] extends [TraitsOf<V>]
+      ? V extends ShapeOf<Tr>
+        ? [keyof MembersOf<Tr> & keyof T] extends [never]
+          ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
+            ? TraitCompanion<Tr, D, S>
+            : "a member cannot take the name of a field the payload holds"
+          : "another trait already answers to one of these names"
+        : "the payload does not hold what this trait requires"
+      : "the type does not declare this trait",
     ...impl: [keyof Omit<MembersOf<Tr>, keyof D>] extends [never]
       ? [impl?: Implement<Tr, D, V>]
       : [impl: Implement<Tr, D, V>]
