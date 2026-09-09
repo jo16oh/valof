@@ -102,10 +102,11 @@ export type Dyn<Tr extends AnyTrait> = {
 /**
  * Where a companion records what it implemented. Read by {@link TraitCompanion.dyn}.
  *
- * Keyed by the trait itself. `implTrait` and `dyn` are handed the same object, so nothing has to
- * name it: a brand written a second time at run time would only be a string to keep in step.
+ * One flat record, because no two traits on a Val may register the same name. A box therefore
+ * binds every member the Val implements, and the ones outside this trait are invisible through
+ * {@link Dyn}.
  */
-export type TraitHost = { readonly __valof_traits: ReadonlyMap<object, Members> };
+export type TraitHost = { readonly __valof_traits: Members };
 
 /** What `Trait.companion` returns once `.impl` closed the chain. */
 export type TraitCompanion<Tr extends AnyTrait, D> = D & {
@@ -134,18 +135,17 @@ export type TraitBuilder<Tr extends AnyTrait> = TraitCompanion<Tr, Record<never,
 
 type AnyFn = (...args: never[]) => unknown;
 
-const make = (fns: Record<string, unknown>): Record<string, unknown> => {
-  const target: Record<string, unknown> = { ...fns };
-  target["dyn"] = (companion: TraitHost, value: unknown) => {
-    const members = companion.__valof_traits.get(target) as unknown as Record<string, AnyFn>;
+const make = (fns: Record<string, unknown>): Record<string, unknown> => ({
+  ...fns,
+  dyn: (companion: TraitHost, value: unknown) => {
+    const members = companion.__valof_traits as unknown as Record<string, AnyFn>;
     const box: Record<string, unknown> = { value };
     for (const key of Object.keys(members)) {
       box[key] = (...args: never[]) => members[key]!(value as never, ...args);
     }
     return box;
-  };
-  return target;
-};
+  },
+});
 
 export const Trait = {
   /** Declares a trait's runtime side: what every Val implementing it shares. */

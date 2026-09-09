@@ -368,8 +368,8 @@ export type Companion<
   UpdateMethod<V, F, P> & {
     /** Structural equality: key-order independent, ignoring `undefined`-valued keys. */
     equals: (a: V, b: V) => boolean;
-    /** What `implTrait` registered, keyed by the trait itself. Read by `Trait`'s `dyn`. */
-    readonly __valof_traits: ReadonlyMap<object, Members>;
+    /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
+    readonly __valof_traits: Members;
   };
 
 /**
@@ -418,7 +418,9 @@ export type Sealer<V extends AnyVal, T extends CompanionFns<V> = Record<never, n
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
   implTrait: <Tr extends AnyTrait, D>(
     trait: V extends ShapeOf<Tr>
-      ? TraitCompanion<Tr, D>
+      ? [keyof MembersOf<Tr> & keyof T] extends [never]
+        ? TraitCompanion<Tr, D>
+        : "another trait already registered a member under one of these names"
       : "the payload does not hold what this trait requires",
     ...impl: [keyof MembersOf<Tr>] extends [never] ? [] : [Unbound<MembersOf<Tr>, V>]
   ) => Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
@@ -456,7 +458,9 @@ export type CompanionBuilder<
    */
   implTrait: <Tr extends AnyTrait, D>(
     trait: V extends ShapeOf<Tr>
-      ? TraitCompanion<Tr, D>
+      ? [keyof MembersOf<Tr> & keyof T] extends [never]
+        ? TraitCompanion<Tr, D>
+        : "another trait already registered a member under one of these names"
       : "the payload does not hold what this trait requires",
     ...impl: [keyof MembersOf<Tr>] extends [never] ? [] : [Unbound<MembersOf<Tr>, V>]
   ) => CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
@@ -745,7 +749,7 @@ const attach = (
   target: Record<string, unknown>,
   fns: Record<string, unknown>,
   ctors: Ctors,
-  traits: ReadonlyMap<object, Record<string, unknown>>,
+  traits: Record<string, unknown>,
 ): Record<string, unknown> => {
   const { create, seal: custom, equals } = ctors;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
@@ -796,9 +800,7 @@ const attach = (
   // A trait's members are the type's own functions, so they grow the same way. The record is
   // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never reaches for `trait.ts`.
   target.__valof_traits = traits;
-  for (const members of traits.values()) {
-    for (const key of Object.keys(members)) define(target, key, members[key]);
-  }
+  for (const key of Object.keys(traits)) define(target, key, traits[key]);
   for (const key of Object.keys(fns)) define(target, key, fns[key]);
 
   return target;
@@ -813,7 +815,7 @@ const attach = (
 const build = <V extends AnyVal>(
   ctors: Ctors,
   callable: boolean,
-  traits: ReadonlyMap<object, Record<string, unknown>> = new Map(),
+  traits: Record<string, unknown> = {},
 ): object => {
   // A function is not a `Record`, so the cast is here rather than at every assignment in
   // `attach`.
@@ -827,8 +829,8 @@ const build = <V extends AnyVal>(
 
   target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits);
   target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
-  target.implTrait = (trait: object, impl: Record<string, unknown> = {}) =>
-    build<V>(ctors, callable, new Map(traits).set(trait, impl));
+  target.implTrait = (_trait: object, impl: Record<string, unknown> = {}) =>
+    build<V>(ctors, callable, { ...traits, ...impl });
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });

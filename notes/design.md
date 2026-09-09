@@ -3922,28 +3922,28 @@ type Bound<M, S> = {
 
 ```ts
 // val.ts。trait.ts を import しない
-target.implTrait = (trait, impl) => build(ctors, callable, new Map(traits).set(trait, impl));
+target.implTrait = (_trait, impl) => build(ctors, callable, { ...traits, ...impl });
 
 // attach。.impl と同じ経路でメンバを生やし、記録を 1 つ足す
 target.__valof_traits = traits;
-for (const members of traits.values()) {
-  for (const key of Object.keys(members)) define(target, key, members[key]);
-}
+for (const key of Object.keys(traits)) define(target, key, traits[key]);
 
 // trait.ts。束縛のループはこちらだけにある
-const make = (fns) => {
-  const target = { ...fns };
-  target.dyn = (companion, value) => {
-    const members = companion.__valof_traits.get(target);
-    const box = { value };
-    for (const k of Object.keys(members)) box[k] = (...a) => members[k](value, ...a);
-    return box;
-  };
-  return target;
+dyn: (companion, value) => {
+  const members = companion.__valof_traits;
+  const box = { value };
+  for (const k of Object.keys(members)) box[k] = (...a) => members[k](value, ...a);
+  return box;
 };
 ```
 
-- `implTrait` の増分は `Map` の複製 1 回。関数を生やす部分は `attach` の使い回しで、消せないぶんは軽い
+- **記録は平らな 1 つのオブジェクトで足りる。**どの trait のメンバかを覚える必要がない。2 つの trait が
+  同じ名前を登録することを型で禁じ、`.impl` が `implTrait` より後に来ることは `.impl` が
+  `Companion` を返す時点で決まっているため。箱は Val が実装した全メンバを束縛するが、`Dyn` から見えるのは
+  その trait のぶんだけ
+- **却下: `Map` で trait オブジェクトをキーにする。**名前が交わらないなら、どの trait のものかという
+  情報を持つ理由がない。`Map` を外して production gzip が 15 B 減った
+- `implTrait` の増分はオブジェクトの複製 1 回。関数を生やす部分は `attach` の使い回しで、消せないぶんは軽い
 - **箱に既定実装は入れない。**`p.value` が shape なので `Greetable.greet(p.value)` がそのまま呼べる。箱に
   入るのは Val ごとのメンバだけで、`dyn` のループも記録もそのぶん小さい
 - **メンバ名を宣言する段は要らない。**`implTrait` の第 2 引数のキーがそのまま箱のメンバになる
@@ -3951,9 +3951,9 @@ const make = (fns) => {
 #### 却下: 記録をブランド文字列で引く
 
 `Trait.companion<Greetable>("Greetable")` と書かせて、`companion[TRAITS][brand]` で引く案。**引く場面が
-ない。**`implTrait` も `dyn` も同じ trait オブジェクトを受け取るので、記録を `Map` にして
-オブジェクトそのものをキーにすれば足りる。文字列は型に書いたブランドの二重管理になり、valof-lint に
-`brand-mismatch` と同じ規則をもう 1 つ足すことになっていた。
+ない。**記録が平らなら trait を名指す必要がそもそもなく、キーが要ったとしても `implTrait` と `dyn` は同じ
+trait オブジェクトを受け取る。文字列は型に書いたブランドの二重管理になり、valof-lint に `brand-mismatch`
+と同じ規則をもう 1 つ足すことになっていた。
 
 デュアルパッケージも理由にならない。危ないのは valof が 2 コピー載ることで、trait オブジェクトは利用者の
 モジュールにある 1 つである。

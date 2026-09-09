@@ -80,3 +80,23 @@ test("a sealer keeps its constructor next to a trait", () => {
   expect([Point.toWire(p, ":"), Point.shifted(p), Greetable.greet(p)]).toEqual(["o:1", 2, "Hi, o"]);
   expect(Greetable.dyn(Point, p).toWire("/")).toBe("o/1");
 });
+
+// two traits on one Val may not register the same name
+type Other = Trait<"Other", { name: string }, { toWire: (self: Self, sep: string) => number }>;
+const Other = Trait.companion<Other>().impl({});
+type Twice = Val<"Twice", { id: string; name: string }, Greetable & Other>;
+const Twice = Val.companion<Twice>()
+  .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}` })
+  // @ts-expect-error another trait already registered a member under one of these names
+  .implTrait(Other, { toWire: (t, sep) => t.id.length + sep.length });
+void Twice;
+
+// and a field two traits disagree on has no payload that fits
+type Sized = Trait<"Sized", { name: number }>;
+const Sized = Trait.companion<Sized>().impl({ half: (s) => s.name / 2 });
+type Both = Val<"Both", { name: string }, Greetable & Sized>;
+const Both = Val.companion<Both>().implTrait(
+  // @ts-expect-error the payload does not hold what this trait requires
+  Sized,
+);
+void Both;
