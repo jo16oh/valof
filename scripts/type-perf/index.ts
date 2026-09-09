@@ -5,7 +5,7 @@
 // the times are printed and never checked.
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { floor, forEachVersion, pack, run, supported } from "../typescript-lines.ts";
+import { floor, forEachVersion, pack, run } from "../typescript-lines.ts";
 
 const here = new URL("./", import.meta.url);
 
@@ -16,10 +16,6 @@ type Fixture = (typeof fixtures)[number];
  * Over the baseline, which is the same lib with none of the library. Set about 20% above the
  * measurement, so a rewrite of one conditional does not have to move them and a runaway
  * recursion still trips.
- *
- * **Checked on the floor alone**, the one version pinned here. Every line above it is read from
- * the registry, so its counts move on TypeScript's release schedule and not on this repo's
- * changes. Those are printed to be read, not to gate a merge.
  *
  * The fixtures are not comparable to each other. Each carries its own history.
  */
@@ -65,18 +61,25 @@ const secs = (value: number): string => `${value.toFixed(3)}s`;
 
 await pack();
 
-const measured: Record<string, Record<Fixture, Counts>> = {};
+let measured = {} as Record<Fixture, Counts>;
 const json = process.argv.includes("--json");
 
-await forEachVersion(await supported(), async (tsc, version) => {
+/**
+ * The floor alone, which is the only version pinned here. Every line above it is read from the
+ * registry, so its counts move on TypeScript's release schedule rather than on this repo's
+ * changes, and measuring them costs an install each. They also say the same thing: across 5.9,
+ * 6.0 and 7.0 the fixtures differed by 5 instantiations in 1,677, the checkers' own noise.
+ * `vp run ts-compatibility` still typechecks every line.
+ */
+await forEachVersion([floor], async (tsc, version) => {
   const baseline = await measure(tsc, "baseline");
   const counts = Object.fromEntries(
     await Promise.all(fixtures.map(async (name) => [name, await measure(tsc, name)])),
   ) as Record<Fixture, Counts>;
 
-  // Reported over the baseline so a change in `lib.es2023.d.ts` between lines does not read as
-  // a change in the library.
-  measured[version] = Object.fromEntries(
+  // Reported over the baseline, which is a constant each checker materialises at startup: 86
+  // types on 5.9, 341 on tsgo, whatever the lib. Subtracting it leaves what the library costs.
+  measured = Object.fromEntries(
     fixtures.map((name) => [
       name,
       {
@@ -90,27 +93,21 @@ await forEachVersion(await supported(), async (tsc, version) => {
 
   if (json) return;
 
-  console.log(
-    `typescript@${version}  baseline ${num(baseline.instantiations)} instantiations, ${num(baseline.types)} types`,
-  );
+  console.log(`typescript@${version}, over a baseline of ${num(baseline.types)} types`);
   for (const name of fixtures) {
-    const it = measured[version][name];
+    const it = measured[name];
     console.log(
       `  ${name.padEnd(6)}  ${num(it.instantiations).padStart(9)} instantiations  ${num(it.types).padStart(7)} types  ${secs(it.check)} check  ${secs(it.total)} total`,
     );
   }
-  console.log();
 });
 
 if (json) console.log(JSON.stringify(measured, null, 2));
 
 const over = fixtures.flatMap((name) =>
   (["instantiations", "types"] as const)
-    .filter((key) => measured[floor]![name][key] > budget[name][key])
-    .map(
-      (key) =>
-        `${name} ${key} on typescript@${floor}: ${num(measured[floor]![name][key])} over ${num(budget[name][key])}`,
-    ),
+    .filter((key) => measured[name][key] > budget[name][key])
+    .map((key) => `${name} ${key}: ${num(measured[name][key])} over ${num(budget[name][key])}`),
 );
 
 if (over.length > 0) {
