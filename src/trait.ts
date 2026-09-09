@@ -99,13 +99,16 @@ export type Dyn<Tr extends AnyTrait> = {
   readonly value: ShapeOf<Tr>;
 } & Bound<MembersOf<Tr>, ShapeOf<Tr>>;
 
-/** Where a companion records what it implemented. Read by {@link TraitCompanion.dyn}. */
-export type TraitHost = { readonly __valof_traits: Readonly<Record<string, Members>> };
+/**
+ * Where a companion records what it implemented. Read by {@link TraitCompanion.dyn}.
+ *
+ * Keyed by the trait itself. `implTrait` and `dyn` are handed the same object, so nothing has to
+ * name it: a brand written a second time at run time would only be a string to keep in step.
+ */
+export type TraitHost = { readonly __valof_traits: ReadonlyMap<object, Members> };
 
 /** What `Trait.companion` returns once `.impl` closed the chain. */
 export type TraitCompanion<Tr extends AnyTrait, D> = D & {
-  /** The trait's name, as written in its type. */
-  readonly brand: string;
   /** Boxes a value with one Val's implementation. See {@link Dyn}. */
   readonly dyn: (companion: TraitHost, value: ShapeOf<Tr>) => Dyn<Tr>;
 };
@@ -131,31 +134,26 @@ export type TraitBuilder<Tr extends AnyTrait> = TraitCompanion<Tr, Record<never,
 
 type AnyFn = (...args: never[]) => unknown;
 
-const make = (brand: string, fns: Record<string, unknown>): Record<string, unknown> => ({
-  ...fns,
-  brand,
-  dyn: (companion: TraitHost, value: unknown) => {
-    const members = companion.__valof_traits[brand] as unknown as Record<string, AnyFn>;
+const make = (fns: Record<string, unknown>): Record<string, unknown> => {
+  const target: Record<string, unknown> = { ...fns };
+  target["dyn"] = (companion: TraitHost, value: unknown) => {
+    const members = companion.__valof_traits.get(target) as unknown as Record<string, AnyFn>;
     const box: Record<string, unknown> = { value };
     for (const key of Object.keys(members)) {
       box[key] = (...args: never[]) => members[key]!(value as never, ...args);
     }
     return box;
-  },
-});
+  };
+  return target;
+};
 
 export const Trait = {
-  /**
-   * Declares a trait's runtime side. The brand is written again because it is a phantom in the
-   * type: `dyn` needs it to find what a companion registered.
-   */
-  companion: <Tr extends AnyTrait>(
-    brand: keyof BrandsOf<Tr> & string,
-  ): MembersOf<Tr> extends ObjectSafe<MembersOf<Tr>>
+  /** Declares a trait's runtime side: what every Val implementing it shares. */
+  companion: <Tr extends AnyTrait>(): MembersOf<Tr> extends ObjectSafe<MembersOf<Tr>>
     ? TraitBuilder<Tr>
     : ObjectSafe<MembersOf<Tr>> => {
-    const target = make(brand, {});
-    target["impl"] = (fns: Record<string, unknown>) => make(brand, fns);
+    const target = make({});
+    target["impl"] = (fns: Record<string, unknown>) => make(fns);
     return target as never;
   },
 } as const;

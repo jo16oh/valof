@@ -3,7 +3,7 @@
 import { Val, Trait, type Dyn, type Self } from "valof";
 
 type Named = Trait<"Named", { name: string }, { label: (self: Self, sep: string) => string }>;
-const Named = Trait.companion<Named>("Named").impl({
+const Named = Trait.companion<Named>().impl({
   greet: (n) => `Hi, ${n.name}`,
   initial: (n) => n.name.slice(0, 1),
 });
@@ -13,7 +13,7 @@ type Sized = Trait<
   { size: { w: number; h: number } },
   { scaled: (self: Self, by: number) => number }
 >;
-const Sized = Trait.companion<Sized>("Sized").impl({
+const Sized = Trait.companion<Sized>().impl({
   area: (s) => s.size.w * s.size.h,
 });
 

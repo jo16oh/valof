@@ -368,8 +368,8 @@ export type Companion<
   UpdateMethod<V, F, P> & {
     /** Structural equality: key-order independent, ignoring `undefined`-valued keys. */
     equals: (a: V, b: V) => boolean;
-    /** What `implTrait` registered, keyed by trait brand. Read by `Trait`'s `dyn`. */
-    readonly __valof_traits: Readonly<Record<string, Members>>;
+    /** What `implTrait` registered, keyed by the trait itself. Read by `Trait`'s `dyn`. */
+    readonly __valof_traits: ReadonlyMap<object, Members>;
   };
 
 /**
@@ -729,7 +729,7 @@ const attach = (
   target: Record<string, unknown>,
   fns: Record<string, unknown>,
   ctors: Ctors,
-  traits: Record<string, Record<string, unknown>>,
+  traits: ReadonlyMap<object, Record<string, unknown>>,
 ): Record<string, unknown> => {
   const { create, seal: custom, equals } = ctors;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
@@ -780,8 +780,7 @@ const attach = (
   // A trait's members are the type's own functions, so they grow the same way. The record is
   // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never reaches for `trait.ts`.
   target.__valof_traits = traits;
-  for (const brand of Object.keys(traits)) {
-    const members = traits[brand]!;
+  for (const members of traits.values()) {
     for (const key of Object.keys(members)) define(target, key, members[key]);
   }
   for (const key of Object.keys(fns)) define(target, key, fns[key]);
@@ -798,7 +797,7 @@ const attach = (
 const build = <V extends AnyVal>(
   ctors: Ctors,
   callable: boolean,
-  traits: Record<string, Record<string, unknown>> = {},
+  traits: ReadonlyMap<object, Record<string, unknown>> = new Map(),
 ): object => {
   // A function is not a `Record`, so the cast is here rather than at every assignment in
   // `attach`.
@@ -812,8 +811,8 @@ const build = <V extends AnyVal>(
 
   target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits);
   target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
-  target.implTrait = (trait: { brand: string }, impl: Record<string, unknown> = {}) =>
-    build<V>(ctors, callable, { ...traits, [trait.brand]: impl });
+  target.implTrait = (trait: object, impl: Record<string, unknown> = {}) =>
+    build<V>(ctors, callable, new Map(traits).set(trait, impl));
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });

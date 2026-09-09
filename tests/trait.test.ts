@@ -6,7 +6,7 @@ type Greetable = Trait<
   { name: string },
   { toWire: (self: Self, sep: string) => string }
 >;
-const Greetable = Trait.companion<Greetable>("Greetable").impl({
+const Greetable = Trait.companion<Greetable>().impl({
   greet: (g) => `Hi, ${g.name}`,
 });
 
@@ -54,13 +54,13 @@ void missing;
 
 type Unsafe = Trait<"Unsafe", { n: number }, { grow: (self: Self) => Self }>;
 // @ts-expect-error a trait member cannot return Self
-const Unsafe = Trait.companion<Unsafe>("Unsafe").impl({});
+const Unsafe = Trait.companion<Unsafe>().impl({});
 void Unsafe;
 
 // the two sets of names stay disjoint, so nothing can answer to the same name twice
 type Clash = Trait<"Clash", { n: number }, { same: (self: Self) => number }>;
 // @ts-expect-error a shared function cannot take the name of a member each Val implements
-const Clash = Trait.companion<Clash>("Clash").impl({ same: (c: { n: number }) => c.n });
+const Clash = Trait.companion<Clash>().impl({ same: (c: { n: number }) => c.n });
 
 type Box = Val<"Box", { n: number }, Clash>;
 const Box = Val.companion<Box>()

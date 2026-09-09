@@ -3922,28 +3922,44 @@ type Bound<M, S> = {
 
 ```ts
 // val.ts。trait.ts を import しない
-target.implTrait = (trait, custom) => {
-  const members = { ...trait.members, ...custom };
-  const next = attach(base(), members, ctors); // .impl と同じ経路
-  next[TRAITS] = { ...target[TRAITS], [trait.brand]: members };
-  return next;
-};
+target.implTrait = (trait, impl) => build(ctors, callable, new Map(traits).set(trait, impl));
+
+// attach。.impl と同じ経路でメンバを生やし、記録を 1 つ足す
+target.__valof_traits = traits;
+for (const members of traits.values()) {
+  for (const key of Object.keys(members)) define(target, key, members[key]);
+}
 
 // trait.ts。束縛のループはこちらだけにある
-dyn: (companion, value) => {
-  const members = companion[TRAITS][brand];
-  const box = { value };
-  for (const k of Object.keys(members)) box[k] = (...a) => members[k](value, ...a);
-  return box;
+const make = (fns) => {
+  const target = { ...fns };
+  target.dyn = (companion, value) => {
+    const members = companion.__valof_traits.get(target);
+    const box = { value };
+    for (const k of Object.keys(members)) box[k] = (...a) => members[k](value, ...a);
+    return box;
+  };
+  return target;
 };
 ```
 
-- `implTrait` の増分はマージ 1 回と代入 1 回。関数を生やす部分は `attach` の使い回しで、消せないぶんは軽い
-- `TRAITS` キーは自前の小さいモジュールか、ただの文字列リテラル。`trait.ts` で `Symbol()` を作ると
-  参照の向きが逆になる
-- マップのキーはブランド文字列。デュアルパッケージで trait と companion が別コピー由来でも引ける
-- **メンバ名を宣言する段は要らない。** trait の既定 impl のキーと `implTrait` の第 2 引数のキーの和が、
-  ちょうど trait のメンバ集合になる。型がそれを強制する
+- `implTrait` の増分は `Map` の複製 1 回。関数を生やす部分は `attach` の使い回しで、消せないぶんは軽い
+- **箱に既定実装は入れない。**`p.value` が shape なので `Greetable.greet(p.value)` がそのまま呼べる。箱に
+  入るのは Val ごとのメンバだけで、`dyn` のループも記録もそのぶん小さい
+- **メンバ名を宣言する段は要らない。**`implTrait` の第 2 引数のキーがそのまま箱のメンバになる
+
+#### 却下: 記録をブランド文字列で引く
+
+`Trait.companion<Greetable>("Greetable")` と書かせて、`companion[TRAITS][brand]` で引く案。**引く場面が
+ない。**`implTrait` も `dyn` も同じ trait オブジェクトを受け取るので、記録を `Map` にして
+オブジェクトそのものをキーにすれば足りる。文字列は型に書いたブランドの二重管理になり、valof-lint に
+`brand-mismatch` と同じ規則をもう 1 つ足すことになっていた。
+
+デュアルパッケージも理由にならない。危ないのは valof が 2 コピー載ることで、trait オブジェクトは利用者の
+モジュールにある 1 つである。
+
+- `__valof_traits` のキーは `trait.ts` に持たせない。`Symbol()` を作ると参照の向きが逆になり、
+  tree-shaking が効かなくなる
 
 **クロージャを毎回作るか prototype を 1 つ共有するか。**箱は値ではないので prototype を持たせても §7.2 の
 壁には当たらない（`structuredClone` を通す対象ではない）。ただし `const { toWire } = p` が壊れる。まず
