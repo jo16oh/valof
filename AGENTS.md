@@ -35,6 +35,10 @@ Skip idiomatic phrasal verbs where a literal one carries the same meaning: "limi
 to one", "fails with" over "comes back as", "the limit lifts" over "the cap comes off". A non-native
 reader has the vocabulary for the literal verb; the idiom, they guess at.
 
+Established technical metaphors stay: "escape hatch", "boilerplate", "pay" for cost. The test is
+whether the word still carries its literal sense in this context, not whether it originated as a
+metaphor.
+
 Avoid the em dash. Splitting the sentence in two is usually the fix, and commas, "such as" or
 parentheses cover the rest. Keep a colon where the second half gives the reason or the detail for
 the first.
