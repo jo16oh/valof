@@ -1,13 +1,19 @@
 import { expect, test } from "vite-plus/test";
 
-import { cli, cliWithoutParser, cliWithoutTypeScript } from "../support.ts";
+import {
+  StructuralEquals,
+  UnusedMember,
+  cli,
+  cliWithoutParser,
+  cliWithoutTypeScript,
+} from "../support.ts";
 
 const under = (fixture: string): string => `tests/lint/command/fixtures/${fixture}`;
 
 test("prints a finding as location, kind, then message, and exits 1 with a summary", () => {
   const { status, stdout, stderr } = cli(under("*.ts"), under("finding.ts"));
   expect(stdout).toBe(
-    "tests/lint/command/fixtures/finding.ts:3:3  unused-member  Id.shout is never read\n",
+    `tests/lint/command/fixtures/finding.ts:3:3  ${UnusedMember.kind}  Id.shout is never read\n`,
   );
   expect(status).toBe(1);
   expect(stderr).toBe("valof-lint: 1 finding(s) in 1 file(s)");
@@ -22,7 +28,7 @@ test("exits 0 with a summary when it does not", () => {
 test("starts a TypeScript of its own when the caller hands it none", () => {
   const { stdout } = cli(under("equality/**/*.ts"));
   expect(stdout).toBe(
-    "tests/lint/command/fixtures/equality/order.ts:6:22  structural-equals  " +
+    `tests/lint/command/fixtures/equality/order.ts:6:22  ${StructuralEquals.kind}  ` +
       "Order.total holds Money, which has its own equals\n",
   );
 });

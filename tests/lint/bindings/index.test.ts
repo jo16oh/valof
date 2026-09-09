@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { fixtures } from "../support.ts";
+import { DuplicateBrand, UnusedMember, fixtures } from "../support.ts";
 
 const { lint } = fixtures(import.meta.url);
 
@@ -11,15 +11,31 @@ const { lint } = fixtures(import.meta.url);
 
 test("a renamed type import still spells Val", async () => {
   expect(await lint("renamed-type")).toEqual([
-    'renamed-type/billing.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
-    'renamed-type/orders.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
+    {
+      rule: DuplicateBrand,
+      at: "renamed-type/billing.ts:3:13",
+      message: 'Id claims the brand "Id", and so does another type',
+    },
+    {
+      rule: DuplicateBrand,
+      at: "renamed-type/orders.ts:3:13",
+      message: 'Id claims the brand "Id", and so does another type',
+    },
   ]);
 });
 
 test("a namespace import in a type position steps past the namespace", async () => {
   expect(await lint("namespaced-type")).toEqual([
-    'namespaced-type/billing.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
-    'namespaced-type/orders.ts:3:13  duplicate-brand  Id claims the brand "Id", and so does another type',
+    {
+      rule: DuplicateBrand,
+      at: "namespaced-type/billing.ts:3:13",
+      message: 'Id claims the brand "Id", and so does another type',
+    },
+    {
+      rule: DuplicateBrand,
+      at: "namespaced-type/orders.ts:3:13",
+      message: 'Id claims the brand "Id", and so does another type',
+    },
   ]);
 });
 
@@ -37,12 +53,12 @@ test("a helper around Val is not Val", async () => {
 
 test("a renamed value import still roots a builder chain", async () => {
   expect(await lint("renamed-value")).toEqual([
-    "renamed-value.ts:5:3  unused-member  User.shout is never read",
+    { rule: UnusedMember, at: "renamed-value.ts:5:3", message: "User.shout is never read" },
   ]);
 });
 
 test("a namespace import in a value position steps past the namespace", async () => {
   expect(await lint("namespaced-value")).toEqual([
-    "namespaced-value.ts:5:3  unused-member  User.shout is never read",
+    { rule: UnusedMember, at: "namespaced-value.ts:5:3", message: "User.shout is never read" },
   ]);
 });

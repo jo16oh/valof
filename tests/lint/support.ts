@@ -2,7 +2,40 @@ import { spawnSync } from "node:child_process";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { lint as run, type Kind, type Resolver } from "../../src/lint/index.ts";
+import { RULES, lint as run, type Resolver } from "../../src/lint/index.ts";
+
+// Named rather than spelled as a kind: a test that names a rule reads the same object the
+// registry does, so renaming a kind is one edit and no test string follows it.
+export {
+  AliasedVal,
+  BrandMismatch,
+  BypassedCompanion,
+  CompanionMismatch,
+  DuplicateBrand,
+  IncompleteDisable,
+  SplitCompanion,
+  StructuralEquals,
+  UnnamedOf,
+  UnusedDisable,
+  UnusedMember,
+} from "../../src/lint/rules/index.ts";
+
+/** One of the rules in the registry. */
+type Registered = (typeof RULES)[number];
+
+/**
+ * A finding as a test names it: which rule reported it, where, and what it said.
+ *
+ * The rule is the object, not its kind. The location keeps the fixture-relative path so an
+ * expectation still says which file it came from.
+ */
+export type Reported = { rule: Registered; at: string; message: string };
+
+const reporting = (kind: string): Registered => {
+  const rule = RULES.find((one) => one.kind === kind);
+  if (!rule) throw new Error(`no rule reports ${kind}`);
+  return rule;
+};
 
 /** The package root, which is where the command runs and where TypeScript is looked up. */
 export const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -21,8 +54,12 @@ export function fixtures(url: string): {
   files: (fixture: string) => string[];
   lint: (
     fixture: string,
-    options?: { skip?: Kind[]; types?: Resolver | undefined; overlay?: Map<string, string> },
-  ) => Promise<string[]>;
+    options?: {
+      skip?: readonly Registered[];
+      types?: Resolver | undefined;
+      overlay?: Map<string, string>;
+    },
+  ) => Promise<Reported[]>;
 } {
   const directory = fileURLToPath(new URL("fixtures/", url));
   const files = (fixture: string): string[] =>
@@ -35,12 +72,13 @@ export function fixtures(url: string): {
       const findings = await run(files(fixture), {
         ...(types ? { types } : {}),
         ...(overlay ? { overlay } : {}),
-        skip: new Set(skip),
+        skip: new Set(skip.map(({ kind }) => kind)),
       });
-      return findings.map(
-        ({ file, line, column, kind, message }) =>
-          `${file.replace(directory, "")}:${line}:${column}  ${kind}  ${message}`,
-      );
+      return findings.map(({ file, line, column, kind, message }) => ({
+        rule: reporting(kind),
+        at: `${file.replace(directory, "")}:${line}:${column}`,
+        message,
+      }));
     },
   };
 }
