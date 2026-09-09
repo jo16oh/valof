@@ -3807,6 +3807,22 @@ const Admin = Val.companion<Admin>().implTrait(Greetable, {
 **`Greetable.greet` は存在しない。**上書きされうる関数は名前空間に出ない。出るのは `final` の関数だけで、
 そちらは上書きできない。
 
+#### 却下: `Trait` 自体を callable にする
+
+メソッドが `companion` 1 つなので `Trait<Greetable>()` と書ける、という案。
+
+**`Trait` は既に型名で、型引数の数が違う。**同じ綴りが位置によって別の引数リストを取ることになる。
+
+```ts
+type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>; // 3 つ
+const Greetable = Trait<Greetable>(); // 1 つ
+```
+
+`Val` が callable でないのはここを避けているからで、`Val<K, T>` と `Val.of<V>` は綴りが分かれている。
+`Val.companion<V>()` との対称も失う。2 つ目の入り口が要るときの置き場所もなくなる。
+
+trait と companion の対は意味的にも筋が通っていて、Rust の `impl Trait for T` と読み手の対応が取れる。
+
 #### `final`: 上書きできない関数だけ名前空間に出す
 
 ```ts
