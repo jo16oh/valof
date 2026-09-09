@@ -20,6 +20,11 @@ test("reports a builder held in a variable, which names the constructor twice", 
   ]);
 });
 
+// The type is elsewhere, which is the split-companion rule's finding, not this one's.
+test("steps past a namespace, so the name it compares is the declaring module's", async () => {
+  expect(await lint("namespaced", { skip: ["split-companion"] })).toEqual([]);
+});
+
 test("says nothing about a chain bound to no plain name", async () => {
   expect(await lint("no-name")).toEqual([]);
 });
