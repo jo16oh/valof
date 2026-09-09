@@ -437,8 +437,9 @@ Brands a payload with the type named explicitly.
 Val.of<User>({ id: "a", name: "alice" });
 ```
 
-Where the type has a `seal` of its own, use that instead. `Val.of` skips the checks: it is the
-escape hatch.
+If the type has a `seal` of its own, use that instead. `Val.of` skips the checks as an escape hatch.
+[`valof-lint`](#valof-lint) reports latent misuse of it, such as calling `Val.of` on a type that has
+a companion or specifying no type.
 
 ### `Val.unwrap`
 
@@ -501,12 +502,27 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 ### Rules
 
-| rule                | reports                                                                   |
-| ------------------- | ------------------------------------------------------------------------- |
-| `unused-member`     | a function registered with `.impl({…})` that nothing reads                |
-| `duplicate-brand`   | a brand string claimed by more than one top-level alias                   |
-| `brand-mismatch`    | a brand whose last segment is not the name of the type it brands          |
-| `structural-equals` | a payload holding a Val whose own `equals` the parent never dispatches to |
+| rule                 | reports                                                                   | default |
+| -------------------- | ------------------------------------------------------------------------- | ------- |
+| `unused-member`      | a function registered with `.impl({…})` that nothing reads                | warning |
+| `duplicate-brand`    | a brand string claimed by more than one top-level alias                   | error   |
+| `brand-mismatch`     | a brand whose last segment is not the name of the type it brands          | error   |
+| `aliased-val`        | a type alias that is a second name for a Val                              | error   |
+| `companion-mismatch` | a companion bound to a name other than the type it is for                 | error   |
+| `split-companion`    | a companion for a type that another file declares                         | error   |
+| `bypassed-companion` | a `Val.of` for a type whose companion is how it is built                  | warning |
+| `unnamed-of`         | a `Val.of` that names no type, taking one from its target                 | warning |
+| `structural-equals`  | a payload holding a Val whose own `equals` the parent never dispatches to | error   |
+| `incomplete-disable` | a disable comment leaving out the rules it silences, or its scope         | error   |
+| `unused-disable`     | a disable comment naming a rule that reports nothing there                | warning |
+
+A rule warns where the code around the finding still works, and errors where a Val is broken: two
+types the checker stops distinguishing, an `equals` answering wrongly, a name that has to agree with
+another and does not. `incomplete-disable` errors for a reason of its own: a comment naming no rule
+silences every one, a rule added next year included.
+
+The severity is what the [plugin](#plugin-for-eslint-and-oxlint) sets, and a project can give any
+rule its own. The [command](#cli) draws every finding the same way and exits 1 on any of them.
 
 A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
 dead.
@@ -527,10 +543,9 @@ or a whole file with one anywhere in it:
 // valof-lint-disable-all-whole-file -- generated, do not lint
 ```
 
-Name the rules it silences, separated by a space or a comma. A comment naming a rule that reports
-nothing there is an `unused-disable` (warning), and one leaving out the rules or the scope is an
-`incomplete-disable` (error). Both are ordinary rules: leave one out with `--no-`, or give it its
-own severity in the plugin.
+Name the rules it silences, separated by a space or a comma. The comments answer to two rules of
+their own, `incomplete-disable` and `unused-disable`, which are left out of a run and given a
+severity like any other.
 
 ### Plugin for ESLint and Oxlint
 

@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1681,7 +1681,11 @@ export function parseUser(json: string): Result<User> {
 }
 ```
 
-値が常に検証済みで届く型（デコーダ、DB 行）は、カスタム seal を登録せず境界で `Val.of` に持ち上げる（§6.5）。この場合 `patch` / `update` はコピーで再構築し、何も再検証しない。**境界を一度通れば以降は信頼する**という設計を選んだことになる。
+値が常に検証済みで届く型は、カスタム seal を登録せず境界で `Val.of` に持ち上げる（§6.5）。この場合 `patch` / `update` はコピーで再構築し、何も再検証しない。
+
+**信頼できるのは、両側が同じデプロイで出荷される経路だけである。** RSC / Server Function、同一アプリのプロセス間 JSON-RPC、Electron の chromium ↔ node の IPC。境界を分けるのは所有者ではなく**時間**である。
+
+**DB 行は信頼しない。2026-09-09 訂正。**ここは以前「デコーダ、DB 行」と書いていた。自分のアプリが書いた行でも、書いたのは古いバージョンかもしれない。行はコードより長生きするので、永続化層は常に検証する。
 
 ### 8.4 更新経路から外したいフィールド
 
@@ -1741,6 +1745,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
 - [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
+- [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
+      独立した規則 `aliased-val`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
@@ -2029,11 +2035,16 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 ### 14.4 ルール
 
-構文だけで判定するものが 5 つ。残る 1 つは go-to-definition を使う（§14.7）。
+構文だけで判定するものが 10 個。残る 1 つは go-to-definition を使う（§14.7）。
 
 - 誰も読まない companion のメンバ
 - 複数の**トップレベル**型エイリアスが主張しているブランド文字列
 - 型名で終わっていないブランド文字列（§14.12）
+- Val の 2 つ目の名前になっている型エイリアス（§14.25）
+- 型名と違う名前に束縛された companion（§14.21）
+- 別のファイルが宣言している型の companion（§14.22）
+- companion を持つ型の `Val.of`（§14.23）
+- 型引数を書かない `Val.of`（§14.24）
 - ルールを名指ししていない disable コメント（§14.14）
 - 何も黙らせていない disable コメント（§14.15）
 
@@ -2775,6 +2786,11 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 | `structural-equals`  | error | equals が実行時に間違った答えを返す                                                       |
 | `duplicate-brand`    | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
 | `brand-mismatch`     | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
+| `aliased-val`        | error | §14.25。同じく「1 つの Val に名前が 2 つ」                                                |
+| `companion-mismatch` | error | §14.21。同じく「一致すべき 2 つの食い違い」                                               |
+| `split-companion`    | error | §14.22。型名で export できる形にならない                                                  |
+| `bypassed-companion` | warn  | §14.23。出来上がる値は正しい。迂回したのは型の入口                                        |
+| `unnamed-of`         | warn  | §14.24。持ち上げ自体は正しい。失うのは grep できる名前                                    |
 | `incomplete-disable` | error | 下記                                                                                      |
 | `unused-member`      | warn  | 死んだコード。周りは動く                                                                  |
 | `unused-disable`     | warn  | 何も黙らせていない指示。コードは変わらない                                                |
@@ -3047,6 +3063,41 @@ tests/lint/
 `src/` で valof を使い始めたら戻す先は `tests/lint/self.test.ts`。`vite.config.ts` のタスクにする案は却下、`vp run size` と同じで回し忘れる。
 
 **ルール一覧を名乗るのは `--help` だけ。** `skip/` の `--no-typo` のエラーは `kinds` をレジストリから読んで組む。以前は 3 つのリテラルで、`--help` と 2 箇所が同じ列挙を持っていた。§14.12 の `brand-mismatch` を足したとき赤くなるのは 1 箇所。メッセージの形（前置き、字下げ、`, ` 区切り）は変異で赤を確認済み。
+
+#### 期待値は規則を名指しする、2026-09-09
+
+finding の期待値は 1 本の文字列だった。`"mismatched.ts:3:13  brand-mismatch  EmailAddress claims …"`。
+**種別名がテストに 94 回書き写されていた**ことになる。オブジェクトにして、種別のところに規則そのものを
+置いた。
+
+```ts
+{ rule: BrandMismatch, at: "mismatched.ts:3:13", message: 'EmailAddress claims the brand "Email", …' }
+```
+
+規則は `rules/index.ts` が名前ごとに export し、`support.ts` が中継する。`skip` も `Kind[]` ではなく規則の
+配列を取る。**種別名を変える作業が 1 箇所になった。**`RULES` を読んで種別から規則を引き当てるので、
+知らない種別が来れば `support.ts` が投げる。
+
+**メッセージは期待値から外した。** 種別と同じ理由で、文言をテスト側に書き写すことになるため。`lint` が
+返すのは `{ rule, at }` だけで、文言は `messages` で別に取る。
+
+残したのは**位置が言えないことを言っているメッセージだけ**（7 ファイル）。
+
+| 規則                                    | 位置に出ないもの                                   |
+| --------------------------------------- | -------------------------------------------------- |
+| `structural-equals`                     | パス（`Order.total`、`lines[]`）。位置は companion |
+| `bypassed-companion`                    | 3 分岐（コンストラクタ / `.seal` / 直し方なし）    |
+| `brand-mismatch`                        | 主張すべきブランド                                 |
+| `aliased-val` / `companion-mismatch`    | 辿り着いた先の名前                                 |
+| `unused-disable` / `incomplete-disable` | 指示が名指しした規則、書くべき綴り                 |
+
+外したのは 50 件。`unused-member` の `User.shout` も `split-companion` の型名も、位置がそのまま指している。
+
+**CLI の出力は文字列のまま。**`command/` の被写体は行の形（位置、種別、メッセージの並びと空白 2 つ）で、
+そこを構造にするとテストが消える。種別だけ `${UnusedMember.kind}` にした。
+
+**`--help` の一覧はリテラルのまま。**規則を足したとき赤くなる 1 箇所という役割がある（上）。レジストリから
+組み立てると、その canary が消える。
 
 **却下: 1 ファイルのまま describe を増やす。** fixture との距離が縮まらない。
 
@@ -3415,6 +3466,9 @@ report に混ぜることになり、規則ごとに重複した finding が出�
 `Reports what the type checker cannot, and what a disable comment does not do:` にして 1 列にした。
 `Rule.directives`（分ける鍵として一度足したフラグ）も消した。改名の記録（下記）は残る。
 
+**README の表にも 2 つを載せた。**規則として同じなら、一覧も同じ表である。Disable comments の節に
+残したのは「コメントはこの 2 規則に答える」の 1 文だけで、説明は表が持つ。
+
 以下、当初の記録。
 
 **内部は Rule のまま、`--help` で 2 群に分ける。**
@@ -3481,6 +3535,224 @@ finding は**それを最も安く観測できるルール**のもの。
 **却下: `unused/` のリネーム追跡も動かす。** `renamed-import` / `re-export` / `same-name` /
 `no-cross-file-credit` が叩くのは `unused.ts` の `exportedAs` → `declaredName`。unused の中にしかなく、
 他のルールは呼ばない。共有機構ではなくルールの機能なので `unused/` に残す。
+
+### 14.21 規則: 型名と一致しない companion、2026-09-09
+
+**入れる。** `companion-mismatch`。`Val.sealer<X>()` / `Val.companion<X>()` を `X` 以外の名前に束縛したら
+報告する。既定で on、error。
+
+```ts
+const User = Val.sealer<User>().impl({ ... }); // 通る
+const Account = Val.sealer<User>().impl({ ... }); // 報告
+```
+
+#### 根拠: 名前が一致して初めて宣言マージになる
+
+`type User` と `const User` が同じ名前だから、`User` 1 つが型・コンストラクタ・名前空間を兼ねる（§2）。
+名前が割れると読み手は 2 つ覚えることになり、`Account.greet(user)` は型の名前をどこにも出さない。
+
+brand-mismatch（§14.12）と同じ「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない。リネームで
+顕在化するところまで同じ。型と const は別のシンボルなので、LSP のリネームは片方しか動かさない。
+
+#### 判定は書かれたまま。別名の解決はしない
+
+`import type { User as Account }` の隣の `const Account = Val.sealer<Account>()` は通す。そのファイルの
+読み手には一貫していて、直す先も無い。型が別ファイルにあること自体は §14.22 の規則が見る。
+
+#### builder を変数に置く形も報告する
+
+```ts
+const seal = Val.sealer<User>(); // 報告
+export const User = seal.impl({ ... });
+```
+
+**却下: `.impl` が束縛された名前まで追う。** 最初はこの形を通した（walk のあとで「builder の局所名 → その
+`.impl` が束縛された名前」に置き換えた）。**得るものが無い形だった。**`Val.sealer<User>()` は `.impl` の前
+から callable なコンストラクタなので、`seal` は `User` のコンストラクタの 2 つ目の名前になる。分けて書いて
+得られる能力は 1 つも無く、chain を 1 つの `const User` に畳めば消える。
+
+規則の文は「chain は `X` に束縛する」の 1 文で済み、追う機構（`implemented` の map と walk 後の書き換え）も
+消えた。`unused-member` の `held-in-a-variable` fixture は 2 件の finding を持つ形になる。unused-member 側
+はこの形を今も見通す必要がある（利用者のコードにあるうちは正しく報告する）。
+
+分割代入（`const { greet } = Val.companion<User>().impl({...})`）は名前を持たないので黙る。
+
+#### 位置は const 名の上
+
+chain の先頭ではなく束縛された名前を指す。エディタの下線は finding の位置にある語を覆うので（
+`eslint-plugin.ts` の `over`）、先頭を指すと `Val` に下線が引かれる。名前の話なら名前を指す。
+
+### 14.22 規則: 型と別ファイルの companion、2026-09-09
+
+**入れる。** `split-companion`。`Val.sealer<X>()` / `Val.companion<X>()` の `X` が import された名前なら
+報告する。既定で on、error。
+
+```ts
+// user.ts
+export type User = Val<"User", { id: string }>;
+
+// companion.ts
+import type { User } from "./user.ts";
+const User = Val.sealer<User>().impl({ ... }); // 報告
+```
+
+#### 根拠: 分けると型名で export できる
+
+宣言マージはファイル内でしか成立しない。実測（TS 7.0、`--strict`）:
+
+```
+type と const を別ファイルで両方 export       TS2395 must be all exported or all local
+2 つ目のファイルで型を再 export + const       TS2323 Cannot redeclare exported variable
+```
+
+残るのは「別名の companion」（§14.21 が報告する）か「型名で import できない companion」だけになる。
+つまりこの規則は新しい規約を作っていない。**型システムが既に閉じている形を、エラーが出る前に名指しする**
+だけである。
+
+#### 判定は import 1 つ。resolver は使わない
+
+`bound.imported.has(typeName)` が全部。型を解決しないので言語サーバは起動しない（`structural-equals` が
+`.implEquals` のあるときだけ起動するのと同じ理由で、起動しないほうがよい）。
+
+`Val` の綴りは無関係。`import { Val as Value } from "valof"` でも chain は `fromVal` →
+`original(bound, …)` で見つかる（fixture `renamed-val/`）。見るのは**型引数の名前**が import されているか
+だけである。
+
+namespace 修飾の型引数（`Val.sealer<ns.User>()`）も報告する。namespace import を経ている時点で別のモジュール
+だからで、判定に import の表は要らない。`CompanionSite` は修飾を `qualifier` に持ち、`typeName` は宣言側の
+名前になる（`ns.User` → `User`）。それまでは `companionSite` が `Identifier` しか受けず、site 自体が記録
+されていなかった。**`companion-mismatch` と `structural-equals` も同時に見落としていた。**
+
+**却下: go-to-definition で宣言ファイルを比べる。** helper 越しの別名（`type Local = Imported`）まで見える
+が、この規則のためだけに TypeScript を起動する。取りこぼすのはその 1 形だけで、黙るのは安全側。ローカル
+別名は brand-mismatch 側で見るほうが筋がよい（§9）。
+
+### 14.23 規則: companion を持つ型の `Val.of`、2026-09-09
+
+**入れる。** `bypassed-companion`。`Val.of<X>` の X に companion があれば報告する。既定で on、warn。
+
+```ts
+Val.of<User>(p); // User = Val.sealer<User>()            → bypasses User, the constructor for it
+Val.of<Age>(n); // Age = …implSeal(check)                → bypasses Age.seal, which checks the payload
+Val.of<Row>(r); // Row = Val.companion<Row>().impl({…})  → brands a payload that no seal checked
+Val.of<Token>(s); // companion なし                       → 黙る
+```
+
+#### 却下: seal なし companion だけ黙る
+
+最初はこの案（B）を推した。`Val.of` は seal なし companion の唯一の構築手段なので（§6.5）、そこに警告を
+出すのは直し方の無い指摘になる、という理由だった。**取り下げた。理由は境界の持ち上げが seal の有無と
+直交すること。**検証済みの `Age` の payload が RSC 越しに来たとき、`Age.seal(p)` は検査を二度走らせて
+`Result` の処理も増やすので、書きたいのは `Val.of<Age>(p)` である。つまり「正当な `Val.of`」は seal を
+持つ型にも起きる。**どちらの案でも境界には disable コメントが要る**以上、B の切り分けが買うものは無い。
+
+代わりに、メッセージを 3 通りにして「その型に何があるか」を言う。seal なし companion には直し方が無い
+ので、直し方を書かない。
+
+#### 正当なサイトは disable コメントで残す
+
+値が検証済みで届くと言えるのは、**両側が同じデプロイで出荷される経路だけ**（§8.3 の訂正）。RSC /
+Server Function、同一アプリのプロセス間 JSON-RPC、Electron の chromium ↔ node の IPC。DB 行は入らない。
+コメントの `--` 以降にその経路を書けば、なぜ無検査でよいかがコードに残る。warn なのはこのため。値自体は
+正しく、迂回したのは型の入口である。
+
+#### seal なし companion はうるさくならない、2026-09-09 検討
+
+「seal が無い型は `Val.of` でしか作れないのだから、C は毎回警告するのでは」を確かめた。**ならない。**
+
+- **`patch` / `update` は seal 無しでも動く。**既定の seal（brand + copy）を通るので、値は普通に派生できる
+  （`val.ts` の `Derive`）。`equals` も同じ
+- **`implCreate` だけ登録した companion は `X.create(…)` が入口**になる。`Val.of` は要らないので警告も出ない
+
+残るのは「seal も create も無く、値が境界から来る型」だけで、そこは disable コメントに経路を書く場所
+そのものである（§8.3）。**seal なし companion を宣言側で禁じる規則は入れない。**§6.5 の 3 つの却下理由は
+そのまま生きている。
+
+#### 突き合わせは名前で、resolver は使わない
+
+`unused-member` の read の解決と同じ。型引数を宣言側の名前に直して（renamed import は `original`、
+namespace 修飾は右側）、companion のサイトと突き合わせる。**§14.22 がこれを成立させている。**型と companion
+が同じファイルにあると仮定できるので、名前の衝突はブランドの衝突と同じ話に畳める。
+
+型引数を書かない `Val.of(payload)`（代入先から推論する形）は見ない。キーにする名前がここに無い。
+
+### 14.24 規則: 型引数を書かない `Val.of`、2026-09-09
+
+**入れる。** `unnamed-of`。`Val.of(…)` に型引数が無ければ報告する。既定で on、warn。
+
+`Val.of<Age>(x)` が逃げ道として許されるのは、**型引数を書かされるぶん grep できる**からである（§2.2）。
+型引数が無ければその根拠が消え、`bypassed-companion` からも見えなくなる。**新しい規則を足した直後に、
+その規則を黙って外れる書き方が残っていた**ことになる。
+
+#### 判定は構文だけ。型は要らない
+
+「戻り値の型が分かるときだけ報告する」を型で確かめる必要はない。**分からなければコンパイルが通らない**
+（TS 7.0、`--strict` で実測）。
+
+```ts
+const a: User = Val.of({ id: "x" }); // 通る（文脈型付け）
+take(Val.of({ id: "y" })); // 通る（引数位置）
+const c = Val.of({ id: "x" }); // TS2345 parameter of type 'never'
+```
+
+`of: <V extends AnyVal>(value: SeedOf<V>) => V` で、`SeedOf<V>` は推論できない位置にある。`V` は文脈から
+しか決まらないので、文脈が無ければ引数が `never` になって落ちる。規則が発火するのは、既に型が決まって
+いる形だけである。
+
+#### 届かない形: `const { of } = Val`
+
+分割代入した `of` は追わない。§14.21 の `const { greet } = …` と同じ扱いで、名前解決が追えない形として
+以前から対象外である（§14.1）。
+
+#### 位置は `of` の上
+
+型引数が無いので指す名前が無い。`Val` を指すと下線が `Val` に付く（§14.21 と同じ理由）。
+
+#### README から disable の作例を外した
+
+`Val.of` の節に「境界ではこう黙らせる」というコードを一度置いたが、消した。**逃げ道であって推奨では
+ない。**作例にすると推奨に読める。disable コメントの書き方は valof-lint の節にあり、そこで足りる。
+
+### 14.25 規則: Val の 2 つ目の名前、2026-09-09
+
+**入れる。** `aliased-val`。トップレベルの `type A = B` で、`B` が裸の参照で、辿った先が Val なら報告する。
+既定で on、error。
+
+```ts
+type Account = User; // 報告: Account is a second name for User; use User
+type Either = User | Order; // 見ない
+type Ro = Readonly<User>; // 見ない
+type Wrap<T> = T; // 見ない
+```
+
+**1 つの Val に名前は 1 つ。**2 つ目の名前は型と companion を切り離す。`companion-mismatch`（§14.21）を
+反対側から見た同じ失敗で、エラーメッセージは `User` と言い、コードは `Local` と言い、読み手が探すのは
+`User.greet` になる。
+
+#### brand-mismatch には足さない
+
+最初は「ブランドに解決して型名と比べる」案で §9 に上げていた。**壊れているのはブランド文字列ではない。**
+`type Local = ImportedUser` のブランドは `"User"` で、それは正しい。壊れているのは名前が 2 つあることで、
+ブランドを直せという指示も出せない（別ファイルのエイリアスなので直せない）。別の規則にして、メッセージは
+「元の名前を使え」にした。
+
+#### ユニオンは歩かない
+
+**追うのは裸の参照だけ。**`type Either = User | Order` は単一のブランドを主張していないので Val の別名では
+なく、`Readonly<User>` はそれ自体が別の型である。型式の中を歩かないので、コストはエイリアス 1 つにつき
+マップ参照 1 回。LSP で宣言の型を読む案は却下した。resolver には型を読む口が無く（go-to-definition だけ）、
+ブランド系の規則が resolver を使わない設計（§14.12）も壊れ、結局全 type 宣言を見ることになる。
+
+#### 連鎖は辿る
+
+`type A = B` の上に `type B = User` があれば両方報告する。手前だけ報告すると、1 つ直すたびに次が出てくる
+（§14.7 と同じ理由）。循環は `seen` で止める。
+
+#### 副産物: `split-companion` の穴が閉じた
+
+`type Local = ImportedUser` の隣に companion を書く形は、型がローカル宣言なので §14.22 からは見えなかった。
+この規則が 2 つ目の名前のほうを報告するので、経路としては塞がった。fixture `companion/` がその形で、
+出る finding は `aliased-val` 1 件である。
 
 ### 15.1 `Val.trait`
 

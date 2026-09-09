@@ -2,7 +2,41 @@ import { spawnSync } from "node:child_process";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { lint as run, type Kind, type Resolver } from "../../src/lint/index.ts";
+import { RULES, lint as run, type Resolver } from "../../src/lint/index.ts";
+
+// Named rather than spelled as a kind: a test that names a rule reads the same object the
+// registry does, so renaming a kind is one edit and no test string follows it.
+export {
+  AliasedVal,
+  BrandMismatch,
+  BypassedCompanion,
+  CompanionMismatch,
+  DuplicateBrand,
+  IncompleteDisable,
+  SplitCompanion,
+  StructuralEquals,
+  UnnamedOf,
+  UnusedDisable,
+  UnusedMember,
+} from "../../src/lint/rules/index.ts";
+
+/** One of the rules in the registry. */
+type Registered = (typeof RULES)[number];
+
+/**
+ * A finding as a test names it: which rule reported it, and where.
+ *
+ * The rule is the object, not its kind. The location keeps the fixture-relative path so an
+ * expectation still says which file it came from. What it said is {@link fixtures}' `messages`,
+ * asked for by the tests whose subject is the wording.
+ */
+export type Reported = { rule: Registered; at: string };
+
+const reporting = (kind: string): Registered => {
+  const rule = RULES.find((one) => one.kind === kind);
+  if (!rule) throw new Error(`no rule reports ${kind}`);
+  return rule;
+};
 
 /** The package root, which is where the command runs and where TypeScript is looked up. */
 export const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -16,32 +50,40 @@ export const root = fileURLToPath(new URL("../../", import.meta.url));
  * In process, so a run costs no `node` start. The command itself is covered by {@link cli}: what
  * it adds over `lint` is argument parsing and the shape of a line.
  */
+type Options = {
+  skip?: readonly Registered[];
+  types?: Resolver | undefined;
+  overlay?: Map<string, string>;
+};
+
 export function fixtures(url: string): {
   all: () => string[];
   files: (fixture: string) => string[];
-  lint: (
-    fixture: string,
-    options?: { skip?: Kind[]; types?: Resolver | undefined; overlay?: Map<string, string> },
-  ) => Promise<string[]>;
+  lint: (fixture: string, options?: Options) => Promise<Reported[]>;
+  /** The same run, as what each finding said. For a message that is the test's subject. */
+  messages: (fixture: string, options?: Options) => Promise<string[]>;
 } {
   const directory = fileURLToPath(new URL("fixtures/", url));
   const files = (fixture: string): string[] =>
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
+  const found = async (fixture: string, { skip = [], types, overlay }: Options = {}) =>
+    await run(files(fixture), {
+      ...(types ? { types } : {}),
+      ...(overlay ? { overlay } : {}),
+      skip: new Set(skip.map(({ kind }) => kind)),
+    });
+
   return {
     all: () => globSync(`${directory}**/*.ts`),
     files,
-    lint: async (fixture, { skip = [], types, overlay } = {}) => {
-      const findings = await run(files(fixture), {
-        ...(types ? { types } : {}),
-        ...(overlay ? { overlay } : {}),
-        skip: new Set(skip),
-      });
-      return findings.map(
-        ({ file, line, column, kind, message }) =>
-          `${file.replace(directory, "")}:${line}:${column}  ${kind}  ${message}`,
-      );
-    },
+    lint: async (fixture, options) =>
+      (await found(fixture, options)).map(({ file, line, column, kind }) => ({
+        rule: reporting(kind),
+        at: `${file.replace(directory, "")}:${line}:${column}`,
+      })),
+    messages: async (fixture, options) =>
+      (await found(fixture, options)).map(({ message }) => message),
   };
 }
 
