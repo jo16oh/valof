@@ -1,8 +1,6 @@
 // Shared by `vp run ts-compatibility` and `vp run type-perf`: which TypeScript releases to run,
 // and how to get a `tsc` for each one.
 import { execFile } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -55,28 +53,24 @@ export async function pack(): Promise<void> {
 }
 
 /**
- * Installs each version in turn and hands over the path to its `tsc`.
+ * Runs `tsc` from each version in turn.
  *
- * A temp directory of its own: the repo is on pnpm, and none of these is a dependency of the
- * package.
+ * `pnpm dlx` rather than an install of our own: none of these is a dependency of the package, and
+ * pnpm keeps what it fetches, so a second run costs nothing. Its own chatter goes to stderr, which
+ * leaves the compiler's diagnostics alone on stdout.
  */
 export async function forEachVersion(
   versions: string[],
-  body: (tsc: string, version: string) => Promise<void>,
+  body: (
+    tsc: (args: string[], cwd?: string) => Promise<{ stdout: string }>,
+    version: string,
+  ) => Promise<void>,
 ): Promise<void> {
-  const dir = await mkdtemp(join(tmpdir(), "valof-ts-"));
-  try {
-    for (const version of versions) {
-      await run(
-        "npm",
-        ["install", "--silent", "--no-audit", "--no-fund", `typescript@${version}`],
-        {
-          cwd: dir,
-        },
-      );
-      await body(join(dir, "node_modules/.bin/tsc"), version);
-    }
-  } finally {
-    await rm(dir, { recursive: true, force: true });
+  for (const version of versions) {
+    await body(
+      (args, cwd = root) =>
+        run("pnpm", ["--package", `typescript@${version}`, "dlx", "tsc", ...args], { cwd }),
+      version,
+    );
   }
 }

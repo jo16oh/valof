@@ -5,7 +5,7 @@
 // the times are printed and never checked.
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { floor, forEachVersion, pack, run } from "../typescript-lines.ts";
+import { floor, forEachVersion, pack } from "../typescript-lines.ts";
 
 const here = new URL("./", import.meta.url);
 
@@ -39,13 +39,15 @@ const fields = [
   ["total", "Total time:"],
 ] as const;
 
-async function measure(tsc: string, name: string): Promise<Counts> {
+type Tsc = (args: string[]) => Promise<{ stdout: string }>;
+
+async function measure(tsc: Tsc, name: string): Promise<Counts> {
   const config = new URL(`.tsconfig.${name}.json`, here);
   const base = JSON.parse(await readFile(new URL("tsconfig.base.json", here), "utf8")) as object;
   await writeFile(config, JSON.stringify({ ...base, include: [`fixtures/${name}.ts`] }));
   try {
     // A fixture that stopped compiling measures nothing, so the error is the result.
-    const { stdout } = await run(tsc, [
+    const { stdout } = await tsc([
       "--noEmit",
       "--extendedDiagnostics",
       "--project",

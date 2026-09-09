@@ -1,4 +1,4 @@
-import { forEachVersion, pack, root, run, supported } from "../typescript-lines.ts";
+import { forEachVersion, pack, supported } from "../typescript-lines.ts";
 
 const project = "scripts/ts-compatibility/tsconfig.json";
 
@@ -8,7 +8,7 @@ const failed: string[] = [];
 
 await forEachVersion(await supported(), async (tsc, version) => {
   try {
-    await run(tsc, ["-p", project], { cwd: root });
+    await tsc(["-p", project]);
     console.log(`  typescript@${version}  pass`);
   } catch (error) {
     failed.push(version);
