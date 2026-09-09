@@ -2752,6 +2752,33 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 
 足さなかったものと理由。`no-useless-concat`（100 桁に収める意図的な分割）、`no-array-sort`（`filter().sort()` は既に新しい配列で、`toSorted` は 2 度コピーする）、`consistent-function-scoping`、`no-undefined` / `no-non-null-assertion` / `no-async-await`（このコードベースの選択そのもの）、`prefer-readonly-parameter-types`（174 件）、`no-shadow`（2 件のうち 1 件はテストの命名慣習）。
 
+#### 重大度: 壊れているか、何もしていないか、2026-09-09
+
+`configs.recommended` は全部 error だった。**「Valof を壊すか」で分ける。**
+
+| 規則                 |       | 理由                                                                                      |
+| -------------------- | ----- | ----------------------------------------------------------------------------------------- |
+| `structural-equals`  | error | equals が実行時に間違った答えを返す                                                       |
+| `duplicate-brand`    | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
+| `brand-mismatch`     | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
+| `incomplete-disable` | error | 下記                                                                                      |
+| `unused-member`      | warn  | 死んだコード。周りは動く                                                                  |
+| `unused-disable`     | warn  | 何も黙らせていない指示。コードは変わらない                                                |
+
+重大度は `Rule.warns` として規則の隣に置いた。規則を足す人が決めずに済ませられない。CLI は読まない（finding は 1 種類しかなく、1 件でも exit 1）。
+
+**`incomplete-disable` が error なのは `-next-line` の形のためである。** 3 つの形を 1 規則で見ており、挙動は同じではない。
+
+```
+-next-line + 規則名なし    その行の全種類を黙らせる。後から足した規則も含む
+-whole-file + 規則名なし   何も黙らせない
+valof-lint-disable         何も黙らせない
+```
+
+後ろ 2 つは自己申告的で、隠したかった finding がそのまま出るので書いた本人が気づく。危ないのは最初の 1 つだけだが、規則を割らない限り重大度は 1 つなので危ないほうに合わせる。
+
+（`-next-line` が全種類を黙らせるのは設計どおり。何も黙らせないと、押さえていたはずの finding が出て指示の意味が消えるため。`scan/directives.ts` の `effect`。）
+
 #### エディタで確かめた、2026-09-09
 
 `~/tmp/valof-editor-check` に oxlint 版と ESLint 版を 1 つずつ作った。どちらも **tarball から `valof` を入れた利用者と同じ形**にしてある。リポジトリの中に置くと root の `oxlint.config.ts` の `ignorePatterns` とネストした設定が絡んで、見え方が本物と変わる。

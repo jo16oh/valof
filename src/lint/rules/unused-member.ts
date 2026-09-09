@@ -17,6 +17,8 @@ export type UnusedMember = Where & {
 export const UnusedMember: Rule<UnusedMember> = {
   kind: "unused-member",
   description: "functions and constants registered with `.impl({…})` that nothing reads",
+  // A member nothing reads is dead weight, and the code around it works.
+  warns: true,
   run: findings,
 };
 
