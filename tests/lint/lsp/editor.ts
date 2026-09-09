@@ -16,6 +16,8 @@ const bin = (name: string): string =>
 export type Host = {
   command: string;
   args: string[];
+  /** Added to the environment the server is started in. */
+  env?: Record<string, string>;
   /** The answer to `workspace/configuration`, which is how each server is handed its config. */
   settings: object;
 };
@@ -50,6 +52,9 @@ const eslintSettings = {
 export const oxlint: Host = {
   command: bin("oxlint"),
   args: ["--lsp"],
+  // One thread, for the reason `tests/lint/hosts` gives. `--threads` reaches the run and not the
+  // server, so the pool is capped where oxlint takes it from: rayon's own variable.
+  env: { RAYON_NUM_THREADS: "1" },
   settings: { configPath: "oxlint.json" },
 };
 
@@ -91,7 +96,11 @@ export type Editor = {
  * and a pull settles where a push leaves the test guessing how many are still coming.
  */
 export async function start(host: Host): Promise<Editor> {
-  const child = spawn(host.command, host.args, { cwd: root, stdio: ["pipe", "pipe", "ignore"] });
+  const child = spawn(host.command, host.args, {
+    cwd: root,
+    stdio: ["pipe", "pipe", "ignore"],
+    env: { ...process.env, ...host.env },
+  });
 
   let buffer = Buffer.alloc(0);
   let id = 0;
