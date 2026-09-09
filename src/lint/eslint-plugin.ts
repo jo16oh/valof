@@ -110,23 +110,28 @@ const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)])) as R
  * One run per file, however many of the rules are on.
  *
  * The host creates every rule for a file before it walks it, so the six `Program` handlers run
- * back to back over the same text. One entry is enough to cover that; the next file replaces it.
+ * back to back over the same text, and `ask` blocks the thread: nothing runs in between. One
+ * entry covers that.
+ *
+ * It is dropped as soon as the stack empties, and not kept for the next pass, because the key
+ * says nothing about the rest of the project: a file saved in another editor tab changes what
+ * this file's findings are while its own text stands still.
  */
 let last: { key: string; findings: readonly Finding[] } | undefined;
 function found(file: string, text: string, settings: Context["settings"]): readonly Finding[] {
   const project = read(settings?.valof?.project ?? "src/**/*.ts");
   const key = `${file}\n${text}\n${project.join("\n")}`;
-  if (last?.key !== key)
-    last = {
-      key,
-      findings: ask({
-        files: project.includes(file) ? project : [...project, file],
-        project,
-        file,
-        text,
-      }),
-    };
-  return last.findings;
+  if (last?.key === key) return last.findings;
+
+  const findings = ask({
+    files: project.includes(file) ? project : [...project, file],
+    project,
+    file,
+    text,
+  });
+  last = { key, findings };
+  queueMicrotask(() => (last = undefined));
+  return findings;
 }
 
 export default {
