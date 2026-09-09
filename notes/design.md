@@ -112,6 +112,20 @@ from external module ".../valof/dist/index" but cannot be named.
 
 代償として文字列キーは `keyof Val<...>` に現れる。ペイロードのキーだけが欲しい場面では `PayloadOf<V>` / `SeedOf<V>` を使う（`patch` / `update` は元からこちらを経由する）。
 
+#### `declaration: true` はどの境界で要るか
+
+README Caveats の「ライブラリを作るな」とは別の話。あちらは companion がツリーシェイクされずバンドルが膨らむという**実行時**の理由で、valof の companion 機構ごと外部配布パッケージの実装に使うことを止めている。ここでの境界は **Val 型が `.d.ts` を吐くコンパイル単位を跨ぐか**で決まり、npm 公開の有無と無関係。monorepo 内のパッケージ間 import でも起こる（README の `billing/Id` の例がまさにそれ）。
+
+跨がなければ起きない。全パッケージをソースごと 1 つの TS プログラムとして見る構成や、`tsc --noEmit` で型検査だけしてバンドラが transpile する構成は `.d.ts` を書き出さないので、TS4023 も出ない。
+
+分岐点は TS Project References（`composite: true`）を使うかどうか。`composite: true` は `declaration: true` を要求する。tsc が強制する（確認済み）。
+
+```
+tsconfig.json: error TS6304: Composite projects may not disable declaration emit.
+```
+
+Project References は monorepo の incremental build を速くする TS 公式の推奨パターンで、パッケージ数が増えるほど採る動機が強い。「monorepo だから安全」ではなく、**そのmonorepoがパッケージ単位で型を配っているか**が分岐点。
+
 #### 却下: 値の型を非シリアライズ可能にする、2026-09-09
 
 `unique symbol` の却下を見て「キーは文字列のまま、**値の型**を関数にすれば境界で落ちるのでは」と再訪
