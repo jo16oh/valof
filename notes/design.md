@@ -1762,8 +1762,14 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`rules/equals/index.ts` の「最初が勝つ」
 - [ ] fixture を型検査するか（§14.10）。`rules/structural-equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので 0 error。他は除外のまま
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
-- [ ] valof-lint の規則: trait を名乗る Val に `implTrait` を呼ぶ companion がない（§15.1）。payload が
-      shape を満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
+- [ ] valof-lint が `Trait` を知らない。`chains.ts` が `Val` の `sealer` / `companion` で決め打ちしている。
+      足すのは 2 種類
+  - [ ] 既存規則を trait の構文に広げる。判断は同じで、認識する形が増えるだけ。`brand-mismatch`
+        （`Trait<"Greetble", …>`）、`duplicate-brand`、`companion-mismatch`、`split-companion`、
+        `aliased-val`、`unused-member`（`final` / `impl` のメンバ）
+  - [ ] 新規 1 本: trait を名乗る Val に `implTrait` を呼ぶ companion がない（§15.1）。payload が shape を
+        満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
+  - `unnamed-of` / `bypassed-companion` は広げない。trait があっても構築の話は変わらない
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
 
