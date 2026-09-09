@@ -32,7 +32,7 @@ import { Val } from "valof";
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
-- **§15 v2 候補** `Val.trait`
+- **§15 v2 候補** `Trait`。2 種のメンバ、交差する trait ブランド、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ
 
 ---
 
@@ -3760,19 +3760,188 @@ type Wrap<T> = T; // 見ない
 この規則が 2 つ目の名前のほうを報告するので、経路としては塞がった。fixture `companion/` がその形で、
 出る finding は `aliased-val` 1 件である。
 
-### 15.1 `Val.trait`
+### 15.1 `Trait`
 
-2026-09-03 に提起。v1 ではなく v2 向け。
+2026-09-03 に提起、2026-09-09 に形が決まった。v1 ではなく v2 向け。
 
-**欠けているもの。** companion の関数は自分の Val に固定されるので、`SuperUser` が `PayloadOf<User>` から作られていても `User.greet(superUser)` は弾かれる。2 つの Val が共有する振る舞いは、構造的な型に対する普通の export 関数にするしかない。それで動くが、valof の中で companion の形の居場所を持たない唯一のものになる。
+**欠けているもの。** 複数の Val が共有する関連関数・フィールドを宣言する手段がない。companion の関数は
+自分の Val に固定されるので、`SuperUser` が `PayloadOf<User>` から作られていても `User.greet(superUser)`
+は弾かれる。共有したければ構造的な型に対する普通の export 関数にするしかなく、valof の中で companion の
+形の居場所を持たない唯一のものになる。TS の構造的部分型に暗黙に従うだけで、何を共有しているかがどこにも
+書かれない。
 
-実測: 第 1 引数を広く注釈すると `.impl` の中でも型チェックは_通る_（`greet(u: Named)` はパラメータの反変性により `(value: User) => unknown` に代入できる）。`User.greet(superUser)` もコンパイルできる。ただしパターンとしては却下した。ある型の companion を通して別の型を操作することになり、文脈型付けも失われる。
+実測: 第 1 引数を広く注釈すると `.impl` の中でも型チェックは_通る_（`greet(u: Named)` はパラメータの
+反変性により `(value: User) => unknown` に代入できる）。`User.greet(superUser)` もコンパイルできる。
+ただしパターンとしては却下した。ある型の companion を通して別の型を操作することになり、文脈型付けも失われる。
 
-**スケッチ。** `Val.trait<Shape>().impl({...})`。第 1 引数に文脈型付けを与え、関数をまとめる名前空間になる。
+#### 形
 
-作る前に決めること:
+```ts
+type Greetable = Trait<
+  "Greetable",
+  { name: string },
+  { toWire: (self: Self, sep: string) => string }
+>;
 
-- `equals` / `patch` / `update` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない。既定を足さない `attach` の変種が要る
-- Shape には `DeepReadonly` を適用する必要がある。さもないと配列フィールドを持つ Val が一致しなくなる
-- 「trait」は型ごとの実装を含意するが、これは構造的制約に対する単一の実装になる。名前がディスパッチを約束してしまう可能性がある
-- 本当の基準は §6.7 のもの。`Sealer` に `.implCreate` がないのは、callable なコンストラクタの隣では `create` が「何も絞らない」から。`Val.trait` も同じ試験を通らなければならず、引数の注釈とグルーピングだけでは API に値する保証にならないかもしれない
+const Greetable = Trait.companion<Greetable>().impl({
+  greet: (g) => `Hi, ${g.name}`,
+});
+
+type User = Val<"User", { id: string; name: string }, Greetable>;
+
+const User = Val.companion<User>().implTrait(Greetable, {
+  toWire: (u, sep) => `${u.id}${sep}${u.name}`,
+});
+```
+
+メンバは 2 種で、どちらに属するかは既定実装の有無で決まる。
+
+- **shape だけから計算できるもの**は trait 側に実装が 1 つあり、trait の名前空間から呼ぶ。上書きできない
+- **Val ごとに実装するもの**は trait が署名だけ持ち、実装は `implTrait` の第 2 引数。呼べるのは
+  `User.toWire(u, ":")` と `dyn` からだけで、trait の名前空間には出ない
+
+同じ名前が両方に出ないので、「trait 経由で呼んだら User の上書きが効かなかった」が構造的に起きない。
+
+#### ブランドは交差できる形にする
+
+```ts
+{ readonly __valof_internal_phantom_trait_brands: { Greetable: true } }
+```
+
+複数の trait は交差で合成でき、`User` を `Greetable` に代入する構造的部分型がそのまま効く。**却下: 配列**
+（`["Greetable"]`）。順序が意味を持ってしまい、交差で合成できない。
+
+#### `Self`
+
+trait のメンバは自分の Val を名指せる必要がある。`Self` を trait を参照する型にすると循環するので、
+**trait を参照しない不透明マーカー**にして、`implTrait` の側で置換する。
+
+```ts
+declare const SelfMark: unique symbol;
+type Self = { readonly [SelfMark]: true };
+
+type SubstArgs<A extends readonly unknown[], S> = {
+  [K in keyof A]: [A[K]] extends [Self] ? S : A[K];
+};
+```
+
+probe で確認（`tsc --ignoreConfig --noEmit --strict`）。
+
+- `(self: Self, n: string) => string` が `(self: User, n: string) => string` に解決される
+- `implTrait` の第 2 引数に文脈型付けが効く。注釈なしで `(u, sep) => ...` の `u` が `User`、`sep` が
+  `string` になり、戻り値を間違えるとその位置でエラーが出る。**署名の書き場所の問題はこれで消える**
+- 引数リストは専用の `SubstArgs` が要る。`{ [K in keyof A]: ... }` を関数型にインラインで書くと
+  TS2370（rest parameter must be of an array type）
+- `AnyVal` は葉として止める。歩くと `Money` のようなネスト Val が交差の潰れた匿名オブジェクトになり、
+  代入互換は保つが型表示が読めなくなる
+
+#### 却下: `Self` を戻り値に置く
+
+Rust の object safety と同じ制限。`Self` を返したくなるのは `seal` / `create` と型ごとのコンストラクタ
+で、それは trait のメンバではない。どうしても欲しいフィールドがあるなら、shape から取り出す共通関数を
+trait に足せばよい。
+
+許すと `dyn` の箱が自分を参照し、型エイリアスの交差では TS2456 になる。interface でメンバを
+`.fns` の下に入れれば通る（`interface Dyn<S, M> { readonly value: S; readonly fns: Bound<M, Dyn<S, M>> }`）
+が、呼び出しが `p.fns.toWire()` になる。`interface Dyn extends Bound<...>` は TS2312 で不可、mapped type
+はメンバが静的に決まらないため。**一段の劣化を払うほどの需要が読めない。**
+
+検査は型で書ける。`HasSelf<R>` が真なら文字列リテラルに落とす形で、`(self: Self) => Self` と
+`(self: Self) => readonly [Self, number]` の両方が捕まる。
+
+#### 却下: WeakMap による動的ディスパッチ
+
+`Greetable.greet(p)` を値から引くために、§4.1 の `owned` を `WeakSet` から
+`WeakMap<object, Companion>` に変える案。**§7.6 で symbol 案を却下したのと同じ壁に、より悪い形で当たる。**
+
+§4.1 が WeakSet を選べたのは「取りこぼしはコピーに縮退するだけで意味論が動かない」から。ディスパッチ表は
+取りこぼすと throw する。落ちる経路が具体的にある。
+
+- `structuredClone` / JSON 往復 / worker 境界 / localStorage（§7.6 の理由 2）
+- レルムまたぎ（デュアルパッケージ）。§4.1 では無害、ここでは致命
+- **deep patch**。触ったパスのノードは作り直される。ネストした Val は親の seal で封をされるので、
+  内側の Val の登録が黙って消える
+- `Val.of`
+
+**却下: `Val.of` の第 2 引数に companion を必須にする。**上の最後の 1 つしか塞がない。`JSON.parse` から
+`Val.of` する経路は書き直せるが、既に Val である値が clone を通った先は書き直しようがない。必須化の
+コストを払って穴が残る。
+
+#### `dyn`
+
+Rust の `Box<dyn Trait>` に当たる。vtable を値の外に置き、呼び出し側が明示的に組む。
+
+```ts
+const party: Dyn<Serializable>[] = [Serializable.dyn(User, u), Serializable.dyn(Admin, a)];
+for (const p of party) p.toWire(":");
+```
+
+`Self` を戻り値で禁じたので箱は平らで済み、レシーバが引数から外れる。
+
+```ts
+type Bound<M, S> = {
+  [K in keyof M]: M[K] extends (self: Self, ...a: infer A) => infer R
+    ? (...a: SubstArgs<A, S>) => R
+    : never;
+};
+```
+
+`toWire: (self: Self, sep: string) => string` が箱の上で `(sep: string) => string` になる。
+
+**型引数は 1 つ。**`p.value` は trait の shape を返し、具体型は落とす。`Dyn<Serializable, User>` を持つと
+`Dyn<Serializable>[]` に混ぜたとき要素が union になる。具体型が要るなら `dyn` を通さず
+`User.toWire(u, ":")` を呼ぶ。
+
+**箱は Val ではない。**`equals` も `patch` も持たない。`Checked` が関数を弾くので payload にも入らない。
+`.value` を残して shape を展開しないのは、展開すると値に見えるため。
+
+#### `dyn` は trait 側に置く
+
+`Trait.dyn(User, u)`。**却下: companion に `User.dyn(u, Serializable)` を生やす。**第 1 引数が Val という
+§6.5 の規則には合うが、`Trait` を使わない人が箱の配線を落とせなくなる。
+
+効かせる条件は 1 つ、**`val.ts` から `trait.ts` への参照を作らないこと**。`implTrait` は箱を作らず記録だけする。
+
+```ts
+// val.ts。trait.ts を import しない
+target.implTrait = (trait, custom) => {
+  const members = { ...trait.members, ...custom };
+  const next = attach(base(), members, ctors); // .impl と同じ経路
+  next[TRAITS] = { ...target[TRAITS], [trait.brand]: members };
+  return next;
+};
+
+// trait.ts。束縛のループはこちらだけにある
+dyn: (companion, value) => {
+  const members = companion[TRAITS][brand];
+  const box = { value };
+  for (const k of Object.keys(members)) box[k] = (...a) => members[k](value, ...a);
+  return box;
+};
+```
+
+- `implTrait` の増分はマージ 1 回と代入 1 回。関数を生やす部分は `attach` の使い回しで、消せないぶんは軽い
+- `TRAITS` キーは自前の小さいモジュールか、ただの文字列リテラル。`trait.ts` で `Symbol()` を作ると
+  参照の向きが逆になる
+- マップのキーはブランド文字列。デュアルパッケージで trait と companion が別コピー由来でも引ける
+- **メンバ名を宣言する段は要らない。** trait の既定 impl のキーと `implTrait` の第 2 引数のキーの和が、
+  ちょうど trait のメンバ集合になる。型がそれを強制する
+
+**クロージャを毎回作るか prototype を 1 つ共有するか。**箱は値ではないので prototype を持たせても §7.2 の
+壁には当たらない（`structuredClone` を通す対象ではない）。ただし `const { toWire } = p` が壊れる。まず
+クロージャで書いて、`dyn` がホットパスに出てから測る。
+
+#### 測り方
+
+`scripts/size.ts` は `const api = "Val"` で `Val` だけを import したグラフを測っている。現行の 1280 B
+予算がそのまま「Trait を使わない人」の予算になる。`Trait` を足したエントリを 2 本目として測り、別予算を
+持たせる。
+
+#### 残りの決めごと
+
+- `implTrait` 忘れの検出は valof-lint に置く。型で出すと `never` 化した戻りが `const User = ...` の代入
+  位置でしかエラーにならず、メッセージが読めない。§14 の chains 解析にそのまま乗る
+- `equals` / `patch` / `update` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない
+- shape には `DeepReadonly` を適用する。さもないと配列フィールドを持つ Val が一致しなくなる
+- payload が shape を満たさない `Val<"User", P, Greetable>` をどう落とすか。`implTrait` 忘れと同じく、
+  型で出すとメッセージが読めない可能性がある
