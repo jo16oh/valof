@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { child, children, isNode, keyName, positions, type Node, type Where } from "../ast.ts";
 import { valAliases, type Alias, type BrandClaim } from "./aliases.ts";
 import { bindings, type Bindings } from "./bindings.ts";
-import { companionSite, fromVal, type CompanionSite } from "./chains.ts";
+import { companionSite, fromVal, valOf, type CompanionSite, type Lift } from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
@@ -11,7 +11,7 @@ import { directives, type Directive } from "./directives.ts";
 export { original } from "./bindings.ts";
 export type { Bindings } from "./bindings.ts";
 export type { Alias, BrandClaim } from "./aliases.ts";
-export type { CompanionSite } from "./chains.ts";
+export type { CompanionSite, Lift } from "./chains.ts";
 export type { Directive, Spelling } from "./directives.ts";
 export { silences } from "./directives.ts";
 
@@ -44,6 +44,8 @@ export type Scan = {
   brands: BrandClaim[];
   /** `Val.sealer<X>()` / `Val.companion<X>()` chains, and what they registered. */
   sites: CompanionSite[];
+  /** `Val.of<X>(…)` calls. */
+  lifts: Lift[];
   /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
   directives: Directive[];
 };
@@ -89,6 +91,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
   const reads = new Map<string, Set<string>>();
   const namespaceReads = new Map<string, Set<string>>();
   const sites: CompanionSite[] = [];
+  const lifts: Lift[] = [];
 
   const visit = (node: Node): void => {
     switch (node.type) {
@@ -144,6 +147,11 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
             });
           }
         }
+        break;
+      }
+      case "CallExpression": {
+        const lift = valOf(node, bound, at);
+        if (lift) lifts.push(lift);
         break;
       }
       case "MemberExpression": {
@@ -219,6 +227,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
     aliases,
     brands,
     sites,
+    lifts,
     directives: directives(parsed.comments, source, at),
   };
 }
