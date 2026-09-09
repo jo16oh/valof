@@ -166,9 +166,15 @@ export async function start(host: Host): Promise<Editor> {
   });
   write({ method: "initialized", params: {} });
 
+  const opened = new Set<string>();
   let version = 0;
   return {
     open: (file, text) => {
+      // Closed first where a test before this one left it open, so the buffer starts from what
+      // this test says rather than from what that one typed.
+      if (opened.has(file))
+        write({ method: "textDocument/didClose", params: { textDocument: { uri: uri(file) } } });
+      opened.add(file);
       write({
         method: "textDocument/didOpen",
         params: {
