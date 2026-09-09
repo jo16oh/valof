@@ -22,6 +22,11 @@ const bin = (name: string): string =>
 // the same finding comes out as one line here and as a framed excerpt there.
 test("oxlint runs the plugin, and puts the finding where the finding says", () => {
   const output = run(bin("oxlint"), [
+    // One thread. Each reserves around 6 GB of address space, and Linux refuses to fork a
+    // process whose mapping runs that far past the machine's memory, so the worker's
+    // `tsc --lsp` never starts: every file comes back as `spawn ENOMEM` instead.
+    "--threads",
+    "1",
     "--format",
     "json",
     "--config",
