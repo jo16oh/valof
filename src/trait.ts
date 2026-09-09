@@ -93,12 +93,13 @@ export type ObjectSafe<M extends Members> = {
  * vtable passed rather than looked up. The concrete Val is gone, which is what lets values of
  * different types share an array.
  *
- * The trait's fields read straight off it, so a box goes anywhere the shape does.
+ * The trait's fields read straight off it, so a box goes anywhere the trait does: a function
+ * taking `Greetable` accepts one.
  *
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and `Checked` keeps it out of a payload.
  */
-export type Dyn<Tr extends AnyTrait> = ShapeOf<Tr> & Bound<MembersOf<Tr>, ShapeOf<Tr>>;
+export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
 
 /**
  * Where a companion records what it implemented. Read by {@link TraitCompanion.dyn}.
@@ -109,35 +110,44 @@ export type Dyn<Tr extends AnyTrait> = ShapeOf<Tr> & Bound<MembersOf<Tr>, ShapeO
  */
 export type TraitHost = { readonly __valof_traits: Members };
 
-/** What `Trait.companion` returns once `.impl` closed the chain. */
-export type TraitCompanion<Tr extends AnyTrait, D> = D & {
+/**
+ * What `Trait.companion` returns once `.impl` closed the chain.
+ *
+ * The defaults are held, not published: a trait namespace that could call one would look like it
+ * dispatched, and it cannot. Every call goes through the Val's companion or a {@link Dyn}, both
+ * of which reach the Val's own version.
+ */
+export type TraitCompanion<Tr extends AnyTrait, D> = {
+  /** What each Val gets unless `implTrait` replaces it. */
+  readonly defaults: D;
   /** Boxes a value with one Val's implementation. See {@link Dyn}. */
   readonly dyn: (companion: TraitHost, value: ShapeOf<Tr>) => Dyn<Tr>;
 };
 
-/**
- * The shared functions a trait may hold: anything but a name it left to each Val. The two sets
- * stay disjoint, which is what makes a call through the trait unable to skip a Val's own version.
- */
+/** The default implementations a trait may carry: any of its members, over the shape. */
 export type Defaults<Tr extends AnyTrait, D> = {
   readonly [K in keyof D]: K extends keyof MembersOf<Tr>
-    ? "a shared function cannot take the name of a member each Val implements"
-    : (self: ShapeOf<Tr>, ...args: never[]) => unknown;
+    ? Unbound<MembersOf<Tr>, ShapeOf<Tr>>[K]
+    : "a trait's default must implement one of its members";
 };
 
-/** Collects a trait's shared functions. */
+/** What a Val must pass to `implTrait`: the members without a default, and any override. */
+export type Implement<Tr extends AnyTrait, D, V> = Unbound<Omit<MembersOf<Tr>, keyof D>, V> &
+  Partial<Unbound<Pick<MembersOf<Tr>, keyof D & keyof MembersOf<Tr>>, V>>;
+
+/** Collects a trait's default implementations. */
 export type TraitBuilder<Tr extends AnyTrait> = TraitCompanion<Tr, Record<never, never>> & {
   /**
-   * The functions computed from the shape alone. They cannot be overridden, so calling one
-   * through the trait can never skip a Val's own version.
+   * Implements members over the shape alone. A Val takes these unless `implTrait` passes its
+   * own, so declaring one here is what makes that member optional there.
    */
   impl: <D extends Defaults<Tr, D>>(fns: D) => TraitCompanion<Tr, D>;
 };
 
 type AnyFn = (...args: never[]) => unknown;
 
-const make = (fns: Record<string, unknown>): Record<string, unknown> => ({
-  ...fns,
+const make = (defaults: Record<string, unknown>): Record<string, unknown> => ({
+  defaults,
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
   // trait holds.

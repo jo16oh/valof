@@ -25,7 +25,7 @@ type Fixture = (typeof fixtures)[number];
  */
 const budget: Record<Fixture, { instantiations: number; types: number }> = {
   core: { instantiations: 6900, types: 2000 },
-  trait: { instantiations: 6900, types: 2150 },
+  trait: { instantiations: 8200, types: 2500 },
 };
 
 type Counts = { types: number; instantiations: number; check: number; total: number };

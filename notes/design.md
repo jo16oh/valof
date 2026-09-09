@@ -3782,60 +3782,67 @@ type Wrap<T> = T; // 見ない
 type Greetable = Trait<
   "Greetable",
   { name: string },
-  { toWire: (self: Self, sep: string) => string }
+  { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
 >;
 
-const Greetable = Trait.companion<Greetable>().impl({
-  greet: (g) => `Hi, ${g.name}`,
-});
+// 既定実装。書いたメンバは implTrait で省ける
+const Greetable = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
 
 const User = Val.companion<User>().implTrait(Greetable, {
-  toWire: (u, sep) => `${u.id}${sep}${u.name}`,
+  toWire: (u, sep) => `${u.id}${sep}${u.name}`, // 既定がないので必須
+});
+
+const Admin = Val.companion<Admin>().implTrait(Greetable, {
+  toWire: (a, sep) => `admin${sep}${a.name}`,
+  greet: (a) => `Sir ${a.name}`, // 上書き
 });
 ```
 
-メンバは 2 種で、どちらに属するかは既定実装の有無で決まる。
+**メンバは 1 種類。**trait の `.impl` は既定実装を配り、`implTrait` が任意の部分集合を上書きする。既定を
+持つメンバは `implTrait` で省ける。全部が companion に登録されるので、`User.greet(u)` も箱の `p.greet()`
+も常にその Val の実装を呼ぶ。
 
-- **shape だけから計算できるもの**は trait 側に実装が 1 つあり、trait の名前空間から呼ぶ。上書きできない
-- **Val ごとに実装するもの**は trait が署名だけ持ち、実装は `implTrait` の第 2 引数。呼べるのは
-  `User.toWire(u, ":")` と `dyn` からだけで、trait の名前空間には出ない
+**`Greetable.greet` は存在しない。**trait の名前空間から関数を呼べない。
 
-同じ名前が両方に出ないので、「trait 経由で呼んだら User の上書きが効かなかった」が構造的に起きない。
+#### 却下: trait の名前空間に共通関数を置く
 
-**ただし 2 つの集合が交わらないことは型で強制する必要がある。**仮実装ではそこが抜けていて、同じ名前に 3 つの
-答えが出た。
+**上書きできる版が書けない。**当初は「shape だけから計算できるもの」を trait 側に置き、上書き不可にする
+案だった。上書きは他のほとんどの言語で普通にできることで、それを禁じる理由は実装の都合しかない。
+
+許すと `Greetable.greet(u)` が既定を答え、`User.greet(u)` が上書きを答える。trait の名前空間には
+ディスパッチする手段がないためで、これは §7.6 で却下した「親から子の equals」とまったく同じ壁である。
+
+**valof-lint で塞ぐ案も却下。**`Greetable.greet(x)` の `x` が具体的な Val なら型を追えるが、
+`Dyn<Greetable>` だと追えない。具体型を落とすのが `dyn` の仕事なので原理的に追えず、穴が残る。
+
+**失うものは小さい。**上書きされない関数を trait の名前空間に置く理由がない。ただの関数で足りる。
 
 ```ts
-const Clash = Trait.companion<Clash>().impl({ same: (c) => c.n }); // 1
-const Box = Val.companion<Box>()
-  .implTrait(Clash, { same: (b) => b.n * 2 }) // 2
-  .impl({ same: (b) => b.n * 3 }); // 3
-
-Clash.same(b); // 1  trait の既定
-Box.same(b); // 3  .impl が implTrait の上書き
-Clash.dyn(Box, b).same(); // 2  箱は implTrait が記録したもの
+export const shout = (g: Greetable) => g.name.toUpperCase();
 ```
 
-塞ぐ場所は 3 つ。
+型は shape のままで、箱も要らず、機構もゼロ。箱もこの関数に渡せる（`Dyn<Tr>` は `Tr` を含む）。上書きしたく
+なった日に trait のメンバへ引っ越して、そこで初めてディスパッチを得る。**trait の名前空間が足すのは
+「ディスパッチしているように見える呼び方」だけ**で、それが罠そのものだった。
 
-1. trait 側の `.impl` は Val ごとのメンバの名前を取れない
-2. companion 側の `.impl` は `implTrait` が登録した名前を取れない
-3. companion 側の `.impl` は **trait の共通関数の名前も**取れない
+#### 名前の衝突は型で禁じる
 
-3 を落としていた版では、`User.greet(u)` が `"yo alice"`、`Greetable.greet(u)` が `"Hi, alice"`、箱の
-`greet` が `undefined` になった。共通関数は companion に生えないので、`implTrait` が登録した名前だけを
-見ていると素通りする。名前を 2 系統ためる: メンバは型として、共通関数は名前の union として。
+仮実装では検査が抜けていて、同じ名前に 3 つの答えが出た（上の却下案の版）。1 種類に畳んだあとも、
+companion 側の `.impl` が `implTrait` の登録を踏み潰せる穴は残る。
 
-2 と 3 の検査は**制約ではなく引数の型**に置く必要がある。制約に入れると `M & T` が `CompanionFns<V>` を
-満たさなくなり、`equals` が壊れる。
+```ts
+Val.companion<User>()
+  .implTrait(Greetable, { toWire })
+  .impl({ toWire: ... }); // error: a trait already answers to this name
+```
 
-2 つの trait の共通関数どうしが同じ名前を持つのは許す。`A.greet(v)` と `B.greet(v)` は呼び出し側が
-どちらか名指ししていて、曖昧さがない。
+検査は**制約ではなく引数の型**に置く必要がある。制約に入れると `M & T` が `CompanionFns<V>` を満たさなく
+なり、`equals` が壊れる。
 
-**valof-lint に規則は要らない。**「カスタム実装がある型に既定の関数を呼んでいる」を検出する案が出たが、
-その状態を作れなくしたので探すものがない。
+2 つの trait が 1 つの Val に同じ名前のメンバを持ち込むのも禁じる。どちらの実装が登録されたのか、記録が
+平らである以上わからなくなる。
 
 #### ブランドは交差できる形にする
 
@@ -3962,8 +3969,8 @@ dyn: (companion, value) =>
 - **却下: `Map` で trait オブジェクトをキーにする。**名前が交わらないなら、どの trait のものかという
   情報を持つ理由がない。`Map` を外して production gzip が 15 B 減った
 - `implTrait` の増分はオブジェクトの複製 1 回。関数を生やす部分は `attach` の使い回しで、消せないぶんは軽い
-- **箱に既定実装は入れない。**箱が shape そのものとして通るので `Greetable.greet(p)` がそのまま呼べる。
-  記録に入るのは Val ごとのメンバだけ
+- **既定実装も記録に入る。**`implTrait` が `{ ...trait.defaults, ...impl }` を登録するので、箱は上書きと
+  既定を区別しない。Rust の `dyn` と同じく、箱が呼ぶのは常にその Val の実装
 - **箱は proxy。**`User.greet(u)` を `p.greet()` と書けるようにするのが目的なので、呼び出しを companion に
   横流しすれば足りる。関数でないキーは値に横流しするので、**trait の共通フィールドが `p.name` で読める**。
   `.value` は要らなくなり、shape に `value` というフィールドがあったときの衝突も消えた

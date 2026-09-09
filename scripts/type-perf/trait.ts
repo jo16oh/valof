@@ -2,20 +2,19 @@
 // `Self` substitution in `implTrait`, and a `Dyn` box.
 import { Val, Trait, type Dyn, type Self } from "valof";
 
-type Named = Trait<"Named", { name: string }, { label: (self: Self, sep: string) => string }>;
-const Named = Trait.companion<Named>().impl({
-  greet: (n) => `Hi, ${n.name}`,
-  initial: (n) => n.name.slice(0, 1),
-});
+type Named = Trait<
+  "Named",
+  { name: string },
+  { label: (self: Self, sep: string) => string; greet: (self: Self) => string }
+>;
+const Named = Trait.companion<Named>().impl({ greet: (n) => `Hi, ${n.name}` });
 
 type Sized = Trait<
   "Sized",
   { size: { w: number; h: number } },
-  { scaled: (self: Self, by: number) => number }
+  { scaled: (self: Self, by: number) => number; area: (self: Self) => number }
 >;
-const Sized = Trait.companion<Sized>().impl({
-  area: (s) => s.size.w * s.size.h,
-});
+const Sized = Trait.companion<Sized>().impl({ area: (s) => s.size.w * s.size.h });
 
 type Room = Val<
   "Room",
@@ -26,8 +25,8 @@ const Room = Val.companion<Room>()
   .implTrait(Named, { label: (r, sep) => `${r.id}${sep}${r.name}` })
   .implTrait(Sized, { scaled: (r, by) => r.size.w * by })
   .impl({
-    describe(r) {
-      return `${r.name} ${Sized.area(r)}`;
+    describe(r): string {
+      return `${r.name} ${Room.area(r)}`;
     },
   });
 
@@ -46,7 +45,7 @@ declare const room: Room;
 declare const tag: Tag;
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
-export const labels = boxed.map((b) => `${b.label(":")} ${Named.greet(b)}`);
+export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()}`);
 export const point = Point({ name: "o", size: { w: 1, h: 2 } });
 export const direct = [
   Room.label(room, "/"),
