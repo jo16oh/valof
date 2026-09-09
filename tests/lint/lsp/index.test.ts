@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
+import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 import { eslint, oxlint, source, start, type Editor, type Host } from "./editor.ts";
 
@@ -9,11 +9,13 @@ import { eslint, oxlint, source, start, type Editor, type Host } from "./editor.
 const FINDING = "Order.total holds Money, which has its own equals";
 
 function tests(host: Host): void {
+  // One server for the file, not one per test: each start costs a language server of its own,
+  // and a runner with less memory than a laptop answers `spawn ENOMEM`.
   let editor: Editor;
-  beforeEach(async () => {
+  beforeAll(async () => {
     editor = await start(host);
   });
-  afterEach(() => editor.close());
+  afterAll(() => editor.close());
 
   test("reports the file as it sits on disk", async () => {
     expect(await editor.open("src/order.ts")).toEqual([FINDING]);
