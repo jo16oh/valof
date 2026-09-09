@@ -6,7 +6,9 @@ type Greetable = Trait<
   { name: string },
   { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
 >;
-const Greetable = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
+const Greetable = Trait.companion<Greetable>()
+  .shared({ shout: (g) => g.name.toUpperCase() }) // 上書きできない。第 1 引数は注釈なし
+  .impl({ greet: (g) => `Hi, ${g.name}` });
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
 const User = Val.companion<User>().implTrait(Greetable, {
@@ -115,10 +117,21 @@ const shadowing = Val.companion<User>()
   .impl({ greet: (u) => `yo ${u.name}` });
 void shadowing;
 
-// a plain function over the shape needs no box, and takes one all the same
-const shout = (g: Greetable): string => g.name.toUpperCase();
-
-test("a box goes where the trait goes", () => {
+test("a shared function takes a Val and a box alike", () => {
   const u = Val.of<User>({ id: "a", name: "alice" });
-  expect([shout(u), shout(Greetable.dyn(User, u))]).toEqual(["ALICE", "ALICE"]);
+  expect([Greetable.shout(u), Greetable.shout(Greetable.dyn(User, u))]).toEqual(["ALICE", "ALICE"]);
 });
+
+// a shared function may not take a member's name
+const clashing = Trait.companion<Greetable>().shared({
+  // @ts-expect-error a shared function cannot take a member's name
+  greet: (g) => g.name,
+});
+void clashing;
+
+// nor may a companion grow a function over one
+const overShared = Val.companion<User>()
+  .implTrait(Greetable, { toWire: (u, sep) => `${u.id}${sep}` })
+  // @ts-expect-error a trait already answers to this name
+  .impl({ shout: (u) => u.name });
+void overShared;

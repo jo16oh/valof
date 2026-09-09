@@ -409,31 +409,32 @@ type Grown<Taken, M> = M & {
  * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
  * nothing.
  */
-export type Sealer<V extends AnyVal, T extends CompanionFns<V> = Record<never, never>> = Sealed<
-  V,
-  T
-> & {
+export type Sealer<
+  V extends AnyVal,
+  T extends CompanionFns<V> = Record<never, never>,
+  R extends PropertyKey = never,
+> = Sealed<V, T> & {
   /** Collects the functions for the type. */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
     (): Sealed<V, T>;
-    <M extends CompanionFns<V>>(fns: Grown<keyof T, M>): Sealed<V, M & T>;
+    <M extends CompanionFns<V>>(fns: Grown<keyof T | R, M>): Sealed<V, M & T>;
   };
   /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => Sealer<V, T>;
+  implEquals: (spec: EqImpl<V>) => Sealer<V, T, R>;
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
-  implTrait: <Tr extends AnyTrait, D>(
+  implTrait: <Tr extends AnyTrait, D, S>(
     trait: V extends ShapeOf<Tr>
       ? [keyof MembersOf<Tr> & keyof T] extends [never]
-        ? TraitCompanion<Tr, D>
+        ? TraitCompanion<Tr, D, S>
         : "another trait already answers to one of these names"
       : "the payload does not hold what this trait requires",
     ...impl: [keyof Omit<MembersOf<Tr>, keyof D>] extends [never]
       ? [impl?: Implement<Tr, D, V>]
       : [impl: Implement<Tr, D, V>]
-  ) => Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
+  ) => Sealer<V, T & Unbound<MembersOf<Tr>, V>, R | keyof S>;
 };
 
 /**
@@ -451,13 +452,14 @@ export type CompanionBuilder<
   F = undefined,
   P = never,
   T extends CompanionFns<V> = Record<never, never>,
+  R extends PropertyKey = never,
 > = Companion<V, T, N, F, P> & {
   /** Collects the functions for the type. Everything the library wires has its own step. */
   impl: {
     (): Companion<V, T, N, F, P>;
     // A trait's member is registered, so `.impl` may not grow one over it: the type would keep
     // the trait's signature while `dyn` kept calling what `implTrait` recorded.
-    <M extends CompanionFns<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
+    <M extends CompanionFns<V>>(fns: Grown<keyof T | R, M>): Companion<V, M & T, N, F, P>;
   };
   /**
    * Implements a trait the type declares. The members the trait leaves open arrive as a second
@@ -466,25 +468,25 @@ export type CompanionBuilder<
    *
    * The shared functions stay on the trait, where nothing can override them.
    */
-  implTrait: <Tr extends AnyTrait, D>(
+  implTrait: <Tr extends AnyTrait, D, S>(
     trait: V extends ShapeOf<Tr>
       ? [keyof MembersOf<Tr> & keyof T] extends [never]
-        ? TraitCompanion<Tr, D>
+        ? TraitCompanion<Tr, D, S>
         : "another trait already answers to one of these names"
       : "the payload does not hold what this trait requires",
     ...impl: [keyof Omit<MembersOf<Tr>, keyof D>] extends [never]
       ? [impl?: Implement<Tr, D, V>]
       : [impl: Implement<Tr, D, V>]
-  ) => CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
+  ) => CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>, R | keyof S>;
   /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P, T>;
+  implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P, T, R>;
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
-  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P, T>;
+  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P, T, R>;
   /**
    * Replaces the seal. Its parameter may be wider than the payload, so a schema library can parse
    * into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
    */
-  implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P, T>;
+  implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P, T, R>;
   /**
    * Takes keys out of the update path: `patch` stops accepting them in its patch, and `update`'s
    * callback returns only what is left, with the rest merged back on.
@@ -502,7 +504,7 @@ export type CompanionBuilder<
    * The keys are a type argument and do not exist at runtime. This constrains the update path,
    * not the value: `Val.of` can still forge one.
    */
-  fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K, T>;
+  fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K, T, R>;
 };
 
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>

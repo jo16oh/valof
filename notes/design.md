@@ -3804,12 +3804,30 @@ const Admin = Val.companion<Admin>().implTrait(Greetable, {
 持つメンバは `implTrait` で省ける。全部が companion に登録されるので、`User.greet(u)` も箱の `p.greet()`
 も常にその Val の実装を呼ぶ。
 
-**`Greetable.greet` は存在しない。**trait の名前空間から関数を呼べない。
+**`Greetable.greet` は存在しない。**上書きされうる関数は名前空間に出ない。出るのは `shared` の関数だけで、
+そちらは上書きできない。
 
-#### 却下: trait の名前空間に共通関数を置く
+#### `shared`: 上書きできない関数だけ名前空間に出す
 
-**上書きできる版が書けない。**当初は「shape だけから計算できるもの」を trait 側に置き、上書き不可にする
-案だった。上書きは他のほとんどの言語で普通にできることで、それを禁じる理由は実装の都合しかない。
+```ts
+const Greetable = Trait.companion<Greetable>()
+  .shared({ shout: (g) => g.name.toUpperCase() }) // 第 1 引数は注釈なしで Greetable
+  .impl({ greet: (g) => `Hi, ${g.name}` });
+
+Greetable.shout(user); // Val も箱も渡せる
+```
+
+**段を分けるのが要点。**`shared` の関数は契約に入らず、どの Val も実装せず、上書きもできない。だから
+`Greetable.shout(u)` が誰かと食い違うことがない。メンバの名前は取れない（型で禁じる）。
+
+買えるものは 2 つ。**第 1 引数の文脈型付け**（§6.5 と同じ理由。ただの関数だと `(g: Greetable)` と書く）と、
+**名前空間としてのまとまり**。払うのは `Trait` 側だけで gzip 24 B、宣言 975 B。`Val` だけを import する人は
+0 B。
+
+#### 却下: 上書きできる関数を名前空間に置く
+
+当初の案は「shape だけから計算できるもの」を trait 側に置き、上書き不可にするものだった。上書きは他の
+ほとんどの言語で普通にでき、禁じる理由は実装の都合しかない。
 
 許すと `Greetable.greet(u)` が既定を答え、`User.greet(u)` が上書きを答える。trait の名前空間には
 ディスパッチする手段がないためで、これは §7.6 で却下した「親から子の equals」とまったく同じ壁である。
@@ -3817,15 +3835,8 @@ const Admin = Val.companion<Admin>().implTrait(Greetable, {
 **valof-lint で塞ぐ案も却下。**`Greetable.greet(x)` の `x` が具体的な Val なら型を追えるが、
 `Dyn<Greetable>` だと追えない。具体型を落とすのが `dyn` の仕事なので原理的に追えず、穴が残る。
 
-**失うものは小さい。**上書きされない関数を trait の名前空間に置く理由がない。ただの関数で足りる。
-
-```ts
-export const shout = (g: Greetable) => g.name.toUpperCase();
-```
-
-型は shape のままで、箱も要らず、機構もゼロ。箱もこの関数に渡せる（`Dyn<Tr>` は `Tr` を含む）。上書きしたく
-なった日に trait のメンバへ引っ越して、そこで初めてディスパッチを得る。**trait の名前空間が足すのは
-「ディスパッチしているように見える呼び方」だけ**で、それが罠そのものだった。
+上書きされうるものは `impl` に置いて companion 経由で呼ぶ。上書きされないものは `shared` に置く。**名前空間
+に出るかどうかが、上書きできるかどうかと一致する。**
 
 #### 名前の衝突は型で禁じる
 

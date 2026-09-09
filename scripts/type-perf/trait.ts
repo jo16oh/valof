@@ -7,7 +7,9 @@ type Named = Trait<
   { name: string },
   { label: (self: Self, sep: string) => string; greet: (self: Self) => string }
 >;
-const Named = Trait.companion<Named>().impl({ greet: (n) => `Hi, ${n.name}` });
+const Named = Trait.companion<Named>()
+  .shared({ shout: (n) => n.name.toUpperCase() })
+  .impl({ greet: (n) => `Hi, ${n.name}` });
 
 type Sized = Trait<
   "Sized",
@@ -45,7 +47,7 @@ declare const room: Room;
 declare const tag: Tag;
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
-export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()}`);
+export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()} ${Named.shout(b)}`);
 export const point = Point({ name: "o", size: { w: 1, h: 2 } });
 export const direct = [
   Room.label(room, "/"),
