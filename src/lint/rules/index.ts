@@ -1,5 +1,6 @@
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
+import { AliasedVal } from "./aliased-val.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
@@ -20,6 +21,7 @@ export const RULES = [
   UnusedMember,
   DuplicateBrand,
   BrandMismatch,
+  AliasedVal,
   CompanionMismatch,
   SplitCompanion,
   BypassedCompanion,

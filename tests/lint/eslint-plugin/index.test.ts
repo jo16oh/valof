@@ -80,6 +80,7 @@ test("covers the name it points at, and the line where there is no name", () => 
 test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
   expect(plugin.configs.recommended.rules).toEqual({
+    "valof/aliased-val": "error",
     "valof/brand-mismatch": "error",
     // The value it makes is well formed; what it went around is the type's own way in.
     "valof/bypassed-companion": "warn",

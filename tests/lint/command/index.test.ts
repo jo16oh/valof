@@ -40,6 +40,7 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
     "  unused-member       functions and constants registered with `.impl({…})` that nothing reads\n" +
       "  duplicate-brand     a brand string claimed by more than one type alias\n" +
       "  brand-mismatch      a brand whose last segment is not the name of the type it brands\n" +
+      "  aliased-val         a type alias that is a second name for a Val\n" +
       "  companion-mismatch  a companion bound to a name other than the type it is for\n" +
       "  split-companion     a companion for a type that another file declares\n" +
       "  bypassed-companion  a `Val.of` for a type whose companion is how it is built\n" +

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { child, children, isNode, keyName, positions, type Node, type Where } from "../ast.ts";
-import { valAliases, type Alias, type BrandClaim } from "./aliases.ts";
+import { valAliases, type Alias, type BrandClaim, type ReAlias } from "./aliases.ts";
 import { bindings, type Bindings } from "./bindings.ts";
 import { companionSite, fromVal, valOf, type CompanionSite, type Lift } from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
@@ -10,7 +10,7 @@ import { directives, type Directive } from "./directives.ts";
 // it into the walk that produced them.
 export { original } from "./bindings.ts";
 export type { Bindings } from "./bindings.ts";
-export type { Alias, BrandClaim } from "./aliases.ts";
+export type { Alias, BrandClaim, ReAlias } from "./aliases.ts";
 export type { CompanionSite, Lift } from "./chains.ts";
 export type { Directive, Spelling } from "./directives.ts";
 export { silences } from "./directives.ts";
@@ -42,6 +42,8 @@ export type Scan = {
   aliases: Alias[];
   /** The brand each of those claims, where it spelled one as a literal. */
   brands: BrandClaim[];
+  /** Top-level `type A = B`, which gives `B` a second name. */
+  reAliases: ReAlias[];
   /** `Val.sealer<X>()` / `Val.companion<X>()` chains, and what they registered. */
   sites: CompanionSite[];
   /** `Val.of<X>(…)` calls. */
@@ -215,7 +217,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
   visit(program);
 
   // After the walk, which is what collected the imports `Val` is resolved against.
-  const { aliases, brands } = valAliases(program, file, bound, at);
+  const { aliases, brands, reAliases } = valAliases(program, file, bound, at);
 
   return {
     file,
@@ -226,6 +228,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
     exportedAs,
     aliases,
     brands,
+    reAliases,
     sites,
     lifts,
     directives: directives(parsed.comments, source, at),

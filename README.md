@@ -512,6 +512,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `unused-member`      | a function registered with `.impl({…})` that nothing reads                |
 | `duplicate-brand`    | a brand string claimed by more than one top-level alias                   |
 | `brand-mismatch`     | a brand whose last segment is not the name of the type it brands          |
+| `aliased-val`        | a type alias that is a second name for a Val                              |
 | `companion-mismatch` | a companion bound to a name other than the type it is for                 |
 | `split-companion`    | a companion for a type that another file declares                         |
 | `bypassed-companion` | a `Val.of` for a type whose companion is how it is built                  |
