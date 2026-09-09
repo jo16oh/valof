@@ -3499,6 +3499,18 @@ Server Function、同一アプリのプロセス間 JSON-RPC、Electron の chro
 コメントの `--` 以降にその経路を書けば、なぜ無検査でよいかがコードに残る。warn なのはこのため。値自体は
 正しく、迂回したのは型の入口である。
 
+#### seal なし companion はうるさくならない、2026-09-09 検討
+
+「seal が無い型は `Val.of` でしか作れないのだから、C は毎回警告するのでは」を確かめた。**ならない。**
+
+- **`patch` / `update` は seal 無しでも動く。**既定の seal（brand + copy）を通るので、値は普通に派生できる
+  （`val.ts` の `Derive`）。`equals` も同じ
+- **`implCreate` だけ登録した companion は `X.create(…)` が入口**になる。`Val.of` は要らないので警告も出ない
+
+残るのは「seal も create も無く、値が境界から来る型」だけで、そこは disable コメントに経路を書く場所
+そのものである（§8.3）。**seal なし companion を宣言側で禁じる規則は入れない。**§6.5 の 3 つの却下理由は
+そのまま生きている。
+
 #### 突き合わせは名前で、resolver は使わない
 
 `unused-member` の read の解決と同じ。型引数を宣言側の名前に直して（renamed import は `original`、
@@ -3529,6 +3541,11 @@ const c = Val.of({ id: "x" }); // TS2345 parameter of type 'never'
 `of: <V extends AnyVal>(value: SeedOf<V>) => V` で、`SeedOf<V>` は推論できない位置にある。`V` は文脈から
 しか決まらないので、文脈が無ければ引数が `never` になって落ちる。規則が発火するのは、既に型が決まって
 いる形だけである。
+
+#### 届かない形: `const { of } = Val`
+
+分割代入した `of` は追わない。§14.21 の `const { greet } = …` と同じ扱いで、名前解決が追えない形として
+以前から対象外である（§14.1）。
 
 #### 位置は `of` の上
 
