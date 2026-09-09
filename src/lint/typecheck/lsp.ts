@@ -65,19 +65,20 @@ export function overLsp(bin: string, root: string): Resolver {
       ) as LspMessage;
       buffer = buffer.subarray(head + 4 + length);
       if (message.id === undefined) continue;
-      const waiting = pending.get(message.id);
-      if (waiting) {
-        pending.delete(message.id);
-        waiting(message.result);
-        continue;
-      }
       // A request from the server, `client/registerCapability` among them. Leaving one
-      // unanswered deadlocks it.
+      // unanswered deadlocks it. Told apart by its method rather than by its id: each side
+      // numbers its own requests, so the two run into each other.
       if (message.method !== undefined) {
         write({
           id: message.id,
           result: message.method === "workspace/configuration" ? [{}] : null,
         });
+        continue;
+      }
+      const waiting = pending.get(message.id);
+      if (waiting) {
+        pending.delete(message.id);
+        waiting(message.result);
       }
     }
   });
