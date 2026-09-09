@@ -14,7 +14,7 @@ import { Val } from "valof";
 節ごとに独立して読める。必要な節だけ開く。
 
 - **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠
-- **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由、2.2 `Val.of` は逃げ道ではない
+- **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
 - **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。3.5 `undefined` を値として禁じる理由と、EOPT の壁
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが引数をコピーする理由。所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
@@ -26,7 +26,7 @@ import { Val } from "valof";
   - **6.7** seal（冪等）と create（鋳造）の分離 / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
-- **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド
+- **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
@@ -111,6 +111,93 @@ from external module ".../valof/dist/index" but cannot be named.
 ブランドはどのみち実行時に存在しないので、衝突耐性は symbol であること自体ではなく**名前の長さ**で買える。`__valof_internal_phantom_` 接頭辞を実際のプロパティ名に使う者はいない。`phantom` を名前に入れているのは、ホバーやエラーメッセージでこのキーに出くわした人が実行時に探しに行かないようにするため。
 
 代償として文字列キーは `keyof Val<...>` に現れる。ペイロードのキーだけが欲しい場面では `PayloadOf<V>` / `SeedOf<V>` を使う（`patch` / `update` は元からこちらを経由する）。
+
+#### `declaration: true` はどの境界で要るか
+
+README Caveats の「ライブラリを作るな」とは別の話。あちらは companion がツリーシェイクされずバンドルが膨らむという**実行時**の理由で、valof の companion 機構ごと外部配布パッケージの実装に使うことを止めている。ここでの境界は **Val 型が `.d.ts` を吐くコンパイル単位を跨ぐか**で決まり、npm 公開の有無と無関係。monorepo 内のパッケージ間 import でも起こる（README の `billing/Id` の例がまさにそれ）。
+
+跨がなければ起きない。全パッケージをソースごと 1 つの TS プログラムとして見る構成や、`tsc --noEmit` で型検査だけしてバンドラが transpile する構成は `.d.ts` を書き出さないので、TS4023 も出ない。
+
+分岐点は TS Project References（`composite: true`）を使うかどうか。`composite: true` は `declaration: true` を要求する。tsc が強制する（確認済み）。
+
+```
+tsconfig.json: error TS6304: Composite projects may not disable declaration emit.
+```
+
+Project References は monorepo の incremental build を速くする TS 公式の推奨パターンで、パッケージ数が増えるほど採る動機が強い。「monorepo だから安全」ではなく、**そのmonorepoがパッケージ単位で型を配っているか**が分岐点。
+
+#### 却下: 値の型を非シリアライズ可能にする、2026-09-09
+
+`unique symbol` の却下を見て「キーは文字列のまま、**値の型**を関数にすれば境界で落ちるのでは」と再訪
+した。動く。`declare` が要らないので §2 の宣言出力の壁も踏まない。
+
+```ts
+// superjson / tRPC 風に、関数値のプロパティを落とす境界の型変換をかけたとき
+{ readonly __brand: "User" }              // 変換後も残る。境界を越えた値がそのまま代入できる
+{ readonly __brand: (k: "User") => void } // 落ちる。代入が TS2322 になる
+```
+
+**それでも採らない。効く境界が狭く、費用は全員が払う。**
+
+| 境界                      | 型で気づけるか                  | 実行時に気づけるか |
+| ------------------------- | ------------------------------- | ------------------ |
+| `JSON.parse` を素で受ける | `any` / `as` が要るので気づける | いいえ             |
+| tRPC / superjson          | 関数型なら気づける              | いいえ             |
+| Hono `hc`                 | **いいえ。関数型でも無理**      | いいえ             |
+| `atomWithStorage<User>`   | いいえ                          | いいえ             |
+| RSC props                 | いいえ                          | いいえ             |
+
+型変換をかけるライブラリにしか効かない。**RSC の props は型側に変換が入らない**（宣言した props 型が
+そのまま流れる）ので効かず、実行時の flight シリアライザも、実行時に存在しないブランドを見つけられない。
+実行時の列はブランドがファントムであることからの帰結で、RSC の実物では未計測。
+
+**しかも「変換をかける」だけでは足りない。** hono 4.13.7 の `hc` で実測すると、文字列ブランドはそのまま
+生き残り、関数型ブランドは**キーが残って値が `never` になる**。`never` は何にでも代入できるので、関数型に
+しても代入が通る。効くのは「キーごと落とす」変換に限られる。型付きクライアントを生成する経路は、むしろ
+最も素通りしやすい。
+
+valof-lint も届かない。oxc の構文解析だけで型情報を持たない（§14.5）ので、生成クライアントの戻り型が Val
+かどうかは見えない。
+
+**打つ手は呼び出し側ではなくサーバの戻り型にある。** ハンドラの応答を `PayloadOf<V>` で宣言すれば、生成
+クライアントにブランドが入らず、受け取った側は seal を通さないと使えない。Val は payload とブランドの交差
+型なので、payload 型の変数に代入するだけで落ちる。`as` も要らず、同じオブジェクトのままでコピーもしない。
+
+```ts
+const body: PayloadOf<User> = user; // 型だけ落ちる
+return c.json(body);
+```
+
+hono 4.13.7 で実測。Val をそのまま返すと受け側の `const a: User = leaked` が素通りし、`PayloadOf<User>` で
+返すと TS2322 になる。**フレームワークの型変換に依存しない**ので、Hono の `never` 潰しも tRPC がキーを落と
+すかも RSC が変換を挟まないことも関係なくなる。README §Crossing a serialization boundary に書いた。
+
+`Val.unwrap` ではないのがポイント。あれは `readonly` も外して可変コピーを返す。API に渡すのに可変性は要ら
+ない。求めていたのは「コピーしない型だけの unwrap」で、それは `PayloadOf` として既にある。
+
+残る穴は、サーバ側で注釈を書き忘れれば漏れること。ただし規律が「全フレームワークの全呼び出し側」から
+「エンドポイントごとに 1 行」に縮み、しかも書く場所が seal の定義されている側になる。
+
+費用のほう。
+
+- ホバーとエラーが `"User"` から `(k: "User") => void` になる。キー名に `phantom` を入れた意図（実行時に
+  探しに行かせない）と逆を向く
+- §8.1 の `Object.entries` に混ざるファントムキーの union に関数型が出る。「Val に関数は入れられない」と
+  言っている型のすぐ隣で
+- `BrandOf` が `infer` 経由になる
+
+得るものが確率的で、払うものが確定的。symbol のときと同じ向きに天秤が倒れる。
+
+**軸は信頼ではなくバージョンである。** `seal` が保証するのは「この値は今のこのコードの検査を通った」で
+あって「悪意ある入力ではない」ではない。「サーバは信頼、クライアントは不信」では切れない。RSC が免除
+されるのはサーバ由来だからではなく、同じデプロイの同じコードが直前に seal したから。別デプロイの API
+サーバは敵ではないが、リリース周期が違うぶん localStorage と同じ側に立つ。逆に `seal` はセキュリティ境界
+でもない。中に書いた検査の強さしかなく、`__proto__` と深さの上限は通し直しても消えない。
+
+**そのうえで、境界で `seal` を通し直す動機は境界によって違う。** RSC やサーバからの応答は上流で seal 済みで、
+ペイロードは JSON 往復で保たれるから、通し直しても戻るのは所有権（§4.1、次の `patch` が最上位ノードを
+コピーし直さずに済む）だけで、不変条件の再検査は実質空振りになる。localStorage や別バージョンが書いた
+永続データは違う。書いた側が今の seal を知らないので、そこは本当に未検査で入ってくる。
 
 ### 型名の規約
 
@@ -1616,6 +1703,37 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 `update` も塞ぐ必要があるのは、コールバックがペイロード全体を返す経路だから。`patch` の patch だけ絞っても `id` は届く。
 
 **それでもこれは private ではない。** `user.id` は読めるし、`readonly` は実行時に消えるし、`Val.of<User>({ id: "forged", … })` で偽造できる。得られるのは「通常の更新経路が `id` を動かせない」だけ。偽造も防ぎたいなら `id` は値の外に持つ。
+
+### 8.5 フレームワークの状態コンテナ、2026-09-09 実測
+
+**結論: React / Solid は素の値をそのまま置ける。Svelte / Vue は浅いコンテナ（`$state.raw` /
+`shallowRef`）を要求する。** README §Framework state に表で載せた。
+
+危険なのは deep proxy そのものではなく、**dev で再現しないこと**。dev freeze（§7.1）が挙動を変えてしまう。
+
+実測: svelte 5.57.0 / vue 3.5.42 / solid-js 1.9.15（`dist/index.mjs` を `NODE_ENV` 両方で）。
+
+|                                | dev（freeze あり）                      | production（freeze なし）        |
+| ------------------------------ | --------------------------------------- | -------------------------------- |
+| Vue `ref(v)`                   | **proxy しない**。`ref.value === v`     | deep proxy。`ref.value !== v`    |
+| Vue `ref` 経由の書き込み       | `TypeError`                             | 通る。**元の値が書き換わる**     |
+| Svelte `$state`                | 最上位のみ proxy、frozen な子はスキップ | 全ノード proxy                   |
+| Svelte `$state` 経由の書き込み | `TypeError`（proxy invariant）          | 通る。元の値は無傷               |
+| Solid `createSignal`           | 値そのまま                              | 値そのまま                       |
+| Solid `createStore` の子       | proxy                                   | proxy                            |
+| Solid `setStore` / `produce`   | **例外なし**、元の値は無傷              | **例外なし**。元の値が書き換わる |
+
+- Vue が frozen なオブジェクトを reactive 化しないため、`ref` が dev では `shallowRef` と同じに見える。
+  テストも開発も通り、production ビルドで初めて deep proxy になる
+- Solid の store はどちらのビルドでも投げない。3 つの中で一番静かに壊れる。`produce` は dev freeze で
+  落ちる、という当初の見立ては誤り
+- `$state` から取り出した値を `patch` に戻すと、production では構造共有が落ちる（proxy が valof の
+  所有ノードでない別オブジェクトを返すので、コピーし直す）。dev では frozen な子がスキップされるぶん
+  識別子が残り、ここでも dev と production が食い違う
+
+**計測時の罠。** Node は `solid-js` の `node` 条件を引くので、素で import すると非リアクティブな SSR
+ビルドを測ってしまう（proxy されず、書き込みも素通りする）。`node --conditions=browser` が要る。
+`--conditions=development` は Solid のビルド選択で、valof の freeze を決める `NODE_ENV` とは別軸。
 
 ---
 
