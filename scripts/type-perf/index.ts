@@ -59,6 +59,16 @@ async function measure(tsc: string, name: string): Promise<Counts> {
 const num = (value: number): string => value.toLocaleString("en-US");
 const secs = (value: number): string => `${value.toFixed(3)}s`;
 
+/** Right-aligned columns under a header, so the units are named once. */
+function table(heads: string[], rows: string[][]): string {
+  const widths = heads.map((head, index) =>
+    Math.max(head.length, ...rows.map((row) => row[index]!.length)),
+  );
+  const line = (cells: string[]): string =>
+    `  ${cells.map((cell, index) => (index === 0 ? cell.padEnd(widths[0]!) : cell.padStart(widths[index]!))).join("  ")}`;
+  return [line(heads), ...rows.map(line)].join("\n");
+}
+
 await pack();
 
 let measured = {} as Record<Fixture, Counts>;
@@ -93,24 +103,41 @@ await forEachVersion([floor], async (tsc, version) => {
 
   if (json) return;
 
-  console.log(`typescript@${version}, over a baseline of ${num(baseline.types)} types`);
-  for (const name of fixtures) {
-    const it = measured[name];
-    console.log(
-      `  ${name.padEnd(6)}  ${num(it.instantiations).padStart(9)} instantiations  ${num(it.types).padStart(7)} types  ${secs(it.check)} check  ${secs(it.total)} total`,
-    );
-  }
+  console.log(`typescript@${version}, over a baseline of ${num(baseline.types)} types\n`);
+  console.log(
+    table(
+      ["", "instantiations", "types", "check", "total"],
+      fixtures.map((name) => [
+        name,
+        num(measured[name].instantiations),
+        num(measured[name].types),
+        secs(measured[name].check),
+        secs(measured[name].total),
+      ]),
+    ),
+  );
 });
 
 if (json) console.log(JSON.stringify(measured, null, 2));
 
-const over = fixtures.flatMap((name) =>
-  (["instantiations", "types"] as const)
-    .filter((key) => measured[name][key] > budget[name][key])
-    .map((key) => `${name} ${key}: ${num(measured[name][key])} over ${num(budget[name][key])}`),
+const checks = fixtures.flatMap((name) =>
+  (["instantiations", "types"] as const).map(
+    (key) => [`${name} ${key}`, measured[name][key], budget[name][key]] as const,
+  ),
 );
 
-if (over.length > 0) {
-  console.error(over.join("\n"));
-  process.exit(1);
+if (!json) {
+  const left = ([, size, max]: (typeof checks)[number]): string =>
+    size > max
+      ? `${num(size - max)} over`
+      : `${num(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
+  console.log("\nbudget");
+  console.log(
+    table(
+      ["", "used / budget", ""],
+      checks.map((check) => [check[0], `${num(check[1])} / ${num(check[2])}`, left(check)]),
+    ),
+  );
 }
+
+if (checks.some(([, size, max]) => size > max)) process.exit(1);
