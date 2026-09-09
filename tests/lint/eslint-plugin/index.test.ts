@@ -9,6 +9,8 @@ import { kinds } from "../../../src/lint/index.ts";
 // The host is not a dependency, so the rules are called the way ESLint and oxlint both call them.
 // That the two really do call them this way is checked by hand, not here.
 
+type Where = { line: number; column: number };
+
 const at = (name: string): string => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
 const project = at("*.ts");
 
@@ -16,8 +18,8 @@ const context = (name: string, text?: string, reports: string[] = []) => ({
   filename: at(name),
   settings: { valof: { project } },
   sourceCode: { text: text ?? readFileSync(at(name), "utf8") },
-  report: ({ loc, message }: { loc: { line: number; column: number }; message: string }) =>
-    void reports.push(`${loc.line}:${loc.column}  ${message}`),
+  report: ({ loc, message }: { loc: { start: Where; end: Where }; message: string }) =>
+    void reports.push(`${loc.start.line}:${loc.start.column}-${loc.end.column}  ${message}`),
 });
 
 /** Every rule over one file, as a host runs them. */
@@ -29,7 +31,7 @@ const run = (name: string, text?: string): string[] => {
 };
 
 test("reports on the file it was called for, having read the whole project", () => {
-  expect(run("order.ts")).toEqual(["6:21  Order.total holds Money, which has its own equals"]);
+  expect(run("order.ts")).toEqual(["6:21-24  Order.total holds Money, which has its own equals"]);
 });
 
 test("says nothing about a file that holds no finding of its own", () => {
@@ -51,7 +53,16 @@ test("carries one kind each, so a project turns a rule off by leaving it out", (
   plugin.rules["unused-member"].create(one).Program();
   expect(reports).toEqual([]);
   plugin.rules["structural-equals"].create(one).Program();
-  expect(reports).toEqual(["6:21  Order.total holds Money, which has its own equals"]);
+  expect(reports).toEqual(["6:21-24  Order.total holds Money, which has its own equals"]);
+});
+
+test("covers the name it points at, and the line where there is no name", () => {
+  // `Val`, three characters in, is what the finding points at.
+  expect(run("order.ts")[0]).toMatch(/^6:21-24 /);
+  // A directive begins with `//`, which is no word, so the comment itself is underlined.
+  expect(run("silenced.ts")).toEqual([
+    "5:0-72  valof-lint-disable-next-line names unused-member, which reports nothing here",
+  ]);
 });
 
 test("names every rule, under the plugin's own name", () => {

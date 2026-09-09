@@ -27,7 +27,7 @@ type Context = {
   filename: string;
   settings?: { valof?: { project?: string | readonly string[] } };
   sourceCode: { text: string };
-  report: (report: { loc: { line: number; column: number }; message: string }) => void;
+  report: (report: { loc: { start: Where; end: Where }; message: string }) => void;
 };
 
 type Ask = {
@@ -65,18 +65,41 @@ const rule = ({ kind, description }: (typeof RULES)[number]) => ({
     return {
       Program(): void {
         const file = resolve(context.filename);
-        for (const finding of found(file, context.sourceCode.text, context.settings))
+        const text = context.sourceCode.text;
+        for (const finding of found(file, text, context.settings))
           if (finding.kind === kind)
             context.report({
-              // The finding counts a column from 1, as an editor does. A report counts from 0.
-              loc: { line: finding.line, column: finding.column - 1 },
-              // No kind in the message: the rule the host names is the kind.
+              loc: over(text, finding),
+              // No kind in the message: the rule the host names is the kind, and every host that
+              // draws a finding draws that with it.
               message: finding.message,
             });
       },
     };
   },
 });
+
+/** A word, for the squiggle to cover. Runs of these are what a finding points at. */
+const WORD = /^[\p{L}\p{N}_$]+/u;
+
+/**
+ * What the squiggle covers, from the point the finding names.
+ *
+ * A finding carries one position, and a report drawn from one position underlines one character.
+ * So the name at that position is measured here: the linter points at `label`, `Val` or an alias,
+ * and the editor should underline the whole of it. Where the position is not on a word, which is
+ * the disable comments, the rest of the line stands in.
+ *
+ * Columns count from 1 in a finding, as an editor shows them, and from 0 in a report.
+ */
+function over(text: string, { line, column }: Finding): { start: Where; end: Where } {
+  const rest = (text.split("\n")[line - 1] ?? "").slice(column - 1);
+  const width = WORD.exec(rest)?.[0].length ?? rest.trimEnd().length;
+  const start = { line, column: column - 1 };
+  return { start, end: { line, column: start.column + Math.max(width, 1) } };
+}
+
+type Where = { line: number; column: number };
 
 const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)])) as Record<
   Kind,
