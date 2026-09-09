@@ -2,17 +2,7 @@
 import { resolve } from "node:path";
 import { styleText, type InspectColor } from "node:util";
 import { expand, isDirectory } from "./files.ts";
-import {
-  isKind,
-  isSkippable,
-  kinds,
-  lint,
-  NO_TYPESCRIPT,
-  RULES,
-  skippable,
-  type Finding,
-  type Kind,
-} from "./index.ts";
+import { isKind, kinds, lint, NO_TYPESCRIPT, RULES, type Finding, type Kind } from "./index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
@@ -56,13 +46,6 @@ for (const argument of process.argv.slice(2)) {
       );
       process.exit(2);
     }
-    if (!isSkippable(kind)) {
-      console.error(
-        `valof-lint: ${kind} always runs, since it guards the disable comments\n` +
-          `  rules you can leave out: ${skippable.join(", ")}`,
-      );
-      process.exit(2);
-    }
     skip.add(kind);
   } else {
     take(loose, argument);
@@ -71,17 +54,13 @@ for (const argument of process.argv.slice(2)) {
 
 if (help) {
   const width = Math.max(...RULES.map(({ kind }) => kind.length));
-  const listed = (which: (rule: (typeof RULES)[number]) => boolean): string[] =>
-    RULES.filter(which).map(({ kind, description }) => `  ${kind.padEnd(width)}  ${description}`);
+  const listed = RULES.map(({ kind, description }) => `  ${kind.padEnd(width)}  ${description}`);
   console.log(
     [
       "valof-lint [--no-<rule>...] [project] [file...]",
       "",
-      "Reports what the type checker cannot:",
-      ...listed((rule) => !rule.always),
-      "",
-      "And about the disable comments themselves, which always run:",
-      ...listed((rule) => rule.always === true),
+      "Reports what the type checker cannot, and what a disable comment does not do:",
+      ...listed,
       "",
       "The project is a directory or a glob, and defaults to src/**/*.ts. It is what the",
       "run reads. Files named after it are what the run reports on; leave them out to",

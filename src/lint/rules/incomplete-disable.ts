@@ -18,7 +18,6 @@ export type IncompleteDisable = Where & {
 export const IncompleteDisable: Rule<IncompleteDisable> = {
   kind: "incomplete-disable",
   description: "a disable comment leaving out the rules it silences, or its scope",
-  always: true,
   run: findings,
 };
 

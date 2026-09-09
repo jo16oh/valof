@@ -61,10 +61,3 @@ export type Kind = Finding["kind"];
 export const kinds: readonly Kind[] = RULES.map(({ kind }) => kind);
 
 export const isKind = (name: string): name is Kind => kinds.includes(name as Kind);
-
-/** The kinds `--no-<kind>` accepts, which is every one that does not guard the directives. */
-export const skippable: readonly Kind[] = RULES.filter(({ always }) => !always).map(
-  ({ kind }) => kind,
-);
-
-export const isSkippable = (kind: Kind): boolean => skippable.includes(kind);

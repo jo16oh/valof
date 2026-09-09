@@ -52,8 +52,6 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
       "  bypassed-companion  a `Val.of` for a type whose companion is how it is built\n" +
       "  unnamed-of          a `Val.of` that names no type, taking one from its target\n" +
       "  structural-equals   a payload holding a Val whose own `equals` the parent never dispatches to\n" +
-      "\n" +
-      "And about the disable comments themselves, which always run:\n" +
       "  incomplete-disable  a disable comment leaving out the rules it silences, or its scope\n" +
       "  unused-disable      a disable comment naming a rule that reports nothing there\n",
   );

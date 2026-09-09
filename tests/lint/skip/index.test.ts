@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { kinds, skippable } from "../../../src/lint/index.ts";
+import { kinds } from "../../../src/lint/index.ts";
 import {
   DuplicateBrand,
   IncompleteDisable,
@@ -45,26 +45,14 @@ test("takes more than one, and leaves nothing once every kind is out", async () 
   expect(await lint("mixed", { skip: [DuplicateBrand, UnusedMember] })).toEqual([]);
 });
 
-test("keeps a rule guarding the directives in, whatever the caller asks", async () => {
-  expect(await lint("guarded", { skip: [IncompleteDisable, UnusedDisable] })).toEqual([
-    {
-      rule: IncompleteDisable,
-      at: "guarded.ts:1:1",
-    },
-    {
-      rule: UnusedDisable,
-      at: "guarded.ts:3:1",
-    },
+// A rule about the disable comments is left out like any other. The host plugin sets their
+// severity like any other too, and refusing here would only differ from that.
+test("leaves out a rule about the disable comments, like any other", async () => {
+  expect(await lint("guarded")).toEqual([
+    { rule: IncompleteDisable, at: "guarded.ts:1:1" },
+    { rule: UnusedDisable, at: "guarded.ts:3:1" },
   ]);
-});
-
-test("refuses the flag for one of those, and says which rules take it", () => {
-  const { status, stderr } = cli("--no-incomplete-disable", glob);
-  expect(status).toBe(2);
-  expect(stderr).toBe(
-    "valof-lint: incomplete-disable always runs, since it guards the disable comments\n" +
-      `  rules you can leave out: ${skippable.join(", ")}`,
-  );
+  expect(await lint("guarded", { skip: [IncompleteDisable, UnusedDisable] })).toEqual([]);
 });
 
 // The list read off the registry, not written again: which rules exist is what `--help` names,

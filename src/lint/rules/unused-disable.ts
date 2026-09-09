@@ -20,7 +20,6 @@ export const UnusedDisable: Rule<UnusedDisable> = {
   description: "a disable comment naming a rule that reports nothing there",
   // A directive that silences nothing changes nothing about the code.
   warns: true,
-  always: true,
   run: findings,
 };
 
