@@ -1,35 +1,32 @@
 import { defineConfig } from "vite-plus";
 
+import lint from "./oxlint.config.ts";
+
 export default defineConfig({
   staged: {
     "*": "vp check --fix",
   },
   pack: {
-    entry: ["src/index.ts", "src/lint/cli.ts"],
+    // Named, so the import path is the name a user writes rather than where the file sits.
+    entry: {
+      index: "src/index.ts",
+      lint: "src/lint/index.ts",
+      "eslint-plugin": "src/lint/eslint-plugin.ts",
+      "lint-cli": "src/lint/cli.ts",
+    },
     dts: {
       tsgo: true,
     },
     exports: {
       // The CLI ships as a command, not as an import, so it stays out of the public exports.
       // Naming it here as well: left to auto-detect, the command takes the package's own name.
-      exclude: ["lint/cli"],
+      exclude: ["lint-cli"],
       bin: {
         "valof-lint": "./src/lint/cli.ts",
       },
     },
   },
-  // Deliberately unresolvable and deliberately dead: the fixtures are input to `valof-lint`,
-  // not code this package compiles.
-  lint: {
-    // `public-api.ts` resolves its `valof` import through `scripts/ts-compatibility/tsconfig.json`,
-    // which aims the name at the built declarations. That config owns the file; this one cannot
-    // see it.
-    ignorePatterns: ["tests/lint/**/fixtures/**", "scripts/ts-compatibility/public-api.ts"],
-    options: {
-      typeAware: true,
-      typeCheck: true,
-    },
-  },
+  lint,
   fmt: {
     ignorePatterns: ["tests/lint/**/fixtures/**"],
     proseWrap: "always",

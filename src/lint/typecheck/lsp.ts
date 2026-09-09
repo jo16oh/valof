@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { resolve as absolute } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type { Resolver } from "./index.ts";
@@ -64,19 +65,20 @@ export function overLsp(bin: string, root: string): Resolver {
       ) as LspMessage;
       buffer = buffer.subarray(head + 4 + length);
       if (message.id === undefined) continue;
-      const waiting = pending.get(message.id);
-      if (waiting) {
-        pending.delete(message.id);
-        waiting(message.result);
-        continue;
-      }
       // A request from the server, `client/registerCapability` among them. Leaving one
-      // unanswered deadlocks it.
+      // unanswered deadlocks it. Told apart by its method rather than by its id: each side
+      // numbers its own requests, so the two run into each other.
       if (message.method !== undefined) {
         write({
           id: message.id,
           result: message.method === "workspace/configuration" ? [{}] : null,
         });
+        continue;
+      }
+      const waiting = pending.get(message.id);
+      if (waiting) {
+        pending.delete(message.id);
+        waiting(message.result);
       }
     }
   });
@@ -89,20 +91,27 @@ export function overLsp(bin: string, root: string): Resolver {
       write({ id: current, method, params });
     });
 
+  const open = new Map<string, { text: string; version: number }>();
   const lines = new Map<string, LineMap>();
+  // Keyed absolute, since an overlay drops the entry it replaced and its paths are absolute.
   const lineMap = (file: string): LineMap => {
-    let map = lines.get(file);
-    if (!map) lines.set(file, (map = buildLineMap(readFileSync(file, "utf8"))));
+    const key = absolute(root, file);
+    let map = lines.get(key);
+    if (!map) {
+      const text = open.get(key)?.text ?? readFileSync(file, "utf8");
+      lines.set(key, (map = buildLineMap(text)));
+    }
     return map;
   };
 
   const uri = (file: string) => pathToFileURL(file).href;
   const folder = { uri: pathToFileURL(root).href, name: "valof-lint" };
 
-  // No `textDocument/didOpen`. The server reads committed files from disk and opens one lazily
-  // when a request names it; `didOpen` is for buffers an editor holds unsaved. Sending the whole
-  // scanned set makes the server build a document for each and the first query wait on all of
-  // them: 436 ms against 45 ms for the same answers.
+  // No `textDocument/didOpen` for the scanned set. The server reads committed files from disk and
+  // opens one lazily when a request names it; `didOpen` is for buffers an editor holds unsaved,
+  // which is what `overlay` sends and nothing else does. Opening the whole scanned set makes the
+  // server build a document for each and the first query wait on all of them: 436 ms against
+  // 45 ms for the same answers.
   const ready = request("initialize", {
     processId: process.pid,
     rootUri: folder.uri,
@@ -112,9 +121,54 @@ export function overLsp(bin: string, root: string): Resolver {
     write({ method: "initialized", params: {} });
   });
 
+  // Chained rather than awaited at each caller, so the notifications an overlay sends land
+  // before the requests that read them however the two are interleaved.
+  let queue = ready;
+
   return {
+    overlay: (sources) => {
+      const wanted = new Map([...sources].map(([file, text]) => [absolute(root, file), text]));
+      const changed: { file: string; text?: string }[] = [];
+      for (const [file, text] of wanted)
+        if (open.get(file)?.text !== text) changed.push({ file, text });
+      for (const file of open.keys()) if (!wanted.has(file)) changed.push({ file });
+
+      if (changed.length === 0) return;
+      // The line map is built from whichever source answered, so it goes with the text.
+      for (const { file } of changed) lines.delete(file);
+      queue = queue.then(() => {
+        for (const { file, text } of changed) {
+          if (text === undefined) {
+            open.delete(file);
+            write({
+              method: "textDocument/didClose",
+              params: { textDocument: { uri: uri(file) } },
+            });
+            continue;
+          }
+          const version = (open.get(file)?.version ?? 0) + 1;
+          const held = open.has(file);
+          open.set(file, { text, version });
+          if (held)
+            write({
+              method: "textDocument/didChange",
+              params: {
+                textDocument: { uri: uri(file), version },
+                contentChanges: [{ text }],
+              },
+            });
+          else
+            write({
+              method: "textDocument/didOpen",
+              params: {
+                textDocument: { uri: uri(file), languageId: "typescript", version, text },
+              },
+            });
+        }
+      });
+    },
     resolveAll: async (queries) => {
-      await ready;
+      await queue;
       // Written first, awaited after, so the batch costs one round trip rather than one each.
       const replies = queries.map((query) =>
         request("textDocument/definition", {

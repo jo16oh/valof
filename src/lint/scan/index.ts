@@ -75,9 +75,12 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * resolves a name for all three, and the chain analysis that spots `.impl({…})` is the same one
  * that spots `.implEquals`. What comes back is material, not findings; deciding is the rules'
  * job, and they see every file rather than this one.
+ *
+ * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
+ * unsaved. The file may not exist at all.
  */
-export function scan(file: string, { parseSync, visitorKeys }: Parser): Scan {
-  const source = readFileSync(file, "utf8");
+export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: string): Scan {
+  const source = given ?? readFileSync(file, "utf8");
   const at = positions(source);
 
   const bound = bindings();

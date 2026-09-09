@@ -90,7 +90,7 @@ export function valAliases(
     // A generic brand, `Val<K, T>` inside a helper, names nothing to collide over.
     if (!literal || typeof literal["value"] !== "string") continue;
     brands.push({
-      ...at((id["start"] as number) ?? (node["start"] as number)),
+      ...at((id["start"] ?? node["start"]) as number),
       typeName: named,
       brand: literal["value"],
       alias: id["name"] as string,

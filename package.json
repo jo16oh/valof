@@ -21,7 +21,7 @@
     "url": "git+https://github.com/jo16oh/valof.git"
   },
   "bin": {
-    "valof-lint": "./dist/lint/cli.mjs"
+    "valof-lint": "./dist/lint-cli.mjs"
   },
   "files": [
     "dist"
@@ -30,6 +30,8 @@
   "sideEffects": false,
   "exports": {
     ".": "./dist/index.mjs",
+    "./eslint-plugin": "./dist/eslint-plugin.mjs",
+    "./lint": "./dist/lint.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -48,12 +50,15 @@
     "push-tag": "git branch --show-current | grep -qx main || { echo 'run this on main'; exit 1; }; git tag v$npm_package_version && git push origin v$npm_package_version"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.5.0",
     "bumpp": "^11.1.0",
+    "eslint": "^10.10.0",
     "oxc-parser": "^0.148.0",
+    "oxlint": "1.82.0",
     "typescript": "^7.0.2",
     "vite": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "vscode-langservers-extracted": "^4.10.0"
   },
   "peerDependencies": {
     "oxc-parser": ">=0.148"

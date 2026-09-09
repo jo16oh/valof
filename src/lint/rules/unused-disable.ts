@@ -18,7 +18,8 @@ export type UnusedDisable = Where & {
 export const UnusedDisable: Rule<UnusedDisable> = {
   kind: "unused-disable",
   description: "a disable comment naming a rule that reports nothing there",
-  always: true,
+  // A directive that silences nothing changes nothing about the code.
+  warns: true,
   run: findings,
 };
 

@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、未実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1622,7 +1622,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 ## 9. 未解決 / 要確認
 
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
-- [ ] エディタ統合（§14.9）。oxlint の `jsPlugins` から Worker 越しに `lint()` を呼ぶ形で決着、実装は未着手。`column` と `Options.types` はその土台
+- [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
@@ -1895,6 +1895,7 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 #### 代償
 
+- **tarball 32 KB → 39 KB。** `valof/lint` を出したとき増えた分で、ほぼ `dist/lint/index.d.mts`（14.9 kB）である。`Finding` が `RULES` から導かれるので、宣言は規則の型グラフを丸ごと連れてくる
 - **配布物の 58% がリンタ。** README の「1 kB gzipped」は**バンドルサイズ**であって、`scripts/size.ts` が測るのは `dist/index.mjs` だけなので主張は保たれる。だがダウンロードサイズは別物で、`npm i valof` した `node_modules` には 36 kB のリンタが入る
 - **リリース粒度が結合する。** リンタだけの修正でライブラリのバージョンが上がる。今はどちらも動いているので表面化していない
 
@@ -2208,7 +2209,7 @@ src/lint/
 
 公開する名前は絞る。`src/lint/index.ts` はパッケージの `exports` に無く CLI 専用なので、`lint` 以外に出すものは無い。各ルールが出すのは finding 型と `rule` オブジェクトの 2 つだけ。
 
-### 14.9 エディタ統合、2026-09-08 調査。未実装
+### 14.9 エディタ統合、2026-09-08 調査。overlay まで実装
 
 **結論を先に。** oxlint の `jsPlugins` から、Worker 越しに `lint()` を**直接呼ぶ**。valof が出すのは `lint` と `Options.overlay` だけで、`--server` もプロトコルも要らない。**このブランチではやらない。**
 
@@ -2501,13 +2502,277 @@ scan 全部（読み+parse+walk） 1.70 ms   ← walk が支配的
 
 #### やるときの順序
 
-1. オーバーレイを内部に通す（`scan` の読み口、2 つのバックエンド、`Resolver.setOverlay`）
-2. `lint` を `valof/lint` として export する
-3. プラグイン（`make-synchronized` + oxlint の `jsPlugins`）。valof には同梱せず README のレシピ
+1. ~~オーバーレイを内部に通す~~ → 入れた（下）
+2. ~~`lint` を `valof/lint` として export する~~ → 入れた。`pack.entry` に `src/lint/index.ts` を足すだけで、`exports` は `vp pack` が書く
+3. ~~プラグイン~~ → 入れた（下）
 
 ~~`--server`~~ は却下。~~`column`~~ と ~~`Options.types`~~ は入れた。`--format=json` は oxlint 側が持つので valof-lint に要るかは未定。
 
-1 の途中まで書いて戻した。`Resolver` に `setOverlay` が要るのは、常駐中に版を上げて LSP へ `didChange` を送り、in-process 側では `getScriptVersion` を上げて再読込させるため。ここが両バックエンドで形の違う唯一の場所になる。
+**プラグインは valof に同梱する。** 上で「README のレシピ」としていたのを翻した。§14.3 が先に決めた「分ける条件」（リンタだけのリリースが続く / 実行時依存が漏れる / 配布物の比率）にどれも当たらず、プラグイン自身の依存は `node:worker_threads` と valof だけである。同じ理由で monorepo にもしない。flat config も `jsPlugins` もモジュール指定子を直接書くので、`eslint-plugin-` という名前は要らない。
+
+#### プラグイン、2026-09-09 実装
+
+`valof/eslint-plugin`。**規則は種類ごとに 1 つ**で、ホスト側で重大度を決めたり外したりできる。
+
+```ts
+// oxlint.config.ts
+export default defineConfig({
+  jsPlugins: ["valof/eslint-plugin"],
+  extends: [valof.configs.recommended],
+});
+```
+
+最初は `findings` 1 つにしていた。1 回の run が全種類を答えるので、分けると同じ仕事を 6 回すると考えたためである。**そうならない。** ホストは 1 ファイル分の規則を全部 `create` してから走査に入るので、6 つの `Program` が同じテキストに対して続けて呼ばれる。直前の 1 件だけ覚えれば済む。
+
+```
+6 規則 x 2 ファイル  →  lint() の呼び出しは 2 回
+```
+
+`skip` は落とした。ホストが規則ごとに on / off を持っているのだから、そこに二重の仕組みを足す意味がない。読むプロジェクトの指定は `settings.valof.project` に移した。規則ごとのオプションだと 6 箇所が食い違える。**両ホストとも `settings` を渡すことは実測した。**
+
+メッセージから種類の接頭辞も外した。`valof(structural-equals): Order.total holds …` のように、ホストが規則名として出す。
+
+**却下: `create` の順序を使って `skip` を組み立てる。** 有効な規則は `create` が呼ばれた時点で分かるので、集めておいて `Program` で「それ以外を skip」にできる。両ホストでその順序も確認した。それでも採らない。仕様として保証された順序ではないうえ、得られるのは structural-equals を切ったときの分だけで、その規則は `.implEquals` がどこにも無ければ自分で何もしない（§14.9 の `needsTypes`）。
+
+**`make-synchronized` は入れなかった。** 68 kB・deps 0 で品質に問題は無いが、上の表で「プラグイン側の依存」と書いたのはプラグインが valof の外にいる前提だった。同梱すると valof の `dependencies` になり、§14.3 の「実行時依存ゼロ」を崩す。`Atomics.wait` + `receiveMessageOnPort` は 30 行ほどで、`SharedArrayBuffer` の版を worker が上げて notify するだけである。タイムアウト付きで待つので、worker が答えないときも 60 秒で言う。
+
+**worker はこのファイル自身。** `new Worker(new URL(import.meta.url))` として `isMainThread` で二役を分けた。別ファイルにすると、ソースツリーでは `./worker.ts`、配布物では `./worker.mjs` になり、どちらが動いているかをコードが当てにいくことになる。
+
+**渡し方は overlay 1 枚 + `report` 1 ファイル。** 計算はプロジェクト全体で、返るのも全部だが、報告するのは今のファイルの分だけ。`report` が先にあったのでプラグイン側に絞り込みは要らない。列は finding が 1 始まり、report が 0 始まりなので 1 引く。
+
+**両方のホストで実測した。**
+
+```
+oxlint 1.77 + TS 7      src/order.ts:6:22 valof(findings): structural-equals: …   0.14s
+ESLint 10               3:3 error unused-member: Id.shout is never read  valof/findings
+```
+
+ESLint 側は typescript-eslint が TS 7 未対応（上）なので、パーサに依存しないことを見るために `.js` の fixture で確認した。規則は AST を見ず `Program` で自分のファイル名と本文しか使わないので、ホストの API 適合はこれで足りる。
+
+**ホストは実物を起動してテストする。** `tests/lint/hosts`。ルール API は valof が型で守れない契約で、どちらのホストも依存ではない。食い違えば形が合わないだけなので、実物を動かす以外に気づく手段がない。実際、両テストとも列の +1 とプラグインの `rules` のキー名の両方で落ちることを変異で確かめた。
+
+- **eslint と oxlint を devDependency に固定した。** finding を突き合わせる相手の版が動かないように。§14.19 参照
+- **走らせるのはソースのプラグイン。** 配布物は `vp pack` の後にしか無いので、そちらは手で確かめた
+
+列は両ホストとも finding の位置に出た。report が 0 始まり、出力が 1 始まりで、往復して元に戻る。
+
+**1 ファイルにつきプロジェクト 1 周する。** 検証中、`node_modules` へのシンボリックリンクを含むディレクトリを丸ごと lint させて詰まらせた。ホストが `node_modules` を除くのは既定の動作なので実プロジェクトでは起きないが、この形の代償が出る場所ではある。
+
+**entry に名前を付けた。** パスから導くと `valof/lint/eslint-plugin` になる。設定ファイルに書く名前なので、`vite.config.ts` の `pack.entry` をオブジェクトにして `valof/eslint-plugin` と `valof/lint` にした。bin は `dist/lint-cli.mjs` に移った。tarball は 39 KB → 41 KB。
+
+#### `Options.overlay`、2026-09-08 実装
+
+```ts
+lint(files, { overlay: new Map([["/abs/src/order.ts", "…編集中…"]]) });
+```
+
+`ReadonlyMap<string, string>`、キーは絶対パス。`files` に無いパスも走査するので、まだ保存していないファイルもそのまま渡せる。
+
+`Resolver` には `setOverlay` ではなく `overlay(sources)` として付けた。**毎回の run で 1 度、空でも呼ぶ。** 呼び出し側が持ち回す resolver は前の run の版を握っているので、「渡さない」と「空を渡す」を区別する必要がない。
+
+バックエンドの差は予想どおりここだけに出た。
+
+- **LSP（TS 7）**: 初回は `didOpen`、本文が変われば版を上げて `didChange`、抜けたら `didClose`。行マップは overlay の本文から作り直す。通知は `initialize` から続く 1 本のチェーンに載せ、`resolveAll` も同じチェーンを待つ（順序が要るため）
+- **in-process（TS 5 / 6）**: `getScriptVersion` を上げ、`getScriptSnapshot` が overlay を返す。`fileExists` / `readFile` も overlay を見るので、ディスクに無いファイルを他のファイルが import しても解決する
+
+**テストは行をずらして書く。** 「spec で覆って finding を消す」形では通らない。それは scan だけで決まるので、resolver に overlay を渡さなくても緑になる（実際に一度そう書いて、変異させても落ちなかった）。ディスクと同じ本文の先頭に `//` を足して 1 行ずつずらし、finding が付いてくることを見る形にすると、`didOpen` / `didChange` / `didClose` / 行マップ破棄のどれを壊しても落ちる。
+
+in-process 側は自動テストが無い（§14.10 の穴のまま）。TS 5.9.3 を temp に入れて `inProcess` を直接叩き、ずらした位置が同じ宣言に解決すること、overlay を渡さなければ解決しないことを手で確かめた。
+
+### 14.19 oxlint の版を固定する、2026-09-09 実測
+
+統合テスト（§14.9）が突き合わせる oxlint の版を、vite-plus の更新で勝手に動かしたくなかった。調べた結果、**固定できるし、設定の正本も 1 つにできる。**
+
+#### `vp lint` はプロジェクトの oxlint を先に見る
+
+```js
+// vite-plus/dist/constants-*.js
+function resolve(path) {
+  return require.resolve(path, { paths: [process.cwd(), import.meta.dirname] });
+}
+```
+
+cwd が先で、vite-plus 同梱は後。`oxlint@1.82.0` を devDependency に入れて `vp lint` 実行中のプロセスを拾うと 1.82.0 だった。だから **固定すればテストと `vp lint` が同じ 1 つを使う**。ずれる余地が無い。
+
+Vitest だけは別で、`resolveBundled`（vite-plus 側優先）を使う。`vite-plus/test` が `export * from 'vitest'` する以上、ランナーと import がずれると壊れるため。
+
+#### `vp lint` は standalone の config を読まない
+
+```
+vp lint  +  oxlint.config.ts     26 件（設定が効かない）
+vp lint  +  .oxlintrc.json       26 件（JSON でも同じ）
+oxlint   +  oxlint.config.ts      2 件（-c 無しでも見つける）
+```
+
+**警告は出ない。** 気づく手段が結果の差しかない。argv を捕まえると `vp lint` は `-c` を渡しておらず、代わりに `VP_RESOLVING_CONFIG_METADATA=1` で oxlint の設定元を `vite.config.ts` に切り替えている。だから通常の探索が起きない。
+
+#### 採用: `oxlint.config.ts` を正本にして `vite.config.ts` から import する
+
+```ts
+// vite.config.ts
+import lint from "./oxlint.config.ts";
+export default defineConfig({ lint /* … */ });
+```
+
+```
+vp lint              0 件（vite.config.ts 経由）
+oxlint（-c 無し）     0 件（自分の探索）
+```
+
+`typeAware` / `typeCheck` も両経路で効く（`TS2322` と `no-floating-promises` を出すファイルで確認）。oxlint 側の `options` はこの 2 つだけで、Vite+ の `lint.options` はその素通しだった。
+
+これで `.bin/oxlint` が実体になっても設定が割れない。エディタが `.bin/oxlint --lsp` を起動する場合、ラッパが注入していた `OXLINT_TSGOLINT_PATH` は落ちるが、1.77.0 は env 無しでも tsgolint を見つけた。
+
+#### 規則を足す前に tsconfig、2026-09-09
+
+`reportUnusedDisableDirectives` を入れたついでにカテゴリを総当たりした。本物の情報を持っていたのは型認識の 2 つだけで、しかも**どちらも tsconfig の穴を指していた。**
+
+```
+no-unnecessary-type-assertion   19 件   `starts[mid] as number`
+no-unnecessary-condition        10 件   `const [argument] = children(…)` の後の `&& argument`
+```
+
+規則が正しい。`noUncheckedIndexedAccess` が無いので `starts[mid]` は `number`、`argument` は `Node` と見えていた。実行時にはどちらも `undefined` になり得る。**防御は正しく書いてあって、型システムだけが嘘をついていた。**
+
+有効にした結果。
+
+```
+tsc --noEmit         エラー 1 件（意図的な unsafe cast のテスト 1 行）
+2 規則               29 件 → 2 件
+dist/index.d.mts     差分なし。公開宣言は変わらない
+```
+
+残った 2 件はどちらも本物だった。`(id["start"] as number) ?? (node["start"] as number)` は `as` が自分の fallback を殺しており、もう 1 件はテストの死んだ `?.` である。
+
+**19 個の `as` は 1 つも消していない。フラグを入れて全部必要になった。**
+
+足さなかったものと理由。`no-useless-concat`（100 桁に収める意図的な分割）、`no-array-sort`（`filter().sort()` は既に新しい配列で、`toSorted` は 2 度コピーする）、`consistent-function-scoping`、`no-undefined` / `no-non-null-assertion` / `no-async-await`（このコードベースの選択そのもの）、`prefer-readonly-parameter-types`（174 件）、`no-shadow`（2 件のうち 1 件はテストの命名慣習）。
+
+#### 重大度: 壊れているか、何もしていないか、2026-09-09
+
+`configs.recommended` は全部 error だった。**「Valof を壊すか」で分ける。**
+
+| 規則                 |       | 理由                                                                                      |
+| -------------------- | ----- | ----------------------------------------------------------------------------------------- |
+| `structural-equals`  | error | equals が実行時に間違った答えを返す                                                       |
+| `duplicate-brand`    | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
+| `brand-mismatch`     | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
+| `incomplete-disable` | error | 下記                                                                                      |
+| `unused-member`      | warn  | 死んだコード。周りは動く                                                                  |
+| `unused-disable`     | warn  | 何も黙らせていない指示。コードは変わらない                                                |
+
+重大度は `Rule.warns` として規則の隣に置いた。規則を足す人が決めずに済ませられない。CLI は読まない（finding は 1 種類しかなく、1 件でも exit 1）。
+
+**`incomplete-disable` が error なのは `-next-line` の形のためである。** 3 つの形を 1 規則で見ており、挙動は同じではない。
+
+```
+-next-line + 規則名なし    その行の全種類を黙らせる。後から足した規則も含む
+-whole-file + 規則名なし   何も黙らせない
+valof-lint-disable         何も黙らせない
+```
+
+後ろ 2 つは自己申告的で、隠したかった finding がそのまま出るので書いた本人が気づく。危ないのは最初の 1 つだけだが、規則を割らない限り重大度は 1 つなので危ないほうに合わせる。
+
+（`-next-line` が全種類を黙らせるのは設計どおり。何も黙らせないと、押さえていたはずの finding が出て指示の意味が消えるため。`scan/directives.ts` の `effect`。）
+
+#### エディタで確かめた、2026-09-09
+
+`~/tmp/valof-editor-check` に oxlint 版と ESLint 版を 1 つずつ作った。どちらも **tarball から `valof` を入れた利用者と同じ形**にしてある。リポジトリの中に置くと root の `oxlint.config.ts` の `ignorePatterns` とネストした設定が絡んで、見え方が本物と変わる。
+
+**oxlint 1.77 の LSP は JS プラグインの診断で panic する。**
+
+```
+thread '<unnamed>' panicked at crates/oxc_linter/src/fixer/disable_fix.rs:52:22:
+range end index 316 out of range for slice of length 0
+```
+
+診断が 1 件も返らないまま死ぬので、エディタからは「何も出ない」に見える。CLI では出るし、LSP でも組み込み規則なら出る。**JS プラグイン + LSP の組み合わせだけ。**1.82.0 で直っている。ピンを 1.82.0 に上げた。版を 1 箇所に固定してあったので、直しはそこだけで済んだ（§14.19）。
+
+**報告は点ではなく範囲を渡す。** finding は位置を 1 点しか持たないので、そのまま報告すると波線が 1 文字にしか掛からない。プラグイン側でその位置の語を測り、語の上なら語全体、語でなければ（disable コメントの `//`）行末までを渡す。
+
+コアの `Finding` に終端を足す案は採らない。6 つの規則すべてが終端オフセットを持ち回ることになる一方、終端が要るのは描画だけである。1 つの finding が複数トークンにまたがるようになったら考え直す。
+
+**メッセージは規則名を名乗らない。** 一度は入れた。Helix 25.07 のインライン診断が `message` しか描かず、`code`（`valof(unused-member)`）はホバー止まりだからである。**却下。VSCode と Zed は既定で規則名を出す**（2026-09-09 に実機で確認）。ESLint も oxlint も TypeScript も、メッセージ側は名乗らないのが慣例で、そこから外れる理由がホスト 1 つの描画では足りない。
+
+```js
+// eslint core / no-unused-vars
+unusedVar: "'{{varName}}' is {{action}} but never used{{additional}}.";
+```
+
+**ESLint で TypeScript を見るには TS 6 が要る。** typescript-eslint は TS 7 の隣で起動を拒む（§14.9）。check プロジェクトの ESLint 版は `typescript@6` を入れており、Microsoft が案内する side-by-side がそのまま回避策になっている。副産物として、**そこが TS 5 / 6 の in-process バックエンドが実ホストで動く唯一の場所**になった（§14.10 の穴。自動テストはまだ無い）。
+
+### 14.20 LSP でのホスト統合テスト、2026-09-09
+
+`tests/lint/lsp`。両ホストを**言語サーバとして起動**し、同じテスト本体を 2 つの describe から流す。`tests/lint/hosts` が CLI で押さえているのは「規則 API の形が合っていること」で、エディタ経路（未保存バッファ → `overlay` → `tsc --lsp`）はそこを通らない。
+
+```
+open → ディスクどおりの finding
+type → バッファだけ直すと消える
+type → バッファだけに書いた member が出る
+save → 開いていないファイルのディスク変更に追随する
+```
+
+**ESLint に言語サーバは無い。** VS Code 拡張のサーバ（`vscode-langservers-extracted` の `vscode-eslint-language-server`）を devDependency に入れた。設定は ESLint のものではなく拡張のもので、`workspace/configuration` に返す。`experimental.useFlatConfig` は **false** にする。true は ESLint 8 時代の実験の名前で、サーバは `eslint/use-at-your-own-risk` から `FlatESLint` を import しに行くが、ESLint 10 にその export は無い。false のとき素の `ESLint` クラスを読み、それはもう flat config しか受け付けない。
+
+**却下: `@typescript-eslint/parser`。** TS 7 の隣では import の時点で throw する（§14.19）。しかもサーバはそれを握り潰して診断 0 件で返すので、**プラグインが動いていなくてもテストは緑になる**。最悪の形。
+
+**却下: TS 6 を併置する。** 回避策としては成立する（§14.19）が、テストのためだけに、テスト対象とは別の型システムを持ち込むことになる。valof が実際に使うのは TS 7 の `tsc --lsp` である。
+
+**却下: fixture を `.js` にする。** `tests/lint/hosts` の ESLint 側はそれで通している。しかし `structural-equals` は親 Val の宣言サイト、つまり `.ts` の中でしか報告しない。JS に逃げると型解決の経路が丸ごと落ちて、この節が確かめたいものが残らない。
+
+**採用: 空の Program を返すパーサ。** fixture の `eslint.config.mjs` に 10 行置く。規則がホストから読むのは `context.filename` と `context.sourceCode.text` だけで、AST は一度も触らない（本文は oxc-parser で読み直す）。副産物として「ホストの AST に依存していない」が固定される。
+
+**診断は pull で取る。** 両サーバとも `textDocument/diagnostic` に答える。push を待つ形だと、あと何件来るかをテストが推測することになる。
+
+**比較はメッセージ本体だけ。** 位置と規則名の綴りはホストのもの（`valof(unused-member)` / `valof/unused-member`）で、そこは `tests/lint/hosts` が両ホストで押さえている。正規化は 1 行になった。
+
+**ディスク追随のテストが見ているのは scan であって resolver ではない。** `money.ts` から `.implEquals` が消えると `needsTypes` が false になり、規則は型検査に触らず黙る。resolver の追随は 300 ms 遅れる（§14.9）ので、そちらに触れる形で書くと不安定になる。
+
+**`tests/lint/hosts` の oxlint 側を JSON にした。** 既定のレポータは環境によって 1 行の compact と枠付きの excerpt を描き分ける。手元では前者、別の機械では後者で落ちた。`--format json` を渡せば、描き手ではなく finding を見ることになる。ESLint 側は元から JSON なので、両方が同じ形になった。
+
+#### 出てきたバグ 2 件
+
+**プラグインのキャッシュがパスをまたいで生きていた。** キーは「開いているファイル + その本文 + project」なので、他のファイルがディスクで変わっても一致する。`money.ts` を直して保存しても `order.ts` の診断が古いままになる。`queueMicrotask` でエントリを捨てるようにした。6 つの `Program` は同期で連続して走り、`ask` は `Atomics.wait` でスレッドを止めるので、マイクロタスクは割り込めない。**1 パス分のまとめは保ったまま、持ち越しだけが消える。**
+
+```
+同一 tick の 2 規則   → ask 1 回（変わらず）
+テストをまたぐ再実行   → order.ts への ask 2 回 → 4 回
+```
+
+キャッシュを潰すと両ホストとも緑になることで、原因がホストでも resolver でもないことを先に確かめた。
+
+**LSP クライアントが request と reply を id だけで見分けていた。** 双方が独立に採番するので、サーバの `client/registerCapability` の id がこちらの未応答クエリと一致すると、クエリが `undefined` で解決され、サーバは答えを待ったまま止まる。`method` の有無で先に振り分ける。同じ形が `src/lint/typecheck/lsp.ts` にもあったので直した。
+
+#### oxlint の中からは子プロセスを起こせない、2026-09-09 実測
+
+CI が `spawn ENOMEM` で落ちた。**valof のメモリ問題ではない。oxlint の JS プラグインの中からは、`/bin/echo` すら起動できない。**
+
+```
+PROBE VmSize: 28,189,900 kB | VmRSS: 92,912 kB | MemAvailable: 7,614,808 kB
+PROBE echo: Error: spawnSync /bin/echo ENOMEM
+```
+
+oxlint はスレッド 1 本につき約 6.4 GB のアドレス空間を予約する。実メモリ (RSS 90 MB) は使わないが、Linux は `fork()` でその写しを勘定するので、搭載メモリを超える予約を持つプロセスからの起動を拒む。macOS はこの勘定をしないので手元では通る。
+
+| `--threads` | VmSize  | 子プロセス |
+| ----------- | ------- | ---------- |
+| 1           | 8.9 GB  | 起きる     |
+| 2           | 15.3 GB | ENOMEM     |
+| 4（既定）   | 28.2 GB | ENOMEM     |
+
+**上流の [oxc#20331](https://github.com/oxc-project/oxc/issues/20331) と同じ根。** 向こうの症状は「oxlint 自身が arena の確保に失敗して panic する」で、こちらは「確保には成功した後、その予約のせいでプラグインが子プロセスを起こせない」。被害者が違うだけである。Windows は 1.65.0 で `VirtualAlloc` に移して直っており、Unix も `mmap(MAP_NORESERVE)` に移す方針。`Committed_AS` に載らなくなれば、こちらも同時に直る。
+
+**テストは 1 スレッドで走らせる。** CLI は `--threads 1`、LSP は `RAYON_NUM_THREADS=1`。`--threads` は run 側のフラグで言語サーバのプールには届かず、`OXLINT_THREADS` / `OXC_THREADS` は無い。プールが rayon なので rayon の変数で絞る。
+
+**回避策は普遍ではない。** 1 スレッドでも 8.9 GB は予約するので、それを下回る機械では効かない（向こうの Android の報告では `--threads=1` でも panic する）。GitHub ランナーが 16 GB だから通っているだけである。上流が直ったら外す。
+
+**利用者にも起きる。** Linux + oxlint + TS 7 では全ファイルが `spawn ENOMEM` になる。ESLint（素の node、VmSize 1 GB）と TS 5 / 6（in-process で子プロセスを作らない）は無事。README の Caveats に回避策ごと書き、`explain()` に訳を足した。
+
+**Docker で再現した。** CI 往復より速く、`vitest` 抜きの oxlint 単体でも落ちるので、並列度が原因でないこともそこで分かった。最初に疑った「テストの並列度」は外れで、`maxWorkers: 2` は revert した。
+
+#### README
+
+**「バッファとディスク」の段落は README から落とした。** §14.9 で「README に書くとすればここ」としていたのを翻す。プラグイン利用者が設定を書く前に要る話ではない。記録はこの節と §14.9 に残る。
 
 ### 14.10 テストの穴、2026-09-08 棚卸し
 
@@ -2940,7 +3205,24 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
 **綴りの後ろには空白以外を許さない**（`(?![-\w])`）。`valof-lint-disable-nextline` のような打ち間違いが
 「ファイル全体を黙らせる指示」に化ける道を塞ぐ。fixture `ignore/misspelled` が守る。
 
-### 14.17 `--no-<kind>` を受けない規則、2026-09-08
+### 14.17 `--no-<kind>` を受けない規則、2026-09-08。撤回 2026-09-09
+
+**撤回した。2026-09-09。**`always` フラグごと消した。以下はその判断に至るまでの記録である。
+
+理由は**ホストでは off にできる**という実測（下記）。同じ 2 つの規則が、CLI では外せずプラグインでは
+外せる。利用者から見て根拠の無い差で、しかも「守っている」のは CLI だけである。
+
+守れていない理由も後から見れば単純で、**逃げ道の判定基準を取り違えていた。**`-all-whole-file` を認めた
+基準は「そこに書いてあり grep できる」だった。`package.json` の script や CI の設定に書かれた
+`--no-unused-disable` はその条件を満たす。1 回の run に手で打つフラグと、コミットされる設定の区別は、
+フラグと設定ファイルの区別ではない。
+
+消えたもの: `Rule.always`、`skippable`、`isSkippable`、CLI の拒否分岐、`lint()` の skip の濾過。
+`skip` はもう名指しされた kind をそのまま外す。
+
+---
+
+以下、当初の記録。
 
 `incomplete-disable` と `unused-disable` は `--no-` で外せない。`Rule` に `always?: true` を足した。
 
@@ -2957,9 +3239,10 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
 **解いた、2026-09-08。読む集合と報告する集合を引数で分ける。**
 
 ```
-valof-lint src src/billing/id.ts                      第 1 引数がプロジェクト、以降が報告対象
-valof-lint --target src/billing/id.ts --project src   名前で渡せば順序は自由
-valof-lint src                                        報告対象を省けばプロジェクト全体
+valof-lint src src/billing/id.ts                         第 1 引数がプロジェクト、以降が報告対象
+valof-lint --report-on src/billing/id.ts --project src   名前で渡せば順序は自由
+valof-lint src                                           報告対象を省けばプロジェクト全体
+valof-lint 'src/**/*.ts' '!src/generated/**'             ! で除外
 ```
 
 一度は「運用で解く、直すのはエディタ統合と同時」と書いた。**利用者がいないという理由が消えた。**
@@ -2977,6 +3260,16 @@ fixture `project/pkg/node_modules/dep.ts` が守る（除外を消すと赤）�
 `project ∪ 位置引数`。**プロジェクトの glob が拾わない新規ファイルを報告対象に渡したとき、それを読まずに
 「何も無い」と言わないため。fixture `project/outside/fresh.ts` が守る（union を消すと赤）。
 
+**除外を `!` で足した、2026-09-09。** どちらの集合も最初から複数書けたが（`--project` も位置引数も配列に貯めている）、除外だけが無かった。`!` で始まるパスは project でも報告対象でもなく除外に集め、**展開してから両方の集合から引く。**
+
+走査からも消えるので、除外したファイルが持っていた別名や読みは他のファイルの答えに効かなくなる。生成コードを外したいという要求はそれ自体なので、これで正しい。「見はするが報告しない」が要るなら報告側だけ引く形に変えられるが、要求が出るまで持たない。
+
+glob マッチャは要らない。`expand("src/generated/**")` の結果を引き算するだけで、除外のパスは正のパスと同じ意味論で解決される。
+
+**`--target` を `--report-on` に改名した、2026-09-09。** 内部 API が `Options.report` と呼んでいるものが CLI で `--target` になっていて、同じものに 2 つの綴りがあった。ヘルプ本文も元から "what the run reports on" と書いている。
+
+却下した名前。`--files`（project も files である）、`--only`（「これだけ lint する」と読める。走査を絞ると答えが変わるという、この設計が一番避けたい誤解）、`--report`（1 語で済み、`--format` が形式フラグの慣用なので衝突は薄いと実測した。それでも `--report-on` のほうが動詞と前置詞が揃って読みやすいという判断）。`v0.4.0` に `bin` が無く未リリースなので改名は無料だった。
+
 リンタが「run が完全か」を推測する案は採らない。判定できないものを推測させると、本当に効いていない指示を
 見逃す側に倒れる。**どこまでが自分のプロジェクトかは利用者が知っていて、引数で言える。**
 
@@ -2989,7 +3282,22 @@ fixture `project/pkg/node_modules/dep.ts` が守る（除外を消すと赤）�
 **実装。**`lint()` は skip 集合を `isSkippable` で濾すだけ（ルール固有の分岐なし）。CLI は `--no-` に
 別のメッセージを返す。`--help` の「Leave a rule out of the run, but not …」もレジストリから組む。
 
+**ホストでは off にできる。2026-09-09 実測。**`"valof/unused-disable": "off"` で診断は 0 件になる
+（oxlint、JS プラグイン）。**プラグインには塞ぐ口が無い。**重大度はホストの機構で、規則を必須にする API は
+ESLint にも oxlint にも無い。1 つの規則として登録している以上 off にできる。避けるには 2 つを他の規則の
+report に混ぜることになり、規則ごとに重複した finding が出る。
+
+これが上の撤回の根拠である。
+
 ### 14.18 指示についての規則の見せ方、2026-09-08
+
+**2 群の表示も消した。2026-09-09。**`--no-` を受けるようになった時点で、2 つは他と同じ規則になった
+（§14.17）。「always run」という但し書きが消えると、群を分ける理由は「コメントについての規則である」だけに
+なり、それは `description` が既に言っている。見出しを
+`Reports what the type checker cannot, and what a disable comment does not do:` にして 1 列にした。
+`Rule.directives`（分ける鍵として一度足したフラグ）も消した。改名の記録（下記）は残る。
+
+以下、当初の記録。
 
 **内部は Rule のまま、`--help` で 2 群に分ける。**
 
