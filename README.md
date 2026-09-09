@@ -477,7 +477,8 @@ nothing there is an `unused-disable`, and one leaving out the rules or the scope
 ### Plugin for ESLint and Oxlint
 
 The same rules, one per kind: name one to give it its own severity, or turn it off. The project to
-read is one setting for all of them, a path or a list of them, and defaults to `src/**/*.ts`.
+read is one setting for all of them, a path or a list of them, and defaults to `src/**/*.ts`. A path
+opening with `!` comes off it.
 
 ESLint needs a parser that reads your TypeScript.
 
@@ -489,7 +490,7 @@ export default [
   {
     plugins: { valof },
     rules: { ...valof.configs.recommended.rules, "valof/unused-member": "off" },
-    settings: { valof: { project: ["src/**/*.ts", "types/**/*.ts"] } },
+    settings: { valof: { project: ["src/**/*.ts", "!src/generated/**"] } },
   },
 ];
 ```

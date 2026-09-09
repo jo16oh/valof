@@ -14,24 +14,36 @@ type Where = { line: number; column: number };
 const at = (name: string): string => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
 const project = at("*.ts");
 
-const context = (name: string, text?: string, reports: string[] = []) => ({
+const context = (
+  name: string,
+  text?: string,
+  reports: string[] = [],
+  read: string | string[] = project,
+) => ({
   filename: at(name),
-  settings: { valof: { project } },
+  settings: { valof: { project: read } },
   sourceCode: { text: text ?? readFileSync(at(name), "utf8") },
   report: ({ loc, message }: { loc: { start: Where; end: Where }; message: string }) =>
     void reports.push(`${loc.start.line}:${loc.start.column}-${loc.end.column}  ${message}`),
 });
 
 /** Every rule over one file, as a host runs them. */
-const run = (name: string, text?: string): string[] => {
+const run = (name: string, text?: string, read?: string | string[]): string[] => {
   const reports: string[] = [];
-  const one = context(name, text, reports);
+  const one = context(name, text, reports, read);
   for (const rule of Object.values(plugin.rules)) rule.create(one).Program();
   return reports;
 };
 
 test("reports on the file it was called for, having read the whole project", () => {
   expect(run("order.ts")).toEqual(["6:21-24  Order.total holds Money, which has its own equals"]);
+});
+
+test("takes a list for the project, and leaves out what one entry excludes", () => {
+  const finding = "6:21-24  Order.total holds Money, which has its own equals";
+  expect(run("order.ts", undefined, [project])).toEqual([finding]);
+  // Money declares the `equals` the finding is about, so excluding it takes the finding with it.
+  expect(run("order.ts", undefined, [project, `!${at("money.ts")}`])).toEqual([]);
 });
 
 test("says nothing about a file that holds no finding of its own", () => {

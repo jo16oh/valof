@@ -160,9 +160,23 @@ const read = (given: string | readonly string[]): string[] => {
   const paths = typeof given === "string" ? [given] : [...given];
   const key = paths.join("\n");
   let found = projects.get(key);
-  if (!found) projects.set(key, (found = paths.flatMap(expand).map((file) => resolve(file))));
+  if (!found) {
+    // A path opening with `!` comes off the project, as it does on the command line. Resolved,
+    // since the glob that reached a file and the one that excluded it need not be spelled alike.
+    const dropped = new Set(
+      paths.filter(excludes).flatMap((path) => expand(path.slice(1)).map((file) => resolve(file))),
+    );
+    found = paths
+      .filter((path) => !excludes(path))
+      .flatMap(expand)
+      .map((file) => resolve(file))
+      .filter((file) => !dropped.has(file));
+    projects.set(key, found);
+  }
   return found;
 };
+
+const excludes = (path: string): boolean => path.startsWith("!");
 
 /**
  * `lint` is async, and a rule is not.
