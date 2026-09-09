@@ -1,4 +1,7 @@
 {
   "jsPlugins": ["../../../../src/lint/eslint-plugin.ts"],
-  "rules": { "valof/findings": "error" }
+  "rules": {
+    "valof/structural-equals": "error",
+    "valof/unused-member": "error"
+  }
 }

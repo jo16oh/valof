@@ -9,7 +9,15 @@ import {
 } from "node:worker_threads";
 
 import { expand } from "./files.ts";
-import { lint, NO_TYPESCRIPT, resolver, type Finding, type Kind, type Resolver } from "./index.ts";
+import {
+  lint,
+  NO_TYPESCRIPT,
+  resolver,
+  RULES,
+  type Finding,
+  type Kind,
+  type Resolver,
+} from "./index.ts";
 
 /**
  * The slice of the rule API this uses. Written out rather than imported: neither ESLint nor
@@ -17,7 +25,7 @@ import { lint, NO_TYPESCRIPT, resolver, type Finding, type Kind, type Resolver }
  */
 type Context = {
   filename: string;
-  options: readonly unknown[];
+  settings?: { valof?: { project?: string | readonly string[] } };
   sourceCode: { text: string };
   report: (report: { loc: { line: number; column: number }; message: string }) => void;
 };
@@ -29,7 +37,6 @@ type Ask = {
   project: readonly string[];
   file: string;
   text: string;
-  skip: readonly Kind[];
 };
 
 type Reply = { findings: Finding[] } | { failed: string };
@@ -40,53 +47,75 @@ type Message = Ask & { port: MessagePort; signal: Int32Array };
 const PATIENCE = 60_000;
 
 /**
- * The one rule. Every finding valof-lint has arrives through it.
+ * One rule per kind, so a project sets the severity of each and turns off what it does not want.
  *
- * One rule rather than one per kind because a run answers about the whole project at once: six
- * rules would be six runs of the same work. `skip` is how a project leaves a kind out.
+ * They share one run all the same: the linter answers about every kind at once, and {@link found}
+ * hands the same answer to each rule of the same file. What a rule adds is which findings it
+ * reports.
  */
-const findings = {
+const rule = ({ kind, description }: (typeof RULES)[number]) => ({
   meta: {
     type: "problem",
-    docs: { description: "what the type checker cannot catch about Vals" },
-    schema: [
-      {
-        type: "object",
-        properties: {
-          project: { oneOf: [{ type: "string" }, { type: "array", items: { type: "string" } }] },
-          skip: { type: "array", items: { type: "string" } },
-        },
-        additionalProperties: false,
-      },
-    ],
+    docs: { description },
+    // The project to read is one setting for all of them, since repeating it per rule is a way
+    // for six copies to disagree. See {@link project}.
+    schema: [],
   },
   create(context: Context) {
     return {
       Program(): void {
-        const { project: given, skip = [] } = (context.options[0] ?? {}) as {
-          project?: string | readonly string[];
-          skip?: readonly Kind[];
-        };
         const file = resolve(context.filename);
-        const project = read(given ?? "src/**/*.ts");
-        for (const finding of ask({
-          files: project.includes(file) ? project : [...project, file],
-          project,
-          file,
-          text: context.sourceCode.text,
-          skip,
-        }))
-          context.report({
-            // The finding counts a column from 1, as an editor does. A report counts from 0.
-            loc: { line: finding.line, column: finding.column - 1 },
-            message: `${finding.kind}: ${finding.message}`,
-          });
+        for (const finding of found(file, context.sourceCode.text, context.settings))
+          if (finding.kind === kind)
+            context.report({
+              // The finding counts a column from 1, as an editor does. A report counts from 0.
+              loc: { line: finding.line, column: finding.column - 1 },
+              // No kind in the message: the rule the host names is the kind.
+              message: finding.message,
+            });
       },
     };
   },
-};
+});
 
-export default { meta: { name: "valof" }, rules: { findings } };
+const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)])) as Record<
+  Kind,
+  ReturnType<typeof rule>
+>;
+
+/**
+ * One run per file, however many of the rules are on.
+ *
+ * The host creates every rule for a file before it walks it, so the six `Program` handlers run
+ * back to back over the same text. One entry is enough to cover that; the next file replaces it.
+ */
+let last: { key: string; findings: readonly Finding[] } | undefined;
+function found(file: string, text: string, settings: Context["settings"]): readonly Finding[] {
+  const project = read(settings?.valof?.project ?? "src/**/*.ts");
+  const key = `${file}\n${text}\n${project.join("\n")}`;
+  if (last?.key !== key)
+    last = {
+      key,
+      findings: ask({
+        files: project.includes(file) ? project : [...project, file],
+        project,
+        file,
+        text,
+      }),
+    };
+  return last.findings;
+}
+
+export default {
+  meta: { name: "valof" },
+  rules,
+  configs: {
+    /** Every rule as an error, for a project that wants the whole set. */
+    recommended: {
+      rules: Object.fromEntries(RULES.map(({ kind }) => [`valof/${kind}`, "error"])),
+    },
+  },
+};
 
 /**
  * The project, globbed once however many files are linted.
@@ -148,7 +177,7 @@ if (!isMainThread && parentPort) {
   // Held across files, so only the first of them pays for a language server.
   let held: { key: string; types: Resolver } | undefined;
 
-  parentPort.on("message", ({ port, signal, files, project, file, text, skip }: Message) => {
+  parentPort.on("message", ({ port, signal, files, project, file, text }: Message) => {
     void (async () => {
       let reply: Reply;
       try {
@@ -160,7 +189,6 @@ if (!isMainThread && parentPort) {
         reply = {
           findings: await lint(files, {
             types: held.types,
-            skip: new Set(skip),
             report: new Set([file]),
             overlay: new Map([[file, text]]),
           }),

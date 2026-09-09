@@ -4,6 +4,6 @@ export default [
   {
     files: ["**/*.js"],
     plugins: { valof },
-    rules: { "valof/findings": "error" },
+    ...valof.configs.recommended,
   },
 ];
