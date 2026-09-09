@@ -28,6 +28,17 @@ function tests(host: Host): void {
     expect(await editor.type("src/order.ts", fixed)).toEqual([]);
   });
 
+  test("follows a file it never opened", async () => {
+    expect(await editor.open("src/order.ts")).toEqual([FINDING]);
+    const money = source("src/money.ts");
+    try {
+      editor.save("src/money.ts", money.replace(/\.implEquals\([^;]*\)/, ""));
+      expect(await editor.recheck("src/order.ts")).toEqual([]);
+    } finally {
+      editor.save("src/money.ts", money);
+    }
+  });
+
   test("reports what only the buffer holds", async () => {
     await editor.open("src/order.ts");
     const member = source("src/order.ts").replace(

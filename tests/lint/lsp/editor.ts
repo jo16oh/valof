@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 /** The fixture project both servers open, and the working directory they are started in. */
@@ -59,7 +59,13 @@ export const eslint: Host = {
   settings: eslintSettings,
 };
 
-type Incoming = { id?: number; method?: string; params?: unknown; result?: unknown };
+type Incoming = {
+  id?: number;
+  method?: string;
+  params?: unknown;
+  result?: unknown;
+  error?: { message: string };
+};
 
 /**
  * Findings come back as their messages alone. Where one sits, and what names the rule, is each
@@ -71,6 +77,10 @@ export type Editor = {
   open: (file: string, text?: string) => Promise<string[]>;
   /** Replaces the buffer, leaving disk alone. */
   type: (file: string, text: string) => Promise<string[]>;
+  /** Writes a file the editor has not opened, and says so the way a file watcher would. */
+  save: (file: string, text: string) => void;
+  /** Asks again about a file already open, with nothing said about it in between. */
+  recheck: (file: string) => Promise<string[]>;
   close: () => void;
 };
 
@@ -85,7 +95,7 @@ export async function start(host: Host): Promise<Editor> {
 
   let buffer = Buffer.alloc(0);
   let id = 0;
-  const pending = new Map<number, (result: unknown) => void>();
+  const pending = new Map<number, (answer: Incoming) => void>();
 
   const write = (message: object): void => {
     const body = JSON.stringify({ jsonrpc: "2.0", ...message });
@@ -105,27 +115,32 @@ export async function start(host: Host): Promise<Editor> {
       ) as Incoming;
       buffer = buffer.subarray(head + 4 + length);
       if (message.id === undefined) continue;
+      // A request from the server, told apart by its method: each side numbers its own requests,
+      // so an id alone says nothing about who is answering whom. Both servers ask for the
+      // settings, and leaving either request unanswered stops the run before a file is linted.
+      if (message.method !== undefined) {
+        const items = (message.params as { items?: unknown[] } | undefined)?.items ?? [{}];
+        write({
+          id: message.id,
+          result:
+            message.method === "workspace/configuration" ? items.map(() => host.settings) : null,
+        });
+        continue;
+      }
       const waiting = pending.get(message.id);
       if (waiting) {
         pending.delete(message.id);
-        waiting(message.result);
-        continue;
+        waiting(message);
       }
-      // A request from the server. Both ask for the settings, and leaving either unanswered
-      // stops the run before a file is linted.
-      const items = (message.params as { items?: unknown[] } | undefined)?.items ?? [{}];
-      write({
-        id: message.id,
-        result:
-          message.method === "workspace/configuration" ? items.map(() => host.settings) : null,
-      });
     }
   });
 
   const request = (method: string, params: object): Promise<unknown> =>
-    new Promise((answer) => {
+    new Promise((resolve, reject) => {
       const next = ++id;
-      pending.set(next, answer);
+      pending.set(next, ({ result, error }) =>
+        error ? reject(new Error(`${method}: ${error.message}`)) : resolve(result),
+      );
       write({ id: next, method, params });
     });
 
@@ -178,6 +193,15 @@ export async function start(host: Host): Promise<Editor> {
       });
       return diagnostics(file);
     },
+    save: (file, text) => {
+      writeFileSync(`${root}${file}`, text);
+      write({
+        method: "workspace/didChangeWatchedFiles",
+        // 2 is Changed. An editor watches the project and sends this whoever wrote the file.
+        params: { changes: [{ uri: uri(file), type: 2 }] },
+      });
+    },
+    recheck: (file) => diagnostics(file),
     close: () => void child.kill(),
   };
 }
