@@ -383,6 +383,15 @@ Val.of<User>({ id: "a", name: "alice" });
 Where the type has a `seal` of its own, use that instead. `Val.of` skips the checks: it is the
 escape hatch.
 
+[`valof-lint`](#valof-lint) reports every `Val.of` for a type that has a companion, as a warning.
+Where the values arrive checked, which is a transport both sides of one deploy share, silence the
+line and say so:
+
+```ts
+// valof-lint-disable-next-line bypassed-companion -- validated by the server action
+const user = Val.of<User>(payload);
+```
+
 ### `Val.unwrap`
 
 A plain, mutable deep copy of the payload, for handing to code that does not know about `readonly`.
@@ -451,6 +460,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `brand-mismatch`     | a brand whose last segment is not the name of the type it brands          |
 | `companion-mismatch` | a companion bound to a name other than the type it is for                 |
 | `split-companion`    | a companion for a type that another file declares                         |
+| `bypassed-companion` | a `Val.of` for a type whose companion is how it is built                  |
 | `structural-equals`  | a payload holding a Val whose own `equals` the parent never dispatches to |
 
 A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes

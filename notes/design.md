@@ -31,7 +31,7 @@ import { Val } from "valof";
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
 - **§15 v2 候補** `Val.trait`
 
 ---
@@ -1918,13 +1918,14 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 
 ### 14.4 ルール
 
-構文だけで判定するものが 7 つ。残る 1 つは go-to-definition を使う（§14.7）。
+構文だけで判定するものが 8 つ。残る 1 つは go-to-definition を使う（§14.7）。
 
 - 誰も読まない companion のメンバ
 - 複数の**トップレベル**型エイリアスが主張しているブランド文字列
 - 型名で終わっていないブランド文字列（§14.12）
 - 型名と違う名前に束縛された companion（§14.21）
 - 別のファイルが宣言している型の companion（§14.22）
+- companion を持つ型の `Val.of`（§14.23）
 - ルールを名指ししていない disable コメント（§14.14）
 - 何も黙らせていない disable コメント（§14.15）
 
@@ -2668,6 +2669,7 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 | `brand-mismatch`     | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
 | `companion-mismatch` | error | §14.21。同じく「一致すべき 2 つの食い違い」                                               |
 | `split-companion`    | error | §14.22。型名で export できる形にならない                                                  |
+| `bypassed-companion` | warn  | §14.23。出来上がる値は正しい。迂回したのは型の入口                                        |
 | `incomplete-disable` | error | 下記                                                                                      |
 | `unused-member`      | warn  | 死んだコード。周りは動く                                                                  |
 | `unused-disable`     | warn  | 何も黙らせていない指示。コードは変わらない                                                |
@@ -3465,6 +3467,43 @@ namespace 修飾の型引数（`Val.sealer<ns.User>()`）も報告する。names
 **却下: go-to-definition で宣言ファイルを比べる。** helper 越しの別名（`type Local = Imported`）まで見える
 が、この規則のためだけに TypeScript を起動する。取りこぼすのはその 1 形だけで、黙るのは安全側。ローカル
 別名は brand-mismatch 側で見るほうが筋がよい（§9）。
+
+### 14.23 規則: companion を持つ型の `Val.of`、2026-09-09
+
+**入れる。** `bypassed-companion`。`Val.of<X>` の X に companion があれば報告する。既定で on、warn。
+
+```ts
+Val.of<User>(p); // User = Val.sealer<User>()            → bypasses User, the constructor for it
+Val.of<Age>(n); // Age = …implSeal(check)                → bypasses Age.seal, which checks the payload
+Val.of<Row>(r); // Row = Val.companion<Row>().impl({…})  → brands a payload that no seal checked
+Val.of<Token>(s); // companion なし                       → 黙る
+```
+
+#### 却下: seal なし companion だけ黙る
+
+最初はこの案（B）を推した。`Val.of` は seal なし companion の唯一の構築手段なので（§6.5）、そこに警告を
+出すのは直し方の無い指摘になる、という理由だった。**取り下げた。理由は境界の持ち上げが seal の有無と
+直交すること。**検証済みの `Age` の payload が RSC 越しに来たとき、`Age.seal(p)` は検査を二度走らせて
+`Result` の処理も増やすので、書きたいのは `Val.of<Age>(p)` である。つまり「正当な `Val.of`」は seal を
+持つ型にも起きる。**どちらの案でも境界には disable コメントが要る**以上、B の切り分けが買うものは無い。
+
+代わりに、メッセージを 3 通りにして「その型に何があるか」を言う。seal なし companion には直し方が無い
+ので、直し方を書かない。
+
+#### 正当なサイトは disable コメントで残す
+
+値が検証済みで届くと言えるのは、**両側が同じデプロイで出荷される経路だけ**（§8.3 の訂正）。RSC /
+Server Function、同一アプリのプロセス間 JSON-RPC、Electron の chromium ↔ node の IPC。DB 行は入らない。
+コメントの `--` 以降にその経路を書けば、なぜ無検査でよいかがコードに残る。warn なのはこのため。値自体は
+正しく、迂回したのは型の入口である。
+
+#### 突き合わせは名前で、resolver は使わない
+
+`unused-member` の read の解決と同じ。型引数を宣言側の名前に直して（renamed import は `original`、
+namespace 修飾は右側）、companion のサイトと突き合わせる。**§14.22 がこれを成立させている。**型と companion
+が同じファイルにあると仮定できるので、名前の衝突はブランドの衝突と同じ話に畳める。
+
+型引数を書かない `Val.of(payload)`（代入先から推論する形）は見ない。キーにする名前がここに無い。
 
 ### 15.1 `Val.trait`
 

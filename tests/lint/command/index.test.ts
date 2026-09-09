@@ -42,6 +42,7 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
       "  brand-mismatch      a brand whose last segment is not the name of the type it brands\n" +
       "  companion-mismatch  a companion bound to a name other than the type it is for\n" +
       "  split-companion     a companion for a type that another file declares\n" +
+      "  bypassed-companion  a `Val.of` for a type whose companion is how it is built\n" +
       "  structural-equals   a payload holding a Val whose own `equals` the parent never dispatches to\n" +
       "  incomplete-disable  a disable comment leaving out the rules it silences, or its scope\n" +
       "  unused-disable      a disable comment naming a rule that reports nothing there\n",
