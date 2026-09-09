@@ -421,7 +421,15 @@ export type CompanionBuilder<
   /** Collects the functions for the type. Everything the library wires has its own step. */
   impl: {
     (): Companion<V, T, N, F, P>;
-    <M extends CompanionFns<V>>(fns: M): Companion<V, M & T, N, F, P>;
+    // A trait's member is registered, so `.impl` may not grow one over it: the type would keep
+    // the trait's signature while `dyn` kept calling what `implTrait` recorded.
+    <M extends CompanionFns<V>>(
+      fns: M & {
+        [K in keyof M]: K extends keyof T
+          ? "a trait's member is already registered under this name"
+          : unknown;
+      },
+    ): Companion<V, M & T, N, F, P>;
   };
   /**
    * Implements a trait the type declares. The members the trait leaves open arrive as a second

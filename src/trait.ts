@@ -110,15 +110,23 @@ export type TraitCompanion<Tr extends AnyTrait, D> = D & {
   readonly dyn: (companion: TraitHost, value: ShapeOf<Tr>) => Dyn<Tr>;
 };
 
+/**
+ * The shared functions a trait may hold: anything but a name it left to each Val. The two sets
+ * stay disjoint, which is what makes a call through the trait unable to skip a Val's own version.
+ */
+export type Defaults<Tr extends AnyTrait, D> = {
+  readonly [K in keyof D]: K extends keyof MembersOf<Tr>
+    ? "a shared function cannot take the name of a member each Val implements"
+    : (self: ShapeOf<Tr>, ...args: never[]) => unknown;
+};
+
 /** Collects a trait's shared functions. */
 export type TraitBuilder<Tr extends AnyTrait> = TraitCompanion<Tr, Record<never, never>> & {
   /**
    * The functions computed from the shape alone. They cannot be overridden, so calling one
    * through the trait can never skip a Val's own version.
    */
-  impl: <D extends { readonly [K in keyof D]: (self: ShapeOf<Tr>, ...args: never[]) => unknown }>(
-    fns: D,
-  ) => TraitCompanion<Tr, D>;
+  impl: <D extends Defaults<Tr, D>>(fns: D) => TraitCompanion<Tr, D>;
 };
 
 type AnyFn = (...args: never[]) => unknown;

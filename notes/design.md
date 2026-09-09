@@ -3802,6 +3802,24 @@ const User = Val.companion<User>().implTrait(Greetable, {
 
 同じ名前が両方に出ないので、「trait 経由で呼んだら User の上書きが効かなかった」が構造的に起きない。
 
+**ただし 2 つの集合が交わらないことは型で強制する必要がある。**仮実装ではそこが抜けていて、同じ名前に 3 つの
+答えが出た。
+
+```ts
+const Clash = Trait.companion<Clash>().impl({ same: (c) => c.n }); // 1
+const Box = Val.companion<Box>()
+  .implTrait(Clash, { same: (b) => b.n * 2 }) // 2
+  .impl({ same: (b) => b.n * 3 }); // 3
+
+Clash.same(b); // 1  trait の既定
+Box.same(b); // 3  .impl が implTrait の上書き
+Clash.dyn(Box, b).same(); // 2  箱は implTrait が記録したもの
+```
+
+塞ぐ場所は 2 つ。trait 側の `.impl` は Val ごとのメンバの名前を取れない。companion 側の `.impl` は
+`implTrait` が登録した名前を取れない。後者はメンバ検査を**制約ではなく引数の型**に置く必要がある。制約に
+入れると `M & T` が `CompanionFns<V>` を満たさなくなり、`equals` が壊れる。
+
 #### ブランドは交差できる形にする
 
 ```ts

@@ -56,3 +56,15 @@ type Unsafe = Trait<"Unsafe", { n: number }, { grow: (self: Self) => Self }>;
 // @ts-expect-error a trait member cannot return Self
 const Unsafe = Trait.companion<Unsafe>("Unsafe").impl({});
 void Unsafe;
+
+// the two sets of names stay disjoint, so nothing can answer to the same name twice
+type Clash = Trait<"Clash", { n: number }, { same: (self: Self) => number }>;
+// @ts-expect-error a shared function cannot take the name of a member each Val implements
+const Clash = Trait.companion<Clash>("Clash").impl({ same: (c: { n: number }) => c.n });
+
+type Box = Val<"Box", { n: number }, Clash>;
+const Box = Val.companion<Box>()
+  .implTrait(Clash, { same: (b) => b.n * 2 })
+  // @ts-expect-error a trait's member is already registered under this name
+  .impl({ same: (b) => b.n * 3 });
+void Box;
