@@ -29,6 +29,12 @@ describe("what the rule finds", () => {
     expect(await lint("re-export")).toEqual([{ rule: UnusedMember, at: "re-export/user.ts:3:3" }]);
   });
 
+  test("follows a read through a chain of renamed exports", async () => {
+    expect(await lint("re-export-chain")).toEqual([
+      { rule: UnusedMember, at: "re-export-chain/user.ts:3:3" },
+    ]);
+  });
+
   test("counts bracket access, destructuring and a renaming destructure as reads", async () => {
     expect(await lint("reads")).toEqual([]);
   });
