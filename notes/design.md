@@ -3872,6 +3872,13 @@ type Wrap<T> = T; // 見ない
 
 2026-09-03 に提起、2026-09-09 に形が決まった。v1 ではなく v2 向け。
 
+**公開は experimental subpath に限る。**Trait とその関連型は root export には加えず、
+`valof/experimental` からだけ export する。利用側は
+`import { Trait, type Dyn, type Final, type Self } from "valof/experimental"` と書く。
+これは 0.x で minor release に破壊的変更がありうるという versioning 方針とは別に、安定 API と
+Trait を import 時点で区別するための境界である。各 public export には `@experimental` も付け、IDE と
+生成ドキュメントに provisional であることを伝える。ただしこの tag は TypeScript の利用を禁止しない。
+
 **欠けているもの。** 複数の Val が共有する関連関数・フィールドを宣言する手段がない。companion の関数は
 自分の Val に固定されるので、`SuperUser` が `PayloadOf<User>` から作られていても `User.greet(superUser)`
 は弾かれる。共有したければ構造的な型に対する普通の export 関数にするしかなく、valof の中で companion の
