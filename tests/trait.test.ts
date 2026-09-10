@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import { Trait, Val, type Dyn, type Final, type Self } from "../src/index.ts";
+import { Trait, Val, type AnyVal, type Dyn, type Final, type Self } from "../src/index.ts";
 
 type Greetable = Trait<
   "Greetable",
@@ -54,11 +54,19 @@ describe("implementing", () => {
 
   test("the payload must hold what the trait requires", () => {
     type Bad = Val<"Bad", { id: string }, Greetable>;
-    Val.companion<Bad>().implTrait(
-      // @ts-expect-error the payload does not hold what this trait requires
-      Greetable,
-      { toWire: (b, sep) => `${b.id}${sep}` },
-    );
+    expectTypeOf<Bad>().not.toExtend<AnyVal>();
+    // @ts-expect-error the payload does not hold what this trait requires
+    Val.companion<Bad>();
+    // @ts-expect-error same
+    Val.sealer<Bad>();
+  });
+
+  test("a trait requiring nothing of the members still requires its fields", () => {
+    type Provable = Trait<"Provable", { theorem: string }, Record<never, never>>;
+    type Bad = Val<"Bad", Record<never, never>, Provable>;
+    expectTypeOf<Bad>().not.toExtend<AnyVal>();
+    // @ts-expect-error the payload does not hold what this trait requires
+    Val.sealer<Bad>();
   });
 
   test("a sealer keeps its constructor", () => {
@@ -188,10 +196,10 @@ describe("a trait that implements nothing of its own", () => {
     // @ts-expect-error the type does not declare this trait
     Val.companion<Plain>().implTrait<Wired>(plain);
 
-    type Thin = Val<"Thin", { n: number }, Wired>;
-    const thin = { toWire: (t: Thin, sep: string) => `${t.n}${sep}` };
-    // @ts-expect-error the payload does not hold what this trait requires
-    Val.companion<Thin>().implTrait<Wired>(thin);
+    type Note = Val<"Note", { id: string; name: string }, Greetable>;
+    const note = { toWire: (n: Note, sep: string) => `${n.id}${sep}` };
+    // @ts-expect-error a member cannot take the name of a field the payload holds
+    Val.companion<Note>().implTrait<Wired>(note);
   });
 
   test("but a trait with a Final member needs one", () => {
@@ -398,12 +406,10 @@ describe("names", () => {
 
   test("unless no payload satisfies both", () => {
     type Sized = Trait<"Sized", { name: number }, { half: (self: Self) => number }>;
-    const Sized = Trait.companion<Sized>().impl({ half: (s) => s.name / 2 });
     type Both = Val<"Both", { name: string }, Greetable & Sized>;
-    Val.companion<Both>().implTrait(
-      // @ts-expect-error the payload does not hold what this trait requires
-      Sized,
-    );
+    expectTypeOf<Both>().not.toExtend<AnyVal>();
+    // @ts-expect-error the payload does not hold what this trait requires
+    Val.companion<Both>();
   });
 });
 

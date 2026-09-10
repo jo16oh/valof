@@ -82,34 +82,43 @@ export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
  * `T extends Validate<T>` is the natural spelling. On a type alias that is TS2313 "circular
  * constraint", hence the conditional.
  */
-type Phantom<K extends string, T> = [T] extends [Validate<T>]
-  ? {
-      readonly __valof_internal_phantom_brand: K;
-      /** Exists only so the original payload type can be recovered. */
-      readonly __valof_internal_phantom_payload: T;
-    }
+type Phantom<K extends string, T, Tr extends AnyTrait> = [T] extends [Validate<T>]
+  ? Fits<T, Tr> extends true
+    ? {
+        readonly __valof_internal_phantom_brand: K;
+        /** Exists only so the original payload type can be recovered. */
+        readonly __valof_internal_phantom_payload: T;
+      }
+    : {
+        readonly __valof_internal_phantom_brand: Invalid<"the payload does not hold what the trait requires">;
+      }
   : { readonly __valof_internal_phantom_brand: Validate<T> };
 
+/** Whether the payload holds every field the declared traits require. */
+type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
+  ? true
+  : DeepReadonly<Checked<T>> extends ShapeOf<Tr>
+    ? true
+    : false;
+
 /**
- * The trait brands, or the marker when the payload does not hold what a trait requires.
+ * The trait brands.
  *
  * Several traits are one intersection: `Val<"User", P, Greetable & Serializable>`. Their brand
  * maps intersect too, which is what lets a Val stay assignable to each of them.
  */
-type TraitBrand<T, Tr> = [Tr] extends [never]
+type TraitBrand<Tr extends AnyTrait> = [Tr] extends [never]
   ? unknown
-  : Tr extends AnyTrait
-    ? {
-        readonly __valof_internal_phantom_trait_brands: DeepReadonly<Checked<T>> extends ShapeOf<Tr>
-          ? Tr["__valof_internal_phantom_trait_brands"]
-          : Invalid<"the payload does not hold what the trait requires">;
-      }
-    : unknown;
+  : { readonly __valof_internal_phantom_trait_brands: Tr["__valof_internal_phantom_trait_brands"] };
 
-/** A branded value type. A payload that breaks the allowed-type rules is a type error. */
+/**
+ * A branded value type. A payload that breaks the allowed-type rules is a type error, and so is
+ * one that does not hold what a declared trait requires: both land in the brand, which stops the
+ * Val satisfying {@link AnyVal}.
+ */
 export type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Checked<T>> &
-  Phantom<K, T> &
-  TraitBrand<T, Tr>;
+  Phantom<K, T, Tr> &
+  TraitBrand<Tr>;
 
 /** The Val's brand string. */
 export type BrandOf<V extends AnyVal> = V["__valof_internal_phantom_brand"];
