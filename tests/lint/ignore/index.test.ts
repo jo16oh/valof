@@ -105,6 +105,14 @@ test("stops at a blank line, which starts a block of its own", async () => {
   ]);
 });
 
+test("stops a comment block when code follows a comment", async () => {
+  expect(await lint("code-breaks-block")).toEqual([
+    { rule: IncompleteDisable, at: "code-breaks-block.ts:2:3" },
+    { rule: UnusedMember, at: "code-breaks-block.ts:2:38" },
+    { rule: UnusedMember, at: "code-breaks-block.ts:4:3" },
+  ]);
+});
+
 test("ignores a directive trailing code, which belongs to no block", async () => {
   expect(await lint("after-code")).toEqual([{ rule: UnusedMember, at: "after-code.ts:2:3" }]);
 });
