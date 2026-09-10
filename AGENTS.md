@@ -8,11 +8,11 @@ wrapper types, the linter, or new API. §9 lists the open questions. New deliber
 
 ## Bundle Size and Type Cost
 
-Run `vp run size` after changing `src/`. It measures the bundle and the declarations against their
-budgets and exits non-zero over either.
+Run `vp run bundle-size` after changing runtime code. It measures what a user ships.
 
 Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
-against the published declarations and checks instantiation and type counts against their budgets.
+against the published declarations, and budgets the instantiation count and the size of
+`dist/index.d.mts`. Both are type costs, so both live here.
 
 Neither `vp check` nor `vp test` covers either one.
 

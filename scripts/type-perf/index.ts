@@ -30,6 +30,18 @@ type Fixture = (typeof fixtures)[number];
  */
 const budget: Record<Fixture, number> = { core: 10_000, trait: 15_000 };
 
+/**
+ * The published declarations, in bytes. Deterministic like the counts above, and budgeted the
+ * same way: an alarm, not a ratchet.
+ *
+ * Here rather than in `bundle-size` because it is a type cost. It never reaches a user's bundle;
+ * what it costs is the download and every parse of it, and a run away shows as a type graph the
+ * declarations drag in whole. `Finding` derived from `RULES` took `lint`'s declarations to
+ * 14.9 kB that way, which is the size of the accident this catches. Creep is a few hundred bytes
+ * a feature: read the printed number for that.
+ */
+const declarationsBudget = 64 * 1024;
+
 type Counts = { types: number; instantiations: number; check: number; total: number };
 
 const fields = [
@@ -65,6 +77,8 @@ async function measure(tsc: Tsc, name: string): Promise<Counts> {
 }
 
 const num = (value: number): string => value.toLocaleString("en-US");
+const bytes = (value: number): string =>
+  value < 1024 ? `${value} B` : `${(value / 1024).toFixed(2)} kB`;
 const secs = (value: number): string => value.toFixed(3);
 
 /** Right-aligned columns under a header, so the units are named once. */
@@ -78,6 +92,11 @@ function table(heads: string[], rows: string[][]): string {
 }
 
 await pack();
+
+const declarations = Buffer.byteLength(
+  await readFile(new URL("../../dist/index.d.mts", here), "utf8"),
+  "utf8",
+);
 
 let measured = {} as Record<Fixture, Counts>;
 const json = process.argv.includes("--json");
@@ -126,20 +145,27 @@ await forEachVersion([floor], async (tsc, version) => {
   );
 });
 
-if (json) console.log(JSON.stringify(measured, null, 2));
+if (json) console.log(JSON.stringify({ ...measured, declarations }, null, 2));
 
-const checks = fixtures.map((name) => [name, measured[name].instantiations, budget[name]] as const);
+const checks = [
+  ...fixtures.map((name) => [name, measured[name].instantiations, budget[name], num] as const),
+  ["index.d.mts", declarations, declarationsBudget, bytes] as const,
+];
 
 if (!json) {
-  const left = ([, size, max]: (typeof checks)[number]): string =>
+  const left = ([, size, max, fmt]: (typeof checks)[number]): string =>
     size > max
-      ? `${num(size - max)} over`
-      : `${num(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
-  console.log("\nbudget");
+      ? `${fmt(size - max)} over`
+      : `${fmt(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
+  console.log("\nbudget  (core and trait are instantiations)");
   console.log(
     table(
-      ["instantiations", "used / budget", ""],
-      checks.map((check) => [check[0], `${num(check[1])} / ${num(check[2])}`, left(check)]),
+      ["", "used / budget", ""],
+      checks.map((check) => [
+        check[0],
+        `${check[3](check[1])} / ${check[3](check[2])}`,
+        left(check),
+      ]),
     ),
   );
 }
@@ -148,6 +174,7 @@ if (!json) {
   // A reader meets this table years after the last person who chose what to put in it.
   console.log("\ninstantiations: type arguments applied, where a conditional running away shows.");
   console.log("types: distinct types the checker made. printed only, and it tracks the first.");
+  console.log("index.d.mts: the published declarations, in bytes. what every consumer parses.");
 }
 
 if (checks.some(([, size, max]) => size > max)) process.exit(1);

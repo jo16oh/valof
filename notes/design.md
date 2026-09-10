@@ -38,6 +38,7 @@ import { Val } from "valof";
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
+- **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
 
 ---
 
@@ -1781,8 +1782,8 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
         満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
   - `unnamed-of` / `bypassed-companion` は広げない。trait があっても構築の話は変わらない
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
-- [ ] **§15.3 `path` の実測 2 つ。**書き始める前に。(a) パス型と Err 収集型が宣言の予算に入るか
-      (30.04 / 32.00 kB、残り 6%)。(b) `glue` の union ハンドラの推論が通るか
+- [ ] **§15.3 `path` の実測。**書き始める前に、`glue` の union ハンドラの推論が通るか。宣言の予算は
+      64 kB に上げたので測る対象から外れた（§16）
 - [ ] **§15.2 `Enum`: valof-lint に `tag-mismatch` を足す。**型引数のタグ名と `Enum.companion` の引数が
       割れる。§14.12 の `brand-mismatch` の隣で判断も実装もほぼ同じ。payload のキーとの衝突検査も要る
 - [ ] **`hash` を出すか。保留、2026-09-10。**実例が出るまで動かさない。見るのは 1 つだけで、**大きい値を
@@ -2103,7 +2104,7 @@ companion のメンバは `Companion.member` の形でしか到達されない�
 
 ### 14.3 valof に同梱する
 
-2026-09-04 にテスト用パッケージを pack してインストールし検証した。`bin` エントリと、_optional_ な `peerDependencies` としての `oxc-parser` は、欲しくない利用者に何のコストも課さない。利用者側の `node_modules` を実測すると、valof だけなら 36 KB（パーサは引かれず、インストール警告も出ず、bin はインストールを促して exit 2）、opt-in すると 7.3 MB。`dependencies` は空のままなので、実行時依存ゼロと 1 kB 前後という主張は保たれる。`scripts/size.ts` がバンドルするのは `./dist/index.mjs` だけで、隣にある `dist/lint-cli.mjs` はそこから到達できない。
+2026-09-04 にテスト用パッケージを pack してインストールし検証した。`bin` エントリと、_optional_ な `peerDependencies` としての `oxc-parser` は、欲しくない利用者に何のコストも課さない。利用者側の `node_modules` を実測すると、valof だけなら 36 KB（パーサは引かれず、インストール警告も出ず、bin はインストールを促して exit 2）、opt-in すると 7.3 MB。`dependencies` は空のままなので、実行時依存ゼロと 1 kB 前後という主張は保たれる。`scripts/bundle-size.ts` がバンドルするのは `./dist/index.mjs` だけで、隣にある `dist/lint-cli.mjs` はそこから到達できない。
 
 他の 2 案より優れている。README のレシピにはテストもバージョンもなく、別パッケージはリリース面が増える。valof 内の bin なら既存のリリースワークフローに乗り、ここでテストできる。
 
@@ -2133,7 +2134,7 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 #### 代償
 
 - **tarball 32 KB → 39 KB。** `valof/lint` を出したとき増えた分で、ほぼ `dist/lint/index.d.mts`（14.9 kB）である。`Finding` が `RULES` から導かれるので、宣言は規則の型グラフを丸ごと連れてくる
-- **配布物の 58% がリンタ。** README の「1 kB gzipped」は**バンドルサイズ**であって、`scripts/size.ts` が測るのは `dist/index.mjs` だけなので主張は保たれる。だがダウンロードサイズは別物で、`npm i valof` した `node_modules` には 36 kB のリンタが入る
+- **配布物の 58% がリンタ。** README の「1 kB gzipped」は**バンドルサイズ**であって、`scripts/bundle-size.ts` が測るのは `dist/index.mjs` だけなので主張は保たれる。だがダウンロードサイズは別物で、`npm i valof` した `node_modules` には 36 kB のリンタが入る
 - **リリース粒度が結合する。** リンタだけの修正でライブラリのバージョンが上がる。今はどちらも動いているので表面化していない
 
 #### 分ける条件
@@ -3173,7 +3174,7 @@ tests/lint/
 
 **自己 lint は消した。** 引数なしの `cli()` が `src/**/*.ts` を lint し、`command/` に「finding は 0 件」という 1 本があった。まず `command/`（被写体は出力の形）から出して `self.test.ts` にしたが、そもそも赤になる道がない。`src/` の `Val.sealer` / `Val.companion` は全部コメントと文字列で、実際の使用は 0 件。`src/val.ts` は `Val` を実装している側なので自分を呼ばない。**このリポジトリで valof をドメインロジックに使う日が来るまで、この主張は空。** 手で使用を足せば赤くなるが、それは変異ではなく別のリポジトリを作る作業。
 
-`src/` で valof を使い始めたら戻す先は `tests/lint/self.test.ts`。`vite.config.ts` のタスクにする案は却下、`vp run size` と同じで回し忘れる。
+`src/` で valof を使い始めたら戻す先は `tests/lint/self.test.ts`。`vite.config.ts` のタスクにする案は却下、`vp run bundle-size` と同じで回し忘れる。
 
 **ルール一覧を名乗るのは `--help` だけ。** `skip/` の `--no-typo` のエラーは `kinds` をレジストリから読んで組む。以前は 3 つのリテラルで、`--help` と 2 箇所が同じ列挙を持っていた。§14.12 の `brand-mismatch` を足したとき赤くなるのは 1 箇所。メッセージの形（前置き、字下げ、`, ` 区切り）は変異で赤を確認済み。
 
@@ -3303,7 +3304,7 @@ BillingId claims the brand "billing/Id", which should be "billing/BillingId"
 #### 実装
 
 `BrandClaim` が既に `alias` / `brand` / 位置を持つ。`Rule` オブジェクト 1 つと `RULES` への 1 行だけで、
-`Scan` に足すものも resolver も要らない（§14.8）。バンドル予算は無関係。`scripts/size.ts` が測るのは
+`Scan` に足すものも resolver も要らない（§14.8）。バンドル予算は無関係。`scripts/bundle-size.ts` が測るのは
 `dist/index.mjs` だけで lint は入らない。
 
 **2026-09-08 実装。`rules/brands.ts` を `duplicate.ts` と `mismatch.ts` に割った。**1 ファイルに 2 つ置くと
@@ -4080,7 +4081,8 @@ const unnamed = "pass the members this trait leaves open, or name the trait as t
 Val.companion<Member>().implTrait(unnamed); // 文が変われば、ここが落ちる
 ```
 
-宣言は 31.0 → 31.4 kB（予算 32 kB に対して残り 2%）、trait の instantiations は 12,449 → 12,514。
+宣言は 31.0 → 31.4 kB、trait の instantiations は 12,449 → 12,514。この時点の予算は 32 kB で残り 2%
+だった。ここでコメントを 2 度削っている。予算のほうを直した記録が §16。
 
 **払うもの。**オーバーロードが 2 つの入口それぞれで倍になる。宣言は改名前から 2.1 kB 増えて 29.6 kB
 （予算 32 kB に対して残り 8%）、trait の instantiations は 9,632 → 11,933。実行時は増えない。
@@ -4372,9 +4374,12 @@ trait オブジェクトを受け取る。文字列は型に書いたブラン�
 
 #### 測り方
 
-`scripts/size.ts` は `const api = "Val"` で `Val` だけを import したグラフを測っている。現行の 1280 B
+`scripts/bundle-size.ts` は `const api = "Val"` で `Val` だけを import したグラフを測っている。現行の 1280 B
 予算がそのまま「Trait を使わない人」の予算になる。`Trait` を足したエントリを 2 本目として測り、別予算を
 持たせる。
+
+2 本目は `1280 + 256` と書く（§16）。丸めた 2 つ目の数ではなく**増分**が線なので、そう書けば読める。
+`Trait` を import する人が余分に払うのは 0.25 kB まで。実測は 95 B（1,147 → 1,242 B）で、3 倍近い余裕がある。
 
 型推論のコストは `vp run type-perf`（`scripts/type-perf/`）。`--extendedDiagnostics` の数字を、公開する
 `dist/index.d.mts` に対して測る。fixture は `fixtures/` に置く。
@@ -4794,9 +4799,47 @@ error TS2322: Type 'User' is not assignable to type '0'
 - trait 由来のメンバは `implTrait` を呼んだかで変わる
 - `implEquals` の有無で `equals` の型が変わる
 
-**宣言の予算に効く可能性がある**（30.04 / 32.00 kB、残り 6%）。オーバーロードが 1 本増えるぶんも含めて、
-実装前に `vp run type-perf` と `vp run size` で測る。
+オーバーロードが 1 本増えるので、実装前に `vp run type-perf` で測る。宣言の予算は 64 kB に上げた（§16）。
 
 #### 却下: オブジェクト形を置き換える
 
 **両方残す。**関連関数を要らないメンバに、コールバックの分割代入は雑音。既存のコードも動かない。
+
+---
+
+## 16. 予算の責務、2026-09-10
+
+**バンドルと型は別の関心事。**スクリプトを 2 つに割った。
+
+|                      | 測るもの                                            | 性質                                   |
+| -------------------- | --------------------------------------------------- | -------------------------------------- |
+| `vp run bundle-size` | `dist/index.mjs` の gzip、`Val` だけと `Trait` 込み | **ラチェット**。利用者が出荷するバイト |
+| `vp run type-perf`   | instantiations と `dist/index.d.mts` のバイト数     | **アラーム**                           |
+
+`types raw` は `scripts/size.ts` にあったが、あれはバンドルではない。利用者のバンドルには 1 バイトも
+入らず、かかるのはダウンロードとパースである。パースするのは型検査なので、type-perf の側が本体。
+
+**予算は 32 → 64 kB。**32 kB はラチェットとして機能していた。type-perf 側の docstring が禁じている形
+そのものである。
+
+> **This is an alarm for a blow-up, not a ratchet for creep.** A budget tight enough to catch
+> [creep] has to be re-baselined on every change, and stops meaning anything.
+
+実害が出ていた。§15.1 の 2 件で、バイト数のために JSDoc を 2 度削った。説明を捨ててバイトを買ったわけで、
+交換として逆である。さらに §9 では `path`（§15.3）と `.impl` のコールバック形（§15.4）の両方が、この予算を
+理由に「書き始める前に測れ」と保留になっていた。**バグではなく設計を止めていた。**
+
+64 kB なら Enum と path が両方乗ってもまだ当たらない。捕まえたいのは倍率の事故で、実例が §14 にある。
+`Finding` を `RULES` から導いたら規則の型グラフを丸ごと連れてきて、`dist/lint/index.d.mts` が 14.9 kB に
+なった。あの類は浅くて広いので instantiations には出にくく、バイト数のほうが効く。だから消さずに残す。
+
+**時間は予算にしない。**環境で動くので比較できない。type-perf が予算を持つのは決定的な数だけで、
+`check (s)` と `total (s)` は印字のみ。バイト数も決定的なので同じ扱いにできる。これが `types raw` を
+type-perf に移せる理由でもある。
+
+**`Trait` の予算は増分で書く。**1600 B から `1280 + 256` にした。1600 は丸めた 2 つ目の数でしかなく、
+線は「`Trait` を import する人が余分に払う量」のほうにある。そう書けば core の予算を動かしたときも
+関係が保たれる。実測の増分は 95 B（1,147 → 1,242 B）で、3 倍近い余裕がある。
+
+**いま一番狭いのは `trait` の instantiations。**12,514 / 15,000 で残り 17%。Trait 1 機能で
+9,632 → 11,933（+24%）動いた。Enum と path が来ると効くのはここで、宣言のバイト数ではない。

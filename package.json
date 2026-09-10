@@ -42,7 +42,7 @@
     "dev": "vp pack --watch",
     "test": "vp test",
     "check": "vp check",
-    "size": "node scripts/size.ts",
+    "bundle-size": "node scripts/bundle-size.ts",
     "ts-compatibility": "node scripts/ts-compatibility/index.ts",
     "type-perf": "node scripts/type-perf/index.ts",
     "prepublishOnly": "vp run build",

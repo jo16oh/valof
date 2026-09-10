@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { gzipSync, brotliCompressSync, constants } from "node:zlib";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,7 +9,6 @@ import { minifySync, build, type Rolldown } from "vite";
 
 const root = new URL("../", import.meta.url);
 const entry = "./dist/index.mjs";
-const types = "./dist/index.d.mts";
 
 // Two entries: the second measures what a `Trait` user adds, and the first stays the budget
 // everyone else pays.
@@ -18,7 +17,19 @@ type Entry = keyof typeof entries;
 
 const modes = ["production", "development"] as const;
 
-const budget = { gzip: 1280, traitGzip: 1600, types: 32 * 1024 };
+/**
+ * What a user ships. A ratchet, unlike the budgets in `type-perf`: runtime code is written
+ * deliberately, so a byte more is a decision, not drift.
+ *
+ * The declarations are not measured here. They cost a download and a parse, never a byte in the
+ * user's bundle, and `type-perf` already measures what reads them.
+ *
+ * `traitGzip` is the first budget plus what `Trait` may add, so the pair says the line rather
+ * than a second round number: a user who imports `Trait` pays at most a quarter of a kB more.
+ */
+const BUDGET_VAL_GZIP = 1280;
+const BUDGET_VAL_PLUS_TRAIT_GZIP = BUDGET_VAL_GZIP + 128;
+const budget = { gzip: BUDGET_VAL_GZIP, traitGzip: BUDGET_VAL_PLUS_TRAIT_GZIP };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
 
@@ -91,7 +102,6 @@ await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), 
   process.exit(1);
 });
 
-const declarations = await readFile(new URL(types, root), "utf8");
 const names = Object.keys(entries) as Entry[];
 const bundles = Object.fromEntries(
   await Promise.all(
@@ -106,16 +116,11 @@ const bundles = Object.fromEntries(
   ),
 ) as Record<Entry, Record<(typeof modes)[number], Sizes>>;
 
-const measured = {
-  bundle: bundles.core,
-  trait: bundles.trait,
-  types: { raw: Buffer.byteLength(declarations, "utf8") },
-};
+const measured = { bundle: bundles.core, trait: bundles.trait };
 
 const checks = [
   ["production gzip", measured.bundle.production.gzip, budget.gzip],
   ["production gzip, with Trait", measured.trait.production.gzip, budget.traitGzip],
-  ["types raw", measured.types.raw, budget.types],
 ] as const;
 
 function budgets(): string {
@@ -141,9 +146,6 @@ if (process.argv.includes("--json")) {
     console.log(table(modes.map((mode) => [mode, bundles[name][mode]])));
     console.log();
   }
-  console.log(`types   ${types.replace("./dist/", "")}`);
-  console.log(`  raw           ${format(measured.types.raw)}`);
-  console.log();
   console.log("budget");
   console.log(budgets());
 }
