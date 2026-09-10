@@ -32,7 +32,11 @@ import { Val } from "valof";
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
-- **§15 v2 候補** `Trait`。`Final<F>` マーカーと 1 段の `impl`、交差する trait ブランド、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ
+- **§15 v2 候補**
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランド、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き
+  - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
+  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
 
 ---
 
@@ -1776,6 +1780,30 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
         満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
   - `unnamed-of` / `bypassed-companion` は広げない。trait があっても構築の話は変わらない
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
+- [ ] **§15.3 `path` の実測 2 つ。**書き始める前に。(a) パス型と Err 収集型が宣言の予算に入るか
+      (30.04 / 32.00 kB、残り 6%)。(b) `glue` の union ハンドラの推論が通るか
+- [ ] **§15.2 `Enum`: valof-lint に `tag-mismatch` を足す。**型引数のタグ名と `Enum.companion` の引数が
+      割れる。§14.12 の `brand-mismatch` の隣で判断も実装もほぼ同じ。payload のキーとの衝突検査も要る
+- [ ] **`hash` を出すか。保留、2026-09-10。**実例が出るまで動かさない。見るのは 1 つだけで、**大きい値を
+      大量に集合へ入れる実例があるか**。無ければ §8.1 の正規キーで終わり
+  - **正規キーが競合。**Val は JSON serializable なので、正規文字列キーで `Set<string>` が値ベースの集合に
+    なる。衝突せず、API も足さない。走査は hash と同じ O(n)。hash が勝つのは大きい値のときだけ
+  - **予算に入らない。**デフォルト `equals` の早期棄却に使うと `Val` だけの人も払う。余裕は 133 B
+    (1.12 / 1.25 kB) で、hash 実装は 200〜400 B。単独 export なら落ちる（§15.1 の `dyn` と同じ）が、
+    それだとデフォルト equals からは使えない
+  - **hash だけで equals を決めてはいけない。**32 bit は偽陽性が出る。早期棄却にとどめ、通ったら構造比較で
+    確認する。Effect もその形
+  - **カスタム equals との契約が唯一の設計判断。**`implHash` は却下（書かない人のほうが多い）。取るのは
+    **equals の等価性と hash の等価性を別物として扱う**形。§5「親から子のカスタム equals は呼べない」と
+    同じ線をもう 1 本引く。`hash` はデフォルト `equals` の内部機構と構造 Set / Map の鍵に限り、
+    **`implEquals` の中では使用禁止**。`hash(a) === hash(b)` を等価性に使うと偽陽性がそのまま漏れる
+  - **禁止は型では書けない。**自由関数の呼び出し位置は TS で縛れず、戻り値をブランドしても `===` は通る。
+    valof-lint の規則にする。`chains.ts` は既に `.implEquals(...)` の位置を見ている
+  - **64 / 128 bit は組み込みで作れない。**`crypto.subtle.digest` は Promise、`crypto.hash` は Node 専用、
+    `BigInt` はヒープ確保。`Math.imul` の 32 bit レーンを並べるしかなく、バイト数と速度がレーン数に比例する。
+    しかも 128 bit を 16 進で書くと 32 文字で、小さい値の正規キーより長い。**中間に居場所が無い**
+  - 配列は順序に依存させる。Effect の `structure` は XOR で畳むので順列が同じ hash になる（本人たちも
+    gotcha と書いている）。§5 が順序非依存を求めるのはオブジェクトのキーだけ
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
 
 ---
@@ -4244,3 +4272,396 @@ es2023 まで変えても動かないので、これはチェッカが起動時�
 
 ただし companion を書けば `implTrait` の第 1 引数の shape 検査が宣言の隣で落とす。残るのは trait を
 名乗る Val が companion を持たない場合だけで、それは `implTrait` 忘れそのものである。
+
+#### 需要、2026-09-10
+
+**入れる。**TS に trait が足りないからではなく、**§1 が空けた席を埋める**から。class を捨てた時点で、
+prototype が配っていた既定実装と動的ディスパッチの置き場所が無くなった。Trait はそれを型で埋める。
+
+| 欲しいもの                           | 構造的 interface | class / mixin | Trait |
+| ------------------------------------ | ---------------- | ------------- | ----- |
+| 形の宣言と型検査                     | ○                | ○             | ○     |
+| 既定実装の共有                       | ✗                | ○             | ○     |
+| `User.greet` がその Val の実装を呼ぶ | ✗                | ○             | ○     |
+| 異種の値を 1 つの配列で回す（`dyn`） | ✗                | ○             | ○     |
+| 上書きの禁止（`Final`）              | ✗                | ✗             | ○     |
+
+**「型で実装漏れに気づける」は根拠にならない。**`satisfies` でほぼ足りる。効くのは名前空間のほうで、
+しかも名前空間は副産物ではない。既定実装とディスパッチが乗る場所そのものである。
+
+**幅は狭く、深い。**複数の Val が振る舞いを共有する規模のドメインを持つ人だけが要る。小さいアプリには
+過剰である。ただしブランド型だけなら自前 10 行で足りるので、valof を選ぶ理由は Trait のほうが強い。
+
+##### `dyn` は残す
+
+サイズを理由に落とす案。**却下。**`make` から `dyn` を外して測ると production gzip が 1.21 kB → 1.16 kB、
+**54 B**。しかも `Trait` を import した人だけが払い、`Val` 単独の 1.12 kB は動かない。箱は Proxy 1 つで
+メンバ数に比例しない。
+
+残るコストは README で、使わない人に説明する行が増える。ゲームのような例が要るのは `dyn` を探しに来た人
+だけなので、README からは 1 行リンクし、本体は JSDoc に置く。
+
+`Final` を `M` に書く根拠のうち「`Dyn` に乗らない」（§15.1 却下: final を `M` の外に置く）も `dyn` 前提
+だが、こちらは落としても「省けるのは宣言 1 行だけ」が残る。決着が弱くなるだけで、崩れはしない。
+
+##### 却下: `dyn` を落とせる形にする、2026-09-10
+
+`dyn` を使う人は trait を使う人より少ないので、名前空間から外して落とせるようにする案。**却下。**
+`Greetable.dyn(User, u)` の読みやすさを保つ。
+
+`import { Val, Trait }` の production gzip で 3 案を測った。
+
+| 形                               | gzip    |
+| -------------------------------- | ------- |
+| `Greetable.dyn(User, u)`（現行） | 1.21 kB |
+| `Trait.dyn` に生やす             | 1.22 kB |
+| 単独 export の curry             | 1.16 kB |
+
+**`Trait.dyn` は落ちない。**export した const のプロパティは丸ごと残る。読みやすさも 54 B も両方失う。
+
+**単独 export だけが落ちる。**`dyn` を使う人の値は現行と同じ 1.21 kB で、差は落とせるかどうかだけ。
+
+**払う人と気にする人がずれている。**54 B は `Trait` を import した人だけが払い、`Val` 単独の 1.12 kB は
+動かない。trait を使う人が箱を使う確率は、valof を使う人が trait を使う確率より高い。予算側も緩んでいる
+のはバンドル（残り 22%）で、きつい宣言（残り 6%）はどの案でも動かない。
+
+##### 移るときの形
+
+バンドル予算が詰まったときのために。**型引数を第 1 段に置く。**
+
+```ts
+dyn<Greetable>()(User, u); // phantom 不要。Val.sealer<V>() と同じ形（§13.1）
+dyn(Greetable)(User, u); // trait companion から Tr を回収する phantom が要る
+```
+
+`TraitCompanion<Tr, G>` は final が無いと `Tr` を型に残さない（`Unbound<Pick<…, FinalsOf & keyof G>, Tr>`
+が `{}` になる）ため、値を渡す形は phantom を足すことになる。
+
+**平の 3 引数 `dyn<Greetable>(User, u)` は書けない。**部分推論がないので `Tr` を明示すると `W` も書かされ、
+`W` を捨てると companion と値の結びつけが戻る（§15.1 `dyn`）。curry は第 2 段で `W` を推論するので保てる。
+
+**代償はクロージャ 1 つ。**呼ぶたびに第 1 段が関数を作る。ループで箱を作るなら
+`const box = dyn<Greetable>()` で巻き上げられる。
+
+### 15.2 `Enum`、2026-09-10
+
+§7.4 が v1 で見送った TaggedEnum の見直し。**却下の 2 つの理由のうち 1 つが崩れた。**
+
+- **「判別子が実データで、ブランドはファントムという前提から外れる」** → 成り立たない。`_tag` はただの
+  フィールドで plain data そのもの。ブランドはファントムのまま隣に居る
+- **「価値のほぼ全てはパターンマッチにあり、ts-pattern が既に強い」** → 残る。競合しない形なら入れてよい
+
+#### 形
+
+```ts
+type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
+
+const Shape = Enum.companion<Shape>();
+const { Circle, Square } = Shape;
+```
+
+**要点は proxy ではなく宣言の向き。**Variant をレコード 1 つに宣言して union を導出する。手書きの union に
+proxy を足す形だと、**Variant 追加時に 2 箇所直す**問題がそのまま残る。proxy は文字列の二重管理を消す補助。
+
+#### Variant は個別に Val、ブランドは交差
+
+§15.1 の「ブランドは交差できる形にする」をそのまま使う。機構が増えない。
+
+**ブランド文字列は導出する。**`Circle` のブランドは `"Shape.Circle"` を自動で。手で書かせると、Variant を
+足すたびに 2 箇所という元の困りごとが形を変えて戻る。valof-lint の `brand-mismatch` は Trait のときと同じく
+綴りの検査を広げるだけで済む。
+
+#### タグのフィールド名は型引数で変えられる
+
+```ts
+type Shape = Enum<"Shape", { Circle: { r: number } }, "kind">; // 既定は "_tag"
+```
+
+**タグは実データで、境界を越える。**API のレスポンスが `type` や `kind` を使っていれば、名前は valof が
+決めるものではない。
+
+型引数の既定値はここでは安全。`impl` が既定型引数を避けた理由（contextual typing が止まる、val.ts の
+`Sealer`）は関数の型引数の話で、型エイリアスには効かない。
+
+**実行時にも名前が要る。**proxy が `{ ...props, [tag]: name }` を組むので、型からは読めない。
+
+```ts
+const Shape = Enum.companion<Shape>("kind"); // 型引数と二重になる
+```
+
+**ブランド文字列と同じ形の問題なので、同じ答えを使う。**valof-lint に `tag-mismatch` を足す。§14.12 の
+`brand-mismatch` の隣で、判断も実装もほぼ同じ。既定の `_tag` を使う人は引数を書かないので当たらない。
+
+**payload のキーと衝突する。**companion の予約名と同じ検査が payload にも要る。
+
+#### `match` は companion に置く
+
+**カスタム名を許すと自由関数では書けない。**`v._tag` を決め打ちしないと動かないため。
+
+```ts
+Shape.match(shape, { Circle: (c) => c.r * 2, Square: (s) => s.side });
+```
+
+**むしろそのほうがいい。**positioning §1-2（名前空間つきの関数整理）と揃い、自由関数だけ浮いている状態が
+消える。§5 が `Val.equals` を自由関数で出さなかったのと同じ理由でもある。**実行時に型を特定できないものは
+companion に置く。**
+
+#### `match`
+
+```ts
+Shape.match(shape, { Circle: (c) => c.r * 2, Square: (s) => s.side });
+```
+
+**カリー化は要らない。**両方とも値なので 1 回の呼び出しで推論できる。§13.1 の 2 段は部分推論が無いときの
+回避策で、ここで真似すると理由なく重くなる。
+
+得は 3 つ。タグ名の補完、キーを全部要求することによる exhaustive、handler の引数が絞り込まれた Variant に
+なること。実行時は `handlers[v[tag]](v)` で数十バイト。
+
+**ガード節は ts-pattern に任せる。**`.with({ _tag: "Circle" }, ...)` は既に動く。§7.4 の「競合するな」は
+守れる。README で線を引く。
+
+> タグで分けるだけなら `match`。条件が要るなら ts-pattern。
+
+#### `Trait` との関係
+
+**違いは開閉。**Trait は開いていて、後から誰でも実装できる。Enum は閉じていて、Variant が 1 箇所に並ぶ。
+だから exhaustive が成り立つ。両方あって重複しない。
+
+**Enum の Variant が Trait を実装する**組み合わせが効く。閉じた集合なら `match` で回るので `dyn` が要らない。
+**Enum が入ると `dyn` の需要が減る**ので、§15.1 の「`dyn` は本当に使われるか」の判定はこれを見てから。
+
+---
+
+### 15.3 `path`: seal をまたぐ patch の合成、2026-09-10
+
+#### 欠けているもの
+
+`patch` は Val の境界で止まる（§6.8）。ネストした Val を更新するには手で積む。
+
+```ts
+Team.patch(t, {
+  lead: User.patch(t.lead, { wallet: Wallet.patch(t.lead.wallet, { balance: 5 }) }),
+});
+```
+
+**深さそのものは問題ではない。**素の `map` も `u.profile.visits + 1` も読める形で書ける。
+
+**本当の穴は、seal が Result を返すと合成できないこと。**
+
+```ts
+Wallet.patch(t.lead.wallet, { balance: 5 }); // Result<Wallet>。User.patch には渡せない
+```
+
+配列だともっと悪い。`map` の中で `Result<Todo>[]` が出て、`Result<Todo[]>` に畳む必要がある。
+
+**つまり入口の問いは「Optics が要るか」ではなく「失敗しうる seal を経路に沿って合成する手段」。**
+
+#### 印をどこに置くか
+
+止まるには「失敗した」を知る必要がある。§6.3 でライブラリは Result の中身を知らないので、印が要る。
+3 案あり、**3 番目を採る。**
+
+| 案                                        | 失敗の伝え方 | 代償                                                    |
+| ----------------------------------------- | ------------ | ------------------------------------------------------- |
+| タプル `[V, undefined] \| [undefined, E]` | 暗黙の印     | §3.5 に依存。既定が Result になり sealer が無意味になる |
+| `err()` を seal が返す                    | 明示的な印   | seal の契約が変わる。§6.3 の書き換え、配線名・予約名    |
+| **`abort()` を合成側の規則にする**        | 明示的な印   | **無し**                                                |
+
+**3 番目は seal の契約を一切変えない。**seal は今までどおり利用者の Result を返す。`abort` は `path` の
+語彙で、`path` を使わない人には存在しない。単独 export なので tree-shaking も効く（§15.1 の `dyn` の実測）。
+§3.5 への暗黙の依存も無く、正規化 seal（`implSeal` が `V` を返す形）もそのまま通る。
+
+**却下: タプルを既定にする。**判別は §3.5 が `undefined` を禁じるので健全になるが、**既定の戻りが Result に
+なると `Val.sealer` が無意味になる。**`sealer` は「絶対に失敗しない経路」であることが値打ちで、単純な Val の
+呼び出し側に分割代入を強いるのは通らない。
+
+**却下: `err()` を seal が返す。**成功経路が今のままで済むのは良いが、印が seal の契約に入る。`implSeal` は
+正規化にも使う（§5）ので「カスタム seal を登録した = 失敗しうる」ではなく、実行時のフラグが作れない。
+配線名を割る案（`implTrySeal`）は、戻り値の型が既に言っていることを二重に書かせる。§15.1 が
+`implDefault` / `implFinal` の 2 段を却下したのと同じ形。
+
+**名前は `err` ではなく `abort`。**`err` は Result と被り、戻りが Result とも限らない。言っているのは
+「止まれ」だけ。
+
+#### ハンドラは最終段でなければならない
+
+**理由は書き味ではなく成立するかどうか。**早く束縛するとハンドラの型は利用者の Result という**型構築子に
+ついて総称**でなければならない。
+
+```ts
+{ open: <V, E>(r: ???<V, E>) => V | Abort<E> } // ??? が書けない
+```
+
+**HKT が要る。**TS に無いので `TypeLambda` + `Kind` の脱関数化になり、Effect が v4 で落とした層に入る
+（`positioning.md` §2）。最終段なら具体型が揃っているので回避できる。
+
+ハンドラが受けるのは**型構築子ではなく具体型の union**（`Result<Manager, E1> | Result<Wallet, E2>`）なので
+HKT は要らない。
+
+#### 形
+
+```ts
+const managerWallet = path(Team).manager(Manager).wallet(Wallet);
+
+managerWallet.glue(neverthrow).patch(team, { balance: 5 }); // Result<Team, E1 | E2>
+managerWallet.glue(neverthrow).update(team, (w) => ({ balance: w.balance * 2 }));
+```
+
+**値は最後に取る。**`path(Team)` から始めると経路が値になり、**再利用できる**。同じ形が繰り返されるときに
+lens を書きたくなるので、そこが本体。
+
+**各段で companion を書かせるのは避けられない。**フィールド名から companion を引く方法が無い。ただし宣言
+1 回に集まるので、使う側には出ない。
+
+#### `glue`: `open` / `close`
+
+```ts
+export const neverthrow = {
+  open: (r) => (r.isErr() ? abort(r.error) : r.value), // Result → V | Abort
+  close: (v) => (isAbort(v) ? err(v.error) : ok(v)), // V | Abort → Result
+};
+```
+
+**1 つのオブジェクトで両方向。**片方だけ渡して半端に変換された値が出る事故が起きない。`open` / `close` は
+物理的な意味がそのまま残るので非ネイティブにも読める。`read` / `write` は方向が曖昧。
+
+**`close` は optional。**渡さなければ `V | Abort<E>` の union が返る。Go 風に書きたい人と自作 glue の人のため。
+
+**既製の glue をサブパスで配る。**`valof/neverthrow`、`valof/effect`、タプル版。コアは Result を知らないまま
+なので §6.3 が保たれ、利用者が glue を書く場面がほとんど無くなる。`positioning.md` §1-7 の「既に選んだものに
+乗る」と同じ形。
+
+**却下: `unwrap`。**`Val.unwrap` が「payload の可変なコピー」という別の意味を持っている。
+**却下: `reads`。**非ネイティブに直観的でない（本人の判断）。**`glue` は "glue code" が定着していて、
+物理的な意味も残る。**`via` も候補だったが、`glue` のほうが「繋ぐもの」だと分かる。
+
+#### 経路を companion に置く
+
+経路は値なので、`.impl` に入れて名前空間の下で共有できる。**`.impl` の第 1 引数を Val に固定する規則
+（§6.5）にそのまま合う。**経路の第 1 引数は根の Val である。
+
+```ts
+const Team = Val.companion<Team>().impl({
+  raiseManager: (t, n) =>
+    path(Team).manager(Manager).wallet(Wallet).glue(g).patch(t, { balance: n }),
+});
+
+Team.raiseManager(team, 700);
+```
+
+**置き場所は根の companion で決まる。**別の Val を第 1 引数に取る関数は `.impl` に入らない。
+
+```
+Type '(u: User) => string' is not assignable to type
+  '((value: Team, ...rest: any[]) => unknown) | NonFn'.
+```
+
+根が別の Val なら、その Val の companion に置く。それが正しい置き場所なので、特別な規則が要らない。
+
+**根は必ず定義中の companion なので、経路は関数の中で組む。**`path(Team)` を宣言の位置に置くと `Team` が
+まだ無い。**コストは無視できる**（呼び出しごとに小さいオブジェクトが数個で、その先の seal のディープコピー
+に埋もれる。§4.1 の 47〜858 ns）。
+
+#### 型で塞げない穴
+
+ハンドラの戻り値が各段で違うので、**「`Result<Manager>` を受けたら `Manager` を返す」という対応を型が要求
+できない。**要求するにはハンドラが総称でなければならず、また HKT に戻る。lint も無理で、中身が正しいかは
+型の話。
+
+**穴の形は良い。**ハンドラはプロジェクトで 1 つ、1 行しかなく、`path` を使う全経路がそこを通る。壊れていれば
+最初のテストで落ちる。散らばる穴ではない。**既製の glue を配れば、大半の人には届かない。**
+
+#### 終端と中間の操作
+
+**足す。**判定基準は「深さ」ではなく「seal が絡むか」。
+
+- **`update(v, fn)`** — 現在値からの更新。§6.4 の `update` と同じ「値 → 値」なので**名前を統一する**。
+  Val 境界を越えないなら要らない（`u.profile.visits + 1` で足りる）が、越えると各段の seal を積み直す
+  必要が出る
+- **`each`** — 配列の走査。中間の段。素の `map` で読める形に書けるが、**seal が失敗しうると
+  `Result<Todo>[]` の畳み込みになる。**`abort` の規則があるので最初の失敗で止められる
+- **`where`** — `each` の後ろでのみ。**一致が無ければ何もしない**（走査の意味論）。単体の focus に付けると
+  Prism 化するので、`each` の後ろに限る
+
+**足さない。**
+
+- **`get(v)`** — `team.manager.wallet.balance` で足りる。読みに seal は関係しない。そして**これを足すと
+  optics の階層が始まる**（get → set → compose → Prism）。線は「seal が絡むものだけ」に引く
+- **`.patcher()` のような関数を返すだけのもの** — 経路オブジェクト自体が既に再利用可能
+
+#### 名前
+
+**`path`。**却下: `deepPatch`。**`patch` は既に deep**（§6.2「patch は深さを問わず届く」）なので、
+「今の patch は浅いのか」と読ませる。区別しているのは深さではなく**Val の境界を越えるかどうか**。
+
+#### 残る実測 2 つ
+
+1. **宣言の予算。**30.04 / 32.00 kB で残り 6%。パス型と Err 収集型が乗るか。`patch` の deep 化の実測が
+   §6.2 にあり、3 段で instantiations 120,281 → 177,885。パス型はその上乗せ。**書き始める前にプローブで測る**
+2. **union ハンドラの推論。**`(r) => (r.isErr() ? abort(r.error) : r.value)` が union を受けて両方に構造的に
+   効くか。`r.value` の型が正しく union になるか
+
+#### 順番
+
+**Enum が先**（§15.2）。Variant への focus（Prism 相当）が欲しくなるので、`path` を先に決めるとやり直しに
+なる。
+
+### 15.4 `.impl` のコールバック形、2026-09-10
+
+**入れる。**`.impl` がオブジェクトに加えて関数も取る。引数は**その時点で決まっている関連関数**で、分割代入で
+要るものだけ受け取る。
+
+```ts
+Val.sealer<User>().impl(({ equals, patch }) => ({
+  same: (u, other: User) => equals(u, other),
+  renamed: (u, name: string) => patch(u, { name }),
+}));
+```
+
+#### 動機: 自分の companion を参照すると推論が回らない
+
+```ts
+const User = Val.sealer<User>().impl({
+  same(u: User, other: User) {
+    return User.equals(u, other);
+  },
+});
+// error TS7022: 'User' implicitly has type 'any' because it does not have a type annotation
+// and is referenced directly or indirectly in its own initializer.
+```
+
+**戻り値を注釈すれば通る**（`same(...): boolean`）。つまり今は、自分の `equals` / `patch` / `update` を使う
+メンバは全部、戻り値の注釈が要る。**早い段階でぶつかる税で、しかもエラーメッセージが初見で読めない。**
+
+コールバック形は循環を切るので注釈が消える。
+
+#### contextual typing は効く。実測
+
+コールバックを挟むと §6.5 の「第 1 引数に注釈が要らない」が崩れないか。**崩れない。**
+
+`impl` の contextual typing は制約（`M extends CompanionFns<V>`）から来ていて、オブジェクトリテラルが
+コールバックの**戻り値の位置**に移っても伝わる。第 1 引数の解決結果を TS2322 で読んだ。
+
+```
+error TS2322: Type 'User' is not assignable to type '0'
+```
+
+戻り値の推論も循環しない。`b.same` は `boolean`、`b.renamed` は `User` に決まる。
+
+#### 限界: 兄弟メンバは参照できない
+
+同じ `.impl` の中の他のメンバは循環したままなので、そちらを呼ぶメンバには注釈が要る。README に書く。
+
+#### 渡す集合は文脈で変わる
+
+- `sealer` には `create` が無い（§6.7 / val.ts の `Sealer`）
+- trait 由来のメンバは `implTrait` を呼んだかで変わる
+- `implEquals` の有無で `equals` の型が変わる
+
+**宣言の予算に効く可能性がある**（30.04 / 32.00 kB、残り 6%）。オーバーロードが 1 本増えるぶんも含めて、
+実装前に `vp run type-perf` と `vp run size` で測る。
+
+#### 却下: オブジェクト形を置き換える
+
+**両方残す。**関連関数を要らないメンバに、コールバックの分割代入は雑音。既存のコードも動かない。
