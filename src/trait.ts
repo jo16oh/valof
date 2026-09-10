@@ -110,19 +110,23 @@ export type Bound<M extends Members, S> = {
     : never;
 };
 
-type HasSelf<T> = [T] extends [Self]
+type HasSelf<T> = true extends (T extends unknown ? HasSelfBranch<T> : never) ? true : false;
+
+type HasSelfBranch<T> = [T] extends [Self]
   ? true
   : T extends AnyVal
     ? false
-    : T extends readonly unknown[]
-      ? { [I in keyof T]: HasSelf<T[I]> }[number] extends false
-        ? false
-        : true
-      : T extends object
-        ? { [K in keyof T]: HasSelf<T[K]> }[keyof T] extends false
-          ? false
-          : true
-        : false;
+    : T extends (...args: never[]) => infer R
+      ? HasSelf<R>
+      : T extends readonly unknown[]
+        ? true extends { [I in keyof T]: HasSelf<T[I]> }[number]
+          ? true
+          : false
+        : T extends object
+          ? true extends { [K in keyof T]: HasSelf<T[K]> }[keyof T]
+            ? true
+            : false
+          : false;
 
 /**
  * Rejects a member a Val could not carry: one returning `Self`, and one named after something

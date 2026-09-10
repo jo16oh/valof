@@ -42,6 +42,20 @@ describe("Trait", () => {
       // @ts-expect-error a trait member cannot return Self
       Trait.companion<Unsafe>().impl({});
     });
+
+    test("Self cannot hide inside a member's return type", () => {
+      type Union = Trait<"Union", { n: number }, { grow: (self: Self) => Self | null }>;
+      // @ts-expect-error a union member cannot hide Self
+      Trait.companion<Union>().impl({});
+
+      type Closure = Trait<"Closure", { n: number }, { grow: (self: Self) => () => Self }>;
+      // @ts-expect-error a returned function cannot hide Self
+      Trait.companion<Closure>().impl({});
+
+      type Safe = Trait<"Safe", { n: number }, { read: (self: Self) => (() => string) | null }>;
+      const Safe = Trait.companion<Safe>().impl({ read: (s) => () => String(s.n) });
+      expect(Safe.__valof_shared.read({ n: 1 })()).toBe("1");
+    });
   });
 
   // The shape answers to the payload rules, so a trait no payload could ever satisfy is caught
