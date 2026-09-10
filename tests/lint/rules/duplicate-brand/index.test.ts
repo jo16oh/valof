@@ -4,11 +4,15 @@ import { BrandMismatch, DuplicateBrand, fixtures } from "../../support.ts";
 
 const { lint } = fixtures(import.meta.url);
 
-test("reports every alias that claims a brand another one claims", async () => {
+test("reports every alias when three claim the same brand", async () => {
   expect(await lint("duplicate")).toEqual([
     {
       rule: DuplicateBrand,
       at: "duplicate/billing.ts:1:13",
+    },
+    {
+      rule: DuplicateBrand,
+      at: "duplicate/inventory.ts:1:13",
     },
     {
       rule: DuplicateBrand,
