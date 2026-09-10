@@ -34,7 +34,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランド、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと宣言で落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
@@ -4128,6 +4128,43 @@ production では freeze しないので、黙ってメンバが勝つ。trait �
 
 複数の trait は交差で合成でき、`User` を `Greetable` に代入する構造的部分型がそのまま効く。**却下: 配列**
 （`["Greetable"]`）。順序が意味を持ってしまい、交差で合成できない。
+
+##### `|` は宣言の段で落とす、2026-09-10
+
+`&` のつもりで `|` と書いた宣言が、**payload 検査を素通りしていた**。`ShapeOf<Tr>` は
+`Omit<Tr, brands>` なので、union に対しては 2 つが共有するキーだけが残る。共有するキーがなければ
+shape は空になり、どちらの shape も満たさない payload が通る。
+
+```ts
+type Empty = Val<"Empty", { id: string }, Greetable | Weighed>; // 通っていた。`name` も `kg` もない
+```
+
+失敗が出るのは最初の `implTrait` で、しかも「the type does not declare this trait」と答える。宣言に
+書いてある trait について「宣言していない」と言う。§11 の言う置き場所の誤りそのもので、型引数だけを読む
+検査なのだからブランド位置（B）が正しい。
+
+`Fits` を `true | メッセージ` にして、フィールドを読む前に union を落とす。判定は
+`[Tr] extends [UnionToIntersection<Tr>]`。union は関数パラメータの反変性で交差に潰れるので、
+潰して等しくないものが union である。単独の trait・交差・`never` はいずれも自分自身に潰れる。
+
+宣言は 30.7 → 31.1 kB（予算 32 kB に対して残り 3%）、trait の instantiations は 12,150 → 12,404。
+`Tr` が `never` の分岐が先にあるので、trait を宣言しない Val は何も払わない（core は 5,846 のまま）。
+実行時は型だけなので増えない。
+
+##### 却下: タプルで宣言する
+
+`Val<"Both", { name: string }, [Greetable, Sized]>`。`&` と `|` を取り違えようがない、という案。
+
+**交差は綴りではなく仕掛けの本体である。**`Dyn`、`ShapeOf<Tr>`、payload 検査はどれも「Val が
+`Greetable` に代入できる」に乗っている。タプルを受けても `Val` の 1 行目で `Greetable & Sized` に
+畳むことになり、隠した当のものを包み直すだけになる。上の配列の却下と同じ理由（順序が意味を持ち、交差で
+合成できない）がそのまま効く。
+
+**コストが合わない。**`Val` はライブラリで一番多く instantiate される型で、そこに再帰的な畳み込みが
+乗る。既存の `Val<K, T, Greetable>` を残すなら分岐も要る。宣言の予算は残り 3% しかない。
+
+**穴も塞ぎきれない。**`[Greetable | Sized]` と書ける。union を落とすほうが、狭い検査で同じ間違いを
+直接名指せる。
 
 #### `Self`
 

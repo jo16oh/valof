@@ -89,17 +89,31 @@ type Phantom<K extends string, T, Tr extends AnyTrait> = [T] extends [Validate<T
         /** Exists only so the original payload type can be recovered. */
         readonly __valof_internal_phantom_payload: T;
       }
-    : {
-        readonly __valof_internal_phantom_brand: Invalid<"the payload does not hold what the trait requires">;
-      }
+    : { readonly __valof_internal_phantom_brand: Invalid<Extract<Fits<T, Tr>, string>> }
   : { readonly __valof_internal_phantom_brand: Validate<T> };
 
-/** Whether the payload holds every field the declared traits require. */
+/**
+ * Whether the payload holds every field the declared traits require, or the sentence saying why
+ * not.
+ *
+ * `ShapeOf<A | B>` keeps only the keys the two share, so a union asks the payload for nothing.
+ * Caught here, before the fields are read.
+ */
 type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true
-  : DeepReadonly<Checked<T>> extends ShapeOf<Tr>
-    ? true
-    : false;
+  : [Tr] extends [UnionToIntersection<Tr>]
+    ? DeepReadonly<Checked<T>> extends ShapeOf<Tr>
+      ? true
+      : "the payload does not hold what the trait requires"
+    : "declare several traits with `&`, not `|`";
+
+// Distributes over the union to collect one parameter position per member, which infers as their
+// intersection. A single trait is its own intersection, and so is `never`.
+type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
+  k: infer I,
+) => void
+  ? I
+  : never;
 
 /**
  * The trait brands.

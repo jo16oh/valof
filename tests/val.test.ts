@@ -1439,6 +1439,19 @@ describe("building", () => {
       Val.sealer<Bad>();
     });
 
+    // Left to `implTrait`, the mistake answered "the type does not declare this trait" about a
+    // trait the declaration names, and a payload holding neither shape had passed on the way.
+    test("several traits are one intersection, and a union is rejected", () => {
+      type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+      type Either = Val<"Either", { id: string }, Greetable | Weighed>;
+      expectTypeOf<Either>().not.toExtend<AnyVal>();
+      // @ts-expect-error declare several traits with `&`, not `|`
+      Val.companion<Either>();
+
+      type Both = Val<"Both", { name: string; kg: number }, Greetable & Weighed>;
+      expectTypeOf<Both>().toExtend<AnyVal>();
+    });
+
     test("a sealer keeps its constructor", () => {
       type Point = Val<"Point", { name: string; x: number }, Greetable>;
       const Point = Val.sealer<Point>()
