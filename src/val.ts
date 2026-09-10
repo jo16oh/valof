@@ -10,34 +10,40 @@ type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
 }[keyof T];
 
-type Validate<T> = [T] extends [AnyVal]
+type Validate<T, Root extends boolean = true> = [T] extends [AnyVal]
   ? T
-  : [T] extends [Primitive]
-    ? T
-    : [T] extends [ReadonlyArray<infer E>]
-      ? number extends T["length"]
-        ? ReadonlyArray<Validate<E>>
-        : {
-            // An optional element is the tuple's form of an optional key: absent, it round trips.
-            // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
-            [I in keyof T]: undefined extends Required<T>[I]
-              ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
-              : Validate<Exclude<T[I], undefined>>;
-          }
-      : // oxlint-disable-next-line no-unsafe-function-type
-        [T] extends [Function]
-        ? Invalid<"functions are not allowed">
-        : [T] extends [object]
-          ? [Exclude<keyof T, string>] extends [never]
-            ? {
-                [K in keyof T]: K extends OptionalKeys<T>
-                  ? Validate<Exclude<T[K], undefined>> | undefined
-                  : undefined extends T[K]
-                    ? Invalid<"required property cannot be undefined; use null or make it optional">
-                    : Validate<T[K]>;
-              }
-            : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
-          : Invalid<"not a plain value">;
+  : Root extends true
+    ? null extends T
+      ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+      : ValidateValue<T>
+    : ValidateValue<T>;
+
+type ValidateValue<T> = [T] extends [Primitive]
+  ? T
+  : [T] extends [ReadonlyArray<infer E>]
+    ? number extends T["length"]
+      ? ReadonlyArray<Validate<E, false>>
+      : {
+          // An optional element is the tuple's form of an optional key: absent, it round trips.
+          // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+          [I in keyof T]: undefined extends Required<T>[I]
+            ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+            : Validate<Exclude<T[I], undefined>, false>;
+        }
+    : // oxlint-disable-next-line no-unsafe-function-type
+      [T] extends [Function]
+      ? Invalid<"functions are not allowed">
+      : [T] extends [object]
+        ? [Exclude<keyof T, string>] extends [never]
+          ? {
+              [K in keyof T]: K extends OptionalKeys<T>
+                ? Validate<Exclude<T[K], undefined>, false> | undefined
+                : undefined extends T[K]
+                  ? Invalid<"required property cannot be undefined; use null or make it optional">
+                  : Validate<T[K], false>;
+            }
+          : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
+        : Invalid<"not a plain value">;
 
 /** Recursion stops at a nested Val: it is already deep-readonly. */
 type DeepReadonly<T> = [T] extends [AnyVal]
