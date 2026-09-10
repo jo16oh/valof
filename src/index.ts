@@ -18,4 +18,4 @@ export type {
   SeedOf,
 } from "./val.ts";
 
-export type { AnyTrait, Dyn, Members, Self, TraitBuilder, TraitCompanion } from "./trait.ts";
+export type { AnyTrait, Dyn, Final, Members, Self, TraitBuilder, TraitCompanion } from "./trait.ts";

@@ -3813,7 +3813,7 @@ const Admin = Val.companion<Admin>().implTrait(Greetable, {
 
 **メンバは 1 種類。**trait の `.implDefault` は既定実装を配り、`implTrait` が任意の部分集合を上書きする。
 既定を持つメンバは `implTrait` で省ける。全部が companion に登録されるので、`User.greet(u)` も箱の
-`p.greet()` も常にその Val の実装を呼ぶ。
+`p.greet()` も常にその Val の実装を呼ぶ。`Final` を付けたメンバだけがこの上書きの外にある。
 
 **`Greetable.greet` は存在しない。**上書きされうる関数は trait の名前空間に出ない。出るのは `implFinal`
 の関数だけで、そちらは上書きできない。
@@ -3840,21 +3840,32 @@ trait と companion の対は意味的にも筋が通っていて、Rust の `im
 type Greetable = Trait<
   "Greetable",
   { name: string },
-  { greet: (self: Self) => string; shout: (self: Self) => string } // 宣言は 1 か所
+  {
+    greet: (self: Self) => string;
+    shout: Final<(self: Self) => string>; // trait が実装し、どの Val も上書きできない
+  }
 >;
 
 const Greetable = Trait.companion<Greetable>()
   .implDefault({ greet: (g) => `Hi, ${g.name}` }) // 既定。implTrait で上書きできる
-  .implFinal({ shout: (g) => g.name.toUpperCase() }); // 上書きできない
+  .implFinal({ shout: (g) => g.name.toUpperCase() });
 
 Greetable.shout(user); // 名前空間に出るのは final だけ。Val も箱も渡せる
 User.shout(user); // メンバなので companion にも出る
 Greetable.dyn(User, user).shout(); // 箱も同じ
 ```
 
-**メンバの宣言は `M` の 1 か所。**2 つの段が「どちら側が実装するか」だけを言う。`implDefault` は各 Val に
-任せ、`implFinal` は trait が実装して終わりにする。1 つのメンバに実装は 1 つで、両方の段に同じ名前を書くと
-型が弾く（実行時は final が勝つので、既定が死ぬ）。
+**`Final<F>` は宣言側のマーカー。**`F & { [FinalMark]: true }` の phantom で、実行時には消える。
+どちらの段がそのメンバを取るかが宣言から決まるので、2 つの段は互いに素な名前を受け取る。重複を検査する
+必要がなくなり、`implDefault` に final を書けば「`implFinal` で実装するもの」と言われる。
+
+**文字列のユニオンにはしない。**`Trait<K, Shape, M, "shout">` でも同じ情報は運べるが、宣言の見た目から
+どのメンバが final か読めず、型シグネチャを追う羽目になる。マーカーはメンバの隣に出る。
+
+**段は 2 つのまま。**マーカーが消える以上、実行時は `impl({ greet, shout })` を受け取っても分割できない。
+分割が要る場所が 2 つある: trait 名前空間に出すのは final だけという規則と、`implTrait` が Val に重ねる
+順序。段を分けておけば、この分割は「どちらを呼んだか」から無料で得られる。実装側に `Trait.final(fn)` を
+書かせる案は、宣言のマーカーと二重になるうえ包むぶんだけ高い。
 
 **2 つの段はどちらが先でもよく、どこで終わってもよい。**builder が companion を兼ねているため。
 
@@ -3871,6 +3882,9 @@ Greetable.dyn(User, user).shout(); // 箱も同じ
 **`Dyn<Tr>` に乗らなくなる。**`Dyn` は trait の**型**だけから作られる。型に無い関数は箱に生えない。
 `dyn` の戻りだけを `Dyn<Tr> & …` に広げても、`Dyn<Greetable>[]` に入れた時点で型から消えて実行時にだけ
 残る。それは箱の動機そのものを壊す。
+
+**companion なしで実装できなくなる。**下の `implTrait<Tr>({…})` は「trait が自分では何も実装しない」を
+型から読めることに乗っている。`M` の外にあると読めない。
 
 **呼び出し経路が食い違う。**Val からは `User.shout(u)`、箱からは `Greetable.shout(box)`。final だろうが
 既定だろうが trait の関数なのだから、同じように呼べるのが自然である。動的ディスパッチが要らないことは、
@@ -3895,9 +3909,37 @@ Kotlin の `sealed` / `final` の対立もここには持ち込まれない。
 予約するためだけにあった。final が `T` に入るので `keyof T` で足りる。
 
 買えるものは 2 つ。**第 1 引数の文脈型付け**（§6.5 と同じ理由。ただの関数だと `(g: Greetable)` と書く）と、
-**名前空間としてのまとまり**。払うのは gzip 30 B と宣言 756 B。`Val` だけを import する人も 17 B 払う:
-`implTrait` が `__valof_shared` を読んで finals を重ねるぶん。`defaults` / `finals` を平らに publish すれば
-11 B 安いが、禁じる名前が 2 つ増えて上の穴が開く。
+**名前空間としてのまとまり**。払うのは gzip 30 B。`Val` だけを import する人も 17 B 払う: `implTrait` が
+`__valof_shared` を読んで finals を重ねるぶん。`defaults` / `finals` を平らに publish すれば 11 B 安いが、
+禁じる名前が 2 つ増えて上の穴が開く。
+
+#### companion を要らなくする: `implTrait<Tr>({…})`
+
+```ts
+type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
+// const Wired は要らない
+
+const Row = Val.companion<Row>().implTrait<Wired>({ toWire: (r, sep) => `${r.id}${sep}${r.n}` });
+```
+
+**自分では何も実装しない trait に、実行時の値は要らない。**`implTrait` が companion から取るのは
+`defaults` と `finals` の 2 つだけで、どちらも空なら取るものがない。型引数だけで済む。契約だけの trait が
+型だけの存在になり、`Trait` の import も消える。
+
+**`Final` を持つ trait では弾く。**弾かないと穴になる。`D` も `S` も空になるので、型は final の実装まで
+**要求し**、書けば `User.shout` はその関数になって `Greetable.shout` と食い違う。マーカーがあるおかげで
+`[FinalsOf<Tr>] extends [never]` で判定でき、「pass its companion」と言える。既定しか持たない trait は
+通してよい。全メンバを自分で書くので、実行時に欠けるものがない（既定を使わないだけ）。
+
+**検査は全部そのまま乗る。**宣言・shape・名前の衝突は `Takes<V, Tr, T, Ok>` に括り出して、両方の形と
+両方の入口で共有する。companion 形では第 1 引数に、型引数形では唯一の引数に乗る。**メッセージが出る位置で
+引数の contextual type が消える**ので、落ちる形のテストは実装に注釈が要る。
+
+**実行時は 1 行。**`trait.__valof_shared ?? { defaults: trait, finals: {} }`。companion がなければ、
+companion の位置に来たオブジェクトがそのまま「既定」として重なる。
+
+**払うもの。**オーバーロードが 2 つの入口それぞれで倍になり、宣言が 1.5 kB 増えた（28.7 → 30.2 kB、
+予算 32 kB に対して残り 6%）。trait の instantiations は 10,025 → 11,407。
 
 #### 却下: 上書きできる関数を名前空間に置く
 

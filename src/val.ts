@@ -1,5 +1,6 @@
 import type {
   AnyTrait,
+  FinalsOf,
   Implement,
   Members,
   MembersOf,
@@ -415,6 +416,39 @@ type Grown<Taken, M> = M & {
 };
 
 /**
+ * What `implTrait` accepts for `Tr`, or the sentence saying why this type cannot implement it.
+ *
+ * The checks ride on a parameter. In the return type they would fail only where the companion is
+ * assigned, which is a line away from the call and reads as something else.
+ */
+type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> = [NamesOf<Tr>] extends [TraitsOf<V>]
+  ? V extends ShapeOf<Tr>
+    ? [keyof MembersOf<Tr> & keyof T] extends [never]
+      ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
+        ? Ok
+        : "a member cannot take the name of a field the payload holds"
+      : "another trait already answers to one of these names"
+    : "the payload does not hold what this trait requires"
+  : "the type does not declare this trait";
+
+/** What the companion form takes once the trait itself has answered for every {@link Final}. */
+type Complete<Tr extends AnyTrait, D, S> = [Exclude<FinalsOf<Tr>, keyof S>] extends [never]
+  ? TraitCompanion<Tr, D, S>
+  : "this trait's companion has not implemented every member declared Final";
+
+/** The second argument, absent where the trait's own steps answered for every member. */
+type Passes<Tr extends AnyTrait, D, V> = [
+  keyof Omit<MembersOf<Tr>, keyof D | FinalsOf<Tr>>,
+] extends [never]
+  ? [impl?: Implement<Tr, D, V>]
+  : [impl: Implement<Tr, D, V>];
+
+/** What the companion-less form takes: every member, and only where the trait declares no final. */
+type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
+  ? Implement<Tr, Record<never, never>, V>
+  : "this trait implements members of its own: pass its companion";
+
+/**
  * A constructor for `V`, which can grow functions without ceasing to be one.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
@@ -438,20 +472,15 @@ export type Sealer<V extends AnyVal, T extends CompanionFns<V> = Record<never, n
   /** Replaces the default deep equality. See {@link EqImpl}. */
   implEquals: (spec: EqImpl<V>) => Sealer<V, T>;
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
-  implTrait: <Tr extends AnyTrait, D, S>(
-    trait: [NamesOf<Tr>] extends [TraitsOf<V>]
-      ? V extends ShapeOf<Tr>
-        ? [keyof MembersOf<Tr> & keyof T] extends [never]
-          ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
-            ? TraitCompanion<Tr, D, S>
-            : "a member cannot take the name of a field the payload holds"
-          : "another trait already answers to one of these names"
-        : "the payload does not hold what this trait requires"
-      : "the type does not declare this trait",
-    ...impl: [keyof Omit<MembersOf<Tr>, keyof D | keyof S>] extends [never]
-      ? [impl?: Implement<Tr, D, S, V>]
-      : [impl: Implement<Tr, D, S, V>]
-  ) => Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
+  implTrait: {
+    <Tr extends AnyTrait>(
+      impl: Takes<V, Tr, T, Alone<Tr, V>>,
+    ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
+    <Tr extends AnyTrait, D, S>(
+      trait: Takes<V, Tr, T, Complete<Tr, D, S>>,
+      ...impl: Passes<Tr, D, V>
+    ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
+  };
 };
 
 /**
@@ -485,20 +514,17 @@ export type CompanionBuilder<
    * A member the trait implemented with `implFinal` is not passed here: it arrives as it stands,
    * and nothing can override it.
    */
-  implTrait: <Tr extends AnyTrait, D, S>(
-    trait: [NamesOf<Tr>] extends [TraitsOf<V>]
-      ? V extends ShapeOf<Tr>
-        ? [keyof MembersOf<Tr> & keyof T] extends [never]
-          ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
-            ? TraitCompanion<Tr, D, S>
-            : "a member cannot take the name of a field the payload holds"
-          : "another trait already answers to one of these names"
-        : "the payload does not hold what this trait requires"
-      : "the type does not declare this trait",
-    ...impl: [keyof Omit<MembersOf<Tr>, keyof D | keyof S>] extends [never]
-      ? [impl?: Implement<Tr, D, S, V>]
-      : [impl: Implement<Tr, D, S, V>]
-  ) => CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
+  implTrait: {
+    // No companion to pass when the trait implements nothing of its own: the type argument is
+    // the whole of it, and the members arrive where the companion would have.
+    <Tr extends AnyTrait>(
+      impl: Takes<V, Tr, T, Alone<Tr, V>>,
+    ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
+    <Tr extends AnyTrait, D, S>(
+      trait: Takes<V, Tr, T, Complete<Tr, D, S>>,
+      ...impl: Passes<Tr, D, V>
+    ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
+  };
   /** Replaces the default deep equality. See {@link EqImpl}. */
   implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P, T>;
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
@@ -872,10 +898,11 @@ const build = <V extends AnyVal>(
   target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
   target.implTrait = (
-    trait: { __valof_shared: Record<"defaults" | "finals", Record<string, unknown>> },
+    trait: { __valof_shared?: Record<"defaults" | "finals", Record<string, unknown>> },
     impl: Record<string, unknown> = {},
   ) => {
-    const shared = trait.__valof_shared;
+    // No companion: the trait implements nothing of its own, so the members arrived in its place.
+    const shared = trait.__valof_shared ?? { defaults: trait, finals: {} };
     return build<V>(ctors, callable, { ...traits, ...shared.defaults, ...impl, ...shared.finals });
   };
   if (callable) return target;

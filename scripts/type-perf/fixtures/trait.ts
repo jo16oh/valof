@@ -1,6 +1,6 @@
 // What `Trait` adds on top of `core.ts`: the same shapes, plus the brand check on `Val`, the
 // `Self` substitution in `implTrait`, and a `Dyn` box.
-import { Val, Trait, type Dyn, type Self } from "valof";
+import { Val, Trait, type Dyn, type Final, type Self } from "valof";
 
 type Named = Trait<
   "Named",
@@ -8,7 +8,7 @@ type Named = Trait<
   {
     label: (self: Self, sep: string) => string;
     greet: (self: Self) => string;
-    shout: (self: Self) => string;
+    shout: Final<(self: Self) => string>;
   }
 >;
 const Named = Trait.companion<Named>()
