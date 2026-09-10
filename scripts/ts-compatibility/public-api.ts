@@ -2,7 +2,17 @@
 // `vp run ts-compatibility`. The tsconfig beside it aims `valof` there.
 //
 // Not a copy of the README's examples. It changes when the API does, not when the prose does.
-import { Val, type Companion, type PayloadOf, type Patch, type SeedOf } from "valof";
+import {
+  Trait,
+  Val,
+  type Companion,
+  type Dyn,
+  type Final,
+  type PayloadOf,
+  type Patch,
+  type SeedOf,
+  type Self,
+} from "valof";
 
 type City = Val<"City", { name: string; zip?: string }>;
 const City = Val.sealer<City>();
@@ -49,3 +59,44 @@ export const email = patch.owner?.contact?.email;
 export const name: PayloadOf<City>["name"] = shop.city.name;
 export const positioned: readonly [City, number] = shop.at;
 export const companion: Companion<City, Record<never, never>> = City;
+
+type Named = Trait<
+  "Named",
+  { name: string },
+  {
+    greet: (self: Self) => string;
+    label: (self: Self, prefix: string) => string;
+    shout: Final<(self: Self) => string>;
+  }
+>;
+
+const Named = Trait.companion<Named>().impl({
+  greet: (n) => `Hi, ${n.name}`,
+  shout: (n) => n.name.toUpperCase(),
+});
+
+type Person = Val<"Person", { id: string; name: string }, Named>;
+const Person = Val.sealer<Person>().implTrait(Named, {
+  label: (p, prefix) => `${prefix}${p.id}`,
+  greet: (p) => `Hello, ${p.name}`,
+});
+
+declare const person: Person;
+
+export const traitMembers = [
+  Person.greet(person),
+  Person.label(person, "#"),
+  Person.shout(person),
+  Named.shout(person),
+];
+export const boxed: Dyn<Named> = Named.dyn(Person, person);
+export const boundMembers = [boxed.greet(), boxed.label("#"), boxed.shout()];
+
+type Identified = Trait<"Identified", { id: string }, { identify: (self: Self) => string }>;
+type Item = Val<"Item", { id: string }, Identified>;
+export const Item = Val.sealer<Item>().implTrait<Identified>({ identify: (item) => item.id });
+
+// @ts-expect-error a Val must declare a trait before it implements it
+Val.companion<City>().implTrait(Named, { label: (city, prefix) => `${prefix}${city.name}` });
+// @ts-expect-error a Final member cannot be replaced by a Val
+Val.companion<Person>().implTrait(Named, { label: () => "", shout: () => "" });
