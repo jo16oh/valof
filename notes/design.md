@@ -232,10 +232,12 @@ Val.of<User>({ id: "a", name: "alice" });
 コンストラクタと `Val.of` が受け取れる型を以下に制限する。
 
 ```ts
-type Primitive = string | number | boolean | bigint | null;
+type Primitive = string | number | boolean | bigint;
 ```
 
 `undefined` は値として許可しない（§3.5）。
+`null` はオブジェクト・配列内では許可するが、トップレベルでは許可しない（§9）。ブランドとの交差が
+`never` になり、異なる Val として区別できないため。
 
 **プレーンなネストしたオブジェクトは禁止。ネストは必ず Val にする。**
 
@@ -262,12 +264,13 @@ export type IsoDate = Val<"IsoDate", string>;
 
 ### 3.5 `null` と `undefined`
 
-|                            | 判定                                   |
-| -------------------------- | -------------------------------------- |
-| `null` を値として持つ      | 許可                                   |
-| `?`（キーの不在）          | 許可                                   |
-| `undefined` を値として持つ | **禁止**                               |
-| patch 内の `undefined`     | **プロパティ削除**の意味に予約（§6.2） |
+|                             | 判定                                   |
+| --------------------------- | -------------------------------------- |
+| `null` をネストして持つ     | 許可                                   |
+| `null` をトップレベルに持つ | **禁止**                               |
+| `?`（キーの不在）           | 許可                                   |
+| `undefined` を値として持つ  | **禁止**                               |
+| patch 内の `undefined`      | **プロパティ削除**の意味に予約（§6.2） |
 
 #### なぜ「undefined 禁止」ではなく「値としての undefined 禁止」なのか
 
@@ -1743,6 +1746,9 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 
 ## 9. 未解決 / 要確認
 
+- [x] ~~トップレベルの payload に `null` を許すか~~ → 許さない。`null & { __brand: K }` は
+      `never` なので、値を `null` のままブランドで区別できない。union にブランドを置けば素の `null` も
+      入り、wrapper は plain data と falsy を失う。オブジェクト・配列内の `null` は従来どおり許す
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
 - [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく

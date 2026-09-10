@@ -194,6 +194,23 @@ describe("Val", () => {
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
     });
 
+    test("null is allowed inside a payload, but not at its top level", () => {
+      type Nested = Val<"Nested", { value: string | null }>;
+      expectTypeOf<Nested>().toExtend<AnyVal>();
+
+      type Null = Val<"Null", null>;
+      type Maybe = Val<"Maybe", string | null>;
+      expectTypeOf<BrandOfInvalid<Null>>().toEqualTypeOf<{
+        readonly __valError: "a top-level payload cannot include null; null cannot carry a Val brand";
+      }>();
+      expectTypeOf<Null>().not.toExtend<AnyVal>();
+      expectTypeOf<Maybe>().not.toExtend<AnyVal>();
+      // @ts-expect-error null cannot carry the phantom brand
+      Val.sealer<Null>();
+      // @ts-expect-error the nullable branch would disappear from the branded value
+      Val.sealer<Maybe>();
+    });
+
     test("number and symbol keys are rejected", () => {
       expectTypeOf<Val<"Bad", Readonly<Record<number, true>>>>().not.toExtend<AnyVal>();
       expectTypeOf<Val<"Bad", Readonly<Record<symbol, string>>>>().not.toExtend<AnyVal>();
