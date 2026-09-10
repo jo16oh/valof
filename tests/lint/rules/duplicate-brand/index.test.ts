@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { DuplicateBrand, fixtures } from "../../support.ts";
+import { BrandMismatch, DuplicateBrand, fixtures } from "../../support.ts";
 
 const { lint } = fixtures(import.meta.url);
 
@@ -13,6 +13,19 @@ test("reports every alias that claims a brand another one claims", async () => {
     {
       rule: DuplicateBrand,
       at: "duplicate/orders.ts:1:13",
+    },
+  ]);
+});
+
+test("reports colliding aliases in the same file", async () => {
+  expect(await lint("same-file", { skip: [BrandMismatch] })).toEqual([
+    {
+      rule: DuplicateBrand,
+      at: "same-file.ts:1:13",
+    },
+    {
+      rule: DuplicateBrand,
+      at: "same-file.ts:2:13",
     },
   ]);
 });
