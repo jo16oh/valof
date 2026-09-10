@@ -1,4 +1,4 @@
-import type { AnyVal, Checked, DeepReadonly, Invalid } from "./val.ts";
+import type { AnyVal, Checked, DeepReadonly, Invalid, Wired } from "./val.ts";
 
 declare const SelfMark: unique symbol;
 
@@ -123,9 +123,6 @@ type HasSelf<T> = [T] extends [Self]
           ? false
           : true
         : false;
-
-/** Names the library wires onto a companion. A member taking one would shadow it. */
-type Wired = "equals" | "patch" | "update" | "seal" | "create";
 
 /**
  * Rejects a member a Val could not carry: one returning `Self`, and one named after something

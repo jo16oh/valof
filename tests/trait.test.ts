@@ -1,5 +1,7 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import { Trait, Val, type AnyTrait, type Dyn, type Final, type Self } from "../src/index.ts";
+// `Wired` is not published from the entry point.
+import type { Wired } from "../src/val.ts";
 
 type Greetable = Trait<
   "Greetable",
@@ -92,6 +94,20 @@ describe("Trait", () => {
       type Boxed = Trait<"Boxed", { name: string }, { dyn: Final<(self: Self) => string> }>;
       // @ts-expect-error a trait member cannot take the name the trait itself uses
       Trait.companion<Boxed>().impl({});
+    });
+
+    // The tests above name one wired member each. This one fails if `Wired` grows a name
+    // `Declarable` still accepts. `"greet"` is the control: without it the conditional could
+    // answer `never` for every name and the test would pass on nothing.
+    test("no name in `Wired` is accepted", () => {
+      type Named<K extends string> = Trait<
+        "Named",
+        { id: string },
+        Record<K, (self: Self) => string>
+      >;
+      type Accepted<K> = K extends string ? (Named<K> extends AnyTrait ? K : never) : never;
+      expectTypeOf<Accepted<Wired>>().toEqualTypeOf<never>();
+      expectTypeOf<Accepted<"greet">>().toEqualTypeOf<"greet">();
     });
 
     test("the wiring the two steps register is not a name at all", () => {

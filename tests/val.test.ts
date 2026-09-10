@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import type { AnyVal, Final, Patch, PayloadOf, SeedOf, Self } from "../src/index.ts";
 import { Trait, Val } from "../src/index.ts";
 // `BrandOf` and `deepEquals` are not published from the entry point.
-import type { BrandOf } from "../src/val.ts";
+import type { BrandOf, CompanionFns, Wired } from "../src/val.ts";
 import { deepEquals } from "../src/val.ts";
 
 type Ok<T> = { ok: true; value: T };
@@ -1131,6 +1131,32 @@ describe("building", () => {
         // @ts-expect-error same
         update: (u: User) => u,
       });
+    });
+
+    // `dyn` is the one name a trait member may not take that a Val companion may: `Trait`'s
+    // `dyn` reads `__valof_traits`, never the companion's own key.
+    test("`dyn` is not among them: a Val companion has none to shadow", () => {
+      const Boxed = Val.sealer<User>().impl({ dyn: (u) => u.name });
+      expect(Boxed.dyn(Boxed({ id: "a", name: "bob" }))).toBe("bob");
+    });
+
+    test("`equals` too: a function here would shadow the wired structural default", () => {
+      Val.companion<User>().impl({
+        // @ts-expect-error `equals` belongs to .implEquals(), not to .impl()
+        equals: (a: User, b: User) => a.id === b.id,
+      });
+    });
+
+    // The four tests above name one `Wired` member each. This one fails if the union grows a
+    // name `.impl` still accepts, which is how the two drifted apart before.
+    test("no name in `Wired` is accepted", () => {
+      type Accepted = {
+        [K in Wired]: ((v: User) => string) extends CompanionFns<User>[K] ? K : never;
+      }[Wired];
+      expectTypeOf<Accepted>().toEqualTypeOf<never>();
+      // The control: without it the conditional could answer `never` for every name.
+      type Greet = ((v: User) => string) extends CompanionFns<User>["greet"] ? "greet" : never;
+      expectTypeOf<Greet>().toEqualTypeOf<"greet">();
     });
   });
 

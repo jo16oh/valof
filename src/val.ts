@@ -185,21 +185,21 @@ type AnyFn = (...args: never[]) => unknown;
 /** What a companion may hold besides functions: constants, lookup tables, and so on. */
 type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown>;
 
+/**
+ * Names the library wires onto a companion. A function taking one would shadow it, so both
+ * entry points reject them: `.impl` through {@link CompanionFns}, a trait member through
+ * `Declarable`.
+ *
+ * Everything here has a step of its own. A `seal` whose first parameter accepts the Val, common
+ * for primitive payloads, would otherwise satisfy the index signature and attach as an ordinary
+ * function, leaving `patch` / `update` unrouted. `patch` / `update` are the library's, not
+ * yours: a derivation with different rules deserves its own name, and can seal inside it. Use
+ * `.implEquals` / `.implSeal` / `.implCreate`.
+ */
+export type Wired = "equals" | "patch" | "update" | "seal" | "create";
+
 /** The functions a companion accepts, each taking its Val first. */
-type CompanionFns<V extends AnyVal> = {
-  /**
-   * Rejected so they cannot be mistaken for registrations: everything the library wires has a
-   * step of its own. A `seal` whose first parameter accepts the Val, common for primitive
-   * payloads, would otherwise satisfy the index signature and attach as an ordinary function,
-   * leaving `patch` / `update` unrouted. `equals` has a step of its own, and `patch` / `update`
-   * are the library's, not yours: a derivation with different rules deserves its own name, and
-   * can seal inside it. Use `.implEquals` / `.implSeal` / `.implCreate`.
-   */
-  equals?: never;
-  patch?: never;
-  update?: never;
-  seal?: never;
-  create?: never;
+export type CompanionFns<V extends AnyVal> = Partial<Record<Wired, never>> & {
   /**
    * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
    * before the registrations, so a function taking the name would stomp it and leave every boxed
@@ -407,7 +407,7 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
-> = Omit<M, "equals" | "patch" | "update"> &
+> = Omit<M, Wired> &
   CreateMethod<V, N, F> &
   SealMethod<F> &
   PatchMethod<V, F, P> &
