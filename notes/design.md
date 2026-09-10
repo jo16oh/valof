@@ -29,6 +29,7 @@ import { Val } from "valof";
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
+- **§11 型エラーをどこで表面化させるか** パラメータ位置（A）とブランド位置（B）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
@@ -1854,9 +1855,74 @@ fixture は `scripts/ts-compatibility/public-api.ts` の 1 本。`valof` を隣�
 
 ---
 
-## 11. 欠番
+## 11. 型エラーをどこで表面化させるか
 
-README の構成案があったが、README を書いたので落とした。README 自身が記録である。番号は §12 以降の参照を動かさないために空けてある。
+規則を検出することと、それをコンパイラに失敗として受け取らせることは別である。印を計算して型に置いただけでは検査にならない。置き場所は次の 2 つしかない。
+
+### 11.1 A: パラメータ位置
+
+検査結果をそのまま引数の型にする。
+
+```
+Argument of type '{ tag: (x) => string; }' is not assignable to
+  parameter of type '"another trait already answers to one of these names"'.
+```
+
+文がそのまま出るので読める。入口ごとに書く必要があり、書き忘れる。
+
+戻り型に置くのは A ではない。失敗するのはコンパニオンを代入した行で、呼び出しから離れており、別の話に見える（`Takes` の JSDoc）。
+
+### 11.2 B: ブランド位置
+
+印をファントムキーに入れ、別の場所の制約に読ませる。`V extends AnyVal` と `Tr extends AnyTrait` がその制約である。
+
+```
+Type 'Wiring' does not satisfy the constraint 'AnyTrait'.
+  Types of property '__valof_internal_phantom_trait_brands' are incompatible.
+    Type 'Invalid<"a trait member cannot take a name the library wires">' is not
+    assignable to type 'Readonly<Record<string, AnyMember>>'.
+```
+
+入口が全部同じ制約を通るので一箇所で済む。メッセージは構造の入れ子になる。利用者向けの規則はそれほど複雑ではないので、`Invalid<>` に包まれていれば足りる。
+
+### 11.3 基準
+
+**その検査が何を読むかで決まる。**
+
+型引数だけを読むなら B。ブランドに載せれば、`Val`、`Dyn`、コンパニオン、`implTrait` の両形式が一度に塞がる。
+
+- ペイロードの許可型（`Phantom`）
+- trait の shape の許可型、および shape とペイロードの整合（`Fits`）
+- メンバー名と `Self` 返却（`Declarable`）
+
+呼び出し側が積み上げた状態を読むなら A。型引数に現れないので、ブランドに書きようがない。
+
+|                              | 読むもの                                    |
+| ---------------------------- | ------------------------------------------- |
+| `Grown` / `Takes` の名前衝突 | `T`、それまで `.impl` が生やしたもの        |
+| `Complete` / `Shared`        | `G`、渡されたコンパニオンから推論されるもの |
+| `Implement`                  | 渡されたオブジェクト                        |
+| `CheckedSeal`                | 渡された関数の引数型                        |
+| `CompanionFns` の予約名      | 渡されたオブジェクト                        |
+
+B に統一はできない。境界はここにある。
+
+### 11.4 第三の位置は検査にならない
+
+同じ形のバグを 3 件出した。どれも印を「誰も読まない場所」に置いていた。
+
+- `TraitBrand` が `Invalid` を `__valof_internal_phantom_trait_brands` に入れていた。`AnyVal` が見るのは `__valof_internal_phantom_brand` だけで、shape の合わない Val がコンストラクタを通った。
+- `Declarable` を `Trait.companion` の戻り型からしか参照していなかった。コンパニオンなしの `implTrait` はそこを通らないので、`equals` や `patch` を名乗るメンバーが Val に載った。実行時に `N.equals(a, b)` がトレイト側の実装を呼び、引数を 1 つしか取らない。
+- `Trait` の `Checked<Shape>` が交差型の shape 側に印を残していた。どの制約もそこを読まない。
+
+いずれも A でも B でもない場所だった。**新しい検査を書いたら、それが A と B のどちらかにあることを確かめる。** どちらでもなければ、その検査は存在しない。
+
+確かめ方は変異である。検査を外して `@ts-expect-error` が未使用になるか見る。赤くならなければ、そのテストは何も見ていない。
+
+### 11.5 落とした案
+
+- **戻り型に置く**（§11.1）。`Takes` で一度検討して却下した。
+- **A と B を両方書く**。`Declarable` を B に移したあと、`Alone` に残した A 側のゲートを外した。同じ検査が 2 箇所にあると、B 側を直したときに A 側が到達不能な防御として残る。実際 `Takes` の `V extends ShapeOf<Tr>` が `Fits` の追加で到達不能になり、落とした。
 
 ---
 
