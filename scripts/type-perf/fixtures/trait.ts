@@ -5,18 +5,22 @@ import { Val, Trait, type Dyn, type Self } from "valof";
 type Named = Trait<
   "Named",
   { name: string },
-  { label: (self: Self, sep: string) => string; greet: (self: Self) => string }
+  {
+    label: (self: Self, sep: string) => string;
+    greet: (self: Self) => string;
+    shout: (self: Self) => string;
+  }
 >;
 const Named = Trait.companion<Named>()
-  .impl({ greet: (n) => `Hi, ${n.name}` })
-  .final({ shout: (n) => n.name.toUpperCase() });
+  .implDefault({ greet: (n) => `Hi, ${n.name}` })
+  .implFinal({ shout: (n) => n.name.toUpperCase() });
 
 type Sized = Trait<
   "Sized",
   { size: { w: number; h: number } },
   { scaled: (self: Self, by: number) => number; area: (self: Self) => number }
 >;
-const Sized = Trait.companion<Sized>().impl({ area: (s) => s.size.w * s.size.h });
+const Sized = Trait.companion<Sized>().implDefault({ area: (s) => s.size.w * s.size.h });
 
 type Room = Val<
   "Room",
@@ -60,6 +64,8 @@ declare const tag: Tag;
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
 export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()} ${Named.shout(b)}`);
+// A final reaches every path a member does, and the trait namespace besides.
+export const shouted = [Room.shout(room), Named.shout(tag), Named.dyn(Tag, tag).shout()];
 export const point = Point({ name: "o", size: { w: 1, h: 2 } });
 export const nested = [
   Floor.label(floor, "/"),

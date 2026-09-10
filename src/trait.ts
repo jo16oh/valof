@@ -12,7 +12,7 @@ export type Self = { readonly [SelfMark]: true };
 
 type AnyMember = (self: never, ...args: never[]) => unknown;
 
-/** The members a trait leaves to each Val. Its defaults are not written here. */
+/** The functions a trait declares, whichever side implements them. */
 export type Members = Readonly<Record<string, AnyMember>>;
 
 /** Every trait, as a constraint. */
@@ -22,8 +22,9 @@ export type AnyTrait = {
 
 /**
  * A structural contract shared by several Vals: the fields they hold, plus the functions they
- * share. `M` lists what each Val implements for itself; the shared ones are the defaults given
- * to {@link TraitBuilder.impl} and live on the trait alone.
+ * share. `M` declares every function, and the trait's own two steps say which side implements
+ * one: {@link TraitBuilder.implDefault} leaves it to each Val, {@link TraitBuilder.implFinal}
+ * does not.
  *
  * The type is also the value type: a Val declaring the trait is assignable to it.
  */
@@ -55,7 +56,7 @@ export type TraitsOf<V> = V extends {
 /** The names a trait answers to: one, or several when traits were intersected. */
 export type NamesOf<Tr extends AnyTrait> = keyof BrandsOf<Tr>;
 
-/** The members the trait leaves to each Val. */
+/** The functions the trait declares. */
 export type MembersOf<Tr extends AnyTrait> = BrandsOf<Tr>[keyof BrandsOf<Tr>];
 
 // Only parameters are walked: a member returning `Self` is rejected by `Declarable`.
@@ -136,7 +137,7 @@ export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
 export type TraitHost = { readonly __valof_traits: Members };
 
 /**
- * What `Trait.companion` returns once `.impl` closed the chain.
+ * What `Trait.companion` returns once a step closed the chain.
  *
  * The defaults are held, not published: a trait namespace that could call one would look like it
  * dispatched, and it cannot. Every call goes through the Val's companion or a {@link Dyn}, both
@@ -145,33 +146,54 @@ export type TraitHost = { readonly __valof_traits: Members };
 export type TraitCompanion<Tr extends AnyTrait, D, S = Record<never, never>> = S & {
   /** What each Val gets unless `implTrait` replaces it. */
   readonly defaults: D;
+  /** The members the trait implemented itself, which every Val gets as they stand. */
+  readonly finals: S;
   /** Boxes a value with one Val's implementation. See {@link Dyn}. */
   readonly dyn: (companion: TraitHost, value: ShapeOf<Tr>) => Dyn<Tr>;
 };
 
-/** The default implementations a trait may carry: any of its members, over the shape. */
-export type Defaults<Tr extends AnyTrait, D> = {
-  readonly [K in keyof D]: K extends keyof MembersOf<Tr>
-    ? Unbound<MembersOf<Tr>, ShapeOf<Tr>>[K]
-    : "a trait's default must implement one of its members";
+/**
+ * What either of the trait's steps takes: its own members, implemented over the shape.
+ *
+ * `Taken` is what the other step already answered. One implementation per member, whichever
+ * order the two steps come in: at run time the final wins, and saying so in the type is what
+ * keeps a dead default out.
+ */
+type Shared<Tr extends AnyTrait, Taken, G> = {
+  readonly [K in keyof G]: K extends Taken
+    ? "the trait already implements this member"
+    : K extends keyof MembersOf<Tr>
+      ? Unbound<MembersOf<Tr>, ShapeOf<Tr>>[K]
+      : "a trait's own implementation must be one of its members";
 };
 
-/** What a Val must pass to `implTrait`: the members without a default, and any override. */
-export type Implement<Tr extends AnyTrait, D, V> = Unbound<Omit<MembersOf<Tr>, keyof D>, V> &
-  Partial<Unbound<Pick<MembersOf<Tr>, keyof D & keyof MembersOf<Tr>>, V>>;
+/** The default implementations a trait may carry, `S` being what `implFinal` already answered. */
+export type Defaults<Tr extends AnyTrait, S, D> = Shared<Tr, keyof S, D>;
 
 /**
- * The functions a trait keeps for itself: computed from the shape, the same for every Val. Their
- * names may not be a member's, which is what keeps `Greetable.shout(u)` from disagreeing with
- * anything: nothing can override one.
+ * The ones it implements for good, which no Val may replace.
+ *
+ * These are the ones the trait namespace publishes, so they may not take a name it already uses.
+ * A default may: nothing publishes it.
  */
-export type Final<Tr extends AnyTrait, S> = {
-  readonly [K in keyof S]: K extends keyof MembersOf<Tr>
-    ? "a final function cannot take a member's name"
-    : K extends "dyn" | "defaults"
-      ? "a final function cannot take a name the trait itself uses"
-      : (self: Tr, ...args: never[]) => unknown;
+export type Final<Tr extends AnyTrait, D, S> = {
+  // Every key the trait namespace holds beside its finals: the two records `implTrait` reads, the
+  // two steps, and `dyn`. All five are written after the finals are spread on, so a final taking
+  // one of these names is dropped rather than shadowing it.
+  readonly [K in keyof S]: K extends "dyn" | "defaults" | "finals" | "implDefault" | "implFinal"
+    ? "a final cannot take a name the trait itself uses"
+    : Shared<Tr, keyof D, S>[K];
 };
+
+/**
+ * What a Val must pass to `implTrait`: the members the trait implemented neither way, and any
+ * override of a default. A final is not among them.
+ */
+export type Implement<Tr extends AnyTrait, D, S, V> = Unbound<
+  Omit<MembersOf<Tr>, keyof D | keyof S>,
+  V
+> &
+  Partial<Unbound<Pick<MembersOf<Tr>, keyof D & keyof MembersOf<Tr>>, V>>;
 
 /**
  * Collects what a trait carries. Either step may come first, and the chain ends wherever the
@@ -183,26 +205,27 @@ export type TraitBuilder<
   S = Record<never, never>,
 > = TraitCompanion<Tr, D, S> & {
   /**
-   * Groups functions on the trait itself and fixes their first parameter to it, which is what a
-   * plain function over the shape cannot do. Not part of the contract: a Val implements none of
-   * them, and none can be overridden.
-   */
-  final: <G extends Final<Tr, G>>(fns: G) => TraitBuilder<Tr, D, S & G>;
-  /**
    * Implements members over the shape alone. A Val takes these unless `implTrait` passes its
    * own, so declaring one here is what makes that member optional there.
    */
-  impl: <G extends Defaults<Tr, G>>(fns: G) => TraitBuilder<Tr, D & G, S>;
+  implDefault: <G extends Defaults<Tr, S, G>>(fns: G) => TraitBuilder<Tr, D & G, S>;
+  /**
+   * The same, for a member `implTrait` may not replace. Every Val gets this one function, so it
+   * is also the only kind the trait namespace publishes: `Greetable.shout(u)` cannot disagree
+   * with `User.shout(u)` or with `box.shout()`, because all three are it.
+   */
+  implFinal: <G extends Final<Tr, D, G>>(fns: G) => TraitBuilder<Tr, D, S & G>;
 };
 
 type AnyFn = (...args: never[]) => unknown;
 
 const make = (
   defaults: Record<string, unknown>,
-  final: Record<string, unknown>,
+  finals: Record<string, unknown>,
 ): Record<string, unknown> => ({
-  ...final,
+  ...finals,
   defaults,
+  finals,
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
   // trait holds.
@@ -229,11 +252,13 @@ export const Trait = {
     : Declarable<Tr, MembersOf<Tr>> => {
     const build = (
       defaults: Record<string, unknown>,
-      final: Record<string, unknown>,
+      finals: Record<string, unknown>,
     ): Record<string, unknown> => {
-      const target = make(defaults, final);
-      target["final"] = (fns: Record<string, unknown>) => build(defaults, { ...final, ...fns });
-      target["impl"] = (fns: Record<string, unknown>) => build({ ...defaults, ...fns }, final);
+      const target = make(defaults, finals);
+      target["implDefault"] = (fns: Record<string, unknown>) =>
+        build({ ...defaults, ...fns }, finals);
+      target["implFinal"] = (fns: Record<string, unknown>) =>
+        build(defaults, { ...finals, ...fns });
       return target;
     };
     return build({}, {}) as never;
