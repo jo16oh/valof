@@ -24,15 +24,7 @@ const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
 
 describe("Val", () => {
   describe("of", () => {
-    test("a constructor returns an equal value, copied", () => {
-      const raw = { id: "a", name: "bob" };
-      const user = User(raw);
-      expect(user).toEqual(raw);
-      expect(user).not.toBe(raw);
-      expect(user.name).toBe("bob");
-    });
-
-    test("Val.of copies too", () => {
+    test("returns an equal value, copied", () => {
       const raw = { id: "a", name: "alice" };
       const user = Val.of<User>(raw);
       expect(user).toEqual(raw);

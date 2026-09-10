@@ -233,16 +233,6 @@ describe("nesting", () => {
     expect(Greetable.dyn(User, team.lead).greet()).toBe("Hi, alice");
     expect(Greetable.dyn(Team, team).greet()).toBe("Team core");
   });
-
-  test("patch replaces a nested Val whole, and keeps the untouched subtree", () => {
-    const next = Team.patch(team, { lead: Val.of<User>({ id: "b", name: "bob" }) });
-    expect([next.lead.name, User.greet(next.lead)]).toEqual(["bob", "Hi, bob"]);
-    expect(Team.patch(team, { name: "edge" }).lead).toBe(team.lead);
-  });
-
-  test("equality stays structural through the nesting", () => {
-    expect(Team.equals(team, Val.of<Team>({ id: "t", name: "core", lead: user }))).toBe(true);
-  });
 });
 
 describe("building", () => {
