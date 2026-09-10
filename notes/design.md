@@ -1173,6 +1173,10 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 `equals` / `patch` / `update` も同じ理由で `never` にした。事故の形は違って、こちらは**生えはするが配線が外れる**（`equals` の第 3 引数が来ない、`patch` の戻りが seal を通らない）。専用の段に出した経緯は §7.7。
 
+**`__valof_` で始まるキーも `never`。**5 つの名前に加えて ``[key: `__valof_${string}`]: never`` を書く。`attach` は `target.__valof_traits = traits` を登録より先に置くので、`.impl({ __valof_traits: fn })` が記録を踏み潰し、箱のメンバが 1 つも束縛されなくなる（実測: `Greetable.dyn(...).greet is not a function`）。`Trait` 側の `Declarable` も同じ接頭辞で弾くので、内部キーを増やしても検査は増えない。
+
+**`impl` 接頭辞もライブラリのもの。**`.impl({ implTrait: fn })` は何も踏み潰さない。`.impl(fns)` は `base()` から新しいオブジェクトを作って返し、段のメソッドはそこに代入されないため。型も `Sealed` / `Companion` で段を持たない。鎖が終わっているので衝突する相手がいない。それでも弾く: `User.implTrait(u)` は段に読める。接頭辞ごと予約すれば段を足しても利用者の名前と衝突しない。`fixed` は弾かない。`Money.fixed(m)` のような正当なメンバ名で、しかも衝突する相手がいない。
+
 #### sealer に `implSeal` は生やさない
 
 **sealer は既定の seal そのもの**であり、その隣に検査つきの seal を並べれば、最初の seal が「迂回する穴」になる（§6.1）。`implSeal` は companion 専用。
@@ -3931,10 +3935,10 @@ Val.companion<User>()
 記録を持つ `__valof_traits` も同じ。
 
 **trait 自身のキーは final だけが取れない。**名前空間に出るのは final だけなので、衝突するのもそちらだけ。
-禁じるのは 5 つ: `dyn`、`implTrait` が読む `defaults` / `finals`、そして段の `implDefault` / `implFinal`。
-`make` が finals を先に spread してから残りを代入するので、**上書きされるのは final の側**で、黙って落ちる。
-実測すると、`implFinal` という名前の final を呼ぶと段の関数が動いて新しい builder が返ってきた。既定は何も
-publish しないので、この 5 つを名前に取ってよい。
+禁じるのは 3 つ: `dyn` と、`implTrait` が読む `defaults` / `finals`。段は `impl` 接頭辞なのでメンバの側で
+既に弾かれる（§6.10）。`make` が finals を先に spread してから残りを代入するので、**上書きされるのは final
+の側**で、黙って落ちる。実測すると、`defaults` という名前の final を呼ぶと record が返ってきた。既定は何も
+publish しないので、この 3 つを名前に取ってよい。
 
 **型に書いた trait のリストが正本。**`implTrait` は payload が shape を満たすかだけでなく、その Val が
 その trait を宣言しているかも見る。見ていなかった版では、宣言していない trait を実装できて

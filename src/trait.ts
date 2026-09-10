@@ -93,11 +93,11 @@ type HasSelf<T> = [T] extends [Self]
         : false;
 
 /** Names the library wires onto a companion. A member taking one would shadow it. */
-type Wired = "equals" | "patch" | "update" | "seal" | "create" | "__valof_traits";
+type Wired = "equals" | "patch" | "update" | "seal" | "create";
 
 /**
  * Rejects a member a Val could not carry: one returning `Self`, and one named after something
- * the library wires.
+ * the library wires, `__valof_` and the `impl` steps included.
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
@@ -105,7 +105,7 @@ type Wired = "equals" | "patch" | "update" | "seal" | "create" | "__valof_traits
 export type Declarable<Tr extends AnyTrait, M extends Members> = {
   [K in keyof M]: K extends keyof ShapeOf<Tr>
     ? "a trait member cannot take a field's name"
-    : K extends Wired
+    : K extends Wired | `__valof_${string}` | `impl${string}`
       ? "a trait member cannot take a name the library wires"
       : M[K] extends (...args: never[]) => infer R
         ? HasSelf<R> extends true
@@ -177,10 +177,11 @@ export type Defaults<Tr extends AnyTrait, S, D> = Shared<Tr, keyof S, D>;
  * A default may: nothing publishes it.
  */
 export type Final<Tr extends AnyTrait, D, S> = {
-  // Every key the trait namespace holds beside its finals: the two records `implTrait` reads, the
-  // two steps, and `dyn`. All five are written after the finals are spread on, so a final taking
-  // one of these names is dropped rather than shadowing it.
-  readonly [K in keyof S]: K extends "dyn" | "defaults" | "finals" | "implDefault" | "implFinal"
+  // The trait namespace holds these three beside its finals: `dyn` and the two records
+  // `implTrait` reads. The steps need no guard, being `impl`-prefixed, which no member may be.
+  // All three are written after the finals are spread on, so a final taking one of these names is
+  // dropped rather than shadowing it.
+  readonly [K in keyof S]: K extends "dyn" | "defaults" | "finals"
     ? "a final cannot take a name the trait itself uses"
     : Shared<Tr, keyof D, S>[K];
 };

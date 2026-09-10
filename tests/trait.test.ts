@@ -227,8 +227,6 @@ describe("names", () => {
         dyn: (self: Self) => string;
         defaults: (self: Self) => string;
         finals: (self: Self) => string;
-        implDefault: (self: Self) => string;
-        implFinal: (self: Self) => string;
       }
     >;
     Trait.companion<Boxed>().implFinal({
@@ -238,10 +236,6 @@ describe("names", () => {
       defaults: (b) => b.name,
       // @ts-expect-error a final cannot take a name the trait itself uses
       finals: (b) => b.name,
-      // @ts-expect-error a final cannot take a name the trait itself uses
-      implDefault: (b) => b.name,
-      // @ts-expect-error a final cannot take a name the trait itself uses
-      implFinal: (b) => b.name,
     });
   });
 
@@ -251,6 +245,34 @@ describe("names", () => {
     type Note = Val<"Note", { name: string }, Held>;
     const Note = Val.companion<Note>().implTrait(Held);
     expect(Note.defaults(Val.of<Note>({ name: "n" }))).toBe("n");
+  });
+
+  test("a member cannot take a name under `__valof_`", () => {
+    type Sneaky = Trait<"Sneaky", { name: string }, { __valof_traits: (self: Self) => string }>;
+    // @ts-expect-error a trait member cannot take a name the library wires
+    Trait.companion<Sneaky>().implDefault({});
+  });
+
+  test("nor one under `impl`, which the steps have", () => {
+    type Stepping = Trait<"Stepping", { name: string }, { implTrait: (self: Self) => string }>;
+    // @ts-expect-error a trait member cannot take a name the library wires
+    Trait.companion<Stepping>().implDefault({});
+  });
+
+  test("nor may a companion grow one over the record `dyn` reads", () => {
+    Val.companion<User>()
+      .implTrait(Greetable, { toWire: (u, sep) => `${u.id}${sep}` })
+      .impl({
+        // @ts-expect-error the library keeps this one: a function here would leave `dyn` unbound
+        __valof_traits: (u) => u.name,
+      });
+  });
+
+  test("nor may it grow one over a step's name", () => {
+    Val.companion<User>().impl({
+      // @ts-expect-error the `impl` prefix is the library's
+      implTrait: (u) => u.name,
+    });
   });
 
   test("two traits on one Val may not answer to the same final", () => {

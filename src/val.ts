@@ -177,6 +177,18 @@ type CompanionFns<V extends AnyVal> = {
   seal?: never;
   create?: never;
   /**
+   * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
+   * before the registrations, so a function taking the name would stomp it and leave every boxed
+   * member unbound.
+   */
+  [key: `__valof_${string}`]: never;
+  /**
+   * The steps are the library's, whichever ones it grows. Nothing is shadowed: `.impl` builds a
+   * fresh object, and the chain has ended by then. But `User.implTrait(u)` reads as the step it
+   * is not, so the prefix stays the library's.
+   */
+  [key: `impl${string}`]: never;
+  /**
    * One callable member only. This is the contextual type for the Val parameter, and TypeScript
    * takes one from a union only while a single constituent has a call signature. `NonFn` has
    * none. A second function type would, and the parameter then falls back to implicit `any`
