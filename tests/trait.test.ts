@@ -1,5 +1,13 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import { Trait, Val, type AnyVal, type Dyn, type Final, type Self } from "../src/index.ts";
+import {
+  Trait,
+  Val,
+  type AnyTrait,
+  type AnyVal,
+  type Dyn,
+  type Final,
+  type Self,
+} from "../src/index.ts";
 
 type Greetable = Trait<
   "Greetable",
@@ -114,6 +122,38 @@ describe("declaring", () => {
 
   test("Self resolves to the Val, with no annotation at the implementation", () => {
     expectTypeOf(User.toWire).toEqualTypeOf<(self: User, sep: string) => string>();
+  });
+
+  // The shape answers to the payload rules, so a trait no payload could ever satisfy is caught
+  // where it is written rather than at the first Val that tries to implement it.
+  test("the shape must be a payload a Val could hold", () => {
+    type BadFn = Trait<"BadFn", { run: () => void }>;
+    expectTypeOf<BadFn>().not.toExtend<AnyTrait>();
+    // @ts-expect-error functions are not allowed
+    Trait.companion<BadFn>();
+
+    type BadUndefined = Trait<"BadUndefined", { nickname: string | undefined }>;
+    expectTypeOf<BadUndefined>().not.toExtend<AnyTrait>();
+    // @ts-expect-error required property cannot be undefined
+    Trait.companion<BadUndefined>();
+
+    type BadKey = Trait<"BadKey", Readonly<Record<symbol, string>>>;
+    expectTypeOf<BadKey>().not.toExtend<AnyTrait>();
+    // @ts-expect-error keys must be strings
+    Trait.companion<BadKey>();
+  });
+
+  // Every gate takes an `AnyTrait`, so one check covers the companion, a Val declaring the
+  // trait, a box, and both forms of `implTrait`. None of them carries a check of its own.
+  test("a broken declaration is caught at every gate", () => {
+    type Wiring = Trait<"Wiring", { id: string }, { equals: (self: Self) => boolean }>;
+    expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
+    // @ts-expect-error a trait member cannot take a name the library wires
+    Trait.companion<Wiring>();
+    // @ts-expect-error same
+    expectTypeOf<Val<"Cell", { id: string }, Wiring>>().not.toExtend<AnyVal>();
+    // @ts-expect-error same
+    expectTypeOf<Dyn<Wiring>>().not.toExtend<AnyTrait>();
   });
 });
 

@@ -16,8 +16,8 @@ type Primitive = string | number | boolean | bigint | null;
 
 export type AnyVal = { readonly __valof_internal_phantom_brand: string };
 
-/** Marker surfaced in the type when a payload violates the allowed-type rules. */
-type Invalid<Msg extends string> = { readonly __valError: Msg };
+/** Marker surfaced in the type when a declaration violates the allowed-type rules. */
+export type Invalid<Msg extends string> = { readonly __valError: Msg };
 
 type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;

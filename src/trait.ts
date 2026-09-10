@@ -1,4 +1,4 @@
-import type { AnyVal, Checked, DeepReadonly } from "./val.ts";
+import type { AnyVal, Checked, DeepReadonly, Invalid } from "./val.ts";
 
 declare const SelfMark: unique symbol;
 
@@ -51,7 +51,16 @@ export type Trait<K extends string, Shape, M extends Members = Record<never, nev
 > & {
   // The members ride in the brand map rather than a key of their own, so a Val can carry the
   // brand without carrying a phantom key per trait. Several traits compose by intersection.
-  readonly __valof_internal_phantom_trait_brands: { readonly [P in K]: M };
+  //
+  // A broken declaration puts the annotated version here instead, the way an invalid payload
+  // lands in a Val's brand. `Members` admits functions alone, so an `Invalid` in this position
+  // stops the trait satisfying `AnyTrait`, and every gate takes an `AnyTrait`: the companion,
+  // `Val`, `Dyn` and both forms of `implTrait` all report it without a check of their own.
+  readonly __valof_internal_phantom_trait_brands: [Shape] extends [Checked<Shape>]
+    ? [M] extends [Declarable<Shape, M>]
+      ? { readonly [P in K]: M }
+      : Declarable<Shape, M>
+    : Checked<Shape>;
 };
 
 /** The fields a trait requires. */
@@ -124,17 +133,20 @@ type Wired = "equals" | "patch" | "update" | "seal" | "create";
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
+ *
+ * Taken over the shape rather than the trait, so {@link Trait} can read it while defining
+ * itself. Every check here reads the declaration alone, which is what lets it ride the brand.
  */
-export type Declarable<Tr extends AnyTrait, M extends Members> = {
-  [K in keyof M]: K extends keyof ShapeOf<Tr>
-    ? "a trait member cannot take a field's name"
+type Declarable<Shape, M extends Members> = {
+  [K in keyof M]: K extends keyof DeepReadonly<Checked<Shape>>
+    ? Invalid<"a trait member cannot take a field's name">
     : K extends "dyn"
-      ? "a trait member cannot take the name the trait itself uses"
+      ? Invalid<"a trait member cannot take the name the trait itself uses">
       : K extends Wired | `__valof_${string}` | `impl${string}`
-        ? "a trait member cannot take a name the library wires"
+        ? Invalid<"a trait member cannot take a name the library wires">
         : M[K] extends (...args: never[]) => infer R
           ? HasSelf<R> extends true
-            ? "a trait member cannot return Self"
+            ? Invalid<"a trait member cannot return Self">
             : M[K]
           : M[K];
 };
@@ -253,9 +265,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
 
 export const Trait = {
   /** Declares a trait's runtime side: what every Val implementing it shares. */
-  companion: <Tr extends AnyTrait>(): MembersOf<Tr> extends Declarable<Tr, MembersOf<Tr>>
-    ? TraitBuilder<Tr>
-    : Declarable<Tr, MembersOf<Tr>> => {
+  companion: <Tr extends AnyTrait>(): TraitBuilder<Tr> => {
     const build = (impls: Record<string, unknown>): Record<string, unknown> => {
       const target = make(impls);
       target["impl"] = (fns: Record<string, unknown>) => build({ ...impls, ...fns });
