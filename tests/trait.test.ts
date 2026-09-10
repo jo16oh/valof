@@ -219,36 +219,31 @@ describe("names", () => {
     });
   });
 
-  test("nor may it take a name the trait itself uses", () => {
-    type Boxed = Trait<
-      "Boxed",
-      { name: string },
-      {
-        dyn: (self: Self) => string;
-        defaults: (self: Self) => string;
-        finals: (self: Self) => string;
-      }
-    >;
+  test("nor may it take a name the trait itself publishes", () => {
+    type Boxed = Trait<"Boxed", { name: string }, { dyn: (self: Self) => string }>;
     Trait.companion<Boxed>().implFinal({
       // @ts-expect-error a final cannot take a name the trait itself uses
       dyn: (b) => b.name,
-      // @ts-expect-error a final cannot take a name the trait itself uses
-      defaults: (b) => b.name,
-      // @ts-expect-error a final cannot take a name the trait itself uses
-      finals: (b) => b.name,
     });
   });
 
-  test("but a default may: nothing publishes it", () => {
-    type Held = Trait<"Held", { name: string }, { defaults: (self: Self) => string }>;
-    const Held = Trait.companion<Held>().implDefault({ defaults: (h) => h.name });
+  test("the wiring the two steps register is not a name at all", () => {
+    type Held = Trait<
+      "Held",
+      { name: string },
+      { defaults: (self: Self) => string; finals: (self: Self) => string }
+    >;
+    const Held = Trait.companion<Held>()
+      .implDefault({ defaults: (h) => h.name })
+      .implFinal({ finals: (h) => h.name.toUpperCase() });
     type Note = Val<"Note", { name: string }, Held>;
     const Note = Val.companion<Note>().implTrait(Held);
-    expect(Note.defaults(Val.of<Note>({ name: "n" }))).toBe("n");
+    const n = Val.of<Note>({ name: "n" });
+    expect([Note.defaults(n), Note.finals(n), Held.finals(n)]).toEqual(["n", "N", "N"]);
   });
 
   test("a member cannot take a name under `__valof_`", () => {
-    type Sneaky = Trait<"Sneaky", { name: string }, { __valof_traits: (self: Self) => string }>;
+    type Sneaky = Trait<"Sneaky", { name: string }, { __valof_shared: (self: Self) => string }>;
     // @ts-expect-error a trait member cannot take a name the library wires
     Trait.companion<Sneaky>().implDefault({});
   });

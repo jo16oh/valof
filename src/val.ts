@@ -872,9 +872,12 @@ const build = <V extends AnyVal>(
   target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
   target.implTrait = (
-    trait: { defaults: Record<string, unknown>; finals: Record<string, unknown> },
+    trait: { __valof_shared: Record<"defaults" | "finals", Record<string, unknown>> },
     impl: Record<string, unknown> = {},
-  ) => build<V>(ctors, callable, { ...traits, ...trait.defaults, ...impl, ...trait.finals });
+  ) => {
+    const shared = trait.__valof_shared;
+    return build<V>(ctors, callable, { ...traits, ...shared.defaults, ...impl, ...shared.finals });
+  };
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });

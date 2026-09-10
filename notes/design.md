@@ -3895,8 +3895,9 @@ Kotlin の `sealed` / `final` の対立もここには持ち込まれない。
 予約するためだけにあった。final が `T` に入るので `keyof T` で足りる。
 
 買えるものは 2 つ。**第 1 引数の文脈型付け**（§6.5 と同じ理由。ただの関数だと `(g: Greetable)` と書く）と、
-**名前空間としてのまとまり**。払うのは gzip 14 B と宣言 570 B。`Val` だけを import する人も 6 B 払う:
-`implTrait` が finals を重ねるぶん。
+**名前空間としてのまとまり**。払うのは gzip 30 B と宣言 756 B。`Val` だけを import する人も 17 B 払う:
+`implTrait` が `__valof_shared` を読んで finals を重ねるぶん。`defaults` / `finals` を平らに publish すれば
+11 B 安いが、禁じる名前が 2 つ増えて上の穴が開く。
 
 #### 却下: 上書きできる関数を名前空間に置く
 
@@ -3935,10 +3936,16 @@ Val.companion<User>()
 記録を持つ `__valof_traits` も同じ。
 
 **trait 自身のキーは final だけが取れない。**名前空間に出るのは final だけなので、衝突するのもそちらだけ。
-禁じるのは 3 つ: `dyn` と、`implTrait` が読む `defaults` / `finals`。段は `impl` 接頭辞なのでメンバの側で
-既に弾かれる（§6.10）。`make` が finals を先に spread してから残りを代入するので、**上書きされるのは final
-の側**で、黙って落ちる。実測すると、`defaults` という名前の final を呼ぶと record が返ってきた。既定は何も
-publish しないので、この 3 つを名前に取ってよい。
+残る 1 つは `dyn`。段は `impl` 接頭辞で、配線は `__valof_` 配下なので、どちらもメンバの側で既に弾かれる
+（§6.10）。`make` が finals を先に spread してから残りを代入するので、**上書きされるのは final の側**で、
+黙って落ちる。実測すると、`implFinal` という名前の final を呼ぶと段の関数が動いて新しい builder が返って
+きた。既定は何も publish しないので、`dyn` を取ってよい。
+
+**2 つの段が登録したものは名前ではない。**当初は `defaults` / `finals` の 2 キーで publish していて、
+禁じる名前が 5 つあった。あれは `implTrait` が読む配線でしかないので、`__valof_shared` 1 つに隠した。
+禁じる名前が減り、`Greetable.defaults.greet(u)` という穴も閉じる。**あれは §15 の却下案そのもの**で、
+名前空間が既定を答えていた。`Declarable` は `__valof_` で始まる名前をまとめて弾くようにしたので、
+`Wired` から `__valof_traits` を消せた。内部キーが増えても検査は増えない。
 
 **型に書いた trait のリストが正本。**`implTrait` は payload が shape を満たすかだけでなく、その Val が
 その trait を宣言しているかも見る。見ていなかった版では、宣言していない trait を実装できて

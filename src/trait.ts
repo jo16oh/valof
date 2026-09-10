@@ -139,15 +139,14 @@ export type TraitHost = { readonly __valof_traits: Members };
 /**
  * What `Trait.companion` returns once a step closed the chain.
  *
- * The defaults are held, not published: a trait namespace that could call one would look like it
- * dispatched, and it cannot. Every call goes through the Val's companion or a {@link Dyn}, both
- * of which reach the Val's own version.
+ * What the two steps registered is wiring for `implTrait`, not API: a trait namespace that could
+ * call a default would look like it dispatched, and it cannot. Every call goes through the Val's
+ * companion or a {@link Dyn}, both of which reach the Val's own version. The finals are the
+ * exception, and they are published as themselves.
  */
 export type TraitCompanion<Tr extends AnyTrait, D, S = Record<never, never>> = S & {
-  /** What each Val gets unless `implTrait` replaces it. */
-  readonly defaults: D;
-  /** The members the trait implemented itself, which every Val gets as they stand. */
-  readonly finals: S;
+  /** What `implTrait` copies onto the Val: the defaults it may replace, the finals it may not. */
+  readonly __valof_shared: { readonly defaults: D; readonly finals: S };
   /** Boxes a value with one Val's implementation. See {@link Dyn}. */
   readonly dyn: (companion: TraitHost, value: ShapeOf<Tr>) => Dyn<Tr>;
 };
@@ -177,11 +176,10 @@ export type Defaults<Tr extends AnyTrait, S, D> = Shared<Tr, keyof S, D>;
  * A default may: nothing publishes it.
  */
 export type Final<Tr extends AnyTrait, D, S> = {
-  // The trait namespace holds these three beside its finals: `dyn` and the two records
-  // `implTrait` reads. The steps need no guard, being `impl`-prefixed, which no member may be.
-  // All three are written after the finals are spread on, so a final taking one of these names is
-  // dropped rather than shadowing it.
-  readonly [K in keyof S]: K extends "dyn" | "defaults" | "finals"
+  // `dyn` is the only one left to guard: the steps are `impl`-prefixed, which no member may be,
+  // and the wiring sits under `__valof_`. It is written after the finals are spread on, so a final
+  // taking the name is dropped rather than shadowing it.
+  readonly [K in keyof S]: K extends "dyn"
     ? "a final cannot take a name the trait itself uses"
     : Shared<Tr, keyof D, S>[K];
 };
@@ -225,8 +223,7 @@ const make = (
   finals: Record<string, unknown>,
 ): Record<string, unknown> => ({
   ...finals,
-  defaults,
-  finals,
+  __valof_shared: { defaults, finals },
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
   // trait holds.
