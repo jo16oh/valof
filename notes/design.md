@@ -32,7 +32,7 @@ import { Val } from "valof";
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
-- **§15 v2 候補** `Trait`。`implDefault` / `implFinal`、交差する trait ブランド、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ
+- **§15 v2 候補** `Trait`。`Final<F>` マーカーと 1 段の `impl`、交差する trait ブランド、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ
 
 ---
 
@@ -3797,7 +3797,7 @@ type Greetable = Trait<
 >;
 
 // 既定実装。書いたメンバは implTrait で省ける
-const Greetable = Trait.companion<Greetable>().implDefault({ greet: (g) => `Hi, ${g.name}` });
+const Greetable = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
 
@@ -3811,12 +3811,12 @@ const Admin = Val.companion<Admin>().implTrait(Greetable, {
 });
 ```
 
-**メンバは 1 種類。**trait の `.implDefault` は既定実装を配り、`implTrait` が任意の部分集合を上書きする。
+**メンバは 1 種類。**trait の `.impl` は既定実装を配り、`implTrait` が任意の部分集合を上書きする。
 既定を持つメンバは `implTrait` で省ける。全部が companion に登録されるので、`User.greet(u)` も箱の
 `p.greet()` も常にその Val の実装を呼ぶ。`Final` を付けたメンバだけがこの上書きの外にある。
 
-**`Greetable.greet` は存在しない。**上書きされうる関数は trait の名前空間に出ない。出るのは `implFinal`
-の関数だけで、そちらは上書きできない。
+**`Greetable.greet` は存在しない。**上書きされうる関数は trait の名前空間に出ない。出るのは `Final` の
+メンバだけで、そちらは上書きできない。
 
 #### 却下: `Trait` 自体を callable にする
 
@@ -3834,7 +3834,7 @@ const Greetable = Trait<Greetable>(); // 1 つ
 
 trait と companion の対は意味的にも筋が通っていて、Rust の `impl Trait for T` と読み手の対応が取れる。
 
-#### `implFinal`: 上書きできないメンバ
+#### `Final`: 上書きできないメンバ
 
 ```ts
 type Greetable = Trait<
@@ -3846,9 +3846,10 @@ type Greetable = Trait<
   }
 >;
 
-const Greetable = Trait.companion<Greetable>()
-  .implDefault({ greet: (g) => `Hi, ${g.name}` }) // 既定。implTrait で上書きできる
-  .implFinal({ shout: (g) => g.name.toUpperCase() });
+const Greetable = Trait.companion<Greetable>().impl({
+  greet: (g) => `Hi, ${g.name}`, // 既定。implTrait で上書きできる
+  shout: (g) => g.name.toUpperCase(), // Final。できない
+});
 
 Greetable.shout(user); // 名前空間に出るのは final だけ。Val も箱も渡せる
 User.shout(user); // メンバなので companion にも出る
@@ -3856,27 +3857,47 @@ Greetable.dyn(User, user).shout(); // 箱も同じ
 ```
 
 **`Final<F>` は宣言側のマーカー。**`F & { [FinalMark]: true }` の phantom で、実行時には消える。
-どちらの段がそのメンバを取るかが宣言から決まるので、2 つの段は互いに素な名前を受け取る。重複を検査する
-必要がなくなり、`implDefault` に final を書けば「`implFinal` で実装するもの」と言われる。
+どちら側が実装し、Val が上書きできるかが宣言から決まる。実装を渡す段は 1 つで足りる。
 
 **文字列のユニオンにはしない。**`Trait<K, Shape, M, "shout">` でも同じ情報は運べるが、宣言の見た目から
 どのメンバが final か読めず、型シグネチャを追う羽目になる。マーカーはメンバの隣に出る。
 
-**段は 2 つのまま。**マーカーが消える以上、実行時は `impl({ greet, shout })` を受け取っても分割できない。
-分割が要る場所が 2 つある: trait 名前空間に出すのは final だけという規則と、`implTrait` が Val に重ねる
-順序。段を分けておけば、この分割は「どちらを呼んだか」から無料で得られる。実装側に `Trait.final(fn)` を
-書かせる案は、宣言のマーカーと二重になるうえ包むぶんだけ高い。
+##### 却下: `implDefault` / `implFinal` の 2 段
 
-**2 つの段はどちらが先でもよく、どこで終わってもよい。**builder が companion を兼ねているため。
+マーカーが消える以上、実行時は `impl({ greet, shout })` を分割できない。分割が要る場所が 2 つあったので、
+はじめは段を 2 つに分け、「どちらを呼んだか」から分割を得ていた。どちらも型で足りる。
 
-**final も他のメンバと同じ経路で届く。**`implTrait` が trait の `finals` レコードを `__valof_traits` に
-コピーするので、`User.shout(u)` も箱の `p.shout()` も生える。上書きの禁止だけが `implFinal` の目的で、
+**名前空間に出すのは final だけ**という規則は型だけで守れる。`TraitCompanion` を `Pick<G, FinalsOf<Tr>>`
+にすれば、既定は実行時のオブジェクトに残っても型から到達できない。実行時に絞るほうがむしろ高い（絞る
+コードが要る）。§15 の却下案が禁じたのは**型の付いた** `Greetable.greet(u)` で、それは出ない。
+
+**`implTrait` の重ね順**も型で足りるが、そのためには穴を 1 つ埋める必要があった。`Implement` が final を
+`Omit` するだけでは、弾いているのは**オブジェクトリテラルの余剰プロパティ検査だけ**で、変数を渡すと
+素通りする。
+
+```ts
+const carried = { toWire, shout }; // 変数なので余剰プロパティ検査が働かない
+User.implTrait(Greetable, carried); // 通っていた
+```
+
+`Partial<Record<FinalsOf<Tr>, never>>` を足すと構造的に弾ける（§6.10 が `seal?: never` を選んだのと同じ形。
+メッセージ文字列は optional 修飾子のせいで `undefined` と言われるので `never`）。埋めたので、実行時は
+`{ ...traits, ...shared, ...impl }` の素直な merge でよい。
+
+段が 1 つになって、実行時は `Trait` 込みで 11 B 縮んだ（改名前より小さい）。宣言も 630 B 減った。
+実装側に `Trait.final(fn)` を書かせる案は、宣言のマーカーと二重になるうえ包むぶんだけ高い。
+
+**`impl` は何度でも呼べて、どこで終わってもよい。**builder が companion を兼ねているため。同じメンバを
+2 度実装するのは弾く。
+
+**final も他のメンバと同じ経路で届く。**`implTrait` が trait のレコードを `__valof_traits` にコピーする
+ので、`User.shout(u)` も箱の `p.shout()` も生える。上書きの禁止だけが `Final` の目的で、
 経路を減らすのはその目的に入っていない。名前の検査（フィールド名、配線名、payload のキー、他の trait）も
 メンバの検査がそのまま効く。
 
 ##### 却下: final を `M` の外に置く
 
-`implFinal` に渡した関数から推論するだけにして、trait の型には書かせない案。第 1 引数の注釈が要らないのは
+`impl` に渡した関数から推論するだけにして、trait の型には書かせない案。第 1 引数の注釈が要らないのは
 `M` に宣言しても同じ（メンバがまさにそれ）なので、省けるのは宣言の 1 行だけ。払うものが釣り合わない。
 
 **`Dyn<Tr>` に乗らなくなる。**`Dyn` は trait の**型**だけから作られる。型に無い関数は箱に生えない。
@@ -3890,28 +3911,25 @@ Greetable.dyn(User, user).shout(); // 箱も同じ
 既定だろうが trait の関数なのだから、同じように呼べるのが自然である。動的ディスパッチが要らないことは、
 経路を削る理由にならない。
 
-**型の仕掛けも増える。**`M` の外にあると `implTrait` の戻りに `& S` を足す必要があり、`Final` は
-メンバ用の検査（配線名、trait 自身のキー）を自前で持ち直すことになる。`M` に入れれば
-`Unbound<MembersOf<Tr>, V>` と `Declarable` がそのまま効く。
+**型の仕掛けも増える。**`M` の外にあると `implTrait` の戻りに `& S` を足す必要があり、final 用の検査
+（配線名、trait 自身のキー）を自前で持ち直すことになる。`M` に入れれば `Unbound<MembersOf<Tr>, V>` と
+`Declarable` がそのまま効く。**段も 2 つ必要になる**（上の却下を参照）。
 
 名前の候補は `final` / `derived` / `static` だった。`derived` は `patch` / `update` の「派生」と語彙が
 ぶつかる。`static` が軸としては一番正確（メンバが動的ディスパッチ、こちらが静的）だが、class の語彙を
 持ち込む。`seal` との混同は薄い。`seal` は値に対する操作で、`final` は関数の性質を言う。継承がないので
 Kotlin の `sealed` / `final` の対立もここには持ち込まれない。
 
-**`impl` 接頭辞を付ける。**裸の `final` / `impl` の対比では、どちらが上書きされうるのかが読み取れない。
-`impl*` は Val 側に `implEquals` / `implCreate` / `implSeal` / `implTrait` の族があり、登録するものを名前で
-言う。trait 側の裸の `impl` だけが、同じ綴りで別のもの（既定実装）を指していた。両方が「trait が実装する」
-で、違いは上書きできるかだけになる。§6.10 が `fixed` に対して `implFinal` を却下したのは、あちらが関数を
-1 つも渡さず性質を宣言するだけの段だからで、ここは実装を渡す段なので反しない。
+名前は宣言側のマーカーに移した。`.impl` は Val 側と同じ綴りで同じ意味（実装を渡す）になり、trait 側だけ
+別の綴りを覚える必要がなくなった。
 
 `R` 型引数を落とせた。`Sealer<V, T, R>` / `CompanionBuilder<…, T, R>` の `R` は final の名前を `.impl` から
 予約するためだけにあった。final が `T` に入るので `keyof T` で足りる。
 
 買えるものは 2 つ。**第 1 引数の文脈型付け**（§6.5 と同じ理由。ただの関数だと `(g: Greetable)` と書く）と、
-**名前空間としてのまとまり**。払うのは gzip 30 B。`Val` だけを import する人も 17 B 払う: `implTrait` が
-`__valof_shared` を読んで finals を重ねるぶん。`defaults` / `finals` を平らに publish すれば 11 B 安いが、
-禁じる名前が 2 つ増えて上の穴が開く。
+**名前空間としてのまとまり**。実行時はむしろ 11 B 減った（1 段になったぶんが、マーカーと `__valof_shared`
+の追加を上回る）。`Val` だけを import する人が払うのは 3 B で、`implTrait` が `__valof_shared` を読む
+ぶんだけ。
 
 #### companion を要らなくする: `implTrait<Tr>({…})`
 
@@ -3935,11 +3953,11 @@ const Row = Val.companion<Row>().implTrait<Wired>({ toWire: (r, sep) => `${r.id}
 両方の入口で共有する。companion 形では第 1 引数に、型引数形では唯一の引数に乗る。**メッセージが出る位置で
 引数の contextual type が消える**ので、落ちる形のテストは実装に注釈が要る。
 
-**実行時は 1 行。**`trait.__valof_shared ?? { defaults: trait, finals: {} }`。companion がなければ、
-companion の位置に来たオブジェクトがそのまま「既定」として重なる。
+**実行時は `?? trait` だけ。**`{ ...traits, ...(trait.__valof_shared ?? trait), ...impl }`。companion が
+なければ、companion の位置に来たオブジェクトがそのまま重なる。
 
-**払うもの。**オーバーロードが 2 つの入口それぞれで倍になり、宣言が 1.5 kB 増えた（28.7 → 30.2 kB、
-予算 32 kB に対して残り 6%）。trait の instantiations は 10,025 → 11,407。
+**払うもの。**オーバーロードが 2 つの入口それぞれで倍になる。宣言は改名前から 2.1 kB 増えて 29.6 kB
+（予算 32 kB に対して残り 8%）、trait の instantiations は 9,632 → 11,933。実行時は増えない。
 
 #### 却下: 上書きできる関数を名前空間に置く
 
@@ -3952,8 +3970,8 @@ companion の位置に来たオブジェクトがそのまま「既定」とし�
 **valof-lint で塞ぐ案も却下。**`Greetable.greet(x)` の `x` が具体的な Val なら型を追えるが、
 `Dyn<Greetable>` だと追えない。具体型を落とすのが `dyn` の仕事なので原理的に追えず、穴が残る。
 
-上書きされうるものは `implDefault` に置いて companion 経由で呼ぶ。上書きされないものは `implFinal` に
-置く。**trait の名前空間に出るかどうかが、上書きできるかどうかと一致する。**
+上書きされうるものは companion 経由で呼ぶ。`Final` を付けたものだけが trait の名前空間に出る。
+**trait の名前空間に出るかどうかが、上書きできるかどうかと一致する。**
 
 #### 名前の衝突は型で禁じる
 
@@ -3977,13 +3995,11 @@ Val.companion<User>()
 この 5 つ（`equals` / `patch` / `update` / `seal` / `create`）を弾いているが、trait の経路が素通りしていた。
 記録を持つ `__valof_traits` も同じ。
 
-**trait 自身のキーは final だけが取れない。**名前空間に出るのは final だけなので、衝突するのもそちらだけ。
-残る 1 つは `dyn`。段は `impl` 接頭辞で、配線は `__valof_` 配下なので、どちらもメンバの側で既に弾かれる
-（§6.10）。`make` が finals を先に spread してから残りを代入するので、**上書きされるのは final の側**で、
-黙って落ちる。実測すると、`implFinal` という名前の final を呼ぶと段の関数が動いて新しい builder が返って
-きた。既定は何も publish しないので、`dyn` を取ってよい。
+**`dyn` は宣言の段で禁じる。**段は `impl` 接頭辞、配線は `__valof_` 配下なので、残るのは `dyn` 1 つ。
+実装が全部 trait 名前空間に spread されるので、どのメンバでも踏み潰しうる。`Declarable` に置いた: メンバの
+名前として一律に禁じるほうが、final だけを見る検査より規則が短い。
 
-**2 つの段が登録したものは名前ではない。**当初は `defaults` / `finals` の 2 キーで publish していて、
+**trait が登録したものは名前ではない。**当初は `defaults` / `finals` の 2 キーで publish していて、
 禁じる名前が 5 つあった。あれは `implTrait` が読む配線でしかないので、`__valof_shared` 1 つに隠した。
 禁じる名前が減り、`Greetable.defaults.greet(u)` という穴も閉じる。**あれは §15 の却下案そのもの**で、
 名前空間が既定を答えていた。`Declarable` は `__valof_` で始まる名前をまとめて弾くようにしたので、

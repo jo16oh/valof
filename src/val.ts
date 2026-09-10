@@ -432,16 +432,14 @@ type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> = [NamesOf<Tr>] extends
   : "the type does not declare this trait";
 
 /** What the companion form takes once the trait itself has answered for every {@link Final}. */
-type Complete<Tr extends AnyTrait, D, S> = [Exclude<FinalsOf<Tr>, keyof S>] extends [never]
-  ? TraitCompanion<Tr, D, S>
+type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
+  ? TraitCompanion<Tr, G>
   : "this trait's companion has not implemented every member declared Final";
 
-/** The second argument, absent where the trait's own steps answered for every member. */
-type Passes<Tr extends AnyTrait, D, V> = [
-  keyof Omit<MembersOf<Tr>, keyof D | FinalsOf<Tr>>,
-] extends [never]
-  ? [impl?: Implement<Tr, D, V>]
-  : [impl: Implement<Tr, D, V>];
+/** The second argument, absent where the trait answered for every member itself. */
+type Passes<Tr extends AnyTrait, G, V> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
+  ? [impl?: Implement<Tr, G, V>]
+  : [impl: Implement<Tr, G, V>];
 
 /** What the companion-less form takes: every member, and only where the trait declares no final. */
 type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
@@ -476,9 +474,9 @@ export type Sealer<V extends AnyVal, T extends CompanionFns<V> = Record<never, n
     <Tr extends AnyTrait>(
       impl: Takes<V, Tr, T, Alone<Tr, V>>,
     ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
-    <Tr extends AnyTrait, D, S>(
-      trait: Takes<V, Tr, T, Complete<Tr, D, S>>,
-      ...impl: Passes<Tr, D, V>
+    <Tr extends AnyTrait, G>(
+      trait: Takes<V, Tr, T, Complete<Tr, G>>,
+      ...impl: Passes<Tr, G, V>
     ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
   };
 };
@@ -511,8 +509,8 @@ export type CompanionBuilder<
    * argument, with their first parameter fixed to the Val as everywhere else; a trait that
    * leaves none takes no second argument.
    *
-   * A member the trait implemented with `implFinal` is not passed here: it arrives as it stands,
-   * and nothing can override it.
+   * A member the trait declared {@link Final} is not passed here: it arrives as it stands, and
+   * nothing can override it.
    */
   implTrait: {
     // No companion to pass when the trait implements nothing of its own: the type argument is
@@ -520,9 +518,9 @@ export type CompanionBuilder<
     <Tr extends AnyTrait>(
       impl: Takes<V, Tr, T, Alone<Tr, V>>,
     ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
-    <Tr extends AnyTrait, D, S>(
-      trait: Takes<V, Tr, T, Complete<Tr, D, S>>,
-      ...impl: Passes<Tr, D, V>
+    <Tr extends AnyTrait, G>(
+      trait: Takes<V, Tr, T, Complete<Tr, G>>,
+      ...impl: Passes<Tr, G, V>
     ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
   };
   /** Replaces the default deep equality. See {@link EqImpl}. */
@@ -897,14 +895,12 @@ const build = <V extends AnyVal>(
   target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits);
   target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
+  // No companion where the trait implements nothing of its own: the members arrive in its place.
+  // The Val's own go on last, the type having kept every `Final` one out of them.
   target.implTrait = (
-    trait: { __valof_shared?: Record<"defaults" | "finals", Record<string, unknown>> },
+    trait: { __valof_shared?: Record<string, unknown> },
     impl: Record<string, unknown> = {},
-  ) => {
-    // No companion: the trait implements nothing of its own, so the members arrived in its place.
-    const shared = trait.__valof_shared ?? { defaults: trait, finals: {} };
-    return build<V>(ctors, callable, { ...traits, ...shared.defaults, ...impl, ...shared.finals });
-  };
+  ) => build<V>(ctors, callable, { ...traits, ...(trait.__valof_shared ?? trait), ...impl });
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });

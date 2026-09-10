@@ -11,16 +11,17 @@ type Named = Trait<
     shout: Final<(self: Self) => string>;
   }
 >;
-const Named = Trait.companion<Named>()
-  .implDefault({ greet: (n) => `Hi, ${n.name}` })
-  .implFinal({ shout: (n) => n.name.toUpperCase() });
+const Named = Trait.companion<Named>().impl({
+  greet: (n) => `Hi, ${n.name}`,
+  shout: (n) => n.name.toUpperCase(),
+});
 
 type Sized = Trait<
   "Sized",
   { size: { w: number; h: number } },
   { scaled: (self: Self, by: number) => number; area: (self: Self) => number }
 >;
-const Sized = Trait.companion<Sized>().implDefault({ area: (s) => s.size.w * s.size.h });
+const Sized = Trait.companion<Sized>().impl({ area: (s) => s.size.w * s.size.h });
 
 type Room = Val<
   "Room",
