@@ -429,15 +429,16 @@ type Grown<Taken, M> = M & {
  *
  * The checks ride on a parameter. In the return type they would fail only where the companion is
  * assigned, which is a line away from the call and reads as something else.
+ *
+ * The shape is not among them: a Val that declares a trait it does not hold the fields for is
+ * rejected where it is declared, so it never reaches a companion. See {@link Val}.
  */
 type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> = [NamesOf<Tr>] extends [TraitsOf<V>]
-  ? V extends ShapeOf<Tr>
-    ? [keyof MembersOf<Tr> & keyof T] extends [never]
-      ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
-        ? Ok
-        : "a member cannot take the name of a field the payload holds"
-      : "another trait already answers to one of these names"
-    : "the payload does not hold what this trait requires"
+  ? [keyof MembersOf<Tr> & keyof T] extends [never]
+    ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
+      ? Ok
+      : "a member cannot take the name of a field the payload holds"
+    : "another trait already answers to one of these names"
   : "the type does not declare this trait";
 
 /** What the companion form takes once the trait itself has answered for every {@link Final}. */
