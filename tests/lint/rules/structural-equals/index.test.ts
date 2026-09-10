@@ -29,6 +29,15 @@ test("says nothing when the spec names the key", async () => {
   expect(await lint("covered")).toEqual([]);
 });
 
+test("uses the first companion chain when one alias has two", async () => {
+  expect(await lint("two-chains")).toEqual([
+    {
+      rule: StructuralEquals,
+      at: "two-chains/order.ts:7:17",
+    },
+  ]);
+});
+
 test("says nothing when an entry above the path speaks for it", async () => {
   expect(await lint("covered-above")).toEqual([]);
 });
