@@ -255,6 +255,9 @@ describe("building", () => {
     // trait, a box, and both forms of `implTrait`. None of them carries a check of its own.
     test("a broken declaration is caught at every gate", () => {
       type Wiring = Trait<"Wiring", { id: string }, { equals: (self: Self) => boolean }>;
+      expectTypeOf<Wiring["__valof_internal_phantom_trait_brands"]>().toEqualTypeOf<{
+        equals: { readonly __valError: "a trait member cannot take a name the library wires" };
+      }>();
       expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
       // Naming `Wiring` is the error, so each directive is the assertion. The type resolves to
       // `any` from there, and an `expectTypeOf` on these lines would sit under the directive,
@@ -294,6 +297,14 @@ describe("building", () => {
         .impl({ greet: (g) => `Hi, ${g.name}` })
         .impl({ shout: (g) => g.name.toUpperCase() });
       expect(split.shout(user)).toBe("ALICE");
+    });
+
+    test("does not mutate the step before it", () => {
+      const before = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
+      const after = before.impl({ shout: (g) => g.name.toUpperCase() });
+
+      expect(Object.keys(before.__valof_shared)).toEqual(["greet"]);
+      expect(Object.keys(after.__valof_shared)).toEqual(["greet", "shout"]);
     });
 
     test("but not the same member twice", () => {
