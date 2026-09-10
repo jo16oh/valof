@@ -1623,8 +1623,10 @@ describe("building", () => {
         expect(Half.greet(crate)).toBe("Hi, box");
         expectTypeOf(Half).not.toHaveProperty("heavy");
         expect("heavy" in Half).toBe(false);
-        // @ts-expect-error nor can a box reach one: this threw at run time
-        Weighed.dyn(Half, crate);
+        expect(() => {
+          // @ts-expect-error nor can a box reach one
+          Weighed.dyn(Half, crate).heavy();
+        }).toThrow(TypeError);
       });
 
       test("but the same trait cannot be implemented twice", () => {

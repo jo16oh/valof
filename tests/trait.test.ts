@@ -166,8 +166,10 @@ describe("dyn", () => {
     const Weighed = Trait.companion<Weighed>().impl({ heavy: (w) => w.name.length > 3 });
     type Crate = Val<"Crate", { name: string }, Weighed>;
     const Crate = Val.companion<Crate>().implTrait(Weighed);
-    // @ts-expect-error `Crate` answers for no member of `Greetable`: this threw at run time
-    Greetable.dyn(Crate, user);
+    expect(() => {
+      // @ts-expect-error `Crate` answers for no member of `Greetable`
+      Greetable.dyn(Crate, user).greet();
+    }).toThrow(TypeError);
   });
 
   test("the trait's fields read off the box", () => {
@@ -259,6 +261,12 @@ describe("building", () => {
       const cell = null as unknown as Val<"Cell", { id: string }, Wiring>;
       // @ts-expect-error same, at a box
       const box = null as unknown as Dyn<Wiring>;
+      type Plain = Val<"Plain", { id: string }>;
+      const wiring = {} as Wiring;
+      // @ts-expect-error same, at the companion form of implTrait
+      Val.companion<Plain>().implTrait(wiring, {});
+      // @ts-expect-error same, at the type-argument form of implTrait
+      Val.companion<Plain>().implTrait<Wiring>({});
       expect([cell, box]).toHaveLength(2);
     });
   });
