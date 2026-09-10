@@ -446,14 +446,21 @@ type Grown<Taken, M> = M & {
  *
  * The shape is not among them: a Val that declares a trait it does not hold the fields for is
  * rejected where it is declared, so it never reaches a companion. See {@link Val}.
+ *
+ * `Tr` infers only through a branch that names it structurally, which the type-argument form's
+ * mapped type does not. A call that form takes leaves `Tr` at its constraint, where `NamesOf<Tr>`
+ * is `string`: the first branch catches that before the rest read a name that is not there.
  */
-type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> = [NamesOf<Tr>] extends [TraitsOf<V>]
-  ? [keyof MembersOf<Tr> & keyof T] extends [never]
-    ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
-      ? Ok
-      : "a member cannot take the name of a field the payload holds"
-    : "another trait already answers to one of these names"
-  : "the type does not declare this trait";
+type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
+  string extends NamesOf<Tr>
+    ? "pass the members this trait leaves open, or name the trait as the type argument"
+    : [NamesOf<Tr>] extends [TraitsOf<V>]
+      ? [keyof MembersOf<Tr> & keyof T] extends [never]
+        ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
+          ? Ok
+          : "a member cannot take the name of a field the payload holds"
+        : "another trait already answers to one of these names"
+      : "the type does not declare this trait";
 
 /** What the companion form takes once the trait itself has answered for every {@link Final}. */
 type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]

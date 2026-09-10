@@ -1439,6 +1439,17 @@ describe("building", () => {
       Val.companion<Member>().implTrait(Greetable, {});
     });
 
+    // Every message is the parameter type, so passing the literal is what pins the wording. A
+    // `@ts-expect-error` alone cannot: the calls below errored before this message existed too.
+    const unnamed =
+      "pass the members this trait leaves open, or name the trait as the type argument";
+
+    test("a companion with the members left off cannot say which trait it is", () => {
+      // @ts-expect-error the members are missing, so this reached the type-argument form
+      Val.companion<Member>().implTrait(Greetable);
+      Val.companion<Member>().implTrait(unnamed);
+    });
+
     test("the type must declare the trait", () => {
       type Plain = Val<"Plain", { id: string; name: string }>;
       Val.companion<Plain>().implTrait(
@@ -1530,6 +1541,13 @@ describe("building", () => {
         const note = { toWire: (n: Note, sep: string) => `${n.id}${sep}` };
         // @ts-expect-error a member cannot take the name of a field the payload holds
         Val.companion<Note>().implTrait<Wired>(note);
+      });
+
+      test("and the type argument is not optional either", () => {
+        const row = { toWire: (r: Row, sep: string) => `${r.id}${sep}` };
+        // @ts-expect-error the members alone do not say which trait they implement
+        Val.companion<Row>().implTrait(row);
+        Val.companion<Row>().implTrait(unnamed);
       });
 
       test("but a trait with a Final member needs one", () => {

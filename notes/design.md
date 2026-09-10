@@ -4050,6 +4050,38 @@ const Row = Val.companion<Row>().implTrait<Wired>({ toWire: (r, sep) => `${r.id}
 **実行時は `?? trait` だけ。**`{ ...traits, ...(trait.__valof_shared ?? trait), ...impl }`。companion が
 なければ、companion の位置に来たオブジェクトがそのまま重なる。
 
+##### `Tr` が推論できない呼び出し、2026-09-10
+
+引数 1 個の呼び出しが 2 通り間違えられて、どちらも**「the type does not declare this trait」**と答えて
+いた。宣言してある trait について「宣言していない」と言う。
+
+```ts
+Val.companion<Member>().implTrait(Greetable); // メンバを渡し忘れた
+Val.companion<Row>().implTrait({ toWire }); // 型引数を書き忘れた
+```
+
+`Tr` は条件型越しに推論される。効くのは**分岐が `Tr` を構造として名指すとき**だけで、companion 形の
+`TraitCompanion<Tr, G>` は名指すが、型引数形の `Implement<Tr, …>` は `MembersOf<Tr>` 上の mapped type
+なので何も推論できない。上の 2 つはどちらも型引数形（引数 1 個のオーバーロード）に落ち、`Tr` が制約の
+`AnyTrait` のままになる。`NamesOf<AnyTrait>` は `string` なので、`[string] extends [TraitsOf<V>]` が
+落ちて宣言の検査の文が出ていた。
+
+`Takes` の先頭に `string extends NamesOf<Tr>` を置いて、`Tr` が推論できなかったことを先に捕まえる。
+文は 2 つの間違いを両方名指す:「pass the members this trait leaves open, or name the trait as the type
+argument」。オーバーロードの形は変えていない。引数 1 個では companion 形が arity で外れるので、選ばれる
+オーバーロードは動かせない。
+
+**テストはメッセージを固定する。**`@ts-expect-error` だけでは足りない。直す前も**エラーは出ていた**（文が
+違っただけ）ので、directive は緑のままになる。メッセージはパラメータの型そのものなので、その文字列を
+渡す行を書けば固定できる。
+
+```ts
+const unnamed = "pass the members this trait leaves open, or name the trait as the type argument";
+Val.companion<Member>().implTrait(unnamed); // 文が変われば、ここが落ちる
+```
+
+宣言は 31.0 → 31.4 kB（予算 32 kB に対して残り 2%）、trait の instantiations は 12,449 → 12,514。
+
 **払うもの。**オーバーロードが 2 つの入口それぞれで倍になる。宣言は改名前から 2.1 kB 増えて 29.6 kB
 （予算 32 kB に対して残り 8%）、trait の instantiations は 9,632 → 11,933。実行時は増えない。
 
