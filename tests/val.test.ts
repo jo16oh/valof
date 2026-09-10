@@ -1409,8 +1409,8 @@ describe("building", () => {
     });
 
     test("a member without a default must be implemented", () => {
-      // @ts-expect-error a member without a default must be implemented
-      Val.companion<Member>().implTrait(Greetable);
+      // @ts-expect-error `toWire` is missing
+      Val.companion<Member>().implTrait(Greetable, {});
     });
 
     test("the type must declare the trait", () => {
@@ -1528,7 +1528,7 @@ describe("building", () => {
         Val.companion<Member>().implTrait(Greetable, {
           toWire: (m, sep) => `${m.id}${sep}`,
           // @ts-expect-error a Final member is not the Val's to implement
-          shout: (m) => m.name,
+          shout: (m: Member) => m.name,
         });
       });
 
@@ -1544,7 +1544,7 @@ describe("building", () => {
       test("a companion that skipped one cannot be implemented", () => {
         Val.companion<Member>().implTrait(
           // @ts-expect-error this trait's companion has not implemented every member declared Final
-          Trait.companion<Greetable>().impl({ greet: (g) => g.name }),
+          Trait.companion<Greetable>().impl({ greet: (g: { name: string }) => g.name }),
           { toWire: (m, sep) => `${m.id}${sep}` },
         );
       });
@@ -1654,14 +1654,14 @@ describe("building", () => {
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
           .impl({
             // @ts-expect-error the library keeps this one: a function here would leave `dyn` unbound
-            __valof_traits: (m) => m.name,
+            __valof_traits: (m: Member) => m.name,
           });
       });
 
       test("nor may it grow one over a step's name", () => {
         Val.companion<Member>().impl({
           // @ts-expect-error the `impl` prefix is the library's
-          implTrait: (m) => m.name,
+          implTrait: (m: Member) => m.name,
         });
       });
 

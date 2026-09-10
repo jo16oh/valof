@@ -1,13 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import {
-  Trait,
-  Val,
-  type AnyTrait,
-  type AnyVal,
-  type Dyn,
-  type Final,
-  type Self,
-} from "../src/index.ts";
+import { Trait, Val, type AnyTrait, type Dyn, type Final, type Self } from "../src/index.ts";
 
 type Greetable = Trait<
   "Greetable",
@@ -75,7 +67,7 @@ describe("Trait", () => {
     test("a member may not take a field's name from its own shape", () => {
       type SelfClash = Trait<"SelfClash", { size: number }, { size: (self: Self) => number }>;
       // @ts-expect-error a trait member cannot take a field's name
-      Trait.companion<SelfClash>().impl({ size: (s) => s.size });
+      Trait.companion<SelfClash>().impl({ size: (s: { size: number }) => s.size });
     });
 
     test("nor a name the library wires", () => {
@@ -242,12 +234,16 @@ describe("building", () => {
     test("a broken declaration is caught at every gate", () => {
       type Wiring = Trait<"Wiring", { id: string }, { equals: (self: Self) => boolean }>;
       expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
+      // Naming `Wiring` is the error, so each directive is the assertion. The type resolves to
+      // `any` from there, and an `expectTypeOf` on these lines would sit under the directive,
+      // which swallows it whichever way the claim is written.
       // @ts-expect-error a trait member cannot take a name the library wires
       Trait.companion<Wiring>();
-      // @ts-expect-error same
-      expectTypeOf<Val<"Cell", { id: string }, Wiring>>().not.toExtend<AnyVal>();
-      // @ts-expect-error same
-      expectTypeOf<Dyn<Wiring>>().not.toExtend<AnyTrait>();
+      // @ts-expect-error same, at a Val that declares it
+      const cell = null as unknown as Val<"Cell", { id: string }, Wiring>;
+      // @ts-expect-error same, at a box
+      const box = null as unknown as Dyn<Wiring>;
+      expect([cell, box]).toHaveLength(2);
     });
   });
 
@@ -276,7 +272,7 @@ describe("building", () => {
       Trait.companion<Greetable>()
         .impl({ greet: (g) => g.name })
         // @ts-expect-error the trait already implements this member
-        .impl({ greet: (g) => g.name });
+        .impl({ greet: (g: { name: string }) => g.name });
     });
   });
 });
