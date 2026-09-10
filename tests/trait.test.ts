@@ -214,6 +214,23 @@ describe("dyn", () => {
     expect(party.map((p) => p.shout())).toEqual(["ALICE", "ROOT"]);
   });
 
+  test("a value that merely holds the fields is not one of the trait's", () => {
+    const loose = { name: "duck" };
+    // @ts-expect-error a trait is a contract between Vals, and this is not one of them
+    Greetable.shout(loose);
+    // @ts-expect-error the same for the value a box stands in for
+    Greetable.dyn(User, loose);
+  });
+
+  test("nor may the box take another Val's companion", () => {
+    type Weighed = Trait<"Weighed", { name: string }, { heavy: (self: Self) => boolean }>;
+    const Weighed = Trait.companion<Weighed>().impl({ heavy: (w) => w.name.length > 3 });
+    type Crate = Val<"Crate", { name: string }, Weighed>;
+    const Crate = Val.companion<Crate>().implTrait(Weighed);
+    // @ts-expect-error `Crate` answers for no member of `Greetable`: this threw at run time
+    Greetable.dyn(Crate, user);
+  });
+
   test("the trait's fields read off the box", () => {
     expect(Greetable.dyn(User, user).name).toBe("alice");
   });

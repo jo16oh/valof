@@ -168,15 +168,26 @@ export type TraitHost = { readonly __valof_traits: Members };
  * default would look like it dispatched, and it cannot: every call goes through the Val's
  * companion or a {@link Dyn}, both of which reach the Val's own version. The rest are on the
  * object all the same, since telling them apart at run time would take a mark the type erases.
+ *
+ * What it publishes takes the trait, not the shape the implementation was written over. A trait
+ * is a contract between Vals, and an object that merely holds the fields is not one of them.
  */
-export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Pick<
-  G,
-  FinalsOf<Tr> & keyof G
+export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Unbound<
+  Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>,
+  Tr
 > & {
   /** Everything the trait implemented, which `implTrait` copies onto the Val. */
   readonly __valof_shared: G;
-  /** Boxes a value with one Val's implementation. See {@link Dyn}. */
-  readonly dyn: (companion: TraitHost, value: ShapeOf<Tr>) => Dyn<Tr>;
+  /**
+   * Boxes a value with one Val's implementation. See {@link Dyn}.
+   *
+   * The two arguments are tied together: the companion has to answer for the value's own type,
+   * which is what keeps another Val's companion out. Passing one used to type-check and throw.
+   */
+  readonly dyn: <W extends Tr>(
+    companion: TraitHost & Unbound<MembersOf<Tr>, W>,
+    value: W,
+  ) => Dyn<Tr>;
 };
 
 /** What the trait implements itself: its own members, over the shape. `Taken` is what it already

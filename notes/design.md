@@ -4119,6 +4119,29 @@ type Bound<M, S> = {
 **箱は Val ではない。**`equals` も `patch` も持たない。`Checked` が関数を弾くので payload にも入らない。
 proxy なので値とも別の identity を持つ。
 
+**値の位置は `Tr` で、`ShapeOf<Tr>` ではない。**shape で書くと、フィールドを持っているだけの素の
+オブジェクトが通る。
+
+```ts
+Greetable.shout({ name: "duck" }); // 通っていた
+Greetable.dyn(User, { name: "duck" }); // Val でないものが User の vtable で箱に入っていた
+```
+
+trait は Val 同士の契約なので、`Tr` を要求すればブランドの有無で落ちる。実装は shape に対して書くのが
+正しく（フィールドしか使えない）、**公開する側だけ** `Unbound<…, Tr>` にする。反変なので実装はそのまま
+代入できる。
+
+**companion と値は結びつける。**`dyn(companion: TraitHost, …)` はどの companion でも通り、`Greetable` の
+メンバを 1 つも持たない `Crate` を渡せた。型は通り、実行時に
+`Greetable.dyn(...).greet is not a function` で落ちる。
+
+```ts
+readonly dyn: <W extends Tr>(companion: TraitHost & Unbound<MembersOf<Tr>, W>, value: W) => Dyn<Tr>;
+```
+
+`W` は値から推論され、companion はその型に対して答えられることを求められる。払うのは宣言 450 B と
+instantiations 620。
+
 #### `dyn` は trait 側に置く
 
 `Trait.dyn(User, u)`。**却下: companion に `User.dyn(u, Serializable)` を生やす。**第 1 引数が Val という
