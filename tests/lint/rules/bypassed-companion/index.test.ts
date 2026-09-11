@@ -53,3 +53,9 @@ test("follows a renamed import to the companion in the other file", async () => 
     "Val.of<Account> bypasses User, the constructor for it",
   ]);
 });
+
+test("looks through parentheses in the declaration, companion, and Val.of", async () => {
+  expect(await lint("parenthesized")).toEqual([
+    { rule: BypassedCompanion, at: "parenthesized.ts:4:30" },
+  ]);
+});

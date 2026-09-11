@@ -21,6 +21,17 @@ test("accepts both implTrait forms and every step in a chain", async () => {
   expect(await lint("implemented")).toEqual([]);
 });
 
+test("looks through parentheses in a Trait intersection and its alias", async () => {
+  expect(await lint("parenthesized")).toEqual([
+    { rule: UnimplementedTrait, at: "parenthesized.ts:4:63" },
+    { rule: UnimplementedTrait, at: "parenthesized.ts:8:52" },
+  ]);
+  expect(await messages("parenthesized")).toEqual([
+    "User declares Named, but its companion does not implement it",
+    "Admin declares Named, but its companion does not implement it",
+  ]);
+});
+
 test("matches renamed and namespace imports", async () => {
   expect(await lint("imports")).toEqual([]);
 });

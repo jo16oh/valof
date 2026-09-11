@@ -43,3 +43,10 @@ test("applies the same check to Trait through renamed and namespace imports", as
     'Named claims the brand "Name", which should be "Named"',
   ]);
 });
+
+test("looks through parentheses around Val and Trait declarations", async () => {
+  expect(await lint("parenthesized")).toEqual([
+    { rule: BrandMismatch, at: "parenthesized.ts:3:13" },
+    { rule: BrandMismatch, at: "parenthesized.ts:4:13" },
+  ]);
+});

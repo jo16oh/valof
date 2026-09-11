@@ -47,3 +47,10 @@ test("applies the same naming rule to Trait companions", async () => {
     "Friendly is the companion for Greetable, and should be named Greetable",
   ]);
 });
+
+test("looks through parentheses around companion type arguments", async () => {
+  expect(await lint("parenthesized")).toEqual([
+    { rule: CompanionMismatch, at: "parenthesized.ts:4:14" },
+    { rule: CompanionMismatch, at: "parenthesized.ts:5:14" },
+  ]);
+});

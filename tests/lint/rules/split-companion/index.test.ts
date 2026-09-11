@@ -36,5 +36,5 @@ test("sees the chain however `Val` was imported", async () => {
 });
 
 test("reports a Trait companion split from its declaration", async () => {
-  expect(await lint("trait")).toEqual([{ rule: SplitCompanion, at: "trait/companion.ts:3:49" }]);
+  expect(await lint("trait")).toEqual([{ rule: SplitCompanion, at: "trait/companion.ts:3:51" }]);
 });

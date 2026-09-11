@@ -53,3 +53,10 @@ test("reports a second name for a Trait", async () => {
     "Friendly is a second name for Greetable; use Greetable",
   ]);
 });
+
+test("looks through parentheses around a second name", async () => {
+  expect(await lint("parenthesized")).toEqual([
+    { rule: UnnecessaryAlias, at: "parenthesized.ts:4:13" },
+    { rule: UnnecessaryAlias, at: "parenthesized.ts:5:13" },
+  ]);
+});

@@ -1,4 +1,12 @@
-import { child, children, keyName, rootPath, type Node, type Where } from "../ast.ts";
+import {
+  child,
+  children,
+  keyName,
+  rootPath,
+  unparenthesized,
+  type Node,
+  type Where,
+} from "../ast.ts";
 import { original, type Bindings } from "./bindings.ts";
 
 /** A `Val.sealer<X>()` / `Val.companion<X>()` chain, whatever else it registered. */
@@ -65,7 +73,7 @@ export function valOf(
   const step = qualified ? third : second;
   if (name !== "Val" || step !== "of") return undefined;
   const args = child(node, "typeArguments");
-  const [param] = args ? children(args, "params") : [];
+  const param = unparenthesized(args ? children(args, "params")[0] : undefined);
   if (!param) {
     const property = child(callee, "property");
     if (!property) return undefined;
@@ -157,7 +165,7 @@ export function companionSite(
   at: (offset: number) => Where,
 ): CompanionSite | undefined {
   const { steps, typeArguments, root } = readChain(node, bound);
-  const [first] = typeArguments ? children(typeArguments, "params") : [];
+  const first = unparenthesized(typeArguments ? children(typeArguments, "params")[0] : undefined);
   if (!first || first.type !== "TSTypeReference") return undefined;
   const written = child(first, "typeName");
   if (!written) return undefined;

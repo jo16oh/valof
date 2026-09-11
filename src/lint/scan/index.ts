@@ -7,6 +7,7 @@ import {
   keyName,
   positions,
   rootPath,
+  unparenthesized,
   type Node,
   type Where,
 } from "../ast.ts";
@@ -356,7 +357,7 @@ function traitCompanionSite(
     if (!callee || callee.type !== "MemberExpression") return undefined;
     if (fromTrait(callee, bound)) {
       const args = child(current, "typeArguments");
-      const [param] = args ? children(args, "params") : [];
+      const param = unparenthesized(args ? children(args, "params")[0] : undefined);
       if (param?.type !== "TSTypeReference") return undefined;
       const name = child(param, "typeName");
       const named = name && typeReference(name, bound.namespaces);
@@ -408,7 +409,7 @@ function implTrait(
   let val: string | undefined;
   if (fromVal(root, bound)) {
     const rootArgs = child(rootCall, "typeArguments");
-    const [valNode] = rootArgs ? children(rootArgs, "params") : [];
+    const valNode = unparenthesized(rootArgs ? children(rootArgs, "params")[0] : undefined);
     const valRef = valNode?.type === "TSTypeReference" ? child(valNode, "typeName") : undefined;
     const valNamed = valRef && typeReference(valRef, bound.namespaces);
     val = valNamed
@@ -424,7 +425,7 @@ function implTrait(
   }
   if (!val) return undefined;
   const typeArgs = child(node, "typeArguments");
-  const [traitType] = typeArgs ? children(typeArgs, "params") : [];
+  const traitType = unparenthesized(typeArgs ? children(typeArgs, "params")[0] : undefined);
   const arg = children(node, "arguments");
   const traitRef = traitType?.type === "TSTypeReference" ? child(traitType, "typeName") : arg[0];
   const trait =

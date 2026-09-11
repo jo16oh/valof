@@ -1,4 +1,4 @@
-import { child, children, type Node, type Where } from "../ast.ts";
+import { child, children, unparenthesized, type Node, type Where } from "../ast.ts";
 import { original, type Bindings } from "./bindings.ts";
 
 /**
@@ -98,7 +98,7 @@ export function valAliases(
       statement.type === "ExportNamedDeclaration" ? child(statement, "declaration") : statement;
     if (!node || node.type !== "TSTypeAliasDeclaration") continue;
     const id = child(node, "id");
-    const annotation = child(node, "typeAnnotation");
+    const annotation = unparenthesized(child(node, "typeAnnotation"));
     if (!id || !annotation || annotation.type !== "TSTypeReference") continue;
     const typeName = child(annotation, "typeName");
     const args = child(annotation, "typeArguments");
@@ -142,7 +142,7 @@ export function valAliases(
       });
     }
 
-    const [first] = children(args, "params");
+    const first = unparenthesized(children(args, "params")[0]);
     if (!first || first.type !== "TSLiteralType") continue;
     const literal = child(first, "literal");
     // A generic brand, `Val<K, T>` inside a helper, names nothing to collide over.
@@ -178,6 +178,9 @@ function traitNames(
   const seen = new Set<string>();
   const out = new Map<string, DeclaredTrait>();
   const visit = (one: Node, occurrence = one): void => {
+    const inside = unparenthesized(one);
+    if (!inside) return;
+    if (inside !== one) return visit(inside, occurrence === one ? inside : occurrence);
     if (one.type === "TSIntersectionType") {
       for (const part of children(one, "types"))
         visit(part, occurrence === one ? part : occurrence);
@@ -188,7 +191,7 @@ function traitNames(
     const named = name && valName(name, bound.namespaces);
     if (!named || seen.has(named)) return;
     seen.add(named);
-    const alias = aliases.get(named);
+    const alias = unparenthesized(aliases.get(named));
     if (alias?.type === "TSIntersectionType") {
       visit(alias, occurrence);
       return;
