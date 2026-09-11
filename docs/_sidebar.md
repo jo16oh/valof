@@ -11,5 +11,3 @@
 - [TypeScript](typescript.md)
 - [`valof-lint`](lint.md)
 - [Caveats](caveats.md)
-- [Development](development.md)
-- [License](license.md)
