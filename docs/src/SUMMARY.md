@@ -1,0 +1,17 @@
+# Summary
+
+- [Introduction](introduction.md)
+- [Basics](basics.md)
+- [Smart constructors](smart-constructors.md)
+- [Normalize in the seal](normalization.md)
+- [Equality](equality.md)
+- [`patch` / `update`](patch-and-update.md)
+- [Allowed types](allowed-types.md)
+- [Patterns](patterns.md)
+- [Utilities](utilities.md)
+- [API](api.md)
+- [TypeScript](typescript.md)
+- [`valof-lint`](lint.md)
+- [Caveats](caveats.md)
+- [Development](development.md)
+- [License](license.md)
