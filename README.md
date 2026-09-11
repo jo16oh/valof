@@ -4,7 +4,7 @@
 
 > **Values are plain data; behaviour lives outside them.**
 
-Value-object helpers for TypeScript. Read the [documentation](docs/src/introduction.md).
+Value-object helpers for TypeScript. Read the [documentation](docs/README.md).
 
 ```bash
 pnpm install valof
