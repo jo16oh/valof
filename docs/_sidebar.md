@@ -3,7 +3,7 @@
 - [Smart constructors](smart-constructors.md)
 - [Normalize in the seal](normalization.md)
 - [Equality](equality.md)
-- [`patch` / `update`](patch-and-update.md)
+- [Derivation](derivation.md)
 - [Allowed types](allowed-types.md)
 - [Patterns](patterns.md)
 - [Utilities](utilities.md)

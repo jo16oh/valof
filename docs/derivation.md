@@ -1,4 +1,4 @@
-# `patch` / `update`
+# Derivation
 
 ```ts
 User.patch(user, { name: "sue" });
