@@ -31,3 +31,15 @@ test("keeps the namespace it was given, and requires nothing of it", async () =>
     'BillingId claims the brand "billing/Id", which should be "billing/BillingId"',
   ]);
 });
+
+test("applies the same check to Trait through renamed and namespace imports", async () => {
+  expect(await lint("trait")).toEqual([
+    {
+      rule: BrandMismatch,
+      at: "trait.ts:4:13",
+    },
+  ]);
+  expect(await messages("trait")).toEqual([
+    'Named claims the brand "Name", which should be "Named"',
+  ]);
+});

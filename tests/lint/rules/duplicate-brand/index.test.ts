@@ -45,3 +45,20 @@ test("ignores an alias that is not at the top level, which nothing can import", 
 test("ignores a generic brand, which names nothing to collide over", async () => {
   expect(await lint("generic")).toEqual([]);
 });
+
+test("reports duplicate Trait brands", async () => {
+  expect(await lint("trait", { skip: [BrandMismatch] })).toEqual([
+    {
+      rule: DuplicateBrand,
+      at: "trait/first.ts:3:13",
+    },
+    {
+      rule: DuplicateBrand,
+      at: "trait/second.ts:3:13",
+    },
+  ]);
+});
+
+test("keeps Val and Trait brand domains separate", async () => {
+  expect(await lint("separate-domains", { skip: [BrandMismatch] })).toEqual([]);
+});
