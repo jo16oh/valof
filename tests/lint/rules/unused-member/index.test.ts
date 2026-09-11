@@ -104,6 +104,10 @@ describe("what name resolution cannot reach", () => {
 });
 
 describe("Trait members", () => {
+  test("recognizes renamed and namespace value imports in companion and dyn calls", async () => {
+    expect(await lint("trait-value-imports")).toEqual([]);
+  });
+
   test("routes direct, bound, and destructured dyn reads to defaults or overrides", async () => {
     expect(await lint("trait-dispatch")).toEqual([
       { rule: UnusedMember, at: "trait-dispatch.ts:12:11" },
