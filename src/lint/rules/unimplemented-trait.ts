@@ -1,6 +1,5 @@
 import type { Where } from "../ast.ts";
-import { original } from "../scan/index.ts";
-import type { Scan } from "../scan/index.ts";
+import { symbolIdentity, type Scan } from "../scan/index.ts";
 import type { Rule } from "./rule.ts";
 
 export type UnimplementedTrait = Where & {
@@ -18,17 +17,16 @@ export const UnimplementedTrait: Rule<UnimplementedTrait> = {
 
 function findings(scans: readonly Scan[]): UnimplementedTrait[] {
   const found: UnimplementedTrait[] = [];
+  const identity = symbolIdentity(scans);
   for (const scan of scans)
     for (const alias of scan.aliases) {
       const implemented = new Set(
-        scan.traitImplementations.filter((one) => one.val === alias.alias).map((one) => one.trait),
+        scan.traitImplementations
+          .filter((one) => identity(one.val) === identity(alias.ref))
+          .map((one) => identity(one.trait)),
       );
       for (const trait of alias.traits)
-        if (
-          !implemented.has(
-            trait.qualifier === undefined ? original(scan.bound, trait.name) : trait.name,
-          )
-        ) {
+        if (!implemented.has(identity(trait.ref))) {
           // The declaration's position is deliberate: it points to the promise that is missing.
           found.push({
             kind: "unimplemented-trait",

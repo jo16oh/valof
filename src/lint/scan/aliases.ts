@@ -1,5 +1,5 @@
 import { child, children, unparenthesized, type Node, type Where } from "../ast.ts";
-import { original, type Bindings } from "./bindings.ts";
+import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
 /**
  * A top-level `type X = Val<"brand", payload>`.
@@ -10,6 +10,7 @@ import { original, type Bindings } from "./bindings.ts";
 export type Alias = {
   file: string;
   alias: string;
+  ref: SymbolRef;
   span: [number, number];
   /** The second type argument. Absent when the alias is generic over its payload. */
   payload: Node | undefined;
@@ -18,13 +19,12 @@ export type Alias = {
 };
 
 /** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their payload rules. */
-export type TraitAlias = { file: string; alias: string; span: [number, number] };
+export type TraitAlias = { file: string; alias: string; ref: SymbolRef; span: [number, number] };
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
 export type DeclaredTrait = Where & {
   name: string;
-  /** Present for `Val<…, ns.Greetable>`. */
-  qualifier: string | undefined;
+  ref: SymbolRef;
 };
 
 /**
@@ -35,10 +35,10 @@ export type DeclaredTrait = Where & {
  */
 export type ReAlias = Where & {
   alias: string;
+  ref: SymbolRef;
   /** The name on the right, as the declaring module names it when it was qualified. */
   target: string;
-  /** Whether the target was reached through a namespace, which names the module already. */
-  qualified: boolean;
+  targetRef: SymbolRef;
 };
 
 /** The brand one alias claims, before anything is known about who else claims it. */
@@ -56,7 +56,7 @@ export type BrandClaim = Where & {
  * namespace only says where the name came from. The caller still resolves the result against the
  * file's import aliases, which is what tells `Val` apart from something else bound to that name.
  */
-function valName(typeName: Node, namespaces: ReadonlySet<string>): string | undefined {
+function valName(typeName: Node, namespaces: ReadonlyMap<string, string>): string | undefined {
   if (typeName.type === "Identifier") return typeName["name"] as string;
   if (typeName.type !== "TSQualifiedName") return undefined;
   const left = child(typeName, "left");
@@ -112,8 +112,16 @@ export function valAliases(
       reAliases.push({
         ...at((id["start"] ?? node["start"]) as number),
         alias: id["name"] as string,
+        ref: symbolRef(file, bound, id["name"] as string),
         target: named,
-        qualified: typeName.type === "TSQualifiedName",
+        targetRef: symbolRef(
+          file,
+          bound,
+          named,
+          typeName.type === "TSQualifiedName"
+            ? (child(typeName, "left")?.["name"] as string)
+            : undefined,
+        ),
       });
       continue;
     }
@@ -130,14 +138,16 @@ export function valAliases(
       aliases.push({
         file,
         alias: id["name"] as string,
+        ref: symbolRef(file, bound, id["name"] as string),
         span: [node["start"] as number, node["end"] as number],
         payload: children(args, "params")[1],
-        traits: traitNames(children(args, "params")[2], bound, program, at),
+        traits: traitNames(children(args, "params")[2], file, bound, program, at),
       });
     } else if (kind === "trait") {
       traitAliases.push({
         file,
         alias: id["name"] as string,
+        ref: symbolRef(file, bound, id["name"] as string),
         span: [node["start"] as number, node["end"] as number],
       });
     }
@@ -161,6 +171,7 @@ export function valAliases(
 /** Expands the deliberately small, syntax-only trait-list language used by Val declarations. */
 function traitNames(
   node: Node | undefined,
+  file: string,
   bound: Bindings,
   program: Node,
   at: (offset: number) => Where,
@@ -189,8 +200,12 @@ function traitNames(
     if (one.type !== "TSTypeReference") return;
     const name = child(one, "typeName");
     const named = name && valName(name, bound.namespaces);
-    if (!named || seen.has(named)) return;
-    seen.add(named);
+    if (!named) return;
+    const qualifier =
+      name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
+    const ref = symbolRef(file, bound, named, qualifier);
+    if (seen.has(ref.key)) return;
+    seen.add(ref.key);
     const alias = unparenthesized(aliases.get(named));
     if (alias?.type === "TSIntersectionType") {
       visit(alias, occurrence);
@@ -211,9 +226,11 @@ function traitNames(
       occurrenceName.type === "TSQualifiedName"
         ? (child(occurrenceName, "right") ?? occurrenceName)
         : occurrenceName;
-    const qualifier =
-      name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
-    out.set(named, { ...at(written["start"] as number), name: named, qualifier });
+    out.set(ref.key, {
+      ...at(written["start"] as number),
+      name: named,
+      ref,
+    });
   };
   visit(node);
   return [...out.values()];

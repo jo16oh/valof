@@ -7,7 +7,7 @@ import {
   type Node,
   type Where,
 } from "../ast.ts";
-import { original, type Bindings } from "./bindings.ts";
+import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
 /** A `Val.sealer<X>()` / `Val.companion<X>()` chain, whatever else it registered. */
 export type CompanionSite = Where & {
@@ -23,6 +23,7 @@ export type CompanionSite = Where & {
    * gives `User`, which is also what a read through a namespace is keyed on.
    */
   typeName: string;
+  typeRef: SymbolRef;
   typeOffset: number;
   /** Where the type argument is written. */
   typeAt: Where;
@@ -55,11 +56,16 @@ export function fromVal(node: Node, bound: Bindings): boolean {
  * `typeName` is absent where the call named no type and took one from its target. It sits at the
  * type argument when there is one, and at `of` when there is not.
  */
-export type Lift = Where & { typeName: string | undefined; qualifier: string | undefined };
+export type Lift = Where & {
+  typeName: string | undefined;
+  typeRef: SymbolRef | undefined;
+  qualifier: string | undefined;
+};
 
 /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
 export function valOf(
   node: Node,
+  file: string,
   bound: Bindings,
   at: (offset: number) => Where,
 ): Lift | undefined {
@@ -77,7 +83,12 @@ export function valOf(
   if (!param) {
     const property = child(callee, "property");
     if (!property) return undefined;
-    return { ...at(property["start"] as number), typeName: undefined, qualifier: undefined };
+    return {
+      ...at(property["start"] as number),
+      typeName: undefined,
+      typeRef: undefined,
+      qualifier: undefined,
+    };
   }
   // A type argument that is not a plain reference, `Val.of<{ … }>`, names no Val to key it by.
   if (param.type !== "TSTypeReference") return undefined;
@@ -87,6 +98,7 @@ export function valOf(
   return {
     ...at(named.node["start"] as number),
     typeName: named.node["name"] as string,
+    typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
     qualifier: named.qualifier,
   };
 }
@@ -144,7 +156,7 @@ function readChain(node: Node, bound: Bindings): Chain {
  */
 export function typeReference(
   written: Node,
-  namespaces: ReadonlySet<string>,
+  namespaces: ReadonlyMap<string, string>,
 ): { node: Node; qualifier: string | undefined } | undefined {
   if (written.type === "Identifier") return { node: written, qualifier: undefined };
   if (written.type !== "TSQualifiedName") return undefined;
@@ -177,6 +189,7 @@ export function companionSite(
     name: undefined,
     nameAt: where,
     typeName: named.node["name"] as string,
+    typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
     typeOffset: named.node["start"] as number,
     typeAt: at(named.node["start"] as number),
     qualifier: named.qualifier,

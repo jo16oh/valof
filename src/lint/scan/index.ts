@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { normalize, resolve } from "node:path";
 
 import {
   child,
@@ -18,7 +19,14 @@ import {
   type ReAlias,
   type TraitAlias,
 } from "./aliases.ts";
-import { bindings, original, type Bindings } from "./bindings.ts";
+import {
+  bindings,
+  moduleRef,
+  original,
+  symbolRef,
+  type Bindings,
+  type SymbolRef,
+} from "./bindings.ts";
 import {
   companionSite,
   fromVal,
@@ -31,8 +39,8 @@ import { directives, type Directive } from "./directives.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
-export { original } from "./bindings.ts";
-export type { Bindings } from "./bindings.ts";
+export { original, symbolRef } from "./bindings.ts";
+export type { Bindings, SymbolRef } from "./bindings.ts";
 export type { Alias, BrandClaim, DeclaredTrait, ReAlias, TraitAlias } from "./aliases.ts";
 export type { CompanionSite, Lift } from "./chains.ts";
 export type { Directive, Spelling } from "./directives.ts";
@@ -42,13 +50,13 @@ export { silences } from "./directives.ts";
 export type Member = Where & { companion: string; member: string };
 /** One implementation attached to a Val companion chain. */
 export type TraitImplementation = {
-  val: string;
-  trait: string;
+  val: SymbolRef;
+  trait: SymbolRef;
   /** Statically known override keys, at their declaration sites. */
   overrides: Member[];
 };
 /** A member read from a `Trait.dyn(Val, value)` box. */
-export type DynRead = { trait: string; val: string; member: string };
+export type DynRead = { trait: SymbolRef; val: SymbolRef; member: string };
 
 /**
  * What one file says about itself.
@@ -73,6 +81,8 @@ export type Scan = {
   namespaceReads: Map<string, Set<string>>;
   /** `export { A as B }`: the name outside -> the name at the declaration. */
   exportedAs: Map<string, string>;
+  /** Export name -> the local or source-module symbol it exposes. */
+  exportedRefs: Map<string, SymbolRef>;
   /** Top-level `type X = Val<…>`, with the payload. */
   aliases: Alias[];
   /** Top-level `type X = Trait<…>` declarations. */
@@ -90,6 +100,27 @@ export type Scan = {
   /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
   directives: Directive[];
 };
+
+/** Resolves local exports and re-export chains to the symbol they expose. */
+export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => string {
+  const exports = new Map<string, SymbolRef>();
+  for (const scan of scans) {
+    const module = normalize(resolve(scan.file));
+    for (const [name, target] of scan.exportedRefs)
+      exports.set(moduleRef(module, name).key, target);
+  }
+  return (ref) => {
+    const seen = new Set<string>();
+    let current = ref;
+    while (!seen.has(current.key)) {
+      seen.add(current.key);
+      const target = exports.get(current.key);
+      if (!target) break;
+      current = target;
+    }
+    return current.key;
+  };
+}
 
 /** The parser's surface, passed in so the optional import stays at the caller. */
 export type Parser = {
@@ -122,17 +153,23 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
  * unsaved. The file may not exist at all.
  */
-export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: string): Scan {
+export function scan(
+  file: string,
+  { parseSync, visitorKeys }: Parser,
+  given?: string,
+  resolveModule: (file: string, source: string) => string = (_file, source) => source,
+): Scan {
   const source = given ?? readFileSync(file, "utf8");
   const at = positions(source);
 
   const bound = bindings();
   const exportedAs = new Map<string, string>();
+  const exportedRefs = new Map<string, SymbolRef>();
   const members: Member[] = [];
   const traitImplementations: TraitImplementation[] = [];
   const dynReads: DynRead[] = [];
   const objects = new Map<string, Node>();
-  const dynBindings = new Map<string, { trait: string; val: string }>();
+  const dynBindings = new Map<string, { trait: SymbolRef; val: SymbolRef }>();
   const reads = new Map<string, Set<string>>();
   const namespaceReads = new Map<string, Set<string>>();
   const sites: CompanionSite[] = [];
@@ -148,7 +185,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
           const init = child(declaration, "init");
           if (id?.type !== "Identifier" || !init) continue;
           objects.set(id["name"] as string, init);
-          const dyn = dynBox(init, bound);
+          const dyn = dynBox(init, file, bound);
           if (dyn) dynBindings.set(id["name"] as string, dyn);
         }
         break;
@@ -188,7 +225,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
         }
         // Destructuring a dyn box is a direct read of its trait member.
         if (id.type === "ObjectPattern") {
-          const dyn = dynBox(init, bound);
+          const dyn = dynBox(init, file, bound);
           if (dyn)
             for (const property of children(id, "properties")) {
               if (property.type !== "Property") continue;
@@ -204,9 +241,9 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
         break;
       }
       case "CallExpression": {
-        const lift = valOf(node, bound, at);
+        const lift = valOf(node, file, bound, at);
         if (lift) lifts.push(lift);
-        const implementation = implTrait(node, bound, sites, objects, at);
+        const implementation = implTrait(node, file, bound, sites, objects, at);
         if (implementation) {
           traitImplementations.push(implementation);
           members.push(...implementation.overrides);
@@ -228,7 +265,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
           collect(reads, object["name"] as string, name);
           break;
         }
-        const dyn = dynBox(object, bound);
+        const dyn = dynBox(object, file, bound);
         if (dyn) {
           dynReads.push({ ...dyn, member: name });
           break;
@@ -245,26 +282,21 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
         if (through) collect(namespaceReads, through, name);
         break;
       }
-      case "ImportNamespaceSpecifier": {
-        const local = child(node, "local");
-        if (local?.type === "Identifier") bound.namespaces.add(local["name"] as string);
-        break;
-      }
-      case "ExportSpecifier": {
-        const local = child(node, "local");
-        const exported = child(node, "exported");
-        if (!local || !exported) break;
-        const outside = keyName(exported, false);
-        const inside = keyName(local, false);
-        if (outside && inside) exportedAs.set(outside, inside);
-        break;
-      }
-      case "ImportSpecifier": {
-        const imported = child(node, "imported");
-        const local = child(node, "local");
-        if (!imported || !local) break;
-        const name = keyName(imported, false);
-        if (name) bound.imported.set(local["name"] as string, name);
+      case "ImportDeclaration": {
+        const source = child(node, "source");
+        if (!source || typeof source["value"] !== "string") break;
+        const module = resolveModule(file, source["value"]);
+        for (const specifier of children(node, "specifiers")) {
+          const local = child(specifier, "local");
+          if (local?.type !== "Identifier") continue;
+          if (specifier.type === "ImportNamespaceSpecifier") {
+            bound.namespaces.set(local["name"] as string, module);
+          } else if (specifier.type === "ImportSpecifier") {
+            const imported = child(specifier, "imported");
+            const name = imported && keyName(imported, false);
+            if (name) bound.imported.set(local["name"] as string, { name, module });
+          }
+        }
         break;
       }
       default:
@@ -283,6 +315,32 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
   const program = parsed.program as Node;
   visit(program);
 
+  // Imports may follow an export declaration. Resolve local exports only after every binding is
+  // known, so `export { Imported as Public }` retains Imported's source module either way.
+  exportedAs.clear();
+  exportedRefs.clear();
+  for (const statement of children(program, "body")) {
+    if (statement.type !== "ExportNamedDeclaration") continue;
+    const sourceNode = child(statement, "source");
+    const module =
+      sourceNode && typeof sourceNode["value"] === "string"
+        ? resolveModule(file, sourceNode["value"])
+        : undefined;
+    for (const specifier of children(statement, "specifiers")) {
+      const local = child(specifier, "local");
+      const exported = child(specifier, "exported");
+      if (!local || !exported) continue;
+      const outside = keyName(exported, false);
+      const inside = keyName(local, false);
+      if (!outside || !inside) continue;
+      exportedAs.set(outside, inside);
+      exportedRefs.set(
+        outside,
+        module ? moduleRef(module, inside) : symbolRef(file, bound, inside),
+      );
+    }
+  }
+
   // After the walk, which is what collected the imports `Val` is resolved against.
   const { aliases, traitAliases, brands, reAliases } = valAliases(program, file, bound, at);
 
@@ -295,6 +353,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
     reads,
     namespaceReads,
     exportedAs,
+    exportedRefs,
     aliases,
     traitAliases,
     brands,
@@ -307,7 +366,11 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
 }
 
 /** The uncomplicated `Trait.dyn(Val, value)` form.  Escaping the box is deliberately not traced. */
-function dynBox(node: Node, bound: Bindings): { trait: string; val: string } | undefined {
+function dynBox(
+  node: Node,
+  file: string,
+  bound: Bindings,
+): { trait: SymbolRef; val: SymbolRef } | undefined {
   if (node.type !== "CallExpression") return undefined;
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
@@ -316,20 +379,21 @@ function dynBox(node: Node, bound: Bindings): { trait: string; val: string } | u
   if (!property || keyName(property, callee["computed"] === true) !== "dyn" || !object)
     return undefined;
   const args = children(node, "arguments");
-  const trait = valueReference(object, bound);
-  const val = args[0] && valueReference(args[0], bound);
+  const trait = valueReference(object, file, bound);
+  const val = args[0] && valueReference(args[0], file, bound);
   return trait && val ? { trait, val } : undefined;
 }
 
-/** A runtime companion reference, normalized to the exporting module's name. */
-function valueReference(node: Node, bound: Bindings): string | undefined {
-  if (node.type === "Identifier") return original(bound, node["name"] as string);
+/** A runtime companion reference with its exporting module retained. */
+function valueReference(node: Node, file: string, bound: Bindings): SymbolRef | undefined {
+  if (node.type === "Identifier") return symbolRef(file, bound, node["name"] as string);
   if (node.type !== "MemberExpression") return undefined;
   const object = child(node, "object");
   const property = child(node, "property");
   if (object?.type !== "Identifier" || !bound.namespaces.has(object["name"] as string) || !property)
     return undefined;
-  return keyName(property, node["computed"] === true);
+  const name = keyName(property, node["computed"] === true);
+  return name ? symbolRef(file, bound, name, object["name"] as string) : undefined;
 }
 
 function fromTrait(node: Node, bound: Bindings): boolean {
@@ -369,6 +433,7 @@ function traitCompanionSite(
         name: undefined,
         nameAt: at(node["start"] as number),
         typeName,
+        typeRef: symbolRef(file, bound, typeName, named.qualifier),
         typeOffset: named.node["start"] as number,
         typeAt: at(named.node["start"] as number),
         qualifier: named.qualifier,
@@ -385,6 +450,7 @@ function traitCompanionSite(
 /** Reads one `.implTrait` call without collapsing repeated calls in the same chain. */
 function implTrait(
   node: Node,
+  file: string,
   bound: Bindings,
   sites: readonly CompanionSite[],
   objects: ReadonlyMap<string, Node>,
@@ -406,22 +472,20 @@ function implTrait(
   const rootCall = current.type === "CallExpression" ? current : node;
   const root = current.type === "CallExpression" ? child(current, "callee") : callee;
   if (!root || root.type !== "MemberExpression") return undefined;
-  let val: string | undefined;
+  let val: SymbolRef | undefined;
   if (fromVal(root, bound)) {
     const rootArgs = child(rootCall, "typeArguments");
     const valNode = unparenthesized(rootArgs ? children(rootArgs, "params")[0] : undefined);
     const valRef = valNode?.type === "TSTypeReference" ? child(valNode, "typeName") : undefined;
     const valNamed = valRef && typeReference(valRef, bound.namespaces);
     val = valNamed
-      ? valNamed.qualifier === undefined
-        ? original(bound, valNamed.node["name"] as string)
-        : (valNamed.node["name"] as string)
+      ? symbolRef(file, bound, valNamed.node["name"] as string, valNamed.qualifier)
       : undefined;
   } else {
     const receiver = child(root, "object");
     const builder = receiver?.type === "Identifier" ? (receiver["name"] as string) : undefined;
     const site = builder ? sites.find((one) => one.name === builder) : undefined;
-    if (site) val = site.qualifier === undefined ? original(bound, site.typeName) : site.typeName;
+    if (site) val = site.typeRef;
   }
   if (!val) return undefined;
   const typeArgs = child(node, "typeArguments");
@@ -429,18 +493,19 @@ function implTrait(
   const arg = children(node, "arguments");
   const traitRef = traitType?.type === "TSTypeReference" ? child(traitType, "typeName") : arg[0];
   const trait =
-    traitRef && (traitType ? typeValueReference(traitRef, bound) : valueReference(traitRef, bound));
+    traitRef &&
+    (traitType ? typeValueReference(traitRef, file, bound) : valueReference(traitRef, file, bound));
   if (!trait) return undefined;
   const object = traitType ? arg[0] : arg[1];
-  const resolved = object ? objectMembers(object, val, objects, at, new Set()) : [];
+  const resolved = object ? objectMembers(object, val.name, objects, at, new Set()) : [];
   return { val, trait, overrides: resolved };
 }
 
-function typeValueReference(node: Node, bound: Bindings): string | undefined {
+function typeValueReference(node: Node, file: string, bound: Bindings): SymbolRef | undefined {
   const named = typeReference(node, bound.namespaces);
   if (!named) return undefined;
   const name = named.node["name"] as string;
-  return named.qualifier === undefined ? original(bound, name) : name;
+  return symbolRef(file, bound, name, named.qualifier);
 }
 
 /** Resolves inline/const objects and spreads, retaining known keys even beside an unknown spread. */

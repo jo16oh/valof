@@ -54,6 +54,16 @@ test("follows a renamed import to the companion in the other file", async () => 
   ]);
 });
 
+test("does not use a same-named companion from another module", async () => {
+  expect(await lint("identity")).toEqual([]);
+});
+
+test("follows a renamed re-export to the companion", async () => {
+  expect(await lint("re-export")).toEqual([
+    { rule: BypassedCompanion, at: "re-export/consumer.ts:4:8" },
+  ]);
+});
+
 test("looks through parentheses in the declaration, companion, and Val.of", async () => {
   expect(await lint("parenthesized")).toEqual([
     { rule: BypassedCompanion, at: "parenthesized.ts:4:30" },

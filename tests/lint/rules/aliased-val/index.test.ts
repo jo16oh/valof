@@ -60,3 +60,7 @@ test("looks through parentheses around a second name", async () => {
     { rule: UnnecessaryAlias, at: "parenthesized.ts:5:13" },
   ]);
 });
+
+test("does not end at a same-named declaration from another module", async () => {
+  expect(await lint("identity")).toEqual([]);
+});

@@ -36,6 +36,14 @@ test("matches renamed and namespace imports", async () => {
   expect(await lint("imports")).toEqual([]);
 });
 
+test("keeps same-named Traits from different modules distinct", async () => {
+  expect(await lint("identity")).toEqual([
+    { rule: UnimplementedTrait, at: "identity/barrels.ts:4:45" },
+    { rule: UnimplementedTrait, at: "identity/namespace.ts:4:60" },
+    { rule: UnimplementedTrait, at: "identity/renamed.ts:4:47" },
+  ]);
+});
+
 test("keeps following a Val builder held in a variable", async () => {
   expect(await lint("builder", { skip: [CompanionMismatch] })).toEqual([]);
 });

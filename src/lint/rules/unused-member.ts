@@ -1,6 +1,5 @@
 import type { Where } from "../ast.ts";
-import { original } from "../scan/index.ts";
-import type { Scan } from "../scan/index.ts";
+import { original, symbolIdentity, type Scan } from "../scan/index.ts";
 import type { Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
@@ -39,6 +38,7 @@ export const UnusedMember: Rule<UnusedMember> = {
  * are never reported however dead they are.
  */
 function findings(scans: readonly Scan[]): UnusedMember[] {
+  const identity = symbolIdentity(scans);
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
   for (const scan of scans)
@@ -82,14 +82,17 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
   const implementations = new Map<string, Scan["traitImplementations"][number]>();
   for (const scan of scans)
     for (const implementation of scan.traitImplementations)
-      implementations.set(`${implementation.val}\0${implementation.trait}`, implementation);
+      implementations.set(
+        `${identity(implementation.val)}\0${identity(implementation.trait)}`,
+        implementation,
+      );
 
   // A dyn read dispatches through the Val's selected implementation.
   for (const scan of scans)
     for (const { val, trait, member } of scan.dynReads) {
-      const implementation = implementations.get(`${val}\0${trait}`);
+      const implementation = implementations.get(`${identity(val)}\0${identity(trait)}`);
       const overridden = implementation?.overrides.some((one) => one.member === member) === true;
-      note(overridden ? val : trait, member);
+      note(overridden ? val.name : trait.name, member);
     }
 
   // A Val reads a trait's default unless that Val supplied the same key to implTrait.  Unknown
@@ -97,13 +100,13 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
   // keep every default alive rather than issuing a false positive.
   for (const scan of scans)
     for (const implementation of scan.traitImplementations) {
-      const used = read.get(implementation.val);
+      const used = read.get(implementation.val.name);
       if (!used) continue;
-      const traitReads = read.get(implementation.trait) ?? new Set<string>();
+      const traitReads = read.get(implementation.trait.name) ?? new Set<string>();
       for (const key of used)
         if (!implementation.overrides.some((override) => override.member === key))
           traitReads.add(key);
-      read.set(implementation.trait, traitReads);
+      read.set(implementation.trait.name, traitReads);
     }
 
   return scans.flatMap(({ file, members }) =>
