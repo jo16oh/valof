@@ -1,4 +1,4 @@
-# `valof-lint`
+# Linting
 
 Rules for the mistakes the type checker cannot catch. They run as a
 [plugin for ESLint and Oxlint](lint.md#plugin-for-eslint-and-oxlint), and as a

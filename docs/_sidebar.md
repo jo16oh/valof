@@ -9,5 +9,5 @@
 - [Utilities](utilities.md)
 - [API](api.md)
 - [TypeScript](typescript.md)
-- [`valof-lint`](lint.md)
+- [Linting](linting.md)
 - [Caveats](caveats.md)
