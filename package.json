@@ -40,6 +40,9 @@
   "scripts": {
     "build": "vp pack",
     "dev": "vp pack --watch",
+    "docs:build": "mdbook build docs",
+    "docs:serve": "mdbook serve docs",
+    "docs:test": "mdbook test docs",
     "test": "vp test",
     "check": "vp check",
     "size": "node scripts/size.ts",

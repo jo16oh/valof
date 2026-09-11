@@ -1,0 +1,5 @@
+[book]
+authors = ["Joichiro Hayashi"]
+language = "en"
+src = "src"
+title = "Valof"
