@@ -11,12 +11,15 @@ export type Bindings = {
   namespaces: Set<string>;
   /** Locals holding a builder, so `const seal = Val.sealer<X>(); seal.impl({…})` is seen. */
   builders: Set<string>;
+  /** Locals holding a `Trait.companion` builder. */
+  traitBuilders: Set<string>;
 };
 
 export const bindings = (): Bindings => ({
   imported: new Map(),
   namespaces: new Set(),
   builders: new Set(),
+  traitBuilders: new Set(),
 });
 
 /** The name the exporting module uses, or the local one when it was not imported. */

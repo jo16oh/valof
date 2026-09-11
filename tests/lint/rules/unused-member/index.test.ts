@@ -98,7 +98,32 @@ describe("what name resolution cannot reach", () => {
     ]);
   });
 
-  test("reports nothing about members spread into the impl, dead or not", async () => {
-    expect(await lint("spread")).toEqual([]);
+  test("resolves members spread into the impl", async () => {
+    expect(await lint("spread")).toEqual([{ rule: UnusedMember, at: "spread.ts:1:16" }]);
+  });
+});
+
+describe("Trait members", () => {
+  test("routes direct, bound, and destructured dyn reads to defaults or overrides", async () => {
+    expect(await lint("trait-dispatch")).toEqual([
+      { rule: UnusedMember, at: "trait-dispatch.ts:12:11" },
+    ]);
+  });
+
+  test("resolves const objects and recursive spreads", async () => {
+    expect(await lint("resolved-overrides")).toEqual([
+      { rule: UnusedMember, at: "resolved-overrides.ts:2:55" },
+    ]);
+  });
+
+  test("treats conditional and cyclic override objects conservatively", async () => {
+    expect(await lint("unresolved-overrides")).toEqual([]);
+  });
+
+  test("distinguishes overrides belonging to different Vals", async () => {
+    expect(await lint("multiple-vals")).toEqual([
+      { rule: UnusedMember, at: "multiple-vals.ts:2:55" },
+      { rule: UnusedMember, at: "multiple-vals.ts:8:61" },
+    ]);
   });
 });

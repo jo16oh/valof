@@ -34,8 +34,8 @@ export const SplitCompanion: Rule<SplitCompanion> = {
  */
 function findings(scans: readonly Scan[]): SplitCompanion[] {
   const found: SplitCompanion[] = [];
-  for (const { file, sites, bound } of scans) {
-    for (const { typeName, typeAt, qualifier } of sites) {
+  for (const { file, sites, traitSites, bound } of scans) {
+    for (const { typeName, typeAt, qualifier } of [...sites, ...traitSites]) {
       if (qualifier === undefined && !bound.imported.has(typeName)) continue;
       found.push({
         kind: "split-companion",

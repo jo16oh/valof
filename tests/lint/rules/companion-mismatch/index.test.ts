@@ -40,3 +40,10 @@ test("steps past a namespace, so the name it compares is the declaring module's"
 test("says nothing about a chain bound to no plain name", async () => {
   expect(await lint("no-name")).toEqual([]);
 });
+
+test("applies the same naming rule to Trait companions", async () => {
+  expect(await lint("trait")).toEqual([{ rule: CompanionMismatch, at: "trait.ts:3:14" }]);
+  expect(await messages("trait")).toEqual([
+    "Friendly is the companion for Greetable, and should be named Greetable",
+  ]);
+});

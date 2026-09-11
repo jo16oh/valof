@@ -16,14 +16,14 @@ export type UnusedMember = Where & {
 
 export const UnusedMember: Rule<UnusedMember> = {
   kind: "unused-member",
-  description: "functions and constants registered with `.impl({…})` that nothing reads",
+  description: "members registered with `.impl` or `.implTrait` that nothing reads",
   // A member nothing reads is dead weight, and the code around it works.
   warns: true,
   run: findings,
 };
 
 /**
- * Reports a member registered with `.impl({…})` that nothing reads.
+ * Reports a member registered with `.impl` or `.implTrait` that nothing reads.
  *
  * A declaration is kept per site rather than per name, because two modules may each declare a
  * companion called `User`; reads stay keyed by name alone, so a read anywhere counts for both.
@@ -78,6 +78,33 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
     // Already named as the exporting module names them, so this file's aliases do not apply.
     for (const [name, keys] of scan.namespaceReads) for (const key of keys) note(name, key);
   }
+
+  const implementations = new Map<string, Scan["traitImplementations"][number]>();
+  for (const scan of scans)
+    for (const implementation of scan.traitImplementations)
+      implementations.set(`${implementation.val}\0${implementation.trait}`, implementation);
+
+  // A dyn read dispatches through the Val's selected implementation.
+  for (const scan of scans)
+    for (const { val, trait, member } of scan.dynReads) {
+      const implementation = implementations.get(`${val}\0${trait}`);
+      const overridden = implementation?.overrides.some((one) => one.member === member) === true;
+      note(overridden ? val : trait, member);
+    }
+
+  // A Val reads a trait's default unless that Val supplied the same key to implTrait.  Unknown
+  // object expressions are intentionally conservative: they might override any key, so they
+  // keep every default alive rather than issuing a false positive.
+  for (const scan of scans)
+    for (const implementation of scan.traitImplementations) {
+      const used = read.get(implementation.val);
+      if (!used) continue;
+      const traitReads = read.get(implementation.trait) ?? new Set<string>();
+      for (const key of used)
+        if (!implementation.overrides.some((override) => override.member === key))
+          traitReads.add(key);
+      read.set(implementation.trait, traitReads);
+    }
 
   return scans.flatMap(({ file, members }) =>
     members

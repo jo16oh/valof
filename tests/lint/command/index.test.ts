@@ -43,17 +43,18 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
   const { status, stdout } = cli("--help");
   expect(status).toBe(0);
   expect(stdout).toContain(
-    "  unused-member       functions and constants registered with `.impl({…})` that nothing reads\n" +
-      "  duplicate-brand     a brand string claimed by more than one type alias\n" +
-      "  brand-mismatch      a brand whose last segment is not the name of the type it brands\n" +
-      "  aliased-val         a type alias that is a second name for a Val\n" +
-      "  companion-mismatch  a companion bound to a name other than the type it is for\n" +
-      "  split-companion     a companion for a type that another file declares\n" +
-      "  bypassed-companion  a `Val.of` for a type whose companion is how it is built\n" +
-      "  unnamed-of          a `Val.of` that names no type, taking one from its target\n" +
-      "  structural-equals   a payload holding a Val whose own `equals` the parent never dispatches to\n" +
-      "  incomplete-disable  a disable comment leaving out the rules it silences, or its scope\n" +
-      "  unused-disable      a disable comment naming a rule that reports nothing there\n",
+    "  unused-member        members registered with `.impl` or `.implTrait` that nothing reads\n" +
+      "  duplicate-brand      a brand string claimed by more than one type alias\n" +
+      "  brand-mismatch       a brand whose last segment is not the name of the type it brands\n" +
+      "  unnecessary-alias    a type alias that is a second name for a Val or Trait\n" +
+      "  unimplemented-trait  a Trait declared by a Val that its companion does not implement\n" +
+      "  companion-mismatch   a companion bound to a name other than the type it is for\n" +
+      "  split-companion      a companion for a type that another file declares\n" +
+      "  bypassed-companion   a `Val.of` for a type whose companion is how it is built\n" +
+      "  unnamed-of           a `Val.of` that names no type, taking one from its target\n" +
+      "  structural-equals    a payload holding a Val whose own `equals` the parent never dispatches to\n" +
+      "  incomplete-disable   a disable comment leaving out the rules it silences, or its scope\n" +
+      "  unused-disable       a disable comment naming a rule that reports nothing there\n",
   );
   expect(cli("-h").stdout).toBe(stdout);
 });

@@ -32,7 +32,7 @@ import { Val } from "valof";
 - **§11 型エラーをどこで表面化させるか** パラメータ位置（A）とブランド位置（B）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと宣言で落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き
@@ -1762,7 +1762,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
 - [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
-      独立した規則 `aliased-val`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
+      独立した規則 `unnecessary-alias`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
@@ -1772,13 +1772,13 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`rules/equals/index.ts` の「最初が勝つ」
 - [ ] fixture を型検査するか（§14.10）。`rules/structural-equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので 0 error。他は除外のまま
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
-- [ ] valof-lint が `Trait` を知らない。`chains.ts` が `Val` の `sealer` / `companion` で決め打ちしている。
+- [x] ~~valof-lint が `Trait` を知らない。~~ Trait の宣言、companion、`implTrait`、`dyn` を構文から追跡する。
       足すのは 2 種類
-  - [ ] 既存規則を trait の構文に広げる。判断は同じで、認識する形が増えるだけ。`brand-mismatch`
+  - [x] 既存規則を trait の構文に広げる。判断は同じで、認識する形が増えるだけ。`brand-mismatch`
         （`Trait<"Greetble", …>`）、`duplicate-brand`、`companion-mismatch`、`split-companion`、
-        `aliased-val`、`unused-member`（final は `Greetable.shout` と `User.shout` の 2 経路で
+        `unnecessary-alias`、`unused-member`（final は `Greetable.shout` と `User.shout` の 2 経路で
         読まれうるので、どちらでも使用と数える）
-  - [ ] 新規 1 本: trait を名乗る Val に `implTrait` を呼ぶ companion がない（§15.1）。payload が shape を
+  - [x] 新規 1 本: trait を名乗る Val に `implTrait` を呼ぶ companion がない（§15.1）。payload が shape を
         満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
   - `unnamed-of` / `bypassed-companion` は広げない。trait があっても構築の話は変わらない
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
@@ -2895,19 +2895,20 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 
 `configs.recommended` は全部 error だった。**「Valof を壊すか」で分ける。**
 
-| 規則                 |       | 理由                                                                                      |
-| -------------------- | ----- | ----------------------------------------------------------------------------------------- |
-| `structural-equals`  | error | equals が実行時に間違った答えを返す                                                       |
-| `duplicate-brand`    | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
-| `brand-mismatch`     | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
-| `aliased-val`        | error | §14.25。同じく「1 つの Val に名前が 2 つ」                                                |
-| `companion-mismatch` | error | §14.21。同じく「一致すべき 2 つの食い違い」                                               |
-| `split-companion`    | error | §14.22。型名で export できる形にならない                                                  |
-| `bypassed-companion` | warn  | §14.23。出来上がる値は正しい。迂回したのは型の入口                                        |
-| `unnamed-of`         | warn  | §14.24。持ち上げ自体は正しい。失うのは grep できる名前                                    |
-| `incomplete-disable` | error | 下記                                                                                      |
-| `unused-member`      | warn  | 死んだコード。周りは動く                                                                  |
-| `unused-disable`     | warn  | 何も黙らせていない指示。コードは変わらない                                                |
+| 規則                  |       | 理由                                                                                      |
+| --------------------- | ----- | ----------------------------------------------------------------------------------------- |
+| `structural-equals`   | error | equals が実行時に間違った答えを返す                                                       |
+| `duplicate-brand`     | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
+| `brand-mismatch`      | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
+| `unnecessary-alias`   | error | §14.25。同じく「1 つの Val または Trait に名前が 2 つ」                                   |
+| `unimplemented-trait` | error | Trait を宣言した Val が同じ companion chain で実装していること                            |
+| `companion-mismatch`  | error | §14.21。同じく「一致すべき 2 つの食い違い」                                               |
+| `split-companion`     | error | §14.22。型名で export できる形にならない                                                  |
+| `bypassed-companion`  | warn  | §14.23。出来上がる値は正しい。迂回したのは型の入口                                        |
+| `unnamed-of`          | warn  | §14.24。持ち上げ自体は正しい。失うのは grep できる名前                                    |
+| `incomplete-disable`  | error | 下記                                                                                      |
+| `unused-member`       | warn  | 死んだコード。周りは動く                                                                  |
+| `unused-disable`      | warn  | 何も黙らせていない指示。コードは変わらない                                                |
 
 重大度は `Rule.warns` として規則の隣に置いた。規則を足す人が決めずに済ませられない。CLI は読まない（finding は 1 種類しかなく、1 件でも exit 1）。
 
@@ -3197,13 +3198,13 @@ finding の期待値は 1 本の文字列だった。`"mismatched.ts:3:13  brand
 
 残したのは**位置が言えないことを言っているメッセージだけ**（7 ファイル）。
 
-| 規則                                    | 位置に出ないもの                                   |
-| --------------------------------------- | -------------------------------------------------- |
-| `structural-equals`                     | パス（`Order.total`、`lines[]`）。位置は companion |
-| `bypassed-companion`                    | 3 分岐（コンストラクタ / `.seal` / 直し方なし）    |
-| `brand-mismatch`                        | 主張すべきブランド                                 |
-| `aliased-val` / `companion-mismatch`    | 辿り着いた先の名前                                 |
-| `unused-disable` / `incomplete-disable` | 指示が名指しした規則、書くべき綴り                 |
+| 規則                                       | 位置に出ないもの                                   |
+| ------------------------------------------ | -------------------------------------------------- |
+| `structural-equals`                        | パス（`Order.total`、`lines[]`）。位置は companion |
+| `bypassed-companion`                       | 3 分岐（コンストラクタ / `.seal` / 直し方なし）    |
+| `brand-mismatch`                           | 主張すべきブランド                                 |
+| `unnecessary-alias` / `companion-mismatch` | 辿り着いた先の名前                                 |
+| `unused-disable` / `incomplete-disable`    | 指示が名指しした規則、書くべき綴り                 |
 
 外したのは 50 件。`unused-member` の `User.shout` も `split-companion` の型名も、位置がそのまま指している。
 
@@ -3827,9 +3828,9 @@ const c = Val.of({ id: "x" }); // TS2345 parameter of type 'never'
 `Val.of` の節に「境界ではこう黙らせる」というコードを一度置いたが、消した。**逃げ道であって推奨では
 ない。**作例にすると推奨に読める。disable コメントの書き方は valof-lint の節にあり、そこで足りる。
 
-### 14.25 規則: Val の 2 つ目の名前、2026-09-09
+### 14.25 規則: Val / Trait の 2 つ目の名前、2026-09-09
 
-**入れる。** `aliased-val`。トップレベルの `type A = B` で、`B` が裸の参照で、辿った先が Val なら報告する。
+**入れる。** `unnecessary-alias`。トップレベルの `type A = B` で、`B` が裸の参照で、辿った先が Val または Trait なら報告する。
 既定で on、error。
 
 ```ts
@@ -3866,7 +3867,7 @@ type Wrap<T> = T; // 見ない
 
 `type Local = ImportedUser` の隣に companion を書く形は、型がローカル宣言なので §14.22 からは見えなかった。
 この規則が 2 つ目の名前のほうを報告するので、経路としては塞がった。fixture `companion/` がその形で、
-出る finding は `aliased-val` 1 件である。
+出る finding は `unnecessary-alias` 1 件である。
 
 ### 15.1 `Trait`
 
@@ -4411,6 +4412,16 @@ es2023 まで変えても動かないので、これはチェッカが起動時�
   位置でしかエラーにならず、メッセージが読めない。§14 の chains 解析にそのまま乗る
 - `equals` / `patch` / `update` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない
 - shape には `DeepReadonly` を適用する。さもないと配列フィールドを持つ Val が一致しなくなる
+
+#### valof-lint の解析範囲、2026-09-11
+
+**型リゾルバは増やさず、構文から確定できる範囲だけ追う。** Val の第 3 型引数は直接の交差型と、
+トップレベルの交差型エイリアスを再帰的に展開する。`implTrait` の object は inline、`const` 束縛、spread
+を辿り、循環は打ち切る。条件式、関数の戻り値、外部 import などキーが確定しない式では、誤報を避けるため
+Trait の既定実装を使用済みとして扱う。
+
+`dyn` は直接参照、単純な `const` 束縛、分割代入まで追う。関数への引き渡し、return、配列や object への
+格納後は追跡しない。この境界を越えた参照は `unused-member` の既存の構文解析限界と同じく見えない。
 
 **payload が shape を満たさない宣言は、`implTrait` 忘れと同じ 1 本で塞がる。**型エイリアスはエラーを
 出せないので、`type Bad = Val<"Bad", { id: string }, Greetable>` の行は通る。いまは trait ブランドの位置に

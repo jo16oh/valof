@@ -13,6 +13,18 @@ export type Alias = {
   span: [number, number];
   /** The second type argument. Absent when the alias is generic over its payload. */
   payload: Node | undefined;
+  /** Traits declared in Val's third argument. */
+  traits: DeclaredTrait[];
+};
+
+/** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their payload rules. */
+export type TraitAlias = { file: string; alias: string; span: [number, number] };
+
+/** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
+export type DeclaredTrait = Where & {
+  name: string;
+  /** Present for `Val<…, ns.Greetable>`. */
+  qualifier: string | undefined;
 };
 
 /**
@@ -56,7 +68,7 @@ function valName(typeName: Node, namespaces: ReadonlySet<string>): string | unde
 }
 
 /**
- * Top-level Val aliases, with the payload for the structural-equals rule and the brand for the
+ * Top-level Val and Trait aliases, with the payload for the structural-equals rule and the brand for the
  * duplicate-brand one.
  *
  * Only a top-level alias can be imported and assigned somewhere else, which is the collision the
@@ -70,8 +82,14 @@ export function valAliases(
   file: string,
   bound: Bindings,
   at: (offset: number) => Where,
-): { aliases: Alias[]; brands: BrandClaim[]; reAliases: ReAlias[] } {
+): {
+  aliases: Alias[];
+  traitAliases: TraitAlias[];
+  brands: BrandClaim[];
+  reAliases: ReAlias[];
+} {
   const aliases: Alias[] = [];
+  const traitAliases: TraitAlias[] = [];
   const brands: BrandClaim[] = [];
   const reAliases: ReAlias[] = [];
 
@@ -100,7 +118,13 @@ export function valAliases(
       continue;
     }
 
-    if (original(bound, named) === "Val") {
+    const kind =
+      original(bound, named) === "Trait"
+        ? "trait"
+        : original(bound, named) === "Val"
+          ? "val"
+          : undefined;
+    if (kind === "val") {
       // The payload is the second argument. Absent on `Val<K, T>` inside a helper, which
       // describes no particular value.
       aliases.push({
@@ -108,6 +132,13 @@ export function valAliases(
         alias: id["name"] as string,
         span: [node["start"] as number, node["end"] as number],
         payload: children(args, "params")[1],
+        traits: traitNames(children(args, "params")[2], bound, program, at),
+      });
+    } else if (kind === "trait") {
+      traitAliases.push({
+        file,
+        alias: id["name"] as string,
+        span: [node["start"] as number, node["end"] as number],
       });
     }
 
@@ -124,5 +155,63 @@ export function valAliases(
     });
   }
 
-  return { aliases, brands, reAliases };
+  return { aliases, traitAliases, brands, reAliases };
+}
+
+/** Expands the deliberately small, syntax-only trait-list language used by Val declarations. */
+function traitNames(
+  node: Node | undefined,
+  bound: Bindings,
+  program: Node,
+  at: (offset: number) => Where,
+): DeclaredTrait[] {
+  if (!node) return [];
+  const aliases = new Map<string, Node>();
+  for (const statement of children(program, "body")) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? child(statement, "declaration") : statement;
+    if (declaration?.type !== "TSTypeAliasDeclaration") continue;
+    const id = child(declaration, "id");
+    const annotation = child(declaration, "typeAnnotation");
+    if (id?.type === "Identifier" && annotation) aliases.set(id["name"] as string, annotation);
+  }
+  const seen = new Set<string>();
+  const out = new Map<string, DeclaredTrait>();
+  const visit = (one: Node, occurrence = one): void => {
+    if (one.type === "TSIntersectionType") {
+      for (const part of children(one, "types"))
+        visit(part, occurrence === one ? part : occurrence);
+      return;
+    }
+    if (one.type !== "TSTypeReference") return;
+    const name = child(one, "typeName");
+    const named = name && valName(name, bound.namespaces);
+    if (!named || seen.has(named)) return;
+    seen.add(named);
+    const alias = aliases.get(named);
+    if (alias?.type === "TSIntersectionType") {
+      visit(alias, occurrence);
+      return;
+    }
+    // A local `type Greetable = Trait<…>` names Greetable, not the `Trait` constructor inside it.
+    // A bare alias chain is expanded too; unnecessary-alias reports that spelling separately.
+    if (alias?.type === "TSTypeReference") {
+      const targetName = child(alias, "typeName");
+      const target = targetName && valName(targetName, bound.namespaces);
+      if (target && original(bound, target) !== "Trait") {
+        visit(alias, occurrence);
+        return;
+      }
+    }
+    const occurrenceName = child(occurrence, "typeName") ?? occurrence;
+    const written =
+      occurrenceName.type === "TSQualifiedName"
+        ? (child(occurrenceName, "right") ?? occurrenceName)
+        : occurrenceName;
+    const qualifier =
+      name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
+    out.set(named, { ...at(written["start"] as number), name: named, qualifier });
+  };
+  visit(node);
+  return [...out.values()];
 }
