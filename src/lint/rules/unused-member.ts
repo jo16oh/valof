@@ -34,7 +34,7 @@ export const UnusedMember: Rule<UnusedMember> = {
  *
  * Two ways it is wrong, in opposite directions. A read that spells no name, `User[method]` or a
  * companion reached through a default export, is not seen, so the member is reported although it
- * is used. And a spread into `.impl({ ...base })` contributes no keys at all, so those members
+ * is used. A spread whose value is not a local const object contributes no keys, so those members
  * are never reported however dead they are.
  */
 function findings(scans: readonly Scan[]): UnusedMember[] {
