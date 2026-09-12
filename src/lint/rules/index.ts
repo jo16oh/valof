@@ -1,6 +1,6 @@
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
-import { AliasedVal } from "./aliased-val.ts";
+import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
@@ -10,6 +10,7 @@ import { StructuralEquals } from "./structural-equals/index.ts";
 import { UnnamedOf } from "./unnamed-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
+import { UnimplementedTrait } from "./unimplemented-trait.ts";
 
 /**
  * Every rule, in the order they run and `--help` lists them.
@@ -21,7 +22,8 @@ export const RULES = [
   UnusedMember,
   DuplicateBrand,
   BrandMismatch,
-  AliasedVal,
+  UnnecessaryAlias,
+  UnimplementedTrait,
   CompanionMismatch,
   SplitCompanion,
   BypassedCompanion,
@@ -37,7 +39,7 @@ export const RULES = [
  * {@link RULES} is what the runner reads. This is for naming a single one.
  */
 export {
-  AliasedVal,
+  UnnecessaryAlias,
   BrandMismatch,
   BypassedCompanion,
   CompanionMismatch,
@@ -48,6 +50,7 @@ export {
   UnnamedOf,
   UnusedDisable,
   UnusedMember,
+  UnimplementedTrait,
 };
 
 /** The payload a rule reports, recovered from the rule itself. */

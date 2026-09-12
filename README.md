@@ -502,19 +502,20 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 ### Rules
 
-| rule                 | reports                                                                   | default |
-| -------------------- | ------------------------------------------------------------------------- | ------- |
-| `unused-member`      | a function registered with `.impl({…})` that nothing reads                | warning |
-| `duplicate-brand`    | a brand string claimed by more than one top-level alias                   | error   |
-| `brand-mismatch`     | a brand whose last segment is not the name of the type it brands          | error   |
-| `aliased-val`        | a type alias that is a second name for a Val                              | error   |
-| `companion-mismatch` | a companion bound to a name other than the type it is for                 | error   |
-| `split-companion`    | a companion for a type that another file declares                         | error   |
-| `bypassed-companion` | a `Val.of` for a type whose companion is how it is built                  | warning |
-| `unnamed-of`         | a `Val.of` that names no type, taking one from its target                 | warning |
-| `structural-equals`  | a payload holding a Val whose own `equals` the parent never dispatches to | error   |
-| `incomplete-disable` | a disable comment leaving out the rules it silences, or its scope         | error   |
-| `unused-disable`     | a disable comment naming a rule that reports nothing there                | warning |
+| rule                  | reports                                                                   | default |
+| --------------------- | ------------------------------------------------------------------------- | ------- |
+| `unused-member`       | a member registered with `.impl` or `.implTrait` that nothing reads       | warning |
+| `duplicate-brand`     | a brand string claimed by more than one top-level alias                   | error   |
+| `brand-mismatch`      | a brand whose last segment is not the name of the type it brands          | error   |
+| `unnecessary-alias`   | a type alias that is a second name for a Val or Trait                     | error   |
+| `unimplemented-trait` | a Trait declared by a Val that its companion does not implement           | error   |
+| `companion-mismatch`  | a companion bound to a name other than the type it is for                 | error   |
+| `split-companion`     | a companion for a type that another file declares                         | error   |
+| `bypassed-companion`  | a `Val.of` for a type whose companion is how it is built                  | warning |
+| `unnamed-of`          | a `Val.of` that names no type, taking one from its target                 | warning |
+| `structural-equals`   | a payload holding a Val whose own `equals` the parent never dispatches to | error   |
+| `incomplete-disable`  | a disable comment leaving out the rules it silences, or its scope         | error   |
+| `unused-disable`      | a disable comment naming a rule that reports nothing there                | warning |
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two
 types the checker stops distinguishing, an `equals` answering wrongly, a name that has to agree with
@@ -635,7 +636,8 @@ vp install              # install dependencies
 vp test                 # run the tests
 vp check                # format, lint, type check
 vp pack                 # build
-vp run size             # measure the bundle against its budget
+vp run bundle-size      # measure what a user ships against its budget
+vp run type-perf        # measure the type cost: instantiations and the declarations
 vp run ts-compatibility # type check the published .d.mts against every TypeScript line
 ```
 

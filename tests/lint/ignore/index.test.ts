@@ -52,6 +52,13 @@ test("reads the whole comment block, not only the comment touching the line", as
   expect(await lint("comment-block")).toEqual([]);
 });
 
+test("lets a directive for every kind swallow one naming a kind in the same block", async () => {
+  expect(await lint("every-widens")).toEqual([
+    { rule: UnusedDisable, at: "every-widens.ts:2:3" },
+    { rule: IncompleteDisable, at: "every-widens.ts:3:3" },
+  ]);
+});
+
 test("silences a duplicate brand, and only at the alias that asked", async () => {
   expect(await lint("duplicate-brand")).toEqual([
     {
@@ -95,6 +102,14 @@ test("stops at a blank line, which starts a block of its own", async () => {
       at: "not-a-block.ts:2:3",
     },
     { rule: UnusedMember, at: "not-a-block.ts:5:3" },
+  ]);
+});
+
+test("stops a comment block when code follows a comment", async () => {
+  expect(await lint("code-breaks-block")).toEqual([
+    { rule: IncompleteDisable, at: "code-breaks-block.ts:2:3" },
+    { rule: UnusedMember, at: "code-breaks-block.ts:2:38" },
+    { rule: UnusedMember, at: "code-breaks-block.ts:4:3" },
   ]);
 });
 

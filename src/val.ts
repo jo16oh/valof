@@ -1,10 +1,23 @@
+import type {
+  AnyTrait,
+  FinalsOf,
+  Implement,
+  Members,
+  MembersOf,
+  NamesOf,
+  ShapeOf,
+  TraitCompanion,
+  TraitsOf,
+  Unbound,
+} from "./trait.ts";
+
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
 type Primitive = string | number | boolean | bigint | null;
 
 export type AnyVal = { readonly __valof_internal_phantom_brand: string };
 
-/** Marker surfaced in the type when a payload violates the allowed-type rules. */
-type Invalid<Msg extends string> = { readonly __valError: Msg };
+/** Marker surfaced in the type when a declaration violates the allowed-type rules. */
+export type Invalid<Msg extends string> = { readonly __valError: Msg };
 
 type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
@@ -46,7 +59,7 @@ type ValidateValue<T> = [T] extends [Primitive]
         : Invalid<"not a plain value">;
 
 /** Recursion stops at a nested Val: it is already deep-readonly. */
-type DeepReadonly<T> = [T] extends [AnyVal]
+export type DeepReadonly<T> = [T] extends [AnyVal]
   ? T
   : [T] extends [Primitive]
     ? T
@@ -59,7 +72,7 @@ type DeepReadonly<T> = [T] extends [AnyVal]
         : T;
 
 /** The payload, or the annotated version of it when it breaks the allowed-type rules. */
-type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
+export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
 
 /**
  * The conditional lives here, not {@link Val}. An alias whose top level is a conditional loses
@@ -69,16 +82,57 @@ type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
  * `T extends Validate<T>` is the natural spelling. On a type alias that is TS2313 "circular
  * constraint", hence the conditional.
  */
-type Phantom<K extends string, T> = [T] extends [Validate<T>]
-  ? {
-      readonly __valof_internal_phantom_brand: K;
-      /** Exists only so the original payload type can be recovered. */
-      readonly __valof_internal_phantom_payload: T;
-    }
+type Phantom<K extends string, T, Tr extends AnyTrait> = [T] extends [Validate<T>]
+  ? Fits<T, Tr> extends true
+    ? {
+        readonly __valof_internal_phantom_brand: K;
+        /** Exists only so the original payload type can be recovered. */
+        readonly __valof_internal_phantom_payload: T;
+      }
+    : { readonly __valof_internal_phantom_brand: Invalid<Extract<Fits<T, Tr>, string>> }
   : { readonly __valof_internal_phantom_brand: Validate<T> };
 
-/** A branded value type. A payload that breaks the allowed-type rules is a type error. */
-export type Val<K extends string, T> = DeepReadonly<Checked<T>> & Phantom<K, T>;
+/**
+ * Whether the payload holds every field the declared traits require, or the sentence saying why
+ * not.
+ *
+ * `ShapeOf<A | B>` keeps only the keys the two share, so a union asks the payload for nothing.
+ * Caught here, before the fields are read.
+ */
+type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
+  ? true
+  : [Tr] extends [UnionToIntersection<Tr>]
+    ? DeepReadonly<Checked<T>> extends ShapeOf<Tr>
+      ? true
+      : "the payload does not hold what the trait requires"
+    : "declare several traits with `&`, not `|`";
+
+// Distributes over the union to collect one parameter position per member, which infers as their
+// intersection. A single trait is its own intersection, and so is `never`.
+type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
+  k: infer I,
+) => void
+  ? I
+  : never;
+
+/**
+ * The trait brands.
+ *
+ * Several traits are one intersection: `Val<"User", P, Greetable & Serializable>`. Their brand
+ * maps intersect too, which is what lets a Val stay assignable to each of them.
+ */
+type TraitBrand<Tr extends AnyTrait> = [Tr] extends [never]
+  ? unknown
+  : { readonly __valof_internal_phantom_trait_brands: Tr["__valof_internal_phantom_trait_brands"] };
+
+/**
+ * A branded value type. A payload that breaks the allowed-type rules is a type error, and so is
+ * one that does not hold what a declared trait requires: both land in the brand, which stops the
+ * Val satisfying {@link AnyVal}.
+ */
+export type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Checked<T>> &
+  Phantom<K, T, Tr> &
+  TraitBrand<Tr>;
 
 /** The Val's brand string. */
 export type BrandOf<V extends AnyVal> = V["__valof_internal_phantom_brand"];
@@ -131,21 +185,33 @@ type AnyFn = (...args: never[]) => unknown;
 /** What a companion may hold besides functions: constants, lookup tables, and so on. */
 type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown>;
 
+/**
+ * Names the library wires onto a companion. A function taking one would shadow it, so both
+ * entry points reject them: `.impl` through {@link CompanionFns}, a trait member through
+ * `Declarable`.
+ *
+ * Everything here has a step of its own. A `seal` whose first parameter accepts the Val, common
+ * for primitive payloads, would otherwise satisfy the index signature and attach as an ordinary
+ * function, leaving `patch` / `update` unrouted. `patch` / `update` are the library's, not
+ * yours: a derivation with different rules deserves its own name, and can seal inside it. Use
+ * `.implEquals` / `.implSeal` / `.implCreate`.
+ */
+export type Wired = "equals" | "patch" | "update" | "seal" | "create";
+
 /** The functions a companion accepts, each taking its Val first. */
-type CompanionFns<V extends AnyVal> = {
+export type CompanionFns<V extends AnyVal> = Partial<Record<Wired, never>> & {
   /**
-   * Rejected so they cannot be mistaken for registrations: everything the library wires has a
-   * step of its own. A `seal` whose first parameter accepts the Val, common for primitive
-   * payloads, would otherwise satisfy the index signature and attach as an ordinary function,
-   * leaving `patch` / `update` unrouted. `equals` has a step of its own, and `patch` / `update`
-   * are the library's, not yours: a derivation with different rules deserves its own name, and
-   * can seal inside it. Use `.implEquals` / `.implSeal` / `.implCreate`.
+   * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
+   * before the registrations, so a function taking the name would stomp it and leave every boxed
+   * member unbound.
    */
-  equals?: never;
-  patch?: never;
-  update?: never;
-  seal?: never;
-  create?: never;
+  [key: `__valof_${string}`]: never;
+  /**
+   * The steps are the library's, whichever ones it grows. Nothing is shadowed: `.impl` builds a
+   * fresh object, and the chain has ended by then. But `User.implTrait(u)` reads as the step it
+   * is not, so the prefix stays the library's.
+   */
+  [key: `impl${string}`]: never;
   /**
    * One callable member only. This is the contextual type for the Val parameter, and TypeScript
    * takes one from a union only while a single constituent has a call signature. `NonFn` has
@@ -341,13 +407,15 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
-> = Omit<M, "equals" | "patch" | "update"> &
+> = Omit<M, Wired> &
   CreateMethod<V, N, F> &
   SealMethod<F> &
   PatchMethod<V, F, P> &
   UpdateMethod<V, F, P> & {
     /** Structural equality: key-order independent, ignoring `undefined`-valued keys. */
     equals: (a: V, b: V) => boolean;
+    /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
+    readonly __valof_traits: Members;
   };
 
 /**
@@ -359,6 +427,57 @@ export type Sealed<V extends AnyVal, M extends CompanionFns<V>> = ((value: SeedO
   Companion<V, M>;
 
 /**
+ * What `.impl` accepts once traits are registered: anything but a name a trait already answers
+ * to, its shared functions included. Shadowing one of those is what would make `User.greet(u)`
+ * and `Greetable.greet(u)` disagree.
+ *
+ * The check rides on the parameter rather than the constraint. In the constraint the inferred
+ * `M & T` stops satisfying {@link CompanionFns}, and `equals` breaks with it.
+ */
+type Grown<Taken, M> = M & {
+  [K in keyof M]: K extends Taken ? "a trait already answers to this name" : unknown;
+};
+
+/**
+ * What `implTrait` accepts for `Tr`, or the sentence saying why this type cannot implement it.
+ *
+ * The checks ride on a parameter. In the return type they would fail only where the companion is
+ * assigned, which is a line away from the call and reads as something else.
+ *
+ * The shape is not among them: a Val that declares a trait it does not hold the fields for is
+ * rejected where it is declared, so it never reaches a companion. See {@link Val}.
+ *
+ * `Tr` infers only through a branch that names it structurally, which the type-argument form's
+ * mapped type does not. A call that form takes leaves `Tr` at its constraint, where `NamesOf<Tr>`
+ * is `string`: the first branch catches that before the rest read a name that is not there.
+ */
+type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
+  string extends NamesOf<Tr>
+    ? "pass the members this trait leaves open, or name the trait as the type argument"
+    : [NamesOf<Tr>] extends [TraitsOf<V>]
+      ? [keyof MembersOf<Tr> & keyof T] extends [never]
+        ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
+          ? Ok
+          : "a member cannot take the name of a field the payload holds"
+        : "another trait already answers to one of these names"
+      : "the type does not declare this trait";
+
+/** What the companion form takes once the trait itself has answered for every {@link Final}. */
+type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
+  ? TraitCompanion<Tr, G>
+  : "this trait's companion has not implemented every member declared Final";
+
+/** The second argument, absent where the trait answered for every member itself. */
+type Passes<Tr extends AnyTrait, G, V> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
+  ? [impl?: Implement<Tr, G, V>]
+  : [impl: Implement<Tr, G, V>];
+
+/** What the companion-less form takes: every member, and only where the trait declares no final. */
+type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
+  ? Implement<Tr, Record<never, never>, V>
+  : "this trait implements members of its own: pass its companion";
+
+/**
  * A constructor for `V`, which can grow functions without ceasing to be one.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
@@ -367,17 +486,30 @@ export type Sealed<V extends AnyVal, M extends CompanionFns<V>> = ((value: SeedO
  * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
  * nothing.
  */
-export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
+export type Sealer<V extends AnyVal, T extends CompanionFns<V> = Record<never, never>> = Sealed<
+  V,
+  T
+> & {
   /** Collects the functions for the type. */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
-    (): Sealed<V, Record<never, never>>;
-    <M extends CompanionFns<V>>(fns: M): Sealed<V, M>;
+    (): Sealed<V, T>;
+    <M extends CompanionFns<V>>(fns: Grown<keyof T, M>): Sealed<V, M & T>;
   };
   /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => Sealer<V>;
+  implEquals: (spec: EqImpl<V>) => Sealer<V, T>;
+  /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
+  implTrait: {
+    <Tr extends AnyTrait>(
+      impl: Takes<V, Tr, T, Alone<Tr, V>>,
+    ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
+    <Tr extends AnyTrait, G>(
+      trait: Takes<V, Tr, T, Complete<Tr, G>>,
+      ...impl: Passes<Tr, G, V>
+    ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
+  };
 };
 
 /**
@@ -389,27 +521,48 @@ export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
  * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Minting
  * belongs in `create`, whose payload is then sealed like any other.
  */
-export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P = never> = Companion<
-  V,
-  Record<never, never>,
-  N,
-  F,
-  P
-> & {
+export type CompanionBuilder<
+  V extends AnyVal,
+  N = undefined,
+  F = undefined,
+  P = never,
+  T extends CompanionFns<V> = Record<never, never>,
+> = Companion<V, T, N, F, P> & {
   /** Collects the functions for the type. Everything the library wires has its own step. */
   impl: {
-    (): Companion<V, Record<never, never>, N, F, P>;
-    <M extends CompanionFns<V>>(fns: M): Companion<V, M, N, F, P>;
+    (): Companion<V, T, N, F, P>;
+    // A trait's member is registered, so `.impl` may not grow one over it: the type would keep
+    // the trait's signature while `dyn` kept calling what `implTrait` recorded.
+    <M extends CompanionFns<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
+  };
+  /**
+   * Implements a trait the type declares. The members the trait leaves open arrive as a second
+   * argument, with their first parameter fixed to the Val as everywhere else; a trait that
+   * leaves none takes no second argument.
+   *
+   * A member the trait declared {@link Final} is not passed here: it arrives as it stands, and
+   * nothing can override it.
+   */
+  implTrait: {
+    // No companion to pass when the trait implements nothing of its own: the type argument is
+    // the whole of it, and the members arrive where the companion would have.
+    <Tr extends AnyTrait>(
+      impl: Takes<V, Tr, T, Alone<Tr, V>>,
+    ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
+    <Tr extends AnyTrait, G>(
+      trait: Takes<V, Tr, T, Complete<Tr, G>>,
+      ...impl: Passes<Tr, G, V>
+    ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
   };
   /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P>;
+  implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P, T>;
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
-  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P>;
+  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P, T>;
   /**
    * Replaces the seal. Its parameter may be wider than the payload, so a schema library can parse
    * into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
    */
-  implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P>;
+  implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P, T>;
   /**
    * Takes keys out of the update path: `patch` stops accepting them in its patch, and `update`'s
    * callback returns only what is left, with the rest merged back on.
@@ -427,8 +580,14 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
    * The keys are a type argument and do not exist at runtime. This constrains the update path,
    * not the value: `Val.of` can still forge one.
    */
-  fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K>;
+  fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K, T>;
 };
+
+/**
+ * The payload's own keys, which a trait member may not shadow: a box forwards everything but a
+ * member to the value, and a frozen field a member covered would break the proxy's invariant.
+ */
+type PayloadKeys<V extends AnyVal> = PayloadOf<V> extends object ? keyof PayloadOf<V> : never;
 
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);
@@ -686,6 +845,7 @@ const attach = (
   target: Record<string, unknown>,
   fns: Record<string, unknown>,
   ctors: Ctors,
+  traits: Record<string, unknown>,
 ): Record<string, unknown> => {
   const { create, seal: custom, equals } = ctors;
   const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
@@ -733,6 +893,10 @@ const attach = (
     return Object.is(next, value) ? keep(value) : seal(next);
   };
 
+  // A trait's members are the type's own functions, so they grow the same way. The record is
+  // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never reaches for `trait.ts`.
+  target.__valof_traits = traits;
+  for (const key of Object.keys(traits)) define(target, key, traits[key]);
   for (const key of Object.keys(fns)) define(target, key, fns[key]);
 
   return target;
@@ -744,7 +908,11 @@ const attach = (
  * A sealer's target is the default constructor itself, which is what lets its steps hand back
  * something still callable. `.impl` closes the chain either way.
  */
-const build = <V extends AnyVal>(ctors: Ctors, callable: boolean): object => {
+const build = <V extends AnyVal>(
+  ctors: Ctors,
+  callable: boolean,
+  traits: Record<string, unknown> = {},
+): object => {
   // A function is not a `Record`, so the cast is here rather than at every assignment in
   // `attach`.
   const base = () =>
@@ -752,11 +920,18 @@ const build = <V extends AnyVal>(ctors: Ctors, callable: boolean): object => {
       string,
       unknown
     >;
-  const target = attach(base(), {}, ctors);
-  const step = (next: Ctors): object => build<V>(next, callable);
+  const target = attach(base(), {}, ctors, traits);
+  const step = (next: Ctors): object => build<V>(next, callable, traits);
 
-  target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors);
+  target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits);
   target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
+  // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
+  // No companion where the trait implements nothing of its own: the members arrive in its place.
+  // The Val's own go on last, the type having kept every `Final` one out of them.
+  target.implTrait = (
+    trait: { __valof_shared?: Record<string, unknown> },
+    impl: Record<string, unknown> = {},
+  ) => build<V>(ctors, callable, { ...traits, ...(trait.__valof_shared ?? trait), ...impl });
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });

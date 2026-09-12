@@ -1,10 +1,10 @@
 import { expect, test } from "vite-plus/test";
 
-import { DuplicateBrand, fixtures } from "../../support.ts";
+import { BrandMismatch, DuplicateBrand, fixtures } from "../../support.ts";
 
 const { lint } = fixtures(import.meta.url);
 
-test("reports every alias that claims a brand another one claims", async () => {
+test("reports every alias when three claim the same brand", async () => {
   expect(await lint("duplicate")).toEqual([
     {
       rule: DuplicateBrand,
@@ -12,7 +12,24 @@ test("reports every alias that claims a brand another one claims", async () => {
     },
     {
       rule: DuplicateBrand,
+      at: "duplicate/inventory.ts:1:13",
+    },
+    {
+      rule: DuplicateBrand,
       at: "duplicate/orders.ts:1:13",
+    },
+  ]);
+});
+
+test("reports colliding aliases in the same file", async () => {
+  expect(await lint("same-file", { skip: [BrandMismatch] })).toEqual([
+    {
+      rule: DuplicateBrand,
+      at: "same-file.ts:1:13",
+    },
+    {
+      rule: DuplicateBrand,
+      at: "same-file.ts:2:13",
     },
   ]);
 });
@@ -27,4 +44,21 @@ test("ignores an alias that is not at the top level, which nothing can import", 
 
 test("ignores a generic brand, which names nothing to collide over", async () => {
   expect(await lint("generic")).toEqual([]);
+});
+
+test("reports duplicate Trait brands", async () => {
+  expect(await lint("trait", { skip: [BrandMismatch] })).toEqual([
+    {
+      rule: DuplicateBrand,
+      at: "trait/first.ts:3:13",
+    },
+    {
+      rule: DuplicateBrand,
+      at: "trait/second.ts:3:13",
+    },
+  ]);
+});
+
+test("keeps Val and Trait brand domains separate", async () => {
+  expect(await lint("separate-domains", { skip: [BrandMismatch] })).toEqual([]);
 });

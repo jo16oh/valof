@@ -1,6 +1,5 @@
 import type { Where } from "../ast.ts";
-import { original } from "../scan/index.ts";
-import type { CompanionSite, Scan } from "../scan/index.ts";
+import { symbolIdentity, type CompanionSite, type Scan } from "../scan/index.ts";
 import type { Rule } from "./rule.ts";
 
 /** A `Val.of<X>(…)` for a type that has a companion of its own. */
@@ -33,29 +32,27 @@ function instead(site: CompanionSite, type: string): string {
 /**
  * Reports every `Val.of<X>(…)` where a companion for `X` is in the scanned files.
  *
- * Resolution is by name, the way the unused-member rule resolves a read: the type argument is
- * taken as the declaring module names it, through a renamed import or a namespace. The
- * split-companion rule is what makes that enough, since it puts the alias and its companion in
- * one file.
+ * Resolution keeps the source module through a renamed import, namespace import or re-export.
+ * The display name stays separate from that identity.
  *
  * `Val.of` spelling no type argument is left to the unnamed-of rule. That form takes the type
  * from the target it is assigned to, and there is no name here to key it by.
  */
 function findings(scans: readonly Scan[]): BypassedCompanion[] {
+  const identity = symbolIdentity(scans);
   const companions = new Map<string, CompanionSite>();
   for (const { sites } of scans)
     for (const site of sites)
-      if (!companions.has(site.typeName)) companions.set(site.typeName, site);
+      if (!companions.has(identity(site.typeRef))) companions.set(identity(site.typeRef), site);
 
   const found: BypassedCompanion[] = [];
-  for (const { file, lifts, bound } of scans) {
-    for (const { typeName, qualifier, line, column } of lifts) {
+  for (const { file, lifts } of scans) {
+    for (const { typeName, typeRef, line, column } of lifts) {
       // A lift naming no type is the unnamed-of rule's finding. Which companion it goes around,
       // if any, is not written anywhere here.
       if (typeName === undefined) continue;
-      // A namespace-qualified name already arrives as the declaring module names it.
-      const declared = qualifier === undefined ? original(bound, typeName) : typeName;
-      const site = companions.get(declared);
+      if (!typeRef) continue;
+      const site = companions.get(identity(typeRef));
       if (!site) continue;
       found.push({
         kind: "bypassed-companion",
@@ -63,7 +60,7 @@ function findings(scans: readonly Scan[]): BypassedCompanion[] {
         line,
         column,
         typeName,
-        message: `Val.of<${typeName}> ${instead(site, declared)}`,
+        message: `Val.of<${typeName}> ${instead(site, site.typeRef.name)}`,
       });
     }
   }

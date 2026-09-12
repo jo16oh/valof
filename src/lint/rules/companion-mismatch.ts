@@ -39,8 +39,8 @@ export const CompanionMismatch: Rule<CompanionMismatch> = {
  */
 function findings(scans: readonly Scan[]): CompanionMismatch[] {
   const found: CompanionMismatch[] = [];
-  for (const { file, sites } of scans) {
-    for (const { name, nameAt, typeName } of sites) {
+  for (const { file, sites, traitSites } of scans) {
+    for (const { name, nameAt, typeName } of [...sites, ...traitSites]) {
       if (name === undefined || name === typeName) continue;
       found.push({
         kind: "companion-mismatch",

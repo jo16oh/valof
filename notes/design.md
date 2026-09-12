@@ -29,10 +29,16 @@ import { Val } from "valof";
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
+- **§11 型エラーをどこで表面化させるか** パラメータ位置（A）とブランド位置（B）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）
-- **§15 v2 候補** `Val.trait`
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
+- **§15 v2 候補**
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと宣言で落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き
+  - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
+  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
+- **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
 
 ---
 
@@ -1173,6 +1179,10 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 `equals` / `patch` / `update` も同じ理由で `never` にした。事故の形は違って、こちらは**生えはするが配線が外れる**（`equals` の第 3 引数が来ない、`patch` の戻りが seal を通らない）。専用の段に出した経緯は §7.7。
 
+**`__valof_` で始まるキーも `never`。**5 つの名前に加えて ``[key: `__valof_${string}`]: never`` を書く。`attach` は `target.__valof_traits = traits` を登録より先に置くので、`.impl({ __valof_traits: fn })` が記録を踏み潰し、箱のメンバが 1 つも束縛されなくなる（実測: `Greetable.dyn(...).greet is not a function`）。`Trait` 側の `Declarable` も同じ接頭辞で弾くので、内部キーを増やしても検査は増えない。
+
+**`impl` 接頭辞もライブラリのもの。**`.impl({ implTrait: fn })` は何も踏み潰さない。`.impl(fns)` は `base()` から新しいオブジェクトを作って返し、段のメソッドはそこに代入されないため。型も `Sealed` / `Companion` で段を持たない。鎖が終わっているので衝突する相手がいない。それでも弾く: `User.implTrait(u)` は段に読める。接頭辞ごと予約すれば段を足しても利用者の名前と衝突しない。`fixed` は弾かない。`Money.fixed(m)` のような正当なメンバ名で、しかも衝突する相手がいない。
+
 #### sealer に `implSeal` は生やさない
 
 **sealer は既定の seal そのもの**であり、その隣に検査つきの seal を並べれば、最初の seal が「迂回する穴」になる（§6.1）。`implSeal` は companion 専用。
@@ -1752,7 +1762,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
 - [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
-      独立した規則 `aliased-val`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
+      独立した規則 `unnecessary-alias`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
@@ -1762,7 +1772,40 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`、`rules/equals/index.ts` の「最初が勝つ」
 - [ ] fixture を型検査するか（§14.10）。`rules/structural-equals/` サブツリーだけ `tsconfig.json` を置く案が有力。TS1361 を直したので 0 error。他は除外のまま
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
+- [x] ~~valof-lint が `Trait` を知らない。~~ Trait の宣言、companion、`implTrait`、`dyn` を構文から追跡する。
+      足すのは 2 種類
+  - [x] 既存規則を trait の構文に広げる。判断は同じで、認識する形が増えるだけ。`brand-mismatch`
+        （`Trait<"Greetble", …>`）、`duplicate-brand`、`companion-mismatch`、`split-companion`、
+        `unnecessary-alias`、`unused-member`（final は `Greetable.shout` と `User.shout` の 2 経路で
+        読まれうるので、どちらでも使用と数える）
+  - [x] 新規 1 本: trait を名乗る Val に `implTrait` を呼ぶ companion がない（§15.1）。payload が shape を
+        満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
+  - `unnamed-of` / `bypassed-companion` は広げない。trait があっても構築の話は変わらない
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
+- [ ] **§15.3 `path` の実測。**書き始める前に、`glue` の union ハンドラの推論が通るか。宣言の予算は
+      64 kB に上げたので測る対象から外れた（§16）
+- [ ] **§15.2 `Enum`: valof-lint に `tag-mismatch` を足す。**型引数のタグ名と `Enum.companion` の引数が
+      割れる。§14.12 の `brand-mismatch` の隣で判断も実装もほぼ同じ。payload のキーとの衝突検査も要る
+- [ ] **`hash` を出すか。保留、2026-09-10。**実例が出るまで動かさない。見るのは 1 つだけで、**大きい値を
+      大量に集合へ入れる実例があるか**。無ければ §8.1 の正規キーで終わり
+  - **正規キーが競合。**Val は JSON serializable なので、正規文字列キーで `Set<string>` が値ベースの集合に
+    なる。衝突せず、API も足さない。走査は hash と同じ O(n)。hash が勝つのは大きい値のときだけ
+  - **予算に入らない。**デフォルト `equals` の早期棄却に使うと `Val` だけの人も払う。余裕は 133 B
+    (1.12 / 1.25 kB) で、hash 実装は 200〜400 B。単独 export なら落ちる（§15.1 の `dyn` と同じ）が、
+    それだとデフォルト equals からは使えない
+  - **hash だけで equals を決めてはいけない。**32 bit は偽陽性が出る。早期棄却にとどめ、通ったら構造比較で
+    確認する。Effect もその形
+  - **カスタム equals との契約が唯一の設計判断。**`implHash` は却下（書かない人のほうが多い）。取るのは
+    **equals の等価性と hash の等価性を別物として扱う**形。§5「親から子のカスタム equals は呼べない」と
+    同じ線をもう 1 本引く。`hash` はデフォルト `equals` の内部機構と構造 Set / Map の鍵に限り、
+    **`implEquals` の中では使用禁止**。`hash(a) === hash(b)` を等価性に使うと偽陽性がそのまま漏れる
+  - **禁止は型では書けない。**自由関数の呼び出し位置は TS で縛れず、戻り値をブランドしても `===` は通る。
+    valof-lint の規則にする。`chains.ts` は既に `.implEquals(...)` の位置を見ている
+  - **64 / 128 bit は組み込みで作れない。**`crypto.subtle.digest` は Promise、`crypto.hash` は Node 専用、
+    `BigInt` はヒープ確保。`Math.imul` の 32 bit レーンを並べるしかなく、バイト数と速度がレーン数に比例する。
+    しかも 128 bit を 16 進で書くと 32 文字で、小さい値の正規キーより長い。**中間に居場所が無い**
+  - 配列は順序に依存させる。Effect の `structure` は XOR で畳むので順列が同じ hash になる（本人たちも
+    gotcha と書いている）。§5 が順序非依存を求めるのはオブジェクトのキーだけ
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
 
 ---
@@ -1813,9 +1856,74 @@ fixture は `scripts/ts-compatibility/public-api.ts` の 1 本。`valof` を隣�
 
 ---
 
-## 11. 欠番
+## 11. 型エラーをどこで表面化させるか
 
-README の構成案があったが、README を書いたので落とした。README 自身が記録である。番号は §12 以降の参照を動かさないために空けてある。
+規則を検出することと、それをコンパイラに失敗として受け取らせることは別である。印を計算して型に置いただけでは検査にならない。置き場所は次の 2 つしかない。
+
+### 11.1 A: パラメータ位置
+
+検査結果をそのまま引数の型にする。
+
+```
+Argument of type '{ tag: (x) => string; }' is not assignable to
+  parameter of type '"another trait already answers to one of these names"'.
+```
+
+文がそのまま出るので読める。入口ごとに書く必要があり、書き忘れる。
+
+戻り型に置くのは A ではない。失敗するのはコンパニオンを代入した行で、呼び出しから離れており、別の話に見える（`Takes` の JSDoc）。
+
+### 11.2 B: ブランド位置
+
+印をファントムキーに入れ、別の場所の制約に読ませる。`V extends AnyVal` と `Tr extends AnyTrait` がその制約である。
+
+```
+Type 'Wiring' does not satisfy the constraint 'AnyTrait'.
+  Types of property '__valof_internal_phantom_trait_brands' are incompatible.
+    Type 'Invalid<"a trait member cannot take a name the library wires">' is not
+    assignable to type 'Readonly<Record<string, AnyMember>>'.
+```
+
+入口が全部同じ制約を通るので一箇所で済む。メッセージは構造の入れ子になる。利用者向けの規則はそれほど複雑ではないので、`Invalid<>` に包まれていれば足りる。
+
+### 11.3 基準
+
+**その検査が何を読むかで決まる。**
+
+型引数だけを読むなら B。ブランドに載せれば、`Val`、`Dyn`、コンパニオン、`implTrait` の両形式が一度に塞がる。
+
+- ペイロードの許可型（`Phantom`）
+- trait の shape の許可型、および shape とペイロードの整合（`Fits`）
+- メンバー名と `Self` 返却（`Declarable`）
+
+呼び出し側が積み上げた状態を読むなら A。型引数に現れないので、ブランドに書きようがない。
+
+|                              | 読むもの                                    |
+| ---------------------------- | ------------------------------------------- |
+| `Grown` / `Takes` の名前衝突 | `T`、それまで `.impl` が生やしたもの        |
+| `Complete` / `Shared`        | `G`、渡されたコンパニオンから推論されるもの |
+| `Implement`                  | 渡されたオブジェクト                        |
+| `CheckedSeal`                | 渡された関数の引数型                        |
+| `CompanionFns` の予約名      | 渡されたオブジェクト                        |
+
+B に統一はできない。境界はここにある。
+
+### 11.4 第三の位置は検査にならない
+
+同じ形のバグを 3 件出した。どれも印を「誰も読まない場所」に置いていた。
+
+- `TraitBrand` が `Invalid` を `__valof_internal_phantom_trait_brands` に入れていた。`AnyVal` が見るのは `__valof_internal_phantom_brand` だけで、shape の合わない Val がコンストラクタを通った。
+- `Declarable` を `Trait.companion` の戻り型からしか参照していなかった。コンパニオンなしの `implTrait` はそこを通らないので、`equals` や `patch` を名乗るメンバーが Val に載った。実行時に `N.equals(a, b)` がトレイト側の実装を呼び、引数を 1 つしか取らない。
+- `Trait` の `Checked<Shape>` が交差型の shape 側に印を残していた。どの制約もそこを読まない。
+
+いずれも A でも B でもない場所だった。**新しい検査を書いたら、それが A と B のどちらかにあることを確かめる。** どちらでもなければ、その検査は存在しない。
+
+確かめ方は変異である。検査を外して `@ts-expect-error` が未使用になるか見る。赤くならなければ、そのテストは何も見ていない。
+
+### 11.5 落とした案
+
+- **戻り型に置く**（§11.1）。`Takes` で一度検討して却下した。
+- **A と B を両方書く**。`Declarable` を B に移したあと、`Alone` に残した A 側のゲートを外した。同じ検査が 2 箇所にあると、B 側を直したときに A 側が到達不能な防御として残る。実際 `Takes` の `V extends ShapeOf<Tr>` が `Fits` の追加で到達不能になり、落とした。
 
 ---
 
@@ -1996,7 +2104,7 @@ companion のメンバは `Companion.member` の形でしか到達されない�
 
 ### 14.3 valof に同梱する
 
-2026-09-04 にテスト用パッケージを pack してインストールし検証した。`bin` エントリと、_optional_ な `peerDependencies` としての `oxc-parser` は、欲しくない利用者に何のコストも課さない。利用者側の `node_modules` を実測すると、valof だけなら 36 KB（パーサは引かれず、インストール警告も出ず、bin はインストールを促して exit 2）、opt-in すると 7.3 MB。`dependencies` は空のままなので、実行時依存ゼロと 1 kB 前後という主張は保たれる。`scripts/size.ts` がバンドルするのは `./dist/index.mjs` だけで、隣にある `dist/lint-cli.mjs` はそこから到達できない。
+2026-09-04 にテスト用パッケージを pack してインストールし検証した。`bin` エントリと、_optional_ な `peerDependencies` としての `oxc-parser` は、欲しくない利用者に何のコストも課さない。利用者側の `node_modules` を実測すると、valof だけなら 36 KB（パーサは引かれず、インストール警告も出ず、bin はインストールを促して exit 2）、opt-in すると 7.3 MB。`dependencies` は空のままなので、実行時依存ゼロと 1 kB 前後という主張は保たれる。`scripts/bundle-size.ts` がバンドルするのは `./dist/index.mjs` だけで、隣にある `dist/lint-cli.mjs` はそこから到達できない。
 
 他の 2 案より優れている。README のレシピにはテストもバージョンもなく、別パッケージはリリース面が増える。valof 内の bin なら既存のリリースワークフローに乗り、ここでテストできる。
 
@@ -2026,7 +2134,7 @@ BUILTIN = ["equals", "with", "update", "seal", "create"]
 #### 代償
 
 - **tarball 32 KB → 39 KB。** `valof/lint` を出したとき増えた分で、ほぼ `dist/lint/index.d.mts`（14.9 kB）である。`Finding` が `RULES` から導かれるので、宣言は規則の型グラフを丸ごと連れてくる
-- **配布物の 58% がリンタ。** README の「1 kB gzipped」は**バンドルサイズ**であって、`scripts/size.ts` が測るのは `dist/index.mjs` だけなので主張は保たれる。だがダウンロードサイズは別物で、`npm i valof` した `node_modules` には 36 kB のリンタが入る
+- **配布物の 58% がリンタ。** README の「1 kB gzipped」は**バンドルサイズ**であって、`scripts/bundle-size.ts` が測るのは `dist/index.mjs` だけなので主張は保たれる。だがダウンロードサイズは別物で、`npm i valof` した `node_modules` には 36 kB のリンタが入る
 - **リリース粒度が結合する。** リンタだけの修正でライブラリのバージョンが上がる。今はどちらも動いているので表面化していない
 
 #### 分ける条件
@@ -2787,19 +2895,20 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 
 `configs.recommended` は全部 error だった。**「Valof を壊すか」で分ける。**
 
-| 規則                 |       | 理由                                                                                      |
-| -------------------- | ----- | ----------------------------------------------------------------------------------------- |
-| `structural-equals`  | error | equals が実行時に間違った答えを返す                                                       |
-| `duplicate-brand`    | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
-| `brand-mismatch`     | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
-| `aliased-val`        | error | §14.25。同じく「1 つの Val に名前が 2 つ」                                                |
-| `companion-mismatch` | error | §14.21。同じく「一致すべき 2 つの食い違い」                                               |
-| `split-companion`    | error | §14.22。型名で export できる形にならない                                                  |
-| `bypassed-companion` | warn  | §14.23。出来上がる値は正しい。迂回したのは型の入口                                        |
-| `unnamed-of`         | warn  | §14.24。持ち上げ自体は正しい。失うのは grep できる名前                                    |
-| `incomplete-disable` | error | 下記                                                                                      |
-| `unused-member`      | warn  | 死んだコード。周りは動く                                                                  |
-| `unused-disable`     | warn  | 何も黙らせていない指示。コードは変わらない                                                |
+| 規則                  |       | 理由                                                                                      |
+| --------------------- | ----- | ----------------------------------------------------------------------------------------- |
+| `structural-equals`   | error | equals が実行時に間違った答えを返す                                                       |
+| `duplicate-brand`     | error | 2 つの型が同じブランドを持ち、型システムが区別をやめる                                    |
+| `brand-mismatch`      | error | §14.12。スタイル規則ではなく「一致すべき 2 つの食い違い」で、コンパイラは永久に気づかない |
+| `unnecessary-alias`   | error | §14.25。同じく「1 つの Val または Trait に名前が 2 つ」                                   |
+| `unimplemented-trait` | error | Trait を宣言した Val が同じ companion chain で実装していること                            |
+| `companion-mismatch`  | error | §14.21。同じく「一致すべき 2 つの食い違い」                                               |
+| `split-companion`     | error | §14.22。型名で export できる形にならない                                                  |
+| `bypassed-companion`  | warn  | §14.23。出来上がる値は正しい。迂回したのは型の入口                                        |
+| `unnamed-of`          | warn  | §14.24。持ち上げ自体は正しい。失うのは grep できる名前                                    |
+| `incomplete-disable`  | error | 下記                                                                                      |
+| `unused-member`       | warn  | 死んだコード。周りは動く                                                                  |
+| `unused-disable`      | warn  | 何も黙らせていない指示。コードは変わらない                                                |
 
 重大度は `Rule.warns` として規則の隣に置いた。規則を足す人が決めずに済ませられない。CLI は読まない（finding は 1 種類しかなく、1 件でも exit 1）。
 
@@ -3066,7 +3175,7 @@ tests/lint/
 
 **自己 lint は消した。** 引数なしの `cli()` が `src/**/*.ts` を lint し、`command/` に「finding は 0 件」という 1 本があった。まず `command/`（被写体は出力の形）から出して `self.test.ts` にしたが、そもそも赤になる道がない。`src/` の `Val.sealer` / `Val.companion` は全部コメントと文字列で、実際の使用は 0 件。`src/val.ts` は `Val` を実装している側なので自分を呼ばない。**このリポジトリで valof をドメインロジックに使う日が来るまで、この主張は空。** 手で使用を足せば赤くなるが、それは変異ではなく別のリポジトリを作る作業。
 
-`src/` で valof を使い始めたら戻す先は `tests/lint/self.test.ts`。`vite.config.ts` のタスクにする案は却下、`vp run size` と同じで回し忘れる。
+`src/` で valof を使い始めたら戻す先は `tests/lint/self.test.ts`。`vite.config.ts` のタスクにする案は却下、`vp run bundle-size` と同じで回し忘れる。
 
 **ルール一覧を名乗るのは `--help` だけ。** `skip/` の `--no-typo` のエラーは `kinds` をレジストリから読んで組む。以前は 3 つのリテラルで、`--help` と 2 箇所が同じ列挙を持っていた。§14.12 の `brand-mismatch` を足したとき赤くなるのは 1 箇所。メッセージの形（前置き、字下げ、`, ` 区切り）は変異で赤を確認済み。
 
@@ -3089,13 +3198,13 @@ finding の期待値は 1 本の文字列だった。`"mismatched.ts:3:13  brand
 
 残したのは**位置が言えないことを言っているメッセージだけ**（7 ファイル）。
 
-| 規則                                    | 位置に出ないもの                                   |
-| --------------------------------------- | -------------------------------------------------- |
-| `structural-equals`                     | パス（`Order.total`、`lines[]`）。位置は companion |
-| `bypassed-companion`                    | 3 分岐（コンストラクタ / `.seal` / 直し方なし）    |
-| `brand-mismatch`                        | 主張すべきブランド                                 |
-| `aliased-val` / `companion-mismatch`    | 辿り着いた先の名前                                 |
-| `unused-disable` / `incomplete-disable` | 指示が名指しした規則、書くべき綴り                 |
+| 規則                                       | 位置に出ないもの                                   |
+| ------------------------------------------ | -------------------------------------------------- |
+| `structural-equals`                        | パス（`Order.total`、`lines[]`）。位置は companion |
+| `bypassed-companion`                       | 3 分岐（コンストラクタ / `.seal` / 直し方なし）    |
+| `brand-mismatch`                           | 主張すべきブランド                                 |
+| `unnecessary-alias` / `companion-mismatch` | 辿り着いた先の名前                                 |
+| `unused-disable` / `incomplete-disable`    | 指示が名指しした規則、書くべき綴り                 |
 
 外したのは 50 件。`unused-member` の `User.shout` も `split-companion` の型名も、位置がそのまま指している。
 
@@ -3196,7 +3305,7 @@ BillingId claims the brand "billing/Id", which should be "billing/BillingId"
 #### 実装
 
 `BrandClaim` が既に `alias` / `brand` / 位置を持つ。`Rule` オブジェクト 1 つと `RULES` への 1 行だけで、
-`Scan` に足すものも resolver も要らない（§14.8）。バンドル予算は無関係。`scripts/size.ts` が測るのは
+`Scan` に足すものも resolver も要らない（§14.8）。バンドル予算は無関係。`scripts/bundle-size.ts` が測るのは
 `dist/index.mjs` だけで lint は入らない。
 
 **2026-09-08 実装。`rules/brands.ts` を `duplicate.ts` と `mismatch.ts` に割った。**1 ファイルに 2 つ置くと
@@ -3719,9 +3828,9 @@ const c = Val.of({ id: "x" }); // TS2345 parameter of type 'never'
 `Val.of` の節に「境界ではこう黙らせる」というコードを一度置いたが、消した。**逃げ道であって推奨では
 ない。**作例にすると推奨に読める。disable コメントの書き方は valof-lint の節にあり、そこで足りる。
 
-### 14.25 規則: Val の 2 つ目の名前、2026-09-09
+### 14.25 規則: Val / Trait の 2 つ目の名前、2026-09-09
 
-**入れる。** `aliased-val`。トップレベルの `type A = B` で、`B` が裸の参照で、辿った先が Val なら報告する。
+**入れる。** `unnecessary-alias`。トップレベルの `type A = B` で、`B` が裸の参照で、辿った先が Val または Trait なら報告する。
 既定で on、error。
 
 ```ts
@@ -3758,21 +3867,997 @@ type Wrap<T> = T; // 見ない
 
 `type Local = ImportedUser` の隣に companion を書く形は、型がローカル宣言なので §14.22 からは見えなかった。
 この規則が 2 つ目の名前のほうを報告するので、経路としては塞がった。fixture `companion/` がその形で、
-出る finding は `aliased-val` 1 件である。
+出る finding は `unnecessary-alias` 1 件である。
 
-### 15.1 `Val.trait`
+### 15.1 `Trait`
 
-2026-09-03 に提起。v1 ではなく v2 向け。
+2026-09-03 に提起、2026-09-09 に形が決まった。v1 ではなく v2 向け。
 
-**欠けているもの。** companion の関数は自分の Val に固定されるので、`SuperUser` が `PayloadOf<User>` から作られていても `User.greet(superUser)` は弾かれる。2 つの Val が共有する振る舞いは、構造的な型に対する普通の export 関数にするしかない。それで動くが、valof の中で companion の形の居場所を持たない唯一のものになる。
+**公開は experimental subpath に限る。**Trait とその関連型は root export には加えず、
+`valof/experimental` からだけ export する。利用側は
+`import { Trait, type Dyn, type Final, type Self } from "valof/experimental"` と書く。
+これは 0.x で minor release に破壊的変更がありうるという versioning 方針とは別に、安定 API と
+Trait を import 時点で区別するための境界である。各 public export には `@experimental` も付け、IDE と
+生成ドキュメントに provisional であることを伝える。ただしこの tag は TypeScript の利用を禁止しない。
 
-実測: 第 1 引数を広く注釈すると `.impl` の中でも型チェックは_通る_（`greet(u: Named)` はパラメータの反変性により `(value: User) => unknown` に代入できる）。`User.greet(superUser)` もコンパイルできる。ただしパターンとしては却下した。ある型の companion を通して別の型を操作することになり、文脈型付けも失われる。
+**欠けているもの。** 複数の Val が共有する関連関数・フィールドを宣言する手段がない。companion の関数は
+自分の Val に固定されるので、`SuperUser` が `PayloadOf<User>` から作られていても `User.greet(superUser)`
+は弾かれる。共有したければ構造的な型に対する普通の export 関数にするしかなく、valof の中で companion の
+形の居場所を持たない唯一のものになる。TS の構造的部分型に暗黙に従うだけで、何を共有しているかがどこにも
+書かれない。
 
-**スケッチ。** `Val.trait<Shape>().impl({...})`。第 1 引数に文脈型付けを与え、関数をまとめる名前空間になる。
+実測: 第 1 引数を広く注釈すると `.impl` の中でも型チェックは_通る_（`greet(u: Named)` はパラメータの
+反変性により `(value: User) => unknown` に代入できる）。`User.greet(superUser)` もコンパイルできる。
+ただしパターンとしては却下した。ある型の companion を通して別の型を操作することになり、文脈型付けも失われる。
 
-作る前に決めること:
+#### 形
 
-- `equals` / `patch` / `update` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない。既定を足さない `attach` の変種が要る
-- Shape には `DeepReadonly` を適用する必要がある。さもないと配列フィールドを持つ Val が一致しなくなる
-- 「trait」は型ごとの実装を含意するが、これは構造的制約に対する単一の実装になる。名前がディスパッチを約束してしまう可能性がある
-- 本当の基準は §6.7 のもの。`Sealer` に `.implCreate` がないのは、callable なコンストラクタの隣では `create` が「何も絞らない」から。`Val.trait` も同じ試験を通らなければならず、引数の注釈とグルーピングだけでは API に値する保証にならないかもしれない
+```ts
+type Greetable = Trait<
+  "Greetable",
+  { name: string },
+  { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
+>;
+
+// 既定実装。書いたメンバは implTrait で省ける
+const Greetable = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
+
+type User = Val<"User", { id: string; name: string }, Greetable>;
+
+const User = Val.companion<User>().implTrait(Greetable, {
+  toWire: (u, sep) => `${u.id}${sep}${u.name}`, // 既定がないので必須
+});
+
+const Admin = Val.companion<Admin>().implTrait(Greetable, {
+  toWire: (a, sep) => `admin${sep}${a.name}`,
+  greet: (a) => `Sir ${a.name}`, // 上書き
+});
+```
+
+**メンバは 1 種類。**trait の `.impl` は既定実装を配り、`implTrait` が任意の部分集合を上書きする。
+既定を持つメンバは `implTrait` で省ける。全部が companion に登録されるので、`User.greet(u)` も箱の
+`p.greet()` も常にその Val の実装を呼ぶ。`Final` を付けたメンバだけがこの上書きの外にある。
+
+**`Greetable.greet` は存在しない。**上書きされうる関数は trait の名前空間に出ない。出るのは `Final` の
+メンバだけで、そちらは上書きできない。
+
+#### 却下: `Trait` 自体を callable にする
+
+メソッドが `companion` 1 つなので `Trait<Greetable>()` と書ける、という案。
+
+**`Trait` は既に型名で、型引数の数が違う。**同じ綴りが位置によって別の引数リストを取ることになる。
+
+```ts
+type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>; // 3 つ
+const Greetable = Trait<Greetable>(); // 1 つ
+```
+
+`Val` が callable でないのはここを避けているからで、`Val<K, T>` と `Val.of<V>` は綴りが分かれている。
+`Val.companion<V>()` との対称も失う。2 つ目の入り口が要るときの置き場所もなくなる。
+
+trait と companion の対は意味的にも筋が通っていて、Rust の `impl Trait for T` と読み手の対応が取れる。
+
+#### `Final`: 上書きできないメンバ
+
+```ts
+type Greetable = Trait<
+  "Greetable",
+  { name: string },
+  {
+    greet: (self: Self) => string;
+    shout: Final<(self: Self) => string>; // trait が実装し、どの Val も上書きできない
+  }
+>;
+
+const Greetable = Trait.companion<Greetable>().impl({
+  greet: (g) => `Hi, ${g.name}`, // 既定。implTrait で上書きできる
+  shout: (g) => g.name.toUpperCase(), // Final。できない
+});
+
+Greetable.shout(user); // 名前空間に出るのは final だけ。Val も箱も渡せる
+User.shout(user); // メンバなので companion にも出る
+Greetable.dyn(User, user).shout(); // 箱も同じ
+```
+
+**`Final<F>` は宣言側のマーカー。**`F & { [FinalMark]: true }` の phantom で、実行時には消える。
+どちら側が実装し、Val が上書きできるかが宣言から決まる。実装を渡す段は 1 つで足りる。
+
+**文字列のユニオンにはしない。**`Trait<K, Shape, M, "shout">` でも同じ情報は運べるが、宣言の見た目から
+どのメンバが final か読めず、型シグネチャを追う羽目になる。マーカーはメンバの隣に出る。
+
+##### 却下: `implDefault` / `implFinal` の 2 段
+
+マーカーが消える以上、実行時は `impl({ greet, shout })` を分割できない。分割が要る場所が 2 つあったので、
+はじめは段を 2 つに分け、「どちらを呼んだか」から分割を得ていた。どちらも型で足りる。
+
+**名前空間に出すのは final だけ**という規則は型だけで守れる。`TraitCompanion` を `Pick<G, FinalsOf<Tr>>`
+にすれば、既定は実行時のオブジェクトに残っても型から到達できない。実行時に絞るほうがむしろ高い（絞る
+コードが要る）。§15 の却下案が禁じたのは**型の付いた** `Greetable.greet(u)` で、それは出ない。
+
+**`implTrait` の重ね順**も型で足りるが、そのためには穴を 1 つ埋める必要があった。`Implement` が final を
+`Omit` するだけでは、弾いているのは**オブジェクトリテラルの余剰プロパティ検査だけ**で、変数を渡すと
+素通りする。
+
+```ts
+const carried = { toWire, shout }; // 変数なので余剰プロパティ検査が働かない
+User.implTrait(Greetable, carried); // 通っていた
+```
+
+`Partial<Record<FinalsOf<Tr>, never>>` を足すと構造的に弾ける（§6.10 が `seal?: never` を選んだのと同じ形。
+メッセージ文字列は optional 修飾子のせいで `undefined` と言われるので `never`）。埋めたので、実行時は
+`{ ...traits, ...shared, ...impl }` の素直な merge でよい。
+
+段が 1 つになって、実行時は `Trait` 込みで 11 B 縮んだ（改名前より小さい）。宣言も 630 B 減った。
+実装側に `Trait.final(fn)` を書かせる案は、宣言のマーカーと二重になるうえ包むぶんだけ高い。
+
+**`impl` は何度でも呼べて、どこで終わってもよい。**builder が companion を兼ねているため。同じメンバを
+2 度実装するのは弾く。
+
+**final も他のメンバと同じ経路で届く。**`implTrait` が trait のレコードを `__valof_traits` にコピーする
+ので、`User.shout(u)` も箱の `p.shout()` も生える。上書きの禁止だけが `Final` の目的で、
+経路を減らすのはその目的に入っていない。名前の検査（フィールド名、配線名、payload のキー、他の trait）も
+メンバの検査がそのまま効く。
+
+##### 却下: final を `M` の外に置く
+
+`impl` に渡した関数から推論するだけにして、trait の型には書かせない案。第 1 引数の注釈が要らないのは
+`M` に宣言しても同じ（メンバがまさにそれ）なので、省けるのは宣言の 1 行だけ。払うものが釣り合わない。
+
+**`Dyn<Tr>` に乗らなくなる。**`Dyn` は trait の**型**だけから作られる。型に無い関数は箱に生えない。
+`dyn` の戻りだけを `Dyn<Tr> & …` に広げても、`Dyn<Greetable>[]` に入れた時点で型から消えて実行時にだけ
+残る。それは箱の動機そのものを壊す。
+
+**companion なしで実装できなくなる。**下の `implTrait<Tr>({…})` は「trait が自分では何も実装しない」を
+型から読めることに乗っている。`M` の外にあると読めない。
+
+**呼び出し経路が食い違う。**Val からは `User.shout(u)`、箱からは `Greetable.shout(box)`。final だろうが
+既定だろうが trait の関数なのだから、同じように呼べるのが自然である。動的ディスパッチが要らないことは、
+経路を削る理由にならない。
+
+**型の仕掛けも増える。**`M` の外にあると `implTrait` の戻りに `& S` を足す必要があり、final 用の検査
+（配線名、trait 自身のキー）を自前で持ち直すことになる。`M` に入れれば `Unbound<MembersOf<Tr>, V>` と
+`Declarable` がそのまま効く。**段も 2 つ必要になる**（上の却下を参照）。
+
+名前の候補は `final` / `derived` / `static` だった。`derived` は `patch` / `update` の「派生」と語彙が
+ぶつかる。`static` が軸としては一番正確（メンバが動的ディスパッチ、こちらが静的）だが、class の語彙を
+持ち込む。`seal` との混同は薄い。`seal` は値に対する操作で、`final` は関数の性質を言う。継承がないので
+Kotlin の `sealed` / `final` の対立もここには持ち込まれない。
+
+名前は宣言側のマーカーに移した。`.impl` は Val 側と同じ綴りで同じ意味（実装を渡す）になり、trait 側だけ
+別の綴りを覚える必要がなくなった。
+
+`R` 型引数を落とせた。`Sealer<V, T, R>` / `CompanionBuilder<…, T, R>` の `R` は final の名前を `.impl` から
+予約するためだけにあった。final が `T` に入るので `keyof T` で足りる。
+
+買えるものは 2 つ。**第 1 引数の文脈型付け**（§6.5 と同じ理由。ただの関数だと `(g: Greetable)` と書く）と、
+**名前空間としてのまとまり**。実行時はむしろ 11 B 減った（1 段になったぶんが、マーカーと `__valof_shared`
+の追加を上回る）。`Val` だけを import する人が払うのは 3 B で、`implTrait` が `__valof_shared` を読む
+ぶんだけ。
+
+#### companion を要らなくする: `implTrait<Tr>({…})`
+
+```ts
+type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
+// const Wired は要らない
+
+const Row = Val.companion<Row>().implTrait<Wired>({ toWire: (r, sep) => `${r.id}${sep}${r.n}` });
+```
+
+**自分では何も実装しない trait に、実行時の値は要らない。**`implTrait` が companion から取るのは
+`defaults` と `finals` の 2 つだけで、どちらも空なら取るものがない。型引数だけで済む。契約だけの trait が
+型だけの存在になり、`Trait` の import も消える。
+
+**`Final` を持つ trait では弾く。**弾かないと穴になる。`D` も `S` も空になるので、型は final の実装まで
+**要求し**、書けば `User.shout` はその関数になって `Greetable.shout` と食い違う。マーカーがあるおかげで
+`[FinalsOf<Tr>] extends [never]` で判定でき、「pass its companion」と言える。既定しか持たない trait は
+通してよい。全メンバを自分で書くので、実行時に欠けるものがない（既定を使わないだけ）。
+
+**検査は全部そのまま乗る。**宣言・shape・名前の衝突は `Takes<V, Tr, T, Ok>` に括り出して、両方の形と
+両方の入口で共有する。companion 形では第 1 引数に、型引数形では唯一の引数に乗る。**メッセージが出る位置で
+引数の contextual type が消える**ので、落ちる形のテストは実装に注釈が要る。
+
+**実行時は `?? trait` だけ。**`{ ...traits, ...(trait.__valof_shared ?? trait), ...impl }`。companion が
+なければ、companion の位置に来たオブジェクトがそのまま重なる。
+
+##### `Tr` が推論できない呼び出し、2026-09-10
+
+引数 1 個の呼び出しが 2 通り間違えられて、どちらも**「the type does not declare this trait」**と答えて
+いた。宣言してある trait について「宣言していない」と言う。
+
+```ts
+Val.companion<Member>().implTrait(Greetable); // メンバを渡し忘れた
+Val.companion<Row>().implTrait({ toWire }); // 型引数を書き忘れた
+```
+
+`Tr` は条件型越しに推論される。効くのは**分岐が `Tr` を構造として名指すとき**だけで、companion 形の
+`TraitCompanion<Tr, G>` は名指すが、型引数形の `Implement<Tr, …>` は `MembersOf<Tr>` 上の mapped type
+なので何も推論できない。上の 2 つはどちらも型引数形（引数 1 個のオーバーロード）に落ち、`Tr` が制約の
+`AnyTrait` のままになる。`NamesOf<AnyTrait>` は `string` なので、`[string] extends [TraitsOf<V>]` が
+落ちて宣言の検査の文が出ていた。
+
+`Takes` の先頭に `string extends NamesOf<Tr>` を置いて、`Tr` が推論できなかったことを先に捕まえる。
+文は 2 つの間違いを両方名指す:「pass the members this trait leaves open, or name the trait as the type
+argument」。オーバーロードの形は変えていない。引数 1 個では companion 形が arity で外れるので、選ばれる
+オーバーロードは動かせない。
+
+**テストはメッセージを固定する。**`@ts-expect-error` だけでは足りない。直す前も**エラーは出ていた**（文が
+違っただけ）ので、directive は緑のままになる。メッセージはパラメータの型そのものなので、その文字列を
+渡す行を書けば固定できる。
+
+```ts
+const unnamed = "pass the members this trait leaves open, or name the trait as the type argument";
+Val.companion<Member>().implTrait(unnamed); // 文が変われば、ここが落ちる
+```
+
+宣言は 31.0 → 31.4 kB、trait の instantiations は 12,449 → 12,514。この時点の予算は 32 kB で残り 2%
+だった。ここでコメントを 2 度削っている。予算のほうを直した記録が §16。
+
+**払うもの。**オーバーロードが 2 つの入口それぞれで倍になる。宣言は改名前から 2.1 kB 増えて 29.6 kB
+（予算 32 kB に対して残り 8%）、trait の instantiations は 9,632 → 11,933。実行時は増えない。
+
+#### 却下: 上書きできる関数を名前空間に置く
+
+当初の案は「shape だけから計算できるもの」を trait 側に置き、上書き不可にするものだった。上書きは他の
+ほとんどの言語で普通にでき、禁じる理由は実装の都合しかない。
+
+許すと `Greetable.greet(u)` が既定を答え、`User.greet(u)` が上書きを答える。trait の名前空間には
+ディスパッチする手段がないためで、これは §7.6 で却下した「親から子の equals」とまったく同じ壁である。
+
+**valof-lint で塞ぐ案も却下。**`Greetable.greet(x)` の `x` が具体的な Val なら型を追えるが、
+`Dyn<Greetable>` だと追えない。具体型を落とすのが `dyn` の仕事なので原理的に追えず、穴が残る。
+
+上書きされうるものは companion 経由で呼ぶ。`Final` を付けたものだけが trait の名前空間に出る。
+**trait の名前空間に出るかどうかが、上書きできるかどうかと一致する。**
+
+#### 名前の衝突は型で禁じる
+
+仮実装では検査が抜けていて、同じ名前に 3 つの答えが出た（上の却下案の版）。1 種類に畳んだあとも、
+companion 側の `.impl` が `implTrait` の登録を踏み潰せる穴は残る。
+
+```ts
+Val.companion<User>()
+  .implTrait(Greetable, { toWire })
+  .impl({ toWire: ... }); // error: a trait already answers to this name
+```
+
+検査は**制約ではなく引数の型**に置く必要がある。制約に入れると `M & T` が `CompanionFns<V>` を満たさなく
+なり、`equals` が壊れる。
+
+2 つの trait が 1 つの Val に同じ名前のメンバを持ち込むのも禁じる。どちらの実装が登録されたのか、記録が
+平らである以上わからなくなる。
+
+**ライブラリが配線する名前も禁じる。**`equals` という名前のメンバを持つ trait を実装すると、`attach` の
+登録が配線された構造比較を踏み潰し、`Box.equals(b, b)` が `false` を返した。`.impl` は `CompanionFns` が
+この 5 つ（`equals` / `patch` / `update` / `seal` / `create`）を弾いているが、trait の経路が素通りしていた。
+記録を持つ `__valof_traits` も同じ。
+
+**`dyn` は宣言の段で禁じる。**段は `impl` 接頭辞、配線は `__valof_` 配下なので、残るのは `dyn` 1 つ。
+実装が全部 trait 名前空間に spread されるので、どのメンバでも踏み潰しうる。`Declarable` に置いた: メンバの
+名前として一律に禁じるほうが、final だけを見る検査より規則が短い。
+
+**trait が登録したものは名前ではない。**当初は `defaults` / `finals` の 2 キーで publish していて、
+禁じる名前が 5 つあった。あれは `implTrait` が読む配線でしかないので、`__valof_shared` 1 つに隠した。
+禁じる名前が減り、`Greetable.defaults.greet(u)` という穴も閉じる。**あれは §15 の却下案そのもの**で、
+名前空間が既定を答えていた。`Declarable` は `__valof_` で始まる名前をまとめて弾くようにしたので、
+`Wired` から `__valof_traits` を消せた。内部キーが増えても検査は増えない。
+
+**型に書いた trait のリストが正本。**`implTrait` は payload が shape を満たすかだけでなく、その Val が
+その trait を宣言しているかも見る。見ていなかった版では、宣言していない trait を実装できて
+`Floor.scaled` は生えるのに `Floor` は `Sized` に代入できない、という食い違いが作れた。valof-lint の
+`implTrait` 忘れ規則と合わせて、宣言と実装の対応が両方向で閉じる。
+
+宣言を読むのは索引ではなく条件型で。素の Val を `AnyTrait` と交差させてキーを引くと `string` が返り、
+どの trait も宣言済みに見えてしまう。
+
+**フィールド名も名前空間の一部。**メンバは、その Val の payload が持つフィールドの名前を取れない。箱は
+メンバ以外のキーを値に横流しするので、フィールドをメンバが覆うと dev の freeze と衝突して
+`TypeError: 'get' on proxy: property 'greet' is a read-only and non-configurable data property` で落ちる。
+production では freeze しないので、黙ってメンバが勝つ。trait 自身の shape のフィールドは
+`Trait.companion` で、Val の payload のフィールドは `implTrait` で落とす。
+
+複数の trait が**同じ名前のフィールド**を要求するのは問題ない。1 つの payload が両方を満たせばよく、
+満たせない組み合わせ（`name: string` と `name: number`）は 2 つ目の `implTrait` が落とす。片方が広い
+（`string` と `string | null`）ときも同じで、payload が満たさないほうで落ちる。
+
+**箱がその値の代わりにならない唯一の場所**は、プリミティブ payload の `JSON.stringify`。target が `{}` な
+ので `"{}"` になる。オブジェクトの箱は値と同じ JSON を出し、`Object.keys` も値のキーを返す。
+
+#### ブランドは交差できる形にする
+
+```ts
+{ readonly __valof_internal_phantom_trait_brands: { Greetable: true } }
+```
+
+複数の trait は交差で合成でき、`User` を `Greetable` に代入する構造的部分型がそのまま効く。**却下: 配列**
+（`["Greetable"]`）。順序が意味を持ってしまい、交差で合成できない。
+
+##### `|` は宣言の段で落とす、2026-09-10
+
+`&` のつもりで `|` と書いた宣言が、**payload 検査を素通りしていた**。`ShapeOf<Tr>` は
+`Omit<Tr, brands>` なので、union に対しては 2 つが共有するキーだけが残る。共有するキーがなければ
+shape は空になり、どちらの shape も満たさない payload が通る。
+
+```ts
+type Empty = Val<"Empty", { id: string }, Greetable | Weighed>; // 通っていた。`name` も `kg` もない
+```
+
+失敗が出るのは最初の `implTrait` で、しかも「the type does not declare this trait」と答える。宣言に
+書いてある trait について「宣言していない」と言う。§11 の言う置き場所の誤りそのもので、型引数だけを読む
+検査なのだからブランド位置（B）が正しい。
+
+`Fits` を `true | メッセージ` にして、フィールドを読む前に union を落とす。判定は
+`[Tr] extends [UnionToIntersection<Tr>]`。union は関数パラメータの反変性で交差に潰れるので、
+潰して等しくないものが union である。単独の trait・交差・`never` はいずれも自分自身に潰れる。
+
+宣言は 30.7 → 31.1 kB（予算 32 kB に対して残り 3%）、trait の instantiations は 12,150 → 12,404。
+`Tr` が `never` の分岐が先にあるので、trait を宣言しない Val は何も払わない（core は 5,846 のまま）。
+実行時は型だけなので増えない。
+
+##### 却下: タプルで宣言する
+
+`Val<"Both", { name: string }, [Greetable, Sized]>`。`&` と `|` を取り違えようがない、という案。
+
+**交差は綴りではなく仕掛けの本体である。**`Dyn`、`ShapeOf<Tr>`、payload 検査はどれも「Val が
+`Greetable` に代入できる」に乗っている。タプルを受けても `Val` の 1 行目で `Greetable & Sized` に
+畳むことになり、隠した当のものを包み直すだけになる。上の配列の却下と同じ理由（順序が意味を持ち、交差で
+合成できない）がそのまま効く。
+
+**コストが合わない。**`Val` はライブラリで一番多く instantiate される型で、そこに再帰的な畳み込みが
+乗る。既存の `Val<K, T, Greetable>` を残すなら分岐も要る。宣言の予算は残り 3% しかない。
+
+**穴も塞ぎきれない。**`[Greetable | Sized]` と書ける。union を落とすほうが、狭い検査で同じ間違いを
+直接名指せる。
+
+#### `Self`
+
+trait のメンバは自分の Val を名指せる必要がある。`Self` を trait を参照する型にすると循環するので、
+**trait を参照しない不透明マーカー**にして、`implTrait` の側で置換する。
+
+```ts
+declare const SelfMark: unique symbol;
+type Self = { readonly [SelfMark]: true };
+
+type SubstArgs<A extends readonly unknown[], S> = {
+  [K in keyof A]: [A[K]] extends [Self] ? S : A[K];
+};
+```
+
+probe で確認（`tsc --ignoreConfig --noEmit --strict`）。
+
+- `(self: Self, n: string) => string` が `(self: User, n: string) => string` に解決される
+- `implTrait` の第 2 引数に文脈型付けが効く。注釈なしで `(u, sep) => ...` の `u` が `User`、`sep` が
+  `string` になり、戻り値を間違えるとその位置でエラーが出る。**署名の書き場所の問題はこれで消える**
+- 引数リストは専用の `SubstArgs` が要る。`{ [K in keyof A]: ... }` を関数型にインラインで書くと
+  TS2370（rest parameter must be of an array type）
+- `AnyVal` は葉として止める。歩くと `Money` のようなネスト Val が交差の潰れた匿名オブジェクトになり、
+  代入互換は保つが型表示が読めなくなる
+
+#### 却下: `Self` を戻り値に置く
+
+Rust の object safety と同じ制限。`Self` を返したくなるのは `seal` / `create` と型ごとのコンストラクタ
+で、それは trait のメンバではない。どうしても欲しいフィールドがあるなら、shape から取り出す共通関数を
+trait に足せばよい。
+
+許すと `dyn` の箱が自分を参照し、型エイリアスの交差では TS2456 になる。interface でメンバを
+`.fns` の下に入れれば通る（`interface Dyn<S, M> { readonly value: S; readonly fns: Bound<M, Dyn<S, M>> }`）
+が、呼び出しが `p.fns.toWire()` になる。`interface Dyn extends Bound<...>` は TS2312 で不可、mapped type
+はメンバが静的に決まらないため。**一段の劣化を払うほどの需要が読めない。**
+
+検査は型で書ける。`HasSelf<R>` が真なら文字列リテラルに落とす形で、`(self: Self) => Self` と
+`(self: Self) => readonly [Self, number]` の両方が捕まる。
+
+#### 却下: WeakMap による動的ディスパッチ
+
+`Greetable.greet(p)` を値から引くために、§4.1 の `owned` を `WeakSet` から
+`WeakMap<object, Companion>` に変える案。**§7.6 で symbol 案を却下したのと同じ壁に、より悪い形で当たる。**
+
+§4.1 が WeakSet を選べたのは「取りこぼしはコピーに縮退するだけで意味論が動かない」から。ディスパッチ表は
+取りこぼすと throw する。落ちる経路が具体的にある。
+
+- `structuredClone` / JSON 往復 / worker 境界 / localStorage（§7.6 の理由 2）
+- レルムまたぎ（デュアルパッケージ）。§4.1 では無害、ここでは致命
+- **deep patch**。触ったパスのノードは作り直される。ネストした Val は親の seal で封をされるので、
+  内側の Val の登録が黙って消える
+- `Val.of`
+
+**却下: `Val.of` の第 2 引数に companion を必須にする。**上の最後の 1 つしか塞がない。`JSON.parse` から
+`Val.of` する経路は書き直せるが、既に Val である値が clone を通った先は書き直しようがない。必須化の
+コストを払って穴が残る。
+
+#### `dyn`
+
+Rust の `Box<dyn Trait>` に当たる。vtable を値の外に置き、呼び出し側が明示的に組む。
+
+```ts
+const party: Dyn<Serializable>[] = [Serializable.dyn(User, u), Serializable.dyn(Admin, a)];
+for (const p of party) p.toWire(":");
+```
+
+`Self` を戻り値で禁じたので箱は平らで済み、レシーバが引数から外れる。
+
+```ts
+type Bound<M, S> = {
+  [K in keyof M]: M[K] extends (self: Self, ...a: infer A) => infer R
+    ? (...a: SubstArgs<A, S>) => R
+    : never;
+};
+```
+
+`toWire: (self: Self, sep: string) => string` が箱の上で `(sep: string) => string` になる。
+
+**型引数は 1 つ。**箱は trait の shape として通り、具体型は落とす。`Dyn<Serializable, User>` を持つと
+`Dyn<Serializable>[]` に混ぜたとき要素が union になる。具体型が要るなら `dyn` を通さず
+`User.toWire(u, ":")` を呼ぶ。
+
+**箱は Val ではない。**`equals` も `patch` も持たない。`Checked` が関数を弾くので payload にも入らない。
+proxy なので値とも別の identity を持つ。
+
+**値の位置は `Tr` で、`ShapeOf<Tr>` ではない。**shape で書くと、フィールドを持っているだけの素の
+オブジェクトが通る。
+
+```ts
+Greetable.shout({ name: "duck" }); // 通っていた
+Greetable.dyn(User, { name: "duck" }); // Val でないものが User の vtable で箱に入っていた
+```
+
+trait は Val 同士の契約なので、`Tr` を要求すればブランドの有無で落ちる。実装は shape に対して書くのが
+正しく（フィールドしか使えない）、**公開する側だけ** `Unbound<…, Tr>` にする。反変なので実装はそのまま
+代入できる。
+
+**companion と値は結びつける。**`dyn(companion: TraitHost, …)` はどの companion でも通り、`Greetable` の
+メンバを 1 つも持たない `Crate` を渡せた。型は通り、実行時に
+`Greetable.dyn(...).greet is not a function` で落ちる。
+
+```ts
+readonly dyn: <W extends Tr>(companion: TraitHost & Unbound<MembersOf<Tr>, W>, value: W) => Dyn<Tr>;
+```
+
+`W` は値から推論され、companion はその型に対して答えられることを求められる。払うのは宣言 450 B と
+instantiations 620。
+
+#### `dyn` は trait 側に置く
+
+`Trait.dyn(User, u)`。**却下: companion に `User.dyn(u, Serializable)` を生やす。**第 1 引数が Val という
+§6.5 の規則には合うが、`Trait` を使わない人が箱の配線を落とせなくなる。
+
+効かせる条件は 1 つ、**`val.ts` から `trait.ts` への参照を作らないこと**。`implTrait` は箱を作らず記録だけする。
+
+```ts
+// val.ts。trait.ts を import しない
+target.implTrait = (_trait, impl) => build(ctors, callable, { ...traits, ...impl });
+
+// attach。.impl と同じ経路でメンバを生やし、記録を 1 つ足す
+target.__valof_traits = traits;
+for (const key of Object.keys(traits)) define(target, key, traits[key]);
+
+// trait.ts。箱は proxy で、束縛は呼ばれたときに起きる
+dyn: (companion, value) =>
+  new Proxy(value, {
+    get(target, key) {
+      const member = companion.__valof_traits[key];
+      return member ? (...a) => member(target, ...a) : target[key];
+    },
+  });
+```
+
+- **記録は平らな 1 つのオブジェクトで足りる。**どの trait のメンバかを覚える必要がない。2 つの trait が
+  同じ名前を登録することを型で禁じ、`.impl` が `implTrait` より後に来ることは `.impl` が
+  `Companion` を返す時点で決まっているため。箱は Val が実装した全メンバを通すが、`Dyn` から見えるのは
+  その trait のぶんだけ
+- **却下: `Map` で trait オブジェクトをキーにする。**名前が交わらないなら、どの trait のものかという
+  情報を持つ理由がない。`Map` を外して production gzip が 15 B 減った
+- `implTrait` の増分はオブジェクトの複製 1 回。関数を生やす部分は `attach` の使い回しで、消せないぶんは軽い
+- **既定実装も記録に入る。**`implTrait` が `{ ...trait.defaults, ...impl }` を登録するので、箱は上書きと
+  既定を区別しない。Rust の `dyn` と同じく、箱が呼ぶのは常にその Val の実装
+- **箱は proxy。**`User.greet(u)` を `p.greet()` と書けるようにするのが目的なので、呼び出しを companion に
+  横流しすれば足りる。関数でないキーは値に横流しするので、**trait の共通フィールドが `p.name` で読める**。
+  `.value` は要らなくなり、shape に `value` というフィールドがあったときの衝突も消えた
+- **却下: メンバを 1 つずつ束縛した平のオブジェクトを作る。**箱 1 つにつき N 個のクロージャを作る。proxy
+  なら確保は 1 回で、束縛は呼ばれたときだけ。フィールドも通らない。proxy にして production gzip は 7 B
+  増えた
+- **プリミティブ payload には空のオブジェクトを target にする。**proxy の target はオブジェクトでなければ
+  ならないが、メンバは値を閉じ込めたクロージャなので target が何かは効かない。失うものもない。プリミティブ
+  の Val が名乗れる trait には読むフィールドがないため。+10 B
+- **却下: プリミティブ payload を型で弾く。**`value` を `ShapeOf<Tr> & Record<string, unknown>` にすれば
+  落とせる（`object` では落ちない。ブランドとの交差はオブジェクトを含むため）。10 B で消える制限に、
+  読みにくい条件型 1 つは高い
+- **メンバ名を宣言する段は要らない。**`implTrait` の第 2 引数のキーがそのまま箱のメンバになる
+
+#### 却下: 記録をブランド文字列で引く
+
+`Trait.companion<Greetable>("Greetable")` と書かせて、`companion[TRAITS][brand]` で引く案。**引く場面が
+ない。**記録が平らなら trait を名指す必要がそもそもなく、キーが要ったとしても `implTrait` と `dyn` は同じ
+trait オブジェクトを受け取る。文字列は型に書いたブランドの二重管理になり、valof-lint に `brand-mismatch`
+と同じ規則をもう 1 つ足すことになっていた。
+
+デュアルパッケージも理由にならない。危ないのは valof が 2 コピー載ることで、trait オブジェクトは利用者の
+モジュールにある 1 つである。
+
+- `__valof_traits` のキーは `trait.ts` に持たせない。`Symbol()` を作ると参照の向きが逆になり、
+  tree-shaking が効かなくなる
+
+**クロージャを毎回作るか prototype を 1 つ共有するか。**箱は値ではないので prototype を持たせても §7.2 の
+壁には当たらない（`structuredClone` を通す対象ではない）。ただし `const { toWire } = p` が壊れる。まず
+クロージャで書いて、`dyn` がホットパスに出てから測る。
+
+#### 測り方
+
+`scripts/bundle-size.ts` は `const api = "Val"` で `Val` だけを import したグラフを測っている。現行の 1280 B
+予算がそのまま「Trait を使わない人」の予算になる。`Trait` を足したエントリを 2 本目として測り、別予算を
+持たせる。
+
+2 本目は `1280 + 256` と書く（§16）。丸めた 2 つ目の数ではなく**増分**が線なので、そう書けば読める。
+`Trait` を import する人が余分に払うのは 0.25 kB まで。実測は 95 B（1,147 → 1,242 B）で、3 倍近い余裕がある。
+
+型推論のコストは `vp run type-perf`（`scripts/type-perf/`）。`--extendedDiagnostics` の数字を、公開する
+`dist/index.d.mts` に対して測る。fixture は `fixtures/` に置く。
+
+**予算は `Instantiations` だけに持たせる。**このライブラリが抱えるリスクは再帰する条件型が暴走することで、
+それを数えているのが instantiations である。`Types` は出すが検査しない。ここまでの全計測で両者は
+instantiations 3.2 個に types 1 個の比で連動していて、1 つの信号のために再ベースラインする数字が 2 つ
+あるのは 1 つ多い。時間は機械依存なので出すだけ。
+
+**下限のバージョンだけで測る。**`ts-compatibility` と同じ `floor`（5.9.3）で、ここで固定されている版は
+それだけである。上のラインはレジストリから読むので、数字が動いた理由が TS のリリースなのかこちらの変更
+なのか区別できず、しかも install が 1 回ずつ増える。3 ライン回した実測では fixture の差が 1,677 に対して
+5、チェッカ自身のノイズの範囲だった。正しさのほうは `ts-compatibility` が全ラインを見ている。
+
+**baseline を引く。**空のファイルでも `Types` は 5.9 が 86、tsgo が 341 を報告する。lib を es5 から
+es2023 まで変えても動かないので、これはチェッカが起動時に作る固定の集合であり、実装ごとに数が違うだけ
+である。絶対値はコンパイラをまたいで比較できない。
+
+#### 残りの決めごと
+
+- `implTrait` 忘れの検出は valof-lint に置く。型で出すと `never` 化した戻りが `const User = ...` の代入
+  位置でしかエラーにならず、メッセージが読めない。§14 の chains 解析にそのまま乗る
+- `equals` / `patch` / `update` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない
+- shape には `DeepReadonly` を適用する。さもないと配列フィールドを持つ Val が一致しなくなる
+
+#### valof-lint の解析範囲、2026-09-11
+
+**型リゾルバは増やさず、構文から確定できる範囲だけ追う。** Val の第 3 型引数は直接の交差型と、
+トップレベルの交差型エイリアスを再帰的に展開する。`implTrait` の object は inline、`const` 束縛、spread
+を辿り、循環は打ち切る。条件式、関数の戻り値、外部 import などキーが確定しない式では、誤報を避けるため
+Trait の既定実装を使用済みとして扱う。
+
+`dyn` は直接参照、単純な `const` 束縛、分割代入まで追う。関数への引き渡し、return、配列や object への
+格納後は追跡しない。この境界を越えた参照は `unused-member` の既存の構文解析限界と同じく見えない。
+
+**payload が shape を満たさない宣言は、`implTrait` 忘れと同じ 1 本で塞がる。**型エイリアスはエラーを
+出せないので、`type Bad = Val<"Bad", { id: string }, Greetable>` の行は通る。いまは trait ブランドの位置に
+`Invalid<...>` を置くだけで、誰も読まないので `Val.of<Bad>` も通り、`Greetable` へ代入した遠い場所で
+ブランド不一致という的外れなエラーになる。
+
+ただし companion を書けば `implTrait` の第 1 引数の shape 検査が宣言の隣で落とす。残るのは trait を
+名乗る Val が companion を持たない場合だけで、それは `implTrait` 忘れそのものである。
+
+#### 需要、2026-09-10
+
+**入れる。**TS に trait が足りないからではなく、**§1 が空けた席を埋める**から。class を捨てた時点で、
+prototype が配っていた既定実装と動的ディスパッチの置き場所が無くなった。Trait はそれを型で埋める。
+
+| 欲しいもの                           | 構造的 interface | class / mixin | Trait |
+| ------------------------------------ | ---------------- | ------------- | ----- |
+| 形の宣言と型検査                     | ○                | ○             | ○     |
+| 既定実装の共有                       | ✗                | ○             | ○     |
+| `User.greet` がその Val の実装を呼ぶ | ✗                | ○             | ○     |
+| 異種の値を 1 つの配列で回す（`dyn`） | ✗                | ○             | ○     |
+| 上書きの禁止（`Final`）              | ✗                | ✗             | ○     |
+
+**「型で実装漏れに気づける」は根拠にならない。**`satisfies` でほぼ足りる。効くのは名前空間のほうで、
+しかも名前空間は副産物ではない。既定実装とディスパッチが乗る場所そのものである。
+
+**幅は狭く、深い。**複数の Val が振る舞いを共有する規模のドメインを持つ人だけが要る。小さいアプリには
+過剰である。ただしブランド型だけなら自前 10 行で足りるので、valof を選ぶ理由は Trait のほうが強い。
+
+##### `dyn` は残す
+
+サイズを理由に落とす案。**却下。**`make` から `dyn` を外して測ると production gzip が 1.21 kB → 1.16 kB、
+**54 B**。しかも `Trait` を import した人だけが払い、`Val` 単独の 1.12 kB は動かない。箱は Proxy 1 つで
+メンバ数に比例しない。
+
+残るコストは README で、使わない人に説明する行が増える。ゲームのような例が要るのは `dyn` を探しに来た人
+だけなので、README からは 1 行リンクし、本体は JSDoc に置く。
+
+`Final` を `M` に書く根拠のうち「`Dyn` に乗らない」（§15.1 却下: final を `M` の外に置く）も `dyn` 前提
+だが、こちらは落としても「省けるのは宣言 1 行だけ」が残る。決着が弱くなるだけで、崩れはしない。
+
+##### 却下: `dyn` を落とせる形にする、2026-09-10
+
+`dyn` を使う人は trait を使う人より少ないので、名前空間から外して落とせるようにする案。**却下。**
+`Greetable.dyn(User, u)` の読みやすさを保つ。
+
+`import { Val, Trait }` の production gzip で 3 案を測った。
+
+| 形                               | gzip    |
+| -------------------------------- | ------- |
+| `Greetable.dyn(User, u)`（現行） | 1.21 kB |
+| `Trait.dyn` に生やす             | 1.22 kB |
+| 単独 export の curry             | 1.16 kB |
+
+**`Trait.dyn` は落ちない。**export した const のプロパティは丸ごと残る。読みやすさも 54 B も両方失う。
+
+**単独 export だけが落ちる。**`dyn` を使う人の値は現行と同じ 1.21 kB で、差は落とせるかどうかだけ。
+
+**払う人と気にする人がずれている。**54 B は `Trait` を import した人だけが払い、`Val` 単独の 1.12 kB は
+動かない。trait を使う人が箱を使う確率は、valof を使う人が trait を使う確率より高い。予算側も緩んでいる
+のはバンドル（残り 22%）で、きつい宣言（残り 6%）はどの案でも動かない。
+
+##### 移るときの形
+
+バンドル予算が詰まったときのために。**型引数を第 1 段に置く。**
+
+```ts
+dyn<Greetable>()(User, u); // phantom 不要。Val.sealer<V>() と同じ形（§13.1）
+dyn(Greetable)(User, u); // trait companion から Tr を回収する phantom が要る
+```
+
+`TraitCompanion<Tr, G>` は final が無いと `Tr` を型に残さない（`Unbound<Pick<…, FinalsOf & keyof G>, Tr>`
+が `{}` になる）ため、値を渡す形は phantom を足すことになる。
+
+**平の 3 引数 `dyn<Greetable>(User, u)` は書けない。**部分推論がないので `Tr` を明示すると `W` も書かされ、
+`W` を捨てると companion と値の結びつけが戻る（§15.1 `dyn`）。curry は第 2 段で `W` を推論するので保てる。
+
+**代償はクロージャ 1 つ。**呼ぶたびに第 1 段が関数を作る。ループで箱を作るなら
+`const box = dyn<Greetable>()` で巻き上げられる。
+
+### 15.2 `Enum`、2026-09-10
+
+§7.4 が v1 で見送った TaggedEnum の見直し。**却下の 2 つの理由のうち 1 つが崩れた。**
+
+- **「判別子が実データで、ブランドはファントムという前提から外れる」** → 成り立たない。`_tag` はただの
+  フィールドで plain data そのもの。ブランドはファントムのまま隣に居る
+- **「価値のほぼ全てはパターンマッチにあり、ts-pattern が既に強い」** → 残る。競合しない形なら入れてよい
+
+#### 形
+
+```ts
+type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
+
+const Shape = Enum.companion<Shape>();
+const { Circle, Square } = Shape;
+```
+
+**要点は proxy ではなく宣言の向き。**Variant をレコード 1 つに宣言して union を導出する。手書きの union に
+proxy を足す形だと、**Variant 追加時に 2 箇所直す**問題がそのまま残る。proxy は文字列の二重管理を消す補助。
+
+#### Variant は個別に Val、ブランドは交差
+
+§15.1 の「ブランドは交差できる形にする」をそのまま使う。機構が増えない。
+
+**ブランド文字列は導出する。**`Circle` のブランドは `"Shape.Circle"` を自動で。手で書かせると、Variant を
+足すたびに 2 箇所という元の困りごとが形を変えて戻る。valof-lint の `brand-mismatch` は Trait のときと同じく
+綴りの検査を広げるだけで済む。
+
+#### タグのフィールド名は型引数で変えられる
+
+```ts
+type Shape = Enum<"Shape", { Circle: { r: number } }, "kind">; // 既定は "_tag"
+```
+
+**タグは実データで、境界を越える。**API のレスポンスが `type` や `kind` を使っていれば、名前は valof が
+決めるものではない。
+
+型引数の既定値はここでは安全。`impl` が既定型引数を避けた理由（contextual typing が止まる、val.ts の
+`Sealer`）は関数の型引数の話で、型エイリアスには効かない。
+
+**実行時にも名前が要る。**proxy が `{ ...props, [tag]: name }` を組むので、型からは読めない。
+
+```ts
+const Shape = Enum.companion<Shape>("kind"); // 型引数と二重になる
+```
+
+**ブランド文字列と同じ形の問題なので、同じ答えを使う。**valof-lint に `tag-mismatch` を足す。§14.12 の
+`brand-mismatch` の隣で、判断も実装もほぼ同じ。既定の `_tag` を使う人は引数を書かないので当たらない。
+
+**payload のキーと衝突する。**companion の予約名と同じ検査が payload にも要る。
+
+#### `match` は companion に置く
+
+**カスタム名を許すと自由関数では書けない。**`v._tag` を決め打ちしないと動かないため。
+
+```ts
+Shape.match(shape, { Circle: (c) => c.r * 2, Square: (s) => s.side });
+```
+
+**むしろそのほうがいい。**positioning §1-2（名前空間つきの関数整理）と揃い、自由関数だけ浮いている状態が
+消える。§5 が `Val.equals` を自由関数で出さなかったのと同じ理由でもある。**実行時に型を特定できないものは
+companion に置く。**
+
+#### `match`
+
+```ts
+Shape.match(shape, { Circle: (c) => c.r * 2, Square: (s) => s.side });
+```
+
+**カリー化は要らない。**両方とも値なので 1 回の呼び出しで推論できる。§13.1 の 2 段は部分推論が無いときの
+回避策で、ここで真似すると理由なく重くなる。
+
+得は 3 つ。タグ名の補完、キーを全部要求することによる exhaustive、handler の引数が絞り込まれた Variant に
+なること。実行時は `handlers[v[tag]](v)` で数十バイト。
+
+**ガード節は ts-pattern に任せる。**`.with({ _tag: "Circle" }, ...)` は既に動く。§7.4 の「競合するな」は
+守れる。README で線を引く。
+
+> タグで分けるだけなら `match`。条件が要るなら ts-pattern。
+
+#### `Trait` との関係
+
+**違いは開閉。**Trait は開いていて、後から誰でも実装できる。Enum は閉じていて、Variant が 1 箇所に並ぶ。
+だから exhaustive が成り立つ。両方あって重複しない。
+
+**Enum の Variant が Trait を実装する**組み合わせが効く。閉じた集合なら `match` で回るので `dyn` が要らない。
+**Enum が入ると `dyn` の需要が減る**ので、§15.1 の「`dyn` は本当に使われるか」の判定はこれを見てから。
+
+---
+
+### 15.3 `path`: seal をまたぐ patch の合成、2026-09-10
+
+#### 欠けているもの
+
+`patch` は Val の境界で止まる（§6.8）。ネストした Val を更新するには手で積む。
+
+```ts
+Team.patch(t, {
+  lead: User.patch(t.lead, { wallet: Wallet.patch(t.lead.wallet, { balance: 5 }) }),
+});
+```
+
+**深さそのものは問題ではない。**素の `map` も `u.profile.visits + 1` も読める形で書ける。
+
+**本当の穴は、seal が Result を返すと合成できないこと。**
+
+```ts
+Wallet.patch(t.lead.wallet, { balance: 5 }); // Result<Wallet>。User.patch には渡せない
+```
+
+配列だともっと悪い。`map` の中で `Result<Todo>[]` が出て、`Result<Todo[]>` に畳む必要がある。
+
+**つまり入口の問いは「Optics が要るか」ではなく「失敗しうる seal を経路に沿って合成する手段」。**
+
+#### 印をどこに置くか
+
+止まるには「失敗した」を知る必要がある。§6.3 でライブラリは Result の中身を知らないので、印が要る。
+3 案あり、**3 番目を採る。**
+
+| 案                                        | 失敗の伝え方 | 代償                                                    |
+| ----------------------------------------- | ------------ | ------------------------------------------------------- |
+| タプル `[V, undefined] \| [undefined, E]` | 暗黙の印     | §3.5 に依存。既定が Result になり sealer が無意味になる |
+| `err()` を seal が返す                    | 明示的な印   | seal の契約が変わる。§6.3 の書き換え、配線名・予約名    |
+| **`abort()` を合成側の規則にする**        | 明示的な印   | **無し**                                                |
+
+**3 番目は seal の契約を一切変えない。**seal は今までどおり利用者の Result を返す。`abort` は `path` の
+語彙で、`path` を使わない人には存在しない。単独 export なので tree-shaking も効く（§15.1 の `dyn` の実測）。
+§3.5 への暗黙の依存も無く、正規化 seal（`implSeal` が `V` を返す形）もそのまま通る。
+
+**却下: タプルを既定にする。**判別は §3.5 が `undefined` を禁じるので健全になるが、**既定の戻りが Result に
+なると `Val.sealer` が無意味になる。**`sealer` は「絶対に失敗しない経路」であることが値打ちで、単純な Val の
+呼び出し側に分割代入を強いるのは通らない。
+
+**却下: `err()` を seal が返す。**成功経路が今のままで済むのは良いが、印が seal の契約に入る。`implSeal` は
+正規化にも使う（§5）ので「カスタム seal を登録した = 失敗しうる」ではなく、実行時のフラグが作れない。
+配線名を割る案（`implTrySeal`）は、戻り値の型が既に言っていることを二重に書かせる。§15.1 が
+`implDefault` / `implFinal` の 2 段を却下したのと同じ形。
+
+**名前は `err` ではなく `abort`。**`err` は Result と被り、戻りが Result とも限らない。言っているのは
+「止まれ」だけ。
+
+#### ハンドラは最終段でなければならない
+
+**理由は書き味ではなく成立するかどうか。**早く束縛するとハンドラの型は利用者の Result という**型構築子に
+ついて総称**でなければならない。
+
+```ts
+{ open: <V, E>(r: ???<V, E>) => V | Abort<E> } // ??? が書けない
+```
+
+**HKT が要る。**TS に無いので `TypeLambda` + `Kind` の脱関数化になり、Effect が v4 で落とした層に入る
+（`positioning.md` §2）。最終段なら具体型が揃っているので回避できる。
+
+ハンドラが受けるのは**型構築子ではなく具体型の union**（`Result<Manager, E1> | Result<Wallet, E2>`）なので
+HKT は要らない。
+
+#### 形
+
+```ts
+const managerWallet = path(Team).manager(Manager).wallet(Wallet);
+
+managerWallet.glue(neverthrow).patch(team, { balance: 5 }); // Result<Team, E1 | E2>
+managerWallet.glue(neverthrow).update(team, (w) => ({ balance: w.balance * 2 }));
+```
+
+**値は最後に取る。**`path(Team)` から始めると経路が値になり、**再利用できる**。同じ形が繰り返されるときに
+lens を書きたくなるので、そこが本体。
+
+**各段で companion を書かせるのは避けられない。**フィールド名から companion を引く方法が無い。ただし宣言
+1 回に集まるので、使う側には出ない。
+
+#### `glue`: `open` / `close`
+
+```ts
+export const neverthrow = {
+  open: (r) => (r.isErr() ? abort(r.error) : r.value), // Result → V | Abort
+  close: (v) => (isAbort(v) ? err(v.error) : ok(v)), // V | Abort → Result
+};
+```
+
+**1 つのオブジェクトで両方向。**片方だけ渡して半端に変換された値が出る事故が起きない。`open` / `close` は
+物理的な意味がそのまま残るので非ネイティブにも読める。`read` / `write` は方向が曖昧。
+
+**`close` は optional。**渡さなければ `V | Abort<E>` の union が返る。Go 風に書きたい人と自作 glue の人のため。
+
+**既製の glue をサブパスで配る。**`valof/neverthrow`、`valof/effect`、タプル版。コアは Result を知らないまま
+なので §6.3 が保たれ、利用者が glue を書く場面がほとんど無くなる。`positioning.md` §1-7 の「既に選んだものに
+乗る」と同じ形。
+
+**却下: `unwrap`。**`Val.unwrap` が「payload の可変なコピー」という別の意味を持っている。
+**却下: `reads`。**非ネイティブに直観的でない（本人の判断）。**`glue` は "glue code" が定着していて、
+物理的な意味も残る。**`via` も候補だったが、`glue` のほうが「繋ぐもの」だと分かる。
+
+#### 経路を companion に置く
+
+経路は値なので、`.impl` に入れて名前空間の下で共有できる。**`.impl` の第 1 引数を Val に固定する規則
+（§6.5）にそのまま合う。**経路の第 1 引数は根の Val である。
+
+```ts
+const Team = Val.companion<Team>().impl({
+  raiseManager: (t, n) =>
+    path(Team).manager(Manager).wallet(Wallet).glue(g).patch(t, { balance: n }),
+});
+
+Team.raiseManager(team, 700);
+```
+
+**置き場所は根の companion で決まる。**別の Val を第 1 引数に取る関数は `.impl` に入らない。
+
+```
+Type '(u: User) => string' is not assignable to type
+  '((value: Team, ...rest: any[]) => unknown) | NonFn'.
+```
+
+根が別の Val なら、その Val の companion に置く。それが正しい置き場所なので、特別な規則が要らない。
+
+**根は必ず定義中の companion なので、経路は関数の中で組む。**`path(Team)` を宣言の位置に置くと `Team` が
+まだ無い。**コストは無視できる**（呼び出しごとに小さいオブジェクトが数個で、その先の seal のディープコピー
+に埋もれる。§4.1 の 47〜858 ns）。
+
+#### 型で塞げない穴
+
+ハンドラの戻り値が各段で違うので、**「`Result<Manager>` を受けたら `Manager` を返す」という対応を型が要求
+できない。**要求するにはハンドラが総称でなければならず、また HKT に戻る。lint も無理で、中身が正しいかは
+型の話。
+
+**穴の形は良い。**ハンドラはプロジェクトで 1 つ、1 行しかなく、`path` を使う全経路がそこを通る。壊れていれば
+最初のテストで落ちる。散らばる穴ではない。**既製の glue を配れば、大半の人には届かない。**
+
+#### 終端と中間の操作
+
+**足す。**判定基準は「深さ」ではなく「seal が絡むか」。
+
+- **`update(v, fn)`** — 現在値からの更新。§6.4 の `update` と同じ「値 → 値」なので**名前を統一する**。
+  Val 境界を越えないなら要らない（`u.profile.visits + 1` で足りる）が、越えると各段の seal を積み直す
+  必要が出る
+- **`each`** — 配列の走査。中間の段。素の `map` で読める形に書けるが、**seal が失敗しうると
+  `Result<Todo>[]` の畳み込みになる。**`abort` の規則があるので最初の失敗で止められる
+- **`where`** — `each` の後ろでのみ。**一致が無ければ何もしない**（走査の意味論）。単体の focus に付けると
+  Prism 化するので、`each` の後ろに限る
+
+**足さない。**
+
+- **`get(v)`** — `team.manager.wallet.balance` で足りる。読みに seal は関係しない。そして**これを足すと
+  optics の階層が始まる**（get → set → compose → Prism）。線は「seal が絡むものだけ」に引く
+- **`.patcher()` のような関数を返すだけのもの** — 経路オブジェクト自体が既に再利用可能
+
+#### 名前
+
+**`path`。**却下: `deepPatch`。**`patch` は既に deep**（§6.2「patch は深さを問わず届く」）なので、
+「今の patch は浅いのか」と読ませる。区別しているのは深さではなく**Val の境界を越えるかどうか**。
+
+#### 残る実測 2 つ
+
+1. **宣言の予算。**30.04 / 32.00 kB で残り 6%。パス型と Err 収集型が乗るか。`patch` の deep 化の実測が
+   §6.2 にあり、3 段で instantiations 120,281 → 177,885。パス型はその上乗せ。**書き始める前にプローブで測る**
+2. **union ハンドラの推論。**`(r) => (r.isErr() ? abort(r.error) : r.value)` が union を受けて両方に構造的に
+   効くか。`r.value` の型が正しく union になるか
+
+#### 順番
+
+**Enum が先**（§15.2）。Variant への focus（Prism 相当）が欲しくなるので、`path` を先に決めるとやり直しに
+なる。
+
+### 15.4 `.impl` のコールバック形、2026-09-10
+
+**入れる。**`.impl` がオブジェクトに加えて関数も取る。引数は**その時点で決まっている関連関数**で、分割代入で
+要るものだけ受け取る。
+
+```ts
+Val.sealer<User>().impl(({ equals, patch }) => ({
+  same: (u, other: User) => equals(u, other),
+  renamed: (u, name: string) => patch(u, { name }),
+}));
+```
+
+#### 動機: 自分の companion を参照すると推論が回らない
+
+```ts
+const User = Val.sealer<User>().impl({
+  same(u: User, other: User) {
+    return User.equals(u, other);
+  },
+});
+// error TS7022: 'User' implicitly has type 'any' because it does not have a type annotation
+// and is referenced directly or indirectly in its own initializer.
+```
+
+**戻り値を注釈すれば通る**（`same(...): boolean`）。つまり今は、自分の `equals` / `patch` / `update` を使う
+メンバは全部、戻り値の注釈が要る。**早い段階でぶつかる税で、しかもエラーメッセージが初見で読めない。**
+
+コールバック形は循環を切るので注釈が消える。
+
+#### contextual typing は効く。実測
+
+コールバックを挟むと §6.5 の「第 1 引数に注釈が要らない」が崩れないか。**崩れない。**
+
+`impl` の contextual typing は制約（`M extends CompanionFns<V>`）から来ていて、オブジェクトリテラルが
+コールバックの**戻り値の位置**に移っても伝わる。第 1 引数の解決結果を TS2322 で読んだ。
+
+```
+error TS2322: Type 'User' is not assignable to type '0'
+```
+
+戻り値の推論も循環しない。`b.same` は `boolean`、`b.renamed` は `User` に決まる。
+
+#### 限界: 兄弟メンバは参照できない
+
+同じ `.impl` の中の他のメンバは循環したままなので、そちらを呼ぶメンバには注釈が要る。README に書く。
+
+#### 渡す集合は文脈で変わる
+
+- `sealer` には `create` が無い（§6.7 / val.ts の `Sealer`）
+- trait 由来のメンバは `implTrait` を呼んだかで変わる
+- `implEquals` の有無で `equals` の型が変わる
+
+オーバーロードが 1 本増えるので、実装前に `vp run type-perf` で測る。宣言の予算は 64 kB に上げた（§16）。
+
+#### 却下: オブジェクト形を置き換える
+
+**両方残す。**関連関数を要らないメンバに、コールバックの分割代入は雑音。既存のコードも動かない。
+
+---
+
+## 16. 予算の責務、2026-09-10
+
+**バンドルと型は別の関心事。**スクリプトを 2 つに割った。
+
+|                      | 測るもの                                            | 性質                                   |
+| -------------------- | --------------------------------------------------- | -------------------------------------- |
+| `vp run bundle-size` | `dist/index.mjs` の gzip、`Val` だけと `Trait` 込み | **ラチェット**。利用者が出荷するバイト |
+| `vp run type-perf`   | instantiations と `dist/index.d.mts` のバイト数     | **アラーム**                           |
+
+`types raw` は `scripts/size.ts` にあったが、あれはバンドルではない。利用者のバンドルには 1 バイトも
+入らず、かかるのはダウンロードとパースである。パースするのは型検査なので、type-perf の側が本体。
+
+**予算は 32 → 64 kB。**32 kB はラチェットとして機能していた。type-perf 側の docstring が禁じている形
+そのものである。
+
+> **This is an alarm for a blow-up, not a ratchet for creep.** A budget tight enough to catch
+> [creep] has to be re-baselined on every change, and stops meaning anything.
+
+実害が出ていた。§15.1 の 2 件で、バイト数のために JSDoc を 2 度削った。説明を捨ててバイトを買ったわけで、
+交換として逆である。さらに §9 では `path`（§15.3）と `.impl` のコールバック形（§15.4）の両方が、この予算を
+理由に「書き始める前に測れ」と保留になっていた。**バグではなく設計を止めていた。**
+
+64 kB なら Enum と path が両方乗ってもまだ当たらない。捕まえたいのは倍率の事故で、実例が §14 にある。
+`Finding` を `RULES` から導いたら規則の型グラフを丸ごと連れてきて、`dist/lint/index.d.mts` が 14.9 kB に
+なった。あの類は浅くて広いので instantiations には出にくく、バイト数のほうが効く。だから消さずに残す。
+
+**時間は予算にしない。**環境で動くので比較できない。type-perf が予算を持つのは決定的な数だけで、
+`check (s)` と `total (s)` は印字のみ。バイト数も決定的なので同じ扱いにできる。これが `types raw` を
+type-perf に移せる理由でもある。
+
+**`Trait` の予算は増分で書く。**1600 B から `1280 + 256` にした。1600 は丸めた 2 つ目の数でしかなく、
+線は「`Trait` を import する人が余分に払う量」のほうにある。そう書けば core の予算を動かしたときも
+関係が保たれる。実測の増分は 95 B（1,147 → 1,242 B）で、3 倍近い余裕がある。
+
+**いま一番狭いのは `trait` の instantiations。**12,514 / 15,000 で残り 17%。Trait 1 機能で
+9,632 → 11,933（+24%）動いた。Enum と path が来ると効くのはここで、宣言のバイト数ではない。

@@ -4,10 +4,13 @@ import { fileURLToPath } from "node:url";
 
 import { RULES, lint as run, type Resolver } from "../../src/lint/index.ts";
 
+export { RULES };
+
 // Named rather than spelled as a kind: a test that names a rule reads the same object the
 // registry does, so renaming a kind is one edit and no test string follows it.
 export {
-  AliasedVal,
+  UnnecessaryAlias,
+  UnimplementedTrait,
   BrandMismatch,
   BypassedCompanion,
   CompanionMismatch,

@@ -1,6 +1,5 @@
 import type { Where } from "../ast.ts";
-import { original } from "../scan/index.ts";
-import type { Scan } from "../scan/index.ts";
+import { original, symbolIdentity, type Scan } from "../scan/index.ts";
 import type { Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
@@ -16,14 +15,14 @@ export type UnusedMember = Where & {
 
 export const UnusedMember: Rule<UnusedMember> = {
   kind: "unused-member",
-  description: "functions and constants registered with `.impl({…})` that nothing reads",
+  description: "members registered with `.impl` or `.implTrait` that nothing reads",
   // A member nothing reads is dead weight, and the code around it works.
   warns: true,
   run: findings,
 };
 
 /**
- * Reports a member registered with `.impl({…})` that nothing reads.
+ * Reports a member registered with `.impl` or `.implTrait` that nothing reads.
  *
  * A declaration is kept per site rather than per name, because two modules may each declare a
  * companion called `User`; reads stay keyed by name alone, so a read anywhere counts for both.
@@ -35,10 +34,11 @@ export const UnusedMember: Rule<UnusedMember> = {
  *
  * Two ways it is wrong, in opposite directions. A read that spells no name, `User[method]` or a
  * companion reached through a default export, is not seen, so the member is reported although it
- * is used. And a spread into `.impl({ ...base })` contributes no keys at all, so those members
+ * is used. A spread whose value is not a local const object contributes no keys, so those members
  * are never reported however dead they are.
  */
 function findings(scans: readonly Scan[]): UnusedMember[] {
+  const identity = symbolIdentity(scans);
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
   for (const scan of scans)
@@ -78,6 +78,36 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
     // Already named as the exporting module names them, so this file's aliases do not apply.
     for (const [name, keys] of scan.namespaceReads) for (const key of keys) note(name, key);
   }
+
+  const implementations = new Map<string, Scan["traitImplementations"][number]>();
+  for (const scan of scans)
+    for (const implementation of scan.traitImplementations)
+      implementations.set(
+        `${identity(implementation.val)}\0${identity(implementation.trait)}`,
+        implementation,
+      );
+
+  // A dyn read dispatches through the Val's selected implementation.
+  for (const scan of scans)
+    for (const { val, trait, member } of scan.dynReads) {
+      const implementation = implementations.get(`${identity(val)}\0${identity(trait)}`);
+      const overridden = implementation?.overrides.some((one) => one.member === member) === true;
+      note(overridden ? val.name : trait.name, member);
+    }
+
+  // A Val reads a trait's default unless that Val supplied the same key to implTrait.  Unknown
+  // object expressions are intentionally conservative: they might override any key, so they
+  // keep every default alive rather than issuing a false positive.
+  for (const scan of scans)
+    for (const implementation of scan.traitImplementations) {
+      const used = read.get(implementation.val.name);
+      if (!used) continue;
+      const traitReads = read.get(implementation.trait.name) ?? new Set<string>();
+      for (const key of used)
+        if (!implementation.overrides.some((override) => override.member === key))
+          traitReads.add(key);
+      read.set(implementation.trait.name, traitReads);
+    }
 
   return scans.flatMap(({ file, members }) =>
     members
