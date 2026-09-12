@@ -1,5 +1,6 @@
 [tools]
 node = "24"
+mdbook = "0.5.4"
 
 [settings]
 lockfile = true
