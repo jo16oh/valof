@@ -126,7 +126,7 @@ describe("Trait members", () => {
     ]);
   });
 
-  test("treats conditional and cyclic override objects conservatively", async () => {
+  test("treats an unresolved override object conservatively", async () => {
     expect(await lint("unresolved-overrides")).toEqual([]);
   });
 
