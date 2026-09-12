@@ -3,3 +3,14 @@ authors = ["Joichiro Hayashi"]
 language = "en"
 src = "src"
 title = "Valof"
+
+[preprocessor.shiki]
+command = "node tools/mdbook-shiki/index.ts"
+renderers = ["html"]
+after = ["links"]
+light-theme = "one-light"
+dark-theme = "one-dark-pro"
+fallback-language = "text"
+
+[output.html]
+additional-css = ["tools/mdbook-shiki/shiki.css"]
