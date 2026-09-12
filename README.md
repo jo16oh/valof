@@ -2,6 +2,8 @@
 
 [![npm](https://img.shields.io/npm/v/valof.svg)](https://www.npmjs.com/package/valof)
 
+![valof-brand](assets/valof-brand.svg)
+
 > Write robust domain logic in TypeScript just by following the convention.
 
 Valof is a value-object helper for TypeScript.
