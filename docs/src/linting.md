@@ -1,8 +1,8 @@
 # Linting
 
 Rules for the mistakes the type checker cannot catch. They run as a
-[plugin for ESLint and Oxlint](lint.md#plugin-for-eslint-and-oxlint), and as a
-[standalone command](lint.md#cli).
+[plugin for ESLint and Oxlint](linting.md#plugin-for-eslint-and-oxlint), and as a
+[standalone command](linting.md#cli).
 
 ```bash
 pnpm add -D oxc-parser   # valof does not install it for you
@@ -29,9 +29,9 @@ types the checker stops distinguishing, an `equals` answering wrongly, a name th
 another and does not. `incomplete-disable` errors for a reason of its own: a comment naming no rule
 silences every one, a rule added next year included.
 
-The severity is what the [plugin](lint.md#plugin-for-eslint-and-oxlint) sets, and a project can give
-any rule its own. The [command](lint.md#cli) draws every finding the same way and exits 1 on any of
-them.
+The severity is what the [plugin](linting.md#plugin-for-eslint-and-oxlint) sets, and a project can
+give any rule its own. The [command](linting.md#cli) draws every finding the same way and exits 1 on
+any of them.
 
 A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
 dead.

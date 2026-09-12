@@ -40,7 +40,9 @@
   "scripts": {
     "build": "vp pack",
     "dev": "vp pack --watch",
-    "docs:serve": "docsify serve docs",
+    "docs:build": "mdbook build docs",
+    "docs:serve": "mdbook serve docs",
+    "docs:test": "mdbook test docs",
     "test": "vp test",
     "check": "vp check",
     "size": "node scripts/size.ts",
@@ -53,7 +55,6 @@
   "devDependencies": {
     "@types/node": "^26.5.0",
     "bumpp": "^11.1.0",
-    "docsify-cli": "^5.0.0",
     "eslint": "^10.10.0",
     "oxc-parser": "^0.148.0",
     "oxlint": "1.82.0",

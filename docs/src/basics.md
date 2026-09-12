@@ -35,12 +35,12 @@ Every function in `impl` must take its Val first. A sealer already carries `equa
 `update`. Only `equals` can be replaced, through `.implEquals`.
 
 Only primitives, arrays and plain objects can live inside a Val. See
-[Allowed types](patch-and-update.md#allowed-types).
+[Allowed types](derivation.md#allowed-types).
 
 **Name the brand after the type it brands**: `type UserId = Val<"UserId", string>`. Two Vals with
 the same brand and the same payload are silently assignable to each other. Where the same name lives
 in two domains of a monorepo, put a namespace in front, `type Id = Val<"billing/Id", string>`: only
-the last segment has to match. [`valof-lint`](lint.md#valof-lint) reports a brand that does not.
+the last segment has to match. [Linting](linting.md) reports a brand that does not.
 
 ## Constructors copy their argument
 

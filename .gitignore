@@ -2,6 +2,7 @@ node_modules
 # A fixture: the linter must not walk one when a directory is given as the project.
 !tests/lint/project/fixtures/pkg/node_modules/
 dist
+docs/book
 *.log
 .DS_Store
 

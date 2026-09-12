@@ -24,7 +24,7 @@ What you get:
   standalone command.
 - **Lightweight**: starts from 1.25 kB gzipped, with no runtime dependencies.
 
-Read the [documentation](docs/README.md) for more details.
+Read the [documentation](docs/src/introduction.md) for more details.
 
 ## Installation
 

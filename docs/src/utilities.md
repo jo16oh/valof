@@ -9,8 +9,8 @@ Val.of<User>({ id: "a", name: "alice" });
 ```
 
 If the type has a `seal` of its own, use that instead. `Val.of` skips the checks as an escape hatch.
-[`valof-lint`](lint.md#valof-lint) reports latent misuse of it, such as calling `Val.of` on a type
-that has a companion or specifying no type.
+[Linting](linting.md) reports latent misuse of it, such as calling `Val.of` on a type that has a
+companion or specifying no type.
 
 ## `Val.unwrap`
 

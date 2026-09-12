@@ -1,4 +1,6 @@
-- [Introduction](/)
+# Summary
+
+- [Introduction](introduction.md)
 - [Basics](basics.md)
 - [Smart constructors](smart-constructors.md)
 - [Normalize in the seal](normalization.md)

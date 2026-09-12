@@ -44,5 +44,4 @@ const Order = Val.sealer<Order>().implEquals({
 The spec stops at a nested Val: hand over its companion rather than walking its payload, which would
 bypass the equality that type declared for itself.
 
-[`valof-lint`](lint.md#valof-lint) reports a parent holding a Val whose own `equals` its spec says
-nothing about.
+[Linting](linting.md) reports a parent holding a Val whose own `equals` its spec says nothing about.
