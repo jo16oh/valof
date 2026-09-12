@@ -38,9 +38,14 @@ test("applies the same check to Trait through renamed and namespace imports", as
       rule: BrandMismatch,
       at: "trait.ts:4:13",
     },
+    {
+      rule: BrandMismatch,
+      at: "trait.ts:5:13",
+    },
   ]);
   expect(await messages("trait")).toEqual([
     'Named claims the brand "Name", which should be "Named"',
+    'Sized claims the brand "Size", which should be "Sized"',
   ]);
 });
 
