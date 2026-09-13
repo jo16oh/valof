@@ -53,14 +53,75 @@ pnpm install valof
 ## Showcase
 
 ```ts
-// ここにAPIを網羅したfancyなexampleを入れる
-import { Val } from "valof";
+import { Val, type SeedOf } from "valof";
 
-export type UserId = Val<"UserId", string>;
-export type OrderId = Val<"OrderId", string>;
+// The brand matches the type name. It exists only in the type system.
+export type Email = Val<"Email", string>;
 
-const UserId = Val.sealer<UserId>();
-let orderId: OrderId;
+// Any Result library works. Valof propagates the seal's return type without inspecting it.
+export const Email = Val.companion<Email>().implSeal((input, seal) => {
+  const email = input.trim().toLowerCase();
+  // This seal parses every input. The provided seal brands and copies valid data.
+  return email.includes("@") ? { ok: seal(email) } : { err: "invalid email" };
+});
+
+export type Line = Val<"Line", { sku: string; unitPrice: number; quantity: number }>;
+
+// The default seal is a callable constructor.
+export const Line = Val.sealer<Line>();
+
+export type Cart = Val<
+  "Cart",
+  {
+    id: string;
+    customer: Email;
+    lines: readonly Line[];
+    delivery: { city: string; note?: string };
+  }
+>;
+
+type CartFields = Omit<SeedOf<Cart>, "id" | "lines">;
+
+export const Cart = Val.companion<Cart>()
+  // create generates data. The default seal then turns it into a Cart.
+  .implCreate((fields: CartFields): SeedOf<Cart> => ({
+    id: crypto.randomUUID(),
+    lines: [],
+    ...fields,
+  }))
+  // Generated fields stay outside the patch and update paths.
+  .fixed<"id">()
+  .impl({
+    // Behaviour stays beside the type, not inside its values. cart is inferred as Cart.
+    total(cart) {
+      return cart.lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+    },
+  });
+
+const parsed = Email.seal(" Alice@Example.com ");
+if ("err" in parsed) throw new Error(parsed.err);
+const email = parsed.ok;
+
+const cart = Cart.create({
+  customer: email,
+  delivery: { city: "Tokyo" },
+});
+
+const input = { sku: "BOOK", unitPrice: 3200, quantity: 1 };
+const line = Line(input);
+input.quantity = 2;
+line.quantity; // 1: constructors own a deep copy of their input
+
+const withLine = Cart.patch(cart, { lines: [line] });
+const rerouted = Cart.patch(withLine, { delivery: { city: "Kyoto" } });
+rerouted.lines === withLine.lines; // true: an untouched branch keeps its identity
+Cart.total(rerouted); // 3200
+
+// Cart.patch(cart, { id: "forged" }); // type error: id is fixed
+
+const same = Cart.patch(rerouted, {});
+same === rerouted; // true: a no-op patch returns the original value
+Cart.equals(rerouted, same); // true: equality is structural
 ```
 
 ## Development
