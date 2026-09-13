@@ -20,3 +20,6 @@ fallback-language = "text"
 [output.html]
 additional-css = ["tools/mdbook-shiki/shiki.css", "tools/mdbook-sidebar/sidebar.css"]
 additional-js = [".generated/mdbook-sidebar/headings.js", "tools/mdbook-sidebar/sidebar.js"]
+
+[output.linkcheck2]
+follow-web-links = true

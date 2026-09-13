@@ -1,6 +1,7 @@
 [tools]
 node = "24"
 mdbook = "0.5.4"
+"cargo:mdbook-linkcheck2" = "latest"
 
 [settings]
 lockfile = true

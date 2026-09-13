@@ -2,6 +2,11 @@
 
 lockfile_version = 1
 
+[[tools."cargo:mdbook-linkcheck2"]]
+version = "0.13.0"
+backend = "cargo:mdbook-linkcheck2"
+specifiers = ["latest"]
+
 [[tools.mdbook]]
 version = "0.5.4"
 backend = "aqua:rust-lang/mdBook"
