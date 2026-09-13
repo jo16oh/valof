@@ -3,6 +3,7 @@ node_modules
 !tests/lint/project/fixtures/pkg/node_modules/
 dist
 docs/book
+docs/.generated
 *.log
 .DS_Store
 
