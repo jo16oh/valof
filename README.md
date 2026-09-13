@@ -2,7 +2,7 @@
 
 <div align="center" style="margin-top: 8rem; margin-bottom: 4rem;">
   <img src="./assets/valof-brand.svg" alt="Valof" width="364">
-  <p><strong><em>Write robust domain logic in TypeScript, just by following the convention.</em></strong></p>
+  <p><strong><em>Write robust domain logic in TypeScript just by following the conventions.</em></strong></p>
   <p>
     <a href="https://www.npmjs.com/package/valof"><img src="https://img.shields.io/npm/v/valof.svg" alt="npm"></a>
   </p>
@@ -10,8 +10,8 @@
 
 <br>
 
-Valof is a versatile, opinionated value-object helper for TypeScript that enforces consistent
-conventions.
+Valof is an opinionated value-object helper for TypeScript that enforces the conventions through
+types and linting.
 
 What you get:
 
