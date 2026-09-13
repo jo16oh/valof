@@ -35,7 +35,7 @@ Every function in `impl` must take its Val first. A sealer already carries `equa
 `update`. Only `equals` can be replaced, through `.implEquals`.
 
 Only primitives, arrays and plain objects can live inside a Val. See
-[Allowed types](derivation.md#allowed-types).
+[Allowed types](allowed-types.md).
 
 **Name the brand after the type it brands**: `type UserId = Val<"UserId", string>`. Two Vals with
 the same brand and the same payload are silently assignable to each other. Where the same name lives
