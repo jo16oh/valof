@@ -1,4 +1,5 @@
-# Valof
+<br>
+<br>
 
 <div align="center" style="margin-top: 8rem; margin-bottom: 4rem;">
   <img src="./assets/valof-brand.svg" alt="Valof" width="364">
@@ -9,41 +10,43 @@
 </div>
 
 <br>
+<br>
 
 Valof is an opinionated value-object helper for TypeScript that enforces the conventions through
 types and linting.
 
-What you get:
-
-- **Plain data**: Vals stay objects, arrays and primitives. They serialize without adapters and fit
-  directly into React and other framework state. No classes, no prototypes.
+## What you get
 
 - **Nominal-ish typing with a phantom brand**: TypeScript distinguishes one Val type from another,
   with nothing to pay at runtime.
 
+- **Values as plain data**: Vals stay objects, arrays and primitives. They serialize without
+  adapters and fit directly into React and other framework state. No classes, no prototypes.
+
+- **Deeply readonly**: Values are deeply readonly. Constructors copy their inputs, so an original
+  reference cannot mutate them.
+
 - **No `as` casts in your code**: Valof owns the cast required to construct a branded value.
 
-- **Companion object**: a namespace for a type's constructor and functions, with the first Val
-  parameter inferred.
+- **Companion object**: Keep a type's constructor and functions together without a class. The first
+  Val parameter is inferred.
 
-- **"Parse, don't validate" by convention**: every creation and update goes through one `seal`. Use
-  any validation library and any Result type.
+- **"Parse, don't validate"**: Every creation and update goes through one `seal`. Use any validation
+  library and any Result type.
 
-- **Deep readonly**: constructors copy their inputs, so an original reference cannot mutate a Val.
+- **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
+  their reference identity.
 
-- **Copy only what changes**: `patch` reaches any depth without nested spreads. Untouched branches
-  remain referentially equal.
+- **Type-aware linting**: Catch convention violations through ESLint, Oxlint or the standalone
+  command.
 
-- **Built-in type-aware linter**: detects violations of Valof's rules through ESLint, Oxlint or its
-  standalone command.
-
-- **Lightweight**: starts from 1.25 kB gzipped, with no runtime dependencies.
+- **Lightweight**: About 1.1 kB gzipped, with no runtime dependencies.
 
 Read the [documentation](docs/src/introduction.md) for more details.
 
 ## Installation
 
-```bash
+```sh
 pnpm install valof
 ```
 
