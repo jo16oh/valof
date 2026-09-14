@@ -15,14 +15,14 @@ import { Val } from "valof";
 
 - **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠
 - **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
-- **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。3.5 `undefined` を値として禁じる理由と、EOPT の壁
+- **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが引数をコピーする理由。所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
   - **4.2** タプルを保つ。optional 要素と `Required<T>`、rest 要素の限界
 - **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、`implEquals` の spec の設計
 - **§6 スマートコンストラクタと更新**
-  - **6.1** コンストラクタは出自で決まる / **6.2** `patch` / `update`、patch の `undefined`、深さを問わない patch / **6.3** Result 非依存 / **6.4** `update` は値→値
-  - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` / `update` を上書きさせない
+  - **6.1** コンストラクタは出自で決まる / **6.2** `patch`、patch の `undefined`、深さを問わない patch、merge できるのは既にあるノードだけ / **6.3** Result 非依存 / **6.4** `update` を削除する
+  - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（鋳造）の分離 / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
@@ -110,7 +110,7 @@ from external module ".../valof/dist/index" but cannot be named.
 
 ブランドはどのみち実行時に存在しないので、衝突耐性は symbol であること自体ではなく**名前の長さ**で買える。`__valof_internal_phantom_` 接頭辞を実際のプロパティ名に使う者はいない。`phantom` を名前に入れているのは、ホバーやエラーメッセージでこのキーに出くわした人が実行時に探しに行かないようにするため。
 
-代償として文字列キーは `keyof Val<...>` に現れる。ペイロードのキーだけが欲しい場面では `PayloadOf<V>` / `SeedOf<V>` を使う（`patch` / `update` は元からこちらを経由する）。
+代償として文字列キーは `keyof Val<...>` に現れる。ペイロードのキーだけが欲しい場面では `PayloadOf<V>` / `SeedOf<V>` を使う（`patch` は元からこちらを経由する）。
 
 #### `declaration: true` はどの境界で要るか
 
@@ -390,6 +390,32 @@ User.patch(user, { nickname: undefined }); // nickname を削除
 
 deep equals も同様に、`{ a: undefined }` と `{}` が等しいかという厄介な問いが発生しない。
 
+### 3.6 object の union を禁じる
+
+`patch` は既にあるノードに merge する。variant が違えば merge 先が無く、古い variant のキーが残る。
+
+```ts
+type State = Val<
+  "State",
+  { kind: "loading"; startedAt: number } | { kind: "loaded"; value: string }
+>;
+
+State.patch(loading, { kind: "loaded", value: "ok" });
+// { kind: "loaded", value: "ok", startedAt: 1 }
+```
+
+`Validate` の object 分岐で union を弾く。primitive の union（`"a" | "b"`、`string | null`、`boolean`）はそのまま通す。
+
+```ts
+type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+```
+
+`[T] extends [Primitive]` の分岐が先にあるので、`boolean`（= `true | false`）を巻き込まない。全階層に効くのは `Validate` の再帰の帰結で、root だけを見ると nested に同じ穴が残る。
+
+通っていたのは object 同士の union だけだった。`Point | null` や `string | Point` は `[T] extends [object]` を満たさず、以前から `Invalid<"not a plain value">` で落ちている。配列同士の union は配列分岐に入って通ったままだが、配列は丸ごと置換なので `patch` の穴にはならない。
+
+sum 型は `Val` ではなく `Enum` に分ける（§9）。
+
 ---
 
 ## 4. DeepReadonly
@@ -407,7 +433,7 @@ raw.name = "mallory";
 user.name; // コピーしなければ "mallory"
 ```
 
-これは「利用者の責任」で済ませられない。`as` も何も要らず、素直なコードが黙って壊れる。値オブジェクトが背後で変わり得るなら、それは値オブジェクトではない。よって `Val.of` / sealer / `.impl()` のコンストラクタ、および既定の seal を通る `patch` / `update` / `create` は引数をディープコピーする。
+これは「利用者の責任」で済ませられない。`as` も何も要らず、素直なコードが黙って壊れる。値オブジェクトが背後で変わり得るなら、それは値オブジェクトではない。よって `Val.of` / sealer / `.impl()` のコンストラクタ、および既定の seal を通る `patch` / `create` は引数をディープコピーする。
 
 payload はプリミティブ・配列・プレーンオブジェクト・ネストした Val に限られるので、再帰コピーに特別扱いは要らない。`structuredClone` は使わない（自前の再帰の 5〜6 倍遅い）。
 
@@ -446,7 +472,7 @@ payload はプリミティブ・配列・プレーンオブジェクト・ネス
 - `Val.unwrap` は非 owning の copy で走る。可変なコピーを返す契約なので、**ノードを共有してもいけないし、共有されるノードになってもいけない**。後者を忘れると、unwrap した payload を seal し直したときに呼び出し側の可変オブジェクトを値が抱え込む
 - 取りこぼしはコピーに縮退するだけなので、レルムをまたいで WeakSet が別インスタンスになっても修復すべきものはない
 
-テストは 7 件。`patch` / `update` が触っていない部分木を保つ、patch 由来のノードは採用せず必ずコピーする、`Val.unwrap` は何も共有しない、unwrap した payload は再 seal しても採用されない、`equals` の答えは変わらない。
+テストは 7 件。`patch` が触っていない部分木を保つ、patch 由来のノードは採用せず必ずコピーする、`Val.unwrap` は何も共有しない、unwrap した payload は再 seal しても採用されない、`equals` の答えは変わらない。
 
 **バンドルサイズ: 所有権追跡は production gzip で +48 B。** `implEquals` の spec（§5）は当時の 1 kB 予算に収まらず、1.25 kB に引き上げた。この予算は妥協の結果で、削る案は §5 で却下した。React 単体が gzip 45 kB である以上、1.25 kB がフロントエンドでの採用をためらわせることはない。
 
@@ -479,9 +505,8 @@ WeakSet の代わりに、鋳造したオブジェクト自身に `obj[MARK] = t
 
 共有を入れても、no-op な `patch` は新しい root を作るので identity が変わり、再レンダリングが走る。`patch` は既に merged payload のキーを 1 周しているので、そのループに identity 比較を相乗りさせた。Immer の `produce` と同じ挙動。
 
-- 拾う: `patch(v, { name: 同じ値 })`、`patch(v, {})`、値が持たないキーの削除、`update(v, (x) => x)`
+- 拾う: `patch(v, { name: 同じ値 })`、`patch(v, {})`、値が持たないキーの削除
 - 拾わない: 同値だが新しい子 Val を渡した場合。**コンストラクタを通した以上、新しいインスタンスになるのが JS として自然**なので、これは仕様
-- 拾わない: `update` で spread した場合。新しいオブジェクトが同値かの判定は `patch` の仕事で、そこでしか走査が既に払われていない
 - カスタム seal のときは値を seal に通す。戻り値の形は seal が所有するため。中の `copy` が値を認識して同じノードを返すので、`Result` の中身の identity は保たれる
 
 短絡は既定の seal のときだけ seal を飛ばす。§6.8 の「値になる経路はすべて seal を通る」はカスタム seal については保たれる。
@@ -937,7 +962,7 @@ Age.seal(30); // ← 唯一の入口
 
 2 つの入口の差は「頭」だけに寄せてある。付与手段は `.impl()` ひとつで、選ぶのは「コンストラクタが要るか」という意味のある軸だけ。2 段呼び出しの理由は §13.1。
 
-### 6.2 `patch` / `update`
+### 6.2 `patch`
 
 **自由関数版 `Val.patch` は提供しない。** 実行時に型を特定できず、その型の seal にディスパッチできない。companion のメソッドとして提供する。
 
@@ -965,9 +990,8 @@ type PatchMethod<V, M> = [Patch<SeedOf<V>>] extends [never]
 
 `[...] extends [never]` と裸でない形にするのは、`never` に対する条件型の分配を止めるため（分配すると条件全体が `never` に潰れる）。
 
-- `update` は残す。プリミティブでも値→値の変換は意味を持つ（`IsoDate.update(d, addDay)`）
 - 実行時の `TypeError` ガードも残す。型を通らない JS からの呼び出しには依然として必要で、役割が「主たる防御」から「最後の網」に下がっただけ
-- 配列 Val も同じ扱い。要素単位の patch は `Patch` が表現できないので、`update` で丸ごと作り直すのが正しい経路
+- 配列 Val も同じ扱い。要素単位の patch は `Patch` が表現できないので、コンストラクタか `seal` で丸ごと作り直すのが正しい経路（§6.4）
 
 #### patch 内の `undefined` は「削除」
 
@@ -992,7 +1016,7 @@ patch は `Partial` なので、キーを省略すれば既に「変更しない
 **1. 必須キーへの `undefined` は型エラーにする。** patch の型を optional / required で分ける。
 
 ```ts
-type Patch<T> = { [K in Exclude<keyof T, OptionalKeys<T>>]?: T[K] } & {
+type Patch<T> = { [K in Exclude<keyof T, OptionalKeys<T>>]?: PatchValue<T[K]> } & {
   [K in OptionalKeys<T>]?: T[K] | undefined;
 };
 ```
@@ -1030,6 +1054,25 @@ Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
 
 外側から見ると「コンストラクタが作ったノード」なので、§6.2 の owned 規則で差し替えになる。深い patch と同じ結果に、seal を 1 つも飛ばさずに着く。
 
+#### merge できるのは既にあるノードだけ
+
+再帰する `Patch` は「その位置にノードがある」前提で partial を許す。無ければ実行時は merge せず差し替えるので、**partial がそのまま値になる**。
+
+```ts
+Place.patch(place, { at: { x: 1 } }); // at は optional で、今は無い
+// { name: "p", at: { x: 1 } }        at.y は型 number、実行時 undefined
+```
+
+`Record` の未存在エントリも同じ。ノードが無い経路は 3 つあり、判別 union（§3.6）はその 1 つだった。
+
+optional キーと `Record` のエントリは**値全体**を受け取る。型は存在を知らないので、安全側に倒す。
+
+```ts
+type Patch<T> = … & { [K in OptionalKeys<T>]?: T[K] | undefined };
+```
+
+`Record` のキーは `OptionalKeys` が optional と判定する（`{}` が index signature に代入できる）ので、1 か所で両方が閉じる。必須キーは常にノードがあるので、今までどおり merge する。代償は、既にあるものを部分更新するときも全体を書くこと（`{ at: { ...point, x: 1 } }`）。
+
 #### 実行時の境界は `owned`
 
 ブランドはファントムなので、実行時に「これは Val だ」とは読めない。読めるのはノードの出自だけで、それは §4.1 のコピーで既に記録している。
@@ -1044,13 +1087,10 @@ merge が既定になると、キーの少ないオブジェクトで置き換�
 
 ```ts
 Shop.patch(shop, { staff: computed }); // 古いエントリが残る
-Shop.update(shop, (s) => ({ ...s, staff: computed })); // 置換はこちら
+Shop({ ...shop, staff: computed }); // 置換はコンストラクタ（§6.4）
 ```
 
-新しい API は足さない。既存の 2 経路が意味で割れるだけである。
-
-- `patch` = patch。プレーンなオブジェクトを下まで merge、`undefined` で削除
-- `update` = 置換。payload 丸ごとを返す
+新しい API は足さない。`patch` はプレーンなオブジェクトを下まで merge し、`undefined` で削除する。全体の置き換えは値を作る経路そのものに戻す。
 
 `{ staff: { u1: undefined } }` で 1 エントリだけ消せるので、Map 用途は以前より書きやすくなった。
 
@@ -1071,24 +1111,18 @@ Order.with(order, {}); // 前置詞の主語が引数に落ちて宙に浮く
 
 **語が部分更新を意味するのも上乗せ。** HTTP `PATCH` / JSON Merge Patch（RFC 7386）/ `git patch` はどれも「全体を送らず差分を当てる」で、深い merge という実装とも一致する。`with` は部分か全体かを何も言わなかった。ずれるのは削除の sentinel だけで、merge patch は `null`、valof は `undefined`（§3.5）。
 
-`update` は据え置き。Immutable.js の `update` / `updateIn` と同じ語で、変換関数を取る側にはこれ以上の候補がない。
+#### 却下: 過去形にする（`patched`）
 
-#### 却下: 過去形にする（`patched` / `updated`）
+不変であることを名前で示す案。
 
-不変であることを名前で示す案。`update` に可変の響きがある、というのが動機だった。
-
-- **可変の響きは companion 形式では出ない。** `user.update(...)` ならレシーバが変わって見えるが、`User.update(user, fn)` の `user` は引数で、変わり得る対象が文面にない。`Object.keys(x)` が `x` を変えると読む者はいない
+- **可変の響きは companion 形式では出ない。** `user.patch(...)` ならレシーバが変わって見えるが、`User.patch(user, p)` の `user` は引数で、変わり得る対象が文面にない。`Object.keys(x)` が `x` を変えると読む者はいない
 - **過去形が効くのは可変の双子がいるときだけ。** Python / Swift の `sorted()` は `sort()` と並ぶから意味を持つ。valof に双子はいないので、「どこかに可変版があるのか」と読ませるだけになる。Scala の case class も過去形ではなく `copy()`
-- **「`patched` = 部分更新 / `updated` = 置き換え」という対比が成立しない。** 過去形は部分か全体かを何も言わない。実際の軸は「patch オブジェクトを取るか、変換関数を取るか」で、しかも `fixed`（§6.10）を使う型では `update` も merge する。「置き換え」は事実としても正しくない
-- 8 個のメンバのうち 2 個だけ過去分詞になり、register が崩れる
-
-命令形にする（`patch`）だけで、動機だった読みにくさは消える。
+- メンバのうち 1 つだけ過去分詞になり、register が崩れる
 
 #### 却下した案
 
 - **patch の値に updater 関数を許す**（`{ profile: (p) => ... }`）。1 段しか砂糖が効かず、同じ操作に 2 通りの書き方ができる
 - **パス指定 API**（`patch(u, "profile.name", x)`）。template literal 型が型チェック速度と d.ts 予算を食い、API も増える。v2 候補
-- **現状維持**。`update` と spread で書けるが、それなら `patch` が存在する意味が薄い
 
 #### コスト
 
@@ -1102,9 +1136,27 @@ production gzip +43 B、d.ts +0.52 kB。`patch` の既存ループがそのま�
 
 **提供しなくても `patch` は実装できる。** `patch` は seal の戻り値を unwrap する必要がない（古い値は既に妥当なので、マージして seal に流すだけ）。戻り値の型を `ReturnType<typeof seal>` として推論すればよく、ライブラリは `Result` の中身を一切知らずに済む。どの Result 実装でも自作でも動く。
 
-### 6.4 `update` は「値 → 値」に限定する
+### 6.4 `update` を削除する
 
-関数で変換する `update` は、チェーンすると `Result<Result<...>>` になりかねない。失敗し得る変換は `patch` + 利用者側の `andThen` に任せる。
+`update` と `patch` は受け取る形が違うだけで、どちらも payload を同じ seal に渡していた。payload 全体を渡す経路は既にある。コンストラクタと、custom seal を持つ型の `seal` である。
+
+```ts
+User({ ...user, name: user.name.toUpperCase() });
+Age.seal(age + 1);
+const nearby = Path(path.filter((point) => point.y <= 5));
+```
+
+`patch` の境界は動かさない。deep merge できる plain object だけに生やし、array / tuple / primitive には出さない。
+
+**bare companion は全体の作り直しを提供しない。** `Val.sealer` でも `.implSeal` でもない companion には公開された構築経路が無いのに、`update` だけが内部の既定 seal を使って payload 全体を差し替えられた。能力の境界として一貫しないので、削除で揃う。値を作る型は callable sealer か custom seal を選ぶ。
+
+消えたもの: `UpdateMethod`、`NoExtra`、実行時の `target.update` と `Ctors.fixed` の boolean。`fixed` は型引数だけの操作になった（§6.10）。production gzip -30 B、d.ts -1.1 kB。
+
+`update` という名前は利用者に戻る。`.impl` の `never` からも、リンタの BUILTIN からも外した。
+
+**代償。** `fixed` を持つ型の `update` は、コールバックが省いた optional キーを残していた（root の blind merge にキー名が無いため）。この挙動は引き継がない。削除は `patch(v, { k: undefined })` を使う。
+
+却下した案: 配列にも `patch` を広げる（`{}` は no-op、`[]` は全体置換となり、payload の形で意味が変わる）、配列の `undefined` を削除 sentinel にする（標準の `filter` / `map` と重なり、hole と optional 要素の区別が仕様に増える）、`patch` に値と callback の両方を受けさせる（同じ操作に 2 通りの書き方ができる）。
 
 ### 6.5 メソッドの第一引数を Val に固定する（`impl` / `implSeal`）
 
@@ -1114,7 +1166,6 @@ production gzip +43 B、d.ts +0.52 kB。`patch` の既存ループがそのま�
 type CompanionFns<V extends AnyVal> = {
   equals?: never;
   patch?: never;
-  update?: never;
   seal?: never;
   create?: never;
   [key: string]: ((value: V, ...rest: any[]) => unknown) | NonMethod;
@@ -1161,7 +1212,7 @@ export const Age = Val.companion<Age>()
 
 #### 配線対象を `.impl` に書いたら型エラーにする
 
-プリミティブ payload では `V` が第一引数の型に代入可能になることがある（`Val<"Age", number>` に対する `seal(n: number)`）。すると**関数が制約を通り、ただのメソッドとして生えて、`patch` / `update` が配線されない**（`create` なら**seal を通らない鋳造経路ができる**）という無言の事故になる。移行中に実際に踏んだ。`seal?: never` / `create?: never` を宣言して弾く。
+プリミティブ payload では `V` が第一引数の型に代入可能になることがある（`Val<"Age", number>` に対する `seal(n: number)`）。すると**関数が制約を通り、ただのメソッドとして生えて、`patch` が配線されない**（`create` なら**seal を通らない鋳造経路ができる**）という無言の事故になる。移行中に実際に踏んだ。`seal?: never` / `create?: never` を宣言して弾く。
 
 メッセージを型に乗せる案（`seal?: "use .implSeal() …"`）も試したが、`never` を採った。エラー文の見た目は落ちる。optional 修飾子のせいで `never | undefined` になるため、TS は次のように言う。
 
@@ -1171,7 +1222,7 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 引数の型としてしか情報を置けない場所ならメッセージ埋め込みが要る。ここは `seal` というキー名自体が何をしようとしたかを示していて、`implSeal` は API のすぐ隣にある。型の意図（「ここに `seal` は置けない」）をそのまま書けるほうを取る。
 
-`equals` / `patch` / `update` も同じ理由で `never` にした。事故の形は違って、こちらは**生えはするが配線が外れる**（`equals` の第 3 引数が来ない、`patch` の戻りが seal を通らない）。専用の段に出した経緯は §7.7。
+`equals` / `patch` も同じ理由で `never` にした。事故の形は違って、こちらは**生えはするが配線が外れる**（`equals` の第 3 引数が来ない、`patch` の戻りが seal を通らない）。専用の段に出した経緯は §7.7。
 
 #### sealer に `implSeal` は生やさない
 
@@ -1182,7 +1233,7 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 `Val.companion<V>().impl({…})` をカスタム seal なしで許すか。**許す。**
 
 1. **必須にしても閉じる穴がない。** `Val.of` は公開 API で、seal の有無に関わらず `Val.of<Age>(-1)` は通る
-2. **一貫性が取れない。** `Val.companion<V>()` は素の状態で既に使える Companion（`equals` / `patch` / `update` を持つ）。`.impl` だけ seal 必須にしても手前が空いている
+2. **一貫性が取れない。** `Val.companion<V>()` は素の状態で既に使える Companion（`equals` / `patch` を持つ）。`.impl` だけ seal 必須にしても手前が空いている
 3. **偽の seal を書かせる。** `(v) => Val.of<V>(v)` という素通しのラバースタンプが生える。検証しているように読めて何もしていない seal は、seal がないことより悪い
 
 カスタム seal なし companion は意味のある形でもある。値が境界（デコーダ、DB 行、外部 API）から来る型では、コンストラクタを持たず振る舞いだけ束ね、構築は `Val.of` で行うのが正しい。
@@ -1191,9 +1242,9 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 第一引数が Val でない補助ファクトリ（`Money.fromCents(n)` / `IsoDate.parse(s)`）は companion に置けない。これらは「値に対する振る舞い」ではないので、素の export 関数に分離されるほうが筋が通る。多引数のコンストラクタ（`Point.create(x, y)`）は `implCreate` が引き受けるので影響なし。
 
-### 6.6 `patch` / `update` は上書きさせない
+### 6.6 `patch` は上書きさせない
 
-**語彙は契約である。** どの型でも `Foo.patch(v, p)` は「深く merge、`undefined` で削除、seal を通る」、`Foo.update(v, f)` は「変換の結果を seal に通す」。上書きできる限りこれは約束にならず、読み手は型ごとに定義を確かめることになる。固定した小さな面から得られるものが、そこで消える。
+**語彙は契約である。** どの型でも `Foo.patch(v, p)` は「深く merge、`undefined` で削除、seal を通る」。上書きできる限りこれは約束にならず、読み手は型ごとに定義を確かめることになる。固定した小さな面から得られるものが、そこで消える。
 
 規則の違う派生は**自分の名前を持つ**。`.impl` に書き、中で自分の seal を呼ぶ。
 
@@ -1207,23 +1258,22 @@ const Money = Val.companion<Money>()
 
 戻り型の注釈が要る。`Money` を自身の初期化子の中で参照するので、無いと TS7022 / TS7023（implicitly has type 'any'）になる。TypeScript の一般的な事実であって valof の事情ではないので、README にも JSDoc にも書かない。
 
-#### 却下: `implPatch` / `implUpdate`（一度入れて外した）
+#### 却下: `implPatch`（一度入れて外した）
 
 上書きの段を足したことがある。動機は 3 つあり、**すべて他の場所で解決していた**。
 
-| 当時の動機                           | 現在                                                                                                       |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
-| 生成した `id` を更新経路から外す     | `.fixed`（§6.10）                                                                                          |
-| seal の引数が payload より狭い       | `CheckedSeal` が `implSeal` の登録時に落とす（§6.10）                                                      |
-| プリミティブ Val に `patch` を生やす | 患部が無い。merge するものを持たない型に `patch` は嘘。配列も §6.2 が「`update` が正しい経路」と書いている |
+| 当時の動機                           | 現在                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
+| 生成した `id` を更新経路から外す     | `.fixed`（§6.10）                                                                                       |
+| seal の引数が payload より狭い       | `CheckedSeal` が `implSeal` の登録時に落とす（§6.10）                                                   |
+| プリミティブ Val に `patch` を生やす | 患部が無い。merge するものを持たない型に `patch` は嘘。配列はコンストラクタか `seal` で作り直す（§6.4） |
 
 **「自前の派生から seal に届かない」も解決していた。** 当時は「`YourVal.seal(...)` は companion 自身の初期化中なので書けない」と判断して seal を第 3 引数で手渡したが、実際には**戻り型を注釈すれば `.impl` の中から呼べる**。実行時は関数の本体が走るのは初期化後なので元から動いていて、止めていたのは型推論の循環だけだった。カスタム seal が `Result` を返す型でも同じ。
 
-README に載っていた `Point` の例（`implSeal` で切り捨て、`implPatch` で `seal({ ...p, ...patch })`）は**ラバースタンプだった**。落として実行すると既定の `patch` / `update` が同じ答えを返す。
+README に載っていた `Point` の例（`implSeal` で切り捨て、`implPatch` で `seal({ ...p, ...patch })`）は**ラバースタンプだった**。落として実行すると既定の `patch` が同じ答えを返す。
 
 ```
 default patch:  {"x":3,"y":2}   // 3.7 が seal で切り捨てられている
-default update: {"x":1,"y":9}
 ```
 
 §6.6 は「ラバースタンプを書かせない」ために足した段なのに、唯一の用例がそれだった。
@@ -1232,7 +1282,7 @@ default update: {"x":1,"y":9}
 
 **production gzip -40 B、d.ts -1.90 kB。** 型引数を 2 つ抜いた効果が d.ts に大きく出る。
 
-`patch` / `update` は `CompanionFns` で `never` のまま。上書きできないことと、同名の関数を素通しで生やせることは別で、後者は既定を実行時に踏み潰す。
+`patch` は `CompanionFns` で `never` のまま。上書きできないことと、同名の関数を素通しで生やせることは別で、後者は既定を実行時に踏み潰す。
 
 ### 6.7 seal と create を分ける
 
@@ -1257,7 +1307,7 @@ seal は「ペイロードに封をする」操作であり、**`seal(v のペ�
 
 1. **エラーが間違えた場所で出る。** 多引数コンストラクタは `implSeal` の**登録時**に落ちる。以前は 10 行下の `Point.patch(...)` で怒られていた。「自前の patch を書け」と説明する分岐は不要になり、削除した
 2. **`create` と seal が共存できる。** DDD の create / reconstitute の分離そのもの。`create` がペイロードを鋳造し、seal がそれに封をし、`patch` は seal を通るので `create` が再実行されない。§6.6 で「自前の `patch` を書くしかない」と言った ID の例が、既定のまま正しく動く
-3. **`create` だけでも `patch` / `update` は生える。** 既定の seal（コピー）もペイロード関数だからで、`create` が振った `id` はコピーされて保存される。`Rebuild` は分岐を失った
+3. **`create` だけでも `patch` は生える。** 既定の seal（コピー）もペイロード関数だからで、`create` が振った `id` はコピーされて保存される。`Rebuild` は分岐を失った
 
 ```ts
 type Rebuild<V, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
@@ -1277,7 +1327,7 @@ type Rebuild<V, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 .implSeal((input: object, seal) => seal(schema.parse(input))); // OK
 ```
 
-`patch` / `update` はペイロードを seal に返す（§6.8）ので、ワイヤ形式のデコーダを seal に置くと、値から値を派生した瞬間に壊れる。落ちるのは `unknown` と `{}` で、スキーマライブラリに要る広さは `object` と `Record<string, unknown>` で足りる。
+`patch` はペイロードを seal に返す（§6.8）ので、ワイヤ形式のデコーダを seal に置くと、値から値を派生した瞬間に壊れる。落ちるのは `unknown` と `{}` で、スキーマライブラリに要る広さは `object` と `Record<string, unknown>` で足りる。
 
 ペイロード自体が `string` の Val（`Val<"Email", string>`）は除外する。ペイロードとワイヤ形式を型で区別する手段がない。
 
@@ -1319,7 +1369,7 @@ User.create(fields); // → Result<User>
 
 seal の引数を可変（`PayloadOf<V>`）にして、公開 `seal` が入口でディープコピーを取る案を一度実装した。正規化のために配列を `sort` できる、可変型を要求する他人の関数に渡せる、が理由だったが捨てた。
 
-1. **immer 風の可変ドラフトになる。** 「値 → 値」に限定した `update`（§6.4）と書き味が矛盾する
+1. **immer 風の可変ドラフトになる。** 値から値を導出するという書き味と矛盾する
 2. **ES2023 で不要になった。** `toSorted` / `toSpliced` / `patch` / `toReversed` があるので、正規化は「書き換える」ではなく「導出する」で足りる
 3. **コピーが 2 回になる。** 入口のディープコピーは、末尾の `Val.of` のディープコピーに上乗せされる
 
@@ -1340,8 +1390,6 @@ seal の引数を可変（`PayloadOf<V>`）にして、公開 `seal` が入口�
 | 同上・検証に失敗して `Err` を返す          | 通る                          | 同上                      | **0**（既定の seal を通さない）     |
 | `V.patch(v, patch)`（カスタム seal なし）  | なし                          | 1（マージ）               | 1                                   |
 | `V.patch(v, patch)`（カスタム seal あり）  | 通る                          | 1 + seal の導出分         | 1                                   |
-| `V.update(v, fn)`                          | 上と同じ                      | `fn` が作る分（通常 1）   | 1                                   |
-| `V.update(v, fn)`（`.fixed` あり）         | 上と同じ                      | `fn` の分 + マージ 1      | 1                                   |
 | `V.create(args)`                           | 通る                          | create が組む分（通常 1） | 1                                   |
 | `.impl` の自前 `patch` → 第 3 引数の seal  | 通る                          | 自前実装しだい            | 1                                   |
 | `.impl` の自前 `patch` → `Val.of`          | **通らない**                  | 同上                      | 1                                   |
@@ -1356,15 +1404,14 @@ seal の引数を可変（`PayloadOf<V>`）にして、公開 `seal` が入口�
 
 101 ノードの payload、production ビルドでの実測。
 
-| 呼び出し                                     | µs/op  |
-| -------------------------------------------- | ------ |
-| `City({ ...fresh, name })`                   | 11.087 |
-| `City({ ...city, name })`                    | 0.151  |
-| `City.update(city, (c) => ({ ...c, name }))` | 0.163  |
-| `City.patch(city, { name })`                 | 0.229  |
-| `City.patch(city, { geo: { lat: 36 } })`     | 0.439  |
+| 呼び出し                                 | µs/op  |
+| ---------------------------------------- | ------ |
+| `City({ ...fresh, name })`               | 11.087 |
+| `City({ ...city, name })`                | 0.151  |
+| `City.patch(city, { name })`             | 0.229  |
+| `City.patch(city, { geo: { lat: 36 } })` | 0.439  |
 
-70 倍の差は経路ではなく**渡したノードの出自**で決まる。`update` が特別なのではなく、値をスプレッドして直にコンストラクタへ渡しても同じになる。逆に、外から来たオブジェクトを組み立てて渡せば全部コピーする。
+70 倍の差は経路ではなく**渡したノードの出自**で決まる。値をスプレッドして直にコンストラクタへ渡せば owned なノードで止まり、外から来たオブジェクトを組み立てて渡せば全部コピーする。
 
 deep patch（§6.2）はこの性質を細かくした。patch が触った path のノードだけが新しく、兄弟はすべて owned のまま素通りする。
 
@@ -1376,15 +1423,14 @@ custom seal の中で値を作るには `Val.of<Age>(n)` と型引数を書く�
 .implSeal((n, seal) => (n >= 0 ? ok(seal(n)) : err("negative")))
 ```
 
-`equals` の `deepEquals`、上書き `patch` / `update` の seal（§6.6）と同じ立て付け。渡すのは**既定の** seal であって自分自身ではないので、再帰にはならない。1 引数で書かれた seal はそのまま登録される。公開側は `WithoutDefaultSeal<F>` で第 2 引数を落とす。
+`equals` の `deepEquals` と同じ立て付け。渡すのは**既定の** seal であって自分自身ではないので、再帰にはならない。1 引数で書かれた seal はそのまま登録される。公開側は `WithoutDefaultSeal<F>` で第 2 引数を落とす。
 
 **それでも `Val.of` は公開したままにする。** 消せば `.impl` のメソッドが自分の型の値を作れなくなり、seal なし companion（§6.5）も成立しなくなり、検証済みの値の再持ち上げ（JSON 往復、テストのフィクスチャ）も seal 経由の再検証を強制される。そもそも `payload as Age` は残るので**閉じられる穴ではない**。`Val.of<Age>(x)` は型引数を明示するぶん grep できる逃げ道である、という位置づけ。
 
-| 値を作る場所                          | 手段                     |
-| ------------------------------------- | ------------------------ |
-| custom seal の中                      | 第 2 引数の seal         |
-| `patch` / `update` の上書き           | 第 3 引数の seal（§6.6） |
-| `.impl` のメソッド / 境界での持ち上げ | `Val.of`                 |
+| 値を作る場所                          | 手段             |
+| ------------------------------------- | ---------------- |
+| custom seal の中                      | 第 2 引数の seal |
+| `.impl` のメソッド / 境界での持ち上げ | `Val.of`         |
 
 ### 6.9 名前が `seal` になるまで
 
@@ -1392,7 +1438,7 @@ custom seal の中で値を作るには `Val.of<Age>(n)` と型引数を書く�
 
 - **`from`**: `implFrom` が Rust の `impl From<T> for U`（＝任意の型からの変換）に読める。それは今の `create` の意味であり、**名前が指すものが実際と逆**だった
 - **`validate`**: 検査は seal がやることの一つにすぎない。正規化（§5 の Email）も `Result` 包みも「検証」ではないし、`validate(x)` が引数をコピーするのは奇妙。boolean を返す述語だと誤読させる語でもある
-- **`parse`**: コピーも失敗も自然に読める。しかし parse は「緩い入力を解いて型にする」語なので、**引数がペイロードに固定されている理由を名前が説明しない**。その制約は `patch` / `update` がここを通せるために本質的なもので、恣意的に見えては困る
+- **`parse`**: コピーも失敗も自然に読める。しかし parse は「緩い入力を解いて型にする」語なので、**引数がペイロードに固定されている理由を名前が説明しない**。その制約は `patch` がここを通せるために本質的なもので、恣意的に見えては困る
 - **`seal`**: 封をする対象は中身そのものなので、引数がペイロードであることが名前から出る。すでにライブラリの語彙（`Val.sealer`）で、三分割が一列に並ぶ。「鋳造してはいけない」という §6.7 の規約も動詞から読み取れる
 
 |                   | 引数    | 制約                         |
@@ -1405,7 +1451,7 @@ custom seal の中で値を作るには `Val.of<Age>(n)` と型引数を書く�
 
 ### 6.10 `fixed`: 派生経路から外すキー
 
-`create` が鋳造した `id` を `patch` / `update` から触らせない、という §8.4 のパターンは、**`patch` / `update` を両方とも上書きする**ことでしか書けなかった。上書きの中身は既定と 1 文字も違わず、**唯一の内容は patch の型**である。§6.5 / §6.6 で「ラバースタンプを書かせない」と決めておきながら、最も頻出するパターンでそれを強制していた。
+`create` が鋳造した `id` を派生経路から触らせない、という §8.4 のパターンは、**`patch` を上書きする**ことでしか書けなかった。上書きの中身は既定と 1 文字も違わず、**唯一の内容は patch の型**である。§6.5 / §6.6 で「ラバースタンプを書かせない」と決めておきながら、最も頻出するパターンでそれを強制していた。
 
 宣言のステップを足す。
 
@@ -1420,41 +1466,7 @@ Val.companion<User>()
 
 `fixed("id")` と文字列で渡せば実行時にもキーが分かるが、型引数だけにした。ブランドがファントムであることと揃うし、得られる保証も §8.4 が既に認めている水準（「通常の更新経路では触れない。`Val.of` では偽造できる」）と同じ。型を迂回したケース（`any` 経由など）で実行時に旧値を復元する挙動は、バグを隠す側にも働く。
 
-**キー名が無くても `update` は成立する。** `fixed` を呼んだという事実（boolean 1 つ）だけ実行時に残せば、`update` は `seal({ ...value, ...fn(value) })` とマージすればよい。コールバックが返すのは残りのキーだけなので、触れないキーは古い値から生き残る。
-
-|                         | 既定                        | `fixed<K>()` あり                    |
-| ----------------------- | --------------------------- | ------------------------------------ |
-| `patch` の patch        | `Patch<SeedOf<V>>`          | `Patch<Omit<SeedOf<V>, K>>`          |
-| `update` のコールバック | `(v) => SeedOf<V>` を素通し | `(v) => Omit<SeedOf<V>, K>` をマージ |
-
-既定側でマージしないのは、**optional キーの削除**を残すため。マージする側ではそれができなくなるので、削除は `patch(v, { k: undefined })` を使う。
-
-#### `NoExtra` はライブラリの内側へ
-
-コールバックの戻り型を狭めるだけでは `(v) => ({ ...v, id: "forged" })` が通る。原因は `Omit` でも `update` でもなく、**余剰プロパティ検査（freshness）のルール**。
-
-| 書き方                                              | 結果      |
-| --------------------------------------------------- | --------- |
-| `const x: Plain = { owner, id }`                    | ❌ エラー |
-| `i({ owner, id })`（直接の引数）                    | ❌ エラー |
-| `h((): Plain => ({ owner, id }))`（返り値型を注釈） | ❌ エラー |
-| `h(() => ({ owner, id }))`（返り値型は推論）        | ✅ 通る   |
-| `h(() => { return { owner, id }; })`                | ✅ 通る   |
-| `const lit = {…}; h(() => lit)`                     | ✅ 通る   |
-
-余剰プロパティ検査はリテラルが**目標の型と直接突き合わされたとき**にしか働かない。コールバックに返り値注釈がないと、TS はまず本体から戻り型を推論し、そのあと関数の代入互換性を検査する。この時点でリテラルの freshness は失われている。
-
-**回避策は freshness に頼らないこと。** 余分なキーを構造的なエラーにする。
-
-```ts
-type NoExtra<T, S> = T & Record<Exclude<keyof T, keyof S>, never>;
-
-update: <T extends Derivable<V, P>>(value: V, fn: (value: V) => NoExtra<T, Derivable<V, P>>) => …
-```
-
-`T` はコールバックが実際に返した型から推論されるので、`Derivable` にないキーは `never` に写されてエラーになる。`T extends NoExtra<T, S>` と制約側に書くほうが見た目はきれいだが **TS2313（circular constraint）**。§3.5 で `Val<K, T>` の自己参照制約を条件型に逃がしたのと同じ制限で、ここでは引数の型に置く。
-
-この技が**利用者のコードからライブラリの実装に移った**のがこの節の実利で、§8.4 は 4 行になった。
+`update` の削除（§6.4）で、実行時に残すものは無くなった。`patch` の patch は `Patch<Omit<SeedOf<V>, K>>` になり、それは型だけの操作である。
 
 #### 名前
 
@@ -1467,15 +1479,15 @@ update: <T extends Derivable<V, P>>(value: V, fn: (value: V) => NoExtra<T, Deriv
 
 #### `unpatchable` → `fixed`
 
-`with` を `patch` に改名した時点（§6.2）で語幹が衝突した。`unpatchable` は前から `patch` と `update` の両方を縛っていたが、旧名では見えなかった。メンバに `patch` ができると「`patch` だけ塞ぐ」と読める。**`Account.update(a, (x) => ({ ...x, id: "forged" }))` は通る、と読む者が出る。** それは `unpatchable` が防ぎたかった偽造そのものである。
+`with` を `patch` に改名した時点（§6.2）で語幹が衝突した。`unpatchable` は当時の 2 つの派生経路を縛っていたが、旧名では `patch` だけを塞ぐと読めた。それは防ぎたかった偽造を通す読み方である。
 
-`fixed` は `patch` とも `update` とも語幹を共有せず、`create` の有無にも依存しない。fixed-point / fixed rate の系列なので、継承も可視性も連想させない。
+`fixed` は `patch` と語幹を共有せず、`create` の有無にも依存しない。fixed-point / fixed rate の系列なので、継承も可視性も連想させない。
 
 **形容詞のままにする。** これは関数を 1 つも渡さず性質を宣言するだけのステップで、実装を与える `impl*` と名前で区別される、という上の判断は変わらない。`fix` にすると命令形になってその区別が消えるうえ、鎖の中の `.fix()` は「直す」と読まれる。
 
 - **`final`**: 上で却下したまま。JVM の語彙が `seal` を `sealed trait` に誤読させる件は §6.9 が `seal` の残存リスクとして挙げたもので、`final` はそれを増幅する
 - **`lock`**: 命令形で誤読も無いが、実行時には boolean 1 つしか残らないのに lock と言うのは約束が過大
-- 内部型 `Patchable<V, P>` は `Derivable<V, P>` に改名。`patch` と `update` の両方が通る面なので、片方の語幹を持たせない
+- 内部型 `Patchable<V, P>` は `Derivable<V, P>` に改名。派生経路全体の面なので、片方の語幹を持たせない
 
 ---
 
@@ -1598,15 +1610,15 @@ const Order = Val.sealer<Order>().implEquals(
 
 プレーンなデータであることはこのライブラリの差別化のすべてで、それを捨てると Effect Schema / Data と同じ土俵に 1/50 の表面積で立つことになる。
 
-### 7.7 `equals` / `patch` / `update` を `.impl` に置いたままにする
+### 7.7 `equals` / `patch` を `.impl` に置いたままにする
 
 **却下。`.impl` はそのまま生やすものだけの置き場にする。**
 
 `.impl` に置かれた関数は名前どおりに companion に付く。この 3 つだけは違う。ライブラリが配線する。
 
-- 戻り値の型が決まっている（`equals` は `boolean`、`patch` / `update` は seal の戻り）
+- 戻り値の型が決まっている（`equals` は `boolean`、`patch` は seal の戻り）
 - `equals` は第 3 引数（`deepEquals`）が束縛されて公開側から消える
-- companion の型で `Omit<M, "equals" | "patch" | "update">` されて、`M` から取り除かれる
+- companion の型で `Omit<M, "equals" | "patch">` されて、`M` から取り除かれる
 
 実行時にもそれは出ていて、`attach` の `for` ループがこの 3 つを `continue` で特別扱いしていた。「`.impl` は素通し」という建前が既に破れていた。
 
@@ -1614,7 +1626,7 @@ const Order = Val.sealer<Order>().implEquals(
 
 > **ライブラリが配線するものは専用の段。`.impl` はそのまま生やすものだけ。**
 
-行き先は 3 つで同じではない。`equals` は `implEquals` に出た。`patch` / `update` は**どこにも出さず、上書きの手段ごと閉じた**（§6.6）。`.impl` から弾く `never` は 3 つとも残る。上書きさせないことと、同名の関数を素通しで生やせることは別で、後者は既定を実行時に踏み潰す。
+行き先は同じではない。`equals` は `implEquals` に出た。`patch` は**どこにも出さず、上書きの手段ごと閉じた**（§6.6）。`.impl` から弾く `never` はどちらも残る。上書きさせないことと、同名の関数を素通しで生やせることは別で、後者は既定を実行時に踏み潰す。
 
 ---
 
@@ -1663,7 +1675,7 @@ export const IsoDate = Val.companion<IsoDate>()
 
 ### 8.3 スキーマライブラリとの併用
 
-検証を seal に置けば、更新経路（`patch` / `update`）も鋳造経路（`create`）も全部そこを通る（§6.2 / §6.8）。引数は `object` まで広げてよい。`SealImpl<V>` はペイロードを**受け取れる**ことしか要求しない。`unknown` は `string` も受けるので落ちる（§6.7）。
+検証を seal に置けば、更新経路（`patch`）も鋳造経路（`create`）も全部そこを通る（§6.2 / §6.8）。引数は `object` まで広げてよい。`SealImpl<V>` はペイロードを**受け取れる**ことしか要求しない。`unknown` は `string` も受けるので落ちる（§6.7）。
 
 ```ts
 export const User = Val.companion<User>()
@@ -1674,7 +1686,7 @@ export const User = Val.companion<User>()
   .impl({ greet(u) { … } });
 ```
 
-zod の `.brand()` との違いはここに出る。あちらの検査はパースの一度きりで、結果から派生した `{ ...user, name: "" }` はブランド付きの型のまま再検査されない。valof の `patch` / `update` は seal を通り直す。**README にはこの対比を書かない。** 詳細に寄りすぎるので、一行（「派生のたびにスキーマが走る」）だけ置き、対比は宣伝記事に回す。
+zod の `.brand()` との違いはここに出る。あちらの検査はパースの一度きりで、結果から派生した `{ ...user, name: "" }` はブランド付きの型のまま再検査されない。valof の `patch` は seal を通り直す。**README にはこの対比を書かない。** 詳細に寄りすぎるので、一行（「派生のたびにスキーマが走る」）だけ置き、対比は宣伝記事に回す。
 
 **ワイヤ形式のデコードは seal に入れない。** `seal(json: string)` は `CheckedSeal` に落ちる（§6.7）。形式のパースは手前の別関数に分ける。
 
@@ -1684,7 +1696,7 @@ export function parseUser(json: string): Result<User> {
 }
 ```
 
-値が常に検証済みで届く型は、カスタム seal を登録せず境界で `Val.of` に持ち上げる（§6.5）。この場合 `patch` / `update` はコピーで再構築し、何も再検証しない。
+値が常に検証済みで届く型は、カスタム seal を登録せず境界で `Val.of` に持ち上げる（§6.5）。この場合 `patch` はコピーで再構築し、何も再検証しない。
 
 **信頼できるのは、両側が同じデプロイで出荷される経路だけである。** RSC / Server Function、同一アプリのプロセス間 JSON-RPC、Electron の chromium ↔ node の IPC。境界を分けるのは所有者ではなく**時間**である。
 
@@ -1704,10 +1716,9 @@ export const User = Val.companion<User>()
 
 User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // 型エラー
-User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 ```
 
-`update` も塞ぐ必要があるのは、コールバックがペイロード全体を返す経路だから。`patch` の patch だけ絞っても `id` は届く。
+payload 全体を作り直す経路（コンストラクタ、`seal`）は塞がらない。`id` を自分で書けるので、これは「通常の更新経路が動かせない」だけの保証である。
 
 **それでもこれは private ではない。** `user.id` は読めるし、`readonly` は実行時に消えるし、`Val.of<User>({ id: "forged", … })` で偽造できる。得られるのは「通常の更新経路が `id` を動かせない」だけ。偽造も防ぎたいなら `id` は値の外に持つ。
 
@@ -1754,6 +1765,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
       独立した規則 `aliased-val`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
+- [ ] `Enum`（sum 型）の API。plain object の union を禁じた（§3.6）分の受け皿で、variant のコンストラクタで作った値を nested Val と同じ patch 境界に置く形を考える
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
@@ -1780,7 +1792,7 @@ User.update(user, (u) => ({ ...u, id: "forged" })); // 型エラー
 - コンストラクタによる引数のディープコピー（§4.1）
 - コンストラクタの登録を 2 系統に分ける（`implSeal` = 封をする唯一の関門 / `implCreate` = payload を鋳造して seal に流す、§6.7 / §6.8）
 - `.impl` のメソッドは第一引数が Val に固定され、注釈不要（§6.5）
-- `patch` / `update`（Result 非依存、seal を通る。`.impl` で上書き可能で、そのとき seal は第 3 引数で渡される、§6.6）
+- `patch`（Result 非依存、seal を通る。上書きはさせない、§6.6）
 - `.fixed<K>()`（更新経路から外すキーを型引数で宣言、§6.10）
 - `Val.of`（既定の seal を型名つきで呼ぶ形、§2.2）
 - `Val.unwrap`（可変なコピーを取り出す出口、§4）
@@ -1881,7 +1893,7 @@ function companion<V extends AnyVal, M extends CompanionMethods<V> = Record<neve
 `M` にデフォルトを付けると**コンパイルは通るが静かに壊れる**。`companion<Age>({ from })` で `M = Record<never, never>` に落ち、
 
 - ユーザーのメソッドが companion から消える（`A.greet` が存在しない）
-- `patch` / `update` が `ReturnType<typeof from>` を返さなくなる
+- `patch` が `ReturnType<typeof from>` を返さなくなる
 - 当時のゲート（§6.1）が無効化され、`A(30)` が**エラーなしで通る**
 
 デフォルトを付けなければ `Expected 2 type arguments, but got 1` になり、`Val.companion<User, typeof methods>(methods)` と `const` を別に切って `typeof` する必要がある。空の `()` より冗長。
@@ -1949,7 +1961,7 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 - **`sealer`**: `-er` を付けたのは `Val.of` と読み違えられないため。値ではなく関数を返すことが名前から分かる
 - **`.impl()`**: 当初は `.companion()`（sealer 側）と `()({...})`（companion 側）で付与手段が 2 つに割れており、違いは「呼べるか否か」だけで分かりにくかった。`.impl()` に統一したことで、差が `sealer` か `companion` かという**意味のある軸だけ**に寄った。`methods` は class を連想させるので不採用（値にメソッドは生えない）。`fns` は中身が全部関数なので同語反復。Rust の `impl` ブロックとも一致する
 
-素の `Val.sealer<V>()` / `Val.companion<V>()` も既定の振る舞い（`equals` / `patch` / `update`）を持つ完全な companion にしてある。メソッドのない Val が `.impl({})` を書かずに済む。
+素の `Val.sealer<V>()` / `Val.companion<V>()` も既定の振る舞い（`equals` / `patch`）を持つ完全な companion にしてある。メソッドのない Val が `.impl({})` を書かずに済む。
 
 ### 13.8 副次的な決定
 
@@ -2018,6 +2030,8 @@ tarball  32 KB
 BUILTIN = ["equals", "with", "update", "seal", "create"]
        →  ["equals", "patch", "update", "seal", "create"]
 ```
+
+`update` の削除（§6.4）でも同じことが起きた。今の BUILTIN は 4 つで、`update` は利用者が書けるメンバに戻っている。
 
 `.unpatchable` → `.fixed` も、`.implEquals` という段の追加も同じ。§14.7 の規則は `EqSpec` の綴り（配列は要素ごと、タプルは位置ごと、companion をそのまま渡す）にそのまま乗っており、チェーンの根が `Val.sealer` / `Val.companion` であることも `.impl` が拒む 5 つの名前も、すべてライブラリ側の決定である。
 
@@ -3666,7 +3680,7 @@ Server Function、同一アプリのプロセス間 JSON-RPC、Electron の chro
 
 「seal が無い型は `Val.of` でしか作れないのだから、C は毎回警告するのでは」を確かめた。**ならない。**
 
-- **`patch` / `update` は seal 無しでも動く。**既定の seal（brand + copy）を通るので、値は普通に派生できる
+- **`patch` は seal 無しでも動く。**既定の seal（brand + copy）を通るので、値は普通に派生できる
   （`val.ts` の `Derive`）。`equals` も同じ
 - **`implCreate` だけ登録した companion は `X.create(…)` が入口**になる。`Val.of` は要らないので警告も出ない
 
@@ -3772,7 +3786,7 @@ type Wrap<T> = T; // 見ない
 
 作る前に決めること:
 
-- `equals` / `patch` / `update` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない。既定を足さない `attach` の変種が要る
+- `equals` / `patch` を持たせてはならない。ブランドも seal もない以上、作り直す対象が存在しない。既定を足さない `attach` の変種が要る
 - Shape には `DeepReadonly` を適用する必要がある。さもないと配列フィールドを持つ Val が一致しなくなる
 - 「trait」は型ごとの実装を含意するが、これは構造的制約に対する単一の実装になる。名前がディスパッチを約束してしまう可能性がある
 - 本当の基準は §6.7 のもの。`Sealer` に `.implCreate` がないのは、callable なコンストラクタの隣では `create` が「何も絞らない」から。`Val.trait` も同じ試験を通らなければならず、引数の注釈とグルーピングだけでは API に値する保証にならないかもしれない
