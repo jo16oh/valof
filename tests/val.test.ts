@@ -12,8 +12,8 @@ type Result<T> = Ok<T> | Err;
 type User = Val<"app/User", { id: string; name: string; nickname?: string }>;
 type Age = Val<"Age", number>;
 type ArticleId = Val<"ArticleId", string>;
-type Tags = Val<"Tags", Readonly<Record<string, true>>>;
-type Grid = Val<"Grid", ReadonlyArray<ReadonlyArray<number>>>;
+type Tags = Val<"Tags", Record<string, true>>;
+type Grid = Val<"Grid", number[][]>;
 
 const User = Val.sealer<User>();
 const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
@@ -63,7 +63,7 @@ describe("Val", () => {
       const ArticleId = Val.sealer<ArticleId>();
       expect(Val.unwrap(ArticleId("a1b2c3"))).toBe("a1b2c3");
 
-      const Tags = Val.sealer<Val<"Tags", readonly string[]>>();
+      const Tags = Val.sealer<Val<"Tags", string[]>>();
       const tags = Tags(["a", "b"]);
       const raw = Val.unwrap(tags);
       expect(raw).toEqual(["a", "b"]);
@@ -106,15 +106,15 @@ describe("Val", () => {
     test("Vals, arrays, records and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
       expectTypeOf<Val<"B", bigint>>().toExtend<AnyVal>();
-      expectTypeOf<Val<"C", readonly string[]>>().toExtend<AnyVal>();
-      expectTypeOf<Val<"D", Readonly<Record<string, true>>>>().toExtend<AnyVal>();
+      expectTypeOf<Val<"C", string[]>>().toExtend<AnyVal>();
+      expectTypeOf<Val<"D", Record<string, true>>>().toExtend<AnyVal>();
       expectTypeOf<Val<"E", { at: Val<"A", string>; n: number | null }>>().toExtend<AnyVal>();
     });
 
     test("a tuple keeps its positions, its length and its labels", () => {
       type Point = Val<"Point", string>;
       const Point = Val.sealer<Point>();
-      type Pair = Val<"Pair", { at: readonly [Point, number] }>;
+      type Pair = Val<"Pair", { at: [Point, number] }>;
       const Pair = Val.sealer<Pair>();
 
       const p = Pair({ at: [Point("a"), 1] });
@@ -129,14 +129,14 @@ describe("Val", () => {
     });
 
     test("an optional element is allowed; a rest element falls back to an array", () => {
-      type Opt = Val<"Opt", { at: readonly [string, number?] }>;
+      type Opt = Val<"Opt", { at: [string, number?] }>;
       expectTypeOf<Opt>().toExtend<AnyVal>();
       expectTypeOf<SeedOf<Opt>["at"][0]>().toEqualTypeOf<string>();
       expectTypeOf<SeedOf<Opt>["at"][1]>().toEqualTypeOf<number | undefined>();
 
       // A rest element makes `length` plain `number`, which is what tells a tuple from an array,
       // so this one is read as an array. Positions are lost, nothing is unsound.
-      type Rest = Val<"Rest", { at: readonly [string, ...number[]] }>;
+      type Rest = Val<"Rest", { at: [string, ...number[]] }>;
       expectTypeOf<SeedOf<Rest>["at"]>().toEqualTypeOf<readonly (string | number)[]>();
     });
 
@@ -169,13 +169,13 @@ describe("Val", () => {
     });
 
     test("the rules reach inside a tuple", () => {
-      type Element<V> = BrandOfInvalid<V> extends { at: readonly [infer A, unknown] } ? A : never;
+      type Element<V> = BrandOfInvalid<V> extends { at: [infer A, unknown] } ? A : never;
 
-      type BadFn = Val<"Bad", { at: readonly [string, () => void] }>;
+      type BadFn = Val<"Bad", { at: [string, () => void] }>;
       expectTypeOf<Element<BadFn>>().toEqualTypeOf<string>();
       expectTypeOf<BadFn>().not.toExtend<AnyVal>();
 
-      type BadUndefined = Val<"Bad", { at: readonly [string | undefined, number] }>;
+      type BadUndefined = Val<"Bad", { at: [string | undefined, number] }>;
       expectTypeOf<Element<BadUndefined>>().toEqualTypeOf<{
         readonly __valError: "a tuple element cannot be undefined; use null or make it optional";
       }>();
@@ -233,10 +233,10 @@ describe("Val", () => {
       }>();
       expectTypeOf<Nested>().not.toExtend<AnyVal>();
 
-      type InArray = Val<"InArray", readonly State[]>;
+      type InArray = Val<"InArray", State[]>;
       expectTypeOf<InArray>().not.toExtend<AnyVal>();
 
-      type InTuple = Val<"InTuple", readonly [State, number]>;
+      type InTuple = Val<"InTuple", [State, number]>;
       expectTypeOf<InTuple>().not.toExtend<AnyVal>();
     });
 
@@ -247,9 +247,9 @@ describe("Val", () => {
     });
 
     test("number and symbol keys are rejected", () => {
-      expectTypeOf<Val<"Bad", Readonly<Record<number, true>>>>().not.toExtend<AnyVal>();
-      expectTypeOf<Val<"Bad", Readonly<Record<symbol, string>>>>().not.toExtend<AnyVal>();
-      expectTypeOf<Val<"Bad", { readonly 1: string }>>().not.toExtend<AnyVal>();
+      expectTypeOf<Val<"Bad", Record<number, true>>>().not.toExtend<AnyVal>();
+      expectTypeOf<Val<"Bad", Record<symbol, string>>>().not.toExtend<AnyVal>();
+      expectTypeOf<Val<"Bad", { 1: string }>>().not.toExtend<AnyVal>();
     });
   });
 
@@ -307,7 +307,7 @@ describe("Val", () => {
     });
 
     test("values are frozen in development, all the way down", () => {
-      type Post = Val<"Post", { title: string; author: { name: string }; tags: readonly string[] }>;
+      type Post = Val<"Post", { title: string; author: { name: string }; tags: string[] }>;
       const Post = Val.sealer<Post>();
       const post = Post({ title: "t", author: { name: "alice" }, tags: ["a"] });
 
@@ -401,7 +401,7 @@ describe("copying", () => {
           public y = 2,
         ) {}
       }
-      type Pt = Val<"Pt", { readonly x: number; readonly y: number }>;
+      type Pt = Val<"Pt", { x: number; y: number }>;
       expect(() => Val.of<Pt>(new Point())).toThrow(TypeError);
       expect(() => Val.of<Pt>({ x: 1, y: 2 })).not.toThrow();
     });
@@ -439,7 +439,7 @@ describe("copying", () => {
   describe("reuse", () => {
     type Money = Val<"Money", { amount: number; currency: string }>;
     type Line = Val<"Line", { sku: string; qty: number }>;
-    type Order = Val<"Order", { id: string; note: string; total: Money; lines: readonly Line[] }>;
+    type Order = Val<"Order", { id: string; note: string; total: Money; lines: Line[] }>;
     const Money = Val.sealer<Money>();
     const Line = Val.sealer<Line>();
     const Order = Val.sealer<Order>();
@@ -660,9 +660,9 @@ describe("equals", () => {
         note: string;
         total: Money;
         email: Email;
-        lines: readonly Line[];
+        lines: Line[];
         shipping: { zip: string; city: string };
-        span: readonly [number, number];
+        span: [number, number];
         updatedAt: number;
       }
     >;
@@ -748,8 +748,8 @@ describe("equals", () => {
     });
 
     test("a nested Val holding an array is compared whole, not element by element", () => {
-      type Tags = Val<"Tags", readonly string[]>;
-      type Post = Val<"Post", { tags: Tags; raw: readonly Email[] }>;
+      type Tags = Val<"Tags", string[]>;
+      type Post = Val<"Post", { tags: Tags; raw: Email[] }>;
       // Order-insensitive, which no elementwise walk could produce.
       const Tags = Val.sealer<Tags>().implEquals(
         (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join(),
@@ -766,7 +766,7 @@ describe("equals", () => {
     });
 
     test("a spec reaches the top level of an array or tuple Val", () => {
-      type Emails = Val<"Emails", readonly Email[]>;
+      type Emails = Val<"Emails", Email[]>;
       const Emails = Val.sealer<Emails>().implEquals([Email]);
       expect(Emails.equals(Emails([Email("a@b.com")]), Emails([Email("A@B.COM")]))).toBe(true);
       expect(Emails.equals(Emails([Email("a@b.com")]), Emails([]))).toBe(false);
@@ -832,7 +832,7 @@ describe("patch", () => {
     // Only what deep-merges carries it. Everything else is rebuilt through the constructor.
     expectTypeOf(Val.sealer<ArticleId>()).not.toHaveProperty("patch");
     expectTypeOf(Val.sealer<Grid>()).not.toHaveProperty("patch");
-    expectTypeOf(Val.sealer<Val<"Pair", readonly [number, string]>>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.sealer<Val<"Pair", [number, string]>>()).not.toHaveProperty("patch");
     expectTypeOf(Val.sealer<Tags>()).toHaveProperty("patch");
   });
 
@@ -870,8 +870,8 @@ describe("patch", () => {
         id: string;
         owner: { name: string; contact: { email: string; phone?: string } };
         city: City;
-        tags: readonly string[];
-        staff: Readonly<Record<string, { role: string }>>;
+        tags: string[];
+        staff: Record<string, { role: string }>;
       }
     >;
     const Shop = Val.sealer<Shop>();
