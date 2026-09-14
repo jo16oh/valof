@@ -23,3 +23,6 @@ const post = Post({ title: "t", tags: ["a"] });
 post.tags.sort(); // ✗ readonly string[] has no sort
 Val.unwrap(post).tags.sort(); // ✓
 ```
+
+It hands back the payload as the type declares it, so a `readonly` written there survives the
+unwrap. Write the payload plain: see [Allowed types](allowed-types.md).

@@ -5,7 +5,7 @@
 `PayloadOf<V>` is the payload without the brand, so one type can build on another:
 
 ```ts
-type SuperUser = Val<"SuperUser", PayloadOf<User> & { privileges: readonly string[] }>;
+type SuperUser = Val<"SuperUser", PayloadOf<User> & { privileges: string[] }>;
 ```
 
 **In a field, write the Val itself:** `PayloadOf<Money>` there drops the brand, and with it
@@ -16,8 +16,8 @@ type SuperUser = Val<"SuperUser", PayloadOf<User> & { privileges: readonly strin
 Use an object's properties.
 
 ```ts
-type Tags = Val<"Tags", Readonly<Record<string, true>>>; // a Set
-type PriceTable = Val<"PriceTable", Readonly<Record<string, Money>>>; // a Map
+type Tags = Val<"Tags", Record<string, true>>; // a Set
+type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 ```
 
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`

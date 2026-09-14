@@ -15,7 +15,7 @@ import { Val } from "valof";
 
 - **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠
 - **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
-- **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由
+- **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが引数をコピーする理由。所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
   - **4.2** タプルを保つ。optional 要素と `Required<T>`、rest 要素の限界
@@ -249,6 +249,19 @@ type Primitive = string | number | boolean | bigint;
 4. **設計として正しい方向に寄る。** Val の合成が強制されるので、DDD 的にまともな構造になる
 
 `ReadonlyArray` と `Record` は再帰的に定義する。これがないと `readonly string[][]`（行列・グリッド）や `Readonly<Record<string, Val>>`（ID 索引）が書けない。各ノードは浅いので、再帰があっても破滅的なコストにはならない。
+
+### payload に `readonly` は書かない
+
+`Val<K, T>` は `DeepReadonly<Checked<T>>` なので、可変で書いた payload も配列・タプル・オブジェクトを問わず readonly になる。`SeedOf` も `Patch`（`Derivable` 経由）も `EqImpl` も `SeedOf` の上に乗るので、書いても書かなくても API は同一。
+
+**書くと損をする。** `Val.unwrap` が返すのは `PayloadOf<V>`、つまり書いたままの型である。
+
+```ts
+type R = Val<"R", { tags: readonly string[] }>;
+Val.unwrap(v).tags.sort(); // ✗ readonly string[] has no sort
+```
+
+「readonly を知らないコードに渡すための可変コピー」という unwrap の目的が、定義側の `readonly` で潰れる。ドキュメントは許可型の表も例も `ReadonlyArray` / `Readonly<Record>` を勧めていたので、素で書くほうに統一した。
 
 ### 移行の摩擦
 

@@ -5,12 +5,23 @@ Only three things can live inside a Val:
 |            |                                                                        |
 | ---------- | ---------------------------------------------------------------------- |
 | Primitives | `string` / `number` / `boolean` / `bigint`; `null` below the top level |
-| Arrays     | `ReadonlyArray<allowed>`, or a tuple: `readonly [allowed, allowed]`    |
-| Objects    | `{ readonly k: allowed }`, or `Readonly<Record<string, allowed>>`      |
+| Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                          |
+| Objects    | `{ k: allowed }`, or `Record<string, allowed>`                         |
 
 A Val is itself one of these, so Vals nest. A tuple keeps its positions and its length. One with a
-rest element (`readonly [string, ...number[]]`) reads as an array instead, since a fixed length is
-what distinguishes the two.
+rest element (`[string, ...number[]]`) reads as an array instead, since a fixed length is what
+distinguishes the two.
+
+Write the payload plain. `Val` makes it deeply readonly on its own, so `readonly` in the definition
+changes nothing about the value, and it makes [`Val.unwrap`](utilities.md#valunwrap) hand back a
+readonly payload, which is what `unwrap` exists to avoid.
+
+```ts
+type Post = Val<"Post", { tags: string[] }>; // not `readonly string[]`
+
+post.tags; // readonly string[] all the same
+Val.unwrap(post).tags.sort(); // ✓ a mutable `string[]` comes back
+```
 
 Neither a class instance nor a function can go in. `Date`, `Temporal`, `Map` and `Set` are all
 classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead. TypeScript

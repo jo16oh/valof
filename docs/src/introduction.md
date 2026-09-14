@@ -27,8 +27,8 @@ types and linting.
 - **Values as plain data**: Vals stay objects, arrays and primitives. They serialize without
   adapters and fit directly into React and other framework state. No classes, no prototypes.
 
-- **Deeply readonly**: Values are deeply readonly. Constructors copy their inputs, so an original
-  reference cannot mutate them.
+- **Immutability**: Vals are immutable. Their types are deeply readonly, and their constructors copy
+  their inputs, so an original reference cannot mutate them.
 
 - **No `as` casts in your code**: Valof owns the cast required to construct a branded value.
 

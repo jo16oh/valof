@@ -1,7 +1,9 @@
 # Summary
 
 - [Introduction](introduction.md)
-- [Basics](basics.md)
+- [Branding](basics.md)
+- [Immutability](immutability.md)
+- [Companion objects](companion-objects.md)
 - [Smart constructors](smart-constructors.md)
 - [Normalize in the seal](normalization.md)
 - [Equality](equality.md)

@@ -31,6 +31,20 @@ A nested Val, an array and a primitive are replaced whole: a patch reaching insi
 a payload its own seal never saw. Derive it with its own `patch`, which goes through that seal and
 keeps the parts it did not touch.
 
+## Structural sharing
+
+A derivation copies only the path to what changed. Untouched branches keep their reference identity:
+
+```ts
+const renamed = Shop.patch(shop, { owner: { name: "sue" } });
+
+renamed.city === shop.city; // true
+Shop.patch(shop, {}) === shop; // true
+```
+
+This lets reference comparisons, such as React dependency arrays, skip work when their value did not
+change.
+
 `patch` and `update` mean the same thing on every type, which is what makes them worth reading. A
 derivation with rules of its own gets a name of its own, in `.impl`, and seals inside it:
 
