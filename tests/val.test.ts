@@ -459,12 +459,6 @@ describe("copying", () => {
       expect(after.lines[0]).toBe(before.lines[0]);
     });
 
-    test("`update` keeps them too", () => {
-      const before = order();
-      const after = Order.update(before, (o) => ({ ...o, note: "changed" }));
-      expect(after.lines).toBe(before.lines);
-    });
-
     test("a leaf is reused too, so a nested Val keeps its identity", () => {
       // By copying time alone a leaf would not earn its record back. What a framework compares
       // is identity: without this, changing `note` would hand `total` a new one and a memoised
@@ -543,12 +537,6 @@ describe("copying", () => {
         id: "a",
         name: "bob",
       });
-    });
-
-    test("a transform that returns its argument gives back the value itself", () => {
-      const before = order();
-      expect(Order.update(before, (o) => o)).toBe(before);
-      expect(Order.update(before, (o) => ({ ...o }))).not.toBe(before);
     });
 
     test("a freshly built child counts as a change", () => {
@@ -841,8 +829,11 @@ describe("patch", () => {
   });
 
   test("is not offered at all on a non-object Val", () => {
-    const ArticleId = Val.sealer<ArticleId>();
-    expectTypeOf(ArticleId).not.toHaveProperty("patch");
+    // Only what deep-merges carries it. Everything else is rebuilt through the constructor.
+    expectTypeOf(Val.sealer<ArticleId>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.sealer<Grid>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.sealer<Val<"Pair", readonly [number, string]>>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.sealer<Tags>()).toHaveProperty("patch");
   });
 
   test("still guards at runtime, for callers without types", () => {
@@ -996,7 +987,7 @@ describe("patch", () => {
       });
     });
 
-    test("`update` replaces a nested object where `patch` merges it", () => {
+    test("a nested object merges, so replacing one takes the constructor", () => {
       const before = shop();
       const staff = { u3: { role: "host" } };
       expect(Shop.patch(before, { staff }).staff).toEqual({
@@ -1004,7 +995,7 @@ describe("patch", () => {
         u2: { role: "waiter" },
         u3: { role: "host" },
       });
-      expect(Shop.update(before, (s) => ({ ...s, staff })).staff).toEqual(staff);
+      expect(Shop({ ...before, staff }).staff).toEqual(staff);
     });
 
     test("goes through the seal, which sees the merged payload", () => {
@@ -1040,24 +1031,6 @@ describe("patch", () => {
         .impl({ plus: (t, seconds: number): UnixEpoch => UnixEpoch.seal(t + seconds) });
 
       expect(UnixEpoch.plus(Val.of<UnixEpoch>(1_756_771_200), 60.5)).toBe(1_756_771_260);
-    });
-  });
-});
-
-describe("update", () => {
-  test("value-to-value transform", () => {
-    const u = User({ id: "a", name: "bob" });
-    expect(User.update(u, (v) => ({ ...v, name: v.name.toUpperCase() }))).toEqual({
-      id: "a",
-      name: "BOB",
-    });
-  });
-
-  test("goes through a custom seal when one is defined", () => {
-    expect(Age.update(Val.of<Age>(30), (n) => n + 1)).toEqual({ ok: true, value: 31 });
-    expect(Age.update(Val.of<Age>(0), (n) => n - 1)).toEqual({
-      ok: false,
-      error: "age must be a non-negative integer",
     });
   });
 });
@@ -1173,14 +1146,10 @@ describe("building", () => {
       });
     });
 
-    test("`patch` and `update` are the library's, not yours", () => {
+    test("`patch` is the library's, not yours", () => {
       Val.companion<User>().impl({
         // @ts-expect-error a derivation with different rules deserves its own name
         patch: (u: User) => u,
-      });
-      Val.companion<User>().impl({
-        // @ts-expect-error same
-        update: (u: User) => u,
       });
     });
   });
@@ -1190,7 +1159,7 @@ describe("building", () => {
     type Email = Val<"Email", string>;
     type Point = Val<"Point", { x: number; y: number }>;
 
-    test("registers `seal` and routes with / update through it, without any impl", () => {
+    test("registers `seal` and routes `patch` through it, without any impl", () => {
       const Score = Val.companion<Score>().implSeal((s: { points: number }, seal): Result<Score> =>
         s.points >= 0
           ? { ok: true, value: seal(s) }
@@ -1328,7 +1297,6 @@ describe("building", () => {
       expect(p).toEqual({ x: 1, y: 2 });
       expectTypeOf(p).toEqualTypeOf<Point>();
       expect(Point.patch(p, { x: 3 })).toEqual({ x: 3, y: 2 });
-      expect(Point.update(p, (v) => ({ ...v, y: 9 }))).toEqual({ x: 1, y: 9 });
     });
 
     test("what create returns is sealed: it is not a way past the seal", () => {
@@ -1384,7 +1352,7 @@ describe("building", () => {
         .fixed<"id">();
     };
 
-    test("create mints the id; with and update preserve it", () => {
+    test("create mints the id, and `patch` preserves it", () => {
       const Account = account();
       const a = Account.create({ owner: "bob", note: "" });
       expect(a.id).toBe("id-1");
@@ -1392,28 +1360,14 @@ describe("building", () => {
       // still `id-1`, so neither path re-ran create
       const b = Account.patch(a, { owner: " SUE " });
       expect(b).toEqual({ id: "id-1", owner: "sue", note: "" }); // normalised by the seal
-
-      const c = Account.update(b, (v) => ({ owner: v.owner, note: "seen" }));
-      expect(c).toEqual({ id: "id-1", owner: "sue", note: "seen" });
     });
 
-    test("the id is not reachable through either update path", () => {
+    test("the id is not reachable through the patch path", () => {
       const Account = account();
       const a = Account.create({ owner: "bob", note: "" });
       expectTypeOf(Account.patch).parameters.toEqualTypeOf<[Account, Patch<Fields>]>();
       // @ts-expect-error id is not patchable
       Account.patch(a, { id: "forged" });
-      // @ts-expect-error the transform cannot return an id either
-      Account.update(a, (v) => ({ ...v, id: "forged" }));
-    });
-
-    test("the callback returns only what is left, and the rest is merged back on", () => {
-      const Account = account();
-      const a = Account.create({ owner: "bob", note: "x" });
-      expectTypeOf(
-        Account.update(a, (v) => ({ owner: v.owner, note: "y" })),
-      ).toEqualTypeOf<Account>();
-      expect(Account.update(a, (v) => ({ owner: v.owner, note: "y" })).id).toBe(a.id);
     });
 
     test("keys must exist on the payload", () => {
