@@ -32,7 +32,6 @@ export const patched = [
   Shop.patch(shop, { owner: { contact: { phone: undefined } } }),
   Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) }),
   Shop.patch(shop, { staff: { u1: { role: "chef" }, u2: undefined } }),
-  Shop.update(shop, (s) => ({ ...s, id: "x" })),
 ];
 
 // @ts-expect-error a required key cannot be deleted, however deep it sits
