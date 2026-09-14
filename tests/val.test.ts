@@ -829,8 +829,11 @@ describe("patch", () => {
   });
 
   test("is not offered at all on a non-object Val", () => {
-    const ArticleId = Val.sealer<ArticleId>();
-    expectTypeOf(ArticleId).not.toHaveProperty("patch");
+    // Only what deep-merges carries it. Everything else is rebuilt through the constructor.
+    expectTypeOf(Val.sealer<ArticleId>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.sealer<Grid>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.sealer<Val<"Pair", readonly [number, string]>>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.sealer<Tags>()).toHaveProperty("patch");
   });
 
   test("still guards at runtime, for callers without types", () => {
