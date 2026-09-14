@@ -211,6 +211,41 @@ describe("Val", () => {
       Val.sealer<Maybe>();
     });
 
+    test("an object union is rejected, however it is spelled", () => {
+      type Bad = Val<"Bad", { kind: "a"; a: number } | { kind: "b"; b: string }>;
+      expectTypeOf<BrandOfInvalid<Bad>>().toEqualTypeOf<{
+        readonly __valError: "an object payload cannot be a union; patch merges, so it cannot switch variants";
+      }>();
+      expectTypeOf<Bad>().not.toExtend<AnyVal>();
+      // @ts-expect-error patch merges, so it cannot switch variants
+      Val.sealer<Bad>();
+
+      type State = { kind: "a"; a: number } | { kind: "b"; b: string };
+      type ViaAlias = Val<"ViaAlias", State>;
+      expectTypeOf<ViaAlias>().not.toExtend<AnyVal>();
+
+      type Nested = Val<"Nested", { state: State; name: string }>;
+      expectTypeOf<BrandOfInvalid<Nested>>().toEqualTypeOf<{
+        state: {
+          readonly __valError: "an object payload cannot be a union; patch merges, so it cannot switch variants";
+        };
+        name: string;
+      }>();
+      expectTypeOf<Nested>().not.toExtend<AnyVal>();
+
+      type InArray = Val<"InArray", readonly State[]>;
+      expectTypeOf<InArray>().not.toExtend<AnyVal>();
+
+      type InTuple = Val<"InTuple", readonly [State, number]>;
+      expectTypeOf<InTuple>().not.toExtend<AnyVal>();
+    });
+
+    test("a union of primitives is not an object union", () => {
+      type Ok = Val<"Ok", { tag: "a" | "b"; n: number | null; flag: boolean }>;
+      expectTypeOf<Ok>().toExtend<AnyVal>();
+      Val.sealer<Ok>()({ tag: "a", n: null, flag: true });
+    });
+
     test("number and symbol keys are rejected", () => {
       expectTypeOf<Val<"Bad", Readonly<Record<number, true>>>>().not.toExtend<AnyVal>();
       expectTypeOf<Val<"Bad", Readonly<Record<symbol, string>>>>().not.toExtend<AnyVal>();
@@ -943,6 +978,22 @@ describe("patch", () => {
       const next = Shop.patch(shop(), { staff: { u1: { role: "chef" }, u2: undefined } });
       expect(next.staff).toEqual({ u1: { role: "chef" } });
       expect(Object.hasOwn(next.staff, "u2")).toBe(false);
+    });
+
+    test("an optional key and a record entry take the whole value, never a patch", () => {
+      type Place = Val<"Place", { name: string; at?: { x: number; y: number } }>;
+      const Place = Val.sealer<Place>();
+      const place = Place({ name: "p" });
+
+      // @ts-expect-error `at` may be absent, and a merge into nothing would drop `y`
+      Place.patch(place, { at: { x: 1 } });
+      // @ts-expect-error an entry the record does not hold yet is the same case
+      Shop.patch(shop(), { staff: { u3: {} } });
+
+      expect(Place.patch(place, { at: { x: 1, y: 2 } }).at).toEqual({ x: 1, y: 2 });
+      expect(Shop.patch(shop(), { staff: { u3: { role: "host" } } }).staff.u3).toEqual({
+        role: "host",
+      });
     });
 
     test("`update` replaces a nested object where `patch` merges it", () => {
