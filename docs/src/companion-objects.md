@@ -31,5 +31,5 @@ User.greet(user);
 User.label(user, ": ");
 ```
 
-A sealer also provides [`equals`](equality.md) and [`update`](derivation.md). Object-shaped Vals get
-`patch` too. Later chapters introduce them one at a time.
+A sealer also provides [`equals`](equality.md). Object-shaped Vals get [`patch`](derivation.md) too.
+Later chapters introduce them one at a time.

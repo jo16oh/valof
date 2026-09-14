@@ -23,14 +23,15 @@ type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test. `equals`
 ignores key order, so comparing two of them is set equality.
 
-`patch` reaches one entry at a time and `undefined` drops it; `update` rebuilds the whole table.
+`patch` reaches one entry at a time and `undefined` drops it. Call the constructor to rebuild the
+whole table.
 
 ```ts
 PriceTable.patch(table, { apple: Money({ amount: 120, currency: "JPY" }), fig: undefined });
 
-PriceTable.update(table, (t) =>
+PriceTable(
   // the value type is named because a Val carries its phantom keys in the type as well
-  Object.fromEntries(Object.entries<Money>(t).filter(([, m]) => m.amount < 500)),
+  Object.fromEntries(Object.entries<Money>(table).filter(([, m]) => m.amount < 500)),
 );
 ```
 

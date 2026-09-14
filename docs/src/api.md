@@ -5,13 +5,13 @@
 | `Val<K, T>`                        | a branded value type                                              |
 | `Val.of<V>(value)`                 | the default seal, with the type named explicitly                  |
 | `Val.unwrap(value)`                | a mutable copy of the payload                                     |
-| `Val.sealer<V>()`                  | the default seal, carrying `equals` / `patch` / `update`          |
+| `Val.sealer<V>()`                  | the default seal, carrying `equals` / `patch`                     |
 | `Val.sealer<V>().impl(fns)`        | the constructor plus your functions                               |
 | `Val.companion<V>().impl(fns)`     | functions only — no constructor                                   |
 | `.implEquals(spec)`                | replaces `equals`: your own comparison, or a spec per child       |
 | `Val.companion<V>().implSeal(f)`   | replaces the `seal`: a constructor that can validate inputs       |
 | `Val.companion<V>().implCreate(f)` | registers `create`: a constructor that generates values inside it |
-| `Val.companion<V>().fixed<K>()`    | takes keys out of `patch` / `update`                              |
+| `Val.companion<V>().fixed<K>()`    | takes keys out of `patch`                                         |
 | `AnyVal`                           | a constraint over any Val                                         |
 | `SeedOf<V>`                        | what a value can be grown from                                    |
 | `PayloadOf<V>`                     | the payload behind the brand                                      |

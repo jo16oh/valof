@@ -20,7 +20,7 @@ Age.seal(30); // Result<Age>
 [better-result](https://better-result.dev) or your own all work: the seal's return type is
 propagated, never inspected.
 
-**Every path to a value goes through `seal`**, including `patch`, `update` and `create`.
+**Every path to a value goes through `seal`**, including `patch` and `create`.
 
 A seal must be **idempotent**: sealing a value's own payload has to give that value back. Generating
 something new, such as an id or a timestamp, belongs in [`create`](smart-constructors.md#create)
