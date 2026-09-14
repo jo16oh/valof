@@ -7,6 +7,12 @@
   </p>
 </div>
 
+## Installation
+
+```sh
+pnpm install valof
+```
+
 ## What you get
 
 Valof is an opinionated value-object helper for TypeScript that enforces the conventions through
@@ -38,12 +44,6 @@ types and linting.
 - **Lightweight**: About 1.1 kB gzipped, with no runtime dependencies.
 
 Read the [documentation](docs/src/introduction.md) for more details.
-
-## Installation
-
-```sh
-pnpm install valof
-```
 
 ## Examples
 

@@ -2,7 +2,7 @@
 authors = ["Joichiro Hayashi"]
 language = "en"
 src = "src"
-title = "Valof"
+title = "The Valof Book"
 
 [preprocessor.sidebar]
 command = "node tools/mdbook-sidebar/index.ts"
@@ -18,7 +18,7 @@ dark-theme = "one-dark-pro"
 fallback-language = "text"
 
 [output.html]
-additional-css = ["tools/mdbook-shiki/shiki.css", "tools/mdbook-sidebar/sidebar.css"]
+additional-css = ["tools/mdbook-shiki/shiki.css", "tools/mdbook-sidebar/sidebar.css", "theme.css"]
 additional-js = [".generated/mdbook-sidebar/headings.js", "tools/mdbook-sidebar/sidebar.js"]
 
 [output.linkcheck2]
