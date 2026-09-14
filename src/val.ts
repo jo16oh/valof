@@ -112,13 +112,18 @@ export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
  * - omit the key → leave it unchanged
  * - `{ k: undefined }` → delete it (only optional keys allow this at the type level)
  * - `{ k: value }` → set it
- * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone
+ * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required `k` only
+ *
+ * An optional key and a `Record` entry take the whole value. There may be nothing there to merge
+ * with, and the type cannot tell: `{ at: { x: 1 } }` onto an absent `at` would leave a value
+ * missing `y` that the type still calls a `Point`. Spread the current value to keep the rest:
+ * `{ at: { ...point, x: 1 } }`.
  */
 export type Patch<T> = T extends object
   ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
     : { [K in Exclude<keyof T, OptionalKeys<T>>]?: PatchValue<T[K]> } & {
-        [K in OptionalKeys<T>]?: PatchValue<T[K]> | undefined;
+        [K in OptionalKeys<T>]?: T[K] | undefined;
       }
   : never;
 

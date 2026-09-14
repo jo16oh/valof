@@ -980,6 +980,22 @@ describe("patch", () => {
       expect(Object.hasOwn(next.staff, "u2")).toBe(false);
     });
 
+    test("an optional key and a record entry take the whole value, never a patch", () => {
+      type Place = Val<"Place", { name: string; at?: { x: number; y: number } }>;
+      const Place = Val.sealer<Place>();
+      const place = Place({ name: "p" });
+
+      // @ts-expect-error `at` may be absent, and a merge into nothing would drop `y`
+      Place.patch(place, { at: { x: 1 } });
+      // @ts-expect-error an entry the record does not hold yet is the same case
+      Shop.patch(shop(), { staff: { u3: {} } });
+
+      expect(Place.patch(place, { at: { x: 1, y: 2 } }).at).toEqual({ x: 1, y: 2 });
+      expect(Shop.patch(shop(), { staff: { u3: { role: "host" } } }).staff.u3).toEqual({
+        role: "host",
+      });
+    });
+
     test("`update` replaces a nested object where `patch` merges it", () => {
       const before = shop();
       const staff = { u3: { role: "host" } };
