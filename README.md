@@ -1,21 +1,16 @@
-<br>
-<br>
-
-<div align="center" style="margin-top: 8rem; margin-bottom: 4rem;">
-  <img src="./assets/valof-brand.svg" alt="Valof" width="364">
-  <p><strong><em>Write robust domain logic in TypeScript just by following the conventions.</em></strong></p>
+<div align="center">
+  <img src="./assets/valof-brand.svg" alt="Valof" width="250">
+  <h1>Valof</h1>
+  <p><em>Write robust domain logic in TypeScript<br>just by following the conventions.</em></p>
   <p>
     <a href="https://www.npmjs.com/package/valof"><img src="https://img.shields.io/npm/v/valof.svg" alt="npm"></a>
   </p>
 </div>
 
-<br>
-<br>
+## What you get
 
 Valof is an opinionated value-object helper for TypeScript that enforces the conventions through
 types and linting.
-
-## What you get
 
 - **Nominal-ish typing with a phantom brand**: TypeScript distinguishes one Val type from another,
   with nothing to pay at runtime.
@@ -31,8 +26,8 @@ types and linting.
 - **Companion object**: Keep a type's constructor and functions together without a class. The first
   Val parameter is inferred.
 
-- **"Parse, don't validate"**: Every creation and update goes through one `seal`. Use any validation
-  library and any Result type.
+- **"Parse, don't validate"**: Every creation and derivation goes through one `seal`. Use any
+  validation library and any Result type.
 
 - **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
   their reference identity.
@@ -50,78 +45,120 @@ Read the [documentation](docs/src/introduction.md) for more details.
 pnpm install valof
 ```
 
-## Showcase
+## Examples
+
+### Branded plain data
 
 ```ts
-import { Val, type SeedOf } from "valof";
+import { Val } from "valof";
 
-// The brand matches the type name. It exists only in the type system.
-export type Email = Val<"Email", string>;
+type UserId = Val<"UserId", string>;
+const UserId = Val.sealer<UserId>();
 
-// Any Result library works. Valof propagates the seal's return type without inspecting it.
-export const Email = Val.companion<Email>().implSeal((input, seal) => {
-  const email = input.trim().toLowerCase();
-  // This seal parses every input. The provided seal brands and copies valid data.
-  return email.includes("@") ? { ok: seal(email) } : { err: "invalid email" };
+type PostId = Val<"PostId", string>;
+const PostId = Val.sealer<PostId>();
+
+const userId = UserId("xxx-xxx-xxx");
+const postId = PostId("xxx-xxx-xxx");
+
+// @ts-expect-error brands distinguish UserId from PostId
+let _: UserId = postId;
+// The phantom brand has no effect at runtime.
+userId === postId; // true
+typeof userId === "string"; // true
+
+type Post = Val<"Post", { id: PostId; content: string }>;
+const Post = Val.sealer<Post>();
+type User = Val<"User", { id: UserId; name: string; posts: readonly Post[] }>;
+const User = Val.sealer<User>();
+
+const user = User({
+  id: UserId("xxx-xxx-xxx"),
+  name: "joe",
+  posts: [Post({ id: PostId("1"), content: "Hello, World!" })],
 });
 
-export type Line = Val<"Line", { sku: string; unitPrice: number; quantity: number }>;
+// @ts-expect-error Vals are deeply readonly
+user.posts.push(Post({ id: PostId("2"), content: "Immutability matters." }));
 
-// The default seal is a callable constructor.
-export const Line = Val.sealer<Line>();
+// `.equals` compares Vals structurally
+const p1 = Post({ id: PostId("a"), content: "a" });
+const p2 = Post({ id: PostId("a"), content: "a" });
+p1 === p2; // false
+Post.equals(p1, p2); // true
+```
 
-export type Cart = Val<
-  "Cart",
-  {
-    id: string;
-    customer: Email;
-    lines: readonly Line[];
-    delivery: { city: string; note?: string };
-  }
->;
+### Smart constructors and companion objects
 
-type CartFields = Omit<SeedOf<Cart>, "id" | "lines">;
+```ts
+import { Val } from "valof";
 
-export const Cart = Val.companion<Cart>()
-  // create generates data. The default seal then turns it into a Cart.
-  .implCreate((fields: CartFields): SeedOf<Cart> => ({
-    id: crypto.randomUUID(),
-    lines: [],
-    ...fields,
-  }))
-  // Generated fields stay outside the patch and update paths.
+type Result<T> = { ok: T } | { err: string };
+type Note = Val<"Note", { id: string; text: string }>;
+
+const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
+const hasText = (s: string) => s.length > 0;
+
+const Note = Val.companion<Note>()
+  // create mints the id once. Derivations do not run it again.
+  .implCreate((text: string) => ({ id: crypto.randomUUID(), text }))
+  // seal validates and normalizes every payload.
+  .implSeal((note, seal): Result<Note> => {
+    const text = normalize(note.text);
+    return hasText(text) ? { ok: seal({ ...note, text }) } : { err: "empty note" };
+  })
+  // fixed excludes the minted id from patch.
   .fixed<"id">()
+  // impl collects behavior. It infers each function's first parameter as Note.
   .impl({
-    // Behaviour stays beside the type, not inside its values. cart is inferred as Cart.
-    total(cart) {
-      return cart.lines.reduce((sum, line) => sum + line.unitPrice * line.quantity, 0);
+    append(note, text: string): Result<Note> {
+      return Note.seal({ ...note, text: `${note.text} ${text}` });
     },
   });
 
-const parsed = Email.seal(" Alice@Example.com ");
-if ("err" in parsed) throw new Error(parsed.err);
-const email = parsed.ok;
+// A companion exposes its smart constructor as seal.
+Note.seal({ id: "note-1", text: " Hello " }); // { ok: { id: "note-1", text: "Hello" } }
+// @ts-expect-error a companion is not callable
+Note({ id: "note-1", text: "Hello" });
 
-const cart = Cart.create({
-  customer: email,
-  delivery: { city: "Tokyo" },
+const result = Note.create(" Hello ");
+if ("ok" in result) Note.append(result.ok, "World"); // { ok: { id: "...", text: "Hello World" } }
+```
+
+### Deriving new values
+
+```ts
+import { Val } from "valof";
+
+type Point = Val<"Point", { x: number; y: number }>;
+
+// A sealer remains callable after impl adds behavior.
+const Point = Val.sealer<Point>().impl({
+  move(point, dx: number, dy: number): Point {
+    return Point.patch(point, {
+      x: point.x + dx,
+      y: point.y + dy,
+    });
+  },
 });
 
-const input = { sku: "BOOK", unitPrice: 3200, quantity: 1 };
-const line = Line(input);
-input.quantity = 2;
-line.quantity; // 1: constructors own a deep copy of their input
+type Rectangle = Val<"Rectangle", { position: Point; size: Point; label?: string }>;
+const Rectangle = Val.sealer<Rectangle>();
 
-const withLine = Cart.patch(cart, { lines: [line] });
-const rerouted = Cart.patch(withLine, { delivery: { city: "Kyoto" } });
-rerouted.lines === withLine.lines; // true: an untouched branch keeps its identity
-Cart.total(rerouted); // 3200
+const rectangle = Rectangle({
+  position: Point({ x: 1, y: 2 }),
+  size: Point({ x: 10, y: 20 }),
+  label: "draft",
+});
 
-// Cart.patch(cart, { id: "forged" }); // type error: id is fixed
+// patch is available only on object-shaped Vals.
+const moved = Rectangle.patch(rectangle, {
+  position: Point.move(rectangle.position, 3, 4),
+});
+moved.size === rectangle.size; // true: untouched branches keep their reference identity
 
-const same = Cart.patch(rerouted, {});
-same === rerouted; // true: a no-op patch returns the original value
-Cart.equals(rerouted, same); // true: equality is structural
+const unlabeled = Rectangle.patch(moved, { label: undefined });
+"label" in unlabeled; // false: undefined deletes an optional property
 ```
 
 ## Development
