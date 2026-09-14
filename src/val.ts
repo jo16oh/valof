@@ -6,6 +6,9 @@ export type AnyVal = { readonly __valof_internal_phantom_brand: string };
 /** Marker surfaced in the type when a payload violates the allowed-type rules. */
 type Invalid<Msg extends string> = { readonly __valError: Msg };
 
+/** Distributes, so each constituent is compared against the whole: they differ only in a union. */
+type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+
 type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
 }[keyof T];
@@ -34,15 +37,17 @@ type ValidateValue<T> = [T] extends [Primitive]
       [T] extends [Function]
       ? Invalid<"functions are not allowed">
       : [T] extends [object]
-        ? [Exclude<keyof T, string>] extends [never]
-          ? {
-              [K in keyof T]: K extends OptionalKeys<T>
-                ? Validate<Exclude<T[K], undefined>, false> | undefined
-                : undefined extends T[K]
-                  ? Invalid<"required property cannot be undefined; use null or make it optional">
-                  : Validate<T[K], false>;
-            }
-          : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
+        ? IsUnion<T> extends true
+          ? Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+          : [Exclude<keyof T, string>] extends [never]
+            ? {
+                [K in keyof T]: K extends OptionalKeys<T>
+                  ? Validate<Exclude<T[K], undefined>, false> | undefined
+                  : undefined extends T[K]
+                    ? Invalid<"required property cannot be undefined; use null or make it optional">
+                    : Validate<T[K], false>;
+              }
+            : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
         : Invalid<"not a plain value">;
 
 /** Recursion stops at a nested Val: it is already deep-readonly. */
