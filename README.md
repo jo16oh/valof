@@ -10,7 +10,7 @@
 ## Installation
 
 ```sh
-pnpm install valof
+npm install valof
 ```
 
 ## What you get

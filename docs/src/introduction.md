@@ -13,7 +13,7 @@ the sidebar to find a specific topic.
 ## Installation
 
 ```sh
-pnpm install valof
+npm install valof
 ```
 
 ## What you get
