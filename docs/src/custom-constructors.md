@@ -28,8 +28,8 @@ then adds your constructor to the companion as `seal`. Return through the defaul
 copy the payload. The companion does not become callable:
 
 `Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
-payload passed to its terminal `seal` call. Likewise, `create.nocopy(...args)` reuses the registered
-minter and seal. Both carry the caller contract described in
+payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
+reuses the registered create function and seal. Both carry the caller contract described in
 [Immutability](immutability.md#avoiding-a-copy).
 
 ```ts
