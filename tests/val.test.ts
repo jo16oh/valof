@@ -63,11 +63,42 @@ describe("Val", () => {
         nested: { n: 1 },
       };
       const mutable = { id: "a", tags: ["one"], nested: { n: 1 } };
+      const mutableArray: {
+        readonly id: string;
+        readonly tags: string[];
+        readonly nested: { readonly n: number };
+      } = { id: "a", tags: ["one"], nested: { n: 1 } };
       NocopyUser.nocopy(readonly);
       // @ts-expect-error writable properties are not ownership evidence
       NocopyUser.nocopy(mutable);
       // @ts-expect-error mutable arrays are not ownership evidence
+      NocopyUser.nocopy(mutableArray);
       NocopyUser.nocopy({ id: "a", tags: ["one"], nested: { n: 1 } });
+    });
+
+    test("accepts readonly optional properties and tuples", () => {
+      type WithOptional = Val<"WithOptional", { name: string; nickname?: string }>;
+      const WithOptional = Val.sealer<WithOptional>();
+      const optionalSeed: SeedOf<WithOptional> = { name: "a" };
+
+      type WithTuple = Val<
+        "WithTuple",
+        { pair: [string, number]; optionalPair: [string, number?] }
+      >;
+      const WithTuple = Val.sealer<WithTuple>();
+      const tupleSeed: SeedOf<WithTuple> = {
+        pair: ["a", 1],
+        optionalPair: ["b"],
+      };
+      const mutableTuple: {
+        readonly pair: [string, number];
+        readonly optionalPair: readonly [string, number?];
+      } = { pair: ["a", 1], optionalPair: ["b"] };
+
+      WithOptional.nocopy(optionalSeed);
+      WithTuple.nocopy(tupleSeed);
+      // @ts-expect-error mutable tuples are not ownership evidence
+      WithTuple.nocopy(mutableTuple);
     });
 
     test("accepts a fresh object literal", () => {

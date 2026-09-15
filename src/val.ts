@@ -158,29 +158,33 @@ type ReadonlyKey<T, K extends keyof T> = Equal<Pick<T, K>, Readonly<Pick<T, K>>>
  * `nocopy` accepts only evidence that is immutable all the way down. This cannot prove there is
  * no mutable alias: a readonly view can still have one.
  *
- * Tuples are excluded. Their optional positions are not stable payload shapes, and treating a
- * tuple as an array here would make a readonly tuple accidentally pass the array rule.
+ * Optional properties and tuple positions exclude only the `undefined` introduced by their
+ * optional marker. The payload validator separately rejects explicit `undefined` values.
  */
 type IsNocopyable<T> = [T] extends [AnyVal]
   ? true
   : [T] extends [Primitive]
     ? true
     : [T] extends [ReadonlyArray<infer E>]
-      ? number extends T["length"]
-        ? T extends unknown[]
-          ? false
-          : false extends IsNocopyable<E>
+      ? T extends unknown[]
+        ? false
+        : number extends T["length"]
+          ? false extends IsNocopyable<E>
             ? false
             : true
-        : false
+          : false extends {
+                [I in keyof T]: IsNocopyable<Exclude<T[I], undefined>>;
+              }[number]
+            ? false
+            : true
       : [T] extends [object]
-        ? OptionalKeys<T> extends never
-          ? false extends {
-              [K in keyof T]-?: ReadonlyKey<T, K> extends true ? IsNocopyable<T[K]> : false;
-            }[keyof T]
-            ? false
-            : true
-          : false
+        ? false extends {
+            [K in keyof T]-?: ReadonlyKey<T, K> extends true
+              ? IsNocopyable<K extends OptionalKeys<T> ? Exclude<T[K], undefined> : T[K]>
+              : false;
+          }[keyof T]
+          ? false
+          : true
         : false;
 
 type NocopyArgument<T> =
