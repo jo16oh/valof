@@ -2,7 +2,7 @@
 // `vp run ts-compatibility`. The tsconfig beside it aims `valof` there.
 //
 // Not a copy of the README's examples. It changes when the API does, not when the prose does.
-import { Val, type Companion, type PayloadOf, type Patch, type SeedOf } from "valof";
+import { equals, Val, type Companion, type PayloadOf, type Patch, type SeedOf } from "valof";
 
 type City = Val<"City", { name: string; zip?: string }>;
 const City = Val.sealer<City>();
@@ -26,6 +26,13 @@ const Shop = Val.sealer<Shop>().impl({
 });
 
 declare const shop: Shop;
+declare const anotherShop: Shop;
+declare const city: City;
+
+export const same = equals(shop, anotherShop);
+export const compareShop: (a: Shop, b: Shop) => boolean = equals;
+// @ts-expect-error the second argument must have the first argument's Val type
+equals(shop, city);
 
 const spreadCity = { ...shop.city, name: "Osaka" };
 // @ts-expect-error object spread copies the payload, not the nominal Val brand

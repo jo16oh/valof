@@ -23,7 +23,7 @@ type Member = Where & { companion: string; member: string };
  *
  * Syntactic facts, not any rule's input. Nothing here is named for the rule that happens to read
  * it today, and more than one may: `aliases` and `brands` come from the same pass over the same
- * declarations, and two rules take one each. A new rule needing something new is a reason to add
+ * declarations. A new rule needing something new is a reason to add
  * a fact here; it is not a reason for a fact to belong to it.
  */
 export type Scan = {
@@ -38,7 +38,7 @@ export type Scan = {
   namespaceReads: Map<string, Set<string>>;
   /** `export { A as B }`: the name outside -> the name at the declaration. */
   exportedAs: Map<string, string>;
-  /** Top-level `type X = Val<…>`, with the payload. */
+  /** Top-level `type X = Val<…>`. */
   aliases: Alias[];
   /** The brand each of those claims, where it spelled one as a literal. */
   brands: BrandClaim[];
@@ -76,8 +76,8 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * Walks one file once, for every rule.
  *
  * One walk rather than one per rule because the rules share their footing: {@link Bindings}
- * resolves a name for all three, and the chain analysis that spots `.impl({…})` is the same one
- * that spots `.implEquals`. What comes back is material, not findings; deciding is the rules'
+ * resolves a name for all three, and the chain analysis that spots `.impl({…})` is shared. What
+ * comes back is material, not findings; deciding is the rules'
  * job, and they see every file rather than this one.
  *
  * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
@@ -217,7 +217,7 @@ export function scan(file: string, { parseSync, visitorKeys }: Parser, given?: s
   visit(program);
 
   // After the walk, which is what collected the imports `Val` is resolved against.
-  const { aliases, brands, reAliases } = valAliases(program, file, bound, at);
+  const { aliases, brands, reAliases } = valAliases(program, bound, at);
 
   return {
     file,

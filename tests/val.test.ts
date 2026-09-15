@@ -1,9 +1,8 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import type { AnyVal, SeedOf, Patch, PayloadOf } from "../src/index.ts";
-import { Val } from "../src/index.ts";
-// `BrandOf` and `deepEquals` are not published from the entry point.
+import { equals, Val } from "../src/index.ts";
+// `BrandOf` is not published from the entry point.
 import type { BrandOf } from "../src/val.ts";
-import { deepEquals } from "../src/val.ts";
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
@@ -79,7 +78,7 @@ describe("Val", () => {
 
       const raw = Val.unwrap(order);
       expect(raw).toEqual({ id: "o", total: { amount: 1, currency: "JPY" } });
-      expect(Money.equals(raw.total, Money({ amount: 1, currency: "JPY" }))).toBe(true);
+      expect(equals(raw.total, Money({ amount: 1, currency: "JPY" }))).toBe(true);
     });
   });
 
@@ -581,216 +580,79 @@ describe("copying", () => {
     test("reuse does not change what `equals` answers", () => {
       const a = order();
       const b = Order.patch(a, { note: "changed" });
-      expect(Order.equals(a, b)).toBe(false);
-      expect(Order.equals(b, Order.patch(a, { note: "changed" }))).toBe(true);
-      expect(Line.equals(a.lines[0]!, b.lines[0]!)).toBe(true);
+      expect(equals(a, b)).toBe(false);
+      expect(equals(b, Order.patch(a, { note: "changed" }))).toBe(true);
+      expect(equals(a.lines[0]!, b.lines[0]!)).toBe(true);
     });
   });
 });
 
 describe("equals", () => {
-  test("defaults to a structural deep comparison", () => {
-    expect(User.equals(User({ id: "a", name: "bob" }), User({ id: "a", name: "bob" }))).toBe(true);
-    expect(User.equals(User({ id: "a", name: "bob" }), User({ id: "a", name: "sue" }))).toBe(false);
+  test("compares primitive, object and array payloads deeply", () => {
+    const ArticleId = Val.sealer<ArticleId>();
+    type Numbers = Val<"Numbers", number[]>;
+    const Numbers = Val.sealer<Numbers>();
+
+    expect(equals(ArticleId("a"), ArticleId("a"))).toBe(true);
+    expect(equals(ArticleId("a"), ArticleId("b"))).toBe(false);
+    expect(equals(User({ id: "a", name: "bob" }), User({ id: "a", name: "bob" }))).toBe(true);
+    expect(equals(User({ id: "a", name: "bob" }), User({ id: "a", name: "sue" }))).toBe(false);
+    expect(equals(Numbers([1, 2]), Numbers([1, 2]))).toBe(true);
+    expect(equals(Numbers([1, 2]), Numbers([2, 1]))).toBe(false);
+    expect(equals(Numbers([1, 2]), Numbers([1, 2, 3]))).toBe(false);
   });
 
-  test("is independent of key order", () => {
-    expect(deepEquals({ a: 1, b: 2 }, { b: 2, a: 1 })).toBe(true);
+  test("is independent of key order and ignores undefined-valued keys", () => {
+    type Fields = Val<"Fields", { a?: number; b?: number }>;
+    const Fields = Val.sealer<Fields>();
+    expect(equals(Fields({ a: 1, b: 2 }), Fields({ b: 2, a: 1 }))).toBe(true);
+    expect(equals(Fields({ a: undefined } as unknown as SeedOf<Fields>), Fields({}))).toBe(true);
+    expect(
+      equals(Fields({ a: 1, b: undefined } as unknown as SeedOf<Fields>), Fields({ a: 1 })),
+    ).toBe(true);
   });
 
-  test("ignores keys whose value is undefined", () => {
-    expect(deepEquals({ a: undefined }, {})).toBe(true);
-    expect(deepEquals({ a: 1, b: undefined }, { a: 1 })).toBe(true);
-    expect(deepEquals({ a: undefined }, { a: null })).toBe(false);
+  test("treats NaN as equal to NaN, and -0 as equal to 0", () => {
+    type NumberValue = Val<"NumberValue", number>;
+    const NumberValue = Val.sealer<NumberValue>();
+    expect(equals(NumberValue(Number.NaN), NumberValue(Number.NaN))).toBe(true);
+    expect(equals(NumberValue(-0), NumberValue(0))).toBe(true);
   });
 
-  test("arrays depend on order", () => {
-    expect(deepEquals([1, 2], [2, 1])).toBe(false);
-    expect(deepEquals([1, 2], [1, 2])).toBe(true);
-    expect(deepEquals([1, 2], [1, 2, 3])).toBe(false);
-    expect(deepEquals([1], { 0: 1 })).toBe(false);
+  test("compares nested Vals structurally", () => {
+    type Order = Val<"Order", { owner: User; lines: number[] }>;
+    const Order = Val.sealer<Order>();
+    const a = Order({ owner: User({ id: "a", name: "bob" }), lines: [1, 2] });
+    const b = Order({ owner: User({ id: "a", name: "bob" }), lines: [1, 2] });
+    expect(equals(a, b)).toBe(true);
   });
 
-  test("NaN equals NaN, and -0 equals 0", () => {
-    expect(deepEquals(Number.NaN, Number.NaN)).toBe(true);
-    expect(deepEquals([0], [-0])).toBe(true);
+  test("infers the Val type from the first argument", () => {
+    type Account = Val<"Account", { id: string }>;
+    const Account = Val.sealer<Account>();
+    const user = User({ id: "a", name: "bob" });
+    const account = Account({ id: "a" });
+
+    expect(equals(user, User({ id: "a", name: "bob" }))).toBe(true);
+    const compare: (a: User, b: User) => boolean = equals;
+    expect(compare(user, user)).toBe(true);
+    // @ts-expect-error the brand differs even when the payload structure is compatible
+    equals(user, Val.of<Val<"OtherUser", { id: string; name: string }>>(user));
+    // @ts-expect-error the brand and payload differ
+    equals(user, account);
   });
 
-  test("bigint and null", () => {
-    expect(deepEquals(1n, 1n)).toBe(true);
-    expect(deepEquals(1n, 2n)).toBe(false);
-    expect(deepEquals(null, {})).toBe(false);
-  });
-
-  test("nested Vals are compared structurally", () => {
-    const a = User({ id: "a", name: "bob" });
-    const b = User({ id: "a", name: "bob" });
-    expect(deepEquals({ owner: a }, { owner: b })).toBe(true);
-  });
-
-  test("equals can be overridden", () => {
-    type Email = Val<"Email", string>;
-    const Email = Val.sealer<Email>().implEquals((a, b) => a.toLowerCase() === b.toLowerCase());
-    expect(Email.equals(Email("A@b.com"), Email("a@B.com"))).toBe(true);
-  });
-
-  test("an override is handed the structural default as a third argument", () => {
-    type Doc = Val<"Doc", { id: string; body: string }>;
-    // Published docs are identified by id; drafts have no stable one, so they fall
-    // back to the structural comparison.
-    const Doc = Val.sealer<Doc>().implEquals((a, b, deep) =>
-      a.id.startsWith("draft:") ? deep(a, b) : a.id === b.id,
-    );
-
-    expect(Doc.equals(Doc({ id: "1", body: "x" }), Doc({ id: "1", body: "edited" }))).toBe(true);
-    expect(Doc.equals(Doc({ id: "1", body: "x" }), Doc({ id: "2", body: "x" }))).toBe(false);
-
-    const draft = { id: "draft:1", body: "x" };
-    expect(Doc.equals(Doc(draft), Doc({ ...draft }))).toBe(true);
-    expect(Doc.equals(Doc(draft), Doc({ ...draft, body: "y" }))).toBe(false);
-  });
-
-  test("callers pass two arguments; the third is bound for the override", () => {
-    type N = Val<"N", number>;
-    const N = Val.sealer<N>().implEquals((a, b, deep) => deep(a, b));
-
-    expect(N.equals(N(1), N(1))).toBe(true);
-    expect(N.equals(N(1), N(2))).toBe(false);
-    expectTypeOf(N.equals).parameters.toEqualTypeOf<[N, N]>();
-  });
-
-  test("an override without the third parameter still works", () => {
-    type S = Val<"S", string>;
-    const S = Val.sealer<S>().implEquals((a, b) => a.length === b.length);
-    expect(S.equals(S("ab"), S("cd"))).toBe(true);
-  });
-
-  describe("a spec instead of a function", () => {
-    type Money = Val<"Money", { amount: number; currency: string }>;
-    type Email = Val<"Email", string>;
-    type Line = Val<"Line", { sku: string; qty: number }>;
-    type Order = Val<
-      "Order",
-      {
-        id: string;
-        note: string;
-        total: Money;
-        email: Email;
-        lines: Line[];
-        shipping: { zip: string; city: string };
-        span: [number, number];
-        updatedAt: number;
-      }
-    >;
-
-    // Compares on currency alone, so the amount is free to differ.
-    const Money = Val.sealer<Money>().implEquals((a, b) => a.currency === b.currency);
-    const Email = Val.sealer<Email>().implEquals((a, b) => a.toLowerCase() === b.toLowerCase());
-    const Line = Val.sealer<Line>().implEquals((a, b) => a.sku === b.sku);
-
-    const Order = Val.sealer<Order>().implEquals({
-      total: Money,
-      email: Email,
-      lines: [Line],
-      shipping: { zip: (a, b) => a.trim() === b.trim() },
-      span: [undefined, (a, b) => Math.abs(a - b) <= 1],
-      updatedAt: () => true,
-    });
-
-    const seed: SeedOf<Order> = {
-      id: "o1",
-      note: "hi",
-      total: Money({ amount: 100, currency: "JPY" }),
-      email: Email("a@b.com"),
-      lines: [Line({ sku: "s1", qty: 1 })],
-      shipping: { zip: "1000001", city: "Tokyo" },
-      span: [1, 5],
-      updatedAt: 1,
-    };
-    const order = Order(seed);
-    const like = (patch: Partial<typeof seed>): Order => Order({ ...seed, ...patch });
-
-    test("a companion compares the child by its own equality", () => {
-      expect(Order.equals(order, like({ total: Money({ amount: 999, currency: "JPY" }) }))).toBe(
-        true,
-      );
-      expect(Order.equals(order, like({ total: Money({ amount: 100, currency: "USD" }) }))).toBe(
-        false,
-      );
-    });
-
-    test("a child with a primitive payload works the same", () => {
-      expect(Order.equals(order, like({ email: Email("A@B.COM") }))).toBe(true);
-      expect(Order.equals(order, like({ email: Email("z@b.com") }))).toBe(false);
-    });
-
-    test("an array applies its one spec to every element", () => {
-      expect(Order.equals(order, like({ lines: [Line({ sku: "s1", qty: 99 })] }))).toBe(true);
-      expect(Order.equals(order, like({ lines: [Line({ sku: "s2", qty: 1 })] }))).toBe(false);
-      expect(Order.equals(order, like({ lines: [] }))).toBe(false);
-    });
-
-    test("a tuple applies its specs by position", () => {
-      expect(Order.equals(order, like({ span: [1, 6] }))).toBe(true);
-      expect(Order.equals(order, like({ span: [2, 5] }))).toBe(false);
-    });
-
-    test("a plain nested object descends, and its unnamed keys stay structural", () => {
-      expect(Order.equals(order, like({ shipping: { zip: " 1000001 ", city: "Tokyo" } }))).toBe(
-        true,
-      );
-      expect(Order.equals(order, like({ shipping: { zip: "1000001", city: "Osaka" } }))).toBe(
-        false,
-      );
-    });
-
-    test("a spec that ignores its arguments takes the key out of the comparison", () => {
-      expect(Order.equals(order, like({ updatedAt: 9999 }))).toBe(true);
-    });
-
-    test("keys the spec does not name fall back to the structural default", () => {
-      expect(Order.equals(order, like({ note: "bye" }))).toBe(false);
-      expect(Order.equals(order, like({ id: "o2" }))).toBe(false);
-    });
-
-    test("a key only one side carries fails, as it does structurally", () => {
-      type Opt = Val<"Opt", { a: string; b?: string }>;
-      const Opt = Val.sealer<Opt>().implEquals({ a: (x, y) => x === y });
-      // A key held as `undefined` counts as absent, as it does structurally. EOPT keeps the
-      // literal out of the constructor, so it arrives the way a looser caller would send it.
-      const absent = Val.of<Opt>({ a: "x", b: undefined } as unknown as SeedOf<Opt>);
-      expect(Opt.equals(Opt({ a: "x" }), Opt({ a: "x", b: "y" }))).toBe(false);
-      expect(Opt.equals(Opt({ a: "x" }), absent)).toBe(true);
-    });
-
-    test("a nested Val holding an array is compared whole, not element by element", () => {
-      type Tags = Val<"Tags", string[]>;
-      type Post = Val<"Post", { tags: Tags; raw: Email[] }>;
-      // Order-insensitive, which no elementwise walk could produce.
-      const Tags = Val.sealer<Tags>().implEquals(
-        (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join(),
-      );
-      const Post = Val.sealer<Post>().implEquals({ tags: Tags, raw: [Email] });
-
-      const post = Post({ tags: Tags(["a", "b"]), raw: [Email("x@y.com")] });
-      expect(Post.equals(post, Post({ tags: Tags(["b", "a"]), raw: [Email("X@Y.COM")] }))).toBe(
-        true,
-      );
-      expect(Post.equals(post, Post({ tags: Tags(["a", "c"]), raw: [Email("x@y.com")] }))).toBe(
-        false,
-      );
-    });
-
-    test("a spec reaches the top level of an array or tuple Val", () => {
-      type Emails = Val<"Emails", Email[]>;
-      const Emails = Val.sealer<Emails>().implEquals([Email]);
-      expect(Emails.equals(Emails([Email("a@b.com")]), Emails([Email("A@B.COM")]))).toBe(true);
-      expect(Emails.equals(Emails([Email("a@b.com")]), Emails([]))).toBe(false);
-    });
-
-    test("callers still pass two arguments", () => {
-      expectTypeOf(Order.equals).parameters.toEqualTypeOf<[Order, Order]>();
-    });
+  test("sealers and companions carry no equality methods", () => {
+    const sealer = Val.sealer<User>();
+    const companion = Val.companion<User>();
+    expect(sealer).not.toHaveProperty("equals");
+    expect(sealer).not.toHaveProperty("implEquals");
+    expect(companion).not.toHaveProperty("equals");
+    expect(companion).not.toHaveProperty("implEquals");
+    expectTypeOf(sealer).not.toHaveProperty("equals");
+    expectTypeOf(sealer).not.toHaveProperty("implEquals");
+    expectTypeOf(companion).not.toHaveProperty("equals");
+    expectTypeOf(companion).not.toHaveProperty("implEquals");
   });
 });
 
@@ -1054,11 +916,10 @@ describe("patch", () => {
 
 describe("building", () => {
   describe("sealer", () => {
-    test("a bare sealer is a complete companion", () => {
+    test("a bare sealer is callable", () => {
       const ArticleId = Val.sealer<ArticleId>();
       expect(typeof ArticleId).toBe("function");
       expect(ArticleId("a1b2c3")).toBe("a1b2c3");
-      expect(ArticleId.equals(ArticleId("a"), ArticleId("a"))).toBe(true);
     });
 
     test("impl() keeps the constructor it was built from", () => {
@@ -1067,15 +928,6 @@ describe("building", () => {
       expect(typeof withMethods).toBe("function");
       expect(withMethods({ id: "a", name: "bob" })).toEqual({ id: "a", name: "bob" });
       expect(withMethods.shout(Val.of<User>({ id: "a", name: "bob" }))).toBe("BOB");
-    });
-
-    test("a step keeps the sealer callable, and leaves the one before it alone", () => {
-      const plain = Val.sealer<ArticleId>();
-      const loose = plain.implEquals((a, b) => a.length === b.length);
-      expect(typeof loose).toBe("function");
-      expect(loose("a1b2c3")).toBe("a1b2c3");
-      expect(loose.equals(loose("ab"), loose("cd"))).toBe(true);
-      expect(plain.equals(plain("ab"), plain("cd"))).toBe(false);
     });
 
     test("impl() does not mutate the sealer it was built from", () => {
@@ -1092,7 +944,6 @@ describe("building", () => {
     test("companion() mirrors sealer(), minus the constructor", () => {
       const bare = Val.companion<Age>();
       expect(typeof bare).not.toBe("function");
-      expect(bare.equals(Val.of<Age>(1), Val.of<Age>(1))).toBe(true);
 
       const built = bare.impl({ label: (a) => `${a}` });
       expect(built.label(Val.of<Age>(7))).toBe("7");
@@ -1189,7 +1040,7 @@ describe("building", () => {
         ok: false,
         error: "points must not be negative",
       });
-      expect(Score.equals(s, Val.of<Score>({ points: 3 }))).toBe(true);
+      expect(equals(s, Val.of<Score>({ points: 3 }))).toBe(true);
     });
 
     test("methods added afterwards keep the contextual type and the routing", () => {
@@ -1221,7 +1072,7 @@ describe("building", () => {
 
       const id = Val.of<UserId>("0123456789");
       expect(UserId.short(id)).toBe("01234567");
-      expect(UserId.equals(id, Val.of<UserId>("0123456789"))).toBe(true);
+      expect(equals(id, Val.of<UserId>("0123456789"))).toBe(true);
       expectTypeOf(UserId).not.toHaveProperty("seal");
     });
 
@@ -1389,7 +1240,7 @@ describe("building", () => {
       );
       expect(Email.seal("  A@B.com ")).toBe("a@b.com");
       // normalised at construction, so a parent's structural comparison is correct
-      expect(deepEquals(Email.seal(" a@b.com"), Email.seal("A@B.COM"))).toBe(true);
+      expect(equals(Email.seal(" a@b.com"), Email.seal("A@B.COM"))).toBe(true);
     });
 
     test("a constructor that cannot take the payload is rejected where it is written", () => {

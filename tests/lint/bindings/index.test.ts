@@ -5,8 +5,8 @@ import { DuplicateBrand, UnusedMember, fixtures } from "../support.ts";
 const { lint } = fixtures(import.meta.url);
 
 // How `Val` is recognised, whatever name it was bound under. Three call sites depend on it: the
-// duplicate-brand rule, the alias collection the structural-equals rule reads, and the chain
-// analysis behind unused-member. The findings below belong to whichever rule observes the binding
+// duplicate-brand rule, the alias collection behind aliased-val, and the chain analysis behind
+// unused-member. The findings below belong to whichever rule observes the binding
 // most cheaply, not to what is under test.
 
 test("a renamed type import still spells Val", async () => {

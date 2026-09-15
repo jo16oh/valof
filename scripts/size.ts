@@ -11,7 +11,7 @@ const root = new URL("../", import.meta.url);
 const entry = "./dist/index.mjs";
 const types = "./dist/index.d.mts";
 
-const api = "Val";
+const apis = ["Val", "equals"] as const;
 
 const modes = ["production", "development"] as const;
 
@@ -19,7 +19,7 @@ const budget = { gzip: 1280, types: 24 * 1024 };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
 
-async function bundle(mode: string): Promise<string> {
+async function bundle(api: (typeof apis)[number], mode: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "valof-size-"));
   const file = join(dir, "entry.mjs");
   const target = fileURLToPath(new URL(entry, root));
@@ -89,10 +89,17 @@ await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), 
 });
 
 const declarations = await readFile(new URL(types, root), "utf8");
-const bundled = await Promise.all(modes.map(bundle));
-const bundles = bundled.map(measure);
+const bundled = Object.fromEntries(
+  await Promise.all(
+    apis.map(async (api) => [api, await Promise.all(modes.map((mode) => bundle(api, mode)))]),
+  ),
+) as Record<(typeof apis)[number], string[]>;
+const bundles = Object.fromEntries(apis.map((api) => [api, bundled[api].map(measure)])) as Record<
+  (typeof apis)[number],
+  Sizes[]
+>;
 
-const production = minifySync("production.mjs", bundled[modes.indexOf("production")]!).code;
+const production = minifySync("production.mjs", bundled.Val[modes.indexOf("production")]!).code;
 if (
   production.includes("snapshotSealInput") ||
   production.includes("unsnapshotable seal input") ||
@@ -100,17 +107,22 @@ if (
 ) {
   throw new Error("development-only seal stability checks remain in the production bundle");
 }
+if (production.includes("Number.isNaN")) {
+  throw new Error("equals remains in the production bundle that imports only Val");
+}
 
 const measured = {
-  bundle: Object.fromEntries(modes.map((mode, index) => [mode, bundles[index]!])) as Record<
-    (typeof modes)[number],
-    Sizes
-  >,
+  bundle: Object.fromEntries(
+    apis.map((api) => [
+      api,
+      Object.fromEntries(modes.map((mode, index) => [mode, bundles[api][index]!])),
+    ]),
+  ) as Record<(typeof apis)[number], Record<(typeof modes)[number], Sizes>>,
   types: { raw: Buffer.byteLength(declarations, "utf8") },
 };
 
 const checks = [
-  ["production gzip", measured.bundle.production.gzip, budget.gzip],
+  ["Val production gzip", measured.bundle.Val.production.gzip, budget.gzip],
   ["types raw", measured.types.raw, budget.types],
 ] as const;
 
@@ -132,9 +144,11 @@ function budgets(): string {
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify(measured, null, 2));
 } else {
-  console.log(`bundle  import { ${api} }`);
-  console.log(table(modes.map((mode) => [mode, measured.bundle[mode]])));
-  console.log();
+  for (const api of apis) {
+    console.log(`bundle  import { ${api} }`);
+    console.log(table(modes.map((mode) => [mode, measured.bundle[api][mode]])));
+    console.log();
+  }
   console.log(`types   ${types.replace("./dist/", "")}`);
   console.log(`  raw           ${format(measured.types.raw)}`);
   console.log();
