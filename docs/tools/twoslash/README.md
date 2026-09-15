@@ -1,8 +1,8 @@
 # Typechecking the book
 
-Every ```ts block in `docs/src` is typechecked against `src`, one block per test, by `vp test`.
-`mdbook test` does not do this: it runs Rust blocks only, so it passes on this book without reading
-a line of it.
+Every ```ts block in `docs/src` and `README.md` is typechecked against `src`, one block per test, by
+`vp test`. `mdbook test` does not do this: it runs Rust blocks only, so it passes on this book
+without reading a line of it.
 
 `vp run ts-compatibility` reuses these blocks: it writes them out and typechecks them against the
 published `dist/index.d.mts` on every supported TypeScript line, so the same examples cover the

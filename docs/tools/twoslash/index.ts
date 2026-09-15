@@ -78,18 +78,19 @@ export function docBlocks(directory: string): DocBlock[] {
       continue;
     }
 
-    for (const block of codeBlocks(readFileSync(join(directory, file), "utf8"))) {
-      if (!isTypeScript(block.language)) {
-        continue;
-      }
-
-      blocks.push({
-        name: `${file}:${block.line}`,
-        code: block.value,
-        ignored: block.attributes.includes(ignore),
-      });
-    }
+    blocks.push(...markdownBlocks(readFileSync(join(directory, file), "utf8"), file));
   }
 
   return blocks;
+}
+
+/** TypeScript fences from one Markdown document, named for a test report. */
+export function markdownBlocks(markdown: string, name: string): DocBlock[] {
+  return codeBlocks(markdown)
+    .filter((block) => isTypeScript(block.language))
+    .map((block) => ({
+      name: `${name}:${block.line}`,
+      code: block.value,
+      ignored: block.attributes.includes(ignore),
+    }));
 }

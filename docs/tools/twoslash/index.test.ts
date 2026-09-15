@@ -1,13 +1,23 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { checkBlock, docBlocks } from "./index.ts";
+import { checkBlock, docBlocks, markdownBlocks } from "./index.ts";
 
 const chapters = fileURLToPath(new URL("../../src", import.meta.url));
+const readme = fileURLToPath(new URL("../../../README.md", import.meta.url));
 
 describe("the book's TypeScript blocks", () => {
   for (const block of docBlocks(chapters)) {
+    test.skipIf(block.ignored)(block.name, () => {
+      checkBlock(block.code);
+    });
+  }
+});
+
+describe("the README's TypeScript blocks", () => {
+  for (const block of markdownBlocks(readFileSync(readme, "utf8"), "README.md")) {
     test.skipIf(block.ignored)(block.name, () => {
       checkBlock(block.code);
     });
