@@ -3,7 +3,7 @@
   <h1>Valof</h1>
   <p><em>Write robust domain logic in TypeScript<br>just by following the conventions.</em></p>
   <p>
-    <a href="https://www.npmjs.com/package/valof"><img src="https://img.shields.io/npm/v/valof.svg" alt="npm"></a>
+    <a href="https://www.npmjs.com/package/valof"><img src="https://img.shields.io/npm/v/valof.svg" alt="npm" align="middle"></a>
     <a href="https://jo16oh.github.io/valof/latest/">The Valof Book</a>
   </p>
 </div>
