@@ -1,0 +1,75 @@
+# Branding
+
+Two values can have the same representation but different meanings:
+
+```ts
+type UserId = string;
+type OrderId = string;
+
+declare const userId: UserId;
+let orderId: OrderId;
+
+orderId = userId; // allowed: both types are string
+```
+
+A brand lets TypeScript distinguish them without changing their runtime representation.
+
+## Define branded types
+
+`Val` takes the brand and the payload type:
+
+```ts
+import { Val } from "valof";
+
+type UserId = Val<"UserId", string>;
+type OrderId = Val<"OrderId", string>;
+```
+
+The brand is phantom. A `UserId` is still a string at runtime.
+
+Name the brand after the type it brands: `type UserId = Val<"UserId", string>`. The
+[`brand-mismatch`](linting.md#rules) lint rule reports when the names do not match.
+
+## Construct values
+
+A branded type normally needs a constructor that contains a type assertion:
+
+```ts
+import { Val } from "valof";
+
+type UserId = Val<"UserId", string>;
+// ---cut---
+const createUserId = (value: string): UserId => value as UserId;
+```
+
+This keeps assertions out of its callers, but every branded type needs the same constructor
+boilerplate. `Val.sealer` supplies the constructor:
+
+```ts
+// @errors: 2322
+import { Val } from "valof";
+
+type UserId = Val<"UserId", string>;
+type OrderId = Val<"OrderId", string>;
+// ---cut---
+const UserId = Val.sealer<UserId>();
+const OrderId = Val.sealer<OrderId>();
+
+const userId = UserId("u_1");
+let orderId: OrderId;
+
+orderId = userId; // type error: UserId is not an OrderId
+orderId = "o_1"; // type error: a plain string is not an OrderId
+
+type User = Val<"User", { name: string }>;
+const User = Val.sealer<User>();
+const user = User({ name: "alice" });
+
+// @ts-expect-error spread drops the brand
+const changed: User = { ...user, name: "bob" };
+const resealed = User({ ...user, name: "bob" });
+```
+
+Name the constructor after its type: `const UserId = Val.sealer<UserId>()`. TypeScript lets the type
+and value share a name. The [`companion-mismatch`](linting.md#rules) lint rule reports when they do
+not match.

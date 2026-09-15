@@ -15,7 +15,7 @@ import { Val } from "valof";
 
 - **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠
 - **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
-- **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由
+- **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが引数をコピーする理由。所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
   - **4.2** タプルを保つ。optional 要素と `Required<T>`、rest 要素の限界
@@ -249,6 +249,19 @@ type Primitive = string | number | boolean | bigint;
 4. **設計として正しい方向に寄る。** Val の合成が強制されるので、DDD 的にまともな構造になる
 
 `ReadonlyArray` と `Record` は再帰的に定義する。これがないと `readonly string[][]`（行列・グリッド）や `Readonly<Record<string, Val>>`（ID 索引）が書けない。各ノードは浅いので、再帰があっても破滅的なコストにはならない。
+
+### payload に `readonly` は書かない
+
+`Val<K, T>` は `DeepReadonly<Checked<T>>` なので、可変で書いた payload も配列・タプル・オブジェクトを問わず readonly になる。`SeedOf` も `Patch`（`Derivable` 経由）も `EqImpl` も `SeedOf` の上に乗るので、書いても書かなくても API は同一。
+
+**書くと損をする。** `Val.unwrap` が返すのは `PayloadOf<V>`、つまり書いたままの型である。
+
+```ts
+type R = Val<"R", { tags: readonly string[] }>;
+Val.unwrap(v).tags.sort(); // ✗ readonly string[] has no sort
+```
+
+「readonly を知らないコードに渡すための可変コピー」という unwrap の目的が、定義側の `readonly` で潰れる。ドキュメントは許可型の表も例も `ReadonlyArray` / `Readonly<Record>` を勧めていたので、素で書くほうに統一した。
 
 ### 移行の摩擦
 
@@ -610,7 +623,7 @@ README の `Reusing a Val` が見せているのは**トップレベルでの合
 
 `unwrap` は外部に渡すための出口であって、値の派生に使うものではない。`SeedOf<V>` が Val をそのまま受けるので `Val.of` / `patch` は 1 回のコピーで済むが、`unwrap` を経由すると 2 回になる（92 → 184 ns/op、ネスト約 8 ノード）。
 
-`unwrap` を単体 export にしなかった理由。単体ならバンドラが落とせるが、その 44 B のために `unwrap` というありふれた名前をトップレベルに置くと `Result` 系ライブラリと衝突する。`Val.of` の逆操作であることも名前空間側に置く根拠になる。
+`unwrap` を単体 export にしなかった理由。`unwrap` というありふれた名前をトップレベルに置くと `Result` 系ライブラリと衝突する。`Val.of` の逆操作であることも名前空間側に置く根拠になる。単体にしても落ちるのは 9 B で、見積もった 44 B には届かない（§14.6 で実測）。
 
 ### ベンチマーク
 
@@ -1807,21 +1820,47 @@ TaggedEnum、Map/Set のラッパー、Result、実行時 freeze（dev を除く
 
 下限は「動く最古のバージョン」ではない。実測では **4 系も 5.0.4 も通る**。それでも切り上げるのは、ラインの途中のバージョンが持ち込むエッジケース（半端に入ったフラグ、まだ効いていない非推奨）を支える相手がいないからで、ラインの最終リリースはその系列の意味が固まった点である。TS 7 が最新の今、2 つ前のラインの最後が 5.9.3 に当たる。
 
-CI は `vp run ts-compatibility`（`scripts/ts-compatibility/`）で、**公開する `dist/index.d.mts` に対して** 各ラインの最終版を回す。src ではなく宣言ファイルを見るのは、tsgo の出力が古いコンパイラで読めない可能性がそこにあるため。
+CI は `vp run ts-compatibility`（`scripts/ts-compatibility/`）で、**公開する `dist/index.d.mts` に対して** 各ラインを回す。
 
-**固定するのは下限だけで、その上のラインはレジストリから読む。** ラインの一覧も番号も書かない。書き下した瞬間に古くなり（6.1 が出ても 6.0 を見続ける）、新しいメジャーは誰かが気づくまで CI に入らないため。人間の判断として残るのは下限をどこに置くかだけになる。
+#### なぜ src ではなく宣言ファイルなのか
 
-代償は CI が外部の状態に依存すること。TS が新しいリリースを出した日に、こちらの変更なしで赤くなりうるが、それはまさに知りたい情報である。プレリリースは除外するので beta / rc では動かない。
+`.d.ts` は生成物で、しかも別のコンパイラが作る（`vp pack` の `dts: { tsgo: true }`）。src の型検査が証明するのは「この構文がこのコンパイラで通る」までで、emit を経た結果は証明しない。
 
-7 系も回す。`vp check` の tsgo と同じラインだが、npm の `typescript@7` は別物として配られるので、利用者が踏む経路をそのまま踏む。Go 実装で速いので追加コストはほぼない。
+実測した。`Phantom` の `protected readonly __valof_internal_phantom_types` を消すと、
 
-fixture は `scripts/ts-compatibility/public-api.ts` の 1 本。`valof` を隣の tsconfig が `dist/index.d.mts` に向けるので、**利用者と同じ経路で公開面だけを見る**。
+|                                                 |                   |
+| ----------------------------------------------- | ----------------- |
+| `vp check`（tsgo, src）                         | pass              |
+| `vp test`（285 件）                             | pass              |
+| `dist` に対する doc ブロック（5.9 / 6.0 / 7.0） | 9 ファイルで fail |
 
-この 1 本はリポジトリ本体の型検査からは外す（`lint.ignorePatterns`）。oxlint は tsconfig の include / exclude に関わらず全ファイルを見に行き、そこでは `valof` が解決できないため。壊れれば `vp run ts-compatibility` が赤くなるので、検査されない状態にはならない。
+宣言 emit は private フィールドの**型を消す**。src では `private __brand: K` が `K` を運ぶので `PayloadOf` が成立し、emit 後は `protected` の 1 行だけが型引数を残している。それを消すと利用者側で `patch` が消え `PayloadOf` が `never` になるが、src をどのバージョンで検査しても緑のまま。**src を見ている限り emit 経路は無検査**という一点が、このコマンドが存在する理由である。
 
-`@ts-expect-error` は未使用ならエラーになるので、否定ケースもそのまま検証になる。vitest の glob（`*.test.ts`）に当たらないため、テストとしては走らない。
+#### fixture は本のコードブロック
 
-この規則を入れた時点で、6.0.3 だけが落ちた。ライブラリではなく fixture の `baseUrl` が TS 6 で非推奨（TS5101）になっていたためで、**ラインごとに回さなければ気づかない類のもの**だった。
+`public-api.ts`（手書き 61 行）を廃止した。API 表面の 2 つ目の写しで、API を変えるたびに人が写す必要があった。
+
+代わりに `docs/src` の ```ts ブロックを `docs/.generated/ts-compatibility/` に書き出して回す。**doc は doc の理由で保守される**ので写す作業が消える。回る面も 1 ファイルから 29 ブロックに増えた。上の実測で 9 ファイルが落ちたのは、その広さがそのまま検出力になっている。
+
+`// @errors` を持つ 8 ブロックは外す。どのエラーがどのコードで出るかはラインごとに動き、素の `tsc` に期待を置く場所がない。そちらは `vp test`（twoslash、5.9、src に対して）が見る。分担はこうなる。
+
+|                                               |                                                   |
+| --------------------------------------------- | ------------------------------------------------- |
+| `vp test` の doc チェック                     | 散文が今の `src` と合っているか。期待エラーもここ |
+| `vp run ts-compatibility`                     | 公開した `.d.ts` が各ラインの利用者から使えるか   |
+| `tests/val.test.ts`（`expectTypeOf` 73 箇所） | 型の細部。`src` に対して深く                      |
+
+「書かない型」（`Sealer` / `Sealed` / `CompanionBuilder` / `Companion`）の明示注釈は、どこにも置かずに落とした。`api.md` が「自分で import する理由はない」と書いている型なので本に例を載せると章と矛盾し、テストに置いても誰も書かないコードを守ることになる。4 つとも doc ブロックが dist 経由で暗黙に生成するので、内部が壊れればそちらが落ちる。
+
+#### ラインはレジストリではなく alias で固定する
+
+`typescript-5` / `typescript-6` / `typescript` の 3 つを devDependencies に置き、`node_modules` から版を読む。npm install も、レジストリへの問い合わせもしない。
+
+**以前はレジストリから読んでいた**（下限より上の各メジャーの最新を取得）。理由は「書き下した瞬間に古くなり、新しいメジャーは誰かが気づくまで CI に入らない」だった。これを反転させた。実際に払っていたのは、PR ごとのネットワーク依存と、こちらの変更なしに CI が赤くなる性質のほう。新メジャーは alias を 1 つ足したときに入る。
+
+7 系も回す。`vp check` の tsgo と同じラインだが、あちらが見るのは src で、こちらは dist。利用者が踏む経路が違う。Go 実装なので追加コストはほぼない。
+
+この規則を入れた時点で、6.0.3 だけが落ちた。ライブラリではなく fixture の `baseUrl` が TS 6 で削除されていたためで、**ラインごとに回さなければ気づかない類のもの**だった。生成する tsconfig は `baseUrl` を使わず、`paths` を tsconfig 自身からの相対で解決させている。
 
 ---
 
@@ -2205,6 +2244,43 @@ peer dependency にした場合を実測した限りでは、入れ子のコピ�
 `Val` 自身が companion なので、§14 の盲点はこのライブラリの表面にも及ぶ。バンドラは `const Val = {...}` のプロパティを落とせないので、`Val.of` だけを呼ぶモジュールにも `sealer`、`companion`、`unwrap`、`attach`、`deepEquals` が残る（§5 の `eqBy` が当たったのと同じ壁）。
 
 名前空間を名前付き export に分割する案は 2026-09-03 に検討して却下した。利用者の companion には効かず、API が二重化し、ブランドだけが欲しいライブラリなら数行で自作できる。
+
+#### 分割を測った、2026-09-15
+
+`equals` を自由関数にした（§5）あと、`of` / `unwrap` / `sealer` / `companion` も揃えるべきかを再検討した。production の gzip バイト数。
+
+| 使い方                            |  今 | `unwrap` だけ自由関数 | 4 つとも自由関数 |
+| --------------------------------- | --: | --------------------: | ---------------: |
+| `of` だけ                         | 659 |                   650 |          **273** |
+| `unwrap` だけ                     | 659 |                   274 |              274 |
+| `of` + `equals`（companion なし） | 852 |                   843 |          **479** |
+| `of` + `unwrap` + `equals`        | 852 |                   852 |              493 |
+| `sealer` だけ                     | 659 |                   650 |              630 |
+| `sealer` + `companion`            | 659 |                   650 |              636 |
+| `sealer` + `equals`               | 852 |                   843 |              825 |
+| 全部                              | 852 |                   852 |              842 |
+
+**2026-09-03 の却下は数字の上で正しかった。** companion を使うアプリでは 852 → 842、10 B。`sealer` を 1 か所でも呼べば `build` / `attach` / `patched` が入るので、`of` を外に出しても落ちるものがない。
+
+**`unwrap` だけ外す案は 9 B。** §4 が見積もった 44 B より小さい。`detach` は `deepCopy` の 2 つ目の形でしかなく、`own` が `deepCopy` を必ず残す。この案は取り下げる。
+
+**効くのは companion を一度も定義しないアプリだけ。** 852 → 479、373 B。`equals` の分離で得た 193 B より大きい。したがって分割の是非はサイズではなく、**型 + `of` + `equals` だけの使い方を入口として支持するか**で決まる。README が `Val.sealer` から始める限り、この 373 B は誰にも届かない。
+
+サイズ以外の理由で `Val.of` は残す。
+
+- `seal<User>(x)` は `User.seal(x)`（カスタム seal、§6.8 の唯一の関門）と同じ名前で、そちらを飛ばす。`bypassed-companion` 規則があるのは飛ばせるからで、`Val.of` は見た目で別の操作だとわかる（§2.2）
+- `unnamed-of` が型引数を必須にしているので、自由関数にしても `seal<User>(x)` だけ `equals(a, b)` / `unwrap(v)` と呼び出しの形が違う。並べても揃わない
+- `unnamed-of` の根拠は `Val.of<User>` が grep できること。自由関数は import で別名にできるので、`aliased-val` と同じ import 追跡を 2 規則に足す工事になる
+- パッケージ名が API に現れる唯一の場所（§12）
+
+#### サブパスも測った。それでもやらない
+
+`valof/experimental` に自由関数の `of` / `unwrap` を出し、最小構成の利用者だけがそれを呼ぶ案。実際に entry を足して測ると成立はする。`experimental` の `of` + `valof` の `equals` で 476 B、`Val` + `equals` の 849 B に対して 373 B 落ちる。両方 import しても 850 B で、二重化の罰もない。
+
+- rolldown が 2 つの entry の共有部分を `dist/val-*.mjs` に吸い上げ、各 entry は再 export 2 行になる。**これが前提条件。**共有チャンクにならず複製されると `owned` の WeakSet が 2 つになり、`experimental` で封じた値を `patch` が所有ノードと見なくなる（§6.2 が置換と merge を分ける根拠が経路ごとに崩れる）。entry を足すときは毎回確認する
+- dts も分割され、`dist/index.d.mts` は 14.84 kB から 321 B になる。`scripts/size.ts` の types 予算はこのファイルの raw を見ているので、entry を足すなら共有チャンクか全 `.d.mts` の合計に変える
+
+**却下。「Parse, don't validate」がこのライブラリの根幹だから。** companion を定義しない使い方は seal が存在しない使い方であり、それ専用の入口を公式に出すことは parse を通らない経路を推すことになる。373 B はその原則の代償として払う。検査を飛ばして速度を取りたい利用者は util を自作すればよい。2026-09-03 の「数行で自作できる」と同じ結論に、実測を添えて戻った。
 
 ### 14.7 規則: カスタム equals を持つ子の構造比較、2026-09-07
 

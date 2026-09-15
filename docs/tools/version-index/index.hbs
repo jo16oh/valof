@@ -1,0 +1,17 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Valof Book</title>
+</head>
+<body>
+<h1>The Valof Book</h1>
+<ul>
+  <li><a href="latest/">latest{{#if latest}} ({{latest}}){{/if}}</a></li>
+{{#each versions}}
+  <li><a href="{{this}}/">{{this}}</a></li>
+{{/each}}
+</ul>
+</body>
+</html>

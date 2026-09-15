@@ -28,7 +28,7 @@ export default defineConfig({
   },
   lint,
   fmt: {
-    ignorePatterns: ["tests/lint/**/fixtures/**"],
+    ignorePatterns: ["tests/lint/**/fixtures/**", "**/*.hbs"],
     proseWrap: "always",
     overrides: [
       {

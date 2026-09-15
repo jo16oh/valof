@@ -1,0 +1,46 @@
+name: Docs
+
+# Own workflow, not a job in CI: it runs only when the book can break. The `main` ruleset requires
+# no status check, so a run that never starts blocks nothing.
+on:
+  push:
+    branches: [main]
+    # GitHub Actions does not expand YAML anchors, so this list is repeated below.
+    paths:
+      - "docs/**"
+      - "mise.toml"
+      - "mise.lock"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/docs.yml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mise.toml"
+      - "mise.lock"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/docs.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The same build the release runs, so a broken book fails the PR and not the tag.
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: voidzero-dev/setup-vp@v1.18.0
+        with:
+          node-version: "24"
+          cache: true
+
+      # mdbook and mdbook-linkcheck2, pinned in mise.toml.
+      - uses: jdx/mise-action@v3
+
+      - run: vp install
+
+      - run: vp run docs:build

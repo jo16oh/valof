@@ -9,7 +9,10 @@ wrapper types, the linter, or new API. §9 lists the open questions. New deliber
 ## Bundle Size
 
 Run `vp run size` after changing `src/`. It measures the bundle and the declarations against their
-budgets and exits non-zero over either. Neither `vp check` nor `vp test` covers this.
+budgets and exits non-zero over either. It also checks the figure marked `valof-minimal-bundle-size`
+in `README.md` and `docs/src/introduction.md`, and the same one in the `package.json` description,
+failing when they drift from the measured `Val` production gzip. `vp run size --write` updates the
+three. Neither `vp check` nor `vp test` covers this.
 
 ## Committing and Pushing
 
