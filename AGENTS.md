@@ -9,9 +9,14 @@ wrapper types, the linter, or new API. §9 lists the open questions. New deliber
 ## Bundle Size and Type Cost
 
 Run `vp run bundle-size` after changing runtime code. It measures what a user ships. It also checks
-the figure marked `valof-minimal-bundle-size` in `README.md` and `docs/src/introduction.md`, and the
-same one in the `package.json` description, failing when they drift from the measured `Val`
-production gzip. `vp run bundle-size --write` updates the three.
+the production bundle against its budgets. It does not update release documentation.
+
+The bundle-size claim in `docs/src/introduction.md` follows the current branch. Update it with
+`vp run replace-bundle-size-claims --write docs/src/introduction.md`; regular CI checks it. The
+claims in `README.md` and the `package.json` description describe the latest release instead.
+`vp run push-tag` measures the release and updates all three files. When it updates one, it stops
+before creating the tag so the changes can be committed. The release workflow checks all three
+claims again from the tag.
 
 Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
 against the published declarations, and budgets the instantiation count and the size of

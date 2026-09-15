@@ -32,7 +32,7 @@ jobs:
 
       - run: vp test
 
-      - run: vp run bundle-size
+      - run: vp run replace-bundle-size-claims README.md docs/src/introduction.md package.json
 
       - run: vp run type-perf
 
