@@ -18,6 +18,7 @@ dark-theme = "one-dark-pro"
 fallback-language = "text"
 
 [output.html]
+git-repository-url = "https://github.com/jo16oh/valof"
 additional-css = ["tools/mdbook-shiki/shiki.css", "tools/mdbook-sidebar/sidebar.css", "theme.css"]
 additional-js = [".generated/mdbook-sidebar/headings.js", "tools/mdbook-sidebar/sidebar.js"]
 
