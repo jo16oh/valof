@@ -59,7 +59,6 @@ compatibility layer breaks the theme menu.
    vp check
    vp test
    vp run docs:build
-   vp run docs:test
    ```
 
 7. Open the built book in a browser. Confirm that the theme menu opens, each theme changes Shiki's

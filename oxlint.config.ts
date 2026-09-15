@@ -7,7 +7,7 @@ export default defineConfig({
     "typescript/no-unnecessary-type-assertion": "error",
     "typescript/no-unsafe-function-type": "error",
   },
-  ignorePatterns: ["tests/lint/**/fixtures/**", "scripts/ts-compatibility/public-api.ts"],
+  ignorePatterns: ["tests/lint/**/fixtures/**"],
   options: {
     typeAware: true,
     typeCheck: true,
