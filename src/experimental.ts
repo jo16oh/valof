@@ -1,8 +1,7 @@
 /**
- * Provisional API, published from its own subpath so an import says so.
+ * Experimental API, published from its own subpath so an import says so.
  *
- * Everything here may change in a minor release. `valof` itself keeps the versioning policy the
- * README states; this subpath does not.
+ * The design is still changing.
  */
 
 export { Trait } from "./trait.ts";
