@@ -1,6 +1,7 @@
 <div align="center">
   <img src="../../assets/valof-brand.svg" alt="Valof" width="250">
   <h1>The Valof Book</h1>
+  <p>v{{valof-version}}</p>
   <p><em>Write robust domain logic in TypeScript<br>just by following the conventions.</em></p>
   <p>
     <a href="https://www.npmjs.com/package/valof"><img src="https://img.shields.io/npm/v/valof.svg" alt="npm"></a>
