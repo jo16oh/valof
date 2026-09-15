@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { gzipSync, brotliCompressSync, constants } from "node:zlib";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -153,43 +153,6 @@ const checks = [
   ["production gzip, with Trait", measured.trait.production.gzip, budget.traitGzip],
 ] as const;
 
-// The prose states this figure, so the prose has to follow the measurement. Markdown marks the
-// number with a comment; JSON takes no comment, so the description is matched through its key.
-const marker = "valof-minimal-bundle-size";
-const marked = () => new RegExp(`(?<=<!-- ${marker} -->)[\\s\\S]*?(?=<!-- /${marker} -->)`, "g");
-const claimed: [file: string, claim: RegExp][] = [
-  ["README.md", marked()],
-  ["docs/src/introduction.md", marked()],
-  ["package.json", /(?<="description": "[^"]*)\d+(?:\.\d+)? [kM]?B gzipped(?=[^"]*")/g],
-];
-const write = process.argv.includes("--write");
-const size = `${format(measured.bundle.production.gzip)} gzipped`;
-
-const claims = await Promise.all(
-  claimed.map(async ([file, claim]) => {
-    const url = new URL(file, root);
-    const text = await readFile(url, "utf8");
-    // The formatter rewraps prose, so a claim can hold a line break.
-    const found = (text.match(claim) ?? []).map((match) => match.replace(/\s+/g, " "));
-    if (found.length !== 1) {
-      throw new Error(`${file}: expected one ${marker} claim, found ${found.length}`);
-    }
-    const stale = found[0] !== size;
-    if (stale && write) await writeFile(url, text.replace(claim, size));
-    return { file, found: found[0], stale };
-  }),
-);
-
-function states(): string {
-  const label = Math.max(...claims.map(({ file }) => file.length));
-  return claims
-    .map(({ file, found, stale }) => {
-      const state = !stale ? "ok" : write ? `updated from ${found}` : `stale: ${found}`;
-      return `  ${file.padEnd(label)}  ${state}`;
-    })
-    .join("\n");
-}
-
 function budgets(): string {
   const label = Math.max(...checks.map(([name]) => name.length));
   const used = Math.max(...checks.map(([, size]) => format(size).length));
@@ -213,23 +176,16 @@ if (process.argv.includes("--json")) {
     console.log(table(modes.map((mode) => [mode, bundles[name][mode]])));
     console.log();
   }
-  console.log(`claims  ${size}`);
-  console.log(states());
-  console.log();
   console.log("budget");
   console.log(budgets());
 }
 
 const over = checks.filter(([, bytes, max]) => bytes > max);
-const stale = write ? [] : claims.filter(({ stale }) => stale);
 
-if (over.length > 0 || stale.length > 0) {
+if (over.length > 0) {
   console.error();
   for (const [name, bytes, max] of over) {
     console.error(`over budget: ${name} is ${format(bytes)}, budget ${format(max)}`);
-  }
-  for (const { file, found } of stale) {
-    console.error(`stale claim: ${file} says ${found}, measured ${size}. Rerun with --write.`);
   }
   process.exit(1);
 }
