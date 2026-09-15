@@ -57,3 +57,54 @@ jobs:
         run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # The book is published per tag under `{tag}/`, with `latest/` a copy of the newest release and a
+  # bare index at the root. The site lives on `gh-pages`, which GitHub Pages serves as a branch.
+  docs:
+    needs: release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the site is pushed to gh-pages
+    concurrency:
+      group: gh-pages # two releases must not push the site at once
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: voidzero-dev/setup-vp@v1.18.0
+        with:
+          node-version: "24"
+          cache: true
+
+      # mdbook and mdbook-linkcheck2, pinned in mise.toml.
+      - uses: jdx/mise-action@v3
+
+      - run: vp install
+
+      - run: vp run docs:build
+
+      - name: Check out the published site
+        run: |
+          git fetch --quiet origin gh-pages &&
+            git worktree add site FETCH_HEAD ||
+            git worktree add --orphan -b gh-pages site
+
+      - name: Add this version
+        run: |
+          tag="$GITHUB_REF_NAME"
+          rm -rf "site/$tag"
+          cp -r docs/book/html "site/$tag"
+          # A prerelease is reachable by its tag, but it is not what `latest/` means.
+          case "$tag" in
+            *-*) ;;
+            *) rm -rf site/latest && cp -r docs/book/html site/latest ;;
+          esac
+          node docs/tools/version-index/index.ts site
+          touch site/.nojekyll
+
+      - name: Push the site
+        run: |
+          git -C site add --all
+          git -C site -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --message "docs: publish $GITHUB_REF_NAME"
+          git -C site push origin HEAD:gh-pages

@@ -1,7 +1,7 @@
 {
   "name": "valof",
   "version": "0.7.0",
-  "description": "Value-object helpers for TypeScript: branded types, a constructor and a companion, kept as plain data. Around 1 kB gzipped.",
+  "description": "Value-object helpers for TypeScript: branded types, a constructor and a companion, kept as plain data. Starts from 710 B gzipped.",
   "keywords": [
     "branded-types",
     "ddd",
@@ -40,6 +40,8 @@
   "scripts": {
     "build": "vp pack",
     "dev": "vp pack --watch",
+    "docs:build": "mdbook build docs",
+    "docs:serve": "mdbook serve docs",
     "test": "vp test",
     "check": "vp check",
     "bundle-size": "node scripts/bundle-size.ts",
@@ -54,12 +56,17 @@
     "@types/node": "^26.5.0",
     "bumpp": "^11.1.0",
     "eslint": "^10.10.0",
+    "handlebars": "^4.7.9",
+    "mdast-util-from-markdown": "^2.0.3",
     "oxc-parser": "^0.148.0",
     "oxlint": "1.82.0",
+    "shiki": "^4.4.3",
+    "twoslash": "^0.3.9",
     "typescript": "^7.0.2",
+    "typescript-5": "npm:typescript@^5.9.3",
+    "typescript-6": "npm:typescript@^6.0.3",
     "vite": "catalog:",
-    "vite-plus": "catalog:",
-    "vscode-langservers-extracted": "^4.10.0"
+    "vite-plus": "catalog:"
   },
   "peerDependencies": {
     "oxc-parser": ">=0.148"

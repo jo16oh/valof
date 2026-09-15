@@ -1,13 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import {
-  StructuralEquals,
-  UnusedMember,
-  RULES,
-  cli,
-  cliWithoutParser,
-  cliWithoutTypeScript,
-} from "../support.ts";
+import { UnusedMember, RULES, cli, cliWithoutParser, cliWithoutTypeScript } from "../support.ts";
 
 const under = (fixture: string): string => `tests/lint/command/fixtures/${fixture}`;
 
@@ -26,10 +19,10 @@ test("exits 0 with a summary when it does not", () => {
   expect(stderr).toBe("valof-lint: nothing to report in 1 file(s)");
 });
 
-test("starts a TypeScript of its own when the caller hands it none", () => {
-  const { status, stdout } = cli(under("equality/**/*.ts"));
+test("does not need TypeScript in the project it lints", () => {
+  const { status, stdout } = cliWithoutTypeScript(under("*.ts"), under("finding.ts"));
   expect(status).toBe(1);
-  expect(stdout).toContain(StructuralEquals.kind);
+  expect(stdout).toContain(`${UnusedMember.kind}  Id.shout is never read`);
 });
 
 test("exits 2 when nothing matches the glob", () => {
@@ -46,13 +39,6 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
     expect(lines.some((line) => line.includes(kind) && line.includes(description))).toBe(true);
   }
   expect(cli("-h").stdout).toBe(stdout);
-});
-
-test("refuses the run when the project it lints has no TypeScript", () => {
-  const { status, stderr } = cliWithoutTypeScript(under("*.ts"));
-  expect(status).toBe(2);
-  expect(stderr).toContain("typescript");
-  expect(stderr).toContain("pnpm add -D typescript");
 });
 
 test("asks for oxc-parser when it is not installed", () => {

@@ -83,7 +83,7 @@ export type Scan = {
   exportedAs: Map<string, string>;
   /** Export name -> the local or source-module symbol it exposes. */
   exportedRefs: Map<string, SymbolRef>;
-  /** Top-level `type X = Val<…>`, with the payload. */
+  /** Top-level `type X = Val<…>`. */
   aliases: Alias[];
   /** Top-level `type X = Trait<…>` declarations. */
   traitAliases: TraitAlias[];

@@ -2,7 +2,6 @@ import { describe, expect, test } from "vite-plus/test";
 
 import { CompanionMismatch, UnusedMember, fixtures } from "../../support.ts";
 
-// No fixture here states its equality, so no fixture needs a language server.
 const { lint } = fixtures(import.meta.url);
 
 describe("what the rule finds", () => {
@@ -44,10 +43,6 @@ describe("what the rule finds", () => {
       { rule: UnusedMember, at: "shorthand-and-const.ts:2:3" },
       { rule: UnusedMember, at: "shorthand-and-const.ts:5:3" },
     ]);
-  });
-
-  test("ignores the members the library wires, which `.impl` no longer accepts", async () => {
-    expect(await lint("builtins")).toEqual([]);
   });
 
   test("reads through a builder chain, past implSeal and fixed", async () => {

@@ -1,4 +1,4 @@
-export { Val } from "./val.ts";
+export { equals, Val } from "./val.ts";
 export { Trait } from "./trait.ts";
 
 /**

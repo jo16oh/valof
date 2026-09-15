@@ -1,25 +1,17 @@
 import { child, children, unparenthesized, type Node, type Where } from "../ast.ts";
 import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
-/**
- * A top-level `type X = Val<"brand", payload>`.
- *
- * `span` is the whole declaration, which is what a resolved definition is tested against: the
- * server points at the name, and containment turns that back into the alias.
- */
+/** A top-level `type X = Val<"brand", payload>`. */
 export type Alias = {
   file: string;
   alias: string;
   ref: SymbolRef;
-  span: [number, number];
-  /** The second type argument. Absent when the alias is generic over its payload. */
-  payload: Node | undefined;
   /** Traits declared in Val's third argument. */
   traits: DeclaredTrait[];
 };
 
-/** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their payload rules. */
-export type TraitAlias = { file: string; alias: string; ref: SymbolRef; span: [number, number] };
+/** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their own rules. */
+export type TraitAlias = { file: string; alias: string; ref: SymbolRef };
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
 export type DeclaredTrait = Where & {
@@ -68,14 +60,13 @@ function valName(typeName: Node, namespaces: ReadonlyMap<string, string>): strin
 }
 
 /**
- * Top-level Val and Trait aliases, with the payload for the structural-equals rule and the brand for the
- * duplicate-brand one.
+ * Top-level Val and Trait aliases, and the brands they claim.
  *
  * Only a top-level alias can be imported and assigned somewhere else, which is the collision the
  * brand rule reports. A `type Point` inside a `describe` block collides with nothing.
  *
  * The alias must spell `Val<…>` itself. A user's helper around it, `type Branded<K, T> =
- * Val<K, T>`, is invisible to both rules.
+ * Val<K, T>`, is invisible to these facts.
  */
 export function valAliases(
   program: Node,
@@ -133,14 +124,10 @@ export function valAliases(
           ? "val"
           : undefined;
     if (kind === "val") {
-      // The payload is the second argument. Absent on `Val<K, T>` inside a helper, which
-      // describes no particular value.
       aliases.push({
         file,
         alias: id["name"] as string,
         ref: symbolRef(file, bound, id["name"] as string),
-        span: [node["start"] as number, node["end"] as number],
-        payload: children(args, "params")[1],
         traits: traitNames(children(args, "params")[2], file, bound, program, at),
       });
     } else if (kind === "trait") {
@@ -148,7 +135,6 @@ export function valAliases(
         file,
         alias: id["name"] as string,
         ref: symbolRef(file, bound, id["name"] as string),
-        span: [node["start"] as number, node["end"] as number],
       });
     }
 

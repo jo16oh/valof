@@ -87,9 +87,9 @@ describe("Trait", () => {
     });
 
     test("nor a name the library wires", () => {
-      type Wiring = Trait<"Wiring", { n: number }, { equals: (self: Self) => boolean }>;
+      type Wiring = Trait<"Wiring", { n: number }, { patch: (self: Self) => boolean }>;
       // @ts-expect-error a trait member cannot take a name the library wires
-      Trait.companion<Wiring>().impl({ equals: () => false });
+      Trait.companion<Wiring>().impl({ patch: () => false });
     });
 
     test("nor one under `__valof_`", () => {
@@ -254,9 +254,9 @@ describe("building", () => {
     // Every gate takes an `AnyTrait`, so one check covers the companion, a Val declaring the
     // trait, a box, and both forms of `implTrait`. None of them carries a check of its own.
     test("a broken declaration is caught at every gate", () => {
-      type Wiring = Trait<"Wiring", { id: string }, { equals: (self: Self) => boolean }>;
+      type Wiring = Trait<"Wiring", { id: string }, { patch: (self: Self) => boolean }>;
       expectTypeOf<Wiring["__valof_internal_phantom_trait_brands"]>().toEqualTypeOf<{
-        equals: { readonly __valError: "a trait member cannot take a name the library wires" };
+        patch: { readonly __valError: "a trait member cannot take a name the library wires" };
       }>();
       expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
       // Naming `Wiring` is the error, so each directive is the assertion. The type resolves to

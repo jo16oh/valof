@@ -6,7 +6,6 @@ import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Rule } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
-import { StructuralEquals } from "./structural-equals/index.ts";
 import { UnnamedOf } from "./unnamed-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
@@ -28,7 +27,6 @@ export const RULES = [
   SplitCompanion,
   BypassedCompanion,
   UnnamedOf,
-  StructuralEquals,
   IncompleteDisable,
   UnusedDisable,
 ] as const;
@@ -46,7 +44,6 @@ export {
   DuplicateBrand,
   IncompleteDisable,
   SplitCompanion,
-  StructuralEquals,
   UnnamedOf,
   UnusedDisable,
   UnusedMember,

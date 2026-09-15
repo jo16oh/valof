@@ -8,7 +8,10 @@ wrapper types, the linter, or new API. §9 lists the open questions. New deliber
 
 ## Bundle Size and Type Cost
 
-Run `vp run bundle-size` after changing runtime code. It measures what a user ships.
+Run `vp run bundle-size` after changing runtime code. It measures what a user ships. It also checks
+the figure marked `valof-minimal-bundle-size` in `README.md` and `docs/src/introduction.md`, and the
+same one in the `package.json` description, failing when they drift from the measured `Val`
+production gzip. `vp run bundle-size --write` updates the three.
 
 Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
 against the published declarations, and budgets the instantiation count and the size of
