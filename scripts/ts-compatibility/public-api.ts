@@ -27,6 +27,11 @@ const Shop = Val.sealer<Shop>().impl({
 
 declare const shop: Shop;
 
+const spreadCity = { ...shop.city, name: "Osaka" };
+// @ts-expect-error object spread copies the payload, not the nominal Val brand
+export const forgedCity: City = spreadCity;
+export const resealedCity: City = City(spreadCity);
+
 export const patched = [
   Shop.patch(shop, { owner: { contact: { email: "a@example.com" } } }),
   Shop.patch(shop, { owner: { contact: { phone: undefined } } }),

@@ -12,8 +12,8 @@ type Result<T> = Ok<T> | Err;
 type User = Val<"app/User", { id: string; name: string; nickname?: string }>;
 type Age = Val<"Age", number>;
 type ArticleId = Val<"ArticleId", string>;
-type Tags = Val<"Tags", Readonly<Record<string, true>>>;
-type Grid = Val<"Grid", ReadonlyArray<ReadonlyArray<number>>>;
+type Tags = Val<"Tags", Record<string, true>>;
+type Grid = Val<"Grid", number[][]>;
 
 const User = Val.sealer<User>();
 const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
@@ -63,7 +63,7 @@ describe("Val", () => {
       const ArticleId = Val.sealer<ArticleId>();
       expect(Val.unwrap(ArticleId("a1b2c3"))).toBe("a1b2c3");
 
-      const Tags = Val.sealer<Val<"Tags", readonly string[]>>();
+      const Tags = Val.sealer<Val<"Tags", string[]>>();
       const tags = Tags(["a", "b"]);
       const raw = Val.unwrap(tags);
       expect(raw).toEqual(["a", "b"]);
@@ -106,15 +106,15 @@ describe("Val", () => {
     test("Vals, arrays, records and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
       expectTypeOf<Val<"B", bigint>>().toExtend<AnyVal>();
-      expectTypeOf<Val<"C", readonly string[]>>().toExtend<AnyVal>();
-      expectTypeOf<Val<"D", Readonly<Record<string, true>>>>().toExtend<AnyVal>();
+      expectTypeOf<Val<"C", string[]>>().toExtend<AnyVal>();
+      expectTypeOf<Val<"D", Record<string, true>>>().toExtend<AnyVal>();
       expectTypeOf<Val<"E", { at: Val<"A", string>; n: number | null }>>().toExtend<AnyVal>();
     });
 
     test("a tuple keeps its positions, its length and its labels", () => {
       type Point = Val<"Point", string>;
       const Point = Val.sealer<Point>();
-      type Pair = Val<"Pair", { at: readonly [Point, number] }>;
+      type Pair = Val<"Pair", { at: [Point, number] }>;
       const Pair = Val.sealer<Pair>();
 
       const p = Pair({ at: [Point("a"), 1] });
@@ -129,14 +129,14 @@ describe("Val", () => {
     });
 
     test("an optional element is allowed; a rest element falls back to an array", () => {
-      type Opt = Val<"Opt", { at: readonly [string, number?] }>;
+      type Opt = Val<"Opt", { at: [string, number?] }>;
       expectTypeOf<Opt>().toExtend<AnyVal>();
       expectTypeOf<SeedOf<Opt>["at"][0]>().toEqualTypeOf<string>();
       expectTypeOf<SeedOf<Opt>["at"][1]>().toEqualTypeOf<number | undefined>();
 
       // A rest element makes `length` plain `number`, which is what tells a tuple from an array,
       // so this one is read as an array. Positions are lost, nothing is unsound.
-      type Rest = Val<"Rest", { at: readonly [string, ...number[]] }>;
+      type Rest = Val<"Rest", { at: [string, ...number[]] }>;
       expectTypeOf<SeedOf<Rest>["at"]>().toEqualTypeOf<readonly (string | number)[]>();
     });
 
@@ -169,13 +169,13 @@ describe("Val", () => {
     });
 
     test("the rules reach inside a tuple", () => {
-      type Element<V> = BrandOfInvalid<V> extends { at: readonly [infer A, unknown] } ? A : never;
+      type Element<V> = BrandOfInvalid<V> extends { at: [infer A, unknown] } ? A : never;
 
-      type BadFn = Val<"Bad", { at: readonly [string, () => void] }>;
+      type BadFn = Val<"Bad", { at: [string, () => void] }>;
       expectTypeOf<Element<BadFn>>().toEqualTypeOf<string>();
       expectTypeOf<BadFn>().not.toExtend<AnyVal>();
 
-      type BadUndefined = Val<"Bad", { at: readonly [string | undefined, number] }>;
+      type BadUndefined = Val<"Bad", { at: [string | undefined, number] }>;
       expectTypeOf<Element<BadUndefined>>().toEqualTypeOf<{
         readonly __valError: "a tuple element cannot be undefined; use null or make it optional";
       }>();
@@ -233,10 +233,10 @@ describe("Val", () => {
       }>();
       expectTypeOf<Nested>().not.toExtend<AnyVal>();
 
-      type InArray = Val<"InArray", readonly State[]>;
+      type InArray = Val<"InArray", State[]>;
       expectTypeOf<InArray>().not.toExtend<AnyVal>();
 
-      type InTuple = Val<"InTuple", readonly [State, number]>;
+      type InTuple = Val<"InTuple", [State, number]>;
       expectTypeOf<InTuple>().not.toExtend<AnyVal>();
     });
 
@@ -247,9 +247,9 @@ describe("Val", () => {
     });
 
     test("number and symbol keys are rejected", () => {
-      expectTypeOf<Val<"Bad", Readonly<Record<number, true>>>>().not.toExtend<AnyVal>();
-      expectTypeOf<Val<"Bad", Readonly<Record<symbol, string>>>>().not.toExtend<AnyVal>();
-      expectTypeOf<Val<"Bad", { readonly 1: string }>>().not.toExtend<AnyVal>();
+      expectTypeOf<Val<"Bad", Record<number, true>>>().not.toExtend<AnyVal>();
+      expectTypeOf<Val<"Bad", Record<symbol, string>>>().not.toExtend<AnyVal>();
+      expectTypeOf<Val<"Bad", { 1: string }>>().not.toExtend<AnyVal>();
     });
   });
 
@@ -260,6 +260,21 @@ describe("Val", () => {
       expectTypeOf<A>().not.toExtend<B>();
       expectTypeOf<A>().toExtend<string>();
       expectTypeOf<string>().not.toExtend<A>();
+    });
+
+    test("object spread drops the brand until the payload is sealed again", () => {
+      const user = User({ id: "a", name: "bob" });
+      // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
+      const changed = { ...user, name: "sue" };
+
+      expectTypeOf(changed).not.toExtend<User>();
+      // @ts-expect-error spreading copies payload fields, not the nominal brand
+      const unsealed: User = changed;
+      expect(unsealed).toEqual(changed);
+
+      const resealed = User(changed);
+      expectTypeOf(resealed).toEqualTypeOf<User>();
+      expect(resealed).toEqual({ id: "a", name: "sue" });
     });
 
     test("nested Vals keep their brand", () => {
@@ -279,6 +294,7 @@ describe("Val", () => {
     test("BrandOf / PayloadOf", () => {
       expectTypeOf<BrandOf<User>>().toEqualTypeOf<"app/User">();
       expectTypeOf<PayloadOf<ArticleId>>().toEqualTypeOf<string>();
+      expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
     });
 
     test("does not exist at runtime", () => {
@@ -307,7 +323,7 @@ describe("Val", () => {
     });
 
     test("values are frozen in development, all the way down", () => {
-      type Post = Val<"Post", { title: string; author: { name: string }; tags: readonly string[] }>;
+      type Post = Val<"Post", { title: string; author: { name: string }; tags: string[] }>;
       const Post = Val.sealer<Post>();
       const post = Post({ title: "t", author: { name: "alice" }, tags: ["a"] });
 
@@ -401,7 +417,7 @@ describe("copying", () => {
           public y = 2,
         ) {}
       }
-      type Pt = Val<"Pt", { readonly x: number; readonly y: number }>;
+      type Pt = Val<"Pt", { x: number; y: number }>;
       expect(() => Val.of<Pt>(new Point())).toThrow(TypeError);
       expect(() => Val.of<Pt>({ x: 1, y: 2 })).not.toThrow();
     });
@@ -439,7 +455,7 @@ describe("copying", () => {
   describe("reuse", () => {
     type Money = Val<"Money", { amount: number; currency: string }>;
     type Line = Val<"Line", { sku: string; qty: number }>;
-    type Order = Val<"Order", { id: string; note: string; total: Money; lines: readonly Line[] }>;
+    type Order = Val<"Order", { id: string; note: string; total: Money; lines: Line[] }>;
     const Money = Val.sealer<Money>();
     const Line = Val.sealer<Line>();
     const Order = Val.sealer<Order>();
@@ -660,9 +676,9 @@ describe("equals", () => {
         note: string;
         total: Money;
         email: Email;
-        lines: readonly Line[];
+        lines: Line[];
         shipping: { zip: string; city: string };
-        span: readonly [number, number];
+        span: [number, number];
         updatedAt: number;
       }
     >;
@@ -748,8 +764,8 @@ describe("equals", () => {
     });
 
     test("a nested Val holding an array is compared whole, not element by element", () => {
-      type Tags = Val<"Tags", readonly string[]>;
-      type Post = Val<"Post", { tags: Tags; raw: readonly Email[] }>;
+      type Tags = Val<"Tags", string[]>;
+      type Post = Val<"Post", { tags: Tags; raw: Email[] }>;
       // Order-insensitive, which no elementwise walk could produce.
       const Tags = Val.sealer<Tags>().implEquals(
         (a, b) => a.length === b.length && [...a].sort().join() === [...b].sort().join(),
@@ -766,7 +782,7 @@ describe("equals", () => {
     });
 
     test("a spec reaches the top level of an array or tuple Val", () => {
-      type Emails = Val<"Emails", readonly Email[]>;
+      type Emails = Val<"Emails", Email[]>;
       const Emails = Val.sealer<Emails>().implEquals([Email]);
       expect(Emails.equals(Emails([Email("a@b.com")]), Emails([Email("A@B.COM")]))).toBe(true);
       expect(Emails.equals(Emails([Email("a@b.com")]), Emails([]))).toBe(false);
@@ -832,7 +848,7 @@ describe("patch", () => {
     // Only what deep-merges carries it. Everything else is rebuilt through the constructor.
     expectTypeOf(Val.sealer<ArticleId>()).not.toHaveProperty("patch");
     expectTypeOf(Val.sealer<Grid>()).not.toHaveProperty("patch");
-    expectTypeOf(Val.sealer<Val<"Pair", readonly [number, string]>>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.sealer<Val<"Pair", [number, string]>>()).not.toHaveProperty("patch");
     expectTypeOf(Val.sealer<Tags>()).toHaveProperty("patch");
   });
 
@@ -870,8 +886,8 @@ describe("patch", () => {
         id: string;
         owner: { name: string; contact: { email: string; phone?: string } };
         city: City;
-        tags: readonly string[];
-        staff: Readonly<Record<string, { role: string }>>;
+        tags: string[];
+        staff: Record<string, { role: string }>;
       }
     >;
     const Shop = Val.sealer<Shop>();
@@ -995,6 +1011,7 @@ describe("patch", () => {
         u2: { role: "waiter" },
         u3: { role: "host" },
       });
+      // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
       expect(Shop({ ...before, staff }).staff).toEqual(staff);
     });
 
@@ -1227,6 +1244,132 @@ describe("building", () => {
       const b = Box.seal(raw);
       raw.tags.push("b");
       expect(b.tags).toEqual(["a"]);
+    });
+
+    test("detects a getter that changes between validation and copying", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((r, seal) => {
+        void r.n; // validation observes the input before the default seal copies it
+        return seal(r);
+      });
+      let n = 0;
+      const input = {
+        get n() {
+          return ++n;
+        },
+      };
+
+      expect(() => Reading.seal(input)).toThrow(
+        new TypeError("The payload changed while the custom seal was running."),
+      );
+    });
+
+    test("detects a non-idempotent get trap", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      let n = 0;
+      const candidate = new Proxy(
+        { n: 0 },
+        {
+          get(target, key, receiver) {
+            return key === "n" ? ++n : Reflect.get(target, key, receiver);
+          },
+        },
+      );
+      const Reading = Val.companion<Reading>().implSeal((_r, seal) => seal(candidate));
+
+      expect(() => Reading.seal({ n: 0 })).toThrow(TypeError);
+    });
+
+    test("detects mutation of the original input inside the custom seal", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((r: { n: number }, seal) => {
+        r.n += 1;
+        return seal(r);
+      });
+
+      expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
+    });
+
+    test("allows a stable reactive Proxy and detaches the result", () => {
+      type Box = Val<"Box", { nested: { n: number } }>;
+      const Box = Val.companion<Box>().implSeal((b, seal) => seal(b));
+      const target = { nested: { n: 1 } };
+      const input = new Proxy<typeof target>(target, {
+        ownKeys: Reflect.ownKeys,
+        getOwnPropertyDescriptor: Reflect.getOwnPropertyDescriptor,
+        get: Reflect.get,
+      });
+
+      const box = Box.seal(input);
+      expect(box).toEqual({ nested: { n: 1 } });
+      expect(box).not.toBe(input);
+      expect(box.nested).not.toBe(target.nested);
+      target.nested.n = 2;
+      expect(box.nested.n).toBe(1);
+    });
+
+    test("allows normalization into a new plain candidate", () => {
+      type Name = Val<"Name", { value: string }>;
+      const Name = Val.companion<Name>().implSeal((n, seal) =>
+        seal({ value: n.value.trim().toLowerCase() }),
+      );
+
+      expect(Name.seal({ value: " Alice " })).toEqual({ value: "alice" });
+    });
+
+    test("detects input mutation before an awaited default seal", async () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal(async (r, seal) => {
+        await Promise.resolve();
+        return seal(r);
+      });
+      const input = { n: 1 };
+
+      const sealed = Reading.seal(input);
+      input.n = 2;
+      await expect(sealed).rejects.toThrow(TypeError);
+    });
+
+    test("reuses the starting snapshot for every default seal call", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((r: { n: number }, seal) => {
+        const first = seal(r);
+        r.n += 1;
+        return [first, seal(r)] as const;
+      });
+
+      expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
+    });
+
+    test("does no comparison when a rejected result never calls the default seal", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((_r): Result<Reading> => ({
+        ok: false,
+        error: "rejected",
+      }));
+      let n = 0;
+      const input = {
+        get n() {
+          return ++n;
+        },
+      };
+
+      expect(Reading.seal(input)).toEqual({ ok: false, error: "rejected" });
+    });
+
+    test("does not newly reject wider class or cyclic inputs before the custom seal", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((r: object, seal) =>
+        seal({ n: (r as { n: number }).n }),
+      );
+      class Source {
+        n = 1;
+      }
+      const cyclic: { n: number; self?: unknown } = { n: 2 };
+      cyclic.self = cyclic;
+
+      expect(Reading.seal(new Source())).toEqual({ n: 1 });
+      expect(Reading.seal(cyclic)).toEqual({ n: 2 });
     });
 
     test("the seal accepts an existing value as readily as a raw payload", () => {

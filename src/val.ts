@@ -1,7 +1,15 @@
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
 type Primitive = string | number | boolean | bigint | null;
 
-export type AnyVal = { readonly __valof_internal_phantom_brand: string };
+/** Type-only nominal identity. Private members disappear from `keyof` and object spreads. */
+declare class Phantom<K extends string, T> {
+  private readonly __valof_internal_phantom_brand: K;
+  private readonly __valof_internal_phantom_payload: T;
+  /** Declaration emit erases private field types; protected keeps the type arguments recoverable. */
+  protected readonly __valof_internal_phantom_types: readonly [K, T];
+}
+
+export type AnyVal = Phantom<string, unknown>;
 
 /** Marker surfaced in the type when a payload violates the allowed-type rules. */
 type Invalid<Msg extends string> = { readonly __valError: Msg };
@@ -68,32 +76,24 @@ type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
 
 /**
  * The conditional lives here, not {@link Val}. An alias whose top level is a conditional loses
- * its name once it resolves, so `User` would print as the expanded intersection, phantom keys
- * included, in every hover. An alias over an intersection keeps the name.
+ * its name once it resolves, so `User` would print as the expanded intersection in every hover.
+ * An alias over an intersection keeps the name.
  *
  * `T extends Validate<T>` is the natural spelling. On a type alias that is TS2313 "circular
  * constraint", hence the conditional.
  */
-type Phantom<K extends string, T> = [T] extends [Validate<T>]
-  ? {
-      readonly __valof_internal_phantom_brand: K;
-      /** Exists only so the original payload type can be recovered. */
-      readonly __valof_internal_phantom_payload: T;
-    }
+type Brand<K extends string, T> = [T] extends [Validate<T>]
+  ? Phantom<K, T>
   : { readonly __valof_internal_phantom_brand: Validate<T> };
 
 /** A branded value type. A payload that breaks the allowed-type rules is a type error. */
-export type Val<K extends string, T> = DeepReadonly<Checked<T>> & Phantom<K, T>;
+export type Val<K extends string, T> = DeepReadonly<Checked<T>> & Brand<K, T>;
 
 /** The Val's brand string. */
-export type BrandOf<V extends AnyVal> = V["__valof_internal_phantom_brand"];
+export type BrandOf<V extends AnyVal> = V extends Phantom<infer K, unknown> ? K : never;
 
 /** The Val's raw payload type. */
-export type PayloadOf<V extends AnyVal> = V extends {
-  readonly __valof_internal_phantom_payload: infer T;
-}
-  ? T
-  : never;
+export type PayloadOf<V extends AnyVal> = V extends Phantom<string, infer T> ? T : never;
 
 /**
  * The payload as constructors, `Val.of` and a custom seal accept it.
@@ -530,6 +530,62 @@ const owned = new WeakSet<object>();
 const development =
   typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production";
 
+const unsnapshotable = Symbol("unsnapshotable seal input");
+type SealSnapshot = Primitive | undefined | object | typeof unsnapshotable;
+
+/**
+ * Takes a plain, inert view of what a custom seal can observe. This is deliberately best-effort:
+ * wider seal inputs may be class instances, cyclic, or backed by traps that throw. Those inputs
+ * still go to the custom seal, with this development check skipped.
+ *
+ * `Object.keys` and ordinary reads match the copy's observable surface. In particular, a Proxy is
+ * not rejected merely for being a Proxy; stable reactive proxies snapshot like plain objects.
+ */
+const snapshotSealInput = (input: unknown): SealSnapshot => {
+  const active = new WeakSet<object>();
+
+  const snapshot = (value: unknown): SealSnapshot => {
+    if (value === null || typeof value !== "object") {
+      return typeof value === "function" || typeof value === "symbol"
+        ? unsnapshotable
+        : (value as Primitive | undefined);
+    }
+    if (active.has(value)) return unsnapshotable;
+
+    const array = Array.isArray(value);
+    if (!array) {
+      const prototype = Object.getPrototypeOf(value);
+      if (prototype !== Object.prototype && prototype !== null) return unsnapshotable;
+    }
+
+    active.add(value);
+    try {
+      const out: Record<string, unknown> | unknown[] = array
+        ? Array.from({ length: (value as unknown[]).length })
+        : {};
+      for (const key of Object.keys(value)) {
+        const child = snapshot((value as Record<string, unknown>)[key]);
+        if (child === unsnapshotable) return unsnapshotable;
+        if (key === "__proto__") define(out, key, child);
+        else (out as Record<string, unknown>)[key] = child;
+      }
+      return out;
+    } finally {
+      active.delete(value);
+    }
+  };
+
+  try {
+    return snapshot(input);
+  } catch {
+    return unsnapshotable;
+  }
+};
+
+const changedDuringSeal = (): never => {
+  throw new TypeError("The payload changed while the custom seal was running.");
+};
+
 /**
  * Builds the recursive deep copy, in an owning and a non-owning form.
  *
@@ -666,7 +722,26 @@ const attach = (
   ctors: Ctors,
 ): Record<string, unknown> => {
   const { create, seal: custom, equals } = ctors;
-  const seal: (value: unknown) => unknown = custom ? (value) => custom(value, own) : own;
+  const seal: (value: unknown) => unknown = custom
+    ? development
+      ? (value) => {
+          const before = snapshotSealInput(value);
+          return custom(value, (candidate) => {
+            if (before !== unsnapshotable) {
+              const current = snapshotSealInput(value);
+              if (current !== unsnapshotable && !deepEquals(before, current)) changedDuringSeal();
+            }
+
+            const candidateBefore = snapshotSealInput(candidate);
+            const sealed = own(candidate);
+            if (candidateBefore !== unsnapshotable && !deepEquals(candidateBefore, sealed)) {
+              changedDuringSeal();
+            }
+            return sealed;
+          });
+        }
+      : (value) => custom(value, own)
+    : own;
   // A derivation that changed nothing returns the value it started from, so a framework comparing
   // by identity sees no update. A custom seal owns the return shape, so the value goes back
   // through it: the copy inside recognises the node and hands the same one back.
