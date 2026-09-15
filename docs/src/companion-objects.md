@@ -28,6 +28,7 @@ Valof collects the constructor and functions under a value with the same name as
 ```ts
 import { Val } from "valof";
 
+// ---cut---
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
 
 const User = Val.sealer<User>().impl({

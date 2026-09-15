@@ -9,12 +9,13 @@ import { minifySync, build, type Rolldown } from "vite";
 
 const root = new URL("../", import.meta.url);
 
-// `core` is the budget everyone pays. The other two measure what a `Trait` or an `equals` user
-// adds on top. `Trait` ships from its own subpath, so the entry names the module per import.
+// `core` is the budget everyone pays. The other entries measure what `Trait`, `equals`, or both
+// add on top. `Trait` ships from its own subpath, so the entry names the module per import.
 const entries = {
   core: { "./dist/index.mjs": ["Val"] },
   trait: { "./dist/index.mjs": ["Val"], "./dist/experimental.mjs": ["Trait"] },
-  equals: { "./dist/index.mjs": ["equals"] },
+  equals: { "./dist/index.mjs": ["Val", "equals"] },
+  all: { "./dist/index.mjs": ["Val", "equals"], "./dist/experimental.mjs": ["Trait"] },
 } as const satisfies Record<string, Readonly<Record<string, readonly string[]>>>;
 type Entry = keyof typeof entries;
 type Imports = Readonly<Record<string, readonly string[]>>;
@@ -140,7 +141,12 @@ if (production.includes("Number.isNaN")) {
   throw new Error("equals remains in the production bundle that imports only Val");
 }
 
-const measured = { bundle: bundles.core, trait: bundles.trait, equals: bundles.equals };
+const measured = {
+  bundle: bundles.core,
+  trait: bundles.trait,
+  equals: bundles.equals,
+  all: bundles.all,
+};
 
 const checks = [
   ["production gzip", measured.bundle.production.gzip, budget.gzip],
