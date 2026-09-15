@@ -30,6 +30,69 @@ describe("Val", () => {
       expect(user).toEqual(raw);
       expect(user).not.toBe(raw);
     });
+
+    test("can adopt an explicitly-owned payload", () => {
+      const raw = { id: "a", name: "alice" } as const;
+      const user = Val.of.nocopy<User>(raw);
+      expect(user).toBe(raw);
+      expect(Object.isFrozen(raw)).toBe(true);
+    });
+  });
+
+  describe("nocopy", () => {
+    test("keeps every identity and freezes the adopted graph", () => {
+      const tags: readonly string[] = ["one"];
+      const raw = { id: "a", name: "alice", tags } as const;
+      const user = Val.sealer<Val<"NocopyUser", typeof raw>>().nocopy(raw);
+      expect(user).toBe(raw);
+      expect(user.tags).toBe(raw.tags);
+      expect(Object.isFrozen(raw)).toBe(true);
+      expect(Object.isFrozen(raw.tags)).toBe(true);
+    });
+
+    test("requires a deeply readonly default-sealer input", () => {
+      type NocopyUser = Val<"NocopyUser", { id: string; tags: string[]; nested: { n: number } }>;
+      const NocopyUser = Val.sealer<NocopyUser>();
+      const readonly: {
+        readonly id: string;
+        readonly tags: readonly string[];
+        readonly nested: { readonly n: number };
+      } = {
+        id: "a",
+        tags: ["one"],
+        nested: { n: 1 },
+      };
+      const mutable = { id: "a", tags: ["one"], nested: { n: 1 } };
+      NocopyUser.nocopy(readonly);
+      // @ts-expect-error writable properties are not ownership evidence
+      NocopyUser.nocopy(mutable);
+      // @ts-expect-error mutable arrays are not ownership evidence
+      NocopyUser.nocopy({ id: "a", tags: ["one"], nested: { n: 1 } });
+    });
+
+    test("accepts a fresh object literal", () => {
+      type Plain = Val<"Plain", { id: string; name: string }>;
+      Val.sealer<Plain>().nocopy({ id: "a", name: "alice" });
+    });
+
+    test("rejects unsupported adopted graphs in development", () => {
+      type Point = Val<"NocopyPoint", { x: number }>;
+      const Point = Val.sealer<Point>();
+      const accessor = {
+        get x() {
+          return 1;
+        },
+      };
+      class Source {
+        x = 1;
+      }
+      const cyclic: { x: number; self?: unknown } = { x: 1 };
+      cyclic.self = cyclic;
+
+      expect(() => Point.nocopy(accessor as never)).toThrow(/accessor/);
+      expect(() => Point.nocopy(new Source() as never)).toThrow(/plain objects/);
+      expect(() => Point.nocopy(cyclic as never)).toThrow(/cycle/);
+    });
   });
 
   describe("unwrap", () => {
@@ -1293,6 +1356,27 @@ describe("building", () => {
   });
 
   describe("implCreate", () => {
+    test("create and seal retain their nocopy terminal operation", () => {
+      type Dog = Val<"Dog", { name: string }>;
+      let minted = 0;
+      const Dog = Val.companion<Dog>()
+        .implCreate((name: string) => {
+          minted += 1;
+          return { name };
+        })
+        .implSeal((dog, seal) => seal({ name: dog.name.trim() }));
+
+      const input = { name: " spot " } as const;
+      const sealed = Dog.seal.nocopy(input);
+      expect(sealed).not.toBe(input); // normalization, not the public input, is adopted
+      expect(Object.isFrozen(sealed)).toBe(true);
+      const created = Dog.create.nocopy(" spot ");
+      expect(created).toEqual({ name: "spot" });
+      expect(minted).toBe(1);
+      expectTypeOf(Dog.seal.nocopy).parameters.toEqualTypeOf<[SeedOf<Dog>]>();
+      expectTypeOf(Dog.create.nocopy).returns.toEqualTypeOf<Dog>();
+    });
+
     test("alone it still derives: the default seal is a payload function too", () => {
       type Point = Val<"Point", { x: number; y: number }>;
       const Point = Val.companion<Point>().implCreate((x: number, y: number) => ({ x, y }));

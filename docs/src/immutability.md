@@ -44,6 +44,9 @@ profile.address.city; // "Osaka"
 
 Write the payload without `readonly`. `Val` makes it deeply readonly:
 
+Only primitives, arrays and plain objects can live inside a Val. See
+[Allowed types](allowed-types.md).
+
 ```ts
 // @errors: 2339
 import { Val } from "valof";
@@ -57,5 +60,24 @@ post.tags.push("typescript"); // type error: tags is readonly
 `readonly` exists only in the type system. In development, Valof also freezes values, so a write
 that uses a cast to bypass the type throws where it happens. Production builds skip the freeze.
 
-Only primitives, arrays and plain objects can live inside a Val. See
-[Allowed types](allowed-types.md).
+## Avoiding a copy
+
+Construction copies by default. When a payload graph is already stable and has no mutable aliases,
+use `.nocopy` to adopt it instead:
+
+```ts
+import { Val } from "valof";
+
+type Profile = Val<"Profile", { name: string; address: { city: string } }>;
+const Profile = Val.sealer<Profile>();
+
+const seed = { name: "alice", address: { city: "Osaka" } } as const;
+const profile = Profile.nocopy(seed);
+```
+
+This is a caller contract, not an ownership proof. `readonly` can be a view of mutable data, and
+casts, accessors and proxies can still violate it. Default sealers require a deeply readonly
+argument as a guardrail; `Val.of.nocopy<V>` and custom seals accept their normal input types, so
+their callers and implementations must uphold the same contract. Development checks plain data,
+freezes the adopted graph and rejects accessors, class instances and cycles; production trusts the
+contract. `patch` always retains its copying behaviour.

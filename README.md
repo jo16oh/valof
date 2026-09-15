@@ -3,7 +3,7 @@
   <h1>Valof</h1>
   <p><em>Write robust domain logic in TypeScript<br>just by following the conventions.</em></p>
   <p>
-    <a href="https://www.npmjs.com/package/valof"><img src="https://img.shields.io/npm/v/valof.svg" alt="npm" align="middle"></a>
+    <a href="https://www.npmjs.com/package/valof"><img src="https://img.shields.io/npm/v/valof.svg" alt="npm" align="absmiddle"></a>&nbsp;&nbsp;
     <a href="https://jo16oh.github.io/valof/latest/">The Valof Book</a>
   </p>
 </div>
@@ -46,7 +46,7 @@ types and linting.
 - **Type-aware linting**: Catch convention violations through ESLint, Oxlint or the standalone
   command.
 
-- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->710 B
+- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->852 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 Read the [documentation](docs/src/introduction.md) for more details.

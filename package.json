@@ -1,7 +1,7 @@
 {
   "name": "valof",
   "version": "0.7.0",
-  "description": "Value-object helpers for TypeScript: branded types, a constructor and a companion, kept as plain data. Starts from 710 B gzipped.",
+  "description": "Value-object helpers for TypeScript: branded types, a constructor and a companion, kept as plain data. Starts from 852 B gzipped.",
   "keywords": [
     "branded-types",
     "ddd",
