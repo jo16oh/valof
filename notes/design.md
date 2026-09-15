@@ -17,7 +17,7 @@ import { Val } from "valof";
 - **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
 - **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由
 - **§4 DeepReadonly**
-  - **4.1** コンストラクタが引数をコピーする理由。所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
+  - **4.1** コンストラクタが引数をコピーする理由。型でも lint でも塞げないこと（線形型が無い）、所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
   - **4.2** タプルを保つ。optional 要素と `Required<T>`、rest 要素の限界
 - **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、`implEquals` の spec の設計
 - **§6 スマートコンストラクタと更新**
@@ -39,6 +39,7 @@ import { Val } from "valof";
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
+- **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
 
 ---
 
@@ -467,6 +468,17 @@ payload はプリミティブ・配列・プレーンオブジェクト・ネス
 | `structuredClone` | 514        | 5,474            | 469,529 |
 
 まともなサイズの値オブジェクトで 1μs 未満。1000 行を 1 つの Val に詰めると 100μs 払うが、それはネスト Val に切るべきという話であり、§4 の「再帰は Val で止まる」方針と一致する。
+
+#### 型でも lint でも塞げない
+
+**TS に線形型・アフィン型が無い。**「この引数の所有権をもらった」を表す手段がないので、呼び出し側が参照を
+持ち続けているかは呼び出し地点に書かれていない。`const raw` がどこまで生きるかは関数境界を越えるので
+valof-lint からも見えない。手で書いた `[...arr]` は誰も検査せず、1 箇所忘れると静かなエイリアシングの
+バグになる。
+
+**余分に払うのは、エイリアスの無い入力を見分けられない分。**`User({ id: "a", name: "bob" })` は誰もその
+オブジェクトを持っていないので、手で書くならコピーは要らない。valof は 47 ns 払う。`owned` にいないので
+WeakSet も効かない。よくある呼び方で、ここは純粋な無駄。
 
 #### 所有権追跡: 自分が鋳造したノードは作り直さない
 
@@ -1806,6 +1818,11 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
   - [x] 新規 1 本: trait を名乗る Val に `implTrait` を呼ぶ companion がない（§15.1）。payload が shape を
         満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
   - `unnamed-of` / `bypassed-companion` は広げない。trait があっても構築の話は変わらない
+- [ ] **API の引っかかり 2 つを docs の早い位置で 1 行ずつ弁明する。**どちらも TS の制約だが、初見の読者は
+      冗長と読む。`Val.sealer<User>().impl(...)` の 2 段（部分推論が無い、§13.1）と、
+      `type User = Val<"User", …>` で `"User"` を 2 回書くこと
+- [ ] **`dyn` の名前。**Rust の語彙で、FP の語彙を避けるという方針から唯一はみ出す。Rust を知らない読者には
+      読めない。`Trait` の需要（§15.1）と一緒に実利用で見る
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [ ] **§15.3 `path` の実測。**書き始める前に、`glue` の union ハンドラの推論が通るか。宣言の予算は
       64 kB に上げたので測る対象から外れた（§16）
@@ -4684,7 +4701,7 @@ const Shape = Enum.companion<Shape>("kind"); // 型引数と二重になる
 Shape.match(shape, { Circle: (c) => c.r * 2, Square: (s) => s.side });
 ```
 
-**むしろそのほうがいい。**positioning §1-2（名前空間つきの関数整理）と揃い、自由関数だけ浮いている状態が
+**むしろそのほうがいい。**関数を名前空間の下に集める形（§6.5）と揃い、自由関数だけ浮いている状態が
 消える。§5 が `Val.equals` を自由関数で出さなかったのと同じ理由でもある。**実行時に型を特定できないものは
 companion に置く。**
 
@@ -4776,7 +4793,7 @@ Wallet.patch(t.lead.wallet, { balance: 5 }); // Result<Wallet>。User.patch に�
 ```
 
 **HKT が要る。**TS に無いので `TypeLambda` + `Kind` の脱関数化になり、Effect が v4 で落とした層に入る
-（`positioning.md` §2）。最終段なら具体型が揃っているので回避できる。
+（§17）。最終段なら具体型が揃っているので回避できる。
 
 ハンドラが受けるのは**型構築子ではなく具体型の union**（`Result<Manager, E1> | Result<Wallet, E2>`）なので
 HKT は要らない。
@@ -4811,8 +4828,8 @@ export const neverthrow = {
 **`close` は optional。**渡さなければ `V | Abort<E>` の union が返る。Go 風に書きたい人と自作 glue の人のため。
 
 **既製の glue をサブパスで配る。**`valof/neverthrow`、`valof/effect`、タプル版。コアは Result を知らないまま
-なので §6.3 が保たれ、利用者が glue を書く場面がほとんど無くなる。`positioning.md` §1-7 の「既に選んだものに
-乗る」と同じ形。
+なので §6.3 が保たれ、利用者が glue を書く場面がほとんど無くなる。**利用者が既に選んだものに乗る**という
+§6.3 の形をそのまま延長する。
 
 **却下: `unwrap`。**`Val.unwrap` が「payload の可変なコピー」という別の意味を持っている。
 **却下: `reads`。**非ネイティブに直観的でない（本人の判断）。**`glue` は "glue code" が定着していて、
@@ -5005,3 +5022,69 @@ type-perf に移せる理由でもある。
 
 `index.d.mts` は entry を分けた後も同じ読み方をする。entry ファイル自体は再 export 2 行で 323 B しかなく、
 中身は共有チャンクにあるので、type-perf は import を辿って合算する。
+
+---
+
+## 17. Effect v4 調査、2026-09-10
+
+v4 は 2026-08-12 から RC、コードは `Effect-TS/effect-smol`。valof の判断と重なる部分だけ。
+
+### typeclass パッケージが無い
+
+v4 の `packages/` に v3 の `@effect/typeclass` が入っていない。`@effect/typeclass@0.41.0`（2026-07-13）の
+peer は `effect: ^3.22.0` のままである。移行表にある typeclass のマッピングは 2 つだけ。
+
+```
+@effect/typeclass/Semigroup -> effect/Combiner
+@effect/typeclass/Monoid    -> effect/Reducer
+```
+
+`Functor` / `Applicative` / `Covariant` / HKT は表に無く、「no counterpart」の記載もない。残ったほうの
+中身は単一の具体型に対する関数 1 つ。
+
+```ts
+export interface Combiner<A> {
+  readonly combine: (self: A, that: A) => A;
+}
+```
+
+**落ちたのは HKT の層で、概念ではない。**改名は名前だけを捨てて概念を残している。HKT のほうは状況証拠で、
+TS に HKT が無いので `TypeLambda` + `Kind` で脱関数化するしかなく、細部が漏れる。実例が
+[effect#3171](https://github.com/Effect-TS/effect/issues/3171)。TS 5.4 で
+`Option<ReadonlyRecord<string, B>>` と出ていた hover が、5.5 で `Kind<OptionTypeLambda, ...>` になった。
+ライブラリ側は何もしていない。**公式の理由表明は見つからなかった。**以上は移行表からの推測。§15.3 が
+`glue` を最終段に置くのは、この層に入らないため。
+
+### 等価性が値の中にある
+
+```ts
+export interface Equal extends Hash.Hash {
+  [symbol](that: Equal): boolean;
+}
+```
+
+symbol キーのメソッドを値に置く。§1 の逆で、JSON を往復すると自分に戻らない。`Data` は両端だけで、
+`Data.Class` はプロトタイプあり、`Data.taggedEnum` はプレーンだが振る舞いなし。**間が空いている。**
+§15.1 の `dyn`（プレーンのまま動的ディスパッチ）はそこに入る。
+
+### クラスを入れない利点、equality の側
+
+`compareObjects` は `[Equal.symbol]` を持たないクラスインスタンスを `compareRecords` に落とす。列挙可能な
+own key を比べるだけなので、穴が 2 つ開く。
+
+- **`#` プロパティは own key ですらない。**`Reflect.ownKeys` にも出ない。差があっても等しいと言われる
+- **メソッドと getter はプロトタイプにある。**別のクラスでもフィールドが同じなら等しくなる
+
+`hash` の `structure()` も同じキー集合を見るので同じ穴。逃げ道は `byReferenceInstances` への登録か
+`[Equal.symbol]` の実装で、どちらも気づいた人だけ。**valof は入り口で止める。**§3 が payload を
+プリミティブ・配列・プレーンオブジェクト・Val に限り、dev では `assertPlainObject` が落とす。利用者が
+この判断をする場面が無い。
+
+### 向こうにあってこちらに無いもの
+
+`Data.struct` は `Equal` / `Hash` を持つので `HashMap` / `HashSet` にそのまま入る。valof は Map / Set を
+見送っている（§7.2、代替は §8.1）。
+
+**構造共有は差にならない。**v4 に `Optic` モジュールが入った。optics も素の spread も、触っていない枝の
+identity は保つ（`{...s, a: {...s.a, b: v}}` が既にそう）。valof の取り分は能力ではなく手間で、optic の
+宣言も spread の連鎖も書かずに、任意の深さの `patch` 1 つで済む。
