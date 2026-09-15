@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { RULES, lint as run, type Resolver } from "../../src/lint/index.ts";
+import { RULES, lint as run } from "../../src/lint/index.ts";
 
 // Named rather than spelled as a kind: a test that names a rule reads the same object the
 // registry does, so renaming a kind is one edit and no test string follows it.
@@ -14,7 +14,6 @@ export {
   DuplicateBrand,
   IncompleteDisable,
   SplitCompanion,
-  StructuralEquals,
   UnnamedOf,
   UnusedDisable,
   UnusedMember,
@@ -38,7 +37,7 @@ const reporting = (kind: string): Registered => {
   return rule;
 };
 
-/** The package root, which is where the command runs and where TypeScript is looked up. */
+/** The package root, which is where the command runs. */
 export const root = fileURLToPath(new URL("../../", import.meta.url));
 
 /**
@@ -52,7 +51,6 @@ export const root = fileURLToPath(new URL("../../", import.meta.url));
  */
 type Options = {
   skip?: readonly Registered[];
-  types?: Resolver | undefined;
   overlay?: Map<string, string>;
 };
 
@@ -67,9 +65,8 @@ export function fixtures(url: string): {
   const files = (fixture: string): string[] =>
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
-  const found = async (fixture: string, { skip = [], types, overlay }: Options = {}) =>
+  const found = async (fixture: string, { skip = [], overlay }: Options = {}) =>
     await run(files(fixture), {
-      ...(types ? { types } : {}),
       ...(overlay ? { overlay } : {}),
       skip: new Set(skip.map(({ kind }) => kind)),
     });
@@ -84,20 +81,6 @@ export function fixtures(url: string): {
       })),
     messages: async (fixture, options) =>
       (await found(fixture, options)).map(({ message }) => message),
-  };
-}
-
-/** A resolver that answers nothing, and counts what it was asked. */
-export function spy(): Resolver & { asked: () => number } {
-  let asked = 0;
-  return {
-    resolveAll: (queries) => {
-      asked += queries.length;
-      return Promise.resolve(queries.map(() => []));
-    },
-    overlay: () => {},
-    close: () => {},
-    asked: () => asked,
   };
 }
 
@@ -119,6 +102,6 @@ export const cli = (...args: string[]): Run => spawn([], args);
 export const cliWithoutParser = (...args: string[]): Run =>
   spawn(["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))], args);
 
-/** The same, with no TypeScript in the project being linted. */
+/** The same, with TypeScript out of reach. */
 export const cliWithoutTypeScript = (...args: string[]): Run =>
   spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);

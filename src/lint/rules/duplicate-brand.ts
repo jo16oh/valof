@@ -32,7 +32,7 @@ export const DuplicateBrand: Rule<DuplicateBrand> = {
  * `Val` is left alone.
  *
  * The alias must spell `Val<…>` itself. A user's helper around it, `type Branded<K, T> =
- * Val<K, T>`, is invisible here and to the structural-equals rule with it.
+ * Val<K, T>`, is invisible here.
  */
 function findings(scans: readonly Scan[]): DuplicateBrand[] {
   const claims = new Map<string, DuplicateBrand[]>();

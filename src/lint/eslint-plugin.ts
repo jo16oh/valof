@@ -9,15 +9,7 @@ import {
 } from "node:worker_threads";
 
 import { expand } from "./files.ts";
-import {
-  lint,
-  NO_TYPESCRIPT,
-  resolver,
-  RULES,
-  type Finding,
-  type Kind,
-  type Resolver,
-} from "./index.ts";
+import { lint, RULES, type Finding, type Kind } from "./index.ts";
 
 /**
  * The slice of the rule API this uses. Written out rather than imported: neither ESLint nor
@@ -33,7 +25,7 @@ type Context = {
 type Ask = {
   /** The files the run reads, absolute. The one being linted is among them. */
   files: readonly string[];
-  /** What the resolver is keyed on, so a file after the first reuses it. */
+  /** The project files scanned together. */
   project: readonly string[];
   file: string;
   text: string;
@@ -57,8 +49,8 @@ const rule = ({ kind, description }: (typeof RULES)[number]) => ({
   meta: {
     type: "problem",
     docs: { description },
-    // The project to read is one setting for all of them, since repeating it per rule is a way
-    // for six copies to disagree. See {@link project}.
+    // The project to read is one setting for all of them, since repeating it per rule lets the
+    // copies disagree. See {@link project}.
     schema: [],
   },
   create(context: Context) {
@@ -109,7 +101,7 @@ const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)])) as R
 /**
  * One run per file, however many of the rules are on.
  *
- * The host creates every rule for a file before it walks it, so the six `Program` handlers run
+ * The host creates every rule for a file before it walks it, so the `Program` handlers run
  * back to back over the same text, and `ask` blocks the thread: nothing runs in between. One
  * entry covers that.
  *
@@ -181,15 +173,13 @@ const excludes = (path: string): boolean => path.startsWith("!");
 /**
  * `lint` is async, and a rule is not.
  *
- * The linter waits on a language server in another process, which no rule API has a way to
- * express: `create` returns a visitor, and a visitor returns nothing. So the run happens in a
- * worker and this thread blocks on `Atomics.wait` until the answer is in the port's queue.
+ * `create` returns a visitor, and a visitor cannot be async. So the run happens in a worker and
+ * this thread blocks on `Atomics.wait` until the answer is in the port's queue.
  * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here.
  */
 let worker: Worker | undefined;
 function ask(what: Ask): readonly Finding[] {
-  // Started on the first file and kept for the rest, which is what lets the worker hold a
-  // resolver: starting one costs about 85 ms against a run's 23 ms.
+  // Started on the first file and kept for the rest.
   if (!worker) {
     worker = new Worker(new URL(import.meta.url));
     // The host decides when it exits. A linter waiting on its own worker would never finish.
@@ -211,38 +201,20 @@ function ask(what: Ask): readonly Finding[] {
 /** The mistakes the command explains, in the terms a plugin's reader is in, and one of its own. */
 function explain(error: unknown): string {
   const { code } = error as { code?: string };
-  if (code === "ENOMEM")
-    return (
-      "valof-lint could not start TypeScript. Linux refuses to fork a process that reserves more" +
-      " address space than the machine has memory, which oxlint does:" +
-      " https://github.com/oxc-project/oxc/issues/20331\n" +
-      "  RAYON_NUM_THREADS=1 oxlint"
-    );
   if (code === "ERR_MODULE_NOT_FOUND")
     return "valof-lint needs oxc-parser, which valof does not install for you.\n  pnpm add -D oxc-parser";
-  if (code === NO_TYPESCRIPT)
-    return "valof-lint found no typescript in the project it is linting.\n  pnpm add -D typescript";
   return `valof-lint: ${String(error)}`;
 }
 
 // The worker is this file again, so no path has to be guessed for it: the source tree runs as
 // `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
 if (!isMainThread && parentPort) {
-  // Held across files, so only the first of them pays for a language server.
-  let held: { key: string; types: Resolver } | undefined;
-
-  parentPort.on("message", ({ port, signal, files, project, file, text }: Message) => {
+  parentPort.on("message", ({ port, signal, files, file, text }: Message) => {
     void (async () => {
       let reply: Reply;
       try {
-        const key = project.join("\n");
-        if (held?.key !== key) {
-          held?.types.close();
-          held = { key, types: resolver(process.cwd(), project) };
-        }
         reply = {
           findings: await lint(files, {
-            types: held.types,
             report: new Set([file]),
             overlay: new Map([[file, text]]),
           }),

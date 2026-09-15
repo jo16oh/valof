@@ -2,7 +2,7 @@
 import { resolve } from "node:path";
 import { styleText, type InspectColor } from "node:util";
 import { expand, isDirectory } from "./files.ts";
-import { isKind, kinds, lint, NO_TYPESCRIPT, RULES, type Finding, type Kind } from "./index.ts";
+import { isKind, kinds, lint, RULES, type Finding, type Kind } from "./index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
@@ -78,7 +78,7 @@ if (help) {
       "Exits 1 when something is found.",
       "",
       "Leave a rule out of the run:",
-      "  valof-lint --no-structural-equals",
+      "  valof-lint --no-unused-member",
       "",
       "Silence one line with a comment in the block above it, by the same names:",
       "  // valof-lint-disable-next-line unused-member, brand-mismatch -- why",
@@ -143,10 +143,6 @@ try {
     console.error(
       "valof-lint needs oxc-parser, which valof does not install for you.\n" +
         "  pnpm add -D oxc-parser",
-    );
-  } else if (code === NO_TYPESCRIPT) {
-    console.error(
-      "valof-lint found no typescript in the project it is linting.\n" + "  pnpm add -D typescript",
     );
   } else {
     throw error;
