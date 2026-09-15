@@ -52,7 +52,33 @@ companion. There is no reason to import one yourself.
 
 <!-- prettier-ignore -->
 > [!WARNING]
-> Experimental. The design is still changing. See [Traits](traits.md).
+> Experimental. The design is still changing. See [Enums](enums.md) and [Traits](traits.md).
+
+### Enum
+
+|                                          |                                              |
+| ---------------------------------------- | -------------------------------------------- |
+| `Enum<K, D, X>`                          | a closed set of variants, as one union       |
+| `Enum.companion<E>(tag?)`                | starts the enum's companion                  |
+| `E.match(value, handlers)`               | dispatches on the tag, exhaustively          |
+| `E[Variant](payload)`                    | builds that variant, writing the tag         |
+| `E[Variant].patch(value, patch)`         | derives a variant, never reaching the tag    |
+| `Enum.companion<E>().impl(fns)`          | adds members taking the union                |
+| `Enum.companion<E>().implVariant(fns)`   | adds members taking a single variant         |
+| `Enum.companion<E>().implTrait(Tr, fns)` | implements a trait the enum declares         |
+| `Tag<T>`                                 | names the tag field, intersected into `D`    |
+| `VariantOf<E, N>`                        | the type of one variant                      |
+| `SeedFor<E, N>`                          | what that variant's constructor takes        |
+| `VariantsOf<E>` / `SharedOf<E>`          | the declared variants, and the shared fields |
+| `NameOf<E>` / `TagOf<E>`                 | the enum's name, and the tag field's name    |
+| `AnyEnum`                                | a constraint over any enum                   |
+| `EnumBuilder<E>` / `EnumCompanion<E>`    | what the steps return, never written         |
+
+Every step of `Enum.companion` takes a callback, which is handed the companion as it stands. A
+member over an enum reaches for `match`, and naming the companion inside its own initializer is
+TS7022.
+
+### Trait
 
 |                                         |                                                   |
 | --------------------------------------- | ------------------------------------------------- |

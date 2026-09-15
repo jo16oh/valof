@@ -207,6 +207,30 @@ replace it. Passing `shout` is an error.
 Only `Final` members are named on the trait's own type: `Greetable.shout(user)` typechecks and
 `Greetable.greet` does not.
 
+## Implement Traits on an Enum
+
+An [enum](enums.md) implements a trait once, over the union. What differs per variant is a `match`
+inside the implementation:
+
+```ts
+import { Enum, Trait, type Self } from "valof/experimental";
+// ---cut---
+type Describable = Trait<"Describable", { id: string }, { describe: (self: Self) => string }>;
+const Describable = Trait.companion<Describable>();
+
+type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, { id: string } & Describable>;
+const Cmd = Enum.companion<Cmd>().implTrait(Describable, (self) => ({
+  describe: (c) => self.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
+}));
+
+Cmd.describe(Cmd.Add({ id: "c1", n: 2 })); // "add 2"
+```
+
+An enum declares its shared fields and its traits in one argument: a trait brings the fields it
+requires, so declaring them again is not needed.
+
+The implementation is a callback, like every other step of an enum's companion.
+
 ## Hold values of different types together
 
 `dyn` pairs a value with one Val's implementation, so values of different types share an array. The
@@ -251,6 +275,9 @@ payload cannot hold one.
 
 The two arguments belong together: the companion has to answer for the value's own type, so another
 Val's companion is rejected.
+
+An enum boxes the same way, through its own companion:
+`Describable.dyn(Cmd, Cmd.Add({ id: "c1", n: 2 }))`.
 
 ## A trait is a contract between Vals
 

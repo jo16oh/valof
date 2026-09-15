@@ -7,6 +7,7 @@
 - [Allowed types](allowed-types.md)
 - [Companion objects](companion-objects.md)
 - [Custom constructors](custom-constructors.md)
+- [Enums](enums.md)
 - [Traits](traits.md)
 - [Utilities](utilities.md)
 - [Patterns](patterns.md)
