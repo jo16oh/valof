@@ -1,0 +1,19 @@
+#!/usr/bin/env sh
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  case "$local_sha" in
+    0000000000000000000000000000000000000000) continue ;;
+  esac
+
+  case "$local_ref" in
+    refs/tags/v*)
+      vp run replace-bundle-size-claims README.md docs/src/introduction.md package.json
+      exit $?
+      ;;
+  esac
+
+  if git tag --points-at "$local_sha" | grep -q '^v'; then
+    vp run replace-bundle-size-claims README.md docs/src/introduction.md package.json
+    exit $?
+  fi
+done

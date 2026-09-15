@@ -52,7 +52,7 @@
     "prepublishOnly": "vp run build",
     "prepare": "vp config && vp fmt AGENTS.md",
     "bump-version": "git branch --show-current | grep -qxv main || { echo 'run this on a branch, not main'; exit 1; }; bumpp --no-tag",
-    "push-tag": "git branch --show-current | grep -qx main || { echo 'run this on main'; exit 1; }; git diff --quiet HEAD -- || { echo 'tracked files differ from HEAD; commit them before tagging'; exit 1; }; node scripts/replace-bundle-size-claims.ts --write README.md docs/src/introduction.md package.json; git diff --quiet HEAD -- README.md docs/src/introduction.md package.json || { echo 'bundle-size claims updated; commit them before tagging'; exit 1; }; git tag v$npm_package_version && git push origin v$npm_package_version"
+    "push-tag": "git branch --show-current | grep -qx main || { echo 'run this on main'; exit 1; }; git diff --quiet HEAD -- || { echo 'tracked files differ from HEAD; commit them before tagging'; exit 1; }; git tag v$npm_package_version && git push origin v$npm_package_version"
   },
   "devDependencies": {
     "@types/node": "^26.5.0",
