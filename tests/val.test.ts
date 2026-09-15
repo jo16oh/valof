@@ -106,6 +106,24 @@ describe("Val", () => {
       Val.sealer<Plain>().nocopy({ id: "a", name: "alice" });
     });
 
+    test("accepts a readonly array as the root payload", () => {
+      type Names = Val<"Names", string[]>;
+      const Names = Val.sealer<Names>();
+      const seed: readonly string[] = ["alice", "bob"];
+
+      expect(Names.nocopy(seed)).toBe(seed);
+    });
+
+    test("stops the readonly type check at a nested Val", () => {
+      type Address = Val<"Address", { street: string }>;
+      type Customer = Val<"Customer", { address: Address }>;
+      const Customer = Val.sealer<Customer>();
+      const address = Val.of<Address>({ street: "main" });
+      const seed: { readonly address: Address } = { address };
+
+      expect(Customer.nocopy(seed).address).toBe(address);
+    });
+
     test("rejects unsupported adopted graphs in development", () => {
       type Point = Val<"NocopyPoint", { x: number }>;
       const Point = Val.sealer<Point>();
@@ -1043,6 +1061,13 @@ describe("building", () => {
   });
 
   describe("impl", () => {
+    test("keeps nocopy on the callable sealer", () => {
+      const Greeter = Val.sealer<User>().impl({ greet: (u) => `Hi, ${u.name}` });
+      const seed = { id: "a", name: "alice" } as const;
+
+      expect(Greeter.nocopy(seed)).toBe(seed);
+    });
+
     test("the first parameter is contextually the Val, so it needs no annotation", () => {
       const Greeter = Val.sealer<User>().impl({
         greet(u) {
@@ -1446,6 +1471,40 @@ describe("building", () => {
       expectTypeOf(Score.create(1)).toEqualTypeOf<Result<Score>>();
     });
 
+    test("nocopy preserves Result behavior and adopts the minter's payload", () => {
+      type Score = Val<"NocopyScore", { points: number }>;
+      let minted: SeedOf<Score> | undefined;
+      const Score = Val.companion<Score>()
+        .implCreate((points: number) => (minted = { points }))
+        .implSeal((seed, seal): Result<Score> =>
+          seed.points >= 0
+            ? { ok: true, value: seal(seed) }
+            : { ok: false, error: "points must not be negative" },
+        );
+
+      const copied = Score.create(1);
+      expect(copied.ok).toBe(true);
+      if (copied.ok) expect(copied.value).not.toBe(minted);
+
+      const adopted = Score.create.nocopy(2);
+      expect(adopted.ok).toBe(true);
+      if (adopted.ok) expect(adopted.value).toBe(minted);
+
+      expect(Score.create.nocopy(-1)).toEqual({
+        ok: false,
+        error: "points must not be negative",
+      });
+
+      const valid = { points: 3 } as const;
+      const sealed = Score.seal.nocopy(valid);
+      expect(sealed.ok).toBe(true);
+      if (sealed.ok) expect(sealed.value).toBe(valid);
+      expect(Score.seal.nocopy({ points: -1 })).toEqual({
+        ok: false,
+        error: "points must not be negative",
+      });
+    });
+
     test("create and seal compose: with re-seals, never re-running create", () => {
       type Member = Val<"Member", { id: string; name: string }>;
       type Fields = Omit<SeedOf<Member>, "id">;
@@ -1500,6 +1559,16 @@ describe("building", () => {
       expectTypeOf(Account.patch).parameters.toEqualTypeOf<[Account, Patch<Fields>]>();
       // @ts-expect-error id is not patchable
       Account.patch(a, { id: "forged" });
+    });
+
+    test("retains nocopy on seal and create", () => {
+      const Account = account();
+      const seed = { id: "given", owner: " alice ", note: "" } as const;
+
+      const sealed = Account.seal.nocopy(seed);
+      expect(sealed).not.toBe(seed);
+      expect(sealed.owner).toBe("alice");
+      expect(Account.create.nocopy({ owner: " bob ", note: "" }).owner).toBe("bob");
     });
 
     test("keys must exist on the payload", () => {
@@ -1607,6 +1676,8 @@ describe("building", () => {
         .impl({ shifted: (p) => p.x + 1 });
       const p = Point({ name: "o", x: 1 });
       expect([Point.toWire(p, ":"), Point.shifted(p), Point.greet(p)]).toEqual(["o:1", 2, "Hi, o"]);
+      const seed = { name: "n", x: 2 } as const;
+      expect(Point.nocopy(seed)).toBe(seed);
     });
 
     test("create, seal, fixed and patch keep working beside a trait", () => {
