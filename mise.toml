@@ -1,7 +1,9 @@
 [tools]
 node = "24"
 mdbook = "0.5.4"
-"cargo:mdbook-linkcheck2" = "latest"
+# Upstream ships a linux-x64 binary only, and the source build takes minutes.
+"github:marxin/mdbook-linkcheck2" = { version = "0.13.0", os = ["linux/x64"] }
+"cargo:mdbook-linkcheck2" = { version = "0.13.0", os = ["macos", "linux/arm64"] }
 
 [settings]
 lockfile = true
