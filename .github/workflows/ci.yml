@@ -26,6 +26,8 @@ jobs:
 
       - run: vp test
 
-      - run: vp run size
+      - run: vp run bundle-size
+
+      - run: vp run type-perf
 
       - run: vp run ts-compatibility

@@ -4,8 +4,13 @@
   <p><em>Write robust domain logic in TypeScript<br>just by following the conventions.</em></p>
   <p>
     <a href="https://www.npmjs.com/package/valof"><img src="https://img.shields.io/npm/v/valof.svg" alt="npm"></a>
+    <a href="https://jo16oh.github.io/valof/latest/">The Valof Book</a>
   </p>
 </div>
+
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> Valof is pre-1.0. A minor release can change the API.
 
 ## Installation
 
@@ -41,7 +46,7 @@ types and linting.
 - **Type-aware linting**: Catch convention violations through ESLint, Oxlint or the standalone
   command.
 
-- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->659 B
+- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->710 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 Read the [documentation](docs/src/introduction.md) for more details.
@@ -110,7 +115,7 @@ const Note = Val.companion<Note>()
   })
   // fixed excludes the minted id from patch.
   .fixed<"id">()
-  // impl collects behavior. It infers each function's first parameter as Note.
+  // impl collects behavior. It infers each member's first parameter as Note.
   .impl({
     append(note, text: string): Result<Note> {
       return Note.seal({ ...note, text: `${note.text} ${text}` });
@@ -169,8 +174,8 @@ vp install              # install dependencies
 vp test                 # run the tests
 vp check                # format, lint, type check
 vp pack                 # build
-vp run size             # measure the bundle against its budget
-vp run type-perf        # measure the typecheck performance
+vp run bundle-size      # measure what a user ships against its budget
+vp run type-perf        # measure the type cost: instantiations and the declarations
 vp run ts-compatibility # type check the published .d.mts against every TypeScript line
 ```
 

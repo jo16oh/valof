@@ -1,5 +1,13 @@
-import { child, children, keyName, rootPath, type Node, type Where } from "../ast.ts";
-import { original, type Bindings } from "./bindings.ts";
+import {
+  child,
+  children,
+  keyName,
+  rootPath,
+  unparenthesized,
+  type Node,
+  type Where,
+} from "../ast.ts";
+import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
 /** A `Val.sealer<X>()` / `Val.companion<X>()` chain, whatever else it registered. */
 export type CompanionSite = Where & {
@@ -15,10 +23,14 @@ export type CompanionSite = Where & {
    * gives `User`, which is also what a read through a namespace is keyed on.
    */
   typeName: string;
+  typeRef: SymbolRef;
+  typeOffset: number;
   /** Where the type argument is written. */
   typeAt: Where;
   /** The namespace it was reached through, for `Val.sealer<ns.User>()`. */
   qualifier: string | undefined;
+  /** The argument to `.implEquals(…)`, when the chain called it. */
+  spec: Node | undefined;
   /** Which of the two the chain grew from. A sealer is callable; a companion is not. */
   root: "sealer" | "companion";
   /** Whether the chain registered a seal of its own, with `.implSeal`. */
@@ -44,11 +56,16 @@ export function fromVal(node: Node, bound: Bindings): boolean {
  * `typeName` is absent where the call named no type and took one from its target. It sits at the
  * type argument when there is one, and at `of` when there is not.
  */
-export type Lift = Where & { typeName: string | undefined; qualifier: string | undefined };
+export type Lift = Where & {
+  typeName: string | undefined;
+  typeRef: SymbolRef | undefined;
+  qualifier: string | undefined;
+};
 
 /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
 export function valOf(
   node: Node,
+  file: string,
   bound: Bindings,
   at: (offset: number) => Where,
 ): Lift | undefined {
@@ -62,11 +79,16 @@ export function valOf(
   const step = qualified ? third : second;
   if (name !== "Val" || step !== "of") return undefined;
   const args = child(node, "typeArguments");
-  const [param] = args ? children(args, "params") : [];
+  const param = unparenthesized(args ? children(args, "params")[0] : undefined);
   if (!param) {
     const property = child(callee, "property");
     if (!property) return undefined;
-    return { ...at(property["start"] as number), typeName: undefined, qualifier: undefined };
+    return {
+      ...at(property["start"] as number),
+      typeName: undefined,
+      typeRef: undefined,
+      qualifier: undefined,
+    };
   }
   // A type argument that is not a plain reference, `Val.of<{ … }>`, names no Val to key it by.
   if (param.type !== "TSTypeReference") return undefined;
@@ -76,14 +98,15 @@ export function valOf(
   return {
     ...at(named.node["start"] as number),
     typeName: named.node["name"] as string,
+    typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
     qualifier: named.qualifier,
   };
 }
 
 /** What a chain called, and the type argument at its root. */
 type Chain = {
-  /** Steps called along the chain. */
-  steps: Set<string>;
+  /** step name -> its first argument. `.implEquals(spec)` gives `implEquals` -> `spec`. */
+  steps: Map<string, Node>;
   /** The root call's type arguments, or `undefined` when the chain is not Val-rooted. */
   typeArguments: Node | undefined;
   /** The step the chain grew from, once it is known to be Val-rooted. */
@@ -92,13 +115,14 @@ type Chain = {
 
 /**
  * Reads a builder chain from the outside in.
- * `Val.companion<Order>().implSeal(f).impl({…})` gives both `implSeal` and `Order`.
+ * `Val.companion<Order>().implSeal(f).implEquals(spec).impl({…})` gives both `implEquals` and
+ * `Order`.
  *
  * A call whose receiver is not itself a call is the root, which is what tells `Val.sealer<X>()`
  * apart from the steps chained onto it.
  */
 function readChain(node: Node, bound: Bindings): Chain {
-  const steps = new Set<string>();
+  const steps = new Map<string, Node>();
   let root: "sealer" | "companion" | undefined;
 
   const walk = (current: Node): Node | undefined => {
@@ -115,7 +139,8 @@ function readChain(node: Node, bound: Bindings): Chain {
     }
     const property = child(callee, "property");
     const name = property && keyName(property, callee["computed"] === true);
-    if (name) steps.add(name);
+    const [argument] = children(current, "arguments");
+    if (name && argument) steps.set(name, argument);
     return walk(receiver);
   };
 
@@ -131,7 +156,7 @@ function readChain(node: Node, bound: Bindings): Chain {
  */
 export function typeReference(
   written: Node,
-  namespaces: ReadonlySet<string>,
+  namespaces: ReadonlyMap<string, string>,
 ): { node: Node; qualifier: string | undefined } | undefined {
   if (written.type === "Identifier") return { node: written, qualifier: undefined };
   if (written.type !== "TSQualifiedName") return undefined;
@@ -152,7 +177,7 @@ export function companionSite(
   at: (offset: number) => Where,
 ): CompanionSite | undefined {
   const { steps, typeArguments, root } = readChain(node, bound);
-  const [first] = typeArguments ? children(typeArguments, "params") : [];
+  const first = unparenthesized(typeArguments ? children(typeArguments, "params")[0] : undefined);
   if (!first || first.type !== "TSTypeReference") return undefined;
   const written = child(first, "typeName");
   if (!written) return undefined;
@@ -164,8 +189,11 @@ export function companionSite(
     name: undefined,
     nameAt: where,
     typeName: named.node["name"] as string,
+    typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
+    typeOffset: named.node["start"] as number,
     typeAt: at(named.node["start"] as number),
     qualifier: named.qualifier,
+    spec: steps.get("implEquals"),
     // Set whenever the chain is Val-rooted, which is the only way it has type arguments.
     root: root ?? "sealer",
     seals: steps.has("implSeal"),

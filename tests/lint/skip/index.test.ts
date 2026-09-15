@@ -75,3 +75,10 @@ test("passes the flag through to the run", () => {
     `tests/lint/skip/fixtures/mixed/users.ts:6:3  ${UnusedMember.kind}  User.shout is never read\n`,
   );
 });
+
+test("takes more than one flag", () => {
+  const { status, stdout, stderr } = cli("--no-duplicate-brand", "--no-unused-member", glob);
+  expect(stdout).toBe("");
+  expect(status).toBe(0);
+  expect(stderr).toBe("valof-lint: nothing to report in 2 file(s)");
+});

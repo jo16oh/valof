@@ -38,8 +38,10 @@ function findings(scans: readonly Scan[]): DuplicateBrand[] {
   const claims = new Map<string, DuplicateBrand[]>();
   for (const { file, brands, bound } of scans) {
     for (const { typeName, brand, alias, line, column } of brands) {
-      if (original(bound, typeName) !== "Val") continue;
-      const claimed = claims.get(brand) ?? [];
+      const owner = original(bound, typeName);
+      if (owner !== "Val" && owner !== "Trait") continue;
+      // A Val and a Trait intentionally use separate phantom-brand fields.
+      const claimed = claims.get(`${owner}:${brand}`) ?? [];
       claimed.push({
         kind: "duplicate-brand",
         file,
@@ -49,7 +51,7 @@ function findings(scans: readonly Scan[]): DuplicateBrand[] {
         alias,
         message: `${alias} claims the brand "${brand}", and so does another type`,
       });
-      claims.set(brand, claimed);
+      claims.set(`${owner}:${brand}`, claimed);
     }
   }
   return [...claims.values()].filter((claimed) => claimed.length > 1).flat();

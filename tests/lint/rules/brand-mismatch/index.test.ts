@@ -31,3 +31,27 @@ test("keeps the namespace it was given, and requires nothing of it", async () =>
     'BillingId claims the brand "billing/Id", which should be "billing/BillingId"',
   ]);
 });
+
+test("applies the same check to Trait through renamed and namespace imports", async () => {
+  expect(await lint("trait")).toEqual([
+    {
+      rule: BrandMismatch,
+      at: "trait.ts:4:13",
+    },
+    {
+      rule: BrandMismatch,
+      at: "trait.ts:5:13",
+    },
+  ]);
+  expect(await messages("trait")).toEqual([
+    'Named claims the brand "Name", which should be "Named"',
+    'Sized claims the brand "Size", which should be "Sized"',
+  ]);
+});
+
+test("looks through parentheses around Val and Trait declarations", async () => {
+  expect(await lint("parenthesized")).toEqual([
+    { rule: BrandMismatch, at: "parenthesized.ts:3:13" },
+    { rule: BrandMismatch, at: "parenthesized.ts:4:13" },
+  ]);
+});

@@ -10,6 +10,7 @@ export default defineConfig({
     // Named, so the import path is the name a user writes rather than where the file sits.
     entry: {
       index: "src/index.ts",
+      experimental: "src/experimental.ts",
       lint: "src/lint/index.ts",
       "eslint-plugin": "src/lint/eslint-plugin.ts",
       "lint-cli": "src/lint/cli.ts",
