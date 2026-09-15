@@ -53,5 +53,55 @@ User.displayName(user);
 User.formatLabel(user, ": ");
 ```
 
-A sealer also provides [`equals`](equality.md). Object-shaped Vals get [`patch`](derivation.md) too.
-Later chapters introduce them one at a time.
+## Patch object values
+
+Without Valof, changing a deeply readonly `shop` means rebuilding every object on the path:
+
+```ts
+const changed = {
+  ...shop,
+  owner: {
+    ...shop.owner,
+    contact: {
+      ...shop.owner.contact,
+      email: "e@example.com",
+    },
+  },
+};
+```
+
+An object-shaped Val gets `patch`. The same update names only what changes:
+
+```ts
+const changed = Shop.patch(shop, {
+  owner: { contact: { email: "e@example.com" } },
+});
+```
+
+A patch expresses three operations:
+
+- Omit a key to leave it unchanged.
+- Pass `{ k: undefined }` to delete it.
+- Pass `{ k: value }` to set it.
+
+With `exactOptionalPropertyTypes`, `{ k: undefined }` is accepted only for optional keys. Without
+it, TypeScript also accepts it for required keys, and `patch` deletes them at runtime.
+
+A patch reaches through nested plain objects, but replaces a nested Val, an array or a primitive
+whole:
+
+```ts
+Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
+```
+
+Derive a nested Val with its own `patch`, so its own seal sees the change.
+
+`patch` copies only the path to what changed. Untouched branches keep their reference identity:
+
+```ts
+changed.city === shop.city; // true
+Shop.patch(shop, {}) === shop; // true
+```
+
+Reference comparisons, such as React dependency arrays, can then skip work when their value did not
+change. Primitive and array Vals have no `patch`, because they have nothing to merge.

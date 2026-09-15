@@ -50,7 +50,7 @@ Read the [documentation](docs/src/introduction.md) for more details.
 ### Branded plain data
 
 ```ts
-import { Val } from "valof";
+import { equals, Val } from "valof";
 
 type UserId = Val<"UserId", string>;
 const UserId = Val.sealer<UserId>();
@@ -81,11 +81,11 @@ const user = User({
 // @ts-expect-error Vals are deeply readonly
 user.posts.push(Post({ id: PostId("2"), content: "Immutability matters." }));
 
-// `.equals` compares Vals structurally
+// `equals` compares Vals structurally
 const p1 = Post({ id: PostId("a"), content: "a" });
 const p2 = Post({ id: PostId("a"), content: "a" });
 p1 === p2; // false
-Post.equals(p1, p2); // true
+equals(p1, p2); // true
 ```
 
 ### Custom constructors and companion objects

@@ -1,24 +1,76 @@
 # Caveats
 
-**Do not use Valof to build a library.** A companion's functions are not tree-shakeable, and `Val`
-is one object, so the import alone brings `sealer`, `companion`, `unwrap` and everything they reach.
+## Return payloads across serialization boundaries
 
-**When running oxlint on Linux, limit its thread pool to one.** The rules read types through
-`tsc --lsp`, a child process, and oxlint reserves around 6 GB of address space per thread. Linux
-refuses to fork when there isn't enough memory, so every file fails with `spawn ENOMEM`.
+**Return the payload, not the value.** A generated client derives its response type from the
+handler, so a Val there arrives on the other side already typed as one, without having passed
+through the seal.
 
-```bash
-RAYON_NUM_THREADS=1 oxlint
+```ts
+app.get("/user/:id", (c) => {
+  const body: PayloadOf<User> = user; // the brand drops, the object is the same one
+  return c.json(body);
+});
 ```
 
-ESLint is unaffected, and so is TypeScript 5 / 6, which is read in-process. The limit will be lifted
-once [oxc#20331](https://github.com/oxc-project/oxc/issues/20331) lands.
+Now the other side cannot use what arrives until it seals it:
 
-**A `__proto__` key survives.** It is a legal JSON key, and round trips come first, so sealing keeps
-it as an own property rather than dropping data. That is inert inside a value, but not in code that
+```ts
+const plain = await res.json(); // the generated client types this as PayloadOf<User>
+const bad: User = plain; // type error: the brand is missing
+const user = User(plain); // sealed, and now it is one
+```
+
+`PayloadOf<V>` removes the brand from the type, not from the value, so it costs nothing at run time.
+`Val.unwrap` copies and drops `readonly` too, which a request body does not need.
+
+Persistence helpers can create the same hole.
+[Jotai's `atomWithStorage`](https://jotai.org/docs/utilities/storage), for example, parses stored
+JSON and returns it as the type inferred from its initial value. Store a `PayloadOf<User>`, then
+seal it after reading.
+
+Seal on the way in, because the two sides deploy separately: the value was sealed by whichever build
+the server is running, and that seal may be older than yours.
+
+## Generic object utilities can bypass readonly and sealing
+
+`Object.assign` accepts a readonly object as its target, so this passes the type checker:
+
+```ts
+Object.assign(user, { name: "mallory" });
+```
+
+`Object.defineProperty` and `Reflect.set` have the same problem. Valof freezes values in
+development, so these calls throw there. Production skips the freeze, and they mutate the Val.
+
+Other utilities return a new object but preserve the input type. Immer, for example, makes a
+readonly input writable inside a callback:
+
+```ts
+const changed = produce(user, (draft) => {
+  draft.name = "mallory";
+}); // User
+```
+
+The result is still typed as `User`, although its seal never saw the change. Use `User.patch` to
+derive a value instead:
+
+```ts
+const changed = User.patch(user, { name: "mallory" });
+```
+
+When an API mutates its input, pass it `Val.unwrap(user)`. When it returns a new payload, pass that
+payload to `User` or `User.seal`.
+
+## A `__proto__` key survives sealing
+
+A `__proto__` key survives. It is a legal JSON key, and round trips come first, so sealing keeps it
+as an own property rather than dropping data. That is inert inside a value, but not in code that
 merges a payload with `Object.assign` or a recursive merge: there, assigning the key sets a
 prototype instead of copying it. Sanitize untrusted input yourself.
 
-**A deeply nested payload overflows the stack.** Copying and comparing are both recursive, so a
-payload a few thousand levels deep, or a cyclic one, throws a `RangeError`. What you build yourself
-never comes close; input parsed from a request can, so bound its depth before sealing it.
+## Deeply nested payloads can overflow the stack
+
+A deeply nested payload overflows the stack. Copying and comparing are both recursive, so a payload
+a few thousand levels deep, or a cyclic one, throws a `RangeError`. Handle that error when sealing
+or comparing values from untrusted input.

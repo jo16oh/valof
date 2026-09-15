@@ -8,9 +8,9 @@ start with `Val.companion` and add a custom `seal` with `.implSeal`.
 Write the checks directly in the seal:
 
 ```ts
-export type Age = Val<"Age", number>;
+type Age = Val<"Age", number>;
 
-export const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
+const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
   value >= 0 && Number.isInteger(value)
     ? ok(seal(value))
     : err("age must be a non-negative integer"),
@@ -35,7 +35,7 @@ A schema library can parse `unknown` input before calling the default seal:
 ```ts
 const schema = z.object({ id: z.uuid(), name: z.string().min(1), email: z.email().toLowerCase() });
 
-export const User = Val.companion<User>().implSeal((input: unknown, seal): Result<User> => {
+const User = Val.companion<User>().implSeal((input: unknown, seal): Result<User> => {
   const result = schema.safeParse(input);
   return result.success ? ok(seal(result.data)) : err(z.prettifyError(result.error));
 });
@@ -49,22 +49,20 @@ patch is merged as given, so an undeclared key survives unless the seal removes 
 Normalize in the seal so equivalent inputs have the same canonical form:
 
 ```ts
-export type Email = Val<"Email", string>;
+type Email = Val<"Email", string>;
 
-export const Email = Val.companion<Email>().implSeal((value, seal) =>
-  seal(value.trim().toLowerCase()),
-);
+const Email = Val.companion<Email>().implSeal((value, seal) => seal(value.trim().toLowerCase()));
 ```
 
-Canonical payloads make the default structural `equals` match what equality means in your domain.
-See [Equality](equality.md).
+Canonical payloads make structural [`equals`](utilities.md#equals) match what equality means in your
+domain.
 
 ## Generate fields with `create`
 
 `create` builds a payload, then passes it to the seal:
 
 ```ts
-export const User = Val.companion<User>()
+const User = Val.companion<User>()
   .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }))
   .implSeal((user): Result<User> => check(user));
 
@@ -74,6 +72,30 @@ User.create(fields); // Result<User>
 **A seal must be idempotent.** `patch` on an object-shaped Val and any registered `create` pass
 their payloads through your seal. Sealing a value's own payload must return that value. **Generate
 an id or timestamp in `create`, not in `seal`**.
+
+## Keep generated fields fixed
+
+`create` can generate an id, a `createdAt` or a version counter. `.fixed` keeps `patch` off those
+fields:
+
+```ts
+type User = Val<"User", { id: string; name: string; email: string }>;
+
+const User = Val.companion<User>()
+  .implCreate((fields: Omit<SeedOf<User>, "id">) => ({
+    id: crypto.randomUUID(),
+    ...fields,
+  }))
+  .implSeal((user, seal) => seal(normalize(user)))
+  .fixed<"id">();
+
+User.patch(user, { name: "sue" }); // OK
+User.patch(user, { id: "forged" }); // type error
+```
+
+The keys are a type argument, so they do not exist at runtime. This constrains `patch`, not the
+value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an
+id must be unforgeable, it belongs outside the value.
 
 ## Parse, don't validate
 
