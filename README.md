@@ -8,15 +8,15 @@
   </p>
 </div>
 
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> Valof is pre-1.0. A minor release can change the API.
+
 ## Installation
 
 ```sh
 npm install valof
 ```
-
-<!-- prettier-ignore -->
-> [!IMPORTANT]
-> Valof is pre-1.0. A minor release can change the API.
 
 ## Why Valof?
 

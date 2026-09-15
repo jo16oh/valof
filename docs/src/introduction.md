@@ -11,6 +11,10 @@
 The Valof Book is both a guide and a reference. Read it in order to learn the conventions, or use
 the sidebar to find a specific topic.
 
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> Valof is pre-1.0. A minor release can change the API.
+
 ## Why Valof?
 
 Valof is an opinionated value-object helper for TypeScript that enforces the conventions through
