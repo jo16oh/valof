@@ -13,6 +13,10 @@
 npm install valof
 ```
 
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> Valof is pre-1.0. A minor release can change the API.
+
 ## Why Valof?
 
 Valof is an opinionated value-object helper for TypeScript that enforces the conventions through
