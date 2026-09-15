@@ -362,13 +362,17 @@ const assertPlainObject = (value: object): void => {
 };
 
 /**
- * Structural deep comparison used by {@link equals} and custom-seal development checks.
+ * Compares the payloads of two values deeply. The first argument fixes the Val type accepted by
+ * the second, so values with different brands cannot be compared by an ordinary call.
  *
  * - independent of key order
  * - ignores keys whose value is `undefined` (`{ a: undefined }` equals `{}`)
  * - `NaN` equals `NaN`, and `-0` equals `0`
  */
-const deepEquals = (a: unknown, b: unknown): boolean => {
+export const equals: <V extends AnyVal>(a: V, b: NoInfer<V>) => boolean = function equals(
+  a: unknown,
+  b: unknown,
+): boolean {
   if (a === b) return true;
   // `-0` and `0` are already equal via `===`, which matches JSON round-tripping
   // (`JSON.stringify(-0)` is `"0"`), so only NaN is left to handle.
@@ -387,7 +391,7 @@ const deepEquals = (a: unknown, b: unknown): boolean => {
     const y = b as readonly unknown[];
     if (x.length !== y.length) return false;
     for (let i = 0; i < x.length; i++) {
-      if (!deepEquals(x[i], y[i])) return false;
+      if (!equals(x[i], y[i])) return false;
     }
     return true;
   }
@@ -400,16 +404,13 @@ const deepEquals = (a: unknown, b: unknown): boolean => {
 
   for (const k of xKeys) {
     if (!Object.hasOwn(y, k)) return false;
-    if (!deepEquals(x[k], y[k])) return false;
+    if (!equals(x[k], y[k])) return false;
   }
   return true;
 };
 
-/**
- * Compares the payloads of two values deeply. The first argument fixes the Val type accepted by
- * the second, so values with different brands cannot be compared by an ordinary call.
- */
-export const equals: <V extends AnyVal>(a: V, b: NoInfer<V>) => boolean = deepEquals;
+// Public callers compare Vals. Custom-seal checks compare snapshots whose children are unknown.
+const equalsUnknown = equals as (a: unknown, b: unknown) => boolean;
 
 /**
  * The nodes this module built. Subtrees are immutable, so recognising one lets a derivation
@@ -625,12 +626,13 @@ const attach = (
           return custom(value, (candidate) => {
             if (before !== unsnapshotable) {
               const current = snapshotSealInput(value);
-              if (current !== unsnapshotable && !deepEquals(before, current)) changedDuringSeal();
+              if (current !== unsnapshotable && !equalsUnknown(before, current))
+                changedDuringSeal();
             }
 
             const candidateBefore = snapshotSealInput(candidate);
             const sealed = own(candidate);
-            if (candidateBefore !== unsnapshotable && !deepEquals(candidateBefore, sealed)) {
+            if (candidateBefore !== unsnapshotable && !equalsUnknown(candidateBefore, sealed)) {
               changedDuringSeal();
             }
             return sealed;
