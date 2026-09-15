@@ -115,7 +115,7 @@ const Note = Val.companion<Note>()
   })
   // fixed excludes the minted id from patch.
   .fixed<"id">()
-  // impl collects behavior. It infers each function's first parameter as Note.
+  // impl collects behavior. It infers each member's first parameter as Note.
   .impl({
     append(note, text: string): Result<Note> {
       return Note.seal({ ...note, text: `${note.text} ${text}` });

@@ -3,7 +3,7 @@ import type { AnyVal, Patch, PayloadOf, SeedOf } from "../src/index.ts";
 import { equals, Val } from "../src/index.ts";
 import { Trait, type Final, type Self } from "../src/experimental.ts";
 // `BrandOf` is not published from the entry point.
-import type { BrandOf, CompanionFns, Wired } from "../src/val.ts";
+import type { BrandOf, CompanionMembers, Wired } from "../src/val.ts";
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
@@ -1023,11 +1023,11 @@ describe("building", () => {
     // name `.impl` still accepts, which is how the two drifted apart before.
     test("no name in `Wired` is accepted", () => {
       type Accepted = {
-        [K in Wired]: ((v: User) => string) extends CompanionFns<User>[K] ? K : never;
+        [K in Wired]: ((v: User) => string) extends CompanionMembers<User>[K] ? K : never;
       }[Wired];
       expectTypeOf<Accepted>().toEqualTypeOf<never>();
       // The control: without it the conditional could answer `never` for every name.
-      type Greet = ((v: User) => string) extends CompanionFns<User>["greet"] ? "greet" : never;
+      type Greet = ((v: User) => string) extends CompanionMembers<User>["greet"] ? "greet" : never;
       expectTypeOf<Greet>().toEqualTypeOf<"greet">();
     });
   });

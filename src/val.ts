@@ -195,12 +195,12 @@ type PatchValue<T> = [Patch<T>] extends [never] ? T : Patch<T>;
 
 type AnyFn = (...args: never[]) => unknown;
 
-/** What a companion may hold besides functions: constants, lookup tables, and so on. */
+/** What a companion may hold besides members: constants, lookup tables, and so on. */
 type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown>;
 
 /**
  * Names the library wires onto a companion. A function taking one would shadow it, so both
- * entry points reject them: `.impl` through {@link CompanionFns}, a trait member through
+ * entry points reject them: `.impl` through {@link CompanionMembers}, a trait member through
  * `Declarable`.
  *
  * Everything here has a step of its own. A `seal` whose first parameter accepts the Val, common
@@ -211,8 +211,8 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
  */
 export type Wired = "patch" | "seal" | "create";
 
-/** The functions a companion accepts, each taking its Val first. */
-export type CompanionFns<V extends AnyVal> = Partial<Record<Wired, never>> & {
+/** The members a companion accepts, each taking its Val first. */
+export type CompanionMembers<V extends AnyVal> = Partial<Record<Wired, never>> & {
   /**
    * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
    * before the registrations, so a function taking the name would stomp it and leave every boxed
@@ -331,14 +331,14 @@ type PatchMethod<V extends AnyVal, F, P> = [Patch<Derivable<V, P>>] extends [nev
     };
 
 /**
- * A type's functions, and nothing else. Not callable: constructors come from `Val.sealer`, so a
+ * A type's members, and nothing else. Not callable: constructors come from `Val.sealer`, so a
  * companion built without one cannot build values.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  */
 export type Companion<
   V extends AnyVal,
-  M extends CompanionFns<V>,
+  M extends CompanionMembers<V>,
   N = undefined,
   F = undefined,
   P = never,
@@ -355,16 +355,16 @@ export type Companion<
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  */
-export type Sealed<V extends AnyVal, M extends CompanionFns<V>> = ((value: SeedOf<V>) => V) &
+export type Sealed<V extends AnyVal, M extends CompanionMembers<V>> = ((value: SeedOf<V>) => V) &
   Companion<V, M>;
 
 /**
  * What `.impl` accepts once traits are registered: anything but a name a trait already answers
- * to, its shared functions included. Shadowing one of those is what would make `User.greet(u)`
+ * to, its shared members included. Shadowing one of those is what would make `User.greet(u)`
  * and `Greetable.greet(u)` disagree.
  *
  * The check rides on the parameter rather than the constraint. In the constraint the inferred
- * `M & T` stops satisfying {@link CompanionFns}, and `equals` breaks with it.
+ * `M & T` stops satisfying {@link CompanionMembers}, and `equals` breaks with it.
  */
 type Grown<Taken, M> = M & {
   [K in keyof M]: K extends Taken ? "a trait already answers to this name" : unknown;
@@ -410,7 +410,7 @@ type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
   : "this trait implements members of its own: pass its companion";
 
 /**
- * A constructor for `V`, which can grow functions without ceasing to be one.
+ * A constructor for `V`, which can grow members without ceasing to be one.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
@@ -418,17 +418,17 @@ type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
  * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
  * nothing.
  */
-export type Sealer<V extends AnyVal, T extends CompanionFns<V> = Record<never, never>> = Sealed<
+export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<never, never>> = Sealed<
   V,
   T
 > & {
-  /** Collects the functions for the type. */
+  /** Collects the members for the type. */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
     (): Sealed<V, T>;
-    <M extends CompanionFns<V>>(fns: Grown<keyof T, M>): Sealed<V, M & T>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Sealed<V, M & T>;
   };
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
   implTrait: {
@@ -456,14 +456,14 @@ export type CompanionBuilder<
   N = undefined,
   F = undefined,
   P = never,
-  T extends CompanionFns<V> = Record<never, never>,
+  T extends CompanionMembers<V> = Record<never, never>,
 > = Companion<V, T, N, F, P> & {
-  /** Collects the functions for the type. Everything the library wires has its own step. */
+  /** Collects the members for the type. Everything the library wires has its own step. */
   impl: {
     (): Companion<V, T, N, F, P>;
     // A trait's member is registered, so `.impl` may not grow one over it: the type would keep
     // the trait's signature while `dyn` kept calling what `implTrait` recorded.
-    <M extends CompanionFns<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
   };
   /**
    * Implements a trait the type declares. The members the trait leaves open arrive as a second
@@ -775,7 +775,7 @@ const patched = (
 };
 
 /**
- * Attaches what the steps registered, plus the user's own functions, to `target`.
+ * Attaches what the steps registered, plus the user's own members, to `target`.
  *
  * Everything that produces a value goes through `seal`: the registered one, or a copy when the
  * type did not replace it. Nothing copies on the way in. The one deep copy happens in the
@@ -832,7 +832,7 @@ const attach = (
     return Object.is(merged, value) ? keep(value) : seal(merged);
   };
 
-  // A trait's members are the type's own functions, so they grow the same way. The record is
+  // A trait's members join the type's own, so they grow the same way. The record is
   // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never reaches for `trait.ts`.
   target.__valof_traits = traits;
   for (const key of Object.keys(traits)) define(target, key, traits[key]);
@@ -896,11 +896,11 @@ export const Val = {
    * Creates the constructor for a Val. `Val.companion` is the same shape for a type with a
    * smart constructor, minus the callability.
    *
-   * `V` is given as a type argument; the functions are inferred by `.impl()`.
+   * `V` is given as a type argument; the members are inferred by `.impl()`.
    */
   sealer: <V extends AnyVal>(): Sealer<V> => build<V>({}, true) as Sealer<V>,
   /**
-   * Bundles a type's functions without a constructor.
+   * Bundles a type's members without a constructor.
    *
    * Constructors get their own steps rather than sitting in `.impl`, which fixes every
    * function's first parameter to the Val. A constructor does not fit that shape.

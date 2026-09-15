@@ -33,7 +33,7 @@ The severity is what the [plugin](linting.md#plugin-for-eslint-and-oxlint) sets,
 give any rule its own. The [command](linting.md#cli) draws every finding the same way and exits 1 on
 any of them.
 
-A function registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
+A member registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
 dead.
 
 ## Disable comments

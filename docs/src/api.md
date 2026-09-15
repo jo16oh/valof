@@ -2,20 +2,20 @@
 
 ## Values
 
-|                                    |                                                      |
-| ---------------------------------- | ---------------------------------------------------- |
-| `equals(a, b)`                     | deeply compares two Vals of the same type            |
-| `Val.of<V>(value)`                 | applies the default seal with the type named         |
-| `Val.unwrap(value)`                | returns a mutable copy of the payload                |
-| `Val.sealer<V>()`                  | creates a callable default sealer                    |
-| `Val.sealer<V>().impl(fns)`        | adds the type's functions to the callable sealer     |
-| `Val.companion<V>()`               | starts a companion without a callable sealer         |
-| `Val.companion<V>().impl(fns)`     | adds the type's functions and finishes the companion |
-| `Val.companion<V>().implSeal(f)`   | registers a custom seal                              |
-| `Val.companion<V>().implCreate(f)` | registers a function that creates a payload          |
-| `Val.companion<V>().fixed<K>()`    | excludes keys from `patch`                           |
+|                                    |                                                    |
+| ---------------------------------- | -------------------------------------------------- |
+| `equals(a, b)`                     | deeply compares two Vals of the same type          |
+| `Val.of<V>(value)`                 | applies the default seal with the type named       |
+| `Val.unwrap(value)`                | returns a mutable copy of the payload              |
+| `Val.sealer<V>()`                  | creates a callable default sealer                  |
+| `Val.sealer<V>().impl(fns)`        | adds the type's members to the callable sealer     |
+| `Val.companion<V>()`               | starts a companion without a callable sealer       |
+| `Val.companion<V>().impl(fns)`     | adds the type's members and finishes the companion |
+| `Val.companion<V>().implSeal(f)`   | registers a custom seal                            |
+| `Val.companion<V>().implCreate(f)` | registers a function that creates a payload        |
+| `Val.companion<V>().fixed<K>()`    | excludes keys from `patch`                         |
 
-## Companion functions
+## Companion members
 
 `User` stands for the companion that belongs to the `User` type.
 
@@ -25,7 +25,7 @@
 | `User.seal(value)`             | registered with `.implSeal(f)`   | applies the custom seal                   |
 | `User.create(...args)`         | registered with `.implCreate(f)` | creates a payload, then passes it to seal |
 | `User.patch(user, patch)`      | `User` has an object payload     | deeply merges the patch, then seals it    |
-| `User.function(user, ...args)` | registered with `.impl({ ... })` | runs a function defined for the companion |
+| `User.[member](user, ...args)` | registered with `.impl({ ... })` | runs a member defined for the companion   |
 
 ## Types
 
@@ -48,11 +48,11 @@ companion. There is no reason to import one yourself.
 
 <!-- prettier-ignore -->
 > [!WARNING]
-> Provisional. The design is still changing. See [Traits](traits.md).
+> Experimental. The design is still changing. See [Traits](traits.md).
 
 |                                         |                                                   |
 | --------------------------------------- | ------------------------------------------------- |
-| `Trait<K, Shape, M>`                    | a contract several Vals share                     |
+| `Trait<K, Shape, M>`                    | a contract Vals share                             |
 | `Trait.companion<Tr>()`                 | starts the trait's own implementation             |
 | `Trait.companion<Tr>().impl(fns)`       | implements members over the shape                 |
 | `Tr.dyn(companion, value)`              | boxes a value with one Val's implementation       |
@@ -62,4 +62,4 @@ companion. There is no reason to import one yourself.
 | `Final<F>`                              | marks a member no Val may replace                 |
 | `Dyn<Tr>`                               | a boxed value, with the concrete type gone        |
 | `AnyTrait`                              | a constraint over any trait                       |
-| `Members`                               | the functions a trait declares                    |
+| `Members`                               | the members a trait declares                      |

@@ -35,7 +35,7 @@ declare const FinalMark: unique symbol;
 export type Final<F extends AnyMember> = F & { readonly [FinalMark]: true };
 
 /**
- * The functions a trait declares, whichever side implements them.
+ * The members a trait declares, whichever side implements them.
  *
  * @experimental
  */
@@ -51,7 +51,7 @@ export type AnyTrait = {
 };
 
 /**
- * A structural contract shared by several Vals: the fields they hold, plus the functions they
+ * A structural contract shared by several Vals: the fields they hold, plus the members they
  * share. `M` declares every function, and the declaration says which side implements one:
  * {@link Final} keeps a member the trait's, and every other one a Val may replace through
  * `implTrait`.
@@ -97,7 +97,7 @@ export type TraitsOf<V> = V extends {
 /** The names a trait answers to: one, or several when traits were intersected. */
 export type NamesOf<Tr extends AnyTrait> = keyof BrandsOf<Tr>;
 
-/** The functions the trait declares. */
+/** The members the trait declares. */
 export type MembersOf<Tr extends AnyTrait> = BrandsOf<Tr>[keyof BrandsOf<Tr>];
 
 /** The ones declared {@link Final}: the trait's to implement, and no Val's to replace. */
@@ -244,7 +244,7 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
   Partial<Record<FinalsOf<Tr>, never>>;
 
 /**
- * Collects what a trait carries. The chain ends wherever the trait runs out of functions: a
+ * Collects what a trait carries. The chain ends wherever the trait runs out of members: a
  * builder is a companion already.
  *
  * @experimental
