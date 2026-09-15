@@ -70,6 +70,7 @@ const postId = PostId("xxx-xxx-xxx");
 // @ts-expect-error brands distinguish UserId from PostId
 let _: UserId = postId;
 // The phantom brand has no effect at runtime.
+// @ts-expect-error brands are disjoint at type level
 userId === postId; // true
 typeof userId === "string"; // true
 
