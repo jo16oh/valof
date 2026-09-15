@@ -43,5 +43,5 @@ types and linting.
 - **Type-aware linting**: Catch convention violations through ESLint, Oxlint or the standalone
   command.
 
-- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->710 B
+- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->852 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.

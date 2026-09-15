@@ -30,6 +30,131 @@ describe("Val", () => {
       expect(user).toEqual(raw);
       expect(user).not.toBe(raw);
     });
+
+    test("can adopt an explicitly-owned payload", () => {
+      const raw = { id: "a", name: "alice" } as const;
+      const user = Val.of.nocopy<User>(raw);
+      expect(user).toBe(raw);
+      expect(Object.isFrozen(raw)).toBe(true);
+    });
+  });
+
+  describe("nocopy", () => {
+    test("keeps every identity and freezes the adopted graph", () => {
+      const tags: readonly string[] = ["one"];
+      const raw = { id: "a", name: "alice", tags } as const;
+      const user = Val.sealer<Val<"NocopyUser", typeof raw>>().nocopy(raw);
+      expect(user).toBe(raw);
+      expect(user.tags).toBe(raw.tags);
+      expect(Object.isFrozen(raw)).toBe(true);
+      expect(Object.isFrozen(raw.tags)).toBe(true);
+    });
+
+    test("requires a deeply readonly default-sealer input", () => {
+      type NocopyUser = Val<"NocopyUser", { id: string; tags: string[]; nested: { n: number } }>;
+      const NocopyUser = Val.sealer<NocopyUser>();
+      const readonly: {
+        readonly id: string;
+        readonly tags: readonly string[];
+        readonly nested: { readonly n: number };
+      } = {
+        id: "a",
+        tags: ["one"],
+        nested: { n: 1 },
+      };
+      const mutable = { id: "a", tags: ["one"], nested: { n: 1 } };
+      const mutableArray: {
+        readonly id: string;
+        readonly tags: string[];
+        readonly nested: { readonly n: number };
+      } = { id: "a", tags: ["one"], nested: { n: 1 } };
+      NocopyUser.nocopy(readonly);
+      // @ts-expect-error writable properties are not ownership evidence
+      NocopyUser.nocopy(mutable);
+      // @ts-expect-error mutable arrays are not ownership evidence
+      NocopyUser.nocopy(mutableArray);
+      NocopyUser.nocopy({ id: "a", tags: ["one"], nested: { n: 1 } });
+    });
+
+    test("accepts readonly optional properties and tuples", () => {
+      type WithOptional = Val<"WithOptional", { name: string; nickname?: string }>;
+      const WithOptional = Val.sealer<WithOptional>();
+      const optionalSeed: SeedOf<WithOptional> = { name: "a" };
+
+      type WithTuple = Val<
+        "WithTuple",
+        { pair: [string, number]; optionalPair: [string, number?] }
+      >;
+      const WithTuple = Val.sealer<WithTuple>();
+      const tupleSeed: SeedOf<WithTuple> = {
+        pair: ["a", 1],
+        optionalPair: ["b"],
+      };
+      const mutableTuple: {
+        readonly pair: [string, number];
+        readonly optionalPair: readonly [string, number?];
+      } = { pair: ["a", 1], optionalPair: ["b"] };
+
+      WithOptional.nocopy(optionalSeed);
+      WithTuple.nocopy(tupleSeed);
+      // @ts-expect-error mutable tuples are not ownership evidence
+      WithTuple.nocopy(mutableTuple);
+    });
+
+    test("accepts a fresh object literal", () => {
+      type Plain = Val<"Plain", { id: string; name: string }>;
+      Val.sealer<Plain>().nocopy({ id: "a", name: "alice" });
+    });
+
+    test("accepts a readonly array as the root payload", () => {
+      type Names = Val<"Names", string[]>;
+      const Names = Val.sealer<Names>();
+      const seed: readonly string[] = ["alice", "bob"];
+
+      expect(Names.nocopy(seed)).toBe(seed);
+    });
+
+    test("stops the readonly type check at a nested Val", () => {
+      type Address = Val<"Address", { street: string }>;
+      type Customer = Val<"Customer", { address: Address }>;
+      const Customer = Val.sealer<Customer>();
+      const address = Val.of<Address>({ street: "main" });
+      const seed: { readonly address: Address } = { address };
+
+      expect(Customer.nocopy(seed).address).toBe(address);
+    });
+
+    test("rejects unsupported adopted graphs in development", () => {
+      type Point = Val<"NocopyPoint", { x: number }>;
+      const Point = Val.sealer<Point>();
+      const accessor = {};
+      Object.defineProperty(accessor, "x", {
+        get() {
+          return 1;
+        },
+      });
+      class Source {
+        x = 1;
+      }
+      const cyclic: { x: number; self?: unknown } = { x: 1 };
+      Object.defineProperty(cyclic, "self", { value: cyclic });
+
+      expect(() => Point.nocopy(accessor as never)).toThrow(/accessor/);
+      expect(() => Point.nocopy(new Source() as never)).toThrow(/plain objects/);
+      expect(() => Point.nocopy(cyclic as never)).toThrow(/cycle/);
+    });
+
+    test("freezes children stored in non-enumerable data properties", () => {
+      type Point = Val<"NocopyPoint", { x: number }>;
+      const Point = Val.sealer<Point>();
+      const child = { y: 2 };
+      const raw = { x: 1 } as const;
+      Object.defineProperty(raw, "child", { value: child });
+
+      expect(Point.nocopy(raw)).toBe(raw);
+      expect(Object.isFrozen(raw)).toBe(true);
+      expect(Object.isFrozen(child)).toBe(true);
+    });
   });
 
   describe("unwrap", () => {
@@ -936,6 +1061,13 @@ describe("building", () => {
   });
 
   describe("impl", () => {
+    test("keeps nocopy on the callable sealer", () => {
+      const Greeter = Val.sealer<User>().impl({ greet: (u) => `Hi, ${u.name}` });
+      const seed = { id: "a", name: "alice" } as const;
+
+      expect(Greeter.nocopy(seed)).toBe(seed);
+    });
+
     test("the first parameter is contextually the Val, so it needs no annotation", () => {
       const Greeter = Val.sealer<User>().impl({
         greet(u) {
@@ -1293,6 +1425,27 @@ describe("building", () => {
   });
 
   describe("implCreate", () => {
+    test("create and seal retain their nocopy terminal operation", () => {
+      type Dog = Val<"Dog", { name: string }>;
+      let minted = 0;
+      const Dog = Val.companion<Dog>()
+        .implCreate((name: string) => {
+          minted += 1;
+          return { name };
+        })
+        .implSeal((dog, seal) => seal({ name: dog.name.trim() }));
+
+      const input = { name: " spot " } as const;
+      const sealed = Dog.seal.nocopy(input);
+      expect(sealed).not.toBe(input); // normalization, not the public input, is adopted
+      expect(Object.isFrozen(sealed)).toBe(true);
+      const created = Dog.create.nocopy(" spot ");
+      expect(created).toEqual({ name: "spot" });
+      expect(minted).toBe(1);
+      expectTypeOf(Dog.seal.nocopy).parameters.toEqualTypeOf<[SeedOf<Dog>]>();
+      expectTypeOf(Dog.create.nocopy).returns.toEqualTypeOf<Dog>();
+    });
+
     test("alone it still derives: the default seal is a payload function too", () => {
       type Point = Val<"Point", { x: number; y: number }>;
       const Point = Val.companion<Point>().implCreate((x: number, y: number) => ({ x, y }));
@@ -1316,6 +1469,40 @@ describe("building", () => {
       expect(Score.create(3)).toEqual({ ok: true, value: { points: 3 } });
       expect(Score.create(-1)).toEqual({ ok: false, error: "points must not be negative" });
       expectTypeOf(Score.create(1)).toEqualTypeOf<Result<Score>>();
+    });
+
+    test("nocopy preserves Result behavior and adopts the minter's payload", () => {
+      type Score = Val<"NocopyScore", { points: number }>;
+      let minted: SeedOf<Score> | undefined;
+      const Score = Val.companion<Score>()
+        .implCreate((points: number) => (minted = { points }))
+        .implSeal((seed, seal): Result<Score> =>
+          seed.points >= 0
+            ? { ok: true, value: seal(seed) }
+            : { ok: false, error: "points must not be negative" },
+        );
+
+      const copied = Score.create(1);
+      expect(copied.ok).toBe(true);
+      if (copied.ok) expect(copied.value).not.toBe(minted);
+
+      const adopted = Score.create.nocopy(2);
+      expect(adopted.ok).toBe(true);
+      if (adopted.ok) expect(adopted.value).toBe(minted);
+
+      expect(Score.create.nocopy(-1)).toEqual({
+        ok: false,
+        error: "points must not be negative",
+      });
+
+      const valid = { points: 3 } as const;
+      const sealed = Score.seal.nocopy(valid);
+      expect(sealed.ok).toBe(true);
+      if (sealed.ok) expect(sealed.value).toBe(valid);
+      expect(Score.seal.nocopy({ points: -1 })).toEqual({
+        ok: false,
+        error: "points must not be negative",
+      });
     });
 
     test("create and seal compose: with re-seals, never re-running create", () => {
@@ -1372,6 +1559,16 @@ describe("building", () => {
       expectTypeOf(Account.patch).parameters.toEqualTypeOf<[Account, Patch<Fields>]>();
       // @ts-expect-error id is not patchable
       Account.patch(a, { id: "forged" });
+    });
+
+    test("retains nocopy on seal and create", () => {
+      const Account = account();
+      const seed = { id: "given", owner: " alice ", note: "" } as const;
+
+      const sealed = Account.seal.nocopy(seed);
+      expect(sealed).not.toBe(seed);
+      expect(sealed.owner).toBe("alice");
+      expect(Account.create.nocopy({ owner: " bob ", note: "" }).owner).toBe("bob");
     });
 
     test("keys must exist on the payload", () => {
@@ -1479,6 +1676,8 @@ describe("building", () => {
         .impl({ shifted: (p) => p.x + 1 });
       const p = Point({ name: "o", x: 1 });
       expect([Point.toWire(p, ":"), Point.shifted(p), Point.greet(p)]).toEqual(["o:1", 2, "Hi, o"]);
+      const seed = { name: "n", x: 2 } as const;
+      expect(Point.nocopy(seed)).toBe(seed);
     });
 
     test("create, seal, fixed and patch keep working beside a trait", () => {

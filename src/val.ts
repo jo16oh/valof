@@ -148,6 +148,50 @@ export type PayloadOf<V extends AnyVal> = V extends Phantom<string, infer T> ? T
  */
 export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
 
+/** A conservative, structural guard for the default `nocopy` constructor. */
+type Equal<X, Y> =
+  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;
+
+type ReadonlyKey<T, K extends keyof T> = Equal<Pick<T, K>, Readonly<Pick<T, K>>>;
+
+/**
+ * `nocopy` accepts only evidence that is immutable all the way down. This cannot prove there is
+ * no mutable alias: a readonly view can still have one.
+ *
+ * Optional properties and tuple positions exclude only the `undefined` introduced by their
+ * optional marker. The payload validator separately rejects explicit `undefined` values.
+ */
+type IsNocopyable<T> = [T] extends [AnyVal]
+  ? true
+  : [T] extends [Primitive]
+    ? true
+    : [T] extends [ReadonlyArray<infer E>]
+      ? T extends unknown[]
+        ? false
+        : number extends T["length"]
+          ? false extends IsNocopyable<E>
+            ? false
+            : true
+          : false extends {
+                [I in keyof T]: IsNocopyable<Exclude<T[I], undefined>>;
+              }[number]
+            ? false
+            : true
+      : [T] extends [object]
+        ? false extends {
+            [K in keyof T]-?: ReadonlyKey<T, K> extends true
+              ? IsNocopyable<K extends OptionalKeys<T> ? Exclude<T[K], undefined> : T[K]>
+              : false;
+          }[keyof T]
+          ? false
+          : true
+        : false;
+
+type NocopyArgument<T> =
+  IsNocopyable<T> extends true ? unknown : Invalid<"nocopy requires a deeply readonly payload">;
+
+type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArgument<T>) => V;
+
 /**
  * The patch accepted by `patch`, at every depth.
  *
@@ -262,7 +306,10 @@ type CreateMethod<V extends AnyVal, N, F> = [Minting<V, N, F>] extends [undefine
   ? Record<never, never>
   : {
       /** Mints a payload and seals it, so it returns whatever the seal returns. */
-      create: Minting<V, N, F>;
+      create: Minting<V, N, F> & {
+        /** Reuses the minter and seal without copying their terminal payload. */
+        nocopy: Minting<V, N, F>;
+      };
     };
 
 type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
@@ -272,7 +319,10 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
        * The single gate a payload passes to become a value. `create` and `patch` both go
        * through it.
        */
-      seal: WithoutDefaultSeal<F>;
+      seal: WithoutDefaultSeal<F> & {
+        /** Runs the same custom seal without copying its terminal payload. */
+        nocopy: WithoutDefaultSeal<F>;
+      };
     };
 
 /**
@@ -340,8 +390,9 @@ export type Companion<
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  */
-export type Sealed<V extends AnyVal, M extends CompanionMembers<V>> = ((value: SeedOf<V>) => V) &
-  Companion<V, M>;
+export type Sealed<V extends AnyVal, M extends CompanionMembers<V>> = ((value: SeedOf<V>) => V) & {
+  nocopy: Nocopy<V>;
+} & Companion<V, M>;
 
 /**
  * What `.impl` accepts once traits are registered: anything but a name a trait already answers
@@ -578,6 +629,9 @@ const equalsUnknown = equals as (a: unknown, b: unknown) => boolean;
  */
 const owned = new WeakSet<object>();
 
+/** Roots adopted by production `nocopy`. Their descendants are indexed only if a copy needs it. */
+const adopted = new WeakSet<object>();
+
 const development =
   typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production";
 
@@ -650,6 +704,10 @@ const changedDuringSeal = (): never => {
 const deepCopy = (owning: boolean) => {
   const copy = <T>(value: T): T => {
     if (value === null || typeof value !== "object") return value;
+    if (owning && adopted.has(value)) {
+      indexAdopted(value);
+      return value;
+    }
     if (owning && owned.has(value)) return value;
 
     let out: unknown;
@@ -694,6 +752,59 @@ const deepCopy = (owning: boolean) => {
  * new identity for anything memoised on it.
  */
 const own = deepCopy(true);
+
+/**
+ * Gives a production-adopted graph the same ownership index a copied graph gets eagerly.
+ * This is intentionally deferred: `nocopy` itself remains O(1) in production.
+ */
+const indexAdopted = (root: object): void => {
+  if (!adopted.has(root)) return;
+  const seen = new WeakSet<object>();
+  const visit = (value: unknown): void => {
+    if (value === null || typeof value !== "object" || seen.has(value)) return;
+    seen.add(value);
+    owned.add(value);
+    for (const key of Object.keys(value)) visit((value as Record<string, unknown>)[key]);
+  };
+  visit(root);
+  adopted.delete(root);
+};
+
+/** Adopt a caller-owned payload. Development validates and freezes every node before returning. */
+const adopt = <T>(value: T): T => {
+  if (value === null || typeof value !== "object") return value;
+  if (owned.has(value)) return value;
+
+  if (!development) {
+    adopted.add(value);
+    return value;
+  }
+
+  const active = new WeakSet<object>();
+  const done = new WeakSet<object>();
+  const visit = (node: unknown): void => {
+    if (node === null || typeof node !== "object" || owned.has(node) || done.has(node)) return;
+    if (active.has(node)) throw new TypeError("a Val payload cannot contain a cycle");
+    active.add(node);
+    try {
+      if (!Array.isArray(node)) assertPlainObject(node);
+      for (const key of Reflect.ownKeys(node)) {
+        const descriptor = Object.getOwnPropertyDescriptor(node, key);
+        if (!descriptor || "get" in descriptor || "set" in descriptor) {
+          throw new TypeError("a Val payload cannot contain accessor properties");
+        }
+        visit(descriptor.value);
+      }
+      owned.add(node);
+      Object.freeze(node);
+      done.add(node);
+    } finally {
+      active.delete(node);
+    }
+  };
+  visit(value);
+  return value;
+};
 
 /** A plain deep copy. What `Val.unwrap` hands back is not the library's. */
 const detach = deepCopy(false);
@@ -771,36 +882,48 @@ const attach = (
   fns: Record<string, unknown>,
   ctors: Ctors,
   traits: Record<string, unknown>,
+  callable: boolean,
 ): Record<string, unknown> => {
   const { create, seal: custom } = ctors;
-  const seal: (value: unknown) => unknown = custom
-    ? development
-      ? (value) => {
-          const before = snapshotSealInput(value);
-          return custom(value, (candidate) => {
-            if (before !== unsnapshotable) {
-              const current = snapshotSealInput(value);
-              if (current !== unsnapshotable && !equalsUnknown(before, current))
-                changedDuringSeal();
-            }
+  const sealedWith = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
+    custom
+      ? development
+        ? (value) => {
+            const before = snapshotSealInput(value);
+            return custom(value, (candidate) => {
+              if (before !== unsnapshotable) {
+                const current = snapshotSealInput(value);
+                if (current !== unsnapshotable && !equalsUnknown(before, current))
+                  changedDuringSeal();
+              }
 
-            const candidateBefore = snapshotSealInput(candidate);
-            const sealed = own(candidate);
-            if (candidateBefore !== unsnapshotable && !equalsUnknown(candidateBefore, sealed)) {
-              changedDuringSeal();
-            }
-            return sealed;
-          });
-        }
-      : (value) => custom(value, own)
-    : own;
+              const candidateBefore = snapshotSealInput(candidate);
+              const sealed = terminal(candidate);
+              if (candidateBefore !== unsnapshotable && !equalsUnknown(candidateBefore, sealed)) {
+                changedDuringSeal();
+              }
+              return sealed;
+            });
+          }
+        : (value) => custom(value, terminal)
+      : terminal;
+  const seal = sealedWith(own);
+  const nocopy = sealedWith(adopt);
   // A derivation that changed nothing returns the value it started from, so a framework comparing
   // by identity sees no update. A custom seal owns the return shape, so the value goes back
   // through it: the copy inside recognises the node and hands the same one back.
   const keep: (value: unknown) => unknown = custom ? seal : (value) => value;
 
-  if (create) target.create = (...args: never[]) => seal(create(...args));
-  if (custom) target.seal = seal;
+  if (create) {
+    const minted = (...args: never[]) => seal(create(...args));
+    minted.nocopy = (...args: never[]) => nocopy(create(...args));
+    target.create = minted;
+  }
+  if (custom) {
+    define(seal, "nocopy", nocopy);
+    target.seal = seal;
+  }
+  if (callable) target.nocopy = nocopy;
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
@@ -813,6 +936,7 @@ const attach = (
         development ? "`patch` is only available for object-shaped Vals." : undefined,
       );
     }
+    indexAdopted(value);
     const merged = patched(value, patch);
     return Object.is(merged, value) ? keep(value) : seal(merged);
   };
@@ -844,10 +968,10 @@ const build = <V extends AnyVal>(
       string,
       unknown
     >;
-  const target = attach(base(), {}, ctors, traits);
+  const target = attach(base(), {}, ctors, traits, callable);
   const step = (next: Ctors): object => build<V>(next, callable, traits);
 
-  target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits);
+  target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits, callable);
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
   // No companion where the trait implements nothing of its own: the members arrive in its place.
   // The Val's own go on last, the type having kept every `Final` one out of them.
@@ -868,7 +992,13 @@ export const Val = {
    * The default seal, with the type named explicitly: brand the payload and copy it. A called
    * `Val.sealer` and the seal handed to a custom one do the same thing; only the type differs.
    */
-  of: own as <V extends AnyVal>(value: SeedOf<V>) => V,
+  of: Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
+    /**
+     * Uses a payload without copying it. With an explicit `V`, TypeScript cannot also infer
+     * the argument's precise readonlyness; the caller must ensure it will not change.
+     */
+    nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
+  }),
   /**
    * The other direction: a plain, mutable copy of the payload, for code that does not know
    * about `readonly`.
