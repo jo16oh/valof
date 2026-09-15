@@ -34,7 +34,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと宣言で落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
@@ -3968,7 +3968,35 @@ type Wrap<T> = T; // 見ない
 `import { Trait, type Dyn, type Final, type Self } from "valof/experimental"` と書く。
 これは 0.x で minor release に破壊的変更がありうるという versioning 方針とは別に、安定 API と
 Trait を import 時点で区別するための境界である。各 public export には `@experimental` も付け、IDE と
-生成ドキュメントに provisional であることを伝える。ただしこの tag は TypeScript の利用を禁止しない。
+生成ドキュメントに experimental であることを伝える。ただしこの tag は TypeScript の利用を禁止しない。
+
+2026-09-15 に実装。entry は `src/experimental.ts` で、`src/trait.ts` をそのまま指すのではなく
+公開する分だけを再 export する。`trait.ts` には `Unbound` や `Shared` のような内部型もあるため。
+
+#### §2386 の共有チャンク条件は Trait には掛からない
+
+entry を足すときは毎回確認する、とあの節に書いてある。確認した結果、この entry では問題にならない。
+`src/trait.ts` は `val.ts` から**型しか** import していないので、`dist/experimental.mjs` は 637 B の
+自己完結したモジュールになり、`owned` の WeakSet を複製する経路がそもそも無い。バンドルの実測も分割前と
+同じ（`Val` 710 B、`Val` + `Trait` 804 B）。
+
+#### 却下: `valof/experimental/trait` のような機能ごとの subpath
+
+実験が増えたとき import 行がどの実験に依存しているか言える、という利点はある。**いまは分けない。**
+分ける動機として一番ありそうな「宣言のコストを切り離せる」が成り立たないため。
+
+`val.ts` は `AnyTrait` / `MembersOf` / `Unbound` など 10 個の型を `trait.ts` から import している
+（`Val<K, T, Tr>` の第 3 引数と、`Sealer` / `CompanionBuilder` の `implTrait`）。tsdown はその共有部分を
+1 つのチャンクに出すので、`dist/index.d.mts` と `dist/experimental.d.mts` は**同じ `trait-*.d.mts` を
+読む**。`valof` だけを import する利用者もすでに trait の宣言を全部パースしていて、subpath をどう切っても
+変わらない。切り離せるのは実行時の 637 B だけである。
+
+一方コストは確実で、subpath を 1 つ増やすたびに 4 箇所の登録が要る。`vite.config.ts` の entry、
+`docs/tools/twoslash` の paths、`scripts/ts-compatibility` の paths、`scripts/type-perf/tsconfig.base.json`。
+どれか 1 つ忘れると docs か ts-compatibility が落ちる。
+
+**分けるのは `Enum`（§15.2）が来たとき。**そこで初めて barrel がどの実験に乗ったかを言えなくなる。
+名前は型名に揃えて単数（`valof/experimental/trait`）。experimental なので移行は破壊的変更にならない。
 
 **欠けているもの。** 複数の Val が共有する関連関数・フィールドを宣言する手段がない。companion の関数は
 自分の Val に固定されるので、`SuperUser` が `PayloadOf<User>` から作られていても `User.greet(superUser)`
@@ -4261,7 +4289,7 @@ production では freeze しないので、黙ってメンバが勝つ。trait �
 複数の trait は交差で合成でき、`User` を `Greetable` に代入する構造的部分型がそのまま効く。**却下: 配列**
 （`["Greetable"]`）。順序が意味を持ってしまい、交差で合成できない。
 
-##### `|` は宣言の段で落とす、2026-09-10
+##### `|` は型引数だけで落とす、2026-09-10
 
 `&` のつもりで `|` と書いた宣言が、**payload 検査を素通りしていた**。`ShapeOf<Tr>` は
 `Omit<Tr, brands>` なので、union に対しては 2 つが共有するキーだけが残る。共有するキーがなければ
@@ -4280,6 +4308,12 @@ type Empty = Val<"Empty", { id: string }, Greetable | Weighed>; // 通ってい�
 潰して等しくないものが union である。単独の trait・交差・`never` はいずれも自分自身に潰れる。
 
 宣言は 30.7 → 31.1 kB（予算 32 kB に対して残り 3%）、trait の instantiations は 12,150 → 12,404。
+
+**「宣言の段」は検査が読む場所であって、エラーが出る行ではない。**2026-09-15 に実測した。
+`type Bad = Val<"Bad", P, A | B>` という型エイリアスそれ自体は通る。落ちるのは最初に `AnyVal` を
+要求するところで、`Val.sealer<Bad>()` が TS2739 を出す。しかもメッセージは `Phantom` のプロパティ不足で、
+ブランドに入れた「declare several traits with `&`, not `|`」は hover でしか見えない。
+docs に「宣言が弾く」と書いて誤りだったので、そこは 1 文に削った。
 `Tr` が `never` の分岐が先にあるので、trait を宣言しない Val は何も払わない（core は 5,846 のまま）。
 実行時は型だけなので増えない。
 
@@ -4949,5 +4983,25 @@ type-perf に移せる理由でもある。
 線は「`Trait` を import する人が余分に払う量」のほうにある。そう書けば core の予算を動かしたときも
 関係が保たれる。実測の増分は 95 B（1,147 → 1,242 B）で、3 倍近い余裕がある。
 
-**いま一番狭いのは `trait` の instantiations。**12,514 / 15,000 で残り 17%。Trait 1 機能で
-9,632 → 11,933（+24%）動いた。Enum と path が来ると効くのはここで、宣言のバイト数ではない。
+**コードは `+ 128` になっていた。**2026-09-15 に `+ 256` へ直した。決定は 0.25 kB で、同じ節の
+「3 倍近い余裕」も 256 のほうと合う（128 なら 1.35 倍でしかない）。`bundle-size.ts` の JSDoc は
+最初から "a quarter of a kB" と書いてあり、定数だけが食い違っていた。
+
+**2026-09-15、main を取り込んだ後に再測。**`update` の削除（#33）とカスタム equality の `equals` への
+置き換え（#36）で core が縮んだため、上の絶対値は動いた。増分のほうはほぼ変わらない。
+
+|                       | 取り込み前 | 取り込み後 |
+| --------------------- | ---------- | ---------- |
+| `Val` production gzip | 1,147 B    | 710 B      |
+| `Val` + `Trait`       | 1,242 B    | 804 B      |
+| 増分                  | 95 B       | 94 B       |
+| core instantiations   | 9,632      | 5,674      |
+| trait instantiations  | 12,514     | 12,727     |
+| `index.d.mts`         | 31.4 kB    | 30.4 kB    |
+
+**いま一番狭いのは `trait` の instantiations。**12,727 / 15,000 で残り 15%。Enum と path が来ると効くのは
+ここで、宣言のバイト数ではない。core の 5,674 と比べて 2 倍以上あるが、2 つの fixture は履歴が違うので
+比較はできない（§16）。
+
+`index.d.mts` は entry を分けた後も同じ読み方をする。entry ファイル自体は再 export 2 行で 323 B しかなく、
+中身は共有チャンクにあるので、type-perf は import を辿って合算する。
