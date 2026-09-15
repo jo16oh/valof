@@ -14,8 +14,9 @@ const root = new URL("../", import.meta.url);
 const entries = {
   core: { "./dist/index.mjs": ["Val"] },
   trait: { "./dist/index.mjs": ["Val"], "./dist/experimental.mjs": ["Trait"] },
+  enum: { "./dist/index.mjs": ["Val"], "./dist/experimental.mjs": ["Enum"] },
   equals: { "./dist/index.mjs": ["Val", "equals"] },
-  all: { "./dist/index.mjs": ["Val", "equals"], "./dist/experimental.mjs": ["Trait"] },
+  all: { "./dist/index.mjs": ["Val", "equals"], "./dist/experimental.mjs": ["Enum", "Trait"] },
 } as const satisfies Record<string, Readonly<Record<string, readonly string[]>>>;
 type Entry = keyof typeof entries;
 type Imports = Readonly<Record<string, readonly string[]>>;
@@ -32,12 +33,17 @@ const modes = ["production", "development"] as const;
  * The declarations are not measured here. They cost a download and a parse, never a byte in the
  * user's bundle, and `type-perf` already measures what reads them.
  *
- * `traitGzip` is the first budget plus what `Trait` may add, so the pair says the line rather
- * than a second round number: a user who imports `Trait` pays at most a quarter of a kB more.
+ * `traitGzip` and `enumGzip` are the first budget plus what each adds, so the pair says the line
+ * rather than a second round number: what an experimental import costs is the number to read.
  */
 const BUDGET_VAL_GZIP = 1280;
 const BUDGET_VAL_PLUS_TRAIT_GZIP = BUDGET_VAL_GZIP + 128;
-const budget = { gzip: BUDGET_VAL_GZIP, traitGzip: BUDGET_VAL_PLUS_TRAIT_GZIP };
+const BUDGET_VAL_PLUS_ENUM_GZIP = BUDGET_VAL_GZIP + 384;
+const budget = {
+  gzip: BUDGET_VAL_GZIP,
+  traitGzip: BUDGET_VAL_PLUS_TRAIT_GZIP,
+  enumGzip: BUDGET_VAL_PLUS_ENUM_GZIP,
+};
 
 type Sizes = { minified: number; gzip: number; brotli: number };
 
@@ -144,6 +150,7 @@ if (production.includes("Number.isNaN")) {
 const measured = {
   bundle: bundles.core,
   trait: bundles.trait,
+  enum: bundles.enum,
   equals: bundles.equals,
   all: bundles.all,
 };
@@ -151,6 +158,7 @@ const measured = {
 const checks = [
   ["production gzip", measured.bundle.production.gzip, budget.gzip],
   ["production gzip, with Trait", measured.trait.production.gzip, budget.traitGzip],
+  ["production gzip, with Enum", measured.enum.production.gzip, budget.enumGzip],
 ] as const;
 
 function budgets(): string {
