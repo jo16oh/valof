@@ -784,12 +784,12 @@ const adopt = <T>(value: T): T => {
     active.add(node);
     try {
       if (!Array.isArray(node)) assertPlainObject(node);
-      for (const key of Object.keys(node)) {
+      for (const key of Reflect.ownKeys(node)) {
         const descriptor = Object.getOwnPropertyDescriptor(node, key);
         if (!descriptor || "get" in descriptor || "set" in descriptor) {
           throw new TypeError("a Val payload cannot contain accessor properties");
         }
-        visit((node as Record<string, unknown>)[key]);
+        visit(descriptor.value);
       }
       owned.add(node);
       Object.freeze(node);

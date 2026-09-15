@@ -78,20 +78,33 @@ describe("Val", () => {
     test("rejects unsupported adopted graphs in development", () => {
       type Point = Val<"NocopyPoint", { x: number }>;
       const Point = Val.sealer<Point>();
-      const accessor = {
-        get x() {
+      const accessor = {};
+      Object.defineProperty(accessor, "x", {
+        get() {
           return 1;
         },
-      };
+      });
       class Source {
         x = 1;
       }
       const cyclic: { x: number; self?: unknown } = { x: 1 };
-      cyclic.self = cyclic;
+      Object.defineProperty(cyclic, "self", { value: cyclic });
 
       expect(() => Point.nocopy(accessor as never)).toThrow(/accessor/);
       expect(() => Point.nocopy(new Source() as never)).toThrow(/plain objects/);
       expect(() => Point.nocopy(cyclic as never)).toThrow(/cycle/);
+    });
+
+    test("freezes children stored in non-enumerable data properties", () => {
+      type Point = Val<"NocopyPoint", { x: number }>;
+      const Point = Val.sealer<Point>();
+      const child = { y: 2 };
+      const raw = { x: 1 } as const;
+      Object.defineProperty(raw, "child", { value: child });
+
+      expect(Point.nocopy(raw)).toBe(raw);
+      expect(Object.isFrozen(raw)).toBe(true);
+      expect(Object.isFrozen(child)).toBe(true);
     });
   });
 
