@@ -86,7 +86,7 @@ export type Trait<K extends string, Shape, M extends Members = Record<never, nev
       : Checked<Shape>
   >;
 
-/** The fields a trait requires. The brand is private, so `keyof` holds the fields alone. */
+/** The fields a trait requires. */
 export type ShapeOf<Tr extends AnyTrait> = Pick<Tr, keyof Tr>;
 
 /**

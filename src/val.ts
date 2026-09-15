@@ -258,7 +258,6 @@ type Minting<V extends AnyVal, N, F> = N extends (...args: infer A) => unknown
   ? (...args: A) => Constructed<V, F>
   : undefined;
 
-/** `create`, present only on a companion that registered one. */
 type CreateMethod<V extends AnyVal, N, F> = [Minting<V, N, F>] extends [undefined]
   ? Record<never, never>
   : {
@@ -266,7 +265,6 @@ type CreateMethod<V extends AnyVal, N, F> = [Minting<V, N, F>] extends [undefine
       create: Minting<V, N, F>;
     };
 
-/** `seal`, present only on a companion that replaced the default one. */
 type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
   ? Record<never, never>
   : {
@@ -293,7 +291,6 @@ type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
     : F
   : F;
 
-/** The payload minus the keys `.fixed` took out of the derivation path. */
 type Derivable<V extends AnyVal, P> = [P] extends [never]
   ? SeedOf<V>
   : Omit<SeedOf<V>, P & keyof SeedOf<V>>;
