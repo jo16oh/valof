@@ -4,6 +4,8 @@
 through the original reference:
 
 ```ts
+// @errors: 2540
+// ---cut---
 type Profile = Readonly<{
   name: string;
   address: { city: string };
@@ -25,6 +27,8 @@ Keeping a value unchanged requires both deep readonly types and a copy at constr
 Vals are immutable. Their types are deeply readonly, and their constructors deep-copy their inputs:
 
 ```ts
+// @errors: 2540
+// ---cut---
 import { Val } from "valof";
 
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
@@ -41,6 +45,9 @@ profile.address.city; // "Osaka"
 Write the payload without `readonly`. `Val` makes it deeply readonly:
 
 ```ts
+// @errors: 2339
+import { Val } from "valof";
+// ---cut---
 type Post = Val<"Post", { tags: string[] }>;
 
 declare const post: Post;

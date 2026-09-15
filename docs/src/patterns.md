@@ -6,6 +6,19 @@ A value is a plain object, so a state container holds it as it stands. Replace i
 untouched subtrees keep their identity, so a dependency array sees no change.
 
 ```ts
+import { Val } from "valof";
+
+declare function useState<T>(initial: T): [T, (next: T) => void];
+declare function useEffect(effect: () => void, deps: readonly unknown[]): void;
+
+type City = Val<"City", { name: string }>;
+type Shop = Val<"Shop", { owner: { email: string }; city: City }>;
+const Shop = Val.sealer<Shop>();
+
+declare const owner: { email: string };
+declare const city: City;
+declare const showMap: (city: City) => void;
+// ---cut---
 const [shop, setShop] = useState(Shop({ owner, city }));
 setShop(Shop.patch(shop, { owner: { email: "e@example.com" } }));
 
@@ -35,6 +48,10 @@ instead of throwing.
 Use an object's properties.
 
 ```ts
+import { Val } from "valof";
+
+type Money = Val<"Money", { amount: number; currency: string }>;
+// ---cut---
 type Tags = Val<"Tags", Record<string, true>>; // a Set
 type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 ```
@@ -46,6 +63,15 @@ Use `true` rather than `null` for a set, so `if (tags[key])` is the membership t
 whole table.
 
 ```ts
+import { Val } from "valof";
+
+type Money = Val<"Money", { amount: number; currency: string }>;
+const Money = Val.sealer<Money>();
+type PriceTable = Val<"PriceTable", Record<string, Money>>;
+const PriceTable = Val.sealer<PriceTable>();
+
+declare const table: PriceTable;
+// ---cut---
 PriceTable.patch(table, { apple: Money({ amount: 120, currency: "JPY" }), fig: undefined });
 
 PriceTable(
@@ -57,6 +83,12 @@ PriceTable(
 ## Dates
 
 ```ts
+import { Val } from "valof";
+
+declare const Temporal: {
+  Instant: { fromEpochMilliseconds(ms: number): { toLocaleString(): string } };
+};
+// ---cut---
 export type UnixEpochMs = Val<"UnixEpochMs", number>;
 
 export const UnixEpochMs = Val.sealer<UnixEpochMs>().impl({

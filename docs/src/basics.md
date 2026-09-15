@@ -35,6 +35,10 @@ Name the brand after the type it brands: `type UserId = Val<"UserId", string>`. 
 A branded type normally needs a constructor that contains a type assertion:
 
 ```ts
+import { Val } from "valof";
+
+type UserId = Val<"UserId", string>;
+// ---cut---
 const createUserId = (value: string): UserId => value as UserId;
 ```
 
@@ -42,6 +46,12 @@ This keeps assertions out of its callers, but every branded type needs the same 
 boilerplate. `Val.sealer` supplies the constructor:
 
 ```ts
+// @errors: 2322
+import { Val } from "valof";
+
+type UserId = Val<"UserId", string>;
+type OrderId = Val<"OrderId", string>;
+// ---cut---
 const UserId = Val.sealer<UserId>();
 const OrderId = Val.sealer<OrderId>();
 

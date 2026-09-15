@@ -17,6 +17,10 @@ changes nothing about the value, and it makes [`Val.unwrap`](utilities.md#valunw
 readonly payload, which is what `unwrap` exists to avoid.
 
 ```ts
+import { Val } from "valof";
+
+declare const post: Post;
+// ---cut---
 type Post = Val<"Post", { tags: string[] }>; // not `readonly string[]`
 
 post.tags; // readonly string[] all the same

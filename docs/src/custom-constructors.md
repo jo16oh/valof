@@ -8,6 +8,12 @@ start with `Val.companion` and add a custom `seal` with `.implSeal`.
 Write the checks directly in the seal:
 
 ```ts
+import { Val } from "valof";
+
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+declare function ok<T>(value: T): Result<T>;
+declare function err(message: string): Result<never>;
+// ---cut---
 type Age = Val<"Age", number>;
 
 const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
@@ -22,6 +28,16 @@ then adds your constructor to the companion as `seal`. Return through the defaul
 copy the payload. The companion does not become callable:
 
 ```ts
+// @errors: 2349
+import { Val } from "valof";
+
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+declare function ok<T>(value: T): Result<T>;
+declare function err(message: string): Result<never>;
+
+type Age = Val<"Age", number>;
+const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> => ok(seal(value)));
+// ---cut---
 Age(30); // type error: this expression is not callable
 Age.seal(30); // Result<Age>
 ```
@@ -30,16 +46,38 @@ Valof provides no `Result` type. [neverthrow](https://github.com/supermacro/neve
 [better-result](https://better-result.dev) and your own type all work. Valof propagates the seal's
 return type without inspecting it.
 
-A schema library can parse `unknown` input before calling the default seal:
+A schema library can parse a wider input before calling the default seal:
 
 ```ts
+import { Val, type SeedOf } from "valof";
+
+type User = Val<"User", { id: string; name: string; email: string }>;
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+declare function ok<T>(value: T): Result<T>;
+declare function err(message: string): Result<never>;
+
+declare const z: {
+  object(shape: Record<string, unknown>): {
+    safeParse(
+      input: unknown,
+    ): { success: true; data: SeedOf<User> } | { success: false; error: unknown };
+  };
+  uuid(): unknown;
+  string(): { min(length: number): unknown };
+  email(): { toLowerCase(): unknown };
+  prettifyError(error: unknown): string;
+};
+// ---cut---
 const schema = z.object({ id: z.uuid(), name: z.string().min(1), email: z.email().toLowerCase() });
 
-const User = Val.companion<User>().implSeal((input: unknown, seal): Result<User> => {
+const User = Val.companion<User>().implSeal((input: object, seal): Result<User> => {
   const result = schema.safeParse(input);
   return result.success ? ok(seal(result.data)) : err(z.prettifyError(result.error));
 });
 ```
+
+The parameter takes `object` or `Record<string, unknown>`, not `unknown`: a seal takes the payload,
+not a wire format.
 
 The schema runs on every derivation, not just the first parse. Unknown keys are yours to reject. A
 patch is merged as given, so an undeclared key survives unless the seal removes it.
@@ -49,6 +87,8 @@ patch is merged as given, so an undeclared key survives unless the seal removes 
 Normalize in the seal so equivalent inputs have the same canonical form:
 
 ```ts
+import { Val } from "valof";
+// ---cut---
 type Email = Val<"Email", string>;
 
 const Email = Val.companion<Email>().implSeal((value, seal) => seal(value.trim().toLowerCase()));
@@ -62,6 +102,17 @@ domain.
 `create` builds a payload, then passes it to the seal:
 
 ```ts
+import { Val, type SeedOf } from "valof";
+
+type User = Val<"User", { id: string; name: string; email: string }>;
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+declare function ok<T>(value: T): Result<T>;
+declare function err(message: string): Result<never>;
+
+type Fields = Omit<SeedOf<User>, "id">;
+declare function check(user: SeedOf<User>): Result<User>;
+declare const fields: Fields;
+// ---cut---
 const User = Val.companion<User>()
   .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }))
   .implSeal((user): Result<User> => check(user));
@@ -79,6 +130,16 @@ an id or timestamp in `create`, not in `seal`**.
 fields:
 
 ```ts
+// @errors: 2353
+import { Val, type SeedOf } from "valof";
+
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+declare function ok<T>(value: T): Result<T>;
+declare function err(message: string): Result<never>;
+
+declare function normalize(user: SeedOf<User>): SeedOf<User>;
+declare const user: User;
+// ---cut---
 type User = Val<"User", { id: string; name: string; email: string }>;
 
 const User = Val.companion<User>()
@@ -102,6 +163,9 @@ id must be unforgeable, it belongs outside the value.
 A validator checks its input but returns no more precise value:
 
 ```ts
+declare function isValidAge(value: number): boolean;
+declare const input: number;
+// ---cut---
 const valid = isValidAge(input); // boolean; input is still a number
 ```
 
@@ -111,6 +175,16 @@ repeat it. This spreads validation through processing code, an anti-pattern call
 A parser instead turns less precise input into more precise output, or returns a failure:
 
 ```ts
+import { Val } from "valof";
+
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+declare function ok<T>(value: T): Result<T>;
+declare function err(message: string): Result<never>;
+
+type Age = Val<"Age", number>;
+const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> => ok(seal(value)));
+declare const input: number;
+// ---cut---
 const result = Age.seal(input); // Result<Age>
 ```
 

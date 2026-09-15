@@ -36,6 +36,10 @@ something other than value equality, give it a name in the companion.
 Brands a payload with the type named explicitly.
 
 ```ts
+import { Val } from "valof";
+
+type User = Val<"User", { id: string; name: string }>;
+// ---cut---
 Val.of<User>({ id: "a", name: "alice" });
 ```
 
@@ -49,6 +53,12 @@ A plain, mutable deep copy of the payload, for handing to code that does not kno
 It strips the brand as well.
 
 ```ts
+// @errors: 2339
+import { Val } from "valof";
+
+type Post = Val<"Post", { title: string; tags: string[] }>;
+const Post = Val.sealer<Post>();
+// ---cut---
 const post = Post({ title: "t", tags: ["a"] });
 
 post.tags.sort(); // ✗ readonly string[] has no sort

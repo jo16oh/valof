@@ -7,6 +7,15 @@ handler, so a Val there arrives on the other side already typed as one, without 
 through the seal.
 
 ```ts
+import { Val, type PayloadOf } from "valof";
+
+type User = Val<"User", { name: string }>;
+
+declare const user: User;
+declare const app: {
+  get(path: string, handler: (c: { json(body: unknown): Response }) => Response): void;
+};
+// ---cut---
 app.get("/user/:id", (c) => {
   const body: PayloadOf<User> = user; // the brand drops, the object is the same one
   return c.json(body);
@@ -16,6 +25,14 @@ app.get("/user/:id", (c) => {
 Now the other side cannot use what arrives until it seals it:
 
 ```ts
+// @errors: 2322
+import { Val, type PayloadOf } from "valof";
+
+type User = Val<"User", { name: string }>;
+const User = Val.sealer<User>();
+
+declare const res: { json(): Promise<PayloadOf<User>> };
+// ---cut---
 const plain = await res.json(); // the generated client types this as PayloadOf<User>
 const bad: User = plain; // type error: the brand is missing
 const user = User(plain); // sealed, and now it is one
@@ -37,6 +54,12 @@ the server is running, and that seal may be older than yours.
 `Object.assign` accepts a readonly object as its target, so this passes the type checker:
 
 ```ts
+import { Val } from "valof";
+
+type User = Val<"User", { name: string }>;
+
+declare const user: User;
+// ---cut---
 Object.assign(user, { name: "mallory" });
 ```
 
@@ -47,6 +70,13 @@ Other utilities return a new object but preserve the input type. Immer, for exam
 readonly input writable inside a callback:
 
 ```ts
+import { Val, type PayloadOf } from "valof";
+
+type User = Val<"User", { name: string }>;
+
+declare const user: User;
+declare function produce<T>(value: T, recipe: (draft: PayloadOf<User>) => void): T;
+// ---cut---
 const changed = produce(user, (draft) => {
   draft.name = "mallory";
 }); // User
@@ -56,6 +86,13 @@ The result is still typed as `User`, although its seal never saw the change. Use
 derive a value instead:
 
 ```ts
+import { Val } from "valof";
+
+type User = Val<"User", { name: string }>;
+const User = Val.sealer<User>();
+
+declare const user: User;
+// ---cut---
 const changed = User.patch(user, { name: "mallory" });
 ```
 

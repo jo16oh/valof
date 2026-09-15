@@ -37,6 +37,24 @@ describe("mdBook Shiki preprocessor", () => {
     expect(result).not.toContain("<&>");
   });
 
+  test("removes the Twoslash notations the check reads", () => {
+    const markdown = [
+      "```ts",
+      "// @errors: 2322",
+      "declare const hidden: string;",
+      "// ---cut---",
+      "const shown = 1;",
+      "```",
+    ].join("\n");
+
+    const result = markdownHighlighter.transform(markdown);
+
+    expect(result).toContain("shown");
+    expect(result).not.toContain("---cut---");
+    expect(result).not.toContain("@errors");
+    expect(result).not.toContain("hidden");
+  });
+
   test("handles unlabeled, tilde, and longer fences", () => {
     const markdown = ["````ts", "const fence = ```;", "````", "", "~~~", "plain text", "~~~"].join(
       "\n",

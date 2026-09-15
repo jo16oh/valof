@@ -47,6 +47,18 @@ annotate the parameters that follow it.
 The result remains callable and exposes the functions:
 
 ```ts
+import { Val } from "valof";
+
+type User = Val<"User", { id: string; name: string; nickname?: string }>;
+const User = Val.sealer<User>().impl({
+  displayName(user) {
+    return user.nickname ?? user.name;
+  },
+  formatLabel(user, separator: string) {
+    return user.id + separator + user.name;
+  },
+});
+// ---cut---
 const user = User({ id: "a", name: "bob" });
 
 User.displayName(user);
@@ -58,6 +70,18 @@ User.formatLabel(user, ": ");
 Without Valof, changing a deeply readonly `shop` means rebuilding every object on the path:
 
 ```ts
+import { Val } from "valof";
+
+type City = Val<"City", { name: string }>;
+const City = Val.sealer<City>();
+type Shop = Val<
+  "Shop",
+  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
+>;
+const Shop = Val.sealer<Shop>();
+
+declare const shop: Shop;
+// ---cut---
 const changed = {
   ...shop,
   owner: {
@@ -73,6 +97,18 @@ const changed = {
 An object-shaped Val gets `patch`. The same update names only what changes:
 
 ```ts
+import { Val } from "valof";
+
+type City = Val<"City", { name: string }>;
+const City = Val.sealer<City>();
+type Shop = Val<
+  "Shop",
+  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
+>;
+const Shop = Val.sealer<Shop>();
+
+declare const shop: Shop;
+// ---cut---
 const changed = Shop.patch(shop, {
   owner: { contact: { email: "e@example.com" } },
 });
@@ -91,6 +127,18 @@ A patch reaches through nested plain objects, but replaces a nested Val, an arra
 whole:
 
 ```ts
+import { Val } from "valof";
+
+type City = Val<"City", { name: string }>;
+const City = Val.sealer<City>();
+type Shop = Val<
+  "Shop",
+  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
+>;
+const Shop = Val.sealer<Shop>();
+
+declare const shop: Shop;
+// ---cut---
 Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
 ```
 
@@ -99,6 +147,19 @@ Derive a nested Val with its own `patch`, so its own seal sees the change.
 `patch` copies only the path to what changed. Untouched branches keep their reference identity:
 
 ```ts
+import { Val } from "valof";
+
+type City = Val<"City", { name: string }>;
+const City = Val.sealer<City>();
+type Shop = Val<
+  "Shop",
+  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
+>;
+const Shop = Val.sealer<Shop>();
+
+declare const shop: Shop;
+declare const changed: Shop;
+// ---cut---
 changed.city === shop.city; // true
 Shop.patch(shop, {}) === shop; // true
 ```

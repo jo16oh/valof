@@ -1,20 +1,12 @@
 import { pathToFileURL } from "node:url";
 
-import { fromMarkdown } from "mdast-util-from-markdown";
 import { createHighlighter } from "shiki";
 import type { BundledLanguage, BundledTheme } from "shiki";
+import { removeTwoslashNotations } from "twoslash/fallback";
+
+import { codeBlocks, isTypeScript } from "../markdown-code/index.ts";
 
 type Language = BundledLanguage | "text";
-
-type CodeNode = {
-  type: "code";
-  value: string;
-  lang?: string | null;
-  position?: {
-    start: { offset?: number };
-    end: { offset?: number };
-  };
-};
 
 type Options = {
   lightTheme?: BundledTheme | undefined;
@@ -58,46 +50,6 @@ const defaults = {
 
 const languages = ["text", "bash", "javascript", "typescript"] satisfies Language[];
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isCodeNode(value: unknown): value is CodeNode {
-  return isRecord(value) && value.type === "code" && typeof value.value === "string";
-}
-
-function codeNodes(node: unknown, found: CodeNode[] = []): CodeNode[] {
-  if (!isRecord(node)) {
-    return found;
-  }
-
-  const children = node.children;
-  if (isCodeNode(node)) {
-    found.push(node);
-  }
-
-  if (Array.isArray(children)) {
-    for (const child of children) {
-      codeNodes(child, found);
-    }
-  }
-
-  return found;
-}
-
-function fenceLanguage(node: CodeNode, fallbackLanguage: Language): string {
-  return node.lang?.split(",", 1).at(0)?.trim() || fallbackLanguage;
-}
-
-function isFence(markdown: string, node: CodeNode): boolean {
-  const start = node.position?.start.offset;
-  if (start === undefined) {
-    return false;
-  }
-
-  return /^(?: {0,3})(?:`{3,}|~{3,})/.test(markdown.slice(start));
-}
-
 export async function createMarkdownHighlighter(options: Options = {}) {
   const settings = {
     lightTheme: options.lightTheme ?? defaults.lightTheme,
@@ -121,14 +73,8 @@ export async function createMarkdownHighlighter(options: Options = {}) {
     transform(markdown: string): string {
       const replacements: Array<{ start: number; end: number; html: string }> = [];
 
-      for (const node of codeNodes(fromMarkdown(markdown))) {
-        const start = node.position?.start.offset;
-        const end = node.position?.end.offset;
-        if (start === undefined || end === undefined || !isFence(markdown, node)) {
-          continue;
-        }
-
-        const requestedLanguage = fenceLanguage(node, settings.fallbackLanguage);
+      for (const block of codeBlocks(markdown)) {
+        const requestedLanguage = block.language || settings.fallbackLanguage;
         const language: Language = loadedLanguages.has(requestedLanguage)
           ? (requestedLanguage as Language)
           : settings.fallbackLanguage;
@@ -139,10 +85,14 @@ export async function createMarkdownHighlighter(options: Options = {}) {
           );
         }
 
+        // The notations are what `docs/tools/twoslash` typechecks the block with. Removing them
+        // here, with Twoslash's own function, keeps the two readings of a block identical.
+        const code = isTypeScript(language) ? removeTwoslashNotations(block.value) : block.value;
+
         replacements.push({
-          start,
-          end,
-          html: highlighter.codeToHtml(node.value, {
+          start: block.start,
+          end: block.end,
+          html: highlighter.codeToHtml(code, {
             lang: language,
             themes: {
               light: settings.lightTheme,

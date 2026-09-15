@@ -39,7 +39,7 @@ dead.
 
 Silence one line with a comment above it,
 
-```ts
+```ts,ignore
 // valof-lint-disable-next-line unused-member -- public API
 shout: (u) => u.toUpperCase(),
 ```
