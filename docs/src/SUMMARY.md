@@ -1,0 +1,14 @@
+# Summary
+
+- [Introduction](introduction.md)
+- [Installation](installation.md)
+- [Branding](basics.md)
+- [Immutability](immutability.md)
+- [Allowed types](allowed-types.md)
+- [Companion objects](companion-objects.md)
+- [Custom constructors](custom-constructors.md)
+- [Utilities](utilities.md)
+- [Patterns](patterns.md)
+- [API](api.md)
+- [Linting](linting.md)
+- [Caveats](caveats.md)

@@ -135,8 +135,11 @@ export default {
      * warns, and one about code that is wrong errors. See `Rule.warns`.
      */
     recommended: {
+      // `as const` for the severities: an array literal infers as `string[]`, and an index
+      // signature of `string` does not fit the rule map Oxlint's `defineConfig` declares, so
+      // `extends: [valof.configs.recommended]` would not typecheck for a caller.
       rules: Object.fromEntries(
-        RULES.map(({ kind, warns }) => [`valof/${kind}`, warns ? "warn" : "error"]),
+        RULES.map(({ kind, warns }) => [`valof/${kind}`, warns ? "warn" : "error"] as const),
       ),
     },
   },
