@@ -262,6 +262,21 @@ describe("Val", () => {
       expectTypeOf<string>().not.toExtend<A>();
     });
 
+    test("object spread drops the brand until the payload is sealed again", () => {
+      const user = User({ id: "a", name: "bob" });
+      // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
+      const changed = { ...user, name: "sue" };
+
+      expectTypeOf(changed).not.toExtend<User>();
+      // @ts-expect-error spreading copies payload fields, not the nominal brand
+      const unsealed: User = changed;
+      expect(unsealed).toEqual(changed);
+
+      const resealed = User(changed);
+      expectTypeOf(resealed).toEqualTypeOf<User>();
+      expect(resealed).toEqual({ id: "a", name: "sue" });
+    });
+
     test("nested Vals keep their brand", () => {
       type Money = Val<"Money", { amount: number; currency: string }>;
       type Order = Val<"Order", { id: string; total: Money }>;
@@ -279,6 +294,7 @@ describe("Val", () => {
     test("BrandOf / PayloadOf", () => {
       expectTypeOf<BrandOf<User>>().toEqualTypeOf<"app/User">();
       expectTypeOf<PayloadOf<ArticleId>>().toEqualTypeOf<string>();
+      expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
     });
 
     test("does not exist at runtime", () => {
@@ -995,6 +1011,7 @@ describe("patch", () => {
         u2: { role: "waiter" },
         u3: { role: "host" },
       });
+      // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
       expect(Shop({ ...before, staff }).staff).toEqual(staff);
     });
 
@@ -1227,6 +1244,132 @@ describe("building", () => {
       const b = Box.seal(raw);
       raw.tags.push("b");
       expect(b.tags).toEqual(["a"]);
+    });
+
+    test("detects a getter that changes between validation and copying", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((r, seal) => {
+        void r.n; // validation observes the input before the default seal copies it
+        return seal(r);
+      });
+      let n = 0;
+      const input = {
+        get n() {
+          return ++n;
+        },
+      };
+
+      expect(() => Reading.seal(input)).toThrow(
+        new TypeError("The payload changed while the custom seal was running."),
+      );
+    });
+
+    test("detects a non-idempotent get trap", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      let n = 0;
+      const candidate = new Proxy(
+        { n: 0 },
+        {
+          get(target, key, receiver) {
+            return key === "n" ? ++n : Reflect.get(target, key, receiver);
+          },
+        },
+      );
+      const Reading = Val.companion<Reading>().implSeal((_r, seal) => seal(candidate));
+
+      expect(() => Reading.seal({ n: 0 })).toThrow(TypeError);
+    });
+
+    test("detects mutation of the original input inside the custom seal", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((r: { n: number }, seal) => {
+        r.n += 1;
+        return seal(r);
+      });
+
+      expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
+    });
+
+    test("allows a stable reactive Proxy and detaches the result", () => {
+      type Box = Val<"Box", { nested: { n: number } }>;
+      const Box = Val.companion<Box>().implSeal((b, seal) => seal(b));
+      const target = { nested: { n: 1 } };
+      const input = new Proxy<typeof target>(target, {
+        ownKeys: Reflect.ownKeys,
+        getOwnPropertyDescriptor: Reflect.getOwnPropertyDescriptor,
+        get: Reflect.get,
+      });
+
+      const box = Box.seal(input);
+      expect(box).toEqual({ nested: { n: 1 } });
+      expect(box).not.toBe(input);
+      expect(box.nested).not.toBe(target.nested);
+      target.nested.n = 2;
+      expect(box.nested.n).toBe(1);
+    });
+
+    test("allows normalization into a new plain candidate", () => {
+      type Name = Val<"Name", { value: string }>;
+      const Name = Val.companion<Name>().implSeal((n, seal) =>
+        seal({ value: n.value.trim().toLowerCase() }),
+      );
+
+      expect(Name.seal({ value: " Alice " })).toEqual({ value: "alice" });
+    });
+
+    test("detects input mutation before an awaited default seal", async () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal(async (r, seal) => {
+        await Promise.resolve();
+        return seal(r);
+      });
+      const input = { n: 1 };
+
+      const sealed = Reading.seal(input);
+      input.n = 2;
+      await expect(sealed).rejects.toThrow(TypeError);
+    });
+
+    test("reuses the starting snapshot for every default seal call", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((r: { n: number }, seal) => {
+        const first = seal(r);
+        r.n += 1;
+        return [first, seal(r)] as const;
+      });
+
+      expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
+    });
+
+    test("does no comparison when a rejected result never calls the default seal", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((_r): Result<Reading> => ({
+        ok: false,
+        error: "rejected",
+      }));
+      let n = 0;
+      const input = {
+        get n() {
+          return ++n;
+        },
+      };
+
+      expect(Reading.seal(input)).toEqual({ ok: false, error: "rejected" });
+    });
+
+    test("does not newly reject wider class or cyclic inputs before the custom seal", () => {
+      type Reading = Val<"Reading", { n: number }>;
+      const Reading = Val.companion<Reading>().implSeal((r: object, seal) =>
+        seal({ n: (r as { n: number }).n }),
+      );
+      class Source {
+        n = 1;
+      }
+      const cyclic: { n: number; self?: unknown } = { n: 2 };
+      cyclic.self = cyclic;
+
+      expect(Reading.seal(new Source())).toEqual({ n: 1 });
+      expect(Reading.seal(cyclic)).toEqual({ n: 2 });
     });
 
     test("the seal accepts an existing value as readily as a raw payload", () => {
