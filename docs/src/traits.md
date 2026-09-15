@@ -2,11 +2,59 @@
 
 <!-- prettier-ignore -->
 > [!WARNING]
-> Traits are provisional. They ship from `valof/experimental` so that an import says so, and the
-> design is still changing.
+> Traits are experimental. They ship from `valof/experimental` so that an import says so, and
+> the design is still changing.
 
-A companion's functions belong to one Val. `User.greet` takes a `User`, and a value of another type
-is rejected even when it holds the same fields:
+## Why Traits?
+
+### Share behaviour with a function
+
+No class is needed. Write the function to take the fields it reads, and every type holding them
+fits:
+
+```ts
+type User = { id: string; name: string };
+type Admin = { name: string; level: number };
+
+function greet(greetable: { name: string }): string {
+  return `Hi, ${greetable.name}`;
+}
+
+declare const user: User;
+declare const admin: Admin;
+
+greet(user);
+greet(admin);
+```
+
+Values stay plain, and the code works. What it never says is that `User` and `Admin` share anything.
+
+### Why that is not a contract
+
+The contract is the parameter, written again in every function that wants it, and two things follow
+from that.
+
+**The error lands away from the type that broke it.** Rename a field and `User` is still a valid
+type and `greet` is still a valid function. Only a call fails:
+
+```ts
+// @errors: 2345
+function greet(greetable: { name: string }): string {
+  return `Hi, ${greetable.name}`;
+}
+
+type User = { id: string; nickname: string };
+
+declare const user: User;
+// ---cut---
+greet(user); // type error: User has no `name` any more
+```
+
+**The behaviour collects nowhere.** `greet`, `toWire` and the rest each declare their own shape.
+Nothing names the set, so the domain model has no place saying what this kind of value does.
+
+A companion answers the second one. It collects a type's functions under the type's name, and it
+belongs to that one Val:
 
 ```ts
 // @errors: 2345
@@ -22,14 +70,18 @@ const Admin = Val.sealer<Admin>();
 // ---cut---
 const admin = Admin({ name: "root", level: 9 });
 
-User.greet(admin);
+User.greet(admin); // type error: greet belongs to User
 ```
 
-Writing `greet` a second time on `Admin` duplicates it. Writing a standalone
-`greet(value: { name: string })` shares it, but nothing records that the two types share anything:
-the agreement lives in TypeScript's structural typing, where no declaration names it.
+`Admin` holds the `name` that `greet` reads, and `User.greet` rejects it all the same. Collecting
+the behaviour and sharing it are still two different things.
 
-## Declare what several Vals share
+A trait is an abstraction you write down. It names what Vals have in common, the fields and the
+functions alike, and it names the Vals that implement it. That is an interface in the general sense,
+written once, with the implementing types pointing at it. Rename a field and the Val that declared
+the trait is what errors.
+
+## Declare what Vals share
 
 A trait names the fields and the functions:
 
@@ -49,9 +101,11 @@ type Greetable = Trait<
 The second argument is the shape: the fields every implementing Val holds. It answers to the same
 rules as a payload, so a shape no Val could ever hold is an error where it is written.
 
-The third declares the functions. `Self` stands for the implementing Val. A member may take it, and
-may not return it: what wants to return a `Self` is a constructor, and a trait has no brand to seal
-with.
+The third declares the functions. They become members of every companion that implements the trait,
+and they take the value first like any other member.
+
+`Self` stands for the implementing Val. A member may take it, and may not return it: what wants to
+return a `Self` is a constructor, and a trait has no brand to seal with.
 
 ## Implement it on a Val
 
@@ -66,8 +120,42 @@ type Greetable = Trait<
   { name: string },
   { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
 >;
-const Greetable = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
 // ---cut---
+type User = Val<"User", { id: string; name: string }, Greetable>;
+const User = Val.sealer<User>().implTrait<Greetable>({
+  greet: (u) => `Hi, ${u.name}`,
+  toWire: (u, sep) => `${u.id}${sep}${u.name}`,
+});
+
+User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
+```
+
+Naming the trait as the type argument asks `implTrait` for every member it declares.
+
+Declaring the trait is what makes the payload answer for its fields: a `User` without `name` is a
+type error at the declaration, not at `implTrait`.
+
+The checker stops at the declaration. `Val<"User", …, Greetable>` typechecks with no `implTrait`
+anywhere, so the `unimplemented-trait` rule in [valof-lint](linting.md) is what reports the Val that
+declared a trait and never implemented it.
+
+## Give a default implementation
+
+Every Val writing its own `greet` repeats the same line. A trait can implement a member itself, over
+the shape alone, and that becomes the default for every Val that does not replace it:
+
+```ts
+import { Val } from "valof";
+import { Trait, type Self } from "valof/experimental";
+
+type Greetable = Trait<
+  "Greetable",
+  { name: string },
+  { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
+>;
+// ---cut---
+const Greetable = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
+
 type User = Val<"User", { id: string; name: string }, Greetable>;
 const User = Val.sealer<User>().implTrait(Greetable, {
   toWire: (u, sep) => `${u.id}${sep}${u.name}`,
@@ -83,17 +171,12 @@ User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
 Admin.greet(Admin({ name: "root", level: 9 })); // "Sir root"
 ```
 
-Declaring the trait is what makes the payload answer for its fields: a `User` without `name` is a
-type error at the declaration, not at `implTrait`.
+A trait that implements something takes its companion as the first argument. The second is what the
+trait left open, plus any default the Val replaces, as `Admin` replaced `greet`.
 
-`Self` resolves to the Val, so the members need no annotation. `User.toWire` is
-`(self: User, sep: string) => string`, and the trait's members sit on the companion beside its own
-functions.
+## Defaults no Val may replace
 
-## Defaults, and the ones a Val may not replace
-
-`Trait.companion<Greetable>().impl({ ... })` implements a member over the shape. A Val may replace
-one, as `Admin` replaced `greet` above. Mark a member `Final` to keep it the trait's:
+Mark one `Final`:
 
 ```ts
 import { Val } from "valof";
@@ -118,32 +201,16 @@ type User = Val<"User", { id: string; name: string }, Greetable>;
 const User = Val.sealer<User>().implTrait(Greetable);
 ```
 
-`implTrait` takes the members the trait left open. Passing one it already implements replaces it,
-and passing a `Final` one is an error.
+The trait implements both, so `implTrait` needs no second argument. A Val may still pass `greet` to
+replace it. Passing `shout` is an error.
 
-Only `Final` members are named on the trait itself: `Greetable.shout(user)` works, `Greetable.greet`
-does not exist. A namespace that could call a default would look like it dispatched, and it cannot.
-Every other call goes through the Val's companion, which is where the Val's own version lives.
-
-A trait that implements nothing of its own has no companion to pass. Name it as the type argument
-instead:
-
-```ts
-import { Val } from "valof";
-import { type Self, type Trait } from "valof/experimental";
-
-type Wire = Trait<"Wire", { id: string }, { toWire: (self: Self, sep: string) => string }>;
-// ---cut---
-type Row = Val<"Row", { id: string; n: number }, Wire>;
-const Row = Val.sealer<Row>().implTrait<Wire>({
-  toWire: (r, sep) => `${r.id}${sep}${r.n}`,
-});
-```
+Only `Final` members are named on the trait's own type: `Greetable.shout(user)` typechecks and
+`Greetable.greet` does not.
 
 ## Hold values of different types together
 
 `dyn` pairs a value with one Val's implementation, so values of different types share an array. The
-concrete type is gone; the trait is what is left:
+concrete type is gone; the trait is what is left. This is inspired by Rust's `Box<dyn Trait>`:
 
 ```ts
 import { Val } from "valof";
@@ -190,22 +257,16 @@ Val's companion is rejected.
 A plain object that happens to hold the fields is not one of them:
 
 ```ts
-// @errors: 2345
-import { Val } from "valof";
-import { Trait, type Final, type Self } from "valof/experimental";
-
-type Greetable = Trait<
-  "Greetable",
-  { name: string },
-  { greet: (self: Self) => string; shout: Final<(self: Self) => string> }
->;
-const Greetable = Trait.companion<Greetable>().impl({
-  greet: (g) => `Hi, ${g.name}`,
-  shout: (g) => g.name.toUpperCase(),
-});
+// @errors: 2322
+import { Trait, type Self } from "valof/experimental";
 // ---cut---
-Greetable.shout({ name: "duck" });
+type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
+
+const duck: Greetable = { name: "duck" }; // type error: the brand is missing
 ```
+
+A Val declaring the trait carries its brand, and that brand is what the trait type asks for. The
+fields alone do not put it there, so only a Val that declared `Greetable` is assignable to it.
 
 ## Several traits on one Val
 
@@ -229,8 +290,7 @@ Greetable.dyn(Crate, crate).greet(); // "Hi, box"
 Weighed.dyn(Crate, crate).heavy(); // true
 ```
 
-Write `&`, not `|`. A union asks the payload for only the fields its members share, which is not a
-contract, so the declaration rejects it.
+Write `&`, not `|`.
 
 Each trait boxes on its own. No two traits on one Val may register the same member name.
 

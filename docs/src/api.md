@@ -19,13 +19,13 @@
 
 `User` stands for the companion that belongs to the `User` type.
 
-|                                |                                  |                                           |
-| ------------------------------ | -------------------------------- | ----------------------------------------- |
-| `User(value)`                  | built with `Val.sealer<User>()`  | applies the default seal                  |
-| `User.seal(value)`             | registered with `.implSeal(f)`   | applies the custom seal                   |
-| `User.create(...args)`         | registered with `.implCreate(f)` | creates a payload, then passes it to seal |
-| `User.patch(user, patch)`      | `User` has an object payload     | deeply merges the patch, then seals it    |
-| `User.[member](user, ...args)` | registered with `.impl({ ... })` | runs a member defined for the companion   |
+|                               |                                  |                                           |
+| ----------------------------- | -------------------------------- | ----------------------------------------- |
+| `User(value)`                 | built with `Val.sealer<User>()`  | applies the default seal                  |
+| `User.seal(value)`            | registered with `.implSeal(f)`   | applies the custom seal                   |
+| `User.create(...args)`        | registered with `.implCreate(f)` | creates a payload, then passes it to seal |
+| `User.patch(user, patch)`     | `User` has an object payload     | deeply merges the patch, then seals it    |
+| `User[member](user, ...args)` | registered with `.impl({ ... })` | runs a member defined for the companion   |
 
 ## Types
 
