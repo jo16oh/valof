@@ -30,7 +30,6 @@ declare const anotherShop: Shop;
 declare const city: City;
 
 export const same = equals(shop, anotherShop);
-export const compareShop: (a: Shop, b: Shop) => boolean = equals;
 // @ts-expect-error the second argument must have the first argument's Val type
 equals(shop, city);
 

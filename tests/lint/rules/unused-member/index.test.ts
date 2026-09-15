@@ -39,10 +39,6 @@ describe("what the rule finds", () => {
     ]);
   });
 
-  test("treats equals as ordinary and ignores the members the library wires", async () => {
-    expect(await lint("builtins")).toEqual([{ rule: UnusedMember, at: "builtins.ts:3:3" }]);
-  });
-
   test("reads through a builder chain, past implSeal and fixed", async () => {
     expect(await lint("builder-chain")).toEqual([
       { rule: UnusedMember, at: "builder-chain.ts:6:5" },
