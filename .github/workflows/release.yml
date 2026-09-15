@@ -98,7 +98,7 @@ jobs:
             *-*) ;;
             *) rm -rf site/latest && cp -r docs/book/html site/latest ;;
           esac
-          node scripts/docs-index.ts site
+          node docs/tools/version-index/index.ts site
           touch site/.nojekyll
 
       - name: Push the site
