@@ -1,47 +1,84 @@
 # Equality
 
-The default `equals`:
-
-- compares structurally and deeply
-- is **independent of key order**
-- **ignores keys whose value is `undefined`** (`{ a: undefined }` equals `{}`)
-- treats `NaN` as equal to `NaN`, and `-0` as equal to `0`
-
-It can be overridden, but the override **only applies to top-level comparisons, never when a parent
-compares its children.** The brand is phantom, so a parent's deep equals sees the child value and
-cannot tell that it is an `Email`.
+Every sealer and companion has an `equals(a, b)` method. You do not need to implement one before
+comparing values:
 
 ```ts
-Order.equals(o1, o2); // the Money inside is compared generically, not via Money.equals
+type User = Val<"User", { id: string; profile: { name: string } }>;
+const User = Val.sealer<User>();
+
+const a = User({ id: "a", profile: { name: "alice" } });
+const b = User({ id: "a", profile: { name: "alice" } });
+
+a === b; // false
+User.equals(a, b); // true
+User.equals(a, User({ id: "a", profile: { name: "bob" } })); // false
 ```
 
-An override receives the structural comparison as a third argument and can fall back to it:
+`Val.companion<V>()` provides the same method. Adding a custom seal, a creator or companion
+functions does not remove it.
+
+## Default equality
+
+The default comparison:
+
+- compares objects and arrays structurally and deeply
+- compares array elements in order
+- is independent of object key order
+- ignores keys whose value is `undefined` (`{ a: undefined }` equals `{}`)
+- treats `NaN` as equal to `NaN`, and `-0` as equal to `0`
+
+## Custom equality
+
+When different inputs mean the same value, prefer normalizing them in the seal. The stored values
+then have one representation, and the default equality gives the right answer everywhere.
+
+Use `.implEquals` when equality intentionally differs from the stored structure. It works on both
+`Val.sealer` and `Val.companion`. The function receives the default structural comparison as a third
+argument, so it can use the default for some values:
 
 ```ts
+type Doc = Val<"Doc", { id: string; body: string }>;
+
 // Published docs are identified by id; drafts have no stable one.
 const Doc = Val.sealer<Doc>().implEquals((a, b, deepEquals) =>
   a.id.startsWith("draft:") ? deepEquals(a, b) : a.id === b.id,
 );
+
+Doc.equals(Doc({ id: "1", body: "before" }), Doc({ id: "1", body: "after" })); // true
+Doc.equals(Doc({ id: "draft:1", body: "before" }), Doc({ id: "draft:1", body: "after" })); // false
 ```
 
-That argument is the structural comparison, not "the `equals` you are overriding", so it does not
-reach a nested Val's own `equals` either.
+### Nested Vals
 
-Where the parent only needs a few children compared differently, `.implEquals` takes a spec instead
-of a function. Keys it does not name keep the structural default, so unrelated ones stay out of it.
+A custom equality belongs to its companion. A parent's default equality does not discover it when
+comparing a nested Val: the brand is phantom, so the parent sees only the child's data.
 
 ```ts
-const Order = Val.sealer<Order>().implEquals({
-  total: Money, // hand over the companion: `Money.equals` is used
-  email: Email, // works for a child with a primitive payload too
-  lines: [OrderLine], // brackets compare element by element
-  shipping: { zip: Zip }, // a plain nested object: name only what is inside
-  span: [undefined, Money], // a tuple compares by position, all of them
-  updatedAt: () => true, // out of the comparison
+type Folder = Val<"Folder", { name: string; featured: Doc }>;
+const Folder = Val.sealer<Folder>();
+
+// `featured` is compared structurally here; `Doc.equals` is not called.
+Folder.equals(
+  Folder({ name: "work", featured: Doc({ id: "1", body: "before" }) }),
+  Folder({ name: "work", featured: Doc({ id: "1", body: "after" }) }),
+); // false
+```
+
+Pass a spec to the parent's `.implEquals` to opt into the child's equality:
+
+```ts
+const Folder = Val.sealer<Folder>().implEquals({
+  featured: Doc,
 });
 ```
 
-The spec stops at a nested Val: hand over its companion rather than walking its payload, which would
-bypass the equality that type declared for itself.
+The keys left out of the spec keep the structural default. A spec can also descend through plain
+objects, use `[Doc]` for an array, or provide one entry per position in a tuple. At a nested Val,
+pass its companion rather than descending into its payload.
 
-[Linting](linting.md) reports a parent holding a Val whose own `equals` its spec says nothing about.
+The third `deepEquals` argument given to a custom function is also only the structural comparison;
+it does not dispatch to a nested Val's custom equality.
+
+[Linting](linting.md) reports a parent holding a Val with custom equality when the parent's spec
+does not name it.

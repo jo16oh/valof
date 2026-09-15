@@ -20,7 +20,7 @@ raw.name = "mallory"; // allowed: raw is still writable
 A recursive readonly type prevents the nested write, but the original reference remains writable.
 Keeping a value unchanged requires both deep readonly types and a copy at construction.
 
-## With Valof
+## Vals are immutable
 
 Vals are immutable. Their types are deeply readonly, and their constructors deep-copy their inputs:
 

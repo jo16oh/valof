@@ -13,7 +13,7 @@
 npm install valof
 ```
 
-## What you get
+## Why Valof?
 
 Valof is an opinionated value-object helper for TypeScript that enforces the conventions through
 types and linting.
@@ -88,7 +88,7 @@ p1 === p2; // false
 Post.equals(p1, p2); // true
 ```
 
-### Smart constructors and companion objects
+### Custom constructors and companion objects
 
 ```ts
 import { Val } from "valof";

@@ -14,7 +14,7 @@ orderId = userId; // allowed: both types are string
 
 A brand lets TypeScript distinguish them without changing their runtime representation.
 
-## Define the types
+## Define branded types
 
 `Val` takes the brand and the payload type:
 
@@ -50,6 +50,14 @@ let orderId: OrderId;
 
 orderId = userId; // type error: UserId is not an OrderId
 orderId = "o_1"; // type error: a plain string is not an OrderId
+
+type User = Val<"User", { name: string }>;
+const User = Val.sealer<User>();
+const user = User({ name: "alice" });
+
+// @ts-expect-error spread drops the brand
+const changed: User = { ...user, name: "bob" };
+const resealed = User({ ...user, name: "bob" });
 ```
 
 Name the constructor after its type: `const UserId = Val.sealer<UserId>()`. TypeScript lets the type
