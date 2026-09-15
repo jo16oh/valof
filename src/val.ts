@@ -243,8 +243,12 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
  */
 export type Wired = "patch" | "seal" | "create";
 
-/** The members a companion accepts, each taking its Val first. */
-export type CompanionMembers<V extends AnyVal> = Partial<Record<Wired, never>> & {
+/**
+ * The members a companion accepts, each taking its Val first.
+ *
+ * `V` is unconstrained so an enum's variant, which is a Val behind a second phantom, can name it.
+ */
+export type CompanionMembers<V> = Partial<Record<Wired, never>> & {
   /**
    * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
    * before the registrations, so a function taking the name would stomp it and leave every boxed
@@ -814,7 +818,7 @@ const detach = deepCopy(false);
  * `length` are read-only, so `impl({ name })` would throw. Both are configurable, so defining
  * works. The library's own keys never collide and are assigned.
  */
-const define = <T extends object>(target: T, key: string, value: unknown): T => {
+export const define = <T extends object>(target: T, key: string, value: unknown): T => {
   Object.defineProperty(target, key, {
     value,
     writable: true,
