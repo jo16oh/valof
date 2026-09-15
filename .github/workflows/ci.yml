@@ -28,6 +28,8 @@ jobs:
 
       - run: vp run bundle-size
 
+      - run: vp run replace-bundle-size-claims docs/src/introduction.md
+
       - run: vp run type-perf
 
       - run: vp run ts-compatibility
