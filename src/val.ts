@@ -155,8 +155,8 @@ type Equal<X, Y> =
 type ReadonlyKey<T, K extends keyof T> = Equal<Pick<T, K>, Readonly<Pick<T, K>>>;
 
 /**
- * `nocopy` accepts only evidence that is immutable all the way down. This is deliberately not
- * an ownership proof: a readonly view can still have a mutable alias.
+ * `nocopy` accepts only evidence that is immutable all the way down. This cannot prove there is
+ * no mutable alias: a readonly view can still have one.
  *
  * Tuples are excluded. Their optional positions are not stable payload shapes, and treating a
  * tuple as an array here would make a readonly tuple accidentally pass the array rule.
@@ -303,7 +303,7 @@ type CreateMethod<V extends AnyVal, N, F> = [Minting<V, N, F>] extends [undefine
   : {
       /** Mints a payload and seals it, so it returns whatever the seal returns. */
       create: Minting<V, N, F> & {
-        /** Reuses the minter and seal, adopting their terminal payload without copying it. */
+        /** Reuses the minter and seal without copying their terminal payload. */
         nocopy: Minting<V, N, F>;
       };
     };
@@ -316,7 +316,7 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
        * through it.
        */
       seal: WithoutDefaultSeal<F> & {
-        /** Runs the same custom seal but adopts its terminal payload without copying it. */
+        /** Runs the same custom seal without copying its terminal payload. */
         nocopy: WithoutDefaultSeal<F>;
       };
     };
@@ -990,8 +990,8 @@ export const Val = {
    */
   of: Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
     /**
-     * Adopts a payload without copying it. With an explicit `V`, TypeScript cannot also infer
-     * the argument's precise readonlyness; the caller must uphold the ownership contract.
+     * Uses a payload without copying it. With an explicit `V`, TypeScript cannot also infer
+     * the argument's precise readonlyness; the caller must ensure it will not change.
      */
     nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
   }),

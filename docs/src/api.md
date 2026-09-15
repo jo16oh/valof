@@ -6,7 +6,7 @@
 | ---------------------------------- | -------------------------------------------------- |
 | `equals(a, b)`                     | deeply compares two Vals of the same type          |
 | `Val.of<V>(value)`                 | applies the default seal with the type named       |
-| `Val.of.nocopy<V>(value)`          | adopts an explicitly-owned payload without copying |
+| `Val.of.nocopy<V>(value)`          | makes a payload the value without copying          |
 | `Val.unwrap(value)`                | returns a mutable copy of the payload              |
 | `Val.sealer<V>()`                  | creates a callable default sealer                  |
 | `Val.sealer<V>().impl(fns)`        | adds the type's members to the callable sealer     |
@@ -20,16 +20,16 @@
 
 `User` stands for the companion that belongs to the `User` type.
 
-|                               |                                  |                                            |
-| ----------------------------- | -------------------------------- | ------------------------------------------ |
-| `User(value)`                 | built with `Val.sealer<User>()`  | applies the default seal                   |
-| `User.nocopy(value)`          | built with `Val.sealer<User>()`  | adopts a deeply readonly payload           |
-| `User.seal(value)`            | registered with `.implSeal(f)`   | applies the custom seal                    |
-| `User.seal.nocopy(value)`     | registered with `.implSeal(f)`   | uses its non-copying terminal seal         |
-| `User.create(...args)`        | registered with `.implCreate(f)` | creates a payload, then passes it to seal  |
-| `User.create.nocopy(...args)` | registered with `.implCreate(f)` | creates and seals without terminal copying |
-| `User.patch(user, patch)`     | `User` has an object payload     | deeply merges the patch, then seals it     |
-| `User[member](user, ...args)` | registered with `.impl({ ... })` | runs a member defined for the companion    |
+|                               |                                  |                                             |
+| ----------------------------- | -------------------------------- | ------------------------------------------- |
+| `User(value)`                 | built with `Val.sealer<User>()`  | applies the default seal                    |
+| `User.nocopy(value)`          | built with `Val.sealer<User>()`  | uses a deeply readonly payload without copy |
+| `User.seal(value)`            | registered with `.implSeal(f)`   | applies the custom seal                     |
+| `User.seal.nocopy(value)`     | registered with `.implSeal(f)`   | uses its non-copying terminal seal          |
+| `User.create(...args)`        | registered with `.implCreate(f)` | creates a payload, then passes it to seal   |
+| `User.create.nocopy(...args)` | registered with `.implCreate(f)` | creates and seals without terminal copying  |
+| `User.patch(user, patch)`     | `User` has an object payload     | deeply merges the patch, then seals it      |
+| `User[member](user, ...args)` | registered with `.impl({ ... })` | runs a member defined for the companion     |
 
 ## Types
 

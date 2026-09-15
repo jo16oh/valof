@@ -27,9 +27,9 @@ const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
 then adds your constructor to the companion as `seal`. Return through the default seal to brand and
 copy the payload. The companion does not become callable:
 
-`Age.seal.nocopy(value)` runs exactly the same validation and normalization, but adopts the payload
-passed to its terminal `seal` call. Likewise, `create.nocopy(...args)` reuses the registered minter
-and seal. Both carry the ownership contract described in
+`Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
+payload passed to its terminal `seal` call. Likewise, `create.nocopy(...args)` reuses the registered
+minter and seal. Both carry the caller contract described in
 [Immutability](immutability.md#avoiding-a-copy).
 
 ```ts
