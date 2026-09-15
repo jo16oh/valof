@@ -41,10 +41,10 @@ const User = Val.sealer<User>().impl({
 ```
 
 `Val.sealer<User>()` creates the constructor. `.impl({ ... })` adds functions under the `User`
-namespace. Every function takes its Val first, so Valof infers that parameter as `User`. You only
-annotate the parameters that follow it.
+namespace, where they are the companion's members. Every member takes its Val first, so Valof infers
+that parameter as `User`. You only annotate the parameters that follow it.
 
-The result remains callable and exposes the functions:
+The result remains callable and exposes the members:
 
 ```ts
 import { Val } from "valof";

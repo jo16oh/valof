@@ -49,6 +49,7 @@ const twoslasher = createTwoslasher({
     // which resolves through `dist`, and that is built here but not in a fresh clone.
     paths: {
       valof: [join(root, "src/index.ts")],
+      "valof/experimental": [join(root, "src/experimental.ts")],
       "valof/lint": [join(root, "src/lint/index.ts")],
       "valof/eslint-plugin": [join(root, "src/lint/eslint-plugin.ts")],
     },

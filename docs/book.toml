@@ -4,6 +4,10 @@ language = "en"
 src = "src"
 title = "The Valof Book"
 
+[preprocessor.version]
+command = "node tools/mdbook-version/index.ts"
+renderers = ["html"]
+
 [preprocessor.sidebar]
 command = "node tools/mdbook-sidebar/index.ts"
 renderers = ["html"]

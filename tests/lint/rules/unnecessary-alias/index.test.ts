@@ -1,13 +1,13 @@
 import { expect, test } from "vite-plus/test";
 
-import { AliasedVal, fixtures } from "../../support.ts";
+import { UnnecessaryAlias, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
 test("names the Val a second name stands for", async () => {
   expect(await lint("imported")).toEqual([
     {
-      rule: AliasedVal,
+      rule: UnnecessaryAlias,
       at: "imported/local.ts:3:13",
     },
   ]);
@@ -17,11 +17,11 @@ test("names the Val a second name stands for", async () => {
 test("follows a chain of them, so fixing one does not uncover the next", async () => {
   expect(await lint("chain")).toEqual([
     {
-      rule: AliasedVal,
+      rule: UnnecessaryAlias,
       at: "chain/names.ts:3:13",
     },
     {
-      rule: AliasedVal,
+      rule: UnnecessaryAlias,
       at: "chain/names.ts:4:13",
     },
   ]);
@@ -36,7 +36,7 @@ test("follows a chain of them, so fixing one does not uncover the next", async (
 test("reports the local alias a companion was built on", async () => {
   expect(await lint("companion")).toEqual([
     {
-      rule: AliasedVal,
+      rule: UnnecessaryAlias,
       at: "companion/local.ts:5:6",
     },
   ]);
@@ -45,4 +45,22 @@ test("reports the local alias a companion was built on", async () => {
 
 test("leaves a union, a wrapped type and a generic alias alone", async () => {
   expect(await lint("not-a-second-name")).toEqual([]);
+});
+
+test("reports a second name for a Trait", async () => {
+  expect(await lint("trait")).toEqual([{ rule: UnnecessaryAlias, at: "trait.ts:3:13" }]);
+  expect(await messages("trait")).toEqual([
+    "Friendly is a second name for Greetable; use Greetable",
+  ]);
+});
+
+test("looks through parentheses around a second name", async () => {
+  expect(await lint("parenthesized")).toEqual([
+    { rule: UnnecessaryAlias, at: "parenthesized.ts:4:13" },
+    { rule: UnnecessaryAlias, at: "parenthesized.ts:5:13" },
+  ]);
+});
+
+test("does not end at a same-named declaration from another module", async () => {
+  expect(await lint("identity")).toEqual([]);
 });

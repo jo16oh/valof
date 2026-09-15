@@ -38,7 +38,7 @@ function findings(scans: readonly Scan[]): BrandMismatch[] {
   const found: BrandMismatch[] = [];
   for (const { file, brands, bound } of scans) {
     for (const { typeName, brand, alias, line, column } of brands) {
-      if (original(bound, typeName) !== "Val") continue;
+      if (original(bound, typeName) !== "Val" && original(bound, typeName) !== "Trait") continue;
       const namespace = brand.slice(0, brand.lastIndexOf("/") + 1);
       if (brand === `${namespace}${alias}`) continue;
       found.push({

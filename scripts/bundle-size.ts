@@ -8,25 +8,46 @@ import { fileURLToPath } from "node:url";
 import { minifySync, build, type Rolldown } from "vite";
 
 const root = new URL("../", import.meta.url);
-const entry = "./dist/index.mjs";
-const types = "./dist/index.d.mts";
 
-const apis = ["Val", "equals"] as const;
+// `core` is the budget everyone pays. The other two measure what a `Trait` or an `equals` user
+// adds on top. `Trait` ships from its own subpath, so the entry names the module per import.
+const entries = {
+  core: { "./dist/index.mjs": ["Val"] },
+  trait: { "./dist/index.mjs": ["Val"], "./dist/experimental.mjs": ["Trait"] },
+  equals: { "./dist/index.mjs": ["equals"] },
+} as const satisfies Record<string, Readonly<Record<string, readonly string[]>>>;
+type Entry = keyof typeof entries;
+type Imports = Readonly<Record<string, readonly string[]>>;
+
+/** What the entry imports, as the printed heading spells it. */
+const imported = (imports: Imports): string[] => Object.values(imports).flat();
 
 const modes = ["production", "development"] as const;
 
-const budget = { gzip: 1280, types: 24 * 1024 };
+/**
+ * What a user ships. A ratchet, unlike the budgets in `type-perf`: runtime code is written
+ * deliberately, so a byte more is a decision, not drift.
+ *
+ * The declarations are not measured here. They cost a download and a parse, never a byte in the
+ * user's bundle, and `type-perf` already measures what reads them.
+ *
+ * `traitGzip` is the first budget plus what `Trait` may add, so the pair says the line rather
+ * than a second round number: a user who imports `Trait` pays at most a quarter of a kB more.
+ */
+const BUDGET_VAL_GZIP = 1280;
+const BUDGET_VAL_PLUS_TRAIT_GZIP = BUDGET_VAL_GZIP + 128;
+const budget = { gzip: BUDGET_VAL_GZIP, traitGzip: BUDGET_VAL_PLUS_TRAIT_GZIP };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
 
-async function bundle(api: (typeof apis)[number], mode: string): Promise<string> {
+async function bundle(mode: string, imports: Imports): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "valof-size-"));
   const file = join(dir, "entry.mjs");
-  const target = fileURLToPath(new URL(entry, root));
-  await writeFile(
-    file,
-    `import { ${api} } from ${JSON.stringify(target)};\nconsole.log(${api});\n`,
+  const lines = Object.entries(imports).map(
+    ([module, names]) =>
+      `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
   );
+  await writeFile(file, `${lines.join("\n")}\nconsole.log(${imported(imports).join(", ")});\n`);
   try {
     const result = (await build({
       root: fileURLToPath(root),
@@ -88,18 +109,26 @@ await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), 
   process.exit(1);
 });
 
-const declarations = await readFile(new URL(types, root), "utf8");
-const bundled = Object.fromEntries(
+const names = Object.keys(entries) as Entry[];
+const code = Object.fromEntries(
   await Promise.all(
-    apis.map(async (api) => [api, await Promise.all(modes.map((mode) => bundle(api, mode)))]),
+    names.map(async (name) => [
+      name,
+      Object.fromEntries(
+        await Promise.all(modes.map(async (mode) => [mode, await bundle(mode, entries[name])])),
+      ) as Record<(typeof modes)[number], string>,
+    ]),
   ),
-) as Record<(typeof apis)[number], string[]>;
-const bundles = Object.fromEntries(apis.map((api) => [api, bundled[api].map(measure)])) as Record<
-  (typeof apis)[number],
-  Sizes[]
->;
+) as Record<Entry, Record<(typeof modes)[number], string>>;
 
-const production = minifySync("production.mjs", bundled.Val[modes.indexOf("production")]!).code;
+const bundles = Object.fromEntries(
+  names.map((name) => [
+    name,
+    Object.fromEntries(modes.map((mode) => [mode, measure(code[name][mode])])),
+  ]),
+) as Record<Entry, Record<(typeof modes)[number], Sizes>>;
+
+const production = minifySync("production.mjs", code.core.production).code;
 if (
   production.includes("snapshotSealInput") ||
   production.includes("unsnapshotable seal input") ||
@@ -111,19 +140,11 @@ if (production.includes("Number.isNaN")) {
   throw new Error("equals remains in the production bundle that imports only Val");
 }
 
-const measured = {
-  bundle: Object.fromEntries(
-    apis.map((api) => [
-      api,
-      Object.fromEntries(modes.map((mode, index) => [mode, bundles[api][index]!])),
-    ]),
-  ) as Record<(typeof apis)[number], Record<(typeof modes)[number], Sizes>>,
-  types: { raw: Buffer.byteLength(declarations, "utf8") },
-};
+const measured = { bundle: bundles.core, trait: bundles.trait, equals: bundles.equals };
 
 const checks = [
-  ["Val production gzip", measured.bundle.Val.production.gzip, budget.gzip],
-  ["types raw", measured.types.raw, budget.types],
+  ["production gzip", measured.bundle.production.gzip, budget.gzip],
+  ["production gzip, with Trait", measured.trait.production.gzip, budget.traitGzip],
 ] as const;
 
 // The prose states this figure, so the prose has to follow the measurement. Markdown marks the
@@ -136,7 +157,7 @@ const claimed: [file: string, claim: RegExp][] = [
   ["package.json", /(?<="description": "[^"]*)\d+(?:\.\d+)? [kM]?B gzipped(?=[^"]*")/g],
 ];
 const write = process.argv.includes("--write");
-const size = `${format(measured.bundle.Val.production.gzip)} gzipped`;
+const size = `${format(measured.bundle.production.gzip)} gzipped`;
 
 const claims = await Promise.all(
   claimed.map(async ([file, claim]) => {
@@ -181,14 +202,11 @@ function budgets(): string {
 if (process.argv.includes("--json")) {
   console.log(JSON.stringify(measured, null, 2));
 } else {
-  for (const api of apis) {
-    console.log(`bundle  import { ${api} }`);
-    console.log(table(modes.map((mode) => [mode, measured.bundle[api][mode]])));
+  for (const name of names) {
+    console.log(`bundle  import { ${imported(entries[name]).join(", ")} }`);
+    console.log(table(modes.map((mode) => [mode, bundles[name][mode]])));
     console.log();
   }
-  console.log(`types   ${types.replace("./dist/", "")}`);
-  console.log(`  raw           ${format(measured.types.raw)}`);
-  console.log();
   console.log(`claims  ${size}`);
   console.log(states());
   console.log();

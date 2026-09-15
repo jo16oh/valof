@@ -6,13 +6,18 @@
 is at the top. Read the sections it points you to before proposing anything about equality, copying,
 wrapper types, the linter, or new API. §9 lists the open questions. New deliberation goes there.
 
-## Bundle Size
+## Bundle Size and Type Cost
 
-Run `vp run size` after changing `src/`. It measures the bundle and the declarations against their
-budgets and exits non-zero over either. It also checks the figure marked `valof-minimal-bundle-size`
-in `README.md` and `docs/src/introduction.md`, and the same one in the `package.json` description,
-failing when they drift from the measured `Val` production gzip. `vp run size --write` updates the
-three. Neither `vp check` nor `vp test` covers this.
+Run `vp run bundle-size` after changing runtime code. It measures what a user ships. It also checks
+the figure marked `valof-minimal-bundle-size` in `README.md` and `docs/src/introduction.md`, and the
+same one in the `package.json` description, failing when they drift from the measured `Val`
+production gzip. `vp run bundle-size --write` updates the three.
+
+Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
+against the published declarations, and budgets the instantiation count and the size of
+`dist/index.d.mts`. Both are type costs, so both live here.
+
+Neither `vp check` nor `vp test` covers either one.
 
 ## Committing and Pushing
 
@@ -76,6 +81,16 @@ stops the idea coming back.
 The README carries what a reader needs before writing code. What they need only once they get it
 wrong goes in the JSDoc of the thing it describes, where the hover arrives together with the type
 error that raised the question.
+
+A GitHub callout needs `<!-- prettier-ignore -->` above it. `proseWrap: "always"` joins the marker
+into the paragraph, and `> [!NOTE] the text` renders as a plain quote in GitHub and in the book
+alike. The comment exempts that block alone, so the rest of the file still wraps.
+
+```md
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> Valof is pre-1.0. A minor release can change the API.
+```
 
 ### Commit Messages
 

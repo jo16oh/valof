@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 
 import { RULES, type Finding, type Kind } from "./rules/index.ts";
 import { scan, silences, type Parser } from "./scan/index.ts";
+import { moduleResolver } from "./scan/bindings.ts";
 
 export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
 export type Options = {
@@ -49,7 +50,8 @@ export async function lint(
   // caller did not list joins them, as itself.
   const listed = new Set(files.map((file) => resolve(file)));
   const walk = [...files, ...[...sources.keys()].filter((file) => !listed.has(file))];
-  const scans = walk.map((file) => scan(file, parser, sources.get(resolve(file))));
+  const resolveModule = moduleResolver(walk);
+  const scans = walk.map((file) => scan(file, parser, sources.get(resolve(file)), resolveModule));
 
   const findings: Finding[] = [];
   const notRun = new Set(skip ?? []);

@@ -16,6 +16,13 @@ export const children = (node: Node, key: string): Node[] => {
   return Array.isArray(value) ? value.filter(isNode) : [];
 };
 
+/** Removes syntax-only parentheses around a type, however many were written. */
+export function unparenthesized(node: Node | undefined): Node | undefined {
+  let current = node;
+  while (current?.type === "TSParenthesizedType") current = child(current, "typeAnnotation");
+  return current;
+}
+
 /** The name a key node contributes, for `k: v`, `"k": v`, `k(){}` and shorthand alike. */
 export function keyName(node: Node, computed: boolean): string | undefined {
   // `[expr]: v` names nothing statically; `["k"]: v` is a literal and does.
