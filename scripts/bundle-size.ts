@@ -35,7 +35,7 @@ const modes = ["production", "development"] as const;
  * than a second round number: a user who imports `Trait` pays at most a quarter of a kB more.
  */
 const BUDGET_VAL_GZIP = 1280;
-const BUDGET_VAL_PLUS_TRAIT_GZIP = BUDGET_VAL_GZIP + 128;
+const BUDGET_VAL_PLUS_TRAIT_GZIP = BUDGET_VAL_GZIP + 256;
 const budget = { gzip: BUDGET_VAL_GZIP, traitGzip: BUDGET_VAL_PLUS_TRAIT_GZIP };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
