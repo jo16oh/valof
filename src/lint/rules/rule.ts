@@ -1,4 +1,3 @@
-import type { Resolver } from "../typecheck/index.ts";
 import type { Scan } from "../scan/index.ts";
 
 /**
@@ -22,14 +21,6 @@ export type Context = {
    * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
    */
   notRun: ReadonlySet<string>;
-  /**
-   * Resolves a type reference to its declaration. Throws when the project has no TypeScript.
-   *
-   * A function, not a value: the language server is started by the first rule that asks and by
-   * nothing else, so a rule that is skipped, or that decides it has nothing to resolve, costs
-   * nothing. That is most of what the structural-equals rule costs.
-   */
-  types: () => Resolver;
 };
 
 /**

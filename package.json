@@ -62,8 +62,7 @@
     "shiki": "^4.4.3",
     "typescript": "^7.0.2",
     "vite": "catalog:",
-    "vite-plus": "catalog:",
-    "vscode-langservers-extracted": "^4.10.0"
+    "vite-plus": "catalog:"
   },
   "peerDependencies": {
     "oxc-parser": ">=0.148"

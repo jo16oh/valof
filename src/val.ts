@@ -147,11 +147,10 @@ type CompanionFns<V extends AnyVal> = {
    * Rejected so they cannot be mistaken for registrations: everything the library wires has a
    * step of its own. A `seal` whose first parameter accepts the Val, common for primitive
    * payloads, would otherwise satisfy the index signature and attach as an ordinary function,
-   * leaving `patch` unrouted. `equals` has a step of its own, and `patch` is the library's, not
-   * yours: a derivation with different rules deserves its own name, and can seal inside it.
-   * Use `.implEquals` / `.implSeal` / `.implCreate`.
+   * leaving `patch` unrouted. `patch` is the library's, not yours: a derivation with different
+   * rules deserves its own name. Use `.implSeal` / `.implCreate` for registrations that the
+   * library wires.
    */
-  equals?: never;
   patch?: never;
   seal?: never;
   create?: never;
@@ -164,56 +163,6 @@ type CompanionFns<V extends AnyVal> = {
   // oxlint-disable-next-line no-explicit-any -- `never[]` would type unannotated extra parameters as `never`
   [key: string]: ((value: V, ...rest: any[]) => unknown) | NonFn;
 };
-
-type Eq<T> = (a: T, b: T) => boolean;
-
-/**
- * How to compare one child. Written where structure alone gives the wrong answer, and left out
- * everywhere else, where the default deep comparison already agrees.
- *
- * The recursion stops at a nested Val, as {@link DeepReadonly} and {@link Patch} do: hand over
- * its companion rather than walking its payload by hand, which would bypass the equality the
- * type declared for itself.
- */
-type EqSpec<T> = [T] extends [AnyVal]
-  ? Eq<T> | { equals: Eq<T> }
-  : [T] extends [Primitive]
-    ? Eq<T>
-    : [T] extends [readonly unknown[]]
-      ? Eq<T> | EqElements<T>
-      : [T] extends [object]
-        ? Eq<T> | { [K in keyof T]?: EqSpec<T[K]> }
-        : never;
-
-/**
- * An array takes one spec for every element. A tuple takes one per position, all of them: a
- * shorter spec would be indistinguishable at run time from the single-element form, since the
- * spec is all `toEq` sees. `undefined` leaves a position on the default.
- */
-type EqElements<T> = T extends readonly unknown[]
-  ? number extends T["length"]
-    ? readonly [EqSpec<T[number]>]
-    : { readonly [I in keyof T]: EqSpec<T[I]> | undefined }
-  : never;
-
-/**
- * What `.implEquals` takes: your own comparison, or a spec for the payload's children. A bare
- * function is the override, so the spec drops that form at this level alone.
- *
- * A primitive payload has no children, which leaves the override by itself. That falls out of
- * the same rules rather than being a case of its own.
- */
-type EqImpl<V extends AnyVal> = ((a: V, b: V, deepEquals: Eq<V>) => boolean) | EqPayload<SeedOf<V>>;
-
-type EqPayload<T> = [T] extends [AnyVal]
-  ? { equals: Eq<T> }
-  : [T] extends [Primitive]
-    ? never
-    : [T] extends [readonly unknown[]]
-      ? EqElements<T>
-      : [T] extends [object]
-        ? { [K in keyof T]?: EqSpec<T[K]> }
-        : never;
 
 /**
  * What the seal produces, propagated verbatim. The library never inspects it, so `Result` and
@@ -322,13 +271,7 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
-> = Omit<M, "equals" | "patch"> &
-  CreateMethod<V, N, F> &
-  SealMethod<F> &
-  PatchMethod<V, F, P> & {
-    /** Structural equality: key-order independent, ignoring `undefined`-valued keys. */
-    equals: (a: V, b: V) => boolean;
-  };
+> = Omit<M, "patch"> & CreateMethod<V, N, F> & SealMethod<F> & PatchMethod<V, F, P>;
 
 /**
  * A companion that kept the constructor it was built from.
@@ -356,8 +299,6 @@ export type Sealer<V extends AnyVal> = Sealed<V, Record<never, never>> & {
     (): Sealed<V, Record<never, never>>;
     <M extends CompanionFns<V>>(fns: M): Sealed<V, M>;
   };
-  /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => Sealer<V>;
 };
 
 /**
@@ -381,8 +322,6 @@ export type CompanionBuilder<V extends AnyVal, N = undefined, F = undefined, P =
     (): Companion<V, Record<never, never>, N, F, P>;
     <M extends CompanionFns<V>>(fns: M): Companion<V, M, N, F, P>;
   };
-  /** Replaces the default deep equality. See {@link EqImpl}. */
-  implEquals: (spec: EqImpl<V>) => CompanionBuilder<V, N, F, P>;
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
   implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P>;
   /**
@@ -423,17 +362,17 @@ const assertPlainObject = (value: object): void => {
 };
 
 /**
- * Structural deep comparison. Every companion carries it as the default `equals`.
+ * Compares the payloads of two values deeply. The first argument fixes the Val type accepted by
+ * the second, so values with different brands cannot be compared by an ordinary call.
  *
  * - independent of key order
  * - ignores keys whose value is `undefined` (`{ a: undefined }` equals `{}`)
  * - `NaN` equals `NaN`, and `-0` equals `0`
- *
- * Not exported from `./index.ts`: a free function cannot dispatch to a type's own `equals`, so
- * comparing two Vals with it would bypass a custom one. Overrides receive it as a third
- * argument instead (see {@link CompanionFns}).
  */
-export const deepEquals = (a: unknown, b: unknown): boolean => {
+export const equals: <V extends AnyVal>(a: V, b: NoInfer<V>) => boolean = function equals(
+  a: unknown,
+  b: unknown,
+): boolean {
   if (a === b) return true;
   // `-0` and `0` are already equal via `===`, which matches JSON round-tripping
   // (`JSON.stringify(-0)` is `"0"`), so only NaN is left to handle.
@@ -452,7 +391,7 @@ export const deepEquals = (a: unknown, b: unknown): boolean => {
     const y = b as readonly unknown[];
     if (x.length !== y.length) return false;
     for (let i = 0; i < x.length; i++) {
-      if (!deepEquals(x[i], y[i])) return false;
+      if (!equals(x[i], y[i])) return false;
     }
     return true;
   }
@@ -465,54 +404,13 @@ export const deepEquals = (a: unknown, b: unknown): boolean => {
 
   for (const k of xKeys) {
     if (!Object.hasOwn(y, k)) return false;
-    if (!deepEquals(x[k], y[k])) return false;
+    if (!equals(x[k], y[k])) return false;
   }
   return true;
 };
 
-/**
- * Builds the comparison a spec describes, falling back to {@link deepEquals} wherever it says
- * nothing. That fallback is what lets a spec name only the children structure gets wrong.
- *
- * A companion is told from a nested spec by its `equals`: a payload cannot hold a function
- * (see {@link Validate}), so an object whose `equals` is one can only be a companion. That test
- * comes first because a sealer is itself callable, and reading it as the comparison would run
- * the constructor and take its value for `true`.
- */
-const toEq = (spec: unknown): ((a: unknown, b: unknown) => boolean) => {
-  if (spec === undefined) return deepEquals;
-
-  const companion = (spec as { equals?: unknown }).equals;
-  if (typeof companion === "function") return companion as (a: unknown, b: unknown) => boolean;
-  if (typeof spec === "function") return spec as (a: unknown, b: unknown) => boolean;
-
-  if (Array.isArray(spec)) {
-    // One spec compares every element, two or more compare by position. The readings coincide
-    // for a one-element tuple, the only shape both can describe.
-    const eqs = (spec as readonly unknown[]).map(toEq);
-    const every = eqs.length === 1 ? eqs[0] : undefined;
-    return (a, b) =>
-      Array.isArray(a) &&
-      Array.isArray(b) &&
-      a.length === b.length &&
-      a.every((x, i) => (every ?? eqs[i] ?? deepEquals)(x, b[i]));
-  }
-
-  const named = new Map(Object.entries(spec as object).map(([k, s]) => [k, toEq(s)]));
-  // The key rules are `deepEquals`', so a key the spec names but only one side carries still
-  // fails on the count.
-  return (a, b) => {
-    if (a === b) return true;
-    if (!isObjectShaped(a) || !isObjectShaped(b)) return false;
-    const keys = Object.keys(a).filter((k) => a[k] !== undefined);
-    if (keys.length !== Object.keys(b).filter((k) => b[k] !== undefined).length) return false;
-    for (const key of keys) {
-      if (!Object.hasOwn(b, key)) return false;
-      if (!(named.get(key) ?? deepEquals)(a[key], b[key])) return false;
-    }
-    return true;
-  };
-};
+// Public callers compare Vals. Custom-seal checks compare snapshots whose children are unknown.
+const equalsUnknown = equals as (a: unknown, b: unknown) => boolean;
 
 /**
  * The nodes this module built. Subtrees are immutable, so recognising one lets a derivation
@@ -666,7 +564,6 @@ const define = <T extends object>(target: T, key: string, value: unknown): T => 
 type Ctors = {
   create?: AnyFn;
   seal?: (value: unknown, seal: (value: unknown) => unknown) => unknown;
-  equals?: unknown;
 };
 
 /**
@@ -721,7 +618,7 @@ const attach = (
   fns: Record<string, unknown>,
   ctors: Ctors,
 ): Record<string, unknown> => {
-  const { create, seal: custom, equals } = ctors;
+  const { create, seal: custom } = ctors;
   const seal: (value: unknown) => unknown = custom
     ? development
       ? (value) => {
@@ -729,12 +626,13 @@ const attach = (
           return custom(value, (candidate) => {
             if (before !== unsnapshotable) {
               const current = snapshotSealInput(value);
-              if (current !== unsnapshotable && !deepEquals(before, current)) changedDuringSeal();
+              if (current !== unsnapshotable && !equalsUnknown(before, current))
+                changedDuringSeal();
             }
 
             const candidateBefore = snapshotSealInput(candidate);
             const sealed = own(candidate);
-            if (candidateBefore !== unsnapshotable && !deepEquals(candidateBefore, sealed)) {
+            if (candidateBefore !== unsnapshotable && !equalsUnknown(candidateBefore, sealed)) {
               changedDuringSeal();
             }
             return sealed;
@@ -746,16 +644,6 @@ const attach = (
   // by identity sees no update. A custom seal owns the return shape, so the value goes back
   // through it: the copy inside recognises the node and hands the same one back.
   const keep: (value: unknown) => unknown = custom ? seal : (value) => value;
-
-  // Bound here rather than attached raw, which is what keeps callers at two arguments. A spec
-  // is not callable, so it takes the other branch.
-  target.equals =
-    typeof equals === "function"
-      ? (a: unknown, b: unknown) =>
-          (equals as (a: unknown, b: unknown, deep: typeof deepEquals) => boolean)(a, b, deepEquals)
-      : equals === undefined
-        ? deepEquals
-        : toEq(equals);
 
   if (create) target.create = (...args: never[]) => seal(create(...args));
   if (custom) target.seal = seal;
@@ -798,7 +686,6 @@ const build = <V extends AnyVal>(ctors: Ctors, callable: boolean): object => {
   const step = (next: Ctors): object => build<V>(next, callable);
 
   target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors);
-  target.implEquals = (spec: unknown) => step({ ...ctors, equals: spec });
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });

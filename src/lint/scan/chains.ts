@@ -15,13 +15,10 @@ export type CompanionSite = Where & {
    * gives `User`, which is also what a read through a namespace is keyed on.
    */
   typeName: string;
-  typeOffset: number;
   /** Where the type argument is written. */
   typeAt: Where;
   /** The namespace it was reached through, for `Val.sealer<ns.User>()`. */
   qualifier: string | undefined;
-  /** The argument to `.implEquals(…)`, when the chain called it. */
-  spec: Node | undefined;
   /** Which of the two the chain grew from. A sealer is callable; a companion is not. */
   root: "sealer" | "companion";
   /** Whether the chain registered a seal of its own, with `.implSeal`. */
@@ -85,8 +82,8 @@ export function valOf(
 
 /** What a chain called, and the type argument at its root. */
 type Chain = {
-  /** step name -> its first argument. `.implEquals(spec)` gives `implEquals` -> `spec`. */
-  steps: Map<string, Node>;
+  /** Steps called along the chain. */
+  steps: Set<string>;
   /** The root call's type arguments, or `undefined` when the chain is not Val-rooted. */
   typeArguments: Node | undefined;
   /** The step the chain grew from, once it is known to be Val-rooted. */
@@ -95,14 +92,13 @@ type Chain = {
 
 /**
  * Reads a builder chain from the outside in.
- * `Val.companion<Order>().implSeal(f).implEquals(spec).impl({…})` gives both `implEquals` and
- * `Order`.
+ * `Val.companion<Order>().implSeal(f).impl({…})` gives both `implSeal` and `Order`.
  *
  * A call whose receiver is not itself a call is the root, which is what tells `Val.sealer<X>()`
  * apart from the steps chained onto it.
  */
 function readChain(node: Node, bound: Bindings): Chain {
-  const steps = new Map<string, Node>();
+  const steps = new Set<string>();
   let root: "sealer" | "companion" | undefined;
 
   const walk = (current: Node): Node | undefined => {
@@ -119,8 +115,7 @@ function readChain(node: Node, bound: Bindings): Chain {
     }
     const property = child(callee, "property");
     const name = property && keyName(property, callee["computed"] === true);
-    const [argument] = children(current, "arguments");
-    if (name && argument) steps.set(name, argument);
+    if (name) steps.add(name);
     return walk(receiver);
   };
 
@@ -169,10 +164,8 @@ export function companionSite(
     name: undefined,
     nameAt: where,
     typeName: named.node["name"] as string,
-    typeOffset: named.node["start"] as number,
     typeAt: at(named.node["start"] as number),
     qualifier: named.qualifier,
-    spec: steps.get("implEquals"),
     // Set whenever the chain is Val-rooted, which is the only way it has type arguments.
     root: root ?? "sealer",
     seals: steps.has("implSeal"),
