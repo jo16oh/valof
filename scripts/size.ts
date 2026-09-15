@@ -89,7 +89,17 @@ await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), 
 });
 
 const declarations = await readFile(new URL(types, root), "utf8");
-const bundles = await Promise.all(modes.map(async (mode) => measure(await bundle(mode))));
+const bundled = await Promise.all(modes.map(bundle));
+const bundles = bundled.map(measure);
+
+const production = minifySync("production.mjs", bundled[modes.indexOf("production")]!).code;
+if (
+  production.includes("snapshotSealInput") ||
+  production.includes("unsnapshotable seal input") ||
+  production.includes("The payload changed while the custom seal was running.")
+) {
+  throw new Error("development-only seal stability checks remain in the production bundle");
+}
 
 const measured = {
   bundle: Object.fromEntries(modes.map((mode, index) => [mode, bundles[index]!])) as Record<
