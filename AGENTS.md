@@ -82,6 +82,16 @@ The README carries what a reader needs before writing code. What they need only 
 wrong goes in the JSDoc of the thing it describes, where the hover arrives together with the type
 error that raised the question.
 
+A GitHub callout needs `<!-- prettier-ignore -->` above it. `proseWrap: "always"` joins the marker
+into the paragraph, and `> [!NOTE] the text` renders as a plain quote in GitHub and in the book
+alike. The comment exempts that block alone, so the rest of the file still wraps.
+
+```md
+<!-- prettier-ignore -->
+> [!IMPORTANT]
+> Valof is pre-1.0. A minor release can change the API.
+```
+
 ### Commit Messages
 
 Conventional Commits, lowercase subject. Stay imperative in the body and the PR too. The subject
