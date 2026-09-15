@@ -1,4 +1,4 @@
-// Rejected by `.impl` at the type level. Plain JS can still write them, and none is a finding.
+// `equals` is ordinary. The rest are rejected by `.impl` and wired by the library.
 const User = Val.companion().impl({
   equals: (a, b) => a.id === b.id,
   patch: (v, p) => ({ ...v, ...p }),

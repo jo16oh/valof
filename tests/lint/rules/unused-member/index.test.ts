@@ -39,8 +39,8 @@ describe("what the rule finds", () => {
     ]);
   });
 
-  test("ignores the members the library wires, which `.impl` no longer accepts", async () => {
-    expect(await lint("builtins")).toEqual([]);
+  test("treats equals as ordinary and ignores the members the library wires", async () => {
+    expect(await lint("builtins")).toEqual([{ rule: UnusedMember, at: "builtins.ts:3:3" }]);
   });
 
   test("reads through a builder chain, past implSeal and fixed", async () => {

@@ -147,11 +147,10 @@ type CompanionFns<V extends AnyVal> = {
    * Rejected so they cannot be mistaken for registrations: everything the library wires has a
    * step of its own. A `seal` whose first parameter accepts the Val, common for primitive
    * payloads, would otherwise satisfy the index signature and attach as an ordinary function,
-   * leaving `patch` unrouted. `equals` and `patch` are the library's, not yours: a comparison or
-   * derivation with different rules deserves its own name. Use `.implSeal` / `.implCreate` for
-   * registrations that the library wires.
+   * leaving `patch` unrouted. `patch` is the library's, not yours: a derivation with different
+   * rules deserves its own name. Use `.implSeal` / `.implCreate` for registrations that the
+   * library wires.
    */
-  equals?: never;
   patch?: never;
   seal?: never;
   create?: never;
@@ -272,7 +271,7 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
-> = Omit<M, "equals" | "patch"> & CreateMethod<V, N, F> & SealMethod<F> & PatchMethod<V, F, P>;
+> = Omit<M, "patch"> & CreateMethod<V, N, F> & SealMethod<F> & PatchMethod<V, F, P>;
 
 /**
  * A companion that kept the constructor it was built from.

@@ -64,7 +64,7 @@ type Comment = { value: string; start: number; end: number };
  * Attached by the library rather than written in `.impl`. `.impl` rejects them at the type level,
  * so this only keeps a plain-JS caller from getting a finding for one.
  */
-const BUILTIN = new Set(["equals", "patch", "seal", "create"]);
+const BUILTIN = new Set(["patch", "seal", "create"]);
 
 function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   let set = map.get(key);

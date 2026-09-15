@@ -641,19 +641,6 @@ describe("equals", () => {
     // @ts-expect-error the brand and payload differ
     equals(user, account);
   });
-
-  test("sealers and companions carry no equality methods", () => {
-    const sealer = Val.sealer<User>();
-    const companion = Val.companion<User>();
-    expect(sealer).not.toHaveProperty("equals");
-    expect(sealer).not.toHaveProperty("implEquals");
-    expect(companion).not.toHaveProperty("equals");
-    expect(companion).not.toHaveProperty("implEquals");
-    expectTypeOf(sealer).not.toHaveProperty("equals");
-    expectTypeOf(sealer).not.toHaveProperty("implEquals");
-    expectTypeOf(companion).not.toHaveProperty("equals");
-    expectTypeOf(companion).not.toHaveProperty("implEquals");
-  });
 });
 
 describe("patch", () => {
@@ -989,6 +976,17 @@ describe("building", () => {
       const bob = Person({ id: "a", name: "bob" });
       expect(Person.name(bob)).toBe("BOB");
       expect(Person.length(bob)).toBe(3);
+    });
+
+    test("`equals` can name an ordinary comparison", () => {
+      const SameId = Val.sealer<User>().impl({
+        equals: (a, b: User) => a.id === b.id,
+      });
+      const a = SameId({ id: "a", name: "bob" });
+      const b = SameId({ id: "a", name: "sue" });
+
+      expect(SameId.equals(a, b)).toBe(true);
+      expect(equals(a, b)).toBe(false);
     });
 
     test("a method whose first parameter is not the Val is rejected", () => {
