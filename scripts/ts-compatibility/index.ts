@@ -25,9 +25,15 @@ await pack();
 await rm(directory, { recursive: true, force: true });
 await mkdir(directory, { recursive: true });
 
+// A block that imports nothing is a script, and its declarations land in a global scope every
+// other one shares: two blocks declaring `User` collide. `export {}` gives it a scope of its own
+// without changing what is checked.
+const isolated = (code: string): string =>
+  /^\s*(?:import|export)\b/m.test(code) ? code : `${code}\nexport {};\n`;
+
 const blocks = fixtures();
 for (const block of blocks) {
-  await writeFile(join(directory, `${block.name.replace(/\.md:/, "-")}.ts`), block.code);
+  await writeFile(join(directory, `${block.name.replace(/\.md:/, "-")}.ts`), isolated(block.code));
 }
 
 // `paths` without `baseUrl`, which TypeScript 6 removed. They resolve against this file instead.
