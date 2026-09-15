@@ -1,7 +1,15 @@
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
 type Primitive = string | number | boolean | bigint | null;
 
-export type AnyVal = { readonly __valof_internal_phantom_brand: string };
+/** Type-only nominal identity. Private members disappear from `keyof` and object spreads. */
+declare class Phantom<K extends string, T> {
+  private readonly __valof_internal_phantom_brand: K;
+  private readonly __valof_internal_phantom_payload: T;
+  /** Declaration emit erases private field types; protected keeps the type arguments recoverable. */
+  protected readonly __valof_internal_phantom_types: readonly [K, T];
+}
+
+export type AnyVal = Phantom<string, unknown>;
 
 /** Marker surfaced in the type when a payload violates the allowed-type rules. */
 type Invalid<Msg extends string> = { readonly __valError: Msg };
@@ -68,32 +76,24 @@ type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
 
 /**
  * The conditional lives here, not {@link Val}. An alias whose top level is a conditional loses
- * its name once it resolves, so `User` would print as the expanded intersection, phantom keys
- * included, in every hover. An alias over an intersection keeps the name.
+ * its name once it resolves, so `User` would print as the expanded intersection in every hover.
+ * An alias over an intersection keeps the name.
  *
  * `T extends Validate<T>` is the natural spelling. On a type alias that is TS2313 "circular
  * constraint", hence the conditional.
  */
-type Phantom<K extends string, T> = [T] extends [Validate<T>]
-  ? {
-      readonly __valof_internal_phantom_brand: K;
-      /** Exists only so the original payload type can be recovered. */
-      readonly __valof_internal_phantom_payload: T;
-    }
+type Brand<K extends string, T> = [T] extends [Validate<T>]
+  ? Phantom<K, T>
   : { readonly __valof_internal_phantom_brand: Validate<T> };
 
 /** A branded value type. A payload that breaks the allowed-type rules is a type error. */
-export type Val<K extends string, T> = DeepReadonly<Checked<T>> & Phantom<K, T>;
+export type Val<K extends string, T> = DeepReadonly<Checked<T>> & Brand<K, T>;
 
 /** The Val's brand string. */
-export type BrandOf<V extends AnyVal> = V["__valof_internal_phantom_brand"];
+export type BrandOf<V extends AnyVal> = V extends Phantom<infer K, unknown> ? K : never;
 
 /** The Val's raw payload type. */
-export type PayloadOf<V extends AnyVal> = V extends {
-  readonly __valof_internal_phantom_payload: infer T;
-}
-  ? T
-  : never;
+export type PayloadOf<V extends AnyVal> = V extends Phantom<string, infer T> ? T : never;
 
 /**
  * The payload as constructors, `Val.of` and a custom seal accept it.

@@ -262,6 +262,21 @@ describe("Val", () => {
       expectTypeOf<string>().not.toExtend<A>();
     });
 
+    test("object spread drops the brand until the payload is sealed again", () => {
+      const user = User({ id: "a", name: "bob" });
+      // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
+      const changed = { ...user, name: "sue" };
+
+      expectTypeOf(changed).not.toExtend<User>();
+      // @ts-expect-error spreading copies payload fields, not the nominal brand
+      const unsealed: User = changed;
+      expect(unsealed).toEqual(changed);
+
+      const resealed = User(changed);
+      expectTypeOf(resealed).toEqualTypeOf<User>();
+      expect(resealed).toEqual({ id: "a", name: "sue" });
+    });
+
     test("nested Vals keep their brand", () => {
       type Money = Val<"Money", { amount: number; currency: string }>;
       type Order = Val<"Order", { id: string; total: Money }>;
@@ -279,6 +294,7 @@ describe("Val", () => {
     test("BrandOf / PayloadOf", () => {
       expectTypeOf<BrandOf<User>>().toEqualTypeOf<"app/User">();
       expectTypeOf<PayloadOf<ArticleId>>().toEqualTypeOf<string>();
+      expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
     });
 
     test("does not exist at runtime", () => {
@@ -995,6 +1011,7 @@ describe("patch", () => {
         u2: { role: "waiter" },
         u3: { role: "host" },
       });
+      // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
       expect(Shop({ ...before, staff }).staff).toEqual(staff);
     });
 
