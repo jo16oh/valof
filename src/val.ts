@@ -6,6 +6,7 @@ import type {
   MembersOf,
   NamesOf,
   ShapeOf,
+  TraitBrand,
   TraitCompanion,
   TraitsOf,
   Unbound,
@@ -123,19 +124,6 @@ type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) exten
 ) => void
   ? I
   : never;
-
-/**
- * The trait brands.
- *
- * Public, unlike {@link Phantom}: a Val stays assignable to its traits only by carrying the same
- * property the trait declares.
- *
- * Several traits are one intersection: `Val<"User", P, Greetable & Serializable>`. Their brand
- * maps intersect too, which is what lets a Val stay assignable to each of them.
- */
-type TraitBrand<Tr extends AnyTrait> = [Tr] extends [never]
-  ? unknown
-  : { readonly __valof_internal_phantom_trait_brands: Tr["__valof_internal_phantom_trait_brands"] };
 
 /**
  * A branded value type. A payload that breaks the allowed-type rules is a type error, and so is

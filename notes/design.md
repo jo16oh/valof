@@ -4306,6 +4306,32 @@ production では freeze しないので、黙ってメンバが勝つ。trait �
 複数の trait は交差で合成でき、`User` を `Greetable` に代入する構造的部分型がそのまま効く。**却下: 配列**
 （`["Greetable"]`）。順序が意味を持ってしまい、交差で合成できない。
 
+##### スプレッドに乗せない、2026-09-15
+
+`{ ...user }` の型にブランドのキーが残っていた。`Val` のブランドは `declare class Phantom` の private
+メンバなので `keyof` にもスプレッドにも出ない。trait のブランドも同じ形にする。
+
+```ts
+declare class TraitPhantom<B> {
+  private readonly __valof_internal_phantom_trait_brands: B;
+  protected readonly __valof_internal_phantom_trait_types: B;
+}
+```
+
+private は宣言ごとに名前的で、代入可能性の条件は「同じ 1 つの宣言を共有していること」になる。trait も Val
+も `TraitPhantom` を交差するので、`User` が `Greetable` に代入できる構造的部分型はそのまま効く。交差した
+trait のブランド写像も従来どおり交差する。protected の 1 行は `Phantom` と同じ理由（§10.1）: 宣言 emit が
+private の型を消すので、これがないと `BrandsOf` が emit 後に読めない。
+
+読み出しは索引から条件型へ。private キーは `Tr["__valof_internal_phantom_trait_brands"]` で引けない。
+`BrandsOf` は制約を外した。壊れた宣言は `AnyTrait` を満たさないので、制約付きではテストがブランドの
+`Invalid` を読めない。`ShapeOf` は `Pick<Tr, keyof Tr>` になった。private は `keyof` にいないので、`Omit`
+で除く名前がもうない。
+
+trait の instantiations は 12,727 → 13,341（予算 15,000 に対して残り 11%）、宣言は 30.43 → 30.85 kB。
+増分は `BrandsOf` が索引から条件型になった分で、`NamesOf`・`MembersOf`・`TraitsOf` が全部そこを通る。
+`AnyTrait` の制約違反のメッセージはプロパティ名を出したまま（§11.2）。
+
 ##### `|` は型引数だけで落とす、2026-09-10
 
 `&` のつもりで `|` と書いた宣言が、**payload 検査を素通りしていた**。`ShapeOf<Tr>` は

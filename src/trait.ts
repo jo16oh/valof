@@ -42,13 +42,21 @@ export type Final<F extends AnyMember> = F & { readonly [FinalMark]: true };
 export type Members = Readonly<Record<string, AnyMember>>;
 
 /**
+ * Type-only nominal identity, carried by a trait and by every Val declaring it. Private members
+ * disappear from `keyof` and object spreads, so the brand stays out of `{ ...value }`.
+ */
+declare class TraitPhantom<B> {
+  private readonly __valof_internal_phantom_trait_brands: B;
+  /** Declaration emit erases private field types; protected keeps the brand map recoverable. */
+  protected readonly __valof_internal_phantom_trait_types: B;
+}
+
+/**
  * Every trait, as a constraint.
  *
  * @experimental
  */
-export type AnyTrait = {
-  readonly __valof_internal_phantom_trait_brands: Readonly<Record<string, Members>>;
-};
+export type AnyTrait = TraitPhantom<Readonly<Record<string, Members>>>;
 
 /**
  * A structural contract shared by several Vals: the fields they hold, plus the members they
@@ -62,7 +70,7 @@ export type AnyTrait = {
  */
 export type Trait<K extends string, Shape, M extends Members = Record<never, never>> = DeepReadonly<
   Checked<Shape>
-> & {
+> &
   // The members ride in the brand map rather than a key of their own, so a Val can carry the
   // brand without carrying a phantom key per trait. Several traits compose by intersection.
   //
@@ -70,17 +78,33 @@ export type Trait<K extends string, Shape, M extends Members = Record<never, nev
   // lands in a Val's brand. `Members` admits functions alone, so an `Invalid` in this position
   // stops the trait satisfying `AnyTrait`, and every gate takes an `AnyTrait`: the companion,
   // `Val`, `Dyn` and both forms of `implTrait` all report it without a check of their own.
-  readonly __valof_internal_phantom_trait_brands: [Shape] extends [Checked<Shape>]
-    ? [M] extends [Declarable<Shape, M>]
-      ? { readonly [P in K]: M }
-      : Declarable<Shape, M>
-    : Checked<Shape>;
-};
+  TraitPhantom<
+    [Shape] extends [Checked<Shape>]
+      ? [M] extends [Declarable<Shape, M>]
+        ? { readonly [P in K]: M }
+        : Declarable<Shape, M>
+      : Checked<Shape>
+  >;
 
-/** The fields a trait requires. */
-export type ShapeOf<Tr extends AnyTrait> = Omit<Tr, "__valof_internal_phantom_trait_brands">;
+/** The fields a trait requires. The brand is private, so `keyof` holds the fields alone. */
+export type ShapeOf<Tr extends AnyTrait> = Pick<Tr, keyof Tr>;
 
-type BrandsOf<Tr extends AnyTrait> = Tr["__valof_internal_phantom_trait_brands"];
+/**
+ * Read through the class, since a private key is unreachable by an index. Unconstrained, so a
+ * broken declaration can be read out: it does not satisfy {@link AnyTrait}.
+ */
+export type BrandsOf<Tr> = Tr extends TraitPhantom<infer B> ? B : never;
+
+/**
+ * The trait brands a Val carries, or nothing when it declares none.
+ *
+ * The same class the trait carries, which is what keeps a Val assignable to its traits. Several
+ * traits are one intersection: `Val<"User", P, Greetable & Serializable>`. Their brand maps
+ * intersect too, so the Val stays assignable to each of them.
+ */
+export type TraitBrand<Tr extends AnyTrait> = [Tr] extends [never]
+  ? unknown
+  : TraitPhantom<BrandsOf<Tr>>;
 
 /**
  * The traits a Val declares, or `never` when it declares none.
@@ -88,11 +112,7 @@ type BrandsOf<Tr extends AnyTrait> = Tr["__valof_internal_phantom_trait_brands"]
  * Read through a conditional rather than an index: intersecting a plain Val with {@link AnyTrait}
  * to reach the key would hand back `string`, and every trait would look declared.
  */
-export type TraitsOf<V> = V extends {
-  readonly __valof_internal_phantom_trait_brands: infer B;
-}
-  ? keyof B
-  : never;
+export type TraitsOf<V> = V extends TraitPhantom<infer B> ? keyof B : never;
 
 /** The names a trait answers to: one, or several when traits were intersected. */
 export type NamesOf<Tr extends AnyTrait> = keyof BrandsOf<Tr>;

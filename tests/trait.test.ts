@@ -3,6 +3,7 @@ import { Val } from "../src/index.ts";
 import { Trait, type AnyTrait, type Dyn, type Final, type Self } from "../src/experimental.ts";
 // `Wired` is not published from the entry point.
 import type { Wired } from "../src/val.ts";
+import type { BrandsOf } from "../src/trait.ts";
 
 type Greetable = Trait<
   "Greetable",
@@ -158,6 +159,12 @@ describe("Trait", () => {
       expect(Greetable.dyn(Admin, admin).shout()).toBe("ROOT");
     });
   });
+
+  test("the brand stays out of `keyof` and of a spread", () => {
+    expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name">();
+    // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
+    expectTypeOf({ ...user }).toEqualTypeOf<{ id: string; name: string }>();
+  });
 });
 
 describe("dyn", () => {
@@ -256,7 +263,7 @@ describe("building", () => {
     // trait, a box, and both forms of `implTrait`. None of them carries a check of its own.
     test("a broken declaration is caught at every gate", () => {
       type Wiring = Trait<"Wiring", { id: string }, { patch: (self: Self) => boolean }>;
-      expectTypeOf<Wiring["__valof_internal_phantom_trait_brands"]>().toEqualTypeOf<{
+      expectTypeOf<BrandsOf<Wiring>>().toEqualTypeOf<{
         patch: { readonly __valError: "a trait member cannot take a name the library wires" };
       }>();
       expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
