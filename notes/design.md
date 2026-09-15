@@ -17,7 +17,7 @@ import { Val } from "valof";
 - **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
 - **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由
 - **§4 DeepReadonly**
-  - **4.1** コンストラクタが引数をコピーする理由。型でも lint でも塞げないこと（線形型が無い）、所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
+  - **4.1** コンストラクタが既定で引数をコピーする理由と、明示的な `.nocopy`。型でも lint でも塞げないこと（線形型が無い）、所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
   - **4.2** タプルを保つ。optional 要素と `Required<T>`、rest 要素の限界
 - **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、`implEquals` の spec の設計
 - **§6 スマートコンストラクタと更新**
@@ -57,7 +57,7 @@ import { Val } from "valof";
 - イミュータブル更新でプロトタイプが落ちない
 - ブランドはファントム型なので、実行時にコストも痕跡も残らない
 
-コンストラクタは引数をディープコピーする（§4.1）。ゼロコストではない。「値はデータである」を実行時にも成立させるための最小限の代償として払う。
+コンストラクタは既定で引数をディープコピーする（§4.1）。ゼロコストではない。「値はデータである」を実行時にも成立させるための最小限の代償として払う。所有権を別に確認できる場所だけ `.nocopy` で外せる。
 
 class ではこのいずれも得られない。この線を守るために諦めたものは §7 にまとめた。
 
@@ -442,7 +442,7 @@ sum 型は `Val` ではなく `Enum` に分ける（§9）。
 
 `Val` で定義した型は DeepReadonly になる。§3 の制限により再帰は 1 段で止まるので、コストは低い。
 
-### 4.1 コンストラクタは引数を所有する（コピーする）
+### 4.1 コンストラクタは既定で引数を所有する（コピーする）
 
 DeepReadonly は型の話で、実行時には消える。呼び出し側が引数への可変な参照を持ち続けていると、Val を後から書き換えられる。
 
@@ -453,11 +453,11 @@ raw.name = "mallory";
 user.name; // コピーしなければ "mallory"
 ```
 
-これは「利用者の責任」で済ませられない。`as` も何も要らず、素直なコードが黙って壊れる。値オブジェクトが背後で変わり得るなら、それは値オブジェクトではない。よって `Val.of` / sealer / `.impl()` のコンストラクタ、および既定の seal を通る `patch` / `create` は引数をディープコピーする。
+これは既定の経路では「利用者の責任」にしない。`as` も何も要らず、素直なコードが黙って壊れる。値オブジェクトが背後で変わり得るなら、それは値オブジェクトではない。よって `Val.of` / sealer / `.impl()` のコンストラクタ、および既定の seal を通る `patch` / `create` は引数をディープコピーする。
 
 payload はプリミティブ・配列・プレーンオブジェクト・ネストした Val に限られるので、再帰コピーに特別扱いは要らない。`structuredClone` は使わない（自前の再帰の 5〜6 倍遅い）。
 
-カスタム seal を書く場合、コピーの責任は seal にある。`Val.of` を通すのが正規の方法で、**所有権を取る場所はそこ 1 箇所**（§6.8）。
+カスタム seal は第 2 引数の既定 seal を通して返す。通常の呼び出しではそこでコピーし、`.nocopy` では同じ場所で payload を採用する。**所有権を取る場所は末端の seal 1 箇所**（§6.8）。
 
 **コスト実測**（Node 24 / M シリーズ、入力は毎回フレッシュ、ns/op）
 
@@ -479,6 +479,37 @@ valof-lint からも見えない。手で書いた `[...arr]` は誰も検査せ
 **余分に払うのは、エイリアスの無い入力を見分けられない分。**`User({ id: "a", name: "bob" })` は誰もその
 オブジェクトを持っていないので、手で書くならコピーは要らない。valof は 47 ns 払う。`owned` にいないので
 WeakSet も効かない。よくある呼び方で、ここは純粋な無駄。
+
+#### コピーを外す `.nocopy`、2026-09-15
+
+プロファイルでコピーがボトルネックと分かり、payload の所有権を呼び出し側で確認できる場合だけ、末端のコピーを明示的に外せる。
+
+```ts
+User.nocopy(readonlySeed);
+Val.of.nocopy<User>(readonlySeed);
+Dog.seal.nocopy(input);
+Dog.create.nocopy(name);
+```
+
+既定をコピーのままにする。`.nocopy` の付け忘れは時間と allocation だけを失い、正しさは失わない。逆に `.copy` を opt-in にすると、外部入力での付け忘れが Val を可変 alias に接続する。`patch` に `.nocopy` は足さない。既に未変更の owned node を共有し、変更経路へ入った外部 node だけをコピーするので、危険な別経路を増やすほどの利得がない。
+
+`.nocopy` は「terminal payload を複製せず Val として採用してよい」という契約である。呼び出し側と、payload に参照を持ち込む custom seal / create の実装者は、graph が安定した plain data であり、後から変更できる alias がないことを保証する。deep readonly はその証拠にはならない。TS は可変 object を readonly view に代入でき、cast、誤った宣言、JavaScript、accessor、proxy も残る。
+
+既定 sealer の `.nocopy` だけは、実引数の型を `const` type parameter で取り、writable property と mutable array を再帰的に拒否する。fresh literal、readonly の object / array / tuple、optional property は通し、nested Val で検査を止める。これは誤用を減らす guardrail であって所有権の証明ではない。`Val.of.nocopy` と custom seal は terminal payload が呼び出し引数から直接来るとは限らないため、この検査を要求しない。
+
+実行時の末端は copy と adopt の 2 つになる。development の adopt は graph 全体の descriptor を調べ、accessor、class instance、cycle を拒否して全 node を owned に登録し、freeze する。production は契約を信頼して root の採用だけを O(1) で記録する。後の `patch` が初めて copy を必要とした時に descendants を巡回して owned index を補い、未変更部分木の identity を保つ。custom seal と create は実装を各 1 つだけ登録し、公開経路が末端の copy / adopt だけを選ぶ。検証と正規化はどちらでも同じく走る。
+
+**通常の sealer との実測比較**（2026-09-15、commit `624619b4935bb27f1e07ad5a1779516a64f8a93d`、Node 24.21.0、M シリーズ、`NODE_ENV=production`）。入力は事前に構築して生成時間を除き、各ケース 9 sample を独立した process で 2 回測った中央値の範囲。
+
+| payload              | 通常の sealer | `.nocopy`  | 高速化           |
+| -------------------- | ------------- | ---------- | ---------------- |
+| flat 3キー           | 115–116 ns    | 9.0–9.2 ns | 12.5–12.9 倍     |
+| ネスト 40 node       | 4.28–4.29 μs  | 8.4–9.2 ns | 468–507 倍       |
+| 1000 行（1002 node） | 133–139 μs    | 9.2–9.7 ns | 14,300–14,500 倍 |
+
+通常の sealer は payload の大きさに比例して copy の時間と allocation が増える。production の `.nocopy` は root を `WeakSet` に記録するだけなので、この測定では payload の大きさによらず約 9 ns だった。
+
+却下した名前は `.noncopy`（non-copyable と読める）、`.adopt`（避けるコストが見えない）、`unsafeSeal`（検証まで迂回するように読める）。`.nocopy` は変更する機構をそのまま表す。`.nocopy` を勧める lint も足さない。fresh literal 以外の所有権判定には関数や alias をまたぐ escape analysis が要り、readonly 型を根拠にした提案は危険な最適化を正当化する。
 
 #### 所有権追跡: 自分が鋳造したノードは作り直さない
 
@@ -1421,16 +1452,19 @@ seal の引数を可変（`PayloadOf<V>`）にして、公開 `seal` が入口�
 | 呼び出し                                   | カスタム seal を通るか        | 浅いコピー                | ディープコピー                      |
 | ------------------------------------------ | ----------------------------- | ------------------------- | ----------------------------------- |
 | `Val.of<V>(x)` / sealer の callable `V(x)` | 通らない（これが既定の seal） | 0                         | 1                                   |
+| `Val.of.nocopy<V>(x)` / `V.nocopy(x)`      | 通らない（adopt を選ぶ）      | 0                         | **0**                               |
 | `V.seal(x)`（カスタム seal）               | 通る                          | seal が導出した分だけ     | 1（最後に通す既定の seal）          |
+| `V.seal.nocopy(x)`                         | 通る                          | seal が導出した分だけ     | **0**（末端の payload を採用）      |
 | 同上・検証に失敗して `Err` を返す          | 通る                          | 同上                      | **0**（既定の seal を通さない）     |
 | `V.patch(v, patch)`（カスタム seal なし）  | なし                          | 1（マージ）               | 1                                   |
 | `V.patch(v, patch)`（カスタム seal あり）  | 通る                          | 1 + seal の導出分         | 1                                   |
 | `V.create(args)`                           | 通る                          | create が組む分（通常 1） | 1                                   |
+| `V.create.nocopy(args)`                    | 通る                          | create が組む分（通常 1） | **0**（末端の payload を採用）      |
 | `.impl` の自前 `patch` → 第 3 引数の seal  | 通る                          | 自前実装しだい            | 1                                   |
 | `.impl` の自前 `patch` → `Val.of`          | **通らない**                  | 同上                      | 1                                   |
 | `Val.unwrap(v)` → 加工 → `V.seal(...)`     | 通る                          | 加工分                    | **2**（unwrap と seal で 1 回ずつ） |
 
-- **どの正規経路もディープコピーは 1 回**で、位置は常に「値になる瞬間」＝既定の seal
+- 既定の正規経路はディープコピー 1 回、対応する `.nocopy` は 0 回。選択する位置は常に「値になる瞬間」の末端 seal
 - 失敗経路はコピーしない。検証が落ちる入力に対してコピー代を払わない
 - 浅いコピーは経路の構造そのもの（マージ、`fn` の戻り、正規化の導出）
 - `Val.unwrap` 経由の派生だけが 2 回になる。§4 が「派生に `unwrap` を使うな」と言っているのはこのため
@@ -1792,6 +1826,7 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 
 ## 9. 未解決 / 要確認
 
+- [ ] **development の `.nocopy` が失敗した時の部分 freeze。** graph の走査中に後続 node の accessor や cycle で失敗すると、それより先に検査した子だけが owned に登録され freeze されたまま残る。失敗時の副作用を消すなら、全 graph の検査後に登録と freeze を行う二段階処理へ変える
 - [x] ~~トップレベルの payload に `null` を許すか~~ → 許さない。`null & { __brand: K }` は
       `never` なので、値を `null` のままブランドで区別できない。union にブランドを置けば素の `null` も
       入り、wrapper は plain data と falsy を失う。オブジェクト・配列内の `null` は従来どおり許す
@@ -1862,7 +1897,7 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - DeepReadonly
 - デフォルト `equals` とオーバーライド
 - コンストラクタの有無を出自で決める（sealer 経由か否か）
-- コンストラクタによる引数のディープコピー（§4.1）
+- コンストラクタによる引数のディープコピーと、明示的な `.nocopy`（§4.1）
 - コンストラクタの登録を 2 系統に分ける（`implSeal` = 封をする唯一の関門 / `implCreate` = payload を鋳造して seal に流す、§6.7 / §6.8）
 - `.impl` のメソッドは第一引数が Val に固定され、注釈不要（§6.5）
 - `patch`（Result 非依存、seal を通る。上書きはさせない、§6.6）
