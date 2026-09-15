@@ -10,6 +10,9 @@
     "noEmit": true,
     "skipLibCheck": true,
     "types": [],
-    "paths": { "valof": ["../../dist/index.d.mts"] }
+    "paths": {
+      "valof": ["../../dist/index.d.mts"],
+      "valof/experimental": ["../../dist/experimental.d.mts"]
+    }
   }
 }

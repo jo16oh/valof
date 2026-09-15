@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import type { AnyVal, Final, Patch, PayloadOf, SeedOf, Self } from "../src/index.ts";
-import { equals, Trait, Val } from "../src/index.ts";
+import type { AnyVal, Patch, PayloadOf, SeedOf } from "../src/index.ts";
+import { equals, Val } from "../src/index.ts";
+import { Trait, type Final, type Self } from "../src/experimental.ts";
 // `BrandOf` is not published from the entry point.
 import type { BrandOf, CompanionFns, Wired } from "../src/val.ts";
 

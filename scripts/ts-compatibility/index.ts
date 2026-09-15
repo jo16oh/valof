@@ -49,6 +49,7 @@ await writeFile(
         paths: {
           // The published declarations, reached the way a consumer reaches them.
           valof: ["../../../dist/index.d.mts"],
+          "valof/experimental": ["../../../dist/experimental.d.mts"],
           "valof/eslint-plugin": ["../../../dist/eslint-plugin.d.mts"],
         },
       },

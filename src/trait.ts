@@ -7,6 +7,8 @@ declare const SelfMark: unique symbol;
  *
  * An opaque marker rather than a reference to the trait, which would be circular. `implTrait`
  * substitutes the Val for it, in parameter positions only: a member may not return `Self`.
+ *
+ * @experimental
  */
 export type Self = { readonly [SelfMark]: true };
 
@@ -27,24 +29,36 @@ declare const FinalMark: unique symbol;
  *   { greet: (self: Self) => string; shout: Final<(self: Self) => string> }
  * >;
  * ```
+ *
+ * @experimental
  */
 export type Final<F extends AnyMember> = F & { readonly [FinalMark]: true };
 
-/** The functions a trait declares, whichever side implements them. */
+/**
+ * The functions a trait declares, whichever side implements them.
+ *
+ * @experimental
+ */
 export type Members = Readonly<Record<string, AnyMember>>;
 
-/** Every trait, as a constraint. */
+/**
+ * Every trait, as a constraint.
+ *
+ * @experimental
+ */
 export type AnyTrait = {
   readonly __valof_internal_phantom_trait_brands: Readonly<Record<string, Members>>;
 };
 
 /**
  * A structural contract shared by several Vals: the fields they hold, plus the functions they
- * share. `M` declares every function, and the trait's own two steps say which side implements
- * one: {@link TraitBuilder.implDefault} leaves it to each Val, {@link TraitBuilder.implFinal}
- * does not.
+ * share. `M` declares every function, and the declaration says which side implements one:
+ * {@link Final} keeps a member the trait's, and every other one a Val may replace through
+ * `implTrait`.
  *
  * The type is also the value type: a Val declaring the trait is assignable to it.
+ *
+ * @experimental
  */
 export type Trait<K extends string, Shape, M extends Members = Record<never, never>> = DeepReadonly<
   Checked<Shape>
@@ -162,6 +176,8 @@ type Declarable<Shape, M extends Members> = {
  *
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and `Checked` keeps it out of a payload.
+ *
+ * @experimental
  */
 export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
 
@@ -184,6 +200,8 @@ export type TraitHost = { readonly __valof_traits: Members };
  *
  * What it publishes takes the trait, not the shape the implementation was written over. A trait
  * is a contract between Vals, and an object that merely holds the fields is not one of them.
+ *
+ * @experimental
  */
 export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Unbound<
   Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>,
@@ -228,6 +246,8 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
 /**
  * Collects what a trait carries. The chain ends wherever the trait runs out of functions: a
  * builder is a companion already.
+ *
+ * @experimental
  */
 export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitCompanion<Tr, G> & {
   /**
@@ -264,6 +284,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
     }),
 });
 
+/** @experimental */
 export const Trait = {
   /** Declares a trait's runtime side: what every Val implementing it shares. */
   companion: <Tr extends AnyTrait>(): TraitBuilder<Tr> => {

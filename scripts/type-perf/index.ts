@@ -34,6 +34,8 @@ const budget: Record<Fixture, number> = { core: 10_000, trait: 15_000 };
  * The published declarations, in bytes. Deterministic like the counts above, and budgeted the
  * same way: an alarm, not a ratchet.
  *
+ * The entry plus the chunk it imports, which is what a consumer downloads for `import "valof"`.
+ *
  * Here rather than in `bundle-size` because it is a type cost. It never reaches a user's bundle;
  * what it costs is the download and every parse of it, and a run away shows as a type graph the
  * declarations drag in whole. `Finding` derived from `RULES` took `lint`'s declarations to
@@ -74,6 +76,27 @@ async function measure(tsc: Tsc, name: string): Promise<Counts> {
   }
 }
 
+/**
+ * The entry's declarations plus every chunk they reach. tsdown splits the shared types into a
+ * chunk of their own, so the entry file alone is two import lines.
+ */
+async function declarationBytes(entry: URL): Promise<number> {
+  const seen = new Set<string>();
+  let bytes = 0;
+  const walk = async (url: URL): Promise<void> => {
+    if (seen.has(url.href)) return;
+    seen.add(url.href);
+    const text = await readFile(url, "utf8");
+    bytes += Buffer.byteLength(text, "utf8");
+    // The emitted specifier is the runtime one; its declarations sit beside it.
+    for (const [, chunk] of text.matchAll(/from\s+"(\.[^"]+)\.mjs"/g)) {
+      await walk(new URL(`${chunk}.d.mts`, url));
+    }
+  };
+  await walk(entry);
+  return bytes;
+}
+
 const num = (value: number): string => value.toLocaleString("en-US");
 const bytes = (value: number): string =>
   value < 1024 ? `${value} B` : `${(value / 1024).toFixed(2)} kB`;
@@ -91,10 +114,7 @@ function table(heads: string[], rows: string[][]): string {
 
 await pack();
 
-const declarations = Buffer.byteLength(
-  await readFile(new URL("../../dist/index.d.mts", here), "utf8"),
-  "utf8",
-);
+const declarations = await declarationBytes(new URL("../../dist/index.d.mts", here));
 
 const json = process.argv.includes("--json");
 

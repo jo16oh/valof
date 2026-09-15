@@ -8,12 +8,19 @@ import { fileURLToPath } from "node:url";
 import { minifySync, build, type Rolldown } from "vite";
 
 const root = new URL("../", import.meta.url);
-const entry = "./dist/index.mjs";
 
 // `core` is the budget everyone pays. The other two measure what a `Trait` or an `equals` user
-// adds on top.
-const entries = { core: "Val", trait: "Val, Trait", equals: "equals" } as const;
+// adds on top. `Trait` ships from its own subpath, so the entry names the module per import.
+const entries = {
+  core: { "./dist/index.mjs": ["Val"] },
+  trait: { "./dist/index.mjs": ["Val"], "./dist/experimental.mjs": ["Trait"] },
+  equals: { "./dist/index.mjs": ["equals"] },
+} as const satisfies Record<string, Readonly<Record<string, readonly string[]>>>;
 type Entry = keyof typeof entries;
+type Imports = Readonly<Record<string, readonly string[]>>;
+
+/** What the entry imports, as the printed heading spells it. */
+const imported = (imports: Imports): string[] => Object.values(imports).flat();
 
 const modes = ["production", "development"] as const;
 
@@ -33,14 +40,14 @@ const budget = { gzip: BUDGET_VAL_GZIP, traitGzip: BUDGET_VAL_PLUS_TRAIT_GZIP };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
 
-async function bundle(mode: string, api: string): Promise<string> {
+async function bundle(mode: string, imports: Imports): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "valof-size-"));
   const file = join(dir, "entry.mjs");
-  const target = fileURLToPath(new URL(entry, root));
-  await writeFile(
-    file,
-    `import { ${api} } from ${JSON.stringify(target)};\nconsole.log(${api});\n`,
+  const lines = Object.entries(imports).map(
+    ([module, names]) =>
+      `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
   );
+  await writeFile(file, `${lines.join("\n")}\nconsole.log(${imported(imports).join(", ")});\n`);
   try {
     const result = (await build({
       root: fileURLToPath(root),
@@ -196,7 +203,7 @@ if (process.argv.includes("--json")) {
   console.log(JSON.stringify(measured, null, 2));
 } else {
   for (const name of names) {
-    console.log(`bundle  import { ${entries[name]} }`);
+    console.log(`bundle  import { ${imported(entries[name]).join(", ")} }`);
     console.log(table(modes.map((mode) => [mode, bundles[name][mode]])));
     console.log();
   }

@@ -31,6 +31,7 @@
   "exports": {
     ".": "./dist/index.mjs",
     "./eslint-plugin": "./dist/eslint-plugin.mjs",
+    "./experimental": "./dist/experimental.mjs",
     "./lint": "./dist/lint.mjs",
     "./package.json": "./package.json"
   },
