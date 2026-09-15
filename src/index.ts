@@ -1,4 +1,4 @@
-export { Val } from "./val.ts";
+export { equals, Val } from "./val.ts";
 
 /**
  * `Companion`, `CompanionBuilder`, `Sealed` and `Sealer` are exported for the names alone: a

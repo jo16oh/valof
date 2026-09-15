@@ -3,16 +3,9 @@ import { original, type Bindings } from "./bindings.ts";
 
 /**
  * A top-level `type X = Val<"brand", payload>`.
- *
- * `span` is the whole declaration, which is what a resolved definition is tested against: the
- * server points at the name, and containment turns that back into the alias.
  */
 export type Alias = {
-  file: string;
   alias: string;
-  span: [number, number];
-  /** The second type argument. Absent when the alias is generic over its payload. */
-  payload: Node | undefined;
 };
 
 /**
@@ -56,18 +49,16 @@ function valName(typeName: Node, namespaces: ReadonlySet<string>): string | unde
 }
 
 /**
- * Top-level Val aliases, with the payload for the structural-equals rule and the brand for the
- * duplicate-brand one.
+ * Top-level Val aliases and the brands they claim.
  *
  * Only a top-level alias can be imported and assigned somewhere else, which is the collision the
  * brand rule reports. A `type Point` inside a `describe` block collides with nothing.
  *
  * The alias must spell `Val<…>` itself. A user's helper around it, `type Branded<K, T> =
- * Val<K, T>`, is invisible to both rules.
+ * Val<K, T>`, is invisible to these facts.
  */
 export function valAliases(
   program: Node,
-  file: string,
   bound: Bindings,
   at: (offset: number) => Where,
 ): { aliases: Alias[]; brands: BrandClaim[]; reAliases: ReAlias[] } {
@@ -101,13 +92,8 @@ export function valAliases(
     }
 
     if (original(bound, named) === "Val") {
-      // The payload is the second argument. Absent on `Val<K, T>` inside a helper, which
-      // describes no particular value.
       aliases.push({
-        file,
         alias: id["name"] as string,
-        span: [node["start"] as number, node["end"] as number],
-        payload: children(args, "params")[1],
       });
     }
 

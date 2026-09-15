@@ -28,9 +28,9 @@ export const SplitCompanion: Rule<SplitCompanion> = {
  * companion under another name, which the companion-mismatch rule reports, or one nobody can
  * import under the type's name.
  *
- * An import is the whole test, so nothing is resolved and no language server starts. A type
- * declared here through a helper of the user's own, `type Local = Imported`, is not seen: the
- * name is local, and silence is the safe direction.
+ * An import is the whole test, so no type resolution is needed. A type declared here through a
+ * helper of the user's own, `type Local = Imported`, is not seen: the name is local, and silence
+ * is the safe direction.
  */
 function findings(scans: readonly Scan[]): SplitCompanion[] {
   const found: SplitCompanion[] = [];
