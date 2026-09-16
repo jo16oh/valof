@@ -35,7 +35,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
@@ -1839,6 +1839,10 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
       隣に出す。実行時は proxy 1 つと Variant ごとの枠（`Val.sealer` を借りる）。bundle-size は
       `Val` + `Enum` で 1.10 kB gzip、予算は `Val` の 1.25 kB + 384 B。実装中に分かったことは §15.2
       「実装して分かったこと」
+- [x] ~~**`Enum` にカスタム seal が無い。**~~ → 入れた。入口を `Enum.sealer` / `Enum.companion` の 2 つに
+      分け、`implVariant` は Variant の builder を callback で渡す。Enum の seal と Variant の seal は
+      渡して 1 本にし、`impl` で鎖を閉じる。タグは第 3 型引数へ移した。形と却下案は §15.2「Variant ごとの
+      seal と union の `seal`」
 - [ ] **valof-lint が `Enum` を知らない。**別 PR。既存規則を Enum の構文に広げるのが主（`brand-mismatch`、
       `companion-mismatch`、`split-companion`、`duplicate-brand`、`unnecessary-alias`、`unused-member` は
       `implVariant` のメンバを `Shape.Circle.diameter` と `Circle.diameter` の 2 経路で数える）。新規は 1 本、
@@ -5003,14 +5007,19 @@ Variant 側は救えるが、「カスタムのタグ名と `tag` という Vari
 
 ```ts
 type A = Enum<"A", { One: { v: number } }>;
-type B = Enum<"B", Tag<"kind"> & { Click: { x: number } }>;
+type B = Enum<"B", { Click: { x: number } }, Tag<"kind">>;
 type C = Enum<"C", { One: { v: number } }, { id: string }>;
 type D = Enum<"D", { One: { v: number } }, Describable>;
-type F = Enum<"F", Tag<"type"> & { One: { v: number } }, { id: string } & Describable>;
+type F = Enum<"F", { One: { v: number } }, Tag<"type"> & { id: string } & Describable>;
 ```
 
 **共通フィールドと trait も 1 つの枠に交差で書く。**trait は要求するフィールドを自分で持っているので、
 「全 Variant が持つもの」という 1 つの問いに両方が答える。2 つの枠が同じ書き方になる。
+
+**タグも第 3 引数、2026-09-16 に移した。**当初は宣言のレコード（第 2 引数）に交差させていた。タグは全
+Variant が持つフィールドそのもので、同じ問いに答える。`Fault` の「タグが共通フィールドと同名」の検査も
+1 つの引数の中で閉じる。`TagIn<X>` は `[X] extends [TagPhantom<infer T>]` で読み、`keyof (Tag<"kind"> &
+{ id: string })` は `"id"` だけなので共通フィールドと混ざらない。
 
 **`tag-mismatch` は要らなくなった（§9 から外す）。**companion の引数を
 `[TagOf<E>] extends ["_tag"] ? [tag?: "_tag"] : [tag: TagOf<E>]` にすると、型が 3 つとも落とす。
@@ -5134,6 +5143,97 @@ Trait の `Declarable`、`Enum` の `Fault` で、メンバ名としても Varia
 mapped types」。どちらのエイリアスもトップレベルが交差で、交差はこの一覧に無い。交差をやめるとエイリアス名が
 落ちる（§2.1）ので、名前と型コストのどちらかになる。**名前を取る。**定数はプログラムごとに 1 回で、
 Variant の数では増えない。予算は 45,000 に置いた。
+
+#### Variant ごとの seal と union の `seal`、2026-09-16 実装
+
+**動機は境界の分岐。**タグ付きのペイロードが来る場所で、利用者は今どの Variant かを自分で見て、対応する
+コンストラクタを呼んでいる。`Shape.seal(payload)` があれば、タグで枠を引くのはライブラリの仕事になる。
+
+**入口を `Val` と同じ 2 つにした。**`Enum.sealer` は全 Variant が callable で、companion 自体が境界の
+入口。`Enum.companion` は全 Variant が `.create` で、`seal` が境界の入口、`implSeal` を持つ。
+
+```ts
+const Shape = Enum.companion<Shape>()
+  .implSeal((p, seal) => (p.id ? seal(p) : new RangeError("id must not be empty")))
+  .implVariant(() => ({
+    Circle: (b) =>
+      b
+        .companion()
+        .implSeal((p, seal) => (p.r > 0 ? seal(p) : new RangeError("r must be positive")))
+        .impl(),
+    Square: (b) => b.companion().impl({ diagonal: (s) => s.side * Math.SQRT2 }),
+  }))
+  .impl();
+
+Shape.Circle.create({ r: 2, id: "c1" }); // VariantOf<Shape, "Circle"> | RangeError
+Shape.seal(fromWire); // タグで分ける。戻りは Variant の union
+```
+
+**`Enum.companion` で `b.sealer()` は許さない。**許すと `Shape.Circle({ r: 2 })` と
+`Shape.Square.create({ … })` が並び、呼び分けが型を読むまで分からない。既定でいい Variant は
+`implVariant` に書かなければいいだけで、書く量は増えない。12 個のうち 1 個に seal を付けたいときに全部が
+`.create` になるのが代償で、`Val` が 1 つの型で払っているのと同じもの。実利用で刺さったら
+`Enum.companion` の側だけ緩められる。緩めるのは後方互換、締めるのは違う。
+
+**Enum の seal は共有フィールド用。**Variant の seal と競合させない。合成を Enum 側ではできない:
+Variant の seal が返すのはユーザーの型で、`val.ts` はその中を見ない（`Constructed`）。`Result` を
+受け取った Enum の seal は成功かどうかを判定できない。
+
+**渡せば 1 本になる。**Variant の seal の第 2 引数を「Enum の seal を通してから既定 seal」にする。実行の
+順は Variant、Enum、既定。合成はユーザーが `seal(p)` の戻りを見て書く。Variant の `.seal` を直接呼んでも
+Enum の検査は通る。書かなかった Variant は、Enum の seal がそのまま seal になる。
+
+**`seal` の入力はタグを含む。**枠を引くのがタグなので、書き換えられる形にはしない。`create` がタグを
+入れた後の payload なので、Enum の seal が見るものと同じ型になる。
+
+**戻り値は Variant に絞る。**Enum の seal の terminal は union を返すので、素の `ReturnType` だと
+`Shape.Circle.create` が `Shape | RangeError` になる。返り値のうち union に代入できる部分だけを
+`VariantOf<E, N>` に置き換える。`Result<Shape, E>` のように union を内側に持つ戻りは素通しで、そこの
+union は union のまま。ライブラリは中を見ない。
+
+**鎖は `impl` で閉じる。**`Val` の `Sealer.impl()` が `Sealed` を返すのと同じ。閉じないと、export した
+companion にステップが載ったままで、`Shape.implSeal((p, seal) => seal(p))` が検査を外した別の Shape を
+その場で作れる。`implSeal` / `implVariant` / `implTrait` だけが builder を返し、union のメンバが無ければ
+`impl()`。代償は `Val` と同じで、`implVariant` の callback から `impl` のメンバを読めないこと。
+
+**予約名に `seal` が増えた。**Variant 名は `Fault`、メンバ名は `CompanionMembers` の `Wired` が落とす。
+実行時の proxy も `seal` を枠にしない。
+
+**却下: `implSeal` を Variant ごとのレコードで受ける。**`implSeal(() => ({ Circle: (p, seal) => … }))`
+の形。Enum の seal を置く場所が無く、`implVariant` とメンバの登録先が 2 つに割れる。builder を 1 つ渡せば
+seal もメンバも同じ callback の中に入る。
+
+**却下: 値の形で枠から鎖を伸ばす。**`Circle: Shape.Circle.implSeal(…)` のように、公開された枠から
+書く案。枠は companion に載ったまま残るので、`Shape.Circle.implSeal(evil)` が定義の外で通る。同じ型に
+2 つ目のコンストラクタが立つ。`Val.sealer<VariantOf<…>>()` の偽造と違い、これは公開 API の補完に並ぶ。
+builder を `implVariant` の callback にだけ渡せば、その経路が型に現れない。`implTrait` が trait の
+companion を引数で受けるのと同じ形。
+
+**却下: enum に seal を 1 本書く。**`(payload) => E` を受ける案。中で必ずタグ分岐が要るので書く量は
+Variant ごとと変わらず、分岐に `match` を使うと自分の companion を参照して TS7022。検査の単位も実際には
+Variant で、`r > 0` は Square に何も言わない。
+
+**Variant ごとの `implTrait` は出さない。**builder が Val の鎖を持つので自然に生えるが、抽象化はすでに
+Enum が 1 つ与えている。Variant 単位で trait を実装して嬉しい場面が挙がらず、Enum レベルの `implTrait` と
+どちらが勝つかという規則も要らなくなる。`implCreate` と `fixed` も出さない。タグのために使い切っている
+（`implCreate` がタグを書き、`fixed` が `patch` から外す）。
+
+**`nocopy` は自然に付いた。**`val.ts` の `attach` が `create` と custom seal の両方に生やしていて、
+Variant の枠が Val の companion なので追加の実装が要らない。
+
+**実装して分かったこと。**
+
+- **TS 5.9 は条件型の union を union で受けると落ちる。**`Exclude<R, E> | (… ? never : VariantOf<…>)`
+  と書くと、trait を実装した enum で TS2590「union type too complex to represent」。入れ子の条件型に
+  すれば同じ型で通る。7.0 / 6.0 では出ない
+- **variance 注釈は書けるところがある。**§15.2「実装して分かったこと」の TS2637 は交差の話で、object 型と
+  mapped 型のエイリアスには `in out` が書ける。`VariantSteps` / `VariantBuilder` / `Constructors` に
+  書いて、fixture の instantiation が 120,000 から 72,000 に落ちた。交差への参照も TS7 は落とすので、
+  `VariantFrame` には書けない
+- **seal の戻りは枠に 1 回だけ実体化する。**`create` / `create.nocopy` / `patch` / `seal` / `seal.nocopy`
+  がそれぞれ `Built<…>` を書くと 5 回実体化する。本体を `Framed<E, N, R, …>` に出して `R` で受ける
+- **予算。**type-perf は 45,000 から 90,000 へ。Variant 1 個あたりは約 1,100 で線形、残りは variance
+  測定の定数。bundle-size は `Val` + `Enum` で 1.10 kB から 1.28 kB gzip、予算 1.63 kB は動かさない
 
 ---
 
