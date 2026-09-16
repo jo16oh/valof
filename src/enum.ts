@@ -90,15 +90,17 @@ type Fault<D, S, Tg extends string> =
       ? "an enum needs at least two variants; one is a Val"
       : never)
   | {
-      [N in VariantKeys<D>]: N extends "match" | `impl${string}` | `__valof_${string}`
-        ? "a variant cannot take a name the library wires"
-        : [D[N]] extends [object]
-          ? [D[N]] extends [ReadonlyArray<unknown>]
-            ? "a variant's payload must be a record of fields"
-            : Tg extends keyof D[N]
-              ? "the tag cannot take the name of a field the payload holds"
-              : never
-          : "a variant's payload must be a record of fields";
+      [N in VariantKeys<D>]: N extends "then"
+        ? "a variant named `then` would make the companion a thenable"
+        : N extends "match" | `impl${string}` | `__valof_${string}`
+          ? "a variant cannot take a name the library wires"
+          : [D[N]] extends [object]
+            ? [D[N]] extends [ReadonlyArray<unknown>]
+              ? "a variant's payload must be a record of fields"
+              : Tg extends keyof D[N]
+                ? "the tag cannot take the name of a field the payload holds"
+                : never
+            : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
   | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never);
 
@@ -357,8 +359,9 @@ const state = (
     {
       get(_, key) {
         // A symbol reaches here from `await`, `JSON.stringify` and every other protocol read, and
-        // `then` would make the companion thenable. Both would otherwise come back as a frame,
-        // since the proxy has no list of variant names to check against. A `then` variant is lost.
+        // `then` would make the companion a thenable. Both would otherwise come back as a frame,
+        // since the proxy has no list of variant names to check against. A `then` variant is an
+        // error at the declaration, like a `then` member anywhere else.
         if (typeof key !== "string" || key === "then") return undefined;
         if (Object.hasOwn(members, key)) return members[key];
         if (key === "match") {

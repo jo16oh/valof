@@ -163,8 +163,9 @@ type HasSelfBranch<T> = [T] extends [Self]
           : false;
 
 /**
- * Rejects a member a Val could not carry: one returning `Self`, and one named after something
- * the library wires, `__valof_`, the `impl` step and the trait's own `dyn` included.
+ * Rejects a member a Val could not carry: one returning `Self`, one named `then`, and one named
+ * after something the library wires, `__valof_`, the `impl` step and the trait's own `dyn`
+ * included.
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
@@ -177,13 +178,15 @@ type Declarable<Shape, M extends Members> = {
     ? Invalid<"a trait member cannot take a field's name">
     : K extends "dyn"
       ? Invalid<"a trait member cannot take the name the trait itself uses">
-      : K extends Wired | `__valof_${string}` | `impl${string}`
-        ? Invalid<"a trait member cannot take a name the library wires">
-        : M[K] extends (...args: never[]) => infer R
-          ? HasSelf<R> extends true
-            ? Invalid<"a trait member cannot return Self">
-            : M[K]
-          : M[K];
+      : K extends "then"
+        ? Invalid<"a member named `then` would make the companion a thenable">
+        : K extends Wired | `__valof_${string}` | `impl${string}`
+          ? Invalid<"a trait member cannot take a name the library wires">
+          : M[K] extends (...args: never[]) => infer R
+            ? HasSelf<R> extends true
+              ? Invalid<"a trait member cannot return Self">
+              : M[K]
+            : M[K];
 };
 
 /**

@@ -165,6 +165,5 @@ wherever they appear.
 
 - **Two variants at least.** One variant is a Val, and TypeScript loses the alias for a union of
   one, which breaks the declarations of a package that exports the companion.
-- **A variant may not be called `then`.** The companion is a proxy with no list of variant names, so
-  it answers every other name with a constructor. Answering `then` would make it look like a
-  promise.
+- **A variant may not be called `then`.** A companion holding `then` is a thenable, and `await` on
+  one never settles. The same name is rejected for a member of any companion.

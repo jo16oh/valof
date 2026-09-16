@@ -262,6 +262,12 @@ export type CompanionMembers<V> = Partial<Record<Wired, never>> & {
    */
   [key: `impl${string}`]: never;
   /**
+   * A companion holding `then` is a thenable. `await` on it, or returning it from an async
+   * function, calls the member with the resolve and reject functions, and the promise never
+   * settles.
+   */
+  then?: never;
+  /**
    * One callable member only. This is the contextual type for the Val parameter, and TypeScript
    * takes one from a union only while a single constituent has a call signature. `NonFn` has
    * none. A second function type would, and the parameter then falls back to implicit `any`

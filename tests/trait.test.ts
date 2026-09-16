@@ -112,6 +112,12 @@ describe("Trait", () => {
       Trait.companion<Boxed>().impl({});
     });
 
+    test("nor `then`, which would make the companion a thenable", () => {
+      type Awaited = Trait<"Awaited", { name: string }, { then: (self: Self) => string }>;
+      // @ts-expect-error a member named `then` would make the companion a thenable
+      Trait.companion<Awaited>().impl({});
+    });
+
     // The tests above name one wired member each. This one fails if `Wired` grows a name
     // `Declarable` still accepts. `"greet"` is the control: without it the conditional could
     // answer `never` for every name and the test would pass on nothing.

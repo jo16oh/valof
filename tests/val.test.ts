@@ -1892,6 +1892,14 @@ describe("building", () => {
         });
       });
 
+      test("nor `then`, which would make the companion a thenable", () => {
+        Val.companion<Member>().impl({
+          // @ts-expect-error `await` on a thenable companion never settles
+          // oxlint-disable-next-line no-thenable -- the rejection is what this test reads
+          then: (m: Member) => m.name,
+        });
+      });
+
       test("a member may not take a name the payload holds", () => {
         type Loud = Trait<"Loud", { name: string }, { greet: (self: Self) => string }>;
         const Loud = Trait.companion<Loud>().impl({ greet: (l) => l.name });

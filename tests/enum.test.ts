@@ -179,6 +179,12 @@ describe("members", () => {
     Enum.companion<Shape>().impl(() => ({ patch: (s: Shape) => s }));
   });
 
+  test("nor `then`, which would make the companion a thenable", () => {
+    // @ts-expect-error `await` on a thenable companion never settles
+    // oxlint-disable-next-line no-thenable -- the rejection is what this test reads
+    Enum.companion<Shape>().impl(() => ({ then: (s: Shape) => s }));
+  });
+
   test("a step does not mutate the one before it", () => {
     const before = Enum.companion<Shape>();
     const after = before.implVariant(() => ({ Circle: { diameter: (c) => c.r * 2 } }));
@@ -273,6 +279,13 @@ describe("traits", () => {
 
 // One check answers for the companion, since a broken declaration stops satisfying `AnyEnum`.
 describe("a broken declaration", () => {
+  test("a variant may not be called `then`", () => {
+    type Awaited = Enum<"Awaited", { then: { n: number }; Other: { n: number } }>;
+    expectTypeOf<Awaited>().not.toExtend<AnyEnum>();
+    // @ts-expect-error a variant named `then` would make the companion a thenable
+    Enum.companion<Awaited>();
+  });
+
   test("a variant may not take a name the library wires", () => {
     type Matched = Enum<"Matched", { match: { n: number } }>;
     expectTypeOf<Matched>().not.toExtend<AnyEnum>();

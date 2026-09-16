@@ -35,7 +35,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、宣言出力の CI、variance 測定と型コスト）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
@@ -5111,6 +5111,14 @@ Val なので、メッセージはそちらを言う。**Variant 0 個は `never
 **`CompanionMembers<V>` の制約を外した。**Variant は `Val<…> & EnumPhantom<…>` で、TS は generic の中で
 それが `AnyVal` を満たすと証明できない。制約を落として `V` を素の型引数にすると、val.ts 側は何も変わらずに
 Variant のメンバもこれで書ける。
+
+**`then` は 3 箇所すべてで型が落とす。**当初は enum の proxy が `then` を `undefined` で返すだけだった。
+proxy は Variant 名を知らないので、返せば companion が thenable になり、`await` も `Promise.resolve` も
+永久に settle しない。だが `then` メンバを持つ companion が壊れるのは Val でも同じで、Val 側は型も実行時も
+何も言わずに同じハングを起こしていた。**enum だけが保証する形をやめる。**`CompanionMembers` の `then?: never`、
+Trait の `Declarable`、`Enum` の `Fault` で、メンバ名としても Variant 名としても落とす。proxy のガードは
+残す。宣言していない companion まで thenable になるのはガードを外したときだけで、それは利用者の書いたものが
+原因ではない。oxlint の `unicorn/no-thenable` が同じことを言うので、テストでは 1 行止める。
 
 **利用者側の宣言出力を CI に入れた。**`scripts/ts-compatibility/` が本のブロックをもう 1 度、
 `declaration: true` で回す。ブロックのトップレベルの `const` / `type` / `function` に `export` を足して

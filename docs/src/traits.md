@@ -329,5 +329,6 @@ A member name is rejected when a Val could not carry it:
 - `patch`, `seal` or `create`, which the library wires
 - anything under `__valof_` or starting with `impl`
 - `dyn`, which the trait itself uses
+- `then`, which would make the companion a thenable
 
 Each is reported where the trait is declared.
