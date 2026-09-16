@@ -27,12 +27,14 @@ type Fixture = (typeof fixtures)[number];
  * too many.
  *
  * The fixtures are not comparable to each other. Each carries its own history. `enum` sits high
- * because `EnumCompanion` and `VariantOf` are generic aliases over intersections: relating two
- * references to one measures the alias's variance, which instantiates it with marker types. That
- * is a constant the checker pays once per program, not growth with the number of variants, which
- * runs at about 800 instantiations each.
+ * because `EnumCompanion`, `VariantFrame` and `VariantOf` are generic aliases over intersections:
+ * relating two references to one measures the alias's variance, which instantiates it with marker
+ * types. That is a constant the checker pays once per program, not growth with the number of
+ * variants, which runs at about 1,100 instantiations each. The aliases that could carry `in out`
+ * do, which is what keeps the constant where it is; an intersection cannot (TS2637), and their
+ * names are worth more than the measurement (notes §15.2).
  */
-const budget: Record<Fixture, number> = { core: 10_000, trait: 15_000, enum: 45_000 };
+const budget: Record<Fixture, number> = { core: 10_000, trait: 15_000, enum: 90_000 };
 
 /**
  * The published declarations, in bytes. Deterministic like the counts above, and budgeted the
