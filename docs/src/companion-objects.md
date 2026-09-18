@@ -10,7 +10,7 @@ function getUserDisplayName(user: User) {
 }
 
 function formatUserLabel(user: User, separator: string) {
-  return user.id + separator + user.name;
+  return user.id + separator + getUserDisplayName(user);
 }
 ```
 
@@ -35,15 +35,17 @@ const User = Val.sealer<User>().impl({
   displayName(user) {
     return user.nickname ?? user.name;
   },
-  formatLabel(user, separator: string) {
-    return user.id + separator + user.name;
+  // A member calling another member annotates its return type, to avoid an implicit `any`.
+  formatLabel(user, separator: string): string {
+    return user.id + separator + User.displayName(user);
   },
 });
 ```
 
 `Val.sealer<User>()` creates the constructor. `.impl({ ... })` adds functions under the `User`
-namespace, where they are the companion's members. Every member takes its Val first, so Valof infers
-that parameter as `User`. You only annotate the parameters that follow it.
+namespace, where they are the companion's members, in one call that ends the chain. Every member
+takes its Val first, so Valof infers that parameter as `User`. You only annotate the parameters that
+follow it, and the return type where a member references `User` itself.
 
 The result remains callable and exposes the members:
 
@@ -55,8 +57,8 @@ const User = Val.sealer<User>().impl({
   displayName(user) {
     return user.nickname ?? user.name;
   },
-  formatLabel(user, separator: string) {
-    return user.id + separator + user.name;
+  formatLabel(user, separator: string): string {
+    return user.id + separator + User.displayName(user);
   },
 });
 // ---cut---

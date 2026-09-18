@@ -145,8 +145,7 @@ The same argument declares the [traits](traits.md) the enum implements.
 ## Members
 
 `.impl` collects the members that take the union, and `.implVariant` builds one variant, named in
-the first argument. `.impl` takes an object, or a callback passed the companion as it stands.
-`.implVariant` takes a callback, passed the variant's steps with that same companion after them.
+the first argument. `.implVariant` takes a callback, passed that variant's steps.
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -155,31 +154,31 @@ type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
 const Shape = Enum.sealer<Shape>()
   .implVariant("Circle", (sealer) => sealer.impl({ diameter: (c) => c.r * 2 }))
-  .impl((self) => ({
-    area: (s) =>
-      self.match(s, {
+  .impl({
+    // A member calling `match`, a variant, or a sibling annotates its return type, to avoid an
+    // implicit `any`. A member written inside `.implVariant` reaches the enum's companion the
+    // same way.
+    area: (s): number =>
+      Shape.match(s, {
         Circle: (c) => Math.PI * c.r * c.r,
         Square: (q) => q.side * q.side,
       }),
-  }));
+  });
 
 Shape.Circle.diameter(Shape.Circle({ r: 2 })); // 4
 ```
 
 A variant you write nothing for keeps the default companion, and a variant already built cannot be
 named again. The steps are already that variant's companion, so a callback with nothing to collect
-returns the argument: `.implVariant("Circle", (sealer) => sealer)`. What a step returns is closed,
-the way `.impl` closes the enum's chain.
+returns the argument: `.implVariant("Circle", (sealer) => sealer)`. What a step returns is closed:
+that variant takes no further step.
 
 No step chooses between a sealer and a companion. `Enum.sealer` makes every variant callable,
 `Enum.companion` builds every one with `.create`, so the enum's entry point decides each variant's.
 
-`.impl` ends the chain, so a companion you export takes no further step. Call it with nothing where
-there is no member to collect: `Enum.sealer<Shape>().implVariant(…).impl()`.
-
-Pass the object. A member calling `match`, or a variant's own member, takes the callback and reads
-it off `self`, since naming `Shape` inside its own initializer does not compile. A member calling
-another member from the same call needs a return annotation.
+`.impl` takes one call, which closes every step, so nothing can add a second seal to a companion you
+export. Call it with nothing where there is no member to collect:
+`Enum.sealer<Shape>().implVariant(…).impl()`.
 
 ## Check the payload
 

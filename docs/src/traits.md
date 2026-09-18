@@ -141,8 +141,8 @@ declared a trait and never implemented it.
 
 ## Give a default implementation
 
-Every Val writing its own `greet` repeats the same line. A trait can implement a member itself, over
-the shape alone, and that becomes the default for every Val that does not replace it:
+Every Val writing its own `greet` repeats the same line. A trait can implement a member itself,
+reading the shape alone, and that becomes the default for every Val that does not replace it:
 
 ```ts
 import { Val } from "valof";
@@ -207,8 +207,7 @@ replace it. Passing `shout` is an error.
 Only `Final` members are named on the trait's own type: `Greetable.shout(user)` typechecks and
 `Greetable.greet` does not.
 
-A default calling one takes a callback. Naming the trait inside its own initializer is an error
-(TS7022), and the callback's argument is what an earlier `impl` implemented:
+A default calling a `Final` member names the trait and annotates its return type:
 
 ```ts
 import { Trait, type Final, type Self } from "valof/experimental";
@@ -222,13 +221,16 @@ type Greetable = Trait<
   }
 >;
 // ---cut---
-const Greetable = Trait.companion<Greetable>()
-  .impl({ shout: (g) => g.name.toUpperCase() })
-  .impl((self) => ({ greet: (g) => `Hi, ${self.shout(g)}` }));
+const Greetable = Trait.companion<Greetable>().impl({
+  shout: (g): string => g.name.toUpperCase(),
+  // A member referencing `Greetable` itself annotates its return type, to avoid an implicit `any`.
+  greet: (g): string => `Hi, ${Greetable.shout(g)}`,
+});
 ```
 
-The argument holds the `Final` members alone, for the same reason the trait names only those. A
-member a Val may replace has to be called through that Val's companion.
+Only a `Final` member can be reached on `Greetable`. A member a Val may replace is not there,
+because reading it off the trait would run the default even for a Val that replaced it. Call it
+through that Val's companion, which dispatches.
 
 ## Implement Traits on an Enum
 
@@ -242,17 +244,15 @@ type Describable = Trait<"Describable", { id: string }, { describe: (self: Self)
 const Describable = Trait.companion<Describable>();
 
 type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, { id: string } & Describable>;
-const Cmd = Enum.sealer<Cmd>().implTrait(Describable, (self) => ({
-  describe: (c) => self.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
-}));
+const Cmd = Enum.sealer<Cmd>().implTrait(Describable, {
+  describe: (c): string => Cmd.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
+});
 
 Cmd.describe(Cmd.Add({ id: "c1", n: 2 })); // "add 2"
 ```
 
 An enum declares its shared fields and its traits in one argument: a trait brings the fields it
 requires, so declaring them again is not needed. Variants cannot implement traits.
-
-The implementation is a callback, like every other step of an enum's companion.
 
 ## Hold values of different types together
 
