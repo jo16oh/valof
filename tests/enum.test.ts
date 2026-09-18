@@ -400,6 +400,13 @@ describe("a seal of its own", () => {
     expect(Money.Cash.doubled(Money.Cash.create({ id: "m1", yen: 2 }) as never)).toBe(4);
   });
 
+  test("a seal written after a variant is rejected", () => {
+    Enum.companion<Money>()
+      .implVariant("Cash", (b) => b.impl())
+      // @ts-expect-error that frame would be typed without this seal and still run it
+      .implSeal((p, seal) => seal(p));
+  });
+
   test("a variant seals alone where the enum wrote none", () => {
     const Plain = Enum.companion<Shape>()
       .implVariant("Circle", (b) =>

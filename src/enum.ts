@@ -388,6 +388,15 @@ type ClosedSealerFrame<E extends AnyEnum, N extends keyof VariantsOf<E>> = ((
 /** A variant no step has built yet. Naming one twice would drop the first frame. */
 type Fresh<E extends AnyEnum, VM> = Exclude<keyof VariantsOf<E>, keyof VM>;
 
+/**
+ * Rejects a seal written after a variant. The frame that variant built reads the enum's seal off
+ * the chain as it stands, so it would be typed without this one and still run it. The check rides
+ * on the parameter (notes §11.1).
+ */
+type Before<VM, Ok> = [keyof VM] extends [never]
+  ? Ok
+  : "write `implSeal` before the first `implVariant`";
+
 /** A variant the callback left out keeps the default frame. */
 type Constructors<in out E extends AnyEnum, in out VM, in out FE> = {
   [N in keyof VariantsOf<E>]: N extends keyof VM
@@ -522,9 +531,13 @@ export type EnumBuilder<
   ) => EnumBuilder<E, VM & { [P in N]: R }, M, F>;
   /**
    * Replaces the seal every variant passes, for what they all hold. A variant checks its own
-   * payload in `implVariant`.
+   * payload in `implVariant`, and is handed this one to call.
+   *
+   * Write it before the first `implVariant`.
    */
-  implSeal: <G extends EnumSealImpl<E>>(seal: CheckedSeal<G>) => EnumBuilder<E, VM, M, G>;
+  implSeal: <G extends EnumSealImpl<E>>(
+    seal: Before<VM, CheckedSeal<G>>,
+  ) => EnumBuilder<E, VM, M, G>;
   /**
    * Implements a trait the enum declares. The implementation takes the union, so a member that
    * differs per variant is a `match` inside it.

@@ -5266,6 +5266,28 @@ Variant の枠が Val の companion なので追加の実装が要らない。
 **逃げ道は塞がらない。**上の「実利用で刺さったら `Enum.companion` の側だけ緩める」は、steps に
 `b.callable()` を足せば同じことができる。後方互換の追加。
 
+#### `implSeal` を `implVariant` より先に強制する、2026-09-18 実装
+
+**規約だけでは型と実行時がずれていた。**枠は `implVariant` の時点の `F` で型が付くが、実行時の合成は
+最後の状態の seal を読む。順を逆に書くと、`create` の型は `VariantOf<…>` のまま実行時に `RangeError` を
+返す。
+
+```ts
+const Money = Enum.companion<Money>()
+  .implVariant("Cash", (b) => b.impl())
+  .implSeal((p, seal) => (p.id ? seal(p) : new RangeError("id")))
+  .impl();
+Money.Cash.create({ id: "", yen: 1 }); // 型は VariantOf、実行時は RangeError
+```
+
+`Before<VM, Ok> = [keyof VM] extends [never] ? Ok : "write …"` をパラメータ位置に置いて落とす
+（§11.1 の B ではなく A、鎖の状態を読む検査なので）。instantiations は +27。
+
+**却下: seal の順を Enum、Variant にする。**合成点が Enum 側に移り、Enum の seal の continuation が
+Variant ごとの戻りの union になる。ライブラリは中を見ないので `Result` の成否を判定できない（上の
+「合成を Enum 側ではできない」と同じ）。今の順では Variant の seal の `seal(p)` が Enum の seal の戻りを
+返すので、合成点は既に Variant 側にある。docs でそう言っていなかったのを 1 文足して直した。
+
 ---
 
 ### 15.3 `path`: seal をまたぐ patch の合成、2026-09-10

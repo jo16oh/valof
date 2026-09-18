@@ -194,10 +194,11 @@ Shape.Square.create({ id: "s2", side: 1 }); // VariantOf<Shape, "Square"> | Rang
 The enum's seal checks what every variant holds; a variant's own seal checks its own payload. A
 payload runs the variant's seal, then the enum's, then the default seal that brands and copies it,
 so a variant that wrote none is still checked by the enum's. Compose them yourself where a check
-depends on the other's result: `seal(payload)` hands you what the next one returned.
+depends on the other's result: inside a variant's seal, `seal(payload)` is the enum's seal, so what
+it hands back is the enum's return, `RangeError` included.
 
-Write `.implSeal` before `.implVariant`. A variant's default seal is the enum's, read from the chain
-as it stands.
+Write `.implSeal` before the first `.implVariant`, which the type enforces. A variant's default seal
+is the enum's, read from the chain as it stands.
 
 Whatever a seal returns propagates, as it does for a Val: the union in it narrows to the variant the
 payload named. `patch` derives through the same seal, so there is no way past it.
