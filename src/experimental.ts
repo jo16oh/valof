@@ -12,8 +12,6 @@ export type {
   EnumCompanion,
   EnumSealed,
   EnumSealer,
-  EnumSealerSteps,
-  EnumSteps,
   NameOf,
   SealedPayload,
   SeedFor,

@@ -494,7 +494,7 @@ export type EnumSealed<E extends AnyEnum, VM = Record<never, never>, M = Record<
   };
 
 /**
- * What `Enum.companion` returns, which its steps grow. `.impl` closes the chain, so a companion
+ * What `Enum.companion` returns, which its steps grow. `.impl` ends the chain, so a companion
  * that left it open cannot be handed one more seal after it was exported.
  *
  * Every step takes a callback. A member written over an enum reaches for `match` first, and
@@ -504,43 +504,26 @@ export type EnumSealed<E extends AnyEnum, VM = Record<never, never>, M = Record<
  *
  * @experimental
  */
-/**
- * A companion with every step closed but `.impl`, which is what `.impl` hands back. The step
- * stays so a member can read the ones written before it off `self`.
- *
- * Inferred, not written: it is exported so your own declarations can name it.
- *
- * @experimental
- */
-export type EnumSteps<E extends AnyEnum, VM, M, F> = EnumCompanion<E, VM, M, F> & {
-  /** Collects more members. See {@link EnumBuilder.impl}. */
-  impl: {
-    (): EnumCompanion<E, VM, M, F>;
-    <G extends UnionMembers<E>>(
-      fns: G | ((self: EnumCompanion<E, VM, M, F>) => G),
-    ): EnumSteps<E, VM, M & G, F>;
-  };
-};
-
 export type EnumBuilder<
   E extends AnyEnum,
   VM = Record<never, never>,
   M = Record<never, never>,
   F = undefined,
-> = EnumSteps<E, VM, M, F> & {
+> = EnumCompanion<E, VM, M, F> & {
   /**
-   * Collects the members taking the union, and closes every other step. Call it with nothing to
-   * close with no member.
+   * Collects the members taking the union, in one call, which closes every step. Call it with
+   * nothing to close with no member.
    *
-   * The callback's argument is the companion as it stands, for a member that calls `match`, a
-   * frame, or a member an earlier `.impl` collected. A member needing none of those takes the
-   * object on its own.
+   * The callback's argument is the companion as it stands, for a member that calls `match` or a
+   * frame. A member needing neither takes the object on its own. A sibling in the same call is
+   * not there: it names the companion and annotates its return type, since naming one inside
+   * its own initializer is a circularity TypeScript reports as TS7023.
    */
   impl: {
     (): EnumCompanion<E, VM, M, F>;
     <G extends UnionMembers<E>>(
       fns: G | ((self: EnumCompanion<E, VM, M, F>) => G),
-    ): EnumSteps<E, VM, M & G, F>;
+    ): EnumCompanion<E, VM, M & G, F>;
   };
   /**
    * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
@@ -587,34 +570,17 @@ export type EnumBuilder<
  *
  * @experimental
  */
-/**
- * The mirror of {@link EnumSteps} for a sealer.
- *
- * Inferred, not written: it is exported so your own declarations can name it.
- *
- * @experimental
- */
-export type EnumSealerSteps<E extends AnyEnum, VM, M> = EnumSealed<E, VM, M> & {
-  /** Collects more members. See {@link EnumBuilder.impl}. */
-  impl: {
-    (): EnumSealed<E, VM, M>;
-    <G extends UnionMembers<E>>(
-      fns: G | ((self: EnumSealed<E, VM, M>) => G),
-    ): EnumSealerSteps<E, VM, M & G>;
-  };
-};
-
 export type EnumSealer<
   E extends AnyEnum,
   VM = Record<never, never>,
   M = Record<never, never>,
-> = EnumSealerSteps<E, VM, M> & {
+> = EnumSealed<E, VM, M> & {
   /** See {@link EnumBuilder.impl}. */
   impl: {
     (): EnumSealed<E, VM, M>;
     <G extends UnionMembers<E>>(
       fns: G | ((self: EnumSealed<E, VM, M>) => G),
-    ): EnumSealerSteps<E, VM, M & G>;
+    ): EnumSealed<E, VM, M & G>;
   };
   /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
   implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
@@ -661,9 +627,6 @@ const state = (
   traits: Record<string, unknown>,
   seal: Seal | undefined,
   open: boolean,
-  // `.impl` keeps itself where every other step is closed: a member reads the ones before it off
-  // the argument its callback takes.
-  grows = true,
 ): object => {
   // Remembered for the allocation, not for identity: a frame built twice behaves the same, and
   // rebuilding one on every read would make a fresh closure per member per access.
@@ -727,9 +690,7 @@ const state = (
     nextTraits: Record<string, unknown>,
     nextSeal: Seal | undefined,
     nextOpen: boolean,
-    nextGrows = true,
-  ): object =>
-    state(tag, callable, nextBuilds, nextMembers, nextTraits, nextSeal, nextOpen, nextGrows);
+  ): object => state(tag, callable, nextBuilds, nextMembers, nextTraits, nextSeal, nextOpen);
 
   /** `.impl` takes the object on its own where the member needs nothing off the companion. */
   const collect = (fns: Payload | ((self: object) => Payload)): Payload =>
@@ -754,16 +715,10 @@ const state = (
       if (key === "seal") return callable ? undefined : enter;
       if (key === "__valof_traits") return traits;
       if (key === "impl") {
-        return open || grows
+        // One call, which closes every step: what it hands back carries no `impl` of its own.
+        return open
           ? (fns?: Payload | ((self: object) => Payload)) =>
-              step(
-                builds,
-                fns ? { ...members, ...collect(fns) } : members,
-                traits,
-                seal,
-                false,
-                fns !== undefined,
-              )
+              step(builds, fns ? { ...members, ...collect(fns) } : members, traits, seal, false)
           : undefined;
       }
       if (key === "implVariant") {

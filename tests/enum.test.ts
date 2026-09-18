@@ -526,14 +526,20 @@ describe("the chain closes", () => {
     expect((closed as unknown as Record<string, unknown>)["impl"]).toBeUndefined();
   });
 
-  test("a second call reads the members of the first", () => {
-    const Sized = Enum.sealer<Shape>()
-      .impl((self) => ({
-        area: (s) => self.match(s, { Circle: (c) => c.r * c.r * 3, Square: (q) => q.side ** 2 }),
-      }))
-      .impl((self) => ({ twice: (s) => self.area(s) * 2 }));
+  test("a member calling a sibling names the companion and annotates its return", () => {
+    const Sized = Enum.sealer<Shape>().impl((self) => ({
+      area: (s): number =>
+        self.match(s, { Circle: (c) => c.r * c.r * 3, Square: (q) => q.side ** 2 }),
+      twice: (s): number => Sized.area(s) * 2,
+    }));
 
     expect(Sized.twice(Sized.Square({ side: 3 }))).toBe(18);
+  });
+
+  test("one call closes the chain", () => {
+    const closed = Enum.sealer<Shape>().impl({ sides: () => 4 });
+    expectTypeOf(closed).not.toHaveProperty("impl");
+    expect((closed as unknown as Record<string, unknown>)["impl"]).toBeUndefined();
   });
 });
 
