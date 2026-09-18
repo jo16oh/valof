@@ -36,13 +36,17 @@ const modes = ["production", "development"] as const;
  * `traitGzip` and `enumGzip` are the first budget plus what each adds, so the pair says the line
  * rather than a second round number: what an experimental import costs is the number to read.
  */
-const BUDGET_VAL_GZIP = 1280;
-const BUDGET_VAL_PLUS_TRAIT_GZIP = BUDGET_VAL_GZIP + 128;
-const BUDGET_VAL_PLUS_ENUM_GZIP = BUDGET_VAL_GZIP + 384;
+const BUDGET_VAL = 1280;
+const BUDGET_VAL_PLUS_EQUALS = BUDGET_VAL + 128;
+const BUDGET_VAL_PLUS_TRAIT = BUDGET_VAL + 128;
+const BUDGET_VAL_PLUS_ENUM = BUDGET_VAL + 128;
+const BUDGET_ALL = BUDGET_VAL + 384;
 const budget = {
-  gzip: BUDGET_VAL_GZIP,
-  traitGzip: BUDGET_VAL_PLUS_TRAIT_GZIP,
-  enumGzip: BUDGET_VAL_PLUS_ENUM_GZIP,
+  val: BUDGET_VAL,
+  equals: BUDGET_VAL_PLUS_EQUALS,
+  traitGzip: BUDGET_VAL_PLUS_TRAIT,
+  enumGzip: BUDGET_VAL_PLUS_ENUM,
+  all: BUDGET_ALL,
 };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
@@ -148,7 +152,7 @@ if (production.includes("Number.isNaN")) {
 }
 
 const measured = {
-  bundle: bundles.core,
+  val: bundles.core,
   trait: bundles.trait,
   enum: bundles.enum,
   equals: bundles.equals,
@@ -156,9 +160,11 @@ const measured = {
 };
 
 const checks = [
-  ["production gzip", measured.bundle.production.gzip, budget.gzip],
+  ["production gzip", measured.val.production.gzip, budget.val],
+  ["production gzip, with Equals", measured.equals.production.gzip, budget.equals],
   ["production gzip, with Trait", measured.trait.production.gzip, budget.traitGzip],
   ["production gzip, with Enum", measured.enum.production.gzip, budget.enumGzip],
+  ["production gzip, all", measured.all.production.gzip, budget.all],
 ] as const;
 
 function budgets(): string {
