@@ -12,9 +12,9 @@ import {
 } from "../src/experimental.ts";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.sealer<Shape>().implVariant(() => ({
-  Circle: (b) => b.sealer().impl({ diameter: (c) => c.r * 2 }),
-}));
+const Shape = Enum.sealer<Shape>().implVariant("Circle", (b) =>
+  b.impl({ diameter: (c) => c.r * 2 }),
+);
 const { Circle, Square } = Shape;
 
 const circle = Circle({ r: 2 });
@@ -149,7 +149,7 @@ describe("shared fields", () => {
 describe("members", () => {
   type Money = Enum<"Money", { Cash: { yen: number }; Card: { limit: number } }, { id: string }>;
   const Money = Enum.sealer<Money>()
-    .implVariant(() => ({ Cash: (b) => b.sealer().impl({ doubled: (c) => c.yen * 2 }) }))
+    .implVariant("Cash", (b) => b.impl({ doubled: (c) => c.yen * 2 }))
     .impl((self) => ({
       // The callback is what makes this the plain spelling: naming `Money` here is TS7022.
       spendable: (m) => self.match(m, { Cash: (c) => self.Cash.doubled(c), Card: (c) => c.limit }),
@@ -187,9 +187,7 @@ describe("members", () => {
 
   test("a step does not mutate the one before it", () => {
     const before = Enum.sealer<Shape>();
-    const after = before.implVariant(() => ({
-      Circle: (b) => b.sealer().impl({ diameter: (c) => c.r * 2 }),
-    }));
+    const after = before.implVariant("Circle", (b) => b.impl({ diameter: (c) => c.r * 2 }));
     expect(Object.hasOwn(after.Circle, "diameter")).toBe(true);
     expect(Object.hasOwn(before.Circle, "diameter")).toBe(false);
   });
@@ -351,16 +349,14 @@ describe("a seal of its own", () => {
       ran.push("enum");
       return p.id ? seal(p) : new RangeError("id must not be empty");
     })
-    .implVariant(() => ({
-      Cash: (b) =>
-        b
-          .companion()
-          .implSeal((p, seal) => {
-            ran.push("variant");
-            return p.yen > 0 ? seal(p) : new RangeError("yen must be positive");
-          })
-          .impl({ doubled: (c) => c.yen * 2 }),
-    }))
+    .implVariant("Cash", (b) =>
+      b
+        .implSeal((p, seal) => {
+          ran.push("variant");
+          return p.yen > 0 ? seal(p) : new RangeError("yen must be positive");
+        })
+        .impl({ doubled: (c) => c.yen * 2 }),
+    )
     .impl();
 
   test("every variant builds with `create`, and the seal's return propagates", () => {
@@ -406,13 +402,9 @@ describe("a seal of its own", () => {
 
   test("a variant seals alone where the enum wrote none", () => {
     const Plain = Enum.companion<Shape>()
-      .implVariant(() => ({
-        Circle: (b) =>
-          b
-            .companion()
-            .implSeal((p, seal) => (p.r > 0 ? seal(p) : new RangeError("r must be positive")))
-            .impl(),
-      }))
+      .implVariant("Circle", (b) =>
+        b.implSeal((p, seal) => (p.r > 0 ? seal(p) : new RangeError("r must be positive"))).impl(),
+      )
       .impl();
     expect(Plain.Circle.create({ r: 2 })).toEqual(circle);
     expect(Plain.Circle.create({ r: 0 })).toBeInstanceOf(RangeError);
@@ -453,19 +445,29 @@ describe("a seal of its own", () => {
 
   test("a sealer has no seal to replace: its constructors are the default one", () => {
     expectTypeOf(Enum.sealer<Shape>()).not.toHaveProperty("implSeal");
-    Enum.sealer<Shape>().implVariant(() => ({
-      // @ts-expect-error `implSeal` is not a step of a variant's sealer either
-      Circle: (b) => b.sealer().implSeal(() => ({})),
-    }));
+    // @ts-expect-error `implSeal` is not a step of a variant's either
+    Enum.sealer<Shape>().implVariant("Circle", (b) => b.implSeal(() => ({})));
+  });
+
+  test("the callback's second argument is the companion as it stands", () => {
+    const Twinned = Enum.sealer<Shape>().implVariant("Circle", (b, self) =>
+      b.impl({ twin: (c) => self.Square({ side: c.r }) }),
+    );
+    expect(Twinned.Circle.twin(circle)).toEqual({ side: 2, _tag: "Square" });
+  });
+
+  test("a variant already built cannot be named again", () => {
+    Enum.sealer<Shape>()
+      .implVariant("Circle", (b) => b.impl({ diameter: (c) => c.r * 2 }))
+      // @ts-expect-error the second frame would drop the first
+      .implVariant("Circle", (b) => b.impl());
   });
 
   test("the builder lives in the callback alone", () => {
     // A frame reached from the companion would stand a second constructor beside the first.
     expect("implSeal" in Money.Cash).toBe(false);
-    Enum.companion<Money>().implVariant(() => ({
-      // @ts-expect-error the chain ends at `impl`
-      Cash: (b) => b.companion(),
-    }));
+    // @ts-expect-error the chain ends at `impl`, so the steps themselves are not a frame
+    Enum.companion<Money>().implVariant("Cash", (b) => b);
   });
 });
 

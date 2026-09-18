@@ -35,7 +35,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
@@ -5227,13 +5227,44 @@ Variant の枠が Val の companion なので追加の実装が要らない。
   と書くと、trait を実装した enum で TS2590「union type too complex to represent」。入れ子の条件型に
   すれば同じ型で通る。7.0 / 6.0 では出ない
 - **variance 注釈は書けるところがある。**§15.2「実装して分かったこと」の TS2637 は交差の話で、object 型と
-  mapped 型のエイリアスには `in out` が書ける。`VariantSteps` / `VariantBuilder` / `Constructors` に
+  mapped 型のエイリアスには `in out` が書ける。`VariantSteps` / `SealerVariantSteps` / `Constructors` に
   書いて、fixture の instantiation が 120,000 から 72,000 に落ちた。交差への参照も TS7 は落とすので、
   `VariantFrame` には書けない
 - **seal の戻りは枠に 1 回だけ実体化する。**`create` / `create.nocopy` / `patch` / `seal` / `seal.nocopy`
   がそれぞれ `Built<…>` を書くと 5 回実体化する。本体を `Framed<E, N, R, …>` に出して `R` で受ける
 - **予算。**type-perf は 45,000 から 90,000 へ。Variant 1 個あたりは約 1,100 で線形、残りは variance
   測定の定数。bundle-size は `Val` + `Enum` で 1.10 kB から 1.28 kB gzip、予算 1.63 kB は動かさない
+
+#### `implVariant` は Variant ごとの鎖、2026-09-18 実装
+
+**レコード 1 個から鎖に変えた。**ネストが 1 段減り、外側の callback が消える。
+
+```ts
+// 前
+.implVariant(() => ({
+  Circle: (b) => b.sealer().impl({ diameter: (c) => c.r * 2 }),
+  Rect: (b) => b.sealer().impl({ ratio: (r) => r.w / r.h }),
+}))
+// 後
+.implVariant("Circle", (b) => b.impl({ diameter: (c) => c.r * 2 }))
+.implVariant("Rect", (b) => b.impl({ ratio: (r) => r.w / r.h }))
+```
+
+**`self` は第 2 引数。**`(variant, self) => …`。TS7022 を切る効果は外側の callback と同じで、要らなければ
+書かない。`implTrait(trait, fns)` と同じ 2 引数の形に揃う。
+
+**同じ Variant を 2 回名指しすると落ちる。**`Fresh<E, VM> = Exclude<keyof VariantsOf<E>, keyof VM>` を
+名前の制約にする。レコードの重複キーが落ちていたのと同じ検出を、鎖でも保つ。
+
+**型コストは誤差。**fixture の instantiations が 72,457 から 72,649。鎖 3 本ぶんで +192、1 段あたり約 64。
+`types` は 57,459 から 57,414 で微減。gzip は +2 B。予算はどちらも動かさない。
+
+**`b.sealer()` / `b.companion()` は落とした。**Enum の入口が Variant の入口を決めるので、選択肢が無い
+1 キーのオブジェクトだった。`VariantBuilder` / `SealerVariantBuilder` / `VariantBuilds` / `Frames` が
+消え、`b` は `VariantSteps` そのものになる。
+
+**逃げ道は塞がらない。**上の「実利用で刺さったら `Enum.companion` の側だけ緩める」は、steps に
+`b.callable()` を足せば同じことができる。後方互換の追加。
 
 ---
 

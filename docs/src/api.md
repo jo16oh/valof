@@ -56,27 +56,33 @@ companion. There is no reason to import one yourself.
 
 ### Enum
 
-|                                          |                                              |
-| ---------------------------------------- | -------------------------------------------- |
-| `Enum<K, D, X>`                          | a closed set of variants, as one union       |
-| `Enum.companion<E>(tag?)`                | starts the enum's companion                  |
-| `E.match(value, handlers)`               | dispatches on the tag, exhaustively          |
-| `E[Variant](payload)`                    | builds that variant, writing the tag         |
-| `E[Variant].patch(value, patch)`         | derives a variant, never reaching the tag    |
-| `Enum.companion<E>().impl(fns)`          | adds members taking the union                |
-| `Enum.companion<E>().implVariant(fns)`   | adds members taking a single variant         |
-| `Enum.companion<E>().implTrait(Tr, fns)` | implements a trait the enum declares         |
-| `Tag<T>`                                 | names the tag field, intersected into `D`    |
-| `VariantOf<E, N>`                        | the type of one variant                      |
-| `SeedFor<E, N>`                          | what that variant's constructor takes        |
-| `VariantsOf<E>` / `SharedOf<E>`          | the declared variants, and the shared fields |
-| `NameOf<E>` / `TagOf<E>`                 | the enum's name, and the tag field's name    |
-| `AnyEnum`                                | a constraint over any enum                   |
-| `EnumBuilder<E>` / `EnumCompanion<E>`    | what the steps return, never written         |
+|                                      |                                              |
+| ------------------------------------ | -------------------------------------------- |
+| `Enum<K, D, X>`                      | a closed set of variants, as one union       |
+| `Enum.sealer<E>(tag?)`               | starts an enum whose variants are callable   |
+| `Enum.companion<E>(tag?)`            | the same, for an enum with a seal of its own |
+| `E.match(value, handlers)`           | dispatches on the tag, exhaustively          |
+| `E[Variant](payload)`                | builds that variant, writing the tag         |
+| `E[Variant].create(payload)`         | the same on a companion, through its seal    |
+| `E[Variant].patch(value, patch)`     | derives a variant, never reaching the tag    |
+| `E(payload)` / `E.seal(payload)`     | draws the frame from the tag, and seals      |
+| `.impl(fns?)`                        | adds members taking the union, and closes    |
+| `.implVariant(N, fns)`               | builds one variant                           |
+| `.implSeal(seal)`                    | replaces the seal every variant passes       |
+| `.implTrait(Tr, fns)`                | implements a trait the enum declares         |
+| `Tag<T>`                             | names the tag field, intersected into `X`    |
+| `VariantOf<E, N>`                    | the type of one variant                      |
+| `SeedFor<E, N>`                      | what that variant's constructor takes        |
+| `SealedPayload<E>`                   | what the boundary entry takes, tag included  |
+| `VariantsOf<E>` / `SharedOf<E>`      | the declared variants, and the shared fields |
+| `NameOf<E>` / `TagOf<E>`             | the enum's name, and the tag field's name    |
+| `AnyEnum`                            | a constraint over any enum                   |
+| `EnumSealer<E>` / `EnumBuilder<E>`   | what the steps return, never written         |
+| `EnumSealed<E>` / `EnumCompanion<E>` | what `.impl` closes with, never written      |
 
-Every step of `Enum.companion` takes a callback, which is handed the companion as it stands. A
-member over an enum reaches for `match`, and naming the companion inside its own initializer is
-TS7022.
+Every step takes a callback, which is handed the companion as it stands. A member over an enum
+reaches for `match`, and naming the companion inside its own initializer is TS7022. `.impl` ends the
+chain.
 
 ### Trait
 

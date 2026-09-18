@@ -15,10 +15,8 @@ type Shape = Enum<
   { id: string }
 >;
 const Shape = Enum.sealer<Shape>()
-  .implVariant(() => ({
-    Circle: (b) => b.sealer().impl({ diameter: (c) => c.r * 2 }),
-    Rect: (b) => b.sealer().impl({ ratio: (r) => r.w / r.h }),
-  }))
+  .implVariant("Circle", (b) => b.impl({ diameter: (c) => c.r * 2 }))
+  .implVariant("Rect", (b) => b.impl({ ratio: (r) => r.w / r.h }))
   .impl((self) => ({
     area: (s) =>
       self.match(s, {
@@ -39,13 +37,9 @@ type Event = Enum<
 >;
 const Event = Enum.companion<Event>("kind")
   .implSeal((e, seal) => (e.id ? seal(e) : new RangeError("id must not be empty")))
-  .implVariant(() => ({
-    Key: (b) =>
-      b
-        .companion()
-        .implSeal((k, seal) => (k.code ? seal(k) : new RangeError("code must not be empty")))
-        .impl(),
-  }))
+  .implVariant("Key", (b) =>
+    b.implSeal((k, seal) => (k.code ? seal(k) : new RangeError("code must not be empty"))).impl(),
+  )
   .implTrait(Named, (self) => ({
     label: (e, sep) => self.match(e, { Click: (c) => `${c.x}${sep}${c.y}`, Key: (k) => k.code }),
   }))

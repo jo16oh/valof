@@ -334,8 +334,12 @@ type SealerFrame<E extends AnyEnum, N extends keyof VariantsOf<E>, T> = ((
 } & Omit<T, Wired>;
 
 /**
- * The steps a variant's builder grows, inside an `implVariant` callback. `.impl` closes it, and
- * the frame is what the callback hands back: the builder itself never leaves.
+ * The steps a variant grows, inside an `implVariant` callback. `.impl` closes the chain, and the
+ * frame is what the callback hands back: the builder lives in the callback alone. Reachable from
+ * the companion, `Shape.Circle.implSeal(…)` would stand a second constructor beside the first.
+ *
+ * The enum's entry decides the variant's, so there is no step that picks one: every variant of a
+ * companion builds with `.create`, every variant of a sealer is callable.
  */
 type VariantSteps<
   in out E extends AnyEnum,
@@ -371,21 +375,6 @@ type SealerVariantSteps<
   };
 };
 
-/**
- * What an `implVariant` callback receives for one variant. The builder lives only in the
- * callback: reachable from the companion, `Shape.Circle.implSeal(…)` would stand a second
- * constructor beside the first.
- */
-type VariantBuilder<in out E extends AnyEnum, in out N extends keyof VariantsOf<E>, in out FE> = {
-  /** Starts the variant's chain. Every variant of a companion builds with `.create`. */
-  companion: () => VariantSteps<E, N, FE, undefined, Record<never, never>>;
-};
-
-type SealerVariantBuilder<in out E extends AnyEnum, in out N extends keyof VariantsOf<E>> = {
-  /** Starts the variant's chain. Every variant of a sealer is callable. */
-  sealer: () => SealerVariantSteps<E, N, Record<never, never>>;
-};
-
 /** A frame the callback may hand back, loose enough for any seal's return. */
 type ClosedFrame<E extends AnyEnum, N extends keyof VariantsOf<E>> = {
   create: (payload: SeedFor<E, N>) => unknown;
@@ -396,17 +385,8 @@ type ClosedSealerFrame<E extends AnyEnum, N extends keyof VariantsOf<E>> = ((
   payload: SeedFor<E, N>,
 ) => unknown) & { patch: (...args: never[]) => unknown };
 
-/** What `implVariant` accepts: one builder callback per variant, each of them optional. */
-type VariantBuilds<E extends AnyEnum, FE> = {
-  [N in keyof VariantsOf<E>]?: (b: VariantBuilder<E, N, FE>) => ClosedFrame<E, N>;
-};
-
-type SealerVariantBuilds<E extends AnyEnum> = {
-  [N in keyof VariantsOf<E>]?: (b: SealerVariantBuilder<E, N>) => ClosedSealerFrame<E, N>;
-};
-
-/** The frames the callbacks built, keyed by variant. */
-type Frames<W> = { [N in keyof W]: Returned<W[N]> };
+/** A variant no step has built yet. Naming one twice would drop the first frame. */
+type Fresh<E extends AnyEnum, VM> = Exclude<keyof VariantsOf<E>, keyof VM>;
 
 /** A variant the callback left out keeps the default frame. */
 type Constructors<in out E extends AnyEnum, in out VM, in out FE> = {
@@ -527,15 +507,19 @@ export type EnumBuilder<
     ): EnumCompanion<E, VM, M & G, F>;
   };
   /**
-   * Builds single variants: members, a seal of their own, or both. A variant you write nothing
-   * for keeps the default frame.
+   * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
+   * keeps the default frame, and one already built cannot be named again.
    *
    * Call it after `implSeal`: a variant's seal is handed the enum's, and the enum's is read from
    * the chain as it stands.
    */
-  implVariant: <W extends VariantBuilds<E, F>>(
-    fns: (self: EnumCompanion<E, VM, M, F>) => W,
-  ) => EnumBuilder<E, VM & Frames<W>, M, F>;
+  implVariant: <N extends Fresh<E, VM>, R extends ClosedFrame<E, N>>(
+    name: N,
+    build: (
+      variant: VariantSteps<E, N, F, undefined, Record<never, never>>,
+      self: EnumCompanion<E, VM, M, F>,
+    ) => R,
+  ) => EnumBuilder<E, VM & { [P in N]: R }, M, F>;
   /**
    * Replaces the seal every variant passes, for what they all hold. A variant checks its own
    * payload in `implVariant`.
@@ -569,10 +553,14 @@ export type EnumSealer<
     (): EnumSealed<E, VM, M>;
     <G extends UnionMembers<E>>(fns: (self: EnumSealed<E, VM, M>) => G): EnumSealed<E, VM, M & G>;
   };
-  /** Collects members for single variants. A variant you write nothing for can be left out. */
-  implVariant: <W extends SealerVariantBuilds<E>>(
-    fns: (self: EnumSealed<E, VM, M>) => W,
-  ) => EnumSealer<E, VM & Frames<W>, M>;
+  /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
+  implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
+    name: N,
+    build: (
+      variant: SealerVariantSteps<E, N, Record<never, never>>,
+      self: EnumSealed<E, VM, M>,
+    ) => R,
+  ) => EnumSealer<E, VM & { [P in N]: R }, M>;
   /** See {@link EnumBuilder.implTrait}. */
   implTrait: <Tr extends AnyTrait, G>(
     trait: Takes<E, Tr, TraitCompanion<Tr, G>>,
@@ -642,26 +630,17 @@ const state = (
     return composed ? chain.implSeal(composed).impl(fns) : chain.impl(fns);
   };
 
+  const steps = (name: string, custom: Seal | undefined): object => ({
+    impl: (fns: Payload = {}) => built(name, custom, fns),
+    ...(callable ? {} : { implSeal: (next: Seal) => steps(name, next) }),
+  });
+
   const frame = (name: string): unknown => {
     const found = frames.get(name);
     if (found !== undefined) return found;
     const build = builds[name];
     // The builder is made here and dropped here, so no chain of it reaches the companion.
-    const made = build
-      ? build(
-          callable
-            ? { sealer: () => ({ impl: (fns: Payload = {}) => built(name, undefined, fns) }) }
-            : {
-                companion: () => {
-                  const steps = (custom: Seal | undefined): object => ({
-                    impl: (fns: Payload = {}) => built(name, custom, fns),
-                    implSeal: (custom: Seal) => steps(custom),
-                  });
-                  return steps(undefined);
-                },
-              },
-        )
-      : built(name, undefined, {});
+    const made = build ? build(steps(name, undefined)) : built(name, undefined, {});
     frames.set(name, made);
     return made;
   };
@@ -705,8 +684,14 @@ const state = (
       }
       if (key === "implVariant") {
         return open
-          ? (fns: (self: object) => Builds) =>
-              step({ ...builds, ...fns(self) }, members, traits, seal, true)
+          ? (name: string, build: (variant: object, self: object) => object) =>
+              step(
+                { ...builds, [name]: (variant: object) => build(variant, self) },
+                members,
+                traits,
+                seal,
+                true,
+              )
           : undefined;
       }
       if (key === "implSeal") {

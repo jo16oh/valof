@@ -219,7 +219,7 @@ type Describable = Trait<"Describable", { id: string }, { describe: (self: Self)
 const Describable = Trait.companion<Describable>();
 
 type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, { id: string } & Describable>;
-const Cmd = Enum.companion<Cmd>().implTrait(Describable, (self) => ({
+const Cmd = Enum.sealer<Cmd>().implTrait(Describable, (self) => ({
   describe: (c) => self.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
 }));
 
