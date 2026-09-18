@@ -35,7 +35,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
@@ -5313,6 +5313,48 @@ Money.Cash.create({ id: "", yen: 1 }); // 型は VariantOf、実行時は RangeE
 Variant ごとの戻りの union になる。ライブラリは中を見ないので `Result` の成否を判定できない（上の
 「合成を Enum 側ではできない」と同じ）。今の順では Variant の seal の `seal(p)` が Enum の seal の戻りを
 返すので、合成点は既に Variant 側にある。docs でそう言っていなかったのを 1 文足して直した。
+
+#### 却下: タグ名の渡し方を変える、2026-09-18
+
+**現状維持。**`Enum.sealer<Event>("kind")` の文字列が何を指すのか呼び出しだけでは読めない、という指摘から
+4 案を比べた。
+
+```ts
+const Event = Enum.sealer<Event>("kind"); // 現状
+const Event = Enum.sealer<Event>({ tag: "kind" }); // B
+const Event = Enum.withTag("kind").sealer<Event>(); // C
+const Event = Enum.sealer<Event>().withTag("kind"); // D
+```
+
+**C は補完が効かない。**`withTag("` の時点でパラメータの型は `T extends string` で、`E` がまだ無い。他の
+3 案はパラメータの型が `TagOf<E>`、つまりリテラル 1 つなので候補が出る。綴りを手で打たせる案は落ちる。
+
+**C は照合が型引数の制約に乗る。**`E` が後に来るので引数では照合できない。`<E extends TagPhantom<T>>` なら
+地点は正しいが、メッセージが内部のファントムを晒す。
+
+```
+TS2344: Type 'Event' does not satisfy the constraint 'TagPhantom<"kin">'.
+  Types of property 'p' are incompatible.
+```
+
+条件型の戻りで落とす形にすると、宣言の行には何も出ない（`const Event = …` が通り、最初の使用地点まで
+黙る）。入口も `Enum.sealer` と `Enum.withTag(…).sealer` の 2 つに割れる。
+
+**D は「呼ばれなかった」を落とせない。**順序の規則はパラメータに乗せているが（`Before<VM, Ok>`、§11.1）、
+あれは違う場所に書かれた呼び出しにしか届かない。`withTag` だけは、`sealer` が `withTag` しか持たない型を
+返す pending 状態が要る。書き忘れのエラーは最初の使用地点に出る。鎖の状態が `sealer` と `companion` の
+両方で 1 つ増え、type-perf の予算に乗る。`implTag` と綴ると、何も登録しない唯一の `impl*` になる。
+
+**B と現状の差は 2 つだけ。**呼び出しの意味が読めるか、と 8 文字。書き忘れ（TS2554）、補完、鎖の状態、
+lint の chain 根、実装コストはすべて同じ。「`{ key: … }` を TS2353 が正しいキー名で落とす」は B の得点に
+数えない。その間違え方は B が自分で作ったもの。
+
+**型が落とすことは、読めることの保証ではない。**現状を選ぶ理由は「忘れても綴りを間違えても型が落とす」
+（上の `tag-mismatch` は要らない）だったが、指摘はそこではなく読解のほう。文字列の意味は 1 行上の
+`Tag<"kind">` が説明しているので、差は好みの幅に収まる。いったん現状維持、B は残す。
+
+**却下: `Tag("kind")`。**`Tag<…>` を型と値のマージにして、宣言と呼び出しを同じ語で綴る案。Class や Val を
+構築しているように読める。`Tag` 自身のパラメータが `T extends string` なので、補完も怪しい。
 
 ---
 
