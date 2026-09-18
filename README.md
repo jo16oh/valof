@@ -43,6 +43,10 @@ types and linting.
 - **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
   their reference identity.
 
+- **Rust-like abstractions (experimental)**: `Enum` is a closed set of variants with exhaustive
+  `match`. `Trait` shares behavior across Vals. `dyn` adds dynamic dispatch without classes, holding
+  different types together.
+
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
 
 - **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->852 B
