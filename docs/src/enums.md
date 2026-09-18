@@ -175,27 +175,25 @@ import { Enum } from "valof/experimental";
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }, { id: string }>;
 
 const Shape = Enum.companion<Shape>()
-  .implSeal((payload, seal) =>
-    payload.id ? seal(payload) : new RangeError("id must not be empty"),
-  )
+  .implSeal((payload, seal) => (payload.id ? seal(payload) : new Error("id must not be empty")))
   .implVariant("Circle", (b) =>
     b
       .implSeal((payload, seal) =>
-        payload.r > 0 ? seal(payload) : new RangeError("r must be positive"),
+        payload.r > 0 ? seal(payload) : new Error("r must be positive"),
       )
       .impl(),
   )
   .impl();
 
-Shape.Circle.create({ id: "s1", r: 2 }); // VariantOf<Shape, "Circle"> | RangeError
-Shape.Square.create({ id: "s2", side: 1 }); // VariantOf<Shape, "Square"> | RangeError
+Shape.Circle.create({ id: "s1", r: 2 }); // VariantOf<Shape, "Circle"> | Error
+Shape.Square.create({ id: "s2", side: 1 }); // VariantOf<Shape, "Square"> | Error
 ```
 
 The enum's seal checks what every variant holds; a variant's own seal checks its own payload. A
 payload runs the variant's seal, then the enum's, then the default seal that brands and copies it,
 so a variant that wrote none is still checked by the enum's. Compose them yourself where a check
 depends on the other's result: inside a variant's seal, `seal(payload)` is the enum's seal, so what
-it hands back is the enum's return, `RangeError` included.
+it hands back is the enum's return, the error included.
 
 Write `.implSeal` before the first `.implVariant`, which the type enforces. A variant's default seal
 is the enum's, read from the chain as it stands.
@@ -212,13 +210,11 @@ import { Enum, type SealedPayload } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }, { id: string }>;
 const Shape = Enum.companion<Shape>()
-  .implSeal((payload, seal) =>
-    payload.id ? seal(payload) : new RangeError("id must not be empty"),
-  )
+  .implSeal((payload, seal) => (payload.id ? seal(payload) : new Error("id must not be empty")))
   .impl();
 declare const fromWire: SealedPayload<Shape>;
 // ---cut---
-const shape = Shape.seal(fromWire); // Shape | RangeError
+const shape = Shape.seal(fromWire); // Shape | Error
 ```
 
 `seal` reads the tag, draws that variant's frame, and hands the payload to its seal. The return is
