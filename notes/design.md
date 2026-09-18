@@ -37,7 +37,7 @@ import { Val } from "valof";
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
-  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、実装（`.impl` は閉じず前段のメンバが `self` に乗る、`implTrait` も callback、予算）、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案
+  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
 
@@ -5657,7 +5657,7 @@ error TS2322: Type 'User' is not assignable to type '0'
 #### 限界: 兄弟メンバは参照できない
 
 同じ `.impl` の中の他のメンバは循環したままなので、そちらを呼ぶメンバには注釈が要る。README に書く。
-`.impl` を繋げれば前段のメンバは `self` に乗る（下の「実装」）。
+`.impl` を繋げれば前段のメンバは `self` に乗る（下の「実装」）。→ 鎖は 2026-09-18 に閉じた。注釈が唯一の道になる（下の「鎖を閉じる」）。
 
 #### 渡す集合は文脈で変わる
 
@@ -5672,6 +5672,8 @@ error TS2322: Type 'User' is not assignable to type '0'
 **両方残す。**関連関数を要らないメンバに、コールバックの分割代入は雑音。既存のコードも動かない。
 
 #### 実装、2026-09-18
+
+→ この段の鎖は同じ日のうちに閉じた（下の「鎖を閉じる」）。以下は閉じる前の記録。
 
 **`.impl` は閉じない。**呼ぶたびに「`.impl` だけ開いた companion」を返す。前段のメンバが `self` に乗るので、
 兄弟の限界は「同じ呼び出しの中だけ」に縮む。
@@ -5745,6 +5747,37 @@ coherence のような一貫性の問題は起きない）。
 `impl` はエラー」にする。scanner は起点から鎖を辿るので、離れた `impl` は**そもそも見えない**。
 規則にすれば「companion は 1 箇所」が仮定から不変条件になり、`unused-member` と `companion-mismatch` の
 数え方が今のまま正しい。valof-lint の Enum 対応と同じ PR。
+
+#### 鎖を閉じる、2026-09-18
+
+**`.impl` は 1 回。**`Val.sealer` / `Val.companion` / `Trait.companion` の 3 つとも、`.impl` が返すのは companion で、次の段は無い。Enum は元からこの形。
+
+**多段が買っていたのは 1 つだけだった。**注釈なしで兄弟を読むこと。同じものは 1 回の呼び出しでも書ける。
+
+```ts
+const User = Val.sealer<User>().impl((self) => ({
+  renamed: (user, name: string): User => self.patch(user, { name }),
+  shouted: (user): User => User.renamed(user, user.name.toUpperCase()), // 通る
+}));
+```
+
+外側の const を名指しすると循環するが、戻り値注釈が切る（上の「動機」と同じ仕掛け）。**注釈は検査される。**`(user): string => self.patch(...)` は TS2322 で落ちるので、`as` とは別物。Rust が再帰関数に求めるものと同じ取引。
+
+**案内は TS7023 の本文がやる。**「`'renamed'` は戻り値注釈が無く、自分の return 式から直接または間接に参照されている」。直し方とメンバ名の両方が入っている。
+
+**Trait は実装の受け手を `ShapeOf<Tr>` から `Tr` に変えた。**§15.1 の「3. final でも TS2345」を根本で消す。companion が公開する final は `Tr` を取るので、実装が shape を持っていると引数で落ちていた。注釈は戻り値にしか効かないので、これは注釈では回避できない。反変なので `implTrait` での Val への再束縛はそのまま通る。
+
+- 呼べるのは **final だけ**。non-final は companion に名前が無い（§15.1 の「却下: 上書きできる関数を名前空間に置く」）ので、コールバックが渡していた集合と同じ
+- コールバック形と `Finals` は削除。1 回で閉じるなら引数は常に空
+- 実装を素のオブジェクトで直接呼べなくなる。テストが 1 箇所、Val 経由に変わった
+
+**却下: 型レベルで案内を出す。**戻り値が `any` のメンバに `Invalid<"annotate this member's return type">` を返す形。メッセージは TS2322 に載るが、`const` が `any` になっているので mapped type が自己参照し、**TS2615 が必ず同時に出る**。エラーが 2 件から 4 件に増え、対処できない 1 件が案内を埋める。正当に `any` を返すメンバも誤検出。
+
+**却下: 案内のための lint 規則。**条件は構文だけで判定できる（companion の名前を参照するメンバに戻り値注釈が無い）が、検出は TS が先にやる。文言のためだけに規則は増やさない。
+
+**計測。**core 6,217 → 5,694、trait 14,511 → 14,291、enum 78,283 → 78,227、`index.d.mts` 36.27 kB → 34.72 kB。**予算は動かさない**（§16 のアラーム方針）。
+
+**`Grown` は残す。**`T` は `implTrait` が登録したメンバを運ぶので、trait のメンバに同名を生やす検査は今のまま要る。`SealedSteps` と `CompanionSteps` は削除し、`src/index.ts` の export からも外した。名前が要るのは `Sealed` と `Companion` になる。
 
 ---
 
