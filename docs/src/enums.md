@@ -80,7 +80,9 @@ The record is the whole declaration. The union is derived from it, and so is eac
 `Circle` is branded `"Shape.Circle"`. Adding a variant is one line, in one place.
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
-constructor.
+constructor. The enum itself takes a payload that already carries the tag, typed
+`SealedPayload<Shape>`: it reads the tag, selects that variant's companion, and passes the payload
+to its seal.
 
 A variant is a Val: it patches, it compares, and it nests. A patch cannot reach the tag, so it
 cannot switch variants.
@@ -215,37 +217,7 @@ is the enum's, read from the chain as it stands.
 Whatever a seal returns propagates, as it does for a Val: the union in it narrows to the variant the
 payload named. `patch` derives through the same seal, so there is no way past it.
 
-## Take a payload from the wire
-
-A tagged payload selects its own variant:
-
-```ts
-import { Enum, type SealedPayload } from "valof/experimental";
-
-type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }, { id: string }>;
-const Shape = Enum.companion<Shape>()
-  .implSeal((payload, seal) => (payload.id ? seal(payload) : new Error("id must not be empty")))
-  .impl();
-declare const fromWire: SealedPayload<Shape>;
-// ---cut---
-const shape = Shape.seal(fromWire); // Shape | Error
-```
-
-`seal` reads the tag, selects that variant's companion, and passes the payload to its seal. The
-return is the variants' seals as a union, the same rule as `match`. On a sealer the enum itself is
-that entry, and it needs no seal to be useful:
-
-```ts
-import { Enum, type SealedPayload } from "valof/experimental";
-
-type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.sealer<Shape>();
-declare const fromWire: SealedPayload<Shape>;
-// ---cut---
-const shape = Shape(fromWire); // Shape
-```
-
-The library branches on the tag either way.
+`Shape.seal` is that entry on a companion. Its return is the variants' seals as a union.
 
 ## Custom tag key
 
