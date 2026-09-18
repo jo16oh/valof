@@ -5182,6 +5182,11 @@ Trait の `Declarable`、`Enum` の `Fault` で、メンバ名としても Varia
 残す。宣言していない companion まで thenable になるのはガードを外したときだけで、それは利用者の書いたものが
 原因ではない。oxlint の `unicorn/no-thenable` が同じことを言うので、テストでは 1 行止める。
 
+**実行時ガードは付けない（2026-09-18）。**型を外した JS の呼び出し側は `.impl({ then })` を書けて、
+companion が settle しない thenable になる。`patch` は同じ経路に `TypeError` を置くが、あれは黙って値を
+壊すから。`then` は `await` がハングするだけで、原因の名前が呼び出し側のコードに残る。踏むのは型を外した側
+だけなので、型レベルの 3 箇所で足りるとした。
+
 **利用者側の宣言出力を CI に入れた。**`scripts/ts-compatibility/` が本のブロックをもう 1 度、
 `declaration: true` で回す。ブロックのトップレベルの `const` / `type` / `function` に `export` を足して
 書き出す。推論した型は `.d.ts` に書き出すときだけ名前を要求するので、型検査だけでは TS4023 も TS4094 も
