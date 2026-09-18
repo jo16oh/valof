@@ -42,23 +42,9 @@ it brief.
 
 The repo is English: README, source comments, commit messages, PRs.
 
-Write direct. Conclusion first, declaratives, no hedges, no filler concessives, no passive where an
-actor exists. Short sentences, and a concrete example before the general statement. Prefer the
-common word to the rarer, more precise-sounding one, and let a code block do what a metaphor would.
-
-Skip idiomatic phrasal verbs where a literal one carries the same meaning: "limit to one" over "hold
-to one", "fails with" over "comes back as", "the limit lifts" over "the cap comes off". A non-native
-reader has the vocabulary for the literal verb; the idiom, they guess at.
-
-Established technical metaphors stay: "escape hatch", "boilerplate", "pay" for cost. The test is
-whether the word still carries its literal sense in this context, not whether it originated as a
-metaphor.
-
-Avoid the em dash. Splitting the sentence in two is usually the fix, and commas, "such as" or
-parentheses cover the rest. Keep a colon where the second half gives the reason or the detail for
-the first.
-
-Models: Kent Beck, t_wada, Dan Abramov, mizchi. Take their plainness.
+`skills/proofread/SKILL.md` holds the sentence-level rules: what to write, and what to flag on the
+pass. They apply to every English the repo carries, source comments, commit messages and PR bodies
+included, so read it before writing any of those.
 
 ### Code and Comments
 
