@@ -86,16 +86,17 @@ chain.
 
 ### Trait
 
-|                                         |                                                   |
-| --------------------------------------- | ------------------------------------------------- |
-| `Trait<K, Shape, M>`                    | a contract Vals share                             |
-| `Trait.companion<Tr>()`                 | starts the trait's own implementation             |
-| `Trait.companion<Tr>().impl(fns)`       | implements members over the shape                 |
-| `Tr.dyn(companion, value)`              | boxes a value with one Val's implementation       |
-| `Val.sealer<V>().implTrait(Tr, fns)`    | implements a trait the Val declares               |
-| `Val.companion<V>().implTrait(Tr, fns)` | the same, without a callable sealer               |
-| `Self`                                  | the implementing Val, inside a member's signature |
-| `Final<F>`                              | marks a member no Val may replace                 |
-| `Dyn<Tr>`                               | a boxed value, with the concrete type gone        |
-| `AnyTrait`                              | a constraint over any trait                       |
-| `Members`                               | the members a trait declares                      |
+|                                           |                                                   |
+| ----------------------------------------- | ------------------------------------------------- |
+| `Trait<K, Shape, M>`                      | a contract Vals share                             |
+| `Trait.companion<Tr>()`                   | starts the trait's own implementation             |
+| `Trait.companion<Tr>().impl(fns)`         | implements members over the shape                 |
+| `Trait.companion<Tr>().impl(self => fns)` | the same, reading the `Final` members it has      |
+| `Tr.dyn(companion, value)`                | boxes a value with one Val's implementation       |
+| `Val.sealer<V>().implTrait(Tr, fns)`      | implements a trait the Val declares               |
+| `Val.companion<V>().implTrait(Tr, fns)`   | the same, without a callable sealer               |
+| `Self`                                    | the implementing Val, inside a member's signature |
+| `Final<F>`                                | marks a member no Val may replace                 |
+| `Dyn<Tr>`                                 | a boxed value, with the concrete type gone        |
+| `AnyTrait`                                | a constraint over any trait                       |
+| `Members`                                 | the members a trait declares                      |

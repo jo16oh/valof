@@ -34,7 +34,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
@@ -1849,8 +1849,9 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
       Variant に別の companion を立てる形（`Val.companion<VariantOf<…>>` / `Val.sealer<VariantOf<…>>`）。
       `bypassed-companion` は `Val.of` で Variant を作る形に広げる
 - [ ] **§15.4 のコールバック形は val.ts にまだ無い。**Enum の steps（`impl` / `implVariant` /
-      `implTrait`）はコールバック形 1 本で出したので Enum 側は済んでいる。`Val.sealer().impl` は
-      オブジェクト形のままで、自分の `equals` / `patch` を使うメンバは戻り値の注釈が要る
+      `implTrait`）はコールバック形 1 本で出したので Enum 側は済んでいる。Trait の `impl` も入れた
+      （引数は実装済みの final だけ、§15.1）。`Val.sealer().impl` と `Val.companion().impl` /
+      `implTrait` はオブジェクト形のままで、自分の `equals` / `patch` を使うメンバは戻り値の注釈が要る
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
@@ -4294,6 +4295,57 @@ Val.companion<Member>().implTrait(unnamed); // 文が変われば、ここが落
 
 上書きされうるものは companion 経由で呼ぶ。`Final` を付けたものだけが trait の名前空間に出る。
 **trait の名前空間に出るかどうかが、上書きできるかどうかと一致する。**
+
+#### `impl` はコールバック形を取る、引数は final だけ、2026-09-18
+
+**入れる。**trait のメンバが同じ trait の別のメンバを呼ぶ形は普通にある。オブジェクト形のままだと 3 つ
+別々の壁に当たる。
+
+```ts
+const Named = Trait.companion<Named>()
+  .impl({ shout: (s) => `${s.name}!` })
+  .impl({ greet: (s) => Named.shout(s) });
+```
+
+1. **TS7022。**自分の初期化子の中で `Named` を読む。§15.4 と同じ
+2. **注釈を足すと TS2339。**non-final は companion に名前が無い（上の「却下: 上書きできる関数を名前空間に
+   置く」）
+3. **final でも TS2345。**companion が公開する final は `Tr` を受け取るのに、shared メンバが持っているのは
+   `ShapeOf<Tr>` である
+
+コールバックの引数を **その時点で実装済みの final、shape 側で bind したもの** にすると 3 つとも消える。
+
+```ts
+impl: <H extends Shared<Tr, keyof G, H>>(fns: H | ((self: Finals<Tr, G>) => H)) =>
+  TraitBuilder<Tr, G & H>;
+
+type Finals<Tr extends AnyTrait, G> = Unbound<
+  Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>,
+  ShapeOf<Tr>
+>;
+```
+
+**contextual typing は落ちない。**`base.impl((self) => ({ greet: (s) => self.shout(s) }))` で `s` は
+`ShapeOf<Named>` に解決した（TS2322 で読み出し）。`H extends Shared<Tr, keyof G, H>` の自己参照制約も、
+`H | ((self) => H)` の union も影響しない。§15.4 の実測が trait の形でも成り立つ。
+
+**non-final は規則を書かずに消える。**`greet` を実装した後の `Finals` は `Pick<…, never>` で空になる。
+上の却下案（ディスパッチするように見える名前空間）を型が自動で守る。
+
+実行時は `build` が callback に `impls` を渡すだけ。`make` が既に持っているオブジェクトで、遅延も proxy も
+要らず、val.ts の `implTrait` は変えない。コストは production gzip が 946 B → 959 B（**13 B**、`Trait` を
+import した人だけが払う）、trait の instantiation が 13,356 → 13,378。
+
+#### 却下: 引数を実装側 companion にする
+
+Rust の default method が required method を呼ぶ形、つまり trait が open にしたメンバを shared メンバが
+呼ぶ形は入らない。実装側の companion が要る。
+
+**却下。**trait が作る依存の向き（Val が trait を知り、trait は Val を知らない）が逆転する。型でも書けない。
+その種のメンバは trait ではなく Val 側に書く。
+
+**静的な self も違う。**上書きされた実装ではなく trait 自身の実装を呼んでしまう。`implTrait` が non-final の
+上書きを許す以上、それは間違いである。final だけなら上書きされないので、静的に呼んで正しい。
 
 #### 名前の衝突は型で禁じる
 

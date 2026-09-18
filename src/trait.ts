@@ -267,6 +267,18 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
   Partial<Record<FinalsOf<Tr>, never>>;
 
 /**
+ * What a callback to `impl` is handed: the members implemented so far that no Val may replace,
+ * taking the shape rather than the trait.
+ *
+ * The finals alone, because those are the only ones a static call answers correctly for. See
+ * {@link TraitCompanion}.
+ */
+export type Finals<Tr extends AnyTrait, G> = Unbound<
+  Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>,
+  ShapeOf<Tr>
+>;
+
+/**
  * Collects what a trait carries. The chain ends wherever the trait runs out of members: a
  * builder is a companion already.
  *
@@ -277,8 +289,14 @@ export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitC
    * Implements members over the shape alone. Which side of the contract one lands on is the
    * declaration's to say: a Val may replace an ordinary member through `implTrait`, and may not
    * replace one declared {@link Final}.
+   *
+   * The callback's argument is the finals implemented one call ago, for a member that calls one.
+   * A member calling none takes the object on its own. A sibling in the same call is not there:
+   * naming the companion inside its own initializer is TS7022, which is what the callback cuts.
    */
-  impl: <H extends Shared<Tr, keyof G, H>>(fns: H) => TraitBuilder<Tr, G & H>;
+  impl: <H extends Shared<Tr, keyof G, H>>(
+    fns: H | ((self: Finals<Tr, G>) => H),
+  ) => TraitBuilder<Tr, G & H>;
 };
 
 type AnyFn = (...args: never[]) => unknown;
@@ -313,7 +331,11 @@ export const Trait = {
   companion: <Tr extends AnyTrait>(): TraitBuilder<Tr> => {
     const build = (impls: Record<string, unknown>): Record<string, unknown> => {
       const target = make(impls);
-      target["impl"] = (fns: Record<string, unknown>) => build({ ...impls, ...fns });
+      // The callback is handed what is implemented so far. Only the finals are named on its
+      // type, and the rest are unreachable for the same reason as on the companion itself.
+      target["impl"] = (
+        fns: Record<string, unknown> | ((self: unknown) => Record<string, unknown>),
+      ) => build({ ...impls, ...(typeof fns === "function" ? fns(impls) : fns) });
       return target;
     };
     return build({}) as never;

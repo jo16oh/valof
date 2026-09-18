@@ -321,6 +321,27 @@ describe("building", () => {
       expect(Object.keys(after.__valof_shared)).toEqual(["greet", "shout"]);
     });
 
+    test("a callback reaches the finals implemented before it", () => {
+      const chained = Trait.companion<Greetable>()
+        .impl({ shout: (g) => g.name.toUpperCase() })
+        .impl((self) => ({ greet: (g) => `Hi, ${self.shout(g)}` }));
+
+      type Plain = Val<"Plain", { name: string }, Greetable>;
+      const Plain = Val.companion<Plain>().implTrait(chained, {
+        toWire: (p, sep) => `plain${sep}${p.name}`,
+      });
+      expect(Plain.greet(Val.of<Plain>({ name: "alice" }))).toBe("Hi, ALICE");
+    });
+
+    test("a member a Val may replace is not on the callback's argument", () => {
+      Trait.companion<Greetable>()
+        .impl({ greet: (g) => `Hi, ${g.name}` })
+        .impl((self) => ({
+          // @ts-expect-error a default is not named on the trait
+          shout: (g) => self.greet(g).toUpperCase(),
+        }));
+    });
+
     test("but not the same member twice", () => {
       Trait.companion<Greetable>()
         .impl({ greet: (g) => g.name })

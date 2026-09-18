@@ -207,6 +207,29 @@ replace it. Passing `shout` is an error.
 Only `Final` members are named on the trait's own type: `Greetable.shout(user)` typechecks and
 `Greetable.greet` does not.
 
+A default calling one takes a callback. Naming the trait inside its own initializer is an error
+(TS7022), and the callback's argument is what an earlier `impl` implemented:
+
+```ts
+import { Trait, type Final, type Self } from "valof/experimental";
+
+type Greetable = Trait<
+  "Greetable",
+  { name: string },
+  {
+    greet: (self: Self) => string;
+    shout: Final<(self: Self) => string>;
+  }
+>;
+// ---cut---
+const Greetable = Trait.companion<Greetable>()
+  .impl({ shout: (g) => g.name.toUpperCase() })
+  .impl((self) => ({ greet: (g) => `Hi, ${self.shout(g)}` }));
+```
+
+The argument holds the `Final` members alone, for the same reason the trait names only those. A
+member a Val may replace has to be called through that Val's companion.
+
 ## Implement Traits on an Enum
 
 An [enum](enums.md) implements a trait once, over the union. What differs per variant is a `match`
