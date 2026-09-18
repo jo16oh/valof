@@ -5783,6 +5783,27 @@ const User = Val.sealer<User>().impl((self) => ({
 
 **閉じたあとの形。**`implSeal` / `implCreate` / `fixed` / `implTrait` / `implVariant` は最初の `.impl` で閉じる、という既存の規則はそのまま。変わったのは `.impl` 自身がその規則の例外でなくなったこと。
 
+**`self` も同じ日に消した。**鎖を閉じた時点では、コールバック形を Val に残していた。`patch` やコンストラクタを呼ぶメンバが注釈なしで書けるから、という理由だった。**probe したら、注釈の経路がそこも覆っていた。**外側の const を名指しして戻り値を注釈すれば、`patch` / `seal` / `create` / `nocopy` / コンストラクタ呼び出し / 兄弟メンバ / `implTrait` が登録したメンバ、全部通る。Enum も同じで `Shape.match`、`Shape.Circle(...)`、`implVariant` の中から enum の companion、どれも届く。
+
+```ts
+const User = Val.companion<User>()
+  .implTrait<Greetable>({ shout: (u) => u.name.toUpperCase() })
+  .impl({
+    loud: (u): string => User.shout(u) + "!", // implTrait が入れたメンバ
+    renamed: (u, name: string): User => User.patch(u, { name }), // ライブラリが配線したもの
+  });
+```
+
+`self` が買っていたのは注釈の省略だけだった。**`.impl` / `implTrait` / `implVariant` はオブジェクト 1 形式にした。**`implVariant` は第 2 引数が消えた。Enum の `implTrait` はコールバック _しか_ 取らなかったので、これで Val と揃った。
+
+- **払うもの。**companion に触れるメンバは全部注釈が要る。`renamed` 系が最頻出なので、コストはそこに集中する
+- **買うもの。**規則が 1 本になる。「`self` か外側の const か」という選択が消え、docs からその境界（兄弟は `self` に載っていない）の説明が丸ごと落ちた
+- 型は `Takes2` が消え、`Passes` / `Alone` から `Self` 型引数が落ちた。実行時は `collect` と `typeof fns === "function"` の分岐が全部消えた
+
+**計測。**core 5,694 据え置き、trait 14,291 → 13,721、enum 77,569 → 70,844、`index.d.mts` 34.72 kB → 34.03 kB。production gzip は 899 B → 852 B、Trait 込み 978 B → 932 B、Enum 込み 1.34 kB → 1.27 kB。enum が 8.7% 落ちたのは、ユニオン型に載っていた mapped type の推論経路が 1 本に減った分。**予算は動かさない。**
+
+**却下: non-final も trait の名前空間に載せる。**`self` を消したのだから Final 規則も要らないのでは、という筋。probe すると別の理由で立っていた。型では `TraitCompanion` が `Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>` なので non-final は最初から載っていない（TS2339）。実行時に型を剥がして呼ぶと、`shout` を差し替えた `Admin` でも `Admin.greet(...)` は `"Hi, ROOT"` を返す。`"Hi, root!!!"` ではない。**trait の名前空間から読むと、Val の差し替えを黙って飛び越える。**§15.1 の「却下: 上書きできる関数を名前空間に置く」と同じ結論に、実測で戻った。開けるなら型を広げるだけでは足りず、レシーバの companion への late dispatch が要る。別の変更。
+
 ---
 
 ## 16. 予算の責務、2026-09-10
