@@ -32,6 +32,9 @@ title and body as a draft and stop there.
 
 ## Writing Style
 
+Code and prose go in separate turns. Finish the code, then edit the `.md` in a turn of its own, and
+run `/proofread` over what changed there before showing it or proposing a commit.
+
 Remember how limited humans are, especially me, since English isn't my first language. We don't have
 a large context window like you do, and we can't read as fast as you can. Reducing redundant
 expressions really matters, and it helps you save context too. Keep only the essential parts. Keep
