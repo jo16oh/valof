@@ -178,7 +178,7 @@ describe("members", () => {
     Enum.sealer<Shape>().impl({ Circle: (s: Shape) => s });
   });
 
-  test("nor `match`, nor a name the library wires", () => {
+  test("nor `match`, nor a name the library reserves", () => {
     // @ts-expect-error `match` is the library's
     Enum.sealer<Shape>().impl(() => ({ match: (s: Shape) => s }));
     // @ts-expect-error `patch` is the library's
@@ -292,15 +292,15 @@ describe("a broken declaration", () => {
     Enum.sealer<Awaited>();
   });
 
-  test("a variant may not take a name the library wires", () => {
+  test("a variant may not take a name the library reserves", () => {
     type Sealed = Enum<"Sealed", { seal: { n: number }; Other: { n: number } }>;
     expectTypeOf<Sealed>().not.toExtend<AnyEnum>();
-    // @ts-expect-error a variant cannot take a name the library wires
+    // @ts-expect-error a variant cannot take a name the library reserves
     Enum.companion<Sealed>();
 
     type Matched = Enum<"Matched", { match: { n: number } }>;
     expectTypeOf<Matched>().not.toExtend<AnyEnum>();
-    // @ts-expect-error a variant cannot take a name the library wires
+    // @ts-expect-error a variant cannot take a name the library reserves
     Enum.sealer<Matched>();
 
     type Stepped = Enum<"Stepped", { implode: { n: number } }>;

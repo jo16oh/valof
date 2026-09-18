@@ -27,7 +27,7 @@ export const DuplicateBrand: Rule<DuplicateBrand> = {
  * Reports every alias claiming a brand another alias also claims.
  *
  * Only top-level aliases are considered, since nothing else can be imported and assigned
- * elsewhere. `Val` is recognised however it was bound: renamed, imported for its type alone,
+ * elsewhere. `Val` is recognized however it was bound: renamed, imported for its type alone,
  * reached through a namespace, or re-exported from a barrel. Something else bound to the name
  * `Val` is left alone.
  *

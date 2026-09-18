@@ -58,9 +58,9 @@ like any other.
 
 ## Plugin for ESLint and Oxlint
 
-The same rules, one per kind: name one to give it its own severity, or turn it off. The project to
-read is one setting for all of them, a path or a list of them, and defaults to `src/**/*.ts`. A path
-starting with `!` is excluded from it.
+The same rules, one per finding kind: name one to give it its own severity, or turn it off. The
+project to read is one setting for all of them, a path or a list of them, and defaults to
+`src/**/*.ts`. A path starting with `!` is excluded from it.
 
 ESLint needs a parser that reads your TypeScript.
 
@@ -105,7 +105,7 @@ pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree
 | the first path             | the project to read, a directory or a glob                                       |
 | the paths after it         | the files to report on, the whole project when there are none                    |
 | `--project`, `--report-on` | the same two by name, in either order. Either can be repeated, and takes `!path` |
-| `--no-<rule>`              | a rule to leave out of the run, by the name the finding carries                  |
+| `--no-<rule>`              | a rule to leave out of the run, by the rule name in the finding                  |
 
 A single file given as the project is refused: a duplicate brand needs the other alias to be seen.
 

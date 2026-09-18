@@ -74,7 +74,7 @@ re-export a companion.
 | `Tag<T>`                             | names the tag field, intersected into `X`         |
 | `VariantOf<E, N>`                    | the type of one variant                           |
 | `SeedFor<E, N>`                      | what that variant's constructor takes             |
-| `SealedPayload<E>`                   | what the boundary entry takes, tag included       |
+| `SealedPayload<E>`                   | what `E(payload)` takes, tag included             |
 | `VariantsOf<E>` / `SharedOf<E>`      | the declared variants, and the shared fields      |
 | `NameOf<E>` / `TagOf<E>`             | the enum's name, and the tag field's name         |
 | `AnyEnum`                            | a constraint over any enum                        |

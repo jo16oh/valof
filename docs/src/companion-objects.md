@@ -97,7 +97,7 @@ const changed = {
 };
 ```
 
-An object-shaped Val gets `patch`. The same update names only what changes:
+An object-shaped Val gets `patch`. The same update lists only what changes:
 
 ```ts
 import { Val } from "valof";

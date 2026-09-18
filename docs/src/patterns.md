@@ -59,7 +59,7 @@ type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test.
 [`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
 
-`patch` reaches one entry at a time and `undefined` drops it. Call the constructor to rebuild the
+`patch` sets one entry at a time, and `undefined` removes it. Call the constructor to rebuild the
 whole table.
 
 ```ts

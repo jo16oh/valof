@@ -119,8 +119,8 @@ adding one to the declaration fails here rather than falling through at run time
 `match` sits on the companion because the tag's name is customizable, and a free function would have
 to hard-code it.
 
-Use `match` to split on the tag. For a condition inside a variant, reach for a pattern matching
-library such as ts-pattern: `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
+Use `match` to split on the tag. For a condition inside a variant, a pattern matching library such
+as ts-pattern fits: `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
 
 ## Common shape for every variant
 
@@ -174,7 +174,8 @@ returns the argument: `.implVariant("Circle", (sealer) => sealer)`. What a step 
 that variant takes no further step.
 
 No step chooses between a sealer and a companion. `Enum.sealer` makes every variant callable,
-`Enum.companion` builds every one with `.create`, so the enum's entry point decides each variant's.
+`Enum.companion` builds every one with `.create`, so the entry point you choose for the enum applies
+to every variant.
 
 `.impl` takes one call, which closes every step, so nothing can add a second seal to a companion you
 export. Call it with nothing where there is no member to collect:
@@ -183,8 +184,8 @@ export. Call it with nothing where there is no member to collect:
 ## Check the payload
 
 `Enum.sealer` accepts every payload the type allows. When construction has rules of its own, start
-from `Enum.companion`, the same move [a Val makes](custom-constructors.md). Every variant then
-builds with `.create`, and the enum grows a `seal` of its own.
+from `Enum.companion`, the same as [a Val](custom-constructors.md). Every variant then builds with
+`.create`, and the enum gains a `seal` of its own.
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -206,17 +207,18 @@ Shape.Square.create({ id: "s2", side: 1 }); // VariantOf<Shape, "Square"> | Erro
 
 The enum's seal checks what every variant holds; a variant's own seal checks its own payload. A
 payload runs the variant's seal, then the enum's, then the default seal that brands and copies it,
-so a variant that wrote none is still checked by the enum's. Compose them yourself where a check
-depends on the other's result: inside a variant's seal, `seal(payload)` is the enum's seal, so its
-result is the enum's return, the error included.
+so a variant with no seal of its own is still checked by the enum's. Compose them yourself where a
+check depends on the other's result: inside a variant's seal, `seal(payload)` is the enum's seal, so
+its result is the enum's return, the error included.
 
 Write `.implSeal` before the first `.implVariant`, which the type enforces. A variant's default seal
 is the enum's, read from the chain as it stands.
 
 Whatever a seal returns propagates, as it does for a Val: the union in it narrows to the variant the
-payload named. `patch` derives through the same seal, so there is no way past it.
+payload named. `patch` derives through the same seal, so no derivation skips it.
 
-`Shape.seal` is that entry on a companion. Its return is the variants' seals as a union.
+On a companion, `Shape.seal` takes that tagged payload. Its return is the variants' seals as a
+union.
 
 ## Custom tag key
 

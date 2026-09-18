@@ -101,13 +101,12 @@ payload to `User` or `User.seal`.
 
 ## A `__proto__` key survives sealing
 
-A `__proto__` key survives. It is a legal JSON key, and round trips come first, so sealing keeps it
-as an own property rather than dropping data. That is inert inside a value, but not in code that
-merges a payload with `Object.assign` or a recursive merge: there, assigning the key sets a
-prototype instead of copying it. Sanitize untrusted input yourself.
+A `__proto__` key survives. It is a legal JSON key, and round-tripping JSON takes priority, so
+sealing keeps it as an own property rather than dropping data. That is inert inside a value, but not
+in code that merges a payload with `Object.assign` or a recursive merge: there, assigning the key
+sets a prototype instead of copying it. Sanitize untrusted input yourself.
 
 ## Deeply nested payloads can overflow the stack
 
-A deeply nested payload overflows the stack. Copying and comparing are both recursive, so a payload
-a few thousand levels deep, or a cyclic one, throws a `RangeError`. Handle that error when sealing
-or comparing values from untrusted input.
+Copying and comparing are both recursive, so a payload a few thousand levels deep, or a cyclic one,
+throws a `RangeError`. Handle that error when sealing or comparing values from untrusted input.

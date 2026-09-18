@@ -90,21 +90,21 @@ describe("Trait", () => {
       Trait.companion<SelfClash>().impl({ size: (s: { size: number }) => s.size });
     });
 
-    test("nor a name the library wires", () => {
+    test("nor a name the library reserves", () => {
       type Wiring = Trait<"Wiring", { n: number }, { patch: (self: Self) => boolean }>;
-      // @ts-expect-error a trait member cannot take a name the library wires
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Wiring>().impl({ patch: () => false });
     });
 
     test("nor one under `__valof_`", () => {
       type Sneaky = Trait<"Sneaky", { name: string }, { __valof_shared: (self: Self) => string }>;
-      // @ts-expect-error a trait member cannot take a name the library wires
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Sneaky>().impl({});
     });
 
     test("nor one under `impl`, which the steps have", () => {
       type Stepping = Trait<"Stepping", { name: string }, { implTrait: (self: Self) => string }>;
-      // @ts-expect-error a trait member cannot take a name the library wires
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Stepping>().impl({});
     });
 
@@ -273,13 +273,13 @@ describe("building", () => {
     test("a broken declaration is caught at every gate", () => {
       type Wiring = Trait<"Wiring", { id: string }, { patch: (self: Self) => boolean }>;
       expectTypeOf<BrandsOf<Wiring>>().toEqualTypeOf<{
-        patch: { readonly __valError: "a trait member cannot take a name the library wires" };
+        patch: { readonly __valError: "a trait member cannot take a name the library reserves" };
       }>();
       expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
       // Naming `Wiring` is the error, so each directive is the assertion. The type resolves to
       // `any` from there, and an `expectTypeOf` on these lines would sit under the directive,
       // which swallows it whichever way the claim is written.
-      // @ts-expect-error a trait member cannot take a name the library wires
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Wiring>();
       // @ts-expect-error same, at a Val that declares it
       const cell = null as unknown as Val<"Cell", { id: string }, Wiring>;

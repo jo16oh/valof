@@ -1915,14 +1915,14 @@ describe("building", () => {
       test("a companion may not grow a function over a member", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
-          // @ts-expect-error something already answers to this name
+          // @ts-expect-error this name is already taken
           .impl({ greet: (m) => `yo ${m.name}` });
       });
 
       test("nor over a final function", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
-          // @ts-expect-error something already answers to this name
+          // @ts-expect-error this name is already taken
           .impl({ shout: (m) => m.name });
       });
 

@@ -176,7 +176,7 @@ vp test                 # run the tests
 vp check                # format, lint, type check
 vp pack                 # build
 vp run bundle-size      # measure what a user ships against its budget
-vp run type-perf        # measure the type cost: instantiations and the declarations
+vp run type-perf        # measure the type cost: instantiations and the declaration size
 vp run ts-compatibility # type check the published .d.mts against every TypeScript line
 ```
 

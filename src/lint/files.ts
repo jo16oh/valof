@@ -14,8 +14,8 @@ export const isDirectory = (path: string): boolean => {
 /**
  * The files one path stands for, a directory or a glob alike.
  *
- * A directory brings the TypeScript under it, never what its dependencies installed: a project
- * given as `.` would otherwise walk `node_modules`.
+ * A directory includes the TypeScript files under it, never what its dependencies installed: a
+ * project given as `.` would otherwise walk `node_modules`.
  */
 export const expand = (path: string): string[] =>
   globSync(isDirectory(path) ? `${path}/${UNDER}` : path, {

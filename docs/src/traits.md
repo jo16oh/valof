@@ -7,7 +7,7 @@
 
 ## Why Traits?
 
-### Share behaviour with a function
+### Share behavior with a function
 
 No class is needed. Write the function to take the fields it reads, and every type holding them
 fits:
@@ -50,7 +50,7 @@ declare const user: User;
 greet(user); // type error: User has no `name` any more
 ```
 
-**Nothing collects the behaviour.** `greet`, `toWire` and the rest each declare their own shape.
+**Nothing collects the behavior.** `greet`, `toWire` and the rest each declare their own shape.
 Nothing names the set, so the domain model has no place saying what this kind of value does.
 
 A companion solves the second. It collects a type's functions under the type's name, and it belongs
@@ -74,16 +74,15 @@ User.greet(admin); // type error: greet belongs to User
 ```
 
 `Admin` holds the `name` that `greet` reads, and `User.greet` rejects it all the same. Collecting
-the behaviour and sharing it are still two different things.
+the behavior and sharing it are still two different things.
 
-A trait is an abstraction you write down. It names what Vals have in common, the fields and the
-functions alike, and it names the Vals that implement it. That is an interface in the general sense,
-written once, with the implementing types pointing at it. Rename a field and the Val that declared
-the trait is what errors.
+A trait is an abstraction you write down. It declares what Vals have in common, the fields and the
+functions alike. That is an interface in the general sense, written once, with the implementing
+types pointing at it. Rename a field and the Val that declared the trait is what errors.
 
 ## Declare what Vals share
 
-A trait names the fields and the functions:
+A trait declares the fields and the functions:
 
 ```ts
 import { Trait, type Self } from "valof/experimental";
@@ -204,10 +203,10 @@ const User = Val.sealer<User>().implTrait(Greetable);
 The trait implements both, so `implTrait` needs no second argument. A Val may still pass `greet` to
 replace it. Passing `shout` is an error.
 
-Only `Final` members are named on the trait's own type: `Greetable.shout(user)` typechecks and
+Only `Final` members are exposed on the trait's own type: `Greetable.shout(user)` typechecks and
 `Greetable.greet` does not.
 
-A default calling a `Final` member names the trait and annotates its return type:
+A default calling a `Final` member references the trait and annotates its return type:
 
 ```ts
 import { Trait, type Final, type Self } from "valof/experimental";
@@ -228,9 +227,8 @@ const Greetable = Trait.companion<Greetable>().impl({
 });
 ```
 
-Only a `Final` member can be reached on `Greetable`. A member a Val may replace is not there,
-because reading it off the trait would run the default even for a Val that replaced it. Call it
-through that Val's companion, which dispatches.
+A member a Val may replace is not on `Greetable`, because reading it off the trait would run the
+default even for a Val that replaced it. Call it through that Val's companion, which dispatches.
 
 ## Implement Traits on an Enum
 

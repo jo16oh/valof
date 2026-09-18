@@ -27,10 +27,10 @@ post.tags; // readonly string[] all the same
 Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 ```
 
-Neither a class instance nor a function can go in. `Date`, `Temporal`, `Map` and `Set` are all
-classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead. TypeScript
-rejects them, on the first use of the Val rather than on the `type` line.
+Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
+all classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
+TypeScript rejects them, on the first use of the Val rather than on the `type` line.
 
 A class of plain fields is the one TypeScript cannot distinguish from an object. Sealing one throws
 in development. A production build skips that check and copies the own enumerable keys, so a `Date`
-comes out as `{}`, and an instance keeps its fields but loses its prototype.
+is copied as `{}`, and an instance keeps its fields but loses its prototype.
