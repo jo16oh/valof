@@ -5779,6 +5779,10 @@ const User = Val.sealer<User>().impl((self) => ({
 
 **`Grown` は残す。**`T` は `implTrait` が登録したメンバを運ぶので、trait のメンバに同名を生やす検査は今のまま要る。`SealedSteps` と `CompanionSteps` は削除し、`src/index.ts` の export からも外した。名前が要るのは `Sealed` と `Companion` になる。
 
+**Enum も同じ日に閉じた。**Val と Trait を閉じた時点で、Enum だけ `EnumSteps` / `EnumSealerSteps` を持って多段のままだった（§15.2「`.impl` にオブジェクト形を足す」の直後に入ったもの）。3 つとも「`.impl` は 1 回」で揃えた。実行時は `state` の `grows` 引数が丸ごと消え、`impl` は `open` だけを見る。enum 78,283 → 77,569 instantiations、production gzip 1.35 kB → 1.34 kB。
+
+**閉じたあとの形。**`implSeal` / `implCreate` / `fixed` / `implTrait` / `implVariant` は最初の `.impl` で閉じる、という既存の規則はそのまま。変わったのは `.impl` 自身がその規則の例外でなくなったこと。
+
 ---
 
 ## 16. 予算の責務、2026-09-10
