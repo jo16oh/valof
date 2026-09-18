@@ -1,6 +1,7 @@
 # Summary
 
 - [Introduction](introduction.md)
+- [TypeScript problems Valof addresses](typescript-problems.md)
 - [Installation](installation.md)
 - [Branding](basics.md)
 - [Immutability](immutability.md)

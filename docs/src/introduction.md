@@ -45,3 +45,6 @@ types and linting.
 
 - **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->852 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
+
+> For background on individual features, see
+> [TypeScript problems Valof addresses](typescript-problems.md).

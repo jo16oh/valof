@@ -5,80 +5,8 @@
 > Traits are experimental. They ship from `valof/experimental` so that an import says so, and
 > the design is still changing.
 
-## Why Traits?
-
-### Share behavior with a function
-
-No class is needed. Write the function to take the fields it reads, and every type holding them
-fits:
-
-```ts
-type User = { id: string; name: string };
-type Admin = { name: string; level: number };
-
-function greet(greetable: { name: string }): string {
-  return `Hi, ${greetable.name}`;
-}
-
-declare const user: User;
-declare const admin: Admin;
-
-greet(user);
-greet(admin);
-```
-
-Values stay plain, and the code works. What it never says is that `User` and `Admin` share anything.
-
-### Why that is not a contract
-
-The contract is the parameter, written again in every function that wants it, and two things follow
-from that.
-
-**The error lands away from the type that broke it.** Rename a field and `User` is still a valid
-type and `greet` is still a valid function. Only a call fails:
-
-```ts
-// @errors: 2345
-function greet(greetable: { name: string }): string {
-  return `Hi, ${greetable.name}`;
-}
-
-type User = { id: string; nickname: string };
-
-declare const user: User;
-// ---cut---
-greet(user); // type error: User has no `name` any more
-```
-
-**Nothing collects the behavior.** `greet`, `toWire` and the rest each declare their own shape.
-Nothing names the set, so the domain model has no place saying what this kind of value does.
-
-A companion solves the second. It collects a type's functions under the type's name, and it belongs
-to that one Val:
-
-```ts
-// @errors: 2345
-import { Val } from "valof";
-
-type User = Val<"User", { id: string; name: string }>;
-const User = Val.sealer<User>().impl({
-  greet: (u) => `Hi, ${u.name}`,
-});
-
-type Admin = Val<"Admin", { name: string; level: number }>;
-const Admin = Val.sealer<Admin>();
-// ---cut---
-const admin = Admin({ name: "root", level: 9 });
-
-User.greet(admin); // type error: greet belongs to User
-```
-
-`Admin` holds the `name` that `greet` reads, and `User.greet` rejects it all the same. Collecting
-the behavior and sharing it are still two different things.
-
-A trait is an abstraction you write down. It declares what Vals have in common, the fields and the
-functions alike. That is an interface in the general sense, written once, with the implementing
-types pointing at it. Rename a field and the Val that declared the trait is what errors.
+> For the contract that a trait adds, see
+> [TypeScript problems Valof addresses](typescript-problems.md#traits).
 
 ## Declare what Vals share
 

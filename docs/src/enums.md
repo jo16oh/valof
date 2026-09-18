@@ -8,56 +8,8 @@
 An enum is a closed set of variants. A Val is one shape; an enum is a choice between several, and
 because the set is closed, handling every case can be checked.
 
-## Why Enums?
-
-### A hand-written union scatters the set
-
-TypeScript already models a closed set as a discriminated union, and a base type for the fields
-every variant holds:
-
-```ts
-type Base = { id: string };
-type Circle = Base & { _tag: "Circle"; r: number };
-type Square = Base & { _tag: "Square"; side: number };
-type Shape = Circle | Square;
-
-const circle: Shape = { id: "s1", _tag: "Circle", r: 2 };
-```
-
-Adding `Triangle` is three edits: a new type, a new arm on the union, and `& Base` again. Forget the
-last one and the declaration still compiles. TypeScript reports it at the first `shape.id`, not at
-the variant missing `& Base`.
-
-### A new variant breaks a `switch` silently
-
-A `switch` on the tag narrows, and a missing case is an error where the return type is annotated and
-every arm returns. A `switch` that runs side effects has neither, so adding `Triangle` compiles:
-
-```ts
-type Circle = { _tag: "Circle"; r: number };
-type Square = { _tag: "Square"; side: number };
-declare function drawCircle(c: Circle): void;
-declare function drawSquare(s: Square): void;
-// ---cut---
-type Triangle = { _tag: "Triangle"; base: number; height: number };
-type Shape = Circle | Square | Triangle;
-
-function draw(shape: Shape) {
-  switch (shape._tag) {
-    case "Circle":
-      drawCircle(shape);
-      break;
-    case "Square":
-      drawSquare(shape);
-      break;
-  }
-}
-```
-
-A triangle draws nothing, and no type says so. You write the check yourself: `assertNever(shape)`
-under a `default`, and a `break` closing every case. `strict` reports neither a missing case nor a
-missing `break`. `noFallthroughCasesInSwitch` catches the second, and the lint rule
-`typescript/switch-exhaustiveness-check` the first, once you enable both.
+> For the limits of a hand-written discriminated union, see
+> [TypeScript problems Valof addresses](typescript-problems.md#enums).
 
 ## Declare the variants
 
@@ -96,6 +48,9 @@ type Card = Enum<"Card", { Plain: { w: number }; Framed: { w: number; style: Sty
 
 A nested variant is a patch boundary like any nested Val: replace it with one the constructor built,
 rather than merging into it.
+
+Define two variants at least. One variant is a Val, and TypeScript loses the alias for a union of
+one, which breaks the declarations of a package that exports the companion.
 
 ## Match on the tag
 
@@ -251,10 +206,3 @@ type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 // ---cut---
 const area = ({ r }: VariantOf<Shape, "Circle">) => r * r * Math.PI;
 ```
-
-## Limits
-
-- **Two variants at least.** One variant is a Val, and TypeScript loses the alias for a union of
-  one, which breaks the declarations of a package that exports the companion.
-- **A variant may not be named `then`, `match` or `seal`.** A companion holding `then` is a
-  thenable, and `await` on one never settles. `match` and `seal` are the companion's own.

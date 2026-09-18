@@ -1,18 +1,7 @@
 # Branding
 
-Two values can have the same representation but different meanings:
-
-```ts
-type UserId = string;
-type OrderId = string;
-
-declare const userId: UserId;
-let orderId: OrderId;
-
-orderId = userId; // allowed: both types are string
-```
-
-A brand lets TypeScript distinguish them without changing their runtime representation.
+> For the problem that branding solves, see
+> [TypeScript problems Valof addresses](typescript-problems.md#branding).
 
 ## Define branded types
 
@@ -32,18 +21,7 @@ Name the brand after the type it brands: `type UserId = Val<"UserId", string>`. 
 
 ## Construct values
 
-A branded type normally needs a constructor that contains a type assertion:
-
-```ts
-import { Val } from "valof";
-
-type UserId = Val<"UserId", string>;
-// ---cut---
-const createUserId = (value: string): UserId => value as UserId;
-```
-
-This keeps assertions out of its callers, but every branded type needs the same constructor
-boilerplate. `Val.sealer` supplies the constructor:
+`Val.sealer` supplies the constructor:
 
 ```ts
 // @errors: 2322

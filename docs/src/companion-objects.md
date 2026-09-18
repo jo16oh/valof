@@ -1,25 +1,7 @@
 # Companion objects
 
-A TypeScript type does not create a value namespace. Its functions are usually standalone:
-
-```ts
-type User = { id: string; name: string; nickname?: string };
-
-function getUserDisplayName(user: User) {
-  return user.nickname ?? user.name;
-}
-
-function formatUserLabel(user: User, separator: string) {
-  return user.id + separator + getUserDisplayName(user);
-}
-```
-
-The type name appears in each function name to keep related functions recognizable. Each function
-also repeats the type annotation for its first parameter.
-
-A class provides a namespace for its functions, but also turns each value into a class instance.
-Keeping its instances immutable requires `readonly` on every field and nested property. Its JSON
-shape depends on property enumerability unless you write and maintain a `toJSON` mapping.
+> For the limits of standalone functions and classes, see
+> [TypeScript problems Valof addresses](typescript-problems.md#companion-objects).
 
 ## Collect related functions in a companion object
 
@@ -67,6 +49,9 @@ const user = User({ id: "a", name: "bob" });
 User.displayName(user);
 User.formatLabel(user, ": ");
 ```
+
+Vals are plain data, so member functions can't be chained like class instances. Combine Valof with
+any pipe library you like to avoid nesting or to reduce temporal variables.
 
 ## Patch object values
 
