@@ -65,7 +65,7 @@ companion. There is no reason to import one yourself.
 | `E[Variant](payload)`                | builds that variant, writing the tag         |
 | `E[Variant].create(payload)`         | the same on a companion, through its seal    |
 | `E[Variant].patch(value, patch)`     | derives a variant, never reaching the tag    |
-| `E(payload)` / `E.seal(payload)`     | draws the frame from the tag, and seals      |
+| `E(payload)` / `E.seal(payload)`     | selects the variant from the tag, and seals  |
 | `.impl(fns?)`                        | adds members taking the union, and closes    |
 | `.implVariant(N, fns)`               | builds one variant                           |
 | `.implSeal(seal)`                    | replaces the seal every variant passes       |

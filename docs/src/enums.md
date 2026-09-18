@@ -166,10 +166,10 @@ const Shape = Enum.sealer<Shape>()
 Shape.Circle.diameter(Shape.Circle({ r: 2 })); // 4
 ```
 
-A variant you write nothing for keeps the default frame, and a variant already built cannot be named
-again. The steps are already that variant's frame, so a callback with nothing to collect returns the
-argument: `.implVariant("Circle", (variant) => variant)`. What a step returns is closed, the way
-`.impl` closes the enum's chain.
+A variant you write nothing for keeps the default companion, and a variant already built cannot be
+named again. The steps are already that variant's companion, so a callback with nothing to collect
+returns the argument: `.implVariant("Circle", (variant) => variant)`. What a step returns is closed,
+the way `.impl` closes the enum's chain.
 
 No step chooses between a sealer and a companion. `Enum.sealer` makes every variant callable,
 `Enum.companion` builds every one with `.create`, so the enum's entry point decides each variant's.
@@ -219,7 +219,7 @@ payload named. `patch` derives through the same seal, so there is no way past it
 
 ## Take a payload from the wire
 
-A tagged payload draws its own frame:
+A tagged payload selects its own variant:
 
 ```ts
 import { Enum, type SealedPayload } from "valof/experimental";
@@ -233,9 +233,9 @@ declare const fromWire: SealedPayload<Shape>;
 const shape = Shape.seal(fromWire); // Shape | Error
 ```
 
-`seal` reads the tag, draws that variant's frame, and passes the payload to its seal. The return is
-the variants' seals as a union, the same rule as `match`. On a sealer the companion itself is that
-entry, and it needs no seal to be useful:
+`seal` reads the tag, selects that variant's companion, and passes the payload to its seal. The
+return is the variants' seals as a union, the same rule as `match`. On a sealer the enum itself is
+that entry, and it needs no seal to be useful:
 
 ```ts
 import { Enum, type SealedPayload } from "valof/experimental";
