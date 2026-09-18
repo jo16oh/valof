@@ -1147,27 +1147,26 @@ describe("building", () => {
       expectTypeOf(Renamer.renamed).toEqualTypeOf<(u: User, name: string) => User>();
     });
 
-    test("a second call reads the members of the first", () => {
-      const Loud = Val.sealer<User>()
-        .impl((self) => ({ renamed: (u, name: string) => self.patch(u, { name }) }))
-        .impl((self) => ({ shouted: (u) => self.renamed(u, u.name.toUpperCase()) }));
+    test("a member calling a sibling names the companion and annotates its return", () => {
+      const Loud = Val.sealer<User>().impl((self) => ({
+        renamed: (u, name: string): User => self.patch(u, { name }),
+        shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
+      }));
 
       expect(Loud.shouted(Loud({ id: "a", name: "bob" }))).toEqual({ id: "a", name: "BOB" });
+      expectTypeOf(Loud.shouted).toEqualTypeOf<(u: User) => User>();
     });
 
-    test("a name an earlier call took cannot be taken again", () => {
-      Val.sealer<User>()
-        .impl({ greet: (u) => u.name })
-        // @ts-expect-error something already answers to this name
-        .impl({ greet: (u: User) => u.name });
-    });
-
-    test("calling it with nothing closes the step", () => {
-      const Closed = Val.sealer<User>()
-        .impl({ greet: (u) => u.name })
-        .impl();
+    test("one call closes the chain", () => {
+      const Closed = Val.sealer<User>().impl({ greet: (u) => u.name });
       expectTypeOf(Closed).not.toHaveProperty("impl");
       expect((Closed as { impl?: unknown }).impl).toBeUndefined();
+    });
+
+    test("calling it with nothing closes it with no member", () => {
+      const Closed = Val.sealer<User>().impl();
+      expectTypeOf(Closed).not.toHaveProperty("impl");
+      expect(Closed({ id: "a", name: "bob" })).toEqual({ id: "a", name: "bob" });
     });
 
     test("`patch` is the library's, not yours", () => {

@@ -56,7 +56,9 @@ describe("Trait", () => {
 
       type Safe = Trait<"Safe", { n: number }, { read: (self: Self) => (() => string) | null }>;
       const Safe = Trait.companion<Safe>().impl({ read: (s) => () => String(s.n) });
-      expect(Safe.__valof_shared.read({ n: 1 })()).toBe("1");
+      type Meter = Val<"Meter", { n: number }, Safe>;
+      const Meter = Val.companion<Meter>().implTrait(Safe);
+      expect(Meter.read(Val.of<Meter>({ n: 1 }))?.()).toBe("1");
     });
   });
 
@@ -138,9 +140,10 @@ describe("Trait", () => {
         { name: string },
         { defaults: (self: Self) => string; finals: Final<(self: Self) => string> }
       >;
-      const Held = Trait.companion<Held>()
-        .impl({ defaults: (h) => h.name })
-        .impl({ finals: (h) => h.name.toUpperCase() });
+      const Held = Trait.companion<Held>().impl({
+        defaults: (h) => h.name,
+        finals: (h) => h.name.toUpperCase(),
+      });
       type Note = Val<"Note", { name: string }, Held>;
       const Note = Val.companion<Note>().implTrait(Held);
       const n = Val.of<Note>({ name: "n" });
@@ -306,47 +309,47 @@ describe("building", () => {
       });
     });
 
-    test("takes a default and a final in either call", () => {
-      const split = Trait.companion<Greetable>()
-        .impl({ greet: (g) => `Hi, ${g.name}` })
-        .impl({ shout: (g) => g.name.toUpperCase() });
-      expect(split.shout(user)).toBe("ALICE");
+    test("takes a default and a final in one call", () => {
+      const both = Trait.companion<Greetable>().impl({
+        greet: (g) => `Hi, ${g.name}`,
+        shout: (g) => g.name.toUpperCase(),
+      });
+      expect(both.shout(user)).toBe("ALICE");
     });
 
-    test("does not mutate the step before it", () => {
-      const before = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
-      const after = before.impl({ shout: (g) => g.name.toUpperCase() });
-
-      expect(Object.keys(before.__valof_shared)).toEqual(["greet"]);
-      expect(Object.keys(after.__valof_shared)).toEqual(["greet", "shout"]);
+    test("one call closes the chain", () => {
+      const closed = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
+      expectTypeOf(closed).not.toHaveProperty("impl");
+      expect((closed as { impl?: unknown }).impl).toBeUndefined();
     });
 
-    test("a callback reaches the finals implemented before it", () => {
-      const chained = Trait.companion<Greetable>()
-        .impl({ shout: (g) => g.name.toUpperCase() })
-        .impl((self) => ({ greet: (g) => `Hi, ${self.shout(g)}` }));
+    test("a member calling a final names the companion and annotates its return", () => {
+      const Loud = Trait.companion<Greetable>().impl({
+        shout: (g): string => g.name.toUpperCase(),
+        greet: (g): string => `Hi, ${Loud.shout(g)}`,
+      });
 
       type Plain = Val<"Plain", { name: string }, Greetable>;
-      const Plain = Val.companion<Plain>().implTrait(chained, {
+      const Plain = Val.companion<Plain>().implTrait(Loud, {
         toWire: (p, sep) => `plain${sep}${p.name}`,
       });
       expect(Plain.greet(Val.of<Plain>({ name: "alice" }))).toBe("Hi, ALICE");
     });
 
-    test("a member a Val may replace is not on the callback's argument", () => {
-      Trait.companion<Greetable>()
-        .impl({ greet: (g) => `Hi, ${g.name}` })
-        .impl((self) => ({
-          // @ts-expect-error a default is not named on the trait
-          shout: (g) => self.greet(g).toUpperCase(),
-        }));
+    test("a member a Val may replace has no name to call", () => {
+      const Replaceable = Trait.companion<Greetable>().impl({
+        greet: (g): string => `Hi, ${g.name}`,
+        // @ts-expect-error a default is not named on the trait
+        shout: (g): string => Replaceable.greet(g).toUpperCase(),
+      });
     });
 
-    test("but not the same member twice", () => {
-      Trait.companion<Greetable>()
-        .impl({ greet: (g) => g.name })
-        // @ts-expect-error the trait already implements this member
-        .impl({ greet: (g: { name: string }) => g.name });
+    test("the receiver is the trait, so a plain object is not one", () => {
+      Trait.companion<Greetable>().impl({
+        greet: (g) => `Hi, ${g.name}`,
+        // @ts-expect-error a plain object holding the fields is not a Greetable
+        shout: (): string => Greetable.shout({ name: "duck" }),
+      });
     });
   });
 });

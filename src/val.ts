@@ -461,26 +461,6 @@ type Alone<Tr extends AnyTrait, V, Self> = [FinalsOf<Tr>] extends [never]
   : "this trait implements members of its own: pass its companion";
 
 /**
- * A sealer with every step closed but `.impl`, which is what `.impl` hands back.
- *
- * Inferred, not written: it is exported so your own declarations can name it.
- *
- * The step stays so a member can read the ones written before it off `self`. It is the only
- * step that stays: a seal past the first would be a hole past the first check, and a second
- * `implTrait` would register a trait twice. See {@link Sealer.impl}.
- */
-export type SealedSteps<V extends AnyVal, T extends CompanionMembers<V>> = Sealed<V, T> & {
-  /** Collects more members. See {@link Sealer.impl}. */
-  impl: {
-    (): Sealed<V, T>;
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): SealedSteps<V, M & T>;
-    <M extends CompanionMembers<V>>(
-      fns: (self: Sealed<V, T>) => Grown<keyof T, M>,
-    ): SealedSteps<V, M & T>;
-  };
-};
-
-/**
  * A constructor for `V`, which can grow members without ceasing to be one.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
@@ -489,30 +469,31 @@ export type SealedSteps<V extends AnyVal, T extends CompanionMembers<V>> = Seale
  * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
  * nothing.
  */
-export type Sealer<
-  V extends AnyVal,
-  T extends CompanionMembers<V> = Record<never, never>,
-> = SealedSteps<V, T> & {
+export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<never, never>> = Sealed<
+  V,
+  T
+> & {
   /**
-   * Collects the members for the type. Call it with nothing to close the chain with none.
+   * Collects the members for the type, in one call, which ends the chain. Call it with nothing
+   * to close it with none.
    *
-   * The callback's argument is the companion as it stands: what the library wired, what a trait
-   * registered, and the members an earlier `.impl` collected. A member needing none of those
-   * takes the object on its own. A sibling in the same call is not there: naming the companion
-   * inside its own initializer is TS7022, which is what the callback cuts.
+   * The callback's argument is the companion as it stands: what the library wired and what a
+   * trait registered. A member needing neither takes the object on its own. A sibling in the
+   * same call is not there: it names the companion and annotates its return type, since naming
+   * one inside its own initializer is a circularity TypeScript reports as TS7023.
    */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
     (): Sealed<V, T>;
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): SealedSteps<V, M & T>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Sealed<V, M & T>;
     // A separate overload rather than one parameter taking either: TypeScript 5 stops inferring
     // `M` where a mapped type over it sits inside a union, and every first parameter falls back
     // to implicit `any` (notes §15.4).
     <M extends CompanionMembers<V>>(
       fns: (self: Sealed<V, T>) => Grown<keyof T, M>,
-    ): SealedSteps<V, M & T>;
+    ): Sealed<V, M & T>;
   };
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
   implTrait: {
@@ -523,28 +504,6 @@ export type Sealer<
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, V, Sealed<V, T>>
     ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
-  };
-};
-
-/**
- * A companion with every step closed but `.impl`. The mirror of {@link SealedSteps}.
- *
- * Inferred, not written: it is exported so your own declarations can name it.
- */
-export type CompanionSteps<V extends AnyVal, N, F, P, T extends CompanionMembers<V>> = Companion<
-  V,
-  T,
-  N,
-  F,
-  P
-> & {
-  /** Collects more members. See {@link Sealer.impl}. */
-  impl: {
-    (): Companion<V, T, N, F, P>;
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): CompanionSteps<V, N, F, P, M & T>;
-    <M extends CompanionMembers<V>>(
-      fns: (self: Companion<V, T, N, F, P>) => Grown<keyof T, M>,
-    ): CompanionSteps<V, N, F, P, M & T>;
   };
 };
 
@@ -563,9 +522,10 @@ export type CompanionBuilder<
   F = undefined,
   P = never,
   T extends CompanionMembers<V> = Record<never, never>,
-> = CompanionSteps<V, N, F, P, T> & {
+> = Companion<V, T, N, F, P> & {
   /**
-   * Collects the members for the type. Everything the library wires has its own step.
+   * Collects the members for the type, in one call. Everything the library wires has its own
+   * step.
    *
    * Takes a callback for a member reading the companion. See {@link Sealer.impl}.
    */
@@ -573,10 +533,10 @@ export type CompanionBuilder<
     (): Companion<V, T, N, F, P>;
     // A trait's member is registered, so `.impl` may not grow one over it: the type would keep
     // the trait's signature while `dyn` kept calling what `implTrait` recorded.
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): CompanionSteps<V, N, F, P, M & T>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
     <M extends CompanionMembers<V>>(
       fns: (self: Companion<V, T, N, F, P>) => Grown<keyof T, M>,
-    ): CompanionSteps<V, N, F, P, M & T>;
+    ): Companion<V, M & T, N, F, P>;
   };
   /**
    * Implements a trait the type declares. The members the trait leaves open arrive as a second
@@ -1048,20 +1008,12 @@ const build = <V extends AnyVal>(
   const target = attach(base(), {}, ctors, traits, callable);
   const step = (next: Ctors): object => build<V>(next, callable, traits);
 
-  // `.impl` keeps itself: the object it hands back collects more, so a member reads the ones
-  // before it off the argument its callback takes. Nothing else survives the first call.
+  // `.impl` takes one call, so what it hands back carries no step. The callback reads the
+  // companion as the steps before it left it, which is what `made({})` is.
   const made = (fns: Record<string, unknown>) => attach(base(), fns, ctors, traits, callable);
-  const grow =
-    (prev: Record<string, unknown>) =>
-    (fns?: Record<string, unknown> | ((self: object) => Record<string, unknown>)): object => {
-      if (fns === undefined) return made(prev);
-      const next = { ...prev, ...(typeof fns === "function" ? fns(made(prev)) : fns) };
-      const grown = made(next);
-      grown.impl = grow(next);
-      return grown;
-    };
 
-  target.impl = grow({});
+  target.impl = (fns?: Record<string, unknown> | ((self: object) => Record<string, unknown>)) =>
+    made(fns === undefined ? {} : typeof fns === "function" ? fns(made({})) : fns);
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
   // No companion where the trait implements nothing of its own: the members arrive in its place.
   // The Val's own go on last, the type having kept every `Final` one out of them.

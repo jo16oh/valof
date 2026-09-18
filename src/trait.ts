@@ -244,13 +244,19 @@ export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Unbo
   ) => Dyn<Tr>;
 };
 
-/** What the trait implements itself: its own members, over the shape. `Taken` is what it already
- * answered, one call of `impl` ago. */
+/**
+ * What the trait implements itself: its own members, over the trait. `Taken` is what a trait
+ * already answered, which is every member once `impl` closes the chain.
+ *
+ * The receiver is `Tr` rather than `ShapeOf<Tr>` so that a member can call a {@link Final}
+ * sibling through the companion, which publishes one taking `Tr`. Contravariance keeps the
+ * implementation assignable where `implTrait` binds it to the Val.
+ */
 export type Shared<Tr extends AnyTrait, Taken, G> = {
   readonly [K in keyof G]: K extends Taken
     ? "the trait already implements this member"
     : K extends keyof MembersOf<Tr>
-      ? Unbound<MembersOf<Tr>, ShapeOf<Tr>>[K]
+      ? Unbound<MembersOf<Tr>, Tr>[K]
       : "a trait's own implementation must be one of its members";
 };
 
@@ -267,36 +273,23 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
   Partial<Record<FinalsOf<Tr>, never>>;
 
 /**
- * What a callback to `impl` is handed: the members implemented so far that no Val may replace,
- * taking the shape rather than the trait.
- *
- * The finals alone, because those are the only ones a static call answers correctly for. See
- * {@link TraitCompanion}.
- */
-export type Finals<Tr extends AnyTrait, G> = Unbound<
-  Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>,
-  ShapeOf<Tr>
->;
-
-/**
- * Collects what a trait carries. The chain ends wherever the trait runs out of members: a
- * builder is a companion already.
+ * Collects what a trait carries. A builder is a companion already, so a trait implementing
+ * nothing takes no step at all.
  *
  * @experimental
  */
 export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitCompanion<Tr, G> & {
   /**
-   * Implements members over the shape alone. Which side of the contract one lands on is the
+   * Implements members over the trait. Which side of the contract one lands on is the
    * declaration's to say: a Val may replace an ordinary member through `implTrait`, and may not
    * replace one declared {@link Final}.
    *
-   * The callback's argument is the finals implemented one call ago, for a member that calls one.
-   * A member calling none takes the object on its own. A sibling in the same call is not there:
-   * naming the companion inside its own initializer is TS7022, which is what the callback cuts.
+   * It takes one call, which ends the chain. A member calling a {@link Final} sibling names the
+   * companion and annotates its return type: naming it inside its own initializer is a
+   * circularity TypeScript reports as TS7023, and the annotation cuts it. A member a Val may
+   * replace has no name to call, by {@link TraitCompanion}'s rule.
    */
-  impl: <H extends Shared<Tr, keyof G, H>>(
-    fns: H | ((self: Finals<Tr, G>) => H),
-  ) => TraitBuilder<Tr, G & H>;
+  impl: <H extends Shared<Tr, keyof G, H>>(fns: H) => TraitCompanion<Tr, G & H>;
 };
 
 type AnyFn = (...args: never[]) => unknown;
@@ -329,15 +322,9 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
 export const Trait = {
   /** Declares a trait's runtime side: what every Val implementing it shares. */
   companion: <Tr extends AnyTrait>(): TraitBuilder<Tr> => {
-    const build = (impls: Record<string, unknown>): Record<string, unknown> => {
-      const target = make(impls);
-      // The callback is handed what is implemented so far. Only the finals are named on its
-      // type, and the rest are unreachable for the same reason as on the companion itself.
-      target["impl"] = (
-        fns: Record<string, unknown> | ((self: unknown) => Record<string, unknown>),
-      ) => build({ ...impls, ...(typeof fns === "function" ? fns(impls) : fns) });
-      return target;
-    };
-    return build({}) as never;
+    const target = make({});
+    // `impl` takes one call: what it hands back is the companion, with no step left on it.
+    target["impl"] = (fns: Record<string, unknown>) => make(fns);
+    return target as never;
   },
 } as const;
