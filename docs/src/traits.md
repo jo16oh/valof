@@ -227,7 +227,7 @@ Cmd.describe(Cmd.Add({ id: "c1", n: 2 })); // "add 2"
 ```
 
 An enum declares its shared fields and its traits in one argument: a trait brings the fields it
-requires, so declaring them again is not needed.
+requires, so declaring them again is not needed. Variants cannot implement traits.
 
 The implementation is a callback, like every other step of an enum's companion.
 
