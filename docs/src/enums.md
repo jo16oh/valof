@@ -132,9 +132,7 @@ type Task = Enum<"Task", { Todo: { text: string }; Done: { at: number } }, { id:
 const Task = Enum.sealer<Task>();
 
 const todo = Task.Todo({ id: "t1", text: "write the docs" });
-
-declare const task: Task;
-task.id; // readable off the union
+console.log(todo.id); // t1
 ```
 
 Every constructor requires the shape, the union reads it without a `match`, and `VariantOf` carries
