@@ -50,11 +50,11 @@ declare const user: User;
 greet(user); // type error: User has no `name` any more
 ```
 
-**The behaviour collects nowhere.** `greet`, `toWire` and the rest each declare their own shape.
+**Nothing collects the behaviour.** `greet`, `toWire` and the rest each declare their own shape.
 Nothing names the set, so the domain model has no place saying what this kind of value does.
 
-A companion answers the second one. It collects a type's functions under the type's name, and it
-belongs to that one Val:
+A companion solves the second. It collects a type's functions under the type's name, and it belongs
+to that one Val:
 
 ```ts
 // @errors: 2345
@@ -98,14 +98,14 @@ type Greetable = Trait<
 >;
 ```
 
-The second argument is the shape: the fields every implementing Val holds. It answers to the same
-rules as a payload, so a shape no Val could ever hold is an error where it is written.
+The second argument is the shape: the fields every implementing Val holds. It follows the same rules
+as a payload, so a shape no Val could ever hold is an error where it is written.
 
 The third declares the functions. They become members of every companion that implements the trait,
 and they take the value first like any other member.
 
-`Self` stands for the implementing Val. A member may take it, and may not return it: what wants to
-return a `Self` is a constructor, and a trait has no brand to seal with.
+`Self` stands for the implementing Val. A member may take it, and may not return it: what returns a
+`Self` is a constructor, and a trait has no brand to seal with.
 
 ## Implement it on a Val
 
@@ -132,7 +132,7 @@ User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
 
 Naming the trait as the type argument asks `implTrait` for every member it declares.
 
-Declaring the trait is what makes the payload answer for its fields: a `User` without `name` is a
+Declaring the trait is what requires the payload to hold its fields: a `User` without `name` is a
 type error at the declaration, not at `implTrait`.
 
 The checker stops at the declaration. `Val<"User", …, Greetable>` typechecks with no `implTrait`
@@ -267,14 +267,14 @@ party.map((p) => p.greet()); // ["Hi, alice", "Sir root"]
 party.map((p) => p.name); // ["alice", "root"]
 ```
 
-A box binds the receiver, so its members take the remaining arguments alone. The trait's fields read
-straight off it, and a function taking `Greetable` accepts one.
+A box binds the receiver, so its members take the remaining arguments alone. The trait's fields are
+readable on it, and a function taking `Greetable` accepts one.
 
 A box is a proxy over its value, not a Val. It has its own identity, and it has no `patch`. A
 payload cannot hold one.
 
-The two arguments belong together: the companion has to answer for the value's own type, so another
-Val's companion is rejected.
+The two arguments belong together: the companion has to match the value's own type, so another Val's
+companion is rejected.
 
 An enum boxes the same way, through its own companion:
 `Describable.dyn(Cmd, Cmd.Add({ id: "c1", n: 2 }))`.
@@ -326,7 +326,7 @@ Each trait boxes on its own. No two traits on one Val may register the same memb
 A member name is rejected when a Val could not carry it:
 
 - a field's name from the trait's own shape
-- `patch`, `seal` or `create`, which the library wires
+- `patch`, `seal` or `create`, which the library defines
 - anything under `__valof_` or starting with `impl`
 - `dyn`, which the trait itself uses
 - `then`, which would make the companion a thenable

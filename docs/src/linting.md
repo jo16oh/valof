@@ -30,11 +30,11 @@ types the checker stops distinguishing, or a name that has to agree with another
 rule added next year included.
 
 The severity is what the [plugin](linting.md#plugin-for-eslint-and-oxlint) sets, and a project can
-give any rule its own. The [command](linting.md#cli) draws every finding the same way and exits 1 on
-any of them.
+give any rule its own. The [command](linting.md#cli) prints every finding the same way and exits 1
+on any of them.
 
-A member registered with `.impl({…})` is not tree-shaken, and knip does not report it when it goes
-dead.
+A member registered with `.impl({…})` is not tree-shaken, and knip does not report it when it
+becomes unused.
 
 ## Disable comments
 
@@ -52,15 +52,15 @@ or a whole file with one anywhere in it:
 // valof-lint-disable-all-whole-file -- generated, do not lint
 ```
 
-Name the rules it silences, separated by a space or a comma. The comments answer to two rules of
-their own, `incomplete-disable` and `unused-disable`, which are left out of a run and given a
-severity like any other.
+Name the rules it silences, separated by a space or a comma. The comments follow two rules of their
+own, `incomplete-disable` and `unused-disable`, which are left out of a run and given a severity
+like any other.
 
 ## Plugin for ESLint and Oxlint
 
 The same rules, one per kind: name one to give it its own severity, or turn it off. The project to
 read is one setting for all of them, a path or a list of them, and defaults to `src/**/*.ts`. A path
-opening with `!` is excluded from it.
+starting with `!` is excluded from it.
 
 ESLint needs a parser that reads your TypeScript.
 
@@ -109,5 +109,5 @@ pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree
 
 A single file given as the project is refused: a duplicate brand needs the other alias to be seen.
 
-A `!path` is excluded wherever it is written, and comes off the run rather than only the report, so
-what a generated tree declares no longer applies to the rest.
+A `!path` is excluded wherever it is written, and is removed from the run rather than only from the
+report, so what a generated tree declares no longer applies to the rest.

@@ -62,6 +62,7 @@ missing `break`. `noFallthroughCasesInSwitch` catches the second, and the lint r
 ## Declare the variants
 
 ```ts
+import { equals } from "valof";
 import { Enum } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
@@ -70,6 +71,9 @@ const Shape = Enum.sealer<Shape>();
 const { Circle, Square } = Shape;
 
 const circle = Circle({ r: 2 }); // { r: 2, _tag: "Circle" }
+
+Circle.patch(circle, { r: 5 }); // { r: 5, _tag: "Circle" }, the tag stays
+equals(circle, Circle({ r: 2 })); // true
 ```
 
 The record is the whole declaration. The union is derived from it, and so is each variant's brand:
@@ -77,6 +81,19 @@ The record is the whole declaration. The union is derived from it, and so is eac
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
 constructor.
+
+A variant is a Val: it patches, it compares, and it nests. A patch cannot reach the tag, so it
+cannot switch variants.
+
+```ts
+import { Enum } from "valof/experimental";
+// ---cut---
+type Style = Enum<"Style", { Solid: { width: number }; Dashed: { gap: number } }>;
+type Box = Enum<"Box", { Plain: { w: number }; Framed: { w: number; style: Style } }>;
+```
+
+A nested variant is a patch boundary like any nested Val: replace it with one the constructor built,
+rather than merging into it.
 
 ## Match on the tag
 
@@ -97,8 +114,8 @@ Each handler takes its own variant, narrowed, with no annotation. Every variant 
 adding one to the declaration fails here rather than falling through at run time. No `break`, no
 `assertNever`, and no lint rule to enable. The return type is the handlers' union.
 
-`match` sits on the companion because the tag's name is yours to choose, and a free function would
-have to hard-code it.
+`match` sits on the companion because the tag's name is customizable, and a free function would have
+to hard-code it.
 
 Use `match` to split on the tag. For a condition inside a variant, reach for a pattern matching
 library such as ts-pattern: `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
@@ -128,8 +145,8 @@ The same argument declares the [traits](traits.md) the enum implements.
 ## Members
 
 `.impl` collects the members that take the union, and `.implVariant` builds one variant, named in
-the first argument. Both take a callback: `.impl` hands it the companion as it stands, and
-`.implVariant` hands it the variant's steps, with that same companion after them.
+the first argument. Both take a callback: `.impl` passes it the companion as it stands, and
+`.implVariant` passes it the variant's steps, with that same companion after them.
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -150,12 +167,12 @@ Shape.Circle.diameter(Shape.Circle({ r: 2 })); // 4
 ```
 
 A variant you write nothing for keeps the default frame, and a variant already built cannot be named
-again. The steps are already that variant's frame, so a callback with nothing to collect hands the
-argument back: `.implVariant("Circle", (variant) => variant)`. What a step returns is closed, the
-way `.impl` closes the enum's chain.
+again. The steps are already that variant's frame, so a callback with nothing to collect returns the
+argument: `.implVariant("Circle", (variant) => variant)`. What a step returns is closed, the way
+`.impl` closes the enum's chain.
 
-There is no step that picks the kind. `Enum.sealer` makes every variant callable, `Enum.companion`
-builds every one with `.create`, so the enum's entry decides the variant's.
+No step chooses between a sealer and a companion. `Enum.sealer` makes every variant callable,
+`Enum.companion` builds every one with `.create`, so the enum's entry point decides each variant's.
 
 `.impl` ends the chain, so a companion you export takes no further step. Call it with nothing where
 there is no member to collect: `Enum.sealer<Shape>().implVariant(…).impl()`.
@@ -191,8 +208,8 @@ Shape.Square.create({ id: "s2", side: 1 }); // VariantOf<Shape, "Square"> | Erro
 The enum's seal checks what every variant holds; a variant's own seal checks its own payload. A
 payload runs the variant's seal, then the enum's, then the default seal that brands and copies it,
 so a variant that wrote none is still checked by the enum's. Compose them yourself where a check
-depends on the other's result: inside a variant's seal, `seal(payload)` is the enum's seal, so what
-it hands back is the enum's return, the error included.
+depends on the other's result: inside a variant's seal, `seal(payload)` is the enum's seal, so its
+result is the enum's return, the error included.
 
 Write `.implSeal` before the first `.implVariant`, which the type enforces. A variant's default seal
 is the enum's, read from the chain as it stands.
@@ -216,8 +233,8 @@ declare const fromWire: SealedPayload<Shape>;
 const shape = Shape.seal(fromWire); // Shape | Error
 ```
 
-`seal` reads the tag, draws that variant's frame, and hands the payload to its seal. The return is
-the variants' seals as a union, `match`'s rule again. On a sealer the companion itself is that
+`seal` reads the tag, draws that variant's frame, and passes the payload to its seal. The return is
+the variants' seals as a union, the same rule as `match`. On a sealer the companion itself is that
 entry, and it needs no seal to be useful:
 
 ```ts
@@ -230,37 +247,12 @@ declare const fromWire: SealedPayload<Shape>;
 const shape = Shape(fromWire); // Shape
 ```
 
-The branch by tag is the library's either way.
-
-## A variant is a Val
-
-It patches, it compares, and it nests:
-
-```ts
-import { equals, Val } from "valof";
-import { Enum } from "valof/experimental";
-
-type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.sealer<Shape>();
-// ---cut---
-const circle = Shape.Circle({ r: 2 });
-
-Shape.Circle.patch(circle, { r: 5 }); // { r: 5, _tag: "Circle" }
-equals(circle, Shape.Circle({ r: 2 })); // true
-
-type Holder = Val<"Holder", { id: string; shape: Shape }>;
-const Holder = Val.sealer<Holder>();
-const holder = Holder({ id: "h", shape: circle });
-
-Holder.patch(holder, { shape: Shape.Square({ side: 1 }) });
-```
-
-A patch cannot reach the tag, so it cannot switch variants. A nested variant is a patch boundary
-like any nested Val: replace it with one the constructor built, rather than merging into it.
+The library branches on the tag either way.
 
 ## Custom tag key
 
-The tag is real data and it crosses the wire, so the name is yours when an API already has one:
+The tag is real data, not a phantom. It crosses the wire, so you can customize the name when an API
+already has one:
 
 ```ts
 import { Enum, type Tag } from "valof/experimental";
@@ -274,7 +266,7 @@ Event.Click({ x: 1 }); // { x: 1, kind: "Click" }
 `Tag` goes in the third argument, beside the shared fields: the tag is a field every variant holds.
 It is a marker with no key of its own, so every name is still free for a variant. The companion
 takes the name again because the proxy writes it at run time, and the type argument is not readable
-from a value. Forget it, misspell it, or pass one where the default holds, and the type says so.
+from a value. Forget it, misspell it, or pass one where the default applies, and the type says so.
 
 ## Use a variant's type
 

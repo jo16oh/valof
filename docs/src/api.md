@@ -80,7 +80,7 @@ companion. There is no reason to import one yourself.
 | `EnumSealer<E>` / `EnumBuilder<E>`   | what the steps return, never written         |
 | `EnumSealed<E>` / `EnumCompanion<E>` | what `.impl` closes with, never written      |
 
-Every step takes a callback, which is handed the companion as it stands. A member over an enum
+Every step takes a callback, which receives the companion as it stands. A member over an enum
 reaches for `match`, and naming the companion inside its own initializer is TS7022. `.impl` ends the
 chain.
 

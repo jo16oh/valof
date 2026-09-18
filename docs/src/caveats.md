@@ -46,8 +46,8 @@ Persistence helpers can create the same hole.
 JSON and returns it as the type inferred from its initial value. Store a `PayloadOf<User>`, then
 seal it after reading.
 
-Seal on the way in, because the two sides deploy separately: the value was sealed by whichever build
-the server is running, and that seal may be older than yours.
+Seal at the boundary, because the two sides deploy separately: the value was sealed by whichever
+build the server is running, and that seal may be older than yours.
 
 ## Generic object utilities can bypass readonly and sealing
 

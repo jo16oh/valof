@@ -13,7 +13,7 @@ rest element (`[string, ...number[]]`) reads as an array instead, since a fixed 
 distinguishes the two.
 
 Write the payload plain. `Val` makes it deeply readonly on its own, so `readonly` in the definition
-changes nothing about the value, and it makes [`Val.unwrap`](utilities.md#valunwrap) hand back a
+changes nothing about the value, and it makes [`Val.unwrap`](utilities.md#valunwrap) return a
 readonly payload, which is what `unwrap` exists to avoid.
 
 ```ts
@@ -24,7 +24,7 @@ declare const post: Post;
 type Post = Val<"Post", { tags: string[] }>; // not `readonly string[]`
 
 post.tags; // readonly string[] all the same
-Val.unwrap(post).tags.sort(); // ✓ a mutable `string[]` comes back
+Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 ```
 
 Neither a class instance nor a function can go in. `Date`, `Temporal`, `Map` and `Set` are all

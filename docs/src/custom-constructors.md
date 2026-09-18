@@ -84,8 +84,8 @@ const User = Val.companion<User>().implSeal((input: object, seal): Result<User> 
 The parameter takes `object` or `Record<string, unknown>`, not `unknown`: a seal takes the payload,
 not a wire format.
 
-The schema runs on every derivation, not just the first parse. Unknown keys are yours to reject. A
-patch is merged as given, so an undeclared key survives unless the seal removes it.
+The schema runs on every derivation, not just the first parse. Reject unknown keys yourself. A patch
+is merged as given, so an undeclared key survives unless the seal removes it.
 
 ## Normalize in the seal
 
@@ -131,8 +131,8 @@ an id or timestamp in `create`, not in `seal`**.
 
 ## Keep generated fields fixed
 
-`create` can generate an id, a `createdAt` or a version counter. `.fixed` keeps `patch` off those
-fields:
+`create` can generate an id, a `createdAt` or a version counter. `.fixed` excludes those fields from
+`patch`:
 
 ```ts
 // @errors: 2353
@@ -202,9 +202,3 @@ Parsing includes validation, but preserves its result in a more precise type. In
 words,
 [parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101):
 the `Age` type can now represent only valid ages. `create` and `patch` reuse the same parser.
-
-## An enum seals the same way
-
-A closed set of variants checks its payload with the same two steps: `.implSeal` on the enum for
-what every variant holds, and one inside `.implVariant` for a single variant's own. See
-[Enums](enums.md#check-the-payload).
