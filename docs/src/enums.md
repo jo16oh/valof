@@ -283,6 +283,5 @@ const area = ({ r }: VariantOf<Shape, "Circle">) => r * r * Math.PI;
 
 - **Two variants at least.** One variant is a Val, and TypeScript loses the alias for a union of
   one, which breaks the declarations of a package that exports the companion.
-- **A variant may not be called `then`, `match` or `seal`.** A companion holding `then` is a
-  thenable, and `await` on one never settles, so no member of any companion may take that name
-  either. `match` and `seal` are the companion's own.
+- **A variant may not be named `then`, `match` or `seal`.** A companion holding `then` is a
+  thenable, and `await` on one never settles. `match` and `seal` are the companion's own.
