@@ -105,7 +105,7 @@ describe("Trait members", () => {
 
   test("routes direct, bound, and destructured dyn reads to defaults or overrides", async () => {
     expect(await lint("trait-dispatch")).toEqual([
-      { rule: UnusedMember, at: "trait-dispatch.ts:12:11" },
+      { rule: UnusedMember, at: "trait-dispatch.ts:12:3" },
     ]);
   });
 

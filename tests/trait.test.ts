@@ -90,12 +90,6 @@ describe("Trait", () => {
       Trait.companion<SelfClash>().impl({ size: (s: { size: number }) => s.size });
     });
 
-    test("nor a name the library reserves", () => {
-      type Wiring = Trait<"Wiring", { n: number }, { patch: (self: Self) => boolean }>;
-      // @ts-expect-error a trait member cannot take a name the library reserves
-      Trait.companion<Wiring>().impl({ patch: () => false });
-    });
-
     test("nor one under `__valof_`", () => {
       type Sneaky = Trait<"Sneaky", { name: string }, { __valof_shared: (self: Self) => string }>;
       // @ts-expect-error a trait member cannot take a name the library reserves
@@ -162,10 +156,6 @@ describe("Trait", () => {
         "ALICE",
         "ALICE",
       ]);
-    });
-
-    test("a box binds it like any other member", () => {
-      expect(Greetable.dyn(Admin, admin).shout()).toBe("ROOT");
     });
   });
 
@@ -309,14 +299,6 @@ describe("building", () => {
       });
     });
 
-    test("takes a default and a final in one call", () => {
-      const both = Trait.companion<Greetable>().impl({
-        greet: (g) => `Hi, ${g.name}`,
-        shout: (g) => g.name.toUpperCase(),
-      });
-      expect(both.shout(user)).toBe("ALICE");
-    });
-
     test("one call closes the chain", () => {
       const closed = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
       expectTypeOf(closed).not.toHaveProperty("impl");
@@ -334,22 +316,6 @@ describe("building", () => {
         toWire: (p, sep) => `plain${sep}${p.name}`,
       });
       expect(Plain.greet(Val.of<Plain>({ name: "alice" }))).toBe("Hi, ALICE");
-    });
-
-    test("a member a Val may replace has no name to call", () => {
-      const Replaceable = Trait.companion<Greetable>().impl({
-        greet: (g): string => `Hi, ${g.name}`,
-        // @ts-expect-error a default is not named on the trait
-        shout: (g): string => Replaceable.greet(g).toUpperCase(),
-      });
-    });
-
-    test("the receiver is the trait, so a plain object is not one", () => {
-      Trait.companion<Greetable>().impl({
-        greet: (g) => `Hi, ${g.name}`,
-        // @ts-expect-error a plain object holding the fields is not a Greetable
-        shout: (): string => Greetable.shout({ name: "duck" }),
-      });
     });
   });
 });

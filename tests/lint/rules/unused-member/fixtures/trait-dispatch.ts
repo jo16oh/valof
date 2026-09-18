@@ -8,9 +8,11 @@ type Greetable = Trait<
   }
 >;
 
-const Greetable = Trait.companion<Greetable>()
-  .impl({ greet: () => "hello" })
-  .impl({ wave: () => "wave", nod: () => "nod" });
+const Greetable = Trait.companion<Greetable>().impl({
+  greet: () => "hello",
+  wave: () => "wave",
+  nod: () => "nod",
+});
 
 type User = Val<"User", { name: string }, Greetable>;
 const User = Val.companion<User>().implTrait(Greetable, { greet: () => "hi" });

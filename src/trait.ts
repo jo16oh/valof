@@ -244,19 +244,16 @@ export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Unbo
 };
 
 /**
- * What the trait implements itself: its own members, over the trait. `Taken` is what a trait
- * already implemented, which is every member once `impl` closes the chain.
+ * What the trait implements itself: its own members, over the trait.
  *
  * The receiver is `Tr` rather than `ShapeOf<Tr>` so that a member can call a {@link Final}
  * sibling through the companion, which publishes one taking `Tr`. Contravariance keeps the
  * implementation assignable where `implTrait` binds it to the Val.
  */
-export type Shared<Tr extends AnyTrait, Taken, G> = {
-  readonly [K in keyof G]: K extends Taken
-    ? "the trait already implements this member"
-    : K extends keyof MembersOf<Tr>
-      ? Unbound<MembersOf<Tr>, Tr>[K]
-      : "a trait's own implementation must be one of its members";
+export type Shared<Tr extends AnyTrait, G> = {
+  readonly [K in keyof G]: K extends keyof MembersOf<Tr>
+    ? Unbound<MembersOf<Tr>, Tr>[K]
+    : "a trait's own implementation must be one of its members";
 };
 
 /**
@@ -288,7 +285,7 @@ export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitC
    * circularity TypeScript reports as TS7023, and the annotation cuts it. A member a Val may
    * replace is not on the companion; see {@link TraitCompanion}.
    */
-  impl: <H extends Shared<Tr, keyof G, H>>(fns: H) => TraitCompanion<Tr, G & H>;
+  impl: <H extends Shared<Tr, H>>(fns: H) => TraitCompanion<Tr, G & H>;
 };
 
 type AnyFn = (...args: never[]) => unknown;

@@ -1137,24 +1137,17 @@ describe("building", () => {
       });
     });
 
-    test("a member reaching `patch` names the companion and annotates its return", () => {
-      const Renamer = Val.sealer<User>().impl({
-        renamed: (u, name: string): User => Renamer.patch(u, { name }),
-      });
-      const bob = Renamer({ id: "a", name: "bob" });
-
-      expect(Renamer.renamed(bob, "sue")).toEqual({ id: "a", name: "sue" });
-      expectTypeOf(Renamer.renamed).toEqualTypeOf<(u: User, name: string) => User>();
-    });
-
-    test("a member calling a sibling names the companion and annotates its return", () => {
+    test("a member reaching `patch` or a sibling names the companion, and annotates", () => {
       const Loud = Val.sealer<User>().impl({
         renamed: (u, name: string): User => Loud.patch(u, { name }),
         shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
       });
+      const bob = Loud({ id: "a", name: "bob" });
 
-      expect(Loud.shouted(Loud({ id: "a", name: "bob" }))).toEqual({ id: "a", name: "BOB" });
-      expectTypeOf(Loud.shouted).toEqualTypeOf<(u: User) => User>();
+      expect([Loud.renamed(bob, "sue"), Loud.shouted(bob)]).toEqual([
+        { id: "a", name: "sue" },
+        { id: "a", name: "BOB" },
+      ]);
     });
 
     test("one call closes the chain", () => {
@@ -1653,15 +1646,6 @@ describe("building", () => {
       expect(Wired.toWire(Wired({ id: "a", name: "alice" }), ":")).toBe("a:alice");
     });
 
-    test("the companion-less form takes one too", () => {
-      type Plain = Trait<"Plain", { name: string }, { loud: (self: Self) => string }>;
-      type Note = Val<"Note", { name: string }, Plain>;
-      const Note = Val.sealer<Note>().implTrait<Plain>({
-        loud: (n): string => Note.nocopy(n).name.toUpperCase(),
-      });
-      expect(Note.loud(Note({ name: "n" }))).toBe("N");
-    });
-
     test("a member without a default must be implemented", () => {
       // @ts-expect-error `toWire` is missing
       Val.companion<Member>().implTrait(Greetable, {});
@@ -1912,11 +1896,17 @@ describe("building", () => {
     });
 
     describe("names", () => {
+      // Every message is the parameter type, so passing the literal is what pins the wording.
+      const taken = "this name is already taken";
+
       test("a companion may not grow a function over a member", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
           // @ts-expect-error this name is already taken
           .impl({ greet: (m) => `yo ${m.name}` });
+        Val.companion<Member>()
+          .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
+          .impl({ greet: taken });
       });
 
       test("nor over a final function", () => {

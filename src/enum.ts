@@ -721,10 +721,10 @@ const state = (
         // The trait's own members and the enum's, merged the way `val.ts` merges them.
         return open
           ? (
-              trait: { __valof_shared?: Record<string, unknown> },
+              trait: { __valof_shared: Record<string, unknown> },
               fns: Record<string, unknown> = {},
             ) => {
-              const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
+              const grown = { ...traits, ...trait.__valof_shared, ...fns };
               return step(builds, { ...members, ...grown }, grown, seal, true);
             }
           : undefined;
