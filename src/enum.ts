@@ -510,11 +510,16 @@ export type EnumBuilder<
   M = Record<never, never>,
   F = undefined,
 > = EnumCompanion<E, VM, M, F> & {
-  /** Collects the members taking the union, and ends the chain. Call it with nothing to close. */
+  /**
+   * Collects the members taking the union, and ends the chain. Call it with nothing to close.
+   *
+   * The callback's argument is the companion as it stands, for a member that calls `match` or
+   * another frame. A member needing neither takes the object on its own.
+   */
   impl: {
     (): EnumCompanion<E, VM, M, F>;
     <G extends UnionMembers<E>>(
-      fns: (self: EnumCompanion<E, VM, M, F>) => G,
+      fns: G | ((self: EnumCompanion<E, VM, M, F>) => G),
     ): EnumCompanion<E, VM, M & G, F>;
   };
   /**
@@ -567,10 +572,12 @@ export type EnumSealer<
   VM = Record<never, never>,
   M = Record<never, never>,
 > = EnumSealed<E, VM, M> & {
-  /** Collects the members taking the union, and ends the chain. Call it with nothing to close. */
+  /** See {@link EnumBuilder.impl}. */
   impl: {
     (): EnumSealed<E, VM, M>;
-    <G extends UnionMembers<E>>(fns: (self: EnumSealed<E, VM, M>) => G): EnumSealed<E, VM, M & G>;
+    <G extends UnionMembers<E>>(
+      fns: G | ((self: EnumSealed<E, VM, M>) => G),
+    ): EnumSealed<E, VM, M & G>;
   };
   /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
   implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
@@ -682,6 +689,10 @@ const state = (
     nextOpen: boolean,
   ): object => state(tag, callable, nextBuilds, nextMembers, nextTraits, nextSeal, nextOpen);
 
+  /** `.impl` takes the object on its own where the member needs nothing off the companion. */
+  const collect = (fns: Payload | ((self: object) => Payload)): Payload =>
+    typeof fns === "function" ? fns(self) : fns;
+
   const self: object = new Proxy(callable ? () => undefined : {}, {
     apply: (_, __, args: [Payload]) => enter(args[0]),
     get(_, key) {
@@ -702,8 +713,8 @@ const state = (
       if (key === "__valof_traits") return traits;
       if (key === "impl") {
         return open
-          ? (fns?: (self: object) => Record<string, unknown>) =>
-              step(builds, fns ? { ...members, ...fns(self) } : members, traits, seal, false)
+          ? (fns?: Payload | ((self: object) => Payload)) =>
+              step(builds, fns ? { ...members, ...collect(fns) } : members, traits, seal, false)
           : undefined;
       }
       if (key === "implVariant") {

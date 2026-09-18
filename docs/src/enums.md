@@ -145,8 +145,8 @@ The same argument declares the [traits](traits.md) the enum implements.
 ## Members
 
 `.impl` collects the members that take the union, and `.implVariant` builds one variant, named in
-the first argument. Both take a callback: `.impl` passes it the companion as it stands, and
-`.implVariant` passes it the variant's steps, with that same companion after them.
+the first argument. `.impl` takes an object, or a callback passed the companion as it stands.
+`.implVariant` takes a callback, passed the variant's steps with that same companion after them.
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -177,9 +177,9 @@ No step chooses between a sealer and a companion. `Enum.sealer` makes every vari
 `.impl` ends the chain, so a companion you export takes no further step. Call it with nothing where
 there is no member to collect: `Enum.sealer<Shape>().implVariant(…).impl()`.
 
-The callback is not decoration. A member over an enum reaches for `match` first, and naming `Shape`
-inside its own initializer is a circularity TypeScript reports as TS7022. The callback breaks it.
-Members from the same call are still circular, so one calling another needs a return annotation.
+Pass the object. A member calling `match`, or a variant's own member, takes the callback and reads
+it off `self`, since naming `Shape` inside its own initializer does not compile. A member calling
+another member from the same call needs a return annotation.
 
 ## Check the payload
 

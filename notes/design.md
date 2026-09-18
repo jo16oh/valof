@@ -5356,6 +5356,33 @@ lint の chain 根、実装コストはすべて同じ。「`{ key: … }` を T
 **却下: `Tag("kind")`。**`Tag<…>` を型と値のマージにして、宣言と呼び出しを同じ語で綴る案。Class や Val を
 構築しているように読める。`Tag` 自身のパラメータが `T extends string` なので、補完も怪しい。
 
+#### `.impl` にオブジェクト形を足す、2026-09-18 実装
+
+**両方残す**（§15.4 と同じ判断）。companion を読まないメンバに callback は雑音。
+
+```ts
+Enum.sealer<Shape>().impl({ sides: (s) => (s._tag === "Circle" ? 0 : 4) });
+```
+
+**オーバーロード 2 本ではなく union のパラメータ。**`fns: G | ((self: EnumCompanion<…>) => G)`。2 本に
+割ると、どちらの形の中の間違いも「最後のオーバーロードが合わない」に化ける。callback の中の 1 行の
+誤りが、こう出た。
+
+```
+TS2769: No overload matches this call. The last overload gave the following error.
+  Index signature for type `__valof_${string}` is missing in type '(self: EnumSealed<…>) => …'
+```
+
+union なら TS2345 が原因のメンバまで降りる。
+
+**contextual typing は両方で効く。**第 1 引数は注釈なしで union に決まる（TS2322 で読んだ）。予約名
+（Variant 名、`match`、`patch`、`then`）もオブジェクト形で落ちる。
+
+**コストは誤差。**fixture の instantiations が 77,558 から 77,569、gzip が +15 B。実行時は
+`typeof fns === "function"` の分岐 1 つ。
+
+**`implTrait` はそのまま。**同じ形をしているが、要望は `.impl` だった。足すなら同じ union で足せる。
+
 ---
 
 ### 15.3 `path`: seal をまたぐ patch の合成、2026-09-10

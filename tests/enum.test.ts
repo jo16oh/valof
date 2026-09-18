@@ -167,9 +167,15 @@ describe("members", () => {
     expect([Cash.doubled(cash), Money.Cash.doubled(cash)]).toEqual([2, 2]);
   });
 
+  test("a member needing nothing off the companion takes the object alone", () => {
+    const Plain = Enum.sealer<Shape>().impl({ sides: (s) => (s._tag === "Circle" ? 0 : 4) });
+    expectTypeOf(Plain.sides).toEqualTypeOf<(self: Shape) => 0 | 4>();
+    expect(Plain.sides(Plain.Circle({ r: 1 }))).toBe(0);
+  });
+
   test("a union member may not take a variant's name", () => {
     // @ts-expect-error a member cannot cover a constructor
-    Enum.sealer<Shape>().impl(() => ({ Circle: (s: Shape) => s }));
+    Enum.sealer<Shape>().impl({ Circle: (s: Shape) => s });
   });
 
   test("nor `match`, nor a name the library wires", () => {
