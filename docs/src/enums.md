@@ -270,18 +270,16 @@ from a value. Forget it, misspell it, or pass one where the default applies, and
 
 ## Use a variant's type
 
-`VariantOf` is the type of a single variant, and it is what errors and hovers print:
+`VariantOf` is the type of a single variant, and it is what errors and hovers print. Write it where
+you need it.
 
 ```ts
 import { Enum, type VariantOf } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 // ---cut---
-declare function area(circle: VariantOf<Shape, "Circle">): number;
+const area = ({ r }: VariantOf<Shape, "Circle">) => r * r * Math.PI;
 ```
-
-Write it where you need it. An alias shortens it, and takes a name the constructor already wants:
-`const { Circle } = Shape` is how a variant is usually reached.
 
 ## Limits
 
