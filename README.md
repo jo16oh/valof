@@ -43,8 +43,7 @@ types and linting.
 - **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
   their reference identity.
 
-- **Type-aware linting**: Catch convention violations through ESLint, Oxlint or the standalone
-  command.
+- **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
 
 - **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->852 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
