@@ -1,7 +1,7 @@
 # TypeScript problems Valof addresses
 
-This chapter explains the TypeScript problems behind individual Valof features. The
-[guide](introduction.md) explains how to use the library.
+This chapter explains the TypeScript problems behind individual Valof features. Use the sidebar for
+how to use the library.
 
 ## Branding
 
