@@ -149,11 +149,11 @@ describe("shared fields", () => {
 describe("members", () => {
   type Money = Enum<"Money", { Cash: { yen: number }; Card: { limit: number } }, { id: string }>;
   const Money = Enum.sealer<Money>()
-    .implVariant("Cash", (variant) => variant.impl({ doubled: (c) => c.yen * 2 }))
-    .impl((self) => ({
-      // The callback is what makes this the plain spelling: naming `Money` here is TS7022.
-      spendable: (m) => self.match(m, { Cash: (c) => self.Cash.doubled(c), Card: (c) => c.limit }),
-    }));
+    .implVariant("Cash", (sealer) => sealer.impl({ doubled: (c) => c.yen * 2 }))
+    .impl({
+      spendable: (m): number =>
+        Money.match(m, { Cash: (c) => Money.Cash.doubled(c), Card: (c) => c.limit }),
+    });
 
   test("a variant's member takes that variant, with no annotation", () => {
     expectTypeOf(Money.Cash.doubled).toEqualTypeOf<(self: VariantOf<Money, "Cash">) => number>();
@@ -167,7 +167,7 @@ describe("members", () => {
     expect([Cash.doubled(cash), Money.Cash.doubled(cash)]).toEqual([2, 2]);
   });
 
-  test("a member needing nothing off the companion takes the object alone", () => {
+  test("a member reaching nothing off the companion needs no annotation", () => {
     const Plain = Enum.sealer<Shape>().impl({ sides: (s) => (s._tag === "Circle" ? 0 : 4) });
     expectTypeOf(Plain.sides).toEqualTypeOf<(self: Shape) => 0 | 4>();
     expect(Plain.sides(Plain.Circle({ r: 1 }))).toBe(0);
@@ -238,9 +238,9 @@ describe("traits", () => {
   const Describable = Trait.companion<Describable>();
 
   type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, { id: string } & Describable>;
-  const Cmd = Enum.sealer<Cmd>().implTrait(Describable, (self) => ({
-    describe: (c) => self.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
-  }));
+  const Cmd = Enum.sealer<Cmd>().implTrait(Describable, {
+    describe: (c): string => Cmd.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
+  });
 
   const add = Cmd.Add({ id: "c1", n: 2 });
 
@@ -271,16 +271,14 @@ describe("traits", () => {
 
   test("a trait the enum does not declare is rejected", () => {
     // @ts-expect-error the type does not declare this trait
-    Enum.sealer<Shape>().implTrait(Describable, () => ({ describe: () => "" }));
+    Enum.sealer<Shape>().implTrait(Describable, { describe: () => "" });
   });
 
   // The third argument asks one question, "what does every variant hold", and a trait answers it
   // with the fields it requires. Declaring them a second time is not needed.
   test("the trait brings the fields it requires", () => {
     type Only = Enum<"Only", { One: { n: number }; Two: { n: number } }, Describable>;
-    const Only = Enum.sealer<Only>().implTrait(Describable, () => ({
-      describe: (o) => o.id,
-    }));
+    const Only = Enum.sealer<Only>().implTrait(Describable, { describe: (o) => o.id });
     expect(Only.describe(Only.One({ id: "o1", n: 1 }))).toBe("o1");
   });
 });
@@ -466,9 +464,9 @@ describe("a seal of its own", () => {
     Enum.sealer<Shape>().implVariant("Circle", (variant) => variant.implSeal(() => ({})));
   });
 
-  test("the callback's second argument is the companion as it stands", () => {
-    const Twinned = Enum.sealer<Shape>().implVariant("Circle", (variant, self) =>
-      variant.impl({ twin: (c) => self.Square({ side: c.r }) }),
+  test("a variant's member reaching the enum names the companion and annotates its return", () => {
+    const Twinned = Enum.sealer<Shape>().implVariant("Circle", (variant) =>
+      variant.impl({ twin: (c): Shape => Twinned.Square({ side: c.r }) }),
     );
     expect(Twinned.Circle.twin(circle)).toEqual({ side: 2, _tag: "Square" });
   });
@@ -527,11 +525,11 @@ describe("the chain closes", () => {
   });
 
   test("a member calling a sibling names the companion and annotates its return", () => {
-    const Sized = Enum.sealer<Shape>().impl((self) => ({
+    const Sized = Enum.sealer<Shape>().impl({
       area: (s): number =>
-        self.match(s, { Circle: (c) => c.r * c.r * 3, Square: (q) => q.side ** 2 }),
+        Sized.match(s, { Circle: (c) => c.r * c.r * 3, Square: (q) => q.side ** 2 }),
       twice: (s): number => Sized.area(s) * 2,
-    }));
+    });
 
     expect(Sized.twice(Sized.Square({ side: 3 }))).toBe(18);
   });

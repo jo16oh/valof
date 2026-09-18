@@ -433,9 +433,9 @@ type Takes<E extends AnyEnum, Tr extends AnyTrait, Ok> = [NamesOf<Tr>] extends [
   : "the type does not declare this trait";
 
 /** The second argument, absent where the trait answered for every member itself. */
-type Passes<Tr extends AnyTrait, G, E, Self> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-  ? [impl?: (self: Self) => Implement<Tr, G, E>]
-  : [impl: (self: Self) => Implement<Tr, G, E>];
+type Passes<Tr extends AnyTrait, G, E> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
+  ? [impl?: Implement<Tr, G, E>]
+  : [impl: Implement<Tr, G, E>];
 
 /** Dispatches on the tag. See {@link EnumCompanion.match}. */
 type Match<E extends AnyEnum> = <H extends Handlers<E, unknown>>(
@@ -497,9 +497,6 @@ export type EnumSealed<E extends AnyEnum, VM = Record<never, never>, M = Record<
  * What `Enum.companion` returns, which its steps grow. `.impl` ends the chain, so a companion
  * that left it open cannot be handed one more seal after it was exported.
  *
- * Every step takes a callback. A member written over an enum reaches for `match` first, and
- * naming the companion inside its own initializer is TS7022.
- *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * @experimental
@@ -514,16 +511,13 @@ export type EnumBuilder<
    * Collects the members taking the union, in one call, which closes every step. Call it with
    * nothing to close with no member.
    *
-   * The callback's argument is the companion as it stands, for a member that calls `match` or a
-   * frame. A member needing neither takes the object on its own. A sibling in the same call is
-   * not there: it names the companion and annotates its return type, since naming one inside
-   * its own initializer is a circularity TypeScript reports as TS7023.
+   * A member reaching the companion, for `match`, for a variant or for a sibling, names it and
+   * annotates its return type. Naming a declaration inside its own initializer is a circularity,
+   * which TypeScript reports as TS7023.
    */
   impl: {
     (): EnumCompanion<E, VM, M, F>;
-    <G extends UnionMembers<E>>(
-      fns: G | ((self: EnumCompanion<E, VM, M, F>) => G),
-    ): EnumCompanion<E, VM, M & G, F>;
+    <G extends UnionMembers<E>>(fns: G): EnumCompanion<E, VM, M & G, F>;
   };
   /**
    * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
@@ -538,9 +532,8 @@ export type EnumBuilder<
   implVariant: <N extends Fresh<E, VM>, R extends ClosedFrame<E, N>>(
     name: N,
     build: (
-      variant: VariantSteps<E, N, F, undefined, Record<never, never>> &
+      sealer: VariantSteps<E, N, F, undefined, Record<never, never>> &
         VariantFrame<E, N, F, undefined, Record<never, never>>,
-      self: EnumCompanion<E, VM, M, F>,
     ) => R,
   ) => EnumBuilder<E, VM & { [P in N]: R }, M, F>;
   /**
@@ -558,7 +551,7 @@ export type EnumBuilder<
    */
   implTrait: <Tr extends AnyTrait, G>(
     trait: Takes<E, Tr, TraitCompanion<Tr, G>>,
-    ...impl: Passes<Tr, G, E, EnumCompanion<E, VM, M, F>>
+    ...impl: Passes<Tr, G, E>
   ) => EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
 };
 
@@ -578,23 +571,20 @@ export type EnumSealer<
   /** See {@link EnumBuilder.impl}. */
   impl: {
     (): EnumSealed<E, VM, M>;
-    <G extends UnionMembers<E>>(
-      fns: G | ((self: EnumSealed<E, VM, M>) => G),
-    ): EnumSealed<E, VM, M & G>;
+    <G extends UnionMembers<E>>(fns: G): EnumSealed<E, VM, M & G>;
   };
   /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
   implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
     name: N,
     build: (
-      variant: SealerVariantSteps<E, N, Record<never, never>> &
+      sealer: SealerVariantSteps<E, N, Record<never, never>> &
         SealerFrame<E, N, Record<never, never>>,
-      self: EnumSealed<E, VM, M>,
     ) => R,
   ) => EnumSealer<E, VM & { [P in N]: R }, M>;
   /** See {@link EnumBuilder.implTrait}. */
   implTrait: <Tr extends AnyTrait, G>(
     trait: Takes<E, Tr, TraitCompanion<Tr, G>>,
-    ...impl: Passes<Tr, G, E, EnumSealed<E, VM, M>>
+    ...impl: Passes<Tr, G, E>
   ) => EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
 };
 
@@ -692,10 +682,6 @@ const state = (
     nextOpen: boolean,
   ): object => state(tag, callable, nextBuilds, nextMembers, nextTraits, nextSeal, nextOpen);
 
-  /** `.impl` takes the object on its own where the member needs nothing off the companion. */
-  const collect = (fns: Payload | ((self: object) => Payload)): Payload =>
-    typeof fns === "function" ? fns(self) : fns;
-
   const self: object = new Proxy(callable ? () => undefined : {}, {
     apply: (_, __, args: [Payload]) => enter(args[0]),
     get(_, key) {
@@ -717,20 +703,13 @@ const state = (
       if (key === "impl") {
         // One call, which closes every step: what it hands back carries no `impl` of its own.
         return open
-          ? (fns?: Payload | ((self: object) => Payload)) =>
-              step(builds, fns ? { ...members, ...collect(fns) } : members, traits, seal, false)
+          ? (fns: Payload = {}) => step(builds, { ...members, ...fns }, traits, seal, false)
           : undefined;
       }
       if (key === "implVariant") {
         return open
-          ? (name: string, build: (variant: object, self: object) => object) =>
-              step(
-                { ...builds, [name]: (variant: object) => build(variant, self) },
-                members,
-                traits,
-                seal,
-                true,
-              )
+          ? (name: string, build: (sealer: object) => object) =>
+              step({ ...builds, [name]: build }, members, traits, seal, true)
           : undefined;
       }
       if (key === "implSeal") {
@@ -743,13 +722,9 @@ const state = (
         return open
           ? (
               trait: { __valof_shared?: Record<string, unknown> },
-              fns?: (self: object) => Record<string, unknown>,
+              fns: Record<string, unknown> = {},
             ) => {
-              const grown = {
-                ...traits,
-                ...(trait.__valof_shared ?? trait),
-                ...(fns ? fns(self) : {}),
-              };
+              const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
               return step(builds, { ...members, ...grown }, grown, seal, true);
             }
           : undefined;

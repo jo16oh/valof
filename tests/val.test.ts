@@ -1137,10 +1137,10 @@ describe("building", () => {
       });
     });
 
-    test("a callback reads what the library wired", () => {
-      const Renamer = Val.sealer<User>().impl((self) => ({
-        renamed: (u, name: string) => self.patch(u, { name }),
-      }));
+    test("a member reaching `patch` names the companion and annotates its return", () => {
+      const Renamer = Val.sealer<User>().impl({
+        renamed: (u, name: string): User => Renamer.patch(u, { name }),
+      });
       const bob = Renamer({ id: "a", name: "bob" });
 
       expect(Renamer.renamed(bob, "sue")).toEqual({ id: "a", name: "sue" });
@@ -1148,10 +1148,10 @@ describe("building", () => {
     });
 
     test("a member calling a sibling names the companion and annotates its return", () => {
-      const Loud = Val.sealer<User>().impl((self) => ({
-        renamed: (u, name: string): User => self.patch(u, { name }),
+      const Loud = Val.sealer<User>().impl({
+        renamed: (u, name: string): User => Loud.patch(u, { name }),
         shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
-      }));
+      });
 
       expect(Loud.shouted(Loud({ id: "a", name: "bob" }))).toEqual({ id: "a", name: "BOB" });
       expectTypeOf(Loud.shouted).toEqualTypeOf<(u: User) => User>();
@@ -1646,19 +1646,19 @@ describe("building", () => {
       expect([Member.greet(member), Admin.greet(admin)]).toEqual(["Hi, alice", "Sir root"]);
     });
 
-    test("a callback reads the companion as it stands", () => {
-      const Wired = Val.sealer<Member>().implTrait(Greetable, (self) => ({
-        toWire: (m, sep) => `${self.nocopy(m).id}${sep}${m.name}`,
-      }));
+    test("an implementation reaching the companion names it and annotates its return", () => {
+      const Wired = Val.sealer<Member>().implTrait(Greetable, {
+        toWire: (m, sep): string => `${Wired.nocopy(m).id}${sep}${m.name}`,
+      });
       expect(Wired.toWire(Wired({ id: "a", name: "alice" }), ":")).toBe("a:alice");
     });
 
     test("the companion-less form takes one too", () => {
       type Plain = Trait<"Plain", { name: string }, { loud: (self: Self) => string }>;
       type Note = Val<"Note", { name: string }, Plain>;
-      const Note = Val.sealer<Note>().implTrait<Plain>((self) => ({
-        loud: (n) => self.nocopy(n).name.toUpperCase(),
-      }));
+      const Note = Val.sealer<Note>().implTrait<Plain>({
+        loud: (n): string => Note.nocopy(n).name.toUpperCase(),
+      });
       expect(Note.loud(Note({ name: "n" }))).toBe("N");
     });
 

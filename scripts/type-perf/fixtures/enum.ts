@@ -17,15 +17,15 @@ type Shape = Enum<
 const Shape = Enum.sealer<Shape>()
   .implVariant("Circle", (b) => b.impl({ diameter: (c) => c.r * 2 }))
   .implVariant("Rect", (b) => b.impl({ ratio: (r) => r.w / r.h }))
-  .impl((self) => ({
-    area: (s) =>
-      self.match(s, {
+  .impl({
+    area: (s): number =>
+      Shape.match(s, {
         Circle: (c) => Math.PI * c.r * c.r,
         Square: (q) => q.side * q.side,
         Rect: (r) => r.w * r.h,
         Poly: (p) => p.at.length,
       }),
-  }));
+  });
 
 type Named = Trait<"Named", { id: string }, { label: (self: Self, sep: string) => string }>;
 const Named = Trait.companion<Named>();
@@ -40,9 +40,10 @@ const Event = Enum.companion<Event>("kind")
   .implVariant("Key", (b) =>
     b.implSeal((k, seal) => (k.code ? seal(k) : new RangeError("code must not be empty"))).impl(),
   )
-  .implTrait(Named, (self) => ({
-    label: (e, sep) => self.match(e, { Click: (c) => `${c.x}${sep}${c.y}`, Key: (k) => k.code }),
-  }))
+  .implTrait(Named, {
+    label: (e, sep): string =>
+      Event.match(e, { Click: (c) => `${c.x}${sep}${c.y}`, Key: (k) => k.code }),
+  })
   .impl();
 
 type Frame = Val<"Frame", { id: string; shape: Shape; last: Event }>;
