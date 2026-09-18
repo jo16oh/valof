@@ -23,6 +23,18 @@ against the published declarations, and budgets the instantiation count and the 
 
 Neither `vp check` nor `vp test` covers either one.
 
+## Testing
+
+Audit the tests after writing or changing one, before proposing a commit (`/test-audit` in Claude
+Code). It reports tests to delete or merge, behaviour the diff changes with no test covering it, and
+tests that pass whatever the source does. `skills/test-audit/SKILL.md` holds the three passes.
+
+A separate agent runs it, on the same model, and reports back. Apply the cuts yourself, on a
+go-ahead.
+
+Never commit an implementation before writing the tests that cover it. A later test cannot audit the
+implementation commit that required it.
+
 ## Committing and Pushing
 
 Commit or amend only on an explicit go-ahead. Draft the message, show it, and wait.
