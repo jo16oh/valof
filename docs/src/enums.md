@@ -91,7 +91,7 @@ cannot switch variants.
 import { Enum } from "valof/experimental";
 // ---cut---
 type Style = Enum<"Style", { Solid: { width: number }; Dashed: { gap: number } }>;
-type Box = Enum<"Box", { Plain: { w: number }; Framed: { w: number; style: Style } }>;
+type Card = Enum<"Card", { Plain: { w: number }; Framed: { w: number; style: Style } }>;
 ```
 
 A nested variant is a patch boundary like any nested Val: replace it with one the constructor built,
