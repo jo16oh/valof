@@ -117,11 +117,12 @@ const Note = Val.companion<Note>()
   // fixed excludes the minted id from patch.
   .fixed<"id">()
   // impl collects behavior. It infers each member's first parameter as Note.
-  .impl({
-    append(note, text: string): Result<Note> {
-      return Note.seal({ ...note, text: `${note.text} ${text}` });
+  // A member reaching for the companion takes it as the callback's argument.
+  .impl((self) => ({
+    append(note, text: string) {
+      return self.seal({ ...note, text: `${note.text} ${text}` });
     },
-  });
+  }));
 
 // A companion exposes its smart constructor as seal.
 Note.seal({ id: "note-1", text: " Hello " }); // { ok: { id: "note-1", text: "Hello" } }
@@ -140,14 +141,14 @@ import { Val } from "valof";
 type Point = Val<"Point", { x: number; y: number }>;
 
 // A sealer remains callable after impl adds behavior.
-const Point = Val.sealer<Point>().impl({
-  move(point, dx: number, dy: number): Point {
-    return Point.patch(point, {
+const Point = Val.sealer<Point>().impl((self) => ({
+  move(point, dx: number, dy: number) {
+    return self.patch(point, {
       x: point.x + dx,
       y: point.y + dy,
     });
   },
-});
+}));
 
 type Rectangle = Val<"Rectangle", { position: Point; size: Point; label?: string }>;
 const Rectangle = Val.sealer<Rectangle>();

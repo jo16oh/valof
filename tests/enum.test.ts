@@ -513,11 +513,27 @@ describe("a seal of its own", () => {
 });
 
 describe("the chain closes", () => {
-  test("`impl` ends it, so an exported companion takes no further step", () => {
-    const closed = Enum.companion<Shape>().impl();
+  test("`impl` ends every step but itself, so a seal takes no second pass", () => {
+    const closed = Enum.companion<Shape>().impl({ tag: (s) => s._tag });
     expectTypeOf(closed).not.toHaveProperty("implSeal");
     expectTypeOf(closed).not.toHaveProperty("implVariant");
     expect((closed as unknown as Record<string, unknown>)["implSeal"]).toBeUndefined();
+  });
+
+  test("calling `impl` with nothing closes that one too", () => {
+    const closed = Enum.companion<Shape>().impl();
+    expectTypeOf(closed).not.toHaveProperty("impl");
+    expect((closed as unknown as Record<string, unknown>)["impl"]).toBeUndefined();
+  });
+
+  test("a second call reads the members of the first", () => {
+    const Sized = Enum.sealer<Shape>()
+      .impl((self) => ({
+        area: (s) => self.match(s, { Circle: (c) => c.r * c.r * 3, Square: (q) => q.side ** 2 }),
+      }))
+      .impl((self) => ({ twice: (s) => self.area(s) * 2 }));
+
+    expect(Sized.twice(Sized.Square({ side: 3 }))).toBe(18);
   });
 });
 

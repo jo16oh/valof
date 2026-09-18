@@ -33,8 +33,12 @@ type Fixture = (typeof fixtures)[number];
  * variants, which runs at about 1,100 instantiations each. The aliases that could carry `in out`
  * do, which is what keeps the constant where it is; an intersection cannot (TS2637), and their
  * names are worth more than the measurement (notes §15.2).
+ *
+ * `trait` went from 15,000 to 17,000 when `implTrait` grew the callback form: an implementation
+ * is now `Implement<…> | ((self) => Implement<…>)`, and the union is related twice at every call
+ * the fixture makes. An alarm, not a ratchet.
  */
-const budget: Record<Fixture, number> = { core: 10_000, trait: 15_000, enum: 90_000 };
+const budget: Record<Fixture, number> = { core: 10_000, trait: 17_000, enum: 90_000 };
 
 /**
  * The published declarations, in bytes. Deterministic like the counts above, and budgeted the

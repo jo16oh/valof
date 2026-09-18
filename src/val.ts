@@ -405,15 +405,15 @@ export type Sealed<V extends AnyVal, M extends CompanionMembers<V>> = ((value: S
 } & Companion<V, M>;
 
 /**
- * What `.impl` accepts once traits are registered: anything but a name a trait already answers
- * to, its shared members included. Shadowing one of those is what would make `User.greet(u)`
- * and `Greetable.greet(u)` disagree.
+ * What `.impl` accepts once a name is taken: anything but a name a trait answers to, its shared
+ * members included, or one an earlier `.impl` collected. Shadowing a trait's is what would make
+ * `User.greet(u)` and `Greetable.greet(u)` disagree.
  *
  * The check rides on the parameter rather than the constraint. In the constraint the inferred
  * `M & T` stops satisfying {@link CompanionMembers}, and `equals` breaks with it.
  */
 type Grown<Taken, M> = M & {
-  [K in keyof M]: K extends Taken ? "a trait already answers to this name" : unknown;
+  [K in keyof M]: K extends Taken ? "something already answers to this name" : unknown;
 };
 
 /**
@@ -446,14 +446,39 @@ type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends
   : "this trait's companion has not implemented every member declared Final";
 
 /** The second argument, absent where the trait answered for every member itself. */
-type Passes<Tr extends AnyTrait, G, V> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-  ? [impl?: Implement<Tr, G, V>]
-  : [impl: Implement<Tr, G, V>];
+type Passes<Tr extends AnyTrait, G, V, Self> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
+  ? [impl?: Takes2<Tr, G, V, Self>]
+  : [impl: Takes2<Tr, G, V, Self>];
+
+/** What an implementation may be written as: the object, or a callback reading the companion. */
+type Takes2<Tr extends AnyTrait, G, V, Self> =
+  | Implement<Tr, G, V>
+  | ((self: Self) => Implement<Tr, G, V>);
 
 /** What the companion-less form takes: every member, and only where the trait declares no final. */
-type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
-  ? Implement<Tr, Record<never, never>, V>
+type Alone<Tr extends AnyTrait, V, Self> = [FinalsOf<Tr>] extends [never]
+  ? Takes2<Tr, Record<never, never>, V, Self>
   : "this trait implements members of its own: pass its companion";
+
+/**
+ * A sealer with every step closed but `.impl`, which is what `.impl` hands back.
+ *
+ * Inferred, not written: it is exported so your own declarations can name it.
+ *
+ * The step stays so a member can read the ones written before it off `self`. It is the only
+ * step that stays: a seal past the first would be a hole past the first check, and a second
+ * `implTrait` would register a trait twice. See {@link Sealer.impl}.
+ */
+export type SealedSteps<V extends AnyVal, T extends CompanionMembers<V>> = Sealed<V, T> & {
+  /** Collects more members. See {@link Sealer.impl}. */
+  impl: {
+    (): Sealed<V, T>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): SealedSteps<V, M & T>;
+    <M extends CompanionMembers<V>>(
+      fns: (self: Sealed<V, T>) => Grown<keyof T, M>,
+    ): SealedSteps<V, M & T>;
+  };
+};
 
 /**
  * A constructor for `V`, which can grow members without ceasing to be one.
@@ -464,27 +489,62 @@ type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
  * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
  * nothing.
  */
-export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<never, never>> = Sealed<
-  V,
-  T
-> & {
-  /** Collects the members for the type. */
+export type Sealer<
+  V extends AnyVal,
+  T extends CompanionMembers<V> = Record<never, never>,
+> = SealedSteps<V, T> & {
+  /**
+   * Collects the members for the type. Call it with nothing to close the chain with none.
+   *
+   * The callback's argument is the companion as it stands: what the library wired, what a trait
+   * registered, and the members an earlier `.impl` collected. A member needing none of those
+   * takes the object on its own. A sibling in the same call is not there: naming the companion
+   * inside its own initializer is TS7022, which is what the callback cuts.
+   */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
     (): Sealed<V, T>;
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Sealed<V, M & T>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): SealedSteps<V, M & T>;
+    // A separate overload rather than one parameter taking either: TypeScript 5 stops inferring
+    // `M` where a mapped type over it sits inside a union, and every first parameter falls back
+    // to implicit `any` (notes §15.4).
+    <M extends CompanionMembers<V>>(
+      fns: (self: Sealed<V, T>) => Grown<keyof T, M>,
+    ): SealedSteps<V, M & T>;
   };
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
   implTrait: {
     <Tr extends AnyTrait>(
-      impl: Takes<V, Tr, T, Alone<Tr, V>>,
+      impl: Takes<V, Tr, T, Alone<Tr, V, Sealed<V, T>>>,
     ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
     <Tr extends AnyTrait, G>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, V>
+      ...impl: Passes<Tr, G, V, Sealed<V, T>>
     ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
+  };
+};
+
+/**
+ * A companion with every step closed but `.impl`. The mirror of {@link SealedSteps}.
+ *
+ * Inferred, not written: it is exported so your own declarations can name it.
+ */
+export type CompanionSteps<V extends AnyVal, N, F, P, T extends CompanionMembers<V>> = Companion<
+  V,
+  T,
+  N,
+  F,
+  P
+> & {
+  /** Collects more members. See {@link Sealer.impl}. */
+  impl: {
+    (): Companion<V, T, N, F, P>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): CompanionSteps<V, N, F, P, M & T>;
+    <M extends CompanionMembers<V>>(
+      fns: (self: Companion<V, T, N, F, P>) => Grown<keyof T, M>,
+    ): CompanionSteps<V, N, F, P, M & T>;
   };
 };
 
@@ -503,13 +563,20 @@ export type CompanionBuilder<
   F = undefined,
   P = never,
   T extends CompanionMembers<V> = Record<never, never>,
-> = Companion<V, T, N, F, P> & {
-  /** Collects the members for the type. Everything the library wires has its own step. */
+> = CompanionSteps<V, N, F, P, T> & {
+  /**
+   * Collects the members for the type. Everything the library wires has its own step.
+   *
+   * Takes a callback for a member reading the companion. See {@link Sealer.impl}.
+   */
   impl: {
     (): Companion<V, T, N, F, P>;
     // A trait's member is registered, so `.impl` may not grow one over it: the type would keep
     // the trait's signature while `dyn` kept calling what `implTrait` recorded.
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): CompanionSteps<V, N, F, P, M & T>;
+    <M extends CompanionMembers<V>>(
+      fns: (self: Companion<V, T, N, F, P>) => Grown<keyof T, M>,
+    ): CompanionSteps<V, N, F, P, M & T>;
   };
   /**
    * Implements a trait the type declares. The members the trait leaves open arrive as a second
@@ -523,11 +590,11 @@ export type CompanionBuilder<
     // No companion to pass when the trait implements nothing of its own: the type argument is
     // the whole of it, and the members arrive where the companion would have.
     <Tr extends AnyTrait>(
-      impl: Takes<V, Tr, T, Alone<Tr, V>>,
+      impl: Takes<V, Tr, T, Alone<Tr, V, Companion<V, T, N, F, P>>>,
     ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
     <Tr extends AnyTrait, G>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, V>
+      ...impl: Passes<Tr, G, V, Companion<V, T, N, F, P>>
     ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
   };
   /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
@@ -981,14 +1048,39 @@ const build = <V extends AnyVal>(
   const target = attach(base(), {}, ctors, traits, callable);
   const step = (next: Ctors): object => build<V>(next, callable, traits);
 
-  target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits, callable);
+  // `.impl` keeps itself: the object it hands back collects more, so a member reads the ones
+  // before it off the argument its callback takes. Nothing else survives the first call.
+  const made = (fns: Record<string, unknown>) => attach(base(), fns, ctors, traits, callable);
+  const grow =
+    (prev: Record<string, unknown>) =>
+    (fns?: Record<string, unknown> | ((self: object) => Record<string, unknown>)): object => {
+      if (fns === undefined) return made(prev);
+      const next = { ...prev, ...(typeof fns === "function" ? fns(made(prev)) : fns) };
+      const grown = made(next);
+      grown.impl = grow(next);
+      return grown;
+    };
+
+  target.impl = grow({});
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
   // No companion where the trait implements nothing of its own: the members arrive in its place.
   // The Val's own go on last, the type having kept every `Final` one out of them.
   target.implTrait = (
-    trait: { __valof_shared?: Record<string, unknown> },
-    impl: Record<string, unknown> = {},
-  ) => build<V>(ctors, callable, { ...traits, ...(trait.__valof_shared ?? trait), ...impl });
+    trait:
+      | { __valof_shared?: Record<string, unknown> }
+      | ((self: object) => Record<string, unknown>),
+    impl: Record<string, unknown> | ((self: object) => Record<string, unknown>) = {},
+  ) => {
+    // Either argument can be the implementation, and either form of it takes the companion as
+    // it stands: what the library wired, and what an earlier `implTrait` registered.
+    const written = (fns: object) => (typeof fns === "function" ? fns(made({})) : fns);
+    const shared = typeof trait === "function" ? trait : (trait.__valof_shared ?? trait);
+    return build<V>(ctors, callable, {
+      ...traits,
+      ...written(shared),
+      ...written(impl),
+    });
+  };
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });

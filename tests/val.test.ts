@@ -1137,6 +1137,39 @@ describe("building", () => {
       });
     });
 
+    test("a callback reads what the library wired", () => {
+      const Renamer = Val.sealer<User>().impl((self) => ({
+        renamed: (u, name: string) => self.patch(u, { name }),
+      }));
+      const bob = Renamer({ id: "a", name: "bob" });
+
+      expect(Renamer.renamed(bob, "sue")).toEqual({ id: "a", name: "sue" });
+      expectTypeOf(Renamer.renamed).toEqualTypeOf<(u: User, name: string) => User>();
+    });
+
+    test("a second call reads the members of the first", () => {
+      const Loud = Val.sealer<User>()
+        .impl((self) => ({ renamed: (u, name: string) => self.patch(u, { name }) }))
+        .impl((self) => ({ shouted: (u) => self.renamed(u, u.name.toUpperCase()) }));
+
+      expect(Loud.shouted(Loud({ id: "a", name: "bob" }))).toEqual({ id: "a", name: "BOB" });
+    });
+
+    test("a name an earlier call took cannot be taken again", () => {
+      Val.sealer<User>()
+        .impl({ greet: (u) => u.name })
+        // @ts-expect-error something already answers to this name
+        .impl({ greet: (u: User) => u.name });
+    });
+
+    test("calling it with nothing closes the step", () => {
+      const Closed = Val.sealer<User>()
+        .impl({ greet: (u) => u.name })
+        .impl();
+      expectTypeOf(Closed).not.toHaveProperty("impl");
+      expect((Closed as { impl?: unknown }).impl).toBeUndefined();
+    });
+
     test("`patch` is the library's, not yours", () => {
       Val.companion<User>().impl({
         // @ts-expect-error a derivation with different rules deserves its own name
@@ -1614,6 +1647,22 @@ describe("building", () => {
       expect([Member.greet(member), Admin.greet(admin)]).toEqual(["Hi, alice", "Sir root"]);
     });
 
+    test("a callback reads the companion as it stands", () => {
+      const Wired = Val.sealer<Member>().implTrait(Greetable, (self) => ({
+        toWire: (m, sep) => `${self.nocopy(m).id}${sep}${m.name}`,
+      }));
+      expect(Wired.toWire(Wired({ id: "a", name: "alice" }), ":")).toBe("a:alice");
+    });
+
+    test("the companion-less form takes one too", () => {
+      type Plain = Trait<"Plain", { name: string }, { loud: (self: Self) => string }>;
+      type Note = Val<"Note", { name: string }, Plain>;
+      const Note = Val.sealer<Note>().implTrait<Plain>((self) => ({
+        loud: (n) => self.nocopy(n).name.toUpperCase(),
+      }));
+      expect(Note.loud(Note({ name: "n" }))).toBe("N");
+    });
+
     test("a member without a default must be implemented", () => {
       // @ts-expect-error `toWire` is missing
       Val.companion<Member>().implTrait(Greetable, {});
@@ -1770,7 +1819,9 @@ describe("building", () => {
         Val.companion<Member>().implTrait(
           // @ts-expect-error this trait's companion has not implemented every member declared Final
           Trait.companion<Greetable>().impl({ greet: (g: { name: string }) => g.name }),
-          { toWire: (m, sep) => `${m.id}${sep}` },
+          // Annotated because the first argument is the error: the implementation loses its
+          // contextual type along with it. A healthy call needs neither annotation.
+          { toWire: (m: Member, sep: string) => `${m.id}${sep}` },
         );
       });
     });
@@ -1865,14 +1916,14 @@ describe("building", () => {
       test("a companion may not grow a function over a member", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
-          // @ts-expect-error a trait already answers to this name
+          // @ts-expect-error something already answers to this name
           .impl({ greet: (m) => `yo ${m.name}` });
       });
 
       test("nor over a final function", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
-          // @ts-expect-error a trait already answers to this name
+          // @ts-expect-error something already answers to this name
           .impl({ shout: (m) => m.name });
       });
 

@@ -37,7 +37,7 @@ import { Val } from "valof";
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
-  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
+  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、実装（`.impl` は閉じず前段のメンバが `self` に乗る、`implTrait` も callback、予算）、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
 
@@ -1848,10 +1848,11 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
       `implVariant` のメンバを `Shape.Circle.diameter` と `Circle.diameter` の 2 経路で数える）。新規は 1 本、
       Variant に別の companion を立てる形（`Val.companion<VariantOf<…>>` / `Val.sealer<VariantOf<…>>`）。
       `bypassed-companion` は `Val.of` で Variant を作る形に広げる
-- [ ] **§15.4 のコールバック形は val.ts にまだ無い。**Enum の steps（`impl` / `implVariant` /
-      `implTrait`）はコールバック形 1 本で出したので Enum 側は済んでいる。Trait の `impl` も入れた
-      （引数は実装済みの final だけ、§15.1）。`Val.sealer().impl` と `Val.companion().impl` /
-      `implTrait` はオブジェクト形のままで、自分の `equals` / `patch` を使うメンバは戻り値の注釈が要る
+- [x] ~~**§15.4 のコールバック形は val.ts にまだ無い。**~~ → 入れた。`.impl` と `implTrait` の両方が
+      callback を取り、`.impl` は閉じずに繋がるので前段のメンバも `self` に乗る。Enum も同じ規則に揃え、
+      Trait は引数が final だけ（§15.1）。残る限界は同じ呼び出しの中の兄弟だけ
+- [ ] **valof-lint に `detached-impl` を足す。**`.impl` が開いたままなので、export した companion に
+      下流から生やせる。型では塞がず lint で塞ぐ判断（§15.4）。Enum 対応と同じ PR
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
@@ -4355,7 +4356,7 @@ companion 側の `.impl` が `implTrait` の登録を踏み潰せる穴は残る
 ```ts
 Val.companion<User>()
   .implTrait(Greetable, { toWire })
-  .impl({ toWire: ... }); // error: a trait already answers to this name
+  .impl({ toWire: ... }); // error: something already answers to this name
 ```
 
 検査は**制約ではなく引数の型**に置く必要がある。制約に入れると `M & T` が `CompanionFns<V>` を満たさなく
@@ -5656,6 +5657,7 @@ error TS2322: Type 'User' is not assignable to type '0'
 #### 限界: 兄弟メンバは参照できない
 
 同じ `.impl` の中の他のメンバは循環したままなので、そちらを呼ぶメンバには注釈が要る。README に書く。
+`.impl` を繋げれば前段のメンバは `self` に乗る（下の「実装」）。
 
 #### 渡す集合は文脈で変わる
 
@@ -5668,6 +5670,81 @@ error TS2322: Type 'User' is not assignable to type '0'
 #### 却下: オブジェクト形を置き換える
 
 **両方残す。**関連関数を要らないメンバに、コールバックの分割代入は雑音。既存のコードも動かない。
+
+#### 実装、2026-09-18
+
+**`.impl` は閉じない。**呼ぶたびに「`.impl` だけ開いた companion」を返す。前段のメンバが `self` に乗るので、
+兄弟の限界は「同じ呼び出しの中だけ」に縮む。
+
+```ts
+const User = Val.sealer<User>()
+  .impl((self) => ({ renamed: (u, name: string) => self.patch(u, { name }) }))
+  .impl((self) => ({ shouted: (u) => self.renamed(u, u.name.toUpperCase()) }));
+```
+
+**閉じる理由はメンバではなく seal だった**（§15.2）。`implSeal` / `implCreate` / `fixed` / `implTrait` は
+最初の `impl` で閉じたままなので、export した companion から検査を外した 2 つ目のコンストラクタは立たない。
+`impl()`（引数なし）はメンバの段も閉じる。
+
+**Enum も同じ規則にした。**Trait は元からこの形なので、3 つとも「`impl` だけが開いたまま、他の段は最初の
+`impl` で閉じる」で揃う。揃わないのは callback の引数で、Val / Enum は companion、Trait は final だけ
+（§15.1）。
+
+**重複の検査は `Grown` を流用。**trait のメンバに同名を生やす検査が、前段のメンバにもそのまま効く。
+メッセージは「a trait already answers to this name」から「something already answers to this name」へ。
+
+**`.impl` は union ではなくオーバーロード 2 本。**Enum は `G | ((self) => G)` の 1 本で済むが、Val の
+パラメータは `Grown<keyof T, M>`、つまり `M` を含む交差型である。**これを union に入れると TypeScript 5 が
+`M` を推論できず、第 1 引数が全部 implicit any に落ちる**（7 は通る。5.9 で確認）。§15.2 で「2 本に割ると
+エラーが『最後のオーバーロードが合わない』に化ける」として union を選んだが、5.x を切らない以上こちらは
+選べない。以下を 5.9 で 1 つずつ測った。
+
+| パラメータ                                     | TS 5.9 |
+| ---------------------------------------------- | ------ |
+| `Grown<keyof T, M>`（オブジェクトのみ）        | 通る   |
+| `(self) => Grown<keyof T, M>`（callback のみ） | 通る   |
+| `Grown \| ((self) => Grown)`                   | 落ちる |
+| `Grown \| ((self) => M)`                       | 通る   |
+| `M extends CompanionMembers<V> & Grown<…>`     | 落ちる |
+| オーバーロード 2 本                            | 通る   |
+
+`Grown` を callback 側から外す案（4 行目）は、trait のメンバを callback で上書きできてしまう。
+`User.greet` と `Greetable.greet` が食い違う穴なので取らない。
+
+**`implTrait` は union のまま。**`Implement<Tr, G, V>` の `G` は trait 側の引数から決まり、この呼び出しで
+推論する型変数ではないので 5.9 でも通る。
+
+**README とドキュメントのコードブロックは TS 5.9 で検査されている**（`docs/tools/twoslash`、
+`vp run ts-compatibility` は 5.9 / 6.0 / 7.0）。最初に書いた union はここで落ちた。`vp check` は 7 なので
+通っていた。**型を触ったら `vp test` まで走らせる。**
+
+**`implTrait` も callback を取る。**`Implement<…> | ((self) => Implement<…>)`。Enum の `implTrait` と
+同じ動機で、trait の実装は Val の `patch` やコンストラクタを呼ぶ。
+
+**代償 1: 第 1 引数が壊れている呼び出しで、実装の contextual typing が落ちる。**trait companion の側が
+エラーの時だけで、健全な呼び出しは両形とも第 1 引数の注釈が要らない（TS2322 で確認）。テストで 1 箇所
+注釈が増えた。
+
+**代償 2: 予算。**production gzip が 852 B → 930 B（**78 B**、`Val` を import した全員が払う）。
+instantiations は core 5,694 → 6,076、trait 13,378 → 14,366、enum 77,569 → 78,283。trait の予算は
+15,000 → 17,000 に上げた。union を呼び出しごとに 2 回関係付けるぶんで、暴走ではない。
+
+**却下: メンバをカリー化して兄弟を使う。**`impl({ renamed: (self) => (u, name) => … })` の形。`M` を推論
+している最中に `self: Sealed<V, M>` が `M` を要求するので、`M` が制約に落ちて `self.renamed` が
+TS2349。`NoInfer<M>` も `M & ThisType<Sealed<V, M>>` も同じ。`self` から `M` を外した版は逆写像推論が
+通るので、壊しているのは currying ではなく自己参照のほう。**TS では鎖以外に道が無い。**
+
+#### 却下: 下流での `.impl` を型で塞ぐ
+
+`.impl` が開いたままなので、export した companion に別のファイルから生やせる。返るのは新しい
+オブジェクトで、元の companion も既存の値も変わらない（Scala の scoped extension に近く、Rust の
+coherence のような一貫性の問題は起きない）。
+
+**型では塞がない。**塞ぐ形（`impl` を持たない型を返す段をもう 1 つ）は鎖を 2 種類にする。lint の
+`detached-impl` で「`Val.companion` / `Val.sealer` / `Enum.*` / `Trait.companion` から繋がっていない
+`impl` はエラー」にする。scanner は起点から鎖を辿るので、離れた `impl` は**そもそも見えない**。
+規則にすれば「companion は 1 箇所」が仮定から不変条件になり、`unused-member` と `companion-mismatch` の
+数え方が今のまま正しい。valof-lint の Enum 対応と同じ PR。
 
 ---
 
