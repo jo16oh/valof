@@ -137,7 +137,7 @@ import { Enum } from "valof/experimental";
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
 const Shape = Enum.sealer<Shape>()
-  .implVariant("Circle", (b) => b.impl({ diameter: (c) => c.r * 2 }))
+  .implVariant("Circle", (variant) => variant.impl({ diameter: (c) => c.r * 2 }))
   .impl((self) => ({
     area: (s) =>
       self.match(s, {
@@ -150,8 +150,9 @@ Shape.Circle.diameter(Shape.Circle({ r: 2 })); // 4
 ```
 
 A variant you write nothing for keeps the default frame, and a variant already built cannot be named
-again. The steps live in the callback alone: reachable from `Shape.Circle`, a second chain would
-stand a second constructor beside the first.
+again. The steps are already that variant's frame, so a callback with nothing to collect hands the
+argument back: `.implVariant("Circle", (variant) => variant)`. What a step returns is closed, the
+way `.impl` closes the enum's chain.
 
 There is no step that picks the kind. `Enum.sealer` makes every variant callable, `Enum.companion`
 builds every one with `.create`, so the enum's entry decides the variant's.
@@ -176,12 +177,10 @@ type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }, 
 
 const Shape = Enum.companion<Shape>()
   .implSeal((payload, seal) => (payload.id ? seal(payload) : new Error("id must not be empty")))
-  .implVariant("Circle", (b) =>
-    b
-      .implSeal((payload, seal) =>
-        payload.r > 0 ? seal(payload) : new Error("r must be positive"),
-      )
-      .impl(),
+  .implVariant("Circle", (variant) =>
+    variant.implSeal((payload, seal) =>
+      payload.r > 0 ? seal(payload) : new Error("r must be positive"),
+    ),
   )
   .impl();
 

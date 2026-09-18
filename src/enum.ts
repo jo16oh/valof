@@ -334,12 +334,14 @@ type SealerFrame<E extends AnyEnum, N extends keyof VariantsOf<E>, T> = ((
 } & Omit<T, Wired>;
 
 /**
- * The steps a variant grows, inside an `implVariant` callback. `.impl` closes the chain, and the
- * frame is what the callback hands back: the builder lives in the callback alone. Reachable from
- * the companion, `Shape.Circle.implSeal(…)` would stand a second constructor beside the first.
+ * The steps a variant grows, inside an `implVariant` callback. It is already the frame, so a
+ * callback with no member to collect hands it back as it stands, the way `Val.companion<V>()` is
+ * a companion before `.impl()`. A frame a step made is closed: the steps go no further.
  *
  * The enum's entry decides the variant's, so there is no step that picks one: every variant of a
  * companion builds with `.create`, every variant of a sealer is callable.
+ *
+ * No `in out` here: the top level is a reference to an intersection, which is TS2637.
  */
 type VariantSteps<
   in out E extends AnyEnum,
@@ -359,7 +361,7 @@ type VariantSteps<
    */
   implSeal: <G extends VariantSealImpl<E, N, FE>>(
     seal: CheckedSeal<G>,
-  ) => VariantSteps<E, N, FE, G, T>;
+  ) => VariantSteps<E, N, FE, G, T> & VariantFrame<E, N, FE, G, T>;
 };
 
 /** The same, for a sealer: the constructor is the default seal, so there is no `implSeal`. */
@@ -519,13 +521,17 @@ export type EnumBuilder<
    * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
    * keeps the default frame, and one already built cannot be named again.
    *
+   * The callback's argument is already that variant's frame, so one with no member to collect
+   * hands it back as it stands.
+   *
    * Call it after `implSeal`: a variant's seal is handed the enum's, and the enum's is read from
    * the chain as it stands.
    */
   implVariant: <N extends Fresh<E, VM>, R extends ClosedFrame<E, N>>(
     name: N,
     build: (
-      variant: VariantSteps<E, N, F, undefined, Record<never, never>>,
+      variant: VariantSteps<E, N, F, undefined, Record<never, never>> &
+        VariantFrame<E, N, F, undefined, Record<never, never>>,
       self: EnumCompanion<E, VM, M, F>,
     ) => R,
   ) => EnumBuilder<E, VM & { [P in N]: R }, M, F>;
@@ -570,7 +576,8 @@ export type EnumSealer<
   implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
     name: N,
     build: (
-      variant: SealerVariantSteps<E, N, Record<never, never>>,
+      variant: SealerVariantSteps<E, N, Record<never, never>> &
+        SealerFrame<E, N, Record<never, never>>,
       self: EnumSealed<E, VM, M>,
     ) => R,
   ) => EnumSealer<E, VM & { [P in N]: R }, M>;
@@ -643,10 +650,14 @@ const state = (
     return composed ? chain.implSeal(composed).impl(fns) : chain.impl(fns);
   };
 
-  const steps = (name: string, custom: Seal | undefined): object => ({
-    impl: (fns: Payload = {}) => built(name, custom, fns),
-    ...(callable ? {} : { implSeal: (next: Seal) => steps(name, next) }),
-  });
+  // The steps are the frame with no member on it, so a callback that collects none hands this
+  // one back. `built` again for `.impl(fns)`: the members go on a frame nothing else holds.
+  const steps = (name: string, custom: Seal | undefined): object => {
+    const target = built(name, custom, {});
+    define(target, "impl", (fns: Payload = {}) => built(name, custom, fns));
+    if (!callable) define(target, "implSeal", (next: Seal) => steps(name, next));
+    return target;
+  };
 
   const frame = (name: string): unknown => {
     const found = frames.get(name);
