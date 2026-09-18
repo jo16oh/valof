@@ -154,7 +154,7 @@ import { Enum } from "valof/experimental";
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
 const Shape = Enum.sealer<Shape>()
-  .implVariant("Circle", (variant) => variant.impl({ diameter: (c) => c.r * 2 }))
+  .implVariant("Circle", (sealer) => sealer.impl({ diameter: (c) => c.r * 2 }))
   .impl((self) => ({
     area: (s) =>
       self.match(s, {
@@ -168,7 +168,7 @@ Shape.Circle.diameter(Shape.Circle({ r: 2 })); // 4
 
 A variant you write nothing for keeps the default companion, and a variant already built cannot be
 named again. The steps are already that variant's companion, so a callback with nothing to collect
-returns the argument: `.implVariant("Circle", (variant) => variant)`. What a step returns is closed,
+returns the argument: `.implVariant("Circle", (sealer) => sealer)`. What a step returns is closed,
 the way `.impl` closes the enum's chain.
 
 No step chooses between a sealer and a companion. `Enum.sealer` makes every variant callable,
@@ -194,8 +194,8 @@ type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }, 
 
 const Shape = Enum.companion<Shape>()
   .implSeal((payload, seal) => (payload.id ? seal(payload) : new Error("id must not be empty")))
-  .implVariant("Circle", (variant) =>
-    variant.implSeal((payload, seal) =>
+  .implVariant("Circle", (companion) =>
+    companion.implSeal((payload, seal) =>
       payload.r > 0 ? seal(payload) : new Error("r must be positive"),
     ),
   )
