@@ -34,17 +34,18 @@
 
 ## Types
 
-|                       |                                                |
-| --------------------- | ---------------------------------------------- |
-| `Val<K, T>`           | a branded value type                           |
-| `AnyVal`              | a constraint over any Val                      |
-| `SeedOf<V>`           | the payload accepted by constructors and seals |
-| `PayloadOf<V>`        | the payload behind the brand                   |
-| `Patch<T>`            | the patch accepted for a payload               |
-| `Sealer<V>`           | a callable sealer with every step still open   |
-| `Sealed<V, M>`        | a finished callable companion                  |
-| `CompanionBuilder<V>` | a companion with every step still open         |
-| `Companion<V, M>`     | a finished companion                           |
+|                       |                                                 |
+| --------------------- | ----------------------------------------------- |
+| `Val<K, T>`           | a branded value type                            |
+| `AnyVal`              | a constraint over any Val                       |
+| `SeedOf<V>`           | the payload accepted by constructors and seals  |
+| `PayloadOf<V>`        | the payload behind the brand                    |
+| `Patch<T>`            | the patch accepted for a payload                |
+| `Rec<V>`              | a Val's reference to itself, in its own payload |
+| `Sealer<V>`           | a callable sealer with every step still open    |
+| `Sealed<V, M>`        | a finished callable companion                   |
+| `CompanionBuilder<V>` | a companion with every step still open          |
+| `Companion<V, M>`     | a finished companion                            |
 
 You never write the last four. They are exported so that your own `.d.ts` can name them when you
 re-export a companion.
