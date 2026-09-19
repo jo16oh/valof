@@ -1,6 +1,6 @@
 # Allowed types
 
-Only three things can live inside a Val:
+Only three things can be a payload:
 
 |            |                                                                        |
 | ---------- | ---------------------------------------------------------------------- |
@@ -12,9 +12,11 @@ A Val is itself one of these, so Vals nest. A tuple keeps its positions and its 
 rest element (`[string, ...number[]]`) reads as an array instead, since a fixed length is what
 distinguishes the two.
 
-Write the payload plain. `Val` makes it deeply readonly on its own, so `readonly` in the definition
-changes nothing about the value, and it makes [`Val.unwrap`](utilities.md#valunwrap) return a
-readonly payload, which is what `unwrap` exists to avoid.
+## Write the payload plain
+
+`Val` makes the payload deeply readonly on its own, so `readonly` in the definition changes nothing
+about the value. Writing it makes [`Val.unwrap`](utilities.md#valunwrap) return a readonly payload,
+which is what `unwrap` exists to avoid.
 
 ```ts
 import { Val } from "valof";
@@ -27,10 +29,19 @@ post.tags; // readonly string[] all the same
 Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 ```
 
+## Classes and functions
+
+Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
+all classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
+TypeScript rejects them, on the first use of the Val rather than on the `type` line.
+
+A class of plain fields is the one TypeScript cannot distinguish from an object. Sealing one throws
+in development. A production build skips that check and copies the own enumerable keys, so a `Date`
+is copied as `{}`, and an instance keeps its fields but loses its prototype.
+
 ## A type that references itself
 
-A tree holds trees. Write the self-reference as `Rec<Tree>`, which TypeScript resolves after `Tree`
-itself.
+A tree holds trees. Write the self-reference as `Rec<Tree>`.
 
 ```ts
 import { Val, type Rec } from "valof";
@@ -48,17 +59,15 @@ root.children[0]; // Tree
 `Rec` is erased: the value holds a `Tree`, the constructor takes a `Tree`, and `patch` and the
 companion's members work as they do for any other type. It exists for the declaration alone.
 
-Write it around the type being declared and nothing else. `Rec<number>` is `number` and `Rec<Other>`
-is `Other`, so a `Rec` anywhere else changes nothing and misleads the next reader.
+Without it the declaration compiles and the first use of the type fails. Resolving `Tree` would need
+`Tree`, and a `Rec` is a reference to an interface, which TypeScript resolves later.
 
-Without it TypeScript reports `TS2456 Type alias 'Tree' circularly references itself`: resolving
-`Tree` would need `Tree`. A `Rec` is a reference to an interface, and TypeScript resolves that
-later, which breaks the cycle.
+```ts
+// @errors: 2589
+import { Val } from "valof";
 
-Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
-all classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
-TypeScript rejects them, on the first use of the Val rather than on the `type` line.
+// ---cut---
+type Tree = Val<"Tree", { value: number; children: Tree[] }>;
 
-A class of plain fields is the one TypeScript cannot distinguish from an object. Sealing one throws
-in development. A production build skips that check and copies the own enumerable keys, so a `Date`
-is copied as `{}`, and an instance keeps its fields but loses its prototype.
+const Tree = Val.sealer<Tree>();
+```

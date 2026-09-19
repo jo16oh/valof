@@ -25,6 +25,10 @@ type Tree = Val<"app/Tree", { value: number; children: Tree[] }>;
 payload を interface に切り出しても同じ。`Val` が mapped type で payload を写すので、`Tree` を
 解決するのに `Tree` が要る。`Rec<Tree>` は interface への参照なので、そこで切れる。
 
+この変更後、落ちる位置が動いた。検査が verdict へ移って（§11.2）エイリアスの解決が軽くなったので、
+**宣言は通り、最初の使用で落ちる**。配列なら `Val.sealer<Tree>()` で TS2589、optional キーなら
+TS2615。docs はこちらを載せている。
+
 ## 3. 3 つの壁と、その順番
 
 順に潰した。前の 1 つを潰すまで次は見えない。

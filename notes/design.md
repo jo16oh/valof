@@ -450,6 +450,9 @@ export type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
 先に存在するので、木も連結リストも変異なしには循環を作れない。`copy` も `equals` もネストした Val で
 止まる。壁は型エイリアスの解決順だけで、interface への参照は解決を要求しないので、`Rec` がそこを切る。
 
+`Rec` を書かないと、**宣言は通って最初の使用で落ちる**。配列なら TS2589、optional キーなら TS2615。
+エイリアスの解決そのものは verdict（§11.2）のぶん軽くなったので、かつての TS2456 は出ない。
+
 `DeepReadonly` が `Rec<V>` を `V` に開くので（§4.3）、**`Rec` が見えるのは宣言の 1 行だけ**である。値にも
 seed にも `patch` にも残らない。`PayloadOf` も開く。開かないと `Val.unwrap` が返す payload の要素が
 `Rec<Tree>` のままで、読めない。`SeedOf` は宣言から直接 `DeepReadonly` を通すので、二重に歩かない。
