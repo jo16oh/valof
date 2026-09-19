@@ -1865,9 +1865,10 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
       2 行目に出るので、内部の名前が 1 つ見える
   - **Variant の再束縛を禁じる規則。**`const { Circle } = Shape` と `const Circle = Shape.Circle` は
     合法。見るのは名前の一致だけなので、`companion-mismatch` の拡張で足りる
-- [x] ~~**§15.4 のコールバック形は val.ts にまだ無い。**~~ → 入れた。`.impl` と `implTrait` の両方が
-      callback を取り、`.impl` は閉じずに繋がるので前段のメンバも `self` に乗る。Enum も同じ規則に揃え、
-      Trait は引数が final だけ（§15.1）。残る限界は同じ呼び出しの中の兄弟だけ
+- [x] ~~**§15.4 のコールバック形は val.ts にまだ無い。**~~ → 入れて、2026-09-18 に外した。`.impl` は
+      1 回で閉じ、引数は members のオブジェクトだけ。companion に届くメンバは外側の名前を参照して戻り値を
+      注釈する。probe したら注釈の経路が `self` の届く範囲を覆っていたため。Val / Trait / Enum の 3 つで
+      揃えた。経緯は §15.4「鎖を閉じる」
 - [x] ~~**valof-lint に `detached-impl` を足す。**~~ → 入れた。`impl` / `implSeal` / `implVariant` /
       `implTrait` / `implEquals` / `implCreate` / `fixed` のうち、鎖が起点にもローカルの builder 束縛にも
       届かないものを `scan` が候補として記録し、規則は基底が走査対象の companion サイトに解決するときだけ
