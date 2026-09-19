@@ -1843,16 +1843,37 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
       分け、`implVariant` は Variant の builder を callback で渡す。Enum の seal と Variant の seal は
       渡して 1 本にし、`impl` で鎖を閉じる。タグは第 3 型引数へ移した。形と却下案は §15.2「Variant ごとの
       seal と union の `seal`」
-- [ ] **valof-lint が `Enum` を知らない。**別 PR。既存規則を Enum の構文に広げるのが主（`brand-mismatch`、
-      `companion-mismatch`、`split-companion`、`duplicate-brand`、`unnecessary-alias`、`unused-member` は
-      `implVariant` のメンバを `Shape.Circle.diameter` と `Circle.diameter` の 2 経路で数える）。新規は 1 本、
-      Variant に別の companion を立てる形（`Val.companion<VariantOf<…>>` / `Val.sealer<VariantOf<…>>`）。
-      `bypassed-companion` は `Val.of` で Variant を作る形に広げる
+- [x] ~~**valof-lint が `Enum` を知らない。**~~ → 広げた。`brand-mismatch`、`duplicate-brand`、
+      `companion-mismatch`、`split-companion`、`unnecessary-alias`、`unimplemented-trait`、
+      `bypassed-companion` が Enum の構文を読む。`unused-member` は変更なしで、`implVariant` のメンバを
+      `` `${enum}.${variant}` `` のキーで登録し、`Shape.Circle.diameter` と分割代入した
+      `Circle.diameter` の両方をそのキーで数える。`scan` は `sites` を 3 つの起点で 1 本にし、
+      `Bindings.builders` も 1 つの Map にした。**入れないと決めた規則が 3 つある**
+  - **Variant 2 個未満の規則。**型が落とす。`src/enum.ts` の `Fault` が
+    `"an enum needs at least two variants; one is a Val"` を出し、`E extends AnyEnum` が
+    `Enum.sealer` / `Enum.companion` / `match` / `VariantOf` のどこでも落とす。黙るのは companion も
+    使用も書かない宣言だけで、それは害が無い。`tag-mismatch` を落としたのと同じ判断
+  - **Variant に別の companion を立てる規則。**型で弾いた。`Val.sealer` / `Val.companion` の型引数を
+    `V extends AnyVal & NotEnum<V>` にしたので、Variant も union も宣言の行で TS2344 になる。型が落とす
+    ところに規則は要らない。`scan` の側は、型引数がそれ自身型引数を取るサイトを companion サイトとして
+    読まない（`companion-mismatch` が `VariantOf` を型名として報告するのを止める）
+    - 自己参照の制約は関数の型引数では書ける。§3 の「自己参照制約は書けない」は型エイリアスの話
+    - **`val.ts` が `enum.ts` を型だけ import する。**`EnumPhantom` を `val.ts` へ移す案と、最小の印を
+      新設する案は却下した。安定した入口の宣言が experimental を参照するのは 1 行で、Variant に
+      ファントムを増やすより軽い
+    - 代償は、TS が制約を展開してメッセージに出すこと。`Invalid` のキー（`__valError`）が missing と
+      2 行目に出るので、内部の名前が 1 つ見える
+  - **Variant の再束縛を禁じる規則。**`const { Circle } = Shape` と `const Circle = Shape.Circle` は
+    合法。見るのは名前の一致だけなので、`companion-mismatch` の拡張で足りる
 - [x] ~~**§15.4 のコールバック形は val.ts にまだ無い。**~~ → 入れた。`.impl` と `implTrait` の両方が
       callback を取り、`.impl` は閉じずに繋がるので前段のメンバも `self` に乗る。Enum も同じ規則に揃え、
       Trait は引数が final だけ（§15.1）。残る限界は同じ呼び出しの中の兄弟だけ
-- [ ] **valof-lint に `detached-impl` を足す。**`.impl` が開いたままなので、export した companion に
-      下流から生やせる。型では塞がず lint で塞ぐ判断（§15.4）。Enum 対応と同じ PR
+- [x] ~~**valof-lint に `detached-impl` を足す。**~~ → 入れた。`impl` / `implSeal` / `implVariant` /
+      `implTrait` / `implEquals` / `implCreate` / `fixed` のうち、鎖が起点にもローカルの builder 束縛にも
+      届かないものを `scan` が候補として記録し、規則は基底が走査対象の companion サイトに解決するときだけ
+      報告する（`Shape.Circle.implSeal` のようにドット付きの基底も、enum companion として）。無関係な
+      `.impl` は何にも解決せず黙る。これで「companion は 1 箇所」が仮定から不変条件になり、
+      `unused-member` と `companion-mismatch` の数え方が今のまま正しい（§15.4）
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
@@ -4785,9 +4806,13 @@ dyn(Greetable)(User, u); // trait companion から Tr を回収する phantom �
 ```ts
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
-const Shape = Enum.companion<Shape>();
-const { Circle, Square } = Shape;
+const Shape = Enum.sealer<Shape>();
+Shape.Circle({ r: 2 });
 ```
+
+**prefix を保つ。**`const { Circle } = Shape` は合法だが、`Circle({ r: 2 })` だけを読む人は出自の enum を
+引かないと分からない。改名（`const Round = Shape.Circle`）は `companion-mismatch` が報告する。型も同じで、
+`type Circle = VariantOf<Shape, "Circle">` は勧めず、使う場所に `VariantOf` を書く。
 
 **要点は proxy ではなく宣言の向き。**Variant をレコード 1 つに宣言して union を導出する。手書きの union に
 proxy を足す形だと、**Variant 追加時に 2 箇所直す**問題がそのまま残る。proxy は文字列の二重管理を消す補助。

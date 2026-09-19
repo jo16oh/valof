@@ -20,16 +20,19 @@ import { Enum } from "valof/experimental";
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
 const Shape = Enum.sealer<Shape>();
-const { Circle, Square } = Shape;
 
-const circle = Circle({ r: 2 }); // { r: 2, _tag: "Circle" }
+const circle = Shape.Circle({ r: 2 }); // { r: 2, _tag: "Circle" }
 
-Circle.patch(circle, { r: 5 }); // { r: 5, _tag: "Circle" }, the tag stays
-equals(circle, Circle({ r: 2 })); // true
+Shape.Circle.patch(circle, { r: 5 }); // { r: 5, _tag: "Circle" }, the tag stays
+equals(circle, Shape.Circle({ r: 2 })); // true
 ```
 
 The record is the whole declaration. The union is derived from it, and so is each variant's brand:
-`Circle` is branded `"Shape.Circle"`. Adding a variant is one line, in one place.
+`Shape.Circle` is branded `"Shape.Circle"`. Adding a variant is one line, in one place.
+
+Call a variant through the companion. `const { Circle } = Shape` works, and a reader of
+`Circle({ r: 2 })` then has to find which enum declared it. `const Round = Shape.Circle` gives it
+another name, which `companion-mismatch` reports.
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
 constructor. The enum itself takes a payload that already carries the tag, typed
