@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="../../assets/valof-brand.svg" alt="Valof" width="250">
+  <img src="assets/valof-brand.svg" alt="Valof" width="250">
   <h1>The Valof Book</h1>
   <p>v{{valof-version}}</p>
   <p><em>Write robust domain logic in TypeScript<br>just by following the conventions.</em></p>
