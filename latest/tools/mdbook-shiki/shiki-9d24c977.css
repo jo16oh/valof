@@ -1,0 +1,43 @@
+.shiki {
+  overflow-x: auto;
+  background-color: var(--shiki-light-bg) !important;
+}
+
+.shiki code {
+  display: block;
+  min-width: max-content;
+}
+
+.shiki,
+.shiki span {
+  color: var(--shiki-light) !important;
+  font-style: var(--shiki-light-font-style) !important;
+  font-weight: var(--shiki-light-font-weight) !important;
+  text-decoration: var(--shiki-light-text-decoration) !important;
+}
+
+:is(html.coal, html.navy, html.ayu) .shiki {
+  background-color: var(--shiki-dark-bg) !important;
+}
+
+:is(html.coal, html.navy, html.ayu) .shiki,
+:is(html.coal, html.navy, html.ayu) .shiki span {
+  color: var(--shiki-dark) !important;
+  font-style: var(--shiki-dark-font-style) !important;
+  font-weight: var(--shiki-dark-font-weight) !important;
+  text-decoration: var(--shiki-dark-text-decoration) !important;
+}
+
+@media print {
+  :is(html.coal, html.navy, html.ayu) .shiki {
+    background-color: var(--shiki-light-bg) !important;
+  }
+
+  :is(html.coal, html.navy, html.ayu) .shiki,
+  :is(html.coal, html.navy, html.ayu) .shiki span {
+    color: var(--shiki-light) !important;
+    font-style: var(--shiki-light-font-style) !important;
+    font-weight: var(--shiki-light-font-weight) !important;
+    text-decoration: var(--shiki-light-text-decoration) !important;
+  }
+}
