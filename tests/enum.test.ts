@@ -229,7 +229,7 @@ describe("patch", () => {
 });
 
 describe("recursion", () => {
-  type Tree = Enum<"Tree", { Leaf: { value: number }; Branch: { kids: readonly Rec<Tree>[] } }>;
+  type Tree = Enum<"Tree", { Leaf: { value: number }; Branch: { kids: Rec<Tree>[] } }>;
   const Tree = Enum.sealer<Tree>().impl({
     total: (t: Tree): number =>
       Tree.match(t, {

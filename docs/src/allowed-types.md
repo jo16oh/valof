@@ -36,7 +36,7 @@ itself.
 import { Val, type Rec } from "valof";
 
 // ---cut---
-type Tree = Val<"Tree", { value: number; children: readonly Rec<Tree>[] }>;
+type Tree = Val<"Tree", { value: number; children: Rec<Tree>[] }>;
 const Tree = Val.sealer<Tree>();
 
 const leaf = Tree({ value: 1, children: [] });

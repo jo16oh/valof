@@ -442,7 +442,7 @@ sum 型は `Val` ではなく `Enum` に分ける（§9）。
 `Tree` が `Tree` を持つ型を書ける。宣言の中だけに現れるマーカーを挟む。
 
 ```ts
-export type Tree = Val<"app/Tree", { value: number; children: readonly Rec<Tree>[] }>;
+export type Tree = Val<"app/Tree", { value: number; children: Rec<Tree>[] }>;
 export type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
 ```
 
@@ -451,7 +451,8 @@ export type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
 止まる。壁は型エイリアスの解決順だけで、interface への参照は解決を要求しないので、`Rec` がそこを切る。
 
 `DeepReadonly` が `Rec<V>` を `V` に開くので（§4.3）、**`Rec` が見えるのは宣言の 1 行だけ**である。値にも
-seed にも `patch` にも残らない。
+seed にも `patch` にも残らない。`PayloadOf` も開く。開かないと `Val.unwrap` が返す payload の要素が
+`Rec<Tree>` のままで、読めない。`SeedOf` は宣言から直接 `DeepReadonly` を通すので、二重に歩かない。
 
 ```ts
 const leaf = Tree({ value: 1, children: [] });
@@ -459,7 +460,9 @@ const root = Tree({ value: 2, children: [leaf, leaf] });
 root.children[0]; // Tree
 ```
 
-Enum の Variant も同じに書ける。`Enum<"Tree", { Leaf: …; Branch: { kids: readonly Rec<Tree>[] } }>`
+payload は素で書く（§3）。`readonly Rec<Tree>[]` と書くと `Val.unwrap` が readonly な配列を返す。
+
+Enum の Variant も同じに書ける。`Enum<"Tree", { Leaf: …; Branch: { kids: Rec<Tree>[] } }>`
 が宣言・構築・`match` まで通る。
 
 `Rec` だけでは足りなかった。`Checked` と `Brand` はエイリアスを解決する時点で payload を自分の像と
@@ -4191,7 +4194,7 @@ type Wrap<T> = T; // 見ない
 塞げない理由は §3.7。
 
 ```ts
-type Tree = Val<"app/Tree", { children: readonly Rec<Tree>[] }>; // ✓
+type Tree = Val<"app/Tree", { children: Rec<Tree>[] }>; // ✓
 type Bad = Val<"app/Bad", { at: Rec<number>; other: Rec<Tree> }>; // 2 件
 ```
 

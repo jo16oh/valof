@@ -422,7 +422,9 @@ describe("Val", () => {
   });
 
   describe("recursion", () => {
-    type Tree = Val<"app/Tree", { value: number; children: readonly Rec<Tree>[] }>;
+    // Written plain, like any other payload: `Val` makes it readonly, and `Val.unwrap` returns the
+    // mutable array the declaration wrote.
+    type Tree = Val<"app/Tree", { value: number; children: Rec<Tree>[] }>;
     const Tree = Val.sealer<Tree>();
 
     type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
@@ -458,10 +460,17 @@ describe("Val", () => {
       expect(Object.keys(node)).toEqual(["value", "next"]);
     });
 
-    test("an optional Rec opens under the undefined the validator adds", () => {
-      const node = Node({ value: 1 });
-      expectTypeOf(node.next).toEqualTypeOf<Node | undefined>();
-      expect(node.next).toBeUndefined();
+    test("the payload and the mutable copy open it too", () => {
+      expectTypeOf<PayloadOf<Tree>>().toEqualTypeOf<{ value: number; children: Tree[] }>();
+
+      const raw = Val.unwrap(Tree({ value: 2, children: [Tree({ value: 1, children: [] })] }));
+      raw.children.push(Tree({ value: 3, children: [] }));
+      expect(raw.children.map((child) => child.value)).toEqual([1, 3]);
+    });
+
+    test("a readonly array in the declaration stays readonly", () => {
+      type Chain = Val<"app/Chain", { links: readonly Rec<Chain>[] }>;
+      expectTypeOf<PayloadOf<Chain>>().toEqualTypeOf<{ links: readonly Chain[] }>();
     });
 
     test("Rec reaches through a record and a nested object", () => {

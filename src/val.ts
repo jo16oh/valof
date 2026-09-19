@@ -41,7 +41,7 @@ export type AnyVal = Phantom<string, unknown> & Verdict<true>;
  * from the payload a constructor takes, so it appears in the declaration alone.
  *
  * ```ts
- * type Tree = Val<"app/Tree", { value: number; children: readonly Rec<Tree>[] }>;
+ * type Tree = Val<"app/Tree", { value: number; children: Rec<Tree>[] }>;
  *
  * const leaf = Tree({ value: 1, children: [] });
  * const root = Tree({ value: 2, children: [leaf] });
@@ -209,8 +209,33 @@ export type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly
 /** The Val's brand string. */
 export type BrandOf<V extends AnyVal> = V extends Phantom<infer K, unknown> ? K : never;
 
-/** The Val's raw payload type. */
-export type PayloadOf<V extends AnyVal> = V extends Phantom<string, infer T> ? T : never;
+/** The payload as the declaration wrote it, {@link Rec} markers included. */
+type Declared<V> = V extends Phantom<string, infer T> ? T : never;
+
+/** The Val's payload type, with every {@link Rec} opened to the Val it references. */
+export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
+
+// Every {@link Rec} opened, and nothing else changed: the `readonly` the declaration wrote stays,
+// and so does the mutability {@link Val.unwrap} hands back. The marker is the declaration's, so no
+// type derived from the payload may carry it.
+//
+// One mapped type covers an array and a tuple both: homomorphic over either, it keeps the length,
+// the positions and the mutability. {@link DeepReadonly} needs the two apart only because it
+// rewrites them.
+type Opened<T> =
+  IsRec<T> extends true
+    ? T extends Rec<infer V>
+      ? V
+      : T
+    : [T] extends [AnyVal]
+      ? T
+      : [T] extends [Primitive]
+        ? T
+        : number extends keyof T
+          ? { [I in keyof T]: Opened<T[I]> }
+          : [T] extends [object]
+            ? { [K in keyof T]: Opened<Exclude<T[K], undefined>> }
+            : T;
 
 /**
  * The payload as constructors, `Val.of` and a custom seal accept it.
@@ -218,7 +243,7 @@ export type PayloadOf<V extends AnyVal> = V extends Phantom<string, infer T> ? T
  * Deep-readonly to accept more, not to enforce: every constructor deep-copies its argument. A
  * Val is itself deep-readonly, so a payload taken from an existing value fits.
  */
-export type SeedOf<V extends AnyVal> = DeepReadonly<PayloadOf<V>>;
+export type SeedOf<V extends AnyVal> = DeepReadonly<Declared<V>>;
 
 /** A conservative, structural guard for the default `nocopy` constructor. */
 type Equal<X, Y> =
@@ -643,7 +668,7 @@ export type CompanionBuilder<
  * The payload's own keys, which a trait member may not shadow: a box forwards everything but a
  * member to the value, and a frozen field a member shadowed would break the proxy's invariant.
  */
-type PayloadKeys<V extends AnyVal> = PayloadOf<V> extends object ? keyof PayloadOf<V> : never;
+type PayloadKeys<V extends AnyVal> = Declared<V> extends object ? keyof Declared<V> : never;
 
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);

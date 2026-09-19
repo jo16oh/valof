@@ -18,7 +18,7 @@
 ## 2. 素直に書くと落ちる
 
 ```ts
-type Tree = Val<"app/Tree", { value: number; children: readonly Tree[] }>;
+type Tree = Val<"app/Tree", { value: number; children: Tree[] }>;
 // TS2456 Type alias 'Tree' circularly references itself.
 ```
 
@@ -56,11 +56,11 @@ Pick<T, string>` が true になるため、`Record<string, Money>` が `{ [x: s
 
 |                     | main     | この変更              |
 | ------------------- | -------- | --------------------- |
-| `vp test`           | 515      | 528（うち再帰 12 件） |
-| core instantiations | 5,750    | 5,460                 |
+| `vp test`           | 515      | 529（うち再帰 13 件） |
+| core instantiations | 5,750    | 5,733                 |
 | trait               | 13,753   | 13,784                |
-| enum                | 70,873   | 32,091                |
-| `index.d.mts`       | 56.10 kB | 58.35 kB              |
+| enum                | 70,873   | 32,238                |
+| `index.d.mts`       | 56.10 kB | 58.82 kB              |
 | bundle              | 852 B    | 852 B                 |
 
 **enum が半分以下になった。**Enum は Variant ごとに `Val` を通すので、値の形から検査が消えたぶんが
