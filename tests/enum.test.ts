@@ -336,6 +336,15 @@ describe("a broken declaration", () => {
     // @ts-expect-error the tag cannot take the name of a shared field
     Enum.sealer<SharedClash>();
   });
+
+  test("a variant takes no companion of its own, and neither does the union", () => {
+    // @ts-expect-error a variant is built by its enum's companion
+    Val.sealer<VariantOf<Shape, "Circle">>();
+    // @ts-expect-error same, for a companion
+    Val.companion<VariantOf<Shape, "Circle">>();
+    // @ts-expect-error same, for the union
+    Val.sealer<Shape>();
+  });
 });
 
 describe("a seal of its own", () => {

@@ -1,3 +1,6 @@
+// Type-only, so the entry point constrains against an experimental type and nothing crosses at
+// run time. The phantom stays in enum.ts, beside the declaration that carries it.
+import type { AnyEnum } from "./enum.ts";
 import type {
   AnyTrait,
   FinalsOf,
@@ -1014,6 +1017,17 @@ const build = <V extends AnyVal>(
   return target;
 };
 
+/**
+ * Rejects a variant and the union it belongs to. An enum's companion holds one frame per variant,
+ * and a second companion beside it bypasses the enum's seal and the tag it writes.
+ *
+ * Self-referential, so the message arrives at the type argument rather than at the call (notes
+ * §11.2).
+ */
+type NotEnum<V> = [V] extends [AnyEnum]
+  ? Invalid<"a variant is built by its enum's companion">
+  : unknown;
+
 export const Val = {
   /**
    * The default seal, with the type named explicitly: brand the payload and copy it. A called
@@ -1040,13 +1054,13 @@ export const Val = {
    *
    * `V` is given as a type argument; the members are inferred by `.impl()`.
    */
-  sealer: <V extends AnyVal>(): Sealer<V> => build<V>({}, true) as Sealer<V>,
+  sealer: <V extends AnyVal & NotEnum<V>>(): Sealer<V> => build<V>({}, true) as Sealer<V>,
   /**
    * Bundles a type's members without a constructor.
    *
    * Constructors get their own steps rather than sitting in `.impl`, which fixes every
    * function's first parameter to the Val. A constructor does not fit that shape.
    */
-  companion: <V extends AnyVal>(): CompanionBuilder<V> =>
+  companion: <V extends AnyVal & NotEnum<V>>(): CompanionBuilder<V> =>
     build<V>({}, false) as CompanionBuilder<V>,
 } as const;
