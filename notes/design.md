@@ -15,10 +15,11 @@ import { Val } from "valof";
 
 - **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠
 - **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
-- **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由
+- **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由、3.7 自己参照 `Rec`
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが既定で引数をコピーする理由と、明示的な `.nocopy`。型でも lint でも塞げないこと（線形型が無い）、所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
   - **4.2** タプルを保つ。optional 要素と `Required<T>`、rest 要素の限界
+  - **4.3** `Rec` を開く。キーで見る判定、optional キーの `undefined`、配列判定を `keyof` に変えた理由
 - **§5 等価性** 親から子のカスタム equals は呼べない。正規形で構築する原則と、`implEquals` の spec の設計
 - **§6 スマートコンストラクタと更新**
   - **6.1** コンストラクタは出自で決まる / **6.2** `patch`、patch の `undefined`、深さを問わない patch、merge できるのは既にあるノードだけ / **6.3** Result 非依存 / **6.4** `update` を削除する
@@ -29,10 +30,10 @@ import { Val } from "valof";
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
-- **§11 型エラーをどこで表面化させるか** パラメータ位置（A）とブランド位置（B）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
+- **§11 型エラーをどこで表面化させるか** パラメータ位置（A）と判定位置（B、`Verdict`）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、自己参照でない `Rec`（§14.26、未実装）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下
@@ -436,6 +437,57 @@ type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : 
 
 sum 型は `Val` ではなく `Enum` に分ける（§9）。
 
+### 3.7 自己参照: `Rec`
+
+`Tree` が `Tree` を持つ型を書ける。宣言の中だけに現れるマーカーを挟む。
+
+```ts
+export type Tree = Val<"app/Tree", { value: number; children: readonly Rec<Tree>[] }>;
+export type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
+```
+
+**実行時のコードは 1 行も変わらない。**構造共有が作るのは DAG であって循環ではない（§4.1）。子は親より
+先に存在するので、木も連結リストも変異なしには循環を作れない。`copy` も `equals` もネストした Val で
+止まる。壁は型エイリアスの解決順だけで、interface への参照は解決を要求しないので、`Rec` がそこを切る。
+
+`DeepReadonly` が `Rec<V>` を `V` に開くので（§4.3）、**`Rec` が見えるのは宣言の 1 行だけ**である。値にも
+seed にも `patch` にも残らない。
+
+```ts
+const leaf = Tree({ value: 1, children: [] });
+const root = Tree({ value: 2, children: [leaf, leaf] });
+root.children[0]; // Tree
+```
+
+Enum の Variant も同じに書ける。`Enum<"Tree", { Leaf: …; Branch: { kids: readonly Rec<Tree>[] } }>`
+が宣言・構築・`match` まで通る。
+
+`Rec` だけでは足りなかった。`Checked` と `Brand` はエイリアスを解決する時点で payload を自分の像と
+比較するので、解決中の型が要る。検査を private フィールドの型へ移した（§11.2）。
+
+| 形                                    | 結果   |
+| ------------------------------------- | ------ |
+| `DeepReadonly<T> & Phantom<K, T>`     | 通る   |
+| `DeepReadonly<Validate<T>> & Phantom` | 通る   |
+| `DeepReadonly<Checked<T>> & Phantom`  | TS2456 |
+| `DeepReadonly<Checked<T>> & Brand`    | TS2456 |
+
+#### 型引数は無制約
+
+`Rec<V extends AnyVal>` は制約検査が `V` の解決を強制して振り出しに戻る。よって `Rec<number>` は素通りして
+`number` に開き、`Rec<Other>`（自己参照でない `Rec`）も `Other` に開く。どちらも型では塞げないので
+valof-lint の担当（§14.26）。
+
+#### 却下した形
+
+- **`interface Tree extends Val<"app/Tree", TreeShape> {}`** → TS2310。基底の members を得るのに自分が
+  要る。interface 経由で循環を切る定石はここでは効かない
+- **既存の `Self` を使い回す** → できない。遅延は**マーカーが型引数で名前を運んでいること**に乗っている。
+  `Self` は型引数を持たないので、`Val` が自分の定義の中で自己参照を組み立てることになり、循環するのは
+  `Tree` ではなく `Val` の定義そのものになる。再帰型を書かないユーザーも巻き添えになる
+- **ブランド文字列で再帰する**（`Rec<"app/Tree">` + グローバルなレジストリへの宣言マージ）→ 未検証。
+  `Rec<Tree>` が動いた時点で不要。ユーザーに `declare module` を書かせる時点で高い
+
 ---
 
 ## 4. DeepReadonly
@@ -754,6 +806,60 @@ Val<"InTuple", { t: readonly [string, () => void] }>
 同じ形の payload を配列とタプルで測ると、200 型 × 3 段で Types +69 / Instantiations +147（0.06%）。同一のタプル型は 1 度しかインスタンス化されないので、効くのは**異なるタプル型の数**である。タプルを含まない payload への影響は +0.01% で、実行時は無変更。
 
 型としては破壊的変更で、0.3.0 に入れる。`readonly [A, B]` の payload を持つ型は、これまで `ReadonlyArray<A | B>` として通っていた代入が通らなくなる。
+
+### 4.3 `Rec` を開く
+
+`DeepReadonly` が `Rec<V>` を `V` に開く。§3.7 のマーカーが値から消えるのはここ 1 箇所である。
+
+```ts
+export type DeepReadonly<T> =
+  IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T>;
+```
+
+#### 判定はキーで、代入互換性では見ない
+
+`[T] extends [Rec<unknown>]` は `Rec<Tree>` の型引数を読む。それは `Rec` が遅らせている解決そのもので、
+`Val.sealer<Tree>()` の位置で TS2615 になる。キーで見れば型引数に触らない。
+
+```ts
+type IsRec<T> = string extends keyof T ? false : keyof Rec<unknown> extends keyof T ? true : false;
+```
+
+index signature は全てのキーに答えるので先に外す。外さないと `Record<string, Money>` が `Rec` と判定され、
+検証されないまま素通りする。
+
+#### optional キーの `undefined` を落としてから潜る
+
+optional キーの型は `{ at: Rec<Tree> } | undefined` の形で届く。union のままだと walk が 1 段手前で
+止まり、中の `Rec` が開かない。値が `undefined` を持つことは無い（キーは有るか無いかで、required に
+`undefined` は §3.5 で弾く）ので、潜る前に落とす。
+
+```ts
+readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>>;
+```
+
+#### 配列判定を `keyof` に変えた
+
+`[T] extends [ReadonlyArray<unknown>]` は、payload のキーが配列のメンバー名（`entries`、`values`、
+`at`、`length`）と重なると、そのプロパティの型を読んで比較する。`entries: Record<string, Rec<Dir>>` の
+ように `Rec` が入っていれば、宣言中の型を解決することになって TS2456 で落ちる。**プロパティ名が
+`kids` なら通り、`entries` なら落ちる**という形で出た。
+
+数値キーを持つ payload は配列だけなので、`keyof` で足りる。
+
+```ts
+number extends keyof T
+  ? number extends Extract<T, readonly unknown[]>["length"]
+    ? ReadonlyArray<DeepReadonly<T[number]>>
+    : { readonly [I in keyof T]: DeepReadonly<T[I]> }
+```
+
+構造比較が減るぶん安い。core の instantiations は 5,750 → 5,460、trait は 13,753 → 13,784、enum は
+70,873 → 32,091。**再帰を入れて型コストは下がった。**enum が半分以下なのは、Variant ごとに `Val` を
+通すので、値の形から検査が消えた（§11.2）ぶんが Variant の数だけ効くため。
+
+`Validate` の同じ分岐はそのままにした。そちらは verdict の中（§11.2）にしか無く、エイリアス解決中には
+読まれない。
 
 ---
 
@@ -1835,6 +1941,7 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
       独立した規則 `unnecessary-alias`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
+- [ ] valof-lint の規則 `foreign-rec`（§14.26）。自己参照でない `Rec` を報告する。型では塞げない（§3.7）
 - [x] ~~**`Enum`（sum 型）を実装する。**~~ → 実装した。`src/enum.ts`、`valof/experimental` から Trait の
       隣に出す。実行時は proxy 1 つと Variant ごとの枠（`Val.sealer` を借りる）。bundle-size は
       `Val` + `Enum` で 1.10 kB gzip、予算は `Val` の 1.25 kB + 384 B。実装中に分かったことは §15.2
@@ -2016,9 +2123,35 @@ Argument of type '{ tag: (x) => string; }' is not assignable to
 
 戻り型に置くのは A ではない。失敗するのはコンパニオンを代入した行で、呼び出しから離れており、別の話に見える（`Takes` の JSDoc）。
 
-### 11.2 B: ブランド位置
+### 11.2 B: 判定位置
 
-印をファントムキーに入れ、別の場所の制約に読ませる。`V extends AnyVal` と `Tr extends AnyTrait` がその制約である。
+印を private フィールドの型に入れ、別の場所の制約に読ませる。`V extends AnyVal` と `Tr extends AnyTrait`
+がその制約である。
+
+```ts
+declare class Verdict<X> {
+  private readonly __valof_internal_verdict: X;
+}
+
+export type AnyVal = Phantom<string, unknown> & Verdict<true>;
+```
+
+**ブランドと同じキーには置けない。**かつては `Brand<K, T, Tr>` が条件型で、`Phantom<K, T>` を返すか
+`__valof_internal_phantom_brand` に `Invalid` を入れるかを選んでいた。交差型の構成要素が条件型だと、
+エイリアスを解決する時点で評価される。payload を自分の像と比較するには payload のプロパティが要るので、
+自己参照する型（§3.7）がそこで TS2456 になる。private フィールドの型はエイリアス解決では読まれないので、
+判定をそちらへ移した。
+
+メッセージはキー名が付くぶん読める。
+
+```
+Type 'Bad' does not satisfy the constraint 'Phantom<string, unknown> & Verdict<true>'.
+  Type '{ f: Invalid<"functions are not allowed"> }' is not assignable to type 'true'.
+```
+
+値の形からも検査が消えた。`Val` は `DeepReadonly<Grounded<T>>` で、不正な payload の形は素のままになる。
+`Grounded` はブランドの付かない payload（`null`、`undefined`）だけを空オブジェクトに倒す。倒さないと
+`null & Phantom` が `never` になり、**`never` は全てのゲートを通る**。
 
 ```
 Type 'Wiring' does not satisfy the constraint 'AnyTrait'.
@@ -4050,6 +4183,23 @@ type Wrap<T> = T; // 見ない
 `type Local = ImportedUser` の隣に companion を書く形は、型がローカル宣言なので §14.22 からは見えなかった。
 この規則が 2 つ目の名前のほうを報告するので、経路としては塞がった。fixture `companion/` がその形で、
 出る finding は `unnecessary-alias` 1 件である。
+
+### 14.26 規則: 自己参照でない `Rec`、2026-09-19。未実装
+
+`Rec<X>` の `X` が、その `Rec` を含む宣言自身の型名でなければ報告する。`Rec<number>` は `number` に、
+`Rec<Other>` は `Other` に開くので、**どちらも型エラーにならず、書いた人の意図とだけ食い違う**。型では
+塞げない理由は §3.7。
+
+```ts
+type Tree = Val<"app/Tree", { children: readonly Rec<Tree>[] }>; // ✓
+type Bad = Val<"app/Bad", { at: Rec<number>; other: Rec<Tree> }>; // 2 件
+```
+
+判断は構文だけで付く。`Val<…>` の第 2 型引数の中に現れる `Rec<X>` を拾い、`X` が裸の参照でかつ宣言の
+名前と一致するかを見る。resolver は要らない（§14.12 と同じ設計）。
+
+宣言の外に書かれた `Rec`（関数の引数など）を報告するかは未決。`Rec` は宣言専用のマーカーなので報告して
+よさそうだが、実例が無い。
 
 ### 15.1 `Trait`
 

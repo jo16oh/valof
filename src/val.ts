@@ -26,7 +26,36 @@ declare class Phantom<K extends string, T> {
   protected readonly __valof_internal_phantom_types: readonly [K, T];
 }
 
-export type AnyVal = Phantom<string, unknown>;
+/**
+ * The payload's verdict, read at every gate through {@link AnyVal}. A private field is not read
+ * while a type alias resolves, which is what lets a Val reference itself: see {@link Rec}.
+ */
+export declare class Verdict<X> {
+  private readonly __valof_internal_verdict: X;
+}
+
+export type AnyVal = Phantom<string, unknown> & Verdict<true>;
+
+/**
+ * A deferred reference to a Val, so a type can reference itself. It is erased from the value and
+ * from the payload a constructor takes, so it appears in the declaration alone.
+ *
+ * ```ts
+ * type Tree = Val<"app/Tree", { value: number; children: readonly Rec<Tree>[] }>;
+ *
+ * const leaf = Tree({ value: 1, children: [] });
+ * const root = Tree({ value: 2, children: [leaf] });
+ * root.children[0]; // Tree
+ * ```
+ *
+ * Write it around the type being declared and nothing else. `Rec<number>` erases to `number`, and
+ * `Rec<Other>` to `Other`: neither is a type error, so nothing reports either one. The type
+ * parameter is unconstrained because checking a constraint would resolve the type that is still
+ * being declared, which is the circularity this breaks.
+ */
+export interface Rec<V> {
+  readonly __valof_internal_rec: V;
+}
 
 /** Marker surfaced in the type when a declaration violates the allowed-type rules. */
 export type Invalid<Msg extends string> = { readonly __valError: Msg };
@@ -38,13 +67,23 @@ type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
 }[keyof T];
 
-type Validate<T, Root extends boolean = true> = [T] extends [AnyVal]
-  ? T
-  : Root extends true
-    ? null extends T
-      ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-      : ValidateValue<T>
-    : ValidateValue<T>;
+/**
+ * Read by key, never by assignability: comparing `Rec<Tree>` against `Rec<unknown>` reads the
+ * type argument, and that is the resolution `Rec` exists to defer. An index signature matches
+ * every key, so it is excluded first.
+ */
+type IsRec<T> = string extends keyof T ? false : keyof Rec<unknown> extends keyof T ? true : false;
+
+type Validate<T, Root extends boolean = true> =
+  IsRec<T> extends true
+    ? T
+    : [T] extends [AnyVal]
+      ? T
+      : Root extends true
+        ? null extends T
+          ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+          : ValidateValue<T>
+        : ValidateValue<T>;
 
 type ValidateValue<T> = [T] extends [Primitive]
   ? T
@@ -66,44 +105,66 @@ type ValidateValue<T> = [T] extends [Primitive]
           ? Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
           : [Exclude<keyof T, string>] extends [never]
             ? {
-                [K in keyof T]: K extends OptionalKeys<T>
-                  ? Validate<Exclude<T[K], undefined>, false> | undefined
-                  : undefined extends T[K]
-                    ? Invalid<"required property cannot be undefined; use null or make it optional">
-                    : Validate<T[K], false>;
+                // An index signature answers `Record<never, never> extends Pick<T, K>`, so
+                // `OptionalKeys` counts it as optional. Its entries are not optional: reading one
+                // is unchecked, and widening it with `undefined` breaks `Object.values`.
+                [K in keyof T]: string extends K
+                  ? Validate<T[K], false>
+                  : K extends OptionalKeys<T>
+                    ? Validate<Exclude<T[K], undefined>, false> | undefined
+                    : undefined extends T[K]
+                      ? Invalid<"required property cannot be undefined; use null or make it optional">
+                      : Validate<T[K], false>;
               }
             : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
         : Invalid<"not a plain value">;
 
+/** A {@link Rec} opens to the Val it references. */
+export type DeepReadonly<T> =
+  IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T>;
+
 /** Recursion stops at a nested Val: it is already deep-readonly. */
-export type DeepReadonly<T> = [T] extends [AnyVal]
+type DeepReadonlyValue<T> = [T] extends [AnyVal]
   ? T
   : [T] extends [Primitive]
     ? T
-    : [T] extends [ReadonlyArray<infer E>]
-      ? number extends T["length"]
-        ? ReadonlyArray<DeepReadonly<E>>
+    : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
+      // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
+      // still being declared. An array is the only payload with a numeric key.
+      number extends keyof T
+      ? number extends Extract<T, readonly unknown[]>["length"]
+        ? ReadonlyArray<DeepReadonly<T[number]>>
         : { readonly [I in keyof T]: DeepReadonly<T[I]> }
       : [T] extends [object]
-        ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
+        ? {
+            // An optional key carries `undefined` in its type, and a union stops the walk one
+            // level short: a `Rec` inside it would never open. The value never holds the
+            // `undefined` either way, since an optional key is absent or set.
+            readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>>;
+          }
         : T;
 
 /** The payload, or the annotated version of it when it breaks the allowed-type rules. */
 export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
 
 /**
- * The conditional lives here, not {@link Val}. An alias whose top level is a conditional loses
- * its name once it resolves, so `User` would print as the expanded intersection in every hover.
- * An alias over an intersection keeps the name.
+ * `true` for a payload the rules allow that holds what the declared traits require, and the reason
+ * otherwise. Every gate takes an {@link AnyVal}, which carries `Verdict<true>`, so a broken
+ * declaration fails where the type is used.
+ *
+ * The check lives in a private field's type. That position is not read while a type alias
+ * resolves, which is what lets a payload reference the Val it belongs to: comparing the payload
+ * against its validated form reads its properties, and that is the circularity {@link Rec} cannot
+ * break on its own.
  *
  * `T extends Validate<T>` is the natural spelling. On a type alias that is TS2313 "circular
  * constraint", hence the conditional.
  */
-type Brand<K extends string, T, Tr extends AnyTrait> = [T] extends [Validate<T>]
+type Verdicted<T, Tr extends AnyTrait> = [T] extends [Validate<T>]
   ? Fits<T, Tr> extends true
-    ? Phantom<K, T>
-    : { readonly __valof_internal_phantom_brand: Invalid<Extract<Fits<T, Tr>, string>> }
-  : { readonly __valof_internal_phantom_brand: Validate<T> };
+    ? true
+    : Invalid<Extract<Fits<T, Tr>, string>>
+  : Validate<T>;
 
 /**
  * Whether the payload holds every field the declared traits require, or the sentence saying why
@@ -129,12 +190,20 @@ type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) exten
   : never;
 
 /**
- * A branded value type. A payload that breaks the allowed-type rules is a type error, and so is
- * one that does not hold what a declared trait requires: both land in the brand, which stops the
- * Val satisfying {@link AnyVal}.
+ * The payload, or an empty object where the brand has nothing to attach to. `null & Phantom` is
+ * `never`, and `never` satisfies every gate, so a payload the rules reject here would pass as a
+ * value. The rule that rejected it is in the verdict either way.
  */
-export type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Checked<T>> &
-  Brand<K, T, Tr> &
+type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
+
+/**
+ * A branded value type. A payload that breaks the allowed-type rules is a type error, and so is
+ * one that does not hold what a declared trait requires: both land in the verdict, which stops
+ * the Val satisfying {@link AnyVal}. See {@link Verdicted}.
+ */
+export type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Grounded<T>> &
+  Phantom<K, T> &
+  Verdict<Verdicted<T, Tr>> &
   TraitBrand<Tr>;
 
 /** The Val's brand string. */

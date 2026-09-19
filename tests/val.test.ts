@@ -1,9 +1,9 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import type { AnyVal, Patch, PayloadOf, SeedOf } from "../src/index.ts";
+import type { AnyVal, Patch, PayloadOf, Rec, SeedOf } from "../src/index.ts";
 import { equals, Val } from "../src/index.ts";
 import { Trait, type Final, type Self } from "../src/experimental.ts";
 // `BrandOf` is not published from the entry point.
-import type { BrandOf, CompanionMembers, Wired } from "../src/val.ts";
+import type { BrandOf, CompanionMembers, Verdict, Wired } from "../src/val.ts";
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
@@ -268,25 +268,23 @@ describe("Val", () => {
   });
 
   describe("rejected payloads", () => {
-    // `BrandOf` constrains its argument to `AnyVal`, which an invalid Val fails by design.
-    type BrandOfInvalid<V> = V extends { readonly __valof_internal_phantom_brand: infer B }
-      ? B
-      : never;
+    // The verdict is a private field, so it is read through the class rather than by a key.
+    type VerdictOf<V> = V extends Verdict<infer X> ? X : never;
 
-    test("the rule that rejected a payload is carried in the brand", () => {
+    test("the rule that rejected a payload is carried in the verdict", () => {
       type BadFn = Val<"Bad", { run: () => void }>;
-      expectTypeOf<BrandOfInvalid<BadFn>>().toEqualTypeOf<{
+      expectTypeOf<VerdictOf<BadFn>>().toEqualTypeOf<{
         run: { readonly __valError: "functions are not allowed" };
       }>();
 
       type BadSymbol = Val<"Bad", symbol>;
-      expectTypeOf<BrandOfInvalid<BadSymbol>>().toEqualTypeOf<{
+      expectTypeOf<VerdictOf<BadSymbol>>().toEqualTypeOf<{
         readonly __valError: "not a plain value";
       }>();
     });
 
     test("the rules reach inside a tuple", () => {
-      type Element<V> = BrandOfInvalid<V> extends { at: [infer A, unknown] } ? A : never;
+      type Element<V> = VerdictOf<V> extends { at: [infer A, unknown] } ? A : never;
 
       type BadFn = Val<"Bad", { at: [string, () => void] }>;
       expectTypeOf<Element<BadFn>>().toEqualTypeOf<string>();
@@ -317,7 +315,7 @@ describe("Val", () => {
 
       type Null = Val<"Null", null>;
       type Maybe = Val<"Maybe", string | null>;
-      expectTypeOf<BrandOfInvalid<Null>>().toEqualTypeOf<{
+      expectTypeOf<VerdictOf<Null>>().toEqualTypeOf<{
         readonly __valError: "a top-level payload cannot include null; null cannot carry a Val brand";
       }>();
       expectTypeOf<Null>().not.toExtend<AnyVal>();
@@ -330,7 +328,7 @@ describe("Val", () => {
 
     test("an object union is rejected, however it is spelled", () => {
       type Bad = Val<"Bad", { kind: "a"; a: number } | { kind: "b"; b: string }>;
-      expectTypeOf<BrandOfInvalid<Bad>>().toEqualTypeOf<{
+      expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{
         readonly __valError: "an object payload cannot be a union; patch merges, so it cannot switch variants";
       }>();
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
@@ -342,7 +340,7 @@ describe("Val", () => {
       expectTypeOf<ViaAlias>().not.toExtend<AnyVal>();
 
       type Nested = Val<"Nested", { state: State; name: string }>;
-      expectTypeOf<BrandOfInvalid<Nested>>().toEqualTypeOf<{
+      expectTypeOf<VerdictOf<Nested>>().toEqualTypeOf<{
         state: {
           readonly __valError: "an object payload cannot be a union; patch merges, so it cannot switch variants";
         };
@@ -420,6 +418,130 @@ describe("Val", () => {
       expect(Reflect.ownKeys(user)).toEqual(["id", "name"]);
       expect(JSON.parse(JSON.stringify(user))).toEqual({ id: "a", name: "bob" });
       expect(structuredClone(user)).toEqual({ id: "a", name: "bob" });
+    });
+  });
+
+  describe("recursion", () => {
+    type Tree = Val<"app/Tree", { value: number; children: readonly Rec<Tree>[] }>;
+    const Tree = Val.sealer<Tree>();
+
+    type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
+    const Node = Val.sealer<Node>();
+
+    test("a type can name itself through Rec", () => {
+      const leaf = Tree({ value: 1, children: [] });
+      const root = Tree({ value: 2, children: [leaf, leaf] });
+
+      expectTypeOf<Tree>().toExtend<AnyVal>();
+      expectTypeOf(root.children[0]).toEqualTypeOf<Tree | undefined>();
+      expect(root.children[0]).toBe(leaf);
+      expect(Val.unwrap(root)).toEqual({
+        value: 2,
+        children: [
+          { value: 1, children: [] },
+          { value: 1, children: [] },
+        ],
+      });
+    });
+
+    test("Rec is erased from the seed and from the value", () => {
+      expectTypeOf<SeedOf<Tree>>().toEqualTypeOf<{
+        readonly value: number;
+        readonly children: readonly Tree[];
+      }>();
+      expectTypeOf<SeedOf<Node>>().toEqualTypeOf<{
+        readonly value: number;
+        readonly next?: Node;
+      }>();
+
+      const node = Node({ value: 1, next: Node({ value: 2 }) });
+      expect(Object.keys(node)).toEqual(["value", "next"]);
+    });
+
+    test("an optional Rec opens under the undefined the validator adds", () => {
+      const node = Node({ value: 1 });
+      expectTypeOf(node.next).toEqualTypeOf<Node | undefined>();
+      expect(node.next).toBeUndefined();
+    });
+
+    test("Rec reaches through a record and a nested object", () => {
+      type Dir = Val<"app/Dir", { name: string; entries: Record<string, Rec<Dir>> }>;
+      const Dir = Val.sealer<Dir>();
+      const leaf = Dir({ name: "leaf", entries: {} });
+
+      expectTypeOf<SeedOf<Dir>["entries"]>().toEqualTypeOf<{ readonly [x: string]: Dir }>();
+      expect(Dir({ name: "root", entries: { a: leaf } }).entries["a"]).toBe(leaf);
+
+      type Cell = Val<"app/Cell", { value: number; prev?: { at: Rec<Cell> } }>;
+      const Cell = Val.sealer<Cell>();
+      const head = Cell({ value: 1 });
+      expectTypeOf(Cell({ value: 2, prev: { at: head } }).prev).toEqualTypeOf<
+        { readonly at: Cell } | undefined
+      >();
+    });
+
+    test("a payload key named after an array member still opens its Rec", () => {
+      type Index = Val<"app/Index", { entries: Record<string, Rec<Index>>; name?: string }>;
+      const Index = Val.sealer<Index>();
+      const leaf = Index({ entries: {} });
+
+      expect(Index({ entries: { a: leaf }, name: "root" }).entries["a"]).toBe(leaf);
+    });
+
+    test("the companion's members take the recursive type", () => {
+      const Sum = Val.sealer<Tree>().impl({
+        total(t: Tree): number {
+          return t.value + t.children.reduce((n, c) => n + Sum.total(c), 0);
+        },
+      });
+      const tree = Sum({ value: 1, children: [Sum({ value: 2, children: [] })] });
+
+      expect(Sum.total(tree)).toBe(3);
+      expect(Sum.patch(tree, { value: 10 }).value).toBe(10);
+      expect(equals(tree, Sum({ value: 1, children: [Sum({ value: 2, children: [] })] }))).toBe(
+        true,
+      );
+    });
+
+    test("a child keeps its identity through a patch of the parent", () => {
+      const leaf = Tree({ value: 1, children: [] });
+      const root = Tree({ value: 2, children: [leaf] });
+      expect(Tree.patch(root, { value: 3 }).children[0]).toBe(leaf);
+    });
+
+    test("nocopy adopts a recursive payload", () => {
+      const leaf = Tree({ value: 1, children: [] });
+      const raw = { value: 2, children: [leaf] } as const;
+      const root = Tree.nocopy(raw);
+      expect(root).toBe(raw);
+      expect(Object.isFrozen(raw)).toBe(true);
+    });
+
+    test("a trait a recursive type declares is checked as any other", () => {
+      type Sized = Trait<"app/Sized", { value: number }, { size: (self: Self) => number }>;
+      type Counted = Val<"app/Counted", { value: number; next?: Rec<Counted> }, Sized>;
+      const Counted = Val.sealer<Counted>().implTrait<Sized>({ size: (c) => c.value });
+
+      expectTypeOf<Counted>().toExtend<AnyVal>();
+      expect(Counted.size(Counted({ value: 2 }))).toBe(2);
+
+      type Missing = Val<"app/Missing", { other: string; next?: Rec<Missing> }, Sized>;
+      expectTypeOf<Missing>().not.toExtend<AnyVal>();
+    });
+
+    test("a Rec around anything but the type being declared opens to it", () => {
+      expectTypeOf<SeedOf<Val<"app/Plain", { n: Rec<number> }>>>().toEqualTypeOf<{
+        readonly n: number;
+      }>();
+      type Other = Val<"app/Other", { n: number }>;
+      expectTypeOf<SeedOf<Val<"app/Holder", { at: Rec<Other> }>>>().toEqualTypeOf<{
+        readonly at: Other;
+      }>();
+    });
+
+    test("a payload the rules reject is still rejected inside a recursive type", () => {
+      type Bad = Val<"app/Bad", { run: () => void; next?: Rec<Bad> }>;
+      expectTypeOf<Bad>().not.toExtend<AnyVal>();
     });
   });
 

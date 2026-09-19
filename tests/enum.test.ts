@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import { equals, Val } from "../src/index.ts";
+import { equals, Val, type Rec } from "../src/index.ts";
 import {
   Enum,
   Trait,
@@ -225,6 +225,26 @@ describe("patch", () => {
       Holder.patch(holder, { shape: { r: 3 } });
       expect(Holder.patch(holder, { shape: square }).shape).toEqual({ side: 3, _tag: "Square" });
     });
+  });
+});
+
+describe("recursion", () => {
+  type Tree = Enum<"Tree", { Leaf: { value: number }; Branch: { kids: readonly Rec<Tree>[] } }>;
+  const Tree = Enum.sealer<Tree>().impl({
+    total: (t: Tree): number =>
+      Tree.match(t, {
+        Leaf: (l) => l.value,
+        Branch: (b) => b.kids.reduce((n, kid) => n + Tree.total(kid), 0),
+      }),
+  });
+
+  test("a variant holds the union it belongs to", () => {
+    const leaf = Tree.Leaf({ value: 1 });
+    const branch = Tree.Branch({ kids: [leaf, Tree.Leaf({ value: 2 })] });
+
+    expectTypeOf(branch.kids[0]).toEqualTypeOf<Tree | undefined>();
+    expect(branch.kids[0]).toBe(leaf);
+    expect(Tree.total(Tree.Branch({ kids: [branch, leaf] }))).toBe(4);
   });
 });
 

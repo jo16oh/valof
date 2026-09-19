@@ -12,6 +12,7 @@ export type {
   CompanionBuilder,
   Patch,
   PayloadOf,
+  Rec,
   Sealed,
   Sealer,
   SeedOf,

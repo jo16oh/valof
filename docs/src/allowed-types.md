@@ -27,6 +27,34 @@ post.tags; // readonly string[] all the same
 Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 ```
 
+## A type that references itself
+
+A tree holds trees. Write the self-reference as `Rec<Tree>`, which TypeScript resolves after `Tree`
+itself.
+
+```ts
+import { Val, type Rec } from "valof";
+
+// ---cut---
+type Tree = Val<"Tree", { value: number; children: readonly Rec<Tree>[] }>;
+const Tree = Val.sealer<Tree>();
+
+const leaf = Tree({ value: 1, children: [] });
+const root = Tree({ value: 2, children: [leaf] });
+
+root.children[0]; // Tree
+```
+
+`Rec` is erased: the value holds a `Tree`, the constructor takes a `Tree`, and `patch` and the
+companion's members work as they do for any other type. It exists for the declaration alone.
+
+Write it around the type being declared and nothing else. `Rec<number>` is `number` and `Rec<Other>`
+is `Other`, so a `Rec` anywhere else changes nothing and misleads the next reader.
+
+Without it TypeScript reports `TS2456 Type alias 'Tree' circularly references itself`: resolving
+`Tree` would need `Tree`. A `Rec` is a reference to an interface, and TypeScript resolves that
+later, which breaks the cycle.
+
 Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
 all classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
 TypeScript rejects them, on the first use of the Val rather than on the `type` line.
