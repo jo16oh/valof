@@ -27,11 +27,6 @@ const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
 then adds your constructor to the companion as `seal`. Return through the default seal to brand and
 copy the payload. The companion does not become callable:
 
-`Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
-payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
-reuses the registered create function and seal. Both carry the caller contract described in
-[Immutability](immutability.md#avoiding-a-copy).
-
 ```ts
 // @errors: 2349
 import { Val } from "valof";
@@ -46,6 +41,11 @@ const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> => ok(seal(
 Age(30); // type error: this expression is not callable
 Age.seal(30); // Result<Age>
 ```
+
+`Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
+payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
+reuses the registered create function and seal. Both carry the caller contract described in
+[Immutability](immutability.md#avoiding-a-copy).
 
 Valof provides no `Result` type. [neverthrow](https://github.com/supermacro/neverthrow),
 [better-result](https://better-result.dev) and your own type all work. Valof propagates the seal's
@@ -84,8 +84,8 @@ const User = Val.companion<User>().implSeal((input: object, seal): Result<User> 
 The parameter takes `object` or `Record<string, unknown>`, not `unknown`: a seal takes the payload,
 not a wire format.
 
-The schema runs on every derivation, not just the first parse. Unknown keys are yours to reject. A
-patch is merged as given, so an undeclared key survives unless the seal removes it.
+The schema runs on every derivation, not just the first parse. Reject unknown keys yourself. A patch
+is merged as given, so an undeclared key survives unless the seal removes it.
 
 ## Normalize in the seal
 
@@ -131,8 +131,8 @@ an id or timestamp in `create`, not in `seal`**.
 
 ## Keep generated fields fixed
 
-`create` can generate an id, a `createdAt` or a version counter. `.fixed` keeps `patch` off those
-fields:
+`create` can generate an id, a `createdAt` or a version counter. `.fixed` excludes those fields from
+`patch`:
 
 ```ts
 // @errors: 2353

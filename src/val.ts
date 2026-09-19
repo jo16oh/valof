@@ -1,3 +1,6 @@
+// Type-only, so the entry point constrains against an experimental type and nothing crosses at
+// run time. The phantom stays in enum.ts, beside the declaration that carries it.
+import type { AnyEnum } from "./enum.ts";
 import type {
   AnyTrait,
   FinalsOf,
@@ -231,32 +234,42 @@ type AnyFn = (...args: never[]) => unknown;
 type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown>;
 
 /**
- * Names the library wires onto a companion. A function taking one would shadow it, so both
+ * Names the library reserves on a companion. A function taking one would shadow it, so both
  * entry points reject them: `.impl` through {@link CompanionMembers}, a trait member through
  * `Declarable`.
  *
- * Everything here has a step of its own. A `seal` whose first parameter accepts the Val, common
- * for primitive payloads, would otherwise satisfy the index signature and attach as an ordinary
- * function, leaving `patch` unrouted. `patch` is the library's, not yours: a derivation with
- * different rules deserves its own name, and can seal inside it. Use `.implSeal` /
+ * Everything here has a step of its own. A `seal` whose first parameter accepts the Val, common for
+ * primitive payloads, would otherwise satisfy the index signature and attach as an ordinary
+ * function, leaving `patch` unrouted. The library defines `patch`, and you cannot replace it: a
+ * derivation with different rules deserves its own name, and can seal inside it. Use `.implSeal` /
  * `.implCreate`.
  */
 export type Wired = "patch" | "seal" | "create";
 
-/** The members a companion accepts, each taking its Val first. */
-export type CompanionMembers<V extends AnyVal> = Partial<Record<Wired, never>> & {
+/**
+ * The members a companion accepts, each taking its Val first.
+ *
+ * `V` is unconstrained so an enum's variant, which is a Val behind a second phantom, can name it.
+ */
+export type CompanionMembers<V> = Partial<Record<Wired, never>> & {
   /**
    * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
-   * before the registrations, so a function taking the name would stomp it and leave every boxed
-   * member unbound.
+   * before the registrations, so a function taking the name would overwrite it and leave every
+   * boxed member unbound.
    */
   [key: `__valof_${string}`]: never;
   /**
-   * The steps are the library's, whichever ones it grows. Nothing is shadowed: `.impl` builds a
-   * fresh object, and the chain has ended by then. But `User.implTrait(u)` reads as the step it
-   * is not, so the prefix stays the library's.
+   * The steps belong to the library, whichever ones it adds. Nothing is shadowed: `.impl` builds a
+   * fresh object, and the chain has ended by then. But `User.implTrait(u)` reads as the step it is
+   * not, so the library reserves the prefix.
    */
   [key: `impl${string}`]: never;
+  /**
+   * A companion holding `then` is a thenable. `await` on it, or returning it from an async
+   * function, calls the member with the resolve and reject functions, and the promise never
+   * settles.
+   */
+  then?: never;
   /**
    * One callable member only. This is the contextual type for the Val parameter, and TypeScript
    * takes one from a union only while a single constituent has a call signature. `NonFn` has
@@ -292,8 +305,8 @@ type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = [string] extends [Se
     : G;
 
 /**
- * What `create` must be: any arguments, a payload out. The result is not a value yet. The
- * type's seal closes it, so `create` is not a way past the seal.
+ * What `create` must be: any arguments, a payload out. The result is not a value yet. The type's
+ * seal closes it, so `create` cannot bypass the seal.
  */
 type Minter<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
 
@@ -327,7 +340,7 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
 
 /**
  * `patch` derives by sealing the new payload. With a custom seal it propagates whatever the seal
- * returns. Without one the default seal is the copy, so it hands back the Val.
+ * returns. Without one the default seal is the copy, so it returns the Val.
  */
 type Derive<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 
@@ -354,11 +367,11 @@ type PatchMethod<V extends AnyVal, F, P> = [Patch<Derivable<V, P>>] extends [nev
   ? Record<never, never>
   : {
       /**
-       * Derives by sealing, so it returns whatever the seal returns: there is no hole through
-       * which `patch` bypasses a smart constructor.
+       * Derives by sealing, so it returns whatever the seal returns: `patch` cannot bypass a smart
+       * constructor.
        *
        * A nested object merges, so a patch cannot shrink one. `{ staff: { u1: undefined } }`
-       * drops one entry; handing over a whole smaller object leaves the rest in place. To
+       * drops one entry; passing a whole smaller object leaves the rest in place. To
        * replace it outright, build the whole payload again through the constructor or `seal`.
        * See {@link Patch}.
        */
@@ -395,29 +408,31 @@ export type Sealed<V extends AnyVal, M extends CompanionMembers<V>> = ((value: S
 } & Companion<V, M>;
 
 /**
- * What `.impl` accepts once traits are registered: anything but a name a trait already answers
- * to, its shared members included. Shadowing one of those is what would make `User.greet(u)`
- * and `Greetable.greet(u)` disagree.
+ * What `.impl` accepts once a name is taken: anything but a name a trait already uses, its shared
+ * members included, or one an earlier `.impl` collected. Shadowing a trait's member would make
+ * `User.greet(u)` and `Greetable.greet(u)` disagree.
  *
- * The check rides on the parameter rather than the constraint. In the constraint the inferred
+ * The check is placed on the parameter rather than the constraint. In the constraint the inferred
  * `M & T` stops satisfying {@link CompanionMembers}, and `equals` breaks with it.
  */
 type Grown<Taken, M> = M & {
-  [K in keyof M]: K extends Taken ? "a trait already answers to this name" : unknown;
+  [K in keyof M]: K extends Taken ? "this name is already taken" : unknown;
 };
 
 /**
- * What `implTrait` accepts for `Tr`, or the sentence saying why this type cannot implement it.
+ * What `implTrait` accepts for `Tr`, or the `Invalid` message saying why this type cannot implement
+ * it.
  *
- * The checks ride on a parameter. In the return type they would fail only where the companion is
- * assigned, which is a line away from the call and reads as something else.
+ * The checks are placed on a parameter. In the return type they would fail only where the companion
+ * is assigned, which is a line away from the call and reads as something else.
  *
  * The shape is not among them: a Val that declares a trait it does not hold the fields for is
  * rejected where it is declared, so it never reaches a companion. See {@link Val}.
  *
  * `Tr` infers only through a branch that names it structurally, which the type-argument form's
- * mapped type does not. A call that form takes leaves `Tr` at its constraint, where `NamesOf<Tr>`
- * is `string`: the first branch catches that before the rest read a name that is not there.
+ * mapped type does not. A call written in that form leaves `Tr` at its constraint, where
+ * `NamesOf<Tr>` is `string`: the first branch catches that before the rest read a name that is not
+ * there.
  */
 type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
   string extends NamesOf<Tr>
@@ -450,15 +465,21 @@ type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
- * No `.implSeal` here: a sealer is the default seal, and a second one beside it would be a hole
- * past the first. No `.implCreate` either: beside a callable constructor, a `create` narrows
- * nothing.
+ * No `.implSeal` here: a sealer is the default seal, and a second one beside it would bypass the
+ * first. No `.implCreate` either: beside a callable constructor, a `create` narrows nothing.
  */
 export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<never, never>> = Sealed<
   V,
   T
 > & {
-  /** Collects the members for the type. */
+  /**
+   * Collects the members for the type, in one call, which ends the chain. Call it with no argument
+   * to close the chain with no member.
+   *
+   * A member reaching the companion, for `patch`, for the constructor, for a trait's member or for
+   * a sibling, references it and annotates its return type. Referencing a declaration inside its
+   * own initializer is a circularity, which TypeScript reports as TS7023.
+   */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
@@ -494,10 +515,13 @@ export type CompanionBuilder<
   P = never,
   T extends CompanionMembers<V> = Record<never, never>,
 > = Companion<V, T, N, F, P> & {
-  /** Collects the members for the type. Everything the library wires has its own step. */
+  /**
+   * Collects the members for the type, in one call. Everything the library reserves has its own
+   * step. See {@link Sealer.impl}.
+   */
   impl: {
     (): Companion<V, T, N, F, P>;
-    // A trait's member is registered, so `.impl` may not grow one over it: the type would keep
+    // A trait's member is registered, so `.impl` may not register one over it: the type would keep
     // the trait's signature while `dyn` kept calling what `implTrait` recorded.
     <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
   };
@@ -506,8 +530,8 @@ export type CompanionBuilder<
    * argument, with their first parameter fixed to the Val as everywhere else; a trait that
    * leaves none takes no second argument.
    *
-   * A member the trait declared {@link Final} is not passed here: it arrives as it stands, and
-   * nothing can override it.
+   * A member the trait declared {@link Final} is not passed here: it arrives unchanged, and nothing
+   * can override it.
    */
   implTrait: {
     // No companion to pass when the trait implements nothing of its own: the type argument is
@@ -548,7 +572,7 @@ export type CompanionBuilder<
 
 /**
  * The payload's own keys, which a trait member may not shadow: a box forwards everything but a
- * member to the value, and a frozen field a member covered would break the proxy's invariant.
+ * member to the value, and a frozen field a member shadowed would break the proxy's invariant.
  */
 type PayloadKeys<V extends AnyVal> = PayloadOf<V> extends object ? keyof PayloadOf<V> : never;
 
@@ -617,12 +641,12 @@ export const equals: <V extends AnyVal>(a: V, b: NoInfer<V>) => boolean = functi
 const equalsUnknown = equals as (a: unknown, b: unknown) => boolean;
 
 /**
- * The nodes this module built. Subtrees are immutable, so recognising one lets a derivation
+ * The nodes this module built. Subtrees are immutable, so recognizing one lets a derivation
  * copy only the path down to what changed and share everything below it.
  *
  * Leaves are recorded too. A record costs about 20x a lookup and never earns that back in
  * copying time, but frameworks compare identity: without it every small nested Val gets a new
- * identity on each `patch`, and a memoised component re-renders for a change it never saw.
+ * identity on each `patch`, and a memoized component re-renders for a change it never saw.
  *
  * Missing a node costs a copy, never correctness, so the set can be lost across a
  * `structuredClone` or a JSON round trip with nothing to repair.
@@ -639,7 +663,7 @@ const unsnapshotable = Symbol("unsnapshotable seal input");
 type SealSnapshot = Primitive | undefined | object | typeof unsnapshotable;
 
 /**
- * Takes a plain, inert view of what a custom seal can observe. This is deliberately best-effort:
+ * Returns a plain, inert view of what a custom seal can observe. This is deliberately best-effort:
  * wider seal inputs may be class instances, cyclic, or backed by traps that throw. Those inputs
  * still go to the custom seal, with this development check skipped.
  *
@@ -698,8 +722,8 @@ const changedDuringSeal = (): never => {
  * copying runs a payload's getters, which is someone else's code and can seal or unwrap.
  *
  * Values are frozen in development only. Breaking `readonly` takes a cast, and with nodes shared
- * that write lands in every value holding the node. Freezing measured at 25-30% and buys nothing
- * at run time, so production skips it.
+ * that write lands in every value holding the node. Freezing measured at 25-30% of the copy's cost
+ * and buys nothing at run time, so production skips it.
  */
 const deepCopy = (owning: boolean) => {
   const copy = <T>(value: T): T => {
@@ -749,7 +773,7 @@ const deepCopy = (owning: boolean) => {
  *
  * Recorded here rather than in `seal` because this is where the nodes are. A seal sees only the
  * root, so a list of 200 Vals would get a new array on every derive, at 10x the cost and with a
- * new identity for anything memoised on it.
+ * new identity for anything memoized on it.
  */
 const own = deepCopy(true);
 
@@ -814,7 +838,7 @@ const detach = deepCopy(false);
  * `length` are read-only, so `impl({ name })` would throw. Both are configurable, so defining
  * works. The library's own keys never collide and are assigned.
  */
-const define = <T extends object>(target: T, key: string, value: unknown): T => {
+export const define = <T extends object>(target: T, key: string, value: unknown): T => {
   Object.defineProperty(target, key, {
     value,
     writable: true,
@@ -831,10 +855,10 @@ type Ctors = {
 };
 
 /**
- * Merges a patch onto a value node, and hands the node itself back when nothing changed.
+ * Merges a patch onto a value node, and returns the node itself when nothing changed.
  *
  * Nodes are shared and never mutated, so identical children mean equal subtrees. The walk that
- * applies the patch answers whether anything changed, per level, which is what lets an untouched
+ * applies the patch reports whether anything changed, per level, which is what lets an untouched
  * subtree keep its identity all the way up to the root.
  *
  * An owned node is a value, not a patch, so it replaces rather than merges. That is the runtime
@@ -874,7 +898,7 @@ const patched = (
  * Attaches what the steps registered, plus the user's own members, to `target`.
  *
  * Everything that produces a value goes through `seal`: the registered one, or a copy when the
- * type did not replace it. Nothing copies on the way in. The one deep copy happens in the
+ * type did not replace it. Nothing is copied before that. The one deep copy happens in the
  * default seal that a custom one returns through.
  */
 const attach = (
@@ -911,7 +935,7 @@ const attach = (
   const nocopy = sealedWith(adopt);
   // A derivation that changed nothing returns the value it started from, so a framework comparing
   // by identity sees no update. A custom seal owns the return shape, so the value goes back
-  // through it: the copy inside recognises the node and hands the same one back.
+  // through it: the copy inside recognizes the node and returns the same one.
   const keep: (value: unknown) => unknown = custom ? seal : (value) => value;
 
   if (create) {
@@ -942,7 +966,7 @@ const attach = (
   };
 
   // A trait's members join the type's own, so they grow the same way. The record is
-  // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never reaches for `trait.ts`.
+  // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never imports `trait.ts`.
   target.__valof_traits = traits;
   for (const key of Object.keys(traits)) define(target, key, traits[key]);
   for (const key of Object.keys(fns)) define(target, key, fns[key]);
@@ -953,7 +977,7 @@ const attach = (
 /**
  * One builder state: what the steps registered so far, plus the ones still open.
  *
- * A sealer's target is the default constructor itself, which is what lets its steps hand back
+ * A sealer's target is the default constructor itself, which is what lets its steps return
  * something still callable. `.impl` closes the chain either way.
  */
 const build = <V extends AnyVal>(
@@ -971,6 +995,7 @@ const build = <V extends AnyVal>(
   const target = attach(base(), {}, ctors, traits, callable);
   const step = (next: Ctors): object => build<V>(next, callable, traits);
 
+  // `.impl` takes one call, so what it returns carries no step.
   target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits, callable);
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
   // No companion where the trait implements nothing of its own: the members arrive in its place.
@@ -978,7 +1003,12 @@ const build = <V extends AnyVal>(
   target.implTrait = (
     trait: { __valof_shared?: Record<string, unknown> },
     impl: Record<string, unknown> = {},
-  ) => build<V>(ctors, callable, { ...traits, ...(trait.__valof_shared ?? trait), ...impl });
+  ) =>
+    build<V>(ctors, callable, {
+      ...traits,
+      ...(trait.__valof_shared ?? trait),
+      ...impl,
+    });
   if (callable) return target;
 
   target.implCreate = (create: AnyFn) => step({ ...ctors, create });
@@ -987,10 +1017,21 @@ const build = <V extends AnyVal>(
   return target;
 };
 
+/**
+ * Rejects a variant and the union it belongs to. An enum's companion holds one frame per variant,
+ * and a second companion beside it bypasses the enum's seal and the tag it writes.
+ *
+ * Self-referential, so the message arrives at the type argument rather than at the call (notes
+ * §11.2).
+ */
+type NotEnum<V> = [V] extends [AnyEnum]
+  ? Invalid<"a variant is built by its enum's companion">
+  : unknown;
+
 export const Val = {
   /**
    * The default seal, with the type named explicitly: brand the payload and copy it. A called
-   * `Val.sealer` and the seal handed to a custom one do the same thing; only the type differs.
+   * `Val.sealer` and the seal passed to a custom one do the same thing; only the type differs.
    */
   of: Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
     /**
@@ -1003,8 +1044,8 @@ export const Val = {
    * The other direction: a plain, mutable copy of the payload, for code that does not know
    * about `readonly`.
    *
-   * It copies because the brand is phantom: a Val is its payload at run time, so handing that
-   * object back under a mutable type would put the caller's writes into the value.
+   * It copies because the brand is phantom: a Val is its payload at run time, so returning that
+   * object under a mutable type would put the caller's writes into the value.
    */
   unwrap: detach as <V extends AnyVal>(value: V) => PayloadOf<V>,
   /**
@@ -1013,13 +1054,13 @@ export const Val = {
    *
    * `V` is given as a type argument; the members are inferred by `.impl()`.
    */
-  sealer: <V extends AnyVal>(): Sealer<V> => build<V>({}, true) as Sealer<V>,
+  sealer: <V extends AnyVal & NotEnum<V>>(): Sealer<V> => build<V>({}, true) as Sealer<V>,
   /**
    * Bundles a type's members without a constructor.
    *
    * Constructors get their own steps rather than sitting in `.impl`, which fixes every
    * function's first parameter to the Val. A constructor does not fit that shape.
    */
-  companion: <V extends AnyVal>(): CompanionBuilder<V> =>
+  companion: <V extends AnyVal & NotEnum<V>>(): CompanionBuilder<V> =>
     build<V>({}, false) as CompanionBuilder<V>,
 } as const;

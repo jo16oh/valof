@@ -28,7 +28,7 @@ useEffect(() => showMap(shop.city), [shop.city]); // the patch did not touch `ci
 Solid reads the same with `createSignal`, and takes the comparison directly:
 `createSignal(user, { equals })`.
 
-**Svelte and Vue are deeply reactive by default, so ask for a shallow container.** A deep one hands
+**Svelte and Vue are deeply reactive by default, so ask for a shallow container.** A deep one gives
 your code a proxy in place of the value, and `patch` no longer recognizes the nodes it owns, so it
 copies them again.
 
@@ -59,7 +59,7 @@ type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test.
 [`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
 
-`patch` reaches one entry at a time and `undefined` drops it. Call the constructor to rebuild the
+`patch` sets one entry at a time, and `undefined` removes it. Call the constructor to rebuild the
 whole table.
 
 ```ts

@@ -34,10 +34,10 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
-  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測
+  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
 
@@ -1835,7 +1835,46 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
       独立した規則 `unnecessary-alias`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
-- [ ] `Enum`（sum 型）の API。plain object の union を禁じた（§3.6）分の受け皿で、variant のコンストラクタで作った値を nested Val と同じ patch 境界に置く形を考える
+- [x] ~~**`Enum`（sum 型）を実装する。**~~ → 実装した。`src/enum.ts`、`valof/experimental` から Trait の
+      隣に出す。実行時は proxy 1 つと Variant ごとの枠（`Val.sealer` を借りる）。bundle-size は
+      `Val` + `Enum` で 1.10 kB gzip、予算は `Val` の 1.25 kB + 384 B。実装中に分かったことは §15.2
+      「実装して分かったこと」
+- [x] ~~**`Enum` にカスタム seal が無い。**~~ → 入れた。入口を `Enum.sealer` / `Enum.companion` の 2 つに
+      分け、`implVariant` は Variant の builder を callback で渡す。Enum の seal と Variant の seal は
+      渡して 1 本にし、`impl` で鎖を閉じる。タグは第 3 型引数へ移した。形と却下案は §15.2「Variant ごとの
+      seal と union の `seal`」
+- [x] ~~**valof-lint が `Enum` を知らない。**~~ → 広げた。`brand-mismatch`、`duplicate-brand`、
+      `companion-mismatch`、`split-companion`、`unnecessary-alias`、`unimplemented-trait`、
+      `bypassed-companion` が Enum の構文を読む。`unused-member` は変更なしで、`implVariant` のメンバを
+      `` `${enum}.${variant}` `` のキーで登録し、`Shape.Circle.diameter` と分割代入した
+      `Circle.diameter` の両方をそのキーで数える。`scan` は `sites` を 3 つの起点で 1 本にし、
+      `Bindings.builders` も 1 つの Map にした。**入れないと決めた規則が 3 つある**
+  - **Variant 2 個未満の規則。**型が落とす。`src/enum.ts` の `Fault` が
+    `"an enum needs at least two variants; one is a Val"` を出し、`E extends AnyEnum` が
+    `Enum.sealer` / `Enum.companion` / `match` / `VariantOf` のどこでも落とす。黙るのは companion も
+    使用も書かない宣言だけで、それは害が無い。`tag-mismatch` を落としたのと同じ判断
+  - **Variant に別の companion を立てる規則。**型で弾いた。`Val.sealer` / `Val.companion` の型引数を
+    `V extends AnyVal & NotEnum<V>` にしたので、Variant も union も宣言の行で TS2344 になる。型が落とす
+    ところに規則は要らない。`scan` の側は、型引数がそれ自身型引数を取るサイトを companion サイトとして
+    読まない（`companion-mismatch` が `VariantOf` を型名として報告するのを止める）
+    - 自己参照の制約は関数の型引数では書ける。§3 の「自己参照制約は書けない」は型エイリアスの話
+    - **`val.ts` が `enum.ts` を型だけ import する。**`EnumPhantom` を `val.ts` へ移す案と、最小の印を
+      新設する案は却下した。安定した入口の宣言が experimental を参照するのは 1 行で、Variant に
+      ファントムを増やすより軽い
+    - 代償は、TS が制約を展開してメッセージに出すこと。`Invalid` のキー（`__valError`）が missing と
+      2 行目に出るので、内部の名前が 1 つ見える
+  - **Variant の再束縛を禁じる規則。**`const { Circle } = Shape` と `const Circle = Shape.Circle` は
+    合法。見るのは名前の一致だけなので、`companion-mismatch` の拡張で足りる
+- [x] ~~**§15.4 のコールバック形は val.ts にまだ無い。**~~ → 入れて、2026-09-18 に外した。`.impl` は
+      1 回で閉じ、引数は members のオブジェクトだけ。companion に届くメンバは外側の名前を参照して戻り値を
+      注釈する。probe したら注釈の経路が `self` の届く範囲を覆っていたため。Val / Trait / Enum の 3 つで
+      揃えた。経緯は §15.4「鎖を閉じる」
+- [x] ~~**valof-lint に `detached-impl` を足す。**~~ → 入れた。`impl` / `implSeal` / `implVariant` /
+      `implTrait` / `implEquals` / `implCreate` / `fixed` のうち、鎖が起点にもローカルの builder 束縛にも
+      届かないものを `scan` が候補として記録し、規則は基底が走査対象の companion サイトに解決するときだけ
+      報告する（`Shape.Circle.implSeal` のようにドット付きの基底も、enum companion として）。無関係な
+      `.impl` は何にも解決せず黙る。これで「companion は 1 箇所」が仮定から不変条件になり、
+      `unused-member` と `companion-mismatch` の数え方が今のまま正しい（§15.4）
 - [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
@@ -1861,8 +1900,9 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - [ ] npm の既存ライブラリ調査（`brand` / `value-object` / `newtype`）
 - [ ] **§15.3 `path` の実測。**書き始める前に、`glue` の union ハンドラの推論が通るか。宣言の予算は
       64 kB に上げたので測る対象から外れた（§16）
-- [ ] **§15.2 `Enum`: valof-lint に `tag-mismatch` を足す。**型引数のタグ名と `Enum.companion` の引数が
-      割れる。§14.12 の `brand-mismatch` の隣で判断も実装もほぼ同じ。payload のキーとの衝突検査も要る
+- [x] ~~**§15.2 `Enum`: valof-lint に `tag-mismatch` を足す。**~~ → 要らない。companion の引数の型を
+      タグ名から引くと、忘れても綴りを間違えても余計に渡しても型が落とす。payload のキーとの衝突も
+      ブランド位置で落ちる（§15.2）
 - [ ] **`hash` を出すか。保留、2026-09-10。**実例が出るまで動かさない。見るのは 1 つだけで、**大きい値を
       大量に集合へ入れる実例があるか**。無ければ §8.1 の正規キーで終わり
   - **正規キーが競合。**Val は JSON serializable なので、正規文字列キーで `Set<string>` が値ベースの集合に
@@ -4279,6 +4319,57 @@ Val.companion<Member>().implTrait(unnamed); // 文が変われば、ここが落
 上書きされうるものは companion 経由で呼ぶ。`Final` を付けたものだけが trait の名前空間に出る。
 **trait の名前空間に出るかどうかが、上書きできるかどうかと一致する。**
 
+#### `impl` はコールバック形を取る、引数は final だけ、2026-09-18
+
+**入れる。**trait のメンバが同じ trait の別のメンバを呼ぶ形は普通にある。オブジェクト形のままだと 3 つ
+別々の壁に当たる。
+
+```ts
+const Named = Trait.companion<Named>()
+  .impl({ shout: (s) => `${s.name}!` })
+  .impl({ greet: (s) => Named.shout(s) });
+```
+
+1. **TS7022。**自分の初期化子の中で `Named` を読む。§15.4 と同じ
+2. **注釈を足すと TS2339。**non-final は companion に名前が無い（上の「却下: 上書きできる関数を名前空間に
+   置く」）
+3. **final でも TS2345。**companion が公開する final は `Tr` を受け取るのに、shared メンバが持っているのは
+   `ShapeOf<Tr>` である
+
+コールバックの引数を **その時点で実装済みの final、shape 側で bind したもの** にすると 3 つとも消える。
+
+```ts
+impl: <H extends Shared<Tr, keyof G, H>>(fns: H | ((self: Finals<Tr, G>) => H)) =>
+  TraitBuilder<Tr, G & H>;
+
+type Finals<Tr extends AnyTrait, G> = Unbound<
+  Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>,
+  ShapeOf<Tr>
+>;
+```
+
+**contextual typing は落ちない。**`base.impl((self) => ({ greet: (s) => self.shout(s) }))` で `s` は
+`ShapeOf<Named>` に解決した（TS2322 で読み出し）。`H extends Shared<Tr, keyof G, H>` の自己参照制約も、
+`H | ((self) => H)` の union も影響しない。§15.4 の実測が trait の形でも成り立つ。
+
+**non-final は規則を書かずに消える。**`greet` を実装した後の `Finals` は `Pick<…, never>` で空になる。
+上の却下案（ディスパッチするように見える名前空間）を型が自動で守る。
+
+実行時は `build` が callback に `impls` を渡すだけ。`make` が既に持っているオブジェクトで、遅延も proxy も
+要らず、val.ts の `implTrait` は変えない。コストは production gzip が 946 B → 959 B（**13 B**、`Trait` を
+import した人だけが払う）、trait の instantiation が 13,356 → 13,378。
+
+#### 却下: 引数を実装側 companion にする
+
+Rust の default method が required method を呼ぶ形、つまり trait が open にしたメンバを shared メンバが
+呼ぶ形は入らない。実装側の companion が要る。
+
+**却下。**trait が作る依存の向き（Val が trait を知り、trait は Val を知らない）が逆転する。型でも書けない。
+その種のメンバは trait ではなく Val 側に書く。
+
+**静的な self も違う。**上書きされた実装ではなく trait 自身の実装を呼んでしまう。`implTrait` が non-final の
+上書きを許す以上、それは間違いである。final だけなら上書きされないので、静的に呼んで正しい。
+
 #### 名前の衝突は型で禁じる
 
 仮実装では検査が抜けていて、同じ名前に 3 つの答えが出た（上の却下案の版）。1 種類に畳んだあとも、
@@ -4287,7 +4378,7 @@ companion 側の `.impl` が `implTrait` の登録を踏み潰せる穴は残る
 ```ts
 Val.companion<User>()
   .implTrait(Greetable, { toWire })
-  .impl({ toWire: ... }); // error: a trait already answers to this name
+  .impl({ toWire: ... }); // error: something already answers to this name
 ```
 
 検査は**制約ではなく引数の型**に置く必要がある。制約に入れると `M & T` が `CompanionFns<V>` を満たさなく
@@ -4716,9 +4807,13 @@ dyn(Greetable)(User, u); // trait companion から Tr を回収する phantom �
 ```ts
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
-const Shape = Enum.companion<Shape>();
-const { Circle, Square } = Shape;
+const Shape = Enum.sealer<Shape>();
+Shape.Circle({ r: 2 });
 ```
+
+**prefix を保つ。**`const { Circle } = Shape` は合法だが、`Circle({ r: 2 })` だけを読む人は出自の enum を
+引かないと分からない。改名（`const Round = Shape.Circle`）は `companion-mismatch` が報告する。型も同じで、
+`type Circle = VariantOf<Shape, "Circle">` は勧めず、使う場所に `VariantOf` を書く。
 
 **要点は proxy ではなく宣言の向き。**Variant をレコード 1 つに宣言して union を導出する。手書きの union に
 proxy を足す形だと、**Variant 追加時に 2 箇所直す**問題がそのまま残る。proxy は文字列の二重管理を消す補助。
@@ -4731,10 +4826,10 @@ proxy を足す形だと、**Variant 追加時に 2 箇所直す**問題がそ�
 足すたびに 2 箇所という元の困りごとが形を変えて戻る。valof-lint の `brand-mismatch` は Trait のときと同じく
 綴りの検査を広げるだけで済む。
 
-#### タグのフィールド名は型引数で変えられる
+#### タグのフィールド名は変えられる
 
 ```ts
-type Shape = Enum<"Shape", { Circle: { r: number } }, "kind">; // 既定は "_tag"
+type Shape = Enum<"Shape", Tag<"kind"> & { Circle: { r: number } }>; // 既定は "_tag"
 ```
 
 **タグは実データで、境界を越える。**API のレスポンスが `type` や `kind` を使っていれば、名前は valof が
@@ -4749,8 +4844,8 @@ type Shape = Enum<"Shape", { Circle: { r: number } }, "kind">; // 既定は "_ta
 const Shape = Enum.companion<Shape>("kind"); // 型引数と二重になる
 ```
 
-**ブランド文字列と同じ形の問題なので、同じ答えを使う。**valof-lint に `tag-mismatch` を足す。§14.12 の
-`brand-mismatch` の隣で、判断も実装もほぼ同じ。既定の `_tag` を使う人は引数を書かないので当たらない。
+**ブランド文字列と同じ形の問題に見えるが、こちらは型で落ちる。**下の「タグ名は Variant のレコードで
+受ける」を参照。lint の規則は要らない。
 
 **payload のキーと衝突する。**companion の予約名と同じ検査が payload にも要る。
 
@@ -4790,6 +4885,587 @@ Shape.match(shape, { Circle: (c) => c.r * 2, Square: (s) => s.side });
 
 **Enum の Variant が Trait を実装する**組み合わせが効く。閉じた集合なら `match` で回るので `dyn` が要らない。
 **Enum が入ると `dyn` の需要が減る**ので、§15.1 の「`dyn` は本当に使われるか」の判定はこれを見てから。
+
+#### 型を確かめた、2026-09-16
+
+**§15.2 の形は型で通る。**TS 7.0.2 / 6.0.3 / 5.9.3 で同じ結果。
+
+**1. Variant の union は Val として通る。**`Validate` の最初の分岐 `[T] extends [AnyVal]` が union にも
+効くので、§3.6 の union 禁止には当たらない。`Val<"Holder", { shape: Shape }>` がそのまま宣言できる。
+
+**2. union から宣言を復元できる。**`TraitPhantom` と同じ private / protected のクラスを 1 つ足し、各
+Variant に交差させる。`Enum.companion<Shape>()` はここから Variant のレコード、共通フィールド、タグ名を
+読む。分配形（`E extends EnumPhantom<infer K, …> ? K : never`）と非分配形（`[E] extends [...]`）の
+両方が通る。全メンバが同じ値を出すので union は畳まれる。
+
+```ts
+declare class EnumPhantom<K, V, S, Tag> {
+  private readonly __valof_internal_phantom_enum: [K, V, S, Tag];
+  protected readonly __valof_internal_phantom_enum_types: [K, V, S, Tag];
+}
+
+type Enum<
+  K extends string,
+  V extends Record<string, object>,
+  S extends object,
+  Tag extends string,
+> = {
+  [N in keyof V]: Val<`${K}.${N & string}`, V[N] & S & { [P in Tag]: N & string }> &
+    EnumPhantom<K, V, S, Tag>;
+}[keyof V];
+```
+
+ブランドは `"Shape.Circle"` に導出される。`K` に `/` が入っても（`"billing/Id"`）壊れない。
+`VariantOf<E, "Circle">` は `Extract<E, Record<Tag, "Circle">>` で引ける。タグが実データなので効く。
+
+**3. `match` はハンドラのオブジェクトを型引数に取る。**
+
+```ts
+match: <H extends Handlers<E, unknown>>(value: E, handlers: Only<E, H>) => ReturnType<H[keyof H]>;
+```
+
+**却下: 戻り値を型引数にする**（`<E, R>(value: E, handlers: Handlers<E, R>) => R`）。`R` が最初の
+ハンドラで確定し、2 つ目以降が型エラーになる。上の形なら戻り値はハンドラの union に推論される。
+
+**知らないキーは `Only` で落とす。**余剰プロパティ検査は効かない。`H` はオブジェクトリテラルから
+推論されるので、リテラルの型が `H` そのものになる。val.ts の `Grown` と同じく検査をパラメータに乗せる
+（§11.1）。キーが足りないほうは制約が落とすので、そのままで効く。
+
+**4. 共通フィールドは通る。**全 Variant の payload に交差させると、union のまま `shape.id` が読める。
+コンストラクタはそのフィールドを要求し、タグは受け取らない。
+
+**型引数は `Enum<K, Variants, Shared, Tag>`。**タグ名を第 3 引数に置いた上の案を変える。共通フィールドの
+ほうが書く機会が多い。既定はそれぞれ `Record<never, never>` と `"_tag"`。
+
+**共通フィールドがあるので `Enum.companion` に `.impl` を足す。**union を第一引数に取るメンバに意味が出る。
+`CompanionMembers` と同じ「単一の関数型」の形で、注釈なしで第一引数が union になる（§6.5）。
+
+**5. 予約名とタグの衝突はブランド位置で落ちる（§11.2）。**Variant 名が `match` / `impl` / `__valof_*`、
+またはタグ名が payload か共通フィールドのキーと衝突したら、union の代わりに
+`{ __valof_internal_phantom_brand: "…" }` を返す。これは `AnyEnum` を満たさないので、companion も
+`match` も同じ 1 つの検査で落ちる。Trait が `Invalid` をブランドに置くのと同じ（§15.1）。
+
+**6. nested な Enum は patch の境界になる。**`Patch` は union に分配され、各メンバが `AnyVal` なので
+`never`。畳んで `never` になり、`PatchValue` は置換を選ぶ。§9 が求めた「Variant を nested Val と同じ
+patch 境界に置く」はこれで満たす。足すものは無い。
+
+**自分の companion を参照すると TS7022。**`.impl` の中で `Shape.match(...)` を呼ぶと止まる。§15.4 そのもの。
+**Enum では最初に書きたい形がこれ**なので、`.impl` を足すなら §15.4 のコールバック形が一緒に要る。
+
+**型コスト。**instantiation は Variant 1 つあたり約 500、宣言と `match` 1 回と構築 1 回で約 4,600
+（Variant 2 個）。Variant 12 個で約 9,600。線形で、`trait` の予算 15,000 と同じ桁に収まる。
+
+**`VariantOf` はトップレベルを交差にする。**そうしないとホバーとエラーに展開した交差が出る。
+
+```ts
+// Extract で書くと、条件型が解決した時点でエイリアスが落ちる
+type ExtractOf<E, N> = Extract<E, Record<TagOf<E>, N>>;
+// トップレベルが交差なら名前が残る（§2.1 の `Brand` と同じ手）
+type VariantOf<E, N> = Val<`${NameOf<E>}.${N & string}`, …> & EnumPhantom<…>;
+```
+
+同じ型で、表示だけが変わる。`Extract` 版との相互代入、union への代入、`_tag` による絞り込みの
+着地先、コンストラクタの戻り値、いずれも一致する。
+
+```
+// Extract 版
+Property 'nope' does not exist on type '{ readonly r: number; readonly _tag: "Circle"; } &
+Phantom<"Shape.Circle", { r: number; } & { _tag: "Circle"; }> & EnumPhantom<"Shape", { Circle: …
+// 交差版
+Property 'nope' does not exist on type 'VariantOf<Shape, "Circle">'.
+```
+
+`Handlers` はこれで書く。TS 7.0.2 / 6.0.3 / 5.9.3 で同じ表示。**さらに名前を短くしたい人は
+`type Circle = VariantOf<Shape, "Circle">` を書けば、エラーに `Circle` と出る。**docs で 1 行触れる。
+
+#### Variant のメンバは companion 側に置く、2026-09-16
+
+**Variant に `Val.companion` を別に立ててはいけない。**`Shape.Circle` と `Circle` が別のオブジェクトになり、
+持っているメンバが食い違う。名前も衝突する。§14.21 の「companion は型名と同じ」に従うと
+`const Circle` は型 `Circle` の companion だが、`const { Circle } = Shape` は enum のコンストラクタで、
+同じ名前を 2 つの物が要求する。
+
+**そこで `implVariant` を足す。**
+
+```ts
+const Shape = Enum.companion<Shape>()
+  .implVariant((self) => ({
+    Circle: { diameter: (c) => c.r * 2 }, // c は注釈なしで VariantOf<Shape, "Circle">
+  }))
+  .impl((self) => ({
+    area: (s) => self.match(s, { Circle: (c) => self.Circle.diameter(c), … }),
+  }));
+```
+
+書かなかった Variant は省ける。union 側のメンバから `self.Circle.diameter` で辿れる。
+
+**Variant の枠は 1 つのオブジェクト。**コンストラクタであり、自分のメンバを持ち、`patch` を持つ。
+`Sealed` と同じ形で、違いは 2 つ。コンストラクタがタグを受け取らないこと、`patch` がタグに届かないこと
+（`fixed<Tag>` と同じ扱い）。
+
+**`.impl` は Variant 名を予約する。**union 側のメンバが Variant 名を取ると、コンストラクタを覆う。
+`Wired` と同じく `Partial<Record<keyof VariantsOf<E>, never>>` で落とす。
+
+**種は宣言から組む。**`Omit<SeedOf<VariantOf<E, N> & AnyVal>, Tag>` は動かない。`AnyVal` を交差させて
+制約を満たすと、`PayloadOf` が 2 つ目の `Phantom` から `unknown` を拾い、種が `{}` に潰れる。`patch` が
+何でも受けるようになり、テストがなければ気づかない。`DeepReadonly<VariantsOf<E>[N] & SharedOf<E>>` と
+書けば起きない。
+
+**実行時: proxy は Variant ごとに枠を記憶する。理由は割り当てであって同一性ではない。**毎回作っても
+振る舞いは変わらない。分割代入した `Circle` と `Shape.Circle` は別のオブジェクトだが、同じメンバを
+同じ実装で持つ。上の問題は「メンバが食い違う」ことで、同一性そのものではない。記憶するのは、
+アクセスのたびにクロージャ一式を作り直す必要が無いから。`Map` 1 つで済む。
+
+**同一性に頼るコードは 1 つだけ思い当たる。**`useEffect(…, [Shape.Circle])` のように、コンストラクタを
+依存配列に入れる形。薄い根拠なので、これを理由にはしない。
+
+**valof-lint: Variant に別の companion を立てたら報告する。**`Val.companion<VariantOf<…>>` と
+`Val.sealer<VariantOf<…>>` が対象。`bypassed-companion` は `Val.of` で Variant を作る形に広げる。
+
+#### Trait は union の段で実装する、2026-09-16
+
+**できるようにする。**Enum が Trait を実装できないと、Enum だけが `dyn` の集合に入れない。
+`Serializable` を `User` と `Shape`（enum）が実装して 1 つの配列に入る、が Trait の使いどころなので、
+ここが塞がると Enum と Trait が別々の機能のまま並ぶ。
+
+**機構は増えない。**`Enum` が受け取った trait を各 Variant の `Val` の第 3 型引数にそのまま渡す。
+ブランドは交差するので union 全体が trait に代入でき、`Fits`、`dyn`、`Final` は val.ts と trait.ts の
+ものがそのまま効く。確かめた。
+
+```ts
+type Describable = Trait<"Describable", { id: string }, { describe: (self: Self) => string }>;
+
+type Shape = Enum<"Shape", { Circle: { r: number } }, { id: string }, { traits: Describable }>;
+
+const Shape = Enum.companion<Shape>().implTrait(Describable, (self) => ({
+  describe: (s) => self.match(s, { Circle: (c) => `circle ${c.r}` }),
+}));
+
+const boxed = Describable.dyn(Shape, Shape.Circle({ id: "c1", r: 2 }));
+```
+
+**trait が要求するフィールドは共通フィールドで満たす。**足りなければ Variant のブランドに
+`Invalid<"the payload does not hold what the trait requires">` が出る。val.ts の `Fits` がそのまま働く。
+
+**却下: Variant ごとに実装させる。**`Circle` と `Square` で `describe` を分けたいだけなら、union の段の
+実装の中で `match` すればよい。Variant ごとの宣言を型引数に持ち込むと、Variant のレコードが
+payload と trait の 2 段になる。得るものが無い。
+
+**`implTrait` もコールバック形が要る。**enum の trait 実装は `match` で書くのが普通で、そこで自分の
+companion を参照する。§15.4 の範囲に `implTrait` も入る。
+
+#### タグ名は `Tag<…>` を交差して渡す、2026-09-16
+
+**`Enum<"Event", { Click: … }, "kind">` は、`"kind"` が何なのか見て分からない。**位置が意味を持つ引数は、
+読む側が定義を覚えていることを前提にする。
+
+```ts
+type Event = Enum<"Event", Tag<"kind"> & { Click: { x: number }; Key: { code: string } }>;
+```
+
+`Tag<T>` は private メンバを持つクラス 1 つ。private は `keyof` から消えるので、宣言を舐めるマップ型は
+Variant だけを見る。**予約する名前がゼロ。**
+
+**却下: レコードのキーで受ける（`{ tag: "kind"; Click: … }`）。**`tag` という名前の Variant が書けなく
+なる。**Git のオブジェクト種別は `commit` / `tree` / `blob` / `tag`** で、判別子は `type`。カスタムの
+タグ名が要る動機とまったく同じ場所から出てくる例が、そのまま書けない。payload の有無で読み分ければ
+Variant 側は救えるが、「カスタムのタグ名と `tag` という Variant」の同時使用が残る。それが Git。
+
+**却下: 小文字のキーを設定として読む。**Variant 名を大文字始まりに縛ることになる。タグの値はワイヤに
+出るデータで、`{ ok: …, err: … }` をそのまま写したい要求は、カスタムのタグ名が要る要求と同じところから
+来る。両方を認める。
+
+**却下: `unique symbol` のキー。**衝突は完全に消えるが、§2.1 の TS4023 が再現した。
+`export const GitObject = Enum.companion<GitObject>(…)` の宣言出力で
+`has or is using name 'TagMark' from external module … but cannot be named`。symbol を export すると
+消えるが、§2.1 が同じ道を通って捨てている。文字列を 1 つも予約しない `Tag<…>` なら symbol が要らない。
+
+**却下: `"@tag"` のような記号付きのキー。**JSON のキーとして valid なので、原理的な保証にはならない。
+
+**型引数は 3 つ。**名前、宣言、全 Variant が持つもの。それぞれ意味が 1 つで、詰め物が要らない。
+
+```ts
+type A = Enum<"A", { One: { v: number } }>;
+type B = Enum<"B", { Click: { x: number } }, Tag<"kind">>;
+type C = Enum<"C", { One: { v: number } }, { id: string }>;
+type D = Enum<"D", { One: { v: number } }, Describable>;
+type F = Enum<"F", { One: { v: number } }, Tag<"type"> & { id: string } & Describable>;
+```
+
+**共通フィールドと trait も 1 つの枠に交差で書く。**trait は要求するフィールドを自分で持っているので、
+「全 Variant が持つもの」という 1 つの問いに両方が答える。2 つの枠が同じ書き方になる。
+
+**タグも第 3 引数、2026-09-16 に移した。**当初は宣言のレコード（第 2 引数）に交差させていた。タグは全
+Variant が持つフィールドそのもので、同じ問いに答える。`Fault` の「タグが共通フィールドと同名」の検査も
+1 つの引数の中で閉じる。`TagIn<X>` は `[X] extends [TagPhantom<infer T>]` で読み、`keyof (Tag<"kind"> &
+{ id: string })` は `"id"` だけなので共通フィールドと混ざらない。
+
+**`tag-mismatch` は要らなくなった（§9 から外す）。**companion の引数を
+`[TagOf<E>] extends ["_tag"] ? [tag?: "_tag"] : [tag: TagOf<E>]` にすると、型が 3 つとも落とす。
+引数を忘れれば TS2554、綴りが違えば TS2345、要らないのに渡しても TS2345。lint の出番が無い。
+
+#### トップレベルを条件型にすると宣言出力が壊れる、2026-09-16
+
+**`Enum` のトップレベルは indexed access のままにする。**不正な宣言を
+`[Fault<…>] extends [never] ? union : { __valof_internal_phantom_brand: Fault<…> }` で分けると、
+条件型が解決した時点でエイリアス名が落ちる。利用者側の `.d.ts` は `Shape` と書けなくなり、union を
+展開し、val.ts の非公開の `Phantom` に当たる。
+
+```
+error TS4094: Property '__valof_internal_phantom_brand' of exported anonymous class type
+may not be private or protected.
+```
+
+`export const Shape = Enum.companion<Shape>()` の 1 行で出る。`.impl` は要らない。§2.1 が `Brand` を
+`Val` の外に出したのと同じ話で、あちらのコメントが「条件型はエイリアス名を落とす」と書いている。
+
+**直し方は同じ。**Fault は各 Variant のブランド位置に入れる。§11.2 が型引数だけを読む検査をブランド位置に
+置けと言っているので、置き場所としても正しい。
+
+```ts
+type Enum<…> = {
+  [N in keyof V]: Val<
+    [Fault<D, S, Tag>] extends [never] ? `${K}.${N & string}` : Fault<D, S, Tag>,
+    V[N] & S & { [P in Tag]: N & string },
+    Tr
+  > &
+    EnumPhantom<K, V, S, Tr, Tag>;
+}[keyof V];
+```
+
+直すと利用者の宣言は `EnumBuilder<Shape, …>` と出る。`dist` の宣言に対して実測した。
+
+**実装時に確かめること。**`Enum` を足したら、利用者側の `declaration: true` を CI で見る。§2.1 の
+TS4023 は「まさに想定される使い方」で出た種類の事故で、型検査だけでは出ない。
+
+#### 却下: `.impl` をオブジェクト形とコールバック形の 2 つのオーバーロードにする、2026-09-16
+
+コールバック形（§15.4）だけにする。両方置くと、オブジェクト形で書き間違えたときに
+「No overload matches this call」の後にコールバック形に対する食い違いが並ぶ。Variant 名の綴り違いが
+`(self: EnumCompanion<…>) => T` の展開ごと表示される。1 つの署名なら
+`Type '{ Triangle: … }' has no properties in common with type 'VariantImpls<…>'` の 1 行で済む。
+
+#### 却下: Variant を Val のレコードで受け取る、2026-09-16
+
+名前のために、Variant を宣言済みの Val で渡す案。
+
+```ts
+type Dog = Val<"Animal.Dog", { _tag: "Dog"; bark: string }>;
+type Animal = Enum<"Animal", { Dog: Dog; Cat: Cat }>;
+```
+
+**共通フィールドと両立しない。**`Enum` が共通フィールドを各 Variant に交差させた時点で、Variant の型は
+`Dog` ではなくなる。名前が出るのは共通フィールドを使わないときだけで、使うなら全 Variant に手で書き写す
+ことになる。
+
+**「Dog」を 4 回書く。**エイリアス名、ブランド `"Animal.Dog"`、タグ `"Dog"`、レコードのキー。食い違いを
+見る規則が 2 つ増える。Variant を足すのも 2 箇所になり、§15.2 冒頭の「宣言の向き」が崩れる。
+
+**得るものは上の `VariantOf` で足りる。**名前が要る Variant だけ 1 行のエイリアスを書けばよく、
+書かない Variant も `VariantOf<Shape, "Circle">` と表示される。
+
+#### 却下: `match` を自由関数にする、2026-09-16
+
+`match(Shape, shape, handlers)` の形。companion を第 1 引数に取れば、タグ名が実行時に読めるので
+「カスタム名を許すと自由関数では書けない」という上の理由は消える。型も通る。推論も絞り込みも
+exhaustive も、companion に置いた形と同じ。
+
+**それでも却下。ts-pattern と名前が衝突する。**向こうも `match` を export する。§7.4 の「競合するより
+interop」を守るなら、同じファイルで両方 import したときに片方を rename させてはいけない。
+
+**副次: 呼ぶたび `Shape` を 2 回書く。**`Shape.match(shape, …)` と `match(Shape, shape, …)` の差。
+
+**代償は tree-shaking。**companion に置くと、`match` を一度も呼ばない利用者も数十バイト払う。Trait の
+`dyn` が既に同じ性質なので、線は引き直さない。
+
+#### 実装して分かったこと、2026-09-16
+
+**Fault は `EnumPhantom` の第 1 型引数に置いた。**上の「トップレベルを条件型にすると宣言出力が壊れる」が
+書いた `Val<Fault<…>, …>` は書けない。`Val` の第 1 型引数は `K extends string` で、`Invalid<…>` を渡すと
+enum.ts 自身が TS2344 で落ちる。Fault を文字列にすれば通るが、それはただのブランド名で、何も検査しない。
+`EnumPhantom<Invalid<Msg>, …>` なら `AnyEnum` の `K extends string` が落とす。Trait が `Declarable` を
+ブランドマップに置くのと同じ形で、companion も `match` も同じ 1 つの検査で落ちる。
+
+**Variant 1 個の enum は禁じる。**indexed access はキーが 1 つだと Variant そのものを返し、union を作らない
+ので、`Enum` のエイリアスが落ちる。利用者の `.d.ts` は `export const One = Enum.companion<One>()` の 1 行で
+TS4094。Variant 2 個以上なら union が作られてエイリアスが残るので、起きるのは 1 個のときだけ。**Variant 1 個は
+Val なので、メッセージはそちらを言う。**Variant 0 個は `never` になるだけで、作れる値が無いので何も要らない。
+
+**trait は要求するフィールドを共通フィールドとして持ち込む。**第 3 型引数は `Pick<X, keyof X>` で読むので、
+`Enum<"Cmd", …, Describable>` の各 Variant は `id` を自動で持つ。§15.2 の「1 つの問いに両方が答える」は
+この形になり、`{ id: string } & Describable` と書いても二重にならない。「payload が trait の要求に足りない」
+ケースは起きえなくなった。
+
+**`CompanionMembers<V>` の制約を外した。**Variant は `Val<…> & EnumPhantom<…>` で、TS は generic の中で
+それが `AnyVal` を満たすと証明できない。制約を落として `V` を素の型引数にすると、val.ts 側は何も変わらずに
+Variant のメンバもこれで書ける。
+
+**`then` は 3 箇所すべてで型が落とす。**当初は enum の proxy が `then` を `undefined` で返すだけだった。
+proxy は Variant 名を知らないので、返せば companion が thenable になり、`await` も `Promise.resolve` も
+永久に settle しない。だが `then` メンバを持つ companion が壊れるのは Val でも同じで、Val 側は型も実行時も
+何も言わずに同じハングを起こしていた。**enum だけが保証する形をやめる。**`CompanionMembers` の `then?: never`、
+Trait の `Declarable`、`Enum` の `Fault` で、メンバ名としても Variant 名としても落とす。proxy のガードは
+残す。宣言していない companion まで thenable になるのはガードを外したときだけで、それは利用者の書いたものが
+原因ではない。oxlint の `unicorn/no-thenable` が同じことを言うので、テストでは 1 行止める。
+
+**実行時ガードは付けない（2026-09-18）。**型を外した JS の呼び出し側は `.impl({ then })` を書けて、
+companion が settle しない thenable になる。`patch` は同じ経路に `TypeError` を置くが、あれは黙って値を
+壊すから。`then` は `await` がハングするだけで、原因の名前が呼び出し側のコードに残る。踏むのは型を外した側
+だけなので、型レベルの 3 箇所で足りるとした。
+
+**利用者側の宣言出力を CI に入れた。**`scripts/ts-compatibility/` が本のブロックをもう 1 度、
+`declaration: true` で回す。ブロックのトップレベルの `const` / `type` / `function` に `export` を足して
+書き出す。推論した型は `.d.ts` に書き出すときだけ名前を要求するので、型検査だけでは TS4023 も TS4094 も
+出ない。上の Variant 1 個を実際にこれで捕まえた。
+
+**型コスト。**`vp run type-perf` で 37,000 instantiation。Variant 1 個あたり約 800 で、残りは定数。定数の
+正体は TypeScript の variance 測定で、`EnumCompanion` と `VariantOf` という generic なエイリアスの参照を
+2 つ関係づけるたび、マーカー型で実体化して測る。`--generateTrace` で 1 本 100ms 超と出た。
+
+**`in out` / `out` の variance 注釈は書けない。**書けば 37,000 が 14,800 に落ちるが、TS2637
+「Variance annotations are only supported in type aliases for object, function, constructor, and
+mapped types」。どちらのエイリアスもトップレベルが交差で、交差はこの一覧に無い。交差をやめるとエイリアス名が
+落ちる（§2.1）ので、名前と型コストのどちらかになる。**名前を取る。**定数はプログラムごとに 1 回で、
+Variant の数では増えない。予算は 45,000 に置いた。
+
+#### Variant ごとの seal と union の `seal`、2026-09-16 実装
+
+**動機は境界の分岐。**タグ付きのペイロードが来る場所で、利用者は今どの Variant かを自分で見て、対応する
+コンストラクタを呼んでいる。`Shape.seal(payload)` があれば、タグで枠を引くのはライブラリの仕事になる。
+
+**入口を `Val` と同じ 2 つにした。**`Enum.sealer` は全 Variant が callable で、companion 自体が境界の
+入口。`Enum.companion` は全 Variant が `.create` で、`seal` が境界の入口、`implSeal` を持つ。
+
+```ts
+const Shape = Enum.companion<Shape>()
+  .implSeal((p, seal) => (p.id ? seal(p) : new RangeError("id must not be empty")))
+  .implVariant(() => ({
+    Circle: (b) =>
+      b
+        .companion()
+        .implSeal((p, seal) => (p.r > 0 ? seal(p) : new RangeError("r must be positive")))
+        .impl(),
+    Square: (b) => b.companion().impl({ diagonal: (s) => s.side * Math.SQRT2 }),
+  }))
+  .impl();
+
+Shape.Circle.create({ r: 2, id: "c1" }); // VariantOf<Shape, "Circle"> | RangeError
+Shape.seal(fromWire); // タグで分ける。戻りは Variant の union
+```
+
+**`Enum.companion` で `b.sealer()` は許さない。**許すと `Shape.Circle({ r: 2 })` と
+`Shape.Square.create({ … })` が並び、呼び分けが型を読むまで分からない。既定でいい Variant は
+`implVariant` に書かなければいいだけで、書く量は増えない。12 個のうち 1 個に seal を付けたいときに全部が
+`.create` になるのが代償で、`Val` が 1 つの型で払っているのと同じもの。実利用で刺さったら
+`Enum.companion` の側だけ緩められる。緩めるのは後方互換、締めるのは違う。
+
+**Enum の seal は共有フィールド用。**Variant の seal と競合させない。合成を Enum 側ではできない:
+Variant の seal が返すのはユーザーの型で、`val.ts` はその中を見ない（`Constructed`）。`Result` を
+受け取った Enum の seal は成功かどうかを判定できない。
+
+**渡せば 1 本になる。**Variant の seal の第 2 引数を「Enum の seal を通してから既定 seal」にする。実行の
+順は Variant、Enum、既定。合成はユーザーが `seal(p)` の戻りを見て書く。Variant の `.seal` を直接呼んでも
+Enum の検査は通る。書かなかった Variant は、Enum の seal がそのまま seal になる。
+
+**`seal` の入力はタグを含む。**枠を引くのがタグなので、書き換えられる形にはしない。`create` がタグを
+入れた後の payload なので、Enum の seal が見るものと同じ型になる。
+
+**戻り値は Variant に絞る。**Enum の seal の terminal は union を返すので、素の `ReturnType` だと
+`Shape.Circle.create` が `Shape | RangeError` になる。返り値のうち union に代入できる部分だけを
+`VariantOf<E, N>` に置き換える。`Result<Shape, E>` のように union を内側に持つ戻りは素通しで、そこの
+union は union のまま。ライブラリは中を見ない。
+
+**鎖は `impl` で閉じる。**`Val` の `Sealer.impl()` が `Sealed` を返すのと同じ。閉じないと、export した
+companion にステップが載ったままで、`Shape.implSeal((p, seal) => seal(p))` が検査を外した別の Shape を
+その場で作れる。`implSeal` / `implVariant` / `implTrait` だけが builder を返し、union のメンバが無ければ
+`impl()`。代償は `Val` と同じで、`implVariant` の callback から `impl` のメンバを読めないこと。
+
+**予約名に `seal` が増えた。**Variant 名は `Fault`、メンバ名は `CompanionMembers` の `Wired` が落とす。
+実行時の proxy も `seal` を枠にしない。
+
+**却下: `implSeal` を Variant ごとのレコードで受ける。**`implSeal(() => ({ Circle: (p, seal) => … }))`
+の形。Enum の seal を置く場所が無く、`implVariant` とメンバの登録先が 2 つに割れる。builder を 1 つ渡せば
+seal もメンバも同じ callback の中に入る。
+
+**却下: 値の形で枠から鎖を伸ばす。**`Circle: Shape.Circle.implSeal(…)` のように、公開された枠から
+書く案。枠は companion に載ったまま残るので、`Shape.Circle.implSeal(evil)` が定義の外で通る。同じ型に
+2 つ目のコンストラクタが立つ。`Val.sealer<VariantOf<…>>()` の偽造と違い、これは公開 API の補完に並ぶ。
+builder を `implVariant` の callback にだけ渡せば、その経路が型に現れない。`implTrait` が trait の
+companion を引数で受けるのと同じ形。
+
+**却下: enum に seal を 1 本書く。**`(payload) => E` を受ける案。中で必ずタグ分岐が要るので書く量は
+Variant ごとと変わらず、分岐に `match` を使うと自分の companion を参照して TS7022。検査の単位も実際には
+Variant で、`r > 0` は Square に何も言わない。
+
+**Variant ごとの `implTrait` は出さない。**builder が Val の鎖を持つので自然に生えるが、抽象化はすでに
+Enum が 1 つ与えている。Variant 単位で trait を実装して嬉しい場面が挙がらず、Enum レベルの `implTrait` と
+どちらが勝つかという規則も要らなくなる。`implCreate` と `fixed` も出さない。タグのために使い切っている
+（`implCreate` がタグを書き、`fixed` が `patch` から外す）。
+
+**`nocopy` は自然に付いた。**`val.ts` の `attach` が `create` と custom seal の両方に生やしていて、
+Variant の枠が Val の companion なので追加の実装が要らない。
+
+**実装して分かったこと。**
+
+- **TS 5.9 は条件型の union を union で受けると落ちる。**`Exclude<R, E> | (… ? never : VariantOf<…>)`
+  と書くと、trait を実装した enum で TS2590「union type too complex to represent」。入れ子の条件型に
+  すれば同じ型で通る。7.0 / 6.0 では出ない
+- **variance 注釈は書けるところがある。**§15.2「実装して分かったこと」の TS2637 は交差の話で、object 型と
+  mapped 型のエイリアスには `in out` が書ける。`VariantSteps` / `SealerVariantSteps` / `Constructors` に
+  書いて、fixture の instantiation が 120,000 から 72,000 に落ちた。交差への参照も TS7 は落とすので、
+  `VariantFrame` には書けない
+- **seal の戻りは枠に 1 回だけ実体化する。**`create` / `create.nocopy` / `patch` / `seal` / `seal.nocopy`
+  がそれぞれ `Built<…>` を書くと 5 回実体化する。本体を `Framed<E, N, R, …>` に出して `R` で受ける
+- **予算。**type-perf は 45,000 から 90,000 へ。Variant 1 個あたりは約 1,100 で線形、残りは variance
+  測定の定数。bundle-size は `Val` + `Enum` で 1.10 kB から 1.28 kB gzip、予算 1.63 kB は動かさない
+
+#### `implVariant` は Variant ごとの鎖、2026-09-18 実装
+
+**レコード 1 個から鎖に変えた。**ネストが 1 段減り、外側の callback が消える。
+
+```ts
+// 前
+.implVariant(() => ({
+  Circle: (b) => b.sealer().impl({ diameter: (c) => c.r * 2 }),
+  Rect: (b) => b.sealer().impl({ ratio: (r) => r.w / r.h }),
+}))
+// 後
+.implVariant("Circle", (b) => b.impl({ diameter: (c) => c.r * 2 }))
+.implVariant("Rect", (b) => b.impl({ ratio: (r) => r.w / r.h }))
+```
+
+**`self` は第 2 引数。**`(variant, self) => …`。TS7022 を切る効果は外側の callback と同じで、要らなければ
+書かない。`implTrait(trait, fns)` と同じ 2 引数の形に揃う。
+
+**同じ Variant を 2 回名指しすると落ちる。**`Fresh<E, VM> = Exclude<keyof VariantsOf<E>, keyof VM>` を
+名前の制約にする。レコードの重複キーが落ちていたのと同じ検出を、鎖でも保つ。
+
+**型コストは誤差。**fixture の instantiations が 72,457 から 72,649。鎖 3 本ぶんで +192、1 段あたり約 64。
+`types` は 57,459 から 57,414 で微減。gzip は +2 B。予算はどちらも動かさない。
+
+**`b.sealer()` / `b.companion()` は落とした。**Enum の入口が Variant の入口を決めるので、選択肢が無い
+1 キーのオブジェクトだった。`VariantBuilder` / `SealerVariantBuilder` / `VariantBuilds` / `Frames` が
+消え、`b` は `VariantSteps` そのものになる。
+
+**逃げ道は塞がらない。**上の「実利用で刺さったら `Enum.companion` の側だけ緩める」は、steps に
+`b.callable()` を足せば同じことができる。後方互換の追加。
+
+#### Variant の steps を枠にする、2026-09-18 実装
+
+**`.impl()` が省略できないのは enum だけの非対称だった。**`Val.sealer` / `Val.companion` /
+`Enum.sealer` / `Enum.companion` はどれも companion を交差しているので `.impl()` は任意。
+`VariantSteps` だけが `impl` / `implSeal` しか持たず、`ClosedFrame` 制約が `.impl()` を強制していた。
+
+```ts
+// 前: 集めるメンバが無くても .impl() が要る
+.implVariant("Cash", (variant) => variant.implSeal(check).impl())
+// 後: steps が枠そのもの
+.implVariant("Cash", (variant) => variant.implSeal(check))
+```
+
+**「値の形で枠から鎖を伸ばす」の却下とは別物。**あれは公開した `Shape.Circle` から
+`implSeal` が生えることを嫌った案。steps を返した場合も `Shape.Circle.implSeal` は引けるが、これは
+`Val.companion<V>()` を `.impl()` せずに export したときと同じで、閉じるかどうかは書き手が選ぶ。
+ステップが作った枠（`.impl(fns)` / `.implSeal(…)` の戻り）は閉じたまま。
+
+**`in out` は交差をエイリアスの外に出して守る。**`VariantSteps = VariantFrame<…> & { … }` にすると
+TS2637 で注釈を失い、fixture が 72,676 から 92,209（予算 90,000 超）。交差を書くのを
+`implVariant` のパラメータと `implSeal` の戻りに移し、エイリアス本体は object 型のままにすると
+77,558 で収まる。差 +4,882 は枠を 2 回実体化する分。gzip は +8 B。
+
+**実行時は steps を枠で作る。**`built(name, custom, {})` に `impl` / `implSeal` を `define` する。
+`.impl(fns)` はもう一度 `built` を呼ぶので、メンバは誰も持っていない枠に載る。
+
+#### `implSeal` を `implVariant` より先に強制する、2026-09-18 実装
+
+**規約だけでは型と実行時がずれていた。**枠は `implVariant` の時点の `F` で型が付くが、実行時の合成は
+最後の状態の seal を読む。順を逆に書くと、`create` の型は `VariantOf<…>` のまま実行時に `RangeError` を
+返す。
+
+```ts
+const Money = Enum.companion<Money>()
+  .implVariant("Cash", (b) => b.impl())
+  .implSeal((p, seal) => (p.id ? seal(p) : new RangeError("id")))
+  .impl();
+Money.Cash.create({ id: "", yen: 1 }); // 型は VariantOf、実行時は RangeError
+```
+
+`Before<VM, Ok> = [keyof VM] extends [never] ? Ok : "write …"` をパラメータ位置に置いて落とす
+（§11.1 の B ではなく A、鎖の状態を読む検査なので）。instantiations は +27。
+
+**却下: seal の順を Enum、Variant にする。**合成点が Enum 側に移り、Enum の seal の continuation が
+Variant ごとの戻りの union になる。ライブラリは中を見ないので `Result` の成否を判定できない（上の
+「合成を Enum 側ではできない」と同じ）。今の順では Variant の seal の `seal(p)` が Enum の seal の戻りを
+返すので、合成点は既に Variant 側にある。docs でそう言っていなかったのを 1 文足して直した。
+
+#### 却下: タグ名の渡し方を変える、2026-09-18
+
+**現状維持。**`Enum.sealer<Event>("kind")` の文字列が何を指すのか呼び出しだけでは読めない、という指摘から
+4 案を比べた。
+
+```ts
+const Event = Enum.sealer<Event>("kind"); // 現状
+const Event = Enum.sealer<Event>({ tag: "kind" }); // B
+const Event = Enum.withTag("kind").sealer<Event>(); // C
+const Event = Enum.sealer<Event>().withTag("kind"); // D
+```
+
+**C は補完が効かない。**`withTag("` の時点でパラメータの型は `T extends string` で、`E` がまだ無い。他の
+3 案はパラメータの型が `TagOf<E>`、つまりリテラル 1 つなので候補が出る。綴りを手で打たせる案は落ちる。
+
+**C は照合が型引数の制約に乗る。**`E` が後に来るので引数では照合できない。`<E extends TagPhantom<T>>` なら
+地点は正しいが、メッセージが内部のファントムを晒す。
+
+```
+TS2344: Type 'Event' does not satisfy the constraint 'TagPhantom<"kin">'.
+  Types of property 'p' are incompatible.
+```
+
+条件型の戻りで落とす形にすると、宣言の行には何も出ない（`const Event = …` が通り、最初の使用地点まで
+黙る）。入口も `Enum.sealer` と `Enum.withTag(…).sealer` の 2 つに割れる。
+
+**D は「呼ばれなかった」を落とせない。**順序の規則はパラメータに乗せているが（`Before<VM, Ok>`、§11.1）、
+あれは違う場所に書かれた呼び出しにしか届かない。`withTag` だけは、`sealer` が `withTag` しか持たない型を
+返す pending 状態が要る。書き忘れのエラーは最初の使用地点に出る。鎖の状態が `sealer` と `companion` の
+両方で 1 つ増え、type-perf の予算に乗る。`implTag` と綴ると、何も登録しない唯一の `impl*` になる。
+
+**B と現状の差は 2 つだけ。**呼び出しの意味が読めるか、と 8 文字。書き忘れ（TS2554）、補完、鎖の状態、
+lint の chain 根、実装コストはすべて同じ。「`{ key: … }` を TS2353 が正しいキー名で落とす」は B の得点に
+数えない。その間違え方は B が自分で作ったもの。
+
+**型が落とすことは、読めることの保証ではない。**現状を選ぶ理由は「忘れても綴りを間違えても型が落とす」
+（上の `tag-mismatch` は要らない）だったが、指摘はそこではなく読解のほう。文字列の意味は 1 行上の
+`Tag<"kind">` が説明しているので、差は好みの幅に収まる。いったん現状維持、B は残す。
+
+**却下: `Tag("kind")`。**`Tag<…>` を型と値のマージにして、宣言と呼び出しを同じ語で綴る案。Class や Val を
+構築しているように読める。`Tag` 自身のパラメータが `T extends string` なので、補完も怪しい。
+
+#### `.impl` にオブジェクト形を足す、2026-09-18 実装
+
+**両方残す**（§15.4 と同じ判断）。companion を読まないメンバに callback は雑音。
+
+```ts
+Enum.sealer<Shape>().impl({ sides: (s) => (s._tag === "Circle" ? 0 : 4) });
+```
+
+**オーバーロード 2 本ではなく union のパラメータ。**`fns: G | ((self: EnumCompanion<…>) => G)`。2 本に
+割ると、どちらの形の中の間違いも「最後のオーバーロードが合わない」に化ける。callback の中の 1 行の
+誤りが、こう出た。
+
+```
+TS2769: No overload matches this call. The last overload gave the following error.
+  Index signature for type `__valof_${string}` is missing in type '(self: EnumSealed<…>) => …'
+```
+
+union なら TS2345 が原因のメンバまで降りる。
+
+**contextual typing は両方で効く。**第 1 引数は注釈なしで union に決まる（TS2322 で読んだ）。予約名
+（Variant 名、`match`、`patch`、`then`）もオブジェクト形で落ちる。
+
+**コストは誤差。**fixture の instantiations が 77,558 から 77,569、gzip が +15 B。実行時は
+`typeof fns === "function"` の分岐 1 つ。
+
+**`implTrait` はそのまま。**同じ形をしているが、要望は `.impl` だった。足すなら同じ union で足せる。
 
 ---
 
@@ -5012,6 +5688,7 @@ error TS2322: Type 'User' is not assignable to type '0'
 #### 限界: 兄弟メンバは参照できない
 
 同じ `.impl` の中の他のメンバは循環したままなので、そちらを呼ぶメンバには注釈が要る。README に書く。
+`.impl` を繋げれば前段のメンバは `self` に乗る（下の「実装」）。→ 鎖は 2026-09-18 に閉じた。注釈が唯一の道になる（下の「鎖を閉じる」）。
 
 #### 渡す集合は文脈で変わる
 
@@ -5024,6 +5701,139 @@ error TS2322: Type 'User' is not assignable to type '0'
 #### 却下: オブジェクト形を置き換える
 
 **両方残す。**関連関数を要らないメンバに、コールバックの分割代入は雑音。既存のコードも動かない。
+
+#### 実装、2026-09-18
+
+→ この段の鎖は同じ日のうちに閉じた（下の「鎖を閉じる」）。以下は閉じる前の記録。
+
+**`.impl` は閉じない。**呼ぶたびに「`.impl` だけ開いた companion」を返す。前段のメンバが `self` に乗るので、
+兄弟の限界は「同じ呼び出しの中だけ」に縮む。
+
+```ts
+const User = Val.sealer<User>()
+  .impl((self) => ({ renamed: (u, name: string) => self.patch(u, { name }) }))
+  .impl((self) => ({ shouted: (u) => self.renamed(u, u.name.toUpperCase()) }));
+```
+
+**閉じる理由はメンバではなく seal だった**（§15.2）。`implSeal` / `implCreate` / `fixed` / `implTrait` は
+最初の `impl` で閉じたままなので、export した companion から検査を外した 2 つ目のコンストラクタは立たない。
+`impl()`（引数なし）はメンバの段も閉じる。
+
+**Enum も同じ規則にした。**Trait は元からこの形なので、3 つとも「`impl` だけが開いたまま、他の段は最初の
+`impl` で閉じる」で揃う。揃わないのは callback の引数で、Val / Enum は companion、Trait は final だけ
+（§15.1）。
+
+**重複の検査は `Grown` を流用。**trait のメンバに同名を生やす検査が、前段のメンバにもそのまま効く。
+メッセージは「a trait already answers to this name」から「something already answers to this name」へ。
+
+**`.impl` は union ではなくオーバーロード 2 本。**Enum は `G | ((self) => G)` の 1 本で済むが、Val の
+パラメータは `Grown<keyof T, M>`、つまり `M` を含む交差型である。**これを union に入れると TypeScript 5 が
+`M` を推論できず、第 1 引数が全部 implicit any に落ちる**（7 は通る。5.9 で確認）。§15.2 で「2 本に割ると
+エラーが『最後のオーバーロードが合わない』に化ける」として union を選んだが、5.x を切らない以上こちらは
+選べない。以下を 5.9 で 1 つずつ測った。
+
+| パラメータ                                     | TS 5.9 |
+| ---------------------------------------------- | ------ |
+| `Grown<keyof T, M>`（オブジェクトのみ）        | 通る   |
+| `(self) => Grown<keyof T, M>`（callback のみ） | 通る   |
+| `Grown \| ((self) => Grown)`                   | 落ちる |
+| `Grown \| ((self) => M)`                       | 通る   |
+| `M extends CompanionMembers<V> & Grown<…>`     | 落ちる |
+| オーバーロード 2 本                            | 通る   |
+
+`Grown` を callback 側から外す案（4 行目）は、trait のメンバを callback で上書きできてしまう。
+`User.greet` と `Greetable.greet` が食い違う穴なので取らない。
+
+**`implTrait` は union のまま。**`Implement<Tr, G, V>` の `G` は trait 側の引数から決まり、この呼び出しで
+推論する型変数ではないので 5.9 でも通る。
+
+**README とドキュメントのコードブロックは TS 5.9 で検査されている**（`docs/tools/twoslash`、
+`vp run ts-compatibility` は 5.9 / 6.0 / 7.0）。最初に書いた union はここで落ちた。`vp check` は 7 なので
+通っていた。**型を触ったら `vp test` まで走らせる。**
+
+**`implTrait` も callback を取る。**`Implement<…> | ((self) => Implement<…>)`。Enum の `implTrait` と
+同じ動機で、trait の実装は Val の `patch` やコンストラクタを呼ぶ。
+
+**代償 1: 第 1 引数が壊れている呼び出しで、実装の contextual typing が落ちる。**trait companion の側が
+エラーの時だけで、健全な呼び出しは両形とも第 1 引数の注釈が要らない（TS2322 で確認）。テストで 1 箇所
+注釈が増えた。
+
+**代償 2: 予算。**production gzip が 852 B → 930 B（**78 B**、`Val` を import した全員が払う）。
+instantiations は core 5,694 → 6,076、trait 13,378 → 14,366、enum 77,569 → 78,283。trait の予算は
+15,000 → 17,000 に上げた。union を呼び出しごとに 2 回関係付けるぶんで、暴走ではない。
+
+**却下: メンバをカリー化して兄弟を使う。**`impl({ renamed: (self) => (u, name) => … })` の形。`M` を推論
+している最中に `self: Sealed<V, M>` が `M` を要求するので、`M` が制約に落ちて `self.renamed` が
+TS2349。`NoInfer<M>` も `M & ThisType<Sealed<V, M>>` も同じ。`self` から `M` を外した版は逆写像推論が
+通るので、壊しているのは currying ではなく自己参照のほう。**TS では鎖以外に道が無い。**
+
+#### 却下: 下流での `.impl` を型で塞ぐ
+
+`.impl` が開いたままなので、export した companion に別のファイルから生やせる。返るのは新しい
+オブジェクトで、元の companion も既存の値も変わらない（Scala の scoped extension に近く、Rust の
+coherence のような一貫性の問題は起きない）。
+
+**型では塞がない。**塞ぐ形（`impl` を持たない型を返す段をもう 1 つ）は鎖を 2 種類にする。lint の
+`detached-impl` で「`Val.companion` / `Val.sealer` / `Enum.*` / `Trait.companion` から繋がっていない
+`impl` はエラー」にする。scanner は起点から鎖を辿るので、離れた `impl` は**そもそも見えない**。
+規則にすれば「companion は 1 箇所」が仮定から不変条件になり、`unused-member` と `companion-mismatch` の
+数え方が今のまま正しい。valof-lint の Enum 対応と同じ PR。
+
+#### 鎖を閉じる、2026-09-18
+
+**`.impl` は 1 回。**`Val.sealer` / `Val.companion` / `Trait.companion` の 3 つとも、`.impl` が返すのは companion で、次の段は無い。Enum は元からこの形。
+
+**多段が買っていたのは 1 つだけだった。**注釈なしで兄弟を読むこと。同じものは 1 回の呼び出しでも書ける。
+
+```ts
+const User = Val.sealer<User>().impl((self) => ({
+  renamed: (user, name: string): User => self.patch(user, { name }),
+  shouted: (user): User => User.renamed(user, user.name.toUpperCase()), // 通る
+}));
+```
+
+外側の const を名指しすると循環するが、戻り値注釈が切る（上の「動機」と同じ仕掛け）。**注釈は検査される。**`(user): string => self.patch(...)` は TS2322 で落ちるので、`as` とは別物。Rust が再帰関数に求めるものと同じ取引。
+
+**案内は TS7023 の本文がやる。**「`'renamed'` は戻り値注釈が無く、自分の return 式から直接または間接に参照されている」。直し方とメンバ名の両方が入っている。
+
+**Trait は実装の受け手を `ShapeOf<Tr>` から `Tr` に変えた。**§15.1 の「3. final でも TS2345」を根本で消す。companion が公開する final は `Tr` を取るので、実装が shape を持っていると引数で落ちていた。注釈は戻り値にしか効かないので、これは注釈では回避できない。反変なので `implTrait` での Val への再束縛はそのまま通る。
+
+- 呼べるのは **final だけ**。non-final は companion に名前が無い（§15.1 の「却下: 上書きできる関数を名前空間に置く」）ので、コールバックが渡していた集合と同じ
+- コールバック形と `Finals` は削除。1 回で閉じるなら引数は常に空
+- 実装を素のオブジェクトで直接呼べなくなる。テストが 1 箇所、Val 経由に変わった
+
+**却下: 型レベルで案内を出す。**戻り値が `any` のメンバに `Invalid<"annotate this member's return type">` を返す形。メッセージは TS2322 に載るが、`const` が `any` になっているので mapped type が自己参照し、**TS2615 が必ず同時に出る**。エラーが 2 件から 4 件に増え、対処できない 1 件が案内を埋める。正当に `any` を返すメンバも誤検出。
+
+**却下: 案内のための lint 規則。**条件は構文だけで判定できる（companion の名前を参照するメンバに戻り値注釈が無い）が、検出は TS が先にやる。文言のためだけに規則は増やさない。
+
+**計測。**core 6,217 → 5,694、trait 14,511 → 14,291、enum 78,283 → 78,227、`index.d.mts` 36.27 kB → 34.72 kB。**予算は動かさない**（§16 のアラーム方針）。
+
+**`Grown` は残す。**`T` は `implTrait` が登録したメンバを運ぶので、trait のメンバに同名を生やす検査は今のまま要る。`SealedSteps` と `CompanionSteps` は削除し、`src/index.ts` の export からも外した。名前が要るのは `Sealed` と `Companion` になる。
+
+**Enum も同じ日に閉じた。**Val と Trait を閉じた時点で、Enum だけ `EnumSteps` / `EnumSealerSteps` を持って多段のままだった（§15.2「`.impl` にオブジェクト形を足す」の直後に入ったもの）。3 つとも「`.impl` は 1 回」で揃えた。実行時は `state` の `grows` 引数が丸ごと消え、`impl` は `open` だけを見る。enum 78,283 → 77,569 instantiations、production gzip 1.35 kB → 1.34 kB。
+
+**閉じたあとの形。**`implSeal` / `implCreate` / `fixed` / `implTrait` / `implVariant` は最初の `.impl` で閉じる、という既存の規則はそのまま。変わったのは `.impl` 自身がその規則の例外でなくなったこと。
+
+**`self` も同じ日に消した。**鎖を閉じた時点では、コールバック形を Val に残していた。`patch` やコンストラクタを呼ぶメンバが注釈なしで書けるから、という理由だった。**probe したら、注釈の経路がそこも覆っていた。**外側の const を名指しして戻り値を注釈すれば、`patch` / `seal` / `create` / `nocopy` / コンストラクタ呼び出し / 兄弟メンバ / `implTrait` が登録したメンバ、全部通る。Enum も同じで `Shape.match`、`Shape.Circle(...)`、`implVariant` の中から enum の companion、どれも届く。
+
+```ts
+const User = Val.companion<User>()
+  .implTrait<Greetable>({ shout: (u) => u.name.toUpperCase() })
+  .impl({
+    loud: (u): string => User.shout(u) + "!", // implTrait が入れたメンバ
+    renamed: (u, name: string): User => User.patch(u, { name }), // ライブラリが配線したもの
+  });
+```
+
+`self` が買っていたのは注釈の省略だけだった。**`.impl` / `implTrait` / `implVariant` はオブジェクト 1 形式にした。**`implVariant` は第 2 引数が消えた。Enum の `implTrait` はコールバック _しか_ 取らなかったので、これで Val と揃った。
+
+- **払うもの。**companion に触れるメンバは全部注釈が要る。`renamed` 系が最頻出なので、コストはそこに集中する
+- **買うもの。**規則が 1 本になる。「`self` か外側の const か」という選択が消え、docs からその境界（兄弟は `self` に載っていない）の説明が丸ごと落ちた
+- 型は `Takes2` が消え、`Passes` / `Alone` から `Self` 型引数が落ちた。実行時は `collect` と `typeof fns === "function"` の分岐が全部消えた
+
+**計測。**core 5,694 据え置き、trait 14,291 → 13,721、enum 77,569 → 70,844、`index.d.mts` 34.72 kB → 34.03 kB。production gzip は 899 B → 852 B、Trait 込み 978 B → 932 B、Enum 込み 1.34 kB → 1.27 kB。enum が 8.7% 落ちたのは、ユニオン型に載っていた mapped type の推論経路が 1 本に減った分。**予算は動かさない。**
+
+**却下: non-final も trait の名前空間に載せる。**`self` を消したのだから Final 規則も要らないのでは、という筋。probe すると別の理由で立っていた。型では `TraitCompanion` が `Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>` なので non-final は最初から載っていない（TS2339）。実行時に型を剥がして呼ぶと、`shout` を差し替えた `Admin` でも `Admin.greet(...)` は `"Hi, ROOT"` を返す。`"Hi, root!!!"` ではない。**trait の名前空間から読むと、Val の差し替えを黙って飛び越える。**§15.1 の「却下: 上書きできる関数を名前空間に置く」と同じ結論に、実測で戻った。開けるなら型を広げるだけでは足りず、レシーバの companion への late dispatch が要る。別の変更。
 
 ---
 

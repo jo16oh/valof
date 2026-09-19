@@ -16,10 +16,10 @@ let help = false;
 let pending: "project" | "report-on" | undefined;
 
 /**
- * A path goes where it was written, unless it opens with `!`.
+ * A path goes where it was written, unless it starts with `!`.
  *
- * An exclusion belongs to neither list: it comes off the run and the report alike, so a generated
- * tree named once is out of the answer however it was reached.
+ * An exclusion belongs to neither list: it is removed from the run and the report alike, so a
+ * generated tree named once is out of the findings however it was reached.
  */
 const take = (into: string[], path: string): void => {
   if (path.startsWith("!")) excluded.push(path.slice(1));
@@ -69,7 +69,7 @@ if (help) {
       "  valof-lint src src/billing/id.ts",
       "  valof-lint --report-on src/billing/id.ts --project 'src/**/*.ts'",
       "",
-      "A path opening with ! is excluded, from the run as well as the report:",
+      "A path starting with ! is excluded, from the run as well as the report:",
       "  valof-lint 'src/**/*.ts' '!src/generated/**'",
       "",
       "Three rules need a second file to say anything, so a run narrowed to one file",
@@ -150,11 +150,11 @@ try {
   process.exit(2);
 }
 /**
- * Colour, or not, as the stream warrants.
+ * Color, or not, as the stream warrants.
  *
- * `styleText` decides: a TTY gets colour, a pipe does not, and `NO_COLOR` and `FORCE_COLOR` are
- * honoured with the latter winning. Each stream is judged on its own, so piping the findings
- * still leaves the summary on a terminal coloured. No library buys anything over this.
+ * `styleText` decides: a TTY gets color, a pipe does not, and `NO_COLOR` and `FORCE_COLOR` are
+ * honored with the latter winning. Each stream is judged on its own, so piping the findings still
+ * leaves the summary on a terminal colored. No library improves on this.
  */
 const paint =
   (stream: NodeJS.WriteStream) =>

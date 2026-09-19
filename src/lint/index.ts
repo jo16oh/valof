@@ -22,7 +22,7 @@ export type Options = {
    * Source to read instead of the file on disk, keyed by path.
    *
    * For an editor: the buffer the user is typing in has not been saved, and a run over what disk
-   * holds answers about the file as it was. A path here that is not in `files` is scanned all the
+   * holds reports on the file as it was. A path here that is not in `files` is scanned all the
    * same, and the file need not exist.
    *
    */

@@ -64,3 +64,8 @@ test("looks through parentheses around a second name", async () => {
 test("does not end at a same-named declaration from another module", async () => {
   expect(await lint("identity")).toEqual([]);
 });
+
+test("reports a second name for an Enum", async () => {
+  expect(await lint("enum")).toEqual([{ rule: UnnecessaryAlias, at: "enum.ts:4:13" }]);
+  expect(await messages("enum")).toEqual(["Figure is a second name for Shape; use Shape"]);
+});

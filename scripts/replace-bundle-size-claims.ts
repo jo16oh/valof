@@ -18,7 +18,7 @@ function format(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(2)} kB`;
 }
 
-type Measurement = { bundle?: { production?: { gzip?: unknown } } };
+type Measurement = { val?: { production?: { gzip?: unknown } } };
 type Claim = {
   file: string;
   url: URL;
@@ -52,7 +52,7 @@ try {
 }
 
 const measurement = JSON.parse(stdout) as Measurement;
-const gzip = measurement.bundle?.production?.gzip;
+const gzip = measurement.val?.production?.gzip;
 if (typeof gzip !== "number") {
   throw new Error("bundle-size returned no production gzip measurement");
 }

@@ -2,6 +2,9 @@ import { dirname, extname, normalize, resolve } from "node:path";
 
 export type ImportBinding = { name: string; module: string };
 
+/** The entry point a builder chain grows from. */
+export type Root = "Val" | "Trait" | "Enum";
+
 /** A Val or Trait name together with its comparison identity. */
 export type SymbolRef = {
   /** The declaration or export name used in diagnostics. */
@@ -21,17 +24,17 @@ export type Bindings = {
   imported: Map<string, ImportBinding>;
   /** `import * as ns`: local namespace name -> exporting module. */
   namespaces: Map<string, string>;
-  /** Locals holding a builder, so `const seal = Val.sealer<X>(); seal.impl({…})` is seen. */
-  builders: Set<string>;
-  /** Locals holding a `Trait.companion` builder. */
-  traitBuilders: Set<string>;
+  /**
+   * Locals holding a builder, under the root it grew from, so `const seal = Val.sealer<X>();
+   * seal.impl({…})` is seen.
+   */
+  builders: Map<string, Root>;
 };
 
 export const bindings = (): Bindings => ({
   imported: new Map(),
   namespaces: new Map(),
-  builders: new Set(),
-  traitBuilders: new Set(),
+  builders: new Map(),
 });
 
 /** The name the exporting module uses, or the local one when it was not imported. */

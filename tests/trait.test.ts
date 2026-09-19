@@ -56,7 +56,9 @@ describe("Trait", () => {
 
       type Safe = Trait<"Safe", { n: number }, { read: (self: Self) => (() => string) | null }>;
       const Safe = Trait.companion<Safe>().impl({ read: (s) => () => String(s.n) });
-      expect(Safe.__valof_shared.read({ n: 1 })()).toBe("1");
+      type Meter = Val<"Meter", { n: number }, Safe>;
+      const Meter = Val.companion<Meter>().implTrait(Safe);
+      expect(Meter.read(Val.of<Meter>({ n: 1 }))?.()).toBe("1");
     });
   });
 
@@ -88,21 +90,15 @@ describe("Trait", () => {
       Trait.companion<SelfClash>().impl({ size: (s: { size: number }) => s.size });
     });
 
-    test("nor a name the library wires", () => {
-      type Wiring = Trait<"Wiring", { n: number }, { patch: (self: Self) => boolean }>;
-      // @ts-expect-error a trait member cannot take a name the library wires
-      Trait.companion<Wiring>().impl({ patch: () => false });
-    });
-
     test("nor one under `__valof_`", () => {
       type Sneaky = Trait<"Sneaky", { name: string }, { __valof_shared: (self: Self) => string }>;
-      // @ts-expect-error a trait member cannot take a name the library wires
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Sneaky>().impl({});
     });
 
     test("nor one under `impl`, which the steps have", () => {
       type Stepping = Trait<"Stepping", { name: string }, { implTrait: (self: Self) => string }>;
-      // @ts-expect-error a trait member cannot take a name the library wires
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Stepping>().impl({});
     });
 
@@ -110,6 +106,12 @@ describe("Trait", () => {
       type Boxed = Trait<"Boxed", { name: string }, { dyn: Final<(self: Self) => string> }>;
       // @ts-expect-error a trait member cannot take the name the trait itself uses
       Trait.companion<Boxed>().impl({});
+    });
+
+    test("nor `then`, which would make the companion a thenable", () => {
+      type Awaited = Trait<"Awaited", { name: string }, { then: (self: Self) => string }>;
+      // @ts-expect-error a member named `then` would make the companion a thenable
+      Trait.companion<Awaited>().impl({});
     });
 
     // The tests above name one wired member each. This one fails if `Wired` grows a name
@@ -132,9 +134,10 @@ describe("Trait", () => {
         { name: string },
         { defaults: (self: Self) => string; finals: Final<(self: Self) => string> }
       >;
-      const Held = Trait.companion<Held>()
-        .impl({ defaults: (h) => h.name })
-        .impl({ finals: (h) => h.name.toUpperCase() });
+      const Held = Trait.companion<Held>().impl({
+        defaults: (h) => h.name,
+        finals: (h) => h.name.toUpperCase(),
+      });
       type Note = Val<"Note", { name: string }, Held>;
       const Note = Val.companion<Note>().implTrait(Held);
       const n = Val.of<Note>({ name: "n" });
@@ -153,10 +156,6 @@ describe("Trait", () => {
         "ALICE",
         "ALICE",
       ]);
-    });
-
-    test("a box binds it like any other member", () => {
-      expect(Greetable.dyn(Admin, admin).shout()).toBe("ROOT");
     });
   });
 
@@ -264,13 +263,13 @@ describe("building", () => {
     test("a broken declaration is caught at every gate", () => {
       type Wiring = Trait<"Wiring", { id: string }, { patch: (self: Self) => boolean }>;
       expectTypeOf<BrandsOf<Wiring>>().toEqualTypeOf<{
-        patch: { readonly __valError: "a trait member cannot take a name the library wires" };
+        patch: { readonly __valError: "a trait member cannot take a name the library reserves" };
       }>();
       expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
       // Naming `Wiring` is the error, so each directive is the assertion. The type resolves to
       // `any` from there, and an `expectTypeOf` on these lines would sit under the directive,
       // which swallows it whichever way the claim is written.
-      // @ts-expect-error a trait member cannot take a name the library wires
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Wiring>();
       // @ts-expect-error same, at a Val that declares it
       const cell = null as unknown as Val<"Cell", { id: string }, Wiring>;
@@ -300,26 +299,23 @@ describe("building", () => {
       });
     });
 
-    test("takes a default and a final in either call", () => {
-      const split = Trait.companion<Greetable>()
-        .impl({ greet: (g) => `Hi, ${g.name}` })
-        .impl({ shout: (g) => g.name.toUpperCase() });
-      expect(split.shout(user)).toBe("ALICE");
+    test("one call closes the chain", () => {
+      const closed = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
+      expectTypeOf(closed).not.toHaveProperty("impl");
+      expect((closed as { impl?: unknown }).impl).toBeUndefined();
     });
 
-    test("does not mutate the step before it", () => {
-      const before = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
-      const after = before.impl({ shout: (g) => g.name.toUpperCase() });
+    test("a member calling a final names the companion and annotates its return", () => {
+      const Loud = Trait.companion<Greetable>().impl({
+        shout: (g): string => g.name.toUpperCase(),
+        greet: (g): string => `Hi, ${Loud.shout(g)}`,
+      });
 
-      expect(Object.keys(before.__valof_shared)).toEqual(["greet"]);
-      expect(Object.keys(after.__valof_shared)).toEqual(["greet", "shout"]);
-    });
-
-    test("but not the same member twice", () => {
-      Trait.companion<Greetable>()
-        .impl({ greet: (g) => g.name })
-        // @ts-expect-error the trait already implements this member
-        .impl({ greet: (g: { name: string }) => g.name });
+      type Plain = Val<"Plain", { name: string }, Greetable>;
+      const Plain = Val.companion<Plain>().implTrait(Loud, {
+        toWire: (p, sep) => `plain${sep}${p.name}`,
+      });
+      expect(Plain.greet(Val.of<Plain>({ name: "alice" }))).toBe("Hi, ALICE");
     });
   });
 });

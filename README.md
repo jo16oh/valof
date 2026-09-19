@@ -43,8 +43,11 @@ types and linting.
 - **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
   their reference identity.
 
-- **Type-aware linting**: Catch convention violations through ESLint, Oxlint or the standalone
-  command.
+- **Rust-like abstractions (experimental)**: `Enum` is a closed set of variants with exhaustive
+  `match`. `Trait` shares behavior across Vals. `dyn` adds dynamic dispatch without classes, holding
+  different types together.
+
+- **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
 
 - **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->852 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
@@ -176,7 +179,7 @@ vp test                 # run the tests
 vp check                # format, lint, type check
 vp pack                 # build
 vp run bundle-size      # measure what a user ships against its budget
-vp run type-perf        # measure the type cost: instantiations and the declarations
+vp run type-perf        # measure the type cost: instantiations and the declaration size
 vp run ts-compatibility # type check the published .d.mts against every TypeScript line
 ```
 

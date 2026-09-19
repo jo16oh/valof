@@ -20,7 +20,16 @@ export const BypassedCompanion: Rule<BypassedCompanion> = {
 };
 
 /** What the companion offers instead, or what it does not. */
-function instead(site: CompanionSite, type: string): string {
+function instead(site: CompanionSite, type: string, variant: string | undefined): string {
+  // An enum's companion holds one frame per variant, and its entry selects one from the tag.
+  if (site.of === "Enum" && variant !== undefined)
+    return site.root === "sealer"
+      ? `bypasses ${type}.${variant}, the constructor for it`
+      : `bypasses ${type}.${variant}.create, which seals the payload`;
+  if (site.of === "Enum")
+    return site.root === "sealer"
+      ? `bypasses ${type}, which selects the variant from the tag`
+      : `bypasses ${type}.seal, which selects the variant from the tag`;
   if (site.root === "sealer") return `bypasses ${type}, the constructor for it`;
   if (site.seals) return `bypasses ${type}.seal, which checks the payload`;
   // A companion with no seal of its own has no other way in: `Val.of` is how such a type is
@@ -47,20 +56,21 @@ function findings(scans: readonly Scan[]): BypassedCompanion[] {
 
   const found: BypassedCompanion[] = [];
   for (const { file, lifts } of scans) {
-    for (const { typeName, typeRef, line, column } of lifts) {
+    for (const { typeName, typeRef, variant, line, column } of lifts) {
       // A lift naming no type is the unnamed-of rule's finding. Which companion it goes around,
       // if any, is not written anywhere here.
       if (typeName === undefined) continue;
       if (!typeRef) continue;
       const site = companions.get(identity(typeRef));
       if (!site) continue;
+      const written = variant === undefined ? typeName : `VariantOf<${typeName}, "${variant}">`;
       found.push({
         kind: "bypassed-companion",
         file,
         line,
         column,
         typeName,
-        message: `Val.of<${typeName}> ${instead(site, site.typeRef.name)}`,
+        message: `Val.of<${written}> ${instead(site, site.typeRef.name, variant)}`,
       });
     }
   }

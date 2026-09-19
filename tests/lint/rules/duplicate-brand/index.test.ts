@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { BrandMismatch, DuplicateBrand, fixtures } from "../../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 test("reports every alias when three claim the same brand", async () => {
   expect(await lint("duplicate")).toEqual([
@@ -61,4 +61,26 @@ test("reports duplicate Trait brands", async () => {
 
 test("keeps Val and Trait brand domains separate", async () => {
   expect(await lint("separate-domains", { skip: [BrandMismatch] })).toEqual([]);
+});
+
+test("reports an enum beside a hand-written Val claiming one of its variant brands", async () => {
+  expect(await lint("variant", { skip: [BrandMismatch] })).toEqual([
+    { rule: DuplicateBrand, at: "variant/circle.ts:3:13" },
+    { rule: DuplicateBrand, at: "variant/shape.ts:3:13" },
+  ]);
+  expect(await messages("variant", { skip: [BrandMismatch] })).toEqual([
+    'Circle claims the brand "Shape.Circle", and so does another type',
+    'Shape derives the brand "Shape.Circle", and so does another type',
+  ]);
+});
+
+test("reports each of two enums of one name once, not once per variant", async () => {
+  expect(await lint("two-enums")).toEqual([
+    { rule: DuplicateBrand, at: "two-enums/first.ts:3:13" },
+    { rule: DuplicateBrand, at: "two-enums/second.ts:3:13" },
+  ]);
+});
+
+test("claims no variant brand where the declaration does not settle the variants", async () => {
+  expect(await lint("unsettled", { skip: [BrandMismatch] })).toEqual([]);
 });

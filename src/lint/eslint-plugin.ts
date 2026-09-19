@@ -41,8 +41,8 @@ const PATIENCE = 60_000;
 /**
  * One rule per kind, so a project sets the severity of each and turns off what it does not want.
  *
- * They share one run all the same: the linter answers about every kind at once, and {@link found}
- * hands the same answer to each rule of the same file. What a rule adds is which findings it
+ * They share one run all the same: the linter reports on every kind at once, and {@link found}
+ * passes the same result to each rule of the same file. What a rule adds is which findings it
  * reports.
  */
 const rule = ({ kind, description }: (typeof RULES)[number]) => ({
@@ -63,7 +63,7 @@ const rule = ({ kind, description }: (typeof RULES)[number]) => ({
             context.report({
               loc: over(text, finding),
               // No kind in the message: the rule the host names is the kind, and every host that
-              // draws a finding draws that with it.
+              // renders a finding renders the rule name with it.
               message: finding.message,
             });
       },
@@ -75,7 +75,7 @@ const rule = ({ kind, description }: (typeof RULES)[number]) => ({
 const WORD = /^[\p{L}\p{N}_$]+/u;
 
 /**
- * What the squiggle covers, from the point the finding names.
+ * What the underline covers, from the point the finding names.
  *
  * A finding carries one position, and a report drawn from one position underlines one character.
  * So the name at that position is measured here: the linter points at `label`, `Val` or an alias,
@@ -105,9 +105,9 @@ const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)])) as R
  * back to back over the same text, and `ask` blocks the thread: nothing runs in between. One
  * entry covers that.
  *
- * It is dropped as soon as the stack empties, and not kept for the next pass, because the key
- * says nothing about the rest of the project: a file saved in another editor tab changes what
- * this file's findings are while its own text stands still.
+ * It is dropped as soon as the stack empties, and not kept for the next pass, because the key says
+ * nothing about the rest of the project: a file saved in another editor tab changes what this
+ * file's findings are while its own text is unchanged.
  */
 let last: { key: string; findings: readonly Finding[] } | undefined;
 function found(file: string, text: string, settings: Context["settings"]): readonly Finding[] {
@@ -156,7 +156,7 @@ const read = (given: string | readonly string[]): string[] => {
   const key = paths.join("\n");
   let found = projects.get(key);
   if (!found) {
-    // A path opening with `!` comes off the project, as it does on the command line. Resolved,
+    // A path starting with `!` is removed from the project, as it is on the command line. Resolved,
     // since the glob that reached a file and the one that excluded it need not be spelled alike.
     const dropped = new Set(
       paths.filter(excludes).flatMap((path) => expand(path.slice(1)).map((file) => resolve(file))),
@@ -225,7 +225,7 @@ if (!isMainThread && parentPort) {
       } catch (error) {
         reply = { failed: explain(error) };
       }
-      // Whatever happened, the thread waiting on this has to hear it.
+      // Whatever happened, the thread waiting on this has to receive it.
       try {
         port.postMessage(reply);
       } catch (error) {

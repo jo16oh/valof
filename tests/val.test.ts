@@ -1137,6 +1137,31 @@ describe("building", () => {
       });
     });
 
+    test("a member reaching `patch` or a sibling names the companion, and annotates", () => {
+      const Loud = Val.sealer<User>().impl({
+        renamed: (u, name: string): User => Loud.patch(u, { name }),
+        shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
+      });
+      const bob = Loud({ id: "a", name: "bob" });
+
+      expect([Loud.renamed(bob, "sue"), Loud.shouted(bob)]).toEqual([
+        { id: "a", name: "sue" },
+        { id: "a", name: "BOB" },
+      ]);
+    });
+
+    test("one call closes the chain", () => {
+      const Closed = Val.sealer<User>().impl({ greet: (u) => u.name });
+      expectTypeOf(Closed).not.toHaveProperty("impl");
+      expect((Closed as { impl?: unknown }).impl).toBeUndefined();
+    });
+
+    test("calling it with nothing closes it with no member", () => {
+      const Closed = Val.sealer<User>().impl();
+      expectTypeOf(Closed).not.toHaveProperty("impl");
+      expect(Closed({ id: "a", name: "bob" })).toEqual({ id: "a", name: "bob" });
+    });
+
     test("`patch` is the library's, not yours", () => {
       Val.companion<User>().impl({
         // @ts-expect-error a derivation with different rules deserves its own name
@@ -1614,6 +1639,13 @@ describe("building", () => {
       expect([Member.greet(member), Admin.greet(admin)]).toEqual(["Hi, alice", "Sir root"]);
     });
 
+    test("an implementation reaching the companion names it and annotates its return", () => {
+      const Wired = Val.sealer<Member>().implTrait(Greetable, {
+        toWire: (m, sep): string => `${Wired.nocopy(m).id}${sep}${m.name}`,
+      });
+      expect(Wired.toWire(Wired({ id: "a", name: "alice" }), ":")).toBe("a:alice");
+    });
+
     test("a member without a default must be implemented", () => {
       // @ts-expect-error `toWire` is missing
       Val.companion<Member>().implTrait(Greetable, {});
@@ -1770,7 +1802,9 @@ describe("building", () => {
         Val.companion<Member>().implTrait(
           // @ts-expect-error this trait's companion has not implemented every member declared Final
           Trait.companion<Greetable>().impl({ greet: (g: { name: string }) => g.name }),
-          { toWire: (m, sep) => `${m.id}${sep}` },
+          // Annotated because the first argument is the error: the implementation loses its
+          // contextual type along with it. A healthy call needs neither annotation.
+          { toWire: (m: Member, sep: string) => `${m.id}${sep}` },
         );
       });
     });
@@ -1862,17 +1896,23 @@ describe("building", () => {
     });
 
     describe("names", () => {
+      // Every message is the parameter type, so passing the literal is what pins the wording.
+      const taken = "this name is already taken";
+
       test("a companion may not grow a function over a member", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
-          // @ts-expect-error a trait already answers to this name
+          // @ts-expect-error this name is already taken
           .impl({ greet: (m) => `yo ${m.name}` });
+        Val.companion<Member>()
+          .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
+          .impl({ greet: taken });
       });
 
       test("nor over a final function", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
-          // @ts-expect-error a trait already answers to this name
+          // @ts-expect-error this name is already taken
           .impl({ shout: (m) => m.name });
       });
 
@@ -1889,6 +1929,14 @@ describe("building", () => {
         Val.companion<Member>().impl({
           // @ts-expect-error the `impl` prefix is the library's
           implTrait: (m: Member) => m.name,
+        });
+      });
+
+      test("nor `then`, which would make the companion a thenable", () => {
+        Val.companion<Member>().impl({
+          // @ts-expect-error `await` on a thenable companion never settles
+          // oxlint-disable-next-line no-thenable -- the rejection is what this test reads
+          then: (m: Member) => m.name,
         });
       });
 

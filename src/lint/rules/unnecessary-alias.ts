@@ -2,27 +2,27 @@ import type { Where } from "../ast.ts";
 import { symbolIdentity, type Scan } from "../scan/index.ts";
 import type { Rule } from "./rule.ts";
 
-/** A type alias which is only another spelling for a Val or Trait. */
+/** A type alias which is only another spelling for a Val, a Trait or an Enum. */
 export type UnnecessaryAlias = Where & {
   kind: "unnecessary-alias";
   file: string;
   alias: string;
-  /** The Val or Trait this alias ends at. */
+  /** The declaration this alias ends at. */
   target: string;
   message: string;
 };
 
 export const UnnecessaryAlias: Rule<UnnecessaryAlias> = {
   kind: "unnecessary-alias",
-  description: "a type alias that is a second name for a Val or Trait",
+  description: "a type alias that is a second name for a Val, a Trait or an Enum",
   run: findings,
 };
 
 function findings(scans: readonly Scan[]): UnnecessaryAlias[] {
   const identity = symbolIdentity(scans);
   const declarations = new Map<string, string>();
-  for (const { aliases, traitAliases } of scans)
-    for (const { alias, ref } of [...aliases, ...traitAliases])
+  for (const { aliases, traitAliases, enumAliases } of scans)
+    for (const { alias, ref } of [...aliases, ...traitAliases, ...enumAliases])
       declarations.set(identity(ref), alias);
   const links = new Map<string, { key: string; name: string }>();
   for (const { reAliases } of scans)

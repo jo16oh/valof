@@ -83,6 +83,7 @@ test("names every rule, under the plugin's own name", () => {
     // The value it makes is well formed; what it went around is the type's own way in.
     "valof/bypassed-companion": "warn",
     "valof/companion-mismatch": "error",
+    "valof/detached-impl": "error",
     "valof/duplicate-brand": "error",
     "valof/incomplete-disable": "error",
     "valof/split-companion": "error",

@@ -1,4 +1,4 @@
-import { child, children, unparenthesized, type Node, type Where } from "../ast.ts";
+import { child, children, keyName, unparenthesized, type Node, type Where } from "../ast.ts";
 import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
 /** A top-level `type X = Val<"brand", payload>`. */
@@ -12,6 +12,15 @@ export type Alias = {
 
 /** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their own rules. */
 export type TraitAlias = { file: string; alias: string; ref: SymbolRef };
+
+/** A top-level `type X = Enum<…>`, whose variants each derive a Val of their own. */
+export type EnumAlias = Alias & {
+  /**
+   * The variant names, or `undefined` where the syntax does not settle them. Every rule reading
+   * them stays silent on `undefined` rather than guessing at a mapped type or an import.
+   */
+  variants: readonly string[] | undefined;
+};
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
 export type DeclaredTrait = Where & {
@@ -76,13 +85,16 @@ export function valAliases(
 ): {
   aliases: Alias[];
   traitAliases: TraitAlias[];
+  enumAliases: EnumAlias[];
   brands: BrandClaim[];
   reAliases: ReAlias[];
 } {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
+  const enumAliases: EnumAlias[] = [];
   const brands: BrandClaim[] = [];
   const reAliases: ReAlias[] = [];
+  const locals = localAliases(program);
 
   for (const statement of children(program, "body")) {
     const node =
@@ -117,24 +129,26 @@ export function valAliases(
       continue;
     }
 
-    const kind =
-      original(bound, named) === "Trait"
-        ? "trait"
-        : original(bound, named) === "Val"
-          ? "val"
-          : undefined;
-    if (kind === "val") {
+    const kind = original(bound, named);
+    const declared = {
+      file,
+      alias: id["name"] as string,
+      ref: symbolRef(file, bound, id["name"] as string),
+    };
+    if (kind === "Val") {
       aliases.push({
-        file,
-        alias: id["name"] as string,
-        ref: symbolRef(file, bound, id["name"] as string),
-        traits: traitNames(children(args, "params")[2], file, bound, program, at),
+        ...declared,
+        traits: traitNames(children(args, "params")[2], file, bound, locals, at),
       });
-    } else if (kind === "trait") {
-      traitAliases.push({
-        file,
-        alias: id["name"] as string,
-        ref: symbolRef(file, bound, id["name"] as string),
+    } else if (kind === "Trait") {
+      traitAliases.push(declared);
+    } else if (kind === "Enum") {
+      enumAliases.push({
+        ...declared,
+        // The same position as a Val's: an enum's third argument carries the traits, the shared
+        // fields and the tag's name, all intersected.
+        traits: traitNames(children(args, "params")[2], file, bound, locals, at),
+        variants: variantNames(children(args, "params")[1], bound, locals),
       });
     }
 
@@ -151,18 +165,11 @@ export function valAliases(
     });
   }
 
-  return { aliases, traitAliases, brands, reAliases };
+  return { aliases, traitAliases, enumAliases, brands, reAliases };
 }
 
-/** Expands the deliberately small, syntax-only trait-list language used by Val declarations. */
-function traitNames(
-  node: Node | undefined,
-  file: string,
-  bound: Bindings,
-  program: Node,
-  at: (offset: number) => Where,
-): DeclaredTrait[] {
-  if (!node) return [];
+/** Every top-level `type X = …` in the file, which the two syntax-only walks below expand. */
+function localAliases(program: Node): Map<string, Node> {
   const aliases = new Map<string, Node>();
   for (const statement of children(program, "body")) {
     const declaration =
@@ -172,6 +179,60 @@ function traitNames(
     const annotation = child(declaration, "typeAnnotation");
     if (id?.type === "Identifier" && annotation) aliases.set(id["name"] as string, annotation);
   }
+  return aliases;
+}
+
+/**
+ * The variants an Enum declaration spells, or `undefined` where the syntax does not settle them.
+ *
+ * An index signature, a mapped type, `Record<never, never>` and an imported alias all give
+ * `undefined`: each of them declares variants this walk cannot name.
+ */
+function variantNames(
+  node: Node | undefined,
+  bound: Bindings,
+  aliases: ReadonlyMap<string, Node>,
+): readonly string[] | undefined {
+  let found: readonly string[] | undefined;
+  const visit = (one: Node, seen: ReadonlySet<string>): boolean => {
+    const inside = unparenthesized(one);
+    if (!inside) return false;
+    if (inside.type === "TSIntersectionType")
+      return children(inside, "types").every((part) => visit(part, seen));
+    if (inside.type === "TSTypeReference") {
+      const name = child(inside, "typeName");
+      const named = name && valName(name, bound.namespaces);
+      if (!named) return false;
+      // The tag's name arrives as a marker, which declares no variant of its own.
+      if (original(bound, named) === "Tag") return true;
+      const alias = aliases.get(named);
+      if (!alias || seen.has(named)) return false;
+      return visit(alias, new Set(seen).add(named));
+    }
+    if (inside.type !== "TSTypeLiteral" || found) return false;
+    const names: string[] = [];
+    for (const member of children(inside, "members")) {
+      if (member.type !== "TSPropertySignature") return false;
+      const key = child(member, "key");
+      const name = key && keyName(key, member["computed"] === true);
+      if (!name) return false;
+      names.push(name);
+    }
+    found = names;
+    return true;
+  };
+  return node && visit(node, new Set()) ? found : undefined;
+}
+
+/** Expands the deliberately small, syntax-only trait-list language used by Val declarations. */
+function traitNames(
+  node: Node | undefined,
+  file: string,
+  bound: Bindings,
+  aliases: ReadonlyMap<string, Node>,
+  at: (offset: number) => Where,
+): DeclaredTrait[] {
+  if (!node) return [];
   const seen = new Set<string>();
   const out = new Map<string, DeclaredTrait>();
   const visit = (one: Node, occurrence = one): void => {
@@ -187,6 +248,8 @@ function traitNames(
     const name = child(one, "typeName");
     const named = name && valName(name, bound.namespaces);
     if (!named) return;
+    // An enum's tag arrives in the same argument, and the marker carrying it names no trait.
+    if (original(bound, named) === "Tag") return;
     const qualifier =
       name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
     const ref = symbolRef(file, bound, named, qualifier);

@@ -17,7 +17,7 @@ type AnyMember = (self: never, ...args: never[]) => unknown;
 declare const FinalMark: unique symbol;
 
 /**
- * Marks a member the trait implements for good: `implTrait` may not replace it, and a trait
+ * Marks a member the trait implements permanently: `implTrait` may not replace it, and a trait
  * carrying one cannot be implemented without its companion.
  *
  * The mark is phantom, so it costs nothing at run time and reads off the declaration:
@@ -59,10 +59,9 @@ declare class TraitPhantom<B> {
 export type AnyTrait = TraitPhantom<Readonly<Record<string, Members>>>;
 
 /**
- * A structural contract shared by several Vals: the fields they hold, plus the members they
- * share. `M` declares every function, and the declaration says which side implements one:
- * {@link Final} keeps a member the trait's, and every other one a Val may replace through
- * `implTrait`.
+ * A structural contract shared by several Vals: the fields they hold, plus the members they share.
+ * `M` declares every function, and the declaration says which side implements one: {@link Final}
+ * reserves a member for the trait, and every other one a Val may replace through `implTrait`.
  *
  * The type is also the value type: a Val declaring the trait is assignable to it.
  *
@@ -71,7 +70,7 @@ export type AnyTrait = TraitPhantom<Readonly<Record<string, Members>>>;
 export type Trait<K extends string, Shape, M extends Members = Record<never, never>> = DeepReadonly<
   Checked<Shape>
 > &
-  // The members ride in the brand map rather than a key of their own, so a Val can carry the
+  // The members live in the brand map rather than a key of their own, so a Val can carry the
   // brand without carrying a phantom key per trait. Several traits compose by intersection.
   //
   // A broken declaration puts the annotated version here instead, the way an invalid payload
@@ -110,11 +109,11 @@ export type TraitBrand<Tr extends AnyTrait> = [Tr] extends [never]
  * The traits a Val declares, or `never` when it declares none.
  *
  * Read through a conditional rather than an index: intersecting a plain Val with {@link AnyTrait}
- * to reach the key would hand back `string`, and every trait would look declared.
+ * to reach the key would return `string`, and every trait would look declared.
  */
 export type TraitsOf<V> = V extends TraitPhantom<infer B> ? keyof B : never;
 
-/** The names a trait answers to: one, or several when traits were intersected. */
+/** The names a trait carries: one, or several when traits were intersected. */
 export type NamesOf<Tr extends AnyTrait> = keyof BrandsOf<Tr>;
 
 /** The members the trait declares. */
@@ -163,27 +162,30 @@ type HasSelfBranch<T> = [T] extends [Self]
           : false;
 
 /**
- * Rejects a member a Val could not carry: one returning `Self`, and one named after something
- * the library wires, `__valof_`, the `impl` step and the trait's own `dyn` included.
+ * Rejects a member a Val could not carry: one returning `Self`, one named `then`, and one named
+ * after something the library reserves, `__valof_`, the `impl` step and the trait's own `dyn`
+ * included.
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
  *
  * Taken over the shape rather than the trait, so {@link Trait} can read it while defining
- * itself. Every check here reads the declaration alone, which is what lets it ride the brand.
+ * itself. Every check here reads the declaration alone, which is what lets it live in the brand.
  */
 type Declarable<Shape, M extends Members> = {
   [K in keyof M]: K extends keyof DeepReadonly<Checked<Shape>>
     ? Invalid<"a trait member cannot take a field's name">
     : K extends "dyn"
       ? Invalid<"a trait member cannot take the name the trait itself uses">
-      : K extends Wired | `__valof_${string}` | `impl${string}`
-        ? Invalid<"a trait member cannot take a name the library wires">
-        : M[K] extends (...args: never[]) => infer R
-          ? HasSelf<R> extends true
-            ? Invalid<"a trait member cannot return Self">
-            : M[K]
-          : M[K];
+      : K extends "then"
+        ? Invalid<"a member named `then` would make the companion a thenable">
+        : K extends Wired | `__valof_${string}` | `impl${string}`
+          ? Invalid<"a trait member cannot take a name the library reserves">
+          : M[K] extends (...args: never[]) => infer R
+            ? HasSelf<R> extends true
+              ? Invalid<"a trait member cannot return Self">
+              : M[K]
+            : M[K];
 };
 
 /**
@@ -213,7 +215,7 @@ export type TraitHost = { readonly __valof_traits: Members };
 /**
  * What `Trait.companion` returns, which its `impl` grows.
  *
- * Only the members declared {@link Final} are named on it. A trait namespace that could call a
+ * Only the members declared {@link Final} are exposed on it. A trait namespace that could call a
  * default would look like it dispatched, and it cannot: every call goes through the Val's
  * companion or a {@link Dyn}, both of which reach the Val's own version. The rest are on the
  * object all the same, since telling them apart at run time would take a mark the type erases.
@@ -232,7 +234,7 @@ export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Unbo
   /**
    * Boxes a value with one Val's implementation. See {@link Dyn}.
    *
-   * The two arguments are tied together: the companion has to answer for the value's own type,
+   * The two arguments are tied together: the companion has to match the value's own type,
    * which is what keeps another Val's companion out. Passing one used to type-check and throw.
    */
   readonly dyn: <W extends Tr>(
@@ -241,14 +243,17 @@ export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Unbo
   ) => Dyn<Tr>;
 };
 
-/** What the trait implements itself: its own members, over the shape. `Taken` is what it already
- * answered, one call of `impl` ago. */
-export type Shared<Tr extends AnyTrait, Taken, G> = {
-  readonly [K in keyof G]: K extends Taken
-    ? "the trait already implements this member"
-    : K extends keyof MembersOf<Tr>
-      ? Unbound<MembersOf<Tr>, ShapeOf<Tr>>[K]
-      : "a trait's own implementation must be one of its members";
+/**
+ * What the trait implements itself: its own members, over the trait.
+ *
+ * The receiver is `Tr` rather than `ShapeOf<Tr>` so that a member can call a {@link Final}
+ * sibling through the companion, which publishes one taking `Tr`. Contravariance keeps the
+ * implementation assignable where `implTrait` binds it to the Val.
+ */
+export type Shared<Tr extends AnyTrait, G> = {
+  readonly [K in keyof G]: K extends keyof MembersOf<Tr>
+    ? Unbound<MembersOf<Tr>, Tr>[K]
+    : "a trait's own implementation must be one of its members";
 };
 
 /**
@@ -264,18 +269,23 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
   Partial<Record<FinalsOf<Tr>, never>>;
 
 /**
- * Collects what a trait carries. The chain ends wherever the trait runs out of members: a
- * builder is a companion already.
+ * Collects what a trait carries. A builder is a companion already, so a trait implementing
+ * nothing takes no step at all.
  *
  * @experimental
  */
 export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitCompanion<Tr, G> & {
   /**
-   * Implements members over the shape alone. Which side of the contract one lands on is the
-   * declaration's to say: a Val may replace an ordinary member through `implTrait`, and may not
-   * replace one declared {@link Final}.
+   * Implements members over the trait. The declaration says which side of the contract implements a
+   * member: a Val may replace an ordinary member through `implTrait`, and may not replace one
+   * declared {@link Final}.
+   *
+   * It takes one call, which ends the chain. A member calling a {@link Final} sibling references
+   * the companion and annotates its return type: referencing it inside its own initializer is a
+   * circularity TypeScript reports as TS7023, and the annotation cuts it. A member a Val may
+   * replace is not on the companion; see {@link TraitCompanion}.
    */
-  impl: <H extends Shared<Tr, keyof G, H>>(fns: H) => TraitBuilder<Tr, G & H>;
+  impl: <H extends Shared<Tr, H>>(fns: H) => TraitCompanion<Tr, G & H>;
 };
 
 type AnyFn = (...args: never[]) => unknown;
@@ -289,7 +299,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
   // trait holds.
   //
-  // A primitive cannot be a proxy's target, so it gets an empty one to stand behind. Nothing is
+  // A primitive cannot be a proxy's target, so an empty object is used as the target. Nothing is
   // lost: a trait a primitive Val can declare has no fields to read.
   dyn: (companion: TraitHost, value: unknown) =>
     new Proxy(value !== null && typeof value === "object" ? value : {}, {
@@ -308,11 +318,9 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
 export const Trait = {
   /** Declares a trait's runtime side: what every Val implementing it shares. */
   companion: <Tr extends AnyTrait>(): TraitBuilder<Tr> => {
-    const build = (impls: Record<string, unknown>): Record<string, unknown> => {
-      const target = make(impls);
-      target["impl"] = (fns: Record<string, unknown>) => build({ ...impls, ...fns });
-      return target;
-    };
-    return build({}) as never;
+    const target = make({});
+    // `impl` takes one call: what it returns is the companion, with no step left on it.
+    target["impl"] = (fns: Record<string, unknown>) => make(fns);
+    return target as never;
   },
 } as const;

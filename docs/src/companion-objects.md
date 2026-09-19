@@ -1,25 +1,7 @@
 # Companion objects
 
-A TypeScript type does not create a value namespace. Its functions are usually standalone:
-
-```ts
-type User = { id: string; name: string; nickname?: string };
-
-function getUserDisplayName(user: User) {
-  return user.nickname ?? user.name;
-}
-
-function formatUserLabel(user: User, separator: string) {
-  return user.id + separator + user.name;
-}
-```
-
-The type name appears in each function name to keep related functions recognizable. Each function
-also repeats the type annotation for its first parameter.
-
-A class provides a namespace for its functions, but also turns each value into a class instance.
-Keeping its instances immutable requires `readonly` on every field and nested property. Its JSON
-shape depends on property enumerability unless you write and maintain a `toJSON` mapping.
+> For the limits of standalone functions and classes, see
+> [TypeScript problems Valof addresses](typescript-problems.md#companion-objects).
 
 ## Collect related functions in a companion object
 
@@ -35,15 +17,17 @@ const User = Val.sealer<User>().impl({
   displayName(user) {
     return user.nickname ?? user.name;
   },
-  formatLabel(user, separator: string) {
-    return user.id + separator + user.name;
+  // A member calling another member annotates its return type, to avoid an implicit `any`.
+  formatLabel(user, separator: string): string {
+    return user.id + separator + User.displayName(user);
   },
 });
 ```
 
 `Val.sealer<User>()` creates the constructor. `.impl({ ... })` adds functions under the `User`
-namespace, where they are the companion's members. Every member takes its Val first, so Valof infers
-that parameter as `User`. You only annotate the parameters that follow it.
+namespace, where they are the companion's members, in one call that ends the chain. Every member
+takes its Val first, so Valof infers that parameter as `User`. You only annotate the parameters that
+follow it, and the return type where a member references `User` itself.
 
 The result remains callable and exposes the members:
 
@@ -55,8 +39,8 @@ const User = Val.sealer<User>().impl({
   displayName(user) {
     return user.nickname ?? user.name;
   },
-  formatLabel(user, separator: string) {
-    return user.id + separator + user.name;
+  formatLabel(user, separator: string): string {
+    return user.id + separator + User.displayName(user);
   },
 });
 // ---cut---
@@ -65,6 +49,9 @@ const user = User({ id: "a", name: "bob" });
 User.displayName(user);
 User.formatLabel(user, ": ");
 ```
+
+Vals are plain data, so member functions can't be chained like class instances. Combine Valof with
+any pipe library you like to avoid nesting or to reduce temporal variables.
 
 ## Patch object values
 
@@ -95,7 +82,7 @@ const changed = {
 };
 ```
 
-An object-shaped Val gets `patch`. The same update names only what changes:
+An object-shaped Val gets `patch`. The same update lists only what changes:
 
 ```ts
 import { Val } from "valof";

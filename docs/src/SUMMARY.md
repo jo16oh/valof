@@ -1,12 +1,14 @@
 # Summary
 
 - [Introduction](introduction.md)
+- [TypeScript problems Valof addresses](typescript-problems.md)
 - [Installation](installation.md)
 - [Branding](basics.md)
 - [Immutability](immutability.md)
 - [Allowed types](allowed-types.md)
 - [Companion objects](companion-objects.md)
 - [Custom constructors](custom-constructors.md)
+- [Enums](enums.md)
 - [Traits](traits.md)
 - [Utilities](utilities.md)
 - [Patterns](patterns.md)

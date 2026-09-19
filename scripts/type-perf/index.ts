@@ -9,7 +9,7 @@ import { floor, pack, tsc, version, type Tsc } from "../typescript-lines.ts";
 
 const here = new URL("./", import.meta.url);
 
-const fixtures = ["core", "trait"] as const;
+const fixtures = ["core", "trait", "enum"] as const;
 type Fixture = (typeof fixtures)[number];
 
 /**
@@ -26,9 +26,19 @@ type Fixture = (typeof fixtures)[number];
  * away, which is what instantiations count. Two budgets to re-baseline for one signal is one
  * too many.
  *
- * The fixtures are not comparable to each other. Each carries its own history.
+ * The fixtures are not comparable to each other. Each carries its own history. `enum` sits high
+ * because `EnumCompanion`, `VariantFrame` and `VariantOf` are generic aliases over intersections:
+ * relating two references to one measures the alias's variance, which instantiates it with marker
+ * types. That is a constant the checker pays once per program, not growth with the number of
+ * variants, which runs at about 1,100 instantiations each. The aliases that could carry `in out`
+ * do, which is what keeps the constant where it is; an intersection cannot (TS2637), and their
+ * names are worth more than the measurement (notes §15.2).
+ *
+ * `trait` went from 15,000 to 17,000 when `implTrait` grew the callback form: an implementation
+ * is now `Implement<…> | ((self) => Implement<…>)`, and the union is related twice at every call
+ * the fixture makes. An alarm, not a ratchet.
  */
-const budget: Record<Fixture, number> = { core: 10_000, trait: 15_000 };
+const budget: Record<Fixture, number> = { core: 10_000, trait: 17_000, enum: 90_000 };
 
 /**
  * The published declarations, in bytes. Deterministic like the counts above, and budgeted the
@@ -171,7 +181,7 @@ if (!json) {
     size > max
       ? `${fmt(size - max)} over`
       : `${fmt(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
-  console.log("\nbudget  (core and trait are instantiations)");
+  console.log("\nbudget  (the fixtures are instantiations)");
   console.log(
     table(
       ["", "used / budget", ""],

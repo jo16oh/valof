@@ -32,6 +32,11 @@ export const UnusedMember: Rule<UnusedMember> = {
  * Resolution is by name, not by type. A read is followed across files through a plain import, a
  * renamed one, a namespace import and an `export { X as Y }` rename.
  *
+ * An enum's variant is declared and read under a dotted name, `Shape.Circle`, which is what makes
+ * `Shape.Circle.diameter` and a destructured `Circle.diameter` meet. That name does not pass
+ * through the `export { X as Y }` walk below, so an enum companion renamed on the way out loses
+ * its variants' reads and its members are reported although they are used.
+ *
  * Two ways it is wrong, in opposite directions. A read that spells no name, `User[method]` or a
  * companion reached through a default export, is not seen, so the member is reported although it
  * is used. A spread whose value is not a local const object contributes no keys, so those members

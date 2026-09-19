@@ -38,3 +38,7 @@ test("sees the chain however `Val` was imported", async () => {
 test("reports a Trait companion split from its declaration", async () => {
   expect(await lint("trait")).toEqual([{ rule: SplitCompanion, at: "trait/companion.ts:3:51" }]);
 });
+
+test("reports an Enum companion written beside an imported declaration", async () => {
+  expect(await lint("enum")).toEqual([{ rule: SplitCompanion, at: "enum/companion.ts:5:34" }]);
+});
