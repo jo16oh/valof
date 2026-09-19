@@ -36,11 +36,11 @@ const modes = ["production", "development"] as const;
  * `traitGzip` and `enumGzip` are the first budget plus what each adds, so the pair says the line
  * rather than a second round number: what an experimental import costs is the number to read.
  */
-const BUDGET_VAL = 1280;
+const BUDGET_VAL = 1024;
 const BUDGET_VAL_PLUS_EQUALS = BUDGET_VAL + 128;
-const BUDGET_VAL_PLUS_TRAIT = BUDGET_VAL + 128;
-const BUDGET_VAL_PLUS_ENUM = BUDGET_VAL + 128;
-const BUDGET_ALL = BUDGET_VAL + 384;
+const BUDGET_VAL_PLUS_TRAIT = BUDGET_VAL + 256;
+const BUDGET_VAL_PLUS_ENUM = BUDGET_VAL + 384;
+const BUDGET_ALL = BUDGET_VAL + 640;
 const budget = {
   val: BUDGET_VAL,
   equals: BUDGET_VAL_PLUS_EQUALS,
