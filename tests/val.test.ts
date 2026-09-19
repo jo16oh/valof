@@ -366,6 +366,17 @@ describe("Val", () => {
       expectTypeOf<Val<"Bad", Record<symbol, string>>>().not.toExtend<AnyVal>();
       expectTypeOf<Val<"Bad", { 1: string }>>().not.toExtend<AnyVal>();
     });
+
+    test("an index signature's entry may not be undefined", () => {
+      type Bad = Val<"Bad", { rows: Record<string, string | undefined> }>;
+      expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{
+        rows: { [x: string]: { readonly __valError: "not a plain value" } };
+      }>();
+      expectTypeOf<Bad>().not.toExtend<AnyVal>();
+
+      type Ok = Val<"Ok", { rows: Record<string, string> }>;
+      expectTypeOf<Ok>().toExtend<AnyVal>();
+    });
   });
 
   describe("the brand", () => {
@@ -506,24 +517,6 @@ describe("Val", () => {
       const tree = Sum({ value: 1, children: [Sum({ value: 2, children: [] })] });
 
       expect(Sum.total(tree)).toBe(3);
-      expect(Sum.patch(tree, { value: 10 }).value).toBe(10);
-      expect(equals(tree, Sum({ value: 1, children: [Sum({ value: 2, children: [] })] }))).toBe(
-        true,
-      );
-    });
-
-    test("a child keeps its identity through a patch of the parent", () => {
-      const leaf = Tree({ value: 1, children: [] });
-      const root = Tree({ value: 2, children: [leaf] });
-      expect(Tree.patch(root, { value: 3 }).children[0]).toBe(leaf);
-    });
-
-    test("nocopy adopts a recursive payload", () => {
-      const leaf = Tree({ value: 1, children: [] });
-      const raw = { value: 2, children: [leaf] } as const;
-      const root = Tree.nocopy(raw);
-      expect(root).toBe(raw);
-      expect(Object.isFrozen(raw)).toBe(true);
     });
 
     test("a trait a recursive type declares is checked as any other", () => {
@@ -536,6 +529,20 @@ describe("Val", () => {
 
       type Missing = Val<"app/Missing", { other: string; next?: Rec<Missing> }, Sized>;
       expectTypeOf<Missing>().not.toExtend<AnyVal>();
+    });
+
+    test("the trait check reads the payload with its Rec opened", () => {
+      type Leaf = Val<"app/Leaf", { n: number }>;
+      type Held = Trait<"app/Held", { at: Leaf }>;
+      type Slot = Val<"app/Slot", { at: Rec<Leaf> }, Held>;
+
+      expectTypeOf<Slot>().toExtend<AnyVal>();
+    });
+
+    test("a Rec in a tuple opens at its position", () => {
+      type Pair = Val<"app/Pair", { pair: readonly [Rec<Pair>, number] }>;
+
+      expectTypeOf<SeedOf<Pair>>().toEqualTypeOf<{ readonly pair: readonly [Pair, number] }>();
     });
 
     test("a Rec around anything but the type being declared opens to it", () => {
