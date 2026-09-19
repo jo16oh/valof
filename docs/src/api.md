@@ -2,20 +2,21 @@
 
 ## Values
 
-|                                    |                                              |
-| ---------------------------------- | -------------------------------------------- |
-| `equals(a, b)`                     | deeply compares two Vals of the same type    |
-| `Val.of<V>(value)`                 | applies the default seal with the type named |
-| `Val.of.nocopy<V>(value)`          | makes a payload the value without copying    |
-| `Val.unwrap(value)`                | returns a mutable copy of the payload        |
-| `Val.sealer<V>()`                  | creates a callable default sealer            |
-| `Val.sealer<V>().impl(fns)`        | adds the type's members, and ends the chain  |
-| `Val.companion<V>()`               | starts a companion without a callable sealer |
-| `Val.companion<V>().impl(fns)`     | the same, on a companion                     |
-| `.implTrait(Tr, fns)`              | implements a trait the type declares         |
-| `Val.companion<V>().implSeal(f)`   | registers a custom seal                      |
-| `Val.companion<V>().implCreate(f)` | registers a function that creates a payload  |
-| `Val.companion<V>().fixed<K>()`    | excludes keys from `patch`                   |
+|                                    |                                                          |
+| ---------------------------------- | -------------------------------------------------------- |
+| `equals(a, b)`                     | deeply compares two Vals of the same type                |
+| `Val.of<V>(value)`                 | applies the default seal with the type named             |
+| `Val.of.nocopy<V>(value)`          | makes a payload the value without copying                |
+| `Val.unwrap(value)`                | returns a mutable copy of the payload                    |
+| `Val.sealer<V>()`                  | creates a callable default sealer                        |
+| `Val.sealer<V>().impl(fns?)`       | adds the type's members, and ends the chain              |
+| `Val.companion<V>()`               | starts a companion without a callable sealer             |
+| `Val.companion<V>().impl(fns?)`    | the same, on a companion                                 |
+| `.implTrait(Tr, fns?)`             | implements a trait the type declares                     |
+| `.implTrait<Tr>(fns)`              | the same, for a trait that implements nothing of its own |
+| `Val.companion<V>().implSeal(f)`   | registers a custom seal                                  |
+| `Val.companion<V>().implCreate(f)` | registers a function that creates a payload              |
+| `Val.companion<V>().fixed<K>()`    | excludes keys from `patch`                               |
 
 ## Companion members
 
@@ -58,29 +59,30 @@ re-export a companion.
 
 ### Enum
 
-|                                      |                                                   |
-| ------------------------------------ | ------------------------------------------------- |
-| `Enum<K, D, X>`                      | a closed set of variants, as one union            |
-| `Enum.sealer<E>(tag?)`               | starts an enum whose variants are callable        |
-| `Enum.companion<E>(tag?)`            | the same, for an enum with a seal of its own      |
-| `E.match(value, handlers)`           | dispatches on the tag, exhaustively               |
-| `E[Variant](payload)`                | builds that variant, writing the tag              |
-| `E[Variant].create(payload)`         | the same on a companion, through its seal         |
-| `E[Variant].patch(value, patch)`     | derives a variant, never reaching the tag         |
-| `E(payload)` / `E.seal(payload)`     | selects the variant from the tag, and seals       |
-| `.impl(fns?)`                        | adds members taking the union, and ends the chain |
-| `.implVariant(N, sealer => …)`       | builds one variant from its own steps             |
-| `.implSeal(seal)`                    | replaces the seal every variant passes            |
-| `.implTrait(Tr, fns)`                | implements a trait the enum declares              |
-| `Tag<T>`                             | names the tag field, intersected into `X`         |
-| `VariantOf<E, N>`                    | the type of one variant                           |
-| `SeedFor<E, N>`                      | what that variant's constructor takes             |
-| `SealedPayload<E>`                   | what `E(payload)` takes, tag included             |
-| `VariantsOf<E>` / `SharedOf<E>`      | the declared variants, and the shared fields      |
-| `NameOf<E>` / `TagOf<E>`             | the enum's name, and the tag field's name         |
-| `AnyEnum`                            | a constraint over any enum                        |
-| `EnumSealer<E>` / `EnumBuilder<E>`   | an enum with every step still open                |
-| `EnumSealed<E>` / `EnumCompanion<E>` | a finished enum companion                         |
+|                                      |                                                          |
+| ------------------------------------ | -------------------------------------------------------- |
+| `Enum<K, D, X>`                      | a closed set of variants, as one union                   |
+| `Enum.sealer<E>(tag?)`               | starts an enum whose variants are callable               |
+| `Enum.companion<E>(tag?)`            | the same, for an enum with a seal of its own             |
+| `E.match(value, handlers)`           | dispatches on the tag, exhaustively                      |
+| `E[Variant](payload)`                | builds that variant, writing the tag                     |
+| `E[Variant].create(payload)`         | the same on a companion, through its seal                |
+| `E[Variant].patch(value, patch)`     | derives a variant, never reaching the tag                |
+| `E(payload)` / `E.seal(payload)`     | selects the variant from the tag, and seals              |
+| `.impl(fns?)`                        | adds members taking the union, and ends the chain        |
+| `.implVariant(N, sealer => …)`       | builds one variant from its own steps                    |
+| `.implSeal(seal)`                    | replaces the seal every variant passes                   |
+| `.implTrait(Tr, fns?)`               | implements a trait the enum declares                     |
+| `.implTrait<Tr>(fns)`                | the same, for a trait that implements nothing of its own |
+| `Tag<T>`                             | names the tag field, intersected into `X`                |
+| `VariantOf<E, N>`                    | the type of one variant                                  |
+| `SeedFor<E, N>`                      | what that variant's constructor takes                    |
+| `SealedPayload<E>`                   | what `E(payload)` takes, tag included                    |
+| `VariantsOf<E>` / `SharedOf<E>`      | the declared variants, and the shared fields             |
+| `NameOf<E>` / `TagOf<E>`             | the enum's name, and the tag field's name                |
+| `AnyEnum`                            | a constraint over any enum                               |
+| `EnumSealer<E>` / `EnumBuilder<E>`   | an enum with every step still open                       |
+| `EnumSealed<E>` / `EnumCompanion<E>` | a finished enum companion                                |
 
 ### Trait
 
