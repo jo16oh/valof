@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, UnusedMember, fixtures } from "../../support.ts";
+import { CompanionMismatch, DetachedImpl, UnusedMember, fixtures } from "../../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 describe("what the rule finds", () => {
   test("reports a member nothing reads, and spares the one that is read", async () => {
@@ -131,4 +131,29 @@ describe("Trait members", () => {
       { rule: UnusedMember, at: "multiple-vals.ts:8:61" },
     ]);
   });
+});
+
+test("credits a variant's member through the enum and through a binding of its own", async () => {
+  expect(await lint("enum")).toEqual([
+    { rule: UnusedMember, at: "enum.ts:7:57" },
+    { rule: UnusedMember, at: "enum.ts:9:11" },
+  ]);
+  expect(await messages("enum")).toEqual([
+    "Shape.Square.area is never read",
+    "Shape.sides is never read",
+  ]);
+});
+
+test("registers a variant built through a builder held in a variable", async () => {
+  expect(await lint("held-enum-builder", { skip: [CompanionMismatch] })).toEqual([
+    { rule: UnusedMember, at: "held-enum-builder.ts:7:18" },
+  ]);
+});
+
+// The chain the callback returns is rooted at another companion, so the members are that
+// companion's and no `Shape.Circle.diameter` is registered here.
+test("leaves a variant callback returning another chain to the companion it grew from", async () => {
+  expect(await lint("foreign-variant")).toEqual([
+    { rule: DetachedImpl, at: "foreign-variant.ts:9:45" },
+  ]);
 });

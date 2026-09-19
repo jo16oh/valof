@@ -55,3 +55,10 @@ test("looks through parentheses around Val and Trait declarations", async () => 
     { rule: BrandMismatch, at: "parenthesized.ts:4:13" },
   ]);
 });
+
+test("applies the same check to an Enum, whose variants derive their brands from it", async () => {
+  expect(await lint("enum")).toEqual([{ rule: BrandMismatch, at: "enum.ts:3:13" }]);
+  expect(await messages("enum")).toEqual([
+    'Shape claims the brand "Shapes", which should be "Shape"',
+  ]);
+});

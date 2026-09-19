@@ -69,3 +69,21 @@ test("looks through parentheses in the declaration, companion, and Val.of", asyn
     { rule: BypassedCompanion, at: "parenthesized.ts:4:30" },
   ]);
 });
+
+test("names the variant's frame for a lift, and the entry for one naming the union", async () => {
+  expect(await lint("enum-companion")).toEqual([
+    { rule: BypassedCompanion, at: "enum-companion.ts:7:40" },
+    { rule: BypassedCompanion, at: "enum-companion.ts:8:30" },
+  ]);
+  expect(await messages("enum-companion")).toEqual([
+    'Val.of<VariantOf<Shape, "Circle">> bypasses Shape.Circle.create, which seals the payload',
+    "Val.of<Shape> bypasses Shape.seal, which selects the variant from the tag",
+  ]);
+});
+
+test("a sealer's variants are callable, and the companion itself is the entry", async () => {
+  expect(await messages("enum-sealer")).toEqual([
+    'Val.of<VariantOf<Shape, "Circle">> bypasses Shape.Circle, the constructor for it',
+    "Val.of<Shape> bypasses Shape, which selects the variant from the tag",
+  ]);
+});

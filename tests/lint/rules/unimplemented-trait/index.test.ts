@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, UnimplementedTrait, fixtures } from "../../support.ts";
+import { CompanionMismatch, UnimplementedTrait, UnusedMember, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
@@ -46,4 +46,19 @@ test("keeps same-named Traits from different modules distinct", async () => {
 
 test("keeps following a Val builder held in a variable", async () => {
   expect(await lint("builder", { skip: [CompanionMismatch] })).toEqual([]);
+});
+
+test("reports a Trait an Enum declares and its companion leaves out", async () => {
+  expect(await lint("enum", { skip: [UnusedMember] })).toEqual([
+    { rule: UnimplementedTrait, at: "enum.ts:11:3" },
+  ]);
+  expect(await messages("enum", { skip: [UnusedMember] })).toEqual([
+    "Shape declares Labelled, but its companion does not implement it",
+  ]);
+});
+
+// An enum's third argument carries the shared fields and the tag as well, and neither is a
+// promise to implement anything.
+test("says nothing about a shared field, a tag, or a Trait the enum implements", async () => {
+  expect(await lint("enum-implemented", { skip: [UnusedMember] })).toEqual([]);
 });

@@ -7,11 +7,13 @@ import {
   type Node,
   type Where,
 } from "../ast.ts";
-import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
+import { original, symbolRef, type Bindings, type Root, type SymbolRef } from "./bindings.ts";
 
-/** A `Val.sealer<X>()` / `Val.companion<X>()` chain, whatever else it registered. */
+/** A `Val` / `Trait` / `Enum` companion chain, whatever else it registered. */
 export type CompanionSite = Where & {
   file: string;
+  /** Which entry point the chain grew from. */
+  of: Root;
   /** The name the chain was bound to, or `undefined` when it was not bound to a plain one. */
   name: string | undefined;
   /** Where that name is written. The chain's own position stands in when there is no name. */
@@ -37,17 +39,18 @@ export type CompanionSite = Where & {
   seals: boolean;
 };
 
-/** Whether a chain grows from `Val.sealer` or `Val.companion`, however `Val` was bound. */
-export function fromVal(node: Node, bound: Bindings): boolean {
+/** Which entry point a chain grows from, however the name was bound. */
+export function fromRoot(node: Node, bound: Bindings): Root | undefined {
   const path = rootPath(node);
-  if (!path || path.length === 0) return false;
+  if (!path || path.length === 0) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  if (path.length === 1) return bound.builders.has(first);
+  if (path.length === 1) return bound.builders.get(first);
   // `valof.Val.sealer`: step past the namespace, which only says where the name came from.
   const qualified = bound.namespaces.has(first);
   const name = qualified ? second : original(bound, first);
   const step = qualified ? third : second;
-  return name === "Val" && (step === "sealer" || step === "companion");
+  if (step !== "sealer" && step !== "companion") return undefined;
+  return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
 }
 
 /**
@@ -60,6 +63,11 @@ export type Lift = Where & {
   typeName: string | undefined;
   typeRef: SymbolRef | undefined;
   qualifier: string | undefined;
+  /**
+   * The variant a `VariantOf<E, "N">` argument named, where the lift named one. `typeName` and
+   * `typeRef` are then the enum's, which is what holds that variant's frame.
+   */
+  variant: string | undefined;
 };
 
 /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
@@ -88,6 +96,7 @@ export function valOf(
       typeName: undefined,
       typeRef: undefined,
       qualifier: undefined,
+      variant: undefined,
     };
   }
   // A type argument that is not a plain reference, `Val.of<{ … }>`, names no Val to key it by.
@@ -95,21 +104,46 @@ export function valOf(
   const written = child(param, "typeName");
   const named = written && typeReference(written, bound.namespaces);
   if (!named) return undefined;
+  const of = variantArgument(param, named, bound);
+  const reached = of ?? named;
   return {
-    ...at(named.node["start"] as number),
-    typeName: named.node["name"] as string,
-    typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
-    qualifier: named.qualifier,
+    ...at(reached.node["start"] as number),
+    typeName: reached.node["name"] as string,
+    typeRef: symbolRef(file, bound, reached.node["name"] as string, reached.qualifier),
+    qualifier: reached.qualifier,
+    variant: of?.variant,
   };
+}
+
+/** The enum and variant a `VariantOf<E, "N">` argument names, which stand in for the reference. */
+function variantArgument(
+  param: Node,
+  named: { node: Node; qualifier: string | undefined },
+  bound: Bindings,
+): { node: Node; qualifier: string | undefined; variant: string } | undefined {
+  const written = named.node["name"] as string;
+  // A name reached through a namespace is already the exporting module's own.
+  if ((named.qualifier === undefined ? original(bound, written) : written) !== "VariantOf")
+    return undefined;
+  const args = child(param, "typeArguments");
+  const [enumType, variantType] = args ? children(args, "params").map(unparenthesized) : [];
+  if (enumType?.type !== "TSTypeReference" || !variantType) return undefined;
+  const literal = child(variantType, "literal");
+  const enumName = child(enumType, "typeName");
+  const held = enumName && typeReference(enumName, bound.namespaces);
+  if (!held || typeof literal?.["value"] !== "string") return undefined;
+  return { ...held, variant: literal["value"] };
 }
 
 /** What a chain called, and the type argument at its root. */
 type Chain = {
   /** step name -> its first argument. `.implEquals(spec)` gives `implEquals` -> `spec`. */
   steps: Map<string, Node>;
-  /** The root call's type arguments, or `undefined` when the chain is not Val-rooted. */
+  /** The root call's type arguments, or `undefined` when the chain has no root of ours. */
   typeArguments: Node | undefined;
-  /** The step the chain grew from, once it is known to be Val-rooted. */
+  /** Which entry point the chain grew from, once it is known to have one. */
+  of: Root | undefined;
+  /** The step the chain grew from. A sealer is callable; a companion is not. */
   root: "sealer" | "companion" | undefined;
 };
 
@@ -123,6 +157,7 @@ type Chain = {
  */
 function readChain(node: Node, bound: Bindings): Chain {
   const steps = new Map<string, Node>();
+  let of: Root | undefined;
   let root: "sealer" | "companion" | undefined;
 
   const walk = (current: Node): Node | undefined => {
@@ -132,7 +167,8 @@ function readChain(node: Node, bound: Bindings): Chain {
     const receiver = child(callee, "object");
     if (!receiver) return undefined;
     if (receiver.type !== "CallExpression") {
-      if (!fromVal(callee, bound)) return undefined;
+      of = fromRoot(callee, bound);
+      if (!of) return undefined;
       const step = rootPath(callee)?.at(-1);
       root = step === "companion" ? "companion" : "sealer";
       return child(current, "typeArguments");
@@ -145,7 +181,7 @@ function readChain(node: Node, bound: Bindings): Chain {
   };
 
   const typeArguments = walk(node);
-  return { steps, typeArguments, root };
+  return { steps, typeArguments, of, root };
 }
 
 /**
@@ -176,9 +212,13 @@ export function companionSite(
   bound: Bindings,
   at: (offset: number) => Where,
 ): CompanionSite | undefined {
-  const { steps, typeArguments, root } = readChain(node, bound);
+  const { steps, typeArguments, of, root } = readChain(node, bound);
   const first = unparenthesized(typeArguments ? children(typeArguments, "params")[0] : undefined);
-  if (!first || first.type !== "TSTypeReference") return undefined;
+  if (!first || first.type !== "TSTypeReference" || !of) return undefined;
+  // A type argument taking type arguments of its own, `Val.sealer<VariantOf<Shape, "Circle">>()`,
+  // names no declaration this walk knows. The type rejects that one, and reporting `VariantOf` as
+  // the type the companion is for would name something the user never declared.
+  if (child(first, "typeArguments")) return undefined;
   const written = child(first, "typeName");
   if (!written) return undefined;
   const named = typeReference(written, bound.namespaces);
@@ -186,6 +226,7 @@ export function companionSite(
   return {
     ...where,
     file,
+    of,
     name: undefined,
     nameAt: where,
     typeName: named.node["name"] as string,
@@ -194,7 +235,7 @@ export function companionSite(
     typeAt: at(named.node["start"] as number),
     qualifier: named.qualifier,
     spec: steps.get("implEquals"),
-    // Set whenever the chain is Val-rooted, which is the only way it has type arguments.
+    // Set whenever the chain has a root of ours, which is the only way it has type arguments.
     root: root ?? "sealer",
     seals: steps.has("implSeal"),
   };

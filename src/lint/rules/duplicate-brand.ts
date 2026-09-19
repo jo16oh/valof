@@ -36,23 +36,44 @@ export const DuplicateBrand: Rule<DuplicateBrand> = {
  */
 function findings(scans: readonly Scan[]): DuplicateBrand[] {
   const claims = new Map<string, DuplicateBrand[]>();
-  for (const { file, brands, bound } of scans) {
+  for (const { file, brands, bound, enumAliases } of scans) {
+    /** The variants each enum in this file declared, for the brands they derive. */
+    const declared = new Map(enumAliases.map(({ alias, variants }) => [alias, variants]));
     for (const { typeName, brand, alias, line, column } of brands) {
       const owner = original(bound, typeName);
-      if (owner !== "Val" && owner !== "Trait") continue;
-      // A Val and a Trait intentionally use separate phantom-brand fields.
-      const claimed = claims.get(`${owner}:${brand}`) ?? [];
-      claimed.push({
-        kind: "duplicate-brand",
-        file,
-        line,
-        column,
-        brand,
-        alias,
-        message: `${alias} claims the brand "${brand}", and so does another type`,
-      });
-      claims.set(`${owner}:${brand}`, claimed);
+      if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
+      const claim = (name: string, claimed: string, how: string): void => {
+        // A Val, a Trait and an Enum intentionally use separate phantom-brand fields.
+        const together = claims.get(name) ?? [];
+        together.push({
+          kind: "duplicate-brand",
+          file,
+          line,
+          column,
+          brand: claimed,
+          alias,
+          message: `${alias} ${how} the brand "${claimed}", and so does another type`,
+        });
+        claims.set(name, together);
+      };
+      claim(`${owner}:${brand}`, brand, "claims");
+      // Each variant derives a Val branded `` `${enum}.${variant}` ``, which a hand-written Val
+      // can claim too. The enum's declaration is where that collision is fixed, so the finding
+      // sits there rather than at a variant nobody wrote.
+      if (owner === "Enum")
+        for (const variant of declared.get(alias) ?? [])
+          claim(`Val:${brand}.${variant}`, `${brand}.${variant}`, "derives");
     }
   }
-  return [...claims.values()].filter((claimed) => claimed.length > 1).flat();
+  const reported = new Set<string>();
+  return [...claims.values()]
+    .filter((claimed) => claimed.length > 1)
+    .flat()
+    .filter(({ file, line, column }) => {
+      // One declaration, one finding: an enum claims a brand per variant beside its own.
+      const at = `${file}:${line}:${column}`;
+      if (reported.has(at)) return false;
+      reported.add(at);
+      return true;
+    });
 }
