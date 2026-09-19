@@ -4,6 +4,7 @@ import {
   Enum,
   Trait,
   type Dyn,
+  type Final,
   type SeedFor,
   type Self,
   type Tag,
@@ -296,6 +297,89 @@ describe("traits", () => {
   test("a trait the enum does not declare is rejected", () => {
     // @ts-expect-error the type does not declare this trait
     Enum.sealer<Shape>().implTrait(Describable, { describe: () => "" });
+  });
+
+  describe("without a companion", () => {
+    type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
+    type Row = Enum<"Row", { Head: { n: number }; Body: { s: string } }, { id: string } & Wired>;
+
+    test("a trait implementing nothing itself is named as the type argument", () => {
+      const Row = Enum.sealer<Row>().implTrait<Wired>({
+        toWire: (r, sep): string =>
+          Row.match(r, { Head: (h) => `${h.id}${sep}${h.n}`, Body: (b) => `${b.id}${sep}${b.s}` }),
+      });
+      expect(Row.toWire(Row.Head({ id: "r1", n: 2 }), "-")).toBe("r1-2");
+    });
+
+    test("a companion's enum takes the same form", () => {
+      const Row = Enum.companion<Row>()
+        .implTrait<Wired>({ toWire: (r, sep): string => `${r.id}${sep}${r._tag}` })
+        .impl();
+      expect(Row.toWire(Row.Head.create({ id: "r1", n: 2 }), "-")).toBe("r1-Head");
+    });
+
+    test("a trait declaring a Final is rejected: only its companion can answer for one", () => {
+      type Loud = Trait<"Loud", { id: string }, { shout: Final<(self: Self) => string> }>;
+      type Cry = Enum<"Cry", { A: { n: number }; B: { s: string } }, { id: string } & Loud>;
+      // @ts-expect-error this trait implements members of its own: pass its companion
+      Enum.sealer<Cry>().implTrait<Loud>({ shout: (c: { id: string }) => c.id });
+    });
+
+    test("a call that names no trait says which of the two it wants", () => {
+      // `@ts-expect-error` alone would stay green: the call already failed, with TS2558. The
+      // message is the parameter's type, so passing it fixes the wording.
+      const unnamed =
+        "pass the members this trait leaves open, or name the trait as the type argument";
+      Enum.sealer<Row>().implTrait(unnamed);
+      // @ts-expect-error the members alone leave `Tr` at its constraint
+      Enum.sealer<Row>().implTrait({ toWire: (r: { id: string }) => r.id });
+    });
+  });
+
+  describe("names a member may not take", () => {
+    test("one a field of any variant holds", () => {
+      type Rad = Trait<"Rad", { id: string }, { r: (self: Self) => number }>;
+      type Round = Enum<
+        "Round",
+        { Circle: { r: number }; Square: { side: number } },
+        { id: string } & Rad
+      >;
+      // @ts-expect-error a member cannot take the name of a field the payload holds
+      Enum.sealer<Round>().implTrait<Rad>({ r: (c: { id: string }) => c.id.length });
+    });
+
+    test("one another trait already answers to", () => {
+      type Sized = Trait<"Sized", { id: string }, { size: (self: Self) => number }>;
+      const Sized = Trait.companion<Sized>().impl({ size: (s) => s.id.length });
+      type Wide = Trait<"Wide", { id: string }, { size: (self: Self) => number }>;
+      const Wide = Trait.companion<Wide>().impl({ size: (w) => w.id.length * 2 });
+      type Both = Enum<
+        "Both",
+        { A: { n: number }; B: { s: string } },
+        { id: string } & Sized & Wide
+      >;
+      // @ts-expect-error another trait already answers to one of these names
+      Enum.sealer<Both>().implTrait(Sized).implTrait(Wide);
+      // The two entry points carry the gates separately, so each one is read here.
+      // @ts-expect-error same, on a companion's enum
+      Enum.companion<Both>().implTrait(Sized).implTrait(Wide);
+    });
+
+    test("a companion that skipped a Final cannot be implemented", () => {
+      type Fixed = Trait<
+        "Fixed",
+        { id: string },
+        { stamp: Final<(self: Self) => string>; note: (self: Self) => string }
+      >;
+      type Card = Enum<"Card", { A: { n: number }; B: { s: string } }, { id: string } & Fixed>;
+      Enum.sealer<Card>().implTrait(
+        // @ts-expect-error this trait's companion has not implemented every member declared Final
+        Trait.companion<Fixed>(),
+        // Annotated because the first argument is the error: the implementation loses its
+        // contextual type along with it. A healthy call needs neither annotation.
+        { note: (c: VariantOf<Card, "A"> | VariantOf<Card, "B">) => c.id },
+      );
+    });
   });
 });
 
