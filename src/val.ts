@@ -528,7 +528,7 @@ type Grown<Taken, M> = M & {
  * `NamesOf<Tr>` is `string`: the first branch catches that before the rest read a name that is not
  * there.
  */
-type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
+export type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
   string extends NamesOf<Tr>
     ? "pass the members this trait leaves open, or name the trait as the type argument"
     : [NamesOf<Tr>] extends [TraitsOf<V>]
@@ -540,17 +540,17 @@ type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
       : "the type does not declare this trait";
 
 /** What the companion form takes once the trait itself has answered for every {@link Final}. */
-type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
+export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
   ? TraitCompanion<Tr, G>
   : "this trait's companion has not implemented every member declared Final";
 
 /** The second argument, absent where the trait answered for every member itself. */
-type Passes<Tr extends AnyTrait, G, V> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
+export type Passes<Tr extends AnyTrait, G, V> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
   ? [impl?: Implement<Tr, G, V>]
   : [impl: Implement<Tr, G, V>];
 
 /** What the companion-less form takes: every member, and only where the trait declares no final. */
-type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
+export type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
   ? Implement<Tr, Record<never, never>, V>
   : "this trait implements members of its own: pass its companion";
 
@@ -667,8 +667,14 @@ export type CompanionBuilder<
 /**
  * The payload's own keys, which a trait member may not shadow: a box forwards everything but a
  * member to the value, and a frozen field a member shadowed would break the proxy's invariant.
+ *
+ * Distributes: `keyof` over an enum's payloads would keep the shared fields alone.
  */
-type PayloadKeys<V extends AnyVal> = Declared<V> extends object ? keyof Declared<V> : never;
+type PayloadKeys<V extends AnyVal> = V extends unknown
+  ? Declared<V> extends object
+    ? keyof Declared<V>
+    : never
+  : never;
 
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   typeof v === "object" && v !== null && !Array.isArray(v);

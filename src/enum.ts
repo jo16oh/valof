@@ -1,21 +1,16 @@
-import type {
-  AnyTrait,
-  Implement,
-  Members,
-  MembersOf,
-  NamesOf,
-  TraitCompanion,
-  TraitsOf,
-  Unbound,
-} from "./trait.ts";
+import type { AnyTrait, Members, MembersOf, Unbound } from "./trait.ts";
 import {
   define,
   Val,
+  type Alone,
   type AnyVal,
   type CompanionMembers,
+  type Complete,
   type DeepReadonly,
   type Invalid,
+  type Passes,
   type Patch,
+  type Takes,
   type Wired,
 } from "./val.ts";
 
@@ -430,16 +425,6 @@ type Boundary<C> = { [N in keyof C]: Yields<C[N]> }[keyof C];
 type UnionMembers<E extends AnyEnum> = CompanionMembers<E> &
   Partial<Record<(keyof VariantsOf<E> & string) | "match", never>>;
 
-/** Whether the enum declares the trait at all. The check is placed on the parameter (notes §11.1). */
-type Takes<E extends AnyEnum, Tr extends AnyTrait, Ok> = [NamesOf<Tr>] extends [TraitsOf<E>]
-  ? Ok
-  : "the type does not declare this trait";
-
-/** The second argument, absent where the trait answered for every member itself. */
-type Passes<Tr extends AnyTrait, G, E> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-  ? [impl?: Implement<Tr, G, E>]
-  : [impl: Implement<Tr, G, E>];
-
 /** Dispatches on the tag. See {@link EnumCompanion.match}. */
 type Match<E extends AnyEnum> = <H extends Handlers<E, unknown>>(
   value: E,
@@ -552,10 +537,17 @@ export type EnumBuilder<
    * Implements a trait the enum declares. The implementation takes the union, so a member that
    * differs per variant is a `match` inside it.
    */
-  implTrait: <Tr extends AnyTrait, G>(
-    trait: Takes<E, Tr, TraitCompanion<Tr, G>>,
-    ...impl: Passes<Tr, G, E>
-  ) => EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
+  implTrait: {
+    // No companion to pass when the trait implements nothing of its own: the type argument is
+    // the whole of it, and the members arrive where the companion would have.
+    <Tr extends AnyTrait>(
+      impl: Takes<E, Tr, M, Alone<Tr, E>>,
+    ): EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
+    <Tr extends AnyTrait, G>(
+      trait: Takes<E, Tr, M, Complete<Tr, G>>,
+      ...impl: Passes<Tr, G, E>
+    ): EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
+  };
 };
 
 /**
@@ -585,10 +577,15 @@ export type EnumSealer<
     ) => R,
   ) => EnumSealer<E, VM & { [P in N]: R }, M>;
   /** See {@link EnumBuilder.implTrait}. */
-  implTrait: <Tr extends AnyTrait, G>(
-    trait: Takes<E, Tr, TraitCompanion<Tr, G>>,
-    ...impl: Passes<Tr, G, E>
-  ) => EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
+  implTrait: {
+    <Tr extends AnyTrait>(
+      impl: Takes<E, Tr, M, Alone<Tr, E>>,
+    ): EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
+    <Tr extends AnyTrait, G>(
+      trait: Takes<E, Tr, M, Complete<Tr, G>>,
+      ...impl: Passes<Tr, G, E>
+    ): EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
+  };
 };
 
 /** Forgotten, misspelled, or passed when the default holds: the type rejects all three. */
@@ -724,10 +721,10 @@ const state = (
         // The trait's own members and the enum's, merged the way `val.ts` merges them.
         return open
           ? (
-              trait: { __valof_shared: Record<string, unknown> },
+              trait: { __valof_shared?: Record<string, unknown> },
               fns: Record<string, unknown> = {},
             ) => {
-              const grown = { ...traits, ...trait.__valof_shared, ...fns };
+              const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
               return step(builds, { ...members, ...grown }, grown, seal, true);
             }
           : undefined;
