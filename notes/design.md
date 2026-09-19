@@ -33,7 +33,7 @@ import { Val } from "valof";
 - **§11 型エラーをどこで表面化させるか** パラメータ位置（A）と判定位置（B、`Verdict`）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、自己参照でない `Rec`（§14.26、未実装）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下
@@ -481,8 +481,8 @@ Enum の Variant も同じに書ける。`Enum<"Tree", { Leaf: …; Branch: { ki
 #### 型引数は無制約
 
 `Rec<V extends AnyVal>` は制約検査が `V` の解決を強制して振り出しに戻る。よって `Rec<number>` は素通りして
-`number` に開き、`Rec<Other>`（自己参照でない `Rec`）も `Other` に開く。どちらも型では塞げないので
-valof-lint の担当（§14.26）。
+`number` に開き、`Rec<Other>`（自己参照でない `Rec`）も `Other` に開く。**塞がなくてよい。**開いた型は
+`number` や `Other` と書いたのと同一で、実害が無い（§14.26）。
 
 #### 却下した形
 
@@ -1947,7 +1947,8 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
       独立した規則 `unnecessary-alias`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
-- [ ] valof-lint の規則 `foreign-rec`（§14.26）。自己参照でない `Rec` を報告する。型では塞げない（§3.7）
+- [x] ~~valof-lint の規則 `foreign-rec`。自己参照でない `Rec` を報告する~~ → 入れない（§14.26）。
+      `Rec<Other>` は `Other` に開くので型が同じで、実害も動機も無い
 - [x] ~~**`Enum`（sum 型）を実装する。**~~ → 実装した。`src/enum.ts`、`valof/experimental` から Trait の
       隣に出す。実行時は proxy 1 つと Variant ごとの枠（`Val.sealer` を借りる）。bundle-size は
       `Val` + `Enum` で 1.10 kB gzip、予算は `Val` の 1.25 kB + 384 B。実装中に分かったことは §15.2
@@ -4190,22 +4191,29 @@ type Wrap<T> = T; // 見ない
 この規則が 2 つ目の名前のほうを報告するので、経路としては塞がった。fixture `companion/` がその形で、
 出る finding は `unnecessary-alias` 1 件である。
 
-### 14.26 規則: 自己参照でない `Rec`、2026-09-19。未実装
+### 14.26 却下: 自己参照でない `Rec`、2026-09-19
 
-`Rec<X>` の `X` が、その `Rec` を含む宣言自身の型名でなければ報告する。`Rec<number>` は `number` に、
-`Rec<Other>` は `Other` に開くので、**どちらも型エラーにならず、書いた人の意図とだけ食い違う**。型では
-塞げない理由は §3.7。
+**入れない。**`Rec<X>` の `X` が宣言自身の型名でなければ報告する案。型では塞げない（§3.7）ので規則に
+回したが、**塞ぐ対象が無かった。**
 
 ```ts
-type Tree = Val<"app/Tree", { children: Rec<Tree>[] }>; // ✓
-type Bad = Val<"app/Bad", { at: Rec<number>; other: Rec<Tree> }>; // 2 件
+type Forest = Val<"app/Forest", { roots: Rec<Tree>[] }>; // `Tree[]` と同一の型
+type Odd = Val<"app/Odd", { n: Rec<number> }>; // `number` と同一の型
 ```
 
-判断は構文だけで付く。`Val<…>` の第 2 型引数の中に現れる `Rec<X>` を拾い、`X` が裸の参照でかつ宣言の
-名前と一致するかを見る。resolver は要らない（§14.12 と同じ設計）。
+`Rec` は開くので、書いても書かなくても型が同じである。動機も無い。`brand-mismatch` は存在しない型名を
+エラーメッセージに出させ、`unnecessary-alias` は型と companion を切り離す。こちらにはその実害が無い。
 
-宣言の外に書かれた `Rec`（関数の引数など）を報告するかは未決。`Rec` は宣言専用のマーカーなので報告して
-よさそうだが、実例が無い。
+**症状が出るのは宣言の外の `Rec` だけ**で、それは自己参照かどうかとは別の話である。既に型が落とす。
+
+```ts
+declare function walk(node: Rec<Tree>): void;
+walk(tree);
+// TS2345 Property '__valof_internal_rec' is missing in type 'Tree'
+```
+
+メッセージが内部キーの名前を出すので、規則にすれば読みやすくはなる。docs は宣言の中の `Rec` しか
+見せないので、この形を書く経路が無い。実例が出たら考える。
 
 ### 15.1 `Trait`
 
