@@ -193,14 +193,12 @@ describe("dyn", () => {
     }).toThrow(TypeError);
   });
 
-  test("the trait's fields read off the box", () => {
-    expect(Greetable.dyn(User, user).name).toBe("alice");
-  });
-
-  test("a box stands in for its value", () => {
+  test("a box stands in for its value, and types the trait's fields alone", () => {
     const boxed = Greetable.dyn(User, user);
     expect(JSON.stringify(boxed)).toBe(JSON.stringify(user));
     expect(Object.keys(boxed)).toEqual(["id", "name"]);
+    expectTypeOf(boxed.name).toEqualTypeOf<string>();
+    expectTypeOf(boxed).not.toHaveProperty("id");
   });
 
   test("each of a Val's traits boxes on its own", () => {

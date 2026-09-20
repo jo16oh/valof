@@ -3,7 +3,7 @@ import type { AnyVal, Patch, PayloadOf, Rec, SeedOf } from "../src/index.ts";
 import { equals, Val } from "../src/index.ts";
 import { Trait, type Final, type Self } from "../src/experimental.ts";
 // `BrandOf` is not published from the entry point.
-import type { BrandOf, CompanionMembers, Verdict, Wired } from "../src/val.ts";
+import type { BrandOf, CompanionMembers, Takes, Verdict, Wired } from "../src/val.ts";
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
@@ -2001,6 +2001,22 @@ describe("building", () => {
           .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}` })
           // @ts-expect-error another trait already answers to one of these names
           .implTrait(Other, { toWire: (t, sep) => t.id.length + sep.length });
+      });
+
+      test("nor may a member take a name another trait requires as a field", () => {
+        type Tagged = Trait<"Tagged", { tag: string }, { size: (self: Self) => number }>;
+        const Tagged = Trait.companion<Tagged>().impl({ size: (t) => t.tag.length });
+        type Labelled = Trait<"Labelled", { name: string }, { tag: (self: Self) => string }>;
+        const Labelled = Trait.companion<Labelled>().impl({ tag: (l) => l.name });
+        type Parcel = Val<"Parcel", { name: string; tag: string }, Tagged & Labelled>;
+        Val.companion<Parcel>()
+          .implTrait(Tagged)
+          // @ts-expect-error a member cannot take the name of a field the payload holds
+          .implTrait(Labelled);
+        // The directive above takes any error on the line, so the branch is named here.
+        expectTypeOf<
+          Takes<Parcel, Labelled, { size: unknown }, "ok">
+        >().toEqualTypeOf<"a member cannot take the name of a field the payload holds">();
       });
 
       test("nor to the same final", () => {
