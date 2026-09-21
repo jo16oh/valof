@@ -36,10 +36,10 @@ another name, which `companion-mismatch` reports.
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
 constructor. The enum itself takes a payload that already carries the tag, typed
-`SealedPayload<Shape>`: it reads the tag, selects that variant's companion, and passes the payload
+`SealedPayload<Shape>`. It reads the tag, selects that variant's companion, and passes the payload
 to its seal.
 
-A variant is a Val: it patches, it compares, and it nests. A patch cannot reach the tag, so it
+A variant is a Val. It patches, it compares, and it nests. A patch cannot reach the tag, so it
 cannot switch variants.
 
 ```ts
@@ -49,7 +49,7 @@ type Style = Enum<"Style", { Solid: { width: number }; Dashed: { gap: number } }
 type Card = Enum<"Card", { Plain: { w: number }; Framed: { w: number; style: Style } }>;
 ```
 
-A nested variant is a patch boundary like any nested Val: replace it with one the constructor built,
+A nested variant is a patch boundary like any nested Val. Replace it with one the constructor built,
 rather than merging into it.
 
 Define two variants at least. One variant is a Val, and TypeScript loses the alias for a union of
@@ -78,7 +78,7 @@ adding one to the declaration fails here rather than falling through at run time
 to hard-code it.
 
 Use `match` to split on the tag. For a condition inside a variant, a pattern matching library such
-as ts-pattern fits: `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
+as ts-pattern fits. `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
 
 ## Common shape for every variant
 
@@ -128,8 +128,8 @@ Shape.Circle.diameter(Shape.Circle({ r: 2 })); // 4
 
 A variant you write nothing for keeps the default companion, and a variant already built cannot be
 named again. The steps are already that variant's companion, so a callback with nothing to collect
-returns the argument: `.implVariant("Circle", (sealer) => sealer)`. What a step returns is closed:
-that variant takes no further step.
+returns the argument: `.implVariant("Circle", (sealer) => sealer)`. What a step returns is closed.
+That variant takes no further step.
 
 No step chooses between a sealer and a companion. `Enum.sealer` makes every variant callable,
 `Enum.companion` builds every one with `.create`, so the entry point you choose for the enum applies
@@ -166,13 +166,13 @@ Shape.Square.create({ id: "s2", side: 1 }); // VariantOf<Shape, "Square"> | Erro
 The enum's seal checks what every variant holds; a variant's own seal checks its own payload. A
 payload runs the variant's seal, then the enum's, then the default seal that brands and copies it,
 so a variant with no seal of its own is still checked by the enum's. Compose them yourself where a
-check depends on the other's result: inside a variant's seal, `seal(payload)` is the enum's seal, so
+check depends on the other's result. Inside a variant's seal, `seal(payload)` is the enum's seal, so
 its result is the enum's return, the error included.
 
 Write `.implSeal` before the first `.implVariant`, which the type enforces. A variant's default seal
 is the enum's, read from the chain as it stands.
 
-Whatever a seal returns propagates, as it does for a Val: the union in it narrows to the variant the
+Whatever a seal returns propagates, as it does for a Val. The union in it narrows to the variant the
 payload named. `patch` derives through the same seal, so no derivation skips it.
 
 On a companion, `Shape.seal` takes that tagged payload. Its return is the variants' seals as a
@@ -192,10 +192,11 @@ const Event = Enum.sealer<Event>("kind");
 Event.Click({ x: 1 }); // { x: 1, kind: "Click" }
 ```
 
-`Tag` goes in the third argument, beside the shared fields: the tag is a field every variant holds.
-It is a marker with no key of its own, so every name is still free for a variant. The companion
-takes the name again because the proxy writes it at run time, and the type argument is not readable
-from a value. Forget it, misspell it, or pass one where the default applies, and the type says so.
+`Tag` goes in the third argument, beside the shared fields, because the tag is a field every variant
+holds. It is a marker with no key of its own, so every name is still free for a variant. The
+companion takes the name again because the proxy writes it at run time, and the type argument is not
+readable from a value. Forget it, misspell it, or pass one where the default applies, and the type
+says so.
 
 ## Use a variant's type
 

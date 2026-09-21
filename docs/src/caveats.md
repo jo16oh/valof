@@ -46,7 +46,7 @@ Persistence helpers can create the same hole.
 JSON and returns it as the type inferred from its initial value. Store a `PayloadOf<User>`, then
 seal it after reading.
 
-Seal at the boundary, because the two sides deploy separately: the value was sealed by whichever
+Seal at the boundary, because the two sides deploy separately. The value was sealed by whichever
 build the server is running, and that seal may be older than yours.
 
 ## Generic object utilities can bypass readonly and sealing
@@ -103,7 +103,7 @@ payload to `User` or `User.seal`.
 
 A `__proto__` key survives. It is a legal JSON key, and round-tripping JSON takes priority, so
 sealing keeps it as an own property rather than dropping data. That is inert inside a value, but not
-in code that merges a payload with `Object.assign` or a recursive merge: there, assigning the key
+in code that merges a payload with `Object.assign` or a recursive merge. There, assigning the key
 sets a prototype instead of copying it. Sanitize untrusted input yourself.
 
 ## Deeply nested payloads can overflow the stack

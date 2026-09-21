@@ -27,7 +27,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two
 types the checker stops distinguishing, or a name that has to agree with another and does not.
-`incomplete-disable` errors for a reason of its own: a comment naming no rule silences every one, a
+`incomplete-disable` errors for a reason of its own. A comment naming no rule silences every one, a
 rule added next year included.
 
 The severity is what the [plugin](linting.md#plugin-for-eslint-and-oxlint) sets, and a project can
@@ -59,7 +59,7 @@ like any other.
 
 ## Plugin for ESLint and Oxlint
 
-The same rules, one per finding kind: name one to give it its own severity, or turn it off. The
+The same rules, one per finding kind. Name one to give it its own severity, or turn it off. The
 project to read is one setting for all of them, a path or a list of them, and defaults to
 `src/**/*.ts`. A path starting with `!` is excluded from it.
 
@@ -108,7 +108,8 @@ pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree
 | `--project`, `--report-on` | the same two by name, in either order. Either can be repeated, and takes `!path` |
 | `--no-<rule>`              | a rule to leave out of the run, by the rule name in the finding                  |
 
-A single file given as the project is refused: a duplicate brand needs the other alias to be seen.
+A single file given as the project is refused, because a duplicate brand needs the other alias to be
+seen.
 
 A `!path` is excluded wherever it is written, and is removed from the run rather than only from the
 report, so what a generated tree declares no longer applies to the rest.

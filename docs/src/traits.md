@@ -31,7 +31,7 @@ as a payload, so a shape no Val could ever hold is an error where it is written.
 The third declares the functions. They become members of every companion that implements the trait,
 and they take the value first like any other member.
 
-`Self` stands for the implementing Val. A member may take it, and may not return it: what returns a
+`Self` stands for the implementing Val. A member may take it, and may not return it. What returns a
 `Self` is a constructor, and a trait has no brand to seal with.
 
 ## Implement it on a Val
@@ -59,7 +59,7 @@ User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
 
 Naming the trait as the type argument asks `implTrait` for every member it declares.
 
-Declaring the trait is what requires the payload to hold its fields: a `User` without `name` is a
+Declaring the trait is what requires the payload to hold its fields. A `User` without `name` is a
 type error at the declaration, not at `implTrait`.
 
 The checker stops at the declaration. `Val<"User", …, Greetable>` typechecks with no `implTrait`
@@ -147,7 +147,7 @@ const User = Val.sealer<User>().implTrait(Greetable);
 The trait implements both, so `implTrait` needs no second argument. A Val may still pass `greet` to
 replace it. Passing `shout` is an error.
 
-Only `Final` members are exposed on the trait's own type: `Greetable.shout(user)` typechecks and
+Only `Final` members are exposed on the trait's own type. `Greetable.shout(user)` typechecks and
 `Greetable.greet` does not.
 
 A default calling a `Final` member references the trait and annotates its return type:
@@ -193,7 +193,7 @@ const Cmd = Enum.sealer<Cmd>().implTrait(Describable, {
 Cmd.describe(Cmd.Add({ id: "c1", n: 2 })); // "add 2"
 ```
 
-An enum declares its shared fields and its traits in one argument: a trait brings the fields it
+An enum declares its shared fields and its traits in one argument. A trait brings the fields it
 requires, so declaring them again is not needed. Variants cannot implement traits.
 
 ## Hold values of different types together
@@ -233,13 +233,13 @@ party.map((p) => p.name); // ["alice", "root"]: a trait field, read from the box
 ```
 
 A box binds the receiver, so its members take the remaining arguments alone. The trait's fields are
-readable on it, and a function taking `Greetable` accepts one. The Val's own fields are not: `p.id`
+readable on it, and a function taking `Greetable` accepts one. The Val's own fields are not. `p.id`
 is a type error, because `dyn` drops the concrete type.
 
 A box is a proxy over its value, not a Val. It has its own identity, and it has no `patch`. A
 payload cannot hold one.
 
-The two arguments belong together: the companion has to match the value's own type, so another Val's
+The two arguments belong together. The companion has to match the value's own type, so another Val's
 companion is rejected.
 
 An enum boxes the same way, through its own companion:
