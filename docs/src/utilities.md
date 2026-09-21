@@ -66,4 +66,4 @@ Val.unwrap(post).tags.sort(); // ✓
 ```
 
 It returns the payload as the type declares it, so a `readonly` written there survives the unwrap.
-Write the payload plain: see [Allowed types](allowed-types.md).
+Write the payload plain. See [Allowed types](allowed-types.md).

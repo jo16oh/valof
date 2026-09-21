@@ -56,7 +56,7 @@ const root = Tree({ value: 2, children: [leaf] });
 root.children[0]; // Tree
 ```
 
-`Rec` is erased: the value holds a `Tree`, the constructor takes a `Tree`, and `patch` and the
+`Rec` is erased. The value holds a `Tree`, the constructor takes a `Tree`, and `patch` and the
 companion's members work as they do for any other type. It exists for the declaration alone.
 
 Without it the declaration compiles and the first use of the type fails. Resolving `Tree` would need

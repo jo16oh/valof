@@ -81,7 +81,7 @@ const User = Val.companion<User>().implSeal((input: object, seal): Result<User> 
 });
 ```
 
-The parameter takes `object` or `Record<string, unknown>`, not `unknown`: a seal takes the payload,
+The parameter takes `object` or `Record<string, unknown>`, not `unknown`. A seal takes the payload,
 not a wire format.
 
 The schema runs on every derivation, not just the first parse. Reject unknown keys yourself. A patch
@@ -197,7 +197,7 @@ const result = Age.seal(input); // Result<Age>
 guarantees that it is validated and normalized wherever it is passed, so downstream code does not
 need to repeat either step. The seals in this chapter put
 [**“parse, don't validate”**](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
-into practice: they return a validated, canonical Val instead of returning facts about the input.
+into practice. They return a validated, canonical Val instead of returning facts about the input.
 Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's
 words,
 [parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101):

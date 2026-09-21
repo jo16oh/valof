@@ -40,7 +40,7 @@ const id = UserId("u1");
 reference can still change a readonly view. A recursive `DeepReadonly` type protects nested fields,
 but updating one immutably still means rebuilding each object on the path.
 
-Valof makes these conventions the default: `Val` applies `DeepReadonly`, its constructor copies the
+Valof makes these conventions the default. `Val` applies `DeepReadonly`, its constructor copies the
 input to remove mutable aliases, `patch` rebuilds only the paths it changes, and `.nocopy` is the
 explicit escape hatch for a payload that already has no mutable aliases;
 [immutability](immutability.md) shows the copy and `.nocopy` contracts:
@@ -95,7 +95,7 @@ User.greeting(User({ name: "alice" }));
 
 ## Parse, don't validate
 
-Valof makes parsing a convention: a companion has one `seal`, and `seal`, `create` and `patch` pass
+Valof makes parsing a convention. A companion has one `seal`, and `seal`, `create` and `patch` pass
 their payloads through it. A custom seal returns a validated, normalized Val or its failure, so the
 result type records that parsing succeeded.
 

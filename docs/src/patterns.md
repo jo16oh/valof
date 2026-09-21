@@ -2,7 +2,7 @@
 
 ## Framework state
 
-A value is a plain object, so a state container holds it as it stands. Replace it whole: the
+A value is a plain object, so a state container holds it as it stands. Replace it whole. The
 untouched subtrees keep their identity, so a dependency array sees no change.
 
 ```ts
