@@ -33,9 +33,12 @@ Skip idiomatic phrasal verbs where a literal one carries the same meaning: "limi
 to one", "fails with" over "comes back as", "the limit lifts" over "the cap comes off". A non-native
 reader has the vocabulary for the literal verb; the idiom, they guess at.
 
-Avoid the em dash. Splitting the sentence in two is usually the fix, and commas, "such as" or
-parentheses cover the rest. Keep a colon where the second half gives the reason or the detail for
-the first.
+Avoid the em dash. Splitting the sentence in two is the fix, and commas, "such as" or parentheses
+cover the rest.
+
+A colon is right where a noun phrase follows it and names what came before: a list, an example, a
+definition. Where a full clause follows, write two sentences instead, or "because" where the second
+half is the reason for the first.
 
 Models: Kent Beck, t_wada, Dan Abramov, mizchi. Take their plainness.
 
@@ -86,6 +89,13 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
   `boilerplate` do.
 - **A noun whose referent the reader must guess.** `picks the kind` → name the alternatives. Watch
   for a word that also appears as an identifier in the sample below it.
+- **A colon with a clause after it.** `The Val's own fields are not: p.id is a type error` →
+  `The Val's own fields are not. p.id is a type error`. Where the second half is the reason, write
+  it: `is refused: a duplicate brand needs the other alias to be seen` →
+  `is refused, because a duplicate brand needs the other alias to be seen`. A noun phrase after the
+  colon stays, whatever its length:
+  `errors where a Val is broken: two types the checker stops distinguishing` names what `broken`
+  covers.
 - **An analogy written as a rule.** Two things that union different operands are not
   `the same rule`. Say what this one returns.
 - **Internal vocabulary.** A word is the user's only if it reaches the export surface: an exported
