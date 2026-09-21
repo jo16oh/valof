@@ -66,6 +66,22 @@ The checker stops at the declaration. `Val<"User", …, Greetable>` typechecks w
 anywhere, so the `unimplemented-trait` rule in [valof-lint](linting.md) is what reports the Val that
 declared a trait and never implemented it.
 
+## A trait is a contract between Vals
+
+A plain object that happens to hold the fields is not one of them:
+
+```ts
+// @errors: 2322
+import { Trait, type Self } from "valof/experimental";
+// ---cut---
+type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
+
+const duck: Greetable = { name: "duck" }; // type error: the brand is missing
+```
+
+A Val declaring the trait carries its brand, and that brand is what the trait type asks for. The
+fields alone do not put it there, so only a Val that declared `Greetable` is assignable to it.
+
 ## Give a default implementation
 
 Every Val writing its own `greet` repeats the same line. A trait can implement a member itself,
@@ -213,11 +229,12 @@ const party: Dyn<Greetable>[] = [
 ];
 
 party.map((p) => p.greet()); // ["Hi, alice", "Sir root"]
-party.map((p) => p.name); // ["alice", "root"]
+party.map((p) => p.name); // ["alice", "root"]: a trait field, read from the box
 ```
 
 A box binds the receiver, so its members take the remaining arguments alone. The trait's fields are
-readable on it, and a function taking `Greetable` accepts one.
+readable on it, and a function taking `Greetable` accepts one. The Val's own fields are not: `p.id`
+is a type error, because `dyn` drops the concrete type.
 
 A box is a proxy over its value, not a Val. It has its own identity, and it has no `patch`. A
 payload cannot hold one.
@@ -227,22 +244,6 @@ companion is rejected.
 
 An enum boxes the same way, through its own companion:
 `Describable.dyn(Cmd, Cmd.Add({ id: "c1", n: 2 }))`.
-
-## A trait is a contract between Vals
-
-A plain object that happens to hold the fields is not one of them:
-
-```ts
-// @errors: 2322
-import { Trait, type Self } from "valof/experimental";
-// ---cut---
-type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
-
-const duck: Greetable = { name: "duck" }; // type error: the brand is missing
-```
-
-A Val declaring the trait carries its brand, and that brand is what the trait type asks for. The
-fields alone do not put it there, so only a Val that declared `Greetable` is assignable to it.
 
 ## Several traits on one Val
 
@@ -268,7 +269,7 @@ Weighed.dyn(Crate, crate).heavy(); // true
 
 Write `&`, not `|`.
 
-Each trait boxes on its own. No two traits on one Val may register the same member name.
+Each trait boxes on its own. No two traits on one Val may declare the same member name.
 
 ## Names a member may not take
 
@@ -281,3 +282,7 @@ A member name is rejected when a Val could not carry it:
 - `then`, which would make the companion a thenable
 
 Each is reported where the trait is declared.
+
+A member may not take the name of a field the implementing Val holds. That includes a field another
+trait on the same Val requires. The colliding name comes from the Val, so this one is reported at
+`implTrait`.
