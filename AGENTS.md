@@ -42,6 +42,22 @@ Commit or amend only on an explicit go-ahead. Draft the message, show it, and wa
 Never push, and never open a PR. I do both myself, opening the PR from the web UI. Hand me the PR
 title and body as a draft and stop there.
 
+## Releasing
+
+1. Write the release notes for users, not reviewers, in a file outside the repo.
+2. Run `vp run bump-version --body-file notes.md --release <type> --yes`, where `<type>` is the
+   release type I give, such as `patch`. It pushes a release branch and opens its PR with the file
+   as the body. Options other than `--body-file` go to bumpp.
+3. If CI reports stale bundle-size claims, run
+   `vp run replace-bundle-size-claims --write README.md package.json` on that branch, commit, and
+   push.
+4. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
+   release, and publishes the book. The notes start with the PR body, followed by the PRs merged
+   since the last tag.
+
+Steps 2 and 3 push, and step 2 opens a PR. They are the only exception to "Never push, and never
+open a PR" above. Run them only on my explicit go-ahead.
+
 ## Writing Style
 
 Code and prose go in separate turns. Finish the code, then edit the `.md` in a turn of its own, and
