@@ -20,8 +20,8 @@ npm install valof
 
 ## Why Valof?
 
-Valof is an opinionated value-object helper for TypeScript that enforces the conventions through
-types and linting.
+Valof is a TypeScript library for branded, immutable domain types, such as value objects and enums.
+It enforces the conventions through types and linting.
 
 - **Nominal-ish typing with a phantom brand**: TypeScript distinguishes one Val type from another,
   with nothing to pay at runtime.
