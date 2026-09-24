@@ -1,6 +1,6 @@
 // Core API under `vp run type-perf`. Deep payloads, tuples, records and every builder step,
 // because those are where the recursive conditionals run.
-import { equals, Val, type Patch, type PayloadOf, type SeedOf } from "valof";
+import { equals, Val, type Patch, type SeedOf } from "valof";
 
 type City = Val<"City", { name: string; zip?: string }>;
 const City = Val.sealer<City>();
@@ -46,7 +46,7 @@ const Order = Val.companion<Order>()
   });
 
 declare const order: Order;
-declare const patch: Patch<PayloadOf<Order>>;
+declare const patch: Patch<SeedOf<Order>>;
 
 export const derived = [
   // The patch stops at a nested Val, so the deep one runs inside `Address`.
@@ -64,7 +64,8 @@ export const derived = [
     lines: [Line({ sku: "a", qty: 1, unit: Money({ amount: 1, currency: "JPY" }), tags: ["x"] })],
     totals: {},
   }),
-  Val.of<Order>(Val.unwrap<Order>(order)),
+  Val.of<Order>(order),
+  Val.unwrap<Order>(order),
 ];
 
 export const equal = [equals(order, order), equals(order.totals["vat"]!, order.totals["vat"]!)];

@@ -212,12 +212,15 @@ export type BrandOf<V extends AnyVal> = V extends Phantom<infer K, unknown> ? K 
 /** The payload as the declaration wrote it, {@link Rec} markers included. */
 type Declared<V> = V extends Phantom<string, infer T> ? T : never;
 
-/** The Val's payload type, with every {@link Rec} opened to the Val it references. */
+/**
+ * The Val's payload type, with the brand removed at every depth: a nested Val, and the one a
+ * {@link Rec} references, is its payload too.
+ */
 export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
-// Every {@link Rec} opened, and nothing else changed: the `readonly` the declaration wrote stays,
-// and so does the mutability {@link Val.unwrap} hands back. The marker is the declaration's, so no
-// type derived from the payload may carry it.
+// Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
+// the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker
+// is the declaration's, so no type derived from the payload may carry it.
 //
 // One mapped type covers an array and a tuple both: homomorphic over either, it keeps the length,
 // the positions and the mutability. {@link DeepReadonly} needs the two apart only because it
@@ -225,10 +228,10 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 type Opened<T> =
   IsRec<T> extends true
     ? T extends Rec<infer V>
-      ? V
+      ? Opened<Declared<V>>
       : T
     : [T] extends [AnyVal]
-      ? T
+      ? Opened<Declared<T>>
       : [T] extends [Primitive]
         ? T
         : number extends keyof T

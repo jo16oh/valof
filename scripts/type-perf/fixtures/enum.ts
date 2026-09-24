@@ -1,7 +1,7 @@
 // What `Enum` costs: the union derived from the declaration, `match`'s narrowing and its
 // exhaustiveness, a variant's own members, a seal on the enum and one on a variant, a trait
 // implemented over the union, and a variant nested in a Val, where the patch boundary runs.
-import { Val, type Patch, type PayloadOf } from "valof";
+import { Val, type Patch, type SeedOf } from "valof";
 import { Enum, Trait, type Dyn, type Self, type Tag, type VariantOf } from "valof/experimental";
 
 type Shape = Enum<
@@ -50,7 +50,7 @@ type Frame = Val<"Frame", { id: string; shape: Shape; last: Event }>;
 const Frame = Val.sealer<Frame>();
 
 declare const shape: Shape;
-declare const patch: Patch<PayloadOf<Frame>>;
+declare const patch: Patch<SeedOf<Frame>>;
 
 const circle = Shape.Circle({ id: "c", r: 2 });
 const click = Event.Click.create({ id: "e", x: 1, y: 2 }) as VariantOf<Event, "Click">;
