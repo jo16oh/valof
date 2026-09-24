@@ -72,7 +72,7 @@ A test that passes whatever the source does. Break the source it covers, run it,
 red:
 
 ```sh
-ne vp test tests/val.test.ts
+vp test tests/val.test.ts
 ```
 
 What to look for first:
