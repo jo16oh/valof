@@ -1,24 +1,77 @@
 name: Release
 
+# Merging a release PR bumps this file; the run releases whatever version main carries that has no tag yet.
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths: [package.json]
+  workflow_dispatch:
 
 permissions: {}
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  release:
+  verify:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: write # the release is created below
-      id-token: write # npm trusted publishing and provenance
+      contents: read
+      pull-requests: read # the commit's PR is looked up below
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      due: ${{ steps.tag.outputs.due }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
-          fetch-depth: 0 # needed to check the tag is an ancestor of main
           persist-credentials: false
 
-      # No cache in this workflow: a cache another ref wrote must not reach what a tag publishes.
+      - name: Resolve tag
+        id: tag
+        run: |
+          tag="v$(node -p "require('./package.json').version")"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          # ls-remote exits 2 when the tag is absent; any other failure must not pass for "absent".
+          status=0
+          git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null || status=$?
+          case $status in
+            0) echo "::notice::$tag already exists; nothing to release"; echo "due=false" >> "$GITHUB_OUTPUT" ;;
+            2) echo "due=true" >> "$GITHUB_OUTPUT" ;;
+            *) exit "$status" ;;
+          esac
+
+      # A version bump that did not come through `vp run bump-version` stops here instead of releasing.
+      - name: Verify commit is a merged release PR
+        if: steps.tag.outputs.due == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" |
+            jq -e --arg tag "$TAG" 'any(.[];
+              .merged_at != null
+              and .head.repo.full_name == .base.repo.full_name
+              and .head.ref == "chore/release-\($tag[1:])"
+              and .title == "chore: release \($tag)")' > /dev/null ||
+            { echo "::error::$GITHUB_SHA is not a merged chore/release-${TAG#v} PR titled \"chore: release $TAG\""; exit 1; }
+
+  release:
+    needs: verify
+    if: needs.verify.outputs.due == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # the tag and the release are created below
+      id-token: write # npm trusted publishing and provenance
+    env:
+      TAG: ${{ needs.verify.outputs.tag }}
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      # No cache in this workflow: a cache another ref wrote must not reach what a release publishes.
       - uses: voidzero-dev/setup-vp@1b32467adbe183473499fd9d5d372c3ed9641754 # v1.18.0
         with:
           node-version: "24"
@@ -41,38 +94,35 @@ jobs:
 
       - run: vp run ts-compatibility
 
-      - name: Verify tag is on main
-        run: |
-          git fetch --quiet origin main
-          git merge-base --is-ancestor HEAD FETCH_HEAD ||
-            { echo "tag $GITHUB_REF_NAME is not reachable from main"; exit 1; }
+      # Tags are immutable, so tagging only after the checks pass keeps a broken commit from burning
+      # its version.
+      - name: Create tag
+        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA"
+        env:
+          GH_TOKEN: ${{ github.token }}
 
-      - name: Verify tag matches package version
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          pkg="$(node -p "require('./package.json').version")"
-          test "$tag" = "$pkg" || { echo "tag $tag != package.json $pkg"; exit 1; }
-
-      # No token: npm trusts this workflow through OIDC. --no-git-checks: the tag is checked out
-      # detached, not on the publish branch.
+      # No token: npm trusts this workflow through OIDC. --no-git-checks: the verify job already
+      # checked this commit.
       - run: pnpm publish --provenance --no-git-checks
 
       # Last: a release pointing at a version npm rejected would be a lie. The notes come from the
       # PRs merged since the previous tag, grouped by `.github/release.yml`.
       - name: Create the GitHub release
-        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes
+        run: gh release create "$TAG" --verify-tag --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
 
   # The book is published per tag under `{tag}/`, with `latest/` a copy of the newest release and a
   # bare index at the root. The site lives on `gh-pages`, which GitHub Pages serves as a branch.
   docs:
-    needs: release
+    needs: [verify, release]
     runs-on: ubuntu-latest
     permissions:
       contents: write # the site is pushed to gh-pages
     concurrency:
       group: gh-pages # two releases must not push the site at once
+    env:
+      TAG: ${{ needs.verify.outputs.tag }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
@@ -101,11 +151,10 @@ jobs:
 
       - name: Add this version
         run: |
-          tag="$GITHUB_REF_NAME"
-          rm -rf "site/$tag"
-          cp -r docs/book/html "site/$tag"
+          rm -rf "site/$TAG"
+          cp -r docs/book/html "site/$TAG"
           # A prerelease is reachable by its tag, but it is not what `latest/` means.
-          case "$tag" in
+          case "$TAG" in
             *-*) ;;
             *) rm -rf site/latest && cp -r docs/book/html site/latest ;;
           esac
@@ -119,7 +168,7 @@ jobs:
           git -C site add --all
           git -C site -c user.name="github-actions[bot]" \
             -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
-            commit --message "docs: publish $GITHUB_REF_NAME"
+            commit --message "docs: publish $TAG"
           git -C site push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:gh-pages
         env:
           GH_TOKEN: ${{ github.token }}
