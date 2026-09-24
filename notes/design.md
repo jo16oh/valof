@@ -3364,13 +3364,13 @@ oxlint はスレッド 1 本につき約 6.4 GB のアドレス空間を予約�
 
 ### 14.10 テストの穴、2026-09-08 棚卸し
 
-**検証方法を先に。** カバレッジ率ではなく**変異テスト**で見る。ソースの一箇所を壊し、`ne vp test
+**検証方法を先に。** カバレッジ率ではなく**変異テスト**で見る。ソースの一箇所を壊し、`vp test
 tests/lint` が落ちるかを確かめる。落ちなければ、そこはテストが 1 行も守っていない。
 
 ```sh
 cp src/lint/rules/equals/paths.ts /tmp/m.bak
 perl -0pi -e 's/const found = \[path\];/const found = [path];\n  return found;/' src/lint/rules/equals/paths.ts
-ne vp test tests/lint    # 通ってしまうなら未カバー
+vp test tests/lint    # 通ってしまうなら未カバー
 cp /tmp/m.bak src/lint/rules/equals/paths.ts
 ```
 

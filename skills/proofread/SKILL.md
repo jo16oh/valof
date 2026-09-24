@@ -110,8 +110,8 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
 
 ## 4. Let the sample carry the claim
 
-A claim that fits a sample belongs in a fenced block, where `ne vp test docs/tools/twoslash` checks
-it on every run. A negative claim fits too: declare the error code the reader would hit, as
+A claim that fits a sample belongs in a fenced block, where `vp test docs/tools/twoslash` checks it
+on every run. A negative claim fits too: declare the error code the reader would hit, as
 `// @errors: 2339`. A code declared and never raised fails the test.
 
 Use a throwaway probe only where the claim stays in prose, or is about something the book does not
@@ -130,6 +130,6 @@ Say plainly where a sentence's intent is unclear rather than guessing at a rewri
 Then run `vp fmt` on what changed, and the docs typecheck when a fenced sample moved:
 
 ```sh
-ne vp fmt <files>
-ne vp test docs/tools/twoslash
+vp fmt <files>
+vp test docs/tools/twoslash
 ```
