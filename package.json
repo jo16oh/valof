@@ -1,12 +1,15 @@
 {
   "name": "valof",
   "version": "0.8.2",
-  "description": "Value-object helpers for TypeScript: branded types, a constructor and a companion, kept as plain data. Starts from 852 B gzipped.",
+  "description": "Branded, immutable domain types for TypeScript: a constructor and a companion per type, kept as plain data. Starts from 852 B gzipped.",
   "keywords": [
     "branded-types",
     "ddd",
+    "deep-readonly",
+    "domain-modeling",
     "immutable",
     "nominal-typing",
+    "parse-dont-validate",
     "typescript",
     "value-object"
   ],
