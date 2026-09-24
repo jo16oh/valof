@@ -61,8 +61,9 @@ jobs:
     needs: verify
     if: needs.verify.outputs.due == 'true'
     runs-on: ubuntu-latest
+    environment: release # holds the deploy key that creates the tag
     permissions:
-      contents: write # the tag and the release are created below
+      contents: write # the release is created below
       id-token: write # npm trusted publishing and provenance
     env:
       TAG: ${{ needs.verify.outputs.tag }}
@@ -95,11 +96,19 @@ jobs:
       - run: vp run ts-compatibility
 
       # Tags are immutable, so tagging only after the checks pass keeps a broken commit from burning
-      # its version.
+      # its version. Only deploy keys may create tags (the `tags` ruleset), so the push goes over SSH
+      # with the `release` environment's key; the agent holding it ends with this step, and the key
+      # never hits disk.
       - name: Create tag
-        run: gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/$TAG" -f sha="$GITHUB_SHA"
+        run: |
+          eval "$(ssh-agent -s)" > /dev/null
+          trap 'ssh-agent -k > /dev/null' EXIT
+          ssh-add -q - <<< "$RELEASE_TAG_KEY"
+          curl -fsS https://api.github.com/meta | jq -r '.ssh_keys[] | "github.com \(.)"' > "$RUNNER_TEMP/known_hosts"
+          git -c core.sshCommand="ssh -o UserKnownHostsFile=$RUNNER_TEMP/known_hosts" \
+            push "git@github.com:$GITHUB_REPOSITORY.git" "$GITHUB_SHA:refs/tags/$TAG"
         env:
-          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG_KEY: ${{ secrets.RELEASE_TAG_KEY }}
 
       # No token: npm trusts this workflow through OIDC. --no-git-checks: the verify job already
       # checked this commit.
