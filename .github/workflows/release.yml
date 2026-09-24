@@ -9,20 +9,20 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # the release is created below
-      id-token: write # npm provenance
+      id-token: write # npm trusted publishing and provenance
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           fetch-depth: 0 # needed to check the tag is an ancestor of main
 
-      - uses: voidzero-dev/setup-vp@v1.18.0
+      - uses: voidzero-dev/setup-vp@1b32467adbe183473499fd9d5d372c3ed9641754 # v1.18.0
         with:
           node-version: "24"
           cache: true
           registry-url: "https://registry.npmjs.org"
 
       # setup-vp puts `vp` on PATH but not pnpm, which the publish step needs.
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4.3.0
         with:
           version: 11.25.0
 
@@ -50,10 +50,9 @@ jobs:
           pkg="$(node -p "require('./package.json').version")"
           test "$tag" = "$pkg" || { echo "tag $tag != package.json $pkg"; exit 1; }
 
-      # --no-git-checks: the tag is checked out detached, not on the publish branch.
+      # No token: npm trusts this workflow through OIDC. --no-git-checks: the tag is checked out
+      # detached, not on the publish branch.
       - run: pnpm publish --provenance --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       # Last: a release pointing at a version npm rejected would be a lie. The notes come from the
       # PRs merged since the previous tag, grouped by `.github/release.yml`.
@@ -72,15 +71,15 @@ jobs:
     concurrency:
       group: gh-pages # two releases must not push the site at once
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: voidzero-dev/setup-vp@v1.18.0
+      - uses: voidzero-dev/setup-vp@1b32467adbe183473499fd9d5d372c3ed9641754 # v1.18.0
         with:
           node-version: "24"
           cache: true
 
       # mdbook and mdbook-linkcheck2, pinned in mise.toml.
-      - uses: jdx/mise-action@v3
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
 
       - run: vp install
 
@@ -88,9 +87,11 @@ jobs:
 
       - name: Check out the published site
         run: |
-          git fetch --quiet origin gh-pages &&
-            git worktree add site FETCH_HEAD ||
+          if git fetch --quiet origin gh-pages; then
+            git worktree add site FETCH_HEAD
+          else
             git worktree add --orphan -b gh-pages site
+          fi
 
       - name: Add this version
         run: |

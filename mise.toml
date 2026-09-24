@@ -4,6 +4,10 @@ mdbook = "0.5.4"
 # Upstream ships a linux-x64 binary only, and the source build takes minutes.
 "github:marxin/mdbook-linkcheck2" = { version = "0.13.0", os = ["linux/x64"] }
 "cargo:mdbook-linkcheck2" = { version = "0.13.0", os = ["macos", "linux/arm64"] }
+pinact = "5.0.0"
+actionlint = "1.7.12"
+# actionlint runs it over each `run:` script.
+shellcheck = "0.11.0"
 
 [settings]
 lockfile = true
