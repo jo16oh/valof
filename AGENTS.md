@@ -13,9 +13,9 @@ the production bundle against its budgets. It does not update release documentat
 
 The bundle-size claim in `docs/src/introduction.md` follows the current branch. Update it with
 `vp run replace-bundle-size-claims --write docs/src/introduction.md`; regular CI checks it. The
-claims in `README.md` and the `package.json` description describe the latest release instead. The
-Vite+ pre-push hook checks all three when a pushed commit has a `v*` tag. The release workflow
-checks all three claims again from the tag.
+claims in `README.md` and the `package.json` description describe the latest release instead. CI
+checks them on the release PR that `vp run bump-version` opens. After the merge, the release
+workflow checks all three again before it creates the tag.
 
 Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
 against the published declarations, and budgets the instantiation count and the size of

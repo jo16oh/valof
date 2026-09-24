@@ -35,6 +35,10 @@ jobs:
 
       - run: vp run replace-bundle-size-claims docs/src/introduction.md
 
+      # Merging a release PR releases it, so the claims it ships are checked before then.
+      - if: startsWith(github.head_ref, 'chore/release-')
+        run: vp run replace-bundle-size-claims README.md package.json
+
       - run: vp run type-perf
 
       - run: vp run ts-compatibility
