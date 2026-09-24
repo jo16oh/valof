@@ -5,8 +5,11 @@
   "keywords": [
     "branded-types",
     "ddd",
+    "deep-readonly",
+    "domain-modeling",
     "immutable",
     "nominal-typing",
+    "parse-dont-validate",
     "typescript",
     "value-object"
   ],
