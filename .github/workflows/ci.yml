@@ -13,9 +13,9 @@ jobs:
   ci:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
 
-      - uses: voidzero-dev/setup-vp@v1.18.0
+      - uses: voidzero-dev/setup-vp@1b32467adbe183473499fd9d5d372c3ed9641754 # v1.18.0
         with:
           node-version: "24"
           cache: true
@@ -33,3 +33,15 @@ jobs:
       - run: vp run type-perf
 
       - run: vp run ts-compatibility
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+
+      # The versions pinned in mise.toml, so CI lints with the ones the hook runs.
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
+        with:
+          install_args: actionlint shellcheck
+
+      - run: actionlint
