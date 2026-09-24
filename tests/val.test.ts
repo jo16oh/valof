@@ -196,7 +196,31 @@ describe("Val", () => {
 
       const raw = Val.unwrap(order);
       expect(raw).toEqual({ id: "o", total: { amount: 1, currency: "JPY" } });
-      expect(equals(raw.total, Money({ amount: 1, currency: "JPY" }))).toBe(true);
+      expectTypeOf(raw).toEqualTypeOf<{
+        id: string;
+        total: { amount: number; currency: string };
+      }>();
+    });
+
+    test("a Val nested two deep comes back as data too", () => {
+      type Money = Val<"Money", { amount: number; currency: string }>;
+      type Line = Val<"Line", { price: Money }>;
+      type Order = Val<"Order", { line: Line }>;
+      expectTypeOf<PayloadOf<Order>>().toEqualTypeOf<{
+        line: { price: { amount: number; currency: string } };
+      }>();
+    });
+
+    test("a nested Val must pass its own seal again", () => {
+      type Money = Val<"Money", { amount: number; currency: string }>;
+      type Order = Val<"Order", { id: string; total: Money }>;
+      const Money = Val.sealer<Money>();
+      const Order = Val.sealer<Order>();
+      const raw = Val.unwrap(Order({ id: "o", total: Money({ amount: 1, currency: "JPY" }) }));
+
+      // @ts-expect-error `total` is data now, not a Money
+      Order(raw);
+      Order({ ...raw, total: Money(raw.total) });
     });
   });
 
@@ -472,16 +496,24 @@ describe("Val", () => {
     });
 
     test("the payload and the mutable copy open it too", () => {
-      expectTypeOf<PayloadOf<Tree>>().toEqualTypeOf<{ value: number; children: Tree[] }>();
+      expectTypeOf<PayloadOf<Tree>>().toEqualTypeOf<{
+        value: number;
+        children: PayloadOf<Tree>[];
+      }>();
 
       const raw = Val.unwrap(Tree({ value: 2, children: [Tree({ value: 1, children: [] })] }));
-      raw.children.push(Tree({ value: 3, children: [] }));
+      raw.children.push({ value: 3, children: [] });
       expect(raw.children.map((child) => child.value)).toEqual([1, 3]);
+    });
+
+    test("a Rec inside another Val opens too", () => {
+      type Forest = Val<"app/Forest", { tree: Tree }>;
+      expectTypeOf<PayloadOf<Forest>["tree"]["children"]>().toEqualTypeOf<PayloadOf<Tree>[]>();
     });
 
     test("a readonly array in the declaration stays readonly", () => {
       type Chain = Val<"app/Chain", { links: readonly Rec<Chain>[] }>;
-      expectTypeOf<PayloadOf<Chain>>().toEqualTypeOf<{ links: readonly Chain[] }>();
+      expectTypeOf<PayloadOf<Chain>>().toEqualTypeOf<{ links: readonly PayloadOf<Chain>[] }>();
     });
 
     test("Rec reaches through a record and a nested object", () => {
@@ -768,18 +800,16 @@ describe("copying", () => {
       const raw = Val.unwrap(derived);
       expect(raw.lines).not.toBe(derived.lines);
       expect(raw.lines[0]).not.toBe(derived.lines[0]);
-      // `PayloadOf` keeps a nested Val a Val, so the write goes through an untyped view: the
-      // claim under test is about what the copy shares at runtime, not about its type.
-      (raw.lines[0] as unknown as { qty: number }).qty = 999;
+      raw.lines[0]!.qty = 999;
       expect(derived.lines[0]!.qty).toBe(1);
     });
 
     test("an unwrapped payload is not adopted when it is sealed again", () => {
       const raw = Val.unwrap(order());
-      const resealed = Order(raw);
-      expect(resealed.lines).not.toBe(raw.lines);
-      (raw.lines[0] as unknown as { qty: number }).qty = 999;
-      expect(resealed.lines[0]!.qty).toBe(1);
+      const line = Line(raw.lines[0]!);
+      expect(line).not.toBe(raw.lines[0]);
+      raw.lines[0]!.qty = 999;
+      expect(line.qty).toBe(1);
     });
 
     test("a write into a reused node is caught in development", () => {

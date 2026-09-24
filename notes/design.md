@@ -183,6 +183,10 @@ hono 4.13.7 で実測。Val をそのまま返すと受け側の `const a: User 
 `Val.unwrap` ではないのがポイント。あれは `readonly` も外して可変コピーを返す。API に渡すのに可変性は要ら
 ない。求めていたのは「コピーしない型だけの unwrap」で、それは `PayloadOf` として既にある。
 
+**ネスト Val のブランドも落とす。** 以前の `PayloadOf` はネスト Val で止まっていた。`PayloadOf<Order>`
+の `total` は `Money` のまま生成クライアントに届き、受け側の `const m: Money = res.total` が素通りした。
+今はネスト Val も `Rec` も、それぞれの payload に開く。
+
 残る穴は、サーバ側で注釈を書き忘れれば漏れること。ただし規律が「全フレームワークの全呼び出し側」から
 「エンドポイントごとに 1 行」に縮み、しかも書く場所が seal の定義されている側になる。
 
@@ -454,7 +458,8 @@ export type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
 エイリアスの解決そのものは verdict（§11.2）のぶん軽くなったので、かつての TS2456 は出ない。
 
 `DeepReadonly` が `Rec<V>` を `V` に開くので（§4.3）、**`Rec` が見えるのは宣言の 1 行だけ**である。値にも
-seed にも `patch` にも残らない。`PayloadOf` も開く。開かないと `Val.unwrap` が返す payload の要素が
+seed にも `patch` にも残らない。`PayloadOf` も開くが、開く先は `Tree` ではなく `PayloadOf<Tree>` で
+ある（ネスト Val と同じ、§4.1「既知の摩擦」）。開かないと `Val.unwrap` が返す payload の要素が
 `Rec<Tree>` のままで、読めない。`SeedOf` は宣言から直接 `DeepReadonly` を通すので、二重に歩かない。
 
 ```ts
@@ -723,6 +728,18 @@ README の `Reusing a Val` が見せているのは**トップレベルでの合
 ### 既知の摩擦
 
 `readonly T[]` は `T[]` に代入できない。`readonly` を知らないサードパーティ関数に渡すたびに詰まる（`Array.prototype.sort` すら通らない）。`Val.unwrap` で可変なコピーを取り出す。`Val.of` の逆向きで、実装は `copy` の再利用。
+
+`Val.unwrap` の戻り型は `PayloadOf<V>` なので、ネスト Val のブランドも落ちる。実行時もネスト Val まで
+コピーするので、返る子は seal を通っていない。代償として、ネスト Val を持つ payload では
+`Val.of(Val.unwrap(v))` も `Order(Val.unwrap(o))` も型エラーになる。子を seal し直す。
+
+```ts
+const raw = Val.unwrap(order);
+Order({ ...raw, total: Money(raw.total) });
+```
+
+**却下: `unwrap` だけネスト Val を残す。** 往復は型が通るが、`PayloadOf` と別に payload 型がもう 1 つ
+要り、`unwrap` の戻り型が `PayloadOf` でなくなる。
 
 `unwrap` の実装を `structuredClone` に差し替えると **gzip が 9 B 減り、テスト 102 件は全部通る**。`copy` の再利用は owning フラグを要求し、`structuredClone` ならフラグごと消せるため。正しさの差も見つからなかった（`__proto__` を own property に持つ payload は own のまま複製され汚染もしない、null プロトタイプは `Object.prototype` になる、frozen な値の複製は frozen ではない）。残る差は速度だけで、そこは大きい（381 vs 2,587 ns/op、6.8 倍）。**9 B のために `unwrap` を 7 倍遅くする取引なので `copy` の再利用を維持する。**
 

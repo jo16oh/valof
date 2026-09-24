@@ -50,7 +50,7 @@ companion or specifying no type.
 ## `Val.unwrap`
 
 A plain, mutable deep copy of the payload, to pass to code that does not know about `readonly`. It
-strips the brand as well.
+strips the brand at every depth.
 
 ```ts
 // @errors: 2339

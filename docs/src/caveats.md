@@ -39,7 +39,8 @@ const user = User(plain); // sealed, and now it is one
 ```
 
 `PayloadOf<V>` removes the brand from the type, not from the value, so it costs nothing at run time.
-`Val.unwrap` copies and drops `readonly` too, which a request body does not need.
+`Val.unwrap` copies and drops `readonly` too, which a request body does not need. Both also remove
+the brand of a nested Val.
 
 Persistence helpers can create the same hole.
 [Jotai's `atomWithStorage`](https://jotai.org/docs/utilities/storage), for example, parses stored

@@ -226,6 +226,12 @@ describe("patch", () => {
       Holder.patch(holder, { shape: { r: 3 } });
       expect(Holder.patch(holder, { shape: square }).shape).toEqual({ side: 3, _tag: "Square" });
     });
+
+    test("unwraps to the payload of each variant", () => {
+      expectTypeOf(Val.unwrap(holder).shape).toEqualTypeOf<
+        { r: number; _tag: "Circle" } | { side: number; _tag: "Square" }
+      >();
+    });
   });
 });
 
