@@ -5,7 +5,7 @@ import lint from "./oxlint.config.ts";
 export default defineConfig({
   staged: {
     "*": "vp check --fix",
-    ".github/workflows/*.yml": "actionlint",
+    ".github/workflows/*.yml": ["actionlint", "zizmor --offline"],
   },
   pack: {
     // Named, so the import path is the name a user writes rather than where the file sits.

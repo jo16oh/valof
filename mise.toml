@@ -8,6 +8,7 @@ pinact = "5.0.0"
 actionlint = "1.7.12"
 # actionlint runs it over each `run:` script.
 shellcheck = "0.11.0"
+zizmor = "1.30.1"
 
 [settings]
 lockfile = true
