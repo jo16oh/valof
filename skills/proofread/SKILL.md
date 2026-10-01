@@ -4,8 +4,9 @@ description:
   The repo's sentence-level writing rules, and the pass that enforces them. It flags phrasing that
   leaves the meaning to the reader, possessives that hide the actor, literary vocabulary, idiomatic
   phrasal verbs, sections and samples that carry one fact, and type claims written without a probe.
-  Read it before writing any English the repo carries. Run the pass after editing any .md, before
-  showing the file or proposing a commit.
+  Every fix keeps the sentence's claim, weight, certainty and function. Read it before writing any
+  English the repo carries. Run the pass after editing any .md, before showing the file or proposing
+  a commit.
 ---
 
 # Proofread
@@ -17,9 +18,13 @@ example that raised it.
 
 ## The standard
 
-Write direct. Conclusion first, declaratives, no hedges, no filler concessives, no passive where an
-actor exists. Short sentences, and a concrete example before the general statement. Let a code block
-do what a metaphor would.
+Write direct. Conclusion first, declaratives, no filler hedges, no filler concessives, no passive
+where an actor exists. Short sentences, and a concrete example before the general statement. Let a
+code block do what a metaphor would.
+
+A hedge is filler only where the writer knows the answer. Where it records what the writer does not
+know, it is part of the claim. "A careful admin may notice the URL" says less than "a careful admin
+notices the URL". Keep it.
 
 No literary vocabulary, and no metaphor that is not already a technical term. Pick the word that has
 one reading here: "a member references `User`" over "a member names `User`", which reads first as
@@ -41,6 +46,28 @@ definition. Where a full clause follows, write two sentences instead, or "becaus
 half is the reason for the first.
 
 Models: Kent Beck, t_wada, Dan Abramov, mizchi. Take their plainness.
+
+## What a rewrite keeps
+
+Every rule above yields to this one. A rewrite changes how a sentence says something, never what it
+says. Before rewriting, note four things about the sentence, and check them again after:
+
+- **The claim.** What it asserts, and how its parts relate. Don't swap the subject for a nearby one,
+  as "the point of X" for "the goal of X".
+- **The weight.** What it puts first and what it dismisses. "Not A but B" does not become "A and B",
+  and neither becomes "B over A".
+- **The certainty.** "Is" stays "is", and "may" stays "may". The hedge rule above is the only
+  exception, and only for filler.
+- **The function.** An evaluation stays an evaluation, and a description stays a description. "X
+  matters here" does not become "we aim for X".
+
+Keep the connotation along with the denotation. Where a word carries the writer's attitude, as
+"finally" carries a wait and "accidentally" carries a mistake, a plainer word must carry it too.
+Drop the metaphor and keep what it implied.
+
+Add nothing the source does not say. No actor, cause, condition, number or example that the text and
+its context leave open, and no narrowing of a vague word to one specific fact. Where the rewrite
+needs one of these, report it as a question instead.
 
 ## 1. Scope
 
@@ -88,7 +115,14 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
   metaphor stays only where the word still carries its literal sense here, as `escape hatch` and
   `boilerplate` do.
 - **A noun whose referent the reader must guess.** `picks the kind` → name the alternatives. Watch
-  for a word that also appears as an identifier in the sample below it.
+  for a word that also appears as an identifier in the sample below it. Restore a referent only
+  where the context fixes it. Otherwise report it as unclear.
+- **A label that carries the evaluation.** `What matters is the order` → `The order matters`. Move
+  the judgment into the predicate. Delete the label only where the sentence claims the same without
+  it.
+- **A negation that corrects.** `This is not a cache but a log` answers a reader who expects a
+  cache. Keep the negation and smooth the wording. Rewrite it as a plain positive only where no
+  reader would expect a cache.
 - **A colon with a clause after it.** `The Val's own fields are not: p.id is a type error` →
   `The Val's own fields are not. p.id is a type error`. Where the second half is the reason, write
   it: `is refused: a duplicate brand needs the other alias to be seen` →
@@ -125,7 +159,8 @@ node_modules/.bin/tsc --ignoreConfig --noEmit --strict --allowImportingTsExtensi
 ## 5. Report
 
 One line per finding: `file:line`, the current text, the replacement. Group by file, worst first.
-Say plainly where a sentence's intent is unclear rather than guessing at a rewrite.
+Say plainly where a sentence's intent is unclear rather than guessing at a rewrite. List the gaps a
+rewrite was tempted to fill, as questions to the writer, at most two.
 
 Then run `vp fmt` on what changed, and the docs typecheck when a fenced sample moved:
 
