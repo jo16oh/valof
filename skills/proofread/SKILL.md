@@ -3,10 +3,10 @@ name: proofread
 description:
   The repo's sentence-level writing rules, and the pass that enforces them. It flags phrasing that
   leaves the meaning to the reader, possessives that hide the actor, literary vocabulary, idiomatic
-  phrasal verbs, sections and samples that carry one fact, and type claims written without a probe.
-  Every fix keeps the sentence's claim, weight, certainty and function. Read it before writing any
-  English the repo carries. Run the pass after editing any .md, before showing the file or proposing
-  a commit.
+  phrasal verbs, sentences with no claim, sections and samples that carry one fact, and type claims
+  written without a probe. Every fix keeps the sentence's claim, weight, certainty and function.
+  Read it before writing any English the repo carries. Run the pass after editing any .md, before
+  showing the file or proposing a commit.
 ---
 
 # Proofread
@@ -135,6 +135,9 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
 - **Internal vocabulary.** A word is the user's only if it reaches the export surface: an exported
   type or method, a type argument, a type error's text, a JSDoc they hover. Otherwise use the
   exported word for the same thing, or define the new one in a sentence at first use.
+- **A sentence with no claim.** `This keeps your types honest` says nothing the reader can check or
+  act on. Delete it if the paragraph says the same without it. If it seems to replace a claim the
+  writer meant to make, report it and ask which one. Don't add the claim yourself.
 - **A section carrying one fact.** Try appending it to an existing sample with a comment before
   writing a heading for it.
 - **A sample larger than the claim.** If the point is that a declaration typechecks, the `type`
