@@ -11,7 +11,7 @@ description:
 
 # Proofread
 
-One pass over prose, separate from writing it. Report findings; apply them only on a go-ahead.
+One pass over prose, separate from writing it. Report findings; apply them only after approval.
 
 This file is the record. A rewrite that taught something new goes in as a rule here, with the
 example that raised it.
@@ -22,9 +22,9 @@ Write direct. Conclusion first, declaratives, no filler hedges, no filler conces
 where an actor exists. Short sentences, and a concrete example before the general statement. Let a
 code block do what a metaphor would.
 
-A hedge is filler only where the writer knows the answer. Where it records what the writer does not
-know, it is part of the claim. "A careful admin may notice the URL" says less than "a careful admin
-notices the URL". Keep it.
+A hedge is filler only where the writer is sure. Where it records what the writer does not know, it
+is part of the claim. "A careful admin may notice the URL" claims less than "a careful admin notices
+the URL". Keep that hedge.
 
 No literary vocabulary, and no metaphor that is not already a technical term. Pick the word that has
 one reading here: "a member references `User`" over "a member names `User`", which reads first as
@@ -49,24 +49,25 @@ Models: Kent Beck, t_wada, Dan Abramov, mizchi. Take their plainness.
 
 ## What a rewrite keeps
 
-Every rule above yields to this one. A rewrite changes how a sentence says something, never what it
-says. Before rewriting, note four things about the sentence, and check them again after:
+This section overrides every rule above. A rewrite changes how a sentence says something, never what
+it says. Before rewriting, note four things about the sentence, and check them again after
+rewriting:
 
-- **The claim.** What it asserts, and how its parts relate. Don't swap the subject for a nearby one,
+- **The claim.** What it asserts, and how its parts relate. Don't swap the topic for a nearby one,
   as "the point of X" for "the goal of X".
-- **The weight.** What it puts first and what it dismisses. "Not A but B" does not become "A and B",
-  and neither becomes "B over A".
-- **The certainty.** "Is" stays "is", and "may" stays "may". The hedge rule above is the only
-  exception, and only for filler.
+- **The weight.** What it puts first and what it dismisses. "Not A but B" becomes neither "A and B"
+  nor "B over A".
+- **The certainty.** "Is" stays "is", and "may" stays "may". The only exception is a filler hedge.
 - **The function.** An evaluation stays an evaluation, and a description stays a description. "X
   matters here" does not become "we aim for X".
 
 Keep the connotation along with the denotation. Where a word carries the writer's attitude, as
-"finally" carries a wait and "accidentally" carries a mistake, a plainer word must carry it too.
-Drop the metaphor and keep what it implied.
+"finally" carries that someone waited and "accidentally" that someone made a mistake, a plainer word
+must carry it too. Where the word is a metaphor, replace it with a literal word that keeps what it
+implied.
 
-Add nothing the source does not say. No actor, cause, condition, number or example that the text and
-its context leave open, and no narrowing of a vague word to one specific fact. Where the rewrite
+Add nothing the source does not say: no actor, cause, condition, number or example that the text and
+its context do not state, and no narrowing of a vague word to one specific fact. Where the rewrite
 needs one of these, report it as a question instead.
 
 ## 1. Scope
@@ -109,20 +110,20 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
 - **A word with two readings here.** `a member names the companion` reads as "gives it a name"
   before it reads as "calls it by name". Pick the word with one reading, whether or not it is the
   shorter one: `references`, `calls`, `uses`. The literal sense is fine: a variant
-  `may not be named then` is giving a name, which is what it says. The same trap sits in `takes`,
-  `holds` and `declares`.
+  `may not be named then` is giving a name, which is what it says. `takes`, `holds` and `declares`
+  have the same problem.
 - **A literary word, or a metaphor that is not a technical term.** Name the operation instead. A
   metaphor stays only where the word still carries its literal sense here, as `escape hatch` and
   `boilerplate` do.
 - **A noun whose referent the reader must guess.** `picks the kind` → name the alternatives. Watch
   for a word that also appears as an identifier in the sample below it. Restore a referent only
-  where the context fixes it. Otherwise report it as unclear.
-- **A label that carries the evaluation.** `What matters is the order` → `The order matters`. Move
-  the judgment into the predicate. Delete the label only where the sentence claims the same without
-  it.
+  where the context determines it. Otherwise report it as unclear.
+- **An opening phrase that carries the evaluation.** `What matters is the order` →
+  `The order matters`. Move the judgment into the predicate. Delete the phrase only where the
+  sentence claims the same without it.
 - **A negation that corrects.** `This is not a cache but a log` answers a reader who expects a
-  cache. Keep the negation and smooth the wording. Rewrite it as a plain positive only where no
-  reader would expect a cache.
+  cache. Keep the negation and change only the wording. Rewrite it as an affirmative sentence only
+  where no reader would expect a cache.
 - **A colon with a clause after it.** `The Val's own fields are not: p.id is a type error` →
   `The Val's own fields are not. p.id is a type error`. Where the second half is the reason, write
   it: `is refused: a duplicate brand needs the other alias to be seen` →
@@ -142,8 +143,9 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
   writing a heading for it.
 - **A sample larger than the claim.** If the point is that a declaration typechecks, the `type`
   lines alone carry it.
-- **A fact stated twice.** A rule that holds for every companion belongs in the JSDoc of the
-  declaration that enforces it, where the hover arrives with the type error.
+- **Which constraints to state in prose.** Prose states a constraint where the reader needs it
+  before writing the code, as one that shapes how they design their types. One that the type error
+  and the declaration's JSDoc explain well enough can be left out of the prose.
 
 ## 4. Let the sample carry the claim
 
@@ -162,8 +164,8 @@ node_modules/.bin/tsc --ignoreConfig --noEmit --strict --allowImportingTsExtensi
 ## 5. Report
 
 One line per finding: `file:line`, the current text, the replacement. Group by file, worst first.
-Say plainly where a sentence's intent is unclear rather than guessing at a rewrite. List the gaps a
-rewrite was tempted to fill, as questions to the writer, at most two.
+Say plainly where a sentence's intent is unclear rather than guessing at a rewrite. Ask the writer
+about the facts a rewrite needed but the source did not give, at most two.
 
 Then run `vp fmt` on what changed, and the docs typecheck when a fenced sample moved:
 
