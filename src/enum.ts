@@ -10,6 +10,7 @@ import {
   type Invalid,
   type Passes,
   type Patch,
+  type Synchronous,
   type Takes,
   type Wired,
 } from "./val.ts";
@@ -302,9 +303,12 @@ type VariantSealImpl<E extends AnyEnum, N extends keyof VariantsOf<E>, FE> = (
  * The seal's parameter may be wider than the payload, so a schema library can parse into it, but
  * not so wide that it accepts a wire format. See `Val`'s `implSeal`.
  */
-type CheckedSeal<G extends (...args: never[]) => unknown> = [string] extends [Parameters<G>[0]]
-  ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
-  : G;
+type CheckedSeal<G extends (...args: never[]) => unknown> = Synchronous<
+  G,
+  [string] extends [Parameters<G>[0]]
+    ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
+    : G
+>;
 
 /**
  * A variant's frame on a companion: `create`, `patch`, a `seal` where one was registered, and

@@ -1503,17 +1503,12 @@ describe("building", () => {
       expect(Name.seal({ value: " Alice " })).toEqual({ value: "alice" });
     });
 
-    test("detects input mutation before an awaited default seal", async () => {
+    test("rejects a default seal called after the custom seal returned", () => {
       type Reading = Val<"Reading", { n: number }>;
-      const Reading = Val.companion<Reading>().implSeal(async (r, seal) => {
-        await Promise.resolve();
-        return seal(r);
-      });
-      const input = { n: 1 };
+      const Reading = Val.companion<Reading>().implSeal((r, seal) => () => seal(r));
 
-      const sealed = Reading.seal(input);
-      input.n = 2;
-      await expect(sealed).rejects.toThrow(TypeError);
+      const later = Reading.seal({ n: 1 });
+      expect(later).toThrow("The default seal was called after the custom seal returned.");
     });
 
     test("reuses the starting snapshot for every default seal call", () => {
@@ -1613,6 +1608,25 @@ describe("building", () => {
       test("a payload that is a string is exempt", () => {
         const Email = Val.companion<Email>().implSeal((e: unknown, seal) => seal(e as string));
         expect(Email.seal("a@b.com")).toBe("a@b.com");
+      });
+    });
+
+    describe("the seal's return", () => {
+      test("a return that can be awaited is rejected", () => {
+        // @ts-expect-error a seal is synchronous
+        Val.companion<Age>().implSeal(async (n, seal) => seal(n));
+        // @ts-expect-error a string payload is exempt from the parameter check alone
+        Val.companion<Val<"Email", string>>().implSeal(async (e, seal) => seal(e));
+        // @ts-expect-error a union that includes a promise is the same
+        Val.companion<Age>().implSeal((n, seal) => (n > 0 ? seal(n) : Promise.resolve(seal(n))));
+        // @ts-expect-error so is a `PromiseLike`, which an async result type implements
+        Val.companion<Age>().implSeal((n, seal) => Promise.resolve(seal(n)) as PromiseLike<Age>);
+      });
+
+      test("a return typed `any` is accepted", () => {
+        // oxlint-disable-next-line no-explicit-any -- the case under test
+        const Loose = Val.companion<Age>().implSeal((n, seal): any => seal(n));
+        expect(Loose.seal(1)).toBe(1);
       });
     });
   });

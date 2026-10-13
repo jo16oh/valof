@@ -612,6 +612,15 @@ describe("a seal of its own", () => {
       .implSeal((p, seal) => seal(p));
   });
 
+  test("a seal whose return can be awaited is rejected", () => {
+    // @ts-expect-error a seal is synchronous
+    Enum.companion<Money>().implSeal(async (p, seal) => seal(p));
+    Enum.companion<Money>().implVariant("Cash", (variant) =>
+      // @ts-expect-error the same for a variant's seal
+      variant.implSeal(async (p, seal) => seal(p)),
+    );
+  });
+
   test("a variant seals alone where the enum wrote none", () => {
     const Plain = Enum.companion<Shape>()
       .implVariant("Circle", (variant) =>

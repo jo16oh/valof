@@ -404,11 +404,22 @@ type SealImpl<V extends AnyVal> = (value: SeedOf<V>, seal: (value: SeedOf<V>) =>
  * `Record<string, unknown>` alone. A string payload cannot be told apart from a wire format, so
  * it is exempt.
  */
-type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = [string] extends [SeedOf<V>]
-  ? G
-  : [string] extends [Parameters<G>[0]]
-    ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
-    : G;
+type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = Synchronous<
+  G,
+  [string] extends [SeedOf<V>]
+    ? G
+    : [string] extends [Parameters<G>[0]]
+      ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
+      : G
+>;
+
+export type Synchronous<G extends (...args: never[]) => unknown, Checked> =
+  // `any` is exempt. It matches a promise as it matches everything, so it shows nothing.
+  0 extends 1 & ReturnType<G>
+    ? Checked
+    : [Extract<ReturnType<G>, PromiseLike<unknown>>] extends [never]
+      ? Checked
+      : Invalid<"a seal is synchronous; await before sealing">;
 
 /**
  * What `create` must be: any arguments, a payload out. The result is not a value yet. The type's
@@ -827,6 +838,10 @@ const changedDuringSeal = (): never => {
   throw new TypeError("The payload changed while the custom seal was running.");
 };
 
+const sealedLate = (): never => {
+  throw new TypeError("The default seal was called after the custom seal returned.");
+};
+
 /**
  * Builds the recursive deep copy, in an owning and a non-owning form.
  *
@@ -1026,7 +1041,10 @@ const attach = (
       ? development
         ? (value) => {
             const before = snapshotSealInput(value);
-            return custom(value, (candidate) => {
+            // The type rejects a promise. This also catches a return that runs the seal lazily.
+            let returned = false;
+            const result = custom(value, (candidate) => {
+              if (returned) sealedLate();
               if (before !== unsnapshotable) {
                 const current = snapshotSealInput(value);
                 if (current !== unsnapshotable && !equalsUnknown(before, current))
@@ -1040,6 +1058,8 @@ const attach = (
               }
               return sealed;
             });
+            returned = true;
+            return result;
           }
         : (value) => custom(value, terminal)
       : terminal;
