@@ -24,7 +24,7 @@ import { Val } from "valof";
 - **§6 スマートコンストラクタと更新**
   - **6.1** コンストラクタは出自で決まる / **6.2** `patch`、patch の `undefined`、深さを問わない patch、merge できるのは既にあるノードだけ / **6.3** Result 非依存 / **6.4** `update` を削除する
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
-  - **6.7** seal（冪等）と create（鋳造）の分離 / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
+  - **6.7** seal（冪等）と create（鋳造）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
@@ -1543,6 +1543,46 @@ type Rebuild<V, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 `patch` はペイロードを seal に返す（§6.8）ので、ワイヤ形式のデコーダを seal に置くと、値から値を派生した瞬間に壊れる。落ちるのは `unknown` と `{}` で、スキーマライブラリに要る広さは `object` と `Record<string, unknown>` で足りる。
 
 ペイロード自体が `string` の Val（`Val<"Email", string>`）は除外する。ペイロードとワイヤ形式を型で区別する手段がない。
+
+#### seal は同期で返す、2026-10-14
+
+seal の戻り値は `unknown` だったので、async の seal が型を通っていた。禁じる。
+
+```ts
+.implSeal(async (r, seal) => seal(await normalize(r))); // 型エラー
+```
+
+- **派生がすべて async になる。**`patch` は seal の戻り値をそのまま返すので、`seal` も `patch` も
+  `Promise<V>` を返す
+- **async はたいてい I/O で、冪等の規約と合わない。**一意性の確認は、既にある値自身の payload を拒否する。
+  ハッシュ化は 2 回掛けると別の値になる。値の取得は seal の外で済ませ、結果を引数で渡す
+- **検査とコピーのあいだに await が入る。**コピーは末端の既定の seal で取る（§6.8）。await のあいだに
+  呼び出し側が入力を書き換えられる。ただ、書き換えはコードを読めば気づける。development は
+  `changedDuringSeal` で検出していたが、production は検査しない
+
+塞ぐ場所は 2 つ。
+
+- **型。**`Synchronous<G, Checked>` が、戻り型に `PromiseLike` を含む seal を `Invalid<…>` で落とす。
+  `Val.companion`、`Enum.companion`、Variant の `implSeal` に掛かる。payload が `string` の Val も
+  除外しない。除外されるのは引数の検査だけである
+- **development。**カスタム seal が return した後に既定の seal が呼ばれたら投げる。型を通る遅延評価
+  （`(r, seal) => () => seal(r)`）がここで落ちる。Enum の seal は合成されて同じ `sealedWith` に届くので、
+  Enum 側に実行時の検査は無い
+
+型が見るのは `PromiseLike` であって、`then` を持つ任意の型ではない。`then` のシグネチャが合わない
+オブジェクトは型を通り、development の検査に任せる。
+
+**戻り型が `any` の seal は通す。**`any` は `PromiseLike` にも合うので、除外しないと同期の seal に
+「a seal is synchronous」という嘘のエラーが出る。
+
+`create` は元から async にできない。minter の戻り型が `SeedOf<V>` で、`Promise` はそこに代入できない。
+例外は空の payload（`Record<never, never>`）で、`Promise` が代入できるので通る。塞いでいない。
+
+development の検査に掛からないものが 1 つ残る。キャストで型を抜けた async の seal が、既定の seal を
+呼ばずに reject する場合である。
+
+production のバンドルは変わらない（852 B gzip）。型のインスタンス化は core が 5,665 → 5,781、enum が
+33,264 → 33,537。
 
 #### sealer には `create` を生やさない
 
