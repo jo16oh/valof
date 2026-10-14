@@ -39,7 +39,7 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-7c47d193.js";
+            window.path_to_searchindex_js = "searchindex-32142984.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-9254062f.js"></script>
@@ -207,6 +207,7 @@
 <tr><td><code>.implTrait&lt;Tr&gt;(fns)</code></td><td>the same, for a trait that implements nothing of its own</td></tr>
 <tr><td><code>Val.companion&lt;V&gt;().implSeal(f)</code></td><td>registers a custom seal</td></tr>
 <tr><td><code>Val.companion&lt;V&gt;().implCreate(f)</code></td><td>registers a function that creates a payload</td></tr>
+<tr><td><code>Val.companion&lt;V&gt;().implCreate.noseal(f)</code></td><td>the same, bypassing the seal for a payload it always accepts</td></tr>
 <tr><td><code>Val.companion&lt;V&gt;().fixed&lt;K&gt;()</code></td><td>excludes keys from <code>patch</code></td></tr>
 </tbody>
 </table>
@@ -267,21 +268,23 @@ re-export a companion.</p>
 <tbody>
 <tr><td><code>Enum&lt;K, D, X&gt;</code></td><td>a closed set of variants, as one union</td></tr>
 <tr><td><code>Enum.sealer&lt;E&gt;(tag?)</code></td><td>starts an enum whose variants are callable</td></tr>
-<tr><td><code>Enum.companion&lt;E&gt;(tag?)</code></td><td>the same, for an enum with a seal of its own</td></tr>
-<tr><td><code>E.match(value, handlers)</code></td><td>dispatches on the tag, exhaustively</td></tr>
-<tr><td><code>E[Variant](payload)</code></td><td>builds that variant, writing the tag</td></tr>
-<tr><td><code>E[Variant].create(payload)</code></td><td>the same on a companion, through its seal</td></tr>
-<tr><td><code>E[Variant].patch(value, patch)</code></td><td>derives a variant, never reaching the tag</td></tr>
-<tr><td><code>E(payload)</code> / <code>E.seal(payload)</code></td><td>selects the variant from the tag, and seals</td></tr>
+<tr><td><code>Enum.companion&lt;E&gt;(tag?)</code></td><td>the same, for an enum with a custom seal</td></tr>
+<tr><td><code>E.match(value, handlers)</code></td><td>matches on a variant’s tag field, exhaustively</td></tr>
+<tr><td><code>E[Tag].match(tag, handlers)</code></td><td>matches on a tag string, also exhaustively</td></tr>
+<tr><td><code>E(payload)</code> / <code>E.seal(payload)</code></td><td>builds the variant that the payload’s tag selects</td></tr>
+<tr><td><code>E[Tag].key</code></td><td>the tag field’s name</td></tr>
+<tr><td><code>E.Variant(payload)</code></td><td>builds that variant, writing the tag</td></tr>
+<tr><td><code>E.Variant.create(payload)</code></td><td>the same on a companion, through its seal</td></tr>
+<tr><td><code>E.Variant.patch(value, patch)</code></td><td>derives a value of that variant, keeping the tag</td></tr>
 <tr><td><code>.impl(fns?)</code></td><td>adds members taking the union, and ends the chain</td></tr>
-<tr><td><code>.implVariant(N, sealer =&gt; …)</code></td><td>builds one variant from its own steps</td></tr>
-<tr><td><code>.implSeal(seal)</code></td><td>replaces the seal every variant passes</td></tr>
+<tr><td><code>.implVariant(N, sealer =&gt; …)</code></td><td>adds one variant’s members, and its seal</td></tr>
+<tr><td><code>.implSeal(seal)</code></td><td>replaces the seal shared by every variant</td></tr>
 <tr><td><code>.implTrait(Tr, fns?)</code></td><td>implements a trait the enum declares</td></tr>
-<tr><td><code>.implTrait&lt;Tr&gt;(fns)</code></td><td>the same, for a trait that implements nothing of its own</td></tr>
+<tr><td><code>.implTrait&lt;Tr&gt;(fns)</code></td><td>the same, for a trait that has no default implementation</td></tr>
 <tr><td><code>Tag&lt;T&gt;</code></td><td>names the tag field, intersected into <code>X</code></td></tr>
 <tr><td><code>VariantOf&lt;E, N&gt;</code></td><td>the type of one variant</td></tr>
 <tr><td><code>SeedFor&lt;E, N&gt;</code></td><td>what that variant’s constructor takes</td></tr>
-<tr><td><code>SealedPayload&lt;E&gt;</code></td><td>what <code>E(payload)</code> takes, tag included</td></tr>
+<tr><td><code>SealedPayload&lt;E&gt;</code></td><td>what an <code>.implSeal</code> seal receives, tag included</td></tr>
 <tr><td><code>VariantsOf&lt;E&gt;</code> / <code>SharedOf&lt;E&gt;</code></td><td>the declared variants, and the shared fields</td></tr>
 <tr><td><code>NameOf&lt;E&gt;</code> / <code>TagOf&lt;E&gt;</code></td><td>the enum’s name, and the tag field’s name</td></tr>
 <tr><td><code>AnyEnum</code></td><td>a constraint over any enum</td></tr>

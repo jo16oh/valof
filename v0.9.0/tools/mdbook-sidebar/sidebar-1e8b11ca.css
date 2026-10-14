@@ -1,0 +1,41 @@
+mdbook-sidebar-accordion {
+  display: contents;
+}
+
+.chapter-details > summary {
+  cursor: pointer;
+}
+
+.chapter-details > summary::marker {
+  color: var(--sidebar-fg);
+}
+
+.chapter-details > summary .chapter-link-wrapper {
+  display: inline-flex;
+}
+
+.chapter li.chapter-item > .chapter-link-wrapper.sidebar-numbered {
+  padding-inline-start: 1em;
+}
+
+.sidebar-headings {
+  border-inline-start: 4px solid var(--sidebar-header-border-color);
+  margin-inline-start: 4px;
+  padding-inline-start: 12px;
+}
+
+.chapter .sidebar-heading {
+  line-height: 1.5em;
+  margin-block: 0.5em;
+}
+
+.chapter .sidebar-heading-3,
+.chapter .sidebar-heading-4,
+.chapter .sidebar-heading-5,
+.chapter .sidebar-heading-6 {
+  padding-inline-start: 12px;
+}
+
+.chapter .on-this-page {
+  display: none;
+}
