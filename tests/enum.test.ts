@@ -157,6 +157,12 @@ describe("the tag", () => {
       expect(Named.Click.create({ x: 1 })).toEqual({ x: 1, kind: "Click" });
     });
 
+    test("`[Tag].key` returns it, typed as the literal", () => {
+      expectTypeOf(Event[Tag].key).toEqualTypeOf<"kind">();
+      expect(Event[Tag].key).toBe("kind");
+      expect(Shape[Tag].key).toBe("_tag");
+    });
+
     test("reserves no variant name of its own", () => {
       type Git = Enum<"Git", { commit: { sha: string }; tag: { name: string } }, Tag<"type">>;
       const Git = Enum.sealer<Git>("type");

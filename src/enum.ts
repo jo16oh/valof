@@ -456,6 +456,11 @@ type ByTag<E extends AnyEnum> = {
     tag: T,
     handlers: H & { [N in keyof H]: N extends T ? unknown : "the tag never takes this value" },
   ) => ReturnType<H[keyof H]>;
+  /**
+   * The name of the tag field, for a schema library that asks for the discriminator:
+   * `z.discriminatedUnion(Command[Tag].key, [...])`.
+   */
+  readonly key: TagOf<E>;
 };
 
 /**
@@ -625,9 +630,7 @@ type Sealer = ((payload: Payload) => unknown) & {
 
 type Builds = Record<string, (b: object) => object>;
 
-const byTag = {
-  match: (tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!(),
-};
+const matchTag = (tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!();
 
 /**
  * One builder state. The companion is a proxy: it does not know the variant names, so anything it
@@ -645,6 +648,7 @@ const state = (
   // Remembered for the allocation, not for identity: a frame built twice behaves the same, and
   // rebuilding one on every read would make a fresh closure per member per access.
   const frames = new Map<string, unknown>();
+  const byTag = { match: matchTag, key: tag };
 
   const built = (name: string, custom: Seal | undefined, fns: Payload): object => {
     const mint = (payload: Payload) => ({ ...payload, [tag]: name });
