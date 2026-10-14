@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
+import type { Wired } from "../../val.ts";
+
 import {
   child,
   children,
@@ -172,8 +174,12 @@ type Comment = { value: string; start: number; end: number };
 /**
  * Attached by the library rather than written in `.impl`. `.impl` rejects them at the type level,
  * so this only keeps a plain-JS caller from getting a finding for one.
+ *
+ * Keyed by {@link Wired}, so a name added or removed there is a type error here.
  */
-const BUILTIN = new Set(["patch", "seal", "create"]);
+const BUILTIN: ReadonlySet<string> = new Set(
+  Object.keys({ patch: true, seal: true, create: true } satisfies Record<Wired, true>),
+);
 
 function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   let set = map.get(key);
