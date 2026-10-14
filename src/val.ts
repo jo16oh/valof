@@ -425,20 +425,39 @@ export type Synchronous<G extends (...args: never[]) => unknown, Checked> =
  * What `create` must be: any arguments, a payload out. The result is not a value yet. The type's
  * seal closes it, so `create` cannot bypass the seal.
  */
-type Minter<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
+type CreateImpl<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
+
+/** Marks a `create` registered by `.implCreate.noseal`. */
+type Unsealed = { readonly __valof_noseal: true };
+
+/**
+ * No arguments, so no input reaches the payload unsealed. A wrong payload is checked against
+ * `() => SeedOf<V>`, so the error points at the returned value. `G` stays bare, because an
+ * intersection stops TypeScript inferring it.
+ */
+type Argumentless<V extends AnyVal, G extends AnyFn> = [Parameters<G>] extends [[]]
+  ? [ReturnType<G>] extends [SeedOf<V>]
+    ? G
+    : () => SeedOf<V>
+  : Invalid<"`.implCreate.noseal` takes a function with no arguments">;
 
 /** The public face of `create`: its own arguments, and whatever the seal returns. */
-type Minting<V extends AnyVal, N, F> = N extends (...args: infer A) => unknown
-  ? (...args: A) => Constructed<V, F>
-  : undefined;
+type Creating<V extends AnyVal, N, F> = [N] extends [Unsealed]
+  ? () => V
+  : N extends (...args: infer A) => unknown
+    ? (...args: A) => Constructed<V, F>
+    : undefined;
 
-type CreateMethod<V extends AnyVal, N, F> = [Minting<V, N, F>] extends [undefined]
+type CreateMethod<V extends AnyVal, N, F> = [Creating<V, N, F>] extends [undefined]
   ? Record<never, never>
   : {
-      /** Mints a payload and seals it, so it returns whatever the seal returns. */
-      create: Minting<V, N, F> & {
-        /** Reuses the minter and seal without copying their terminal payload. */
-        nocopy: Minting<V, N, F>;
+      /**
+       * Creates a payload and seals it, so it returns whatever the seal returns. With
+       * `.implCreate.noseal`, returns the Val.
+       */
+      create: Creating<V, N, F> & {
+        /** The same, without copying the payload. */
+        nocopy: Creating<V, N, F>;
       };
     };
 
@@ -622,8 +641,8 @@ export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<neve
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
- * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Minting
- * belongs in `create`, whose payload is then sealed like any other.
+ * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Generating
+ * ids, timestamps and the like belongs in `create`, whose payload is then sealed like any other.
  */
 export type CompanionBuilder<
   V extends AnyVal,
@@ -661,8 +680,15 @@ export type CompanionBuilder<
       ...impl: Passes<Tr, G, V>
     ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
   };
-  /** Registers the payload-minting constructor as `create`. Any arguments, a payload out. */
-  implCreate: <G extends Minter<V>>(create: G) => CompanionBuilder<V, G, F, P, T>;
+  /** Registers a function that creates a payload, as `create`. Any arguments, a payload out. */
+  implCreate: (<G extends CreateImpl<V>>(create: G) => CompanionBuilder<V, G, F, P, T>) & {
+    /**
+     * A `create` that bypasses the seal and returns the Val, for a payload the seal always
+     * accepts, such as a random id. Takes no arguments. Development still runs the seal, and
+     * throws if it rejects the payload or if normalization changes it.
+     */
+    noseal: <G extends AnyFn>(create: Argumentless<V, G>) => CompanionBuilder<V, Unsealed, F, P, T>;
+  };
   /**
    * Replaces the seal. Its parameter may be wider than the payload, so a schema library can parse
    * into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
@@ -671,7 +697,7 @@ export type CompanionBuilder<
   /**
    * Takes keys out of the derivation path: `patch` stops accepting them in its patch.
    *
-   * For what a `create` mints and nothing afterwards may change: an id, a `createdAt`, a
+   * For what a `create` generates and nothing afterwards may change: an id, a `createdAt`, a
    * version counter.
    *
    * ```ts
@@ -838,6 +864,10 @@ const changedDuringSeal = (): never => {
   throw new TypeError("The payload changed while the custom seal was running.");
 };
 
+const notFixedPoint = (): never => {
+  throw new TypeError("The seal rejected or changed a payload from `.implCreate.noseal`.");
+};
+
 /**
  * Builds the recursive deep copy, in an owning and a non-owning form.
  *
@@ -974,6 +1004,7 @@ export const define = <T extends object>(target: T, key: string, value: unknown)
 /** What the builder's steps registered. `.fixed` is a type argument alone, so it leaves none. */
 type Ctors = {
   create?: AnyFn;
+  noseal?: boolean;
   seal?: (value: unknown, seal: (value: unknown) => unknown) => unknown;
 };
 
@@ -1031,7 +1062,7 @@ const attach = (
   traits: Record<string, unknown>,
   callable: boolean,
 ): Record<string, unknown> => {
-  const { create, seal: custom } = ctors;
+  const { create, noseal, seal: custom } = ctors;
   const sealedWith = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
     custom
       ? development
@@ -1056,15 +1087,29 @@ const attach = (
       : terminal;
   const seal = sealedWith(own);
   const nocopy = sealedWith(adopt);
+  // Development runs the seal anyway, and throws unless it calls the default seal with an
+  // equal payload.
+  const unsealed = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
+    custom && development
+      ? (value) => {
+          const result: { sealed?: unknown } = {};
+          sealedWith((candidate) => {
+            if (!equalsUnknown(value, candidate)) notFixedPoint();
+            return (result.sealed = terminal(candidate));
+          })(value);
+          return "sealed" in result ? result.sealed : notFixedPoint();
+        }
+      : terminal;
   // A derivation that changed nothing returns the value it started from, so a framework comparing
   // by identity sees no update. A custom seal owns the return shape, so the value goes back
   // through it: the copy inside recognizes the node and returns the same one.
   const keep: (value: unknown) => unknown = custom ? seal : (value) => value;
 
   if (create) {
-    const minted = (...args: never[]) => seal(create(...args));
-    minted.nocopy = (...args: never[]) => nocopy(create(...args));
-    target.create = minted;
+    const [copying, adopting] = noseal ? [unsealed(own), unsealed(adopt)] : [seal, nocopy];
+    const created = (...args: never[]) => copying(create(...args));
+    created.nocopy = (...args: never[]) => adopting(create(...args));
+    target.create = created;
   }
   if (custom) {
     define(seal, "nocopy", nocopy);
@@ -1134,7 +1179,9 @@ const build = <V extends AnyVal>(
     });
   if (callable) return target;
 
-  target.implCreate = (create: AnyFn) => step({ ...ctors, create });
+  target.implCreate = Object.assign((create: AnyFn) => step({ ...ctors, create, noseal: false }), {
+    noseal: (create: AnyFn) => step({ ...ctors, create, noseal: true }),
+  });
   target.implSeal = (seal: NonNullable<Ctors["seal"]>) => step({ ...ctors, seal });
   target.fixed = () => step(ctors);
   return target;

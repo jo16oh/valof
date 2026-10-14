@@ -13,6 +13,13 @@ test("reports a step written on a companion another file declares", async () => 
   ]);
 });
 
+test("reports `.implCreate.noseal` as the step it hangs from", async () => {
+  expect(await lint("noseal")).toEqual([{ rule: DetachedImpl, at: "noseal/consumer.ts:3:28" }]);
+  expect(await messages("noseal")).toEqual([
+    "Age.implCreate is written outside the chain that declares it; write the step there",
+  ]);
+});
+
 test("reports a step written on one variant of an enum", async () => {
   expect(await lint("enum")).toEqual([{ rule: DetachedImpl, at: "enum/consumer.ts:3:14" }]);
   expect(await messages("enum")).toEqual([

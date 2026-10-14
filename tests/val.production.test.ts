@@ -62,3 +62,20 @@ describe("Val nocopy in production", () => {
     expect(changed.count).toBe(2);
   });
 });
+
+describe("implCreate.noseal in production", () => {
+  test("skips the custom seal", () => {
+    type SectionId = Value<"ProductionSectionId", string>;
+    let sealed = 0;
+    const SectionId = Val.companion<SectionId>()
+      .implCreate.noseal(() => "0123abcd")
+      .implSeal((text, seal): SectionId | undefined => {
+        sealed += 1;
+        return seal(text);
+      });
+
+    expect(SectionId.create()).toBe("0123abcd");
+    expect(SectionId.create.nocopy()).toBe("0123abcd");
+    expect(sealed).toBe(0);
+  });
+});
