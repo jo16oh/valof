@@ -41,6 +41,39 @@ the whole suite.
 In Claude Code that is the `general-purpose` agent, which inherits the parent model on its own.
 Other harnesses name their own agents, so check that the one you pick runs on the parent's model.
 
+## Audit only the change since the last audit
+
+Each audit of the staged scope leaves a record per branch in the git directory:
+
+```sh
+dir="$(git rev-parse --git-common-dir)/test-audit/$(git branch --show-current)"
+```
+
+`$dir/tree` holds the hash that `git write-tree` returned for the staged changes the audit read, and
+`$dir/report.md` the report of that audit. Only an audit of the default staged scope reads or writes
+them. On a detached HEAD, skip the record.
+
+1. Before launching the agent, take the hash of the staged changes.
+
+   ```sh
+   git write-tree
+   ```
+
+2. If the recorded tree still exists, the scope is the change since that tree:
+
+   ```sh
+   git cat-file -e "$(cat "$dir/tree")" && git diff "$(cat "$dir/tree")" --cached
+   ```
+
+   Pass the agent this diff and `$dir/report.md`. It checks whether each earlier finding was applied
+   or is still open, lists the open ones in its report, then runs the three passes over the new
+   diff. Pass 1 still searches the whole suite for duplicates.
+
+   With no record, or a tree that `git gc` removed, audit the whole staged diff.
+
+3. After the agent reports, write the hash from step 1 to `$dir/tree` and the report to
+   `$dir/report.md`.
+
 ## Pass 1: cuts
 
 Flag a test that is any of these, and say which bug its deletion lets through:
