@@ -1747,7 +1747,7 @@ describe("building", () => {
           .implCreate.noseal(() => 1.5)
           .implSeal((n: number, seal): Cents | undefined => seal(Math.round(n)));
 
-        const message = /`\.implCreate\.noseal` created/;
+        const message = /payload from `\.implCreate\.noseal`/;
         expect(() => rejected.create()).toThrow(message);
         expect(() => rejected.create.nocopy()).toThrow(message);
         expect(() => changed.create()).toThrow(message);

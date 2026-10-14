@@ -431,9 +431,9 @@ type CreateImpl<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
 type Unsealed = { readonly __valof_noseal: true };
 
 /**
- * No arguments, so no input reaches the payload unsealed. A wrong payload meets
- * `() => SeedOf<V>`, so the error lands on the return. `G` stays bare: an intersection hides it
- * from inference.
+ * No arguments, so no input reaches the payload unsealed. A wrong payload is checked against
+ * `() => SeedOf<V>`, so the error points at the returned value. `G` stays bare, because an
+ * intersection stops TypeScript inferring it.
  */
 type Argumentless<V extends AnyVal, G extends AnyFn> = [Parameters<G>] extends [[]]
   ? [ReturnType<G>] extends [SeedOf<V>]
@@ -865,7 +865,7 @@ const changedDuringSeal = (): never => {
 };
 
 const notFixedPoint = (): never => {
-  throw new TypeError("The seal rejected or changed a payload `.implCreate.noseal` created.");
+  throw new TypeError("The seal rejected or changed a payload from `.implCreate.noseal`.");
 };
 
 /**
@@ -1087,7 +1087,8 @@ const attach = (
       : terminal;
   const seal = sealedWith(own);
   const nocopy = sealedWith(adopt);
-  // Development runs the seal anyway, and throws unless it passes the payload through unchanged.
+  // Development runs the seal anyway, and throws unless it calls the default seal with an
+  // equal payload.
   const unsealed = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
     custom && development
       ? (value) => {
