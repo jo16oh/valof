@@ -227,8 +227,7 @@ type Tagged<E extends AnyEnum, N extends keyof VariantsOf<E>> = SeedFor<E, N> & 
 };
 
 /**
- * What the boundary entry takes: a tagged payload of any one variant. The tag is what draws the
- * frame, so it is part of the input rather than something the entry writes.
+ * What the enum's seal takes: a tagged payload of any one variant.
  *
  * @experimental
  */
@@ -419,16 +418,6 @@ type SealerConstructors<in out E extends AnyEnum, in out VM> = {
   [N in keyof VariantsOf<E>]: N extends keyof VM ? VM[N] : SealerFrame<E, N, Record<never, never>>;
 };
 
-/** What a frame's constructor hands back, whichever form the frame takes. */
-type Yields<X> = X extends { create: (...args: never[]) => infer R }
-  ? R
-  : X extends (...args: never[]) => infer R
-    ? R
-    : never;
-
-/** The boundary entry's return: each variant's seal, as a union. `match`'s rule. */
-type Boundary<C> = { [N in keyof C]: Yields<C[N]> }[keyof C];
-
 /**
  * What `.impl` accepts. A variant's name is reserved: a member taking one would shadow the
  * constructor.
@@ -464,27 +453,22 @@ export type EnumCompanion<
      * it to the first handler and reject the rest. For a guard rather than a tag, use ts-pattern.
      */
     match: Match<E>;
-    /**
-     * The boundary entry: selects the variant from the tag and passes the payload to its seal. The
-     * return is the variants' seals as a union, for the same reason `match` returns one.
-     */
-    seal: (value: SealedPayload<E>) => Boundary<Constructors<E, VM, F>>;
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
   };
 
 /**
- * The same for `Enum.sealer`, where the companion itself is the boundary entry and every variant
- * is callable.
+ * The same for `Enum.sealer`, where every variant is callable.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * @experimental
  */
-export type EnumSealed<E extends AnyEnum, VM = Record<never, never>, M = Record<never, never>> = ((
-  value: SealedPayload<E>,
-) => Boundary<SealerConstructors<E, VM>>) &
-  SealerConstructors<E, VM> &
+export type EnumSealed<
+  E extends AnyEnum,
+  VM = Record<never, never>,
+  M = Record<never, never>,
+> = SealerConstructors<E, VM> &
   Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
     /** See {@link EnumCompanion.match}. */
     match: Match<E>;
@@ -610,10 +594,6 @@ type Sealer = ((payload: Payload) => unknown) & {
   patch: (value: Payload, patch: Payload) => unknown;
 };
 
-type Companion = {
-  create: ((payload: Payload) => unknown) & { nocopy: (payload: Payload) => unknown };
-};
-
 type Builds = Record<string, (b: object) => object>;
 
 /**
@@ -680,11 +660,6 @@ const state = (
     return made;
   };
 
-  const enter = (value: Payload): unknown => {
-    const made = frame(value[tag] as string);
-    return callable ? (made as Sealer)(value) : (made as Companion).create(value);
-  };
-
   const step = (
     nextBuilds: Builds,
     nextMembers: Record<string, unknown>,
@@ -693,64 +668,66 @@ const state = (
     nextOpen: boolean,
   ): object => state(tag, callable, nextBuilds, nextMembers, nextTraits, nextSeal, nextOpen);
 
-  const self: object = new Proxy(callable ? () => undefined : {}, {
-    apply: (_, __, args: [Payload]) => enter(args[0]),
-    get(_, key) {
-      // A symbol reaches here from `await`, `JSON.stringify` and every other protocol read, and
-      // `then` would make the companion a thenable. Both would otherwise resolve to a frame,
-      // since the proxy has no list of variant names to check against. A `then` variant is an
-      // error at the declaration, like a `then` member anywhere else.
-      if (typeof key !== "string" || key === "then") return undefined;
-      if (Object.hasOwn(members, key)) return members[key];
-      if (key === "match") {
-        return (
-          value: Record<string, unknown>,
-          handlers: Record<string, (v: unknown) => unknown>,
-        ) => handlers[value[tag] as string]!(value);
-      }
-      // A sealer's boundary entry is the call, so the name stays reserved and resolves to nothing.
-      if (key === "seal") return callable ? undefined : enter;
-      if (key === "__valof_traits") return traits;
-      if (key === "impl") {
-        // One call, which closes every step: what it returns carries no `impl` of its own.
-        return open
-          ? (fns: Payload = {}) => step(builds, { ...members, ...fns }, traits, seal, false)
-          : undefined;
-      }
-      if (key === "implVariant") {
-        return open
-          ? (name: string, build: (sealer: object) => object) =>
-              step({ ...builds, [name]: build }, members, traits, seal, true)
-          : undefined;
-      }
-      if (key === "implSeal") {
-        return open && !callable
-          ? (custom: Seal) => step(builds, members, traits, custom, true)
-          : undefined;
-      }
-      if (key === "implTrait") {
-        // The trait's own members and the enum's, merged the way `val.ts` merges them.
-        return open
-          ? (
-              trait: { __valof_shared?: Record<string, unknown> },
-              fns: Record<string, unknown> = {},
-            ) => {
-              const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
-              return step(builds, { ...members, ...grown }, grown, seal, true);
-            }
-          : undefined;
-      }
-      return frame(key);
+  const self: object = new Proxy(
+    {},
+    {
+      get(_, key) {
+        // A symbol reaches here from `await`, `JSON.stringify` and every other protocol read, and
+        // `then` would make the companion a thenable. Both would otherwise resolve to a frame,
+        // since the proxy has no list of variant names to check against. A `then` variant is an
+        // error at the declaration, like a `then` member anywhere else.
+        if (typeof key !== "string" || key === "then") return undefined;
+        if (Object.hasOwn(members, key)) return members[key];
+        if (key === "match") {
+          return (
+            value: Record<string, unknown>,
+            handlers: Record<string, (v: unknown) => unknown>,
+          ) => handlers[value[tag] as string]!(value);
+        }
+        // Reserved, so no variant takes it.
+        if (key === "seal") return undefined;
+        if (key === "__valof_traits") return traits;
+        if (key === "impl") {
+          // One call, which closes every step: what it returns carries no `impl` of its own.
+          return open
+            ? (fns: Payload = {}) => step(builds, { ...members, ...fns }, traits, seal, false)
+            : undefined;
+        }
+        if (key === "implVariant") {
+          return open
+            ? (name: string, build: (sealer: object) => object) =>
+                step({ ...builds, [name]: build }, members, traits, seal, true)
+            : undefined;
+        }
+        if (key === "implSeal") {
+          return open && !callable
+            ? (custom: Seal) => step(builds, members, traits, custom, true)
+            : undefined;
+        }
+        if (key === "implTrait") {
+          // The trait's own members and the enum's, merged the way `val.ts` merges them.
+          return open
+            ? (
+                trait: { __valof_shared?: Record<string, unknown> },
+                fns: Record<string, unknown> = {},
+              ) => {
+                const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
+                return step(builds, { ...members, ...grown }, grown, seal, true);
+              }
+            : undefined;
+        }
+        return frame(key);
+      },
     },
-  });
+  );
   return self;
 };
 
 /** @experimental */
 export const Enum = {
   /**
-   * Builds the constructors for an enum: every variant is callable, and the companion itself is
-   * the boundary entry. `Enum.companion` is the same shape for an enum with a smart constructor.
+   * Builds the constructors for an enum: every variant is callable. `Enum.companion` is the same
+   * shape for an enum with a smart constructor.
    *
    * The tag name is passed again here because the proxy has to write it at run time, and the type
    * argument is not readable from a value.
@@ -758,8 +735,7 @@ export const Enum = {
   sealer: <E extends AnyEnum>(...tag: TagArg<E>): EnumSealer<E> =>
     state(tag[0] ?? "_tag", true, {}, {}, {}, undefined, true) as EnumSealer<E>,
   /**
-   * Bundles an enum's members with a seal of its own. Every variant builds with `.create`, and
-   * the boundary entry is `.seal`.
+   * Bundles an enum's members with a seal of its own. Every variant builds with `.create`.
    */
   companion: <E extends AnyEnum>(...tag: TagArg<E>): EnumBuilder<E> =>
     state(tag[0] ?? "_tag", false, {}, {}, {}, undefined, true) as EnumBuilder<E>,

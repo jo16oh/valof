@@ -543,37 +543,7 @@ describe("a seal of its own", () => {
     expect(Plain.Circle.create({ r: 0 })).toBeInstanceOf(RangeError);
     expectTypeOf(Plain.Square.create({ side: 3 })).toEqualTypeOf<VariantOf<Shape, "Square">>();
     expect(Plain.Square.create({ side: 3 })).toEqual(square);
-  });
-
-  test("a companion with no seal at all still builds and still takes the wire", () => {
-    const Plain = Enum.companion<Shape>().impl();
-    expect(Plain.Circle.create({ r: 2 })).toEqual(circle);
-    expect(Plain.seal({ side: 3, _tag: "Square" })).toEqual(square);
-    expectTypeOf(Plain.Circle.create({ r: 2 })).toEqualTypeOf<VariantOf<Shape, "Circle">>();
-    expectTypeOf(Plain.Circle).not.toHaveProperty("seal");
-  });
-
-  describe("the boundary entry", () => {
-    test("draws the frame from the tag and hands over to that variant's seal", () => {
-      const sealed = Money.seal({ id: "m1", yen: 1, _tag: "Cash" });
-      expectTypeOf(sealed).toEqualTypeOf<
-        VariantOf<Money, "Cash"> | VariantOf<Money, "Card"> | RangeError
-      >();
-      expect(sealed).toEqual({ id: "m1", yen: 1, _tag: "Cash" });
-      expect(Money.seal({ id: "m2", limit: 2, _tag: "Card" })).toEqual({
-        id: "m2",
-        limit: 2,
-        _tag: "Card",
-      });
-      expect(Money.seal({ id: "m1", yen: 0, _tag: "Cash" })).toBeInstanceOf(RangeError);
-    });
-
-    test("a sealer is the entry itself, and hands back the union", () => {
-      const shape = Shape({ r: 2, _tag: "Circle" });
-      expectTypeOf(shape).toEqualTypeOf<Shape>();
-      expect(shape).toEqual(circle);
-      expect(Shape({ side: 3, _tag: "Square" })).toEqual(square);
-    });
+    expectTypeOf(Plain.Square).not.toHaveProperty("seal");
   });
 
   test("a sealer has no seal to replace: its constructors are the default one", () => {
@@ -664,12 +634,16 @@ describe("the chain closes", () => {
 });
 
 describe("the companion is a proxy", () => {
-  test("a sealer's boundary entry is the call, so `seal` resolves to nothing", () => {
+  // As in Rust, a value is built by its variant's constructor. A payload whose tag is a union
+  // would carry the other variants' fields into the value.
+  test("the enum has no constructor of its own", () => {
+    const Plain = Enum.companion<Shape>().impl();
+    expectTypeOf(Plain).not.toHaveProperty("seal");
+    expect((Plain as unknown as Record<string, unknown>)["seal"]).toBeUndefined();
+    expectTypeOf(Shape).not.toHaveProperty("seal");
     expect((Shape as unknown as Record<string, unknown>)["seal"]).toBeUndefined();
-    expect(Enum.companion<Shape>().impl().seal({ r: 1, _tag: "Circle" })).toEqual({
-      r: 1,
-      _tag: "Circle",
-    });
+    // @ts-expect-error a sealer is not callable
+    expect(() => Shape({ r: 1, _tag: "Circle" })).toThrow(TypeError);
   });
 
   test("so a symbol and `then` come back undefined", async () => {

@@ -76,10 +76,7 @@ export const derived = [
   Frame.patch(frame, patch),
 ];
 
-export const sealed = [
-  Event.seal({ kind: "Key", id: "e", code: "a" }),
-  Event.Key.create({ id: "e", code: "a" }),
-];
+export const sealed = Event.Key.create({ id: "e", code: "a" });
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Event, frame.last)];
 export const labels = boxed.map((b) => b.label("/"));
