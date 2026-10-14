@@ -84,19 +84,26 @@ as ts-pattern fits. `_tag` is real data, so `.with({ _tag: "Circle" }, …)` alr
 ## Build from a tag
 
 When the tag arrives without its payload, `[Tag].match` selects the handler from the tag alone. Here
-a form picks the shape in one field and its size in another:
+a form has a field for every payment method, and the chosen method reads only its own:
 
 ```ts
 import { Enum, Tag } from "valof/experimental";
-
-type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.sealer<Shape>();
-declare const form: { kind: "Circle" | "Square"; size: number };
 // ---cut---
-const shape = Shape[Tag].match(form.kind, {
-  Circle: () => Shape.Circle({ r: form.size / 2 }),
-  Square: () => Shape.Square({ side: form.size }),
+type Payment = Enum<
+  "Payment",
+  { Cash: Record<never, never>; Card: { number: string }; Transfer: { account: string } }
+>;
+const Payment = Enum.sealer<Payment>();
+declare const form: { method: "Cash" | "Card" | "Transfer"; card: string; account: string };
+
+const payment = Payment[Tag].match(form.method, {
+  Cash: () => Payment.Cash({}),
+  Card: () => Payment.Card({ number: form.card }),
+  Transfer: () => Payment.Transfer({ account: form.account }),
 });
+
+// @ts-expect-error a Cash payment would keep `number` and `account`
+Payment({ _tag: form.method, number: form.card, account: form.account });
 ```
 
 Every tag the argument's type allows needs a handler, so adding a variant to the declaration fails
