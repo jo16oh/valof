@@ -469,9 +469,10 @@ type ByTag<E extends AnyEnum> = {
    * variant's constructor, which checks the payload literal for fields the variant does not hold.
    *
    * ```ts
-   * Shape[Tag].match(form.kind, {
-   *   Circle: () => Shape.Circle({ r: form.size / 2 }),
-   *   Square: () => Shape.Square({ side: form.size }),
+   * Payment[Tag].match(form.method, {
+   *   Cash: () => Payment.Cash({}),
+   *   Card: () => Payment.Card({ number: form.card }),
+   *   Transfer: () => Payment.Transfer({ account: form.account }),
    * });
    * ```
    */
