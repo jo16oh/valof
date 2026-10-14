@@ -35,10 +35,8 @@ Call a variant through the companion. `const { Circle } = Shape` works, and a re
 another name, which `companion-mismatch` reports.
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
-constructor. `Shape(payload)` takes a payload that already carries the tag, such as one a schema
-library parsed. It reads the tag and passes the payload to that variant's constructor. A field only
-another variant declares is a type error, even where the tag is a union. When the tag arrives alone,
-see [Build from a tag](#build-from-a-tag).
+constructor. For a payload that carries its tag, or a tag that arrives alone, see
+[Build a value](#build-a-value).
 
 A variant is a Val. It patches, it compares, and it nests. A patch cannot reach the tag, so it
 cannot switch variants.
@@ -81,29 +79,37 @@ to hard-code it.
 Use `match` to split on the tag. For a condition inside a variant, a pattern matching library such
 as ts-pattern fits. `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
 
-## Build from a tag
+## Build a value
 
-When the tag arrives without its payload, `[Tag].match` selects the handler from the tag alone. Here
-a form has a field for every payment method, and the chosen method reads only its own:
+An enum value can be built from three kinds of input, and each has its own call:
+
+| When you have                                                 | Use                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| a payload for a variant you already know                      | `Shape.Circle(payload)`, or `Shape.Circle.create(payload)` on a companion |
+| a payload carrying its tag, such as a schema library's output | `Shape(payload)`, or `Shape.seal(payload)` on a companion                 |
+| the tag alone, with the fields kept elsewhere                 | `Shape[Tag].match(tag, handlers)`                                         |
+
+`Shape(payload)` reads the tag, selects that variant, and accepts only its fields. Passing a field
+of another variant is a type error, even when the tag is a union.
+
+When the tag arrives alone, `[Tag].match` selects the handler from the tag. On a command line, the
+first argument is the subcommand, and how to read the rest depends on it:
 
 ```ts
 import { Enum, Tag } from "valof/experimental";
 // ---cut---
-type Payment = Enum<
-  "Payment",
-  { Cash: Record<never, never>; Card: { number: string }; Transfer: { account: string } }
+type Command = Enum<
+  "Command",
+  { new: { name: string }; rename: { from: string; to: string }; check: Record<never, never> }
 >;
-const Payment = Enum.sealer<Payment>();
-declare const form: { method: "Cash" | "Card" | "Transfer"; card: string; account: string };
+const Command = Enum.sealer<Command>();
+declare const [subcommand, ...args]: ["new" | "rename" | "check", ...string[]];
 
-const payment = Payment[Tag].match(form.method, {
-  Cash: () => Payment.Cash({}),
-  Card: () => Payment.Card({ number: form.card }),
-  Transfer: () => Payment.Transfer({ account: form.account }),
+const command = Command[Tag].match(subcommand, {
+  new: () => Command.new({ name: args[0] ?? "" }),
+  rename: () => Command.rename({ from: args[0] ?? "", to: args[1] ?? "" }),
+  check: () => Command.check({}),
 });
-
-// @ts-expect-error a Cash payment would keep `number` and `account`
-Payment({ _tag: form.method, number: form.card, account: form.account });
 ```
 
 Every tag the argument's type allows needs a handler, so adding a variant to the declaration fails
