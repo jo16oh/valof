@@ -35,10 +35,10 @@ Call a variant through the companion. `const { Circle } = Shape` works, and a re
 another name, which `companion-mismatch` reports.
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
-constructor. `Shape.seal` takes a payload that already carries the tag, such as one a schema library
-parsed. It reads the tag and passes the payload to that variant's constructor. A field only another
-variant declares is a type error, even where the tag is a union. When the tag arrives alone, see
-[Build from a tag](#build-from-a-tag).
+constructor. `Shape(payload)` takes a payload that already carries the tag, such as one a schema
+library parsed. It reads the tag and passes the payload to that variant's constructor. A field only
+another variant declares is a type error, even where the tag is a union. When the tag arrives alone,
+see [Build from a tag](#build-from-a-tag).
 
 A variant is a Val. It patches, it compares, and it nests. A patch cannot reach the tag, so it
 cannot switch variants.

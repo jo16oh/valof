@@ -66,7 +66,7 @@ re-export a companion.
 | `Enum.companion<E>(tag?)`            | the same, for an enum with a seal of its own             |
 | `E.match(value, handlers)`           | dispatches on the tag, exhaustively                      |
 | `E[Tag].match(tag, handlers)`        | the same on a tag alone, before there is a value         |
-| `E.seal(payload)`                    | builds the variant the payload's tag names               |
+| `E(payload)` / `E.seal(payload)`     | builds the variant the payload's tag names               |
 | `E[Tag].key`                         | the tag field's name                                     |
 | `E[Variant](payload)`                | builds that variant, writing the tag                     |
 | `E[Variant].create(payload)`         | the same on a companion, through its seal                |
