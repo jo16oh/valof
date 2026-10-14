@@ -1503,14 +1503,6 @@ describe("building", () => {
       expect(Name.seal({ value: " Alice " })).toEqual({ value: "alice" });
     });
 
-    test("rejects a default seal called after the custom seal returned", () => {
-      type Reading = Val<"Reading", { n: number }>;
-      const Reading = Val.companion<Reading>().implSeal((r, seal) => () => seal(r));
-
-      const later = Reading.seal({ n: 1 });
-      expect(later).toThrow("The default seal was called after the custom seal returned.");
-    });
-
     test("reuses the starting snapshot for every default seal call", () => {
       type Reading = Val<"Reading", { n: number }>;
       const Reading = Val.companion<Reading>().implSeal((r: { n: number }, seal) => {

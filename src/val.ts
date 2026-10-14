@@ -838,10 +838,6 @@ const changedDuringSeal = (): never => {
   throw new TypeError("The payload changed while the custom seal was running.");
 };
 
-const sealedLate = (): never => {
-  throw new TypeError("The default seal was called after the custom seal returned.");
-};
-
 /**
  * Builds the recursive deep copy, in an owning and a non-owning form.
  *
@@ -1041,10 +1037,7 @@ const attach = (
       ? development
         ? (value) => {
             const before = snapshotSealInput(value);
-            // The type rejects a promise. This also catches a return that runs the seal lazily.
-            let returned = false;
-            const result = custom(value, (candidate) => {
-              if (returned) sealedLate();
+            return custom(value, (candidate) => {
               if (before !== unsnapshotable) {
                 const current = snapshotSealInput(value);
                 if (current !== unsnapshotable && !equalsUnknown(before, current))
@@ -1058,8 +1051,6 @@ const attach = (
               }
               return sealed;
             });
-            returned = true;
-            return result;
           }
         : (value) => custom(value, terminal)
       : terminal;

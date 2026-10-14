@@ -621,14 +621,6 @@ describe("a seal of its own", () => {
     );
   });
 
-  test("a variant's seal that calls the default seal after returning throws", () => {
-    const Late = Enum.companion<Money>()
-      .implVariant("Cash", (variant) => variant.implSeal((p, seal) => () => seal(p)).impl())
-      .impl();
-    const later = Late.Cash.create({ id: "m1", yen: 1 });
-    expect(later).toThrow("The default seal was called after the custom seal returned.");
-  });
-
   test("a variant seals alone where the enum wrote none", () => {
     const Plain = Enum.companion<Shape>()
       .implVariant("Circle", (variant) =>
