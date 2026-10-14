@@ -5749,6 +5749,18 @@ Rust の enum も Variant ごとに作る。スキーマのライブラリがタ
 `[Tag].match` でもう一度書くことになるので、排他的な引数で戻した。その途中で両方の形を `Shape.seal` に
 揃えたが、Val の sealer には `.seal` が無く、同じ操作に名前が 2 つできるので、呼び出しに戻した。
 
+**却下: 入口を消す（2 度目）。**タグと対応の切れた値は、どれも型エラーで止まる。値は壊れないので、消す
+理由にならない。probe で確かめた。
+
+- `const { _tag, ...rest } = shape; Shape({ _tag, ...rest })`。`_tag` が別の変数に出た時点で対応が切れる。
+  排他的でない引数でも型エラーだった。値を丸ごとスプレッドすれば（`Shape({ ...shape, id })`）通る
+- `Omit<SealedPayload<Shape>, "id">`。`Omit` は union に分配せず、キーは `_tag` だけになる
+- 全 Variant の欄を持つ平らなフォーム。`[Tag].match` で Variant ごとに欄を選ぶ
+
+入口が無いと、タグと対応の取れた payload（スキーマの出力、サーバーの JSON、メッセージ）を Variant に分ける
+`switch` を手で書くことになる。`[Tag].match` のアームは引数を取らないので、payload は絞り込まれない。
+`switch` は Variant を足しても黙って素通りする。
+
 この PR 全体（`[Tag]` を含む）で、enum の instantiation は 32,653 → 33,264、`index.d.mts` は 59.48 →
 61.18 kB、Enum を含む production gzip は 1.27 → 1.29 kB。
 
