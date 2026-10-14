@@ -68,9 +68,9 @@ re-export a companion.
 | `E[Tag].match(tag, handlers)`        | matches on a tag string, also exhaustively                 |
 | `E(payload)` / `E.seal(payload)`     | builds the variant that the payload's tag selects          |
 | `E[Tag].key`                         | the tag field's name                                       |
-| `E[Variant](payload)`                | builds that variant, writing the tag                       |
-| `E[Variant].create(payload)`         | the same on a companion, through its seal                  |
-| `E[Variant].patch(value, patch)`     | derives a value of that variant, leaving the tag unchanged |
+| `E.Variant(payload)`                 | builds that variant, writing the tag                       |
+| `E.Variant.create(payload)`          | the same on a companion, through its seal                  |
+| `E.Variant.patch(value, patch)`      | derives a value of that variant, leaving the tag unchanged |
 | `.impl(fns?)`                        | adds members taking the union, and ends the chain          |
 | `.implVariant(N, sealer => …)`       | adds one variant's members, and its seal                   |
 | `.implSeal(seal)`                    | replaces the seal shared by every variant                  |
