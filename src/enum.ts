@@ -819,7 +819,7 @@ export const Enum = {
   sealer: <E extends AnyEnum>(...tag: TagArg<E>): EnumSealer<E> =>
     state(tag[0] ?? "_tag", true, {}, {}, {}, undefined, true) as EnumSealer<E>,
   /**
-   * Bundles an enum's members with a seal of its own. Every variant builds with `.create`.
+   * Bundles an enum's members with a custom seal. Every variant builds with `.create`.
    */
   companion: <E extends AnyEnum>(...tag: TagArg<E>): EnumBuilder<E> =>
     state(tag[0] ?? "_tag", false, {}, {}, {}, undefined, true) as EnumBuilder<E>,

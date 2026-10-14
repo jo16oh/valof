@@ -63,7 +63,7 @@ re-export a companion.
 | ------------------------------------ | ---------------------------------------------------------- |
 | `Enum<K, D, X>`                      | a closed set of variants, as one union                     |
 | `Enum.sealer<E>(tag?)`               | starts an enum whose variants are callable                 |
-| `Enum.companion<E>(tag?)`            | the same, for an enum with a seal of its own               |
+| `Enum.companion<E>(tag?)`            | the same, for an enum with a custom seal                   |
 | `E.match(value, handlers)`           | matches on a variant's tag field, exhaustively             |
 | `E[Tag].match(tag, handlers)`        | matches on a tag string, also exhaustively                 |
 | `E(payload)` / `E.seal(payload)`     | builds the variant that the payload's tag selects          |
