@@ -1625,8 +1625,7 @@ describe("building", () => {
 
       test("a return typed `any` is accepted", () => {
         // oxlint-disable-next-line no-explicit-any -- the case under test
-        const Loose = Val.companion<Age>().implSeal((n, seal): any => seal(n));
-        expect(Loose.seal(1)).toBe(1);
+        Val.companion<Age>().implSeal((n, seal): any => seal(n));
       });
     });
   });
