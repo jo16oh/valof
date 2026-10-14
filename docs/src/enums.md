@@ -103,12 +103,12 @@ type Command = Enum<
   { New: { name: string }; Rename: { from: string; to: string }; Check: Record<never, never> }
 >;
 const Command = Enum.sealer<Command>();
-declare const tag: "New" | "Rename" | "Check"; // the subcommand, already normalized
-declare const args: readonly string[]; // the arguments after it
+// The subcommand, already normalized to its tag, and the arguments after it.
+declare const input: { tag: "New" | "Rename" | "Check"; args: readonly string[] };
 
-const command = Command[Tag].match(tag, {
-  New: () => Command.New({ name: args[0] ?? "" }),
-  Rename: () => Command.Rename({ from: args[0] ?? "", to: args[1] ?? "" }),
+const command = Command[Tag].match(input.tag, {
+  New: () => Command.New({ name: input.args[0] ?? "" }),
+  Rename: () => Command.Rename({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
   Check: () => Command.Check({}),
 });
 ```
