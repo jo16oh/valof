@@ -7,7 +7,7 @@ import {
   type Final,
   type SeedFor,
   type Self,
-  type Tag,
+  Tag,
   type VariantOf,
 } from "../src/experimental.ts";
 
@@ -88,6 +88,40 @@ describe("match", () => {
       // @ts-expect-error this enum has no such variant
       Triangle: () => 0,
     });
+  });
+});
+
+describe("match on a tag alone", () => {
+  const pick = (name: string): "Circle" | "Square" => (name === "round" ? "Circle" : "Square");
+
+  test("runs the handler the tag selects, and returns the handlers' union", () => {
+    const build = (name: string) =>
+      Shape[Tag].match(pick(name), {
+        Circle: () => Shape.Circle({ r: 2 }),
+        Square: () => `square`,
+      });
+    expectTypeOf(build).returns.toEqualTypeOf<VariantOf<Shape, "Circle"> | string>();
+    expect([build("round"), build("box")]).toEqual([circle, "square"]);
+    expect(
+      Enum.companion<Shape>()
+        .impl()
+        [Tag].match("Circle", { Circle: () => 0 }),
+    ).toBe(0);
+  });
+
+  test("needs a handler for every tag the argument can hold, and no other", () => {
+    // @ts-expect-error Property 'Square' is missing
+    Shape[Tag].match(pick("round"), { Circle: () => 0 });
+    Shape[Tag].match("Circle", {
+      Circle: () => 0,
+      // @ts-expect-error the tag never takes this value
+      Square: () => 0,
+    });
+  });
+
+  test("a tag the enum does not declare is rejected", () => {
+    // @ts-expect-error not assignable to '"Circle" | "Square"'
+    Shape[Tag].match("Triangle", { Triangle: () => 0 });
   });
 });
 

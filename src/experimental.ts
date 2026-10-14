@@ -4,7 +4,7 @@
  * The design is still changing.
  */
 
-export { Enum } from "./enum.ts";
+export { Enum, Tag } from "./enum.ts";
 
 export type {
   AnyEnum,
@@ -16,7 +16,6 @@ export type {
   SealedPayload,
   SeedFor,
   SharedOf,
-  Tag,
   TagOf,
   VariantOf,
   VariantsOf,

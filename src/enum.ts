@@ -14,6 +14,13 @@ import {
   type Wired,
 } from "./val.ts";
 
+/**
+ * The key of what an enum dispatches on a tag alone: `Command[Tag].match(tag, handlers)`.
+ *
+ * @experimental
+ */
+export const Tag = "__valof_tag";
+
 /** Type-only carrier for the tag name. Private and protected members stay out of `keyof`. */
 declare class TagPhantom<T extends string> {
   private readonly __valof_internal_phantom_tag: T;
@@ -431,6 +438,26 @@ type Match<E extends AnyEnum> = <H extends Handlers<E, unknown>>(
   handlers: Only<E, H>,
 ) => ReturnType<H[keyof H]>;
 
+/** What an enum dispatches on a tag alone, under {@link Tag}. */
+type ByTag<E extends AnyEnum> = {
+  /**
+   * Dispatches on a tag before there is a value, as when a tag arrives apart from its payload. Every
+   * tag the argument can hold needs a handler. A handler takes nothing and calls its variant's
+   * constructor, which checks the payload literal for fields the variant does not hold.
+   *
+   * ```ts
+   * Command[Tag].match(tag, {
+   *   New: () => Command.New({ count }),
+   *   Check: () => Command.Check({}),
+   * });
+   * ```
+   */
+  readonly match: <T extends keyof VariantsOf<E>, H extends { [N in T]: () => unknown }>(
+    tag: T,
+    handlers: H & { [N in keyof H]: N extends T ? unknown : "the tag never takes this value" },
+  ) => ReturnType<H[keyof H]>;
+};
+
 /**
  * An enum's members: one frame per variant, `match`, `seal`, and whatever the steps registered.
  *
@@ -453,6 +480,7 @@ export type EnumCompanion<
      * it to the first handler and reject the rest. For a guard rather than a tag, use ts-pattern.
      */
     match: Match<E>;
+    readonly [Tag]: ByTag<E>;
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
   };
@@ -472,6 +500,7 @@ export type EnumSealed<
   Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
     /** See {@link EnumCompanion.match}. */
     match: Match<E>;
+    readonly [Tag]: ByTag<E>;
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
   };
@@ -596,6 +625,10 @@ type Sealer = ((payload: Payload) => unknown) & {
 
 type Builds = Record<string, (b: object) => object>;
 
+const byTag = {
+  match: (tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!(),
+};
+
 /**
  * One builder state. The companion is a proxy: it does not know the variant names, so anything it
  * does not handle itself becomes a frame.
@@ -686,6 +719,7 @@ const state = (
         }
         // Reserved, so no variant takes it.
         if (key === "seal") return undefined;
+        if (key === Tag) return byTag;
         if (key === "__valof_traits") return traits;
         if (key === "impl") {
           // One call, which closes every step: what it returns carries no `impl` of its own.
