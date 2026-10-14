@@ -2124,6 +2124,13 @@ describe("building", () => {
         });
       });
 
+      test("nor `nocopy`, which a sealer already has", () => {
+        Val.sealer<Member>().impl({
+          // @ts-expect-error the member would replace the sealer's `nocopy`
+          nocopy: (m: Member) => m.name,
+        });
+      });
+
       test("a member may not take a name the payload holds", () => {
         type Loud = Trait<"Loud", { name: string }, { greet: (self: Self) => string }>;
         const Loud = Trait.companion<Loud>().impl({ greet: (l) => l.name });

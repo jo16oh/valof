@@ -2041,11 +2041,21 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
-- [ ] **Enum の `implTrait` が Variant 名のメンバを通す疑い。未確認、2026-10-14。**Trait が `Square` を
-      宣言していると `Enum.sealer<Shape>().implTrait<Sq>({ Square: … })` が型を通り、実行時に
-      コンストラクタが上書きされる、という監査の報告。再現していない
-- [ ] **Variant 名の検査（`src/enum.ts` の `Fault`）が `Reserved` と別の集合である。**
-      `"match" | "seal" | impl… | __valof_…` で、`patch` と `create` が無い。意図どおりか未確認（§14.27）
+- [x] ~~Trait のメンバが、ライブラリが companion に置く名前を上書きする。~~ → 型で拒む、2026-10-14。
+      それまでは型を通り、実行時だけがメンバに替わっていた
+  - **Enum の Variant 名と `match`。**`Shape.Square({ side: 1 })` が Trait のメンバの戻り値を返し、
+    `Coin.match(h, handlers)` が Trait のメンバを呼んでいた。宣言の `Fault` で拒む。読むのは型引数だけ
+    なので判定位置に置いた（§11）。メンバ名は Trait ごとに分配して集める。メンバの record の union に
+    `keyof` を取ると、全 Trait に共通のキーしか残らない
+  - **Val の `nocopy`。**`Id.nocopy` の型は `Nocopy<Id> & ((i: Id) => string)` で、実行時はメンバだけが
+    残っていた。`Rejected` に足したので、`.impl` も Trait の `Declarable` も拒む。lint の `RESERVED` にも
+    入れた（§14.27）
+  - **実行時は変えていない。**Enum の Proxy は今も `members` を先に読む。そこに届くのはキャストか JS だけ
+  - production gzip は 852 B のまま。enum のインスタンス化は 32,437 → 32,653、`index.d.mts` は +0.6 kB
+- [x] ~~Variant 名の検査（`src/enum.ts` の `Fault`）が `Reserved` と別の集合である。~~ → 意図どおり。Enum の
+      companion は Val の companion と違い、`patch` も `create` も持たない。Variant をその名前にできる
+- [ ] **Enum の companion に `create` を生やすか。**`patch` は要らない。`create` は検討の余地がある。生やすなら
+      Variant 名の検査に `create` を足す
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [x] ~~valof-lint が `Trait` を知らない。~~ Trait の宣言、companion、`implTrait`、`dyn` を構文から追跡する。
       足すのは 2 種類
@@ -4319,12 +4329,13 @@ type Rejected = Partial<Record<Wired, never>> & {
   [key: `__valof_${string}`]: never;
   [key: `impl${string}`]: never;
   then?: never;
+  nocopy?: never;
 };
 export type Reserved = keyof Rejected;
 ```
 
 ```ts
-const RESERVED = reserved(["patch", "seal", "create", "then", "impl.*", "__valof_.*"]);
+const RESERVED = reserved(["patch", "seal", "create", "then", "nocopy", "impl.*", "__valof_.*"]);
 ```
 
 - **`Reserved` は `Rejected` のキーから読む。**2 つはずれない。理由のコメントも名前の横に置いたままに
@@ -4366,7 +4377,7 @@ lint が直接書いていた本体の名前を、同じ PR で型に結んだ�
 
 結んでいないものが 2 つある。
 
-- `src/enum.ts` の `Fault` が Variant 名に使う集合。`Reserved` と半分重なるが別の集合である（§9）
+- `src/enum.ts` の `Fault` が Variant 名に使う集合。`Reserved` と半分重なるが、意図して別の集合である（§9）
 - lint が見る型の名前（`Tag`、`VariantOf`）。型だけの export は `keyof typeof` に出ない
 
 根にあるのは、lint の fixture が型検査されないことである。上は名前ごとの対処で、fixture を型検査するかは

@@ -406,6 +406,20 @@ describe("a broken declaration", () => {
     Enum.sealer<Sneaky>();
   });
 
+  // The member would replace the constructor or `match` at run time, under the library's type.
+  test("a trait member may not take a variant's name, nor `match`", () => {
+    type Sq = Trait<"Sq", Record<never, never>, { Square: (self: Self) => string }>;
+    type Sized = Trait<"Sized", Record<never, never>, { size: (self: Self) => number }>;
+    type Boxy = Enum<"Boxy", { Circle: { r: number }; Square: { side: number } }, Sq & Sized>;
+    // @ts-expect-error a trait member cannot take a variant's name
+    Enum.sealer<Boxy>();
+
+    type Matcher = Trait<"Matcher", Record<never, never>, { match: (self: Self) => string }>;
+    type Coin = Enum<"Coin", { Heads: { n: number }; Tails: { n: number } }, Matcher>;
+    // @ts-expect-error a trait member cannot take the name `match`
+    Enum.companion<Coin>();
+  });
+
   // An indexed access over a single key hands back the variant itself, and the alias goes with
   // the union: a consumer's `.d.ts` then expands onto the private phantoms and fails with TS4094.
   test("an enum needs at least two variants", () => {
