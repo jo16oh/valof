@@ -35,9 +35,10 @@ Call a variant through the companion. `const { Circle } = Shape` works, and a re
 another name, which `companion-mismatch` reports.
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
-constructor. The enum itself takes a payload that already carries the tag, typed
-`SealedPayload<Shape>`. It reads the tag, selects that variant's companion, and passes the payload
-to its seal.
+constructor. `Shape.seal` takes a payload that already carries the tag, such as one a schema library
+parsed. It reads the tag and passes the payload to that variant's constructor. A field only another
+variant declares is a type error, even where the tag is a union. When the tag arrives alone, see
+[Build from a tag](#build-from-a-tag).
 
 A variant is a Val. It patches, it compares, and it nests. A patch cannot reach the tag, so it
 cannot switch variants.
@@ -79,6 +80,28 @@ to hard-code it.
 
 Use `match` to split on the tag. For a condition inside a variant, a pattern matching library such
 as ts-pattern fits. `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
+
+## Build from a tag
+
+When the tag arrives without its payload, `[Tag].match` selects the handler from the tag alone. Here
+a form picks the shape in one field and its size in another:
+
+```ts
+import { Enum, Tag } from "valof/experimental";
+
+type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
+const Shape = Enum.sealer<Shape>();
+declare const form: { kind: "Circle" | "Square"; size: number };
+// ---cut---
+const shape = Shape[Tag].match(form.kind, {
+  Circle: () => Shape.Circle({ r: form.size / 2 }),
+  Square: () => Shape.Square({ side: form.size }),
+});
+```
+
+Every tag the argument's type allows needs a handler, so adding a variant to the declaration fails
+here too, as it does for `match`. A handler takes no argument and calls its variant's constructor,
+so each payload is checked against its own variant.
 
 ## Common shape for every variant
 
@@ -175,8 +198,8 @@ is the enum's, read from the chain as it stands.
 Whatever a seal returns propagates, as it does for a Val. The union in it narrows to the variant the
 payload named. `patch` derives through the same seal, so no derivation skips it.
 
-On a companion, `Shape.seal` takes that tagged payload. Its return is the variants' seals as a
-union.
+`Shape.seal` passes a tagged payload through the same seals. Its return is the variants' returns, as
+a union.
 
 ## Custom tag key
 
@@ -184,12 +207,13 @@ The tag is real data, not a phantom. It crosses the wire, so you can customize t
 already has one:
 
 ```ts
-import { Enum, type Tag } from "valof/experimental";
+import { Enum, Tag } from "valof/experimental";
 // ---cut---
 type Event = Enum<"Event", { Click: { x: number }; Key: { code: string } }, Tag<"kind">>;
 const Event = Enum.sealer<Event>("kind");
 
 Event.Click({ x: 1 }); // { x: 1, kind: "Click" }
+Event[Tag].key; // "kind"
 ```
 
 `Tag` goes in the third argument, beside the shared fields, because the tag is a field every variant
@@ -197,6 +221,8 @@ holds. It is a marker with no key of its own, so every name is still free for a 
 companion takes the name again because the proxy writes it at run time, and the type argument is not
 readable from a value. Forget it, misspell it, or pass one where the default applies, and the type
 says so.
+
+`Event[Tag].key` returns the name, for a schema library that asks for the discriminator.
 
 ## Use a variant's type
 
