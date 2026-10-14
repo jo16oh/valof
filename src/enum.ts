@@ -14,6 +14,14 @@ import {
   type Wired,
 } from "./val.ts";
 
+/**
+ * The key that holds an enum companion's `match` on a tag string, and its `key`:
+ * `Command[Tag].match(tag, handlers)`.
+ *
+ * @experimental
+ */
+export const Tag = "__valof_tag";
+
 /** Type-only carrier for the tag name. Private and protected members stay out of `keyof`. */
 declare class TagPhantom<T extends string> {
   private readonly __valof_internal_phantom_tag: T;
@@ -227,8 +235,7 @@ type Tagged<E extends AnyEnum, N extends keyof VariantsOf<E>> = SeedFor<E, N> & 
 };
 
 /**
- * What the boundary entry takes: a tagged payload of any one variant. The tag is what draws the
- * frame, so it is part of the input rather than something the entry writes.
+ * What a seal registered with `.implSeal` receives: a tagged payload of any one variant.
  *
  * @experimental
  */
@@ -419,16 +426,6 @@ type SealerConstructors<in out E extends AnyEnum, in out VM> = {
   [N in keyof VariantsOf<E>]: N extends keyof VM ? VM[N] : SealerFrame<E, N, Record<never, never>>;
 };
 
-/** What a frame's constructor hands back, whichever form the frame takes. */
-type Yields<X> = X extends { create: (...args: never[]) => infer R }
-  ? R
-  : X extends (...args: never[]) => infer R
-    ? R
-    : never;
-
-/** The boundary entry's return: each variant's seal, as a union. `match`'s rule. */
-type Boundary<C> = { [N in keyof C]: Yields<C[N]> }[keyof C];
-
 /**
  * What `.impl` accepts. A variant's name is reserved: a member taking one would shadow the
  * constructor.
@@ -441,6 +438,60 @@ type Match<E extends AnyEnum> = <H extends Handlers<E, unknown>>(
   value: E,
   handlers: Only<E, H>,
 ) => ReturnType<H[keyof H]>;
+
+/** Every field some variant declares. */
+type VariantFields<E extends AnyEnum> = {
+  [N in keyof VariantsOf<E>]: keyof VariantsOf<E>[N];
+}[keyof VariantsOf<E>];
+
+/**
+ * A tagged payload that holds no other variant's field. TypeScript accepts an object whose tag is a
+ * union wherever each of the tag's values fits, so one holding every variant's fields would pass
+ * {@link SealedPayload} and keep the fields the selected variant does not declare.
+ */
+type Exclusive<E extends AnyEnum> = {
+  [N in keyof VariantsOf<E>]: Tagged<E, N> & {
+    readonly [K in Exclude<VariantFields<E>, keyof VariantsOf<E>[N]>]?: never;
+  };
+}[keyof VariantsOf<E>];
+
+/** What a frame's constructor returns, whichever form the frame takes. */
+type Yields<X> = X extends { create: (...args: never[]) => infer R }
+  ? R
+  : X extends (...args: never[]) => infer R
+    ? R
+    : never;
+
+/** What an enum dispatches on a tag alone, under {@link Tag}. */
+type ByTag<E extends AnyEnum> = {
+  /**
+   * Dispatches on a tag that arrives without its payload. Every tag the argument's type allows needs
+   * a handler. A handler takes no argument and calls its variant's constructor, which checks the
+   * payload literal for fields the variant does not hold.
+   *
+   * ```ts
+   * Command[Tag].match(input.tag, {
+   *   New: () => Command.New({ name: input.args[0] ?? "" }),
+   *   Rename: () => Command.Rename({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
+   *   Check: () => Command.Check({}),
+   * });
+   * ```
+   */
+  readonly match: <T extends keyof VariantsOf<E>, H extends { [N in T]: () => unknown }>(
+    tag: T,
+    handlers: H & { [N in keyof H]: N extends T ? unknown : "the tag never takes this value" },
+  ) => ReturnType<H[keyof H]>;
+  /**
+   * The name of the tag field, for a schema library that asks for the discriminator:
+   * `z.discriminatedUnion(Command[Tag].key, [...])`.
+   */
+  readonly key: TagOf<E>;
+};
+
+/** See {@link EnumCompanion.seal}. */
+type EnumSeal<E extends AnyEnum, C> = (payload: Exclusive<E>) => {
+  [N in keyof C]: Yields<C[N]>;
+}[keyof C];
 
 /**
  * An enum's members: one frame per variant, `match`, `seal`, and whatever the steps registered.
@@ -465,29 +516,36 @@ export type EnumCompanion<
      */
     match: Match<E>;
     /**
-     * The boundary entry: selects the variant from the tag and passes the payload to its seal. The
-     * return is the variants' seals as a union, for the same reason `match` returns one.
+     * Reads the tag, selects that variant, and passes the payload to its constructor. For a payload
+     * a schema library has already split by the tag. The return is the variants' constructors'
+     * returns, as a union.
+     *
+     * Passing a field of another variant is a type error, even when the tag is a union.
      */
-    seal: (value: SealedPayload<E>) => Boundary<Constructors<E, VM, F>>;
+    seal: EnumSeal<E, Constructors<E, VM, F>>;
+    readonly [Tag]: ByTag<E>;
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
   };
 
 /**
- * The same for `Enum.sealer`, where the companion itself is the boundary entry and every variant
- * is callable.
+ * The same for `Enum.sealer`, where the companion and every variant are callable. Calling the
+ * companion is {@link EnumCompanion.seal}.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * @experimental
  */
-export type EnumSealed<E extends AnyEnum, VM = Record<never, never>, M = Record<never, never>> = ((
-  value: SealedPayload<E>,
-) => Boundary<SealerConstructors<E, VM>>) &
+export type EnumSealed<
+  E extends AnyEnum,
+  VM = Record<never, never>,
+  M = Record<never, never>,
+> = EnumSeal<E, SealerConstructors<E, VM>> &
   SealerConstructors<E, VM> &
   Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
     /** See {@link EnumCompanion.match}. */
     match: Match<E>;
+    readonly [Tag]: ByTag<E>;
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
   };
@@ -611,10 +669,12 @@ type Sealer = ((payload: Payload) => unknown) & {
 };
 
 type Companion = {
-  create: ((payload: Payload) => unknown) & { nocopy: (payload: Payload) => unknown };
+  create: (payload: Payload) => unknown;
 };
 
 type Builds = Record<string, (b: object) => object>;
+
+const matchTag = (tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!();
 
 /**
  * One builder state. The companion is a proxy: it does not know the variant names, so anything it
@@ -632,6 +692,7 @@ const state = (
   // Remembered for the allocation, not for identity: a frame built twice behaves the same, and
   // rebuilding one on every read would make a fresh closure per member per access.
   const frames = new Map<string, unknown>();
+  const byTag = { match: matchTag, key: tag };
 
   const built = (name: string, custom: Seal | undefined, fns: Payload): object => {
     const mint = (payload: Payload) => ({ ...payload, [tag]: name });
@@ -708,8 +769,9 @@ const state = (
           handlers: Record<string, (v: unknown) => unknown>,
         ) => handlers[value[tag] as string]!(value);
       }
-      // A sealer's boundary entry is the call, so the name stays reserved and resolves to nothing.
+      // A sealer's entry is the call, so the name stays reserved and resolves to nothing.
       if (key === "seal") return callable ? undefined : enter;
+      if (key === Tag) return byTag;
       if (key === "__valof_traits") return traits;
       if (key === "impl") {
         // One call, which closes every step: what it returns carries no `impl` of its own.
@@ -749,8 +811,8 @@ const state = (
 /** @experimental */
 export const Enum = {
   /**
-   * Builds the constructors for an enum: every variant is callable, and the companion itself is
-   * the boundary entry. `Enum.companion` is the same shape for an enum with a smart constructor.
+   * Builds the constructors for an enum: the companion and every variant are callable.
+   * `Enum.companion` is the same, for an enum with a custom seal.
    *
    * The tag name is passed again here because the proxy has to write it at run time, and the type
    * argument is not readable from a value.
@@ -758,8 +820,7 @@ export const Enum = {
   sealer: <E extends AnyEnum>(...tag: TagArg<E>): EnumSealer<E> =>
     state(tag[0] ?? "_tag", true, {}, {}, {}, undefined, true) as EnumSealer<E>,
   /**
-   * Bundles an enum's members with a seal of its own. Every variant builds with `.create`, and
-   * the boundary entry is `.seal`.
+   * Bundles an enum's members with a custom seal. Every variant builds with `.create`.
    */
   companion: <E extends AnyEnum>(...tag: TagArg<E>): EnumBuilder<E> =>
     state(tag[0] ?? "_tag", false, {}, {}, {}, undefined, true) as EnumBuilder<E>,

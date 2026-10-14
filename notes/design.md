@@ -36,7 +36,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
@@ -5619,6 +5619,8 @@ Variant の数では増えない。予算は 45,000 に置いた。
 
 #### Variant ごとの seal と union の `seal`、2026-09-16 実装
 
+**2026-10-14: `seal` の引数を排他的にした。**下の「`seal` の引数を排他的にする」を見る。
+
 **動機は境界の分岐。**タグ付きのペイロードが来る場所で、利用者は今どの Variant かを自分で見て、対応する
 コンストラクタを呼んでいる。`Shape.seal(payload)` があれば、タグで枠を引くのはライブラリの仕事になる。
 
@@ -5707,6 +5709,130 @@ Variant の枠が Val の companion なので追加の実装が要らない。
   がそれぞれ `Built<…>` を書くと 5 回実体化する。本体を `Framed<E, N, R, …>` に出して `R` で受ける
 - **予算。**type-perf は 45,000 から 90,000 へ。Variant 1 個あたりは約 1,100 で線形、残りは variance
   測定の定数。bundle-size は `Val` + `Enum` で 1.10 kB から 1.28 kB gzip、予算 1.63 kB は動かさない
+
+#### `seal` の引数を排他的にする、2026-10-14
+
+**タグが union だと、他の Variant のフィールドが値に残っていた。**引数の型 `SealedPayload<E>` は Variant
+ごとのタグ付き payload の union である。TypeScript は、判別子が union のオブジェクトでも、判別子の各値に
+ついて代入できれば受け入れる。全 Variant のフィールドを持つオブジェクトがこれで通る。
+
+```ts
+Command.seal({ _tag: TAGS[name] ?? "Invalid", count: Number(argument), message: "…" });
+// new 2 → {"_tag":"New","count":2,"message":"…"}
+```
+
+型の上では `New` に `message` は無いが、値には入っていて、`equals` と JSON に出る。proxy は Variant の
+フィールドを知らないので、実行時に落とせない。
+
+**引数を Variant ごとに排他的にした。**`Exclusive<E>` は、各 Variant のタグ付き payload に、他の Variant
+にしかないキーを `?: never` で足す。
+
+- タグが union で全フィールドを持つオブジェクトは型エラーになる。フレッシュでなくても同じ
+- タグが 1 つでも、他の Variant のフィールドを持つフレッシュでないオブジェクトは型エラーになる。過剰
+  プロパティ検査はここに届かない
+- 2 つの Variant が共有するフィールドは `never` にしない。全 Variant のフィールドから、自分のフィールドを
+  引いたものだけを `never` にする
+- スキーマのライブラリが返す、タグと対応の取れた union は通る
+
+残るのは 2 つ。どの Variant にも無いキーを持つフレッシュでないオブジェクトは通る。Val のコンストラクタと
+同じである。`exactOptionalPropertyTypes` が無いと `message: undefined` を書けて、キーだけが値に残る。
+
+Enum の `implSeal` の引数 `SealedPayload<E>` は変えていない。そこに届くのは、Variant のコンストラクタが
+作った payload だけである。
+
+**入口は Val と同じ 2 つのまま。**`Enum.sealer` は呼び出し（`Shape(payload)`）、`Enum.companion` は
+`Shape.seal(payload)`。`Val.sealer` が `User(value)`、`Val.companion` が `User.seal(value)` なのと対応する。
+不健全さの原因は引数の型で、置き場所ではない。
+
+**経緯。**一度は `Shape(payload)` も `Shape.seal` も消し、値は Variant のコンストラクタだけが作る形にした。
+Rust の enum も Variant ごとに作る。スキーマのライブラリがタグで分けた payload では、済んだ分岐を
+`[Tag].match` でもう一度書くことになるので、排他的な引数で戻した。その途中で両方の形を `Shape.seal` に
+揃えたが、Val の sealer には `.seal` が無く、同じ操作に名前が 2 つできるので、呼び出しに戻した。
+
+**却下: 入口を消す（2 度目）。**タグと対応の切れた値は、どれも型エラーで止まる。値は壊れないので、消す
+理由にならない。probe で確かめた。
+
+- `const { _tag, ...rest } = shape; Shape({ _tag, ...rest })`。`_tag` が別の変数に出た時点で対応が切れる。
+  排他的でない引数でも型エラーだった。値を丸ごとスプレッドすれば（`Shape({ ...shape, id })`）通る
+- `Omit<SealedPayload<Shape>, "id">`。`Omit` は union に分配せず、キーは `_tag` だけになる
+- 全 Variant の欄を持つ平らなフォーム。`[Tag].match` で Variant ごとに欄を選ぶ
+
+入口が無いと、タグと対応の取れた payload（スキーマの出力、サーバーの JSON、メッセージ）を Variant に分ける
+`switch` を手で書くことになる。`[Tag].match` のアームは引数を取らないので、payload は絞り込まれない。
+`switch` は Variant を足しても黙って素通りする。
+
+この PR 全体（`[Tag]` を含む）で、enum の instantiation は 32,653 → 33,264、`index.d.mts` は 59.48 →
+61.18 kB、Enum を含む production gzip は 1.27 → 1.29 kB。
+
+#### タグだけで分ける `[Tag].match`、2026-10-14 実装
+
+**タグが payload と別に届くとき、Variant を選ぶ入口。**フォームの選択欄やコマンドライン引数がそうである。
+`seal` は payload の中にタグが要るので、ここでは使えない。この分岐は避けられない。payload の型がタグの値で決まるので、別々に持っているタグと payload を対応づけるには
+場合分けが要る。Rust でも `match name { "new" => Command::New { … }, … }` と書く。選べるのは分岐を書く
+場所だけで、`match` と同じ形で Enum の中に置けるようにした。
+
+```ts
+Command[Tag].match(tag, {
+  New: () => Command.New({ count: Number(argument) }),
+  Check: () => Command.Check({}),
+});
+```
+
+- **ハンドラは引数を取らず、Variant のコンストラクタを自分で呼ぶ。**オブジェクトリテラルをコンストラクタに
+  直接渡すので、他の Variant のフィールドは過剰プロパティ検査で落ちる
+- **引数のタグが取りうる値すべてにハンドラが要る。**それ以外のキーは `"the tag never takes this value"` で
+  落とす（`Only` と同じくパラメータ位置、§11.1）
+- 戻り値はハンドラの戻り値の union。`match` と同じ理由（§15.2 の 3）
+- 実行時は `handlers[tag]()`。proxy が Variant の名前を知らなくても書ける
+
+**Variant を足すと、ここが型エラーになる。**`if` や `switch` でタグを分けた箇所は、`assertNever` を
+書かない限り黙って素通りする。production gzip で約 20 B（Enum を含む 1.24 → 1.26 kB）を払う。同じ網羅性は
+`satisfies Record<Shape["_tag"], () => Shape>` でも書けるが、思いつきにくく、タグ名をカスタムすると
+書き換えが要り、戻り値の型も自分で書く。
+
+**却下: ハンドラが payload を返し、入口がタグを付けて seal する。**`make(tag, { New: () => ({ count }) })`
+の形。アロー関数の戻り値の式には過剰プロパティ検査が掛からないので、`New: () => ({ count: 1, message: "m" })`
+が通る。余計なフィールドを防ぐという目的を果たせない。
+
+#### キーは文字列 `Tag = "__valof_tag"`
+
+`Tag` を値としても export し、companion のそのキーに `{ match, key }` を置く。
+
+- **`Command[Tag].match` は対象（Command のタグ）が動詞の前に来る。**`Command.match` と語順が揃う
+- **値の `Tag` は型の `Tag<"kind">` と同じ名前。**import 1 つで両方が入る
+- **予約は増えない。**`__valof_${string}` は既に Variant にもメンバにも使えない。`tag` という Variant は
+  今までどおり書ける
+- **キーが文字列リテラルなので、利用者の宣言出力にキーがそのまま書かれる。**値の名前が要らない。
+  プロパティとして宣言されるので、`noUncheckedIndexedAccess` でも `undefined` が付かない。TS 5.9 / 6.0 / 7.0
+  で、`Cmd[Tag]` を export する利用者側の宣言出力を確かめた
+- valof が複数入っても、文字列は同じ値なので動く
+- 名前は実行時にあるキーの `__valof_traits` に合わせ、`internal` も `phantom` も入れない
+
+`Command.__valof_tag.match(…)` と直接書いても動く。`__valof_` で始まるキーを直接書くメンバーアクセスを
+指摘する lint の規則を、別の PR で足す。Enum に限らず `__valof_traits` も対象になる。
+
+**却下した名前と形**
+
+- **`match` のオーバーロード。**値を取る `match` とタグを取る `match` ではハンドラの形が違い（値を受け取る /
+  何も受け取らない）、型エラーの文面が読みにくくなる
+- **`Command.match.tag(…)`。**予約は増えないが、対象が動詞の後ろに来る
+- **`Command.tag.match(…)`。**`tag` が Variant に使えなくなる。タグ名を型引数のマーカー（`Tag<T>`）にしたのは
+  `tag` という Variant を書けるようにするためだった
+- **`Command._tag.match(…)`（タグのフィールド名をキーにする）。**宣言出力も `noUncheckedIndexedAccess` も
+  通るが、タグ名と同じ名前の Variant が書けなくなり、`_tag` が内部用に見える。次点だった
+- **`Command.matchTag(…)`。**固定の名前を 1 つ予約する
+- **`Tag` を `unique symbol` にする。**型が展開されて出力される companion で、`Tag` を import していない
+  ファイルが TS4023 になる。`Tag` を export していても起きる。§2.1 と §15.2 で却下したのと同じ問題
+- **`Tag` を phantom を重ねた symbol（`symbol & TagSymbolPhantom`）にする。**`unique symbol` ではないので
+  インデックスシグネチャで持つことになり、`noUncheckedIndexedAccess` で `Command[Tag]` に `undefined` が付く
+
+値の名前なしで宣言出力に書けて、しかも 1 つの値に決まるキーは、文字列リテラルだけである。
+
+#### `[Tag].key` はタグのフィールド名
+
+`Command[Tag].key` は `"_tag"`、`Tag<"kind">` なら `"kind"` を、`TagOf<E>` のリテラルの型で返す。スキーマの
+ライブラリに判別子の名前を渡すとき（`z.discriminatedUnion(Command[Tag].key, […])`）、文字列を二重に
+書かずに済む。proxy はタグ名を実行時に持っているので、返すだけで足りる。
 
 #### `implVariant` は Variant ごとの鎖、2026-09-18 実装
 

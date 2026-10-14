@@ -6,8 +6,9 @@ import {
   type Dyn,
   type Final,
   type SeedFor,
+  type SealedPayload,
   type Self,
-  type Tag,
+  Tag,
   type VariantOf,
 } from "../src/experimental.ts";
 
@@ -91,6 +92,71 @@ describe("match", () => {
   });
 });
 
+describe("match on a tag alone", () => {
+  const pick = (name: string): "Circle" | "Square" => (name === "round" ? "Circle" : "Square");
+
+  test("runs the handler the tag selects, and returns the handlers' union", () => {
+    const build = (name: string) =>
+      Shape[Tag].match(pick(name), {
+        Circle: () => Shape.Circle({ r: 2 }),
+        Square: () => `square`,
+      });
+    expectTypeOf(build).returns.toEqualTypeOf<VariantOf<Shape, "Circle"> | string>();
+    expect([build("round"), build("box")]).toEqual([circle, "square"]);
+    expect(
+      Enum.companion<Shape>()
+        .impl()
+        [Tag].match("Circle", { Circle: () => 0 }),
+    ).toBe(0);
+  });
+
+  test("needs a handler for every tag the argument can hold, and no other", () => {
+    // @ts-expect-error Property 'Square' is missing
+    Shape[Tag].match(pick("round"), { Circle: () => 0 });
+    Shape[Tag].match("Circle", {
+      Circle: () => 0,
+      // @ts-expect-error the tag never takes this value
+      Square: () => 0,
+    });
+  });
+
+  test("a tag the enum does not declare is rejected", () => {
+    // @ts-expect-error not assignable to '"Circle" | "Square"'
+    Shape[Tag].match("Triangle", { Triangle: () => 0 });
+  });
+});
+
+describe("a sealer seals a payload by its tag", () => {
+  type Command = Enum<"Command", { New: { count: number }; Fail: { message: string } }>;
+  const Command = Enum.sealer<Command>();
+  type Wire = SealedPayload<Command>;
+
+  test("builds the variant the tag names, and returns the variants' union", () => {
+    const parse = (wire: Wire) => Command(wire);
+    expectTypeOf(parse).returns.toEqualTypeOf<Command>();
+    expect(parse({ _tag: "New", count: 2 })).toEqual(Command.New({ count: 2 }));
+    expect(parse({ _tag: "Fail", message: "m" })).toEqual(Command.Fail({ message: "m" }));
+  });
+
+  // TypeScript accepts a union tag wherever each of its values fits, so the payload below would
+  // otherwise build a `New` that holds `message`.
+  test("a payload holding another variant's field is rejected, as a literal or through a variable", () => {
+    const tag: "New" | "Fail" = Math.random() > 0.5 ? "New" : "Fail";
+    // @ts-expect-error Types of property '_tag' are incompatible
+    Command({ _tag: tag, count: 2, message: "m" });
+    // No excess property check reaches an object that is not fresh, even with one tag.
+    const held = { _tag: "New" as const, count: 2, message: "m" };
+    // @ts-expect-error Types of property 'message' are incompatible
+    Command(held);
+  });
+
+  test("a field two variants share is not another variant's", () => {
+    type Mark = Enum<"Mark", { Pin: { at: number }; Flag: { at: number }; Note: { text: string } }>;
+    const Mark = Enum.sealer<Mark>();
+    expect(Mark({ _tag: "Pin", at: 1 })).toEqual(Mark.Pin({ at: 1 }));
+  });
+});
+
 describe("the tag", () => {
   test("narrows the union", () => {
     const read = (shape: Shape): number => {
@@ -121,6 +187,12 @@ describe("the tag", () => {
     test("reaches a companion's constructors too", () => {
       const Named = Enum.companion<Event>("kind");
       expect(Named.Click.create({ x: 1 })).toEqual({ x: 1, kind: "Click" });
+    });
+
+    test("`[Tag].key` returns it, typed as the literal", () => {
+      expectTypeOf(Event[Tag].key).toEqualTypeOf<"kind">();
+      expect(Event[Tag].key).toBe("kind");
+      expect(Shape[Tag].key).toBe("_tag");
     });
 
     test("reserves no variant name of its own", () => {
@@ -490,6 +562,15 @@ describe("a seal of its own", () => {
     expect(Money.Cash.create({ id: "m1", yen: 0 })).toBeInstanceOf(RangeError);
   });
 
+  test("`seal` runs the seal of the variant the tag names", () => {
+    const sealed = Money.seal({ id: "m1", yen: 1, _tag: "Cash" });
+    expectTypeOf(sealed).toEqualTypeOf<
+      VariantOf<Money, "Cash"> | VariantOf<Money, "Card"> | RangeError
+    >();
+    expect(sealed).toEqual({ id: "m1", yen: 1, _tag: "Cash" });
+    expect(Money.seal({ id: "m1", yen: 0, _tag: "Cash" })).toBeInstanceOf(RangeError);
+  });
+
   test("the variant runs first, then the enum, then the default seal", () => {
     ran.length = 0;
     Money.Cash.create({ id: "m1", yen: 1 });
@@ -543,37 +624,7 @@ describe("a seal of its own", () => {
     expect(Plain.Circle.create({ r: 0 })).toBeInstanceOf(RangeError);
     expectTypeOf(Plain.Square.create({ side: 3 })).toEqualTypeOf<VariantOf<Shape, "Square">>();
     expect(Plain.Square.create({ side: 3 })).toEqual(square);
-  });
-
-  test("a companion with no seal at all still builds and still takes the wire", () => {
-    const Plain = Enum.companion<Shape>().impl();
-    expect(Plain.Circle.create({ r: 2 })).toEqual(circle);
-    expect(Plain.seal({ side: 3, _tag: "Square" })).toEqual(square);
-    expectTypeOf(Plain.Circle.create({ r: 2 })).toEqualTypeOf<VariantOf<Shape, "Circle">>();
-    expectTypeOf(Plain.Circle).not.toHaveProperty("seal");
-  });
-
-  describe("the boundary entry", () => {
-    test("draws the frame from the tag and hands over to that variant's seal", () => {
-      const sealed = Money.seal({ id: "m1", yen: 1, _tag: "Cash" });
-      expectTypeOf(sealed).toEqualTypeOf<
-        VariantOf<Money, "Cash"> | VariantOf<Money, "Card"> | RangeError
-      >();
-      expect(sealed).toEqual({ id: "m1", yen: 1, _tag: "Cash" });
-      expect(Money.seal({ id: "m2", limit: 2, _tag: "Card" })).toEqual({
-        id: "m2",
-        limit: 2,
-        _tag: "Card",
-      });
-      expect(Money.seal({ id: "m1", yen: 0, _tag: "Cash" })).toBeInstanceOf(RangeError);
-    });
-
-    test("a sealer is the entry itself, and hands back the union", () => {
-      const shape = Shape({ r: 2, _tag: "Circle" });
-      expectTypeOf(shape).toEqualTypeOf<Shape>();
-      expect(shape).toEqual(circle);
-      expect(Shape({ side: 3, _tag: "Square" })).toEqual(square);
-    });
+    expectTypeOf(Plain.Square).not.toHaveProperty("seal");
   });
 
   test("a sealer has no seal to replace: its constructors are the default one", () => {
@@ -664,12 +715,9 @@ describe("the chain closes", () => {
 });
 
 describe("the companion is a proxy", () => {
-  test("a sealer's boundary entry is the call, so `seal` resolves to nothing", () => {
+  test("a sealer's entry is the call, so `seal` resolves to nothing", () => {
+    expectTypeOf(Shape).not.toHaveProperty("seal");
     expect((Shape as unknown as Record<string, unknown>)["seal"]).toBeUndefined();
-    expect(Enum.companion<Shape>().impl().seal({ r: 1, _tag: "Circle" })).toEqual({
-      r: 1,
-      _tag: "Circle",
-    });
   });
 
   test("so a symbol and `then` come back undefined", async () => {

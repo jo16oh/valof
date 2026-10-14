@@ -35,9 +35,8 @@ Call a variant through the companion. `const { Circle } = Shape` works, and a re
 another name, which `companion-mismatch` reports.
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
-constructor. The enum itself takes a payload that already carries the tag, typed
-`SealedPayload<Shape>`. It reads the tag, selects that variant's companion, and passes the payload
-to its seal.
+constructor. For a payload that carries its tag, or a tag that arrives alone, see
+[Build a value](#build-a-value).
 
 A variant is a Val. It patches, it compares, and it nests. A patch cannot reach the tag, so it
 cannot switch variants.
@@ -79,6 +78,44 @@ to hard-code it.
 
 Use `match` to split on the tag. For a condition inside a variant, a pattern matching library such
 as ts-pattern fits. `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
+
+## Build a value
+
+An enum value can be built from three kinds of input, and each has its own call:
+
+| When you have                                                 | Use                                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| a payload for a variant you already know                      | `Shape.Circle(payload)`, or `Shape.Circle.create(payload)` on a companion |
+| a payload carrying its tag, such as a schema library's output | `Shape(payload)`, or `Shape.seal(payload)` on a companion                 |
+| the tag alone, with the fields kept elsewhere                 | `Shape[Tag].match(tag, handlers)`                                         |
+
+`Shape(payload)` reads the tag, selects that variant, and accepts only its fields. Passing a field
+of another variant is a type error, even when the tag is a union.
+
+When the tag arrives alone, `[Tag].match` selects the handler from the tag. On a command line, the
+first argument is the subcommand, and how to read the rest depends on it:
+
+```ts
+import { Enum, Tag } from "valof/experimental";
+// ---cut---
+type Command = Enum<
+  "Command",
+  { New: { name: string }; Rename: { from: string; to: string }; Check: Record<never, never> }
+>;
+const Command = Enum.sealer<Command>();
+// The subcommand, already normalized to its tag, and the arguments after it.
+declare const input: { tag: "New" | "Rename" | "Check"; args: readonly string[] };
+
+const command = Command[Tag].match(input.tag, {
+  New: () => Command.New({ name: input.args[0] ?? "" }),
+  Rename: () => Command.Rename({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
+  Check: () => Command.Check({}),
+});
+```
+
+Every tag the argument's type allows needs a handler, so adding a variant to the declaration fails
+here too, as it does for `match`. A handler takes no argument and calls its variant's constructor,
+so each payload is checked against its own variant.
 
 ## Common shape for every variant
 
@@ -175,8 +212,8 @@ is the enum's, read from the chain as it stands.
 Whatever a seal returns propagates, as it does for a Val. The union in it narrows to the variant the
 payload named. `patch` derives through the same seal, so no derivation skips it.
 
-On a companion, `Shape.seal` takes that tagged payload. Its return is the variants' seals as a
-union.
+`Shape.seal` passes a tagged payload through the same seals. Its return is the variants' returns, as
+a union.
 
 ## Custom tag key
 
@@ -184,12 +221,13 @@ The tag is real data, not a phantom. It crosses the wire, so you can customize t
 already has one:
 
 ```ts
-import { Enum, type Tag } from "valof/experimental";
+import { Enum, Tag } from "valof/experimental";
 // ---cut---
 type Event = Enum<"Event", { Click: { x: number }; Key: { code: string } }, Tag<"kind">>;
 const Event = Enum.sealer<Event>("kind");
 
 Event.Click({ x: 1 }); // { x: 1, kind: "Click" }
+Event[Tag].key; // "kind"
 ```
 
 `Tag` goes in the third argument, beside the shared fields, because the tag is a field every variant
@@ -197,6 +235,8 @@ holds. It is a marker with no key of its own, so every name is still free for a 
 companion takes the name again because the proxy writes it at run time, and the type argument is not
 readable from a value. Forget it, misspell it, or pass one where the default applies, and the type
 says so.
+
+`Event[Tag].key` returns the name, for a schema library that asks for the discriminator.
 
 ## Use a variant's type
 

@@ -1,8 +1,9 @@
 // What `Enum` costs: the union derived from the declaration, `match`'s narrowing and its
-// exhaustiveness, a variant's own members, a seal on the enum and one on a variant, a trait
-// implemented over the union, and a variant nested in a Val, where the patch boundary runs.
+// exhaustiveness, `match` on a tag alone, a variant's own members, a seal on the enum and one on a
+// variant, a trait implemented over the union, and a variant nested in a Val, where the patch
+// boundary runs.
 import { Val, type Patch, type SeedOf } from "valof";
-import { Enum, Trait, type Dyn, type Self, type Tag, type VariantOf } from "valof/experimental";
+import { Enum, Tag, Trait, type Dyn, type Self, type VariantOf } from "valof/experimental";
 
 type Shape = Enum<
   "Shape",
@@ -76,10 +77,11 @@ export const derived = [
   Frame.patch(frame, patch),
 ];
 
-export const sealed = [
-  Event.seal({ kind: "Key", id: "e", code: "a" }),
-  Event.Key.create({ id: "e", code: "a" }),
-];
+export const sealed = Event.seal({ kind: "Key", id: "e", code: "a" });
+export const byTag = Event[Tag].match(Math.random() > 0.5 ? "Key" : "Click", {
+  Key: () => Event.Key.create({ id: "e", code: "a" }),
+  Click: () => Event.Click.create({ id: "e", x: 0, y: 0 }),
+});
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Event, frame.last)];
 export const labels = boxed.map((b) => b.label("/"));
