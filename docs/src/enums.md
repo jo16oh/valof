@@ -100,15 +100,16 @@ import { Enum, Tag } from "valof/experimental";
 // ---cut---
 type Command = Enum<
   "Command",
-  { new: { name: string }; rename: { from: string; to: string }; check: Record<never, never> }
+  { New: { name: string }; Rename: { from: string; to: string }; Check: Record<never, never> }
 >;
 const Command = Enum.sealer<Command>();
-declare const [subcommand, ...args]: ["new" | "rename" | "check", ...string[]];
+declare const tag: "New" | "Rename" | "Check"; // the subcommand, already normalized
+declare const args: readonly string[]; // the arguments after it
 
-const command = Command[Tag].match(subcommand, {
-  new: () => Command.new({ name: args[0] ?? "" }),
-  rename: () => Command.rename({ from: args[0] ?? "", to: args[1] ?? "" }),
-  check: () => Command.check({}),
+const command = Command[Tag].match(tag, {
+  New: () => Command.New({ name: args[0] ?? "" }),
+  Rename: () => Command.Rename({ from: args[0] ?? "", to: args[1] ?? "" }),
+  Check: () => Command.Check({}),
 });
 ```
 
