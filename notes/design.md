@@ -33,7 +33,7 @@ import { Val } from "valof";
 - **§11 型エラーをどこで表面化させるか** パラメータ位置（A）と判定位置（B、`Verdict`）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）
@@ -2032,7 +2032,20 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`
-- [x] ~~fixture を型検査するか（§14.10）。~~ → 要らない。`structural-equals` を撤回した（§14.7）ので、型が要る fixture は無い
+- [ ] **fixture を型検査するか（§14.10）。開け直した、2026-10-14。**型が要る規則は無いままだが、理由が別にある。
+      fixture は型検査されないので、本体の API の名前を変えても lint のテストは緑のままである（§14.27）
+  - 一時的な tsconfig で数えた。186 ファイル中 122 ファイル、329 件。大半は省略で、意図した不正ではない。
+    `Val` を import していない（TS2304 / TS2552 で 162 件）、引数に型が無い（TS7006、77 件）、型を
+    宣言していない（TS2749、41 件）
+  - 直すと行がずれ、テストが期待する位置（`dead-member.ts:3:3`）を書き換えることになる。別の PR
+  - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
+    **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
+    `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
+- [ ] **Enum の `implTrait` が Variant 名のメンバを通す疑い。未確認、2026-10-14。**Trait が `Square` を
+      宣言していると `Enum.sealer<Shape>().implTrait<Sq>({ Square: … })` が型を通り、実行時に
+      コンストラクタが上書きされる、という監査の報告。再現していない
+- [ ] **Variant 名の検査（`src/enum.ts` の `Fault`）が `Reserved` と別の集合である。**
+      `"match" | "seal" | impl… | __valof_…` で、`patch` と `create` が無い。意図どおりか未確認（§14.27）
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [x] ~~valof-lint が `Trait` を知らない。~~ Trait の宣言、companion、`implTrait`、`dyn` を構文から追跡する。
       足すのは 2 種類
@@ -4263,6 +4276,122 @@ walk(tree);
 
 メッセージが内部キーの名前を出すので、規則にすれば読みやすくはなる。docs は宣言の中の `Rec` しか
 見せないので、この形を書く経路が無い。実例が出たら考える。
+
+### 14.27 `unused-member` と型が拒む名前、2026-10-14
+
+**型が拒む名前はメンバとして数えない。**`.impl` に書いても `unused-member` は報告しない。
+
+きっかけは #36 の取り残しである。scan の `BUILTIN` に `equals` と `update` が残り、読まれていない
+`equals` を報告しなかった。直す途中で、不正な名前への反応が 3 通りに割れていることが分かった。
+
+| `.impl` に書いた名前           | 型   | 以前の `unused-member` |
+| ------------------------------ | ---- | ---------------------- |
+| `patch` / `seal` / `create`    | 拒む | 黙る                   |
+| `then`、`implFoo`、`__valof_x` | 拒む | 「never read」と報告   |
+| Enum の `match`、Variant 名    | 拒む | 読まれていなければ報告 |
+
+「never read」は診断として間違っている。読む箇所を足しても直らない。
+
+**却下: 不正な名前を専用の規則で報告する。**型検査と二重になる。valof-lint が見るのは型検査が
+捕まえられないものである。
+
+**却下: `BUILTIN` を消して全部報告する。**間違った診断が `patch` / `seal` / `create` にも広がる。
+
+#### 判定する場所
+
+| 名前                              | 場所 | 根拠                              |
+| --------------------------------- | ---- | --------------------------------- |
+| `Reserved`（どの `.impl` も拒む） | scan | 本体の型                          |
+| Enum の `.impl` の `match`        | scan | `keyof EnumCompanion`             |
+| Trait の `.impl` の `dyn`         | scan | `keyof TraitCompanion`            |
+| Enum の `.impl` の Variant 名     | 規則 | `Enum<…>` の宣言（`enumAliases`） |
+
+Variant 名は Enum ごとに決まり、宣言は別ファイルにあるかもしれない。scan は 1 ファイルしか読まないので
+規則で落とす。宣言から Variant が決まらない Enum では落とさない。そこで黙ると、その Enum の `.impl` の
+メンバを 1 つも報告できなくなる。
+
+`equals` と `update` は型が通す名前なので、読まれていなければ報告する。
+
+#### `Reserved` と正規表現の文字列
+
+```ts
+type Rejected = Partial<Record<Wired, never>> & {
+  [key: `__valof_${string}`]: never;
+  [key: `impl${string}`]: never;
+  then?: never;
+};
+export type Reserved = keyof Rejected;
+```
+
+```ts
+const RESERVED = reserved(["patch", "seal", "create", "then", "impl.*", "__valof_.*"]);
+```
+
+- **`Reserved` は `Rejected` のキーから読む。**2 つはずれない。理由のコメントも名前の横に置いたままに
+  できる。`CompanionMembers<V>` は `Rejected & { … }` になった。利用者から見た型は同じで、エラーコードと
+  位置と hover が変わらないことを監査が確かめた
+- **`"impl.*"` は文字列として `` `impl${string}` `` に代入できる。**正規表現のパターンがそのまま型を
+  通る。`Wired` の名前も正規表現として有効である
+- `reserved` の引数の型は 2 つを見る。各パターンが `Reserved` の名前であること、`Reserved` の全メンバに
+  パターンがあること。どちらが欠けても型エラーになる
+- **型が見るのは接頭辞だけ。**`"implFoo"` も `` `impl${string}` `` を満たす。パターンが広さを保って
+  いることは fixture が押さえる。`implFoo` と `implTrait`、`__valof_traits` と `__valof_x` を置いた
+- 実行時は `^(?:…)$` に包む。包まないと `"patch"` が `dispatch` に当たる
+
+名前は `Reserved` にした。**却下: `Builtin`。**`then` や接頭辞は組み込みではない。既存の JSDoc と Trait の
+エラー文も "reserves" と書いている。
+
+#### 型で結んだ他の名前
+
+lint が直接書いていた本体の名前を、同じ PR で型に結んだ。
+
+| lint の名前                          | 読む先                                          |
+| ------------------------------------ | ----------------------------------------------- |
+| `STEPS`（`impl`、`implSeal` など 6） | ビルダーにあって、完成した companion に無いキー |
+| `sealer` / `companion`               | `Val`、`Enum`、`Trait` に共通するキー           |
+| `of`                                 | `keyof typeof Val`                              |
+
+`src/trait.ts` の `Declarable` も `Wired | __valof_… | impl…` をもう一度書いていた。`Reserved` に替えた。
+これは lint と関係のない、本体の中の二重である。
+
+- **`STEPS` は差で読む。**`Exclude<keyof CompanionBuilder<V>, keyof Companion<V>>` の形にすると、`fixed` の
+  ような `impl` で始まらない段も拾える。追うのは export している 5 組のビルダーで、Variant の枠は
+  読まない。枠の段はどれも他のビルダーにある
+- **Enum は具体的な型で読む。**`AnyEnum` だとキーが `string` に潰れる。lint 側に `Sample` を 1 つ置いた
+- **export する型に本体の型を使わない。**`CompanionSite.root` に使ったら、`dist/lint.d.mts` が本体の
+  60 kB のチャンクを import した。照合は export しない定数の `satisfies` に置き、export する型は
+  `"sealer" | "companion"` と直に書く。JS は元から本体を import しない
+- **入口の検査は名前があることだけを見る。**改名は型エラーになる。lint のリストから名前を落とすのは
+  テストが捕まえる
+
+結んでいないものが 2 つある。
+
+- `src/enum.ts` の `Fault` が Variant 名に使う集合。`Reserved` と半分重なるが別の集合である（§9）
+- lint が見る型の名前（`Tag`、`VariantOf`）。型だけの export は `keyof typeof` に出ない
+
+根にあるのは、lint の fixture が型検査されないことである。上は名前ごとの対処で、fixture を型検査するかは
+§9 に開け直した。
+
+#### 残った偽陽性と見逃し
+
+- **ビルダーを変数に持つ形の Variant 名。**`const b = Enum.sealer<Shape>(); const Shape = b.impl({ Square })`
+  は `Shape.Square` を報告する。scan がサイトを `b`、メンバを `Shape` の名前で記録するため。型は
+  このメンバを拒み、`companion-mismatch` も同時に出る
+- **`implTrait` の上書き。**Enum が上書きしたメンバのうち、Variant と同じ名前のものは報告されない。
+  上書きとメンバが同じ配列に入っている
+- **Trait の `.impl`。**宣言に無いキーと payload のフィールド名は、型が拒むが報告される。今回の範囲に
+  入れていない
+
+#### コスト
+
+production gzip は 852 B のまま。lint のチャンクは測っていない。
+
+|               | main     | 変更後   |
+| ------------- | -------- | -------- |
+| core          | 5,655    | 5,661    |
+| trait         | 13,777   | 13,784   |
+| enum          | 32,437   | 32,456   |
+| `index.d.mts` | 58.77 kB | 58.90 kB |
 
 ### 15.1 `Trait`
 
