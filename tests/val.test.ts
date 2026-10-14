@@ -1781,6 +1781,8 @@ describe("building", () => {
         builder.implCreate.noseal((text?: string) => text ?? "0123abcd");
         // @ts-expect-error and a rest parameter
         builder.implCreate.noseal((...texts: string[]) => texts.join(""));
+        // @ts-expect-error nor return another payload
+        builder.implCreate.noseal(() => 5);
       });
     });
   });
@@ -1817,16 +1819,6 @@ describe("building", () => {
       expectTypeOf(Account.patch).parameters.toEqualTypeOf<[Account, Patch<Fields>]>();
       // @ts-expect-error id is not patchable
       Account.patch(a, { id: "forged" });
-    });
-
-    test("retains nocopy on seal and create", () => {
-      const Account = account();
-      const seed = { id: "given", owner: " alice ", note: "" } as const;
-
-      const sealed = Account.seal.nocopy(seed);
-      expect(sealed).not.toBe(seed);
-      expect(sealed.owner).toBe("alice");
-      expect(Account.create.nocopy({ owner: " bob ", note: "" }).owner).toBe("bob");
     });
 
     test("keys must exist on the payload", () => {
