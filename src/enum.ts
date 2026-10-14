@@ -527,7 +527,8 @@ export type EnumCompanion<
   };
 
 /**
- * The same for `Enum.sealer`, where every variant is callable.
+ * The same for `Enum.sealer`, where the companion and every variant are callable. Calling the
+ * companion is {@link EnumCompanion.seal}.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
@@ -537,12 +538,11 @@ export type EnumSealed<
   E extends AnyEnum,
   VM = Record<never, never>,
   M = Record<never, never>,
-> = SealerConstructors<E, VM> &
+> = EnumSeal<E, SealerConstructors<E, VM>> &
+  SealerConstructors<E, VM> &
   Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
     /** See {@link EnumCompanion.match}. */
     match: Match<E>;
-    /** See {@link EnumCompanion.seal}. */
-    seal: EnumSeal<E, SealerConstructors<E, VM>>;
     readonly [Tag]: ByTag<E>;
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
@@ -752,58 +752,57 @@ const state = (
     nextOpen: boolean,
   ): object => state(tag, callable, nextBuilds, nextMembers, nextTraits, nextSeal, nextOpen);
 
-  const self: object = new Proxy(
-    {},
-    {
-      get(_, key) {
-        // A symbol reaches here from `await`, `JSON.stringify` and every other protocol read, and
-        // `then` would make the companion a thenable. Both would otherwise resolve to a frame,
-        // since the proxy has no list of variant names to check against. A `then` variant is an
-        // error at the declaration, like a `then` member anywhere else.
-        if (typeof key !== "string" || key === "then") return undefined;
-        if (Object.hasOwn(members, key)) return members[key];
-        if (key === "match") {
-          return (
-            value: Record<string, unknown>,
-            handlers: Record<string, (v: unknown) => unknown>,
-          ) => handlers[value[tag] as string]!(value);
-        }
-        if (key === "seal") return enter;
-        if (key === Tag) return byTag;
-        if (key === "__valof_traits") return traits;
-        if (key === "impl") {
-          // One call, which closes every step: what it returns carries no `impl` of its own.
-          return open
-            ? (fns: Payload = {}) => step(builds, { ...members, ...fns }, traits, seal, false)
-            : undefined;
-        }
-        if (key === "implVariant") {
-          return open
-            ? (name: string, build: (sealer: object) => object) =>
-                step({ ...builds, [name]: build }, members, traits, seal, true)
-            : undefined;
-        }
-        if (key === "implSeal") {
-          return open && !callable
-            ? (custom: Seal) => step(builds, members, traits, custom, true)
-            : undefined;
-        }
-        if (key === "implTrait") {
-          // The trait's own members and the enum's, merged the way `val.ts` merges them.
-          return open
-            ? (
-                trait: { __valof_shared?: Record<string, unknown> },
-                fns: Record<string, unknown> = {},
-              ) => {
-                const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
-                return step(builds, { ...members, ...grown }, grown, seal, true);
-              }
-            : undefined;
-        }
-        return frame(key);
-      },
+  const self: object = new Proxy(callable ? () => undefined : {}, {
+    apply: (_, __, args: [Payload]) => enter(args[0]),
+    get(_, key) {
+      // A symbol reaches here from `await`, `JSON.stringify` and every other protocol read, and
+      // `then` would make the companion a thenable. Both would otherwise resolve to a frame,
+      // since the proxy has no list of variant names to check against. A `then` variant is an
+      // error at the declaration, like a `then` member anywhere else.
+      if (typeof key !== "string" || key === "then") return undefined;
+      if (Object.hasOwn(members, key)) return members[key];
+      if (key === "match") {
+        return (
+          value: Record<string, unknown>,
+          handlers: Record<string, (v: unknown) => unknown>,
+        ) => handlers[value[tag] as string]!(value);
+      }
+      // A sealer's entry is the call, so the name stays reserved and resolves to nothing.
+      if (key === "seal") return callable ? undefined : enter;
+      if (key === Tag) return byTag;
+      if (key === "__valof_traits") return traits;
+      if (key === "impl") {
+        // One call, which closes every step: what it returns carries no `impl` of its own.
+        return open
+          ? (fns: Payload = {}) => step(builds, { ...members, ...fns }, traits, seal, false)
+          : undefined;
+      }
+      if (key === "implVariant") {
+        return open
+          ? (name: string, build: (sealer: object) => object) =>
+              step({ ...builds, [name]: build }, members, traits, seal, true)
+          : undefined;
+      }
+      if (key === "implSeal") {
+        return open && !callable
+          ? (custom: Seal) => step(builds, members, traits, custom, true)
+          : undefined;
+      }
+      if (key === "implTrait") {
+        // The trait's own members and the enum's, merged the way `val.ts` merges them.
+        return open
+          ? (
+              trait: { __valof_shared?: Record<string, unknown> },
+              fns: Record<string, unknown> = {},
+            ) => {
+              const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
+              return step(builds, { ...members, ...grown }, grown, seal, true);
+            }
+          : undefined;
+      }
+      return frame(key);
     },
-  );
+  });
   return self;
 };
 
