@@ -464,9 +464,9 @@ type Yields<X> = X extends { create: (...args: never[]) => infer R }
 /** What an enum dispatches on a tag alone, under {@link Tag}. */
 type ByTag<E extends AnyEnum> = {
   /**
-   * Dispatches on a tag before there is a value, as when a tag arrives apart from its payload. Every
-   * tag the argument's type allows needs a handler. A handler takes no argument and calls its
-   * variant's constructor, which checks the payload literal for fields the variant does not hold.
+   * Dispatches on a tag that arrives without its payload. Every tag the argument's type allows needs
+   * a handler. A handler takes no argument and calls its variant's constructor, which checks the
+   * payload literal for fields the variant does not hold.
    *
    * ```ts
    * Command[Tag].match(input.tag, {
