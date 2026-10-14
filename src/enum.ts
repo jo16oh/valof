@@ -15,7 +15,8 @@ import {
 } from "./val.ts";
 
 /**
- * The key of what an enum dispatches on a tag alone: `Command[Tag].match(tag, handlers)`.
+ * The key that holds an enum companion's `match` on a tag string, and its `key`:
+ * `Command[Tag].match(tag, handlers)`.
  *
  * @experimental
  */
@@ -234,7 +235,7 @@ type Tagged<E extends AnyEnum, N extends keyof VariantsOf<E>> = SeedFor<E, N> & 
 };
 
 /**
- * What the enum's seal takes: a tagged payload of any one variant.
+ * What a seal registered with `.implSeal` receives: a tagged payload of any one variant.
  *
  * @experimental
  */
@@ -515,11 +516,11 @@ export type EnumCompanion<
      */
     match: Match<E>;
     /**
-     * Builds the variant a tagged payload names, through that variant's constructor. For a payload
+     * Reads the tag, selects that variant, and passes the payload to its constructor. For a payload
      * a schema library has already split by the tag. The return is the variants' constructors'
      * returns, as a union.
      *
-     * A payload holding a field of a variant other than the one its tag names is a type error.
+     * Passing a field of another variant is a type error, even when the tag is a union.
      */
     seal: EnumSeal<E, Constructors<E, VM, F>>;
     readonly [Tag]: ByTag<E>;
@@ -810,8 +811,8 @@ const state = (
 /** @experimental */
 export const Enum = {
   /**
-   * Builds the constructors for an enum: every variant is callable. `Enum.companion` is the same
-   * shape for an enum with a smart constructor.
+   * Builds the constructors for an enum: the companion and every variant are callable.
+   * `Enum.companion` is the same, for an enum with a custom seal.
    *
    * The tag name is passed again here because the proxy has to write it at run time, and the type
    * argument is not readable from a value.
