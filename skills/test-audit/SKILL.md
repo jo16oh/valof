@@ -2,8 +2,7 @@
 name: test-audit
 description:
   Audit what each test guarantees. It reports tests to delete or merge, behaviour changed with no
-  test covering it, and tests that cannot fail. Run it after writing or changing any test, before
-  proposing a commit.
+  test covering it, and tests that cannot fail. Run it every time a test is written or changed.
 ---
 
 # Test audit
@@ -16,14 +15,8 @@ Test count and coverage percentage are not the goal.
 
 ## Scope
 
-Staged changes by default:
-
-```sh
-git diff --cached --stat
-git diff --cached
-```
-
-Nothing staged, read `git diff HEAD` instead. The user can name a file or `all` for the whole suite.
+The working tree by default, untracked files included. The user can name a file or `all` for the
+whole suite.
 
 ## Run it in a separate agent
 
@@ -43,33 +36,34 @@ Other harnesses name their own agents, so check that the one you pick runs on th
 
 ## Audit only the change since the last audit
 
-Each audit of the staged scope leaves a record per branch in the git directory:
+Each audit of the default scope leaves a record per branch in the git directory:
 
 ```sh
 dir="$(git rev-parse --git-common-dir)/test-audit/$(git branch --show-current)"
 ```
 
-`$dir/tree` holds the hash that `git write-tree` returned for the staged changes the audit read, and
-`$dir/report.md` the report of that audit. Only an audit of the default staged scope reads or writes
-them. On a detached HEAD, skip the record.
+`$dir/tree` holds the hash of the working tree the audit read, and `$dir/report.md` its report. On a
+detached HEAD, skip the record.
 
-1. Before launching the agent, take the hash of the staged changes.
+`state.sh` next to this file computes the hashes. In Claude Code, a Stop hook runs `state.sh check`,
+and blocks the end of a turn while a test has changed since the last audit.
 
-   ```sh
-   git write-tree
-   ```
-
-2. If the recorded tree still exists, the scope is the change since that tree:
+1. Before launching the agent, take the hash of the working tree.
 
    ```sh
-   git cat-file -e "$(cat "$dir/tree")" && git diff "$(cat "$dir/tree")" --cached
+   skills/test-audit/state.sh tree
    ```
 
-   Pass the agent this diff and `$dir/report.md`. It checks whether each earlier finding was applied
-   or is still open, lists the open ones in its report, then runs the three passes over the new
-   diff. Pass 1 still searches the whole suite for duplicates.
+2. The scope is the change since the base: the recorded tree, or `HEAD` with no record or with a
+   tree that `git gc` removed.
 
-   With no record, or a tree that `git gc` removed, audit the whole staged diff.
+   ```sh
+   git diff "$(skills/test-audit/state.sh base)" <hash from step 1>
+   ```
+
+   With a record, pass the agent `$dir/report.md` too. It checks whether each earlier finding was
+   applied or is still open, lists the open ones in its report, then runs the three passes over the
+   new diff. Pass 1 still searches the whole suite for duplicates.
 
 3. After the agent reports, write the hash from step 1 to `$dir/tree` and the report to
    `$dir/report.md`.

@@ -25,9 +25,10 @@ Neither `vp check` nor `vp test` covers either one.
 
 ## Testing
 
-Audit the tests after writing or changing one, before proposing a commit (`/test-audit` in Claude
-Code). It reports tests to delete or merge, behaviour the diff changes with no test covering it, and
-tests that pass whatever the source does. `skills/test-audit/SKILL.md` holds the three passes.
+Audit the tests every time you write or change one (`/test-audit` in Claude Code, where a Stop hook
+enforces it). It reports tests to delete or merge, behaviour the diff changes with no test covering
+it, and tests that pass whatever the source does. `skills/test-audit/SKILL.md` holds the three
+passes.
 
 A separate agent runs it, on the same model, and reports back. Apply the cuts yourself, on a
 go-ahead.
