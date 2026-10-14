@@ -9,6 +9,24 @@ describe("what the rule finds", () => {
     expect(await lint("dead-member")).toEqual([{ rule: UnusedMember, at: "dead-member.ts:3:3" }]);
   });
 
+  test("does not count a name `.impl` rejects as a member", async () => {
+    expect(await messages("reserved-names")).toEqual([
+      "Id.equals is never read",
+      "Id.update is never read",
+      "Id.match is never read",
+      "Id.dyn is never read",
+      "Id.Square is never read",
+      "Id.dispatch is never read",
+      "Id.thenable is never read",
+      "Shape.Circle.match is never read",
+      "Shape.Circle.Square is never read",
+      "Shape.sides is never read",
+      "Shape.dyn is never read",
+      "Named.greet is never read",
+      "Named.match is never read",
+    ]);
+  });
+
   test("finds the reader in another file, through a renamed import", async () => {
     expect(await lint("renamed-import")).toEqual([
       { rule: UnusedMember, at: "renamed-import/user.ts:3:3" },

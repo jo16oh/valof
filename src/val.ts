@@ -343,12 +343,8 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
  */
 export type Wired = "patch" | "seal" | "create";
 
-/**
- * The members a companion accepts, each taking its Val first.
- *
- * `V` is unconstrained so an enum's variant, which is a Val behind a second phantom, can name it.
- */
-export type CompanionMembers<V> = Partial<Record<Wired, never>> & {
+/** The names every `.impl` rejects. */
+type Rejected = Partial<Record<Wired, never>> & {
   /**
    * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
    * before the registrations, so a function taking the name would overwrite it and leave every
@@ -367,6 +363,17 @@ export type CompanionMembers<V> = Partial<Record<Wired, never>> & {
    * settles.
    */
   then?: never;
+};
+
+/** The keys of {@link Rejected}, which valof-lint reads. */
+export type Reserved = keyof Rejected;
+
+/**
+ * The members a companion accepts, each taking its Val first.
+ *
+ * `V` is unconstrained so an enum's variant, which is a Val behind a second phantom, can name it.
+ */
+export type CompanionMembers<V> = Rejected & {
   /**
    * One callable member only. This is the contextual type for the Val parameter, and TypeScript
    * takes one from a union only while a single constituent has a call signature. `NonFn` has

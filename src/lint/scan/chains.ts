@@ -7,7 +7,24 @@ import {
   type Node,
   type Where,
 } from "../ast.ts";
+import type { Enum } from "../../enum.ts";
+import type { Trait } from "../../trait.ts";
+import type { Val } from "../../val.ts";
 import { original, symbolRef, type Bindings, type Root, type SymbolRef } from "./bindings.ts";
+
+/** `K`, which must be a key of every member of `T`. */
+type On<T, K extends keyof T> = K;
+
+/**
+ * The entry points a chain grows from. A rename in the library is a type error here.
+ *
+ * Checked here and spelled out on {@link CompanionSite}, which is exported: naming a library type
+ * there makes the published lint declarations import the library's.
+ */
+const ENTRY_POINTS: ReadonlySet<string> = new Set([
+  "sealer" satisfies On<typeof Val | typeof Enum, "sealer">,
+  "companion" satisfies On<typeof Val | typeof Enum | typeof Trait, "companion">,
+]);
 
 /** A `Val` / `Trait` / `Enum` companion chain, whatever else it registered. */
 export type CompanionSite = Where & {
@@ -47,7 +64,7 @@ export function fromRoot(node: Node, bound: Bindings): Root | undefined {
   const qualified = bound.namespaces.has(first);
   const name = qualified ? second : original(bound, first);
   const step = qualified ? third : second;
-  if (step !== "sealer" && step !== "companion") return undefined;
+  if (step === undefined || !ENTRY_POINTS.has(step)) return undefined;
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
 }
 
@@ -83,7 +100,7 @@ export function valOf(
   const qualified = bound.namespaces.has(first);
   const name = qualified ? second : original(bound, first);
   const step = qualified ? third : second;
-  if (name !== "Val" || step !== "of") return undefined;
+  if (name !== "Val" || step !== ("of" satisfies keyof typeof Val)) return undefined;
   const args = child(node, "typeArguments");
   const param = unparenthesized(args ? children(args, "params")[0] : undefined);
   if (!param) {

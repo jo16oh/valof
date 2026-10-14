@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
+import type { Enum, EnumBuilder, EnumCompanion, EnumSealed, EnumSealer } from "../../enum.ts";
+import type { AnyTrait, TraitBuilder, TraitCompanion } from "../../trait.ts";
+import type { AnyVal, Companion, CompanionBuilder, Reserved, Sealed, Sealer } from "../../val.ts";
+
 import {
   child,
   children,
@@ -26,6 +30,7 @@ import {
   symbolRef,
   type Bindings,
   type SymbolRef,
+  type Root,
 } from "./bindings.ts";
 import {
   companionSite,
@@ -169,11 +174,40 @@ export type Parser = {
 
 type Comment = { value: string; start: number; end: number };
 
+/** An enum to read keys from. `AnyEnum` widens them to `string`. */
+type Sample = Enum<"Sample", { A: { a: 1 }; B: { b: 1 } }>;
+
+/** The {@link Reserved} names with no pattern. */
+type Unlisted<N extends string> = Reserved extends infer R
+  ? R extends unknown
+    ? [Extract<N, R>] extends [never]
+      ? R
+      : never
+    : never
+  : never;
+
 /**
- * Attached by the library rather than written in `.impl`. `.impl` rejects them at the type level,
- * so this only keeps a plain-JS caller from getting a finding for one.
+ * Matches a whole name against the patterns. A {@link Reserved} name without a pattern, or a
+ * pattern that is not one, is a type error.
  */
-const BUILTIN = new Set(["equals", "patch", "update", "seal", "create"]);
+function reserved<const N extends readonly Reserved[]>(
+  patterns: N &
+    ([Unlisted<N[number]>] extends [never] ? unknown : { unlisted: Unlisted<N[number]> }),
+): RegExp {
+  return new RegExp(`^(?:${patterns.join("|")})$`);
+}
+
+/** The names every `.impl` rejects. The type reports one, so it is not a member to report. */
+const RESERVED = reserved(["patch", "seal", "create", "then", "impl.*", "__valof_.*"]);
+
+/**
+ * An enum's `.impl` rejects `match` as well, and a trait's rejects `dyn`. An enum's variant names
+ * are left to the rule, which reads every file.
+ */
+const rejected = (member: string, root?: Root): boolean =>
+  RESERVED.test(member) ||
+  (root === "Enum" && member === ("match" satisfies keyof EnumCompanion<Sample>)) ||
+  (root === "Trait" && member === ("dyn" satisfies keyof TraitCompanion<AnyTrait>));
 
 function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   let set = map.get(key);
@@ -590,13 +624,14 @@ function implMembers(
     const property = child(callee, "property");
     if (!receiver || !property) break;
     const step = keyName(property, callee["computed"] === true);
-    if (step === "impl" && fromRoot(receiver, bound) !== undefined) {
+    const root = fromRoot(receiver, bound);
+    if (step === "impl" && root !== undefined) {
       const [object] = children(current, "arguments");
       if (object)
         for (const member of objectMembers(object, companion, objects, at, new Set()))
-          if (!BUILTIN.has(member.member)) found.set(member.member, member);
+          if (!rejected(member.member, root)) found.set(member.member, member);
     }
-    if (step === "implVariant" && fromRoot(receiver, bound) !== undefined)
+    if (step === "implVariant" && root !== undefined)
       for (const member of variantMembers(current, companion, objects, at))
         found.set(`${member.companion}\0${member.member}`, member);
     current = receiver;
@@ -653,7 +688,7 @@ function variantImpl(
       const [object] = children(current, "arguments");
       if (object)
         for (const member of objectMembers(object, companion, objects, at, new Set()))
-          if (!BUILTIN.has(member.member)) found.set(member.member, member);
+          if (!rejected(member.member)) found.set(member.member, member);
     }
     current = receiver;
   }
@@ -661,8 +696,29 @@ function variantImpl(
   return current.type === "Identifier" && current["name"] === builder ? [...found.values()] : [];
 }
 
-/** The steps a builder chain takes. One written anywhere else was written on a value. */
-const STEPS = new Set(["impl", "implSeal", "implCreate", "implTrait", "implVariant", "fixed"]);
+/** What a builder has and the companion it ends in does not. A variant's frame adds none. */
+type Step =
+  | Exclude<keyof CompanionBuilder<AnyVal>, keyof Companion<AnyVal, Record<never, never>>>
+  | Exclude<keyof Sealer<AnyVal>, keyof Sealed<AnyVal, Record<never, never>>>
+  | Exclude<keyof EnumBuilder<Sample>, keyof EnumCompanion<Sample>>
+  | Exclude<keyof EnumSealer<Sample>, keyof EnumSealed<Sample>>
+  | Exclude<keyof TraitBuilder<AnyTrait>, keyof TraitCompanion<AnyTrait>>;
+
+/**
+ * The steps a builder chain takes. One written anywhere else was written on a value.
+ *
+ * Keyed by {@link Step}, so a step one of those builders gains or loses is a type error here.
+ */
+const STEPS: ReadonlySet<string> = new Set(
+  Object.keys({
+    impl: true,
+    implSeal: true,
+    implCreate: true,
+    implTrait: true,
+    implVariant: true,
+    fixed: true,
+  } satisfies Record<Step, true>),
+);
 
 /**
  * A step written on something that is not a builder chain, or `undefined`.

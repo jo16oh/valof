@@ -1,4 +1,4 @@
-import type { AnyVal, Checked, DeepReadonly, Invalid, Wired } from "./val.ts";
+import type { AnyVal, Checked, DeepReadonly, Invalid, Reserved } from "./val.ts";
 
 declare const SelfMark: unique symbol;
 
@@ -179,7 +179,7 @@ type Declarable<Shape, M extends Members> = {
       ? Invalid<"a trait member cannot take the name the trait itself uses">
       : K extends "then"
         ? Invalid<"a member named `then` would make the companion a thenable">
-        : K extends Wired | `__valof_${string}` | `impl${string}`
+        : K extends Reserved
           ? Invalid<"a trait member cannot take a name the library reserves">
           : M[K] extends (...args: never[]) => infer R
             ? HasSelf<R> extends true
