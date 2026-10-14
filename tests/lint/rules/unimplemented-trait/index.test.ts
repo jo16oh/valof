@@ -17,7 +17,7 @@ test("reports each Trait a Val declares but does not implement", async () => {
   ]);
 });
 
-test("accepts both implTrait forms and every step in a chain", async () => {
+test("accepts both implTrait forms and every step in a chain, `.implCreate.noseal` included", async () => {
   expect(await lint("implemented")).toEqual([]);
 });
 

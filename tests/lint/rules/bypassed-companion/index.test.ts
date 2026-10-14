@@ -28,6 +28,12 @@ test("names the seal that the lift skips", async () => {
   ]);
 });
 
+test("reads the chain through `.implCreate.noseal`", async () => {
+  expect(await messages("noseal")).toEqual([
+    "Val.of<Age> bypasses Age.seal, which checks the payload",
+  ]);
+});
+
 test("says what is missing where the companion has no seal to name", async () => {
   expect(await lint("no-seal")).toEqual([
     {

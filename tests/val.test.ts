@@ -1723,6 +1723,66 @@ describe("building", () => {
       expect(minted).toBe(1);
       expectTypeOf(renamed).toEqualTypeOf<Member>();
     });
+
+    describe("noseal", () => {
+      type SectionId = Val<"SectionId", string>;
+      const hex = (text: string, seal: (text: string) => SectionId): SectionId | undefined =>
+        /^[0-9a-f]{8}$/.test(text) ? seal(text) : undefined;
+
+      test("create returns the Val, not what the seal returns", () => {
+        const SectionId = Val.companion<SectionId>()
+          .implCreate.noseal(() => "0123abcd")
+          .implSeal((text, seal): Result<SectionId> => ({ ok: true, value: seal(text) }));
+
+        expect(SectionId.create()).toBe("0123abcd");
+        expectTypeOf(SectionId.create).returns.toEqualTypeOf<SectionId>();
+      });
+
+      test("throws in development when the seal rejects or changes what create minted", () => {
+        type Cents = Val<"NosealCents", number>;
+        const rejected = Val.companion<SectionId>()
+          .implCreate.noseal(() => "not hex")
+          .implSeal(hex);
+        const changed = Val.companion<Cents>()
+          .implCreate.noseal(() => 1.5)
+          .implSeal((n: number, seal): Cents | undefined => seal(Math.round(n)));
+
+        const message = /`\.implCreate\.noseal` minted/;
+        expect(() => rejected.create()).toThrow(message);
+        expect(() => rejected.create.nocopy()).toThrow(message);
+        expect(() => changed.create()).toThrow(message);
+      });
+
+      test("a later implCreate goes through the seal again", () => {
+        const SectionId = Val.companion<SectionId>()
+          .implSeal((): SectionId | undefined => undefined)
+          .implCreate.noseal(() => "0123abcd")
+          .implCreate(() => "0123abcd");
+
+        expect(SectionId.create()).toBeUndefined();
+      });
+
+      test("nocopy adopts the minted payload", () => {
+        type Doc = Val<"NosealAdopted", { label: string }>;
+        let minted: SeedOf<Doc> | undefined;
+        const Doc = Val.companion<Doc>()
+          .implCreate.noseal(() => (minted = { label: "x" }))
+          .implSeal((d, seal): Doc | undefined => seal(d));
+
+        expect(Doc.create.nocopy()).toBe(minted);
+        expect(Doc.create()).not.toBe(minted);
+      });
+
+      test("the minter takes no arguments", () => {
+        const builder = Val.companion<SectionId>();
+        // @ts-expect-error a required argument would reach the payload unsealed
+        builder.implCreate.noseal((text: string) => text);
+        // @ts-expect-error an optional one too
+        builder.implCreate.noseal((text?: string) => text ?? "0123abcd");
+        // @ts-expect-error and a rest parameter
+        builder.implCreate.noseal((...texts: string[]) => texts.join(""));
+      });
+    });
   });
 
   describe("fixed", () => {
