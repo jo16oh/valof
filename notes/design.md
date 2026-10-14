@@ -36,7 +36,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、Enum 自身のコンストラクタの撤回、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由
@@ -5619,6 +5619,8 @@ Variant の数では増えない。予算は 45,000 に置いた。
 
 #### Variant ごとの seal と union の `seal`、2026-09-16 実装
 
+**2026-10-14: union の `seal` は撤回した。**「Enum 自身のコンストラクタを撤回」を見る。
+
 **動機は境界の分岐。**タグ付きのペイロードが来る場所で、利用者は今どの Variant かを自分で見て、対応する
 コンストラクタを呼んでいる。`Shape.seal(payload)` があれば、タグで枠を引くのはライブラリの仕事になる。
 
@@ -5707,6 +5709,33 @@ Variant の枠が Val の companion なので追加の実装が要らない。
   がそれぞれ `Built<…>` を書くと 5 回実体化する。本体を `Framed<E, N, R, …>` に出して `R` で受ける
 - **予算。**type-perf は 45,000 から 90,000 へ。Variant 1 個あたりは約 1,100 で線形、残りは variance
   測定の定数。bundle-size は `Val` + `Enum` で 1.10 kB から 1.28 kB gzip、予算 1.63 kB は動かさない
+
+#### Enum 自身のコンストラクタを撤回、2026-10-14
+
+**`Shape(payload)` と `Shape.seal(payload)` を消した。**値は Variant のコンストラクタだけが作る。Rust の
+enum も Variant ごとに作る（`Command::New { … }`）。
+
+**タグが union だと、他の Variant のフィールドが値に残る。**引数の型 `SealedPayload<E>` は Variant ごとの
+タグ付き payload の union である。TypeScript は、判別子が union のオブジェクトでも、判別子の各値について
+代入できれば受け入れる。全 Variant のフィールドを持つオブジェクトがこれで通る。
+
+```ts
+Command.seal({ _tag: TAGS[name] ?? "Invalid", count: Number(argument), message: "…" });
+// new 2 → {"_tag":"New","count":2,"message":"…"}
+```
+
+型の上では `New` に `message` は無いが、値には入っていて、`equals` と JSON に出る。proxy は Variant の
+フィールドを知らないので、実行時に落とせない。
+
+**却下: 引数を Variant ごとに排他的な union にする。**他の Variant にしかないキーを `never` にすれば、
+上の呼び出しは型エラーになる。それでもタグを実行時に決める呼び出し側は、タグで分岐して Variant ごとの
+payload を作ることになる。分岐を書くなら、その先で Variant のコンストラクタを呼べば足りる。
+
+- `seal` は Variant 名として予約したまま。proxy も `undefined` を返す。緩めるのは後方互換
+- Enum の `implSeal`（共有フィールドの検査）と Variant の `.seal` は残る。`SealedPayload` は Enum の seal の
+  引数として残る
+- enum の instantiation は 32,653 → 32,357、`index.d.mts` は 59.48 → 58.56 kB、Enum を含む production
+  gzip は 1.27 → 1.24 kB
 
 #### `implVariant` は Variant ごとの鎖、2026-09-18 実装
 
