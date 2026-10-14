@@ -129,6 +129,32 @@ User.create(fields); // Result<User>
 their payloads through your seal. Sealing a value's own payload must return that value. **Generate
 an id or timestamp in `create`, not in `seal`**.
 
+## Bypass the seal in `create`
+
+A `create` whose payload the seal always accepts never fails, but it still returns the seal's
+`Result` or `| undefined`. `.implCreate.noseal` bypasses the seal and returns the Val:
+
+```ts
+import { Val } from "valof";
+
+declare const UUID: RegExp;
+declare const input: string;
+// ---cut---
+type SessionId = Val<"SessionId", string>;
+
+const SessionId = Val.companion<SessionId>()
+  .implCreate.noseal(() => crypto.randomUUID())
+  .implSeal((text, seal): SessionId | undefined => (UUID.test(text) ? seal(text) : undefined));
+
+SessionId.create(); // SessionId
+SessionId.seal(input); // SessionId | undefined
+```
+
+`.implCreate.noseal` takes no arguments. A payload that depends on arguments should pass through the
+seal to be normalized. The function passed to `.noseal` must always return a canonical payload. In
+production, `create` skips the custom seal. In development, it runs the seal and throws if the seal
+rejects or normalizes the payload.
+
 ## Keep generated fields fixed
 
 `create` can generate an id, a `createdAt` or a version counter. `.fixed` excludes those fields from
