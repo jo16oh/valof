@@ -438,6 +438,29 @@ type Match<E extends AnyEnum> = <H extends Handlers<E, unknown>>(
   handlers: Only<E, H>,
 ) => ReturnType<H[keyof H]>;
 
+/** Every field some variant declares. */
+type VariantFields<E extends AnyEnum> = {
+  [N in keyof VariantsOf<E>]: keyof VariantsOf<E>[N];
+}[keyof VariantsOf<E>];
+
+/**
+ * A tagged payload that holds no other variant's field. TypeScript accepts an object whose tag is a
+ * union wherever each of the tag's values fits, so one holding every variant's fields would pass
+ * {@link SealedPayload} and keep the fields the selected variant does not declare.
+ */
+type Exclusive<E extends AnyEnum> = {
+  [N in keyof VariantsOf<E>]: Tagged<E, N> & {
+    readonly [K in Exclude<VariantFields<E>, keyof VariantsOf<E>[N]>]?: never;
+  };
+}[keyof VariantsOf<E>];
+
+/** What a frame's constructor returns, whichever form the frame takes. */
+type Yields<X> = X extends { create: (...args: never[]) => infer R }
+  ? R
+  : X extends (...args: never[]) => infer R
+    ? R
+    : never;
+
 /** What an enum dispatches on a tag alone, under {@link Tag}. */
 type ByTag<E extends AnyEnum> = {
   /**
@@ -463,6 +486,11 @@ type ByTag<E extends AnyEnum> = {
   readonly key: TagOf<E>;
 };
 
+/** See {@link EnumCompanion.seal}. */
+type EnumSeal<E extends AnyEnum, C> = (payload: Exclusive<E>) => {
+  [N in keyof C]: Yields<C[N]>;
+}[keyof C];
+
 /**
  * An enum's members: one frame per variant, `match`, `seal`, and whatever the steps registered.
  *
@@ -485,6 +513,14 @@ export type EnumCompanion<
      * it to the first handler and reject the rest. For a guard rather than a tag, use ts-pattern.
      */
     match: Match<E>;
+    /**
+     * Builds the variant a tagged payload names, through that variant's constructor. For a payload
+     * a schema library has already split by the tag. The return is the variants' constructors'
+     * returns, as a union.
+     *
+     * A payload holding a field of a variant other than the one its tag names is a type error.
+     */
+    seal: EnumSeal<E, Constructors<E, VM, F>>;
     readonly [Tag]: ByTag<E>;
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
@@ -505,6 +541,8 @@ export type EnumSealed<
   Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
     /** See {@link EnumCompanion.match}. */
     match: Match<E>;
+    /** See {@link EnumCompanion.seal}. */
+    seal: EnumSeal<E, SealerConstructors<E, VM>>;
     readonly [Tag]: ByTag<E>;
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
@@ -628,6 +666,10 @@ type Sealer = ((payload: Payload) => unknown) & {
   patch: (value: Payload, patch: Payload) => unknown;
 };
 
+type Companion = {
+  create: (payload: Payload) => unknown;
+};
+
 type Builds = Record<string, (b: object) => object>;
 
 const matchTag = (tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!();
@@ -697,6 +739,11 @@ const state = (
     return made;
   };
 
+  const enter = (value: Payload): unknown => {
+    const made = frame(value[tag] as string);
+    return callable ? (made as Sealer)(value) : (made as Companion).create(value);
+  };
+
   const step = (
     nextBuilds: Builds,
     nextMembers: Record<string, unknown>,
@@ -721,8 +768,7 @@ const state = (
             handlers: Record<string, (v: unknown) => unknown>,
           ) => handlers[value[tag] as string]!(value);
         }
-        // Reserved, so no variant takes it.
-        if (key === "seal") return undefined;
+        if (key === "seal") return enter;
         if (key === Tag) return byTag;
         if (key === "__valof_traits") return traits;
         if (key === "impl") {

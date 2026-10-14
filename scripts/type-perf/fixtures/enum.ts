@@ -77,7 +77,8 @@ export const derived = [
   Frame.patch(frame, patch),
 ];
 
-export const sealed = Event[Tag].match(Math.random() > 0.5 ? "Key" : "Click", {
+export const sealed = Event.seal({ kind: "Key", id: "e", code: "a" });
+export const byTag = Event[Tag].match(Math.random() > 0.5 ? "Key" : "Click", {
   Key: () => Event.Key.create({ id: "e", code: "a" }),
   Click: () => Event.Click.create({ id: "e", x: 0, y: 0 }),
 });

@@ -6,6 +6,7 @@ import {
   type Dyn,
   type Final,
   type SeedFor,
+  type SealedPayload,
   type Self,
   Tag,
   type VariantOf,
@@ -122,6 +123,37 @@ describe("match on a tag alone", () => {
   test("a tag the enum does not declare is rejected", () => {
     // @ts-expect-error not assignable to '"Circle" | "Square"'
     Shape[Tag].match("Triangle", { Triangle: () => 0 });
+  });
+});
+
+describe("seal a payload by its tag", () => {
+  type Command = Enum<"Command", { New: { count: number }; Fail: { message: string } }>;
+  const Command = Enum.sealer<Command>();
+  type Wire = SealedPayload<Command>;
+
+  test("builds the variant the tag names, and returns the variants' union", () => {
+    const parse = (wire: Wire) => Command.seal(wire);
+    expectTypeOf(parse).returns.toEqualTypeOf<Command>();
+    expect(parse({ _tag: "New", count: 2 })).toEqual(Command.New({ count: 2 }));
+    expect(parse({ _tag: "Fail", message: "m" })).toEqual(Command.Fail({ message: "m" }));
+  });
+
+  // TypeScript accepts a union tag wherever each of its values fits, so the payload below would
+  // otherwise build a `New` that holds `message`.
+  test("a payload holding another variant's field is rejected, fresh or not", () => {
+    const tag: "New" | "Fail" = Math.random() > 0.5 ? "New" : "Fail";
+    // @ts-expect-error Types of property '_tag' are incompatible
+    Command.seal({ _tag: tag, count: 2, message: "m" });
+    // No excess property check reaches an object that is not fresh, even with one tag.
+    const held = { _tag: "New" as const, count: 2, message: "m" };
+    // @ts-expect-error Types of property 'message' are incompatible
+    Command.seal(held);
+  });
+
+  test("a field two variants share is not another variant's", () => {
+    type Mark = Enum<"Mark", { Pin: { at: number }; Flag: { at: number }; Note: { text: string } }>;
+    const Mark = Enum.sealer<Mark>();
+    expect(Mark.seal({ _tag: "Pin", at: 1 })).toEqual(Mark.Pin({ at: 1 }));
   });
 });
 
@@ -530,6 +562,15 @@ describe("a seal of its own", () => {
     expect(Money.Cash.create({ id: "m1", yen: 0 })).toBeInstanceOf(RangeError);
   });
 
+  test("`seal` runs the seal of the variant the tag names", () => {
+    const sealed = Money.seal({ id: "m1", yen: 1, _tag: "Cash" });
+    expectTypeOf(sealed).toEqualTypeOf<
+      VariantOf<Money, "Cash"> | VariantOf<Money, "Card"> | RangeError
+    >();
+    expect(sealed).toEqual({ id: "m1", yen: 1, _tag: "Cash" });
+    expect(Money.seal({ id: "m1", yen: 0, _tag: "Cash" })).toBeInstanceOf(RangeError);
+  });
+
   test("the variant runs first, then the enum, then the default seal", () => {
     ran.length = 0;
     Money.Cash.create({ id: "m1", yen: 1 });
@@ -674,14 +715,7 @@ describe("the chain closes", () => {
 });
 
 describe("the companion is a proxy", () => {
-  // As in Rust, a value is built by its variant's constructor. A payload whose tag is a union
-  // would carry the other variants' fields into the value.
-  test("the enum has no constructor of its own", () => {
-    const Plain = Enum.companion<Shape>().impl();
-    expectTypeOf(Plain).not.toHaveProperty("seal");
-    expect((Plain as unknown as Record<string, unknown>)["seal"]).toBeUndefined();
-    expectTypeOf(Shape).not.toHaveProperty("seal");
-    expect((Shape as unknown as Record<string, unknown>)["seal"]).toBeUndefined();
+  test("a sealer is not callable: a tagged payload goes to `seal`", () => {
     // @ts-expect-error a sealer is not callable
     expect(() => Shape({ r: 1, _tag: "Circle" })).toThrow(TypeError);
   });
