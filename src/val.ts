@@ -363,6 +363,8 @@ type Rejected = Partial<Record<Wired, never>> & {
    * settles.
    */
   then?: never;
+  /** A sealer's own. A member taking the name would replace it, and the type would show both. */
+  nocopy?: never;
 };
 
 /** The keys of {@link Rejected}, which valof-lint reads. */

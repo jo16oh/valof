@@ -80,7 +80,7 @@ type Single<N, All = N> = N extends unknown ? ([All] extends [N] ? true : false)
  * `Invalid` message says that rather than naming the emit. No variant at all needs no message: the
  * indexed access is `never`, and there is no value to build.
  */
-type Fault<D, S, Tg extends string> =
+type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
   | (Single<VariantKeys<D>> extends true
       ? "an enum needs at least two variants; one is a Val"
       : never)
@@ -97,15 +97,26 @@ type Fault<D, S, Tg extends string> =
                 : never
             : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
-  | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never);
+  | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never)
+  // The companion reads a member first, so the type would show the library's and run the member.
+  | ([MemberNames<Tr> & VariantKeys<D>] extends [never]
+      ? never
+      : "a trait member cannot take a variant's name")
+  | ("match" extends MemberNames<Tr> ? "a trait member cannot take the name `match`" : never);
+
+/** Every trait's member names. `keyof` over their union would keep only the shared ones. */
+type MemberNames<Tr extends AnyTrait> =
+  MembersOf<Tr> extends infer M ? (M extends unknown ? keyof M : never) : never;
 
 // The fault goes in the brand the phantom carries, never at the top level of `Enum`. An alias
 // whose top level is a conditional loses its name once it resolves, and a consumer's `.d.ts`
 // then expands the union onto val.ts's private `Phantom`: TS4094 on the one line
 // `export const Shape = Enum.sealer<Shape>()`.
-type Named<K extends string, D, S, Tg extends string> = [Fault<D, S, Tg>] extends [never]
+type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
+  Fault<D, S, Tr, Tg>,
+] extends [never]
   ? K
-  : Invalid<Fault<D, S, Tg>>;
+  : Invalid<Fault<D, S, Tr, Tg>>;
 
 /**
  * A closed set of variants, declared as one record and derived into their union. Each variant is
@@ -133,7 +144,7 @@ export type Enum<K extends string, D extends object, X extends object = Record<n
     TraitsIn<X>
   > &
     EnumPhantom<
-      Named<K, D, SharedIn<X>, TagIn<X>>,
+      Named<K, D, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
       VariantsIn<D>,
       SharedIn<X>,
       TraitsIn<X>,
