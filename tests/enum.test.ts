@@ -42,11 +42,11 @@ describe("the declaration", () => {
     const Crate = Enum.companion<Crate>()
       .implSeal((c, seal) => seal(c))
       .impl();
-    const [minted, checked, copied] = [["a"], ["a"], ["a"]];
-    Crate.Full.create.nocopy({ items: minted });
+    const [created, checked, copied] = [["a"], ["a"], ["a"]];
+    Crate.Full.create.nocopy({ items: created });
     Crate.Full.seal.nocopy({ items: checked, _tag: "Full" });
     Crate.Full.create({ items: copied });
-    expect([minted, checked, copied].map(Object.isFrozen)).toEqual([true, true, false]);
+    expect([created, checked, copied].map(Object.isFrozen)).toEqual([true, true, false]);
   });
 
   test("the payload is deep-copied, like any other Val", () => {

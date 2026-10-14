@@ -1,3 +1,3 @@
 import { Age } from "./model.ts";
 
-export const Minting = Age.implCreate.noseal(() => 0);
+export const Created = Age.implCreate.noseal(() => 0);

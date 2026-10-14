@@ -1625,10 +1625,10 @@ describe("building", () => {
   describe("implCreate", () => {
     test("create and seal retain their nocopy terminal operation", () => {
       type Dog = Val<"Dog", { name: string }>;
-      let minted = 0;
+      let calls = 0;
       const Dog = Val.companion<Dog>()
         .implCreate((name: string) => {
-          minted += 1;
+          calls += 1;
           return { name };
         })
         .implSeal((dog, seal) => seal({ name: dog.name.trim() }));
@@ -1639,7 +1639,7 @@ describe("building", () => {
       expect(Object.isFrozen(sealed)).toBe(true);
       const created = Dog.create.nocopy(" spot ");
       expect(created).toEqual({ name: "spot" });
-      expect(minted).toBe(1);
+      expect(calls).toBe(1);
       expectTypeOf(Dog.seal.nocopy).parameters.toEqualTypeOf<[SeedOf<Dog>]>();
       expectTypeOf(Dog.create.nocopy).returns.toEqualTypeOf<Dog>();
     });
@@ -1669,11 +1669,11 @@ describe("building", () => {
       expectTypeOf(Score.create(1)).toEqualTypeOf<Result<Score>>();
     });
 
-    test("nocopy preserves Result behavior and adopts the minter's payload", () => {
+    test("nocopy preserves Result behavior and adopts the created payload", () => {
       type Score = Val<"NocopyScore", { points: number }>;
-      let minted: SeedOf<Score> | undefined;
+      let created: SeedOf<Score> | undefined;
       const Score = Val.companion<Score>()
-        .implCreate((points: number) => (minted = { points }))
+        .implCreate((points: number) => (created = { points }))
         .implSeal((seed, seal): Result<Score> =>
           seed.points >= 0
             ? { ok: true, value: seal(seed) }
@@ -1682,11 +1682,11 @@ describe("building", () => {
 
       const copied = Score.create(1);
       expect(copied.ok).toBe(true);
-      if (copied.ok) expect(copied.value).not.toBe(minted);
+      if (copied.ok) expect(copied.value).not.toBe(created);
 
       const adopted = Score.create.nocopy(2);
       expect(adopted.ok).toBe(true);
-      if (adopted.ok) expect(adopted.value).toBe(minted);
+      if (adopted.ok) expect(adopted.value).toBe(created);
 
       expect(Score.create.nocopy(-1)).toEqual({
         ok: false,
@@ -1707,11 +1707,11 @@ describe("building", () => {
       type Member = Val<"Member", { id: string; name: string }>;
       type Fields = Omit<SeedOf<Member>, "id">;
 
-      let minted = 0;
+      let created = 0;
       const Member = Val.companion<Member>()
         .implCreate((f: Fields): SeedOf<Member> => {
-          minted += 1;
-          return { id: `id-${minted}`, ...f };
+          created += 1;
+          return { id: `id-${created}`, ...f };
         })
         .implSeal((m: SeedOf<Member>, seal) => seal(m));
 
@@ -1720,7 +1720,7 @@ describe("building", () => {
 
       const renamed = Member.patch(m, { name: "sue" });
       expect(renamed).toEqual({ id: "id-1", name: "sue" });
-      expect(minted).toBe(1);
+      expect(created).toBe(1);
       expectTypeOf(renamed).toEqualTypeOf<Member>();
     });
 
@@ -1738,7 +1738,7 @@ describe("building", () => {
         expectTypeOf(SectionId.create).returns.toEqualTypeOf<SectionId>();
       });
 
-      test("throws in development when the seal rejects or changes what create minted", () => {
+      test("throws in development when the seal rejects the created payload or normalization changes it", () => {
         type Cents = Val<"NosealCents", number>;
         const rejected = Val.companion<SectionId>()
           .implCreate.noseal(() => "not hex")
@@ -1747,7 +1747,7 @@ describe("building", () => {
           .implCreate.noseal(() => 1.5)
           .implSeal((n: number, seal): Cents | undefined => seal(Math.round(n)));
 
-        const message = /`\.implCreate\.noseal` minted/;
+        const message = /`\.implCreate\.noseal` created/;
         expect(() => rejected.create()).toThrow(message);
         expect(() => rejected.create.nocopy()).toThrow(message);
         expect(() => changed.create()).toThrow(message);
@@ -1762,18 +1762,18 @@ describe("building", () => {
         expect(SectionId.create()).toBeUndefined();
       });
 
-      test("nocopy adopts the minted payload", () => {
+      test("nocopy adopts the created payload", () => {
         type Doc = Val<"NosealAdopted", { label: string }>;
-        let minted: SeedOf<Doc> | undefined;
+        let created: SeedOf<Doc> | undefined;
         const Doc = Val.companion<Doc>()
-          .implCreate.noseal(() => (minted = { label: "x" }))
+          .implCreate.noseal(() => (created = { label: "x" }))
           .implSeal((d, seal): Doc | undefined => seal(d));
 
-        expect(Doc.create.nocopy()).toBe(minted);
-        expect(Doc.create()).not.toBe(minted);
+        expect(Doc.create.nocopy()).toBe(created);
+        expect(Doc.create()).not.toBe(created);
       });
 
-      test("the minter takes no arguments", () => {
+      test("create takes no arguments", () => {
         const builder = Val.companion<SectionId>();
         // @ts-expect-error a required argument would reach the payload unsealed
         builder.implCreate.noseal((text: string) => text);
@@ -1791,17 +1791,17 @@ describe("building", () => {
 
     // The counter is closed over per companion, so a test never reads another test's ids.
     const account = () => {
-      let minted = 0;
+      let created = 0;
       return Val.companion<Account>()
         .implCreate((f: Fields): SeedOf<Account> => {
-          minted += 1;
-          return { id: `id-${minted}`, ...f };
+          created += 1;
+          return { id: `id-${created}`, ...f };
         })
         .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim().toLowerCase() }))
         .fixed<"id">();
     };
 
-    test("create mints the id, and `patch` preserves it", () => {
+    test("create generates the id, and `patch` preserves it", () => {
       const Account = account();
       const a = Account.create({ owner: "bob", note: "" });
       expect(a.id).toBe("id-1");
