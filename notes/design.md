@@ -2041,20 +2041,17 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
-- [ ] **Trait のメンバが、ライブラリが companion に置く名前を上書きする。再現した、2026-10-14。**型は通り、
-      実行時だけがメンバに替わる。直していない
-  - **Enum の Variant 名。**Trait が `Square` を宣言していると、`Enum.sealer<Shape>().implTrait<Sq>({ Square: … })`
-    が型を通る。`Shape.Square` の型はコンストラクタのままで、`Shape.Square({ side: 1 })` は Trait のメンバの
-    戻り値を返す。`Enum.companion` の形でも同じで、`Shape.Square.create` が `undefined` になる
-  - **Enum の `match`。**Trait が `match` を宣言していると、`Coin.match(h, handlers)` が Trait のメンバを呼ぶ
-  - **Val の `nocopy`。**`.impl({ nocopy })` も `implTrait` も型を通る。`Id.nocopy` の型は
-    `Nocopy<Id> & ((i: Id) => string)` という交差になり、実行時はメンバだけが残る。`nocopy` は `Rejected` に無い
-  - **原因。**`Takes` が見るのは、宣言した trait か、他の trait との衝突、payload のフィールド名だけである。
-    Enum の Proxy は `members` を `match` と Variant の枠より先に読む。companion の型は `Omit` でその名前を
-    落とすので、型にはライブラリの側だけが残る
-  - **直す場所の案。**Enum は宣言（`Fault`）で、Trait のメンバ名が Variant 名か `match` と重なるものを落とす。
-    読むのは型引数だけなので判定位置に置ける（§11）。`nocopy` は `Rejected` に足す。`Reserved` 経由で
-    Trait の検査と lint にも届く（§14.27）
+- [x] ~~Trait のメンバが、ライブラリが companion に置く名前を上書きする。~~ → 型で拒む、2026-10-14。
+      それまでは型を通り、実行時だけがメンバに替わっていた
+  - **Enum の Variant 名と `match`。**`Shape.Square({ side: 1 })` が Trait のメンバの戻り値を返し、
+    `Coin.match(h, handlers)` が Trait のメンバを呼んでいた。宣言の `Fault` で拒む。読むのは型引数だけ
+    なので判定位置に置いた（§11）。メンバ名は Trait ごとに分配して集める。メンバの record の union に
+    `keyof` を取ると、全 Trait に共通のキーしか残らない
+  - **Val の `nocopy`。**`Id.nocopy` の型は `Nocopy<Id> & ((i: Id) => string)` で、実行時はメンバだけが
+    残っていた。`Rejected` に足したので、`.impl` も Trait の `Declarable` も拒む。lint の `RESERVED` にも
+    入れた（§14.27）
+  - **実行時は変えていない。**Enum の Proxy は今も `members` を先に読む。そこに届くのはキャストか JS だけ
+  - production gzip は 852 B のまま。enum のインスタンス化は 32,437 → 32,653、`index.d.mts` は +0.6 kB
 - [x] ~~Variant 名の検査（`src/enum.ts` の `Fault`）が `Reserved` と別の集合である。~~ → 意図どおり。Enum の
       companion は Val の companion と違い、`patch` も `create` も持たない。Variant をその名前にできる
 - [ ] **Enum の companion に `create` を生やすか。**`patch` は要らない。`create` は検討の余地がある。生やすなら
@@ -4332,12 +4329,13 @@ type Rejected = Partial<Record<Wired, never>> & {
   [key: `__valof_${string}`]: never;
   [key: `impl${string}`]: never;
   then?: never;
+  nocopy?: never;
 };
 export type Reserved = keyof Rejected;
 ```
 
 ```ts
-const RESERVED = reserved(["patch", "seal", "create", "then", "impl.*", "__valof_.*"]);
+const RESERVED = reserved(["patch", "seal", "create", "then", "nocopy", "impl.*", "__valof_.*"]);
 ```
 
 - **`Reserved` は `Rejected` のキーから読む。**2 つはずれない。理由のコメントも名前の横に置いたままに
