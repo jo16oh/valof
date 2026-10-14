@@ -2,21 +2,22 @@
 
 ## Values
 
-|                                    |                                                          |
-| ---------------------------------- | -------------------------------------------------------- |
-| `equals(a, b)`                     | deeply compares two Vals of the same type                |
-| `Val.of<V>(value)`                 | applies the default seal with the type named             |
-| `Val.of.nocopy<V>(value)`          | makes a payload the value without copying                |
-| `Val.unwrap(value)`                | returns a mutable copy of the payload                    |
-| `Val.sealer<V>()`                  | creates a callable default sealer                        |
-| `Val.sealer<V>().impl(fns?)`       | adds the type's members, and ends the chain              |
-| `Val.companion<V>()`               | starts a companion without a callable sealer             |
-| `Val.companion<V>().impl(fns?)`    | the same, on a companion                                 |
-| `.implTrait(Tr, fns?)`             | implements a trait the type declares                     |
-| `.implTrait<Tr>(fns)`              | the same, for a trait that implements nothing of its own |
-| `Val.companion<V>().implSeal(f)`   | registers a custom seal                                  |
-| `Val.companion<V>().implCreate(f)` | registers a function that creates a payload              |
-| `Val.companion<V>().fixed<K>()`    | excludes keys from `patch`                               |
+|                                           |                                                              |
+| ----------------------------------------- | ------------------------------------------------------------ |
+| `equals(a, b)`                            | deeply compares two Vals of the same type                    |
+| `Val.of<V>(value)`                        | applies the default seal with the type named                 |
+| `Val.of.nocopy<V>(value)`                 | makes a payload the value without copying                    |
+| `Val.unwrap(value)`                       | returns a mutable copy of the payload                        |
+| `Val.sealer<V>()`                         | creates a callable default sealer                            |
+| `Val.sealer<V>().impl(fns?)`              | adds the type's members, and ends the chain                  |
+| `Val.companion<V>()`                      | starts a companion without a callable sealer                 |
+| `Val.companion<V>().impl(fns?)`           | the same, on a companion                                     |
+| `.implTrait(Tr, fns?)`                    | implements a trait the type declares                         |
+| `.implTrait<Tr>(fns)`                     | the same, for a trait that implements nothing of its own     |
+| `Val.companion<V>().implSeal(f)`          | registers a custom seal                                      |
+| `Val.companion<V>().implCreate(f)`        | registers a function that creates a payload                  |
+| `Val.companion<V>().implCreate.noseal(f)` | the same, bypassing the seal for a payload it always accepts |
+| `Val.companion<V>().fixed<K>()`           | excludes keys from `patch`                                   |
 
 ## Companion members
 
