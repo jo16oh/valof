@@ -465,13 +465,13 @@ type Yields<X> = X extends { create: (...args: never[]) => infer R }
 type ByTag<E extends AnyEnum> = {
   /**
    * Dispatches on a tag before there is a value, as when a tag arrives apart from its payload. Every
-   * tag the argument can hold needs a handler. A handler takes nothing and calls its variant's
-   * constructor, which checks the payload literal for fields the variant does not hold.
+   * tag the argument's type allows needs a handler. A handler takes no argument and calls its
+   * variant's constructor, which checks the payload literal for fields the variant does not hold.
    *
    * ```ts
-   * Command[Tag].match(tag, {
-   *   New: () => Command.New({ count }),
-   *   Check: () => Command.Check({}),
+   * Shape[Tag].match(form.kind, {
+   *   Circle: () => Shape.Circle({ r: form.size / 2 }),
+   *   Square: () => Shape.Square({ side: form.size }),
    * });
    * ```
    */
