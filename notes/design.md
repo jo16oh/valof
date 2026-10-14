@@ -2041,11 +2041,24 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
-- [ ] **Enum の `implTrait` が Variant 名のメンバを通す疑い。未確認、2026-10-14。**Trait が `Square` を
-      宣言していると `Enum.sealer<Shape>().implTrait<Sq>({ Square: … })` が型を通り、実行時に
-      コンストラクタが上書きされる、という監査の報告。再現していない
-- [ ] **Variant 名の検査（`src/enum.ts` の `Fault`）が `Reserved` と別の集合である。**
-      `"match" | "seal" | impl… | __valof_…` で、`patch` と `create` が無い。意図どおりか未確認（§14.27）
+- [ ] **Trait のメンバが、ライブラリが companion に置く名前を上書きする。再現した、2026-10-14。**型は通り、
+      実行時だけがメンバに替わる。直していない
+  - **Enum の Variant 名。**Trait が `Square` を宣言していると、`Enum.sealer<Shape>().implTrait<Sq>({ Square: … })`
+    が型を通る。`Shape.Square` の型はコンストラクタのままで、`Shape.Square({ side: 1 })` は Trait のメンバの
+    戻り値を返す。`Enum.companion` の形でも同じで、`Shape.Square.create` が `undefined` になる
+  - **Enum の `match`。**Trait が `match` を宣言していると、`Coin.match(h, handlers)` が Trait のメンバを呼ぶ
+  - **Val の `nocopy`。**`.impl({ nocopy })` も `implTrait` も型を通る。`Id.nocopy` の型は
+    `Nocopy<Id> & ((i: Id) => string)` という交差になり、実行時はメンバだけが残る。`nocopy` は `Rejected` に無い
+  - **原因。**`Takes` が見るのは、宣言した trait か、他の trait との衝突、payload のフィールド名だけである。
+    Enum の Proxy は `members` を `match` と Variant の枠より先に読む。companion の型は `Omit` でその名前を
+    落とすので、型にはライブラリの側だけが残る
+  - **直す場所の案。**Enum は宣言（`Fault`）で、Trait のメンバ名が Variant 名か `match` と重なるものを落とす。
+    読むのは型引数だけなので判定位置に置ける（§11）。`nocopy` は `Rejected` に足す。`Reserved` 経由で
+    Trait の検査と lint にも届く（§14.27）
+- [x] ~~Variant 名の検査（`src/enum.ts` の `Fault`）が `Reserved` と別の集合である。~~ → 意図どおり。Enum の
+      companion は Val の companion と違い、`patch` も `create` も持たない。Variant をその名前にできる
+- [ ] **Enum の companion に `create` を生やすか。**`patch` は要らない。`create` は検討の余地がある。生やすなら
+      Variant 名の検査に `create` を足す
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [x] ~~valof-lint が `Trait` を知らない。~~ Trait の宣言、companion、`implTrait`、`dyn` を構文から追跡する。
       足すのは 2 種類
@@ -4366,7 +4379,7 @@ lint が直接書いていた本体の名前を、同じ PR で型に結んだ�
 
 結んでいないものが 2 つある。
 
-- `src/enum.ts` の `Fault` が Variant 名に使う集合。`Reserved` と半分重なるが別の集合である（§9）
+- `src/enum.ts` の `Fault` が Variant 名に使う集合。`Reserved` と半分重なるが、意図して別の集合である（§9）
 - lint が見る型の名前（`Tag`、`VariantOf`）。型だけの export は `keyof typeof` に出ない
 
 根にあるのは、lint の fixture が型検査されないことである。上は名前ごとの対処で、fixture を型検査するかは
