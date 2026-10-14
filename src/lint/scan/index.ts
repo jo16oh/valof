@@ -186,7 +186,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  *
  * One walk rather than one per rule because the rules share their footing: {@link Bindings}
  * resolves a name for all three, and the chain analysis that spots `.impl({…})` is the same one
- * that spots `.implEquals`. What comes back is material, not findings; deciding is the rules'
+ * that spots `.implSeal`. What comes back is material, not findings; deciding is the rules'
  * job, and they see every file rather than this one.
  *
  * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
@@ -662,15 +662,7 @@ function variantImpl(
 }
 
 /** The steps a builder chain takes. One written anywhere else was written on a value. */
-const STEPS = new Set([
-  "impl",
-  "implSeal",
-  "implCreate",
-  "implEquals",
-  "implTrait",
-  "implVariant",
-  "fixed",
-]);
+const STEPS = new Set(["impl", "implSeal", "implCreate", "implTrait", "implVariant", "fixed"]);
 
 /**
  * A step written on something that is not a builder chain, or `undefined`.
