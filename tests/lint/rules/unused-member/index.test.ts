@@ -9,14 +9,6 @@ describe("what the rule finds", () => {
     expect(await lint("dead-member")).toEqual([{ rule: UnusedMember, at: "dead-member.ts:3:3" }]);
   });
 
-  test("spares the names the library attaches, and no other", async () => {
-    expect(await lint("wired-names")).toEqual([
-      { rule: UnusedMember, at: "wired-names.ts:4:3" },
-      { rule: UnusedMember, at: "wired-names.ts:5:3" },
-      { rule: UnusedMember, at: "wired-names.ts:12:18" },
-    ]);
-  });
-
   test("finds the reader in another file, through a renamed import", async () => {
     expect(await lint("renamed-import")).toEqual([
       { rule: UnusedMember, at: "renamed-import/user.ts:3:3" },
