@@ -72,7 +72,7 @@ re-export a companion.
 | `E[Variant].create(payload)`         | the same on a companion, through its seal                  |
 | `E[Variant].patch(value, patch)`     | derives a value of that variant, leaving the tag unchanged |
 | `.impl(fns?)`                        | adds members taking the union, and ends the chain          |
-| `.implVariant(N, sealer => …)`       | adds one variant's members, and its seal on a companion    |
+| `.implVariant(N, sealer => …)`       | adds one variant's members, and its seal                   |
 | `.implSeal(seal)`                    | replaces the seal shared by every variant                  |
 | `.implTrait(Tr, fns?)`               | implements a trait the enum declares                       |
 | `.implTrait<Tr>(fns)`                | the same, for a trait that implements nothing of its own   |
