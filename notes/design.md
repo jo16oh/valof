@@ -1558,19 +1558,14 @@ seal の戻り値は `unknown` だったので、async の seal が型を通っ�
   ハッシュ化は 2 回掛けると別の値になる。値の取得は seal の外で済ませ、結果を引数で渡す
 - **検査とコピーのあいだに await が入る。**コピーは末端の既定の seal で取る（§6.8）。await のあいだに
   呼び出し側が入力を書き換えられる。ただ、書き換えはコードを読めば気づける。development は
-  `changedDuringSeal` で検出していたが、production は検査しない
+  `changedDuringSeal` で検出するが、production は検査しない
 
-塞ぐ場所は 2 つ。
-
-- **型。**`Synchronous<G, Checked>` が、戻り型に `PromiseLike` を含む seal を `Invalid<…>` で落とす。
-  `Val.companion`、`Enum.companion`、Variant の `implSeal` に掛かる。payload が `string` の Val も
-  除外しない。除外されるのは引数の検査だけである
-- **development。**カスタム seal が return した後に既定の seal が呼ばれたら投げる。型を通る遅延評価
-  （`(r, seal) => () => seal(r)`）がここで落ちる。Enum の seal は合成されて同じ `sealedWith` に届くので、
-  Enum 側に実行時の検査は無い
+`Synchronous<G, Checked>` が、戻り型に `PromiseLike` を含む seal を `Invalid<…>` で落とす。
+`Val.companion`、`Enum.companion`、Variant の `implSeal` に掛かる。payload が `string` の Val も
+除外しない。除外されるのは引数の検査だけである。
 
 型が見るのは `PromiseLike` であって、`then` を持つ任意の型ではない。`then` のシグネチャが合わない
-オブジェクトは型を通り、development の検査に任せる。
+オブジェクトは型を通る。
 
 **戻り型が `any` の seal は通す。**`any` は `PromiseLike` にも合うので、除外しないと同期の seal に
 「a seal is synchronous」という嘘のエラーが出る。
@@ -1578,8 +1573,10 @@ seal の戻り値は `unknown` だったので、async の seal が型を通っ�
 `create` は元から async にできない。minter の戻り型が `SeedOf<V>` で、`Promise` はそこに代入できない。
 例外は空の payload（`Record<never, never>`）で、`Promise` が代入できるので通る。塞いでいない。
 
-development の検査に掛からないものが 1 つ残る。キャストで型を抜けた async の seal が、既定の seal を
-呼ばずに reject する場合である。
+**却下: development で、カスタム seal が return した後に既定の seal が呼ばれたら投げる。**型を通る
+遅延評価（`(r, seal) => () => seal(r)`）と、戻り型を `any` にした async の seal を捕まえる。一度入れて
+外した。過剰防御である。seal は検査と正規化をすると分かっていれば、どちらも書かない。await のあいだの
+入力の書き換えは、今も `changedDuringSeal` が development で検出する。
 
 production のバンドルは変わらない（852 B gzip）。型のインスタンス化は core が 5,665 → 5,781、enum が
 33,264 → 33,537。
