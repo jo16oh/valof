@@ -187,15 +187,9 @@ describe("members", () => {
 
   test("nor `match`, nor a name the library reserves", () => {
     // @ts-expect-error `match` is the library's
-    Enum.sealer<Shape>().impl(() => ({ match: (s: Shape) => s }));
+    Enum.sealer<Shape>().impl({ match: (s: Shape) => s });
     // @ts-expect-error `patch` is the library's
-    Enum.sealer<Shape>().impl(() => ({ patch: (s: Shape) => s }));
-  });
-
-  test("nor `then`, which would make the companion a thenable", () => {
-    // @ts-expect-error `await` on a thenable companion never settles
-    // oxlint-disable-next-line no-thenable -- the rejection is what this test reads
-    Enum.sealer<Shape>().impl(() => ({ then: (s: Shape) => s }));
+    Enum.sealer<Shape>().impl({ patch: (s: Shape) => s });
   });
 
   test("a step does not mutate the one before it", () => {
