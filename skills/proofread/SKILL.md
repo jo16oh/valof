@@ -143,6 +143,10 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
   writing a heading for it.
 - **A sample larger than the claim.** If the point is that a declaration typechecks, the `type`
   lines alone carry it.
+- **The deliberation behind an instruction.** An instruction says what to do. Why it is better than
+  what came before, and why its steps go in this order, belong in the commit and PR:
+  `Without a record, a re-audit reads every staged change again. Instead, each audit leaves a record`
+  → `Each audit leaves a record`.
 - **Which constraints to state in prose.** Prose states a constraint where the reader needs it
   before writing the code, as one that shapes how they design their types. One that the type error
   and the declaration's JSDoc explain well enough can be left out of the prose.
