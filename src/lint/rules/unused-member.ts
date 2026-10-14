@@ -114,8 +114,24 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
       read.set(implementation.trait.name, traitReads);
     }
 
-  return scans.flatMap(({ file, members }) =>
-    members
+  /** The variants each enum declared, where its declaration settled them. */
+  const variants = new Map<string, ReadonlySet<string>>();
+  for (const { enumAliases } of scans)
+    for (const { ref, variants: declared } of enumAliases)
+      if (declared) variants.set(identity(ref), new Set(declared));
+
+  return scans.flatMap(({ file, members, sites }) => {
+    /**
+     * An enum's `.impl` rejects a member under a variant's name, so that one is not a member. A
+     * trait override under that name is dropped with it.
+     */
+    const taken = new Map<string, ReadonlySet<string>>();
+    for (const site of sites) {
+      const declared = variants.get(identity(site.typeRef));
+      if (site.name !== undefined && declared) taken.set(site.name, declared);
+    }
+    return members
+      .filter(({ companion, member }) => !taken.get(companion)?.has(member))
       .filter(({ companion, member }) => !read.get(companion)?.has(member))
       .map(({ companion, member, line, column }) => ({
         kind: "unused-member" as const,
@@ -125,6 +141,6 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
         companion,
         member,
         message: `${companion}.${member} is never read`,
-      })),
-  );
+      }));
+  });
 }
