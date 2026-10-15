@@ -142,8 +142,8 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
       );
       const result = yield* R.await(
         R.tryPromise({
-          try: async () =>
-            (await build({
+          try: () =>
+            build({
               root: fileURLToPath(root),
               logLevel: "silent",
               configFile: false,
@@ -154,7 +154,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
                 target: "esnext",
                 lib: { entry: file, formats: ["es"], fileName: "entry" },
               },
-            })) as Rolldown.RolldownOutput[],
+            }) as Promise<Rolldown.RolldownOutput[]>,
           catch: (cause) => new CompileError({ mode, step: "the build", cause }),
         }),
       );
