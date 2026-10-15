@@ -34,8 +34,9 @@ export const Suite = Val.sealer<Suite>().impl({
     const [first, ...others] = suite
       .filter((bundle) => bundle.base)
       .map((bundle) => bundle.imports);
-    if (first === undefined) return R.err(new NoBase({ message: "no bundle sets base" }));
-    return R.ok(others.reduce((merged, imports) => Imports.merge(merged, imports), first));
+    return first !== undefined
+      ? R.ok(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
+      : R.err(new NoBase({ message: "no bundle sets base" }));
   },
   /**
    * Builds `dist`, and measures each bundle: a base bundle alone, any other on top of the base.

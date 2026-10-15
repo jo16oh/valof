@@ -44,14 +44,14 @@ export const Measured = Val.sealer<Measured>().impl({
    * keeps the code only development needs.
    */
   check: (measured): R<void, BranchIgnored> =>
-    measured.branches && measured.production.sizes.minified === measured.development.sizes.minified
-      ? R.err(
+    !measured.branches || measured.production.sizes.minified !== measured.development.sizes.minified
+      ? R.ok()
+      : R.err(
           new BranchIgnored({
             imports: measured.imports,
             message: `production keeps the development branches: import { ${Imports.names(measured.imports).join(", ")} }`,
           }),
-        )
-      : R.ok(undefined),
+        ),
 });
 
 /** A bundle, measured with the base under it unless it joins the base. */
@@ -79,12 +79,12 @@ export const MeasuredBundle = Val.companion<MeasuredBundle>()
      * base already.
      */
     check: (result, base: Measured): R<void, AddsNothing> =>
-      !result.bundle.base && result.measured.production.library === base.production.library
-        ? R.err(
+      result.bundle.base || result.measured.production.library !== base.production.library
+        ? R.ok()
+        : R.err(
             new AddsNothing({
               bundle: result.bundle,
               message: `${result.bundle.name} adds nothing to the base, which already holds it`,
             }),
-          )
-        : R.ok(undefined),
+          ),
   });
