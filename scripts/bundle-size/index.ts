@@ -2,7 +2,6 @@ import { Bundle, Imports } from "./bundle.ts";
 import { Cli } from "./cli.ts";
 import { Suite } from "./suite.ts";
 
-// `Trait` and `Enum` ship from their own subpath, so a bundle names the module per import.
 const suite = Suite([
   Bundle({
     key: "val",

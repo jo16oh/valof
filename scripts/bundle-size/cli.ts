@@ -3,10 +3,6 @@ import { MeasuredBundle } from "./measure/index.ts";
 import { Suite } from "./suite.ts";
 
 export const Cli = {
-  /**
-   * Measures the suite, and prints its sizes and budgets, or the sizes as JSON with `--json`. Sets a
-   * failing exit code when measuring fails or a bundle is over its budget.
-   */
   run: async (suite: Suite): Promise<void> => {
     process.exitCode = (await Suite.measure(suite)).match({
       ok: (measurement) => {

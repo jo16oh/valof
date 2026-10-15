@@ -6,12 +6,13 @@ export function over(result: MeasuredBundle): string {
   return `over budget: ${label(result)} is ${amount(result, result.capped)}, budget ${amount(result, result.bundle.budget)}`;
 }
 
-/** What a run prints: every bundle's sizes and the budgets, or the sizes as JSON. */
-export function report({ results, extra }: Measurement, asJson: boolean): string {
+export function report({ results, separateBase }: Measurement, asJson: boolean): string {
   return asJson
     ? json(results)
     : [
-        ...[...extra, ...results.map(({ measured }) => measured)].map((each) => `${sizes(each)}\n`),
+        ...[...separateBase, ...results.map(({ measured }) => measured)].map(
+          (each) => `${sizes(each)}\n`,
+        ),
         budgets(results),
       ].join("\n");
 }
@@ -20,7 +21,6 @@ function format(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(2)} kB`;
 }
 
-/** Pads every column to its widest cell, aligned to the given side. */
 function align(rows: readonly (readonly string[])[], sides: readonly ("left" | "right")[]) {
   const columns = sides.map((side, index) => {
     const cells = rows.map((row) => row[index] ?? "");
@@ -38,7 +38,6 @@ function label({ bundle }: MeasuredBundle): string {
   return bundle.base ? bundle.name : `added by ${bundle.name}`;
 }
 
-/** A bundle's heading and its sizes in each mode. */
 function sizes(measured: Measured): string {
   const heads = ["minified", "gzip", "brotli"] as const;
   const rows = align(
@@ -54,7 +53,6 @@ function sizes(measured: Measured): string {
   ].join("\n");
 }
 
-/** Each bundle's capped bytes against its budget. */
 function budgets(results: readonly MeasuredBundle[]): string {
   const rows = results.map((result) => {
     const bytes = result.capped;
@@ -73,7 +71,6 @@ function budgets(results: readonly MeasuredBundle[]): string {
   ].join("\n");
 }
 
-/** The `--json` output, keyed as `replace-bundle-size-claims` reads it. */
 function json(results: readonly MeasuredBundle[]): string {
   const keyed = Object.fromEntries(
     results.map(({ bundle, measured }) => [

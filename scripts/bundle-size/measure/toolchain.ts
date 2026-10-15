@@ -14,7 +14,6 @@ export class PackFailed extends TaggedError("PackFailed")<{ message: string }> {
 
 export class NoChunk extends TaggedError("NoChunk")<{ mode: Mode; message: string }> {}
 
-/** Something a bundle's compiling step could not do: the temporary file, or the build itself. */
 export class CompileFailed extends TaggedError("CompileFailed")<{
   mode: Mode;
   cause: unknown;
@@ -28,7 +27,6 @@ export class MinifyFailed extends TaggedError("MinifyFailed")<{
 
 const root = new URL("../../../", import.meta.url);
 
-/** Builds `dist`, so the bundles import what a user installs. */
 export function pack(): Promise<R<void, PackFailed>> {
   return R.tryPromise({
     try: async () => {
@@ -54,14 +52,12 @@ export function measure(
     return R.ok(
       Measured({
         imports,
-        branches: yield* R.await(branches(development.modules, "development")),
+        readsNodeEnv: yield* R.await(readsNodeEnv(development.modules, "development")),
         production: Build({
-          code: production.code,
           sizes: yield* sizes(production.code),
           library: production.library,
         }),
         development: Build({
-          code: development.code,
           sizes: yield* sizes(development.code),
           library: development.library,
         }),
@@ -85,7 +81,6 @@ function minify(code: string): R<string, MinifyFailed> {
   });
 }
 
-/** A bundle's code, its library modules, and the code's length without the entry. */
 type Compiled = { code: string; modules: string[]; library: number };
 
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | CompileFailed>> {
@@ -166,7 +161,7 @@ function sizes(code: string): R<Sizes, MinifyFailed> {
 }
 
 /** Whether a module's source reads `NODE_ENV`, before `define` replaces it. */
-function branches(modules: readonly string[], mode: Mode): Promise<R<boolean, CompileFailed>> {
+function readsNodeEnv(modules: readonly string[], mode: Mode): Promise<R<boolean, CompileFailed>> {
   return attempt(mode, "reading the library", async () => {
     const sources = await Promise.all(modules.map((module) => readFile(module, "utf8")));
     return sources.some((source) => source.includes("NODE_ENV"));
