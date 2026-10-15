@@ -1,4 +1,4 @@
-import { Imports } from "./schema.ts";
+import { Imports } from "./bundle.ts";
 import { capped, modes, type Measured, type Result, type Sizes } from "./measure.ts";
 
 function format(bytes: number): string {

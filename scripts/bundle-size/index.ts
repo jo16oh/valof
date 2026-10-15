@@ -1,9 +1,10 @@
-import { Bundle, Imports, Registry } from "./schema.ts";
+import { Bundle, Imports } from "./bundle.ts";
+import { Suite } from "./suite.ts";
 import { budgets, json, over, sizes } from "./format.ts";
 import { assertProduction, capped, measure, pack } from "./measure.ts";
 
 // `Trait` and `Enum` ship from their own subpath, so a bundle names the module per import.
-const registry = Registry([
+const suite = Suite([
   Bundle({
     key: "val",
     name: "Val",
@@ -42,13 +43,8 @@ const registry = Registry([
 
 await pack();
 
-const baseImports = Registry.base(registry);
-const results = await Promise.all(
-  registry.map(async (bundle) => ({
-    bundle,
-    ...(await measure(bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports))),
-  })),
-);
+const baseImports = Suite.base(suite);
+const results = await Suite.measure(suite, measure);
 const [only, ...more] = results.filter(({ bundle }) => bundle.base);
 // With one base bundle, the base is that bundle, already measured.
 const base = only !== undefined && more.length === 0 ? only : await measure(baseImports);

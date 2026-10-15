@@ -42,16 +42,3 @@ export type Bundle = Val<
   }
 >;
 export const Bundle = Val.sealer<Bundle>();
-
-/** The bundles to measure. */
-export type Registry = Val<"Registry", Bundle[]>;
-export const Registry = Val.sealer<Registry>().impl({
-  /** What the base imports: every base bundle's imports, merged. */
-  base: (registry): Imports => {
-    const [first, ...others] = registry
-      .filter((bundle) => bundle.base)
-      .map((bundle) => bundle.imports);
-    if (first === undefined) throw new Error("no bundle sets base");
-    return others.reduce((merged, imports) => Imports.merge(merged, imports), first);
-  },
-});

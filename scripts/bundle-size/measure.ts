@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "../../src/index.ts";
-import { Imports, type Bundle } from "./schema.ts";
+import { Imports, type Bundle } from "./bundle.ts";
 
 const root = new URL("../../", import.meta.url);
 
