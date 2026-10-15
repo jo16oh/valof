@@ -1,5 +1,5 @@
 import { Imports } from "./bundle.ts";
-import { modes, type Measured, type MeasuredBundle, type Sizes } from "./measure.ts";
+import { modes, type Measured, type MeasuredBundle } from "./measure.ts";
 import type { Measurement } from "./suite.ts";
 
 function format(bytes: number): string {
@@ -23,17 +23,17 @@ const label = ({ bundle }: MeasuredBundle): string =>
   bundle.base ? bundle.name : `added by ${bundle.name}`;
 
 /** A bundle's heading and its sizes in each mode. */
-function sizes({ imports, sizes }: Measured): string {
+function sizes(measured: Measured): string {
   const heads = ["minified", "gzip", "brotli"] as const;
   const rows = align(
     [
       ["", ...heads],
-      ...modes.map((mode) => [mode, ...heads.map((head) => format(sizes[mode][head]))]),
+      ...modes.map((mode) => [mode, ...heads.map((head) => format(measured[mode].sizes[head]))]),
     ],
     ["left", "right", "right", "right"],
   );
   return [
-    `bundle  import { ${Imports.names(imports).join(", ")} }`,
+    `bundle  import { ${Imports.names(measured.imports).join(", ")} }`,
     ...rows.map((cells) => `  ${cells.join("  ")}`),
   ].join("\n");
 }
@@ -63,8 +63,11 @@ export function over(result: MeasuredBundle): string {
 
 /** The `--json` output, keyed as `replace-bundle-size-claims` reads it. */
 function json(results: readonly MeasuredBundle[]): string {
-  const keyed: Record<string, Record<string, Sizes>> = Object.fromEntries(
-    results.map(({ bundle, sizes }) => [bundle.key, sizes]),
+  const keyed = Object.fromEntries(
+    results.map(({ bundle, measured }) => [
+      bundle.key,
+      Object.fromEntries(modes.map((mode) => [mode, measured[mode].sizes])),
+    ]),
   );
   return JSON.stringify(keyed, null, 2);
 }
@@ -73,5 +76,8 @@ function json(results: readonly MeasuredBundle[]): string {
 export function report({ results, extra }: Measurement, asJson: boolean): string {
   return asJson
     ? json(results)
-    : [...[...extra, ...results].map((each) => `${sizes(each)}\n`), budgets(results)].join("\n");
+    : [
+        ...[...extra, ...results.map(({ measured }) => measured)].map((each) => `${sizes(each)}\n`),
+        budgets(results),
+      ].join("\n");
 }

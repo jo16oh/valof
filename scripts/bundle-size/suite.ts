@@ -2,15 +2,13 @@ import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../src/index.ts";
 import { Imports, type Bundle } from "./bundle.ts";
 import {
-  cap,
-  checkProduction,
+  Measured,
+  MeasuredBundle,
   measure,
   pack,
   type CompileFailed,
   type DevelopmentCodeRemains,
   type EqualsRemains,
-  type Measured,
-  type MeasuredBundle,
   type MinifyFailed,
   type NoChunk,
   type PackFailed,
@@ -66,19 +64,26 @@ export const Suite = Val.sealer<Suite>().impl({
               await measure(
                 bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports),
               )
-            ).map((result) => ({ ...result, bundle })),
+            ).map((measured) => ({ bundle, measured })),
           ),
         ),
       );
       const [only, ...more] = results.filter(({ bundle }) => bundle.base);
       // With one base bundle, the base is that bundle, already measured.
       const base =
-        only !== undefined && more.length === 0 ? only : yield* R.await(measure(baseImports));
-      for (const each of [base, ...results]) yield* checkProduction(each);
+        only !== undefined && more.length === 0
+          ? only.measured
+          : yield* R.await(measure(baseImports));
+      const extra = base === only?.measured ? [] : [base];
+      for (const measured of [...extra, ...results.map(({ measured }) => measured)]) {
+        yield* Measured.check(measured);
+      }
       return R.ok({
         base,
-        results: results.map((result) => cap(result, base)),
-        extra: base === only ? [] : [base],
+        results: results.map(({ bundle, measured }) =>
+          MeasuredBundle.create(bundle, measured, base),
+        ),
+        extra,
       });
     }),
 });

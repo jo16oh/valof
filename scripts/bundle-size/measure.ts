@@ -18,18 +18,63 @@ export const modes: readonly Mode[] = ["production", "development"];
 export type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;
 export const Sizes = Val.sealer<Sizes>();
 
-export type Measured = {
-  imports: Imports;
-  code: Record<Mode, string>;
-  sizes: Record<Mode, Sizes>;
-};
+/** One mode's build of a bundle: its code, and what it weighs. */
+export type Build = Val<"Build", { code: string; sizes: Sizes }>;
+export const Build = Val.sealer<Build>();
+
+/** What a set of imports weighs, built in each mode. */
+export type Measured = Val<"Measured", { imports: Imports; production: Build; development: Build }>;
+export const Measured = Val.sealer<Measured>().impl({
+  /** Fails when the production build keeps code that only development or another import needs. */
+  check: (measured): R<void, DevelopmentCodeRemains | EqualsRemains | MinifyFailed> =>
+    minify(measured.production.code).andThen((production) => {
+      const { imports } = measured;
+      const heading = `import { ${Imports.names(imports).join(", ")} }`;
+      if (
+        production.includes("snapshotSealInput") ||
+        production.includes("unsnapshotable seal input") ||
+        production.includes("The payload changed while the custom seal was running.")
+      ) {
+        return R.err(
+          new DevelopmentCodeRemains({
+            imports,
+            message: `development-only seal stability checks remain in production: ${heading}`,
+          }),
+        );
+      }
+      if (!Imports.names(imports).includes("equals") && production.includes("Number.isNaN")) {
+        return R.err(
+          new EqualsRemains({
+            imports,
+            message: `equals remains in production without its import: ${heading}`,
+          }),
+        );
+      }
+      return R.ok(undefined);
+    }),
+});
 
 /** A bundle, measured with the base under it unless it joins the base. */
-export type MeasuredBundle = Measured & {
-  bundle: Bundle;
-  /** The bytes the budget caps: a base bundle's whole size, or what another adds to the base. */
-  capped: number;
-};
+export type MeasuredBundle = Val<
+  "MeasuredBundle",
+  {
+    bundle: Bundle;
+    measured: Measured;
+    /** The bytes the budget caps: a base bundle's whole size, or what another adds to the base. */
+    capped: number;
+  }
+>;
+export const MeasuredBundle = Val.companion<MeasuredBundle>()
+  .implCreate((bundle: Bundle, measured: Measured, base: Measured) => ({
+    bundle,
+    measured,
+    capped: bundle.base
+      ? measured.production.sizes.gzip
+      : measured.production.sizes.gzip - base.production.sizes.gzip,
+  }))
+  .impl({
+    over: (result): boolean => result.capped > result.bundle.budget,
+  });
 
 export class PackFailed extends TaggedError("PackFailed")<{ message: string }> {}
 
@@ -159,49 +204,11 @@ export const measure = (
     const [production, development] = yield* R.await(
       R.allAsync([compile("production", imports), compile("development", imports)] as const),
     );
-    return R.ok({
-      imports,
-      code: { production, development },
-      sizes: { production: yield* sizes(production), development: yield* sizes(development) },
-    });
+    return R.ok(
+      Measured({
+        imports,
+        production: Build({ code: production, sizes: yield* sizes(production) }),
+        development: Build({ code: development, sizes: yield* sizes(development) }),
+      }),
+    );
   });
-
-/** Adds the bytes its budget caps, which {@link MeasuredBundle.capped} describes. */
-export const cap = (measured: Measured & { bundle: Bundle }, base: Measured): MeasuredBundle => ({
-  ...measured,
-  capped: measured.bundle.base
-    ? measured.sizes.production.gzip
-    : measured.sizes.production.gzip - base.sizes.production.gzip,
-});
-
-/** Fails when a production bundle keeps code that only development or another import needs. */
-export function checkProduction({
-  imports,
-  code,
-}: Measured): R<void, DevelopmentCodeRemains | EqualsRemains | MinifyFailed> {
-  const minified = minify(code.production);
-  if (minified.isErr()) return minified;
-  const production = minified.value;
-  const heading = `import { ${Imports.names(imports).join(", ")} }`;
-  if (
-    production.includes("snapshotSealInput") ||
-    production.includes("unsnapshotable seal input") ||
-    production.includes("The payload changed while the custom seal was running.")
-  ) {
-    return R.err(
-      new DevelopmentCodeRemains({
-        imports,
-        message: `development-only seal stability checks remain in production: ${heading}`,
-      }),
-    );
-  }
-  if (!Imports.names(imports).includes("equals") && production.includes("Number.isNaN")) {
-    return R.err(
-      new EqualsRemains({
-        imports,
-        message: `equals remains in production without its import: ${heading}`,
-      }),
-    );
-  }
-  return R.ok(undefined);
-}

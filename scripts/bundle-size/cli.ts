@@ -1,4 +1,5 @@
 import { over, report } from "./format.ts";
+import { MeasuredBundle } from "./measure.ts";
 import { Suite } from "./suite.ts";
 
 export const Cli = {
@@ -10,9 +11,7 @@ export const Cli = {
     process.exitCode = (await Suite.measure(suite)).match({
       ok: (measurement) => {
         console.log(report(measurement, process.argv.includes("--json")));
-        const overs = measurement.results
-          .filter((result) => result.capped > result.bundle.budget)
-          .map(over);
+        const overs = measurement.results.filter(MeasuredBundle.over).map(over);
         for (const line of overs.length > 0 ? ["", ...overs] : []) console.error(line);
         return overs.length > 0 ? 1 : 0;
       },
