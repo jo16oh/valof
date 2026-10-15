@@ -6,9 +6,9 @@ import {
   MeasuredBundle,
   measure,
   pack,
+  type AddsNothing,
+  type BranchIgnored,
   type CompileFailed,
-  type DevelopmentCodeRemains,
-  type EqualsRemains,
   type MinifyFailed,
   type NoChunk,
   type PackFailed,
@@ -49,13 +49,7 @@ export const Suite = Val.sealer<Suite>().impl({
   ): Promise<
     R<
       Measurement,
-      | PackFailed
-      | NoBase
-      | NoChunk
-      | CompileFailed
-      | MinifyFailed
-      | DevelopmentCodeRemains
-      | EqualsRemains
+      PackFailed | NoBase | NoChunk | CompileFailed | MinifyFailed | BranchIgnored | AddsNothing
     >
   > =>
     R.gen(async function* () {
@@ -82,14 +76,10 @@ export const Suite = Val.sealer<Suite>().impl({
       for (const measured of [...extra, ...results.map(({ measured }) => measured)]) {
         yield* Measured.check(measured);
       }
-      return R.ok(
-        Measurement({
-          base,
-          results: results.map(({ bundle, measured }) =>
-            MeasuredBundle.create(bundle, measured, base),
-          ),
-          extra,
-        }),
+      const bundles = results.map(({ bundle, measured }) =>
+        MeasuredBundle.create(bundle, measured, base),
       );
+      for (const result of bundles) yield* MeasuredBundle.check(result, base);
+      return R.ok(Measurement({ base, results: bundles, extra }));
     }),
 });
