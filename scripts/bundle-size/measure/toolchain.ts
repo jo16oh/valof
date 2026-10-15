@@ -178,10 +178,10 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
         }),
       );
 
-      const chunk = result[0]?.output.find((output) => output.type === "chunk");
-      if (chunk?.type !== "chunk") {
-        return R.err(new NoChunkError({ mode }));
-      }
+      const found = result[0]?.output.find((output) => output.type === "chunk");
+      const chunk = yield* found?.type === "chunk"
+        ? R.ok(found)
+        : R.err(new NoChunkError({ mode }));
 
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
       return R.ok(

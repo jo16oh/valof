@@ -17,6 +17,7 @@ export const Cli = {
           for (const line of overs.length > 0 ? ["", ...overs] : []) {
             console.error(line);
           }
+
           return overs.length > 0 ? 1 : 0;
         },
         err: (error) => {
