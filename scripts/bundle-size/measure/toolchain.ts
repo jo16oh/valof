@@ -9,7 +9,7 @@ import { Result as R, TaggedError } from "better-result";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "../../../src/index.ts";
 import { Imports } from "../bundle.ts";
-import { Build, Measured, Sizes, type Mode } from "./index.ts";
+import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class PackError extends TaggedError("PackError")<{ message: string }> {}
 
@@ -54,13 +54,13 @@ export function pack(): Promise<R<void, PackError>> {
 
 export function measure(
   imports: Imports,
-): Promise<R<Measured, NoChunkError | CompileError | MinifyError>> {
+): Promise<R<BuildResult, NoChunkError | CompileError | MinifyError>> {
   return R.gen(async function* () {
     const [production, development] = yield* R.await(
       R.allAsync([compile("production", imports), compile("development", imports)] as const),
     );
     return R.ok(
-      Measured({
+      BuildResult({
         imports,
         readsNodeEnv: (yield* R.await(
           R.allAsync(

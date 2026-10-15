@@ -2,8 +2,8 @@ import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../src/index.ts";
 import { Imports, type Bundle } from "./bundle.ts";
 import {
-  Measured,
-  MeasuredBundle,
+  BuildResult,
+  BundleSize,
   type AddsNothingError,
   type BranchIgnoredError,
 } from "./measure/index.ts";
@@ -18,15 +18,15 @@ import {
 
 export class NoBaseError extends TaggedError("NoBaseError")<{ message: string }> {}
 
-export type Measurement = Val<
-  "Measurement",
+export type Report = Val<
+  "Report",
   {
-    base: Measured;
-    results: MeasuredBundle[];
-    separateBase: Measured[];
+    base: BuildResult;
+    bundles: BundleSize[];
+    separateBase: BuildResult[];
   }
 >;
-export const Measurement = Val.sealer<Measurement>();
+export const Report = Val.sealer<Report>();
 
 export type Suite = Val<"Suite", Bundle[]>;
 export const Suite = Val.sealer<Suite>().impl({
@@ -42,7 +42,7 @@ export const Suite = Val.sealer<Suite>().impl({
     suite: Suite,
   ): Promise<
     R<
-      Measurement,
+      Report,
       | PackError
       | NoBaseError
       | NoChunkError
@@ -62,23 +62,19 @@ export const Suite = Val.sealer<Suite>().impl({
               await measure(
                 bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports),
               )
-            ).map((measured) => ({ bundle, measured })),
+            ).map((build) => ({ bundle, build })),
           ),
         ),
       );
       const [only, ...more] = results.filter(({ bundle }) => bundle.base);
       const base =
-        only !== undefined && more.length === 0
-          ? only.measured
-          : yield* R.await(measure(baseImports));
-      const separateBase = base === only?.measured ? [] : [base];
-      for (const measured of [...separateBase, ...results.map(({ measured }) => measured)]) {
-        yield* Measured.check(measured);
+        only !== undefined && more.length === 0 ? only.build : yield* R.await(measure(baseImports));
+      const separateBase = base === only?.build ? [] : [base];
+      for (const build of [...separateBase, ...results.map(({ build }) => build)]) {
+        yield* BuildResult.check(build);
       }
-      const bundles = results.map(({ bundle, measured }) =>
-        MeasuredBundle.create(bundle, measured, base),
-      );
-      for (const result of bundles) yield* MeasuredBundle.check(result, base);
-      return R.ok(Measurement({ base, results: bundles, separateBase }));
+      const bundles = results.map(({ bundle, build }) => BundleSize.create(bundle, build, base));
+      for (const size of bundles) yield* BundleSize.check(size, base);
+      return R.ok(Report({ base, bundles, separateBase }));
     }),
 });

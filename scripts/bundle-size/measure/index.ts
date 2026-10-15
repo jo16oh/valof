@@ -28,8 +28,8 @@ export type Build = Val<
 >;
 export const Build = Val.sealer<Build>();
 
-export type Measured = Val<
-  "Measured",
+export type BuildResult = Val<
+  "BuildResult",
   {
     imports: Imports;
     readsNodeEnv: boolean;
@@ -37,44 +37,43 @@ export type Measured = Val<
     development: Build;
   }
 >;
-export const Measured = Val.sealer<Measured>().impl({
-  check: (measured): R<void, BranchIgnoredError> =>
-    !measured.readsNodeEnv ||
-    measured.production.sizes.minified !== measured.development.sizes.minified
+export const BuildResult = Val.sealer<BuildResult>().impl({
+  check: (build): R<void, BranchIgnoredError> =>
+    !build.readsNodeEnv || build.production.sizes.minified !== build.development.sizes.minified
       ? R.ok()
       : R.err(
           new BranchIgnoredError({
-            imports: measured.imports,
-            message: `production keeps the development branches: import { ${Imports.names(measured.imports).join(", ")} }`,
+            imports: build.imports,
+            message: `production keeps the development branches: import { ${Imports.names(build.imports).join(", ")} }`,
           }),
         ),
 });
 
-export type MeasuredBundle = Val<
-  "MeasuredBundle",
+export type BundleSize = Val<
+  "BundleSize",
   {
     bundle: Bundle;
-    measured: Measured;
+    build: BuildResult;
     capped: number;
   }
 >;
-export const MeasuredBundle = Val.companion<MeasuredBundle>()
-  .implCreate((bundle: Bundle, measured: Measured, base: Measured) => ({
+export const BundleSize = Val.companion<BundleSize>()
+  .implCreate((bundle: Bundle, build: BuildResult, base: BuildResult) => ({
     bundle,
-    measured,
+    build,
     capped: bundle.base
-      ? measured.production.sizes.gzip
-      : measured.production.sizes.gzip - base.production.sizes.gzip,
+      ? build.production.sizes.gzip
+      : build.production.sizes.gzip - base.production.sizes.gzip,
   }))
   .impl({
-    over: (result): boolean => result.capped > result.bundle.budget,
-    check: (result, base: Measured): R<void, AddsNothingError> =>
-      result.bundle.base || result.measured.production.library !== base.production.library
+    over: (size): boolean => size.capped > size.bundle.budget,
+    check: (size, base: BuildResult): R<void, AddsNothingError> =>
+      size.bundle.base || size.build.production.library !== base.production.library
         ? R.ok()
         : R.err(
             new AddsNothingError({
-              bundle: result.bundle,
-              message: `${result.bundle.name} adds nothing to the base, which already holds it`,
+              bundle: size.bundle,
+              message: `${size.bundle.name} adds nothing to the base, which already holds it`,
             }),
           ),
   });
