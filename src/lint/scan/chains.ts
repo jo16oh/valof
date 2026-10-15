@@ -9,7 +9,7 @@ import {
 } from "../ast.ts";
 import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
-import type { Val } from "../../val.ts";
+import type { AnyVal, CompanionBuilder, Val } from "../../val.ts";
 import { original, symbolRef, type Bindings, type Root, type SymbolRef } from "./bindings.ts";
 
 /** `K`, which must be a key of every member of `T`. */
@@ -53,6 +53,24 @@ export type CompanionSite = Where & {
   /** Whether the chain registered a seal of its own, with `.implSeal`. */
   seals: boolean;
 };
+
+type Called = { name: string | undefined; property: Node; receiver: Node };
+
+/** Reads `.implCreate.noseal(f)` as the `implCreate` step. */
+export function stepOf(callee: Node): Called | undefined {
+  const receiver = child(callee, "object");
+  const property = child(callee, "property");
+  if (!receiver || !property) return undefined;
+  const name = keyName(property, callee["computed"] === true);
+  if (
+    name === ("noseal" satisfies keyof CompanionBuilder<AnyVal>["implCreate"]) &&
+    receiver.type === "MemberExpression"
+  ) {
+    const outer = stepOf(receiver);
+    if (outer?.name === "implCreate") return outer;
+  }
+  return { name, property, receiver };
+}
 
 /** Which entry point a chain grows from, however the name was bound. */
 export function fromRoot(node: Node, bound: Bindings): Root | undefined {
@@ -178,17 +196,15 @@ function readChain(node: Node, bound: Bindings): Chain {
     if (current.type !== "CallExpression") return undefined;
     const callee = child(current, "callee");
     if (!callee || callee.type !== "MemberExpression") return undefined;
-    const receiver = child(callee, "object");
-    if (!receiver) return undefined;
+    const step = stepOf(callee);
+    if (!step) return undefined;
+    const { name, receiver } = step;
     if (receiver.type !== "CallExpression") {
       of = fromRoot(callee, bound);
       if (!of) return undefined;
-      const step = rootPath(callee)?.at(-1);
-      root = step === "companion" ? "companion" : "sealer";
+      root = rootPath(callee)?.at(-1) === "companion" ? "companion" : "sealer";
       return child(current, "typeArguments");
     }
-    const property = child(callee, "property");
-    const name = property && keyName(property, callee["computed"] === true);
     const [argument] = children(current, "arguments");
     if (name && argument) steps.add(name);
     return walk(receiver);

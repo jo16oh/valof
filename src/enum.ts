@@ -10,6 +10,7 @@ import {
   type Invalid,
   type Passes,
   type Patch,
+  type Synchronous,
   type Takes,
   type Wired,
 } from "./val.ts";
@@ -281,8 +282,8 @@ type Built<E extends AnyEnum, N extends keyof VariantsOf<E>, FE, FV> = [FV] exte
   : Returned<FV>;
 
 /** A constructor and the same constructor without the copy. See `Val`'s `create`. */
-type Mints<A, R> = ((payload: A) => R) & {
-  /** Reuses the seal without copying its terminal payload. */
+type Creates<A, R> = ((payload: A) => R) & {
+  /** The same, without copying the payload. */
   nocopy: (payload: A) => R;
 };
 
@@ -302,9 +303,12 @@ type VariantSealImpl<E extends AnyEnum, N extends keyof VariantsOf<E>, FE> = (
  * The seal's parameter may be wider than the payload, so a schema library can parse into it, but
  * not so wide that it accepts a wire format. See `Val`'s `implSeal`.
  */
-type CheckedSeal<G extends (...args: never[]) => unknown> = [string] extends [Parameters<G>[0]]
-  ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
-  : G;
+type CheckedSeal<G extends (...args: never[]) => unknown> = Synchronous<
+  G,
+  [string] extends [Parameters<G>[0]]
+    ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
+    : G
+>;
 
 /**
  * A variant's frame on a companion: `create`, `patch`, a `seal` where one was registered, and
@@ -330,14 +334,14 @@ type VariantFrame<E extends AnyEnum, N extends keyof VariantsOf<E>, FE, FV, T> =
 >;
 
 type Framed<E extends AnyEnum, N extends keyof VariantsOf<E>, R, Sealed, T> = Omit<T, Wired> & {
-  /** Mints the payload with its tag and seals it, so it returns whatever the seal returns. */
-  create: Mints<SeedFor<E, N>, R>;
+  /** Creates the payload with its tag and seals it, so it returns whatever the seal returns. */
+  create: Creates<SeedFor<E, N>, R>;
   /** Derives through the same seal the constructor uses. See {@link Patch}. */
   patch: (value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => R;
 } & (Sealed extends true
     ? {
         /** The single gate a payload of this variant passes. `create` and `patch` go through it. */
-        seal: Mints<Tagged<E, N>, R>;
+        seal: Creates<Tagged<E, N>, R>;
       }
     : Record<never, never>);
 
@@ -695,12 +699,12 @@ const state = (
   const byTag = { match: matchTag, key: tag };
 
   const built = (name: string, custom: Seal | undefined, fns: Payload): object => {
-    const mint = (payload: Payload) => ({ ...payload, [tag]: name });
+    const tagged = (payload: Payload) => ({ ...payload, [tag]: name });
     if (callable) {
       // The default seal, plus the `patch` that derives through it. The tag is not in the patch's
       // type and the value carries it already, so the merge leaves it alone.
       const sealer = Val.sealer() as unknown as Sealer;
-      const frame = (payload: Payload) => sealer(mint(payload));
+      const frame = (payload: Payload) => sealer(tagged(payload));
       define(frame, "patch", sealer.patch);
       for (const key of Object.keys(fns)) define(frame, key, fns[key]);
       return frame;
@@ -718,7 +722,7 @@ const state = (
           impl: (fns: object) => object;
         };
       }
-    ).implCreate(mint);
+    ).implCreate(tagged);
     return composed ? chain.implSeal(composed).impl(fns) : chain.impl(fns);
   };
 

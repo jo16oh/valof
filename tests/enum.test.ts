@@ -42,11 +42,11 @@ describe("the declaration", () => {
     const Crate = Enum.companion<Crate>()
       .implSeal((c, seal) => seal(c))
       .impl();
-    const [minted, checked, copied] = [["a"], ["a"], ["a"]];
-    Crate.Full.create.nocopy({ items: minted });
+    const [created, checked, copied] = [["a"], ["a"], ["a"]];
+    Crate.Full.create.nocopy({ items: created });
     Crate.Full.seal.nocopy({ items: checked, _tag: "Full" });
     Crate.Full.create({ items: copied });
-    expect([minted, checked, copied].map(Object.isFrozen)).toEqual([true, true, false]);
+    expect([created, checked, copied].map(Object.isFrozen)).toEqual([true, true, false]);
   });
 
   test("the payload is deep-copied, like any other Val", () => {
@@ -610,6 +610,15 @@ describe("a seal of its own", () => {
       .implVariant("Cash", (variant) => variant.impl())
       // @ts-expect-error that frame would be typed without this seal and still run it
       .implSeal((p, seal) => seal(p));
+  });
+
+  test("a seal whose return can be awaited is rejected", () => {
+    // @ts-expect-error a seal is synchronous
+    Enum.companion<Money>().implSeal(async (p, seal) => seal(p));
+    Enum.companion<Money>().implVariant("Cash", (variant) =>
+      // @ts-expect-error the same for a variant's seal
+      variant.implSeal(async (p, seal) => seal(p)),
+    );
   });
 
   test("a variant seals alone where the enum wrote none", () => {

@@ -49,7 +49,7 @@ It enforces the conventions through types and linting.
 
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
 
-- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->852 B
+- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->896 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 Read the [documentation](docs/src/introduction.md) for more details.
@@ -110,14 +110,14 @@ const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
 const hasText = (s: string) => s.length > 0;
 
 const Note = Val.companion<Note>()
-  // create mints the id once. Derivations do not run it again.
+  // create generates the id once. Derivations do not run it again.
   .implCreate((text: string) => ({ id: crypto.randomUUID(), text }))
   // seal validates and normalizes every payload.
   .implSeal((note, seal): Result<Note> => {
     const text = normalize(note.text);
     return hasText(text) ? { ok: seal({ ...note, text }) } : { err: "empty note" };
   })
-  // fixed excludes the minted id from patch.
+  // fixed excludes the generated id from patch.
   .fixed<"id">()
   // impl collects behavior. It infers each member's first parameter as Note.
   .impl({

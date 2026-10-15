@@ -24,7 +24,7 @@ import { Val } from "valof";
 - **§6 スマートコンストラクタと更新**
   - **6.1** コンストラクタは出自で決まる / **6.2** `patch`、patch の `undefined`、深さを問わない patch、merge できるのは既にあるノードだけ / **6.3** Result 非依存 / **6.4** `update` を削除する
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
-  - **6.7** seal（冪等）と create（鋳造）の分離 / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
+  - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
@@ -574,7 +574,7 @@ Dog.create.nocopy(name);
 
 却下した名前は `.noncopy`（non-copyable と読める）、`.adopt`（避けるコストが見えない）、`unsafeSeal`（検証まで迂回するように読める）。`.nocopy` は変更する機構をそのまま表す。`.nocopy` を勧める lint も足さない。fresh literal 以外の所有権判定には関数や alias をまたぐ escape analysis が要り、readonly 型を根拠にした提案は危険な最適化を正当化する。
 
-#### 所有権追跡: 自分が鋳造したノードは作り直さない
+#### 所有権追跡: 自分が生成したノードは作り直さない
 
 `copy` が作ったノードを WeakSet に登録し、次に出会ったらそのまま返す。`src/val.ts` に入っている。
 
@@ -605,7 +605,7 @@ Dog.create.nocopy(name);
 
 #### 却下: 所有権の印を symbol キーで持たせる
 
-WeakSet の代わりに、鋳造したオブジェクト自身に `obj[MARK] = true` を持たせる案。実測（Node 24.19 / M シリーズ、ns/op）。
+WeakSet の代わりに、生成したオブジェクト自身に `obj[MARK] = true` を持たせる案。実測（Node 24.19 / M シリーズ、ns/op）。
 
 | 印を付けるコスト                                 | ns/op |
 | ------------------------------------------------ | ----- |
@@ -1421,7 +1421,7 @@ export const Age = Val.companion<Age>()
 
 #### 配線対象を `.impl` に書いたら型エラーにする
 
-プリミティブ payload では `V` が第一引数の型に代入可能になることがある（`Val<"Age", number>` に対する `seal(n: number)`）。すると**関数が制約を通り、ただのメソッドとして生えて、`patch` が配線されない**（`create` なら**seal を通らない鋳造経路ができる**）という無言の事故になる。移行中に実際に踏んだ。`seal?: never` / `create?: never` を宣言して弾く。
+プリミティブ payload では `V` が第一引数の型に代入可能になることがある（`Val<"Age", number>` に対する `seal(n: number)`）。すると**関数が制約を通り、ただのメソッドとして生えて、`patch` が配線されない**（`create` なら**seal を通らない生成経路ができる**）という無言の事故になる。移行中に実際に踏んだ。`seal?: never` / `create?: never` を宣言して弾く。
 
 メッセージを型に乗せる案（`seal?: "use .implSeal() …"`）も試したが、`never` を採った。エラー文の見た目は落ちる。optional 修飾子のせいで `never | undefined` になるため、TS は次のように言う。
 
@@ -1509,24 +1509,24 @@ default patch:  {"x":3,"y":2}   // 3.7 が seal で切り捨てられている
 
 構造的にこれを弾くことはできない。「引数がペイロードそのもの」を要求すると `seal(input: object)` という zod の正当な形が消える。`object` も `Fields` も同じく `SeedOf<V>` の真の supertype で、区別がつかない。
 
-#### 規約: seal は冪等（鋳造は `create` へ）
+#### 規約: seal は冪等（生成は `create` へ）
 
-seal は「ペイロードに封をする」操作であり、**`seal(v のペイロード)` は `v` を返さなければならない**。ID 生成・時刻・連番のような鋳造はこの法則を破るので `create` に出す。登録も別ステップ。
+seal は「ペイロードに封をする」操作であり、**`seal(v のペイロード)` は `v` を返さなければならない**。ID・時刻・連番の生成はこの法則を破るので `create` に出す。登録も別ステップ。
 
-| ステップ        | 制約                                                                            | 生えるもの |
-| --------------- | ------------------------------------------------------------------------------- | ---------- |
-| `implSeal(f)`   | `f: SealImpl<V>`（`(value: SeedOf<V>, ...rest: never[]) => unknown`）           | `seal`     |
-| `implCreate(f)` | `f: Minter<V>`（`(...args: never[]) => SeedOf<V>`。引数は自由、戻りは payload） | `create`   |
+| ステップ        | 制約                                                                                | 生えるもの |
+| --------------- | ----------------------------------------------------------------------------------- | ---------- |
+| `implSeal(f)`   | `f: SealImpl<V>`（`(value: SeedOf<V>, ...rest: never[]) => unknown`）               | `seal`     |
+| `implCreate(f)` | `f: CreateImpl<V>`（`(...args: never[]) => SeedOf<V>`。引数は自由、戻りは payload） | `create`   |
 
 1. **エラーが間違えた場所で出る。** 多引数コンストラクタは `implSeal` の**登録時**に落ちる。以前は 10 行下の `Point.patch(...)` で怒られていた。「自前の patch を書け」と説明する分岐は不要になり、削除した
-2. **`create` と seal が共存できる。** DDD の create / reconstitute の分離そのもの。`create` がペイロードを鋳造し、seal がそれに封をし、`patch` は seal を通るので `create` が再実行されない。§6.6 で「自前の `patch` を書くしかない」と言った ID の例が、既定のまま正しく動く
+2. **`create` と seal が共存できる。** DDD の create / reconstitute の分離そのもの。`create` がペイロードを生成し、seal がそれに封をし、`patch` は seal を通るので `create` が再実行されない。§6.6 で「自前の `patch` を書くしかない」と言った ID の例が、既定のまま正しく動く
 3. **`create` だけでも `patch` は生える。** 既定の seal（コピー）もペイロード関数だからで、`create` が振った `id` はコピーされて保存される。`Rebuild` は分岐を失った
 
 ```ts
 type Rebuild<V, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 ```
 
-サブセット形（`seal(f: { name: string })`）は今も `SealImpl<V>` の制約を通る。`seal?: never` と同じで、型では閉じない。冪等性も型では書けない。`create` という別ステップを用意し、そこに鋳造の置き場を作ることで、**規約を守る側が楽になる**という形で担保する。
+サブセット形（`seal(f: { name: string })`）は今も `SealImpl<V>` の制約を通る。`seal?: never` と同じで、型では閉じない。冪等性も型では書けない。`create` という別ステップを用意し、そこに生成の置き場を作ることで、**規約を守る側が楽になる**という形で担保する。
 
 **名前は `create`。** `new` はプロパティ名としては合法（`User.new(...)` は動く）だが、型リテラルで `{ new(x: number): Y }` と書くと構築シグネチャとして解析される罠があり、予約語でもある。
 
@@ -1544,6 +1544,43 @@ type Rebuild<V, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
 
 ペイロード自体が `string` の Val（`Val<"Email", string>`）は除外する。ペイロードとワイヤ形式を型で区別する手段がない。
 
+#### seal は同期で返す、2026-10-14
+
+seal の戻り値は `unknown` だったので、async の seal が型を通っていた。禁じる。
+
+```ts
+.implSeal(async (r, seal) => seal(await normalize(r))); // 型エラー
+```
+
+- **派生がすべて async になる。**`patch` は seal の戻り値をそのまま返すので、`seal` も `patch` も
+  `Promise<V>` を返す
+- **async はたいてい I/O で、冪等の規約と合わない。**一意性の確認は、既にある値自身の payload を拒否する。
+  ハッシュ化は 2 回掛けると別の値になる。値の取得は seal の外で済ませ、結果を引数で渡す
+- **検査とコピーのあいだに await が入る。**コピーは末端の既定の seal で取る（§6.8）。await のあいだに
+  呼び出し側が入力を書き換えられる。ただ、書き換えはコードを読めば気づける。development は
+  `changedDuringSeal` で検出するが、production は検査しない
+
+`Synchronous<G, Checked>` が、戻り型に `PromiseLike` を含む seal を `Invalid<…>` で落とす。
+`Val.companion`、`Enum.companion`、Variant の `implSeal` に掛かる。payload が `string` の Val も
+除外しない。除外されるのは引数の検査だけである。
+
+型が見るのは `PromiseLike` であって、`then` を持つ任意の型ではない。`then` のシグネチャが合わない
+オブジェクトは型を通る。
+
+**戻り型が `any` の seal は通す。**`any` は `PromiseLike` にも合うので、除外しないと同期の seal に
+「a seal is synchronous」という嘘のエラーが出る。
+
+`create` は元から async にできない。生成関数の戻り型が `SeedOf<V>` で、`Promise` はそこに代入できない。
+例外は空の payload（`Record<never, never>`）で、`Promise` が代入できるので通る。塞いでいない。
+
+**却下: development で、カスタム seal が return した後に既定の seal が呼ばれたら投げる。**型を通る
+遅延評価（`(r, seal) => () => seal(r)`）と、戻り型を `any` にした async の seal を捕まえる。一度入れて
+外した。過剰防御である。seal は検査と正規化をすると分かっていれば、どちらも書かない。await のあいだの
+入力の書き換えは、今も `changedDuringSeal` が development で検出する。
+
+production のバンドルは変わらない（852 B gzip）。型のインスタンス化は core が 5,665 → 5,781、enum が
+33,264 → 33,537。
+
 #### sealer には `create` を生やさない
 
 sealer は callable なので `create` を足しても構築経路は 1 本も絞られず、**得られるのは名前空間だけ**である。問題は、**名前が果たせない約束をする**こと。
@@ -1555,9 +1592,9 @@ Task.create({ title: "x" }); // id が振られる
 Task({ id: "forged", … });   // ← 隣で素通り
 ```
 
-companion の `create` は「鋳造は `create`、封は seal、それ以外に値になる経路は無い」（§6.7 / §6.8）の一部として意味を持つ。sealer に同じ名前を置くと、同じ `create` が型によって強さの違うものになり、守っているように読めて何も守らない。`.fixed`（§6.10）も companion builder のステップなので、道具立てとしても中途半端になる。
+companion の `create` は「生成は `create`、封は seal、それ以外に値になる経路は無い」（§6.7 / §6.8）の一部として意味を持つ。sealer に同じ名前を置くと、同じ `create` が型によって強さの違うものになり、守っているように読めて何も守らない。`.fixed`（§6.10）も companion builder のステップなので、道具立てとしても中途半端になる。
 
-多引数の別名コンストラクタ（`Point.create(x, y)`）が欲しいだけなら素の export 関数で足りる。そして **「sealer に `create` が欲しい」はたいてい companion が欲しい合図**で、鋳造したいフィールドがあるなら素の payload を誰でも渡せてはいけない。無いことがその方向に押す。
+多引数の別名コンストラクタ（`Point.create(x, y)`）が欲しいだけなら素の export 関数で足りる。そして **「sealer に `create` が欲しい」はたいてい companion が欲しい合図**で、生成したいフィールドがあるなら素の payload を誰でも渡せてはいけない。無いことがその方向に押す。
 
 後方互換に追加できるステップなので、実例が積み上がったら再考すればよい。
 
@@ -1571,7 +1608,7 @@ companion の `create` は「鋳造は `create`、封は seal、それ以外に�
 User.create(fields); // → Result<User>
 ```
 
-- **値になる経路が 1 本になる。** 「payload が Val になるのは seal を通るときだけ」がライブラリの不変条件になり、`create` は「引数から payload を組む」だけの存在に痩せる
+- **値になる経路が 1 本になる。** 「payload が Val になるのは seal を通るときだけ」がライブラリの不変条件になり、`create` は「引数から payload を組む」だけの存在に痩せる。例外は `.implCreate.noseal` で、production では seal を飛ばす（§9）
 - **戻り型が揃う。** 以前は `create` が `User`、`from` が `Result<User>` を返す不揃いがありえた。今はどちらも `Constructed<V, F>`
 - **ユーザーコードから `Val.of` が 1 つ減る**
 - **カスタム seal がないときは既定の seal（コピー）に落ちる。** `implCreate` の制約を `F` の有無で変えると登録順で `create` の型が変わるので、常に `SeedOf<V>` を要求して実行時にどちらの seal を使うかを決める
@@ -1607,6 +1644,7 @@ seal の引数を可変（`PayloadOf<V>`）にして、公開 `seal` が入口�
 | `V.patch(v, patch)`（カスタム seal あり）  | 通る                          | 1 + seal の導出分         | 1                                   |
 | `V.create(args)`                           | 通る                          | create が組む分（通常 1） | 1                                   |
 | `V.create.nocopy(args)`                    | 通る                          | create が組む分（通常 1） | **0**（末端の payload を採用）      |
+| `V.create()`（`.implCreate.noseal`）       | production では通らない       | create が組む分（通常 1） | 1（`.nocopy` なら 0）               |
 | `.impl` の自前 `patch` → 第 3 引数の seal  | 通る                          | 自前実装しだい            | 1                                   |
 | `.impl` の自前 `patch` → `Val.of`          | **通らない**                  | 同上                      | 1                                   |
 | `Val.unwrap(v)` → 加工 → `V.seal(...)`     | 通る                          | 加工分                    | **2**（unwrap と seal で 1 回ずつ） |
@@ -1655,7 +1693,7 @@ custom seal の中で値を作るには `Val.of<Age>(n)` と型引数を書く�
 - **`from`**: `implFrom` が Rust の `impl From<T> for U`（＝任意の型からの変換）に読める。それは今の `create` の意味であり、**名前が指すものが実際と逆**だった
 - **`validate`**: 検査は seal がやることの一つにすぎない。正規化（§5 の Email）も `Result` 包みも「検証」ではないし、`validate(x)` が引数をコピーするのは奇妙。boolean を返す述語だと誤読させる語でもある
 - **`parse`**: コピーも失敗も自然に読める。しかし parse は「緩い入力を解いて型にする」語なので、**引数がペイロードに固定されている理由を名前が説明しない**。その制約は `patch` がここを通せるために本質的なもので、恣意的に見えては困る
-- **`seal`**: 封をする対象は中身そのものなので、引数がペイロードであることが名前から出る。すでにライブラリの語彙（`Val.sealer`）で、三分割が一列に並ぶ。「鋳造してはいけない」という §6.7 の規約も動詞から読み取れる
+- **`seal`**: 封をする対象は中身そのものなので、引数がペイロードであることが名前から出る。すでにライブラリの語彙（`Val.sealer`）で、三分割が一列に並ぶ。「生成してはいけない」という §6.7 の規約も動詞から読み取れる
 
 |                   | 引数    | 制約                         |
 | ----------------- | ------- | ---------------------------- |
@@ -1667,7 +1705,7 @@ custom seal の中で値を作るには `Val.of<Age>(n)` と型引数を書く�
 
 ### 6.10 `fixed`: 派生経路から外すキー
 
-`create` が鋳造した `id` を派生経路から触らせない、という §8.4 のパターンは、**`patch` を上書きする**ことでしか書けなかった。上書きの中身は既定と 1 文字も違わず、**唯一の内容は patch の型**である。§6.5 / §6.6 で「ラバースタンプを書かせない」と決めておきながら、最も頻出するパターンでそれを強制していた。
+`create` が生成した `id` を派生経路から触らせない、という §8.4 のパターンは、**`patch` を上書きする**ことでしか書けなかった。上書きの中身は既定と 1 文字も違わず、**唯一の内容は patch の型**である。§6.5 / §6.6 で「ラバースタンプを書かせない」と決めておきながら、最も頻出するパターンでそれを強制していた。
 
 宣言のステップを足す。
 
@@ -1690,7 +1728,7 @@ Val.companion<User>()
 
 - `impl` 接頭辞は付けない。`impl*` は「X の実装を与える」に揃えたが、これは関数を 1 つも渡さず型について宣言するだけのステップ。**実装を与える手順と、性質を宣言する手順が名前で区別される**ほうが良い
 - `final` は JVM の語彙（`final val` / `sealed abstract class`）を持ち込み、`seal` を `sealed trait` の意味に誤読させる。`finalize` は GC のファイナライザ（`FinalizationRegistry`）と、ビルダーの終端（`.build()`）の両方に読める
-- `minted` は §6.7 の鋳造の比喩と最も整合するが、`create` を持たない型では意味が曖昧になり、英語圏外の読み手には通じにくい
+- `minted`（鋳造）は `create` の役割と最も整合するが、`create` を持たない型では意味が曖昧になり、英語圏外の読み手には通じにくい
 - `unpatchable` は既に公開している `Patch<T>` からしか意味を取らない。新しい比喩も、やっていること以上の約束も持ち込まない
 
 #### `unpatchable` → `fixed`
@@ -1893,7 +1931,7 @@ export const IsoDate = Val.companion<IsoDate>()
 
 ### 8.3 スキーマライブラリとの併用
 
-検証を seal に置けば、更新経路（`patch`）も鋳造経路（`create`）も全部そこを通る（§6.2 / §6.8）。引数は `object` まで広げてよい。`SealImpl<V>` はペイロードを**受け取れる**ことしか要求しない。`unknown` は `string` も受けるので落ちる（§6.7）。
+検証を seal に置けば、更新経路（`patch`）も生成経路（`create`）も全部そこを通る（§6.2 / §6.8）。引数は `object` まで広げてよい。`SealImpl<V>` はペイロードを**受け取れる**ことしか要求しない。`unknown` は `string` も受けるので落ちる（§6.7）。
 
 ```ts
 export const User = Val.companion<User>()
@@ -1922,7 +1960,7 @@ export function parseUser(json: string): Result<User> {
 
 ### 8.4 更新経路から外したいフィールド
 
-コンストラクタ内で生成する ID、`createdAt`、バージョン番号。`create` が鋳造し、seal が封をし、`.fixed`（§6.10）が更新経路から外す。
+コンストラクタ内で生成する ID、`createdAt`、バージョン番号。`create` が生成し、seal が封をし、`.fixed`（§6.10）が更新経路から外す。
 
 ```ts
 type Fields = Omit<SeedOf<User>, "id">;
@@ -1974,6 +2012,91 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 ---
 
 ## 9. 未解決 / 要確認
+
+- [x] ~~**seal を通さない `create`。**~~ → 入れた。`.implCreate.noseal`、2026-10-14。必ず seal を通る
+      payload を生成する `create` が、seal の戻り型をそのまま返してしまう。定義側の段で外す
+
+  ```ts
+  const SectionId = Val.companion<SectionId>()
+    .implCreate(() => randomBytes(4).toString("hex"))
+    .implSeal((text, seal): SectionId | undefined =>
+      /^[0-9a-f]{8}$/.test(text) ? seal(text) : undefined,
+    );
+
+  const id = SectionId.create(); // SectionId | undefined。undefined には到達しない
+  if (id === undefined || used.has(id)) return mintIds(used, count); // 衝突の再試行に畳まれた
+  ```
+
+  - **類型である。**形式を検査する seal を持つ ID 型が自分で ID を生成すると、必ずこの形になる（uuid、
+    nanoid）。到達しない分岐が再試行に畳まれると、生成関数が壊れたときにエラーにならず再帰が止まらない
+  - **形。**`.implCreate.noseal(fn)`。公開される `create` と `create.nocopy` は `V` を返す。`patch` と
+    `seal` は変えない。後から普通の `implCreate` を書けば seal を通る形に戻る
+  - **既定は seal を通すまま。**`noseal` の付け忘れは戻り型に `| undefined` が出るので、コンパイル時に
+    呼び出し側で気づける。逆を既定にすると、seal の付け忘れが型を通り、production で無検査の値を作る。
+    `.nocopy` を opt-in にした基準（§4.1）と同じ
+  - **`noseal` の生成関数は引数を取れない。**分かれ目は生成関数が未検証の入力を受け取るかどうかで、
+    引数を禁じればその経路が型で閉じる。入力空間が無いので、development の検査は 1 回走ればほぼ網羅的に
+    なる。制約を `() => SeedOf<V>` にするだけでは省略可能な引数と rest 引数が通るので、
+    `Parameters<G> extends []` を別に見て `Invalid<…>` で落とす。引数を許すのは後方互換な追加なので、
+    実例が出てから緩める
+  - **payload の型を間違えたときは、戻り値の位置でエラーになる。**`G` の制約は引数の形だけにして、
+    戻り型が合わなければ引数の型を `() => SeedOf<V>` にする。`G & (() => SeedOf<V>)` にすると、戻り型が
+    一致したときに TypeScript が交差の片側と打ち消して `G` を推論しない（5.9 / 6.0 / 7.0 で確認）
+  - **引数を取って必ず成功する生成関数は `implAssoc` と `Val.of` で書く。**検証済みの Val だけを受け取る
+    形（`Session.create(user)`）がこれに当たる。`implAssoc` は Val を受け取らないメンバーを置く段で、
+    未実装、このメモにも未記載。この経路に development の検査は付かない。`bypassed-companion`（§14.23）
+    は変えず、この `Val.of` にも警告する。書けるが勧める形ではないので、disable コメントが妥当
+  - **クロージャ越しの入力は型で塞がない。**Val の定義が関数の中にある時点で気づける。検査するなら
+    「ファイルのトップレベル以外での Val 定義を禁じる」lint 規則。モジュールレベルの可変な状態を読む
+    生成関数はこの規則でも残る。そこを縛ると TypeScript の意味論を超えるので縛らない
+  - **production は既定の seal だけを通す。**カスタム seal は呼ばない
+  - **development はカスタム seal を実際に走らせる。**`custom(payload, terminal)` で、terminal が
+    呼ばれなければ拒否、呼ばれた候補が payload と等しくなければ正規化と判定して投げる。返すのは terminal
+    の結果で、seal の戻り値は見ないので §6.3 は破らない。`changedDuringSeal` と同じ仕組み
+  - **契約は「`create` の出力は seal の不動点」。**検査を通るだけでは足りない。正規化もする seal
+    （`Math.round`）を飛ばすと正規形でない値ができ、`equals` と、何も変えない `patch` の同一性
+    （`keep` は seal を通す）が壊れる
+  - **lint は `.implCreate.noseal(f)` を `implCreate` の段として読む。**`stepOf`（`scan/chains.ts`）。
+    受け手が呼び出しでなくなるので、読まないと鎖がそこで切れ、`bypassed-companion` が companion を
+    見失い、後ろの `implTrait` を `unimplemented-trait` が見落とす
+  - **コスト。**production の gzip が +44 B（852 → 896 B）、`index.d.mts` が +1.2 kB。development の
+    検査は production のビルドで畳まれて消える。増えたのは配線（`implCreate` に生やした `noseal`、
+    フラグ、seal を通すかの分岐）。インスタンス化の数はほぼ変わらない
+  - **却下: 呼び出し側の `create.noseal()`。**`.nocopy` の形は合わない。所有権は呼び出しごとの事実だが、
+    「出力が必ず seal を通る」は生成関数の実装の性質で、定義側で 1 回言えば足りる。呼び出し側に置くと
+    `create` を持つ companion すべてで「seal が唯一の関門」（§6.8）が利用者ごとに外せるようになる。動機も
+    違う。seal を飛ばしても末端のコピーは残るので、買えるのは速度ではなく戻り型
+  - **却下: 素の export 関数で 1 回 unwrap する。**`Result` なら 1 行で済むが、`V | undefined` を返す
+    seal には unwrap が無い。`!` は実行時に何も検査しないので、throw を手で書くことになる
+  - **却下: 生成関数が `V` を返したら seal を飛ばす。**ブランドがファントムなので実行時に区別できない
+  - **却下: `Val.of<V>(…)` を生成関数の外で使う。**`bypassed-companion`（§14.23）が警告し、development
+    の検査も付かない
+  - **`implAssoc` と `Val.of` があっても段を足す。**同じものは書けるが、development の検査と `create`
+    という名前が残る。どちらもバンドルの微増に見合う
+  - **async の seal は先に禁じた**（§6.7「seal は同期で返す」）。development の検査は同期を前提に書ける
+
+- [ ] **noseal の development の検査が見逃す seal。lint 規則の案、未着手、2026-10-14。**既定の seal を
+      呼んだあと、その結果を捨てて失敗を返す seal は、「呼ばれた、値も等しい」ので検査を通る。production
+      では seal を飛ばすので、拒むはずの値ができる。`Result` に限らず `undefined` を返す seal でも同じ
+
+  ```ts
+  .implCreate.noseal(() => randomId())
+  .implSeal((text, seal) => {
+    const id = seal(text);
+    return isReserved(id) ? undefined : id; // 拒否を development の検査が見ない
+  })
+  ```
+
+  - **戻り値は見ない。**中に既定の seal の結果があるかを development で探せば防げる。production の
+    バンドルには載らないが、§6.3 に反する。決め手は primitive の payload で、同一性で探せず、`Err` の
+    メッセージに同じ文字列があると取り違える。文字列の ID がこの段の主な用途なので効く
+  - **lint 規則にする。**`.implCreate.noseal` を持つ鎖で、`implSeal` に渡したインラインの関数を読む。第 2
+    引数の呼び出しが、`return` する式（アロー関数なら本体の式）の中になければ警告する
+  - **noseal の鎖だけに絞る。**seal してから捨てて失敗を返すのは、普通の seal では正当な書き方
+  - **変数に置いたら一律に警告する。**値が `return` まで流れたかを追うにはデータフローが要る。
+    `const v = seal(x); return ok(v)` も警告されるが、`return ok(seal(x))` に書き直せる
+  - **見えない形。**`.implSeal(hex)` のように別の場所で定義した関数は追わず、何も言わない
+  - lint は今、`implSeal` の関数の中身を読まない（`CompanionSite.seals` は真偽値だけ）。別の PR で入れる
 
 - [ ] **development の `.nocopy` が失敗した時の部分 freeze。** graph の走査中に後続 node の accessor や cycle で失敗すると、それより先に検査した子だけが owned に登録され freeze されたまま残る。失敗時の副作用を消すなら、全 graph の検査後に登録と freeze を行う二段階処理へ変える
 - [x] ~~トップレベルの payload に `null` を許すか~~ → 許さない。`null & { __brand: K }` は
@@ -2113,7 +2236,7 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - デフォルト `equals` とオーバーライド
 - コンストラクタの有無を出自で決める（sealer 経由か否か）
 - コンストラクタによる引数のディープコピーと、明示的な `.nocopy`（§4.1）
-- コンストラクタの登録を 2 系統に分ける（`implSeal` = 封をする唯一の関門 / `implCreate` = payload を鋳造して seal に流す、§6.7 / §6.8）
+- コンストラクタの登録を 2 系統に分ける（`implSeal` = 封をする唯一の関門 / `implCreate` = payload を生成して seal に流す、§6.7 / §6.8）
 - `.impl` のメソッドは第一引数が Val に固定され、注釈不要（§6.5）
 - `patch`（Result 非依存、seal を通る。上書きはさせない、§6.6）
 - `.fixed<K>()`（更新経路から外すキーを型引数で宣言、§6.10）

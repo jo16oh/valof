@@ -6,3 +6,8 @@ const Greetable = Trait.companion<Greetable>();
 
 export type User = Val<"User", { name: string }, Behaviours>;
 export const User = Val.companion<User>().implTrait(Greetable).implTrait<((Named))>({});
+
+export type Guest = Val<"Guest", { name: string }, Named>;
+export const Guest = Val.companion<Guest>()
+  .implCreate.noseal(() => ({ name: "guest" }))
+  .implTrait<Named>({});

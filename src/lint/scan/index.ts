@@ -35,6 +35,7 @@ import {
 import {
   companionSite,
   fromRoot,
+  stepOf,
   typeReference,
   valOf,
   type CompanionSite,
@@ -525,7 +526,7 @@ function implTrait(
   while (current?.type === "CallExpression") {
     const inner = child(current, "callee");
     if (!inner || inner.type !== "MemberExpression") break;
-    const receiver = child(inner, "object");
+    const receiver = stepOf(inner)?.receiver;
     if (!receiver || receiver.type !== "CallExpression") break;
     current = receiver;
   }
@@ -737,10 +738,8 @@ function detachedStep(
 ): DetachedStep | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
-  const property = child(callee, "property");
-  const step = property && keyName(property, callee["computed"] === true);
-  if (!step || !STEPS.has(step)) return undefined;
-  const receiver = child(callee, "object");
+  const { name: step, property, receiver } = stepOf(callee) ?? {};
+  if (!step || !property || !STEPS.has(step)) return undefined;
   if (!receiver || receiver.type === "CallExpression") return undefined;
   if (fromRoot(callee, bound)) return undefined;
   const where = at(property["start"] as number);
