@@ -7,7 +7,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "../src/index.ts";
-import { Trait, type Dyn, type Self } from "../src/experimental.ts";
 
 const root = new URL("../", import.meta.url);
 
@@ -33,9 +32,6 @@ const Imports = Val.sealer<Imports>().impl({
 type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;
 const Sizes = Val.sealer<Sizes>();
 
-/** What a bundle imports, and its budget in production gzip. */
-type Spec = { imports: Imports; budget: number };
-
 /**
  * A bundle a user ships, and its budget in production gzip. A ratchet, unlike the budgets in
  * `type-perf`: runtime code is written deliberately, so a byte more is a decision, not drift.
@@ -43,49 +39,20 @@ type Spec = { imports: Imports; budget: number };
  * The declarations are not measured here. They cost a download and a parse, never a byte in the
  * user's bundle, and `type-perf` already measures what reads them.
  */
-type Bundle = Trait<
+type Bundle = Val<
   "Bundle",
-  Spec,
   {
     /** The key in the `--json` output, which `replace-bundle-size-claims` reads. */
-    key: (self: Self) => string;
+    key: string;
     /** The bundle's name in the budget table. */
-    name: (self: Self) => string;
+    name: string;
+    imports: Imports;
+    budget: number;
   }
 >;
-const Bundle = Trait.companion<Bundle>();
+const Bundle = Val.sealer<Bundle>();
 
-type Core = Val<"Core", Spec, Bundle>;
-const Core = Val.sealer<Core>().implTrait(Bundle, {
-  key: () => "val",
-  name: () => "Val",
-});
-
-type WithEquals = Val<"WithEquals", Spec, Bundle>;
-const WithEquals = Val.sealer<WithEquals>().implTrait(Bundle, {
-  key: () => "equals",
-  name: () => "Equals",
-});
-
-type WithTrait = Val<"WithTrait", Spec, Bundle>;
-const WithTrait = Val.sealer<WithTrait>().implTrait(Bundle, {
-  key: () => "trait",
-  name: () => "Trait",
-});
-
-type WithEnum = Val<"WithEnum", Spec, Bundle>;
-const WithEnum = Val.sealer<WithEnum>().implTrait(Bundle, {
-  key: () => "enum",
-  name: () => "Enum",
-});
-
-type All = Val<"All", Spec, Bundle>;
-const All = Val.sealer<All>().implTrait(Bundle, {
-  key: () => "all",
-  name: () => "All",
-});
-
-type Registered = { bundle: Dyn<Bundle>; base: boolean };
+type Registered = { bundle: Bundle; base: boolean };
 
 /**
  * Collects the bundles to measure. The base is every bundle registered with `base` set, bundled
@@ -94,7 +61,7 @@ type Registered = { bundle: Dyn<Bundle>; base: boolean };
  * import costs is the number to read.
  */
 type Registry = {
-  register: (bundle: Dyn<Bundle>, base: boolean) => Registry;
+  register: (bundle: Bundle, base: boolean) => Registry;
   registered: readonly Registered[];
 };
 const registry = (registered: readonly Registered[] = []): Registry => ({
@@ -105,41 +72,51 @@ const registry = (registered: readonly Registered[] = []): Registry => ({
 // `Trait` and `Enum` ship from their own subpath, so a bundle names the module per import.
 const { registered } = registry()
   .register(
-    Bundle.dyn(Core, Core({ imports: Imports({ "./dist/index.mjs": ["Val"] }), budget: 1024 })),
+    Bundle({
+      key: "val",
+      name: "Val",
+      imports: Imports({ "./dist/index.mjs": ["Val"] }),
+      budget: 1024,
+    }),
     true,
   )
   .register(
-    Bundle.dyn(
-      WithEquals,
-      WithEquals({ imports: Imports({ "./dist/index.mjs": ["equals"] }), budget: 256 }),
-    ),
+    Bundle({
+      key: "equals",
+      name: "Equals",
+      imports: Imports({ "./dist/index.mjs": ["equals"] }),
+      budget: 256,
+    }),
     false,
   )
   .register(
-    Bundle.dyn(
-      WithTrait,
-      WithTrait({ imports: Imports({ "./dist/experimental.mjs": ["Trait"] }), budget: 256 }),
-    ),
+    Bundle({
+      key: "trait",
+      name: "Trait",
+      imports: Imports({ "./dist/experimental.mjs": ["Trait"] }),
+      budget: 256,
+    }),
     false,
   )
   .register(
-    Bundle.dyn(
-      WithEnum,
-      WithEnum({ imports: Imports({ "./dist/experimental.mjs": ["Enum"] }), budget: 640 }),
-    ),
+    Bundle({
+      key: "enum",
+      name: "Enum",
+      imports: Imports({ "./dist/experimental.mjs": ["Enum"] }),
+      budget: 640,
+    }),
     false,
   )
   .register(
-    Bundle.dyn(
-      All,
-      All({
-        imports: Imports({
-          "./dist/index.mjs": ["equals"],
-          "./dist/experimental.mjs": ["Enum", "Trait"],
-        }),
-        budget: 1024,
+    Bundle({
+      key: "all",
+      name: "All",
+      imports: Imports({
+        "./dist/index.mjs": ["equals"],
+        "./dist/experimental.mjs": ["Enum", "Trait"],
       }),
-    ),
+      budget: 1024,
+    }),
     false,
   );
 
@@ -283,7 +260,7 @@ const amount = ({ base: isBase }: Result, bytes: number): string =>
   isBase ? format(bytes) : `+${format(bytes)}`;
 
 const label = ({ base: isBase, bundle }: Result): string =>
-  isBase ? bundle.name() : `added by ${bundle.name()}`;
+  isBase ? bundle.name : `added by ${bundle.name}`;
 
 function budgets(): string {
   const rows = results.map((result) => {
@@ -305,7 +282,7 @@ const printed: Measured[] = base === only ? results : [base, ...results];
 if (process.argv.includes("--json")) {
   console.log(
     JSON.stringify(
-      Object.fromEntries(results.map(({ bundle, sizes }) => [bundle.key(), sizes])),
+      Object.fromEntries(results.map(({ bundle, sizes }) => [bundle.key, sizes])),
       null,
       2,
     ),
