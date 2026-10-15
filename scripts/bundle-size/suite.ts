@@ -1,18 +1,15 @@
 import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../src/index.ts";
 import { Imports, type Bundle } from "./bundle.ts";
+import { Measured, MeasuredBundle, type AddsNothing, type BranchIgnored } from "./measure/index.ts";
 import {
-  Measured,
-  MeasuredBundle,
   measure,
   pack,
-  type AddsNothing,
-  type BranchIgnored,
   type CompileFailed,
   type MinifyFailed,
   type NoChunk,
   type PackFailed,
-} from "./measure.ts";
+} from "./measure/toolchain.ts";
 
 export class NoBase extends TaggedError("NoBase")<{ message: string }> {}
 

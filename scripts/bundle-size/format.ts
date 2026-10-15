@@ -1,5 +1,5 @@
 import { Imports } from "./bundle.ts";
-import { modes, type Measured, type MeasuredBundle } from "./measure.ts";
+import { modes, type Measured, type MeasuredBundle } from "./measure/index.ts";
 import type { Measurement } from "./suite.ts";
 
 function format(bytes: number): string {
@@ -16,11 +16,13 @@ function align(rows: readonly (readonly string[])[], sides: readonly ("left" | "
   return rows.map((_, index) => columns.map((cells) => cells[index] ?? ""));
 }
 
-const amount = ({ bundle }: MeasuredBundle, bytes: number): string =>
-  bundle.base ? format(bytes) : `+${format(bytes)}`;
+function amount({ bundle }: MeasuredBundle, bytes: number): string {
+  return bundle.base ? format(bytes) : `+${format(bytes)}`;
+}
 
-const label = ({ bundle }: MeasuredBundle): string =>
-  bundle.base ? bundle.name : `added by ${bundle.name}`;
+function label({ bundle }: MeasuredBundle): string {
+  return bundle.base ? bundle.name : `added by ${bundle.name}`;
+}
 
 /** A bundle's heading and its sizes in each mode. */
 function sizes(measured: Measured): string {

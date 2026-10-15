@@ -1,5 +1,5 @@
 import { over, report } from "./format.ts";
-import { MeasuredBundle } from "./measure.ts";
+import { MeasuredBundle } from "./measure/index.ts";
 import { Suite } from "./suite.ts";
 
 export const Cli = {
