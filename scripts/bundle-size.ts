@@ -7,19 +7,34 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "../src/index.ts";
-import { Enum, type VariantOf, type VariantsOf } from "../src/experimental.ts";
+import { Trait, type Dyn, type Self } from "../src/experimental.ts";
 
 const root = new URL("../", import.meta.url);
 
-/** The names an entry imports, per module. */
+type Mode = "production" | "development";
+const modes: readonly Mode[] = ["production", "development"];
+
+/** The names a bundle imports, per module. */
 type Imports = Val<"Imports", Record<string, string[]>>;
 const Imports = Val.sealer<Imports>().impl({
-  /** What the entry imports, as the printed heading spells it. */
+  /** What the bundle imports, as the printed heading spells it. */
   names: (imports): string[] => Object.values(imports).flat(),
+  merge: (imports, other: Imports): Imports => {
+    const merged: Record<string, string[]> = {};
+    for (const source of [imports, other]) {
+      for (const [module, names] of Object.entries(source)) {
+        merged[module] = [...new Set([...(merged[module] ?? []), ...names])];
+      }
+    }
+    return Imports(merged);
+  },
 });
 
 type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;
 const Sizes = Val.sealer<Sizes>();
+
+/** What a bundle imports, and its budget in production gzip. */
+type Spec = { imports: Imports; budget: number };
 
 /**
  * A bundle a user ships, and its budget in production gzip. A ratchet, unlike the budgets in
@@ -27,59 +42,107 @@ const Sizes = Val.sealer<Sizes>();
  *
  * The declarations are not measured here. They cost a download and a parse, never a byte in the
  * user's bundle, and `type-perf` already measures what reads them.
- *
- * `Core` is the budget everyone pays. The others cap what they add to the measured core, so growth
- * in the core spends only the core's room: what an import costs is the number to read.
  */
-type Entry = Enum<
-  "Entry",
-  { Core: {}; Equals: {}; Trait: {}; Enum: {}; All: {} },
-  { imports: Imports; budget: number }
+type Bundle = Trait<
+  "Bundle",
+  Spec,
+  {
+    /** The key in the `--json` output, which `replace-bundle-size-claims` reads. */
+    key: (self: Self) => string;
+    label: (self: Self) => string;
+  }
 >;
-type Name = keyof VariantsOf<Entry>;
-const Entry = Enum.sealer<Entry>().impl({
-  /** Whether the budget caps what the entry adds to the core, rather than its whole size. */
-  adds: (entry): boolean =>
-    Entry.match(entry, {
-      Core: () => false,
-      Equals: () => true,
-      Trait: () => true,
-      Enum: () => true,
-      All: () => true,
-    }),
-  label: (entry): string => (Entry.adds(entry) ? `added by ${entry._tag}` : "production gzip"),
-  amount: (entry, bytes: number): string =>
-    Entry.adds(entry) ? `+${format(bytes)}` : format(bytes),
+const Bundle = Trait.companion<Bundle>();
+
+type Core = Val<"Core", Spec, Bundle>;
+const Core = Val.sealer<Core>().implTrait(Bundle, {
+  key: () => "val",
+  label: () => "production gzip",
 });
 
-// `Trait` and `Enum` ship from their own subpath, so the entry names the module per import.
-const entries = {
-  Core: Entry.Core({ imports: Imports({ "./dist/index.mjs": ["Val"] }), budget: 1024 }),
-  Equals: Entry.Equals({
-    imports: Imports({ "./dist/index.mjs": ["Val", "equals"] }),
-    budget: 256,
-  }),
-  Trait: Entry.Trait({
-    imports: Imports({ "./dist/index.mjs": ["Val"], "./dist/experimental.mjs": ["Trait"] }),
-    budget: 256,
-  }),
-  Enum: Entry.Enum({
-    imports: Imports({ "./dist/index.mjs": ["Val"], "./dist/experimental.mjs": ["Enum"] }),
-    budget: 640,
-  }),
-  All: Entry.All({
-    imports: Imports({
-      "./dist/index.mjs": ["Val", "equals"],
-      "./dist/experimental.mjs": ["Enum", "Trait"],
-    }),
-    budget: 1024,
-  }),
-} satisfies { [N in Name]: VariantOf<Entry, N> };
-const names = Object.keys(entries) as Name[];
+type WithEquals = Val<"WithEquals", Spec, Bundle>;
+const WithEquals = Val.sealer<WithEquals>().implTrait(Bundle, {
+  key: () => "equals",
+  label: () => "added by Equals",
+});
 
-const modes = ["production", "development"] as const;
+type WithTrait = Val<"WithTrait", Spec, Bundle>;
+const WithTrait = Val.sealer<WithTrait>().implTrait(Bundle, {
+  key: () => "trait",
+  label: () => "added by Trait",
+});
 
-async function bundle(mode: string, imports: Imports): Promise<string> {
+type WithEnum = Val<"WithEnum", Spec, Bundle>;
+const WithEnum = Val.sealer<WithEnum>().implTrait(Bundle, {
+  key: () => "enum",
+  label: () => "added by Enum",
+});
+
+type All = Val<"All", Spec, Bundle>;
+const All = Val.sealer<All>().implTrait(Bundle, {
+  key: () => "all",
+  label: () => "added by All",
+});
+
+type Registered = { bundle: Dyn<Bundle>; base: boolean };
+
+/**
+ * Collects the bundles to measure. The base is every bundle registered with `base` set, bundled
+ * together. Each of those is capped by its whole size. Every other bundle is measured on top of
+ * the base and capped by what it adds, so growth in the base spends only the base's room: what an
+ * import costs is the number to read.
+ */
+type Registry = {
+  register: (bundle: Dyn<Bundle>, base: boolean) => Registry;
+  registered: readonly Registered[];
+};
+const registry = (registered: readonly Registered[] = []): Registry => ({
+  register: (bundle, base) => registry([...registered, { bundle, base }]),
+  registered,
+});
+
+// `Trait` and `Enum` ship from their own subpath, so a bundle names the module per import.
+const { registered } = registry()
+  .register(
+    Bundle.dyn(Core, Core({ imports: Imports({ "./dist/index.mjs": ["Val"] }), budget: 1024 })),
+    true,
+  )
+  .register(
+    Bundle.dyn(
+      WithEquals,
+      WithEquals({ imports: Imports({ "./dist/index.mjs": ["equals"] }), budget: 256 }),
+    ),
+    false,
+  )
+  .register(
+    Bundle.dyn(
+      WithTrait,
+      WithTrait({ imports: Imports({ "./dist/experimental.mjs": ["Trait"] }), budget: 256 }),
+    ),
+    false,
+  )
+  .register(
+    Bundle.dyn(
+      WithEnum,
+      WithEnum({ imports: Imports({ "./dist/experimental.mjs": ["Enum"] }), budget: 640 }),
+    ),
+    false,
+  )
+  .register(
+    Bundle.dyn(
+      All,
+      All({
+        imports: Imports({
+          "./dist/index.mjs": ["equals"],
+          "./dist/experimental.mjs": ["Enum", "Trait"],
+        }),
+        budget: 1024,
+      }),
+    ),
+    false,
+  );
+
+async function compile(mode: Mode, imports: Imports): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "valof-size-"));
   const file = join(dir, "entry.mjs");
   const lines = Object.entries(imports).map(
@@ -111,7 +174,7 @@ async function bundle(mode: string, imports: Imports): Promise<string> {
   }
 }
 
-function measure(code: string): Sizes {
+function sizes(code: string): Sizes {
   const bytes = Buffer.from(minifySync("bundle.mjs", code).code, "utf8");
   return Sizes({
     minified: bytes.byteLength,
@@ -156,27 +219,42 @@ await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), 
   process.exit(1);
 });
 
-const code = Object.fromEntries(
-  await Promise.all(
-    names.map(async (name) => [
-      name,
-      Object.fromEntries(
-        await Promise.all(
-          modes.map(async (mode) => [mode, await bundle(mode, entries[name].imports)]),
-        ),
-      ) as Record<(typeof modes)[number], string>,
-    ]),
+type Measured = {
+  imports: Imports;
+  code: Record<Mode, string>;
+  sizes: Record<Mode, Sizes>;
+};
+
+async function measure(imports: Imports): Promise<Measured> {
+  const [production, development] = await Promise.all([
+    compile("production", imports),
+    compile("development", imports),
+  ]);
+  return {
+    imports,
+    code: { production, development },
+    sizes: { production: sizes(production), development: sizes(development) },
+  };
+}
+
+const bases = registered.filter(({ base }) => base).map(({ bundle }) => bundle.imports);
+const [first, ...others] = bases;
+if (first === undefined) throw new Error("register at least one bundle as the base");
+const baseImports = others.reduce((merged, imports) => Imports.merge(merged, imports), first);
+
+const [base, results] = await Promise.all([
+  measure(baseImports),
+  Promise.all(
+    registered.map(async (entry) => ({
+      ...entry,
+      ...(await measure(
+        entry.base ? entry.bundle.imports : Imports.merge(baseImports, entry.bundle.imports),
+      )),
+    })),
   ),
-) as Record<Name, Record<(typeof modes)[number], string>>;
+]);
 
-const bundles = Object.fromEntries(
-  names.map((name) => [
-    name,
-    Object.fromEntries(modes.map((mode) => [mode, measure(code[name][mode])])),
-  ]),
-) as Record<Name, Record<(typeof modes)[number], Sizes>>;
-
-const production = minifySync("production.mjs", code.Core.production).code;
+const production = minifySync("production.mjs", base.code.production).code;
 if (
   production.includes("snapshotSealInput") ||
   production.includes("unsnapshotable seal input") ||
@@ -188,58 +266,60 @@ if (production.includes("Number.isNaN")) {
   throw new Error("equals remains in the production bundle that imports only Val");
 }
 
-// `replace-bundle-size-claims` reads these keys from `--json`.
-const measured = {
-  val: bundles.Core,
-  trait: bundles.Trait,
-  enum: bundles.Enum,
-  equals: bundles.Equals,
-  all: bundles.All,
-};
+type Result = (typeof results)[number];
 
-/** What the entry's budget caps, in production gzip. */
-const capped = (entry: Entry): number => {
-  const gzip = bundles[entry._tag].production.gzip;
-  return Entry.adds(entry) ? gzip - bundles.Core.production.gzip : gzip;
-};
+/** The bytes the budget caps: a base bundle's whole size, or what another adds to the base. */
+const capped = ({ base: isBase, sizes }: Result): number =>
+  isBase ? sizes.production.gzip : sizes.production.gzip - base.sizes.production.gzip;
+
+const amount = ({ base: isBase }: Result, bytes: number): string =>
+  isBase ? format(bytes) : `+${format(bytes)}`;
 
 function budgets(): string {
-  const all = Object.values(entries);
-  const label = Math.max(...all.map((entry) => Entry.label(entry).length));
-  const used = Math.max(...all.map((entry) => Entry.amount(entry, capped(entry)).length));
-  const limit = Math.max(...all.map((entry) => Entry.amount(entry, entry.budget).length));
-  return all
-    .map((entry) => {
-      const bytes = capped(entry);
-      const max = entry.budget;
+  const label = Math.max(...results.map(({ bundle }) => bundle.label().length));
+  const used = Math.max(...results.map((result) => amount(result, capped(result)).length));
+  const limit = Math.max(...results.map((result) => amount(result, result.bundle.budget).length));
+  return results
+    .map((result) => {
+      const bytes = capped(result);
+      const max = result.bundle.budget;
       const left =
         bytes > max
           ? `${format(bytes - max)} over`
           : `${format(max - bytes)} left (${Math.round((1 - bytes / max) * 100)}%)`;
-      return `  ${Entry.label(entry).padEnd(label)}  ${Entry.amount(entry, bytes).padStart(used)} / ${Entry.amount(entry, max).padStart(limit)}  ${left}`;
+      return `  ${result.bundle.label().padEnd(label)}  ${amount(result, bytes).padStart(used)} / ${amount(result, max).padStart(limit)}  ${left}`;
     })
     .join("\n");
 }
 
+// With one base bundle, the base is that bundle, already printed.
+const printed = bases.length > 1 ? [base, ...results] : results;
+
 if (process.argv.includes("--json")) {
-  console.log(JSON.stringify(measured, null, 2));
+  console.log(
+    JSON.stringify(
+      Object.fromEntries(results.map(({ bundle, sizes }) => [bundle.key(), sizes])),
+      null,
+      2,
+    ),
+  );
 } else {
-  for (const name of names) {
-    console.log(`bundle  import { ${Imports.names(entries[name].imports).join(", ")} }`);
-    console.log(table(modes.map((mode) => [mode, bundles[name][mode]])));
+  for (const { imports, sizes } of printed) {
+    console.log(`bundle  import { ${Imports.names(imports).join(", ")} }`);
+    console.log(table(modes.map((mode) => [mode, sizes[mode]])));
     console.log();
   }
   console.log("budget");
   console.log(budgets());
 }
 
-const over = Object.values(entries).filter((entry) => capped(entry) > entry.budget);
+const over = results.filter((result) => capped(result) > result.bundle.budget);
 
 if (over.length > 0) {
   console.error();
-  for (const entry of over) {
+  for (const result of over) {
     console.error(
-      `over budget: ${Entry.label(entry)} is ${Entry.amount(entry, capped(entry))}, budget ${Entry.amount(entry, entry.budget)}`,
+      `over budget: ${result.bundle.label()} is ${amount(result, capped(result))}, budget ${amount(result, result.bundle.budget)}`,
     );
   }
   process.exit(1);
