@@ -49,7 +49,8 @@ type Bundle = Trait<
   {
     /** The key in the `--json` output, which `replace-bundle-size-claims` reads. */
     key: (self: Self) => string;
-    label: (self: Self) => string;
+    /** The bundle's name in the budget table. */
+    name: (self: Self) => string;
   }
 >;
 const Bundle = Trait.companion<Bundle>();
@@ -57,31 +58,31 @@ const Bundle = Trait.companion<Bundle>();
 type Core = Val<"Core", Spec, Bundle>;
 const Core = Val.sealer<Core>().implTrait(Bundle, {
   key: () => "val",
-  label: () => "production gzip",
+  name: () => "Val",
 });
 
 type WithEquals = Val<"WithEquals", Spec, Bundle>;
 const WithEquals = Val.sealer<WithEquals>().implTrait(Bundle, {
   key: () => "equals",
-  label: () => "added by Equals",
+  name: () => "Equals",
 });
 
 type WithTrait = Val<"WithTrait", Spec, Bundle>;
 const WithTrait = Val.sealer<WithTrait>().implTrait(Bundle, {
   key: () => "trait",
-  label: () => "added by Trait",
+  name: () => "Trait",
 });
 
 type WithEnum = Val<"WithEnum", Spec, Bundle>;
 const WithEnum = Val.sealer<WithEnum>().implTrait(Bundle, {
   key: () => "enum",
-  label: () => "added by Enum",
+  name: () => "Enum",
 });
 
 type All = Val<"All", Spec, Bundle>;
 const All = Val.sealer<All>().implTrait(Bundle, {
   key: () => "all",
-  label: () => "added by All",
+  name: () => "All",
 });
 
 type Registered = { bundle: Dyn<Bundle>; base: boolean };
@@ -242,28 +243,30 @@ const [first, ...others] = bases;
 if (first === undefined) throw new Error("register at least one bundle as the base");
 const baseImports = others.reduce((merged, imports) => Imports.merge(merged, imports), first);
 
-const [base, results] = await Promise.all([
-  measure(baseImports),
-  Promise.all(
-    registered.map(async (entry) => ({
-      ...entry,
-      ...(await measure(
-        entry.base ? entry.bundle.imports : Imports.merge(baseImports, entry.bundle.imports),
-      )),
-    })),
-  ),
-]);
+const results = await Promise.all(
+  registered.map(async (entry) => ({
+    ...entry,
+    ...(await measure(
+      entry.base ? entry.bundle.imports : Imports.merge(baseImports, entry.bundle.imports),
+    )),
+  })),
+);
+const [only, ...more] = results.filter((result) => result.base);
+const base = only !== undefined && more.length === 0 ? only : await measure(baseImports);
 
-const production = minifySync("production.mjs", base.code.production).code;
-if (
-  production.includes("snapshotSealInput") ||
-  production.includes("unsnapshotable seal input") ||
-  production.includes("The payload changed while the custom seal was running.")
-) {
-  throw new Error("development-only seal stability checks remain in the production bundle");
-}
-if (production.includes("Number.isNaN")) {
-  throw new Error("equals remains in the production bundle that imports only Val");
+for (const { imports, code } of [base, ...results]) {
+  const production = minifySync("production.mjs", code.production).code;
+  const heading = `import { ${Imports.names(imports).join(", ")} }`;
+  if (
+    production.includes("snapshotSealInput") ||
+    production.includes("unsnapshotable seal input") ||
+    production.includes("The payload changed while the custom seal was running.")
+  ) {
+    throw new Error(`development-only seal stability checks remain in production: ${heading}`);
+  }
+  if (!Imports.names(imports).includes("equals") && production.includes("Number.isNaN")) {
+    throw new Error(`equals remains in production without its import: ${heading}`);
+  }
 }
 
 type Result = (typeof results)[number];
@@ -275,8 +278,11 @@ const capped = ({ base: isBase, sizes }: Result): number =>
 const amount = ({ base: isBase }: Result, bytes: number): string =>
   isBase ? format(bytes) : `+${format(bytes)}`;
 
+const label = ({ base: isBase, bundle }: Result): string =>
+  isBase ? bundle.name() : `added by ${bundle.name()}`;
+
 function budgets(): string {
-  const label = Math.max(...results.map(({ bundle }) => bundle.label().length));
+  const width = Math.max(...results.map((result) => label(result).length));
   const used = Math.max(...results.map((result) => amount(result, capped(result)).length));
   const limit = Math.max(...results.map((result) => amount(result, result.bundle.budget).length));
   return results
@@ -287,13 +293,12 @@ function budgets(): string {
         bytes > max
           ? `${format(bytes - max)} over`
           : `${format(max - bytes)} left (${Math.round((1 - bytes / max) * 100)}%)`;
-      return `  ${result.bundle.label().padEnd(label)}  ${amount(result, bytes).padStart(used)} / ${amount(result, max).padStart(limit)}  ${left}`;
+      return `  ${label(result).padEnd(width)}  ${amount(result, bytes).padStart(used)} / ${amount(result, max).padStart(limit)}  ${left}`;
     })
     .join("\n");
 }
 
-// With one base bundle, the base is that bundle, already printed.
-const printed = bases.length > 1 ? [base, ...results] : results;
+const printed: Measured[] = base === only ? results : [base, ...results];
 
 if (process.argv.includes("--json")) {
   console.log(
@@ -319,7 +324,7 @@ if (over.length > 0) {
   console.error();
   for (const result of over) {
     console.error(
-      `over budget: ${result.bundle.label()} is ${amount(result, capped(result))}, budget ${amount(result, result.bundle.budget)}`,
+      `over budget: ${label(result)} is ${amount(result, capped(result))}, budget ${amount(result, result.bundle.budget)}`,
     );
   }
   process.exit(1);
