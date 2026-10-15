@@ -62,7 +62,7 @@ export function measure(
     return R.ok(
       Measured({
         imports,
-        readsNodeEnv: yield* R.await(readsNodeEnv(development.modules, "development")),
+        readsNodeEnv: yield* R.await(Modules.readsNodeEnv(development.modules, "development")),
         production: Build({
           sizes: yield* sizes(production.code),
           library: production.library,
@@ -83,7 +83,20 @@ function minify(code: string): R<string, MinifyFailed> {
   });
 }
 
-type Compiled = Val<"Compiled", { code: string; modules: string[]; library: number }>;
+type Modules = Val<"Modules", string[]>;
+const Modules = Val.sealer<Modules>().impl({
+  /** Whether a module's source reads `NODE_ENV`, before `define` replaces it. */
+  readsNodeEnv: (modules, mode: Mode): Promise<R<boolean, CompileFailed>> =>
+    R.tryPromise({
+      try: async () => {
+        const sources = await Promise.all(modules.map((module) => readFile(module, "utf8")));
+        return sources.some((source) => source.includes("NODE_ENV"));
+      },
+      catch: (cause) => new CompileFailed({ mode, step: "reading the library", cause }),
+    }),
+});
+
+type Compiled = Val<"Compiled", { code: string; modules: Modules; library: number }>;
 const Compiled = Val.sealer<Compiled>();
 
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | CompileFailed>> {
@@ -136,7 +149,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
       return R.ok(
         Compiled({
           code: chunk.code,
-          modules: chunk.moduleIds.filter((id) => id !== chunk.facadeModuleId),
+          modules: Modules(chunk.moduleIds.filter((id) => id !== chunk.facadeModuleId)),
           // A module's own `renderedLength` counts code that tree-shaking drops, so the library is
           // what the chunk holds beyond its entry.
           library: chunk.code.length - (entry?.renderedLength ?? 0),
@@ -167,16 +180,5 @@ function sizes(code: string): R<Sizes, MinifyFailed> {
         },
       }).byteLength,
     });
-  });
-}
-
-/** Whether a module's source reads `NODE_ENV`, before `define` replaces it. */
-function readsNodeEnv(modules: readonly string[], mode: Mode): Promise<R<boolean, CompileFailed>> {
-  return R.tryPromise({
-    try: async () => {
-      const sources = await Promise.all(modules.map((module) => readFile(module, "utf8")));
-      return sources.some((source) => source.includes("NODE_ENV"));
-    },
-    catch: (cause) => new CompileFailed({ mode, step: "reading the library", cause }),
   });
 }
