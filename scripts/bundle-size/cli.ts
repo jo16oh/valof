@@ -1,4 +1,4 @@
-import { budgets, json, over, sizes } from "./format.ts";
+import { over, report } from "./format.ts";
 import { capped } from "./measure.ts";
 import { Suite } from "./suite.ts";
 
@@ -9,15 +9,9 @@ export const Cli = {
    */
   run: async (suite: Suite): Promise<void> => {
     process.exitCode = (await Suite.measure(suite)).match({
-      ok: ({ base, results, extra }) => {
-        console.log(
-          process.argv.includes("--json")
-            ? json(results)
-            : [
-                ...[...extra, ...results].map((each) => `${sizes(each)}\n`),
-                budgets(results, base),
-              ].join("\n"),
-        );
+      ok: (measurement) => {
+        const { base, results } = measurement;
+        console.log(report(measurement, process.argv.includes("--json")));
         const overs = results
           .filter((result) => capped(result, base) > result.bundle.budget)
           .map((result) => over(result, base));
