@@ -62,7 +62,11 @@ export function measure(
     return R.ok(
       Measured({
         imports,
-        readsNodeEnv: yield* R.await(Modules.readsNodeEnv(development.modules, "development")),
+        readsNodeEnv: (yield* R.await(
+          R.allAsync(
+            development.modules.map((module) => Module.readsNodeEnv(module, "development")),
+          ),
+        )).some((reads) => reads),
         production: Build({
           sizes: yield* Code.sizes(production.code),
           library: production.library,
@@ -99,20 +103,17 @@ const Code = Val.sealer<Code>().impl({
     }),
 });
 
-type Modules = Val<"Modules", string[]>;
-const Modules = Val.sealer<Modules>().impl({
-  /** Whether a module's source reads `NODE_ENV`, before `define` replaces it. */
-  readsNodeEnv: (modules, mode: Mode): Promise<R<boolean, CompileFailed>> =>
+type Module = Val<"Module", string>;
+const Module = Val.sealer<Module>().impl({
+  /** Whether the module's source reads `NODE_ENV`, before `define` replaces it. */
+  readsNodeEnv: (module, mode: Mode): Promise<R<boolean, CompileFailed>> =>
     R.tryPromise({
-      try: async () => {
-        const sources = await Promise.all(modules.map((module) => readFile(module, "utf8")));
-        return sources.some((source) => source.includes("NODE_ENV"));
-      },
+      try: async () => (await readFile(module, "utf8")).includes("NODE_ENV"),
       catch: (cause) => new CompileFailed({ mode, step: "reading the library", cause }),
     }),
 });
 
-type Compiled = Val<"Compiled", { code: Code; modules: Modules; library: number }>;
+type Compiled = Val<"Compiled", { code: Code; modules: Module[]; library: number }>;
 const Compiled = Val.sealer<Compiled>();
 
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | CompileFailed>> {
@@ -165,7 +166,9 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
       return R.ok(
         Compiled({
           code: Code(chunk.code),
-          modules: Modules(chunk.moduleIds.filter((id) => id !== chunk.facadeModuleId)),
+          modules: chunk.moduleIds
+            .filter((id) => id !== chunk.facadeModuleId)
+            .map((id) => Module(id)),
           // A module's own `renderedLength` counts code that tree-shaking drops, so the library is
           // what the chunk holds beyond its entry.
           library: chunk.code.length - (entry?.renderedLength ?? 0),
