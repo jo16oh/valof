@@ -47,6 +47,7 @@ function sizes(build: BuildResult): string {
     ],
     ["left", "right", "right", "right"],
   );
+
   return [
     `bundle  import { ${Imports.names(build.imports).join(", ")} }`,
     ...rows.map((cells) => `  ${cells.join("  ")}`),
@@ -63,6 +64,7 @@ function budgets(bundles: readonly BundleSize[]): string {
         : `${format(max - bytes)} left (${Math.round((1 - bytes / max) * 100)}%)`;
     return [label(size), amount(size, bytes), amount(size, max), left];
   });
+
   return [
     "budget (production gzip)",
     ...align(rows, ["left", "right", "right", "left"]).map(([name, used, limit, left]) =>
@@ -78,5 +80,6 @@ function json(bundles: readonly BundleSize[]): string {
       Object.fromEntries(modes.map((mode) => [mode, build[mode].sizes])),
     ]),
   );
+
   return JSON.stringify(keyed, null, 2);
 }

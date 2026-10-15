@@ -10,6 +10,7 @@ export const Imports = Val.sealer<Imports>().impl({
         merged[module] = [...new Set([...(merged[module] ?? []), ...names])];
       }
     }
+
     return Imports(merged);
   },
 });

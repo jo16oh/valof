@@ -71,12 +71,14 @@ export function measure(
       R.allAsync,
       GenAwait,
     );
+
     const readsNodeEnv = yield* flow(
       development.modules.map((module) => Module.readsNodeEnv(module, "development")),
       R.allAsync,
       R.map((reads) => reads.some((read) => read)),
       GenAwait,
     );
+
     return R.ok(
       BuildResult({
         imports,
@@ -138,11 +140,13 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
         catch: (cause) => new CompileError({ mode, step: "creating the entry directory", cause }),
       }),
     );
+
     const file = join(dir, "entry.mjs");
     const lines = Object.entries(imports).map(
       ([module, names]) =>
         `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
     );
+
     const built = await R.gen(async function* () {
       yield* R.await(
         R.tryPromise({
@@ -154,6 +158,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
           catch: (cause) => new CompileError({ mode, step: "writing the entry", cause }),
         }),
       );
+
       const result = yield* R.await(
         R.tryPromise({
           try: () =>
@@ -172,10 +177,12 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
           catch: (cause) => new CompileError({ mode, step: "the build", cause }),
         }),
       );
+
       const chunk = result[0]?.output.find((output) => output.type === "chunk");
       if (chunk?.type !== "chunk") {
         return R.err(new NoChunkError({ mode }));
       }
+
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
       return R.ok(
         Compiled({
@@ -189,6 +196,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
         }),
       );
     });
+
     // Removed whether or not the build succeeded.
     yield* R.await(
       R.tryPromise({
@@ -196,6 +204,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
         catch: (cause) => new CompileError({ mode, step: "removing the entry directory", cause }),
       }),
     );
+
     return built;
   });
 }

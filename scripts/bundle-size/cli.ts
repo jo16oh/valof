@@ -12,8 +12,11 @@ export const Cli = {
       R.match({
         ok: (report) => {
           console.log(render(report, process.argv.includes("--json")));
+
           const overs = report.bundles.filter(BundleSize.over).map(over);
-          for (const line of overs.length > 0 ? ["", ...overs] : []) console.error(line);
+          for (const line of overs.length > 0 ? ["", ...overs] : []) {
+            console.error(line);
+          }
           return overs.length > 0 ? 1 : 0;
         },
         err: (error) => {
