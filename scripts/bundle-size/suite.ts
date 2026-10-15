@@ -2,6 +2,7 @@ import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../src/index.ts";
 import { Imports, type Bundle } from "./bundle.ts";
 import {
+  cap,
   checkProduction,
   measure,
   pack,
@@ -74,6 +75,10 @@ export const Suite = Val.sealer<Suite>().impl({
       const base =
         only !== undefined && more.length === 0 ? only : yield* R.await(measure(baseImports));
       for (const each of [base, ...results]) yield* checkProduction(each);
-      return R.ok({ base, results, extra: base === only ? [] : [base] });
+      return R.ok({
+        base,
+        results: results.map((result) => cap(result, base)),
+        extra: base === only ? [] : [base],
+      });
     }),
 });

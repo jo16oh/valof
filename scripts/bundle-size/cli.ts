@@ -1,5 +1,4 @@
 import { over, report } from "./format.ts";
-import { capped } from "./measure.ts";
 import { Suite } from "./suite.ts";
 
 export const Cli = {
@@ -10,11 +9,10 @@ export const Cli = {
   run: async (suite: Suite): Promise<void> => {
     process.exitCode = (await Suite.measure(suite)).match({
       ok: (measurement) => {
-        const { base, results } = measurement;
         console.log(report(measurement, process.argv.includes("--json")));
-        const overs = results
-          .filter((result) => capped(result, base) > result.bundle.budget)
-          .map((result) => over(result, base));
+        const overs = measurement.results
+          .filter((result) => result.capped > result.bundle.budget)
+          .map(over);
         for (const line of overs.length > 0 ? ["", ...overs] : []) console.error(line);
         return overs.length > 0 ? 1 : 0;
       },

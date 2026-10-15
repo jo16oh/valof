@@ -25,7 +25,11 @@ export type Measured = {
 };
 
 /** A bundle, measured with the base under it unless it joins the base. */
-export type MeasuredBundle = Measured & { bundle: Bundle };
+export type MeasuredBundle = Measured & {
+  bundle: Bundle;
+  /** The bytes the budget caps: a base bundle's whole size, or what another adds to the base. */
+  capped: number;
+};
 
 export class PackFailed extends TaggedError("PackFailed")<{ message: string }> {}
 
@@ -162,9 +166,13 @@ export const measure = (
     });
   });
 
-/** The bytes the budget caps: a base bundle's whole size, or what another adds to the base. */
-export const capped = ({ bundle, sizes }: MeasuredBundle, base: Measured): number =>
-  bundle.base ? sizes.production.gzip : sizes.production.gzip - base.sizes.production.gzip;
+/** Adds the bytes its budget caps, which {@link MeasuredBundle.capped} describes. */
+export const cap = (measured: Measured & { bundle: Bundle }, base: Measured): MeasuredBundle => ({
+  ...measured,
+  capped: measured.bundle.base
+    ? measured.sizes.production.gzip
+    : measured.sizes.production.gzip - base.sizes.production.gzip,
+});
 
 /** Fails when a production bundle keeps code that only development or another import needs. */
 export function checkProduction({

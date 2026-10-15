@@ -1,5 +1,5 @@
 import { Imports } from "./bundle.ts";
-import { capped, modes, type Measured, type MeasuredBundle, type Sizes } from "./measure.ts";
+import { modes, type Measured, type MeasuredBundle, type Sizes } from "./measure.ts";
 import type { Measurement } from "./suite.ts";
 
 function format(bytes: number): string {
@@ -39,9 +39,9 @@ function sizes({ imports, sizes }: Measured): string {
 }
 
 /** Each bundle's capped bytes against its budget. */
-function budgets(results: readonly MeasuredBundle[], base: Measured): string {
+function budgets(results: readonly MeasuredBundle[]): string {
   const rows = results.map((result) => {
-    const bytes = capped(result, base);
+    const bytes = result.capped;
     const max = result.bundle.budget;
     const left =
       bytes > max
@@ -57,8 +57,8 @@ function budgets(results: readonly MeasuredBundle[], base: Measured): string {
   ].join("\n");
 }
 
-export function over(result: MeasuredBundle, base: Measured): string {
-  return `over budget: ${label(result)} is ${amount(result, capped(result, base))}, budget ${amount(result, result.bundle.budget)}`;
+export function over(result: MeasuredBundle): string {
+  return `over budget: ${label(result)} is ${amount(result, result.capped)}, budget ${amount(result, result.bundle.budget)}`;
 }
 
 /** The `--json` output, keyed as `replace-bundle-size-claims` reads it. */
@@ -70,10 +70,8 @@ function json(results: readonly MeasuredBundle[]): string {
 }
 
 /** What a run prints: every bundle's sizes and the budgets, or the sizes as JSON. */
-export function report({ base, results, extra }: Measurement, asJson: boolean): string {
+export function report({ results, extra }: Measurement, asJson: boolean): string {
   return asJson
     ? json(results)
-    : [...[...extra, ...results].map((each) => `${sizes(each)}\n`), budgets(results, base)].join(
-        "\n",
-      );
+    : [...[...extra, ...results].map((each) => `${sizes(each)}\n`), budgets(results)].join("\n");
 }
