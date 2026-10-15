@@ -1,17 +1,22 @@
 import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../src/index.ts";
 import { Imports, type Bundle } from "./bundle.ts";
-import { Measured, MeasuredBundle, type AddsNothing, type BranchIgnored } from "./measure/index.ts";
+import {
+  Measured,
+  MeasuredBundle,
+  type AddsNothingError,
+  type BranchIgnoredError,
+} from "./measure/index.ts";
 import {
   measure,
   pack,
-  type CompileFailed,
-  type MinifyFailed,
-  type NoChunk,
-  type PackFailed,
+  type CompileError,
+  type MinifyError,
+  type NoChunkError,
+  type PackError,
 } from "./measure/toolchain.ts";
 
-export class NoBase extends TaggedError("NoBase")<{ message: string }> {}
+export class NoBaseError extends TaggedError("NoBaseError")<{ message: string }> {}
 
 export type Measurement = Val<
   "Measurement",
@@ -25,20 +30,26 @@ export const Measurement = Val.sealer<Measurement>();
 
 export type Suite = Val<"Suite", Bundle[]>;
 export const Suite = Val.sealer<Suite>().impl({
-  base: (suite): R<Imports, NoBase> => {
+  base: (suite): R<Imports, NoBaseError> => {
     const [first, ...others] = suite
       .filter((bundle) => bundle.base)
       .map((bundle) => bundle.imports);
     return first !== undefined
       ? R.ok(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
-      : R.err(new NoBase({ message: "no bundle sets base" }));
+      : R.err(new NoBaseError({ message: "no bundle sets base" }));
   },
   measure: (
     suite: Suite,
   ): Promise<
     R<
       Measurement,
-      PackFailed | NoBase | NoChunk | CompileFailed | MinifyFailed | BranchIgnored | AddsNothing
+      | PackError
+      | NoBaseError
+      | NoChunkError
+      | CompileError
+      | MinifyError
+      | BranchIgnoredError
+      | AddsNothingError
     >
   > =>
     R.gen(async function* () {

@@ -2,12 +2,15 @@ import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../../src/index.ts";
 import { Imports, type Bundle } from "../bundle.ts";
 
-export class BranchIgnored extends TaggedError("BranchIgnored")<{
+export class BranchIgnoredError extends TaggedError("BranchIgnoredError")<{
   imports: Imports;
   message: string;
 }> {}
 
-export class AddsNothing extends TaggedError("AddsNothing")<{ bundle: Bundle; message: string }> {}
+export class AddsNothingError extends TaggedError("AddsNothingError")<{
+  bundle: Bundle;
+  message: string;
+}> {}
 
 export type Mode = "production" | "development";
 export const modes: readonly Mode[] = ["production", "development"];
@@ -35,12 +38,12 @@ export type Measured = Val<
   }
 >;
 export const Measured = Val.sealer<Measured>().impl({
-  check: (measured): R<void, BranchIgnored> =>
+  check: (measured): R<void, BranchIgnoredError> =>
     !measured.readsNodeEnv ||
     measured.production.sizes.minified !== measured.development.sizes.minified
       ? R.ok()
       : R.err(
-          new BranchIgnored({
+          new BranchIgnoredError({
             imports: measured.imports,
             message: `production keeps the development branches: import { ${Imports.names(measured.imports).join(", ")} }`,
           }),
@@ -65,11 +68,11 @@ export const MeasuredBundle = Val.companion<MeasuredBundle>()
   }))
   .impl({
     over: (result): boolean => result.capped > result.bundle.budget,
-    check: (result, base: Measured): R<void, AddsNothing> =>
+    check: (result, base: Measured): R<void, AddsNothingError> =>
       result.bundle.base || result.measured.production.library !== base.production.library
         ? R.ok()
         : R.err(
-            new AddsNothing({
+            new AddsNothingError({
               bundle: result.bundle,
               message: `${result.bundle.name} adds nothing to the base, which already holds it`,
             }),

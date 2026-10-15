@@ -11,11 +11,11 @@ import { Val } from "../../../src/index.ts";
 import { Imports } from "../bundle.ts";
 import { Build, Measured, Sizes, type Mode } from "./index.ts";
 
-export class PackFailed extends TaggedError("PackFailed")<{ message: string }> {}
+export class PackError extends TaggedError("PackError")<{ message: string }> {}
 
-export class NoChunk extends TaggedError("NoChunk")<{ mode: Mode; message: string }> {}
+export class NoChunkError extends TaggedError("NoChunkError")<{ mode: Mode; message: string }> {}
 
-export class CompileFailed extends TaggedError("CompileFailed")<{
+export class CompileError extends TaggedError("CompileError")<{
   mode: Mode;
   step: string;
   cause: unknown;
@@ -26,7 +26,7 @@ export class CompileFailed extends TaggedError("CompileFailed")<{
   }
 }
 
-export class MinifyFailed extends TaggedError("MinifyFailed")<{
+export class MinifyError extends TaggedError("MinifyError")<{
   cause: unknown;
   message: string;
 }> {
@@ -37,7 +37,7 @@ export class MinifyFailed extends TaggedError("MinifyFailed")<{
 
 const root = new URL("../../../", import.meta.url);
 
-export function pack(): Promise<R<void, PackFailed>> {
+export function pack(): Promise<R<void, PackError>> {
   return R.tryPromise({
     try: async () => {
       await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), ["pack"], {
@@ -47,14 +47,14 @@ export function pack(): Promise<R<void, PackFailed>> {
     catch: (cause) => {
       const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
       const output = `${stdout}${stderr}` || String(cause);
-      return new PackFailed({ message: `vp pack failed\n${output}` });
+      return new PackError({ message: `vp pack failed\n${output}` });
     },
   });
 }
 
 export function measure(
   imports: Imports,
-): Promise<R<Measured, NoChunk | CompileFailed | MinifyFailed>> {
+): Promise<R<Measured, NoChunkError | CompileError | MinifyError>> {
   return R.gen(async function* () {
     const [production, development] = yield* R.await(
       R.allAsync([compile("production", imports), compile("development", imports)] as const),
@@ -82,12 +82,12 @@ export function measure(
 
 type Code = Val<"Code", string>;
 const Code = Val.sealer<Code>().impl({
-  minify: (code): R<Code, MinifyFailed> =>
+  minify: (code): R<Code, MinifyError> =>
     R.try({
       try: () => Code(minifySync("bundle.mjs", code).code),
-      catch: (cause) => new MinifyFailed({ cause }),
+      catch: (cause) => new MinifyError({ cause }),
     }),
-  sizes: (code): R<Sizes, MinifyFailed> =>
+  sizes: (code): R<Sizes, MinifyError> =>
     Code.minify(code).map((minified) => {
       const bytes = Buffer.from(minified, "utf8");
       return Sizes({
@@ -106,22 +106,22 @@ const Code = Val.sealer<Code>().impl({
 type Module = Val<"Module", string>;
 const Module = Val.sealer<Module>().impl({
   /** Whether the module's source reads `NODE_ENV`, before `define` replaces it. */
-  readsNodeEnv: (module, mode: Mode): Promise<R<boolean, CompileFailed>> =>
+  readsNodeEnv: (module, mode: Mode): Promise<R<boolean, CompileError>> =>
     R.tryPromise({
       try: async () => (await readFile(module, "utf8")).includes("NODE_ENV"),
-      catch: (cause) => new CompileFailed({ mode, step: "reading the library", cause }),
+      catch: (cause) => new CompileError({ mode, step: "reading the library", cause }),
     }),
 });
 
 type Compiled = Val<"Compiled", { code: Code; modules: Module[]; library: number }>;
 const Compiled = Val.sealer<Compiled>();
 
-function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | CompileFailed>> {
+function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError | CompileError>> {
   return R.gen(async function* () {
     const dir = yield* R.await(
       R.tryPromise({
         try: () => mkdtemp(join(tmpdir(), "valof-size-")),
-        catch: (cause) => new CompileFailed({ mode, step: "creating the entry directory", cause }),
+        catch: (cause) => new CompileError({ mode, step: "creating the entry directory", cause }),
       }),
     );
     const file = join(dir, "entry.mjs");
@@ -137,7 +137,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
               file,
               `${lines.join("\n")}\nconsole.log(${Imports.names(imports).join(", ")});\n`,
             ),
-          catch: (cause) => new CompileFailed({ mode, step: "writing the entry", cause }),
+          catch: (cause) => new CompileError({ mode, step: "writing the entry", cause }),
         }),
       );
       const result = yield* R.await(
@@ -155,12 +155,12 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
                 lib: { entry: file, formats: ["es"], fileName: "entry" },
               },
             })) as Rolldown.RolldownOutput[],
-          catch: (cause) => new CompileFailed({ mode, step: "the build", cause }),
+          catch: (cause) => new CompileError({ mode, step: "the build", cause }),
         }),
       );
       const chunk = result[0]?.output.find((output) => output.type === "chunk");
       if (chunk?.type !== "chunk") {
-        return R.err(new NoChunk({ mode, message: `no chunk emitted for ${mode}` }));
+        return R.err(new NoChunkError({ mode, message: `no chunk emitted for ${mode}` }));
       }
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
       return R.ok(
@@ -179,7 +179,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
     yield* R.await(
       R.tryPromise({
         try: () => rm(dir, { recursive: true, force: true }),
-        catch: (cause) => new CompileFailed({ mode, step: "removing the entry directory", cause }),
+        catch: (cause) => new CompileError({ mode, step: "removing the entry directory", cause }),
       }),
     );
     return built;
