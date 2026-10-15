@@ -44,11 +44,11 @@ import { flow, pipe, type Sink } from "./index.ts";
 const wrap = <T>(x: T): T[] => [x];
 const wrapAsync = async <T>(x: T): Promise<T[]> => [x];
 
-type Box<P> = { promise: P };
-interface Boxed extends Sink {
-  readonly out: Box<this["in"]>;
+type Held<P> = { promise: P };
+interface Holder extends Sink {
+  readonly out: Held<this["in"]>;
 }
-const boxed = { sink: (promise: unknown) => ({ promise }) } as unknown as Boxed;
+const holder = { sink: (promise: unknown) => ({ promise }) } as unknown as Holder;
 
 describe("pipe", () => {
   test("chains each step to the one before, at every length", () => {
@@ -74,10 +74,10 @@ ${tooMany("void flow")}
 ${lengths
   .map(
     (n) =>
-      `    expectTypeOf(flow(0, ${chain(n)}, boxed)).toEqualTypeOf<{ promise: Promise<${nested(n)}> }>();`,
+      `    expectTypeOf(flow(0, ${chain(n)}, holder)).toEqualTypeOf<{ promise: Promise<${nested(n)}> }>();`,
   )
   .join("\n")}
-${tooMany("flow", "boxed")}
+${tooMany("flow", "holder")}
   });
 });
 `;

@@ -6,11 +6,11 @@ import { flow, pipe, type Sink } from "./index.ts";
 const wrap = <T>(x: T): T[] => [x];
 const wrapAsync = async <T>(x: T): Promise<T[]> => [x];
 
-type Box<P> = { promise: P };
-interface Boxed extends Sink {
-  readonly out: Box<this["in"]>;
+type Held<P> = { promise: P };
+interface Holder extends Sink {
+  readonly out: Held<this["in"]>;
 }
-const boxed = { sink: (promise: unknown) => ({ promise }) } as unknown as Boxed;
+const holder = { sink: (promise: unknown) => ({ promise }) } as unknown as Holder;
 
 describe("pipe", () => {
   test("chains each step to the one before, at every length", () => {
@@ -466,28 +466,42 @@ describe("flow", () => {
   });
 
   test("hands the chain's promise to a sink, at every length", () => {
-    expectTypeOf(flow(0, wrapAsync, boxed)).toEqualTypeOf<{ promise: Promise<number[]> }>();
-    expectTypeOf(flow(0, wrap, wrapAsync, boxed)).toEqualTypeOf<{ promise: Promise<number[][]> }>();
-    expectTypeOf(flow(0, wrapAsync, wrap, wrapAsync, boxed)).toEqualTypeOf<{
+    expectTypeOf(flow(0, wrapAsync, holder)).toEqualTypeOf<{ promise: Promise<number[]> }>();
+    expectTypeOf(flow(0, wrap, wrapAsync, holder)).toEqualTypeOf<{
+      promise: Promise<number[][]>;
+    }>();
+    expectTypeOf(flow(0, wrapAsync, wrap, wrapAsync, holder)).toEqualTypeOf<{
       promise: Promise<number[][][]>;
     }>();
-    expectTypeOf(flow(0, wrap, wrapAsync, wrap, wrapAsync, boxed)).toEqualTypeOf<{
+    expectTypeOf(flow(0, wrap, wrapAsync, wrap, wrapAsync, holder)).toEqualTypeOf<{
       promise: Promise<number[][][][]>;
     }>();
-    expectTypeOf(flow(0, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, boxed)).toEqualTypeOf<{
+    expectTypeOf(flow(0, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, holder)).toEqualTypeOf<{
       promise: Promise<number[][][][][]>;
     }>();
-    expectTypeOf(flow(0, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, boxed)).toEqualTypeOf<{
+    expectTypeOf(flow(0, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, holder)).toEqualTypeOf<{
       promise: Promise<number[][][][][][]>;
     }>();
     expectTypeOf(
-      flow(0, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, boxed),
+      flow(0, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, holder),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][]> }>();
     expectTypeOf(
-      flow(0, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, boxed),
+      flow(0, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, holder),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][]> }>();
     expectTypeOf(
-      flow(0, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, boxed),
+      flow(
+        0,
+        wrapAsync,
+        wrap,
+        wrapAsync,
+        wrap,
+        wrapAsync,
+        wrap,
+        wrapAsync,
+        wrap,
+        wrapAsync,
+        holder,
+      ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][]> }>();
     expectTypeOf(
       flow(
@@ -502,7 +516,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][]> }>();
     expectTypeOf(
@@ -519,7 +533,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -537,7 +551,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -556,7 +570,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -576,7 +590,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -597,7 +611,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -619,7 +633,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -642,7 +656,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -666,7 +680,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -691,7 +705,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][][][][][][][][]> }>();
     expectTypeOf(
@@ -717,7 +731,7 @@ describe("flow", () => {
         wrapAsync,
         wrap,
         wrapAsync,
-        boxed,
+        holder,
       ),
     ).toEqualTypeOf<{ promise: Promise<number[][][][][][][][][][][][][][][][][][][][]> }>();
     flow(
@@ -744,7 +758,7 @@ describe("flow", () => {
       wrap,
       wrap,
       // @ts-expect-error no overload takes this many steps
-      boxed,
+      holder,
     );
   });
 });
