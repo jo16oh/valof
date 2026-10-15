@@ -16,14 +16,23 @@ export class NoChunk extends TaggedError("NoChunk")<{ mode: Mode; message: strin
 
 export class CompileFailed extends TaggedError("CompileFailed")<{
   mode: Mode;
+  step: string;
   cause: unknown;
   message: string;
-}> {}
+}> {
+  constructor({ mode, step, cause }: { mode: Mode; step: string; cause: unknown }) {
+    super({ mode, step, cause, message: `${step} failed for ${mode}: ${String(cause)}` });
+  }
+}
 
 export class MinifyFailed extends TaggedError("MinifyFailed")<{
   cause: unknown;
   message: string;
-}> {}
+}> {
+  constructor({ cause }: { cause: unknown }) {
+    super({ cause, message: `minify failed: ${String(cause)}` });
+  }
+}
 
 const root = new URL("../../../", import.meta.url);
 
@@ -66,18 +75,10 @@ export function measure(
   });
 }
 
-function attempt<T>(mode: Mode, step: string, run: () => Promise<T>): Promise<R<T, CompileFailed>> {
-  return R.tryPromise({
-    try: run,
-    catch: (cause) =>
-      new CompileFailed({ mode, cause, message: `${step} failed for ${mode}: ${String(cause)}` }),
-  });
-}
-
 function minify(code: string): R<string, MinifyFailed> {
   return R.try({
     try: () => minifySync("bundle.mjs", code).code,
-    catch: (cause) => new MinifyFailed({ cause, message: `minify failed: ${String(cause)}` }),
+    catch: (cause) => new MinifyFailed({ cause }),
   });
 }
 
@@ -86,7 +87,10 @@ type Compiled = { code: string; modules: string[]; library: number };
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | CompileFailed>> {
   return R.gen(async function* () {
     const dir = yield* R.await(
-      attempt(mode, "creating the entry directory", () => mkdtemp(join(tmpdir(), "valof-size-"))),
+      R.tryPromise({
+        try: () => mkdtemp(join(tmpdir(), "valof-size-")),
+        catch: (cause) => new CompileFailed({ mode, step: "creating the entry directory", cause }),
+      }),
     );
     const file = join(dir, "entry.mjs");
     const lines = Object.entries(imports).map(
@@ -95,18 +99,18 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
     );
     const built = await R.gen(async function* () {
       yield* R.await(
-        attempt(mode, "writing the entry", () =>
-          writeFile(
-            file,
-            `${lines.join("\n")}\nconsole.log(${Imports.names(imports).join(", ")});\n`,
-          ),
-        ),
+        R.tryPromise({
+          try: () =>
+            writeFile(
+              file,
+              `${lines.join("\n")}\nconsole.log(${Imports.names(imports).join(", ")});\n`,
+            ),
+          catch: (cause) => new CompileFailed({ mode, step: "writing the entry", cause }),
+        }),
       );
       const result = yield* R.await(
-        attempt(
-          mode,
-          "the build",
-          async () =>
+        R.tryPromise({
+          try: async () =>
             (await build({
               root: fileURLToPath(root),
               logLevel: "silent",
@@ -119,7 +123,8 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
                 lib: { entry: file, formats: ["es"], fileName: "entry" },
               },
             })) as Rolldown.RolldownOutput[],
-        ),
+          catch: (cause) => new CompileFailed({ mode, step: "the build", cause }),
+        }),
       );
       const chunk = result[0]?.output.find((output) => output.type === "chunk");
       if (chunk?.type !== "chunk") {
@@ -136,9 +141,10 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
     });
     // Removed whether or not the build succeeded.
     yield* R.await(
-      attempt(mode, "removing the entry directory", () =>
-        rm(dir, { recursive: true, force: true }),
-      ),
+      R.tryPromise({
+        try: () => rm(dir, { recursive: true, force: true }),
+        catch: (cause) => new CompileFailed({ mode, step: "removing the entry directory", cause }),
+      }),
     );
     return built;
   });
@@ -162,8 +168,11 @@ function sizes(code: string): R<Sizes, MinifyFailed> {
 
 /** Whether a module's source reads `NODE_ENV`, before `define` replaces it. */
 function readsNodeEnv(modules: readonly string[], mode: Mode): Promise<R<boolean, CompileFailed>> {
-  return attempt(mode, "reading the library", async () => {
-    const sources = await Promise.all(modules.map((module) => readFile(module, "utf8")));
-    return sources.some((source) => source.includes("NODE_ENV"));
+  return R.tryPromise({
+    try: async () => {
+      const sources = await Promise.all(modules.map((module) => readFile(module, "utf8")));
+      return sources.some((source) => source.includes("NODE_ENV"));
+    },
+    catch: (cause) => new CompileFailed({ mode, step: "reading the library", cause }),
   });
 }
