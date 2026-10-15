@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Result as R, TaggedError } from "better-result";
 import { minifySync, build, type Rolldown } from "vite";
+import { Val } from "../../../src/index.ts";
 import { Imports } from "../bundle.ts";
 import { Build, Measured, Sizes, type Mode } from "./index.ts";
 
@@ -82,7 +83,8 @@ function minify(code: string): R<string, MinifyFailed> {
   });
 }
 
-type Compiled = { code: string; modules: string[]; library: number };
+type Compiled = Val<"Compiled", { code: string; modules: string[]; library: number }>;
+const Compiled = Val.sealer<Compiled>();
 
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | CompileFailed>> {
   return R.gen(async function* () {
@@ -131,13 +133,15 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
         return R.err(new NoChunk({ mode, message: `no chunk emitted for ${mode}` }));
       }
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
-      return R.ok({
-        code: chunk.code,
-        modules: chunk.moduleIds.filter((id) => id !== chunk.facadeModuleId),
-        // A module's own `renderedLength` counts code that tree-shaking drops, so the library is
-        // what the chunk holds beyond its entry.
-        library: chunk.code.length - (entry?.renderedLength ?? 0),
-      });
+      return R.ok(
+        Compiled({
+          code: chunk.code,
+          modules: chunk.moduleIds.filter((id) => id !== chunk.facadeModuleId),
+          // A module's own `renderedLength` counts code that tree-shaking drops, so the library is
+          // what the chunk holds beyond its entry.
+          library: chunk.code.length - (entry?.renderedLength ?? 0),
+        }),
+      );
     });
     // Removed whether or not the build succeeded.
     yield* R.await(
