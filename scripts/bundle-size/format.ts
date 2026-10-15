@@ -1,6 +1,7 @@
 import { Imports } from "./bundle.ts";
 import { modes, type BuildResult, type BundleSize } from "./measure/index.ts";
 import type { Report } from "./suite.ts";
+import { pipe } from "./util/pipe/index.ts";
 
 export function over(size: BundleSize): string {
   return `over budget: ${label(size)} is ${amount(size, size.capped)}, budget ${amount(size, size.bundle.budget)}`;
@@ -40,46 +41,44 @@ function label({ bundle }: BundleSize): string {
 
 function sizes(build: BuildResult): string {
   const heads = ["minified", "gzip", "brotli"] as const;
-  const rows = align(
+  return pipe(
     [
       ["", ...heads],
       ...modes.map((mode) => [mode, ...heads.map((head) => format(build[mode].sizes[head]))]),
     ],
-    ["left", "right", "right", "right"],
+    (rows) => align(rows, ["left", "right", "right", "right"]),
+    (rows) => rows.map((cells) => `  ${cells.join("  ")}`),
+    (lines) => [`bundle  import { ${Imports.names(build.imports).join(", ")} }`, ...lines],
+    (lines) => lines.join("\n"),
   );
-
-  return [
-    `bundle  import { ${Imports.names(build.imports).join(", ")} }`,
-    ...rows.map((cells) => `  ${cells.join("  ")}`),
-  ].join("\n");
 }
 
 function budgets(bundles: readonly BundleSize[]): string {
-  const rows = bundles.map((size) => {
-    const bytes = size.capped;
-    const max = size.bundle.budget;
-    const left =
-      bytes > max
-        ? `${format(bytes - max)} over`
-        : `${format(max - bytes)} left (${Math.round((1 - bytes / max) * 100)}%)`;
-    return [label(size), amount(size, bytes), amount(size, max), left];
-  });
-
-  return [
-    "budget (production gzip)",
-    ...align(rows, ["left", "right", "right", "left"]).map(([name, used, limit, left]) =>
-      `  ${name}  ${used} / ${limit}  ${left}`.trimEnd(),
-    ),
-  ].join("\n");
+  return pipe(
+    bundles.map((size) => {
+      const bytes = size.capped;
+      const max = size.bundle.budget;
+      const left =
+        bytes > max
+          ? `${format(bytes - max)} over`
+          : `${format(max - bytes)} left (${Math.round((1 - bytes / max) * 100)}%)`;
+      return [label(size), amount(size, bytes), amount(size, max), left];
+    }),
+    (rows) => align(rows, ["left", "right", "right", "left"]),
+    (rows) =>
+      rows.map(([name, used, limit, left]) => `  ${name}  ${used} / ${limit}  ${left}`.trimEnd()),
+    (lines) => ["budget (production gzip)", ...lines],
+    (lines) => lines.join("\n"),
+  );
 }
 
 function json(bundles: readonly BundleSize[]): string {
-  const keyed = Object.fromEntries(
+  return pipe(
     bundles.map(({ bundle, build }) => [
       bundle.key,
       Object.fromEntries(modes.map((mode) => [mode, build[mode].sizes])),
     ]),
+    (entries) => Object.fromEntries(entries),
+    (keyed) => JSON.stringify(keyed, null, 2),
   );
-
-  return JSON.stringify(keyed, null, 2);
 }

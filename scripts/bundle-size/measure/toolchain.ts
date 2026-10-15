@@ -9,7 +9,7 @@ import { Result as R, TaggedError } from "better-result";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "../../../src/index.ts";
 import { Imports } from "../bundle.ts";
-import { flow } from "../util/pipe/index.ts";
+import { flow, pipe } from "../util/pipe/index.ts";
 import { GenAwait } from "../util/util.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
@@ -56,8 +56,7 @@ export function pack(): Promise<R<void, PackError>> {
     },
     catch: (cause) => {
       const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
-      const output = `${stdout}${stderr}` || String(cause);
-      return new PackError({ output });
+      return new PackError({ output: `${stdout}${stderr}` || String(cause) });
     },
   });
 }
@@ -142,10 +141,6 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
     );
 
     const file = join(dir, "entry.mjs");
-    const lines = Object.entries(imports).map(
-      ([module, names]) =>
-        `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
-    );
 
     const built = await R.gen(async function* () {
       yield* R.await(
@@ -153,13 +148,20 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
           try: () =>
             writeFile(
               file,
-              `${lines.join("\n")}\nconsole.log(${Imports.names(imports).join(", ")});\n`,
+              pipe(
+                Object.entries(imports).map(
+                  ([module, names]) =>
+                    `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
+                ),
+                (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
+                (lines) => lines.join("\n"),
+              ),
             ),
           catch: (cause) => new CompileError({ mode, step: "writing the entry", cause }),
         }),
       );
 
-      const result = yield* R.await(
+      const chunk = yield* flow(
         R.tryPromise({
           try: () =>
             build({
@@ -176,12 +178,12 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
             }) as Promise<Rolldown.RolldownOutput[]>,
           catch: (cause) => new CompileError({ mode, step: "the build", cause }),
         }),
+        R.map((result) => result[0]?.output.find((output) => output.type === "chunk")),
+        R.andThen((found) =>
+          found?.type === "chunk" ? R.ok(found) : R.err(new NoChunkError({ mode })),
+        ),
+        GenAwait,
       );
-
-      const found = result[0]?.output.find((output) => output.type === "chunk");
-      const chunk = yield* found?.type === "chunk"
-        ? R.ok(found)
-        : R.err(new NoChunkError({ mode }));
 
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
       return R.ok(
