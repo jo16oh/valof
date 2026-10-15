@@ -13,29 +13,42 @@ function nested(depth: number): string {
   return `number${"[]".repeat(depth)}`;
 }
 
-// The type error lands on the first step past the last overload, so the directive goes there.
-function tooMany(call: string): string {
+// The type error lands on the first argument no overload can take, so the directive goes there.
+function tooMany(call: string, last = "wrap"): string {
   return [
     `    ${call}(`,
     "      0,",
-    ...Array<string>(steps).fill("      wrap,"),
+    ...Array<string>(last === "wrap" ? steps : steps + 1).fill("      wrap,"),
     "      // @ts-expect-error no overload takes this many steps",
-    "      wrap,",
+    `      ${last},`,
     "    );",
   ].join("\n");
 }
 
+// The last step is async, so an overload whose result skips `Awaited` fails.
+function chain(n: number): string {
+  return lengths
+    .slice(0, n)
+    .map((i) => ((n - i) % 2 === 0 ? "wrapAsync" : "wrap"))
+    .join(", ");
+}
+
 const lengths = Array.from({ length: steps }, (_, i) => i + 1);
 
-// Every step changes the type, so an overload that wires a step to the wrong one fails. The last
-// step of each `flow` call is async, so an overload whose result skips `Awaited` fails too.
+// Every step changes the type, so an overload that wires a step to the wrong one fails.
 const tests = `${header}
 import { describe, expectTypeOf, test } from "vite-plus/test";
 
-import { flow, pipe } from "./index.ts";
+import { flow, pipe, type Sink } from "./index.ts";
 
 const wrap = <T>(x: T): T[] => [x];
 const wrapAsync = async <T>(x: T): Promise<T[]> => [x];
+
+type Box<P> = { promise: P };
+interface Boxed extends Sink {
+  readonly out: Box<this["in"]>;
+}
+const boxed = { sink: (promise: unknown) => ({ promise }) } as unknown as Boxed;
 
 describe("pipe", () => {
   test("chains each step to the one before, at every length", () => {
@@ -52,15 +65,19 @@ ${tooMany("pipe")}
 describe("flow", () => {
   test("chains each step to the resolved one before, at every length", () => {
 ${lengths
-  .map((n) => {
-    const chain = lengths
-      .slice(0, n)
-      .map((i) => ((n - i) % 2 === 0 ? "wrapAsync" : "wrap"))
-      .join(", ");
-    return `    expectTypeOf(flow(0, ${chain})).toEqualTypeOf<Promise<${nested(n)}>>();`;
-  })
+  .map((n) => `    expectTypeOf(flow(0, ${chain(n)})).toEqualTypeOf<Promise<${nested(n)}>>();`)
   .join("\n")}
 ${tooMany("void flow")}
+  });
+
+  test("hands the chain's promise to a sink, at every length", () => {
+${lengths
+  .map(
+    (n) =>
+      `    expectTypeOf(flow(0, ${chain(n)}, boxed)).toEqualTypeOf<{ promise: Promise<${nested(n)}> }>();`,
+  )
+  .join("\n")}
+${tooMany("flow", "boxed")}
   });
 });
 `;

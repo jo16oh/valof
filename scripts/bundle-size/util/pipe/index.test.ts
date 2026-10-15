@@ -3,7 +3,8 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, expectTypeOf, test, vi } from "vite-plus/test";
 
 import { generate } from "./generate-tests.ts";
-import { flow, pipe, tap } from "./index.ts";
+import { flow, pipe, tap, type Sink } from "./index.ts";
+import { GenAwait } from "../util.ts";
 
 class NotFoundError extends Error {}
 class InvalidError extends Error {}
@@ -41,6 +42,52 @@ describe("flow", () => {
     );
     expectTypeOf(length).toEqualTypeOf<Promise<R<number, NotFoundError | InvalidError>>>();
     expect((await length).unwrap()).toBe(6);
+  });
+
+  test("hands the chain's promise, not its value, to a sink", async () => {
+    const seen = vi.fn();
+    const handed = flow(1, (n) => n + 1, {
+      sink: (promise: unknown) => {
+        seen(promise);
+        return "handed";
+      },
+    } as unknown as Sink);
+    expect(handed).toBe("handed");
+    const [promise] = seen.mock.calls[0] ?? [];
+    expect(promise).toBeInstanceOf(Promise);
+    expect(await promise).toBe(2);
+  });
+});
+
+describe("GenAwait", () => {
+  test("gives a Result generator the Ok value as flow's last step", async () => {
+    const result = await R.gen(async function* () {
+      const n = yield* flow(
+        R.ok<number, NotFoundError>(1),
+        R.map((n) => n + 1),
+        GenAwait,
+      );
+      expectTypeOf(n).toEqualTypeOf<number>();
+      return R.ok(n * 10);
+    });
+    expectTypeOf(result).toEqualTypeOf<R<number, NotFoundError>>();
+    expect(result.unwrap()).toBe(20);
+  });
+
+  test("stops a Result generator at an Err as flow's last step", async () => {
+    const error = new NotFoundError();
+    const after = vi.fn();
+    const result = await R.gen(async function* () {
+      yield* flow(
+        R.err<number, NotFoundError>(error),
+        R.map((n) => n + 1),
+        GenAwait,
+      );
+      after();
+      return R.ok(0);
+    });
+    expect(result.isErr() && result.error).toBe(error);
+    expect(after).not.toHaveBeenCalled();
   });
 });
 
