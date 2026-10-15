@@ -145,18 +145,17 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
     const built = await R.gen(async function* () {
       yield* R.await(
         R.tryPromise({
-          try: () =>
-            writeFile(
-              file,
-              pipe(
-                Object.entries(imports).map(
-                  ([module, names]) =>
-                    `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
-                ),
-                (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
-                (lines) => lines.join("\n"),
+          try: () => {
+            const content = pipe(
+              Object.entries(imports).map(
+                ([module, names]) =>
+                  `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
               ),
-            ),
+              (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
+              (lines) => lines.join("\n"),
+            );
+            return writeFile(file, content);
+          },
           catch: (cause) => new CompileError({ mode, step: "writing the entry", cause }),
         }),
       );
@@ -186,6 +185,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
       );
 
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
+
       return R.ok(
         Compiled({
           code: Code(chunk.code),
