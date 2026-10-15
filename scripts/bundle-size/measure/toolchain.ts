@@ -44,6 +44,32 @@ export function pack(): Promise<R<void, PackFailed>> {
   });
 }
 
+export function measure(
+  imports: Imports,
+): Promise<R<Measured, NoChunk | CompileFailed | MinifyFailed>> {
+  return R.gen(async function* () {
+    const [production, development] = yield* R.await(
+      R.allAsync([compile("production", imports), compile("development", imports)] as const),
+    );
+    return R.ok(
+      Measured({
+        imports,
+        branches: yield* R.await(branches(development.modules, "development")),
+        production: Build({
+          code: production.code,
+          sizes: yield* sizes(production.code),
+          library: production.library,
+        }),
+        development: Build({
+          code: development.code,
+          sizes: yield* sizes(development.code),
+          library: development.library,
+        }),
+      }),
+    );
+  });
+}
+
 function attempt<T>(mode: Mode, step: string, run: () => Promise<T>): Promise<R<T, CompileFailed>> {
   return R.tryPromise({
     try: run,
@@ -144,31 +170,5 @@ function branches(modules: readonly string[], mode: Mode): Promise<R<boolean, Co
   return attempt(mode, "reading the library", async () => {
     const sources = await Promise.all(modules.map((module) => readFile(module, "utf8")));
     return sources.some((source) => source.includes("NODE_ENV"));
-  });
-}
-
-export function measure(
-  imports: Imports,
-): Promise<R<Measured, NoChunk | CompileFailed | MinifyFailed>> {
-  return R.gen(async function* () {
-    const [production, development] = yield* R.await(
-      R.allAsync([compile("production", imports), compile("development", imports)] as const),
-    );
-    return R.ok(
-      Measured({
-        imports,
-        branches: yield* R.await(branches(development.modules, "development")),
-        production: Build({
-          code: production.code,
-          sizes: yield* sizes(production.code),
-          library: production.library,
-        }),
-        development: Build({
-          code: development.code,
-          sizes: yield* sizes(development.code),
-          library: development.library,
-        }),
-      }),
-    );
   });
 }
