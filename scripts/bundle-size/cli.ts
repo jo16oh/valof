@@ -8,30 +8,26 @@ export const Cli = {
    * failing exit code when measuring fails or a bundle is over its budget.
    */
   run: async (suite: Suite): Promise<void> => {
-    const measured = await Suite.measure(suite);
-
-    if (measured.isErr()) {
-      console.error(measured.error.message);
-      process.exitCode = 1;
-      return;
-    }
-    const { base, results, extra } = measured.value;
-
-    if (process.argv.includes("--json")) {
-      console.log(json(results));
-    } else {
-      for (const each of [...extra, ...results]) {
-        console.log(sizes(each));
-        console.log();
-      }
-      console.log(budgets(results, base));
-    }
-
-    const exceeded = results.filter((result) => capped(result, base) > result.bundle.budget);
-    if (exceeded.length > 0) {
-      console.error();
-      for (const result of exceeded) console.error(over(result, base));
-      process.exitCode = 1;
-    }
+    process.exitCode = (await Suite.measure(suite)).match({
+      ok: ({ base, results, extra }) => {
+        console.log(
+          process.argv.includes("--json")
+            ? json(results)
+            : [
+                ...[...extra, ...results].map((each) => `${sizes(each)}\n`),
+                budgets(results, base),
+              ].join("\n"),
+        );
+        const overs = results
+          .filter((result) => capped(result, base) > result.bundle.budget)
+          .map((result) => over(result, base));
+        for (const line of overs.length > 0 ? ["", ...overs] : []) console.error(line);
+        return overs.length > 0 ? 1 : 0;
+      },
+      err: (error) => {
+        console.error(error.message);
+        return 1;
+      },
+    });
   },
 };
