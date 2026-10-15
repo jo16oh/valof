@@ -2,6 +2,7 @@ import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../src/index.ts";
 import { Imports, type Bundle } from "./bundle.ts";
 import { flow } from "./util/pipe/index.ts";
+import { GenAwait } from "./util/util.ts";
 import {
   BuildResult,
   BundleSize,
@@ -55,27 +56,37 @@ export const Suite = Val.sealer<Suite>().impl({
   > =>
     R.gen(async function* () {
       yield* R.await(pack());
+
       const baseImports = yield* Suite.base(suite);
-      const results = yield* R.await(
-        R.allAsync(
-          suite.map((bundle) =>
-            flow(
-              bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports),
-              measure,
-              R.map((build) => ({ bundle, build })),
-            ),
+      const results = yield* flow(
+        suite.map((bundle) =>
+          flow(
+            bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports),
+            measure,
+            R.map((build) => ({ bundle, build })),
           ),
         ),
+        R.allAsync,
+        GenAwait,
       );
+
       const [only, ...more] = results.filter(({ bundle }) => bundle.base);
       const base =
-        only !== undefined && more.length === 0 ? only.build : yield* R.await(measure(baseImports));
+        only !== undefined && more.length === 0
+          ? only.build
+          : yield* flow(baseImports, measure, GenAwait);
       const separateBase = base === only?.build ? [] : [base];
+
       for (const build of [...separateBase, ...results.map(({ build }) => build)]) {
         yield* BuildResult.check(build);
       }
+
       const bundles = results.map(({ bundle, build }) => BundleSize.create(bundle, build, base));
-      for (const size of bundles) yield* BundleSize.check(size, base);
+
+      for (const size of bundles) {
+        yield* BundleSize.check(size, base);
+      }
+
       return R.ok(Report({ base, bundles, separateBase }));
     }),
 });
