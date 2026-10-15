@@ -17,13 +17,17 @@ import {
 export class NoBase extends TaggedError("NoBase")<{ message: string }> {}
 
 /** What measuring a suite found. */
-export type Measurement = {
-  /** The base, which every bundle not in it is measured on top of. */
-  base: Measured;
-  results: MeasuredBundle[];
-  /** The base again, when it was measured apart from every bundle, so `results` leaves it out. */
-  extra: Measured[];
-};
+export type Measurement = Val<
+  "Measurement",
+  {
+    /** The base, which every bundle not in it is measured on top of. */
+    base: Measured;
+    results: MeasuredBundle[];
+    /** The base again, when it was measured apart from every bundle, so `results` leaves it out. */
+    extra: Measured[];
+  }
+>;
+export const Measurement = Val.sealer<Measurement>();
 
 /** The bundles measured together, against the base they share. */
 export type Suite = Val<"Suite", Bundle[]>;
@@ -78,12 +82,14 @@ export const Suite = Val.sealer<Suite>().impl({
       for (const measured of [...extra, ...results.map(({ measured }) => measured)]) {
         yield* Measured.check(measured);
       }
-      return R.ok({
-        base,
-        results: results.map(({ bundle, measured }) =>
-          MeasuredBundle.create(bundle, measured, base),
-        ),
-        extra,
-      });
+      return R.ok(
+        Measurement({
+          base,
+          results: results.map(({ bundle, measured }) =>
+            MeasuredBundle.create(bundle, measured, base),
+          ),
+          extra,
+        }),
+      );
     }),
 });
