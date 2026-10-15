@@ -64,11 +64,11 @@ export function measure(
         imports,
         readsNodeEnv: yield* R.await(Modules.readsNodeEnv(development.modules, "development")),
         production: Build({
-          sizes: yield* sizes(production.code),
+          sizes: yield* Code.sizes(production.code),
           library: production.library,
         }),
         development: Build({
-          sizes: yield* sizes(development.code),
+          sizes: yield* Code.sizes(development.code),
           library: development.library,
         }),
       }),
@@ -76,12 +76,28 @@ export function measure(
   });
 }
 
-function minify(code: string): R<string, MinifyFailed> {
-  return R.try({
-    try: () => minifySync("bundle.mjs", code).code,
-    catch: (cause) => new MinifyFailed({ cause }),
-  });
-}
+type Code = Val<"Code", string>;
+const Code = Val.sealer<Code>().impl({
+  minify: (code): R<Code, MinifyFailed> =>
+    R.try({
+      try: () => Code(minifySync("bundle.mjs", code).code),
+      catch: (cause) => new MinifyFailed({ cause }),
+    }),
+  sizes: (code): R<Sizes, MinifyFailed> =>
+    Code.minify(code).map((minified) => {
+      const bytes = Buffer.from(minified, "utf8");
+      return Sizes({
+        minified: bytes.byteLength,
+        gzip: gzipSync(bytes, { level: 9 }).byteLength,
+        brotli: brotliCompressSync(bytes, {
+          params: {
+            [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
+            [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
+          },
+        }).byteLength,
+      });
+    }),
+});
 
 type Modules = Val<"Modules", string[]>;
 const Modules = Val.sealer<Modules>().impl({
@@ -96,7 +112,7 @@ const Modules = Val.sealer<Modules>().impl({
     }),
 });
 
-type Compiled = Val<"Compiled", { code: string; modules: Modules; library: number }>;
+type Compiled = Val<"Compiled", { code: Code; modules: Modules; library: number }>;
 const Compiled = Val.sealer<Compiled>();
 
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | CompileFailed>> {
@@ -148,7 +164,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
       return R.ok(
         Compiled({
-          code: chunk.code,
+          code: Code(chunk.code),
           modules: Modules(chunk.moduleIds.filter((id) => id !== chunk.facadeModuleId)),
           // A module's own `renderedLength` counts code that tree-shaking drops, so the library is
           // what the chunk holds beyond its entry.
@@ -164,21 +180,5 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunk | Co
       }),
     );
     return built;
-  });
-}
-
-function sizes(code: string): R<Sizes, MinifyFailed> {
-  return minify(code).map((minified) => {
-    const bytes = Buffer.from(minified, "utf8");
-    return Sizes({
-      minified: bytes.byteLength,
-      gzip: gzipSync(bytes, { level: 9 }).byteLength,
-      brotli: brotliCompressSync(bytes, {
-        params: {
-          [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
-          [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
-        },
-      }).byteLength,
-    });
   });
 }
