@@ -113,12 +113,16 @@ export function flow(a: unknown, ...steps: Step<unknown, unknown>[]): Promise<un
 }
 
 /**
- * A step that calls `fn` with the value and passes the value on. A promise `fn` returns is not
- * awaited.
+ * A step that calls `fn` with the value and passes the value on. When `fn` returns a promise, the
+ * step waits for it and passes the value on in a promise.
  */
-export function tap<A>(fn: (a: A) => unknown): Step<A, A> {
+// An `fn` that returns `any` or `unknown` gives `A | Promise<A>`, since only the call tells which.
+export function tap<A, R>(
+  fn: (a: A) => R,
+): (a: A) => unknown extends R ? A | Promise<A> : R extends Promise<unknown> ? Promise<A> : A;
+export function tap<A>(fn: (a: A) => unknown): (a: A) => A | Promise<A> {
   return (a) => {
-    fn(a);
-    return a;
+    const result = fn(a);
+    return result instanceof Promise ? result.then(() => a) : a;
   };
 }

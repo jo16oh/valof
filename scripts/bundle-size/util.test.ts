@@ -62,11 +62,69 @@ describe("tap", () => {
     const seen = vi.fn();
     const result = pipe(
       1,
-      tap((n) => seen(n.toFixed(1))),
+      tap((n) => {
+        seen(n.toFixed(1));
+      }),
       (n) => n + 1,
     );
     expectTypeOf(result).toEqualTypeOf<number>();
     expect(seen).toHaveBeenCalledWith("1.0");
     expect(result).toBe(2);
+  });
+
+  test("awaits the promise the function returns before the next step", async () => {
+    const order: string[] = [];
+    const tapped = pipe(
+      1,
+      tap(
+        () =>
+          new Promise<void>((resolve) =>
+            setTimeout(() => {
+              order.push("tap");
+              resolve();
+            }),
+          ),
+      ),
+    );
+    expectTypeOf(tapped).toEqualTypeOf<Promise<number>>();
+    expect(
+      await flow(tapped, (n) => {
+        order.push("next");
+        return n + 1;
+      }),
+    ).toBe(2);
+    expect(order).toEqual(["tap", "next"]);
+  });
+
+  test("types the step as a value or a promise when the function's result is any or unknown", () => {
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    expectTypeOf(tap<number, any>(() => undefined)).returns.toEqualTypeOf<
+      number | Promise<number>
+    >();
+    expectTypeOf(tap<number, unknown>(() => undefined)).returns.toEqualTypeOf<
+      number | Promise<number>
+    >();
+  });
+
+  test("passes the value on directly when the function returns a non-native thenable", () => {
+    const settled = Promise.resolve();
+    // oxlint-disable-next-line no-thenable -- the case under test
+    const thenable: PromiseLike<void> = { then: (onfulfilled) => settled.then(onfulfilled) };
+    const result = pipe(
+      1,
+      tap(() => thenable),
+    );
+    expectTypeOf(result).toEqualTypeOf<number>();
+    expect(result).toBe(1);
+  });
+
+  test("rejects with the rejection of the promise the function returns", async () => {
+    const error = new Error("failed");
+    await expect(
+      flow(
+        1,
+        tap(() => Promise.reject(error)),
+      ),
+    ).rejects.toBe(error);
   });
 });
