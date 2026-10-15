@@ -33,20 +33,15 @@ const modes = ["production", "development"] as const;
  * The declarations are not measured here. They cost a download and a parse, never a byte in the
  * user's bundle, and `type-perf` already measures what reads them.
  *
- * `traitGzip` and `enumGzip` are the first budget plus what each adds, so the pair says the line
- * rather than a second round number: what an experimental import costs is the number to read.
+ * `val` caps the core. The others cap what each entry adds to the measured core, so growth in the
+ * core spends only the core's room: what an import costs is the number to read.
  */
-const BUDGET_VAL = 1024;
-const BUDGET_VAL_PLUS_EQUALS = BUDGET_VAL + 128;
-const BUDGET_VAL_PLUS_TRAIT = BUDGET_VAL + 256;
-const BUDGET_VAL_PLUS_ENUM = BUDGET_VAL + 384;
-const BUDGET_ALL = BUDGET_VAL + 640;
 const budget = {
-  val: BUDGET_VAL,
-  equals: BUDGET_VAL_PLUS_EQUALS,
-  traitGzip: BUDGET_VAL_PLUS_TRAIT,
-  enumGzip: BUDGET_VAL_PLUS_ENUM,
-  all: BUDGET_ALL,
+  val: 1024,
+  equals: 256,
+  trait: 256,
+  enum: 640,
+  all: 1024,
 };
 
 type Sizes = { minified: number; gzip: number; brotli: number };
@@ -159,25 +154,30 @@ const measured = {
   all: bundles.all,
 };
 
+const core = measured.val.production.gzip;
+const added = (name: Exclude<keyof typeof measured, "val">) =>
+  measured[name].production.gzip - core;
+
+// The sign marks a budget on what an entry adds to the core.
 const checks = [
-  ["production gzip", measured.val.production.gzip, budget.val],
-  ["production gzip, with Equals", measured.equals.production.gzip, budget.equals],
-  ["production gzip, with Trait", measured.trait.production.gzip, budget.traitGzip],
-  ["production gzip, with Enum", measured.enum.production.gzip, budget.enumGzip],
-  ["production gzip, all", measured.all.production.gzip, budget.all],
+  ["production gzip", core, budget.val, ""],
+  ["added by Equals", added("equals"), budget.equals, "+"],
+  ["added by Trait", added("trait"), budget.trait, "+"],
+  ["added by Enum", added("enum"), budget.enum, "+"],
+  ["added by all", added("all"), budget.all, "+"],
 ] as const;
 
 function budgets(): string {
   const label = Math.max(...checks.map(([name]) => name.length));
-  const used = Math.max(...checks.map(([, size]) => format(size).length));
-  const limit = Math.max(...checks.map(([, , max]) => format(max).length));
+  const used = Math.max(...checks.map(([, size, , sign]) => `${sign}${format(size)}`.length));
+  const limit = Math.max(...checks.map(([, , max, sign]) => `${sign}${format(max)}`.length));
   return checks
-    .map(([name, size, max]) => {
+    .map(([name, size, max, sign]) => {
       const left =
         size > max
           ? `${format(size - max)} over`
           : `${format(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
-      return `  ${name.padEnd(label)}  ${format(size).padStart(used)} / ${format(max).padStart(limit)}  ${left}`;
+      return `  ${name.padEnd(label)}  ${`${sign}${format(size)}`.padStart(used)} / ${`${sign}${format(max)}`.padStart(limit)}  ${left}`;
     })
     .join("\n");
 }
@@ -198,8 +198,8 @@ const over = checks.filter(([, bytes, max]) => bytes > max);
 
 if (over.length > 0) {
   console.error();
-  for (const [name, bytes, max] of over) {
-    console.error(`over budget: ${name} is ${format(bytes)}, budget ${format(max)}`);
+  for (const [name, bytes, max, sign] of over) {
+    console.error(`over budget: ${name} is ${sign}${format(bytes)}, budget ${sign}${format(max)}`);
   }
   process.exit(1);
 }
