@@ -6571,10 +6571,10 @@ import しない core で「equals が残っている」と出た。development 
 
 今は 2 つの検査とも、特定の名前や文字列に頼らず、サイズで比べる。
 
-| 検査                 | 失敗する条件                                                                                         |
-| -------------------- | ---------------------------------------------------------------------------------------------------- |
-| `BranchIgnoredError` | バンドルに入ったソースが `NODE_ENV` を読むのに、production と development の minify 後のサイズが同じ |
-| `AddsNothingError`   | ベースの上に積んだバンドルのライブラリ部分が、ベースと同じ長さ。足した import はベースに入っている   |
+| 検査               | 失敗する条件                                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------------------------- |
+| `DevCodeKeptError` | バンドルに入ったソースが `NODE_ENV` を読むのに、production と development の minify 後のサイズが同じ |
+| `AddsNothingError` | ベースの上に積んだバンドルのライブラリ部分が、ベースと同じ長さ。足した import はベースに入っている   |
 
 - **ライブラリ部分は「チャンクの長さ − エントリの `renderedLength`」で測る。**エントリは import した名前を
   `console.log` に渡すので、全体を比べると名前の分だけ必ず違う。各モジュールの `renderedLength` は
@@ -6586,7 +6586,7 @@ import しない core で「equals が残っている」と出た。development 
 | 壊し方                                                         | 結果                                       |
 | -------------------------------------------------------------- | ------------------------------------------ |
 | `src/val.ts` のトップレベルで `equals` を参照し、core に漏らす | `AddsNothingError`                         |
-| `define` を効かなくし、両方のモードを同じコードにする          | `BranchIgnoredError`                       |
+| `define` を効かなくし、両方のモードを同じコードにする          | `DevCodeKeptError`                         |
 | `development` を `true` に固定する                             | 検査は通る。ソースが `NODE_ENV` を読まない |
 
 **拾えないもの: development 用の分岐の一部だけが production に残る場合。**`development` で囲み忘れた
@@ -6596,6 +6596,14 @@ import しない core で「equals が残っている」と出た。development 
 **却下: 検査をやめて予算に任せる。**core の余り 128 B より大きい漏れは予算が拾う。実測では development 用の
 コードが約 +790 B、`equals` が +187 B。ただし `equals` は余りより 59 B 大きいだけで、core が増えないまま
 core の予算を 60 B 上げれば通る。サイズの比較は余りに左右されない。
+
+**名前は検査の範囲に合わせる、2026-10-16。**`BranchIgnoredError` を `DevCodeKeptError` に改めた。前の名前は、
+何の分岐を何が無視したのかを言っていなかった。
+
+- **却下: `TreeShakingError`。**tree-shaking は使われない export やモジュールを落とすこと。`if` の分岐を消すのは
+  dead code elimination で、別の工程
+- **却下: `DeadCodeEliminationError`。**この検査が見るのは development 用の分岐だけで、dead code 全般ではない。
+  名前が検査の保証より広い
 
 ---
 
