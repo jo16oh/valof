@@ -1,0 +1,124 @@
+type Step<A, B> = (a: A) => B;
+type AsyncStep<A, B> = (a: Awaited<A>) => B;
+
+/** Passes `a` through each step from left to right. */
+export function pipe<A, B>(a: A, ab: Step<A, B>): B;
+export function pipe<A, B, C>(a: A, ab: Step<A, B>, bc: Step<B, C>): C;
+export function pipe<A, B, C, D>(a: A, ab: Step<A, B>, bc: Step<B, C>, cd: Step<C, D>): D;
+export function pipe<A, B, C, D, E>(
+  a: A,
+  ab: Step<A, B>,
+  bc: Step<B, C>,
+  cd: Step<C, D>,
+  de: Step<D, E>,
+): E;
+export function pipe<A, B, C, D, E, F>(
+  a: A,
+  ab: Step<A, B>,
+  bc: Step<B, C>,
+  cd: Step<C, D>,
+  de: Step<D, E>,
+  ef: Step<E, F>,
+): F;
+export function pipe<A, B, C, D, E, F, G>(
+  a: A,
+  ab: Step<A, B>,
+  bc: Step<B, C>,
+  cd: Step<C, D>,
+  de: Step<D, E>,
+  ef: Step<E, F>,
+  fg: Step<F, G>,
+): G;
+export function pipe<A, B, C, D, E, F, G, H>(
+  a: A,
+  ab: Step<A, B>,
+  bc: Step<B, C>,
+  cd: Step<C, D>,
+  de: Step<D, E>,
+  ef: Step<E, F>,
+  fg: Step<F, G>,
+  gh: Step<G, H>,
+): H;
+export function pipe<A, B, C, D, E, F, G, H, I>(
+  a: A,
+  ab: Step<A, B>,
+  bc: Step<B, C>,
+  cd: Step<C, D>,
+  de: Step<D, E>,
+  ef: Step<E, F>,
+  fg: Step<F, G>,
+  gh: Step<G, H>,
+  hi: Step<H, I>,
+): I;
+export function pipe(a: unknown, ...steps: Step<unknown, unknown>[]): unknown {
+  return steps.reduce((value, step) => step(value), a);
+}
+
+/** {@link pipe} that awaits `a` and every step's result before the next step. */
+export function flow<A, B>(a: A, ab: AsyncStep<A, B>): Promise<Awaited<B>>;
+export function flow<A, B, C>(a: A, ab: AsyncStep<A, B>, bc: AsyncStep<B, C>): Promise<Awaited<C>>;
+export function flow<A, B, C, D>(
+  a: A,
+  ab: AsyncStep<A, B>,
+  bc: AsyncStep<B, C>,
+  cd: AsyncStep<C, D>,
+): Promise<Awaited<D>>;
+export function flow<A, B, C, D, E>(
+  a: A,
+  ab: AsyncStep<A, B>,
+  bc: AsyncStep<B, C>,
+  cd: AsyncStep<C, D>,
+  de: AsyncStep<D, E>,
+): Promise<Awaited<E>>;
+export function flow<A, B, C, D, E, F>(
+  a: A,
+  ab: AsyncStep<A, B>,
+  bc: AsyncStep<B, C>,
+  cd: AsyncStep<C, D>,
+  de: AsyncStep<D, E>,
+  ef: AsyncStep<E, F>,
+): Promise<Awaited<F>>;
+export function flow<A, B, C, D, E, F, G>(
+  a: A,
+  ab: AsyncStep<A, B>,
+  bc: AsyncStep<B, C>,
+  cd: AsyncStep<C, D>,
+  de: AsyncStep<D, E>,
+  ef: AsyncStep<E, F>,
+  fg: AsyncStep<F, G>,
+): Promise<Awaited<G>>;
+export function flow<A, B, C, D, E, F, G, H>(
+  a: A,
+  ab: AsyncStep<A, B>,
+  bc: AsyncStep<B, C>,
+  cd: AsyncStep<C, D>,
+  de: AsyncStep<D, E>,
+  ef: AsyncStep<E, F>,
+  fg: AsyncStep<F, G>,
+  gh: AsyncStep<G, H>,
+): Promise<Awaited<H>>;
+export function flow<A, B, C, D, E, F, G, H, I>(
+  a: A,
+  ab: AsyncStep<A, B>,
+  bc: AsyncStep<B, C>,
+  cd: AsyncStep<C, D>,
+  de: AsyncStep<D, E>,
+  ef: AsyncStep<E, F>,
+  fg: AsyncStep<F, G>,
+  gh: AsyncStep<G, H>,
+  hi: AsyncStep<H, I>,
+): Promise<Awaited<I>>;
+export function flow(a: unknown, ...steps: Step<unknown, unknown>[]): Promise<unknown> {
+  return steps.reduce<Promise<unknown>>((value, step) => value.then(step), Promise.resolve(a));
+}
+
+/**
+ * A step that calls `fn` with the value and passes the value on. A promise `fn` returns is not
+ * awaited.
+ */
+export function tap<A>(fn: (a: A) => unknown): Step<A, A> {
+  return (a) => {
+    fn(a);
+    return a;
+  };
+}
