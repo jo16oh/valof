@@ -46,79 +46,69 @@ type Bundle = Val<
     key: string;
     /** The bundle's name in the budget table. */
     name: string;
+    /**
+     * Whether the bundle joins the base, which every base bundle forms together. A base bundle is
+     * capped by its whole size. Every other bundle is measured on top of the base and capped by
+     * what it adds, so growth in the base spends only the base's room: what an import costs is the
+     * number to read.
+     */
+    base?: boolean;
     imports: Imports;
     budget: number;
   }
 >;
 const Bundle = Val.sealer<Bundle>();
 
-type Registered = { bundle: Bundle; base: boolean };
-
-/**
- * Collects the bundles to measure. The base is every bundle registered with `base` set, bundled
- * together. Each of those is capped by its whole size. Every other bundle is measured on top of
- * the base and capped by what it adds, so growth in the base spends only the base's room: what an
- * import costs is the number to read.
- */
-type Registry = {
-  register: (bundle: Bundle, base: boolean) => Registry;
-  registered: readonly Registered[];
-};
-const registry = (registered: readonly Registered[] = []): Registry => ({
-  register: (bundle, base) => registry([...registered, { bundle, base }]),
-  registered,
+/** The bundles to measure. */
+type Registry = Val<"Registry", Bundle[]>;
+const Registry = Val.sealer<Registry>().impl({
+  /** What the base imports: every base bundle's imports, merged. */
+  base: (registry): Imports => {
+    const [first, ...others] = registry
+      .filter((bundle) => bundle.base)
+      .map((bundle) => bundle.imports);
+    if (first === undefined) throw new Error("no bundle sets base");
+    return others.reduce((merged, imports) => Imports.merge(merged, imports), first);
+  },
 });
 
 // `Trait` and `Enum` ship from their own subpath, so a bundle names the module per import.
-const { registered } = registry()
-  .register(
-    Bundle({
-      key: "val",
-      name: "Val",
-      imports: Imports({ "./dist/index.mjs": ["Val"] }),
-      budget: 1024,
+const registry = Registry([
+  Bundle({
+    key: "val",
+    name: "Val",
+    base: true,
+    imports: Imports({ "./dist/index.mjs": ["Val"] }),
+    budget: 1024,
+  }),
+  Bundle({
+    key: "equals",
+    name: "Equals",
+    imports: Imports({ "./dist/index.mjs": ["equals"] }),
+    budget: 256,
+  }),
+  Bundle({
+    key: "trait",
+    name: "Trait",
+    imports: Imports({ "./dist/experimental.mjs": ["Trait"] }),
+    budget: 256,
+  }),
+  Bundle({
+    key: "enum",
+    name: "Enum",
+    imports: Imports({ "./dist/experimental.mjs": ["Enum"] }),
+    budget: 640,
+  }),
+  Bundle({
+    key: "all",
+    name: "All",
+    imports: Imports({
+      "./dist/index.mjs": ["equals"],
+      "./dist/experimental.mjs": ["Enum", "Trait"],
     }),
-    true,
-  )
-  .register(
-    Bundle({
-      key: "equals",
-      name: "Equals",
-      imports: Imports({ "./dist/index.mjs": ["equals"] }),
-      budget: 256,
-    }),
-    false,
-  )
-  .register(
-    Bundle({
-      key: "trait",
-      name: "Trait",
-      imports: Imports({ "./dist/experimental.mjs": ["Trait"] }),
-      budget: 256,
-    }),
-    false,
-  )
-  .register(
-    Bundle({
-      key: "enum",
-      name: "Enum",
-      imports: Imports({ "./dist/experimental.mjs": ["Enum"] }),
-      budget: 640,
-    }),
-    false,
-  )
-  .register(
-    Bundle({
-      key: "all",
-      name: "All",
-      imports: Imports({
-        "./dist/index.mjs": ["equals"],
-        "./dist/experimental.mjs": ["Enum", "Trait"],
-      }),
-      budget: 1024,
-    }),
-    false,
-  );
+    budget: 1024,
+  }),
+]);
 
 async function compile(mode: Mode, imports: Imports): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "valof-size-"));
@@ -219,20 +209,15 @@ async function measure(imports: Imports): Promise<Measured> {
   };
 }
 
-const bases = registered.filter(({ base }) => base).map(({ bundle }) => bundle.imports);
-const [first, ...others] = bases;
-if (first === undefined) throw new Error("register at least one bundle as the base");
-const baseImports = others.reduce((merged, imports) => Imports.merge(merged, imports), first);
+const baseImports = Registry.base(registry);
 
 const results = await Promise.all(
-  registered.map(async (entry) => ({
-    ...entry,
-    ...(await measure(
-      entry.base ? entry.bundle.imports : Imports.merge(baseImports, entry.bundle.imports),
-    )),
+  registry.map(async (bundle) => ({
+    bundle,
+    ...(await measure(bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports))),
   })),
 );
-const [only, ...more] = results.filter((result) => result.base);
+const [only, ...more] = results.filter(({ bundle }) => bundle.base);
 const base = only !== undefined && more.length === 0 ? only : await measure(baseImports);
 
 for (const { imports, code } of [base, ...results]) {
@@ -253,14 +238,14 @@ for (const { imports, code } of [base, ...results]) {
 type Result = (typeof results)[number];
 
 /** The bytes the budget caps: a base bundle's whole size, or what another adds to the base. */
-const capped = ({ base: isBase, sizes }: Result): number =>
-  isBase ? sizes.production.gzip : sizes.production.gzip - base.sizes.production.gzip;
+const capped = ({ bundle, sizes }: Result): number =>
+  bundle.base ? sizes.production.gzip : sizes.production.gzip - base.sizes.production.gzip;
 
-const amount = ({ base: isBase }: Result, bytes: number): string =>
-  isBase ? format(bytes) : `+${format(bytes)}`;
+const amount = ({ bundle }: Result, bytes: number): string =>
+  bundle.base ? format(bytes) : `+${format(bytes)}`;
 
-const label = ({ base: isBase, bundle }: Result): string =>
-  isBase ? bundle.name : `added by ${bundle.name}`;
+const label = ({ bundle }: Result): string =>
+  bundle.base ? bundle.name : `added by ${bundle.name}`;
 
 function budgets(): string {
   const rows = results.map((result) => {
