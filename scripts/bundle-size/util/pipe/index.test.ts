@@ -1,13 +1,12 @@
 import { Result as R } from "better-result";
+import { readFile } from "node:fs/promises";
 import { describe, expect, expectTypeOf, test, vi } from "vite-plus/test";
 
-import { flow, pipe, tap } from "./util.ts";
+import { generate } from "./generate-tests.ts";
+import { flow, pipe, tap } from "./index.ts";
 
 class NotFoundError extends Error {}
 class InvalidError extends Error {}
-
-const wrap = <T>(x: T): T[] => [x];
-const wrapAsync = async <T>(x: T): Promise<T[]> => [x];
 
 describe("pipe", () => {
   test("infers each step's argument from the previous step", () => {
@@ -18,12 +17,6 @@ describe("pipe", () => {
     );
     expectTypeOf(length).toEqualTypeOf<R<number, NotFoundError | InvalidError>>();
     expect(length.unwrap()).toBe(3);
-  });
-
-  test("chains each of eight steps to the one before", () => {
-    expectTypeOf(pipe(0, wrap, wrap, wrap, wrap, wrap, wrap, wrap, wrap)).toEqualTypeOf<
-      number[][][][][][][][]
-    >();
   });
 });
 
@@ -48,12 +41,6 @@ describe("flow", () => {
     );
     expectTypeOf(length).toEqualTypeOf<Promise<R<number, NotFoundError | InvalidError>>>();
     expect((await length).unwrap()).toBe(6);
-  });
-
-  test("chains each of eight steps to the resolved one before", () => {
-    expectTypeOf(
-      flow(0, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync, wrap, wrapAsync),
-    ).toEqualTypeOf<Promise<number[][][][][][][][]>>();
   });
 });
 
@@ -127,4 +114,10 @@ describe("tap", () => {
       ),
     ).rejects.toBe(error);
   });
+});
+
+test("the generated tests match generate-tests.ts", async () => {
+  expect(await readFile(new URL("generated.test.ts", import.meta.url), "utf8")).toBe(
+    await generate(),
+  );
 });
