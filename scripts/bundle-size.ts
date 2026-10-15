@@ -193,23 +193,27 @@ function format(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(2)} kB`;
 }
 
+/** Pads every column to its widest cell, aligned to the given side. */
+function align(rows: readonly (readonly string[])[], sides: readonly ("left" | "right")[]) {
+  const columns = sides.map((side, index) => {
+    const cells = rows.map((row) => row[index] ?? "");
+    const width = Math.max(...cells.map((cell) => cell.length));
+    return cells.map((cell) => (side === "left" ? cell.padEnd(width) : cell.padStart(width)));
+  });
+  return rows.map((_, index) => columns.map((cells) => cells[index] ?? ""));
+}
+
 function table(rows: [string, Sizes][]): string {
   const heads = ["minified", "gzip", "brotli"] as const;
-  const label = Math.max(...rows.map(([name]) => name.length));
-  const widths = heads.map((head) =>
-    Math.max(head.length, ...rows.map(([, sizes]) => format(sizes[head]).length)),
-  );
-  const line = (name: string, cells: readonly string[]) =>
-    `  ${name.padEnd(label)}  ${cells.map((cell, index) => cell.padStart(widths[index]!)).join("  ")}`;
-  return [
-    line("", heads),
-    ...rows.map(([name, sizes]) =>
-      line(
-        name,
-        heads.map((head) => format(sizes[head])),
-      ),
-    ),
-  ].join("\n");
+  return align(
+    [
+      ["", ...heads],
+      ...rows.map(([name, sizes]) => [name, ...heads.map((head) => format(sizes[head]))]),
+    ],
+    ["left", "right", "right", "right"],
+  )
+    .map((cells) => `  ${cells.join("  ")}`)
+    .join("\n");
 }
 
 await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), ["pack"], {
@@ -282,19 +286,17 @@ const label = ({ base: isBase, bundle }: Result): string =>
   isBase ? bundle.name() : `added by ${bundle.name()}`;
 
 function budgets(): string {
-  const width = Math.max(...results.map((result) => label(result).length));
-  const used = Math.max(...results.map((result) => amount(result, capped(result)).length));
-  const limit = Math.max(...results.map((result) => amount(result, result.bundle.budget).length));
-  return results
-    .map((result) => {
-      const bytes = capped(result);
-      const max = result.bundle.budget;
-      const left =
-        bytes > max
-          ? `${format(bytes - max)} over`
-          : `${format(max - bytes)} left (${Math.round((1 - bytes / max) * 100)}%)`;
-      return `  ${label(result).padEnd(width)}  ${amount(result, bytes).padStart(used)} / ${amount(result, max).padStart(limit)}  ${left}`;
-    })
+  const rows = results.map((result) => {
+    const bytes = capped(result);
+    const max = result.bundle.budget;
+    const left =
+      bytes > max
+        ? `${format(bytes - max)} over`
+        : `${format(max - bytes)} left (${Math.round((1 - bytes / max) * 100)}%)`;
+    return [label(result), amount(result, bytes), amount(result, max), left];
+  });
+  return align(rows, ["left", "right", "right", "left"])
+    .map(([name, used, limit, left]) => `  ${name}  ${used} / ${limit}  ${left}`.trimEnd())
     .join("\n");
 }
 
@@ -314,7 +316,7 @@ if (process.argv.includes("--json")) {
     console.log(table(modes.map((mode) => [mode, sizes[mode]])));
     console.log();
   }
-  console.log("budget");
+  console.log("budget (production gzip)");
   console.log(budgets());
 }
 
