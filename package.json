@@ -48,7 +48,7 @@
     "docs:serve": "mdbook serve docs",
     "test": "vp test",
     "check": "vp check",
-    "bundle-size": "node scripts/bundle-size.ts",
+    "bundle-size": "node scripts/bundle-size/index.ts",
     "replace-bundle-size-claims": "node scripts/replace-bundle-size-claims.ts",
     "ts-compatibility": "node scripts/ts-compatibility/index.ts",
     "type-perf": "node scripts/type-perf/index.ts",

@@ -41,7 +41,7 @@ let stdout: string;
 try {
   ({ stdout } = await promisify(execFile)(
     process.execPath,
-    [fileURLToPath(new URL("bundle-size.ts", import.meta.url)), "--json"],
+    [fileURLToPath(new URL("bundle-size/index.ts", import.meta.url)), "--json"],
     { cwd: fileURLToPath(root) },
   ));
 } catch (error) {
