@@ -7,7 +7,7 @@ import {
   BuildResult,
   BundleSize,
   type AddsNothingError,
-  type BranchIgnoredError,
+  type DevCodeKeptError,
 } from "./measure/index.ts";
 import {
   measure,
@@ -18,7 +18,11 @@ import {
   type PackError,
 } from "./measure/toolchain.ts";
 
-export class NoBaseError extends TaggedError("NoBaseError")<{ message: string }> {}
+export class NoBaseError extends TaggedError("NoBaseError")<{ message: string }> {
+  constructor() {
+    super({ message: "no bundle sets base" });
+  }
+}
 
 export type Report = Val<
   "Report",
@@ -38,7 +42,7 @@ export const Suite = Val.sealer<Suite>().impl({
       .map((bundle) => bundle.imports);
     return first !== undefined
       ? R.ok(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
-      : R.err(new NoBaseError({ message: "no bundle sets base" }));
+      : R.err(new NoBaseError());
   },
   measure: (
     suite: Suite,
@@ -50,7 +54,7 @@ export const Suite = Val.sealer<Suite>().impl({
       | NoChunkError
       | CompileError
       | MinifyError
-      | BranchIgnoredError
+      | DevCodeKeptError
       | AddsNothingError
     >
   > =>

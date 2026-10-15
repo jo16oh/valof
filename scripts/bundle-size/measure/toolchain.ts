@@ -13,9 +13,17 @@ import { flow } from "../util/pipe/index.ts";
 import { GenAwait } from "../util/util.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
-export class PackError extends TaggedError("PackError")<{ message: string }> {}
+export class PackError extends TaggedError("PackError")<{ output: string; message: string }> {
+  constructor({ output }: { output: string }) {
+    super({ output, message: `vp pack failed\n${output}` });
+  }
+}
 
-export class NoChunkError extends TaggedError("NoChunkError")<{ mode: Mode; message: string }> {}
+export class NoChunkError extends TaggedError("NoChunkError")<{ mode: Mode; message: string }> {
+  constructor({ mode }: { mode: Mode }) {
+    super({ mode, message: `no chunk emitted for ${mode}` });
+  }
+}
 
 export class CompileError extends TaggedError("CompileError")<{
   mode: Mode;
@@ -49,7 +57,7 @@ export function pack(): Promise<R<void, PackError>> {
     catch: (cause) => {
       const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
       const output = `${stdout}${stderr}` || String(cause);
-      return new PackError({ message: `vp pack failed\n${output}` });
+      return new PackError({ output });
     },
   });
 }
@@ -166,7 +174,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
       );
       const chunk = result[0]?.output.find((output) => output.type === "chunk");
       if (chunk?.type !== "chunk") {
-        return R.err(new NoChunkError({ mode, message: `no chunk emitted for ${mode}` }));
+        return R.err(new NoChunkError({ mode }));
       }
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
       return R.ok(

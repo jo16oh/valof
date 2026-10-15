@@ -2,15 +2,26 @@ import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../../src/index.ts";
 import { Imports, type Bundle } from "../bundle.ts";
 
-export class BranchIgnoredError extends TaggedError("BranchIgnoredError")<{
+export class DevCodeKeptError extends TaggedError("DevCodeKeptError")<{
   imports: Imports;
   message: string;
-}> {}
+}> {
+  constructor({ imports }: { imports: Imports }) {
+    super({
+      imports,
+      message: `production keeps the development branches: import { ${Imports.names(imports).join(", ")} }`,
+    });
+  }
+}
 
 export class AddsNothingError extends TaggedError("AddsNothingError")<{
   bundle: Bundle;
   message: string;
-}> {}
+}> {
+  constructor({ bundle }: { bundle: Bundle }) {
+    super({ bundle, message: `${bundle.name} adds nothing to the base, which already holds it` });
+  }
+}
 
 export type Mode = "production" | "development";
 export const modes: readonly Mode[] = ["production", "development"];
@@ -38,15 +49,10 @@ export type BuildResult = Val<
   }
 >;
 export const BuildResult = Val.sealer<BuildResult>().impl({
-  check: (build): R<void, BranchIgnoredError> =>
+  check: (build): R<void, DevCodeKeptError> =>
     !build.readsNodeEnv || build.production.sizes.minified !== build.development.sizes.minified
       ? R.ok()
-      : R.err(
-          new BranchIgnoredError({
-            imports: build.imports,
-            message: `production keeps the development branches: import { ${Imports.names(build.imports).join(", ")} }`,
-          }),
-        ),
+      : R.err(new DevCodeKeptError({ imports: build.imports })),
 });
 
 export type BundleSize = Val<
@@ -70,10 +76,5 @@ export const BundleSize = Val.companion<BundleSize>()
     check: (size, base: BuildResult): R<void, AddsNothingError> =>
       size.bundle.base || size.build.production.library !== base.production.library
         ? R.ok()
-        : R.err(
-            new AddsNothingError({
-              bundle: size.bundle,
-              message: `${size.bundle.name} adds nothing to the base, which already holds it`,
-            }),
-          ),
+        : R.err(new AddsNothingError({ bundle: size.bundle })),
   });
