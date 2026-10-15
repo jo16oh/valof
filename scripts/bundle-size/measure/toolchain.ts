@@ -10,6 +10,7 @@ import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "../../../src/index.ts";
 import { Imports } from "../bundle.ts";
 import { flow } from "../util/pipe/index.ts";
+import { GenAwait } from "../util/util.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class PackError extends TaggedError("PackError")<{ message: string }> {}
@@ -57,15 +58,16 @@ export function measure(
   imports: Imports,
 ): Promise<R<BuildResult, NoChunkError | CompileError | MinifyError>> {
   return R.gen(async function* () {
-    const [production, development] = yield* R.await(
-      R.allAsync([compile("production", imports), compile("development", imports)] as const),
+    const [production, development] = yield* flow(
+      [compile("production", imports), compile("development", imports)] as const,
+      R.allAsync,
+      GenAwait,
     );
-    const readsNodeEnv = yield* R.await(
-      flow(
-        development.modules.map((module) => Module.readsNodeEnv(module, "development")),
-        R.allAsync,
-        R.map((reads) => reads.some((read) => read)),
-      ),
+    const readsNodeEnv = yield* flow(
+      development.modules.map((module) => Module.readsNodeEnv(module, "development")),
+      R.allAsync,
+      R.map((reads) => reads.some((read) => read)),
+      GenAwait,
     );
     return R.ok(
       BuildResult({
