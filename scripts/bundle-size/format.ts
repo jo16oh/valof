@@ -1,5 +1,5 @@
 import { Imports } from "./bundle.ts";
-import { capped, modes, type Measured, type Result, type Sizes } from "./measure.ts";
+import { capped, modes, type Measured, type MeasuredBundle, type Sizes } from "./measure.ts";
 
 function format(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(2)} kB`;
@@ -15,10 +15,10 @@ function align(rows: readonly (readonly string[])[], sides: readonly ("left" | "
   return rows.map((_, index) => columns.map((cells) => cells[index] ?? ""));
 }
 
-const amount = ({ bundle }: Result, bytes: number): string =>
+const amount = ({ bundle }: MeasuredBundle, bytes: number): string =>
   bundle.base ? format(bytes) : `+${format(bytes)}`;
 
-const label = ({ bundle }: Result): string =>
+const label = ({ bundle }: MeasuredBundle): string =>
   bundle.base ? bundle.name : `added by ${bundle.name}`;
 
 /** A bundle's heading and its sizes in each mode. */
@@ -38,7 +38,7 @@ export function sizes({ imports, sizes }: Measured): string {
 }
 
 /** Each bundle's capped bytes against its budget. */
-export function budgets(results: readonly Result[], base: Measured): string {
+export function budgets(results: readonly MeasuredBundle[], base: Measured): string {
   const rows = results.map((result) => {
     const bytes = capped(result, base);
     const max = result.bundle.budget;
@@ -56,12 +56,12 @@ export function budgets(results: readonly Result[], base: Measured): string {
   ].join("\n");
 }
 
-export function over(result: Result, base: Measured): string {
+export function over(result: MeasuredBundle, base: Measured): string {
   return `over budget: ${label(result)} is ${amount(result, capped(result, base))}, budget ${amount(result, result.bundle.budget)}`;
 }
 
 /** The `--json` output, keyed as `replace-bundle-size-claims` reads it. */
-export function json(results: readonly Result[]): string {
+export function json(results: readonly MeasuredBundle[]): string {
   const keyed: Record<string, Record<string, Sizes>> = Object.fromEntries(
     results.map(({ bundle, sizes }) => [bundle.key, sizes]),
   );
