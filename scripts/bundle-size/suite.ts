@@ -1,6 +1,7 @@
 import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../src/index.ts";
 import { Imports, type Bundle } from "./bundle.ts";
+import { flow } from "./util/pipe/index.ts";
 import {
   BuildResult,
   BundleSize,
@@ -58,7 +59,9 @@ export const Suite = Val.sealer<Suite>().impl({
       const results = yield* R.await(
         R.allAsync(
           suite.map((bundle) =>
-            measure(bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports)).then(
+            flow(
+              bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports),
+              measure,
               R.map((build) => ({ bundle, build })),
             ),
           ),

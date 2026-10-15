@@ -9,6 +9,7 @@ import { Result as R, TaggedError } from "better-result";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "../../../src/index.ts";
 import { Imports } from "../bundle.ts";
+import { flow } from "../util/pipe/index.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class PackError extends TaggedError("PackError")<{ message: string }> {}
@@ -60,9 +61,11 @@ export function measure(
       R.allAsync([compile("production", imports), compile("development", imports)] as const),
     );
     const readsNodeEnv = yield* R.await(
-      R.allAsync(
+      flow(
         development.modules.map((module) => Module.readsNodeEnv(module, "development")),
-      ).then(R.map((reads) => reads.some((read) => read))),
+        R.allAsync,
+        R.map((reads) => reads.some((read) => read)),
+      ),
     );
     return R.ok(
       BuildResult({
