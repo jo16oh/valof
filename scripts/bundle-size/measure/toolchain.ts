@@ -82,14 +82,8 @@ export function measure(
       BuildResult({
         imports,
         readsNodeEnv,
-        production: Build({
-          sizes: yield* Code.sizes(production.code),
-          library: production.library,
-        }),
-        development: Build({
-          sizes: yield* Code.sizes(development.code),
-          library: development.library,
-        }),
+        production: yield* Compiled.measure(production),
+        development: yield* Compiled.measure(development),
       }),
     );
   });
@@ -122,47 +116,45 @@ type Module = Val<"Module", string>;
 const Module = Val.sealer<Module>().impl({
   /** Whether the module's source reads `NODE_ENV`, before `define` replaces it. */
   readsNodeEnv: (module, mode: Mode): Promise<R<boolean, CompileError>> =>
-    R.tryPromise({
-      try: async () => (await readFile(module, "utf8")).includes("NODE_ENV"),
-      catch: (cause) => new CompileError({ mode, step: "reading the library", cause }),
-    }),
+    attempt(mode, "reading the library", async () =>
+      (await readFile(module, "utf8")).includes("NODE_ENV"),
+    ),
 });
 
 type Compiled = Val<"Compiled", { code: Code; modules: Module[]; library: number }>;
-const Compiled = Val.sealer<Compiled>();
+const Compiled = Val.sealer<Compiled>().impl({
+  measure: (compiled): R<Build, MinifyError> =>
+    Code.sizes(compiled.code).map((sizes) => Build({ sizes, library: compiled.library })),
+});
 
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError | CompileError>> {
   return R.gen(async function* () {
     const dir = yield* R.await(
-      R.tryPromise({
-        try: () => mkdtemp(join(tmpdir(), "valof-size-")),
-        catch: (cause) => new CompileError({ mode, step: "creating the entry directory", cause }),
-      }),
+      attempt(mode, "creating the entry directory", () => mkdtemp(join(tmpdir(), "valof-size-"))),
     );
 
     const file = join(dir, "entry.mjs");
 
     const built = await R.gen(async function* () {
       yield* R.await(
-        R.tryPromise({
-          try: () => {
-            const content = pipe(
-              Object.entries(imports).map(
-                ([module, names]) =>
-                  `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
-              ),
-              (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
-              (lines) => lines.join("\n"),
-            );
-            return writeFile(file, content);
-          },
-          catch: (cause) => new CompileError({ mode, step: "writing the entry", cause }),
+        attempt(mode, "writing the entry", () => {
+          const content = pipe(
+            Object.entries(imports).map(
+              ([module, names]) =>
+                `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
+            ),
+            (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
+            (lines) => lines.join("\n"),
+          );
+          return writeFile(file, content);
         }),
       );
 
       const chunk = yield* flow(
-        R.tryPromise({
-          try: () =>
+        attempt(
+          mode,
+          "the build",
+          () =>
             build({
               root: fileURLToPath(root),
               logLevel: "silent",
@@ -175,8 +167,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
                 lib: { entry: file, formats: ["es"], fileName: "entry" },
               },
             }) as Promise<Rolldown.RolldownOutput[]>,
-          catch: (cause) => new CompileError({ mode, step: "the build", cause }),
-        }),
+        ),
         R.map((result) => result[0]?.output.find((output) => output.type === "chunk")),
         R.andThen((found) =>
           found?.type === "chunk" ? R.ok(found) : R.err(new NoChunkError({ mode })),
@@ -201,12 +192,16 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
 
     // Removed whether or not the build succeeded.
     yield* R.await(
-      R.tryPromise({
-        try: () => rm(dir, { recursive: true, force: true }),
-        catch: (cause) => new CompileError({ mode, step: "removing the entry directory", cause }),
-      }),
+      attempt(mode, "removing the entry directory", () =>
+        rm(dir, { recursive: true, force: true }),
+      ),
     );
 
     return built;
   });
+}
+
+/** Runs one step of building a bundle, turning a rejection into a {@link CompileError}. */
+function attempt<A>(mode: Mode, step: string, run: () => Promise<A>): Promise<R<A, CompileError>> {
+  return R.tryPromise({ try: run, catch: (cause) => new CompileError({ mode, step, cause }) });
 }
