@@ -57,12 +57,10 @@ export const Suite = Val.sealer<Suite>().impl({
       const baseImports = yield* Suite.base(suite);
       const results = yield* R.await(
         R.allAsync(
-          suite.map(async (bundle) =>
-            (
-              await measure(
-                bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports),
-              )
-            ).map((build) => ({ bundle, build })),
+          suite.map((bundle) =>
+            measure(bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports)).then(
+              R.map((build) => ({ bundle, build })),
+            ),
           ),
         ),
       );

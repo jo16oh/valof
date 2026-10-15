@@ -59,14 +59,15 @@ export function measure(
     const [production, development] = yield* R.await(
       R.allAsync([compile("production", imports), compile("development", imports)] as const),
     );
+    const readsNodeEnv = yield* R.await(
+      R.allAsync(
+        development.modules.map((module) => Module.readsNodeEnv(module, "development")),
+      ).then(R.map((reads) => reads.some((read) => read))),
+    );
     return R.ok(
       BuildResult({
         imports,
-        readsNodeEnv: (yield* R.await(
-          R.allAsync(
-            development.modules.map((module) => Module.readsNodeEnv(module, "development")),
-          ),
-        )).some((reads) => reads),
+        readsNodeEnv,
         production: Build({
           sizes: yield* Code.sizes(production.code),
           library: production.library,
