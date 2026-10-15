@@ -2,7 +2,7 @@ import { Result as R } from "better-result";
 import { over, render } from "./format.ts";
 import { BundleSize } from "./measure/index.ts";
 import { Suite } from "./suite.ts";
-import { flow } from "./util/pipe/index.ts";
+import { flow } from "../shared/pipe/index.ts";
 
 export const Cli = {
   run: async (suite: Suite): Promise<void> => {

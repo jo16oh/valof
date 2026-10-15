@@ -1,7 +1,7 @@
 import { Imports } from "./bundle.ts";
 import { modes, type BuildResult, type BundleSize } from "./measure/index.ts";
 import type { Report } from "./suite.ts";
-import { pipe } from "./util/pipe/index.ts";
+import { pipe } from "../shared/pipe/index.ts";
 
 export function over(size: BundleSize): string {
   return `over budget: ${label(size)} is ${amount(size, size.capped)}, budget ${amount(size, size.bundle.budget)}`;

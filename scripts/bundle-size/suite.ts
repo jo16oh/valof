@@ -1,8 +1,8 @@
 import { Result as R, TaggedError } from "better-result";
 import { Val } from "../../src/index.ts";
 import { Imports, type Bundle } from "./bundle.ts";
-import { flow } from "./util/pipe/index.ts";
-import { GenAwait } from "./util/util.ts";
+import { flow } from "../shared/pipe/index.ts";
+import { GenAwait } from "../shared/util.ts";
 import {
   BuildResult,
   BundleSize,

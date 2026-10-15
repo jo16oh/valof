@@ -9,8 +9,8 @@ import { Result as R, TaggedError } from "better-result";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "../../../src/index.ts";
 import { Imports } from "../bundle.ts";
-import { flow, pipe } from "../util/pipe/index.ts";
-import { GenAwait } from "../util/util.ts";
+import { flow, pipe } from "../../shared/pipe/index.ts";
+import { GenAwait } from "../../shared/util.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class PackError extends TaggedError("PackError")<{ output: string; message: string }> {

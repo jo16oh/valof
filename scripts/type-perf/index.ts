@@ -5,7 +5,7 @@
 // the times are printed and never checked.
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { floor, pack, tsc, version, type Tsc } from "../typescript-lines.ts";
+import { floor, pack, tsc, version, type Tsc } from "../shared/typescript-lines.ts";
 
 const here = new URL("./", import.meta.url);
 
