@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Result as R, TaggedError } from "better-result";
 import { minifySync, build, type Rolldown } from "vite";
-import { Val } from "../../../src/index.ts";
+import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
 import { flow, pipe } from "../../shared/pipe/index.ts";
 import { GenAwait } from "../../shared/util.ts";

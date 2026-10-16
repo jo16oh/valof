@@ -1,5 +1,5 @@
 import { Result as R, TaggedError } from "better-result";
-import { Val } from "../../../src/index.ts";
+import { Val } from "#valof";
 import { Imports, type Bundle } from "../bundle.ts";
 
 export class DevCodeKeptError extends TaggedError("DevCodeKeptError")<{

@@ -1,4 +1,4 @@
-import { Val } from "../../src/index.ts";
+import { Val } from "#valof";
 
 export type Imports = Val<"Imports", Record<string, string[]>>;
 export const Imports = Val.sealer<Imports>().impl({
