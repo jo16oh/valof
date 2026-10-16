@@ -2,7 +2,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { docBlocks } from "../../docs/tools/twoslash/index.ts";
-import { aliases, pack, root, tsc, version } from "../typescript-lines.ts";
+import { aliases, pack, root, tsc, version } from "../shared/typescript-lines.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
 

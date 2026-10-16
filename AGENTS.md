@@ -46,17 +46,23 @@ title and body as a draft and stop there.
 ## Releasing
 
 1. Write the release notes for users, not reviewers, in a file outside the repo.
-2. Run `vp run bump-version --body-file notes.md --release <type> --yes`, where `<type>` is the
+2. Set `#valof` in `package.json` to `./src/index.ts`, run `vp check` and `vp run bundle-size`, and
+   set it back to `valof-release`. Report what breaks, and where the new API is awkward to use in
+   the scripts. A user encounters both when upgrading. If a problem is serious, stop the release and
+   rework the design.
+3. Run `vp run bump-version --body-file notes.md --release <type> --yes`, where `<type>` is the
    release type I give, such as `patch`. It pushes a release branch and opens its PR with the file
    as the body. Options other than `--body-file` go to bumpp.
-3. If CI reports stale bundle-size claims, run
+4. If CI reports stale bundle-size claims, run
    `vp run replace-bundle-size-claims --write README.md package.json` on that branch, commit, and
    push.
-4. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
+5. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
    release, and publishes the book. The notes start with the PR body, followed by the PRs merged
    since the last tag.
+6. Once npm has the new version, set `valof-release` in `package.json` to it, and fix the scripts
+   where step 2 found a break.
 
-Steps 2 and 3 push, and step 2 opens a PR. They are the only exception to "Never push, and never
+Steps 3 and 4 push, and step 3 opens a PR. They are the only exception to "Never push, and never
 open a PR" above. Run them only on my explicit go-ahead.
 
 ## Writing Style

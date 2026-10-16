@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 
 export const run = promisify(execFile);
 
-export const root = fileURLToPath(new URL("../", import.meta.url));
+export const root = fileURLToPath(new URL("../../", import.meta.url));
 
 /**
  * The floor the README claims, the line above it, and the current one, each installed under an
