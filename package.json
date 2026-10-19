@@ -35,9 +35,9 @@
     "#valof": "valof-release"
   },
   "exports": {
-    ".": "./dist/index.mjs",
+    ".": "./dist/index.js",
+    "./experimental": "./dist/experimental.js",
     "./eslint-plugin": "./dist/eslint-plugin.mjs",
-    "./experimental": "./dist/experimental.mjs",
     "./lint": "./dist/lint.mjs",
     "./package.json": "./package.json"
   },
@@ -45,8 +45,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vp pack",
-    "dev": "vp pack --watch",
+    "build": "vp pack && tsc -p tsconfig.build.json",
     "docs:build": "mdbook build docs",
     "docs:serve": "mdbook serve docs",
     "test": "vp test",

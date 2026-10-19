@@ -18,6 +18,7 @@ describe("what the rule finds", () => {
       "Id.Square is never read",
       "Id.dispatch is never read",
       "Id.thenable is never read",
+      "Id.implFoo is never read",
       "Shape.Circle.match is never read",
       "Shape.Circle.Square is never read",
       "Shape.sides is never read",

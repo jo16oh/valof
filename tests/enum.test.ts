@@ -490,13 +490,19 @@ describe("a broken declaration", () => {
     // @ts-expect-error a variant cannot take a name the library reserves
     Enum.companion<Sealed>();
 
-    type Stepped = Enum<"Stepped", { implode: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error same, for the steps' prefix
+    type Stepped = Enum<"Stepped", { implCreate: { n: number }; Other: { n: number } }>;
+    // @ts-expect-error same, for a step only a Val's builder has
     Enum.sealer<Stepped>();
 
     type Sneaky = Enum<"Sneaky", { __valof_traits: { n: number }; Other: { n: number } }>;
     // @ts-expect-error same, for the library's own keys
     Enum.sealer<Sneaky>();
+  });
+
+  test("but may take another word starting with `impl`", () => {
+    type Grant = Enum<"Grant", { implicit: { scope: string }; password: { user: string } }>;
+    const Grant = Enum.sealer<Grant>();
+    expect(Grant.implicit({ scope: "read" })).toEqual({ scope: "read", _tag: "implicit" });
   });
 
   // The member would replace the constructor or `match` at run time, under the library's type.

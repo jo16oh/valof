@@ -1,4 +1,5 @@
 import type { AnyVal, Checked, DeepReadonly, Invalid, Reserved } from "./val.ts";
+import * as Trait from "./ns/trait.ts";
 
 declare const SelfMark: unique symbol;
 
@@ -67,7 +68,7 @@ export type AnyTrait = TraitPhantom<Readonly<Record<string, Members>>>;
  *
  * @experimental
  */
-export type Trait<K extends string, Shape, M extends Members = Record<never, never>> = DeepReadonly<
+type Trait<K extends string, Shape, M extends Members = Record<never, never>> = DeepReadonly<
   Checked<Shape>
 > &
   // The members live in the brand map rather than a key of their own, so a Val can carry the
@@ -84,6 +85,8 @@ export type Trait<K extends string, Shape, M extends Members = Record<never, nev
         : Declarable<Shape, M>
       : Checked<Shape>
   >;
+
+export { Trait };
 
 /** The fields a trait requires. */
 export type ShapeOf<Tr extends AnyTrait> = Pick<Tr, keyof Tr>;
@@ -314,13 +317,14 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
     }),
 });
 
-/** @experimental */
-export const Trait = {
-  /** Declares a trait's runtime side: what every Val implementing it shares. */
-  companion: <Tr extends AnyTrait>(): TraitBuilder<Tr> => {
-    const target = make({});
-    // `impl` takes one call: what it returns is the companion, with no step left on it.
-    target["impl"] = (fns: Record<string, unknown>) => make(fns);
-    return target as never;
-  },
-} as const;
+/**
+ * Declares a trait's runtime side: what every Val implementing it shares.
+ *
+ * @experimental
+ */
+export const companion = <Tr extends AnyTrait>(): TraitBuilder<Tr> => {
+  const target = make({});
+  // `impl` takes one call: what it returns is the companion, with no step left on it.
+  target["impl"] = (fns: Record<string, unknown>) => make(fns);
+  return target as never;
+};

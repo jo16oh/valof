@@ -177,10 +177,10 @@ const unlabeled = Rectangle.patch(moved, { label: undefined });
 vp install              # install dependencies
 vp test                 # run the tests
 vp check                # format, lint, type check
-vp pack                 # build
+vp run build            # build
 vp run bundle-size      # measure what a user ships against its budget
 vp run type-perf        # measure the type cost: instantiations and the declaration size
-vp run ts-compatibility # type check the published .d.mts against every TypeScript line
+vp run ts-compatibility # type check the published .d.ts against every TypeScript line
 ```
 
 ## License
