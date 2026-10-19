@@ -1571,7 +1571,7 @@ seal の戻り値は `unknown` だったので、async の seal が型を通っ�
 「a seal is synchronous」という嘘のエラーが出る。
 
 `create` は元から async にできない。生成関数の戻り型が `SeedOf<V>` で、`Promise` はそこに代入できない。
-例外は空の payload（`Record<never, never>`）で、`Promise` が代入できるので通る。塞いでいない。
+空の payload も同じ。`SeedOf` が空の payload を promise でないオブジェクトに絞る（§9、2026-10-19）。
 
 **却下: development で、カスタム seal が return した後に既定の seal が呼ばれたら投げる。**型を通る
 遅延評価（`(r, seal) => () => seal(r)`）と、戻り型を `any` にした async の seal を捕まえる。一度入れて
@@ -2012,6 +2012,28 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 ---
 
 ## 9. 未解決 / 要確認
+
+- [x] ~~**空の payload にプリミティブと配列が通る。**~~ → 塞いだ、2026-10-19。引数の型が `{}` で、
+      `null` と `undefined` 以外のすべてが代入できた。`Val<"E", {}>` の `E("text")` が型を通り、Variant の
+      `E.A("text")` は `{ 0: "t", …, _tag: "A" }` を作った
+  - **型。**`SeedOf` と `SeedFor` が、キーの無いオブジェクト型を `object & { length?: never; then?: never }`
+    に替える。プリミティブ、配列、関数、promise を拒み、既存の値とタグ付きの payload は通す
+  - **却下: インデックスシグネチャ（`{ [key: string]: never }`）。**既存の値も拒む。クラスの `Phantom`
+    を含む型には、暗黙のインデックスシグネチャが無い。タグ付きの payload も `_tag` が `never` に合わない
+  - **値の型は変えない。**引数の位置だけ絞る
+  - **seal の引数の検査（`CheckedSeal`）が空の payload にも掛かる。**今までは `{}` に string が代入
+    できるので除外されていた。`unknown` を取る seal は「a seal takes the payload, not a wire
+    format」で落ちる
+  - **実行時: Variant の payload を、タグを足す spread の前に検査する。**spread の後にコピーするので、
+    development でも何も見ていなかった。文字列は添字をキーにしたオブジェクトになり、クラスの
+    インスタンスはプロトタイプを黙って失った。オブジェクトでなければ production でも投げる
+    （`patch` と同じ）。プロトタイプの検査は development だけ
+  - **Val のコンストラクタは実行時に検査しない。**ライブラリは payload の形を実行時に知らない。
+    プリミティブの payload もあるので、オブジェクトを要求できない
+  - **検査は `development` の宣言より後ろに置く。**前に置くと minifier が `development` を畳めず、
+    development の分岐がすべて production に残った（Enum の増分 +474 → +633 B）。置き直して +487 B
+- [ ] **入れ子の `{}` は今も何でも通す。**`Val<"X", { meta: {} }>` の `X({ meta: "text" })` が型を通る。
+      `SeedOf` が絞るのはトップレベルだけ。`DeepReadonly` で絞ると値の型も変わる。実例が出るまで待つ
 
 - [x] ~~**seal を通さない `create`。**~~ → 入れた。`.implCreate.noseal`、2026-10-14。必ず seal を通る
       payload を生成する `create` が、seal の戻り型をそのまま返してしまう。定義側の段で外す
