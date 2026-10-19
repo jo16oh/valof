@@ -9,6 +9,9 @@ type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
 type Result<T> = Ok<T> | Err;
 
+// The verdict is a private field, so it is read through the class rather than by a key.
+type VerdictOf<V> = V extends Verdict<infer X> ? X : never;
+
 type User = Val<"app/User", { id: string; name: string; nickname?: string }>;
 type Age = Val<"Age", number>;
 type ArticleId = Val<"ArticleId", string>;
@@ -310,9 +313,6 @@ describe("Val", () => {
   });
 
   describe("rejected payloads", () => {
-    // The verdict is a private field, so it is read through the class rather than by a key.
-    type VerdictOf<V> = V extends Verdict<infer X> ? X : never;
-
     test("the rule that rejected a payload is carried in the verdict", () => {
       type BadFn = Val<"Bad", { run: () => void }>;
       expectTypeOf<VerdictOf<BadFn>>().toEqualTypeOf<{
@@ -577,8 +577,15 @@ describe("Val", () => {
       expectTypeOf<Counted>().toExtend<AnyVal>();
       expect(Counted.size(Counted({ value: 2 }))).toBe(2);
 
-      type Missing = Val<"app/Missing", { other: string; next?: Rec<Missing> }, Sized>;
-      expectTypeOf<Missing>().not.toExtend<AnyVal>();
+      type Linked = Val<"app/Linked", { other: string; next?: Rec<Linked> }, Sized>;
+      expectTypeOf<SeedOf<Linked>>().toEqualTypeOf<{
+        readonly other: string;
+        readonly next?: Linked;
+        readonly value: number;
+      }>();
+
+      type Clashing = Val<"app/Clashing", { value: string; next?: Rec<Clashing> }, Sized>;
+      expectTypeOf<Clashing>().not.toExtend<AnyVal>();
     });
 
     test("the trait check reads the payload with its Rec opened", () => {
@@ -1916,21 +1923,50 @@ describe("building", () => {
       );
     });
 
-    test("the payload must hold what the trait requires", () => {
-      type Bad = Val<"Bad", { id: string }, Greetable>;
-      expectTypeOf<Bad>().not.toExtend<AnyVal>();
-      // @ts-expect-error the payload does not hold what this trait requires
-      Val.companion<Bad>();
-      // @ts-expect-error same
-      Val.sealer<Bad>();
+    test("the trait brings the fields it requires into the payload", () => {
+      type Badge = Val<"Badge", { id: string }, Greetable>;
+      const Badge = Val.sealer<Badge>().implTrait(Greetable, {
+        toWire: (b, sep) => `${b.id}${sep}${b.name}`,
+      });
+      expectTypeOf<SeedOf<Badge>>().toEqualTypeOf<{ readonly id: string; readonly name: string }>();
+      // @ts-expect-error `name` is missing
+      Badge({ id: "b" });
+      expect(Badge.greet(Badge({ id: "b", name: "bob" }))).toBe("Hi, bob");
+
+      type Bare = Val<"Bare", Record<never, never>, Greetable>;
+      expectTypeOf<Bare>().toExtend<Greetable>();
     });
 
-    test("a trait requiring nothing of the members still requires its fields", () => {
-      type Provable = Trait<"Provable", { theorem: string }, Record<never, never>>;
-      type Bad = Val<"Bad", Record<never, never>, Provable>;
-      expectTypeOf<Bad>().not.toExtend<AnyVal>();
-      // @ts-expect-error the payload does not hold what this trait requires
-      Val.sealer<Bad>();
+    // A trait holds its shape deep-readonly, and `Val.unwrap` hands back a mutable copy.
+    test("the fields come in as the trait wrote them, without readonly", () => {
+      type Tagged = Trait<"Tagged", { tags: string[]; owner: User }>;
+      type Post = Val<"Post", { id: string }, Tagged>;
+      expectTypeOf<PayloadOf<Post>>().toEqualTypeOf<{
+        id: string;
+        tags: string[];
+        owner: PayloadOf<User>;
+      }>();
+
+      const Post = Val.sealer<Post>();
+      const owner = { id: "u", name: "una" };
+      Post({ id: "p", tags: [], owner: User(owner) });
+      // @ts-expect-error a record is not a User
+      Post({ id: "p", tags: [], owner });
+    });
+
+    test("the payload may narrow a field the trait requires, but not contradict it", () => {
+      expectTypeOf<Val<"Root", { name: "root" }, Greetable>>().toExtend<AnyVal>();
+
+      type Bad = Val<"Bad", { name: number }, Greetable>;
+      expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{
+        readonly __valError: "the payload and the trait declare `name` with conflicting types";
+      }>();
+    });
+
+    test("a payload that is not a record cannot hold the fields", () => {
+      const rejected = { __valError: "the payload does not hold what the trait requires" } as const;
+      expectTypeOf<VerdictOf<Val<"Bad", string, Greetable>>>().toEqualTypeOf(rejected);
+      expectTypeOf<VerdictOf<Val<"Bad", string[], Greetable>>>().toEqualTypeOf(rejected);
     });
 
     // Left to `implTrait`, the mistake answered "the type does not declare this trait" about a
@@ -2149,10 +2185,10 @@ describe("building", () => {
 
       test("unless no payload satisfies both", () => {
         type Sized = Trait<"Sized", { name: number }, { half: (self: Self) => number }>;
-        type Both = Val<"Both", { name: string }, Greetable & Sized>;
-        expectTypeOf<Both>().not.toExtend<AnyVal>();
-        // @ts-expect-error the payload does not hold what this trait requires
-        Val.companion<Both>();
+        type Both = Val<"Both", { id: string }, Greetable & Sized>;
+        expectTypeOf<VerdictOf<Both>>().toEqualTypeOf<{
+          readonly __valError: "no value fits every declaration of `name`";
+        }>();
       });
     });
 

@@ -35,7 +35,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
@@ -2213,7 +2213,8 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
         `unnecessary-alias`、`unused-member`（final は `Greetable.shout` と `User.shout` の 2 経路で
         読まれうるので、どちらでも使用と数える）
   - [x] 新規 1 本: trait を名乗る Val に `implTrait` を呼ぶ companion がない（§15.1）。payload が shape を
-        満たさない宣言もこれで塞がる。companion があれば `implTrait` の第 1 引数が落とすため
+        満たさない宣言もこれで塞がる、としていた。2026-10-19 から Val が shape を持ち込むので、その宣言は
+        起きず、矛盾する宣言は型が宣言の位置で落とす（§15.1「Val も shape を持ち込む」）
   - `unnamed-of` / `bypassed-companion` は広げない。trait があっても構築の話は変わらない
 - [ ] **API の引っかかり 2 つを docs の早い位置で 1 行ずつ弁明する。**どちらも TS の制約だが、初見の読者は
       冗長と読む。`Val.sealer<User>().impl(...)` の 2 段（部分推論が無い、§13.1）と、
@@ -5277,13 +5278,42 @@ Trait の既定実装を使用済みとして扱う。
 `dyn` は直接参照、単純な `const` 束縛、分割代入まで追う。関数への引き渡し、return、配列や object への
 格納後は追跡しない。この境界を越えた参照は `unused-member` の既存の構文解析限界と同じく見えない。
 
-**payload が shape を満たさない宣言は、`implTrait` 忘れと同じ 1 本で塞がる。**型エイリアスはエラーを
-出せないので、`type Bad = Val<"Bad", { id: string }, Greetable>` の行は通る。いまは trait ブランドの位置に
-`Invalid<...>` を置くだけで、誰も読まないので `Val.of<Bad>` も通り、`Greetable` へ代入した遠い場所で
-ブランド不一致という的外れなエラーになる。
+**payload が shape を満たさない宣言は、`implTrait` 忘れと同じ 1 本で塞がる、としていた。**2026-10-19 に
+Val が shape を持ち込む形に変えたので、この経路は無くなった。次の節。
 
-ただし companion を書けば `implTrait` の第 1 引数の shape 検査が宣言の隣で落とす。残るのは trait を
-名乗る Val が companion を持たない場合だけで、それは `implTrait` 忘れそのものである。
+#### Val も shape を持ち込む、2026-10-19
+
+2026-10-15、`scripts/bundle-size.ts` を Trait の Strategy で書いたときに出た。`Val<"Core", {}, Bundle>` が
+TS2344 で落ち、Val だけが shape のフィールドを payload にもう一度書く必要があった。Enum は持ち込む
+（§15.2「companion を渡さない形」）。意図した違いだという記録は無かった。**Enum に寄せる。**
+
+- **形。**`Holding<T, Tr>`。payload がレコードなら `T & Writable<ShapeOf<Tr>>`。プリミティブと配列には
+  フィールドの置き場が無いので交差せず、従来どおり `Fits` が落とす。レコードかどうかはキーだけで判定する。
+  フィールドを読むと `Rec` の自己参照が解決されてしまう
+- **第 2 型引数だけを読む人には payload の全体が見えない。**代わりに `PayloadOf` / `SeedOf` と
+  コンストラクタの引数には出る
+- **payload と shape が同じフィールドを違う型で書いたら、宣言で落とす。**狭めるのは通す
+  （`{ name: "root" }` と `{ name: string }`）。交差に任せると `never` や `{ x: number } & string` に
+  なり、作れない Val が型を通る
+- **値の無いフィールドも落とす。**2 つの trait が食い違う場合と、Enum の共通フィールドと trait が
+  食い違う場合で、どちらも交差が `never` になる。Enum ではこれまで素通りしていた。`id: never` は
+  `id: string` に代入できるので、旧 `Fits` を通った
+- **メッセージはフィールドを名指しする。**旧メッセージ「the payload does not hold what the trait
+  requires」はどのフィールドかを言わなかった。いまは「the payload and the trait declare \`name\` with
+  conflicting types」と「no value fits every declaration of \`name\`」。旧メッセージはプリミティブと
+  配列の payload にだけ残る。前者は当初「the payload declares \`name\` with a type the trait does not
+  accept」だった。trait が受け付けるかどうかを判定するように読め、フィールドの被り自体がエラーに見える。
+  被りは同じ型か狭めた型なら通るので、食い違いを言う形に変えた（2026-10-20）
+- **`readonly` を外す。**trait は shape を `DeepReadonly` で持つので、そのまま交差すると
+  `PayloadOf` に `readonly name` が出て、`Val.unwrap` が readonly を返す。§3「payload に `readonly` は
+  書かない」と食い違う。`Writable` で深く外し、Val で止める。止めないと Val のフィールドがブランドを
+  失い、生のレコードが通る。交差では書ける側が勝つので、Enum の `SharedIn` にも同じ `Writable` をかける。
+  かけないと、ネストした配列が `readonly string[] & string[]` になる
+- **宣言のバンドラはエスケープした backtick で壊れる。**テンプレートリテラル型の中に `` \` `` を
+  書くと、tsdown が `val.d.ts` を空で出し、`MISSING_EXPORT` で落ちた。`tsc` 単体の宣言出力は通る。
+  `Code<S>` が `${"`"}` で埋める
+- **型コスト。**trait の fixture は 15,224、enum は 37,492 instantiations（予算 17,000 / 90,000）、
+  `index.d.ts` は 65.92 kB。変更前は main のマージ前の測定で 13,818 / 33,552
 
 #### 需要、2026-09-10
 
@@ -5605,8 +5635,8 @@ const Shape = Enum.companion<Shape>().implTrait(Describable, (self) => ({
 const boxed = Describable.dyn(Shape, Shape.Circle({ id: "c1", r: 2 }));
 ```
 
-**trait が要求するフィールドは共通フィールドで満たす。**足りなければ Variant のブランドに
-`Invalid<"the payload does not hold what the trait requires">` が出る。val.ts の `Fits` がそのまま働く。
+**trait が要求するフィールドは共通フィールドで満たす、としていた。**後に持ち込む形へ変えた（「companion を
+渡さない形」の節）。
 
 **却下: Variant ごとに実装させる。**`Circle` と `Square` で `describe` を分けたいだけなら、union の段の
 実装の中で `match` すればよい。Variant ごとの宣言を型引数に持ち込むと、Variant のレコードが
@@ -5816,7 +5846,8 @@ Val なので、メッセージはそちらを言う。**Variant 0 個は `never
 **trait は要求するフィールドを共通フィールドとして持ち込む。**第 3 型引数は `Pick<X, keyof X>` で読むので、
 `Enum<"Cmd", …, Describable>` の各 Variant は `id` を自動で持つ。§15.2 の「1 つの問いに両方が答える」は
 この形になり、`{ id: string } & Describable` と書いても二重にならない。「payload が trait の要求に足りない」
-ケースは起きえなくなった。
+ケースは起きえなくなった。共通フィールドと trait が同じフィールドを違う型で書くと `never` になって
+検査を素通りしていたのは、2026-10-19 に塞いだ（§15.1「Val も shape を持ち込む」）。
 
 **`CompanionMembers<V>` の制約を外した。**Variant は `Val<…> & EnumPhantom<…>` で、TS は generic の中で
 それが `AnyVal` を満たすと証明できない。制約を落として `V` を素の型引数にすると、val.ts 側は何も変わらずに

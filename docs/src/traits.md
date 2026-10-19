@@ -48,7 +48,7 @@ type Greetable = Trait<
   { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
 >;
 // ---cut---
-type User = Val<"User", { id: string; name: string }, Greetable>;
+type User = Val<"User", { id: string }, Greetable>;
 const User = Val.sealer<User>().implTrait<Greetable>({
   greet: (u) => `Hi, ${u.name}`,
   toWire: (u, sep) => `${u.id}${sep}${u.name}`,
@@ -59,8 +59,9 @@ User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
 
 Naming the trait as the type argument asks `implTrait` for every member it declares.
 
-Declaring the trait is what requires the payload to hold its fields. A `User` without `name` is a
-type error at the declaration, not at `implTrait`.
+A trait adds the fields it requires to the payload, so the `User` payload includes `name` without
+listing it. A payload may list one of them again with the same or a narrower type. A conflicting
+type is a type error.
 
 The checker stops at the declaration. `Val<"User", …, Greetable>` typechecks with no `implTrait`
 anywhere, so the `unimplemented-trait` rule in [valof-lint](linting.md) is what reports the Val that
@@ -185,7 +186,7 @@ import { Enum, Trait, type Self } from "valof/experimental";
 type Describable = Trait<"Describable", { id: string }, { describe: (self: Self) => string }>;
 const Describable = Trait.companion<Describable>();
 
-type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, { id: string } & Describable>;
+type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, Describable>;
 const Cmd = Enum.sealer<Cmd>().implTrait(Describable, {
   describe: (c): string => Cmd.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
 });
@@ -193,8 +194,8 @@ const Cmd = Enum.sealer<Cmd>().implTrait(Describable, {
 Cmd.describe(Cmd.Add({ id: "c1", n: 2 })); // "add 2"
 ```
 
-An enum declares its shared fields and its traits in one argument. A trait brings the fields it
-requires, so declaring them again is not needed. Variants cannot implement traits.
+A trait's fields become fields every variant shares. `id` comes from `Describable`, and `Cmd.Add`
+requires it. Variants cannot implement traits.
 
 ## Hold values of different types together
 

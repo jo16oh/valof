@@ -1,5 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import { equals, Val, type Rec } from "../src/index.ts";
+import { equals, Val, type PayloadOf, type Rec } from "../src/index.ts";
 import {
   Enum,
   Trait,
@@ -245,6 +245,16 @@ describe("shared fields", () => {
     const node: Node = leaf;
     expectTypeOf(node.id).toEqualTypeOf<string>();
   });
+
+  test("a shared field may hold a Val, and takes nothing else", () => {
+    type Owner = Val<"Owner", { id: string }>;
+    const Owner = Val.sealer<Owner>();
+    type Doc = Enum<"Doc", { Draft: { n: number }; Final: { s: string } }, { owner: Owner }>;
+    const Doc = Enum.sealer<Doc>();
+    Doc.Draft({ n: 1, owner: Owner({ id: "o" }) });
+    // @ts-expect-error a record is not an Owner
+    Doc.Draft({ n: 1, owner: { id: "o" } });
+  });
 });
 
 describe("members", () => {
@@ -385,6 +395,22 @@ describe("traits", () => {
     type Tick = Enum<"Tick", { Up: { n: number }; Down: { n: number } }, Labelled>;
     const Tick = Enum.sealer<Tick>().implTrait(Labelled);
     expect(Tick.label(Tick.Up({ id: "t1", n: 1 }))).toBe("#t1");
+  });
+
+  test("a trait's fields come in without readonly", () => {
+    type Tagged = Trait<"Tagged", { tags: string[] }>;
+    type Note = Enum<"Note", { A: { n: number }; B: { s: string } }, Tagged>;
+    expectTypeOf<PayloadOf<VariantOf<Note, "A">>>().toEqualTypeOf<{
+      n: number;
+      tags: string[];
+      _tag: "A";
+    }>();
+  });
+
+  test("a shared field that contradicts the trait is rejected", () => {
+    type Bad = Enum<"Bad", { A: { n: number }; B: { s: string } }, { id: number } & Describable>;
+    // @ts-expect-error no value fits every declaration of `id`
+    Enum.sealer<Bad>();
   });
 
   test("a trait the enum does not declare is rejected", () => {
