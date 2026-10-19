@@ -246,7 +246,17 @@ type Opened<T> =
  * Deep-readonly to accept more, not to enforce: every constructor deep-copies its argument. A
  * Val is itself deep-readonly, so a payload taken from an existing value fits.
  */
-export type SeedOf<V extends AnyVal> = DeepReadonly<Declared<V>>;
+export type SeedOf<V extends AnyVal> = Seed<DeepReadonly<Declared<V>>>;
+
+// An empty payload as an argument. `{}` takes every value but `null` and `undefined`, a string and
+// an array among them.
+export type Seed<T> = [keyof T] extends [never] ? ([T] extends [object] ? EmptySeed : T) : T;
+
+/**
+ * An object that is neither an array, a function nor a promise. An index signature would also
+ * reject an existing value and a tagged payload.
+ */
+type EmptySeed = object & { readonly length?: never; readonly then?: never };
 
 /** A conservative, structural guard for the default `nocopy` constructor. */
 type Equal<X, Y> =
@@ -985,6 +995,20 @@ const adopt = <T>(value: T): T => {
 
 /** A plain deep copy. What `Val.unwrap` hands back is not the library's. */
 const detach = deepCopy(false);
+
+/**
+ * A variant's payload is spread with its tag before the copy, which would drop a prototype unseen
+ * and turn a string into a character map. Throws in production too, like `patch`. Only the message
+ * and the prototype check are development-only, as in the copy.
+ */
+// Below `development`: a read above its declaration keeps the minifier from folding it, and every
+// development-only branch then ships.
+export const assertVariantPayload = (value: unknown): void => {
+  if (!isObjectShaped(value)) {
+    throw new TypeError(development ? "an enum variant's payload is a plain object" : undefined);
+  }
+  if (development) assertPlainObject(value);
+};
 
 /**
  * Assignment cannot carry a user's function: a sealer's target is a function, whose `name` and

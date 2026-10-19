@@ -1,5 +1,6 @@
 import type { AnyTrait, Members, MembersOf, Unbound } from "./trait.ts";
 import {
+  assertVariantPayload,
   define,
   Val,
   type Alone,
@@ -10,6 +11,7 @@ import {
   type Invalid,
   type Passes,
   type Patch,
+  type Seed,
   type Synchronous,
   type Takes,
   type Wired,
@@ -226,8 +228,8 @@ export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
  *
  * @experimental
  */
-export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
-  VariantsOf<E>[N] & SharedOf<E>
+export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = Seed<
+  DeepReadonly<VariantsOf<E>[N] & SharedOf<E>>
 >;
 
 /** One variant's payload as a seal sees it: the constructor has written the tag by then. */
@@ -699,7 +701,10 @@ const state = (
   const byTag = { match: matchTag, key: tag };
 
   const built = (name: string, custom: Seal | undefined, fns: Payload): object => {
-    const tagged = (payload: Payload) => ({ ...payload, [tag]: name });
+    const tagged = (payload: Payload) => {
+      assertVariantPayload(payload);
+      return { ...payload, [tag]: name };
+    };
     if (callable) {
       // The default seal, plus the `patch` that derives through it. The tag is not in the patch's
       // type and the value carries it already, so the merge leaves it alone.
