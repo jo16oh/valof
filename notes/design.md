@@ -2017,10 +2017,15 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
       `null` と `undefined` 以外のすべてが代入できた。`Val<"E", {}>` の `E("text")` が型を通り、Variant の
       `E.A("text")` は `{ 0: "t", …, _tag: "A" }` を作った
   - **型。**`SeedOf` と `SeedFor` が、キーの無いオブジェクト型を `object & { length?: never; then?: never }`
-    に替える。プリミティブ、配列、関数、promise を拒み、既存の値とタグ付きの payload は通す
+    に替える。どの深さでも替える（`Val<"X", { meta: {} }>` の `X({ meta: "text" })` も落ちる）。
+    プリミティブ、配列、関数、promise を拒み、既存の値とタグ付きの payload は通す
+  - **`DeepReadonly` の型引数 `Arg` で、引数の位置だけ替える。**`SeedOf` と `SeedFor` が `true` を渡す。
+    seed と値の型がキャッシュを共有しなくなり、インスタンス化が増えた（core 5,881 → 6,329、enum
+    34,399 → 35,559）
   - **却下: インデックスシグネチャ（`{ [key: string]: never }`）。**既存の値も拒む。クラスの `Phantom`
     を含む型には、暗黙のインデックスシグネチャが無い。タグ付きの payload も `_tag` が `never` に合わない
-  - **値の型は変えない。**引数の位置だけ絞る
+  - **値の型は `{}` のまま。**Trait の shape も `Arg` なしの `DeepReadonly` を通る。そこで絞ると、
+    shape が空の Trait を string の payload の Val が実装できなくなる（`tests/trait.test.ts` が落ちる）
   - **seal の引数の検査（`CheckedSeal`）が空の payload にも掛かる。**今までは `{}` に string が代入
     できるので除外されていた。`unknown` を取る seal は「a seal takes the payload, not a wire
     format」で落ちる
@@ -2032,8 +2037,6 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
     プリミティブの payload もあるので、オブジェクトを要求できない
   - **検査は `development` の宣言より後ろに置く。**前に置くと minifier が `development` を畳めず、
     development の分岐がすべて production に残った（Enum の増分 +474 → +633 B）。置き直して +487 B
-- [ ] **入れ子の `{}` は今も何でも通す。**`Val<"X", { meta: {} }>` の `X({ meta: "text" })` が型を通る。
-      `SeedOf` が絞るのはトップレベルだけ。`DeepReadonly` で絞ると値の型も変わる。実例が出るまで待つ
 
 - [x] ~~**seal を通さない `create`。**~~ → 入れた。`.implCreate.noseal`、2026-10-14。必ず seal を通る
       payload を生成する `create` が、seal の戻り型をそのまま返してしまう。定義側の段で外す
