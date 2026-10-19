@@ -167,9 +167,21 @@ type Verdicted<T, Tr extends AnyTrait> = [T] extends [Validate<T>]
     : Invalid<Extract<Fits<T, Tr>, string>>
   : Validate<T>;
 
+/** The declared payload, with the fields the traits require when it is a record. */
+type Holding<T, Tr extends AnyTrait> = [Tr] extends [never]
+  ? T
+  : IsRecord<T> extends true
+    ? T & Writable<ShapeOf<Tr>>
+    : T;
+
+/** Undoes the {@link DeepReadonly} a trait holds its shape in: a payload is written without it. */
+export type Writable<T> = [T] extends [AnyVal] ? T : { -readonly [K in keyof T]: Writable<T[K]> };
+
+/** Reads the keys alone: a field may reference the Val being declared, see {@link Rec}. */
+type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? false : true;
+
 /**
- * Whether the payload holds every field the declared traits require, or the sentence saying why
- * not.
+ * Whether the declared payload agrees with its traits, or the sentence saying why not.
  *
  * `ShapeOf<A | B>` keeps only the keys the two share, so a union asks the payload for nothing.
  * Caught here, before the fields are read.
@@ -177,10 +189,28 @@ type Verdicted<T, Tr extends AnyTrait> = [T] extends [Validate<T>]
 type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true
   : [Tr] extends [UnionToIntersection<Tr>]
-    ? DeepReadonly<Checked<T>> extends ShapeOf<Tr>
-      ? true
-      : "the payload does not hold what the trait requires"
+    ? IsRecord<T> extends false
+      ? DeepReadonly<Checked<T>> extends ShapeOf<Tr>
+        ? true
+        : "the payload does not hold what the trait requires"
+      : [Disagreement<T, ShapeOf<Tr>>] extends [never]
+        ? true
+        : Disagreement<T, ShapeOf<Tr>>
     : "declare several traits with `&`, not `|`";
+
+/** A field the payload declares as a type the shape rejects, or one that no value satisfies. */
+type Disagreement<T, S, R = DeepReadonly<Checked<T>>> = {
+  [K in keyof S & string]-?: [K extends keyof R ? R[K] : S[K]] extends [infer F]
+    ? [F] extends [never]
+      ? `no value fits every declaration of ${Code<K>}`
+      : F extends S[K]
+        ? never
+        : `the payload declares ${Code<K>} with a type the trait does not accept`
+    : never;
+}[keyof S & string];
+
+// Spelled without an escaped backtick, which the declaration bundler drops the whole file over.
+type Code<S extends string> = `${"`"}${S}${"`"}`;
 
 // Distributes over the union to collect one parameter position per member, which infers as their
 // intersection. A single trait is its own intersection, and so is `never`.
@@ -198,12 +228,16 @@ type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) exten
 type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
 
 /**
- * A branded value type. A payload that breaks the allowed-type rules is a type error, and so is
- * one that does not hold what a declared trait requires: both land in the verdict, which stops
- * the Val satisfying {@link AnyVal}. See {@link Verdicted}.
+ * A branded value type. A declared trait adds the fields it requires to the payload.
+ *
+ * A payload that breaks the allowed-type rules is a type error, and so is one that contradicts a
+ * declared trait: both land in the verdict, which stops the Val satisfying {@link AnyVal}. See
+ * {@link Verdicted}.
  */
-type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Grounded<T>> &
-  Phantom<K, T> &
+type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
+  Grounded<Holding<T, Tr>>
+> &
+  Phantom<K, Holding<T, Tr>> &
   Verdict<Verdicted<T, Tr>> &
   TraitBrand<Tr>;
 
@@ -565,8 +599,8 @@ type Grown<Taken, M> = M & {
  * The checks are placed on a parameter. In the return type they would fail only where the companion
  * is assigned, which is a line away from the call and reads as something else.
  *
- * The shape is not among them: a Val that declares a trait it does not hold the fields for is
- * rejected where it is declared, so it never reaches a companion. See {@link Val}.
+ * The shape is not among them: a Val whose payload contradicts a trait it declares is rejected
+ * where it is declared, so it never reaches a companion. See {@link Val}.
  *
  * `Tr` infers only through a branch that names it structurally, which the type-argument form's
  * mapped type does not. A call written in that form leaves `Tr` at its constraint, where

@@ -13,6 +13,7 @@ import {
   type Synchronous,
   type Takes,
   type Wired,
+  type Writable,
 } from "./val.ts";
 import * as Enum from "./ns/enum.ts";
 
@@ -73,7 +74,7 @@ type VariantsIn<D> = { [N in VariantKeys<D>]: D[N] };
 type TagIn<X> = [X] extends [TagPhantom<infer T>] ? T : "_tag";
 
 /** The fields every variant holds. A trait carries its own, so both arrive in one argument. */
-type SharedIn<X> = Pick<X, keyof X>;
+type SharedIn<X> = Writable<Pick<X, keyof X>>;
 
 type TraitsIn<X> = Extract<X, AnyTrait>;
 
