@@ -437,6 +437,40 @@ describe("traits", () => {
       Enum.companion<Both>().implTrait(Sized).implTrait(Wide);
     });
 
+    describe("one a trait the enum declares answers to", () => {
+      test("on the union", () => {
+        Enum.sealer<Cmd>()
+          .implTrait(Describable, { describe: (c) => c.id })
+          // @ts-expect-error a trait the enum declares answers to this name
+          .impl({ describe: (c) => c._tag });
+        // The message is the parameter type, so passing the literal is what pins the wording.
+        Enum.sealer<Cmd>()
+          .implTrait(Describable, { describe: (c) => c.id })
+          .impl({ describe: "a trait the enum declares answers to this name" });
+        Enum.companion<Cmd>()
+          .implTrait(Describable, { describe: (c) => c.id })
+          // @ts-expect-error same, on a companion's enum
+          .impl({ describe: (c) => c._tag });
+      });
+
+      test("on a variant", () => {
+        Enum.sealer<Cmd>()
+          // @ts-expect-error same, on a variant
+          .implVariant("Add", (variant) => variant.impl({ describe: (a) => `${a.n}` }));
+        Enum.companion<Cmd>()
+          // @ts-expect-error same, on a companion's variant
+          .implVariant("Add", (variant) => variant.impl({ describe: (a) => `${a.n}` }));
+      });
+
+      test("a name no trait answers to stays open", () => {
+        const Named = Enum.sealer<Cmd>()
+          .implVariant("Add", (variant) => variant.impl({ twice: (a) => a.n * 2 }))
+          .implTrait(Describable, { describe: (c) => c.id })
+          .impl({ kind: (c) => c._tag });
+        expect([Named.kind(add), Named.Add.twice(add)]).toEqual(["Add", 4]);
+      });
+    });
+
     test("a companion that skipped a Final cannot be implemented", () => {
       type Fixed = Trait<
         "Fixed",
