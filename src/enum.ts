@@ -11,7 +11,6 @@ import {
   type Invalid,
   type Passes,
   type Patch,
-  type Seed,
   type Synchronous,
   type Takes,
   type Wired,
@@ -228,8 +227,9 @@ export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
  *
  * @experimental
  */
-export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = Seed<
-  DeepReadonly<VariantsOf<E>[N] & SharedOf<E>>
+export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
+  VariantsOf<E>[N] & SharedOf<E>,
+  true
 >;
 
 /** One variant's payload as a seal sees it: the constructor has written the tag by then. */

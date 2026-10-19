@@ -119,12 +119,15 @@ type ValidateValue<T> = [T] extends [Primitive]
             : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
         : Invalid<"not a plain value">;
 
-/** A {@link Rec} opens to the Val it references. */
-export type DeepReadonly<T> =
-  IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T>;
+/**
+ * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
+ * object is narrowed to {@link EmptySeed}.
+ */
+export type DeepReadonly<T, Arg extends boolean = false> =
+  IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T, Arg>;
 
 /** Recursion stops at a nested Val: it is already deep-readonly. */
-type DeepReadonlyValue<T> = [T] extends [AnyVal]
+type DeepReadonlyValue<T, Arg extends boolean> = [T] extends [AnyVal]
   ? T
   : [T] extends [Primitive]
     ? T
@@ -133,16 +136,25 @@ type DeepReadonlyValue<T> = [T] extends [AnyVal]
       // still being declared. An array is the only payload with a numeric key.
       number extends keyof T
       ? number extends Extract<T, readonly unknown[]>["length"]
-        ? ReadonlyArray<DeepReadonly<T[number]>>
-        : { readonly [I in keyof T]: DeepReadonly<T[I]> }
+        ? ReadonlyArray<DeepReadonly<T[number], Arg>>
+        : { readonly [I in keyof T]: DeepReadonly<T[I], Arg> }
       : [T] extends [object]
-        ? {
-            // An optional key carries `undefined` in its type, and a union stops the walk one
-            // level short: a `Rec` inside it would never open. The value never holds the
-            // `undefined` either way, since an optional key is absent or set.
-            readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>>;
-          }
+        ? [Arg, keyof T] extends [true, never]
+          ? EmptySeed
+          : {
+              // An optional key carries `undefined` in its type, and a union stops the walk one
+              // level short: a `Rec` inside it would never open. The value never holds the
+              // `undefined` either way, since an optional key is absent or set.
+              readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Arg>;
+            }
         : T;
+
+/**
+ * An empty object as an argument: neither an array, a function nor a promise. `{}` takes every
+ * value but `null` and `undefined`. An index signature would also reject an existing value and a
+ * tagged payload.
+ */
+type EmptySeed = object & { readonly length?: never; readonly then?: never };
 
 /** The payload, or the annotated version of it when it breaks the allowed-type rules. */
 export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
@@ -246,17 +258,7 @@ type Opened<T> =
  * Deep-readonly to accept more, not to enforce: every constructor deep-copies its argument. A
  * Val is itself deep-readonly, so a payload taken from an existing value fits.
  */
-export type SeedOf<V extends AnyVal> = Seed<DeepReadonly<Declared<V>>>;
-
-// An empty payload as an argument. `{}` takes every value but `null` and `undefined`, a string and
-// an array among them.
-export type Seed<T> = [keyof T] extends [never] ? ([T] extends [object] ? EmptySeed : T) : T;
-
-/**
- * An object that is neither an array, a function nor a promise. An index signature would also
- * reject an existing value and a tagged payload.
- */
-type EmptySeed = object & { readonly length?: never; readonly then?: never };
+export type SeedOf<V extends AnyVal> = DeepReadonly<Declared<V>, true>;
 
 /** A conservative, structural guard for the default `nocopy` constructor. */
 type Equal<X, Y> =

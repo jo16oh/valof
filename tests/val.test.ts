@@ -254,6 +254,14 @@ describe("Val", () => {
       expectTypeOf<Promise<void>>().not.toExtend<SeedOf<Marker>>();
     });
 
+    test("so does an empty object nested in a payload", () => {
+      type Tagged = Val<"Tagged", { meta: {}; list: {}[] }>;
+      expectTypeOf<{ meta: string; list: [] }>().not.toExtend<SeedOf<Tagged>>();
+      expectTypeOf<{ meta: {}; list: string[] }>().not.toExtend<SeedOf<Tagged>>();
+      type Pair = Val<"Pair", [{}, number]>;
+      expectTypeOf<[string, number]>().not.toExtend<SeedOf<Pair>>();
+    });
+
     test("Vals, arrays, records and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
       expectTypeOf<Val<"B", bigint>>().toExtend<AnyVal>();
