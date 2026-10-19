@@ -96,7 +96,7 @@ describe("Trait", () => {
       Trait.companion<Sneaky>().impl({});
     });
 
-    test("nor one under `impl`, which the steps have", () => {
+    test("nor a step's name", () => {
       type Stepping = Trait<"Stepping", { name: string }, { implTrait: (self: Self) => string }>;
       // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Stepping>().impl({});

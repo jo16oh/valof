@@ -1,6 +1,6 @@
 // Type-only, so the entry point constrains against an experimental type and nothing crosses at
 // run time. The phantom stays in enum.ts, beside the declaration that carries it.
-import type { AnyEnum } from "./enum.ts";
+import type { AnyEnum, EnumStep } from "./enum.ts";
 import type {
   AnyTrait,
   FinalsOf,
@@ -343,29 +343,36 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
  */
 export type Wired = "patch" | "seal" | "create";
 
+/** The steps a Val's builder takes. */
+type ValStep = "impl" | "implSeal" | "implCreate" | "implTrait";
+
+/**
+ * The steps belong to the library, a builder's own or another's. A member taking one shadows
+ * nothing: `.impl` builds a fresh object, and the chain has ended by then. But `User.implTrait(u)`
+ * reads as the step it is not.
+ *
+ * A step the library adds later may take another name starting with `impl`.
+ */
+export type Steps = Partial<Record<ValStep, never>> & Partial<Record<EnumStep, never>>;
+
 /** The names every `.impl` rejects. */
-type Rejected = Partial<Record<Wired, never>> & {
-  /**
-   * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
-   * before the registrations, so a function taking the name would overwrite it and leave every
-   * boxed member unbound.
-   */
-  [key: `__valof_${string}`]: never;
-  /**
-   * The steps belong to the library, whichever ones it adds. Nothing is shadowed: `.impl` builds a
-   * fresh object, and the chain has ended by then. But `User.implTrait(u)` reads as the step it is
-   * not, so the library reserves the prefix.
-   */
-  [key: `impl${string}`]: never;
-  /**
-   * A companion holding `then` is a thenable. `await` on it, or returning it from an async
-   * function, calls the member with the resolve and reject functions, and the promise never
-   * settles.
-   */
-  then?: never;
-  /** A sealer's own. A member taking the name would replace it, and the type would show both. */
-  nocopy?: never;
-};
+type Rejected = Partial<Record<Wired, never>> &
+  Steps & {
+    /**
+     * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
+     * before the registrations, so a function taking the name would overwrite it and leave every
+     * boxed member unbound.
+     */
+    [key: `__valof_${string}`]: never;
+    /**
+     * A companion holding `then` is a thenable. `await` on it, or returning it from an async
+     * function, calls the member with the resolve and reject functions, and the promise never
+     * settles.
+     */
+    then?: never;
+    /** A sealer's own. A member taking the name would replace it, and the type would show both. */
+    nocopy?: never;
+  };
 
 /** The keys of {@link Rejected}, which valof-lint reads. */
 export type Reserved = keyof Rejected;
