@@ -10,6 +10,7 @@ import {
   type Invalid,
   type Passes,
   type Patch,
+  type Steps,
   type Synchronous,
   type Takes,
   type Wired,
@@ -97,7 +98,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
   | {
       [N in VariantKeys<D>]: N extends "then"
         ? "a variant named `then` would make the companion a thenable"
-        : N extends "match" | "seal" | `impl${string}` | `__valof_${string}`
+        : N extends "match" | "seal" | keyof Steps | `__valof_${string}`
           ? "a variant cannot take a name the library reserves"
           : [D[N]] extends [object]
             ? [D[N]] extends [ReadonlyArray<unknown>]
@@ -556,6 +557,9 @@ export type EnumSealed<
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
   };
+
+/** The steps an enum's builder takes. A variant's are among them. */
+export type EnumStep = "impl" | "implVariant" | "implSeal" | "implTrait";
 
 /**
  * What `Enum.companion` returns, which its steps add to. `.impl` ends the chain, so a companion

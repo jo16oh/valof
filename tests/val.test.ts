@@ -2166,11 +2166,21 @@ describe("building", () => {
           });
       });
 
-      test("nor may it grow one over a step's name", () => {
+      test("nor may it grow one over a step's name, an enum's included", () => {
         Val.companion<Member>().impl({
-          // @ts-expect-error the `impl` prefix is the library's
+          // @ts-expect-error the steps' names are the library's
           implTrait: (m: Member) => m.name,
         });
+        Val.companion<Member>().impl({
+          // @ts-expect-error same, for a step only an enum's builder has
+          implVariant: (m: Member) => m.name,
+        });
+      });
+
+      test("but may take another name starting with `impl`", () => {
+        type Grant = Val<"Grant", { kind: string }>;
+        const Grant = Val.sealer<Grant>().impl({ implicit: (g) => g.kind === "implicit" });
+        expect(Grant.implicit(Grant({ kind: "implicit" }))).toBe(true);
       });
 
       test("nor `then`, which would make the companion a thenable", () => {
