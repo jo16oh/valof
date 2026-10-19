@@ -11,8 +11,8 @@
     "skipLibCheck": true,
     "types": [],
     "paths": {
-      "valof": ["../../dist/index.d.mts"],
-      "valof/experimental": ["../../dist/experimental.d.mts"]
+      "valof": ["../../dist/index.d.ts"],
+      "valof/experimental": ["../../dist/experimental.d.ts"]
     }
   }
 }

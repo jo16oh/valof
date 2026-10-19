@@ -1,5 +1,6 @@
 import type { AnyTrait, Members, MembersOf, Unbound } from "./trait.ts";
 import {
+  assertVariantPayload,
   define,
   Val,
   type Alone,
@@ -10,10 +11,12 @@ import {
   type Invalid,
   type Passes,
   type Patch,
+  type Steps,
   type Synchronous,
   type Takes,
   type Wired,
 } from "./val.ts";
+import * as Enum from "./ns/enum.ts";
 
 /**
  * The key that holds an enum companion's `match` on a tag string, and its `key`:
@@ -96,7 +99,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
   | {
       [N in VariantKeys<D>]: N extends "then"
         ? "a variant named `then` would make the companion a thenable"
-        : N extends "match" | "seal" | `impl${string}` | `__valof_${string}`
+        : N extends "match" | "seal" | keyof Steps | `__valof_${string}`
           ? "a variant cannot take a name the library reserves"
           : [D[N]] extends [object]
             ? [D[N]] extends [ReadonlyArray<unknown>]
@@ -146,7 +149,7 @@ type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
  *
  * @experimental
  */
-export type Enum<K extends string, D extends object, X extends object = Record<never, never>> = {
+type Enum<K extends string, D extends object, X extends object = Record<never, never>> = {
   [N in VariantKeys<D>]: Val<
     `${K}.${N}`,
     D[N] & SharedIn<X> & { [P in TagIn<X>]: N },
@@ -160,6 +163,8 @@ export type Enum<K extends string, D extends object, X extends object = Record<n
       TagIn<X>
     >;
 }[VariantKeys<D>];
+
+export { Enum };
 
 /** Read through the class, since a private key is unreachable by an index. */
 type Declared<E> =
@@ -227,7 +232,8 @@ export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
  * @experimental
  */
 export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
-  VariantsOf<E>[N] & SharedOf<E>
+  VariantsOf<E>[N] & SharedOf<E>,
+  true
 >;
 
 /** One variant's payload as a seal sees it: the constructor has written the tag by then. */
@@ -563,6 +569,9 @@ export type EnumSealed<
     readonly __valof_traits: Members;
   };
 
+/** The steps an enum's builder takes. A variant's are among them. */
+export type EnumStep = "impl" | "implVariant" | "implSeal" | "implTrait";
+
 /**
  * What `Enum.companion` returns, which its steps add to. `.impl` ends the chain, so a companion
  * that left it open cannot be given another seal after it was exported.
@@ -708,7 +717,10 @@ const state = (
   const byTag = { match: matchTag, key: tag };
 
   const built = (name: string, custom: Seal | undefined, fns: Payload): object => {
-    const tagged = (payload: Payload) => ({ ...payload, [tag]: name });
+    const tagged = (payload: Payload) => {
+      assertVariantPayload(payload);
+      return { ...payload, [tag]: name };
+    };
     if (callable) {
       // The default seal, plus the `patch` that derives through it. The tag is not in the patch's
       // type and the value carries it already, so the merge leaves it alone.
@@ -821,20 +833,22 @@ const state = (
   return self;
 };
 
-/** @experimental */
-export const Enum = {
-  /**
-   * Builds the constructors for an enum: the companion and every variant are callable.
-   * `Enum.companion` is the same, for an enum with a custom seal.
-   *
-   * The tag name is passed again here because the proxy has to write it at run time, and the type
-   * argument is not readable from a value.
-   */
-  sealer: <E extends AnyEnum>(...tag: TagArg<E>): EnumSealer<E> =>
-    state(tag[0] ?? "_tag", true, {}, {}, {}, undefined, true) as EnumSealer<E>,
-  /**
-   * Bundles an enum's members with a custom seal. Every variant builds with `.create`.
-   */
-  companion: <E extends AnyEnum>(...tag: TagArg<E>): EnumBuilder<E> =>
-    state(tag[0] ?? "_tag", false, {}, {}, {}, undefined, true) as EnumBuilder<E>,
-} as const;
+/**
+ * Builds the constructors for an enum: the companion and every variant are callable.
+ * `Enum.companion` is the same, for an enum with a custom seal.
+ *
+ * The tag name is passed again here because the proxy has to write it at run time, and the type
+ * argument is not readable from a value.
+ *
+ * @experimental
+ */
+export const sealer = <E extends AnyEnum>(...tag: TagArg<E>): EnumSealer<E> =>
+  state(tag[0] ?? "_tag", true, {}, {}, {}, undefined, true) as EnumSealer<E>;
+
+/**
+ * Bundles an enum's members with a custom seal. Every variant builds with `.create`.
+ *
+ * @experimental
+ */
+export const companion = <E extends AnyEnum>(...tag: TagArg<E>): EnumBuilder<E> =>
+  state(tag[0] ?? "_tag", false, {}, {}, {}, undefined, true) as EnumBuilder<E>;

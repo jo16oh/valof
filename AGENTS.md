@@ -18,8 +18,8 @@ checks them on the release PR that `vp run bump-version` opens. After the merge,
 workflow checks all three again before it creates the tag.
 
 Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
-against the published declarations, and budgets the instantiation count and the size of
-`dist/index.d.mts`. Both are type costs, so both live here.
+against the published declarations, and budgets the instantiation count and the size of the
+declarations that `import "valof"` loads. Both are type costs, so both live here.
 
 Neither `vp check` nor `vp test` covers either one.
 

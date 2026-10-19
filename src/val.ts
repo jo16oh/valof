@@ -1,6 +1,6 @@
 // Type-only, so the entry point constrains against an experimental type and nothing crosses at
 // run time. The phantom stays in enum.ts, beside the declaration that carries it.
-import type { AnyEnum } from "./enum.ts";
+import type { AnyEnum, EnumStep } from "./enum.ts";
 import type {
   AnyTrait,
   FinalsOf,
@@ -14,6 +14,7 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
+import * as Val from "./ns/val.ts";
 
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
 type Primitive = string | number | boolean | bigint | null;
@@ -119,12 +120,15 @@ type ValidateValue<T> = [T] extends [Primitive]
             : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
         : Invalid<"not a plain value">;
 
-/** A {@link Rec} opens to the Val it references. */
-export type DeepReadonly<T> =
-  IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T>;
+/**
+ * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
+ * object is narrowed to {@link EmptySeed}.
+ */
+export type DeepReadonly<T, Arg extends boolean = false> =
+  IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T, Arg>;
 
 /** Recursion stops at a nested Val: it is already deep-readonly. */
-type DeepReadonlyValue<T> = [T] extends [AnyVal]
+type DeepReadonlyValue<T, Arg extends boolean> = [T] extends [AnyVal]
   ? T
   : [T] extends [Primitive]
     ? T
@@ -133,16 +137,25 @@ type DeepReadonlyValue<T> = [T] extends [AnyVal]
       // still being declared. An array is the only payload with a numeric key.
       number extends keyof T
       ? number extends Extract<T, readonly unknown[]>["length"]
-        ? ReadonlyArray<DeepReadonly<T[number]>>
-        : { readonly [I in keyof T]: DeepReadonly<T[I]> }
+        ? ReadonlyArray<DeepReadonly<T[number], Arg>>
+        : { readonly [I in keyof T]: DeepReadonly<T[I], Arg> }
       : [T] extends [object]
-        ? {
-            // An optional key carries `undefined` in its type, and a union stops the walk one
-            // level short: a `Rec` inside it would never open. The value never holds the
-            // `undefined` either way, since an optional key is absent or set.
-            readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>>;
-          }
+        ? [Arg, keyof T] extends [true, never]
+          ? EmptySeed
+          : {
+              // An optional key carries `undefined` in its type, and a union stops the walk one
+              // level short: a `Rec` inside it would never open. The value never holds the
+              // `undefined` either way, since an optional key is absent or set.
+              readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Arg>;
+            }
         : T;
+
+/**
+ * An empty object as an argument: neither an array, a function nor a promise. `{}` takes every
+ * value but `null` and `undefined`. An index signature would also reject an existing value and a
+ * tagged payload.
+ */
+type EmptySeed = object & { readonly length?: never; readonly then?: never };
 
 /** The payload, or the annotated version of it when it breaks the allowed-type rules. */
 export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
@@ -201,10 +214,12 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
  * one that does not hold what a declared trait requires: both land in the verdict, which stops
  * the Val satisfying {@link AnyVal}. See {@link Verdicted}.
  */
-export type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Grounded<T>> &
+type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Grounded<T>> &
   Phantom<K, T> &
   Verdict<Verdicted<T, Tr>> &
   TraitBrand<Tr>;
+
+export { Val };
 
 /** The Val's brand string. */
 export type BrandOf<V extends AnyVal> = V extends Phantom<infer K, unknown> ? K : never;
@@ -246,7 +261,7 @@ type Opened<T> =
  * Deep-readonly to accept more, not to enforce: every constructor deep-copies its argument. A
  * Val is itself deep-readonly, so a payload taken from an existing value fits.
  */
-export type SeedOf<V extends AnyVal> = DeepReadonly<Declared<V>>;
+export type SeedOf<V extends AnyVal> = DeepReadonly<Declared<V>, true>;
 
 /** A conservative, structural guard for the default `nocopy` constructor. */
 type Equal<X, Y> =
@@ -343,29 +358,36 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
  */
 export type Wired = "patch" | "seal" | "create";
 
+/** The steps a Val's builder takes. */
+type ValStep = "impl" | "implSeal" | "implCreate" | "implTrait";
+
+/**
+ * The steps belong to the library, a builder's own or another's. A member taking one shadows
+ * nothing: `.impl` builds a fresh object, and the chain has ended by then. But `User.implTrait(u)`
+ * reads as the step it is not.
+ *
+ * A step the library adds later may take another name starting with `impl`.
+ */
+export type Steps = Partial<Record<ValStep, never>> & Partial<Record<EnumStep, never>>;
+
 /** The names every `.impl` rejects. */
-type Rejected = Partial<Record<Wired, never>> & {
-  /**
-   * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
-   * before the registrations, so a function taking the name would overwrite it and leave every
-   * boxed member unbound.
-   */
-  [key: `__valof_${string}`]: never;
-  /**
-   * The steps belong to the library, whichever ones it adds. Nothing is shadowed: `.impl` builds a
-   * fresh object, and the chain has ended by then. But `User.implTrait(u)` reads as the step it is
-   * not, so the library reserves the prefix.
-   */
-  [key: `impl${string}`]: never;
-  /**
-   * A companion holding `then` is a thenable. `await` on it, or returning it from an async
-   * function, calls the member with the resolve and reject functions, and the promise never
-   * settles.
-   */
-  then?: never;
-  /** A sealer's own. A member taking the name would replace it, and the type would show both. */
-  nocopy?: never;
-};
+type Rejected = Partial<Record<Wired, never>> &
+  Steps & {
+    /**
+     * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
+     * before the registrations, so a function taking the name would overwrite it and leave every
+     * boxed member unbound.
+     */
+    [key: `__valof_${string}`]: never;
+    /**
+     * A companion holding `then` is a thenable. `await` on it, or returning it from an async
+     * function, calls the member with the resolve and reject functions, and the promise never
+     * settles.
+     */
+    then?: never;
+    /** A sealer's own. A member taking the name would replace it, and the type would show both. */
+    nocopy?: never;
+  };
 
 /** The keys of {@link Rejected}, which valof-lint reads. */
 export type Reserved = keyof Rejected;
@@ -987,6 +1009,20 @@ const adopt = <T>(value: T): T => {
 const detach = deepCopy(false);
 
 /**
+ * A variant's payload is spread with its tag before the copy, which would drop a prototype unseen
+ * and turn a string into a character map. Throws in production too, like `patch`. Only the message
+ * and the prototype check are development-only, as in the copy.
+ */
+// Below `development`: a read above its declaration keeps the minifier from folding it, and every
+// development-only branch then ships.
+export const assertVariantPayload = (value: unknown): void => {
+  if (!isObjectShaped(value)) {
+    throw new TypeError(development ? "an enum variant's payload is a plain object" : undefined);
+  }
+  if (development) assertPlainObject(value);
+};
+
+/**
  * Assignment cannot carry a user's function: a sealer's target is a function, whose `name` and
  * `length` are read-only, so `impl({ name })` would throw. Both are configurable, so defining
  * works. The library's own keys never collide and are assigned.
@@ -1198,39 +1234,41 @@ type NotEnum<V> = [V] extends [AnyEnum]
   ? Invalid<"a variant is built by its enum's companion">
   : unknown;
 
-export const Val = {
+/**
+ * The default seal, with the type named explicitly: brand the payload and copy it. A called
+ * `Val.sealer` and the seal passed to a custom one do the same thing; only the type differs.
+ */
+export const of = /* @__PURE__ */ Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
   /**
-   * The default seal, with the type named explicitly: brand the payload and copy it. A called
-   * `Val.sealer` and the seal passed to a custom one do the same thing; only the type differs.
+   * Uses a payload without copying it. With an explicit `V`, TypeScript cannot also infer
+   * the argument's precise readonlyness; the caller must ensure it will not change.
    */
-  of: Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
-    /**
-     * Uses a payload without copying it. With an explicit `V`, TypeScript cannot also infer
-     * the argument's precise readonlyness; the caller must ensure it will not change.
-     */
-    nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
-  }),
-  /**
-   * The other direction: a plain, mutable copy of the payload, for code that does not know
-   * about `readonly`.
-   *
-   * It copies because the brand is phantom: a Val is its payload at run time, so returning that
-   * object under a mutable type would put the caller's writes into the value.
-   */
-  unwrap: detach as <V extends AnyVal>(value: V) => PayloadOf<V>,
-  /**
-   * Creates the constructor for a Val. `Val.companion` is the same shape for a type with a
-   * smart constructor, minus the callability.
-   *
-   * `V` is given as a type argument; the members are inferred by `.impl()`.
-   */
-  sealer: <V extends AnyVal & NotEnum<V>>(): Sealer<V> => build<V>({}, true) as Sealer<V>,
-  /**
-   * Bundles a type's members without a constructor.
-   *
-   * Constructors get their own steps rather than sitting in `.impl`, which fixes every
-   * function's first parameter to the Val. A constructor does not fit that shape.
-   */
-  companion: <V extends AnyVal & NotEnum<V>>(): CompanionBuilder<V> =>
-    build<V>({}, false) as CompanionBuilder<V>,
-} as const;
+  nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
+});
+
+/**
+ * The other direction: a plain, mutable copy of the payload, for code that does not know
+ * about `readonly`.
+ *
+ * It copies because the brand is phantom: a Val is its payload at run time, so returning that
+ * object under a mutable type would put the caller's writes into the value.
+ */
+export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
+
+/**
+ * Creates the constructor for a Val. `Val.companion` is the same shape for a type with a
+ * smart constructor, minus the callability.
+ *
+ * `V` is given as a type argument; the members are inferred by `.impl()`.
+ */
+export const sealer = <V extends AnyVal & NotEnum<V>>(): Sealer<V> =>
+  build<V>({}, true) as Sealer<V>;
+
+/**
+ * Bundles a type's members without a constructor.
+ *
+ * Constructors get their own steps rather than sitting in `.impl`, which fixes every
+ * function's first parameter to the Val. A constructor does not fit that shape.
+ */
+export const companion = <V extends AnyVal & NotEnum<V>>(): CompanionBuilder<V> =>
+  build<V>({}, false) as CompanionBuilder<V>;

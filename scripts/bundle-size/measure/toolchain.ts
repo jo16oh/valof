@@ -15,7 +15,7 @@ import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class PackError extends TaggedError("PackError")<{ output: string; message: string }> {
   constructor({ output }: { output: string }) {
-    super({ output, message: `vp pack failed\n${output}` });
+    super({ output, message: `vp run build failed\n${output}` });
   }
 }
 
@@ -50,9 +50,13 @@ const root = new URL("../../../", import.meta.url);
 export function pack(): Promise<R<void, PackError>> {
   return R.tryPromise({
     try: async () => {
-      await promisify(execFile)(fileURLToPath(new URL("node_modules/.bin/vp", root)), ["pack"], {
-        cwd: fileURLToPath(root),
-      });
+      await promisify(execFile)(
+        fileURLToPath(new URL("node_modules/.bin/vp", root)),
+        ["run", "build"],
+        {
+          cwd: fileURLToPath(root),
+        },
+      );
     },
     catch: (cause) => {
       const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
@@ -141,7 +145,8 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
           const content = pipe(
             Object.entries(imports).map(
               ([module, names]) =>
-                `import { ${names.join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
+                // `Val.sealer` imports `Val` and reads one member, leaving the rest to tree-shaking.
+                `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
             ),
             (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
             (lines) => lines.join("\n"),

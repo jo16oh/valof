@@ -49,6 +49,27 @@ describe("the declaration", () => {
     expect([created, checked, copied].map(Object.isFrozen)).toEqual([true, true, false]);
   });
 
+  test("a variant with no fields takes an object, and nothing else", () => {
+    type Signal = Enum<"Signal", { Stop: {}; Go: { speed: number } }>;
+    const Signal = Enum.sealer<Signal>();
+    expectTypeOf(Signal.Stop({})).toExtend<SeedFor<Signal, "Stop">>();
+    expectTypeOf<string>().not.toExtend<SeedFor<Signal, "Stop">>();
+    // Through a cast, the constructor throws rather than spread the string into its characters.
+    expect(() => Signal.Stop("text" as never)).toThrow(/variant's payload/);
+    expect(() => Signal.Stop([1] as never)).toThrow(/variant's payload/);
+
+    const Created = Enum.companion<Signal>().impl();
+    expect(() => Created.Stop.create("text" as never)).toThrow(/variant's payload/);
+  });
+
+  // The type is structural, and the spread that adds the tag would drop the prototype unseen.
+  test("a class instance is rejected, like in any other Val", () => {
+    class Ring {
+      r = 1;
+    }
+    expect(() => Circle(new Ring())).toThrow(/instance of Ring/);
+  });
+
   test("the payload is deep-copied, like any other Val", () => {
     type Box = Enum<"Box", { Full: { items: string[] }; Empty: { at: string } }>;
     const Box = Enum.sealer<Box>();
@@ -503,13 +524,19 @@ describe("a broken declaration", () => {
     // @ts-expect-error a variant cannot take a name the library reserves
     Enum.companion<Sealed>();
 
-    type Stepped = Enum<"Stepped", { implode: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error same, for the steps' prefix
+    type Stepped = Enum<"Stepped", { implCreate: { n: number }; Other: { n: number } }>;
+    // @ts-expect-error same, for a step only a Val's builder has
     Enum.sealer<Stepped>();
 
     type Sneaky = Enum<"Sneaky", { __valof_traits: { n: number }; Other: { n: number } }>;
     // @ts-expect-error same, for the library's own keys
     Enum.sealer<Sneaky>();
+  });
+
+  test("but may take another word starting with `impl`", () => {
+    type Grant = Enum<"Grant", { implicit: { scope: string }; password: { user: string } }>;
+    const Grant = Enum.sealer<Grant>();
+    expect(Grant.implicit({ scope: "read" })).toEqual({ scope: "read", _tag: "implicit" });
   });
 
   // The member would replace the constructor or `match` at run time, under the library's type.
