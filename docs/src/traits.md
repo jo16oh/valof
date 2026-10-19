@@ -60,8 +60,7 @@ User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
 Naming the trait as the type argument asks `implTrait` for every member it declares.
 
 A trait adds the fields it requires to the payload, so the `User` payload includes `name` without
-listing it. A payload that lists one of them with a type the trait does not accept is a type error
-at the declaration, not at `implTrait`.
+listing it. A payload that lists one of them with a type the trait does not accept is a type error.
 
 The checker stops at the declaration. `Val<"User", …, Greetable>` typechecks with no `implTrait`
 anywhere, so the `unimplemented-trait` rule in [valof-lint](linting.md) is what reports the Val that
