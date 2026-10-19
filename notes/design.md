@@ -36,7 +36,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
@@ -5650,6 +5650,31 @@ Variant 固有の `r` や `side` が落ちていた。trait のメンバが 1 �
 **入口が 2 つなら門も 2 つ。**テストを `Enum.sealer` だけで書いたので、`EnumBuilder` は
 `Alone` のオーバーロードを消しても `Takes` を丸ごと外しても緑のままだった。test-audit が
 見つけた。検査を足したら、両方の入口で 1 本ずつ落ちることを確かめる。
+
+#### `.impl` は Trait のメンバの名前を取れない、2026-10-19
+
+**union の `.impl` も Variant の `.impl` も、Trait のメンバと同じ名前を受けていた。**companion と `dyn` は
+Trait の実装を呼ぶので、同じ名前が読む場所で 2 つの意味を持つ。
+
+```ts
+const E = Enum.sealer<E>()
+  .implVariant("A", (v) => v.impl({ name: () => "variant A" }))
+  .implTrait(Named);
+
+E.name(a); // "default"
+E.A.name(a); // "variant A"
+Named.dyn(E, a).name(); // "default"
+```
+
+**型で拒む。**`Unclaimed` が 4 つの `.impl`（入口 2 つ × union と Variant）のパラメータで落とす（§11.1）。
+Val の `Grown` は `implTrait` が登録した名前を読むが、Variant は `implTrait` を持たないので宣言を読む。
+`implVariant` が `implTrait` より前に来ても効く。型コストは enum の instantiations が +364、
+`index.d.mts` が +310 B。
+
+**却下: Variant ごとに Trait のメンバを上書きする。**2026-10-15、`scripts/bundle-size.ts` で Core だけ
+振る舞いが違う Strategy を書いたときに挙がった。「Variant ごとの seal と union の `seal`」の節が
+「嬉しい場面が挙がらない」とした、その場面にあたる。それでも入れない。欲しかったのは、`match` に
+同じハンドラを 4 つ並べずに済むことで、`match` の `_` がそれを解く。
 
 #### タグ名は `Tag<…>` を交差して渡す、2026-09-16
 

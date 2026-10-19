@@ -379,7 +379,9 @@ type VariantSteps<
   /** Collects the members taking this variant. */
   impl: {
     (): VariantFrame<E, N, FE, FV, T>;
-    <M extends CompanionMembers<VariantOf<E, N>>>(fns: M): VariantFrame<E, N, FE, FV, M & T>;
+    <M extends CompanionMembers<VariantOf<E, N>>>(
+      fns: Unclaimed<E, M>,
+    ): VariantFrame<E, N, FE, FV, M & T>;
   };
   /**
    * Replaces this variant's seal. The enum's seal runs inside the default seal it receives, so a
@@ -399,8 +401,15 @@ type SealerVariantSteps<
   /** Collects the members taking this variant. */
   impl: {
     (): SealerFrame<E, N, T>;
-    <M extends CompanionMembers<VariantOf<E, N>>>(fns: M): SealerFrame<E, N, M & T>;
+    <M extends CompanionMembers<VariantOf<E, N>>>(fns: Unclaimed<E, M>): SealerFrame<E, N, M & T>;
   };
+};
+
+/** Rejects a trait member's name. The companion and `dyn` would still call the trait's. */
+type Unclaimed<E extends AnyEnum, M> = M & {
+  [K in keyof M]: K extends MemberNames<Declared<E>["traits"]>
+    ? "a trait the enum declares answers to this name"
+    : unknown;
 };
 
 /** A frame the callback may hand back, loose enough for any seal's return. */
@@ -587,7 +596,7 @@ export type EnumBuilder<
    */
   impl: {
     (): EnumCompanion<E, VM, M, F>;
-    <G extends UnionMembers<E>>(fns: G): EnumCompanion<E, VM, M & G, F>;
+    <G extends UnionMembers<E>>(fns: Unclaimed<E, G>): EnumCompanion<E, VM, M & G, F>;
   };
   /**
    * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
@@ -648,7 +657,7 @@ export type EnumSealer<
   /** See {@link EnumBuilder.impl}. */
   impl: {
     (): EnumSealed<E, VM, M>;
-    <G extends UnionMembers<E>>(fns: G): EnumSealed<E, VM, M & G>;
+    <G extends UnionMembers<E>>(fns: Unclaimed<E, G>): EnumSealed<E, VM, M & G>;
   };
   /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
   implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
