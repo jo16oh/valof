@@ -14,6 +14,7 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
+import * as Val from "./ns/val.ts";
 
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
 type Primitive = string | number | boolean | bigint | null;
@@ -201,10 +202,12 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
  * one that does not hold what a declared trait requires: both land in the verdict, which stops
  * the Val satisfying {@link AnyVal}. See {@link Verdicted}.
  */
-export type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Grounded<T>> &
+type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<Grounded<T>> &
   Phantom<K, T> &
   Verdict<Verdicted<T, Tr>> &
   TraitBrand<Tr>;
+
+export { Val };
 
 /** The Val's brand string. */
 export type BrandOf<V extends AnyVal> = V extends Phantom<infer K, unknown> ? K : never;
@@ -1205,39 +1208,41 @@ type NotEnum<V> = [V] extends [AnyEnum]
   ? Invalid<"a variant is built by its enum's companion">
   : unknown;
 
-export const Val = {
+/**
+ * The default seal, with the type named explicitly: brand the payload and copy it. A called
+ * `Val.sealer` and the seal passed to a custom one do the same thing; only the type differs.
+ */
+export const of = /* @__PURE__ */ Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
   /**
-   * The default seal, with the type named explicitly: brand the payload and copy it. A called
-   * `Val.sealer` and the seal passed to a custom one do the same thing; only the type differs.
+   * Uses a payload without copying it. With an explicit `V`, TypeScript cannot also infer
+   * the argument's precise readonlyness; the caller must ensure it will not change.
    */
-  of: Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
-    /**
-     * Uses a payload without copying it. With an explicit `V`, TypeScript cannot also infer
-     * the argument's precise readonlyness; the caller must ensure it will not change.
-     */
-    nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
-  }),
-  /**
-   * The other direction: a plain, mutable copy of the payload, for code that does not know
-   * about `readonly`.
-   *
-   * It copies because the brand is phantom: a Val is its payload at run time, so returning that
-   * object under a mutable type would put the caller's writes into the value.
-   */
-  unwrap: detach as <V extends AnyVal>(value: V) => PayloadOf<V>,
-  /**
-   * Creates the constructor for a Val. `Val.companion` is the same shape for a type with a
-   * smart constructor, minus the callability.
-   *
-   * `V` is given as a type argument; the members are inferred by `.impl()`.
-   */
-  sealer: <V extends AnyVal & NotEnum<V>>(): Sealer<V> => build<V>({}, true) as Sealer<V>,
-  /**
-   * Bundles a type's members without a constructor.
-   *
-   * Constructors get their own steps rather than sitting in `.impl`, which fixes every
-   * function's first parameter to the Val. A constructor does not fit that shape.
-   */
-  companion: <V extends AnyVal & NotEnum<V>>(): CompanionBuilder<V> =>
-    build<V>({}, false) as CompanionBuilder<V>,
-} as const;
+  nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
+});
+
+/**
+ * The other direction: a plain, mutable copy of the payload, for code that does not know
+ * about `readonly`.
+ *
+ * It copies because the brand is phantom: a Val is its payload at run time, so returning that
+ * object under a mutable type would put the caller's writes into the value.
+ */
+export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
+
+/**
+ * Creates the constructor for a Val. `Val.companion` is the same shape for a type with a
+ * smart constructor, minus the callability.
+ *
+ * `V` is given as a type argument; the members are inferred by `.impl()`.
+ */
+export const sealer = <V extends AnyVal & NotEnum<V>>(): Sealer<V> =>
+  build<V>({}, true) as Sealer<V>;
+
+/**
+ * Bundles a type's members without a constructor.
+ *
+ * Constructors get their own steps rather than sitting in `.impl`, which fixes every
+ * function's first parameter to the Val. A constructor does not fit that shape.
+ */
+export const companion = <V extends AnyVal & NotEnum<V>>(): CompanionBuilder<V> =>
+  build<V>({}, false) as CompanionBuilder<V>;
