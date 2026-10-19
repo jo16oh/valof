@@ -41,6 +41,7 @@ import { Val } from "valof";
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
+- **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify
 
 ---
 
@@ -2222,6 +2223,10 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
   - 配列は順序に依存させる。Effect の `structure` は XOR で畳むので順列が同じ hash になる（本人たちも
     gotcha と書いている）。§5 が順序非依存を求めるのはオブジェクトのキーだけ
 - [x] ~~Mutable ↔ DeepReadonly の往復が型推論に素直に効くか~~ → 効く。プロパティの `readonly` は代入互換性に影響せず、可変配列は `ReadonlyArray` に代入できるので、引数型を `SeedOf<V>` にすれば可変な入力もそのまま渡せる
+- [ ] **`.d.ts` の import が `.ts` 拡張子のまま出る（§18）。**`dist/val.d.ts` は `from "./ns/val.ts"` を
+      持つが、`dist` に `val.ts` は無い。`rewriteRelativeImportExtensions` が書き換えるのは JS だけ。tsc は
+      `.d.ts` に解決するので 5.9 / 7.0 で通り、`skipLibCheck` の有無も関係ない。パスを文字どおり読むツールで
+      壊れる例が出てから考える
 
 ---
 
@@ -6670,3 +6675,75 @@ own key を比べるだけなので、穴が 2 つ開く。
 **構造共有は差にならない。**v4 に `Optic` モジュールが入った。optics も素の spread も、触っていない枝の
 identity は保つ（`{...s, a: {...s.a, b: v}}` が既にそう）。valof の取り分は能力ではなく手間で、optic の
 宣言も spread の連鎖も書かずに、任意の深さの `patch` 1 つで済む。
+
+---
+
+## 18. 配布物の形、2026-10-19
+
+**`Val` / `Enum` / `Trait` を namespace にした。**byethrow の `Result` と同じ形。オブジェクトのままだと、
+利用者のバンドラは使っていないメンバも落とせない。namespace なら `Val.sealer` は直接参照になり、読まない
+メンバは消える。
+
+型と同じ名前にするため、namespace を import して、同じモジュールのローカルな型と一緒に export する。
+
+```ts
+// src/val.ts
+import * as Val from "./ns/val.ts"; // export { companion, of, sealer, unwrap } from "../val.ts"
+type Val<K extends string, T, Tr extends AnyTrait = never> = /* … */;
+export { Val };
+```
+
+- **`export * as Val` と `export type { Val }` は並べられない。**TS2300
+- **`export type Val` と `import * as Val` も結合しない。**TS2395。ローカルな宣言にして `export { Val }` で出す
+- **`val.ts` と `ns/val.ts` は循環 import になる。**namespace のメンバを読むのは呼び出し時だけなので、評価順の
+  問題は起きない
+
+### 18.1 ランタイムの entry は tsc でファイルごとに出す
+
+**Rolldown でバンドルすると逆に増える。**ライブラリのビルドで namespace が getter 付きのオブジェクト
+（`__exportAll({...})`）になり、利用者のバンドラはメンバを落とせない。実測で base が 925 → 997 B（+72 B）。
+`unbundle: true` でも `__exportAll` を経由する。
+
+**`.d.ts` を束ねると型名が変わる。**型と namespace の結合が `val_d_exports` になり、利用者の型エラーに出る。
+
+```
+Type 'val_d_exports<"X", { a: number; }>' is not assignable to type '0'.
+```
+
+`index` と `experimental` は `tsc -p tsconfig.build.json` で出す。lint 側は `vp pack` のまま。`vp pack` が
+書く `exports` には `customExports` で 2 つを足す。tsc の出力では `import * as Val` がそのまま残り、型エラーも
+`Val<…>` のまま（5.9 / 7.0）。instantiations は変わらない（core 5,814 → 5,810）。
+
+| production gzip        | 変更前  | 変更後  | 差  |
+| ---------------------- | ------- | ------- | --- |
+| `sealer` + `companion` | 925 B   | 884 B   | −41 |
+| + `Val.of`             | 939 B   | 906 B   | −33 |
+| + `Enum` の 2 つ       | 1,418 B | 1,377 B | −41 |
+| + `Trait.companion`    | 1,016 B | 973 B   | −43 |
+
+`Enum` と `Trait` の増分はほぼ変わらない（−2 B 以下）。メンバがどれも同じ内部関数を呼ぶだけだからである。
+それでも揃えた。形が 1 つになり、後から足すメンバは使う人だけが払う。
+
+- **却下: `export const Val = ns`。**namespace がオブジェクトとして実体化し、979 B に増える
+- **却下: Rolldown のまま、`src/ns/*.ts` を別 entry にして external 扱いにするプラグイン。**型と namespace の
+  結合を `index.ts` の型 alias に移すことになり、JSDoc が二重になる
+- **却下: `.d.ts` を出さず `.ts` を配布する。**`skipLibCheck` は `.ts` に効かず、利用者の設定でライブラリの
+  ソースが検査される。valof の型は `exactOptionalPropertyTypes` を前提にしている（§3.5）。Node の型ストリップは
+  `node_modules` の `.ts` を拒否する
+
+### 18.2 bundle-size の base は `Val.sealer` と `Val.companion`
+
+`Val.of` は逃げ道なので base に入れない。全部のバンドルに `Val.of` と `Val.unwrap` を足した。
+
+entry は `Val.sealer` のようにメンバを読む。`console.log(Val)` だと namespace が丸ごと残り、Rolldown の
+runtime まで入って、利用者のコードと違う形を測る。
+
+### 18.3 宣言の予算を 96 kB に
+
+tsc はインデントを空白 4 つで出し、tsdown はタブで出していた。同じ型で 64.1 → 64.7 kB になり、64 kB を
+686 B 超えた。§16 の「捕まえたいのは倍率の事故」に沿って上げる。Enum と path（§15.3）でどのみち上げることになる。
+
+- **却下: 行頭の空白をタブにする後処理。**64,972 B で 64 kB に収まるが、削れるのは約 1.1 kB で、効くのは
+  ダウンロードとパースだけ
+- **却下: `.d.ts` の minify。**JSDoc を消すと 26.7 kB になるが、hover の説明が消える。空白だけ詰めると
+  go-to-definition で開いた宣言が読めない

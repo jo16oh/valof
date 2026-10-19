@@ -36,5 +36,5 @@ export const tsc =
 
 /** Builds `dist`, which is what both scripts measure: the consumer's entry, not `src`. */
 export async function pack(): Promise<void> {
-  await run(join(root, "node_modules/.bin/vp"), ["pack"], { cwd: root });
+  await run(join(root, "node_modules/.bin/vp"), ["run", "build"], { cwd: root });
 }
