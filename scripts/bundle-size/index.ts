@@ -29,6 +29,15 @@ const suite = Suite([
     budget: 640,
   }),
   Bundle({
+    key: "features",
+    name: "Equals + Enum + Trait",
+    imports: Imports({
+      "./dist/index.js": ["equals"],
+      "./dist/experimental.js": ["Enum.sealer", "Enum.companion", "Trait.companion"],
+    }),
+    budget: 1024,
+  }),
+  Bundle({
     key: "all",
     name: "All",
     imports: Imports({
