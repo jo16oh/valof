@@ -5299,9 +5299,11 @@ TS2344 で落ち、Val だけが shape のフィールドを payload にもう�
   食い違う場合で、どちらも交差が `never` になる。Enum ではこれまで素通りしていた。`id: never` は
   `id: string` に代入できるので、旧 `Fits` を通った
 - **メッセージはフィールドを名指しする。**旧メッセージ「the payload does not hold what the trait
-  requires」はどのフィールドかを言わなかった。いまは「the payload declares \`name\` with a type the
-  trait does not accept」と「no value fits every declaration of \`name\`」。旧メッセージはプリミティブと
-  配列の payload にだけ残る
+  requires」はどのフィールドかを言わなかった。いまは「the payload and the trait declare \`name\` with
+  conflicting types」と「no value fits every declaration of \`name\`」。旧メッセージはプリミティブと
+  配列の payload にだけ残る。前者は当初「the payload declares \`name\` with a type the trait does not
+  accept」だった。trait が受け付けるかどうかを判定するように読め、フィールドの被り自体がエラーに見える。
+  被りは同じ型か狭めた型なら通るので、食い違いを言う形に変えた（2026-10-20）
 - **`readonly` を外す。**trait は shape を `DeepReadonly` で持つので、そのまま交差すると
   `PayloadOf` に `readonly name` が出て、`Val.unwrap` が readonly を返す。§3「payload に `readonly` は
   書かない」と食い違う。`Writable` で深く外し、Val で止める。止めないと Val のフィールドがブランドを
