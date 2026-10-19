@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test, vi } from "vite-plus/test";
+import type { Enum as EnumOf } from "../src/experimental.ts";
 import type { Val as Value } from "../src/index.ts";
 
 const previousNodeEnv = vi.hoisted(() => {
@@ -7,6 +8,7 @@ const previousNodeEnv = vi.hoisted(() => {
   return previous;
 });
 
+import { Enum } from "../src/experimental.ts";
 import { Val } from "../src/index.ts";
 
 afterAll(() => {
@@ -77,5 +79,14 @@ describe("implCreate.noseal in production", () => {
     expect(SectionId.create()).toBe("0123abcd");
     expect(SectionId.create.nocopy()).toBe("0123abcd");
     expect(sealed).toBe(0);
+  });
+});
+
+describe("an enum variant in production", () => {
+  // Without the check, the spread that adds the tag turns a string into a character map.
+  test("throws on a payload that is not an object", () => {
+    type Signal = EnumOf<"ProductionSignal", { Stop: {}; Go: { speed: number } }>;
+    const Signal = Enum.sealer<Signal>();
+    expect(() => Signal.Stop("text" as never)).toThrow(TypeError);
   });
 });

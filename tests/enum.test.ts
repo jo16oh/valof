@@ -49,6 +49,27 @@ describe("the declaration", () => {
     expect([created, checked, copied].map(Object.isFrozen)).toEqual([true, true, false]);
   });
 
+  test("a variant with no fields takes an object, and nothing else", () => {
+    type Signal = Enum<"Signal", { Stop: {}; Go: { speed: number } }>;
+    const Signal = Enum.sealer<Signal>();
+    expectTypeOf(Signal.Stop({})).toExtend<SeedFor<Signal, "Stop">>();
+    expectTypeOf<string>().not.toExtend<SeedFor<Signal, "Stop">>();
+    // Through a cast, the constructor throws rather than spread the string into its characters.
+    expect(() => Signal.Stop("text" as never)).toThrow(/variant's payload/);
+    expect(() => Signal.Stop([1] as never)).toThrow(/variant's payload/);
+
+    const Created = Enum.companion<Signal>().impl();
+    expect(() => Created.Stop.create("text" as never)).toThrow(/variant's payload/);
+  });
+
+  // The type is structural, and the spread that adds the tag would drop the prototype unseen.
+  test("a class instance is rejected, like in any other Val", () => {
+    class Ring {
+      r = 1;
+    }
+    expect(() => Circle(new Ring())).toThrow(/instance of Ring/);
+  });
+
   test("the payload is deep-copied, like any other Val", () => {
     type Box = Enum<"Box", { Full: { items: string[] }; Empty: { at: string } }>;
     const Box = Enum.sealer<Box>();
@@ -463,6 +484,40 @@ describe("traits", () => {
       Enum.companion<Both>().implTrait(Sized).implTrait(Wide);
     });
 
+    describe("one a trait the enum declares answers to", () => {
+      test("on the union", () => {
+        Enum.sealer<Cmd>()
+          .implTrait(Describable, { describe: (c) => c.id })
+          // @ts-expect-error a trait the enum declares answers to this name
+          .impl({ describe: (c) => c._tag });
+        // The message is the parameter type, so passing the literal is what pins the wording.
+        Enum.sealer<Cmd>()
+          .implTrait(Describable, { describe: (c) => c.id })
+          .impl({ describe: "a trait the enum declares answers to this name" });
+        Enum.companion<Cmd>()
+          .implTrait(Describable, { describe: (c) => c.id })
+          // @ts-expect-error same, on a companion's enum
+          .impl({ describe: (c) => c._tag });
+      });
+
+      test("on a variant", () => {
+        Enum.sealer<Cmd>()
+          // @ts-expect-error same, on a variant
+          .implVariant("Add", (variant) => variant.impl({ describe: (a) => `${a.n}` }));
+        Enum.companion<Cmd>()
+          // @ts-expect-error same, on a companion's variant
+          .implVariant("Add", (variant) => variant.impl({ describe: (a) => `${a.n}` }));
+      });
+
+      test("a name no trait answers to stays open", () => {
+        const Named = Enum.sealer<Cmd>()
+          .implVariant("Add", (variant) => variant.impl({ twice: (a) => a.n * 2 }))
+          .implTrait(Describable, { describe: (c) => c.id })
+          .impl({ kind: (c) => c._tag });
+        expect([Named.kind(add), Named.Add.twice(add)]).toEqual(["Add", 4]);
+      });
+    });
+
     test("a companion that skipped a Final cannot be implemented", () => {
       type Fixed = Trait<
         "Fixed",
@@ -495,13 +550,19 @@ describe("a broken declaration", () => {
     // @ts-expect-error a variant cannot take a name the library reserves
     Enum.companion<Sealed>();
 
-    type Stepped = Enum<"Stepped", { implode: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error same, for the steps' prefix
+    type Stepped = Enum<"Stepped", { implCreate: { n: number }; Other: { n: number } }>;
+    // @ts-expect-error same, for a step only a Val's builder has
     Enum.sealer<Stepped>();
 
     type Sneaky = Enum<"Sneaky", { __valof_traits: { n: number }; Other: { n: number } }>;
     // @ts-expect-error same, for the library's own keys
     Enum.sealer<Sneaky>();
+  });
+
+  test("but may take another word starting with `impl`", () => {
+    type Grant = Enum<"Grant", { implicit: { scope: string }; password: { user: string } }>;
+    const Grant = Enum.sealer<Grant>();
+    expect(Grant.implicit({ scope: "read" })).toEqual({ scope: "read", _tag: "implicit" });
   });
 
   // The member would replace the constructor or `match` at run time, under the library's type.

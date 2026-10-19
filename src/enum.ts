@@ -1,5 +1,6 @@
 import type { AnyTrait, Members, MembersOf, Unbound } from "./trait.ts";
 import {
+  assertVariantPayload,
   define,
   Val,
   type Alone,
@@ -10,6 +11,7 @@ import {
   type Invalid,
   type Passes,
   type Patch,
+  type Steps,
   type Synchronous,
   type Takes,
   type Wired,
@@ -98,7 +100,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
   | {
       [N in VariantKeys<D>]: N extends "then"
         ? "a variant named `then` would make the companion a thenable"
-        : N extends "match" | "seal" | `impl${string}` | `__valof_${string}`
+        : N extends "match" | "seal" | keyof Steps | `__valof_${string}`
           ? "a variant cannot take a name the library reserves"
           : [D[N]] extends [object]
             ? [D[N]] extends [ReadonlyArray<unknown>]
@@ -231,7 +233,8 @@ export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
  * @experimental
  */
 export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
-  VariantsOf<E>[N] & SharedOf<E>
+  VariantsOf<E>[N] & SharedOf<E>,
+  true
 >;
 
 /** One variant's payload as a seal sees it: the constructor has written the tag by then. */
@@ -377,7 +380,9 @@ type VariantSteps<
   /** Collects the members taking this variant. */
   impl: {
     (): VariantFrame<E, N, FE, FV, T>;
-    <M extends CompanionMembers<VariantOf<E, N>>>(fns: M): VariantFrame<E, N, FE, FV, M & T>;
+    <M extends CompanionMembers<VariantOf<E, N>>>(
+      fns: Unclaimed<E, M>,
+    ): VariantFrame<E, N, FE, FV, M & T>;
   };
   /**
    * Replaces this variant's seal. The enum's seal runs inside the default seal it receives, so a
@@ -397,8 +402,15 @@ type SealerVariantSteps<
   /** Collects the members taking this variant. */
   impl: {
     (): SealerFrame<E, N, T>;
-    <M extends CompanionMembers<VariantOf<E, N>>>(fns: M): SealerFrame<E, N, M & T>;
+    <M extends CompanionMembers<VariantOf<E, N>>>(fns: Unclaimed<E, M>): SealerFrame<E, N, M & T>;
   };
+};
+
+/** Rejects a trait member's name. The companion and `dyn` would still call the trait's. */
+type Unclaimed<E extends AnyEnum, M> = M & {
+  [K in keyof M]: K extends MemberNames<Declared<E>["traits"]>
+    ? "a trait the enum declares answers to this name"
+    : unknown;
 };
 
 /** A frame the callback may hand back, loose enough for any seal's return. */
@@ -558,6 +570,9 @@ export type EnumSealed<
     readonly __valof_traits: Members;
   };
 
+/** The steps an enum's builder takes. A variant's are among them. */
+export type EnumStep = "impl" | "implVariant" | "implSeal" | "implTrait";
+
 /**
  * What `Enum.companion` returns, which its steps add to. `.impl` ends the chain, so a companion
  * that left it open cannot be given another seal after it was exported.
@@ -582,7 +597,7 @@ export type EnumBuilder<
    */
   impl: {
     (): EnumCompanion<E, VM, M, F>;
-    <G extends UnionMembers<E>>(fns: G): EnumCompanion<E, VM, M & G, F>;
+    <G extends UnionMembers<E>>(fns: Unclaimed<E, G>): EnumCompanion<E, VM, M & G, F>;
   };
   /**
    * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
@@ -643,7 +658,7 @@ export type EnumSealer<
   /** See {@link EnumBuilder.impl}. */
   impl: {
     (): EnumSealed<E, VM, M>;
-    <G extends UnionMembers<E>>(fns: G): EnumSealed<E, VM, M & G>;
+    <G extends UnionMembers<E>>(fns: Unclaimed<E, G>): EnumSealed<E, VM, M & G>;
   };
   /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
   implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
@@ -703,7 +718,10 @@ const state = (
   const byTag = { match: matchTag, key: tag };
 
   const built = (name: string, custom: Seal | undefined, fns: Payload): object => {
-    const tagged = (payload: Payload) => ({ ...payload, [tag]: name });
+    const tagged = (payload: Payload) => {
+      assertVariantPayload(payload);
+      return { ...payload, [tag]: name };
+    };
     if (callable) {
       // The default seal, plus the `patch` that derives through it. The tag is not in the patch's
       // type and the value carries it already, so the merge leaves it alone.

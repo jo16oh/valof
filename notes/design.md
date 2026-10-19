@@ -33,10 +33,10 @@ import { Val } from "valof";
 - **§11 型エラーをどこで表面化させるか** パラメータ位置（A）と判定位置（B、`Verdict`）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
@@ -1572,7 +1572,7 @@ seal の戻り値は `unknown` だったので、async の seal が型を通っ�
 「a seal is synchronous」という嘘のエラーが出る。
 
 `create` は元から async にできない。生成関数の戻り型が `SeedOf<V>` で、`Promise` はそこに代入できない。
-例外は空の payload（`Record<never, never>`）で、`Promise` が代入できるので通る。塞いでいない。
+空の payload も同じ。`SeedOf` が空の payload を promise でないオブジェクトに絞る（§9、2026-10-19）。
 
 **却下: development で、カスタム seal が return した後に既定の seal が呼ばれたら投げる。**型を通る
 遅延評価（`(r, seal) => () => seal(r)`）と、戻り型を `any` にした async の seal を捕まえる。一度入れて
@@ -2013,6 +2013,31 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 ---
 
 ## 9. 未解決 / 要確認
+
+- [x] ~~**空の payload にプリミティブと配列が通る。**~~ → 塞いだ、2026-10-19。引数の型が `{}` で、
+      `null` と `undefined` 以外のすべてが代入できた。`Val<"E", {}>` の `E("text")` が型を通り、Variant の
+      `E.A("text")` は `{ 0: "t", …, _tag: "A" }` を作った
+  - **型。**`SeedOf` と `SeedFor` が、キーの無いオブジェクト型を `object & { length?: never; then?: never }`
+    に替える。どの深さでも替える（`Val<"X", { meta: {} }>` の `X({ meta: "text" })` も落ちる）。
+    プリミティブ、配列、関数、promise を拒み、既存の値とタグ付きの payload は通す
+  - **`DeepReadonly` の型引数 `Arg` で、引数の位置だけ替える。**`SeedOf` と `SeedFor` が `true` を渡す。
+    seed と値の型がキャッシュを共有しなくなり、インスタンス化が増えた（core 5,881 → 6,329、enum
+    34,399 → 35,559）
+  - **却下: インデックスシグネチャ（`{ [key: string]: never }`）。**既存の値も拒む。クラスの `Phantom`
+    を含む型には、暗黙のインデックスシグネチャが無い。タグ付きの payload も `_tag` が `never` に合わない
+  - **値の型は `{}` のまま。**Trait の shape も `Arg` なしの `DeepReadonly` を通る。そこで絞ると、
+    shape が空の Trait を string の payload の Val が実装できなくなる（`tests/trait.test.ts` が落ちる）
+  - **seal の引数の検査（`CheckedSeal`）が空の payload にも掛かる。**今までは `{}` に string が代入
+    できるので除外されていた。`unknown` を取る seal は「a seal takes the payload, not a wire
+    format」で落ちる
+  - **実行時: Variant の payload を、タグを足す spread の前に検査する。**spread の後にコピーするので、
+    development でも何も見ていなかった。文字列は添字をキーにしたオブジェクトになり、クラスの
+    インスタンスはプロトタイプを黙って失った。オブジェクトでなければ production でも投げる
+    （`patch` と同じ）。プロトタイプの検査は development だけ
+  - **Val のコンストラクタは実行時に検査しない。**ライブラリは payload の形を実行時に知らない。
+    プリミティブの payload もあるので、オブジェクトを要求できない
+  - **検査は `development` の宣言より後ろに置く。**前に置くと minifier が `development` を畳めず、
+    development の分岐がすべて production に残った（Enum の増分 +474 → +633 B）。置き直して +487 B
 
 - [x] ~~**seal を通さない `create`。**~~ → 入れた。`.implCreate.noseal`、2026-10-14。必ず seal を通る
       payload を生成する `create` が、seal の戻り型をそのまま返してしまう。定義側の段で外す
@@ -4454,32 +4479,87 @@ Variant 名は Enum ごとに決まり、宣言は別ファイルにあるかも
 #### `Reserved` と正規表現の文字列
 
 ```ts
-type Rejected = Partial<Record<Wired, never>> & {
-  [key: `__valof_${string}`]: never;
-  [key: `impl${string}`]: never;
-  then?: never;
-  nocopy?: never;
-};
+type Rejected = Partial<Record<Wired, never>> &
+  Steps & {
+    [key: `__valof_${string}`]: never;
+    then?: never;
+    nocopy?: never;
+  };
 export type Reserved = keyof Rejected;
 ```
 
 ```ts
-const RESERVED = reserved(["patch", "seal", "create", "then", "nocopy", "impl.*", "__valof_.*"]);
+const RESERVED = reserved([
+  "patch",
+  "seal",
+  "create",
+  "then",
+  "nocopy",
+  "impl",
+  "implSeal",
+  "implCreate",
+  "implTrait",
+  "implVariant",
+  "__valof_.*",
+]);
 ```
+
+2026-10-19 に `` `impl${string}` `` を step の名前のリスト（`Steps`）に替えた。経緯は下の「`impl` の前方一致をやめる」にある。
 
 - **`Reserved` は `Rejected` のキーから読む。**2 つはずれない。理由のコメントも名前の横に置いたままに
   できる。`CompanionMembers<V>` は `Rejected & { … }` になった。利用者から見た型は同じで、エラーコードと
   位置と hover が変わらないことを監査が確かめた
-- **`"impl.*"` は文字列として `` `impl${string}` `` に代入できる。**正規表現のパターンがそのまま型を
-  通る。`Wired` の名前も正規表現として有効である
+- **`"__valof_.*"` は文字列として `` `__valof_${string}` `` に代入できる。**正規表現のパターンがそのまま
+  型を通る。`Wired` と `Steps` の名前も正規表現として有効である
 - `reserved` の引数の型は 2 つを見る。各パターンが `Reserved` の名前であること、`Reserved` の全メンバに
   パターンがあること。どちらが欠けても型エラーになる
-- **型が見るのは接頭辞だけ。**`"implFoo"` も `` `impl${string}` `` を満たす。パターンが広さを保って
-  いることは fixture が押さえる。`implFoo` と `implTrait`、`__valof_traits` と `__valof_x` を置いた
+- **`__valof_` は型が接頭辞だけを見る。**`"__valof_x"` も `` `__valof_${string}` `` を満たす。パターンが
+  広さを保っていることは fixture が押さえる。`__valof_traits` と `__valof_x` を置いた。`implFoo` は型が
+  通すので、読まれていなければ報告する。`implTrait` は報告しない
 - 実行時は `^(?:…)$` に包む。包まないと `"patch"` が `dispatch` に当たる
 
 名前は `Reserved` にした。**却下: `Builtin`。**`then` や接頭辞は組み込みではない。既存の JSDoc と Trait の
 エラー文も "reserves" と書いている。
+
+#### `impl` の前方一致をやめる、2026-10-19
+
+`` `impl${string}` `` は小文字の語も拒んでいた。`implicit`（OAuth の grant type）、`implied`、`implement`。
+拒まれるのは、小文字の文字列をそのままタグにする Enum である。外部の値を `E[Tag].match(input.tag, …)` に
+流す使い方で起きる。
+
+**型が拒むのは step の名前だけにする。**
+
+```ts
+type ValStep = "impl" | "implSeal" | "implCreate" | "implTrait"; // val.ts
+type EnumStep = "impl" | "implVariant" | "implSeal" | "implTrait"; // enum.ts
+type Steps = Partial<Record<ValStep, never>> & Partial<Record<EnumStep, never>>;
+```
+
+- 入口ごとにリストを置き、交差型でまとめる。Val のメンバ、Trait のメンバ、Variant 名はどれも `Steps` の
+  全部を拒む。Variant 名の `implCreate` も、Val のメンバの `implVariant` も拒む
+- 実行時に上書きが起きるのは Variant 名だけである。Enum の Proxy（`src/enum.ts` の `get`）は `impl` /
+  `implVariant` / `implSeal` / `implTrait` を完全一致で読み、残りの名前は Variant の枠に落ちる。Val の
+  メンバは何も上書きしない。`.impl` は新しいオブジェクトを作り、鎖は閉じている
+- `` `__valof_${string}` `` は前方一致のまま。ライブラリが内部で使う名前の置き場で、ユーザーの名前とは
+  重ならない
+- **代償: step を足すと、その名前を使っていたユーザーに型エラーが出る。**黙っては壊れない。1.0 前なので
+  minor で許される。`Steps` の JSDoc に「後から足す step が `impl` で始まる名前を取ることがある」と書いた
+
+**却下: `` `impl` | `impl${Capitalize<string>}` ``。**`implicit` は通る。ただし `Capitalize<string>` は
+「大文字にしても変わらない文字で始まる」に一致し、`impl_x`、`impl1`、`impl$` も拒む。step でない
+`implFoo` も拒む。TS 7.0.2 / 6.0.3 / 5.9.3 で同じ結果だった。
+
+**却下: `impl` の後に大文字が続く名前を警告する lint 規則。**守るものが 2 つとも弱い。
+
+- 読みやすさ。`User.implFoo` と名付けるのはユーザーの判断である
+- 後から足す step との衝突。黙っては壊れない。step をリストに足せば、どの名前も型エラーになる。予告が
+  要るのは黙って壊れる場合である
+- 保守の費用（fixture、3 種類の宣言の追跡、docs）に見合わない
+
+**却下: `impl[A-Z].*` を `RESERVED` に混ぜる。**`RESERVED` は「型が拒むので `unused-member` で報告しない」
+名前である。混ぜると、型が通す `implFoo` が読まれていなくても報告されなくなる。
+
+`index.d.mts` は 62.62 kB から 62.96 kB になった。増えた分の大半は `Steps` の JSDoc である。
 
 #### 型で結んだ他の名前
 
@@ -5598,6 +5678,31 @@ Variant 固有の `r` や `side` が落ちていた。trait のメンバが 1 �
 **入口が 2 つなら門も 2 つ。**テストを `Enum.sealer` だけで書いたので、`EnumBuilder` は
 `Alone` のオーバーロードを消しても `Takes` を丸ごと外しても緑のままだった。test-audit が
 見つけた。検査を足したら、両方の入口で 1 本ずつ落ちることを確かめる。
+
+#### `.impl` は Trait のメンバの名前を取れない、2026-10-19
+
+**union の `.impl` も Variant の `.impl` も、Trait のメンバと同じ名前を受けていた。**companion と `dyn` は
+Trait の実装を呼ぶので、同じ名前が読む場所で 2 つの意味を持つ。
+
+```ts
+const E = Enum.sealer<E>()
+  .implVariant("A", (v) => v.impl({ name: () => "variant A" }))
+  .implTrait(Named);
+
+E.name(a); // "default"
+E.A.name(a); // "variant A"
+Named.dyn(E, a).name(); // "default"
+```
+
+**型で拒む。**`Unclaimed` が 4 つの `.impl`（入口 2 つ × union と Variant）のパラメータで落とす（§11.1）。
+Val の `Grown` は `implTrait` が登録した名前を読むが、Variant は `implTrait` を持たないので宣言を読む。
+`implVariant` が `implTrait` より前に来ても効く。型コストは enum の instantiations が +364、
+`index.d.mts` が +310 B。
+
+**却下: Variant ごとに Trait のメンバを上書きする。**2026-10-15、`scripts/bundle-size.ts` で Core だけ
+振る舞いが違う Strategy を書いたときに挙がった。「Variant ごとの seal と union の `seal`」の節が
+「嬉しい場面が挙がらない」とした、その場面にあたる。それでも入れない。欲しかったのは、`match` に
+同じハンドラを 4 つ並べずに済むことで、`match` の `_` がそれを解く。
 
 #### タグ名は `Tag<…>` を交差して渡す、2026-09-16
 
