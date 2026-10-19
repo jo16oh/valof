@@ -193,8 +193,8 @@ const Cmd = Enum.sealer<Cmd>().implTrait(Describable, {
 Cmd.describe(Cmd.Add({ id: "c1", n: 2 })); // "add 2"
 ```
 
-An enum declares its shared fields and its traits in one argument, intersected with `&`. A trait
-adds its fields here too, so every variant has `id`. Variants cannot implement traits.
+A trait's fields become fields every variant shares. `id` comes from `Describable`, and `Cmd.Add`
+requires it. Variants cannot implement traits.
 
 ## Hold values of different types together
 
