@@ -59,8 +59,8 @@ await writeFile(
         skipLibCheck: true,
         paths: {
           // The published declarations, reached the way a consumer reaches them.
-          valof: ["../../../dist/index.d.mts"],
-          "valof/experimental": ["../../../dist/experimental.d.mts"],
+          valof: ["../../../dist/index.d.ts"],
+          "valof/experimental": ["../../../dist/experimental.d.ts"],
           "valof/eslint-plugin": ["../../../dist/eslint-plugin.d.mts"],
         },
       },
