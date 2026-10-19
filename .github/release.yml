@@ -10,6 +10,8 @@ changelog:
       labels: ["enhancement"]
     - title: 🔧 Fixes
       labels: ["bug"]
+    - title: ⚡ Performance
+      labels: ["perf"]
     - title: 📝 Docs
       labels: ["documentation"]
     - title: 🧹 Everything else
