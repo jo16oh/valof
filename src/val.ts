@@ -217,7 +217,7 @@ type Disagreement<T, S, R = DeepReadonly<Checked<T>>> = {
       ? `no value fits every declaration of ${Code<K>}`
       : F extends S[K]
         ? never
-        : `the payload declares ${Code<K>} with a type the trait does not accept`
+        : `the payload and the trait declare ${Code<K>} with conflicting types`
     : never;
 }[keyof S & string];
 

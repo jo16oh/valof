@@ -1959,7 +1959,7 @@ describe("building", () => {
 
       type Bad = Val<"Bad", { name: number }, Greetable>;
       expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{
-        readonly __valError: "the payload declares `name` with a type the trait does not accept";
+        readonly __valError: "the payload and the trait declare `name` with conflicting types";
       }>();
     });
 
