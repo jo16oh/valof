@@ -244,6 +244,24 @@ describe("Val", () => {
       expectTypeOf<Allowed>().toExtend<AnyVal>();
     });
 
+    // `{}` takes every value but `null` and `undefined`.
+    test("an empty payload takes an object, an existing value included, and nothing else", () => {
+      type Marker = Val<"Marker", {}>;
+      const Marker = Val.sealer<Marker>();
+      expectTypeOf(Marker({})).toExtend<SeedOf<Marker>>();
+      expectTypeOf<string>().not.toExtend<SeedOf<Marker>>();
+      expectTypeOf<number[]>().not.toExtend<SeedOf<Marker>>();
+      expectTypeOf<Promise<void>>().not.toExtend<SeedOf<Marker>>();
+    });
+
+    test("so does an empty object nested in a payload", () => {
+      type Tagged = Val<"Tagged", { meta: {}; list: {}[] }>;
+      expectTypeOf<{ meta: string; list: [] }>().not.toExtend<SeedOf<Tagged>>();
+      expectTypeOf<{ meta: {}; list: string[] }>().not.toExtend<SeedOf<Tagged>>();
+      type Pair = Val<"Pair", [{}, number]>;
+      expectTypeOf<[string, number]>().not.toExtend<SeedOf<Pair>>();
+    });
+
     test("Vals, arrays, records and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
       expectTypeOf<Val<"B", bigint>>().toExtend<AnyVal>();
@@ -1595,6 +1613,8 @@ describe("building", () => {
         Val.companion<Age>().implSeal((n: unknown, seal) => seal(n as number));
         // @ts-expect-error widening to include a string is the same hole
         Val.companion<Age>().implSeal((n: number | string, seal) => seal(n as number));
+        // @ts-expect-error an empty payload is an object too, not a string
+        Val.companion<Val<"Marker", {}>>().implSeal((m: unknown, seal) => seal(m as {}));
       });
 
       test("a payload that is a string is exempt", () => {
