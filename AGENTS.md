@@ -13,9 +13,9 @@ the production bundle against its budgets. It does not update release documentat
 
 The bundle-size claim in `docs/src/introduction.md` follows the current branch. Update it with
 `vp run replace-bundle-size-claims --write docs/src/introduction.md`; regular CI checks it. The
-claims in `README.md` and the `package.json` description describe the latest release instead. CI
-checks them on the release PR that `vp run bump-version` opens. After the merge, the release
-workflow checks all three again before it creates the tag.
+claims in `README.md` and the `package.json` description describe the latest release instead.
+`vp run bump-version` updates them in the release commit, and CI checks them on the release PR.
+After the merge, the release workflow checks all three again before it creates the tag.
 
 Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
 against the published declarations, and budgets the instantiation count and the size of the
@@ -45,25 +45,23 @@ title and body as a draft and stop there.
 
 ## Releasing
 
-1. Write the release notes for users, not reviewers, in a file outside the repo.
+1. The release workflow generates the release notes from the titles of the PRs in the release. Where
+   they need a note or emphasis, write it for users in a file outside the repo. Step 3 makes it the
+   PR body.
 2. Set `#valof` in `package.json` to `./src/index.ts`, run `vp check` and `vp run bundle-size`, and
    set it back to `valof-release`. Report what breaks, and where the new API is awkward to use in
    the scripts. A user encounters both when upgrading. If a problem is serious, stop the release and
    rework the design.
-3. Run `vp run bump-version --body-file notes.md --release <type> --yes`, where `<type>` is the
-   release type I give, such as `patch`. It pushes a release branch and opens its PR with the file
-   as the body. Options other than `--body-file` go to bumpp.
-4. If CI reports stale bundle-size claims, run
-   `vp run replace-bundle-size-claims --write README.md package.json` on that branch, commit, and
-   push.
-5. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
-   release, and publishes the book. The notes start with the PR body, followed by the PRs merged
-   since the last tag.
-6. Once npm has the new version, set `valof-release` in `package.json` to it, and fix the scripts
+3. Run `vp run bump-version --release <type> --yes`, where `<type>` is the release type I give, such
+   as `patch`. Add `--body-file notes.md` when step 1 wrote one. The script updates the bundle-size
+   claims, pushes a release branch, and opens its PR. Options other than `--body-file` go to bumpp.
+4. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
+   release, and publishes the book.
+5. Once npm has the new version, set `valof-release` in `package.json` to it, and fix the scripts
    where step 2 found a break.
 
-Steps 3 and 4 push, and step 3 opens a PR. They are the only exception to "Never push, and never
-open a PR" above. Run them only on my explicit go-ahead.
+Step 3 pushes and opens a PR. It is the only exception to "Never push, and never open a PR" above.
+Run it only on my explicit go-ahead.
 
 ## Writing Style
 
