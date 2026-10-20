@@ -624,14 +624,13 @@ type Grown<Taken, M> = M & {
  * The shape is not among them: a Val whose payload contradicts a trait it declares is rejected
  * where it is declared, so it never reaches a companion. See {@link Val}.
  *
- * `Tr` infers only through a branch that names it structurally, which the type-argument form's
- * mapped type does not. A call written in that form leaves `Tr` at its constraint, where
- * `NamesOf<Tr>` is `string`: the first branch catches that before the rest read a name that is not
- * there.
+ * `Tr` infers only through a branch that names it structurally, as `TraitCompanion<Tr, G>` does.
+ * Members passed in the companion's place leave `Tr` at its constraint, where `NamesOf<Tr>` is
+ * `string`. The first branch catches that before the rest read a name that is not there.
  */
 export type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
   string extends NamesOf<Tr>
-    ? "pass the members this trait leaves open, or name the trait as the type argument"
+    ? "pass the trait's companion, then the members it leaves open"
     : [NamesOf<Tr>] extends [TraitsOf<V>]
       ? [keyof MembersOf<Tr> & keyof T] extends [never]
         ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
@@ -645,15 +644,17 @@ export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] 
   ? TraitCompanion<Tr, G>
   : "this trait's companion has not implemented every member declared Final";
 
-/** The second argument, absent where the trait answered for every member itself. */
-export type Passes<Tr extends AnyTrait, G, I> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-  ? [impl?: I & Arity<I>]
-  : [impl: I & Arity<I>];
-
-/** What the companion-less form takes: every member, and only where the trait declares no final. */
-export type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
-  ? Implement<Tr, Record<never, never>, V>
-  : "this trait implements members of its own: pass its companion";
+/**
+ * The second argument, absent where the trait answered for every member itself. Optional where `Tr`
+ * was not inferred, so a call passing the members alone reports {@link Takes}'s message rather than
+ * a missing argument.
+ */
+export type Passes<Tr extends AnyTrait, G, I> =
+  string extends NamesOf<Tr>
+    ? [impl?: unknown]
+    : [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
+      ? [impl?: I & Arity<I>]
+      : [impl: I & Arity<I>];
 
 /**
  * A constructor for `V`, which can grow members without ceasing to be one.
@@ -694,9 +695,6 @@ export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<neve
   };
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
   implTrait: {
-    <Tr extends AnyTrait>(
-      impl: Takes<V, Tr, T, Alone<Tr, V>>,
-    ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
     <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I>
@@ -746,11 +744,6 @@ export type CompanionBuilder<
    * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
   implTrait: {
-    // No companion to pass when the trait implements nothing of its own: the type argument is
-    // the whole of it, and the members arrive where the companion would have.
-    <Tr extends AnyTrait>(
-      impl: Takes<V, Tr, T, Alone<Tr, V>>,
-    ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
     <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I>
@@ -1253,17 +1246,11 @@ const build = <V extends AnyVal>(
   // `.impl` takes one call, so what it returns carries no step.
   target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits, callable);
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
-  // No companion where the trait implements nothing of its own: the members arrive in its place.
   // The Val's own go on last, the type having kept every `Final` one out of them.
   target.implTrait = (
-    trait: { __valof_shared?: Record<string, unknown> },
+    trait: { __valof_shared: Record<string, unknown> },
     impl: Record<string, unknown> = {},
-  ) =>
-    build<V>(ctors, callable, {
-      ...traits,
-      ...(trait.__valof_shared ?? trait),
-      ...impl,
-    });
+  ) => build<V>(ctors, callable, { ...traits, ...trait.__valof_shared, ...impl });
   if (callable) return target;
 
   target.implCreate = Object.assign((create: AnyFn) => step({ ...ctors, create, noseal: false }), {

@@ -4,7 +4,6 @@ import {
   assertVariantPayload,
   define,
   Val,
-  type Alone,
   type AnyVal,
   type CompanionMembers,
   type Complete,
@@ -662,11 +661,6 @@ export type EnumBuilder<
    * differs per variant is a `match` inside it.
    */
   implTrait: {
-    // No companion to pass when the trait implements nothing of its own: the type argument is
-    // the whole of it, and the members arrive where the companion would have.
-    <Tr extends AnyTrait>(
-      impl: Takes<E, Tr, M, Alone<Tr, E>>,
-    ): EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
     <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
       trait: Takes<E, Tr, M, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I>
@@ -702,9 +696,6 @@ export type EnumSealer<
   ) => EnumSealer<E, VM & { [P in N]: R }, M>;
   /** See {@link EnumBuilder.implTrait}. */
   implTrait: {
-    <Tr extends AnyTrait>(
-      impl: Takes<E, Tr, M, Alone<Tr, E>>,
-    ): EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
     <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
       trait: Takes<E, Tr, M, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I>
@@ -852,10 +843,10 @@ const state = (
         // The trait's own members and the enum's, merged the way `val.ts` merges them.
         return open
           ? (
-              trait: { __valof_shared?: Record<string, unknown> },
+              trait: { __valof_shared: Record<string, unknown> },
               fns: Record<string, unknown> = {},
             ) => {
-              const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
+              const grown = { ...traits, ...trait.__valof_shared, ...fns };
               return step(builds, { ...members, ...duals(grown) }, grown, seal, true);
             }
           : undefined;

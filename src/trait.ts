@@ -78,7 +78,7 @@ type Trait<K extends string, Shape, M extends Members = Record<never, never>> = 
   // A broken declaration puts the annotated version here instead, the way an invalid payload
   // lands in a Val's brand. `Members` admits functions alone, so an `Invalid` in this position
   // stops the trait satisfying `AnyTrait`, and every gate takes an `AnyTrait`: the companion,
-  // `Val`, `Dyn` and both forms of `implTrait` all report it without a check of their own.
+  // `Val`, `Dyn` and `implTrait` all report it without a check of their own.
   TraitPhantom<
     [Shape] extends [Checked<Shape>]
       ? [M] extends [Declarable<Shape, M>]
