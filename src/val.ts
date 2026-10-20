@@ -681,8 +681,8 @@ export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<neve
    * a default or a rest parameter. Pass `undefined` where an argument has no value.
    *
    * Called with the value last, a generic member loses its type parameters. Each becomes its
-   * constraint, or `unknown` where none is declared. To keep them, call the member with the value
-   * first inside an arrow function: `pipe(u, (v) => User.pick(v, "name"))`.
+   * constraint, or `unknown` where none is declared. To keep them, wrap the member in a function
+   * that calls it with the value first: `pipe(u, (v) => User.pick(v, "name"))`.
    *
    * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
