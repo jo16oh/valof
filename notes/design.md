@@ -35,7 +35,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
@@ -1785,7 +1785,11 @@ pipe(shape, Shape.match({ Circle: (c) => …, Square: (s) => … }));
 - **引数の無いメンバ。**self を取らないので、development の検査（下）と型の両方で拒む。それまでは `.impl({ anonymous: () => "x" })` を許していた。置き場所は素の export 関数、のちに `implAssoc`
 - **判定は `.impl` の引数の位置に置く。**`Grown` と同じく、引数の型に `Arity<M>` を交差させる。`CompanionMembers` は単一の関数型のままでないと、第 1 引数の文脈型が消える（§6.5）
 - **Trait の実装も検査する。**宣言は `Declarable` で、`Trait.companion().impl` の実装は `Arity<H>` で拒む。`implTrait(Greetable, { toWire: (u, sep = "/") => … })` の実装は宣言の型に代入できてしまうので、実装を型引数 `I` で受けて `Arity<I>` を掛ける。trait の fixture は約 2,000 instantiations 増えた
-- **残る穴: 型引数で Trait を渡す形。**`implTrait<Sized>({ … })` は部分推論ができないので、実装を型引数で受けられない。デフォルト引数や rest 引数の実装が型を通り、data-last の呼び出しが黙って data-first として走る。引数の無い実装は development の検査が捕まえる
+- **残る穴: 宣言の型が実装を隠す形。**型が見るのは推論したメンバの型で、実行時が読むのは実装の `fn.length` である。型注釈が実装のデフォルト引数や rest 引数を隠すと、2 つが食い違う。型は通り、data-last の呼び出しが黙って data-first として走る。引数の無い実装は development の検査が捕まえる
+  - 型注釈つきの変数やオブジェクトを渡す形（`const toWire: (u: User, sep: string) => string = (u, sep = "/") => …` を `.impl({ toWire })`）
+  - `implTrait<Sized>({ … })` も同じ形だったので、外した（§15.1「型引数の形をなくす」）
+  - **型では塞げない。**注釈を付けた時点で、デフォルト引数の事実はどの型にも残らない。docs で注意する。lint の規則は §9
+  - **却下: development で `f.toString()` を読み、引数の並びの `=` と `...` を探す。**分割代入のデフォルト、コメント、トランスパイルされたコードで誤検出する。誤検出で投げると正しいコードを壊す
 - **`Declarable` の判定の向きで型が暴走した。**`unknown extends Omission<M[K]> ? … : …` と書くと、再帰する Val（`Rec`）の展開で TS2589 になった。`Omission<M[K]> extends string ? … : …` なら通る
 - **禁じるのは省略で、`undefined` ではない。**`a: T | undefined` は必須引数で、`--strict`、`--exactOptionalPropertyTypes`、`--strictNullChecks false` のどれでも `f(u)` は TS2554 になる。外部の optional な値は `User.f(u, opts.x)` とそのまま渡せる。払うのは、何も渡さない呼び出しを `f(u, undefined)` と書くことだけ
 
@@ -2268,6 +2272,12 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - [x] ~~**companion のメンバを data-first / data-last の dual にするか。**~~ → する、2026-10-20。
       `pipe(u, User.rename("x"))` と書くため。引数の個数で判別し、省略できる引数を型で禁じる。ジェネリックな
       メンバの data-last は型引数を失うので、アロー関数で data-first として呼ぶ。範囲と却下案は §6.11
+
+- [ ] **valof-lint の規則: 省略できる引数を持つメンバ。未着手、2026-10-20、別の PR。**宣言の型が実装のデフォルト
+      引数や rest 引数を隠すと、型が拒めず data-last の呼び出しが壊れる（§6.11「残る穴」）。lint は構文を読むので、
+      `.impl({ … })` / `implTrait(…)` に直接書いたメンバと、const のオブジェクトや spread から来たメンバの関数で、
+      引数にデフォルトか `...` があれば報告できる。`unused-member` がすでにこれらのメンバを辿っている。別の場所で定義した
+      関数を名前で渡す形（`.impl({ toWire })`）は拾えない
 
 - [ ] **noseal の development の検査が見逃す seal。lint 規則の案、未着手、2026-10-14。**既定の seal を
       呼んだあと、その結果を捨てて失敗を返す seal は、「呼ばれた、値も等しい」ので検査を通る。production
@@ -4976,6 +4986,8 @@ Kotlin の `sealed` / `final` の対立もここには持ち込まれない。
 
 #### companion を要らなくする: `implTrait<Tr>({…})`
 
+→ 2026-10-20 に外した（下の「型引数の形をなくす」）。以下は外す前の記録。
+
 ```ts
 type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
 // const Wired は要らない
@@ -5034,6 +5046,17 @@ Val.companion<Member>().implTrait(unnamed); // 文が変われば、ここが落
 
 **払うもの。**オーバーロードが 2 つの入口それぞれで倍になる。宣言は改名前から 2.1 kB 増えて 29.6 kB
 （予算 32 kB に対して残り 8%）、trait の instantiations は 9,632 → 11,933。実行時は増えない。
+
+#### 型引数の形をなくす、2026-10-20
+
+`implTrait<Tr>({…})` を消す。Trait の実装は companion を渡す形 `implTrait(Tr, {…})` だけになる。自分では何も実装しない Trait も、`const Wired = Trait.companion<Wired>();` を 1 行書く。v0.10 の破壊的変更。
+
+- **型引数の形では、省略できる引数を型で拒めない（§6.11）。**`Tr` を手で書くと部分推論が効かないので、実装を型引数で受けられない。実装は宣言の型への代入として検査され、デフォルト引数のある関数も代入できる。data-last の呼び出しが黙って data-first として走る
+- **引数の型の照合でも拒めない。**optional の引数を受ける関数は、必須の引数を受ける関数型に代入できる（TS 7.0.2 で probe）
+- **companion の形なら効く。**自分では何も実装しない Trait でも、`Trait.companion<Tr>()` は companion になる。`implTrait(Sized, { toWire: (w, sep = "/") => … })` は TS2322 で落ちる（probe）
+- **書き方が 1 つになる。**companion の有無で形を選ばずに済む。上の「`Tr` が推論できない呼び出し」の文（「…or name the trait as the type argument」）も要らなくなる
+- **払うもの。**契約だけの Trait にも、実行時の値と `Trait` の import が要る。上の「companion を要らなくする」が買っていたもの
+- **却下: 2 段の `implTrait<Tr>()({…})`。**2 段目で実装を推論できるが、書き方が 2 つ残る
 
 #### 却下: 上書きできる関数を名前空間に置く
 
@@ -5814,6 +5837,8 @@ payload と trait の 2 段になる。得るものが無い。
 companion を参照する。§15.4 の範囲に `implTrait` も入る。
 
 #### companion を渡さない形、2026-09-20
+
+→ 2026-10-20 に Val と Enum の両方から外した（§15.1「型引数の形をなくす」）。以下は外す前の記録。
 
 **Val にあって Enum に無かった。**§15.1 の `implTrait<Tr>({…})` が Enum の入口 2 つに届いていない。
 却下した記録は無く、この節にも §9 にも項目が無い。判断ではなく、書かれていなかっただけ。
