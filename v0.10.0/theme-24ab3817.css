@@ -1,0 +1,12 @@
+#mdbook-menu-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+}
+
+#mdbook-menu-bar .left-buttons {
+  justify-self: start;
+}
+
+#mdbook-menu-bar .right-buttons {
+  justify-self: end;
+}
