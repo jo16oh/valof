@@ -36,8 +36,9 @@ const admin = Val.of<Admin>({ name: "root", level: 9 });
 describe("Trait", () => {
   describe("members", () => {
     test("Self resolves to the Val, with no annotation at the implementation", () => {
-      expectTypeOf(User.toWire).parameters.toEqualTypeOf<[self: User, sep: string]>();
-      expectTypeOf(User.toWire).returns.toEqualTypeOf<string>();
+      // `Parameters` reads the last signature, which is the data-first one.
+      expectTypeOf<Parameters<typeof User.toWire>>().toEqualTypeOf<[self: User, sep: string]>();
+      expectTypeOf<ReturnType<typeof User.toWire>>().toEqualTypeOf<string>();
     });
 
     test("a member cannot return Self", () => {

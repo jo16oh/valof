@@ -1249,7 +1249,7 @@ describe("data-first and data-last", () => {
   });
 
   describe("a member whose arguments can be left out is rejected", () => {
-    test("an optional or a default parameter", () => {
+    test("an optional, a default or a trailing `void` parameter", () => {
       Val.sealer<User>().impl({
         // @ts-expect-error a parameter that can be left out
         at: (u: User, n?: number) => u.name.at(n ?? 0),
@@ -1258,19 +1258,20 @@ describe("data-first and data-last", () => {
         // @ts-expect-error a parameter that can be left out
         at: (u: User, n = 0) => u.name.at(n),
       });
+      Val.sealer<User>().impl({
+        // @ts-expect-error a parameter that can be left out
+        at: (u: User, n: number | void) => u.name.at(n ?? 0),
+      });
+      Val.companion<User>().impl({
+        // @ts-expect-error a parameter that can be left out
+        at: (u: User, n?: number) => u.name.at(n ?? 0),
+      });
     });
 
     test("a rest parameter", () => {
       Val.sealer<User>().impl({
         // @ts-expect-error a parameter that can be left out
         joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
-      });
-    });
-
-    test("a parameter that takes `void`", () => {
-      Val.sealer<User>().impl({
-        // @ts-expect-error a parameter that can be left out
-        at: (u: User, n: number | void) => u.name.at(n ?? 0),
       });
     });
 
@@ -1929,7 +1930,7 @@ describe("building", () => {
     test("the id is not reachable through the patch path", () => {
       const Account = account();
       const a = Account.create({ owner: "bob", note: "" });
-      expectTypeOf(Account.patch).parameters.toEqualTypeOf<[Account, Patch<Fields>]>();
+      expectTypeOf<Parameters<typeof Account.patch>>().toEqualTypeOf<[Account, Patch<Fields>]>();
       // @ts-expect-error id is not patchable
       Account.patch(a, { id: "forged" });
     });

@@ -267,7 +267,9 @@ describe("members", () => {
     });
 
   test("a variant's member takes that variant, with no annotation", () => {
-    expectTypeOf(Money.Cash.doubled).parameters.toEqualTypeOf<[self: VariantOf<Money, "Cash">]>();
+    expectTypeOf<Parameters<typeof Money.Cash.doubled>>().toEqualTypeOf<
+      [self: VariantOf<Money, "Cash">]
+    >();
     expect(Money.spendable(Money.Cash({ id: "c", yen: 100 }))).toBe(200);
     expect(Money.spendable(Money.Card({ id: "d", limit: 5 }))).toBe(5);
   });
@@ -279,8 +281,8 @@ describe("members", () => {
 
   test("a member reaching nothing off the companion needs no annotation", () => {
     const Plain = Enum.sealer<Shape>().impl({ sides: (s) => (s._tag === "Circle" ? 0 : 4) });
-    expectTypeOf(Plain.sides).parameters.toEqualTypeOf<[self: Shape]>();
-    expectTypeOf(Plain.sides).returns.toEqualTypeOf<0 | 4>();
+    expectTypeOf<Parameters<typeof Plain.sides>>().toEqualTypeOf<[self: Shape]>();
+    expectTypeOf<ReturnType<typeof Plain.sides>>().toEqualTypeOf<0 | 4>();
     expect(Plain.sides(Plain.Circle({ r: 1 }))).toBe(0);
   });
 
@@ -823,11 +825,14 @@ describe("data-first and data-last", () => {
     .impl({ sides: (s, round: number) => (s._tag === "Circle" ? round : 4) });
   const Built = Enum.companion<Shape>()
     .implVariant("Circle", (variant) => variant.impl({ grown: (c, by: number) => c.r + by }))
-    .impl();
+    .impl({ sides: (s, round: number) => (s._tag === "Circle" ? round : 4) });
 
   test("a union member takes the value first, or last", () => {
     expectTypeOf(Sized.sides(0)).toEqualTypeOf<(self: Shape) => number>();
-    expect([Sized.sides(square, 0), Sized.sides(0)(square)]).toEqual([4, 4]);
+    expectTypeOf(Built.sides(0)).toEqualTypeOf<(self: Shape) => number>();
+    expect([Sized.sides(circle, 7), Sized.sides(7)(circle), Built.sides(7)(circle)]).toEqual([
+      7, 7, 7,
+    ]);
   });
 
   test("so do a variant's member and `patch`, on a sealer and on a companion", () => {
@@ -870,6 +875,16 @@ describe("data-first and data-last", () => {
       // @ts-expect-error a parameter that can be left out
       sides: (s: Shape, round?: number) => (s._tag === "Circle" ? (round ?? 0) : 4),
     });
+    Enum.companion<Shape>().impl({
+      // @ts-expect-error a parameter that can be left out
+      sides: (s: Shape, round?: number) => (s._tag === "Circle" ? (round ?? 0) : 4),
+    });
+    Enum.companion<Shape>().implVariant("Circle", (variant) =>
+      variant.impl({
+        // @ts-expect-error a parameter that can be left out
+        grown: (c: VariantOf<Shape, "Circle">, by?: number) => c.r + (by ?? 0),
+      }),
+    );
     expect(() =>
       Enum.sealer<Shape>().impl({
         // @ts-expect-error the first parameter must be the Val
