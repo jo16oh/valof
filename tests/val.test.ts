@@ -1249,22 +1249,28 @@ describe("data-first and data-last", () => {
   });
 
   describe("a member whose arguments can be left out is rejected", () => {
-    test("an optional, a default or a trailing `void` parameter", () => {
+    test("an optional parameter", () => {
       Val.sealer<User>().impl({
         // @ts-expect-error a parameter that can be left out
         at: (u: User, n?: number) => u.name.at(n ?? 0),
-      });
-      Val.sealer<User>().impl({
-        // @ts-expect-error a parameter that can be left out
-        at: (u: User, n = 0) => u.name.at(n),
-      });
-      Val.sealer<User>().impl({
-        // @ts-expect-error a parameter that can be left out
-        at: (u: User, n: number | void) => u.name.at(n ?? 0),
       });
       Val.companion<User>().impl({
         // @ts-expect-error a parameter that can be left out
         at: (u: User, n?: number) => u.name.at(n ?? 0),
+      });
+    });
+
+    test("a default parameter", () => {
+      Val.sealer<User>().impl({
+        // @ts-expect-error a parameter that can be left out
+        at: (u: User, n = 0) => u.name.at(n),
+      });
+    });
+
+    test("a trailing parameter that takes `void`", () => {
+      Val.sealer<User>().impl({
+        // @ts-expect-error a parameter that can be left out
+        at: (u: User, n: number | void) => u.name.at(n ?? 0),
       });
     });
 
