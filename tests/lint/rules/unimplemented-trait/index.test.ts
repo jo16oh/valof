@@ -17,8 +17,12 @@ test("reports each Trait a Val declares but does not implement", async () => {
   ]);
 });
 
-test("accepts both implTrait forms and every step in a chain, `.implCreate.noseal` included", async () => {
+test("accepts implTrait at every step in a chain, `.implCreate.noseal` included", async () => {
   expect(await lint("implemented")).toEqual([]);
+});
+
+test("looks through parentheses around the Val the companion is for", async () => {
+  expect(await lint("parenthesized-val")).toEqual([]);
 });
 
 test("looks through parentheses in a Trait intersection and its alias", async () => {

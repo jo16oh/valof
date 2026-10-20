@@ -138,12 +138,6 @@ describe("Trait members", () => {
     ]);
   });
 
-  test("reads overrides from parenthesized implTrait type arguments", async () => {
-    expect(await lint("parenthesized-impl-trait")).toEqual([
-      { rule: UnusedMember, at: "parenthesized-impl-trait.ts:2:55" },
-    ]);
-  });
-
   test("treats an unresolved override object conservatively", async () => {
     expect(await lint("unresolved-overrides")).toEqual([]);
   });
