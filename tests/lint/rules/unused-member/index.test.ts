@@ -57,6 +57,10 @@ describe("what the rule finds", () => {
     expect(await lint("reads")).toEqual([]);
   });
 
+  test("counts a member passed without a call, as a pipeline takes it, as a read", async () => {
+    expect(await lint("unapplied")).toEqual([]);
+  });
+
   test("collects method shorthand and non-function members", async () => {
     expect(await lint("shorthand-and-const")).toEqual([
       { rule: UnusedMember, at: "shorthand-and-const.ts:2:3" },
