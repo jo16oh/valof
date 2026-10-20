@@ -1,3 +1,4 @@
+import { dual, duals, type Arity, type Dual, type Duals } from "./dual.ts";
 import type { AnyTrait, Implement, Members, MembersOf, Unbound } from "./trait.ts";
 import {
   assertVariantPayload,
@@ -5,12 +6,9 @@ import {
   Val,
   type Alone,
   type AnyVal,
-  type Arity,
   type CompanionMembers,
   type Complete,
   type DeepReadonly,
-  type Dual,
-  type Duals,
   type Invalid,
   type Passes,
   type Patch,
@@ -509,7 +507,7 @@ type ByTag<E extends AnyEnum> = {
    * ```
    */
   readonly match: {
-    // Data-last takes every tag, since the argument arrives after the handlers.
+    // The data-last form needs a handler for every tag, since the tag arrives after the handlers.
     <H extends { [N in keyof VariantsOf<E>]: () => unknown }>(
       handlers: H & {
         [N in keyof H]: N extends keyof VariantsOf<E> ? unknown : "the enum has no such variant";
@@ -716,7 +714,7 @@ type Companion = {
 
 type Builds = Record<string, (b: object) => object>;
 
-const matchTag = (tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!();
+const matchTag = dual((tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!());
 
 /**
  * One builder state. The companion is a proxy: it does not know the variant names, so anything it
@@ -747,7 +745,7 @@ const state = (
       const sealer = Val.sealer() as unknown as Sealer;
       const frame = (payload: Payload) => sealer(tagged(payload));
       define(frame, "patch", sealer.patch);
-      for (const key of Object.keys(fns)) define(frame, key, fns[key]);
+      for (const key of Object.keys(fns)) define(frame, key, dual(fns[key]));
       return frame;
     }
     // The variant runs first and passes its result to the enum's, which passes it to the default
@@ -809,10 +807,10 @@ const state = (
       if (typeof key !== "string" || key === "then") return undefined;
       if (Object.hasOwn(members, key)) return members[key];
       if (key === "match") {
-        return (
-          value: Record<string, unknown>,
-          handlers: Record<string, (v: unknown) => unknown>,
-        ) => handlers[value[tag] as string]!(value);
+        return dual(
+          (value: Record<string, unknown>, handlers: Record<string, (v: unknown) => unknown>) =>
+            handlers[value[tag] as string]!(value),
+        );
       }
       // A sealer's entry is the call, so the name stays reserved and resolves to nothing.
       if (key === "seal") return callable ? undefined : enter;
@@ -821,7 +819,7 @@ const state = (
       if (key === "impl") {
         // One call, which closes every step: what it returns carries no `impl` of its own.
         return open
-          ? (fns: Payload = {}) => step(builds, { ...members, ...fns }, traits, seal, false)
+          ? (fns: Payload = {}) => step(builds, { ...members, ...duals(fns) }, traits, seal, false)
           : undefined;
       }
       if (key === "implVariant") {
@@ -843,7 +841,7 @@ const state = (
               fns: Record<string, unknown> = {},
             ) => {
               const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
-              return step(builds, { ...members, ...grown }, grown, seal, true);
+              return step(builds, { ...members, ...duals(grown) }, grown, seal, true);
             }
           : undefined;
       }

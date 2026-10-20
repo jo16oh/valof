@@ -14,6 +14,9 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
+import { dual } from "./dual.ts";
+import type { Arity, Dual, Duals } from "./dual.ts";
+import { development } from "./env.ts";
 import * as Val from "./ns/val.ts";
 
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
@@ -443,42 +446,6 @@ export type CompanionMembers<V> = Rejected & {
 };
 
 /**
- * A member called either way: with the value first, or with the rest and the value later.
- * `pipe(u, User.rename("x"))` takes the second.
- *
- * The data-first form goes last, since a member passed as a callback is typed by its last
- * signature. It is the member's own type, so a generic member stays generic there.
- */
-export type Dual<F, S> = F extends (self: never, ...args: infer A) => infer R
-  ? ((...args: A) => (self: S) => R) & F
-  : F;
-
-/** {@link Dual} over every member. `S` is passed rather than inferred, which keeps its name. */
-export type Duals<M, S> = { [K in keyof M]: Dual<M[K], S> };
-
-/**
- * Rejects a member whose call could leave an argument out. The library tells data-last from
- * data-first by the argument count, so an omitted argument reads as the data-last call. Pass
- * `undefined` instead: a parameter typed `T | undefined` is required.
- *
- * Placed on the parameter beside {@link CompanionMembers}, which has to stay a single function
- * type to give the Val parameter its contextual type.
- */
-export type Arity<M> = { [K in keyof M]: Omission<M[K]> };
-
-/** Why {@link Arity} rejects a member, or `unknown` where it does not. */
-export type Omission<F> = F extends (...args: infer P) => unknown
-  ? P extends []
-    ? "a member takes the value as its first parameter"
-    : number extends P["length"]
-      ? "a member cannot take a rest parameter: the argument count tells data-last from data-first"
-      : // A trailing `T | void` is optional too. One before a required parameter cannot be left out.
-        P extends Required<P>
-        ? unknown
-        : "a member cannot take an optional or default parameter: pass `undefined` instead"
-  : unknown;
-
-/**
  * What the seal produces, propagated verbatim. The library never inspects it, so `Result` and
  * friends need no support here.
  */
@@ -899,9 +866,6 @@ const owned = new WeakSet<object>();
 /** Roots adopted by production `nocopy`. Their descendants are indexed only if a copy needs it. */
 const adopted = new WeakSet<object>();
 
-const development =
-  typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production";
-
 const unsnapshotable = Symbol("unsnapshotable seal input");
 type SealSnapshot = Primitive | undefined | object | typeof unsnapshotable;
 
@@ -1227,7 +1191,7 @@ const attach = (
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
-  target.patch = (value: unknown, patch: Record<string, unknown>) => {
+  target.patch = dual((value: unknown, patch: Record<string, unknown>) => {
     // The type leaves `patch` off a primitive or array Val, so reaching this takes a cast.
     // Still throws in production: without the guard the spread seals an object, turning a
     // number into `{}` and a string into a character map. Only the message is development-only.
@@ -1239,13 +1203,13 @@ const attach = (
     indexAdopted(value);
     const merged = patched(value, patch);
     return Object.is(merged, value) ? keep(value) : seal(merged);
-  };
+  });
 
   // A trait's members join the type's own, so they grow the same way. The record is
   // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never imports `trait.ts`.
   target.__valof_traits = traits;
-  for (const key of Object.keys(traits)) define(target, key, traits[key]);
-  for (const key of Object.keys(fns)) define(target, key, fns[key]);
+  for (const key of Object.keys(traits)) define(target, key, dual(traits[key]));
+  for (const key of Object.keys(fns)) define(target, key, dual(fns[key]));
 
   return target;
 };
