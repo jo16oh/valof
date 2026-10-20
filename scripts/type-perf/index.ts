@@ -38,7 +38,7 @@ type Fixture = (typeof fixtures)[number];
  * is now `Implement<…> | ((self) => Implement<…>)`, and the union is related twice at every call
  * the fixture makes. An alarm, not a ratchet.
  */
-const budget: Record<Fixture, number> = { core: 10_000, trait: 17_000, enum: 90_000 };
+const budget: Record<Fixture, number> = { core: 10_000, trait: 22_000, enum: 90_000 };
 
 /**
  * The published declarations, in bytes. Deterministic like the counts above, and budgeted the

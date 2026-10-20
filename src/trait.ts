@@ -1,4 +1,13 @@
-import type { AnyVal, Checked, DeepReadonly, Invalid, Reserved } from "./val.ts";
+import type {
+  AnyVal,
+  Arity,
+  Checked,
+  DeepReadonly,
+  Duals,
+  Invalid,
+  Omission,
+  Reserved,
+} from "./val.ts";
 import * as Trait from "./ns/trait.ts";
 
 declare const SelfMark: unique symbol;
@@ -187,7 +196,9 @@ type Declarable<Shape, M extends Members> = {
           : M[K] extends (...args: never[]) => infer R
             ? HasSelf<R> extends true
               ? Invalid<"a trait member cannot return Self">
-              : M[K]
+              : Omission<M[K]> extends string
+                ? Invalid<Omission<M[K]> & string>
+                : M[K]
             : M[K];
 };
 
@@ -228,8 +239,8 @@ export type TraitHost = { readonly __valof_traits: Members };
  *
  * @experimental
  */
-export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Unbound<
-  Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>,
+export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Duals<
+  Unbound<Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>, Tr>,
   Tr
 > & {
   /** Everything the trait implemented, which `implTrait` copies onto the Val. */
@@ -288,7 +299,7 @@ export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitC
    * circularity TypeScript reports as TS7023, and the annotation cuts it. A member a Val may
    * replace is not on the companion; see {@link TraitCompanion}.
    */
-  impl: <H extends Shared<Tr, H>>(fns: H) => TraitCompanion<Tr, G & H>;
+  impl: <H extends Shared<Tr, H>>(fns: H & Arity<H>) => TraitCompanion<Tr, G & H>;
 };
 
 type AnyFn = (...args: never[]) => unknown;

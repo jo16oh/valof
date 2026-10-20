@@ -443,6 +443,42 @@ export type CompanionMembers<V> = Rejected & {
 };
 
 /**
+ * A member called either way: with the value first, or with the rest and the value later.
+ * `pipe(u, User.rename("x"))` takes the second.
+ *
+ * The data-first form goes last, since a member passed as a callback is typed by its last
+ * signature. It is the member's own type, so a generic member stays generic there.
+ */
+export type Dual<F, S> = F extends (self: never, ...args: infer A) => infer R
+  ? ((...args: A) => (self: S) => R) & F
+  : F;
+
+/** {@link Dual} over every member. `S` is passed rather than inferred, which keeps its name. */
+export type Duals<M, S> = { [K in keyof M]: Dual<M[K], S> };
+
+/**
+ * Rejects a member whose call could leave an argument out. The library tells data-last from
+ * data-first by the argument count, so an omitted argument reads as the data-last call. Pass
+ * `undefined` instead: a parameter typed `T | undefined` is required.
+ *
+ * Placed on the parameter beside {@link CompanionMembers}, which has to stay a single function
+ * type to give the Val parameter its contextual type.
+ */
+export type Arity<M> = { [K in keyof M]: Omission<M[K]> };
+
+/** Why {@link Arity} rejects a member, or `unknown` where it does not. */
+export type Omission<F> = F extends (...args: infer P) => unknown
+  ? P extends []
+    ? "a member takes the value as its first parameter"
+    : number extends P["length"]
+      ? "a member cannot take a rest parameter: the argument count tells data-last from data-first"
+      : // A trailing `T | void` is optional too. One before a required parameter cannot be left out.
+        P extends Required<P>
+        ? unknown
+        : "a member cannot take an optional or default parameter: pass `undefined` instead"
+  : unknown;
+
+/**
  * What the seal produces, propagated verbatim. The library never inspects it, so `Result` and
  * friends need no support here.
  */
@@ -534,7 +570,7 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
  * `patch` derives by sealing the new payload. With a custom seal it propagates whatever the seal
  * returns. Without one the default seal is the copy, so it returns the Val.
  */
-type Derive<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
+type Derive<V extends AnyVal, F, Arg> = Dual<(value: V, arg: Arg) => Constructed<V, F>, V>;
 
 /**
  * Drops the trailing default-seal parameter from a registered seal: callers pass the payload and
@@ -582,7 +618,7 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
-> = Omit<M, Wired> &
+> = Duals<Omit<M, Wired>, V> &
   CreateMethod<V, N, F> &
   SealMethod<F> &
   PatchMethod<V, F, P> & {
@@ -643,9 +679,9 @@ export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] 
   : "this trait's companion has not implemented every member declared Final";
 
 /** The second argument, absent where the trait answered for every member itself. */
-export type Passes<Tr extends AnyTrait, G, V> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-  ? [impl?: Implement<Tr, G, V>]
-  : [impl: Implement<Tr, G, V>];
+export type Passes<Tr extends AnyTrait, G, I> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
+  ? [impl?: I & Arity<I>]
+  : [impl: I & Arity<I>];
 
 /** What the companion-less form takes: every member, and only where the trait declares no final. */
 export type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
@@ -677,16 +713,16 @@ export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<neve
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
     (): Sealed<V, T>;
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Sealed<V, M & T>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M> & Arity<M>): Sealed<V, M & T>;
   };
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
   implTrait: {
     <Tr extends AnyTrait>(
       impl: Takes<V, Tr, T, Alone<Tr, V>>,
     ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
-    <Tr extends AnyTrait, G>(
+    <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, V>
+      ...impl: Passes<Tr, G, I>
     ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
   };
 };
@@ -715,7 +751,9 @@ export type CompanionBuilder<
     (): Companion<V, T, N, F, P>;
     // A trait's member is registered, so `.impl` may not register one over it: the type would keep
     // the trait's signature while `dyn` kept calling what `implTrait` recorded.
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
+    <M extends CompanionMembers<V>>(
+      fns: Grown<keyof T, M> & Arity<M>,
+    ): Companion<V, M & T, N, F, P>;
   };
   /**
    * Implements a trait the type declares. The members the trait leaves open arrive as a second
@@ -731,9 +769,9 @@ export type CompanionBuilder<
     <Tr extends AnyTrait>(
       impl: Takes<V, Tr, T, Alone<Tr, V>>,
     ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
-    <Tr extends AnyTrait, G>(
+    <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, V>
+      ...impl: Passes<Tr, G, I>
     ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
   };
   /** Registers a function that creates a payload, as `create`. Any arguments, a payload out. */

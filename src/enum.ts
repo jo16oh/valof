@@ -1,13 +1,16 @@
-import type { AnyTrait, Members, MembersOf, Unbound } from "./trait.ts";
+import type { AnyTrait, Implement, Members, MembersOf, Unbound } from "./trait.ts";
 import {
   assertVariantPayload,
   define,
   Val,
   type Alone,
   type AnyVal,
+  type Arity,
   type CompanionMembers,
   type Complete,
   type DeepReadonly,
+  type Dual,
+  type Duals,
   type Invalid,
   type Passes,
   type Patch,
@@ -340,11 +343,14 @@ type VariantFrame<E extends AnyEnum, N extends keyof VariantsOf<E>, FE, FV, T> =
   T
 >;
 
-type Framed<E extends AnyEnum, N extends keyof VariantsOf<E>, R, Sealed, T> = Omit<T, Wired> & {
+type Framed<E extends AnyEnum, N extends keyof VariantsOf<E>, R, Sealed, T> = Duals<
+  Omit<T, Wired>,
+  VariantOf<E, N>
+> & {
   /** Creates the payload with its tag and seals it, so it returns whatever the seal returns. */
   create: Creates<SeedFor<E, N>, R>;
   /** Derives through the same seal the constructor uses. See {@link Patch}. */
-  patch: (value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => R;
+  patch: Dual<(value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => R, VariantOf<E, N>>;
 } & (Sealed extends true
     ? {
         /** The single gate a payload of this variant passes. `create` and `patch` go through it. */
@@ -357,8 +363,11 @@ type SealerFrame<E extends AnyEnum, N extends keyof VariantsOf<E>, T> = ((
   payload: SeedFor<E, N>,
 ) => VariantOf<E, N>) & {
   /** Derives through the same seal the constructor uses. See {@link Patch}. */
-  patch: (value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => VariantOf<E, N>;
-} & Omit<T, Wired>;
+  patch: Dual<
+    (value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => VariantOf<E, N>,
+    VariantOf<E, N>
+  >;
+} & Duals<Omit<T, Wired>, VariantOf<E, N>>;
 
 /**
  * The steps a variant adds, inside an `implVariant` callback. It is already the frame, so a
@@ -381,7 +390,7 @@ type VariantSteps<
   impl: {
     (): VariantFrame<E, N, FE, FV, T>;
     <M extends CompanionMembers<VariantOf<E, N>>>(
-      fns: Unclaimed<E, M>,
+      fns: Unclaimed<E, M> & Arity<M>,
     ): VariantFrame<E, N, FE, FV, M & T>;
   };
   /**
@@ -402,7 +411,9 @@ type SealerVariantSteps<
   /** Collects the members taking this variant. */
   impl: {
     (): SealerFrame<E, N, T>;
-    <M extends CompanionMembers<VariantOf<E, N>>>(fns: Unclaimed<E, M>): SealerFrame<E, N, M & T>;
+    <M extends CompanionMembers<VariantOf<E, N>>>(
+      fns: Unclaimed<E, M> & Arity<M>,
+    ): SealerFrame<E, N, M & T>;
   };
 };
 
@@ -454,10 +465,10 @@ type UnionMembers<E extends AnyEnum> = CompanionMembers<E> &
   Partial<Record<(keyof VariantsOf<E> & string) | "match", never>>;
 
 /** Dispatches on the tag. See {@link EnumCompanion.match}. */
-type Match<E extends AnyEnum> = <H extends Handlers<E, unknown>>(
-  value: E,
-  handlers: Only<E, H>,
-) => ReturnType<H[keyof H]>;
+type Match<E extends AnyEnum> = {
+  <H extends Handlers<E, unknown>>(handlers: Only<E, H>): (value: E) => ReturnType<H[keyof H]>;
+  <H extends Handlers<E, unknown>>(value: E, handlers: Only<E, H>): ReturnType<H[keyof H]>;
+};
 
 /** Every field some variant declares. */
 type VariantFields<E extends AnyEnum> = {
@@ -497,10 +508,18 @@ type ByTag<E extends AnyEnum> = {
    * });
    * ```
    */
-  readonly match: <T extends keyof VariantsOf<E>, H extends { [N in T]: () => unknown }>(
-    tag: T,
-    handlers: H & { [N in keyof H]: N extends T ? unknown : "the tag never takes this value" },
-  ) => ReturnType<H[keyof H]>;
+  readonly match: {
+    // Data-last takes every tag, since the argument arrives after the handlers.
+    <H extends { [N in keyof VariantsOf<E>]: () => unknown }>(
+      handlers: H & {
+        [N in keyof H]: N extends keyof VariantsOf<E> ? unknown : "the enum has no such variant";
+      },
+    ): (tag: keyof VariantsOf<E>) => ReturnType<H[keyof H]>;
+    <T extends keyof VariantsOf<E>, H extends { [N in T]: () => unknown }>(
+      tag: T,
+      handlers: H & { [N in keyof H]: N extends T ? unknown : "the tag never takes this value" },
+    ): ReturnType<H[keyof H]>;
+  };
   /**
    * The name of the tag field, for a schema library that asks for the discriminator:
    * `z.discriminatedUnion(Command[Tag].key, [...])`.
@@ -526,7 +545,7 @@ export type EnumCompanion<
   M = Record<never, never>,
   F = undefined,
 > = Constructors<E, VM, F> &
-  Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
+  Duals<Omit<M, Wired | "match" | keyof VariantsOf<E>>, E> & {
     /**
      * Dispatches on the tag. Every variant needs a handler, so adding one to the declaration
      * fails here rather than falling through at run time.
@@ -562,7 +581,7 @@ export type EnumSealed<
   M = Record<never, never>,
 > = EnumSeal<E, SealerConstructors<E, VM>> &
   SealerConstructors<E, VM> &
-  Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
+  Duals<Omit<M, Wired | "match" | keyof VariantsOf<E>>, E> & {
     /** See {@link EnumCompanion.match}. */
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
@@ -597,7 +616,7 @@ export type EnumBuilder<
    */
   impl: {
     (): EnumCompanion<E, VM, M, F>;
-    <G extends UnionMembers<E>>(fns: Unclaimed<E, G>): EnumCompanion<E, VM, M & G, F>;
+    <G extends UnionMembers<E>>(fns: Unclaimed<E, G> & Arity<G>): EnumCompanion<E, VM, M & G, F>;
   };
   /**
    * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
@@ -635,9 +654,9 @@ export type EnumBuilder<
     <Tr extends AnyTrait>(
       impl: Takes<E, Tr, M, Alone<Tr, E>>,
     ): EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
-    <Tr extends AnyTrait, G>(
+    <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
       trait: Takes<E, Tr, M, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, E>
+      ...impl: Passes<Tr, G, I>
     ): EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
   };
 };
@@ -658,7 +677,7 @@ export type EnumSealer<
   /** See {@link EnumBuilder.impl}. */
   impl: {
     (): EnumSealed<E, VM, M>;
-    <G extends UnionMembers<E>>(fns: Unclaimed<E, G>): EnumSealed<E, VM, M & G>;
+    <G extends UnionMembers<E>>(fns: Unclaimed<E, G> & Arity<G>): EnumSealed<E, VM, M & G>;
   };
   /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
   implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
@@ -673,9 +692,9 @@ export type EnumSealer<
     <Tr extends AnyTrait>(
       impl: Takes<E, Tr, M, Alone<Tr, E>>,
     ): EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
-    <Tr extends AnyTrait, G>(
+    <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
       trait: Takes<E, Tr, M, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, E>
+      ...impl: Passes<Tr, G, I>
     ): EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
   };
 };
