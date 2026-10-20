@@ -36,7 +36,8 @@ const admin = Val.of<Admin>({ name: "root", level: 9 });
 describe("Trait", () => {
   describe("members", () => {
     test("Self resolves to the Val, with no annotation at the implementation", () => {
-      expectTypeOf(User.toWire).toEqualTypeOf<(self: User, sep: string) => string>();
+      expectTypeOf(User.toWire).parameters.toEqualTypeOf<[self: User, sep: string]>();
+      expectTypeOf(User.toWire).returns.toEqualTypeOf<string>();
     });
 
     test("a member cannot return Self", () => {
@@ -217,7 +218,7 @@ describe("dyn", () => {
 
   describe("a primitive payload", () => {
     type Marker = Trait<"Marker", Record<never, never>, { wire: (self: Self) => string }>;
-    const Marker = Trait.companion<Marker>().impl({ wire: () => "marked" });
+    const Marker = Trait.companion<Marker>().impl({ wire: (_m) => "marked" });
     type Email = Val<"Email", string, Marker>;
     const Email = Val.sealer<Email>().implTrait(Marker);
 
@@ -229,6 +230,80 @@ describe("dyn", () => {
     test("is the one box that does not stand in for its value", () => {
       expect(JSON.stringify(Marker.dyn(Email, Email("a@example.com")))).toBe("{}");
     });
+  });
+});
+
+describe("data-first and data-last", () => {
+  const pipe = <A, B>(a: A, f: (a: A) => B): B => f(a);
+
+  test("a trait's member takes the value first, or last, on the Val's companion", () => {
+    expectTypeOf(User.toWire("/")).toEqualTypeOf<(self: User) => string>();
+    const shouted = pipe(user, User.shout);
+    expectTypeOf(shouted).toEqualTypeOf<string>();
+    expect([User.toWire(user, "/"), User.toWire("/")(user), shouted, User.shout()(user)]).toEqual([
+      "a/alice",
+      "a/alice",
+      "ALICE",
+      "ALICE",
+    ]);
+  });
+
+  test("and a Final member on the trait's own companion", () => {
+    const shouted = pipe(user, Greetable.shout);
+    expectTypeOf(shouted).toEqualTypeOf<string>();
+    expect([shouted, Greetable.shout()(admin)]).toEqual(["ALICE", "ROOT"]);
+  });
+
+  test("a member declared with arguments that can be left out is rejected", () => {
+    type Optional = Trait<"Optional", { n: number }, { at: (self: Self, i?: number) => number }>;
+    // @ts-expect-error a parameter that can be left out
+    Trait.companion<Optional>().impl({});
+
+    type Rest = Trait<"Rest", { n: number }, { sum: (self: Self, ...ns: number[]) => number }>;
+    // @ts-expect-error a parameter that can be left out
+    Trait.companion<Rest>().impl({});
+  });
+
+  test("so is an implementation leaving out a parameter the declaration requires", () => {
+    type Named = Val<"Named", { id: string; name: string }, Greetable>;
+    Val.companion<Named>().implTrait(Greetable, {
+      // @ts-expect-error a parameter that can be left out
+      toWire: (n: Named, sep = "/") => n.id + sep,
+    });
+    Val.companion<Named>().implTrait(Greetable, {
+      // @ts-expect-error a parameter that can be left out
+      toWire: (n: Named, ...seps: string[]) => n.id + seps.join(),
+    });
+  });
+
+  test("so is an implementation taking no parameter", () => {
+    expect(() =>
+      Trait.companion<Greetable>().impl({
+        // @ts-expect-error the first parameter must be the Val
+        shout: () => "HI",
+      }),
+    ).toThrow(/first parameter/);
+    type Named = Val<"Named", { id: string; name: string }, Greetable>;
+    expect(() =>
+      Val.companion<Named>().implTrait(Greetable, {
+        // @ts-expect-error the first parameter must be the Val
+        toWire: () => "named",
+      }),
+    ).toThrow(/first parameter/);
+  });
+
+  test("an implementation hiding its parameters throws in development", () => {
+    const shout = (g: { name: string }) => g.name;
+    expect(() =>
+      Trait.companion<Greetable>().impl({ shout: (...args: [{ name: string }]) => shout(...args) }),
+    ).toThrow(/first parameter/);
+    type Named = Val<"Named", { name: string }, Greetable>;
+    const toWire = (n: Named, sep: string) => n.name + sep;
+    expect(() =>
+      Val.companion<Named>().implTrait(Greetable, {
+        toWire: (...args: [Named, string]) => toWire(...args),
+      }),
+    ).toThrow(/first parameter/);
   });
 });
 

@@ -1212,6 +1212,93 @@ describe("patch", () => {
   });
 });
 
+describe("data-first and data-last", () => {
+  const pipe = <A, B>(a: A, f: (a: A) => B): B => f(a);
+  const Named = Val.sealer<User>().impl({
+    greet: (u) => `Hi, ${u.name}`,
+    renamed: (u, name: string): User => Named.patch(u, { name }),
+    noted: (u, nickname: string | undefined): User => Named.patch(u, { nickname }),
+  });
+  const bob = Named({ id: "a", name: "bob" });
+  const sue = { id: "a", name: "sue" };
+
+  test("a member takes the value first, or last", () => {
+    expectTypeOf(Named.renamed(bob, "sue")).toEqualTypeOf<User>();
+    expectTypeOf(Named.renamed("sue")).toEqualTypeOf<(self: User) => User>();
+    expect([Named.renamed(bob, "sue"), Named.renamed("sue")(bob)]).toEqual([sue, sue]);
+  });
+
+  test("so does `patch`", () => {
+    expectTypeOf(Named.patch({ name: "sue" })).toEqualTypeOf<(self: User) => User>();
+    expect(Named.patch({ name: "sue" })(bob)).toEqual(sue);
+  });
+
+  test("a member passed unapplied runs data-first, whatever the caller passes", () => {
+    const greetings = [bob].map(Named.greet);
+    expectTypeOf(greetings).toEqualTypeOf<string[]>();
+    expectTypeOf(pipe(bob, Named.greet)).toEqualTypeOf<string>();
+    expect(greetings).toEqual(["Hi, bob"]);
+  });
+
+  test("`undefined` counts as an argument", () => {
+    const nicked = Named.patch(bob, { nickname: "b" });
+    expect([Named.noted(nicked, undefined), Named.noted(undefined)(nicked)]).toEqual([
+      { id: "a", name: "bob" },
+      { id: "a", name: "bob" },
+    ]);
+  });
+
+  describe("a member whose arguments can be left out is rejected", () => {
+    test("an optional or a default parameter", () => {
+      Val.sealer<User>().impl({
+        // @ts-expect-error a parameter that can be left out
+        at: (u: User, n?: number) => u.name.at(n ?? 0),
+      });
+      Val.sealer<User>().impl({
+        // @ts-expect-error a parameter that can be left out
+        at: (u: User, n = 0) => u.name.at(n),
+      });
+    });
+
+    test("a rest parameter", () => {
+      Val.sealer<User>().impl({
+        // @ts-expect-error a parameter that can be left out
+        joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
+      });
+    });
+
+    test("a parameter that takes `void`", () => {
+      Val.sealer<User>().impl({
+        // @ts-expect-error a parameter that can be left out
+        at: (u: User, n: number | void) => u.name.at(n ?? 0),
+      });
+    });
+
+    test("no parameter at all", () => {
+      expect(() =>
+        Val.sealer<User>().impl({
+          // @ts-expect-error the first parameter must be the Val
+          anonymous: () => "anonymous",
+        }),
+      ).toThrow(/first parameter/);
+    });
+
+    test("but not one that takes `undefined` or `unknown`", () => {
+      Val.sealer<User>().impl({
+        at: (u, n: number | undefined) => u.name.at(n ?? 0),
+        is: (u, other: unknown) => u === other,
+      });
+    });
+  });
+
+  test("a member hiding its parameters throws in development", () => {
+    const greet = (u: User) => u.name;
+    expect(() => Val.sealer<User>().impl({ greet: (...args: [User]) => greet(...args) })).toThrow(
+      /first parameter/,
+    );
+  });
+});
+
 describe("building", () => {
   describe("sealer", () => {
     test("a bare sealer is callable", () => {
@@ -1280,10 +1367,9 @@ describe("building", () => {
       expect(Greeter.greet(Greeter({ id: "a", name: "bob" }), "/")).toBe("a/bob");
     });
 
-    test("methods that take no value at all are still fine", () => {
-      const Counter = Val.sealer<User>().impl({ anonymous: () => "anonymous", LABEL: "user" });
-      expect(Counter.anonymous()).toBe("anonymous");
-      expect(Counter.LABEL).toBe("user");
+    test("a member that is not a function attaches as it is", () => {
+      const Labelled = Val.sealer<User>().impl({ LABEL: "user" });
+      expect(Labelled.LABEL).toBe("user");
     });
 
     test("`name` and `length` attach, though a sealer is a function that owns both", () => {
@@ -2057,9 +2143,8 @@ describe("building", () => {
     });
 
     describe("a Final member", () => {
-      test("every implementing companion answers to it, with the trait's own function", () => {
+      test("every implementing companion answers to it, with the trait's own implementation", () => {
         expect([Member.shout(member), Admin.shout(admin)]).toEqual(["ALICE", "ROOT"]);
-        expect(Member.shout).toBe(Greetable.shout);
       });
 
       test("a Val cannot override it", () => {
@@ -2109,7 +2194,6 @@ describe("building", () => {
 
       test("a Final stays the trait's own, however many traits the Val implements", () => {
         expect(Crate.shout(crate)).toBe("BOX");
-        expect(Crate.shout).toBe(Greetable.shout);
       });
 
       test("one may be left unimplemented: it is then a declaration and nothing more", () => {
@@ -2174,7 +2258,7 @@ describe("building", () => {
 
       test("but they may require the same field", () => {
         type Weighing = Trait<"Weighing", { name: string }, { kilos: (self: Self) => number }>;
-        const Weighing = Trait.companion<Weighing>().impl({ kilos: () => 0 });
+        const Weighing = Trait.companion<Weighing>().impl({ kilos: (_w) => 0 });
         type Parcel = Val<"Parcel", { id: string; name: string }, Greetable & Weighing>;
         const Parcel = Val.companion<Parcel>()
           .implTrait(Greetable, { toWire: (p, sep) => `${p.id}${sep}` })

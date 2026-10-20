@@ -82,6 +82,18 @@ describe("implCreate.noseal in production", () => {
   });
 });
 
+describe("a member in production", () => {
+  // The check costs nothing there, and a member it would have caught still runs data-first.
+  test("hiding its parameters is not checked", () => {
+    type Named = Value<"ProductionNamed", { name: string }>;
+    const greet = (n: Named, greeting: string) => `${greeting}, ${n.name}`;
+    const Named = Val.sealer<Named>().impl({
+      greet: (...args: [Named, string]) => greet(...args),
+    });
+    expect(Named.greet(Named({ name: "bob" }), "Hi")).toBe("Hi, bob");
+  });
+});
+
 describe("an enum variant in production", () => {
   // Without the check, the spread that adds the tag turns a string into a character map.
   test("throws on a payload that is not an object", () => {
