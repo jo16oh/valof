@@ -333,7 +333,7 @@ describe("nesting", () => {
 describe("building", () => {
   describe("companion", () => {
     // Every gate takes an `AnyTrait`, so one check covers the companion, a Val declaring the
-    // trait, a box, and both forms of `implTrait`. None of them carries a check of its own.
+    // trait and a box. None of them carries a check of its own.
     test("a broken declaration is caught at every gate", () => {
       type Wiring = Trait<"Wiring", { id: string }, { patch: (self: Self) => boolean }>;
       expectTypeOf<BrandsOf<Wiring>>().toEqualTypeOf<{
@@ -349,12 +349,6 @@ describe("building", () => {
       const cell = null as unknown as Val<"Cell", { id: string }, Wiring>;
       // @ts-expect-error same, at a box
       const box = null as unknown as Dyn<Wiring>;
-      type Plain = Val<"Plain", { id: string }>;
-      const wiring = {} as Wiring;
-      // @ts-expect-error same, at the companion form of implTrait
-      Val.companion<Plain>().implTrait(wiring, {});
-      // @ts-expect-error same, at the type-argument form of implTrait
-      Val.companion<Plain>().implTrait<Wiring>({});
       expect([cell, box]).toHaveLength(2);
     });
   });

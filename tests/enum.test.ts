@@ -426,39 +426,42 @@ describe("traits", () => {
     Enum.sealer<Shape>().implTrait(Describable, { describe: (_s) => "" });
   });
 
-  describe("without a companion", () => {
+  describe("a trait that implements nothing of its own", () => {
     type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
+    const Wired = Trait.companion<Wired>();
     type Row = Enum<"Row", { Head: { n: number }; Body: { s: string } }, { id: string } & Wired>;
 
-    test("a trait implementing nothing itself is named as the type argument", () => {
-      const Row = Enum.sealer<Row>().implTrait<Wired>({
+    test("is implemented through its companion, on a sealer and on a companion", () => {
+      const Sealed = Enum.sealer<Row>().implTrait(Wired, {
         toWire: (r, sep): string =>
-          Row.match(r, { Head: (h) => `${h.id}${sep}${h.n}`, Body: (b) => `${b.id}${sep}${b.s}` }),
+          Sealed.match(r, {
+            Head: (h) => `${h.id}${sep}${h.n}`,
+            Body: (b) => `${b.id}${sep}${b.s}`,
+          }),
       });
-      expect(Row.toWire(Row.Head({ id: "r1", n: 2 }), "-")).toBe("r1-2");
-    });
-
-    test("a companion's enum takes the same form", () => {
-      const Row = Enum.companion<Row>()
-        .implTrait<Wired>({ toWire: (r, sep): string => `${r.id}${sep}${r._tag}` })
+      const Built = Enum.companion<Row>()
+        .implTrait(Wired, { toWire: (r, sep): string => `${r.id}${sep}${r._tag}` })
         .impl();
-      expect(Row.toWire(Row.Head.create({ id: "r1", n: 2 }), "-")).toBe("r1-Head");
+      expect([
+        Sealed.toWire(Sealed.Head({ id: "r1", n: 2 }), "-"),
+        Built.toWire(Built.Head.create({ id: "r1", n: 2 }), "-"),
+      ]).toEqual(["r1-2", "r1-Head"]);
     });
 
-    test("a trait declaring a Final is rejected: only its companion can answer for one", () => {
-      type Loud = Trait<"Loud", { id: string }, { shout: Final<(self: Self) => string> }>;
-      type Cry = Enum<"Cry", { A: { n: number }; B: { s: string } }, { id: string } & Loud>;
-      // @ts-expect-error this trait implements members of its own: pass its companion
-      Enum.sealer<Cry>().implTrait<Loud>({ shout: (c: { id: string }) => c.id });
+    test("cannot be named as a type argument instead, on a sealer or a companion", () => {
+      const toWire = (r: Row, sep: string) => r.id + sep;
+      // @ts-expect-error implTrait takes the trait's companion, not a type argument
+      Enum.sealer<Row>().implTrait<Wired>({ toWire });
+      // @ts-expect-error implTrait takes the trait's companion, not a type argument
+      Enum.companion<Row>().implTrait<Wired>({ toWire });
     });
 
-    test("a call that names no trait says which of the two it wants", () => {
-      // `@ts-expect-error` alone would stay green: the call already failed, with TS2558. The
-      // message is the parameter's type, so passing it fixes the wording.
-      const unnamed =
-        "pass the members this trait leaves open, or name the trait as the type argument";
+    test("nor be left out, with its members passed alone", () => {
+      // `@ts-expect-error` alone would stay green: the call failed before this message existed too.
+      // The message is the parameter's type, so passing it fixes the wording.
+      const unnamed = "pass the trait's companion, then the members it leaves open";
       Enum.sealer<Row>().implTrait(unnamed);
-      // @ts-expect-error the members alone leave `Tr` at its constraint
+      // @ts-expect-error the members alone do not say which trait they implement
       Enum.sealer<Row>().implTrait({ toWire: (r: { id: string }) => r.id });
     });
   });
@@ -471,8 +474,9 @@ describe("traits", () => {
         { Circle: { r: number }; Square: { side: number } },
         { id: string } & Rad
       >;
+      const Rad = Trait.companion<Rad>();
       // @ts-expect-error a member cannot take the name of a field the payload holds
-      Enum.sealer<Round>().implTrait<Rad>({ r: (c: { id: string }) => c.id.length });
+      Enum.sealer<Round>().implTrait(Rad, { r: (c: { id: string }) => c.id.length });
     });
 
     test("one another trait already answers to", () => {

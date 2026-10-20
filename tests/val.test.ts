@@ -572,7 +572,8 @@ describe("Val", () => {
     test("a trait a recursive type declares is checked as any other", () => {
       type Sized = Trait<"app/Sized", { value: number }, { size: (self: Self) => number }>;
       type Counted = Val<"app/Counted", { value: number; next?: Rec<Counted> }, Sized>;
-      const Counted = Val.sealer<Counted>().implTrait<Sized>({ size: (c) => c.value });
+      const Sized = Trait.companion<Sized>();
+      const Counted = Val.sealer<Counted>().implTrait(Sized, { size: (c) => c.value });
 
       expectTypeOf<Counted>().toExtend<AnyVal>();
       expect(Counted.size(Counted({ value: 2 }))).toBe(2);
@@ -1996,15 +1997,9 @@ describe("building", () => {
       Val.companion<Member>().implTrait(Greetable, {});
     });
 
-    // Every message is the parameter type, so passing the literal is what pins the wording. A
-    // `@ts-expect-error` alone cannot: the calls below errored before this message existed too.
-    const unnamed =
-      "pass the members this trait leaves open, or name the trait as the type argument";
-
-    test("a companion with the members left off cannot say which trait it is", () => {
-      // @ts-expect-error the members are missing, so this reached the type-argument form
+    test("the members a trait leaves open must be passed", () => {
+      // @ts-expect-error the members the trait leaves open are missing
       Val.companion<Member>().implTrait(Greetable);
-      Val.companion<Member>().implTrait(unnamed);
     });
 
     test("the type must declare the trait", () => {
@@ -2107,45 +2102,32 @@ describe("building", () => {
 
     describe("a trait that implements nothing of its own", () => {
       type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
+      const Wired = Trait.companion<Wired>();
       type Row = Val<"Row", { id: string; n: number }, Wired>;
-      const Row = Val.companion<Row>().implTrait<Wired>({
-        toWire: (r, sep) => `${r.id}${sep}${r.n}`,
-      });
 
-      test("takes the type argument in place of a companion", () => {
+      test("is implemented through its companion all the same", () => {
+        const Row = Val.companion<Row>().implTrait(Wired, {
+          toWire: (r, sep) => `${r.id}${sep}${r.n}`,
+        });
         expect(Row.toWire(Val.of<Row>({ id: "r", n: 1 }), ":")).toBe("r:1");
       });
 
-      // The parameter is the sentence itself where a check fails, so these implementations are
-      // annotated: an object literal takes no contextual type from a string.
-      test("still answers to the checks the companion carried", () => {
-        type Plain = Val<"Plain", { id: string }>;
-        const plain = { toWire: (p: Plain, sep: string) => `${p.id}${sep}` };
-        // @ts-expect-error the type does not declare this trait
-        Val.companion<Plain>().implTrait<Wired>(plain);
-
-        type Note = Val<"Note", { id: string; name: string }, Greetable>;
-        const note = { toWire: (n: Note, sep: string) => `${n.id}${sep}` };
-        // @ts-expect-error a member cannot take the name of a field the payload holds
-        Val.companion<Note>().implTrait<Wired>(note);
+      test("cannot be named as a type argument instead, on a companion or a sealer", () => {
+        const toWire = (r: Row, sep: string) => r.id + sep;
+        // @ts-expect-error implTrait takes the trait's companion, not a type argument
+        Val.companion<Row>().implTrait<Wired>({ toWire });
+        // @ts-expect-error implTrait takes the trait's companion, not a type argument
+        Val.sealer<Row>().implTrait<Wired>({ toWire });
       });
 
-      test("and the type argument is not optional either", () => {
+      test("nor be left out, with its members passed alone", () => {
+        // The message is the parameter type, so passing the literal is what pins the wording. A
+        // `@ts-expect-error` alone cannot: the call errored before this message existed too.
+        const unnamed = "pass the trait's companion, then the members it leaves open";
         const row = { toWire: (r: Row, sep: string) => `${r.id}${sep}` };
         // @ts-expect-error the members alone do not say which trait they implement
         Val.companion<Row>().implTrait(row);
         Val.companion<Row>().implTrait(unnamed);
-      });
-
-      test("but a trait with a Final member needs one", () => {
-        type Note = Val<"Note", { id: string; name: string }, Greetable>;
-        const note = {
-          greet: (n: Note) => n.name,
-          toWire: (n: Note, sep: string) => `${n.id}${sep}`,
-          shout: (n: Note) => n.name,
-        };
-        // @ts-expect-error this trait implements members of its own: pass its companion
-        Val.companion<Note>().implTrait<Greetable>(note);
       });
     });
 
