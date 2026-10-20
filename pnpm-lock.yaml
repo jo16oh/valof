@@ -256,8 +256,8 @@ importers:
         specifier: npm:typescript@^6.0.3
         version: typescript@6.0.3
       valof-release:
-        specifier: npm:valof@0.9.0
-        version: valof@0.9.0(oxc-parser@0.148.0)
+        specifier: npm:valof@0.9.1
+        version: valof@0.9.1(oxc-parser@0.148.0)
       vite:
         specifier: npm:@voidzero-dev/vite-plus-core@0.2.9
         version: '@voidzero-dev/vite-plus-core@0.2.9(@types/node@26.5.0)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.0)'
@@ -2094,8 +2094,8 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
-  valof@0.9.0:
-    resolution: {integrity: sha512-dK8txjbRViHXFBw9OOIGd/NRFRW/qGOJwo61FOvW6RlgdQXyfpKDECEacj1aQAxQhwzTLgrcDcV4p/FXJQ0TaQ==}
+  valof@0.9.1:
+    resolution: {integrity: sha512-775huA2aM12+o42f6d74nzuSBI8HyTIX9AgHVNQppOnQ04JeJDn6TlrqGxK6aypqSAsNbHbMav5qq0T1agUK9g==}
     hasBin: true
     peerDependencies:
       oxc-parser: '>=0.148'
@@ -3752,7 +3752,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  valof@0.9.0(oxc-parser@0.148.0):
+  valof@0.9.1(oxc-parser@0.148.0):
     optionalDependencies:
       oxc-parser: 0.148.0
 
