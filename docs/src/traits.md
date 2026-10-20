@@ -48,8 +48,10 @@ type Greetable = Trait<
   { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
 >;
 // ---cut---
+const Greetable = Trait.companion<Greetable>();
+
 type User = Val<"User", { id: string }, Greetable>;
-const User = Val.sealer<User>().implTrait<Greetable>({
+const User = Val.sealer<User>().implTrait(Greetable, {
   greet: (u) => `Hi, ${u.name}`,
   toWire: (u, sep) => `${u.id}${sep}${u.name}`,
 });
@@ -57,7 +59,8 @@ const User = Val.sealer<User>().implTrait<Greetable>({
 User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
 ```
 
-Naming the trait as the type argument asks `implTrait` for every member it declares.
+`Trait.companion<Greetable>()` creates the trait's companion, even for a trait that implements
+nothing itself. `implTrait` receives it first, and the members the trait leaves open second.
 
 A trait adds the fields it requires to the payload, so the `User` payload includes `name` without
 listing it. A payload may list one of them again with the same or a narrower type. A conflicting
