@@ -384,7 +384,12 @@ type VariantSteps<
   in out FV,
   in out T,
 > = {
-  /** Collects the members taking this variant. */
+  /**
+   * Collects the members taking this variant. They can be called with the value first or last, and
+   * cannot have an optional, a default or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+   */
   impl: {
     (): VariantFrame<E, N, FE, FV, T>;
     <M extends CompanionMembers<VariantOf<E, N>>>(
@@ -406,7 +411,12 @@ type SealerVariantSteps<
   in out N extends keyof VariantsOf<E>,
   in out T,
 > = {
-  /** Collects the members taking this variant. */
+  /**
+   * Collects the members taking this variant. They can be called with the value first or last, and
+   * cannot have an optional, a default or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+   */
   impl: {
     (): SealerFrame<E, N, T>;
     <M extends CompanionMembers<VariantOf<E, N>>>(
@@ -611,6 +621,11 @@ export type EnumBuilder<
    * A member reaching the companion, for `match`, for a variant or for a sibling, references it and
    * annotates its return type. Referencing a declaration inside its own initializer is a
    * circularity, which TypeScript reports as TS7023.
+   *
+   * The members, `match` and `[Tag].match` can be called with the value first or last. A member
+   * cannot have an optional, a default or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
   impl: {
     (): EnumCompanion<E, VM, M, F>;

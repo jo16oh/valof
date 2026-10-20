@@ -674,6 +674,16 @@ export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<neve
    * A member reaching the companion, for `patch`, for the constructor, for a trait's member or for
    * a sibling, references it and annotates its return type. Referencing a declaration inside its
    * own initializer is a circularity, which TypeScript reports as TS7023.
+   *
+   * A member can be called with the value first, `User.rename(u, "x")`, or last,
+   * `User.rename("x")(u)`. So can `patch` and a trait's members. A member cannot have an optional,
+   * a default or a rest parameter. Pass `undefined` where an argument has no value.
+   *
+   * Called with the value last, a generic member loses its type parameters. Each becomes its
+   * constraint, or `unknown` where none is declared. To keep them, call the member with the value
+   * first inside an arrow function: `pipe(u, (v) => User.pick(v, "name"))`.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
@@ -729,6 +739,11 @@ export type CompanionBuilder<
    *
    * A member the trait declared {@link Final} is not passed here: it arrives unchanged, and nothing
    * can override it.
+   *
+   * The members can be called with the value first or last, and cannot have an optional, a default
+   * or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
   implTrait: {
     // No companion to pass when the trait implements nothing of its own: the type argument is

@@ -290,6 +290,11 @@ export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitC
    * the companion and annotates its return type: referencing it inside its own initializer is a
    * circularity TypeScript reports as TS7023, and the annotation cuts it. A member a Val may
    * replace is not on the companion; see {@link TraitCompanion}.
+   *
+   * A member can be called with the value first or last, and cannot have an optional, a default or
+   * a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
   impl: <H extends Shared<Tr, H>>(fns: H & Arity<H>) => TraitCompanion<Tr, G & H>;
 };
