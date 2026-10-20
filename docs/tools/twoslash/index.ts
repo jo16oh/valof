@@ -52,6 +52,7 @@ const twoslasher = createTwoslasher({
       "valof/experimental": [join(root, "src/experimental.ts")],
       "valof/lint": [join(root, "src/lint/index.ts")],
       "valof/eslint-plugin": [join(root, "src/lint/eslint-plugin.ts")],
+      remeda: [join(root, "docs/tools/twoslash/stubs/remeda.d.ts")],
     },
   },
 });

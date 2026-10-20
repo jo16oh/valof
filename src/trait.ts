@@ -1,3 +1,4 @@
+import { duals, type Arity, type Duals, type Omission } from "./dual.ts";
 import type { AnyVal, Checked, DeepReadonly, Invalid, Reserved } from "./val.ts";
 import * as Trait from "./ns/trait.ts";
 
@@ -77,7 +78,7 @@ type Trait<K extends string, Shape, M extends Members = Record<never, never>> = 
   // A broken declaration puts the annotated version here instead, the way an invalid payload
   // lands in a Val's brand. `Members` admits functions alone, so an `Invalid` in this position
   // stops the trait satisfying `AnyTrait`, and every gate takes an `AnyTrait`: the companion,
-  // `Val`, `Dyn` and both forms of `implTrait` all report it without a check of their own.
+  // `Val`, `Dyn` and `implTrait` all report it without a check of their own.
   TraitPhantom<
     [Shape] extends [Checked<Shape>]
       ? [M] extends [Declarable<Shape, M>]
@@ -187,7 +188,9 @@ type Declarable<Shape, M extends Members> = {
           : M[K] extends (...args: never[]) => infer R
             ? HasSelf<R> extends true
               ? Invalid<"a trait member cannot return Self">
-              : M[K]
+              : Omission<M[K]> extends string
+                ? Invalid<Omission<M[K]> & string>
+                : M[K]
             : M[K];
 };
 
@@ -228,8 +231,8 @@ export type TraitHost = { readonly __valof_traits: Members };
  *
  * @experimental
  */
-export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Unbound<
-  Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>,
+export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Duals<
+  Unbound<Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>, Tr>,
   Tr
 > & {
   /** Everything the trait implemented, which `implTrait` copies onto the Val. */
@@ -287,8 +290,13 @@ export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitC
    * the companion and annotates its return type: referencing it inside its own initializer is a
    * circularity TypeScript reports as TS7023, and the annotation cuts it. A member a Val may
    * replace is not on the companion; see {@link TraitCompanion}.
+   *
+   * A member can be called with the value first or last, and cannot have an optional, a default or
+   * a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
-  impl: <H extends Shared<Tr, H>>(fns: H) => TraitCompanion<Tr, G & H>;
+  impl: <H extends Shared<Tr, H>>(fns: H & Arity<H>) => TraitCompanion<Tr, G & H>;
 };
 
 type AnyFn = (...args: never[]) => unknown;
@@ -296,7 +304,7 @@ type AnyFn = (...args: never[]) => unknown;
 const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   // Spread whole rather than the finals alone: the mark saying which those are is a type, gone by
   // now. Only the finals are named on the type, so the rest are unreachable without a cast.
-  ...impls,
+  ...duals(impls),
   __valof_shared: impls,
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the

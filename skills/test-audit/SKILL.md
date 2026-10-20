@@ -79,7 +79,9 @@ Flag a test that is any of these, and say which bug its deletion lets through:
 - **A duplicate.** Another test already fails on the same bug. Say which one.
 - **Coupled to internals.** It breaks on a refactor that keeps the behaviour.
 - **One case of many.** Cases that fail together buy one guarantee. Keep the boundary and one
-  representative, cut the rest, or merge them into a table.
+  representative, cut the rest, or merge them into a table. Even when cases fail together, do not
+  merge concerns that are distinct to the user into one test. `n?`, `n = 0` and a trailing
+  `n: T | void` are one optional parameter to the checker, and three different forms in user code.
 
 Propose a merge where two tests share setup and check related behaviour.
 

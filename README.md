@@ -139,6 +139,7 @@ if ("ok" in result) Note.append(result.ok, "World"); // { ok: { id: "...", text:
 
 ```ts
 import { Val } from "valof";
+import { pipe } from "remeda";
 
 type Point = Val<"Point", { x: number; y: number }>;
 
@@ -166,6 +167,9 @@ const moved = Rectangle.patch(rectangle, {
   position: Point.move(rectangle.position, 3, 4),
 });
 moved.size === rectangle.size; // true: untouched branches keep their reference identity
+
+// Every member can also be called with the value last, so it can be passed to a pipe.
+const shifted = pipe(rectangle.position, Point.move(3, 4), Point.move(-1, 0)); // { x: 3, y: 6 }
 
 const unlabeled = Rectangle.patch(moved, { label: undefined });
 "label" in unlabeled; // false: undefined deletes an optional property

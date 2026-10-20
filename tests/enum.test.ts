@@ -267,7 +267,9 @@ describe("members", () => {
     });
 
   test("a variant's member takes that variant, with no annotation", () => {
-    expectTypeOf(Money.Cash.doubled).toEqualTypeOf<(self: VariantOf<Money, "Cash">) => number>();
+    expectTypeOf<Parameters<typeof Money.Cash.doubled>>().toEqualTypeOf<
+      [self: VariantOf<Money, "Cash">]
+    >();
     expect(Money.spendable(Money.Cash({ id: "c", yen: 100 }))).toBe(200);
     expect(Money.spendable(Money.Card({ id: "d", limit: 5 }))).toBe(5);
   });
@@ -279,7 +281,8 @@ describe("members", () => {
 
   test("a member reaching nothing off the companion needs no annotation", () => {
     const Plain = Enum.sealer<Shape>().impl({ sides: (s) => (s._tag === "Circle" ? 0 : 4) });
-    expectTypeOf(Plain.sides).toEqualTypeOf<(self: Shape) => 0 | 4>();
+    expectTypeOf<Parameters<typeof Plain.sides>>().toEqualTypeOf<[self: Shape]>();
+    expectTypeOf<ReturnType<typeof Plain.sides>>().toEqualTypeOf<0 | 4>();
     expect(Plain.sides(Plain.Circle({ r: 1 }))).toBe(0);
   });
 
@@ -379,6 +382,11 @@ describe("traits", () => {
     ]);
   });
 
+  test("its member takes the value first, or last", () => {
+    expectTypeOf(Cmd.describe()).toEqualTypeOf<(self: Cmd) => string>();
+    expect(Cmd.describe()(add)).toBe("add 2");
+  });
+
   test("a variant goes into a box like any other Val", () => {
     type User = Val<"User", { id: string }, Describable>;
     const User = Val.sealer<User>().implTrait(Describable, { describe: (u) => `user ${u.id}` });
@@ -415,42 +423,45 @@ describe("traits", () => {
 
   test("a trait the enum does not declare is rejected", () => {
     // @ts-expect-error the type does not declare this trait
-    Enum.sealer<Shape>().implTrait(Describable, { describe: () => "" });
+    Enum.sealer<Shape>().implTrait(Describable, { describe: (_s) => "" });
   });
 
-  describe("without a companion", () => {
+  describe("a trait that implements nothing of its own", () => {
     type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
+    const Wired = Trait.companion<Wired>();
     type Row = Enum<"Row", { Head: { n: number }; Body: { s: string } }, { id: string } & Wired>;
 
-    test("a trait implementing nothing itself is named as the type argument", () => {
-      const Row = Enum.sealer<Row>().implTrait<Wired>({
+    test("is implemented through its companion, on a sealer and on a companion", () => {
+      const Sealed = Enum.sealer<Row>().implTrait(Wired, {
         toWire: (r, sep): string =>
-          Row.match(r, { Head: (h) => `${h.id}${sep}${h.n}`, Body: (b) => `${b.id}${sep}${b.s}` }),
+          Sealed.match(r, {
+            Head: (h) => `${h.id}${sep}${h.n}`,
+            Body: (b) => `${b.id}${sep}${b.s}`,
+          }),
       });
-      expect(Row.toWire(Row.Head({ id: "r1", n: 2 }), "-")).toBe("r1-2");
-    });
-
-    test("a companion's enum takes the same form", () => {
-      const Row = Enum.companion<Row>()
-        .implTrait<Wired>({ toWire: (r, sep): string => `${r.id}${sep}${r._tag}` })
+      const Built = Enum.companion<Row>()
+        .implTrait(Wired, { toWire: (r, sep): string => `${r.id}${sep}${r._tag}` })
         .impl();
-      expect(Row.toWire(Row.Head.create({ id: "r1", n: 2 }), "-")).toBe("r1-Head");
+      expect([
+        Sealed.toWire(Sealed.Head({ id: "r1", n: 2 }), "-"),
+        Built.toWire(Built.Head.create({ id: "r1", n: 2 }), "-"),
+      ]).toEqual(["r1-2", "r1-Head"]);
     });
 
-    test("a trait declaring a Final is rejected: only its companion can answer for one", () => {
-      type Loud = Trait<"Loud", { id: string }, { shout: Final<(self: Self) => string> }>;
-      type Cry = Enum<"Cry", { A: { n: number }; B: { s: string } }, { id: string } & Loud>;
-      // @ts-expect-error this trait implements members of its own: pass its companion
-      Enum.sealer<Cry>().implTrait<Loud>({ shout: (c: { id: string }) => c.id });
+    test("cannot be named as a type argument instead, on a sealer or a companion", () => {
+      const toWire = (r: Row, sep: string) => r.id + sep;
+      // @ts-expect-error implTrait takes the trait's companion, not a type argument
+      Enum.sealer<Row>().implTrait<Wired>({ toWire });
+      // @ts-expect-error implTrait takes the trait's companion, not a type argument
+      Enum.companion<Row>().implTrait<Wired>({ toWire });
     });
 
-    test("a call that names no trait says which of the two it wants", () => {
-      // `@ts-expect-error` alone would stay green: the call already failed, with TS2558. The
-      // message is the parameter's type, so passing it fixes the wording.
-      const unnamed =
-        "pass the members this trait leaves open, or name the trait as the type argument";
+    test("nor be left out, with its members passed alone", () => {
+      // `@ts-expect-error` alone would stay green: the call failed before this message existed too.
+      // The message is the parameter's type, so passing it fixes the wording.
+      const unnamed = "pass the trait's companion, then the members it leaves open";
       Enum.sealer<Row>().implTrait(unnamed);
-      // @ts-expect-error the members alone leave `Tr` at its constraint
+      // @ts-expect-error the members alone do not say which trait they implement
       Enum.sealer<Row>().implTrait({ toWire: (r: { id: string }) => r.id });
     });
   });
@@ -463,8 +474,9 @@ describe("traits", () => {
         { Circle: { r: number }; Square: { side: number } },
         { id: string } & Rad
       >;
+      const Rad = Trait.companion<Rad>();
       // @ts-expect-error a member cannot take the name of a field the payload holds
-      Enum.sealer<Round>().implTrait<Rad>({ r: (c: { id: string }) => c.id.length });
+      Enum.sealer<Round>().implTrait(Rad, { r: (c: { id: string }) => c.id.length });
     });
 
     test("one another trait already answers to", () => {
@@ -799,7 +811,7 @@ describe("the chain closes", () => {
   });
 
   test("one call closes the chain, with a member or with none", () => {
-    const closed = Enum.sealer<Shape>().impl({ sides: () => 4 });
+    const closed = Enum.sealer<Shape>().impl({ sides: (_s) => 4 });
     expectTypeOf(closed).not.toHaveProperty("impl");
     const empty = Enum.companion<Shape>().impl();
     expectTypeOf(empty).not.toHaveProperty("impl");
@@ -807,6 +819,105 @@ describe("the chain closes", () => {
       undefined,
       undefined,
     ]);
+  });
+});
+
+describe("data-first and data-last", () => {
+  const pipe = <A, B>(a: A, f: (a: A) => B): B => f(a);
+  const Sized = Enum.sealer<Shape>()
+    .implVariant("Circle", (variant) => variant.impl({ grown: (c, by: number) => c.r + by }))
+    .impl({ sides: (s, round: number) => (s._tag === "Circle" ? round : 4) });
+  const Built = Enum.companion<Shape>()
+    .implVariant("Circle", (variant) => variant.impl({ grown: (c, by: number) => c.r + by }))
+    .impl({ sides: (s, round: number) => (s._tag === "Circle" ? round : 4) });
+
+  test("a union member takes the value first, or last", () => {
+    expectTypeOf(Sized.sides(0)).toEqualTypeOf<(self: Shape) => number>();
+    expectTypeOf(Built.sides(0)).toEqualTypeOf<(self: Shape) => number>();
+    expect([Sized.sides(circle, 7), Sized.sides(7)(circle), Built.sides(7)(circle)]).toEqual([
+      7, 7, 7,
+    ]);
+  });
+
+  test("so do a variant's member and `patch`, on a sealer and on a companion", () => {
+    type Circle = VariantOf<Shape, "Circle">;
+    expectTypeOf(Sized.Circle.grown(1)).toEqualTypeOf<(self: Circle) => number>();
+    expectTypeOf(Sized.Circle.patch({ r: 5 })).toEqualTypeOf<(self: Circle) => Circle>();
+    expect([
+      Sized.Circle.grown(1)(circle),
+      Built.Circle.grown(1)(circle),
+      Sized.Circle.patch({ r: 5 })(circle),
+      Built.Circle.patch({ r: 5 })(circle),
+    ]).toEqual([3, 3, { r: 5, _tag: "Circle" }, { r: 5, _tag: "Circle" }]);
+  });
+
+  test("`match` takes the handlers alone, narrowing each one and exhaustive", () => {
+    const side = pipe(
+      square as Shape,
+      Shape.match({
+        Circle: (c) => {
+          expectTypeOf(c).toEqualTypeOf<VariantOf<Shape, "Circle">>();
+          return c.r;
+        },
+        Square: (s) => s.side,
+      }),
+    );
+    expectTypeOf(side).toEqualTypeOf<number>();
+    expect(side).toBe(3);
+    // @ts-expect-error Property 'Square' is missing
+    Shape.match({ Circle: (c) => c.r });
+  });
+
+  test("so does `[Tag].match`", () => {
+    const sides = Shape[Tag].match({ Circle: () => 0, Square: () => 4 });
+    expectTypeOf(sides).toEqualTypeOf<(tag: "Circle" | "Square") => number>();
+    expect(sides("Square")).toBe(4);
+  });
+
+  test("a member whose arguments can be left out is rejected", () => {
+    Enum.sealer<Shape>().impl({
+      // @ts-expect-error a parameter that can be left out
+      sides: (s: Shape, round?: number) => (s._tag === "Circle" ? (round ?? 0) : 4),
+    });
+    Enum.companion<Shape>().impl({
+      // @ts-expect-error a parameter that can be left out
+      sides: (s: Shape, round?: number) => (s._tag === "Circle" ? (round ?? 0) : 4),
+    });
+    Enum.companion<Shape>().implVariant("Circle", (variant) =>
+      variant.impl({
+        // @ts-expect-error a parameter that can be left out
+        grown: (c: VariantOf<Shape, "Circle">, by?: number) => c.r + (by ?? 0),
+      }),
+    );
+    expect(() =>
+      Enum.sealer<Shape>().impl({
+        // @ts-expect-error the first parameter must be the Val
+        sides: () => 4,
+      }),
+    ).toThrow(/first parameter/);
+    Enum.sealer<Shape>().implVariant("Circle", (variant) =>
+      variant.impl({
+        // @ts-expect-error the first parameter must be the Val
+        unit: () => 1,
+      }),
+    );
+  });
+
+  test("a member hiding its parameters throws in development", () => {
+    const sides = (s: Shape) => (s._tag === "Circle" ? 0 : 4);
+    expect(() =>
+      Enum.sealer<Shape>().impl({ sides: (...args: [Shape]) => sides(...args) }),
+    ).toThrow(/first parameter/);
+    const radius = (c: VariantOf<Shape, "Circle">) => c.r;
+    // A sealer's variant attaches its members itself, apart from `Val`'s.
+    expect(
+      () =>
+        Enum.sealer<Shape>()
+          .implVariant("Circle", (variant) =>
+            variant.impl({ radius: (...args: [VariantOf<Shape, "Circle">]) => radius(...args) }),
+          )
+          .impl().Circle,
+    ).toThrow(/first parameter/);
   });
 });
 

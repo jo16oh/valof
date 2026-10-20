@@ -57,6 +57,10 @@ describe("what the rule finds", () => {
     expect(await lint("reads")).toEqual([]);
   });
 
+  test("counts a member passed without a call, as a pipeline takes it, as a read", async () => {
+    expect(await lint("unapplied")).toEqual([]);
+  });
+
   test("collects method shorthand and non-function members", async () => {
     expect(await lint("shorthand-and-const")).toEqual([
       { rule: UnusedMember, at: "shorthand-and-const.ts:2:3" },
@@ -131,12 +135,6 @@ describe("Trait members", () => {
   test("resolves const objects and recursive spreads", async () => {
     expect(await lint("resolved-overrides")).toEqual([
       { rule: UnusedMember, at: "resolved-overrides.ts:2:55" },
-    ]);
-  });
-
-  test("reads overrides from parenthesized implTrait type arguments", async () => {
-    expect(await lint("parenthesized-impl-trait")).toEqual([
-      { rule: UnusedMember, at: "parenthesized-impl-trait.ts:2:55" },
     ]);
   });
 

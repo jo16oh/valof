@@ -13,7 +13,7 @@ import { Val } from "valof";
 
 節ごとに独立して読める。必要な節だけ開く。
 
-- **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠
+- **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠。メンバを dual にして払う呼び出しごとのコスト
 - **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
 - **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由、3.7 自己参照 `Rec`
 - **§4 DeepReadonly**
@@ -25,7 +25,7 @@ import { Val } from "valof";
   - **6.1** コンストラクタは出自で決まる / **6.2** `patch`、patch の `undefined`、深さを問わない patch、merge できるのは既にあるノードだけ / **6.3** Result 非依存 / **6.4** `update` を削除する
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
-  - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査
+  - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
@@ -35,7 +35,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
@@ -60,6 +60,8 @@ import { Val } from "valof";
 - ブランドはファントム型なので、実行時にコストも痕跡も残らない
 
 コンストラクタは既定で引数をディープコピーする（§4.1）。ゼロコストではない。「値はデータである」を実行時にも成立させるための最小限の代償として払う。所有権を別に確認できる場所だけ `.nocopy` で外せる。
+
+companion のメンバは data-first / data-last の dual にする（§6.11）。値にメソッドが無いので、`pipe(u, User.rename("x"))` と書けるようにするためである。呼び出しごとに数 ns 払う。コピーと違い、正しさのための代償ではなく書き味のための代償である。
 
 class ではこのいずれも得られない。この線を守るために諦めたものは §7 にまとめた。
 
@@ -1452,6 +1454,10 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 カスタム seal なし companion は意味のある形でもある。値が境界（デコーダ、DB 行、外部 API）から来る型では、コンストラクタを持たず振る舞いだけ束ね、構築は `Val.of` で行うのが正しい。
 
+#### 省略できる引数は書けない
+
+引数の無いメンバ、optional 引数、デフォルト引数、rest 引数は型エラーにする。メンバが dual なので、省略された呼び出しを data-last と区別できない（§6.11）。末尾の `a: T | void` は optional として扱われる。`a: T | undefined` は通す。
+
 #### 失うもの
 
 第一引数が Val でない補助ファクトリ（`Money.fromCents(n)` / `IsoDate.parse(s)`）は companion に置けない。これらは「値に対する振る舞い」ではないので、素の export 関数に分離されるほうが筋が通る。多引数のコンストラクタ（`Point.create(x, y)`）は `implCreate` が引き受けるので影響なし。
@@ -1743,6 +1749,168 @@ Val.companion<User>()
 - **`final`**: 上で却下したまま。JVM の語彙が `seal` を `sealed trait` に誤読させる件は §6.9 が `seal` の残存リスクとして挙げたもので、`final` はそれを増幅する
 - **`lock`**: 命令形で誤読も無いが、実行時には boolean 1 つしか残らないのに lock と言うのは約束が過大
 - 内部型 `Patchable<V, P>` は `Derivable<V, P>` に改名。派生経路全体の面なので、片方の語幹を持たせない
+
+### 6.11 メンバを data-first / data-last の dual にする、2026-10-20
+
+`User.rename(u, "x")` と `User.rename("x")(u)` の両方を書ける。パイプラインライブラリ（fleuve、別に作る）で `pipe(u, User.rename("x"))` と書くためである。Val はプレーンなデータなので、メソッドチェーンが使えない（§1）。v0.10 の破壊的変更。
+
+```ts
+pipe(u, User.rename("x"), User.greet); // self だけのメンバは括弧なしで渡せる
+pipe(shape, Shape.match({ Circle: (c) => …, Square: (s) => … }));
+```
+
+#### 範囲
+
+- **包む。**`.impl` のメンバ、`patch`、Trait のメンバ（Val の companion に載るものと、Trait の companion 自身のもの）、Enum の `.impl` / `implTrait` のメンバ、`match`、`[Tag].match`
+- **包まない。**`seal`、`create`、`implAssoc` のメンバ。どれも第 1 引数が self ではない
+- **Trait の companion 自身のメンバも包む。**同じ final を `User.shout` と `Greetable.shout` の 2 通りで呼べる。片方だけ dual だと形が食い違う。2 つは別々に包むので、`User.shout === Greetable.shout` は成り立たない。関数の同一性に頼る利用者はいないと判断した
+- **Enum は外せない。**`Enum.companion` の Variant の枠は `Val.companion().impl(fns)` で作るので、包まなくても dual になる。Enum だけ後から dual にすると、`.impl` の引数の制約が増えるので破壊的変更になる
+- **`dyn` は包まない。**箱のメソッドは self を束縛済みで、包むと `box.rename("x")` が関数を返す。`dyn(companion, value)` も第 1 引数が self ではない。`xs.map(Greetable.dyn(User))` のようなカリー化は、後から足しても破壊的変更にならない
+
+#### 判別は引数の個数で行う
+
+型はオーバーロードで分けられる。問題は実行時の判別である。
+
+- **`.impl` の時点で `n = fn.length` を 1 回読む。**呼び出しで引数が `n - 1` 個なら data-last、それ以外は data-first
+- **`n` 個ちょうどを data-first にはしない。**`xs.map(User.greet)` は引数を 3 つ渡す。`n` 個以上を data-first にすれば今の挙動のまま動く
+- **却下: 述語で判別する。**ブランドはファントムである（§2.1）。`owned` は `structuredClone` / JSON で消え、プリミティブを持てない。漏れたときの結果が「コピー 1 回」から「誤動作」に変わる
+
+#### 省略できる引数を型で禁じる
+
+`fn.length` はデフォルト引数と rest 以降を数えない。`a?` は数えるが、省略されると data-last と区別できない。
+
+- **optional 引数とデフォルト引数。**型ではどちらも optional 要素になるので、`P extends Required<P>` が偽になる
+- **rest 引数。**`number extends P["length"]` で見る
+- **`void` を含む引数は別に見ない。**末尾の `a: T | void` は、TS が optional 要素として推論する（`[u: U, n?: void | number | undefined]`）ので、上の判定が拒む。必須の引数より前の `void` は省略できない（TS2554）。`unknown` / `any` / 型引数 `T` も省略できない
+- **引数の無いメンバ。**self を取らないので、development の検査（下）と型の両方で拒む。それまでは `.impl({ anonymous: () => "x" })` を許していた。置き場所は素の export 関数、のちに `implAssoc`
+- **判定は `.impl` の引数の位置に置く。**`Grown` と同じく、引数の型に `Arity<M>` を交差させる。`CompanionMembers` は単一の関数型のままでないと、第 1 引数の文脈型が消える（§6.5）
+- **Trait の実装も検査する。**宣言は `Declarable` で、`Trait.companion().impl` の実装は `Arity<H>` で拒む。`implTrait(Greetable, { toWire: (u, sep = "/") => … })` の実装は宣言の型に代入できてしまうので、実装を型引数 `I` で受けて `Arity<I>` を掛ける。trait の fixture は約 2,000 instantiations 増えた
+- **残る穴: 宣言の型が実装を隠す形。**型が見るのは推論したメンバの型で、実行時が読むのは実装の `fn.length` である。型注釈が実装のデフォルト引数や rest 引数を隠すと、2 つが食い違う。型は通り、data-last の呼び出しが黙って data-first として走る。引数の無い実装は development の検査が捕まえる
+  - 型注釈つきの変数やオブジェクトを渡す形（`const toWire: (u: User, sep: string) => string = (u, sep = "/") => …` を `.impl({ toWire })`）
+  - `implTrait<Sized>({ … })` も同じ形だったので、外した（§15.1「型引数の形をなくす」）
+  - **型では塞げない。**注釈を付けた時点で、デフォルト引数の事実はどの型にも残らない。docs で注意する。lint の規則は §9
+  - **却下: development で `f.toString()` を読み、引数の並びの `=` と `...` を探す。**分割代入のデフォルト、コメント、トランスパイルされたコードで誤検出する。誤検出で投げると正しいコードを壊す
+- **`Declarable` の判定の向きで型が暴走した。**`unknown extends Omission<M[K]> ? … : …` と書くと、再帰する Val（`Rec`）の展開で TS2589 になった。`Omission<M[K]> extends string ? … : …` なら通る
+- **禁じるのは省略で、`undefined` ではない。**`a: T | undefined` は必須引数で、`--strict`、`--exactOptionalPropertyTypes`、`--strictNullChecks false` のどれでも `f(u)` は TS2554 になる。外部の optional な値は `User.f(u, opts.x)` とそのまま渡せる。払うのは、何も渡さない呼び出しを `f(u, undefined)` と書くことだけ
+
+#### 実行時: 長さ 0 の関数を development で投げる
+
+`(...args) => fn(...args)` で包んだ関数は `length` が 0 になる。data-last の呼び出しが、黙って data-first として走る。正規のメンバは self を取るので `n >= 1` である。引数の無いメンバは型で拒むので、正規のメンバが検査に掛かることはない。development では `.impl` の時点で投げる。production のビルドでは消える。
+
+関数でないメンバ（`LABEL: "user"`）は包まずに載せる。`dyn` が読む `__valof_traits` と、`implTrait` が読む `__valof_shared` には包む前の関数を残す。
+
+#### オーバーロードは data-first を最後に置く
+
+コールバックとして渡すと、TS は最後のシグネチャを使う。
+
+```ts
+declare const greet: { (): (self: U) => string; (self: U): string };
+pipe(u, greet); // string
+[u].map(greet); // string[]
+```
+
+#### ラッパーは rest 版 1 本
+
+```ts
+const dual = (f) => {
+  const n = f.length;
+  return (...args) => (args.length === n - 1 ? (self) => f(self, ...args) : f(...args));
+};
+```
+
+Node 24.21、`NODE_ENV=production`。10 メンバを同じラッパーで包み、別々の呼び出し箇所から呼ぶ（companion に近い条件）。1000 万回の 3 周目で、2 回の実行のぶれは 0.5 ns 以内。
+
+| 形           | data-first | data-last |
+| ------------ | ---------- | --------- |
+| 直接呼び出し | 4.5 ns     | —         |
+| rest         | 13.1 ns    | 18.4 ns   |
+| 引数固定     | 8.1 ns     | 14.7 ns   |
+
+- 可変長の引数を実体化するのが費用の大半。スプレッドを `apply` に変えても縮まない
+- **rest の +8.6 ns を受け入れる。**`User.patch` は 139 ns なので、割合は小さい。getter や述語の呼び出しは倍になる
+- **却下: 引数固定（`function (s, a) { return arguments.length === 1 ? … }`）。**+3.6 ns で済むが、引数の数ごとに 1 段ずつ約 20 B 増える。self 込み 4 まで入れると、#70 より前の計測で Val の予算を 9 B 超えた
+
+#### コスト
+
+production gzip、2026-10-20。
+
+|              | 前     | 後     |
+| ------------ | ------ | ------ |
+| Val          | 858 B  | 900 B  |
+| Trait の増分 | +84 B  | +103 B |
+| Enum の増分  | +491 B | +521 B |
+
+- development の検査は 0 B。`dual` は `src/dual.ts` に置き、Enum と Trait も使う。`development` は `src/env.ts` に移した。dual.ts が val.ts から読むと、互いに import し合う
+- `implAssoc` に残る Val の予算は 124 B。最小限の試作は約 82 B
+
+instantiations（`vp run type-perf`）。
+
+| fixture      | 前       | 後       | 予算            |
+| ------------ | -------- | -------- | --------------- |
+| core         | 6,456    | 6,921    | 10,000          |
+| trait        | 15,615   | 19,829   | 17,000 → 22,000 |
+| enum         | 39,996   | 46,923   | 90,000          |
+| `index.d.ts` | 67.46 kB | 70.37 kB | 96 kB           |
+
+- **trait の予算を上げた。**増分の約半分が `implTrait` の `I`（上）で、外すとデフォルト引数の実装が実行時に黙って誤動作する。残りは Trait の companion の `Duals`（約 1,200）、省略の検査、Val の `Duals`
+- `void` の分岐を外して約 650 減った
+
+#### ジェネリックなメンバは data-last で型引数を失う
+
+```ts
+const User = Val.sealer<User>().impl({ pick: <K extends keyof User>(u: User, k: K) => u[k] });
+User.pick(u, "name"); // string
+User.pick("name"); // (self: User) => string | number
+pipe(u, (v) => User.pick(v, "name")); // string。data-first をアロー関数で包む
+```
+
+data-last の型は `Dual<F, S>` がメンバの型 `F` から作る。`F` を条件型や mapped type で分解すると、TS は型引数を先に制約へ消す（制約が無ければ `unknown`）。第 1 引数が `V` に固定でも変わらない。消える `K` は残りの引数と戻り値の側にある。
+
+- **ジェネリックな関数型を型のレベルで具体化する手段が無い。**instantiation expression（`typeof f<"s">`）は値にしか使えない。型引数で受けた `F` には `F<"s">` と書けない（TS2315）。高カインド型（型コンストラクタを型引数に渡す）とは別の欠落で、根はどちらも、TS の型引数が完成した型しか取らないことにある
+- **型引数を保つのは呼び出しの推論だけ。**ジェネリックな関数を引数に直接渡し、その呼び出しの戻り値がシグネチャ 1 本の関数型であるとき（`last(g)` が `<K>(k: K) => (self: U) => U[K]`）。dual のメンバはシグネチャを 2 本持つので、この条件を構造的に満たせない
+- probe は TS 7.0.2。どれも型引数が落ちた
+  - 条件型で照合先をジェネリックにする（`F extends <A extends unknown[]>(self: S, ...args: A) => infer R`）。照合しない
+  - data-last のシグネチャ自身に引数の型を受けさせ、`F` に照合して戻り値を作る（`<const Args extends A>(...args: Args) => (self: S) => Ret<F, S, Args>`）。`Args` は `["s"]` と推論されるが、`Ret` の照合で `T` が `string` に落ちる。`C.g<["s"]>("s")` も同じ
+  - data-last に型引数の枠を用意する（`<T = unknown>(k: T) => …`）。`T` は届くが、`F` に当てはめられない
+  - 逆写像で、引数と戻り値をメンバごとの記録として受ける。型引数のつながりが切れ、ジェネリックなメンバが代入できなくなる
+  - メンバを 1 つずつ登録する `.impl("pick", g)`。戻り値がオブジェクトなので、呼び出しの推論が働かない
+  - メンバごとの包み関数 `dual(g)`。戻り値をオーバーロードか交差にすると落ちる。シグネチャ 1 本なら残るが、data-first の型を失う
+- **引数固定のラッパーでも変わらない。**ラッパーの形は実行時の話で、型は `Dual` が決める。Effect の `dual` でジェネリクスが残るのは、書き手が 2 本のシグネチャを手で書くからである（`effect/src/Function.ts`、`DataLast & DataFirst` を返す）
+
+#### 却下: `annotate` で型を書く、2026-10-20
+
+2 本のシグネチャを書き手が書き、恒等関数で印を付けて渡す案。`Duals` は印の付いたメンバを導出せず、書かれた型を使う。
+
+```ts
+import { annotate } from "valof";
+
+Val.sealer<User>().impl({
+  pick: annotate<{
+    <K extends keyof User>(k: K): (self: User) => User[K];
+    <K extends keyof User>(self: User, k: K): User[K];
+  }>((u, k) => u[k]),
+});
+```
+
+型は probe どおりに動いた（TS 7.0.2）。`pick("name")` は `(self: User) => string`、実装の `k` は `keyof User` で、書いた型と食い違う戻り値は TS2322 で落ちる。採らない理由は 2 つ。
+
+- **Trait には効かない。**`Trait.companion().impl` と `implTrait` の companion の型は、渡したメンバではなく Trait の宣言（`Unbound<MembersOf<Tr>>`）から作る。`annotate` を渡しても型は通り、何も起きない。効かせるには、Trait の宣言に dual の型を書ける形が要る
+- **アロー関数で足りる。**`annotate` はメンバごとに 2 本のシグネチャを型引数ごと書く。アロー関数は呼び出しごとに `(v) => …` を足すだけで、Val でも Enum でも Trait でも同じ規則になる。companion のメンバにジェネリックなものは少ないと見ている
+
+追加の API なので、要望が出てから足しても破壊的変更にならない。そのときは Trait の宣言の側も合わせて設計する。
+
+- **却下: `dual` を export する。**名前が実行時に包むことを約束するが、companion の外で `add(2)` が data-last にならない。実行時に包むと、`attach` が包み直さないための印が要り、Val の core も払う
+- **却下: `.impl(({ dual }) => ({ … }))` で渡す。**外から使えない形にはなるが、§15.4 で外した callback 形を戻すことになる（規則が 2 本になり、enum の型が重くなる）
+- **却下: 型だけを export して `as` で注釈する。**実装と書いた型の食い違いを検査しない
+- **型引数は省略できない。**2 本とも `<K extends keyof User>` を書く。型エイリアスの型引数はシグネチャの型引数とは別物で、重複は消せない
+
+#### 却下: data-last 用の名前空間（`User.$.rename("x")`）
+
+書き味がクロージャで包むのと変わらない。
+
+#### 却下: プレースホルダー `__`
+
+`User.f(u, __, c)` で第 1 引数以外を後から渡す案。第 1 引数以外の部分適用は、アロー関数（`(b) => User.f(u, b, c)`）で書ける。`implAssoc` と合わせると予算を 40 B 超えた（#70 より前の計測）。型も、位置ごとに `T | typeof __` を受けて残りの引数から戻り値の型を作るので、dual 単体より重い。
 
 ---
 
@@ -2100,6 +2268,22 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
   - **`implAssoc` と `Val.of` があっても段を足す。**同じものは書けるが、development の検査と `create`
     という名前が残る。どちらもバンドルの微増に見合う
   - **async の seal は先に禁じた**（§6.7「seal は同期で返す」）。development の検査は同期を前提に書ける
+
+- [x] ~~**companion のメンバを data-first / data-last の dual にするか。**~~ → する、2026-10-20。
+      `pipe(u, User.rename("x"))` と書くため。引数の個数で判別し、省略できる引数を型で禁じる。ジェネリックな
+      メンバの data-last は型引数を失うので、アロー関数で data-first として呼ぶ。範囲と却下案は §6.11
+
+- [ ] **valof-lint の規則: 型注釈が隠す省略できる引数。未着手、2026-10-20、別の PR。**型注釈が実装のデフォルト
+      引数や rest 引数を隠すと、型が拒めず data-last の呼び出しが壊れる（§6.11「残る穴」）。lint は構文を読むので、
+      注釈の下の実装が見える
+  - **拾う形。**注釈つきの const のオブジェクトを渡す `.impl(fns)` と、注釈つきの関数の変数を渡す
+    `.impl({ toWire })`。`implTrait(Tr, …)` の第 2 引数も同じ。const のオブジェクトと spread は `unused-member`
+    がすでに辿っている。関数の変数は、同じファイルの宣言まで辿る追跡を足す
+  - **拾わない形。**`.impl({ … })` に直接書いたメンバ。実装から推論した型にデフォルトや rest が見えるので、型が
+    拒む。lint が報告すると型エラーと重なる
+  - **ファイルをまたぐ形。**別のファイルから import した関数。import を辿って宣言を読むには、ファイルをまたぐ
+    追跡が要る。`unused-member` の名前の解決（import、改名、名前空間）を使えるかを確かめる
+  - `implTrait<Tr>({ … })` は 2026-10-20 に外した（§15.1）。この形が穴の主な入口だった
 
 - [ ] **noseal の development の検査が見逃す seal。lint 規則の案、未着手、2026-10-14。**既定の seal を
       呼んだあと、その結果を捨てて失敗を返す seal は、「呼ばれた、値も等しい」ので検査を通る。production
@@ -4808,6 +4992,8 @@ Kotlin の `sealed` / `final` の対立もここには持ち込まれない。
 
 #### companion を要らなくする: `implTrait<Tr>({…})`
 
+→ 2026-10-20 に外した（下の「型引数の形をなくす」）。以下は外す前の記録。
+
 ```ts
 type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
 // const Wired は要らない
@@ -4866,6 +5052,17 @@ Val.companion<Member>().implTrait(unnamed); // 文が変われば、ここが落
 
 **払うもの。**オーバーロードが 2 つの入口それぞれで倍になる。宣言は改名前から 2.1 kB 増えて 29.6 kB
 （予算 32 kB に対して残り 8%）、trait の instantiations は 9,632 → 11,933。実行時は増えない。
+
+#### 型引数の形をなくす、2026-10-20
+
+`implTrait<Tr>({…})` を消す。Trait の実装は companion を渡す形 `implTrait(Tr, {…})` だけになる。自分では何も実装しない Trait も、`const Wired = Trait.companion<Wired>();` を 1 行書く。v0.10 の破壊的変更。
+
+- **型引数の形では、省略できる引数を型で拒めない（§6.11）。**`Tr` を手で書くと部分推論が効かないので、実装を型引数で受けられない。実装は宣言の型への代入として検査され、デフォルト引数のある関数も代入できる。data-last の呼び出しが黙って data-first として走る
+- **引数の型の照合でも拒めない。**optional の引数を受ける関数は、必須の引数を受ける関数型に代入できる（TS 7.0.2 で probe）
+- **companion の形なら効く。**自分では何も実装しない Trait でも、`Trait.companion<Tr>()` は companion になる。`implTrait(Sized, { toWire: (w, sep = "/") => … })` は TS2322 で落ちる（probe）
+- **書き方が 1 つになる。**companion の有無で形を選ばずに済む。上の「`Tr` が推論できない呼び出し」の文（「…or name the trait as the type argument」）も要らなくなる
+- **払うもの。**契約だけの Trait にも、実行時の値と `Trait` の import が要る。上の「companion を要らなくする」が買っていたもの
+- **却下: 2 段の `implTrait<Tr>()({…})`。**2 段目で実装を推論できるが、書き方が 2 つ残る
 
 #### 却下: 上書きできる関数を名前空間に置く
 
@@ -5646,6 +5843,8 @@ payload と trait の 2 段になる。得るものが無い。
 companion を参照する。§15.4 の範囲に `implTrait` も入る。
 
 #### companion を渡さない形、2026-09-20
+
+→ 2026-10-20 に Val と Enum の両方から外した（§15.1「型引数の形をなくす」）。以下は外す前の記録。
 
 **Val にあって Enum に無かった。**§15.1 の `implTrait<Tr>({…})` が Enum の入口 2 つに届いていない。
 却下した記録は無く、この節にも §9 にも項目が無い。判断ではなく、書かれていなかっただけ。

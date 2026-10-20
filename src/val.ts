@@ -14,6 +14,9 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
+import { dual } from "./dual.ts";
+import type { Arity, Dual, Duals } from "./dual.ts";
+import { development } from "./env.ts";
 import * as Val from "./ns/val.ts";
 
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
@@ -534,7 +537,7 @@ type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
  * `patch` derives by sealing the new payload. With a custom seal it propagates whatever the seal
  * returns. Without one the default seal is the copy, so it returns the Val.
  */
-type Derive<V extends AnyVal, F, Arg> = (value: V, arg: Arg) => Constructed<V, F>;
+type Derive<V extends AnyVal, F, Arg> = Dual<(value: V, arg: Arg) => Constructed<V, F>, V>;
 
 /**
  * Drops the trailing default-seal parameter from a registered seal: callers pass the payload and
@@ -582,7 +585,7 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
-> = Omit<M, Wired> &
+> = Duals<Omit<M, Wired>, V> &
   CreateMethod<V, N, F> &
   SealMethod<F> &
   PatchMethod<V, F, P> & {
@@ -621,14 +624,13 @@ type Grown<Taken, M> = M & {
  * The shape is not among them: a Val whose payload contradicts a trait it declares is rejected
  * where it is declared, so it never reaches a companion. See {@link Val}.
  *
- * `Tr` infers only through a branch that names it structurally, which the type-argument form's
- * mapped type does not. A call written in that form leaves `Tr` at its constraint, where
- * `NamesOf<Tr>` is `string`: the first branch catches that before the rest read a name that is not
- * there.
+ * `Tr` infers only through a branch that names it structurally, as `TraitCompanion<Tr, G>` does.
+ * Members passed in the companion's place leave `Tr` at its constraint, where `NamesOf<Tr>` is
+ * `string`. The first branch catches that before the rest read a name that is not there.
  */
 export type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
   string extends NamesOf<Tr>
-    ? "pass the members this trait leaves open, or name the trait as the type argument"
+    ? "pass the trait's companion, then the members it leaves open"
     : [NamesOf<Tr>] extends [TraitsOf<V>]
       ? [keyof MembersOf<Tr> & keyof T] extends [never]
         ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
@@ -642,15 +644,17 @@ export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] 
   ? TraitCompanion<Tr, G>
   : "this trait's companion has not implemented every member declared Final";
 
-/** The second argument, absent where the trait answered for every member itself. */
-export type Passes<Tr extends AnyTrait, G, V> = [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-  ? [impl?: Implement<Tr, G, V>]
-  : [impl: Implement<Tr, G, V>];
-
-/** What the companion-less form takes: every member, and only where the trait declares no final. */
-export type Alone<Tr extends AnyTrait, V> = [FinalsOf<Tr>] extends [never]
-  ? Implement<Tr, Record<never, never>, V>
-  : "this trait implements members of its own: pass its companion";
+/**
+ * The second argument, absent where the trait answered for every member itself. Optional where `Tr`
+ * was not inferred, so a call passing the members alone reports {@link Takes}'s message rather than
+ * a missing argument.
+ */
+export type Passes<Tr extends AnyTrait, G, I> =
+  string extends NamesOf<Tr>
+    ? [impl?: unknown]
+    : [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
+      ? [impl?: I & Arity<I>]
+      : [impl: I & Arity<I>];
 
 /**
  * A constructor for `V`, which can grow members without ceasing to be one.
@@ -671,22 +675,29 @@ export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<neve
    * A member reaching the companion, for `patch`, for the constructor, for a trait's member or for
    * a sibling, references it and annotates its return type. Referencing a declaration inside its
    * own initializer is a circularity, which TypeScript reports as TS7023.
+   *
+   * A member can be called with the value first, `User.rename(u, "x")`, or last,
+   * `User.rename("x")(u)`. So can `patch` and a trait's members. A member cannot have an optional,
+   * a default or a rest parameter. Pass `undefined` where an argument has no value.
+   *
+   * Called with the value last, a generic member loses its type parameters. Each becomes its
+   * constraint, or `unknown` where none is declared. To keep them, wrap the member in a function
+   * that calls it with the value first: `pipe(u, (v) => User.pick(v, "name"))`.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
   impl: {
     // A separate step because TypeScript cannot infer type arguments partially, and two
     // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
     // the constraint as a contextual type, leaving every first parameter implicitly `any`.
     (): Sealed<V, T>;
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Sealed<V, M & T>;
+    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M> & Arity<M>): Sealed<V, M & T>;
   };
   /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
   implTrait: {
-    <Tr extends AnyTrait>(
-      impl: Takes<V, Tr, T, Alone<Tr, V>>,
-    ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
-    <Tr extends AnyTrait, G>(
+    <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, V>
+      ...impl: Passes<Tr, G, I>
     ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
   };
 };
@@ -715,7 +726,9 @@ export type CompanionBuilder<
     (): Companion<V, T, N, F, P>;
     // A trait's member is registered, so `.impl` may not register one over it: the type would keep
     // the trait's signature while `dyn` kept calling what `implTrait` recorded.
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M>): Companion<V, M & T, N, F, P>;
+    <M extends CompanionMembers<V>>(
+      fns: Grown<keyof T, M> & Arity<M>,
+    ): Companion<V, M & T, N, F, P>;
   };
   /**
    * Implements a trait the type declares. The members the trait leaves open arrive as a second
@@ -724,16 +737,16 @@ export type CompanionBuilder<
    *
    * A member the trait declared {@link Final} is not passed here: it arrives unchanged, and nothing
    * can override it.
+   *
+   * The members can be called with the value first or last, and cannot have an optional, a default
+   * or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
   implTrait: {
-    // No companion to pass when the trait implements nothing of its own: the type argument is
-    // the whole of it, and the members arrive where the companion would have.
-    <Tr extends AnyTrait>(
-      impl: Takes<V, Tr, T, Alone<Tr, V>>,
-    ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
-    <Tr extends AnyTrait, G>(
+    <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, V>
+      ...impl: Passes<Tr, G, I>
     ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
   };
   /** Registers a function that creates a payload, as `create`. Any arguments, a payload out. */
@@ -860,9 +873,6 @@ const owned = new WeakSet<object>();
 
 /** Roots adopted by production `nocopy`. Their descendants are indexed only if a copy needs it. */
 const adopted = new WeakSet<object>();
-
-const development =
-  typeof process === "undefined" ? false : process.env["NODE_ENV"] !== "production";
 
 const unsnapshotable = Symbol("unsnapshotable seal input");
 type SealSnapshot = Primitive | undefined | object | typeof unsnapshotable;
@@ -1189,7 +1199,7 @@ const attach = (
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
-  target.patch = (value: unknown, patch: Record<string, unknown>) => {
+  target.patch = dual((value: unknown, patch: Record<string, unknown>) => {
     // The type leaves `patch` off a primitive or array Val, so reaching this takes a cast.
     // Still throws in production: without the guard the spread seals an object, turning a
     // number into `{}` and a string into a character map. Only the message is development-only.
@@ -1201,13 +1211,13 @@ const attach = (
     indexAdopted(value);
     const merged = patched(value, patch);
     return Object.is(merged, value) ? keep(value) : seal(merged);
-  };
+  });
 
   // A trait's members join the type's own, so they grow the same way. The record is
   // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never imports `trait.ts`.
   target.__valof_traits = traits;
-  for (const key of Object.keys(traits)) define(target, key, traits[key]);
-  for (const key of Object.keys(fns)) define(target, key, fns[key]);
+  for (const key of Object.keys(traits)) define(target, key, dual(traits[key]));
+  for (const key of Object.keys(fns)) define(target, key, dual(fns[key]));
 
   return target;
 };
@@ -1236,17 +1246,11 @@ const build = <V extends AnyVal>(
   // `.impl` takes one call, so what it returns carries no step.
   target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits, callable);
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
-  // No companion where the trait implements nothing of its own: the members arrive in its place.
   // The Val's own go on last, the type having kept every `Final` one out of them.
   target.implTrait = (
-    trait: { __valof_shared?: Record<string, unknown> },
+    trait: { __valof_shared: Record<string, unknown> },
     impl: Record<string, unknown> = {},
-  ) =>
-    build<V>(ctors, callable, {
-      ...traits,
-      ...(trait.__valof_shared ?? trait),
-      ...impl,
-    });
+  ) => build<V>(ctors, callable, { ...traits, ...trait.__valof_shared, ...impl });
   if (callable) return target;
 
   target.implCreate = Object.assign((create: AnyFn) => step({ ...ctors, create, noseal: false }), {

@@ -562,24 +562,11 @@ function implTrait(
     if (site) val = site.typeRef;
   }
   if (!val) return undefined;
-  const typeArgs = child(node, "typeArguments");
-  const traitType = unparenthesized(typeArgs ? children(typeArgs, "params")[0] : undefined);
-  const arg = children(node, "arguments");
-  const traitRef = traitType?.type === "TSTypeReference" ? child(traitType, "typeName") : arg[0];
-  const trait =
-    traitRef &&
-    (traitType ? typeValueReference(traitRef, file, bound) : valueReference(traitRef, file, bound));
+  const [traitRef, object] = children(node, "arguments");
+  const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
-  const object = traitType ? arg[0] : arg[1];
   const resolved = object ? objectMembers(object, val.name, objects, at, new Set()) : [];
   return { val, trait, overrides: resolved };
-}
-
-function typeValueReference(node: Node, file: string, bound: Bindings): SymbolRef | undefined {
-  const named = typeReference(node, bound.namespaces);
-  if (!named) return undefined;
-  const name = named.node["name"] as string;
-  return symbolRef(file, bound, name, named.qualifier);
 }
 
 /** Resolves inline/const objects and spreads, retaining known keys even beside an unknown spread. */

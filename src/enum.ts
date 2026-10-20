@@ -1,9 +1,9 @@
-import type { AnyTrait, Members, MembersOf, Unbound } from "./trait.ts";
+import { dual, duals, type Arity, type Dual, type Duals } from "./dual.ts";
+import type { AnyTrait, Implement, Members, MembersOf, Unbound } from "./trait.ts";
 import {
   assertVariantPayload,
   define,
   Val,
-  type Alone,
   type AnyVal,
   type CompanionMembers,
   type Complete,
@@ -340,11 +340,14 @@ type VariantFrame<E extends AnyEnum, N extends keyof VariantsOf<E>, FE, FV, T> =
   T
 >;
 
-type Framed<E extends AnyEnum, N extends keyof VariantsOf<E>, R, Sealed, T> = Omit<T, Wired> & {
+type Framed<E extends AnyEnum, N extends keyof VariantsOf<E>, R, Sealed, T> = Duals<
+  Omit<T, Wired>,
+  VariantOf<E, N>
+> & {
   /** Creates the payload with its tag and seals it, so it returns whatever the seal returns. */
   create: Creates<SeedFor<E, N>, R>;
   /** Derives through the same seal the constructor uses. See {@link Patch}. */
-  patch: (value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => R;
+  patch: Dual<(value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => R, VariantOf<E, N>>;
 } & (Sealed extends true
     ? {
         /** The single gate a payload of this variant passes. `create` and `patch` go through it. */
@@ -357,8 +360,11 @@ type SealerFrame<E extends AnyEnum, N extends keyof VariantsOf<E>, T> = ((
   payload: SeedFor<E, N>,
 ) => VariantOf<E, N>) & {
   /** Derives through the same seal the constructor uses. See {@link Patch}. */
-  patch: (value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => VariantOf<E, N>;
-} & Omit<T, Wired>;
+  patch: Dual<
+    (value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => VariantOf<E, N>,
+    VariantOf<E, N>
+  >;
+} & Duals<Omit<T, Wired>, VariantOf<E, N>>;
 
 /**
  * The steps a variant adds, inside an `implVariant` callback. It is already the frame, so a
@@ -377,11 +383,16 @@ type VariantSteps<
   in out FV,
   in out T,
 > = {
-  /** Collects the members taking this variant. */
+  /**
+   * Collects the members taking this variant. They can be called with the value first or last, and
+   * cannot have an optional, a default or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+   */
   impl: {
     (): VariantFrame<E, N, FE, FV, T>;
     <M extends CompanionMembers<VariantOf<E, N>>>(
-      fns: Unclaimed<E, M>,
+      fns: Unclaimed<E, M> & Arity<M>,
     ): VariantFrame<E, N, FE, FV, M & T>;
   };
   /**
@@ -399,10 +410,17 @@ type SealerVariantSteps<
   in out N extends keyof VariantsOf<E>,
   in out T,
 > = {
-  /** Collects the members taking this variant. */
+  /**
+   * Collects the members taking this variant. They can be called with the value first or last, and
+   * cannot have an optional, a default or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+   */
   impl: {
     (): SealerFrame<E, N, T>;
-    <M extends CompanionMembers<VariantOf<E, N>>>(fns: Unclaimed<E, M>): SealerFrame<E, N, M & T>;
+    <M extends CompanionMembers<VariantOf<E, N>>>(
+      fns: Unclaimed<E, M> & Arity<M>,
+    ): SealerFrame<E, N, M & T>;
   };
 };
 
@@ -454,10 +472,10 @@ type UnionMembers<E extends AnyEnum> = CompanionMembers<E> &
   Partial<Record<(keyof VariantsOf<E> & string) | "match", never>>;
 
 /** Dispatches on the tag. See {@link EnumCompanion.match}. */
-type Match<E extends AnyEnum> = <H extends Handlers<E, unknown>>(
-  value: E,
-  handlers: Only<E, H>,
-) => ReturnType<H[keyof H]>;
+type Match<E extends AnyEnum> = {
+  <H extends Handlers<E, unknown>>(handlers: Only<E, H>): (value: E) => ReturnType<H[keyof H]>;
+  <H extends Handlers<E, unknown>>(value: E, handlers: Only<E, H>): ReturnType<H[keyof H]>;
+};
 
 /** Every field some variant declares. */
 type VariantFields<E extends AnyEnum> = {
@@ -497,10 +515,18 @@ type ByTag<E extends AnyEnum> = {
    * });
    * ```
    */
-  readonly match: <T extends keyof VariantsOf<E>, H extends { [N in T]: () => unknown }>(
-    tag: T,
-    handlers: H & { [N in keyof H]: N extends T ? unknown : "the tag never takes this value" },
-  ) => ReturnType<H[keyof H]>;
+  readonly match: {
+    // The data-last form needs a handler for every tag, since the tag arrives after the handlers.
+    <H extends { [N in keyof VariantsOf<E>]: () => unknown }>(
+      handlers: H & {
+        [N in keyof H]: N extends keyof VariantsOf<E> ? unknown : "the enum has no such variant";
+      },
+    ): (tag: keyof VariantsOf<E>) => ReturnType<H[keyof H]>;
+    <T extends keyof VariantsOf<E>, H extends { [N in T]: () => unknown }>(
+      tag: T,
+      handlers: H & { [N in keyof H]: N extends T ? unknown : "the tag never takes this value" },
+    ): ReturnType<H[keyof H]>;
+  };
   /**
    * The name of the tag field, for a schema library that asks for the discriminator:
    * `z.discriminatedUnion(Command[Tag].key, [...])`.
@@ -526,7 +552,7 @@ export type EnumCompanion<
   M = Record<never, never>,
   F = undefined,
 > = Constructors<E, VM, F> &
-  Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
+  Duals<Omit<M, Wired | "match" | keyof VariantsOf<E>>, E> & {
     /**
      * Dispatches on the tag. Every variant needs a handler, so adding one to the declaration
      * fails here rather than falling through at run time.
@@ -562,7 +588,7 @@ export type EnumSealed<
   M = Record<never, never>,
 > = EnumSeal<E, SealerConstructors<E, VM>> &
   SealerConstructors<E, VM> &
-  Omit<M, Wired | "match" | keyof VariantsOf<E>> & {
+  Duals<Omit<M, Wired | "match" | keyof VariantsOf<E>>, E> & {
     /** See {@link EnumCompanion.match}. */
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
@@ -594,10 +620,15 @@ export type EnumBuilder<
    * A member reaching the companion, for `match`, for a variant or for a sibling, references it and
    * annotates its return type. Referencing a declaration inside its own initializer is a
    * circularity, which TypeScript reports as TS7023.
+   *
+   * The members, `match` and `[Tag].match` can be called with the value first or last. A member
+   * cannot have an optional, a default or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
   impl: {
     (): EnumCompanion<E, VM, M, F>;
-    <G extends UnionMembers<E>>(fns: Unclaimed<E, G>): EnumCompanion<E, VM, M & G, F>;
+    <G extends UnionMembers<E>>(fns: Unclaimed<E, G> & Arity<G>): EnumCompanion<E, VM, M & G, F>;
   };
   /**
    * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
@@ -630,14 +661,9 @@ export type EnumBuilder<
    * differs per variant is a `match` inside it.
    */
   implTrait: {
-    // No companion to pass when the trait implements nothing of its own: the type argument is
-    // the whole of it, and the members arrive where the companion would have.
-    <Tr extends AnyTrait>(
-      impl: Takes<E, Tr, M, Alone<Tr, E>>,
-    ): EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
-    <Tr extends AnyTrait, G>(
+    <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
       trait: Takes<E, Tr, M, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, E>
+      ...impl: Passes<Tr, G, I>
     ): EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
   };
 };
@@ -658,7 +684,7 @@ export type EnumSealer<
   /** See {@link EnumBuilder.impl}. */
   impl: {
     (): EnumSealed<E, VM, M>;
-    <G extends UnionMembers<E>>(fns: Unclaimed<E, G>): EnumSealed<E, VM, M & G>;
+    <G extends UnionMembers<E>>(fns: Unclaimed<E, G> & Arity<G>): EnumSealed<E, VM, M & G>;
   };
   /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
   implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
@@ -670,12 +696,9 @@ export type EnumSealer<
   ) => EnumSealer<E, VM & { [P in N]: R }, M>;
   /** See {@link EnumBuilder.implTrait}. */
   implTrait: {
-    <Tr extends AnyTrait>(
-      impl: Takes<E, Tr, M, Alone<Tr, E>>,
-    ): EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
-    <Tr extends AnyTrait, G>(
+    <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
       trait: Takes<E, Tr, M, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, E>
+      ...impl: Passes<Tr, G, I>
     ): EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
   };
 };
@@ -697,7 +720,7 @@ type Companion = {
 
 type Builds = Record<string, (b: object) => object>;
 
-const matchTag = (tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!();
+const matchTag = dual((tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!());
 
 /**
  * One builder state. The companion is a proxy: it does not know the variant names, so anything it
@@ -728,7 +751,7 @@ const state = (
       const sealer = Val.sealer() as unknown as Sealer;
       const frame = (payload: Payload) => sealer(tagged(payload));
       define(frame, "patch", sealer.patch);
-      for (const key of Object.keys(fns)) define(frame, key, fns[key]);
+      for (const key of Object.keys(fns)) define(frame, key, dual(fns[key]));
       return frame;
     }
     // The variant runs first and passes its result to the enum's, which passes it to the default
@@ -790,10 +813,10 @@ const state = (
       if (typeof key !== "string" || key === "then") return undefined;
       if (Object.hasOwn(members, key)) return members[key];
       if (key === "match") {
-        return (
-          value: Record<string, unknown>,
-          handlers: Record<string, (v: unknown) => unknown>,
-        ) => handlers[value[tag] as string]!(value);
+        return dual(
+          (value: Record<string, unknown>, handlers: Record<string, (v: unknown) => unknown>) =>
+            handlers[value[tag] as string]!(value),
+        );
       }
       // A sealer's entry is the call, so the name stays reserved and resolves to nothing.
       if (key === "seal") return callable ? undefined : enter;
@@ -802,7 +825,7 @@ const state = (
       if (key === "impl") {
         // One call, which closes every step: what it returns carries no `impl` of its own.
         return open
-          ? (fns: Payload = {}) => step(builds, { ...members, ...fns }, traits, seal, false)
+          ? (fns: Payload = {}) => step(builds, { ...members, ...duals(fns) }, traits, seal, false)
           : undefined;
       }
       if (key === "implVariant") {
@@ -820,11 +843,11 @@ const state = (
         // The trait's own members and the enum's, merged the way `val.ts` merges them.
         return open
           ? (
-              trait: { __valof_shared?: Record<string, unknown> },
+              trait: { __valof_shared: Record<string, unknown> },
               fns: Record<string, unknown> = {},
             ) => {
-              const grown = { ...traits, ...(trait.__valof_shared ?? trait), ...fns };
-              return step(builds, { ...members, ...grown }, grown, seal, true);
+              const grown = { ...traits, ...trait.__valof_shared, ...fns };
+              return step(builds, { ...members, ...duals(grown) }, grown, seal, true);
             }
           : undefined;
       }

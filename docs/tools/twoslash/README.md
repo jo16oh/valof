@@ -37,7 +37,8 @@ Object.assign(user, { name: "mallory" });
 
 Everything above the cut is typechecked and then dropped, so the book shows only the last line. Stub
 what the example borrows from elsewhere, rather than adding a dependency for it: Immer, Zod and
-React appear in the book as a `declare` of the one function being shown.
+React appear in the book as a `declare` of the one function being shown. `README.md` shows the lines
+above a cut too, so its stubs live in `stubs/` instead, mapped in `paths`. `remeda` is one.
 
 A block that shows a type error names the codes at the top:
 

@@ -50,8 +50,85 @@ User.displayName(user);
 User.formatLabel(user, ": ");
 ```
 
-Vals are plain data, so member functions can't be chained like class instances. Combine Valof with
-any pipe library you like to avoid nesting or to reduce temporal variables.
+## Call a member with the value last
+
+Vals are plain data, so their members can't be chained like methods. Instead, every member can be
+called with the value last, which is the form a pipeline expects:
+
+```ts
+import { Val } from "valof";
+
+declare function pipe<A, B, C>(a: A, ab: (a: A) => B, bc: (b: B) => C): C;
+type User = Val<"User", { id: string; name: string; nickname?: string }>;
+const User = Val.sealer<User>().impl({
+  displayName(user) {
+    return user.nickname ?? user.name;
+  },
+  formatLabel(user, separator: string): string {
+    return user.id + separator + User.displayName(user);
+  },
+});
+const user = User({ id: "a", name: "bob" });
+// ---cut---
+User.formatLabel(user, ": "); // "a: bob"
+User.formatLabel(": ")(user); // "a: bob"
+
+pipe(user, User.patch({ nickname: "b" }), User.displayName); // "b"
+```
+
+`patch`, a trait's members, an enum's `match` and `[Tag].match` can be called either way too. Valof
+ships no `pipe`. Use the one from your favorite library.
+
+A member cannot have an optional, a default or a rest parameter. Pass `undefined` explicitly where
+an argument has no value:
+
+```ts
+import { Val } from "valof";
+
+type User = Val<"User", { id: string; name: string }>;
+// ---cut---
+const User = Val.sealer<User>().impl({
+  greet: (user, greeting: string | undefined) => `${greeting ?? "Hi"}, ${user.name}`,
+});
+
+User.greet(User({ id: "a", name: "bob" }), undefined); // "Hi, bob"
+```
+
+Valof checks the parameters that a member's type shows, not the ones in its implementation. A type
+annotation can hide a default or a rest parameter. The member then type-checks, but breaks a call
+with the value last:
+
+```ts
+import { Val } from "valof";
+
+type User = Val<"User", { id: string; name: string }>;
+// ---cut---
+const toWire: (user: User, sep: string) => string = (user, sep = "/") => user.id + sep + user.name;
+const User = Val.sealer<User>().impl({ toWire });
+
+User.toWire("-")(User({ id: "a", name: "bob" })); // throws: `User.toWire("-")` returned a string
+```
+
+Do not use a default or a rest parameter in the implementation either.
+
+Called with the value last, a generic member loses its type parameters. Each becomes its constraint,
+or `unknown` where none is declared. To keep them, wrap the member in a function that calls it with
+the value first:
+
+```ts
+import { Val } from "valof";
+
+declare function pipe<A, B>(a: A, ab: (a: A) => B): B;
+type User = Val<"User", { name: string; age: number }>;
+// ---cut---
+const User = Val.sealer<User>().impl({
+  pick: <K extends keyof User>(user: User, key: K) => user[key],
+});
+const user = User({ name: "bob", age: 30 });
+
+pipe(user, User.pick("age")); // string | number
+pipe(user, (u) => User.pick(u, "age")); // number
+```
 
 ## Patch object values
 
