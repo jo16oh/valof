@@ -13,7 +13,7 @@ import { Val } from "valof";
 
 節ごとに独立して読める。必要な節だけ開く。
 
-- **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠
+- **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠。メンバを dual にして払う呼び出しごとのコスト
 - **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
 - **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由、3.7 自己参照 `Rec`
 - **§4 DeepReadonly**
@@ -25,7 +25,7 @@ import { Val } from "valof";
   - **6.1** コンストラクタは出自で決まる / **6.2** `patch`、patch の `undefined`、深さを問わない patch、merge できるのは既にあるノードだけ / **6.3** Result 非依存 / **6.4** `update` を削除する
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
-  - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査
+  - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、却下した名前空間とプレースホルダー
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
@@ -60,6 +60,8 @@ import { Val } from "valof";
 - ブランドはファントム型なので、実行時にコストも痕跡も残らない
 
 コンストラクタは既定で引数をディープコピーする（§4.1）。ゼロコストではない。「値はデータである」を実行時にも成立させるための最小限の代償として払う。所有権を別に確認できる場所だけ `.nocopy` で外せる。
+
+companion のメンバは data-first / data-last の dual にする（§6.11）。値にメソッドが無いので、`pipe(u, User.rename("x"))` と書けるようにするためである。呼び出しごとに数 ns 払う。コピーと違い、正しさのための代償ではなく書き味のための代償である。
 
 class ではこのいずれも得られない。この線を守るために諦めたものは §7 にまとめた。
 
@@ -1452,6 +1454,10 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 カスタム seal なし companion は意味のある形でもある。値が境界（デコーダ、DB 行、外部 API）から来る型では、コンストラクタを持たず振る舞いだけ束ね、構築は `Val.of` で行うのが正しい。
 
+#### 省略できる引数は書けない
+
+optional 引数、デフォルト引数、rest 引数、`void` を含む引数は型エラーにする。メンバが dual なので、省略された呼び出しを data-last と区別できない（§6.11）。`a: T | undefined` は通す。
+
 #### 失うもの
 
 第一引数が Val でない補助ファクトリ（`Money.fromCents(n)` / `IsoDate.parse(s)`）は companion に置けない。これらは「値に対する振る舞い」ではないので、素の export 関数に分離されるほうが筋が通る。多引数のコンストラクタ（`Point.create(x, y)`）は `implCreate` が引き受けるので影響なし。
@@ -1743,6 +1749,92 @@ Val.companion<User>()
 - **`final`**: 上で却下したまま。JVM の語彙が `seal` を `sealed trait` に誤読させる件は §6.9 が `seal` の残存リスクとして挙げたもので、`final` はそれを増幅する
 - **`lock`**: 命令形で誤読も無いが、実行時には boolean 1 つしか残らないのに lock と言うのは約束が過大
 - 内部型 `Patchable<V, P>` は `Derivable<V, P>` に改名。派生経路全体の面なので、片方の語幹を持たせない
+
+### 6.11 メンバを data-first / data-last の dual にする、2026-10-20
+
+`User.rename(u, "x")` と `User.rename("x")(u)` の両方を書ける。パイプラインライブラリ（fleuve、別に作る）で `pipe(u, User.rename("x"))` と書くためである。Val はプレーンなデータなので、メソッドチェーンが使えない（§1）。v0.10 の破壊的変更。
+
+```ts
+pipe(u, User.rename("x"), User.greet); // self だけのメンバは括弧なしで渡せる
+pipe(shape, Shape.match({ Circle: (c) => …, Square: (s) => … }));
+```
+
+#### 範囲
+
+- **包む。**`.impl` のメンバ、`patch`、Trait のメンバ（Val の companion に載るものと、Trait の companion 自身のもの）、Enum の `.impl` / `implTrait` のメンバ、`match`、`[Tag].match`
+- **包まない。**`seal`、`create`、`implAssoc` のメンバ。どれも第 1 引数が self ではない
+- **Trait の companion 自身のメンバも包む。**同じ final を `User.shout` と `Greetable.shout` の 2 通りで呼べる。片方だけ dual だと形が食い違う
+- **Enum は外せない。**`Enum.companion` の Variant の枠は `Val.companion().impl(fns)` で作るので、包まなくても dual になる。Enum だけ後から dual にすると、`.impl` の引数の制約が増えるので破壊的変更になる
+- **`dyn` は包まない。**箱のメソッドは self を束縛済みで、包むと `box.rename("x")` が関数を返す。`dyn(companion, value)` も第 1 引数が self ではない。`xs.map(Greetable.dyn(User))` のようなカリー化は、後から足しても破壊的変更にならない
+
+#### 判別は引数の個数で行う
+
+型はオーバーロードで分けられる。問題は実行時の判別である。
+
+- **`.impl` の時点で `n = fn.length` を 1 回読む。**呼び出しで引数が `n - 1` 個なら data-last、それ以外は data-first
+- **`n` 個ちょうどを data-first にはしない。**`xs.map(User.greet)` は引数を 3 つ渡す。`n` 個以上を data-first にすれば今の挙動のまま動く
+- **却下: 述語で判別する。**ブランドはファントムである（§2.1）。`owned` は `structuredClone` / JSON で消え、プリミティブを持てない。漏れたときの結果が「コピー 1 回」から「誤動作」に変わる
+
+#### 省略できる引数を型で禁じる
+
+`fn.length` はデフォルト引数と rest 以降を数えない。`a?` は数えるが、省略されると data-last と区別できない。
+
+- **optional 引数とデフォルト引数。**型ではどちらも optional 要素になるので、`P extends Required<P>` が偽になる
+- **rest 引数。**`number extends P["length"]` で見る
+- **`void` を含む引数。**末尾の `a: T | void` は省略できる。`unknown` / `any` / 型引数 `T` は省略できない（`v<void>(1)` も TS2554）。`unknown` を `void` と誤検出しない判定は未 probe
+- **禁じるのは省略で、`undefined` ではない。**`a: T | undefined` は必須引数で、`--strict`、`--exactOptionalPropertyTypes`、`--strictNullChecks false` のどれでも `f(u)` は TS2554 になる。外部の optional な値は `User.f(u, opts.x)` とそのまま渡せる。払うのは、何も渡さない呼び出しを `f(u, undefined)` と書くことだけ
+
+#### 実行時: 長さ 0 の関数を development で投げる
+
+`(...args) => fn(...args)` で包んだ関数は `length` が 0 になる。data-last の呼び出しが、黙って data-first として走る。正規のメンバは self を取るので `n >= 1` である。development では `.impl` の時点で投げる。production のビルドでは消える。
+
+#### オーバーロードは data-first を最後に置く
+
+コールバックとして渡すと、TS は最後のシグネチャを使う。
+
+```ts
+declare const greet: { (): (self: U) => string; (self: U): string };
+pipe(u, greet); // string
+[u].map(greet); // string[]
+```
+
+#### ラッパーは rest 版 1 本
+
+```ts
+const dual = (f) => {
+  const n = f.length;
+  return (...args) => (args.length === n - 1 ? (self) => f(self, ...args) : f(...args));
+};
+```
+
+Node 24.21、`NODE_ENV=production`。10 メンバを同じラッパーで包み、別々の呼び出し箇所から呼ぶ（companion に近い条件）。1000 万回の 3 周目で、2 回の実行のぶれは 0.5 ns 以内。
+
+| 形           | data-first | data-last |
+| ------------ | ---------- | --------- |
+| 直接呼び出し | 4.5 ns     | —         |
+| rest         | 13.1 ns    | 18.4 ns   |
+| 引数固定     | 8.1 ns     | 14.7 ns   |
+
+- 可変長の引数を実体化するのが費用の大半。スプレッドを `apply` に変えても縮まない
+- **rest の +8.6 ns を受け入れる。**`User.patch` は 139 ns なので、割合は小さい。getter や述語の呼び出しは倍になる
+- **却下: 引数固定（`function (s, a) { return arguments.length === 1 ? … }`）。**+3.6 ns で済むが、引数の数ごとに 1 段ずつ約 20 B 増える。self 込み 4 まで入れると、#70 より前の計測で Val の予算を 9 B 超えた
+
+#### コスト
+
+production gzip、2026-10-20 の試作。
+
+- Val: 858 → 900 B（+42 B）。development の検査は 0 B
+- Enum: +2 B。`dual` を Val と共有する
+- Trait の companion 自身のメンバ: +31 B
+- `implAssoc` の実行時部分を最小限に試作して合わせると Val は 980 B で、予算の残りは 44 B
+
+#### 却下: data-last 用の名前空間（`User.$.rename("x")`）
+
+書き味がクロージャで包むのと変わらない。
+
+#### 却下: プレースホルダー `__`
+
+`User.f(u, __, c)` で第 1 引数以外を後から渡す案。第 1 引数以外の部分適用は、アロー関数（`(b) => User.f(u, b, c)`）で書ける。`implAssoc` と合わせると予算を 40 B 超えた（#70 より前の計測）。型も、位置ごとに `T | typeof __` を受けて残りの引数から戻り値の型を作るので、dual 単体より重い。
 
 ---
 
@@ -2100,6 +2192,10 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
   - **`implAssoc` と `Val.of` があっても段を足す。**同じものは書けるが、development の検査と `create`
     という名前が残る。どちらもバンドルの微増に見合う
   - **async の seal は先に禁じた**（§6.7「seal は同期で返す」）。development の検査は同期を前提に書ける
+
+- [x] ~~**companion のメンバを data-first / data-last の dual にするか。**~~ → する、2026-10-20。
+      `pipe(u, User.rename("x"))` と書くため。引数の個数で判別し、省略できる引数を型で禁じる。範囲と
+      却下案は §6.11
 
 - [ ] **noseal の development の検査が見逃す seal。lint 規則の案、未着手、2026-10-14。**既定の seal を
       呼んだあと、その結果を捨てて失敗を返す seal は、「呼ばれた、値も等しい」ので検査を通る。production
