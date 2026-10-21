@@ -586,10 +586,9 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
-  H = never,
 > = Duals<Omit<M, Wired>, V> &
-  ("create" extends H ? unknown : CreateMethod<V, N, F>) &
-  ("seal" extends H ? unknown : SealMethod<V, F>) &
+  CreateMethod<V, N, F> &
+  SealMethod<V, F> &
   PatchMethod<V, F, P> & {
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
@@ -649,22 +648,22 @@ export type Passes<Tr extends AnyTrait, G, I> =
       ? [impl?: I & Arity<I>]
       : [impl: I & Arity<I>];
 
-/** The steps a companion has taken. The first four are the first half of the chain. */
-type Taken = "fixed" | "private" | "implSeal" | "implCreate" | "impl" | "implTrait";
+/** The steps a companion has taken. The first three are the first half of the chain. */
+type Taken = "fixed" | "implSeal" | "implCreate" | "impl" | "implTrait";
 
-/** Where `fixed` and `private` go, once a step that belongs after them has been written. */
+/** Where `fixed` goes, once a step that belongs after it has been written. */
 type Early<D> = [Extract<D, "implSeal" | "implCreate">] extends [never]
   ? never
-  : "write `fixed` and `private` before `implSeal` and `implCreate`";
+  : "write `fixed` before `implSeal` and `implCreate`";
 
 /**
  * What `Val.companion` returns, which its steps add to.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
- * The first half sets up the gates, in this order: `fixed` and `private`, then `implSeal`, then
- * `implCreate`. Each comes once. The second half registers members, `impl` once and `implTrait`
- * for each trait, in any order, and its first step ends the first half.
+ * The first half sets up the gates, in this order: `fixed`, then `implSeal`, then `implCreate`.
+ * Each comes once. The second half registers members, `impl` once and `implTrait` for each trait,
+ * in any order, and its first step ends the first half.
  *
  * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Generating
  * ids, timestamps and the like belongs in `create`, whose payload is then sealed like any other.
@@ -674,11 +673,10 @@ export type CompanionBuilder<
   N = undefined,
   F = undefined,
   P = never,
-  H = never,
   T extends CompanionMembers<V> = Record<never, never>,
   D extends Taken = never,
-> = Companion<V, T, N, F, P, H> &
-  ([Extract<D, "impl" | "implTrait">] extends [never] ? FirstHalf<V, N, F, P, H, D> : unknown) &
+> = Companion<V, T, N, F, P> &
+  ([Extract<D, "impl" | "implTrait">] extends [never] ? FirstHalf<V, N, F, P, D> : unknown) &
   ("impl" extends D
     ? unknown
     : {
@@ -705,7 +703,7 @@ export type CompanionBuilder<
         // trait's signature while `dyn` kept calling what `implTrait` recorded.
         impl: <M extends CompanionMembers<V>>(
           fns: Grown<keyof T, M> & Arity<M>,
-        ) => CompanionBuilder<V, N, F, P, H, M & T, D | "impl">;
+        ) => CompanionBuilder<V, N, F, P, M & T, D | "impl">;
       }) & {
     /**
      * Implements a trait the type declares. The members the trait leaves open arrive as a second
@@ -723,14 +721,14 @@ export type CompanionBuilder<
     implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I>
-    ) => CompanionBuilder<V, N, F, P, H, T & Unbound<MembersOf<Tr>, V>, D | "implTrait">;
+    ) => CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>, D | "implTrait">;
   };
 
 /**
  * The steps that set up the gates. A step already taken is gone, and one written too late takes
  * the reason as its type argument or its parameter.
  */
-type FirstHalf<V extends AnyVal, N, F, P, H, D extends Taken> = ("fixed" extends D
+type FirstHalf<V extends AnyVal, N, F, P, D extends Taken> = ("fixed" extends D
   ? unknown
   : {
       /**
@@ -751,21 +749,8 @@ type FirstHalf<V extends AnyVal, N, F, P, H, D extends Taken> = ("fixed" extends
        */
       fixed: <
         K extends ([Early<D>] extends [never] ? keyof SeedOf<V> & string : Early<D>),
-      >() => CompanionBuilder<V, N, F, P | K, H, Record<never, never>, D | "fixed">;
+      >() => CompanionBuilder<V, N, F, P | K, Record<never, never>, D | "fixed">;
     }) &
-  ("private" extends D
-    ? unknown
-    : {
-        /**
-         * Takes `seal`, `create` or both off the companion. `patch` still goes through the seal.
-         *
-         * The keys are a type argument and do not exist at runtime. `Val.of` can still forge a
-         * value.
-         */
-        private: <
-          K extends ([Early<D>] extends [never] ? "seal" | "create" : Early<D>),
-        >() => CompanionBuilder<V, N, F, P, H | K, Record<never, never>, D | "private">;
-      }) &
   ("implSeal" extends D
     ? unknown
     : {
@@ -776,10 +761,10 @@ type FirstHalf<V extends AnyVal, N, F, P, H, D extends Taken> = ("fixed" extends
         implSeal: "implCreate" extends D
           ? (
               seal: "write `implSeal` before `implCreate`",
-            ) => CompanionBuilder<V, N, F, P, H, Record<never, never>, D>
+            ) => CompanionBuilder<V, N, F, P, Record<never, never>, D>
           : <G extends SealImpl<V>>(
               seal: CheckedSeal<V, G>,
-            ) => CompanionBuilder<V, N, G, P, H, Record<never, never>, D | "implSeal">;
+            ) => CompanionBuilder<V, N, G, P, Record<never, never>, D | "implSeal">;
       }) &
   ("implCreate" extends D
     ? unknown
@@ -787,7 +772,7 @@ type FirstHalf<V extends AnyVal, N, F, P, H, D extends Taken> = ("fixed" extends
         /** Registers a function that creates a payload, as `create`. Any arguments, a payload out. */
         implCreate: (<G extends CreateImpl<V>>(
           create: G,
-        ) => CompanionBuilder<V, G, F, P, H, Record<never, never>, D | "implCreate">) & {
+        ) => CompanionBuilder<V, G, F, P, Record<never, never>, D | "implCreate">) & {
           /**
            * A `create` that bypasses the seal and returns the Val, for a payload the seal always
            * accepts, such as a random id. Takes no arguments. Development still runs the seal, and
@@ -795,7 +780,7 @@ type FirstHalf<V extends AnyVal, N, F, P, H, D extends Taken> = ("fixed" extends
            */
           noseal: <G extends AnyFn>(
             create: Argumentless<V, G>,
-          ) => CompanionBuilder<V, Unsealed, F, P, H, Record<never, never>, D | "implCreate">;
+          ) => CompanionBuilder<V, Unsealed, F, P, Record<never, never>, D | "implCreate">;
         };
       });
 
@@ -1265,7 +1250,7 @@ const build = (
     noseal: (create: AnyFn) => step({ ...ctors, create, noseal: true }),
   });
   target.implSeal = (seal: NonNullable<Ctors["seal"]>) => step({ ...ctors, seal });
-  target.fixed = target.private = () => step(ctors);
+  target.fixed = () => step(ctors);
   return target;
 };
 

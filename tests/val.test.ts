@@ -1325,71 +1325,21 @@ describe("building", () => {
     });
   });
 
-  describe("private", () => {
-    type Score = Val<"PrivateScore", { points: number }>;
-    const check = (s: SeedOf<Score>, seal: (s: SeedOf<Score>) => Score): Result<Score> =>
-      s.points >= 0 ? { ok: true, value: seal(s) } : { ok: false, error: "negative" };
-
-    test("takes `seal` off the companion, and `patch` still goes through it", () => {
-      const Score = Val.companion<Score>().private<"seal">().implSeal(check);
-      expectTypeOf(Score).not.toHaveProperty("seal");
-      expect(Score.patch(Val.of<Score>({ points: 1 }), { points: -1 })).toEqual({
-        ok: false,
-        error: "negative",
-      });
-    });
-
-    test("takes `create` off too, alone or with `seal`", () => {
-      const Created = Val.companion<Score>()
-        .private<"create">()
-        .implCreate(() => ({ points: 0 }));
-      expectTypeOf(Created).not.toHaveProperty("create");
-      expectTypeOf(Created).toHaveProperty("seal");
-
-      const Neither = Val.companion<Score>()
-        .private<"seal" | "create">()
-        .implCreate(() => ({ points: 0 }));
-      expectTypeOf(Neither).not.toHaveProperty("create");
-      expectTypeOf(Neither).not.toHaveProperty("seal");
-    });
-
-    test("takes nothing else", () => {
-      // @ts-expect-error `patch` has no other way in for a member, so it cannot be hidden
-      Val.companion<Score>().private<"patch">();
-    });
-  });
-
   describe("the order of the steps", () => {
     type Account = Val<"OrderedAccount", { id: string; owner: string }>;
     const seal = (a: SeedOf<Account>, s: (a: SeedOf<Account>) => Account) => s(a);
     const create = (owner: string) => ({ id: "a1", owner });
 
-    test("`fixed` and `private` come first, in either order, then `implSeal`, then `implCreate`", () => {
-      const One = Val.companion<Account>()
-        .fixed<"id">()
-        .private<"seal">()
-        .implSeal(seal)
-        .implCreate(create);
-      const Two = Val.companion<Account>().private<"seal">().fixed<"id">().implCreate(create);
-
-      expect([One.create("bob"), Two.create("bob")]).toEqual([
-        { id: "a1", owner: "bob" },
-        { id: "a1", owner: "bob" },
-      ]);
-    });
-
     // Every message is the type a parameter takes, so passing or naming the literal is what pins
     // the wording.
     test("a step written too late says which one it belongs before", () => {
       const sealed = Val.companion<Account>().implSeal(seal);
-      // @ts-expect-error write `fixed` and `private` before `implSeal` and `implCreate`
+      // @ts-expect-error write `fixed` before `implSeal` and `implCreate`
       sealed.fixed<"id">();
-      // @ts-expect-error same
-      sealed.private<"seal">();
-      sealed.fixed<"write `fixed` and `private` before `implSeal` and `implCreate`">();
+      sealed.fixed<"write `fixed` before `implSeal` and `implCreate`">();
 
       const created = Val.companion<Account>().implCreate(create);
-      // @ts-expect-error write `fixed` and `private` before `implSeal` and `implCreate`
+      // @ts-expect-error write `fixed` before `implSeal` and `implCreate`
       created.fixed<"id">();
       // @ts-expect-error write `implSeal` before `implCreate`
       created.implSeal(seal);
@@ -1397,13 +1347,8 @@ describe("building", () => {
     });
 
     test("each step of the first half is written once", () => {
-      const all = Val.companion<Account>()
-        .fixed<"id">()
-        .private<"seal">()
-        .implSeal(seal)
-        .implCreate(create);
+      const all = Val.companion<Account>().fixed<"id">().implSeal(seal).implCreate(create);
       expectTypeOf(Val.companion<Account>().fixed<"id">()).not.toHaveProperty("fixed");
-      expectTypeOf(Val.companion<Account>().private<"seal">()).not.toHaveProperty("private");
       expectTypeOf(all).not.toHaveProperty("implSeal");
       expectTypeOf(all).not.toHaveProperty("implCreate");
     });
@@ -1414,7 +1359,7 @@ describe("building", () => {
       type Held = Val<"Held", { id: string; owner: string }, Owned>;
       const members = Val.companion<Account>().impl({ owned: (a) => a.owner });
       const traits = Val.companion<Held>().implTrait(Owned, { owned: (h) => h.owner });
-      for (const step of ["fixed", "private", "implSeal", "implCreate"] as const) {
+      for (const step of ["fixed", "implSeal", "implCreate"] as const) {
         expectTypeOf(members).not.toHaveProperty(step);
         expectTypeOf(traits).not.toHaveProperty(step);
         expect([step in members, step in traits]).toEqual([false, false]);
@@ -1422,13 +1367,9 @@ describe("building", () => {
     });
 
     // The first half is gone by then, so a member takes a name a step of it had.
-    test("so a member may take the name `fixed` or `private`", () => {
-      const Flags = Val.companion<Account>().impl({
-        fixed: (a) => a.id === "a1",
-        private: (a) => a.owner === "",
-      });
-      const a = Flags.seal({ id: "a1", owner: "bob" });
-      expect([Flags.fixed(a), Flags.private(a)]).toEqual([true, false]);
+    test("so a member may take the name `fixed`", () => {
+      const Flags = Val.companion<Account>().impl({ fixed: (a) => a.id === "a1" });
+      expect(Flags.fixed(Flags.seal({ id: "a1", owner: "bob" }))).toBe(true);
     });
   });
 

@@ -34,7 +34,6 @@ type Order = Val<
 
 const Order = Val.companion<Order>()
   .fixed<"id">()
-  .private<"seal">()
   .implSeal((seed, seal) => seal(seed))
   .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
   .impl({

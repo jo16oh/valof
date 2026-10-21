@@ -20,8 +20,8 @@ export const DetachedImpl: Rule<DetachedImpl> = {
 };
 
 /**
- * Reports `impl`, `implSeal`, `implVariant`, `implTrait`, `implCreate`, `fixed` and `private`
- * written on a companion instead of in its own chain.
+ * Reports `impl`, `implSeal`, `implVariant`, `implTrait`, `implCreate` and `fixed` written on a
+ * companion instead of in its own chain.
  *
  * `.impl` does not close the chain, so `implTrait` can follow it, which also lets a consumer of
  * the module grow a companion of its own from the one it imported. Nothing about the value it
