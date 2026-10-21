@@ -24,21 +24,7 @@ const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
 ```
 
 `.implSeal` replaces the companion's `seal`. Return through the default seal, passed as its second
-argument, to brand and copy the payload. Callers keep writing `Age.seal`. Only the return type
-changes:
-
-```ts
-import { Val } from "valof";
-
-type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-declare function ok<T>(value: T): Result<T>;
-declare function err(message: string): Result<never>;
-
-type Age = Val<"Age", number>;
-const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> => ok(seal(value)));
-// ---cut---
-Age.seal(30); // Result<Age>
-```
+argument, to brand and copy the payload.
 
 `Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
 payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
@@ -211,9 +197,6 @@ const User = Val.companion<User>()
 User.create(fields); // User
 User.seal({ id: "forged", name: "bob" }); // type error
 ```
-
-`patch` still passes through the seal. Like `.fixed`, `.private` takes a type argument and does
-nothing at runtime, so `Val.of` still builds a value.
 
 ## Parse, don't validate
 
