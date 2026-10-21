@@ -51,12 +51,12 @@ type Greetable = Trait<
 const Greetable = Trait.companion<Greetable>();
 
 type User = Val<"User", { id: string }, Greetable>;
-const User = Val.sealer<User>().implTrait(Greetable, {
+const User = Val.companion<User>().implTrait(Greetable, {
   greet: (u) => `Hi, ${u.name}`,
   toWire: (u, sep) => `${u.id}${sep}${u.name}`,
 });
 
-User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
+User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 ```
 
 `Trait.companion<Greetable>()` creates the trait's companion, even for a trait that implements
@@ -104,18 +104,18 @@ type Greetable = Trait<
 const Greetable = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
-const User = Val.sealer<User>().implTrait(Greetable, {
+const User = Val.companion<User>().implTrait(Greetable, {
   toWire: (u, sep) => `${u.id}${sep}${u.name}`,
 });
 
 type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
-const Admin = Val.sealer<Admin>().implTrait(Greetable, {
+const Admin = Val.companion<Admin>().implTrait(Greetable, {
   toWire: (a, sep) => `admin${sep}${a.name}`,
   greet: (a) => `Sir ${a.name}`,
 });
 
-User.greet(User({ id: "a", name: "alice" })); // "Hi, alice"
-Admin.greet(Admin({ name: "root", level: 9 })); // "Sir root"
+User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
+Admin.greet(Admin.seal({ name: "root", level: 9 })); // "Sir root"
 ```
 
 A trait that implements something takes its companion as the first argument. The second is what the
@@ -145,7 +145,7 @@ const Greetable = Trait.companion<Greetable>().impl({
 });
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
-const User = Val.sealer<User>().implTrait(Greetable);
+const User = Val.companion<User>().implTrait(Greetable);
 ```
 
 The trait implements both, so `implTrait` needs no second argument. A Val may still pass `greet` to
@@ -190,11 +190,11 @@ type Describable = Trait<"Describable", { id: string }, { describe: (self: Self)
 const Describable = Trait.companion<Describable>();
 
 type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, Describable>;
-const Cmd = Enum.sealer<Cmd>().implTrait(Describable, {
+const Cmd = Enum.companion<Cmd>().implTrait(Describable, {
   describe: (c): string => Cmd.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
 });
 
-Cmd.describe(Cmd.Add({ id: "c1", n: 2 })); // "add 2"
+Cmd.describe(Cmd.Add.create({ id: "c1", n: 2 })); // "add 2"
 ```
 
 A trait's fields become fields every variant shares. `id` comes from `Describable`, and `Cmd.Add`
@@ -217,19 +217,19 @@ type Greetable = Trait<
 const Greetable = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
-const User = Val.sealer<User>().implTrait(Greetable, {
+const User = Val.companion<User>().implTrait(Greetable, {
   toWire: (u, sep) => `${u.id}${sep}${u.name}`,
 });
 
 type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
-const Admin = Val.sealer<Admin>().implTrait(Greetable, {
+const Admin = Val.companion<Admin>().implTrait(Greetable, {
   toWire: (a, sep) => `admin${sep}${a.name}`,
   greet: (a) => `Sir ${a.name}`,
 });
 // ---cut---
 const party: Dyn<Greetable>[] = [
-  Greetable.dyn(User, User({ id: "a", name: "alice" })),
-  Greetable.dyn(Admin, Admin({ name: "root", level: 9 })),
+  Greetable.dyn(User, User.seal({ id: "a", name: "alice" })),
+  Greetable.dyn(Admin, Admin.seal({ name: "root", level: 9 })),
 ];
 
 party.map((p) => p.greet()); // ["Hi, alice", "Sir root"]
@@ -247,7 +247,7 @@ The two arguments belong together. The companion has to match the value's own ty
 companion is rejected.
 
 An enum boxes the same way, through its own companion:
-`Describable.dyn(Cmd, Cmd.Add({ id: "c1", n: 2 }))`.
+`Describable.dyn(Cmd, Cmd.Add.create({ id: "c1", n: 2 }))`.
 
 ## Several traits on one Val
 
@@ -264,9 +264,9 @@ type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean
 const Weighed = Trait.companion<Weighed>().impl({ heavy: (w) => w.kg > 10 });
 
 type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;
-const Crate = Val.sealer<Crate>().implTrait(Greetable).implTrait(Weighed);
+const Crate = Val.companion<Crate>().implTrait(Greetable).implTrait(Weighed);
 
-const crate = Crate({ name: "box", kg: 20 });
+const crate = Crate.seal({ name: "box", kg: 20 });
 Greetable.dyn(Crate, crate).greet(); // "Hi, box"
 Weighed.dyn(Crate, crate).heavy(); // true
 ```

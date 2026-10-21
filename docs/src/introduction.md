@@ -26,8 +26,8 @@ It enforces the conventions through types and linting.
 - **Values as plain data**: Vals stay objects, arrays and primitives. They serialize without
   adapters and fit directly into React and other framework state. No classes, no prototypes.
 
-- **Immutability**: Vals are immutable. Their types are deeply readonly, and their constructors copy
-  their inputs, so an original reference cannot mutate them.
+- **Immutability**: Vals are immutable. Their types are deeply readonly, and `seal` copies its
+  input, so an original reference cannot mutate them.
 
 - **No `as` casts in your code**: Valof owns the cast required to construct a branded value.
 
@@ -46,7 +46,7 @@ It enforces the conventions through types and linting.
 
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
 
-- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->898 B
+- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->903 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 > For background on individual features, see

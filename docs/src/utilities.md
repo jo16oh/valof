@@ -8,10 +8,10 @@
 import { equals, Val } from "valof";
 
 type User = Val<"User", { id: string; profile: { name: string } }>;
-const User = Val.sealer<User>();
+const User = Val.companion<User>();
 
-const a = User({ id: "a", profile: { name: "alice" } });
-const b = User({ id: "a", profile: { name: "alice" } });
+const a = User.seal({ id: "a", profile: { name: "alice" } });
+const b = User.seal({ id: "a", profile: { name: "alice" } });
 
 a === b; // false
 equals(a, b); // true
@@ -57,9 +57,9 @@ strips the brand at every depth.
 import { Val } from "valof";
 
 type Post = Val<"Post", { title: string; tags: string[] }>;
-const Post = Val.sealer<Post>();
+const Post = Val.companion<Post>();
 // ---cut---
-const post = Post({ title: "t", tags: ["a"] });
+const post = Post.seal({ title: "t", tags: ["a"] });
 
 post.tags.sort(); // ✗ readonly string[] has no sort
 Val.unwrap(post).tags.sort(); // ✓

@@ -20,7 +20,7 @@ orderId = userId; // allowed: both types are string
 A [brand](basics.md) lets TypeScript distinguish them without changing their runtime representation.
 A branded type normally needs a constructor that contains a type assertion. This keeps assertions
 out of callers, but every branded type still needs the same constructor boilerplate, including an
-`as` cast. `Val.sealer` supplies the constructor. Declare the type and its constructor together;
+`as` cast. A companion's `seal` is that constructor. Declare the type and its companion together;
 [branding](basics.md#define-branded-types) covers names, construction and the rules that keep the
 brand intact:
 
@@ -29,9 +29,9 @@ import { Val } from "valof";
 
 // ---cut---
 type UserId = Val<"UserId", string>;
-const UserId = Val.sealer<UserId>();
+const UserId = Val.companion<UserId>();
 
-const id = UserId("u1");
+const id = UserId.seal("u1");
 ```
 
 ## Immutability
@@ -50,9 +50,9 @@ import { Val } from "valof";
 
 // ---cut---
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
-const Profile = Val.sealer<Profile>();
+const Profile = Val.companion<Profile>();
 
-const profile = Profile({ name: "alice", address: { city: "Osaka" } });
+const profile = Profile.seal({ name: "alice", address: { city: "Osaka" } });
 const changed = Profile.patch(profile, { address: { city: "Tokyo" } });
 ```
 
@@ -80,17 +80,17 @@ Keeping its instances immutable requires `readonly` on every field and nested pr
 shape depends on property enumerability unless you write and maintain a `toJSON` mapping.
 
 A [companion object](companion-objects.md) collects the constructor and functions under the type's
-name while values remain plain data. `Val.sealer<V>().impl({ ... })` creates it. The result stays
-callable and exposes the registered members; the chapter also explains `patch`:
+name while values remain plain data. `Val.companion<V>().impl({ ... })` creates it. The result
+exposes `seal` and the registered members; the chapter also explains `patch`:
 
 ```ts
 import { Val } from "valof";
 
 // ---cut---
 type User = Val<"User", { name: string }>;
-const User = Val.sealer<User>().impl({ greeting: (user) => `Hi, ${user.name}` });
+const User = Val.companion<User>().impl({ greeting: (user) => `Hi, ${user.name}` });
 
-User.greeting(User({ name: "alice" }));
+User.greeting(User.seal({ name: "alice" }));
 ```
 
 ## Parse, don't validate
@@ -167,7 +167,7 @@ under a `default`, and a `break` closing every case. `strict` reports neither a 
 missing `break`. `noFallthroughCasesInSwitch` catches the second, and the lint rule
 `typescript/switch-exhaustiveness-check` catches the first, once you enable both.
 
-Declare variants in `Enum<...>` and create their companion with `Enum.sealer<E>()`.
+Declare variants in `Enum<...>` and create their companion with `Enum.companion<E>()`.
 `companion.match(value, handlers)` requires a handler for every variant;
 [enums](enums.md#declare-the-variants) covers shared fields, custom seals and tags:
 
@@ -176,9 +176,9 @@ import { Enum } from "valof/experimental";
 
 // ---cut---
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.sealer<Shape>();
+const Shape = Enum.companion<Shape>();
 
-const area = Shape.match(Shape.Circle({ r: 2 }), {
+const area = Shape.match(Shape.Circle.create({ r: 2 }), {
   Circle: (circle) => Math.PI * circle.r * circle.r,
   Square: (square) => square.side * square.side,
 });
@@ -229,14 +229,14 @@ import { Val } from "valof";
 
 // ---cut---
 type User = Val<"User", { id: string; name: string }>;
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   greet: (u) => `Hi, ${u.name}`,
 });
 
 type Admin = Val<"Admin", { name: string; level: number }>;
-const Admin = Val.sealer<Admin>();
+const Admin = Val.companion<Admin>();
 // ---cut---
-const admin = Admin({ name: "root", level: 9 });
+const admin = Admin.seal({ name: "root", level: 9 });
 
 User.greet(admin); // type error: greet belongs to User
 ```
@@ -256,5 +256,5 @@ type Describable = Trait<"Describable", { name: string }, { describe: (self: Sel
 const Describable = Trait.companion<Describable>();
 
 type User = Val<"User", { name: string }, Describable>;
-const User = Val.sealer<User>().implTrait(Describable, { describe: (user) => user.name });
+const User = Val.companion<User>().implTrait(Describable, { describe: (user) => user.name });
 ```

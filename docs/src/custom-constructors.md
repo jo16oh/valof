@@ -2,8 +2,8 @@
 
 ## Validate in the seal
 
-`Val.sealer` accepts every payload allowed by the type. When construction has rules of its own,
-start with `Val.companion` and add a custom `seal` with `.implSeal`.
+Without `.implSeal`, a companion's `seal` accepts every payload allowed by the type. When
+construction has rules of its own, replace it with `.implSeal`.
 
 Write the checks directly in the seal:
 
@@ -23,12 +23,11 @@ const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
 );
 ```
 
-`Val.companion` starts without a constructor. `.implSeal` receives the input and the default seal,
-then adds your constructor to the companion as `seal`. Return through the default seal to brand and
-copy the payload. The companion does not become callable:
+`.implSeal` receives the input and the default seal, and replaces the companion's `seal`. Return
+through the default seal to brand and copy the payload. Callers keep writing `Age.seal`. Only the
+return type changes:
 
 ```ts
-// @errors: 2349
 import { Val } from "valof";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
@@ -38,7 +37,6 @@ declare function err(message: string): Result<never>;
 type Age = Val<"Age", number>;
 const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> => ok(seal(value)));
 // ---cut---
-Age(30); // type error: this expression is not callable
 Age.seal(30); // Result<Age>
 ```
 
@@ -119,8 +117,8 @@ declare function check(user: SeedOf<User>): Result<User>;
 declare const fields: Fields;
 // ---cut---
 const User = Val.companion<User>()
-  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }))
-  .implSeal((user): Result<User> => check(user));
+  .implSeal((user): Result<User> => check(user))
+  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }));
 
 User.create(fields); // Result<User>
 ```
@@ -143,8 +141,8 @@ declare const input: string;
 type SessionId = Val<"SessionId", string>;
 
 const SessionId = Val.companion<SessionId>()
-  .implCreate.noseal(() => crypto.randomUUID())
-  .implSeal((text, seal): SessionId | undefined => (UUID.test(text) ? seal(text) : undefined));
+  .implSeal((text, seal): SessionId | undefined => (UUID.test(text) ? seal(text) : undefined))
+  .implCreate.noseal(() => crypto.randomUUID());
 
 SessionId.create(); // SessionId
 SessionId.seal(input); // SessionId | undefined
@@ -174,20 +172,49 @@ declare const user: User;
 type User = Val<"User", { id: string; name: string; email: string }>;
 
 const User = Val.companion<User>()
+  .fixed<"id">()
+  .implSeal((user, seal) => seal(normalize(user)))
   .implCreate((fields: Omit<SeedOf<User>, "id">) => ({
     id: crypto.randomUUID(),
     ...fields,
-  }))
-  .implSeal((user, seal) => seal(normalize(user)))
-  .fixed<"id">();
+  }));
 
 User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // type error
 ```
 
+Write the steps in this order: `.fixed` and `.private`, then `.implSeal`, then `.implCreate`. A step
+written too late is a type error that says where it belongs.
+
 The keys are a type argument, so they do not exist at runtime. This constrains `patch`, not the
 value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an
 id must be unforgeable, it belongs outside the value.
+
+## Hide `seal` or `create`
+
+`.private` removes `seal`, `create` or both from the companion. Hide `seal` where every value must
+come from `create`, so no caller supplies an id of their own:
+
+```ts
+// @errors: 2339
+import { Val, type SeedOf } from "valof";
+
+declare function normalize(user: SeedOf<User>): SeedOf<User>;
+declare const fields: Omit<SeedOf<User>, "id">;
+// ---cut---
+type User = Val<"User", { id: string; name: string }>;
+
+const User = Val.companion<User>()
+  .private<"seal">()
+  .implSeal((user, seal) => seal(normalize(user)))
+  .implCreate((fields: Omit<SeedOf<User>, "id">) => ({ id: crypto.randomUUID(), ...fields }));
+
+User.create(fields); // User
+User.seal({ id: "forged", name: "bob" }); // type error
+```
+
+`patch` still passes through the seal. Like `.fixed`, `.private` takes a type argument and does
+nothing at runtime, so `Val.of` still builds a value.
 
 ## Parse, don't validate
 

@@ -14,7 +14,7 @@ import { Val } from "valof";
 節ごとに独立して読める。必要な節だけ開く。
 
 - **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠。メンバを dual にして払う呼び出しごとのコスト
-- **§2 基本 API** `Val.sealer` / `Val.companion` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
+- **§2 基本 API** `Val.companion` / `.seal` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
 - **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由、3.7 自己参照 `Rec`
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが既定で引数をコピーする理由と、明示的な `.nocopy`。型でも lint でも塞げないこと（線形型が無い）、所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
@@ -26,6 +26,7 @@ import { Val } from "valof";
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
+  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、`.private`、鎖の前半と後半、`impl` が鎖を閉じないこと、Proxy を残す判断
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
@@ -36,9 +37,9 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
-  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
+  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
 - **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify
@@ -78,17 +79,17 @@ export type User = Val<
   }
 >;
 
-export const User = Val.sealer<User>().impl({
+export const User = Val.companion<User>().impl({
   greet(u: User) {
     console.log(`Hi, I'm ${u.name}.`);
   },
 });
 
-const user = User({ id: "a", name: "bob" });
+const user = User.seal({ id: "a", name: "bob" });
 User.greet(user);
 ```
 
-`Val.sealer<V>()` がコンストラクタで、`.impl({...})` がそこに振る舞いを付ける。コンストラクタを渡したくない型は `Val.companion<V>().impl({...})` を使う（§6.1）。2 段になっているのは TS に型引数の部分推論がないため（§13.1）。
+`Val.companion<V>()` が companion で、`.seal` が値を作る唯一の入口、`.impl({...})` が振る舞いを付ける（§6.12）。2 段になっているのは TS に型引数の部分推論がないため（§13.1）。
 
 ### 2.1 ブランド
 
@@ -1145,6 +1146,8 @@ spec を「どの子が自分の等価性を使い、どれを外すか」だけ
 
 ### 6.1 コンストラクタは作らなければ迂回できない
 
+**2026-10-21: `Val.sealer` を廃止した（§6.12）。**呼べる companion は無くなり、入口は `X.seal` だけになった。以下は sealer があった頃の記録。
+
 コンストラクタ生成を `Val.sealer` に分離し、`companion` からは切り離す。
 
 ```ts
@@ -1442,6 +1445,8 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 #### sealer に `implSeal` は生やさない
 
+**2026-10-21: sealer ごと廃止した（§6.12）。**
+
 **sealer は既定の seal そのもの**であり、その隣に検査つきの seal を並べれば、最初の seal が「迂回する穴」になる（§6.1）。`implSeal` は companion 専用。
 
 #### `implSeal` は必須にしない
@@ -1589,6 +1594,8 @@ production のバンドルは変わらない（852 B gzip）。型のインス�
 33,264 → 33,537。
 
 #### sealer には `create` を生やさない
+
+**2026-10-21: sealer ごと廃止した（§6.12）。**
 
 sealer は callable なので `create` を足しても構築経路は 1 本も絞られず、**得られるのは名前空間だけ**である。問題は、**名前が果たせない約束をする**こと。
 
@@ -1911,6 +1918,111 @@ Val.sealer<User>().impl({
 #### 却下: プレースホルダー `__`
 
 `User.f(u, __, c)` で第 1 引数以外を後から渡す案。第 1 引数以外の部分適用は、アロー関数（`(b) => User.f(u, b, c)`）で書ける。`implAssoc` と合わせると予算を 40 B 超えた（#70 より前の計測）。型も、位置ごとに `T | typeof __` を受けて残りの引数から戻り値の型を作るので、dual 単体より重い。
+
+### 6.12 入口を `.seal` に統一する、2026-10-21
+
+`implAssoc` の議論から出た。`Val.sealer` / `Enum.sealer` を廃止し、入口は `companion` 1 本にした。
+v0.11 の破壊的変更。
+
+```ts
+const User = Val.companion<User>().impl({ greet: (u) => `Hi, ${u.name}` });
+const bob = User.seal({ id: "a", name: "bob" }); // implSeal が無ければ既定の seal
+```
+
+**seal は常に `X.seal(p)`。**コンパニオンは呼べない。`implSeal` が無ければ既定の seal を出す（型は
+`(value: SeedOf<V>) => V`、`.nocopy` 付き）。
+
+- 呼び出しの構文は「失敗しない構築」と読まれる（TS の `new` も Result を返せない）。`.seal` なら関門を
+  通ることが名前に出る。動詞 `seal` が「brand を与える」と読め、valof の考え方が伝わる
+- `implSeal` を後から足しても、呼び出し側の書き方は変わらず、戻り型だけが変わる
+- 入口がすべて名前を持つ（`seal`、`create`、`implAssoc` の `from*` / `parse*`）
+- コンパニオンが関数でなくなる。`useState(User)` の事故と、`name` / `length` を `define` で付ける理由が
+  消えた（`define` は `__proto__` のために残る）
+- 払うもの: ネストした構築が長くなる（`Order.seal({ lines: [Line.seal({ … })] })`）。Rust も同じ程度
+- 予約名から `nocopy` を外した。sealer の `nocopy` を守っていたが、今は `X.seal.nocopy` にある
+
+**却下: `User()` に統一。**失敗しうる入口が、失敗しない構築に見える。
+
+**却下: 既定の seal は呼び出し、カスタム seal は `.seal`（companion 1 本で入口を分ける）。**不変条件を
+足すと全呼び出しの書き方が変わる。正規化だけの seal（`Math.round`）でも変わる。
+
+**却下: `.implSeal(null)` で隠す。**「seal が無い」と読める。実際は `patch`、`create`、`implAssoc` が通る。
+
+**却下: `implSeal.private(fn?)`。**既定の seal を隠すとき引数なしになる。Enum で全 Variant を隠す意味が
+伝わりにくい。
+
+#### `.private<K>()`
+
+`.private<K extends "seal" | "create">()`。`fixed` と同じく型だけの段で、実行時には何もしない。
+
+- バンドルを増やすほどのことではない。`Val.of` があるので、実行時に消しても守れる範囲は変わらない
+- 隠せるのは `seal` と `create` だけ。`implAssoc` の callback が受け取るので、隠しても `from*` から使える
+- **却下: 任意のメンバを隠せる形。**兄弟はコンパニオンの名前を通して呼ぶので、隠すと兄弟からも呼べない。
+  隠したい補助関数は export しないモジュールの関数にする。`patch` も、メンバが呼ぶ経路が `User.patch`
+  しかないので隠せない。`patch` を渡す経路ができたら足す（後方互換）
+- Enum の `.private` は Variant の入口を整理するとき（§9）に入れる。今の Variant の `.create` はタグを
+  足す seal なので、`seal` だけ隠しても `create` から同じ関門を素通りできる
+- Enum では `.private<"seal">()` が `Shape.seal` と全 Variant の `seal` を消す。Variant ごとには付けない
+  - **却下: Variant ごとの private。**`Shape.seal` はタグで Variant の枠に渡すので、隠した Variant に
+    そこから届く。拒ませると `Shape.seal` の意味がずれ、動作が暗黙になる
+  - 1 つの Variant だけ守りたいときは、守りたいものを payload の Val に移して、その Val を `private` に
+    する（`Pending { id: PendingId }`）
+
+#### 鎖の順
+
+```ts
+Val.companion<Account>()
+  .fixed<"id">() // 前半: fixed / private（順不同）→ implSeal → implCreate
+  .implSeal(seal)
+  .implCreate(create)
+  .impl({ … }) // 後半: impl（1 回）と implTrait（複数回）は順不同
+  .implTrait(Named, { … });
+```
+
+**前半は関門の設定で、順を固定する。**各段は 1 回。
+
+- 後の段がこれらの結果に依存する。`implAssoc` の callback に渡す `seal` / `create` の型がここで決まる。
+  `create` の出力は seal を通る
+- `implSeal` は不変条件の記述で型に近いので、生成より先に置く
+- 遅れて書いた段は理由を言う（`` write `fixed` and `private` before `implSeal` and `implCreate` ``、
+  `` write `implSeal` before `implCreate` ``）。`fixed` / `private` は型引数の制約に、`implSeal` は引数の型に
+  置く。TS2339 にしない
+- 2 回目の段は型から消すだけにした。TS2339 で十分に読める
+
+**後半はメンバの登録で、順不同。**登録は互いに依存しない。メンバどうしはコンパニオンの名前を通して呼ぶ。
+
+- 後半の段を 1 つ書いたら、前半の段は型と実行時の両方から消える。メンバは `fixed` / `private` を名前に
+  取れる（どちらも予約名ではない）
+- **`impl` は鎖を閉じない。**§15.4 で閉じた理由は seal の段を残さないことで、seal は後半の最初の段で
+  落ちる。`impl` 自身は 1 回
+- 名前の重複はどの向きでも型で拒む。`implTrait` が `impl` の後に来ても、`Takes` が
+  「another member already answers to one of these names」で落とす
+- おすすめの並べ方は docs で示すだけ。Rust に倣って `impl` → `implTrait`
+
+**Enum は `implSeal` だけが前半。**`impl`（1 回）、`implVariant`、`implTrait` は順不同で、どれかを書くと
+`implSeal` が消える。§15.2 の `Before`（`implSeal` を `implVariant` より先に強制する）はこれで要らなく
+なり、消した。`implVariant` は Variant の入口を整理するとき（§9）に消すので、変更の少ない形にした。
+
+**計測。**type-perf: core 6,921 → 7,012（fixture に `private` を足した分）、trait 17,844 → 17,705、enum
+46,593 → 42,954、`index.d.ts` 72.17 kB → 68.43 kB。production gzip: Val 898 → 903 B、Enum の増分 +519 →
++442 B（callable な枠と Proxy の `apply` が消えた分）。
+
+#### 書き方が 2 つあるものの整理
+
+- **引数なしの `.impl()` を廃止した。**Enum と Variant も。鎖を閉じるための形だったが、`impl` が鎖を
+  閉じなくなったので役目が無い。`Val.companion<X>()` がそのままコンパニオン
+- **残す: trait の final を 2 つの名前で呼べること。**`User.shout(u)` と `Greetable.shout(u)`。ジェネリックな
+  関数（`<T extends Greetable>`）の中では trait 側からしか呼べない
+- 意図的に 2 通りのもの: data-first / data-last（§6.11）、`patch` と `seal({ ...u, x })`（同一性と深い
+  マージ）、`X.seal` と `Val.of`（コンパニオンの無い型のため。ある型では `bypassed-companion` が警告）
+
+#### Proxy は残す
+
+- `dyn` の Proxy は残す。値を包んで振る舞いを足す箱という意味に合う。比べた案: 浅いコピー
+  （`equals` が関数を比べる）、メソッドの prototype（取り出したメソッドが `this` を失う）、フィールドを
+  出さない箱（API が変わる）
+- Enum の Proxy は残す。Effect もこの形で、コンパニオンは取り回さないので型の側の振る舞いと見られる
+- **却下: Variant の名前を実行時に渡す。**名前を 2 回書き、引数の並びも崩れる
 
 ---
 
@@ -2389,6 +2501,32 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
       companion は Val の companion と違い、`patch` も `create` も持たない。Variant をその名前にできる
 - [ ] **Enum の companion に `create` を生やすか。**`patch` は要らない。`create` は検討の余地がある。生やすなら
       Variant 名の検査に `create` を足す
+  - 2026-10-21: Variant の `create` は `implCreate` を書いたときだけ生やす方向（下の Enum の API）
+- [ ] **Enum の API を作り直す。未決、2026-10-21。**§6.12 で入口を `.seal` に揃えた続き
+  - `implVariant` と Variant ごとの `impl` は廃止する方向。Rust も Scala の `enum` も Variant ごとの
+    メンバを持たない。union のメンバと `switch` で書ける
+  - Variant ごとの `implSeal` は残す。戻り型が Variant ごとに分かれる（`Square` は失敗しない）
+  - Variant 個別の parser は要らない。union の `implAssoc` で Variant のコンストラクタを呼べば戻り型も
+    絞れる。callback に Variant のコンストラクタを渡す（コンパニオンの名前を経由させない）
+  - seal は、どの seal を呼んだかで決まる部分を受け取らない。`User.seal` は payload 全体、
+    `Shape.Circle.seal` はタグ以外、`Shape.seal` はタグ付きの payload を受け取る。Variant の `implSeal`
+    の引数もタグなしにする
+  - Variant の `create` は `implCreate` を書いたときだけ生やす。今の Variant の `create` は「タグを足す
+    seal」で、Val の `create`（payload を生成する）と意味がずれている
+  - Enum の `.private<"seal">()` もここで入れる（§6.12）
+  - `implSeal` の書き方の案
+    - 文字列: `implSeal(fn)` と `implSeal("Circle", fn)`。修飾が無いものが型そのもの、と読める
+    - 修飾子: `implSeal.Circle(fn)`、`implCreate.Circle.noseal(fn)`。`implCreate.noseal` と揃い、補完に
+      Variant が並ぶ。払うもの: Variant 名 `private` / `noseal` を `Fault` で禁じる、`implSeal` を Proxy
+      にする、lint が `.implSeal.X(f)` を読む
+    - レコード: `implSeal({ Circle: fn })`。全体を指すものが名前に出ないので弱い
+  - §15.2「却下: enum に seal を 1 本書く」の理由のうち、「書く量が変わらない」「`match` で TS7022」は
+    弱い（`switch (p._tag)` で書ける）。残るのは戻り型が Variant ごとに分かれないこと
+- [ ] **valof-lint の誤検出 2 つ、§6.12 から。valof-lint を valof で書き直した後に直す。**
+  - `detached-impl` が、`fixed` / `private` という名前のメンバを別ファイルから呼ぶと「鎖の外で書いた段」と
+    報告する。`STEPS` がメンバの呼び出しと段を区別しない
+  - `.private<"seal">()` の型の `Val.of` に、`bypassed-companion` が型から消えた `X.seal` を名指しする。
+    lint は `private` を読まない
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [x] ~~valof-lint が `Trait` を知らない。~~ Trait の宣言、companion、`implTrait`、`dyn` を構文から追跡する。
       足すのは 2 種類
@@ -2401,7 +2539,7 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
         起きず、矛盾する宣言は型が宣言の位置で落とす（§15.1「Val も shape を持ち込む」）
   - `unnamed-of` / `bypassed-companion` は広げない。trait があっても構築の話は変わらない
 - [ ] **API の引っかかり 2 つを docs の早い位置で 1 行ずつ弁明する。**どちらも TS の制約だが、初見の読者は
-      冗長と読む。`Val.sealer<User>().impl(...)` の 2 段（部分推論が無い、§13.1）と、
+      冗長と読む。`Val.companion<User>().impl(...)` の 2 段（部分推論が無い、§13.1）と、
       `type User = Val<"User", …>` で `"User"` を 2 回書くこと
 - [ ] **`dyn` の名前。**Rust の語彙で、FP の語彙を避けるという方針から唯一はみ出す。Rust を知らない読者には
       読めない。`Trait` の需要（§15.1）と一緒に実利用で見る
@@ -2735,6 +2873,8 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 - そもそも Rust にビルダーがあるのは名前付き引数・省略可能引数がないから。TS ではその役割をオブジェクトリテラルが担っており、`.impl({ from, equals, ...fns })` は**すでに TS 流のビルダー**になっている
 
 ### 13.7 採用: `sealer` / `companion` + `.impl()`
+
+**2026-10-21: `sealer` を廃止し、`companion` 1 本にした（§6.12）。**引数なしの `.impl()` も無くなった。`Val.companion<V>()` がそのまま companion。
 
 - **`sealer`**: `-er` を付けたのは `Val.of` と読み違えられないため。値ではなく関数を返すことが名前から分かる
 - **`.impl()`**: 当初は `.companion()`（sealer 側）と `()({...})`（companion 側）で付与手段が 2 つに割れており、違いは「呼べるか否か」だけで分かりにくかった。`.impl()` に統一したことで、差が `sealer` か `companion` かという**意味のある軸だけ**に寄った。`methods` は class を連想させるので不採用（値にメソッドは生えない）。`fns` は中身が全部関数なので同語反復。Rust の `impl` ブロックとも一致する
@@ -6087,6 +6227,8 @@ Variant の数では増えない。予算は 45,000 に置いた。
 **動機は境界の分岐。**タグ付きのペイロードが来る場所で、利用者は今どの Variant かを自分で見て、対応する
 コンストラクタを呼んでいる。`Shape.seal(payload)` があれば、タグで枠を引くのはライブラリの仕事になる。
 
+**2026-10-21: `Enum.sealer` を廃止した（§6.12）。**入口は `Enum.companion` だけになった。
+
 **入口を `Val` と同じ 2 つにした。**`Enum.sealer` は全 Variant が callable で、companion 自体が境界の
 入口。`Enum.companion` は全 Variant が `.create` で、`seal` が境界の入口、`implSeal` を持つ。
 
@@ -6355,6 +6497,8 @@ TS2637 で注釈を失い、fixture が 72,676 から 92,209（予算 90,000 超
 `.impl(fns)` はもう一度 `built` を呼ぶので、メンバは誰も持っていない枠に載る。
 
 #### `implSeal` を `implVariant` より先に強制する、2026-09-18 実装
+
+**2026-10-21: `Before` を消した（§6.12）。**`implVariant` / `impl` / `implTrait` のどれかを書くと `implSeal` が型と実行時から消えるので、後から書けない。
 
 **規約だけでは型と実行時がずれていた。**枠は `implVariant` の時点の `F` で型が付くが、実行時の合成は
 最後の状態の seal を読む。順を逆に書くと、`create` の型は `VariantOf<…>` のまま実行時に `RangeError` を
@@ -6759,6 +6903,8 @@ coherence のような一貫性の問題は起きない）。
 
 #### 鎖を閉じる、2026-09-18
 
+**2026-10-21: `.impl` は鎖を閉じなくなった（§6.12）。**閉じた理由は seal の段を残さないことで、今は後半の最初の段で前半が落ちる。`.impl` が 1 回きりなのは変わらない。
+
 **`.impl` は 1 回。**`Val.sealer` / `Val.companion` / `Trait.companion` の 3 つとも、`.impl` が返すのは companion で、次の段は無い。Enum は元からこの形。
 
 **多段が買っていたのは 1 つだけだった。**注釈なしで兄弟を読むこと。同じものは 1 回の呼び出しでも書ける。
@@ -7066,11 +7212,12 @@ Type 'val_d_exports<"X", { a: number; }>' is not assignable to type '0'.
   ソースが検査される。valof の型は `exactOptionalPropertyTypes` を前提にしている（§3.5）。Node の型ストリップは
   `node_modules` の `.ts` を拒否する
 
-### 18.2 bundle-size の base は `Val.sealer` と `Val.companion`
+### 18.2 bundle-size の base は `Val.companion`
 
-`Val.of` は逃げ道なので base に入れない。全部のバンドルに `Val.of` と `Val.unwrap` を足した。
+`Val.of` は逃げ道なので base に入れない。全部のバンドルに `Val.of` と `Val.unwrap` を足した。2026-10-21 に
+`Val.sealer` を廃止して（§6.12）、base は `Val.companion` だけになった。
 
-entry は `Val.sealer` のようにメンバを読む。`console.log(Val)` だと namespace が丸ごと残り、Rolldown の
+entry は `Val.companion` のようにメンバを読む。`console.log(Val)` だと namespace が丸ごと残り、Rolldown の
 runtime まで入って、利用者のコードと違う形を測る。
 
 ### 18.3 宣言の予算を 96 kB に
