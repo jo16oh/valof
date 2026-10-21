@@ -26,7 +26,7 @@ import { Val } from "valof";
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
-  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、`.private`、鎖の前半と後半、`impl` が鎖を閉じないこと、Proxy を残す判断
+  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由（`PrivateSeal` と `Unpatchable` を型引数へ）、鎖の前半と後半、`impl` が鎖を閉じないこと、Proxy を残す判断
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
@@ -1951,28 +1951,42 @@ const bob = User.seal({ id: "a", name: "bob" }); // implSeal が無ければ既�
 **却下: `implSeal.private(fn?)`。**既定の seal を隠すとき引数なしになる。Enum で全 Variant を隠す意味が
 伝わりにくい。
 
-#### `.private<K>()`
+#### seal を隠す段: 入れなかった
 
-`.private<K extends "seal" | "create">()`。`fixed` と同じく型だけの段で、実行時には何もしない。
+`.private<K extends "seal" | "create">()`（`fixed` と同じく型だけの段）を一度入れて、同じ PR で外した。
+companion の型引数に移す（`Val.companion<User, PrivateSeal & Unpatchable<"id">>()`）。
 
-- バンドルを増やすほどのことではない。`Val.of` があるので、実行時に消しても守れる範囲は変わらない
-- 隠せるのは `seal` と `create` だけ。`implAssoc` の callback が受け取るので、隠しても `from*` から使える
+- **型だけで効く宣言を、値の段で書いていた。**実行時に何もしない段が鎖に残り、前半の順序と予約名の
+  問題を作っていた。Enum の第 3 引数（`Tag<"kind"> & …`）と同じく、マーカーの交差で渡す
+- **隠す対象は `seal` だけでよい。**`create` を公開しても、出力は必ず seal を通るので不変条件は破れない。
+  `seal` を公開すると、`create` が生成するはずのフィールドを呼び出し側が渡せる（`User.seal({ id:
+"forged", … })`）。`create` を隠すのは公開する面を整えるだけで、docs の 3 段（parse は `implAssoc`、
+  生成は `create`、検査は `seal`）で足りる
+- **`fixed` も同じ型引数に移し、`Unpatchable<K>` にする。**塞ぐのは `patch` の型だけ。§6.10 で
+  `unpatchable` を退けた理由（2 つの派生経路を縛るのに `patch` だけと読める）は、`update` の削除（§6.4）で
+  消えた。型の側の `Fixed<T>`（payload のフィールドに付ける形）にはしない。`patch` への制限であって、
+  フィールドの性質ではない
+- **名前は `PrivateSeal`。**フィールドは読めて、作る経路だけ閉じる。Kotlin の `private constructor` と、
+  Scala の `case class X private (…)` と同じ形。OCaml の private type（読めるが外から作れない）が最も近い
+  - **却下: `opaque`。**Scala 3 / Flow の opaque type は中身ごと隠す。valof の値はフィールドを読める
+  - **却下: `unsealable`。**「unseal（開封）できる」とも読め、`Val.unwrap` と混ざる。主語が型になり、
+    `create` と `patch` が seal を通ることと合わない
+  - **却下: `hideSeal`。**型だけで効く宣言は形容詞にする（§6.10）。動詞は実行時に何かするように読める
 - **却下: 任意のメンバを隠せる形。**兄弟はコンパニオンの名前を通して呼ぶので、隠すと兄弟からも呼べない。
   隠したい補助関数は export しないモジュールの関数にする。`patch` も、メンバが呼ぶ経路が `User.patch`
-  しかないので隠せない。`patch` を渡す経路ができたら足す（後方互換）
-- Enum の `.private` は Variant の入口を整理するとき（§9）に入れる。今の Variant の `.create` はタグを
-  足す seal なので、`seal` だけ隠しても `create` から同じ関門を素通りできる
-- Enum では `.private<"seal">()` が `Shape.seal` と全 Variant の `seal` を消す。Variant ごとには付けない
+  しかないので隠せない
+- Enum では `PrivateSeal` が `Shape.seal` と全 Variant の `seal` を消す。Variant ごとには付けない。今の
+  Variant の `.create` はタグを足す seal なので、Variant の入口を整理するとき（§9）に入れる
   - **却下: Variant ごとの private。**`Shape.seal` はタグで Variant の枠に渡すので、隠した Variant に
     そこから届く。拒ませると `Shape.seal` の意味がずれ、動作が暗黙になる
-  - 1 つの Variant だけ守りたいときは、守りたいものを payload の Val に移して、その Val を `private` に
-    する（`Pending { id: PendingId }`）
+  - 1 つの Variant だけ守りたいときは、守りたいものを payload の Val に移して、その Val の seal を隠す
+    （`Pending { id: PendingId }`）
 
 #### 鎖の順
 
 ```ts
 Val.companion<Account>()
-  .fixed<"id">() // 前半: fixed / private（順不同）→ implSeal → implCreate
+  .fixed<"id">() // 前半: fixed → implSeal → implCreate
   .implSeal(seal)
   .implCreate(create)
   .impl({ … }) // 後半: impl（1 回）と implTrait（複数回）は順不同
@@ -1984,15 +1998,15 @@ Val.companion<Account>()
 - 後の段がこれらの結果に依存する。`implAssoc` の callback に渡す `seal` / `create` の型がここで決まる。
   `create` の出力は seal を通る
 - `implSeal` は不変条件の記述で型に近いので、生成より先に置く
-- 遅れて書いた段は理由を言う（`` write `fixed` and `private` before `implSeal` and `implCreate` ``、
-  `` write `implSeal` before `implCreate` ``）。`fixed` / `private` は型引数の制約に、`implSeal` は引数の型に
-  置く。TS2339 にしない
+- 遅れて書いた段は理由を言う（`` write `fixed` before `implSeal` and `implCreate` ``、
+  `` write `implSeal` before `implCreate` ``）。`fixed` は型引数の制約に、`implSeal` は引数の型に置く。
+  TS2339 にしない
 - 2 回目の段は型から消すだけにした。TS2339 で十分に読める
 
 **後半はメンバの登録で、順不同。**登録は互いに依存しない。メンバどうしはコンパニオンの名前を通して呼ぶ。
 
-- 後半の段を 1 つ書いたら、前半の段は型と実行時の両方から消える。メンバは `fixed` / `private` を名前に
-  取れる（どちらも予約名ではない）
+- 後半の段を 1 つ書いたら、前半の段は型と実行時の両方から消える。メンバは `fixed` を名前に取れる
+  （予約名ではない）
 - **`impl` は鎖を閉じない。**§15.4 で閉じた理由は seal の段を残さないことで、seal は後半の最初の段で
   落ちる。`impl` 自身は 1 回
 - 名前の重複はどの向きでも型で拒む。`implTrait` が `impl` の後に来ても、`Takes` が
@@ -2003,9 +2017,9 @@ Val.companion<Account>()
 `implSeal` が消える。§15.2 の `Before`（`implSeal` を `implVariant` より先に強制する）はこれで要らなく
 なり、消した。`implVariant` は Variant の入口を整理するとき（§9）に消すので、変更の少ない形にした。
 
-**計測。**type-perf: core 6,921 → 7,012（fixture に `private` を足した分）、trait 17,844 → 17,705、enum
-46,593 → 42,954、`index.d.ts` 72.17 kB → 68.43 kB。production gzip: Val 898 → 903 B、Enum の増分 +519 →
-+442 B（callable な枠と Proxy の `apply` が消えた分）。
+**計測。**type-perf: core 6,921 → 6,885、trait 17,844 → 17,649、enum 46,593 → 42,954、`index.d.ts`
+72.17 kB → 68.43 kB。production gzip: Val 898 → 897 B、Enum の増分 +519 → +442 B（callable な枠と Proxy
+の `apply` が消えた分）。`.private` を入れていた間は core 7,012、Val 903 B だった。
 
 #### 書き方が 2 つあるものの整理
 
@@ -2513,20 +2527,18 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
     の引数もタグなしにする
   - Variant の `create` は `implCreate` を書いたときだけ生やす。今の Variant の `create` は「タグを足す
     seal」で、Val の `create`（payload を生成する）と意味がずれている
-  - Enum の `.private<"seal">()` もここで入れる（§6.12）
+  - Enum の `PrivateSeal` もここで入れる（§6.12）
   - `implSeal` の書き方の案
     - 文字列: `implSeal(fn)` と `implSeal("Circle", fn)`。修飾が無いものが型そのもの、と読める
     - 修飾子: `implSeal.Circle(fn)`、`implCreate.Circle.noseal(fn)`。`implCreate.noseal` と揃い、補完に
-      Variant が並ぶ。払うもの: Variant 名 `private` / `noseal` を `Fault` で禁じる、`implSeal` を Proxy
+      Variant が並ぶ。払うもの: Variant 名 `noseal` を `Fault` で禁じる、`implSeal` を Proxy
       にする、lint が `.implSeal.X(f)` を読む
     - レコード: `implSeal({ Circle: fn })`。全体を指すものが名前に出ないので弱い
   - §15.2「却下: enum に seal を 1 本書く」の理由のうち、「書く量が変わらない」「`match` で TS7022」は
     弱い（`switch (p._tag)` で書ける）。残るのは戻り型が Variant ごとに分かれないこと
-- [ ] **valof-lint の誤検出 2 つ、§6.12 から。valof-lint を valof で書き直した後に直す。**
-  - `detached-impl` が、`fixed` / `private` という名前のメンバを別ファイルから呼ぶと「鎖の外で書いた段」と
-    報告する。`STEPS` がメンバの呼び出しと段を区別しない
-  - `.private<"seal">()` の型の `Val.of` に、`bypassed-companion` が型から消えた `X.seal` を名指しする。
-    lint は `private` を読まない
+- [ ] **valof-lint の誤検出、§6.12 から。valof-lint を valof で書き直した後に直す。**`detached-impl` が、
+      `fixed` という名前のメンバを別ファイルから呼ぶと「鎖の外で書いた段」と報告する。`STEPS` がメンバの
+      呼び出しと段を区別しない。`fixed` を型引数（`Unpatchable<K>`）に移せば段ごと消える
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [x] ~~valof-lint が `Trait` を知らない。~~ Trait の宣言、companion、`implTrait`、`dyn` を構文から追跡する。
       足すのは 2 種類

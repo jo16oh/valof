@@ -169,34 +169,11 @@ User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // type error
 ```
 
-Write the steps in this order: `.fixed` and `.private`, then `.implSeal`, then `.implCreate`.
+Write the steps in this order: `.fixed`, then `.implSeal`, then `.implCreate`.
 
 The keys are a type argument, so they do not exist at runtime. This constrains `patch`, not the
 value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an
 id must be unforgeable, it belongs outside the value.
-
-## Hide `seal` or `create`
-
-`.private` removes `seal`, `create` or both from the companion. Hide `seal` where every value must
-come from `create`, so no caller supplies an id of their own:
-
-```ts
-// @errors: 2339
-import { Val, type SeedOf } from "valof";
-
-declare function normalize(user: SeedOf<User>): SeedOf<User>;
-declare const fields: Omit<SeedOf<User>, "id">;
-// ---cut---
-type User = Val<"User", { id: string; name: string }>;
-
-const User = Val.companion<User>()
-  .private<"seal">()
-  .implSeal((user, seal) => seal(normalize(user)))
-  .implCreate((fields: Omit<SeedOf<User>, "id">) => ({ id: crypto.randomUUID(), ...fields }));
-
-User.create(fields); // User
-User.seal({ id: "forged", name: "bob" }); // type error
-```
 
 ## Parse, don't validate
 
