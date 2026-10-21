@@ -3,8 +3,10 @@ import { equals, Val, type PayloadOf, type Rec } from "../src/index.ts";
 import {
   Enum,
   Trait,
+  type AnyEnum,
   type Dyn,
   type Final,
+  type NameOf,
   type SeedFor,
   type SealedPayload,
   type Self,
@@ -652,13 +654,18 @@ describe("a broken declaration", () => {
   });
 
   test("a variant's payload must be a record of fields", () => {
+    // `@ts-expect-error` alone would stay green, since `AnyEnum` rejects any fault. Intersecting
+    // with it reads the fault back out of the name.
+    const fault = { __valError: "a variant's payload must be a record of fields" } as const;
     type Primitive = Enum<"Primitive", { One: number; Two: { n: number } }>;
     // @ts-expect-error a variant's payload must be a record of fields
     Enum.sealer<Primitive>();
+    expectTypeOf<NameOf<Primitive & AnyEnum>>().toEqualTypeOf<typeof fault & string>();
 
     type Listed = Enum<"Listed", { Many: readonly string[]; Other: { n: number } }>;
     // @ts-expect-error same, for an array
     Enum.sealer<Listed>();
+    expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<typeof fault & string>();
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {
@@ -766,6 +773,15 @@ describe("a seal of its own", () => {
     Enum.companion<Money>().implVariant("Cash", (variant) =>
       // @ts-expect-error the same for a variant's seal
       variant.implSeal(async (p, seal) => seal(p)),
+    );
+  });
+
+  test("a seal whose parameter also accepts a string is rejected", () => {
+    // @ts-expect-error a seal takes the payload, not a wire format
+    Enum.companion<Money>().implSeal((p: unknown, seal) => seal(p as never));
+    Enum.companion<Money>().implVariant("Cash", (variant) =>
+      // @ts-expect-error the same for a variant's seal
+      variant.implSeal((p: unknown, seal) => seal(p as never)),
     );
   });
 
@@ -915,6 +931,12 @@ describe("data-first and data-last", () => {
     expect(side).toBe(3);
     // @ts-expect-error Property 'Square' is missing
     Shape.match({ Circle: (c) => c.r });
+    Shape.match({
+      Circle: (c) => c.r,
+      Square: (s) => s.side,
+      // @ts-expect-error this enum has no such variant
+      Triangle: () => 0,
+    });
     const size = Shape.match({ Circle: (c) => c.r, _: (rest) => `${rest.side}` });
     expectTypeOf(size).toEqualTypeOf<(value: Shape) => number | string>();
     expect([size(circle), size(square)]).toEqual([2, "3"]);
@@ -924,6 +946,12 @@ describe("data-first and data-last", () => {
     const sides = Shape[Tag].match({ Circle: () => 0, Square: () => 4 });
     expectTypeOf(sides).toEqualTypeOf<(tag: "Circle" | "Square") => number>();
     expect(sides("Square")).toBe(4);
+    Shape[Tag].match({
+      Circle: () => 0,
+      Square: () => 4,
+      // @ts-expect-error the enum has no such variant
+      Triangle: () => 3,
+    });
     const round = Shape[Tag].match({ Circle: () => 0, _: () => "no" });
     expectTypeOf(round).toEqualTypeOf<(tag: "Circle" | "Square") => number | string>();
     expect(round("Square")).toBe("no");
