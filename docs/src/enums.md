@@ -73,6 +73,23 @@ Each handler takes its own variant, narrowed, with no annotation. Every variant 
 adding one to the declaration fails here rather than falling through at run time. No `break`, no
 `assertNever`, and no lint rule to enable. The return type is the handlers' union.
 
+`_` handles the variants that have no handler of their own, with its argument narrowed to them:
+
+```ts
+import { Enum } from "valof/experimental";
+
+type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
+const Shape = Enum.sealer<Shape>();
+declare const shape: Shape;
+// ---cut---
+const size = Shape.match(shape, {
+  Circle: (c) => c.r,
+  _: (rest) => rest.side,
+});
+```
+
+`_` then handles a variant added to the declaration, with no type error.
+
 `match` sits on the companion because the tag's name is customizable, and a free function would have
 to hard-code it.
 
@@ -114,8 +131,8 @@ const command = Command[Tag].match(input.tag, {
 ```
 
 Every tag the argument's type allows needs a handler, so adding a variant to the declaration fails
-here too, as it does for `match`. A handler takes no argument and calls its variant's constructor,
-so each payload is checked against its own variant.
+here too, as it does for `match`. `_` handles the remaining tags here too. A handler takes no
+argument and calls its variant's constructor, so each payload is checked against its own variant.
 
 ## Common shape for every variant
 
