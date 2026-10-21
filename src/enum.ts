@@ -286,11 +286,11 @@ type EnumArms<E extends AnyEnum, K extends PropertyKey> = Arms<
   "this enum has no such variant"
 >;
 
-type TagArms<T extends PropertyKey, K extends PropertyKey> = Arms<
+type TagArms<T extends PropertyKey, K extends PropertyKey, Stray> = Arms<
   { [N in T]: () => unknown },
   K,
   () => unknown,
-  "the tag never takes this value"
+  Stray
 >;
 
 /** What a registered seal hands back. The library never inspects it. */
@@ -548,11 +548,11 @@ type ByTag<E extends AnyEnum> = {
   readonly match: {
     // The data-last form takes every tag, since the tag arrives after the handlers.
     <K extends PropertyKey, H>(
-      handlers: TagArms<keyof VariantsOf<E>, K> & H,
+      handlers: TagArms<keyof VariantsOf<E>, K, "the enum has no such variant"> & H,
     ): (tag: keyof VariantsOf<E>) => Returned<H[keyof H]>;
     <T extends keyof VariantsOf<E>, K extends PropertyKey, H>(
       tag: T,
-      handlers: TagArms<T, K> & H,
+      handlers: TagArms<T, K, "the tag never takes this value"> & H,
     ): Returned<H[keyof H]>;
   };
   /**
