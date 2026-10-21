@@ -1,7 +1,7 @@
 // What `Enum` costs: the union derived from the declaration, `match`'s narrowing and its
-// exhaustiveness, `match` on a tag alone, a variant's own members, a seal on the enum and one on a
-// variant, a trait implemented over the union, and a variant nested in a Val, where the patch
-// boundary runs.
+// exhaustiveness, `_` taking the rest, `match` on a tag alone, a variant's own members, a seal on
+// the enum and one on a variant, a trait implemented over the union, and a variant nested in a Val,
+// where the patch boundary runs.
 import { Val, type Patch, type SeedOf } from "valof";
 import { Enum, Tag, Trait, type Dyn, type Self, type VariantOf } from "valof/experimental";
 
@@ -66,6 +66,7 @@ export const read = [
     Rect: (r) => r.w,
     Poly: (p) => p.at.length,
   }),
+  Shape.match(shape, { Circle: (c) => c.r, _: (rest) => rest._tag }),
 ];
 
 export const derived = [

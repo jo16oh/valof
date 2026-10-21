@@ -100,7 +100,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
   | {
       [N in VariantKeys<D>]: N extends "then"
         ? "a variant named `then` would make the companion a thenable"
-        : N extends "match" | "seal" | keyof Steps | `__valof_${string}`
+        : N extends "match" | "seal" | "_" | keyof Steps | `__valof_${string}`
           ? "a variant cannot take a name the library reserves"
           : [D[N]] extends [object]
             ? [D[N]] extends [ReadonlyArray<unknown>]
@@ -251,17 +251,47 @@ export type SealedPayload<E extends AnyEnum> = {
   [N in keyof VariantsOf<E>]: Tagged<E, N>;
 }[keyof VariantsOf<E>];
 
-/** One handler per variant, its argument narrowed. Every key is required, hence exhaustive. */
-type Handlers<E extends AnyEnum, R> = { [N in keyof VariantsOf<E>]: (value: VariantOf<E, N>) => R };
+/** One handler per variant, its argument narrowed. */
+type Handlers<E extends AnyEnum> = {
+  [N in keyof VariantsOf<E>]: (value: VariantOf<E, N>) => unknown;
+};
 
 /**
- * Rejects a key that names no variant. The excess property check cannot: `H` is inferred from the
- * literal, so the literal's type is `H` itself. The check is placed on the parameter instead (notes
- * §11.1).
+ * What `match` accepts. `F` holds a handler per tag. Without `_`, the literal needs every one of
+ * them. With `_`, it needs only `_`, which takes `Rest` and is rejected once no tag is left. A key
+ * `F` does not hold gets `Stray`.
+ *
+ * The excess property check cannot reject a stray key: the parameter intersects `H`, which is
+ * inferred from the literal, so the check is placed on the parameter instead (notes §11.1).
  */
-type Only<E extends AnyEnum, H> = H & {
-  [N in keyof H]: N extends keyof VariantsOf<E> ? unknown : "this enum has no such variant";
-};
+// Only the key set `K` is inferred. Inferring the whole literal as `H` leaves `_`'s argument at
+// `never`. A union of the two forms in place of the conditional reports a forgotten variant as
+// "Property '_' is missing".
+type Arms<F, K extends PropertyKey, Rest, Stray> = "_" extends K
+  ? {
+      [N in K]: N extends keyof F
+        ? F[N]
+        : N extends "_"
+          ? [Exclude<keyof F, K>] extends [never]
+            ? "every variant has a handler, so `_` never runs"
+            : Rest
+          : Stray;
+    }
+  : { [N in K | keyof F]: N extends keyof F ? F[N] : Stray };
+
+type EnumArms<E extends AnyEnum, K extends PropertyKey> = Arms<
+  Handlers<E>,
+  K,
+  (rest: Exclude<E, Record<TagOf<E>, K>>) => unknown,
+  "this enum has no such variant"
+>;
+
+type TagArms<T extends PropertyKey, K extends PropertyKey, Stray> = Arms<
+  { [N in T]: () => unknown },
+  K,
+  () => unknown,
+  Stray
+>;
 
 /** What a registered seal hands back. The library never inspects it. */
 type Returned<F> = F extends (...args: never[]) => infer R ? R : never;
@@ -421,8 +451,8 @@ type UnionMembers<E extends AnyEnum> = CompanionMembers<E> &
 
 /** Dispatches on the tag. See {@link EnumCompanion.match}. */
 type Match<E extends AnyEnum> = {
-  <H extends Handlers<E, unknown>>(handlers: Only<E, H>): (value: E) => ReturnType<H[keyof H]>;
-  <H extends Handlers<E, unknown>>(value: E, handlers: Only<E, H>): ReturnType<H[keyof H]>;
+  <K extends PropertyKey, H>(handlers: EnumArms<E, K> & H): (value: E) => Returned<H[keyof H]>;
+  <K extends PropertyKey, H>(value: E, handlers: EnumArms<E, K> & H): Returned<H[keyof H]>;
 };
 
 /** Every field some variant declares. */
@@ -448,8 +478,8 @@ type Yields<X> = X extends { create: (...args: never[]) => infer R } ? R : never
 type ByTag<E extends AnyEnum> = {
   /**
    * Dispatches on a tag that arrives without its payload. Every tag the argument's type allows needs
-   * a handler. A handler takes no argument and calls its variant's constructor, which checks the
-   * payload literal for fields the variant does not hold.
+   * a handler, or `_` covers the rest. A handler takes no argument and calls its variant's
+   * constructor, which checks the payload literal for fields the variant does not hold.
    *
    * ```ts
    * Command[Tag].match(input.tag, {
@@ -460,16 +490,14 @@ type ByTag<E extends AnyEnum> = {
    * ```
    */
   readonly match: {
-    // The data-last form needs a handler for every tag, since the tag arrives after the handlers.
-    <H extends { [N in keyof VariantsOf<E>]: () => unknown }>(
-      handlers: H & {
-        [N in keyof H]: N extends keyof VariantsOf<E> ? unknown : "the enum has no such variant";
-      },
-    ): (tag: keyof VariantsOf<E>) => ReturnType<H[keyof H]>;
-    <T extends keyof VariantsOf<E>, H extends { [N in T]: () => unknown }>(
+    // The data-last form takes every tag, since the tag arrives after the handlers.
+    <K extends PropertyKey, H>(
+      handlers: TagArms<keyof VariantsOf<E>, K, "the enum has no such variant"> & H,
+    ): (tag: keyof VariantsOf<E>) => Returned<H[keyof H]>;
+    <T extends keyof VariantsOf<E>, K extends PropertyKey, H>(
       tag: T,
-      handlers: H & { [N in keyof H]: N extends T ? unknown : "the tag never takes this value" },
-    ): ReturnType<H[keyof H]>;
+      handlers: TagArms<T, K, "the tag never takes this value"> & H,
+    ): Returned<H[keyof H]>;
   };
   /**
    * The name of the tag field, for a schema library that asks for the discriminator:
@@ -499,7 +527,9 @@ export type EnumCompanion<
   Duals<Omit<M, Wired | "match" | keyof VariantsOf<E>>, E> & {
     /**
      * Dispatches on the tag. Every variant needs a handler, so adding one to the declaration
-     * fails here rather than falling through at run time.
+     * fails here rather than falling through at run time. `_` handles the variants that have no
+     * handler of their own, narrowed to them, and is a type error beside a handler for every
+     * variant.
      *
      * The return type is the handlers' union: taking it as a type argument of its own would fix
      * it to the first handler and reject the rest. For a guard rather than a tag, use ts-pattern.
@@ -609,7 +639,10 @@ type Companion = {
 
 type Builds = Record<string, (b: object) => object>;
 
-const matchTag = dual((tag: string, handlers: Record<string, () => unknown>) => handlers[tag]!());
+// No variant is named `_`: the declaration rejects it.
+const matchTag = dual((tag: string, handlers: Record<string, () => unknown>) =>
+  (handlers[tag] ?? handlers._)!(),
+);
 
 /**
  * One builder state. The companion is a proxy: it does not know the variant names, so anything it
@@ -689,7 +722,7 @@ const state = (
         if (key === "match") {
           return dual(
             (value: Record<string, unknown>, handlers: Record<string, (v: unknown) => unknown>) =>
-              handlers[value[tag] as string]!(value),
+              (handlers[value[tag] as string] ?? handlers._)!(value),
           );
         }
         if (key === "seal") {

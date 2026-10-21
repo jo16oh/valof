@@ -3,8 +3,10 @@ import { equals, Val, type PayloadOf, type Rec } from "../src/index.ts";
 import {
   Enum,
   Trait,
+  type AnyEnum,
   type Dyn,
   type Final,
+  type NameOf,
   type SeedFor,
   type SealedPayload,
   type Self,
@@ -105,6 +107,34 @@ describe("match", () => {
       // @ts-expect-error this enum has no such variant
       Triangle: () => 0,
     });
+    Shape.match(circle, {
+      Circle: (c) => c.r,
+      _: () => 0,
+      // @ts-expect-error this enum has no such variant
+      Triangle: () => 0,
+    });
+  });
+
+  test("`_` takes the variants no other handler names, narrowed to them", () => {
+    const read = (s: Shape) =>
+      Shape.match(s, {
+        Circle: (c) => c.r,
+        _: (rest) => {
+          expectTypeOf(rest).toEqualTypeOf<VariantOf<Shape, "Square">>();
+          return `${rest.side}`;
+        },
+      });
+    expectTypeOf(read).returns.toEqualTypeOf<number | string>();
+    expect([read(circle), read(square)]).toEqual([2, "3"]);
+  });
+
+  test("`_` beside a handler for every variant is a type error", () => {
+    Shape.match(circle, {
+      Circle: (c) => c.r,
+      Square: (s) => s.side,
+      // @ts-expect-error every variant has a handler, so `_` never runs
+      _: () => 0,
+    });
   });
 });
 
@@ -134,6 +164,21 @@ describe("match on a tag alone", () => {
   test("a tag the enum does not declare is rejected", () => {
     // @ts-expect-error not assignable to '"Circle" | "Square"'
     Shape[Tag].match("Triangle", { Triangle: () => 0 });
+  });
+
+  test("`_` runs for the tags no other handler names", () => {
+    const build = (name: string) =>
+      Shape[Tag].match(pick(name), { Circle: () => 0, _: () => "other" });
+    expectTypeOf(build).returns.toEqualTypeOf<number | string>();
+    expect([build("round"), build("box")]).toEqual([0, "other"]);
+  });
+
+  test("`_` is a type error once every tag the argument can hold has a handler", () => {
+    Shape[Tag].match("Circle", {
+      Circle: () => 0,
+      // @ts-expect-error every variant has a handler, so `_` never runs
+      _: () => 0,
+    });
   });
 });
 
@@ -538,6 +583,12 @@ describe("a broken declaration", () => {
     Enum.companion<Sneaky>();
   });
 
+  test("nor `_`, which `match` takes for the rest", () => {
+    type Wild = Enum<"Wild", { _: { n: number }; Other: { n: number } }>;
+    // @ts-expect-error a variant cannot take a name the library reserves
+    Enum.companion<Wild>();
+  });
+
   test("but may take another word starting with `impl`", () => {
     type Grant = Enum<"Grant", { implicit: { scope: string }; password: { user: string } }>;
     const Grant = Enum.companion<Grant>();
@@ -570,13 +621,18 @@ describe("a broken declaration", () => {
   });
 
   test("a variant's payload must be a record of fields", () => {
+    // `@ts-expect-error` alone would stay green, since `AnyEnum` rejects any fault. Intersecting
+    // with it reads the fault back out of the name.
+    const fault = { __valError: "a variant's payload must be a record of fields" } as const;
     type Primitive = Enum<"Primitive", { One: number; Two: { n: number } }>;
     // @ts-expect-error a variant's payload must be a record of fields
     Enum.companion<Primitive>();
+    expectTypeOf<NameOf<Primitive & AnyEnum>>().toEqualTypeOf<typeof fault & string>();
 
     type Listed = Enum<"Listed", { Many: readonly string[]; Other: { n: number } }>;
     // @ts-expect-error same, for an array
     Enum.companion<Listed>();
+    expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<typeof fault & string>();
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {
@@ -696,6 +752,15 @@ describe("a seal of its own", () => {
     );
   });
 
+  test("a seal whose parameter also accepts a string is rejected", () => {
+    // @ts-expect-error a seal takes the payload, not a wire format
+    Enum.companion<Money>().implSeal((p: unknown, seal) => seal(p as never));
+    Enum.companion<Money>().implVariant("Cash", (variant) =>
+      // @ts-expect-error the same for a variant's seal
+      variant.implSeal((p: unknown, seal) => seal(p as never)),
+    );
+  });
+
   test("a variant seals alone where the enum wrote none", () => {
     const Plain = Enum.companion<Shape>().implVariant("Circle", (variant) =>
       variant.implSeal((p, seal) => (p.r > 0 ? seal(p) : new RangeError("r must be positive"))),
@@ -810,12 +875,30 @@ describe("data-first and data-last", () => {
     expect(side).toBe(3);
     // @ts-expect-error Property 'Square' is missing
     Shape.match({ Circle: (c) => c.r });
+    Shape.match({
+      Circle: (c) => c.r,
+      Square: (s) => s.side,
+      // @ts-expect-error this enum has no such variant
+      Triangle: () => 0,
+    });
+    const size = Shape.match({ Circle: (c) => c.r, _: (rest) => `${rest.side}` });
+    expectTypeOf(size).toEqualTypeOf<(value: Shape) => number | string>();
+    expect([size(circle), size(square)]).toEqual([2, "3"]);
   });
 
   test("so does `[Tag].match`", () => {
     const sides = Shape[Tag].match({ Circle: () => 0, Square: () => 4 });
     expectTypeOf(sides).toEqualTypeOf<(tag: "Circle" | "Square") => number>();
     expect(sides("Square")).toBe(4);
+    Shape[Tag].match({
+      Circle: () => 0,
+      Square: () => 4,
+      // @ts-expect-error the enum has no such variant
+      Triangle: () => 3,
+    });
+    const round = Shape[Tag].match({ Circle: () => 0, _: () => "no" });
+    expectTypeOf(round).toEqualTypeOf<(tag: "Circle" | "Square") => number | string>();
+    expect(round("Square")).toBe("no");
   });
 
   test("a member whose arguments can be left out is rejected", () => {
