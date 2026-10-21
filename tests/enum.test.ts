@@ -882,15 +882,18 @@ describe("data-first and data-last", () => {
     expect(side).toBe(3);
     // @ts-expect-error Property 'Square' is missing
     Shape.match({ Circle: (c) => c.r });
+    Shape.match({
+      Circle: (c) => c.r,
+      Square: (s) => s.side,
+      // @ts-expect-error this enum has no such variant
+      Triangle: () => 0,
+    });
   });
 
   test("so does `[Tag].match`", () => {
     const sides = Shape[Tag].match({ Circle: () => 0, Square: () => 4 });
     expectTypeOf(sides).toEqualTypeOf<(tag: "Circle" | "Square") => number>();
     expect(sides("Square")).toBe(4);
-  });
-
-  test("`[Tag].match` with the handlers alone rejects a handler for no variant", () => {
     Shape[Tag].match({
       Circle: () => 0,
       Square: () => 4,
