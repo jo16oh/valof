@@ -29,8 +29,8 @@ It enforces the conventions through types and linting.
 - **Values as plain data**: Vals stay objects, arrays and primitives. They serialize without
   adapters and fit directly into React and other framework state. No classes, no prototypes.
 
-- **Immutability**: Vals are immutable. Their types are deeply readonly, and `seal` copies its
-  input, so an original reference cannot mutate them.
+- **Immutability**: Vals are immutable. Their types are deeply readonly, and their constructors copy
+  their inputs, so an original reference cannot mutate them.
 
 - **No `as` casts in your code**: Valof owns the cast required to construct a branded value.
 
@@ -62,13 +62,13 @@ Read the [documentation](docs/src/introduction.md) for more details.
 import { equals, Val } from "valof";
 
 type UserId = Val<"UserId", string>;
-const UserId = Val.companion<UserId>();
+const UserId = Val.sealer<UserId>();
 
 type PostId = Val<"PostId", string>;
-const PostId = Val.companion<PostId>();
+const PostId = Val.sealer<PostId>();
 
-const userId = UserId.seal("xxx-xxx-xxx");
-const postId = PostId.seal("xxx-xxx-xxx");
+const userId = UserId("xxx-xxx-xxx");
+const postId = PostId("xxx-xxx-xxx");
 
 // @ts-expect-error brands distinguish UserId from PostId
 let _: UserId = postId;
@@ -78,22 +78,22 @@ userId === postId; // true
 typeof userId === "string"; // true
 
 type Post = Val<"Post", { id: PostId; content: string }>;
-const Post = Val.companion<Post>();
+const Post = Val.sealer<Post>();
 type User = Val<"User", { id: UserId; name: string; posts: Post[] }>;
-const User = Val.companion<User>();
+const User = Val.sealer<User>();
 
-const user = User.seal({
-  id: UserId.seal("xxx-xxx-xxx"),
+const user = User({
+  id: UserId("xxx-xxx-xxx"),
   name: "joe",
-  posts: [Post.seal({ id: PostId.seal("1"), content: "Hello, World!" })],
+  posts: [Post({ id: PostId("1"), content: "Hello, World!" })],
 });
 
 // @ts-expect-error Vals are deeply readonly
-user.posts.push(Post.seal({ id: PostId.seal("2"), content: "Immutability matters." }));
+user.posts.push(Post({ id: PostId("2"), content: "Immutability matters." }));
 
 // `equals` compares Vals structurally
-const p1 = Post.seal({ id: PostId.seal("a"), content: "a" });
-const p2 = Post.seal({ id: PostId.seal("a"), content: "a" });
+const p1 = Post({ id: PostId("a"), content: "a" });
+const p2 = Post({ id: PostId("a"), content: "a" });
 p1 === p2; // false
 equals(p1, p2); // true
 ```
@@ -110,15 +110,15 @@ const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
 const hasText = (s: string) => s.length > 0;
 
 const Note = Val.companion<Note>()
-  // fixed excludes the generated id from patch.
-  .fixed<"id">()
+  // create generates the id once. Derivations do not run it again.
+  .implCreate((text: string) => ({ id: crypto.randomUUID(), text }))
   // seal validates and normalizes every payload.
   .implSeal((note, seal): Result<Note> => {
     const text = normalize(note.text);
     return hasText(text) ? { ok: seal({ ...note, text }) } : { err: "empty note" };
   })
-  // create generates the id once. Derivations do not run it again.
-  .implCreate((text: string) => ({ id: crypto.randomUUID(), text }))
+  // fixed excludes the generated id from patch.
+  .fixed<"id">()
   // impl collects behavior. It infers each member's first parameter as Note.
   .impl({
     append(note, text: string): Result<Note> {
@@ -126,8 +126,10 @@ const Note = Val.companion<Note>()
     },
   });
 
-// seal is the way in, with or without a custom seal.
+// A companion exposes its smart constructor as seal.
 Note.seal({ id: "note-1", text: " Hello " }); // { ok: { id: "note-1", text: "Hello" } }
+// @ts-expect-error a companion is not callable
+Note({ id: "note-1", text: "Hello" });
 
 const result = Note.create(" Hello ");
 if ("ok" in result) Note.append(result.ok, "World"); // { ok: { id: "...", text: "Hello World" } }
@@ -141,7 +143,8 @@ import { pipe } from "remeda";
 
 type Point = Val<"Point", { x: number; y: number }>;
 
-const Point = Val.companion<Point>().impl({
+// A sealer remains callable after impl adds behavior.
+const Point = Val.sealer<Point>().impl({
   move(point, dx: number, dy: number): Point {
     return Point.patch(point, {
       x: point.x + dx,
@@ -151,11 +154,11 @@ const Point = Val.companion<Point>().impl({
 });
 
 type Rectangle = Val<"Rectangle", { position: Point; size: Point; label?: string }>;
-const Rectangle = Val.companion<Rectangle>();
+const Rectangle = Val.sealer<Rectangle>();
 
-const rectangle = Rectangle.seal({
-  position: Point.seal({ x: 1, y: 2 }),
-  size: Point.seal({ x: 10, y: 20 }),
+const rectangle = Rectangle({
+  position: Point({ x: 1, y: 2 }),
+  size: Point({ x: 10, y: 20 }),
   label: "draft",
 });
 
