@@ -23,9 +23,9 @@ const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
 );
 ```
 
-`.implSeal` receives the input and the default seal, and replaces the companion's `seal`. Return
-through the default seal to brand and copy the payload. Callers keep writing `Age.seal`. Only the
-return type changes:
+`.implSeal` replaces the companion's `seal`. Return through the default seal, passed as its second
+argument, to brand and copy the payload. Callers keep writing `Age.seal`. Only the return type
+changes:
 
 ```ts
 import { Val } from "valof";
