@@ -2,7 +2,7 @@ import { Val } from "valof";
 
 import type { User } from "./type.ts";
 
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   greet: (u) => u.name,
 });
 

@@ -23,11 +23,11 @@ export const DetachedImpl: Rule<DetachedImpl> = {
  * Reports `impl`, `implSeal`, `implVariant`, `implTrait`, `implCreate` and `fixed` written on a
  * companion instead of in its own chain.
  *
- * `.impl` leaves the chain open so the members can arrive in more than one call, which also lets
- * a consumer of the module grow a companion of its own from the one it imported. Nothing about
- * the value it makes is wrong; what it breaks is that a companion is declared once. Blocking the
- * step in the type was rejected (notes §15.4), so this rule is what keeps that an invariant, and
- * with it the way unused-member and companion-mismatch count.
+ * `.impl` does not close the chain, so `implTrait` can follow it, which also lets a consumer of
+ * the module grow a companion of its own from the one it imported. Nothing about the value it
+ * makes is wrong; what it breaks is that a companion is declared once. Blocking the step in the
+ * type was rejected (notes §15.4), so this rule is what keeps that an invariant, and with it the
+ * way unused-member and companion-mismatch count.
  *
  * Only a step whose base resolves to a companion in the scanned files is reported. An `.impl` on
  * anything else, a method of the user's own by that name, resolves to no declaration and is left

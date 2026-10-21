@@ -76,8 +76,8 @@ describe("what the rule finds", () => {
 
   test("keeps both declarations when two modules name a companion alike", async () => {
     expect(await lint("same-name")).toEqual([
-      { rule: UnusedMember, at: "same-name/billing.ts:1:40" },
-      { rule: UnusedMember, at: "same-name/orders.ts:1:40" },
+      { rule: UnusedMember, at: "same-name/billing.ts:1:43" },
+      { rule: UnusedMember, at: "same-name/orders.ts:1:43" },
     ]);
   });
 
@@ -85,7 +85,7 @@ describe("what the rule finds", () => {
     expect(await lint("no-cross-file-credit")).toEqual([
       {
         rule: UnusedMember,
-        at: "no-cross-file-credit/declaration.ts:1:40",
+        at: "no-cross-file-credit/declaration.ts:1:43",
       },
     ]);
   });
@@ -112,7 +112,7 @@ describe("what the rule finds", () => {
 describe("what name resolution cannot reach", () => {
   test("reports a member that is only ever read through a computed key", async () => {
     expect(await lint("computed-key")).toEqual([
-      { rule: UnusedMember, at: "computed-key.ts:1:47" },
+      { rule: UnusedMember, at: "computed-key.ts:1:50" },
     ]);
   });
 

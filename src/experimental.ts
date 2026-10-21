@@ -10,8 +10,6 @@ export type {
   AnyEnum,
   EnumBuilder,
   EnumCompanion,
-  EnumSealed,
-  EnumSealer,
   NameOf,
   SealedPayload,
   SeedFor,

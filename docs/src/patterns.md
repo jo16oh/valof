@@ -13,13 +13,13 @@ declare function useEffect(effect: () => void, deps: readonly unknown[]): void;
 
 type City = Val<"City", { name: string }>;
 type Shop = Val<"Shop", { owner: { email: string }; city: City }>;
-const Shop = Val.sealer<Shop>();
+const Shop = Val.companion<Shop>();
 
 declare const owner: { email: string };
 declare const city: City;
 declare const showMap: (city: City) => void;
 // ---cut---
-const [shop, setShop] = useState(Shop({ owner, city }));
+const [shop, setShop] = useState(Shop.seal({ owner, city }));
 setShop(Shop.patch(shop, { owner: { email: "e@example.com" } }));
 
 useEffect(() => showMap(shop.city), [shop.city]); // the patch did not touch `city`: no re-run
@@ -59,22 +59,22 @@ type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test.
 [`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
 
-`patch` sets one entry at a time, and `undefined` removes it. Call the constructor to rebuild the
-whole table.
+`patch` sets one entry at a time, and `undefined` removes it. Call `seal` to rebuild the whole
+table.
 
 ```ts
 import { Val } from "valof";
 
 type Money = Val<"Money", { amount: number; currency: string }>;
-const Money = Val.sealer<Money>();
+const Money = Val.companion<Money>();
 type PriceTable = Val<"PriceTable", Record<string, Money>>;
-const PriceTable = Val.sealer<PriceTable>();
+const PriceTable = Val.companion<PriceTable>();
 
 declare const table: PriceTable;
 // ---cut---
-PriceTable.patch(table, { apple: Money({ amount: 120, currency: "JPY" }), fig: undefined });
+PriceTable.patch(table, { apple: Money.seal({ amount: 120, currency: "JPY" }), fig: undefined });
 
-PriceTable(
+PriceTable.seal(
   // the value type is named because a Val carries its phantom keys in the type as well
   Object.fromEntries(Object.entries<Money>(table).filter(([, m]) => m.amount < 500)),
 );
@@ -91,7 +91,7 @@ declare const Temporal: {
 // ---cut---
 export type UnixEpochMs = Val<"UnixEpochMs", number>;
 
-export const UnixEpochMs = Val.sealer<UnixEpochMs>().impl({
+export const UnixEpochMs = Val.companion<UnixEpochMs>().impl({
   showLocal(d) {
     return Temporal.Instant.fromEpochMilliseconds(d).toLocaleString();
   },

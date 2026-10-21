@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
-import type { Enum, EnumBuilder, EnumCompanion, EnumSealed, EnumSealer } from "../../enum.ts";
+import type { Enum, EnumBuilder, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitBuilder, TraitCompanion } from "../../trait.ts";
-import type { AnyVal, Companion, CompanionBuilder, Reserved, Sealed, Sealer } from "../../val.ts";
+import type { AnyVal, Companion, CompanionBuilder, Reserved } from "../../val.ts";
 
 import {
   child,
@@ -204,7 +204,6 @@ const RESERVED = reserved([
   "seal",
   "create",
   "then",
-  "nocopy",
   "impl",
   "implSeal",
   "implCreate",
@@ -699,9 +698,7 @@ function variantImpl(
 /** What a builder has and the companion it ends in does not. A variant's frame adds none. */
 type Step =
   | Exclude<keyof CompanionBuilder<AnyVal>, keyof Companion<AnyVal, Record<never, never>>>
-  | Exclude<keyof Sealer<AnyVal>, keyof Sealed<AnyVal, Record<never, never>>>
   | Exclude<keyof EnumBuilder<Sample>, keyof EnumCompanion<Sample>>
-  | Exclude<keyof EnumSealer<Sample>, keyof EnumSealed<Sample>>
   | Exclude<keyof TraitBuilder<AnyTrait>, keyof TraitCompanion<AnyTrait>>;
 
 /**

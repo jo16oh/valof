@@ -8,4 +8,4 @@ export type Shape = Enum<
   { Circle: { r: number }; Square: { side: number } },
   Labelled & { id: string }
 >;
-export const Shape = Enum.sealer<Shape>().implTrait(Labelled);
+export const Shape = Enum.companion<Shape>().implTrait(Labelled);

@@ -13,7 +13,7 @@ import { Val } from "valof";
 // ---cut---
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
 
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   displayName(user) {
     return user.nickname ?? user.name;
   },
@@ -24,18 +24,18 @@ const User = Val.sealer<User>().impl({
 });
 ```
 
-`Val.sealer<User>()` creates the constructor. `.impl({ ... })` adds functions under the `User`
-namespace, where they are the companion's members, in one call that ends the chain. Every member
-takes its Val first, so Valof infers that parameter as `User`. You only annotate the parameters that
-follow it, and the return type where a member references `User` itself.
+`Val.companion<User>()` creates the companion, whose `seal` constructs a `User`. `.impl({ ... })`
+adds functions under the `User` namespace, where they are the companion's members, in one call.
+Every member takes its Val first, so Valof infers that parameter as `User`. You only annotate the
+parameters that follow it, and the return type where a member references `User` itself.
 
-The result remains callable and exposes the members:
+The result exposes `seal` and the members:
 
 ```ts
 import { Val } from "valof";
 
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   displayName(user) {
     return user.nickname ?? user.name;
   },
@@ -44,7 +44,7 @@ const User = Val.sealer<User>().impl({
   },
 });
 // ---cut---
-const user = User({ id: "a", name: "bob" });
+const user = User.seal({ id: "a", name: "bob" });
 
 User.displayName(user);
 User.formatLabel(user, ": ");
@@ -60,7 +60,7 @@ import { Val } from "valof";
 
 declare function pipe<A, B, C>(a: A, ab: (a: A) => B, bc: (b: B) => C): C;
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   displayName(user) {
     return user.nickname ?? user.name;
   },
@@ -68,7 +68,7 @@ const User = Val.sealer<User>().impl({
     return user.id + separator + User.displayName(user);
   },
 });
-const user = User({ id: "a", name: "bob" });
+const user = User.seal({ id: "a", name: "bob" });
 // ---cut---
 User.formatLabel(user, ": "); // "a: bob"
 User.formatLabel(": ")(user); // "a: bob"
@@ -87,11 +87,11 @@ import { Val } from "valof";
 
 type User = Val<"User", { id: string; name: string }>;
 // ---cut---
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   greet: (user, greeting: string | undefined) => `${greeting ?? "Hi"}, ${user.name}`,
 });
 
-User.greet(User({ id: "a", name: "bob" }), undefined); // "Hi, bob"
+User.greet(User.seal({ id: "a", name: "bob" }), undefined); // "Hi, bob"
 ```
 
 Valof checks the parameters that a member's type shows, not the ones in its implementation. A type
@@ -104,9 +104,9 @@ import { Val } from "valof";
 type User = Val<"User", { id: string; name: string }>;
 // ---cut---
 const toWire: (user: User, sep: string) => string = (user, sep = "/") => user.id + sep + user.name;
-const User = Val.sealer<User>().impl({ toWire });
+const User = Val.companion<User>().impl({ toWire });
 
-User.toWire("-")(User({ id: "a", name: "bob" })); // throws: `User.toWire("-")` returned a string
+User.toWire("-")(User.seal({ id: "a", name: "bob" })); // throws: `User.toWire("-")` returned a string
 ```
 
 Do not use a default or a rest parameter in the implementation either.
@@ -121,10 +121,10 @@ import { Val } from "valof";
 declare function pipe<A, B>(a: A, ab: (a: A) => B): B;
 type User = Val<"User", { name: string; age: number }>;
 // ---cut---
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   pick: <K extends keyof User>(user: User, key: K) => user[key],
 });
-const user = User({ name: "bob", age: 30 });
+const user = User.seal({ name: "bob", age: 30 });
 
 pipe(user, User.pick("age")); // string | number
 pipe(user, (u) => User.pick(u, "age")); // number
@@ -138,12 +138,12 @@ Without Valof, changing a deeply readonly `shop` means rebuilding every object o
 import { Val } from "valof";
 
 type City = Val<"City", { name: string }>;
-const City = Val.sealer<City>();
+const City = Val.companion<City>();
 type Shop = Val<
   "Shop",
   { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
 >;
-const Shop = Val.sealer<Shop>();
+const Shop = Val.companion<Shop>();
 
 declare const shop: Shop;
 // ---cut---
@@ -165,12 +165,12 @@ An object-shaped Val gets `patch`. The same update lists only what changes:
 import { Val } from "valof";
 
 type City = Val<"City", { name: string }>;
-const City = Val.sealer<City>();
+const City = Val.companion<City>();
 type Shop = Val<
   "Shop",
   { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
 >;
-const Shop = Val.sealer<Shop>();
+const Shop = Val.companion<Shop>();
 
 declare const shop: Shop;
 // ---cut---
@@ -195,12 +195,12 @@ whole:
 import { Val } from "valof";
 
 type City = Val<"City", { name: string }>;
-const City = Val.sealer<City>();
+const City = Val.companion<City>();
 type Shop = Val<
   "Shop",
   { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
 >;
-const Shop = Val.sealer<Shop>();
+const Shop = Val.companion<Shop>();
 
 declare const shop: Shop;
 // ---cut---
@@ -215,12 +215,12 @@ Derive a nested Val with its own `patch`, so its own seal sees the change.
 import { Val } from "valof";
 
 type City = Val<"City", { name: string }>;
-const City = Val.sealer<City>();
+const City = Val.companion<City>();
 type Shop = Val<
   "Shop",
   { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
 >;
-const Shop = Val.sealer<Shop>();
+const Shop = Val.companion<Shop>();
 
 declare const shop: Shop;
 declare const changed: Shop;

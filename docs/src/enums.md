@@ -19,20 +19,20 @@ import { Enum } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
-const Shape = Enum.sealer<Shape>();
+const Shape = Enum.companion<Shape>();
 
-const circle = Shape.Circle({ r: 2 }); // { r: 2, _tag: "Circle" }
+const circle = Shape.Circle.create({ r: 2 }); // { r: 2, _tag: "Circle" }
 
 Shape.Circle.patch(circle, { r: 5 }); // { r: 5, _tag: "Circle" }, the tag stays
-equals(circle, Shape.Circle({ r: 2 })); // true
+equals(circle, Shape.Circle.create({ r: 2 })); // true
 ```
 
 The record is the whole declaration. The union is derived from it, and so is each variant's brand:
 `Shape.Circle` is branded `"Shape.Circle"`. Adding a variant is one line, in one place.
 
 Call a variant through the companion. `const { Circle } = Shape` works, and a reader of
-`Circle({ r: 2 })` then has to find which enum declared it. `const Round = Shape.Circle` gives it
-another name, which `companion-mismatch` reports.
+`Circle.create({ r: 2 })` then has to find which enum declared it. `const Round = Shape.Circle`
+gives it another name, which `companion-mismatch` reports.
 
 The constructor writes the tag. It does not take one, and it deep-copies its payload like any other
 constructor. For a payload that carries its tag, or a tag that arrives alone, see
@@ -60,7 +60,7 @@ one, which breaks the declarations of a package that exports the companion.
 import { Enum } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.sealer<Shape>();
+const Shape = Enum.companion<Shape>();
 declare const shape: Shape;
 // ---cut---
 const area = Shape.match(shape, {
@@ -79,7 +79,7 @@ adding one to the declaration fails here rather than falling through at run time
 import { Enum } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.sealer<Shape>();
+const Shape = Enum.companion<Shape>();
 declare const shape: Shape;
 // ---cut---
 const size = Shape.match(shape, {
@@ -100,14 +100,14 @@ as ts-pattern fits. `_tag` is real data, so `.with({ _tag: "Circle" }, …)` alr
 
 An enum value can be built from three kinds of input, and each has its own call:
 
-| When you have                                                 | Use                                                                       |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| a payload for a variant you already know                      | `Shape.Circle(payload)`, or `Shape.Circle.create(payload)` on a companion |
-| a payload carrying its tag, such as a schema library's output | `Shape(payload)`, or `Shape.seal(payload)` on a companion                 |
-| the tag alone, with the fields kept elsewhere                 | `Shape[Tag].match(tag, handlers)`                                         |
+| When you have                                                 | Use                               |
+| ------------------------------------------------------------- | --------------------------------- |
+| a payload for a variant you already know                      | `Shape.Circle.create(payload)`    |
+| a payload carrying its tag, such as a schema library's output | `Shape.seal(payload)`             |
+| the tag alone, with the fields kept elsewhere                 | `Shape[Tag].match(tag, handlers)` |
 
-`Shape(payload)` reads the tag, selects that variant, and accepts only its fields. Passing a field
-of another variant is a type error, even when the tag is a union.
+`Shape.seal(payload)` reads the tag, selects that variant, and accepts only its fields. Passing a
+field of another variant is a type error, even when the tag is a union.
 
 When the tag arrives alone, `[Tag].match` selects the handler from the tag. On a command line, the
 first argument is the subcommand, and how to read the rest depends on it:
@@ -119,14 +119,14 @@ type Command = Enum<
   "Command",
   { New: { name: string }; Rename: { from: string; to: string }; Check: Record<never, never> }
 >;
-const Command = Enum.sealer<Command>();
+const Command = Enum.companion<Command>();
 // The subcommand, already normalized to its tag, and the arguments after it.
 declare const input: { tag: "New" | "Rename" | "Check"; args: readonly string[] };
 
 const command = Command[Tag].match(input.tag, {
-  New: () => Command.New({ name: input.args[0] ?? "" }),
-  Rename: () => Command.Rename({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
-  Check: () => Command.Check({}),
+  New: () => Command.New.create({ name: input.args[0] ?? "" }),
+  Rename: () => Command.Rename.create({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
+  Check: () => Command.Check.create({}),
 });
 ```
 
@@ -143,9 +143,9 @@ The third argument is the shape: the fields every variant holds. It is the same 
 import { Enum } from "valof/experimental";
 // ---cut---
 type Task = Enum<"Task", { Todo: { text: string }; Done: { at: number } }, { id: string }>;
-const Task = Enum.sealer<Task>();
+const Task = Enum.companion<Task>();
 
-const todo = Task.Todo({ id: "t1", text: "write the docs" });
+const todo = Task.Todo.create({ id: "t1", text: "write the docs" });
 console.log(todo.id); // t1
 ```
 
@@ -164,8 +164,8 @@ import { Enum } from "valof/experimental";
 // ---cut---
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
-const Shape = Enum.sealer<Shape>()
-  .implVariant("Circle", (sealer) => sealer.impl({ diameter: (c) => c.r * 2 }))
+const Shape = Enum.companion<Shape>()
+  .implVariant("Circle", (variant) => variant.impl({ diameter: (c) => c.r * 2 }))
   .impl({
     // A member calling `match`, a variant, or a sibling annotates its return type, to avoid an
     // implicit `any`. A member written inside `.implVariant` reaches the enum's companion the
@@ -177,27 +177,21 @@ const Shape = Enum.sealer<Shape>()
       }),
   });
 
-Shape.Circle.diameter(Shape.Circle({ r: 2 })); // 4
+Shape.Circle.diameter(Shape.Circle.create({ r: 2 })); // 4
 ```
 
 A variant you write nothing for keeps the default companion, and a variant already built cannot be
 named again. The steps are already that variant's companion, so a callback with nothing to collect
-returns the argument: `.implVariant("Circle", (sealer) => sealer)`. What a step returns is closed.
+returns the argument: `.implVariant("Circle", (variant) => variant)`. What a step returns is closed.
 That variant takes no further step.
 
-No step chooses between a sealer and a companion. `Enum.sealer` makes every variant callable,
-`Enum.companion` builds every one with `.create`, so the entry point you choose for the enum applies
-to every variant.
-
-`.impl` takes one call, which closes every step, so nothing can add a second seal to a companion you
-export. Call it with nothing where there is no member to collect:
-`Enum.sealer<Shape>().implVariant(…).impl()`.
+`.impl` is written once. `.implVariant` and `.implTrait` can come before or after it.
 
 ## Check the payload
 
-`Enum.sealer` accepts every payload the type allows. When construction has rules of its own, start
-from `Enum.companion`, the same as [a Val](custom-constructors.md). Every variant then builds with
-`.create`, and the enum gains a `seal` of its own.
+Without `.implSeal`, `Shape.seal` and every variant's `create` accept every payload the type allows.
+When construction has rules of its own, register a seal, the same as
+[a Val](custom-constructors.md).
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -206,12 +200,11 @@ type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }, 
 
 const Shape = Enum.companion<Shape>()
   .implSeal((payload, seal) => (payload.id ? seal(payload) : new Error("id must not be empty")))
-  .implVariant("Circle", (companion) =>
-    companion.implSeal((payload, seal) =>
+  .implVariant("Circle", (variant) =>
+    variant.implSeal((payload, seal) =>
       payload.r > 0 ? seal(payload) : new Error("r must be positive"),
     ),
-  )
-  .impl();
+  );
 
 Shape.Circle.create({ id: "s1", r: 2 }); // VariantOf<Shape, "Circle"> | Error
 Shape.Square.create({ id: "s2", side: 1 }); // VariantOf<Shape, "Square"> | Error
@@ -223,8 +216,8 @@ so a variant with no seal of its own is still checked by the enum's. Compose the
 check depends on the other's result. Inside a variant's seal, `seal(payload)` is the enum's seal, so
 its result is the enum's return, the error included.
 
-Write `.implSeal` before the first `.implVariant`, which the type enforces. A variant's default seal
-is the enum's, read from the chain as it stands.
+Write `.implSeal` first. `.implVariant`, `.impl` and `.implTrait` remove it from the companion,
+because a variant's default seal is the enum's, read from the chain as it stands.
 
 Whatever a seal returns propagates, as it does for a Val. The union in it narrows to the variant the
 payload named. `patch` derives through the same seal, so no derivation skips it.
@@ -241,9 +234,9 @@ already has one:
 import { Enum, Tag } from "valof/experimental";
 // ---cut---
 type Event = Enum<"Event", { Click: { x: number }; Key: { code: string } }, Tag<"kind">>;
-const Event = Enum.sealer<Event>("kind");
+const Event = Enum.companion<Event>("kind");
 
-Event.Click({ x: 1 }); // { x: 1, kind: "Click" }
+Event.Click.create({ x: 1 }); // { x: 1, kind: "Click" }
 Event[Tag].key; // "kind"
 ```
 

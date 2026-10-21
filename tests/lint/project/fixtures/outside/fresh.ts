@@ -1,3 +1,3 @@
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   shout: (u) => u.toUpperCase(),
 });

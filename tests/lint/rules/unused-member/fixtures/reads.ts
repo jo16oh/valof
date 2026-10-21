@@ -1,4 +1,4 @@
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   bracket: (u) => u.name,
   destructured: (u) => u.name,
   renamed: (u) => u.name,

@@ -1,4 +1,4 @@
-export const User = Val.sealer<User>().impl({
+export const User = Val.companion<User>().impl({
   greet: (u) => u.name,
   shout: (u) => u.id,
 });

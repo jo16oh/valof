@@ -29,13 +29,13 @@ Now the other side cannot use what arrives until it seals it:
 import { Val, type PayloadOf } from "valof";
 
 type User = Val<"User", { name: string }>;
-const User = Val.sealer<User>();
+const User = Val.companion<User>();
 
 declare const res: { json(): Promise<PayloadOf<User>> };
 // ---cut---
 const plain = await res.json(); // the generated client types this as PayloadOf<User>
 const bad: User = plain; // type error: the brand is missing
-const user = User(plain); // sealed, and now it is one
+const user = User.seal(plain); // sealed, and now it is one
 ```
 
 `PayloadOf<V>` removes the brand from the type, not from the value, so it costs nothing at run time.
@@ -90,7 +90,7 @@ derive a value instead:
 import { Val } from "valof";
 
 type User = Val<"User", { name: string }>;
-const User = Val.sealer<User>();
+const User = Val.companion<User>();
 
 declare const user: User;
 // ---cut---

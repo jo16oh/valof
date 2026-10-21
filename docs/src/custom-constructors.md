@@ -2,8 +2,8 @@
 
 ## Validate in the seal
 
-`Val.sealer` accepts every payload allowed by the type. When construction has rules of its own,
-start with `Val.companion` and add a custom `seal` with `.implSeal`.
+Without `.implSeal`, a companion's `seal` accepts every payload allowed by the type. When
+construction has rules of its own, replace it with `.implSeal`.
 
 Write the checks directly in the seal:
 
@@ -23,24 +23,8 @@ const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
 );
 ```
 
-`Val.companion` starts without a constructor. `.implSeal` receives the input and the default seal,
-then adds your constructor to the companion as `seal`. Return through the default seal to brand and
-copy the payload. The companion does not become callable:
-
-```ts
-// @errors: 2349
-import { Val } from "valof";
-
-type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-declare function ok<T>(value: T): Result<T>;
-declare function err(message: string): Result<never>;
-
-type Age = Val<"Age", number>;
-const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> => ok(seal(value)));
-// ---cut---
-Age(30); // type error: this expression is not callable
-Age.seal(30); // Result<Age>
-```
+`.implSeal` replaces the companion's `seal`. Return through the default seal, passed as its second
+argument, to brand and copy the payload.
 
 `Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
 payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
@@ -119,8 +103,8 @@ declare function check(user: SeedOf<User>): Result<User>;
 declare const fields: Fields;
 // ---cut---
 const User = Val.companion<User>()
-  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }))
-  .implSeal((user): Result<User> => check(user));
+  .implSeal((user): Result<User> => check(user))
+  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }));
 
 User.create(fields); // Result<User>
 ```
@@ -143,8 +127,8 @@ declare const input: string;
 type SessionId = Val<"SessionId", string>;
 
 const SessionId = Val.companion<SessionId>()
-  .implCreate.noseal(() => crypto.randomUUID())
-  .implSeal((text, seal): SessionId | undefined => (UUID.test(text) ? seal(text) : undefined));
+  .implSeal((text, seal): SessionId | undefined => (UUID.test(text) ? seal(text) : undefined))
+  .implCreate.noseal(() => crypto.randomUUID());
 
 SessionId.create(); // SessionId
 SessionId.seal(input); // SessionId | undefined
@@ -174,16 +158,18 @@ declare const user: User;
 type User = Val<"User", { id: string; name: string; email: string }>;
 
 const User = Val.companion<User>()
+  .fixed<"id">()
+  .implSeal((user, seal) => seal(normalize(user)))
   .implCreate((fields: Omit<SeedOf<User>, "id">) => ({
     id: crypto.randomUUID(),
     ...fields,
-  }))
-  .implSeal((user, seal) => seal(normalize(user)))
-  .fixed<"id">();
+  }));
 
 User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // type error
 ```
+
+Write the steps in this order: `.fixed`, then `.implSeal`, then `.implCreate`.
 
 The keys are a type argument, so they do not exist at runtime. This constrains `patch`, not the
 value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an

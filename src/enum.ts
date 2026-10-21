@@ -124,7 +124,7 @@ type MemberNames<Tr extends AnyTrait> =
 // The fault goes in the brand the phantom carries, never at the top level of `Enum`. An alias
 // whose top level is a conditional loses its name once it resolves, and a consumer's `.d.ts`
 // then expands the union onto val.ts's private `Phantom`: TS4094 on the one line
-// `export const Shape = Enum.sealer<Shape>()`.
+// `export const Shape = Enum.companion<Shape>()`.
 type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
   Fault<D, S, Tr, Tg>,
 ] extends [never]
@@ -138,7 +138,7 @@ type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
  *
  * ```ts
  * type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
- * const Shape = Enum.sealer<Shape>();
+ * const Shape = Enum.companion<Shape>();
  * ```
  *
  * The third argument is what every variant holds: shared fields, traits, the tag's name, or all
@@ -212,7 +212,7 @@ type DeclaredTraits<E extends AnyEnum> = Extract<Declared<E>["traits"], AnyTrait
  *
  * Write it where the variant is used, rather than giving it a second name with `type Circle =
  * VariantOf<Shape, "Circle">`. The prefix is what says which enum the variant belongs to, and a
- * variant is built through its companion for the same reason: `Shape.Circle({ r: 2 })`.
+ * variant is built through its companion for the same reason: `Shape.Circle.create({ r: 2 })`.
  *
  * @experimental
  */
@@ -385,24 +385,12 @@ type Framed<E extends AnyEnum, N extends keyof VariantsOf<E>, R, Sealed, T> = Du
       }
     : Record<never, never>);
 
-/** A variant's frame on a sealer: the constructor itself, its `patch`, and its own members. */
-type SealerFrame<E extends AnyEnum, N extends keyof VariantsOf<E>, T> = ((
-  payload: SeedFor<E, N>,
-) => VariantOf<E, N>) & {
-  /** Derives through the same seal the constructor uses. See {@link Patch}. */
-  patch: Dual<
-    (value: VariantOf<E, N>, patch: Patch<SeedFor<E, N>>) => VariantOf<E, N>,
-    VariantOf<E, N>
-  >;
-} & Duals<Omit<T, Wired>, VariantOf<E, N>>;
-
 /**
  * The steps a variant adds, inside an `implVariant` callback. It is already the frame, so a
  * callback with no member to collect returns it unchanged, the way `Val.companion<V>()` is a
  * companion before `.impl()`. A frame a step made is closed: the steps go no further.
  *
- * The enum's entry point decides each variant's entry point, so there is no step that picks one:
- * every variant of a companion builds with `.create`, every variant of a sealer is callable.
+ * Every variant builds with `.create`.
  *
  * No `in out` here: the top level is a reference to an intersection, which is TS2637.
  */
@@ -419,12 +407,9 @@ type VariantSteps<
    *
    * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
    */
-  impl: {
-    (): VariantFrame<E, N, FE, FV, T>;
-    <M extends CompanionMembers<VariantOf<E, N>>>(
-      fns: Unclaimed<E, M> & Arity<M>,
-    ): VariantFrame<E, N, FE, FV, M & T>;
-  };
+  impl: <M extends CompanionMembers<VariantOf<E, N>>>(
+    fns: Unclaimed<E, M> & Arity<M>,
+  ) => VariantFrame<E, N, FE, FV, M & T>;
   /**
    * Replaces this variant's seal. The enum's seal runs inside the default seal it receives, so a
    * value built here passes both.
@@ -432,26 +417,6 @@ type VariantSteps<
   implSeal: <G extends VariantSealImpl<E, N, FE>>(
     seal: CheckedSeal<G>,
   ) => VariantSteps<E, N, FE, G, T> & VariantFrame<E, N, FE, G, T>;
-};
-
-/** The same, for a sealer: the constructor is the default seal, so there is no `implSeal`. */
-type SealerVariantSteps<
-  in out E extends AnyEnum,
-  in out N extends keyof VariantsOf<E>,
-  in out T,
-> = {
-  /**
-   * Collects the members taking this variant. They can be called with the value first or last, and
-   * cannot have an optional, a default or a rest parameter.
-   *
-   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
-   */
-  impl: {
-    (): SealerFrame<E, N, T>;
-    <M extends CompanionMembers<VariantOf<E, N>>>(
-      fns: Unclaimed<E, M> & Arity<M>,
-    ): SealerFrame<E, N, M & T>;
-  };
 };
 
 /** Rejects a trait member's name. The companion and `dyn` would still call the trait's. */
@@ -467,31 +432,14 @@ type ClosedFrame<E extends AnyEnum, N extends keyof VariantsOf<E>> = {
   patch: (...args: never[]) => unknown;
 };
 
-type ClosedSealerFrame<E extends AnyEnum, N extends keyof VariantsOf<E>> = ((
-  payload: SeedFor<E, N>,
-) => unknown) & { patch: (...args: never[]) => unknown };
-
 /** A variant no step has built yet. Naming one twice would drop the first frame. */
 type Fresh<E extends AnyEnum, VM> = Exclude<keyof VariantsOf<E>, keyof VM>;
-
-/**
- * Rejects a seal written after a variant. The frame that variant built reads the enum's seal off
- * the chain as it stands, so it would be typed without this one and still run it. The check is
- * placed on the parameter (notes §11.1).
- */
-type Before<VM, Ok> = [keyof VM] extends [never]
-  ? Ok
-  : "write `implSeal` before the first `implVariant`";
 
 /** A variant the callback left out keeps the default frame. */
 type Constructors<in out E extends AnyEnum, in out VM, in out FE> = {
   [N in keyof VariantsOf<E>]: N extends keyof VM
     ? VM[N]
     : VariantFrame<E, N, FE, undefined, Record<never, never>>;
-};
-
-type SealerConstructors<in out E extends AnyEnum, in out VM> = {
-  [N in keyof VariantsOf<E>]: N extends keyof VM ? VM[N] : SealerFrame<E, N, Record<never, never>>;
 };
 
 /**
@@ -523,12 +471,8 @@ type Exclusive<E extends AnyEnum> = {
   };
 }[keyof VariantsOf<E>];
 
-/** What a frame's constructor returns, whichever form the frame takes. */
-type Yields<X> = X extends { create: (...args: never[]) => infer R }
-  ? R
-  : X extends (...args: never[]) => infer R
-    ? R
-    : never;
+/** What a frame's constructor returns. */
+type Yields<X> = X extends { create: (...args: never[]) => infer R } ? R : never;
 
 /** What an enum dispatches on a tag alone, under {@link Tag}. */
 type ByTag<E extends AnyEnum> = {
@@ -539,9 +483,9 @@ type ByTag<E extends AnyEnum> = {
    *
    * ```ts
    * Command[Tag].match(input.tag, {
-   *   New: () => Command.New({ name: input.args[0] ?? "" }),
-   *   Rename: () => Command.Rename({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
-   *   Check: () => Command.Check({}),
+   *   New: () => Command.New.create({ name: input.args[0] ?? "" }),
+   *   Rename: () => Command.Rename.create({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
+   *   Check: () => Command.Check.create({}),
    * });
    * ```
    */
@@ -604,36 +548,20 @@ export type EnumCompanion<
     readonly __valof_traits: Members;
   };
 
-/**
- * The same for `Enum.sealer`, where the companion and every variant are callable. Calling the
- * companion is {@link EnumCompanion.seal}.
- *
- * Inferred, not written: it is exported so your own declarations can name it.
- *
- * @experimental
- */
-export type EnumSealed<
-  E extends AnyEnum,
-  VM = Record<never, never>,
-  M = Record<never, never>,
-> = EnumSeal<E, SealerConstructors<E, VM>> &
-  SealerConstructors<E, VM> &
-  Duals<Omit<M, Wired | "match" | keyof VariantsOf<E>>, E> & {
-    /** See {@link EnumCompanion.match}. */
-    match: Match<E>;
-    readonly [Tag]: ByTag<E>;
-    /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
-    readonly __valof_traits: Members;
-  };
-
 /** The steps an enum's builder takes. A variant's are among them. */
 export type EnumStep = "impl" | "implVariant" | "implSeal" | "implTrait";
 
+/** The steps an enum's companion has taken. `implSeal` is the first half of the chain. */
+type EnumTaken = "implSeal" | "impl" | "later";
+
 /**
- * What `Enum.companion` returns, which its steps add to. `.impl` ends the chain, so a companion
- * that left it open cannot be given another seal after it was exported.
+ * What `Enum.companion` returns, which its steps add to.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
+ *
+ * `implSeal` comes first, once. `impl` (once), `implVariant` and `implTrait` follow in any order,
+ * and the first of them takes `implSeal` off: a variant's frame reads the enum's seal off the
+ * chain as it stands, so a later seal would run in a frame typed without it.
  *
  * @experimental
  */
@@ -642,96 +570,61 @@ export type EnumBuilder<
   VM = Record<never, never>,
   M = Record<never, never>,
   F = undefined,
-> = EnumCompanion<E, VM, M, F> & {
-  /**
-   * Collects the members taking the union, in one call, which closes every step. Call it with no
-   * argument to close with no member.
-   *
-   * A member reaching the companion, for `match`, for a variant or for a sibling, references it and
-   * annotates its return type. Referencing a declaration inside its own initializer is a
-   * circularity, which TypeScript reports as TS7023.
-   *
-   * The members, `match` and `[Tag].match` can be called with the value first or last. A member
-   * cannot have an optional, a default or a rest parameter.
-   *
-   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
-   */
-  impl: {
-    (): EnumCompanion<E, VM, M, F>;
-    <G extends UnionMembers<E>>(fns: Unclaimed<E, G> & Arity<G>): EnumCompanion<E, VM, M & G, F>;
-  };
-  /**
-   * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
-   * keeps the default frame, and one already built cannot be named again.
-   *
-   * The callback's argument is already that variant's frame, so one with no member to collect
-   * returns it unchanged.
-   *
-   * Call it after `implSeal`: a variant's seal receives the enum's, and the enum's is read from the
-   * chain as it stands then.
-   */
-  implVariant: <N extends Fresh<E, VM>, R extends ClosedFrame<E, N>>(
-    name: N,
-    build: (
-      sealer: VariantSteps<E, N, F, undefined, Record<never, never>> &
-        VariantFrame<E, N, F, undefined, Record<never, never>>,
-    ) => R,
-  ) => EnumBuilder<E, VM & { [P in N]: R }, M, F>;
-  /**
-   * Replaces the seal every variant passes, for what they all hold. A variant checks its own
-   * payload in `implVariant`, and receives this one to call.
-   *
-   * Write it before the first `implVariant`.
-   */
-  implSeal: <G extends EnumSealImpl<E>>(
-    seal: Before<VM, CheckedSeal<G>>,
-  ) => EnumBuilder<E, VM, M, G>;
-  /**
-   * Implements a trait the enum declares. The implementation takes the union, so a member that
-   * differs per variant is a `match` inside it.
-   */
-  implTrait: {
-    <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
+  D extends EnumTaken = never,
+> = EnumCompanion<E, VM, M, F> &
+  ([D] extends [never]
+    ? {
+        /**
+         * Replaces the seal every variant passes, for what they all hold. A variant checks its own
+         * payload in `implVariant`, and receives this one to call.
+         */
+        implSeal: <G extends EnumSealImpl<E>>(
+          seal: CheckedSeal<G>,
+        ) => EnumBuilder<E, VM, M, G, "implSeal">;
+      }
+    : unknown) &
+  ("impl" extends D
+    ? unknown
+    : {
+        /**
+         * Collects the members taking the union, in one call.
+         *
+         * A member reaching the companion, for `match`, for a variant or for a sibling,
+         * references it and annotates its return type. Referencing a declaration inside its own
+         * initializer is a circularity, which TypeScript reports as TS7023.
+         *
+         * The members, `match` and `[Tag].match` can be called with the value first or last. A
+         * member cannot have an optional, a default or a rest parameter.
+         *
+         * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+         */
+        impl: <G extends UnionMembers<E>>(
+          fns: Unclaimed<E, G> & Arity<G>,
+        ) => EnumBuilder<E, VM, M & G, F, D | "impl">;
+      }) & {
+    /**
+     * Builds one variant: members, a seal of its own, or both. A variant you write nothing for
+     * keeps the default frame, and one already built cannot be named again.
+     *
+     * The callback's argument is already that variant's frame, so one with no member to collect
+     * returns it unchanged.
+     */
+    implVariant: <N extends Fresh<E, VM>, R extends ClosedFrame<E, N>>(
+      name: N,
+      build: (
+        steps: VariantSteps<E, N, F, undefined, Record<never, never>> &
+          VariantFrame<E, N, F, undefined, Record<never, never>>,
+      ) => R,
+    ) => EnumBuilder<E, VM & { [P in N]: R }, M, F, D | "later">;
+    /**
+     * Implements a trait the enum declares. The implementation takes the union, so a member that
+     * differs per variant is a `match` inside it.
+     */
+    implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
       trait: Takes<E, Tr, M, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I>
-    ): EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F>;
+    ) => EnumBuilder<E, VM, M & Unbound<MembersOf<Tr>, E>, F, D | "later">;
   };
-};
-
-/**
- * What `Enum.sealer` returns: the mirror of {@link EnumBuilder}, minus the seals. A sealer's
- * constructors are the default seal, and a second one beside them would bypass the first.
- *
- * Inferred, not written: it is exported so your own declarations can name it.
- *
- * @experimental
- */
-export type EnumSealer<
-  E extends AnyEnum,
-  VM = Record<never, never>,
-  M = Record<never, never>,
-> = EnumSealed<E, VM, M> & {
-  /** See {@link EnumBuilder.impl}. */
-  impl: {
-    (): EnumSealed<E, VM, M>;
-    <G extends UnionMembers<E>>(fns: Unclaimed<E, G> & Arity<G>): EnumSealed<E, VM, M & G>;
-  };
-  /** See {@link EnumBuilder.implVariant}. A sealer's variants take no seal of their own. */
-  implVariant: <N extends Fresh<E, VM>, R extends ClosedSealerFrame<E, N>>(
-    name: N,
-    build: (
-      sealer: SealerVariantSteps<E, N, Record<never, never>> &
-        SealerFrame<E, N, Record<never, never>>,
-    ) => R,
-  ) => EnumSealer<E, VM & { [P in N]: R }, M>;
-  /** See {@link EnumBuilder.implTrait}. */
-  implTrait: {
-    <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
-      trait: Takes<E, Tr, M, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, I>
-    ): EnumSealer<E, VM, M & Unbound<MembersOf<Tr>, E>>;
-  };
-};
 
 /** Forgotten, misspelled, or passed when the default holds: the type rejects all three. */
 type TagArg<E extends AnyEnum> = [TagOf<E>] extends ["_tag"] ? [tag?: "_tag"] : [tag: TagOf<E>];
@@ -739,10 +632,6 @@ type TagArg<E extends AnyEnum> = [TagOf<E>] extends ["_tag"] ? [tag?: "_tag"] : 
 type Payload = Record<string, unknown>;
 
 type Seal = (value: Payload, seal: (value: Payload) => unknown) => unknown;
-
-type Sealer = ((payload: Payload) => unknown) & {
-  patch: (value: Payload, patch: Payload) => unknown;
-};
 
 type Companion = {
   create: (payload: Payload) => unknown;
@@ -761,11 +650,11 @@ const matchTag = dual((tag: string, handlers: Record<string, () => unknown>) =>
  */
 const state = (
   tag: string,
-  callable: boolean,
   builds: Builds,
   members: Record<string, unknown>,
   traits: Record<string, unknown>,
   seal: Seal | undefined,
+  first: boolean,
   open: boolean,
 ): object => {
   // Remembered for the allocation, not for identity: a frame built twice behaves the same, and
@@ -778,38 +667,27 @@ const state = (
       assertVariantPayload(payload);
       return { ...payload, [tag]: name };
     };
-    if (callable) {
-      // The default seal, plus the `patch` that derives through it. The tag is not in the patch's
-      // type and the value carries it already, so the merge leaves it alone.
-      const sealer = Val.sealer() as unknown as Sealer;
-      const frame = (payload: Payload) => sealer(tagged(payload));
-      define(frame, "patch", sealer.patch);
-      for (const key of Object.keys(fns)) define(frame, key, dual(fns[key]));
-      return frame;
-    }
     // The variant runs first and passes its result to the enum's, which passes it to the default
     // seal. `Val`'s frame holds one seal, so the two are composed before they reach it.
     const composed = custom
       ? (value: Payload, terminal: (value: Payload) => unknown) =>
           custom(value, (checked) => (seal ? seal(checked, terminal) : terminal(checked)))
       : seal;
-    const chain = (
-      Val.companion() as unknown as {
-        implCreate: (create: (payload: Payload) => Payload) => {
-          implSeal: (seal: Seal) => { impl: (fns: object) => object };
-          impl: (fns: object) => object;
-        };
-      }
-    ).implCreate(tagged);
-    return composed ? chain.implSeal(composed).impl(fns) : chain.impl(fns);
+    type Chain = {
+      implSeal: (seal: Seal) => Chain;
+      implCreate: (create: (payload: Payload) => Payload) => Chain;
+      impl: (fns: object) => object;
+    };
+    const chain = Val.companion() as unknown as Chain;
+    return (composed ? chain.implSeal(composed) : chain).implCreate(tagged).impl(fns);
   };
 
   // The steps are the frame with no member on it, so a callback that collects none returns this
   // one. `built` again for `.impl(fns)`: the members go on a frame nothing else holds.
   const steps = (name: string, custom: Seal | undefined): object => {
     const target = built(name, custom, {});
-    define(target, "impl", (fns: Payload = {}) => built(name, custom, fns));
-    if (!callable) define(target, "implSeal", (next: Seal) => steps(name, next));
+    define(target, "impl", (fns: Payload) => built(name, custom, fns));
+    define(target, "implSeal", (next: Seal) => steps(name, next));
     return target;
   };
 
@@ -823,89 +701,71 @@ const state = (
     return made;
   };
 
-  const enter = (value: Payload): unknown => {
-    const made = frame(value[tag] as string);
-    return callable ? (made as Sealer)(value) : (made as Companion).create(value);
-  };
-
   const step = (
     nextBuilds: Builds,
     nextMembers: Record<string, unknown>,
     nextTraits: Record<string, unknown>,
     nextSeal: Seal | undefined,
     nextOpen: boolean,
-  ): object => state(tag, callable, nextBuilds, nextMembers, nextTraits, nextSeal, nextOpen);
+  ): object => state(tag, nextBuilds, nextMembers, nextTraits, nextSeal, false, nextOpen);
 
-  const self: object = new Proxy(callable ? () => undefined : {}, {
-    apply: (_, __, args: [Payload]) => enter(args[0]),
-    get(_, key) {
-      // A symbol reaches here from `await`, `JSON.stringify` and every other protocol read, and
-      // `then` would make the companion a thenable. Both would otherwise resolve to a frame,
-      // since the proxy has no list of variant names to check against. A `then` variant is an
-      // error at the declaration, like a `then` member anywhere else.
-      if (typeof key !== "string" || key === "then") return undefined;
-      if (Object.hasOwn(members, key)) return members[key];
-      if (key === "match") {
-        return dual(
-          (value: Record<string, unknown>, handlers: Record<string, (v: unknown) => unknown>) =>
-            (handlers[value[tag] as string] ?? handlers._)!(value),
-        );
-      }
-      // A sealer's entry is the call, so the name stays reserved and resolves to nothing.
-      if (key === "seal") return callable ? undefined : enter;
-      if (key === Tag) return byTag;
-      if (key === "__valof_traits") return traits;
-      if (key === "impl") {
-        // One call, which closes every step: what it returns carries no `impl` of its own.
-        return open
-          ? (fns: Payload = {}) => step(builds, { ...members, ...duals(fns) }, traits, seal, false)
-          : undefined;
-      }
-      if (key === "implVariant") {
-        return open
-          ? (name: string, build: (sealer: object) => object) =>
-              step({ ...builds, [name]: build }, members, traits, seal, true)
-          : undefined;
-      }
-      if (key === "implSeal") {
-        return open && !callable
-          ? (custom: Seal) => step(builds, members, traits, custom, true)
-          : undefined;
-      }
-      if (key === "implTrait") {
-        // The trait's own members and the enum's, merged the way `val.ts` merges them.
-        return open
-          ? (
-              trait: { __valof_shared: Record<string, unknown> },
-              fns: Record<string, unknown> = {},
-            ) => {
-              const grown = { ...traits, ...trait.__valof_shared, ...fns };
-              return step(builds, { ...members, ...duals(grown) }, grown, seal, true);
-            }
-          : undefined;
-      }
-      return frame(key);
+  const self: object = new Proxy(
+    {},
+    {
+      get(_, key) {
+        // A symbol reaches here from `await`, `JSON.stringify` and every other protocol read, and
+        // `then` would make the companion a thenable. Both would otherwise resolve to a frame,
+        // since the proxy has no list of variant names to check against. A `then` variant is an
+        // error at the declaration, like a `then` member anywhere else.
+        if (typeof key !== "string" || key === "then") return undefined;
+        if (Object.hasOwn(members, key)) return members[key];
+        if (key === "match") {
+          return dual(
+            (value: Record<string, unknown>, handlers: Record<string, (v: unknown) => unknown>) =>
+              (handlers[value[tag] as string] ?? handlers._)!(value),
+          );
+        }
+        if (key === "seal") {
+          return (value: Payload) => (frame(value[tag] as string) as Companion).create(value);
+        }
+        if (key === Tag) return byTag;
+        if (key === "__valof_traits") return traits;
+        if (key === "impl") {
+          return open
+            ? (fns: Payload) => step(builds, { ...members, ...duals(fns) }, traits, seal, false)
+            : undefined;
+        }
+        if (key === "implVariant") {
+          return (name: string, build: (steps: object) => object) =>
+            step({ ...builds, [name]: build }, members, traits, seal, open);
+        }
+        if (key === "implSeal") {
+          return first ? (custom: Seal) => step(builds, members, traits, custom, open) : undefined;
+        }
+        if (key === "implTrait") {
+          // The trait's own members and the enum's, merged the way `val.ts` merges them.
+          return (
+            trait: { __valof_shared: Record<string, unknown> },
+            fns: Record<string, unknown> = {},
+          ) => {
+            const grown = { ...traits, ...trait.__valof_shared, ...fns };
+            return step(builds, { ...members, ...duals(grown) }, grown, seal, open);
+          };
+        }
+        return frame(key);
+      },
     },
-  });
+  );
   return self;
 };
 
 /**
- * Builds the constructors for an enum: the companion and every variant are callable.
- * `Enum.companion` is the same, for an enum with a custom seal.
+ * Bundles an enum's `seal`, its variants and its members. Every variant builds with `.create`.
  *
  * The tag name is passed again here because the proxy has to write it at run time, and the type
  * argument is not readable from a value.
  *
  * @experimental
  */
-export const sealer = <E extends AnyEnum>(...tag: TagArg<E>): EnumSealer<E> =>
-  state(tag[0] ?? "_tag", true, {}, {}, {}, undefined, true) as EnumSealer<E>;
-
-/**
- * Bundles an enum's members with a custom seal. Every variant builds with `.create`.
- *
- * @experimental
- */
 export const companion = <E extends AnyEnum>(...tag: TagArg<E>): EnumBuilder<E> =>
-  state(tag[0] ?? "_tag", false, {}, {}, {}, undefined, true) as EnumBuilder<E>;
+  state(tag[0] ?? "_tag", {}, {}, {}, undefined, true, true) as EnumBuilder<E>;

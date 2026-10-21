@@ -23,19 +23,10 @@ export const BypassedCompanion: Rule<BypassedCompanion> = {
 function instead(site: CompanionSite, type: string, variant: string | undefined): string {
   // An enum's companion holds one frame per variant, and its entry selects one from the tag.
   if (site.of === "Enum" && variant !== undefined)
-    return site.root === "sealer"
-      ? `bypasses ${type}.${variant}, the constructor for it`
-      : `bypasses ${type}.${variant}.create, which seals the payload`;
-  if (site.of === "Enum")
-    return site.root === "sealer"
-      ? `bypasses ${type}, which selects the variant from the tag`
-      : `bypasses ${type}.seal, which selects the variant from the tag`;
-  if (site.root === "sealer") return `bypasses ${type}, the constructor for it`;
+    return `bypasses ${type}.${variant}.create, which seals the payload`;
+  if (site.of === "Enum") return `bypasses ${type}.seal, which selects the variant from the tag`;
   if (site.seals) return `bypasses ${type}.seal, which checks the payload`;
-  // A companion with no seal of its own has no other way in: `Val.of` is how such a type is
-  // built (§6.5). Reported all the same, at a severity that says "look", since the payload
-  // reaches the value unchecked. A boundary that hands over checked values silences the line.
-  return `brands a payload that no seal checked`;
+  return `bypasses ${type}.seal, the constructor for it`;
 }
 
 /**

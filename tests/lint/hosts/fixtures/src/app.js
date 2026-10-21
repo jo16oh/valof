@@ -1,4 +1,4 @@
-const Id = Val.sealer().impl({
+const Id = Val.companion().impl({
   short: (i) => i.slice(0, 4),
   shout: (i) => i.toUpperCase(),
 });

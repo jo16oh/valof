@@ -32,7 +32,7 @@ export function keyName(node: Node, computed: boolean): string | undefined {
 }
 
 /**
- * The dotted name a call chain is rooted at: `Val.sealer<X>().impl` gives `Val.sealer`, and
+ * The dotted name a call chain is rooted at: `Val.companion<X>().impl` gives `Val.companion`, and
  * `valof.Val.companion<X>().implSeal(f)` gives `valof.Val.companion`. Type arguments and call
  * parentheses carry no name, so they drop out.
  */

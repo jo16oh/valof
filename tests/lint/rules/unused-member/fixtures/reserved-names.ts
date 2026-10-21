@@ -1,6 +1,6 @@
 import { Enum, Trait } from "valof/experimental";
 
-const Id = Val.sealer<Id>().impl({
+const Id = Val.companion<Id>().impl({
   equals: (a, b) => a === b,
   update: (i) => i,
   match: (i) => i,
@@ -15,7 +15,7 @@ const Id = Val.sealer<Id>().impl({
 });
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.sealer<Shape>()
+const Shape = Enum.companion<Shape>()
   .implVariant("Circle", (variant) =>
     variant.impl({ match: (c) => c, Square: (c) => c, patch: (c) => c }),
   )

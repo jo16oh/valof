@@ -53,7 +53,7 @@ test("takes the buffer over the file, so a fix lands before the save", () => {
   const changed =
     'import { Val } from "valof";\n' +
     'export type Order = Val<"Order", { id: string }>;\n\n' +
-    "export const Order = Val.sealer<Order>().impl({\n  label: (order) => order.id,\n});\n";
+    "export const Order = Val.companion<Order>().impl({\n  label: (order) => order.id,\n});\n";
   expect(run("order.ts", changed)).toEqual(["5:2-7  Order.label is never read"]);
 });
 

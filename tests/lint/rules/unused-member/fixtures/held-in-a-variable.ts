@@ -1,4 +1,4 @@
-const seal = Val.sealer<User>();
+const seal = Val.companion<User>();
 
 export const User = seal.impl({
   greet: (u) => u.name,

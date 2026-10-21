@@ -32,10 +32,10 @@ import { Val } from "valof";
 
 // ---cut---
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
-const Profile = Val.sealer<Profile>();
+const Profile = Val.companion<Profile>();
 
 const raw = { name: "alice", address: { city: "Osaka" } };
-const profile = Profile(raw);
+const profile = Profile.seal(raw);
 
 profile.address.city = "Tokyo"; // type error: Vals are deeply readonly
 raw.address.city = "Tokyo";
@@ -78,10 +78,10 @@ Only when you can make that guarantee, use `.nocopy` to make the payload the val
 import { Val } from "valof";
 
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
-const Profile = Val.sealer<Profile>();
+const Profile = Val.companion<Profile>();
 
 const seed = { name: "alice", address: { city: "Osaka" } } as const;
-const profile = Profile.nocopy(seed);
+const profile = Profile.seal.nocopy(seed);
 ```
 
 The common trap is a mutable alias behind a readonly view:
@@ -90,12 +90,12 @@ The common trap is a mutable alias behind a readonly view:
 import { Val, type SeedOf } from "valof";
 
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
-const Profile = Val.sealer<Profile>();
+const Profile = Val.companion<Profile>();
 // ---cut---
 
 const mutable = { name: "alice", address: { city: "Osaka" } };
 const seed: SeedOf<Profile> = mutable; // TypeScript permits this readonly view.
-const profile = Profile.nocopy(seed);
+const profile = Profile.seal.nocopy(seed);
 
 // In production, this also changes `profile.address.city`.
 // Development freezing normally makes this assignment throw instead.
@@ -103,6 +103,6 @@ mutable.address.city = "Tokyo";
 ```
 
 `readonly` is only a guardrail. Mutable views, casts, accessors and proxies can still break this
-contract. Default sealers require deeply readonly input; `Val.of.nocopy<V>` and custom seals leave
-the responsibility to their callers and implementations. Development validates and freezes the
-payload graph; production trusts the contract. `patch` still copies.
+contract. The default seal's `nocopy` requires deeply readonly input; `Val.of.nocopy<V>` and custom
+seals leave the responsibility to their callers and implementations. Development validates and
+freezes the payload graph; production trusts the contract. `patch` still copies.

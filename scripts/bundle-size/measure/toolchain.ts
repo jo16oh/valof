@@ -145,7 +145,7 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
           const content = pipe(
             Object.entries(imports).map(
               ([module, names]) =>
-                // `Val.sealer` imports `Val` and reads one member, leaving the rest to tree-shaking.
+                // `Val.companion` imports `Val` and reads one member, leaving the rest to tree-shaking.
                 `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
             ),
             (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
