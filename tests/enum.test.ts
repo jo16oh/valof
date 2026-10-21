@@ -110,6 +110,34 @@ describe("match", () => {
       // @ts-expect-error this enum has no such variant
       Triangle: () => 0,
     });
+    Shape.match(circle, {
+      Circle: (c) => c.r,
+      _: () => 0,
+      // @ts-expect-error this enum has no such variant
+      Triangle: () => 0,
+    });
+  });
+
+  test("`_` takes the variants no other handler names, narrowed to them", () => {
+    const read = (s: Shape) =>
+      Shape.match(s, {
+        Circle: (c) => c.r,
+        _: (rest) => {
+          expectTypeOf(rest).toEqualTypeOf<VariantOf<Shape, "Square">>();
+          return `${rest.side}`;
+        },
+      });
+    expectTypeOf(read).returns.toEqualTypeOf<number | string>();
+    expect([read(circle), read(square)]).toEqual([2, "3"]);
+  });
+
+  test("`_` beside a handler for every variant is a type error", () => {
+    Shape.match(circle, {
+      Circle: (c) => c.r,
+      Square: (s) => s.side,
+      // @ts-expect-error every variant has a handler, so `_` never runs
+      _: () => 0,
+    });
   });
 });
 
@@ -144,6 +172,21 @@ describe("match on a tag alone", () => {
   test("a tag the enum does not declare is rejected", () => {
     // @ts-expect-error not assignable to '"Circle" | "Square"'
     Shape[Tag].match("Triangle", { Triangle: () => 0 });
+  });
+
+  test("`_` runs for the tags no other handler names", () => {
+    const build = (name: string) =>
+      Shape[Tag].match(pick(name), { Circle: () => 0, _: () => "other" });
+    expectTypeOf(build).returns.toEqualTypeOf<number | string>();
+    expect([build("round"), build("box")]).toEqual([0, "other"]);
+  });
+
+  test("`_` is a type error once every tag the argument can hold has a handler", () => {
+    Shape[Tag].match("Circle", {
+      Circle: () => 0,
+      // @ts-expect-error every variant has a handler, so `_` never runs
+      _: () => 0,
+    });
   });
 });
 
@@ -571,6 +614,12 @@ describe("a broken declaration", () => {
     Enum.sealer<Sneaky>();
   });
 
+  test("nor `_`, which `match` takes for the rest", () => {
+    type Wild = Enum<"Wild", { _: { n: number }; Other: { n: number } }>;
+    // @ts-expect-error a variant cannot take a name the library reserves
+    Enum.sealer<Wild>();
+  });
+
   test("but may take another word starting with `impl`", () => {
     type Grant = Enum<"Grant", { implicit: { scope: string }; password: { user: string } }>;
     const Grant = Enum.sealer<Grant>();
@@ -866,12 +915,18 @@ describe("data-first and data-last", () => {
     expect(side).toBe(3);
     // @ts-expect-error Property 'Square' is missing
     Shape.match({ Circle: (c) => c.r });
+    const size = Shape.match({ Circle: (c) => c.r, _: (rest) => `${rest.side}` });
+    expectTypeOf(size).toEqualTypeOf<(value: Shape) => number | string>();
+    expect([size(circle), size(square)]).toEqual([2, "3"]);
   });
 
   test("so does `[Tag].match`", () => {
     const sides = Shape[Tag].match({ Circle: () => 0, Square: () => 4 });
     expectTypeOf(sides).toEqualTypeOf<(tag: "Circle" | "Square") => number>();
     expect(sides("Square")).toBe(4);
+    const round = Shape[Tag].match({ Circle: () => 0, _: () => "no" });
+    expectTypeOf(round).toEqualTypeOf<(tag: "Circle" | "Square") => number | string>();
+    expect(round("Square")).toBe("no");
   });
 
   test("a member whose arguments can be left out is rejected", () => {
