@@ -15,7 +15,7 @@ type Shape = Enum<
   },
   { id: string }
 >;
-const Shape = Enum.sealer<Shape>()
+const Shape = Enum.companion<Shape>()
   .implVariant("Circle", (b) => b.impl({ diameter: (c) => c.r * 2 }))
   .implVariant("Rect", (b) => b.impl({ ratio: (r) => r.w / r.h }))
   .impl({
@@ -39,28 +39,27 @@ type Event = Enum<
 const Event = Enum.companion<Event>("kind")
   .implSeal((e, seal) => (e.id ? seal(e) : new RangeError("id must not be empty")))
   .implVariant("Key", (b) =>
-    b.implSeal((k, seal) => (k.code ? seal(k) : new RangeError("code must not be empty"))).impl(),
+    b.implSeal((k, seal) => (k.code ? seal(k) : new RangeError("code must not be empty"))),
   )
   .implTrait(Named, {
     label: (e, sep): string =>
       Event.match(e, { Click: (c) => `${c.x}${sep}${c.y}`, Key: (k) => k.code }),
-  })
-  .impl();
+  });
 
 type Frame = Val<"Frame", { id: string; shape: Shape; last: Event }>;
-const Frame = Val.sealer<Frame>();
+const Frame = Val.companion<Frame>();
 
 declare const shape: Shape;
 declare const patch: Patch<SeedOf<Frame>>;
 
-const circle = Shape.Circle({ id: "c", r: 2 });
+const circle = Shape.Circle.create({ id: "c", r: 2 });
 const click = Event.Click.create({ id: "e", x: 1, y: 2 }) as VariantOf<Event, "Click">;
-const frame = Frame({ id: "f", shape: circle, last: click });
+const frame = Frame.seal({ id: "f", shape: circle, last: click });
 
 export const read = [
   Shape.area(shape),
   Shape.Circle.diameter(circle),
-  Shape.Rect.ratio(Shape.Rect({ id: "r", w: 1, h: 2 })),
+  Shape.Rect.ratio(Shape.Rect.create({ id: "r", w: 1, h: 2 })),
   Shape.match(shape, {
     Circle: (c) => c.r,
     Square: (q) => q.side,
@@ -71,9 +70,9 @@ export const read = [
 
 export const derived = [
   Shape.Circle.patch(circle, { r: 3 }),
-  Shape.Poly.patch(Shape.Poly({ id: "p", at: [[0, 0]] }), { at: [[1, 1]] }),
+  Shape.Poly.patch(Shape.Poly.create({ id: "p", at: [[0, 0]] }), { at: [[1, 1]] }),
   // A variant is a patch boundary: the nested one is replaced, never merged into.
-  Frame.patch(frame, { shape: Shape.Square({ id: "s", side: 1 }) }),
+  Frame.patch(frame, { shape: Shape.Square.create({ id: "s", side: 1 }) }),
   Frame.patch(frame, patch),
 ];
 

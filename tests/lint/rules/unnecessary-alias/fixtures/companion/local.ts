@@ -4,7 +4,7 @@ import type { User } from "./user.ts";
 
 type Local = User;
 
-const Local = Val.sealer<Local>().impl({
+const Local = Val.companion<Local>().impl({
   shout: (u) => u.name.toUpperCase(),
 });
 

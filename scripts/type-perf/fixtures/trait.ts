@@ -43,9 +43,8 @@ const Tag = Val.companion<Tag>().implTrait(Named, {
   label: (t, sep) => `${t.kind}${sep}${t.name}`,
 });
 
-// A sealer takes traits too, and stays callable.
 type Point = Val<"Point", { name: string; size: { w: number; h: number } }, Named & Sized>;
-const Point = Val.sealer<Point>()
+const Point = Val.companion<Point>()
   .implTrait(Named, { label: (p, sep) => `${p.name}${sep}` })
   .implTrait(Sized, { scaled: (p, by) => p.size.w * by });
 
@@ -68,7 +67,7 @@ export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
 export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()} ${Named.shout(b)}`);
 // A final reaches every path a member does, and the trait namespace besides.
 export const shouted = [Room.shout(room), Named.shout(tag), Named.dyn(Tag, tag).shout()];
-export const point = Point({ name: "o", size: { w: 1, h: 2 } });
+export const point = Point.seal({ name: "o", size: { w: 1, h: 2 } });
 export const nested = [
   Floor.label(floor, "/"),
   Floor.scaled(floor, 2),

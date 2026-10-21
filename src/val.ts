@@ -399,9 +399,9 @@ export type Wired = "patch" | "seal" | "create";
 type ValStep = "impl" | "implSeal" | "implCreate" | "implTrait";
 
 /**
- * The steps belong to the library, a builder's own or another's. A member taking one shadows
- * nothing: `.impl` builds a fresh object, and the chain has ended by then. But `User.implTrait(u)`
- * reads as the step it is not.
+ * The steps belong to the library, a builder's own or another's. A member taking `impl` or
+ * `implTrait` would replace the step, which stays on the companion: `.impl` does not close the
+ * chain. The rest shadow nothing, but `User.implSeal(u)` reads as the step it is not.
  *
  * A step the library adds later may take another name starting with `impl`.
  */
@@ -422,8 +422,6 @@ type Rejected = Partial<Record<Wired, never>> &
      * settles.
      */
     then?: never;
-    /** A sealer's own. A member taking the name would replace it, and the type would show both. */
-    nocopy?: never;
   };
 
 /** The keys of {@link Rejected}, which valof-lint reads. */
@@ -520,18 +518,21 @@ type CreateMethod<V extends AnyVal, N, F> = [Creating<V, N, F>] extends [undefin
       };
     };
 
-type SealMethod<F> = [WithoutDefaultSeal<F>] extends [undefined]
-  ? Record<never, never>
-  : {
-      /**
-       * The single gate a payload passes to become a value. `create` and `patch` both go
-       * through it.
-       */
-      seal: WithoutDefaultSeal<F> & {
+type SealMethod<V extends AnyVal, F> = {
+  /**
+   * The single gate a payload passes to become a value. `create` and `patch` both go through it.
+   * Without `.implSeal`, it brands the payload and copies it.
+   */
+  seal: [F] extends [undefined]
+    ? ((value: SeedOf<V>) => V) & {
+        /** Brands the payload without copying it. It must be readonly all the way down. */
+        nocopy: Nocopy<V>;
+      }
+    : WithoutDefaultSeal<F> & {
         /** Runs the same custom seal without copying its terminal payload. */
         nocopy: WithoutDefaultSeal<F>;
       };
-    };
+};
 
 /**
  * `patch` derives by sealing the new payload. With a custom seal it propagates whatever the seal
@@ -574,8 +575,8 @@ type PatchMethod<V extends AnyVal, F, P> = [Patch<Derivable<V, P>>] extends [nev
     };
 
 /**
- * A type's members, and nothing else. Not callable: constructors come from `Val.sealer`, so a
- * companion built without one cannot build values.
+ * A type's members, its `seal`, and the `create` and `patch` that go through it. Not callable: a
+ * call reads as a construction that cannot fail, and a seal can.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  */
@@ -585,22 +586,14 @@ export type Companion<
   N = undefined,
   F = undefined,
   P = never,
+  H = never,
 > = Duals<Omit<M, Wired>, V> &
-  CreateMethod<V, N, F> &
-  SealMethod<F> &
+  ("create" extends H ? unknown : CreateMethod<V, N, F>) &
+  ("seal" extends H ? unknown : SealMethod<V, F>) &
   PatchMethod<V, F, P> & {
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
   };
-
-/**
- * A companion that kept the constructor it was built from.
- *
- * Inferred, not written: it is exported so your own declarations can name it.
- */
-export type Sealed<V extends AnyVal, M extends CompanionMembers<V>> = ((value: SeedOf<V>) => V) & {
-  nocopy: Nocopy<V>;
-} & Companion<V, M>;
 
 /**
  * What `.impl` accepts once a name is taken: anything but a name a trait already uses, its shared
@@ -636,7 +629,7 @@ export type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
         ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
           ? Ok
           : "a member cannot take the name of a field the payload holds"
-        : "another trait already answers to one of these names"
+        : "another member already answers to one of these names"
       : "the type does not declare this trait";
 
 /** What the companion form takes once the trait itself has answered for every {@link Final}. */
@@ -656,57 +649,22 @@ export type Passes<Tr extends AnyTrait, G, I> =
       ? [impl?: I & Arity<I>]
       : [impl: I & Arity<I>];
 
-/**
- * A constructor for `V`, which can grow members without ceasing to be one.
- *
- * Inferred, not written: it is exported so your own declarations can name it.
- *
- * No `.implSeal` here: a sealer is the default seal, and a second one beside it would bypass the
- * first. No `.implCreate` either: beside a callable constructor, a `create` narrows nothing.
- */
-export type Sealer<V extends AnyVal, T extends CompanionMembers<V> = Record<never, never>> = Sealed<
-  V,
-  T
-> & {
-  /**
-   * Collects the members for the type, in one call, which ends the chain. Call it with no argument
-   * to close the chain with no member.
-   *
-   * A member reaching the companion, for `patch`, for the constructor, for a trait's member or for
-   * a sibling, references it and annotates its return type. Referencing a declaration inside its
-   * own initializer is a circularity, which TypeScript reports as TS7023.
-   *
-   * A member can be called with the value first, `User.rename(u, "x")`, or last,
-   * `User.rename("x")(u)`. So can `patch` and a trait's members. A member cannot have an optional,
-   * a default or a rest parameter. Pass `undefined` where an argument has no value.
-   *
-   * Called with the value last, a generic member loses its type parameters. Each becomes its
-   * constraint, or `unknown` where none is declared. To keep them, wrap the member in a function
-   * that calls it with the value first: `pipe(u, (v) => User.pick(v, "name"))`.
-   *
-   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
-   */
-  impl: {
-    // A separate step because TypeScript cannot infer type arguments partially, and two
-    // overloads rather than a default `M`: a defaulted type parameter stops TypeScript using
-    // the constraint as a contextual type, leaving every first parameter implicitly `any`.
-    (): Sealed<V, T>;
-    <M extends CompanionMembers<V>>(fns: Grown<keyof T, M> & Arity<M>): Sealed<V, M & T>;
-  };
-  /** Implements a trait the type declares. See {@link CompanionBuilder.implTrait}. */
-  implTrait: {
-    <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
-      trait: Takes<V, Tr, T, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, I>
-    ): Sealer<V, T & Unbound<MembersOf<Tr>, V>>;
-  };
-};
+/** The steps a companion has taken. The first four are the first half of the chain. */
+type Taken = "fixed" | "private" | "implSeal" | "implCreate" | "impl" | "implTrait";
+
+/** Where `fixed` and `private` go, once a step that belongs after them has been written. */
+type Early<D> = [Extract<D, "implSeal" | "implCreate">] extends [never]
+  ? never
+  : "write `fixed` and `private` before `implSeal` and `implCreate`";
 
 /**
- * What `Val.companion` returns: the mirror of {@link Sealer}, differing only in that nothing
- * was ever callable.
+ * What `Val.companion` returns, which its steps add to.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
+ *
+ * The first half sets up the gates, in this order: `fixed` and `private`, then `implSeal`, then
+ * `implCreate`. Each comes once. The second half registers members, `impl` once and `implTrait`
+ * for each trait, in any order, and its first step ends the first half.
  *
  * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Generating
  * ids, timestamps and the like belongs in `create`, whose payload is then sealed like any other.
@@ -716,71 +674,130 @@ export type CompanionBuilder<
   N = undefined,
   F = undefined,
   P = never,
+  H = never,
   T extends CompanionMembers<V> = Record<never, never>,
-> = Companion<V, T, N, F, P> & {
-  /**
-   * Collects the members for the type, in one call. Everything the library reserves has its own
-   * step. See {@link Sealer.impl}.
-   */
-  impl: {
-    (): Companion<V, T, N, F, P>;
-    // A trait's member is registered, so `.impl` may not register one over it: the type would keep
-    // the trait's signature while `dyn` kept calling what `implTrait` recorded.
-    <M extends CompanionMembers<V>>(
-      fns: Grown<keyof T, M> & Arity<M>,
-    ): Companion<V, M & T, N, F, P>;
-  };
-  /**
-   * Implements a trait the type declares. The members the trait leaves open arrive as a second
-   * argument, with their first parameter fixed to the Val as everywhere else; a trait that
-   * leaves none takes no second argument.
-   *
-   * A member the trait declared {@link Final} is not passed here: it arrives unchanged, and nothing
-   * can override it.
-   *
-   * The members can be called with the value first or last, and cannot have an optional, a default
-   * or a rest parameter.
-   *
-   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
-   */
-  implTrait: {
-    <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
+  D extends Taken = never,
+> = Companion<V, T, N, F, P, H> &
+  ([Extract<D, "impl" | "implTrait">] extends [never] ? FirstHalf<V, N, F, P, H, D> : unknown) &
+  ("impl" extends D
+    ? unknown
+    : {
+        /**
+         * Collects the members for the type, in one call. Everything the library reserves has its
+         * own step.
+         *
+         * A member reaching the companion, for `patch`, for `seal`, for a trait's member or for a
+         * sibling, references it and annotates its return type. Referencing a declaration inside
+         * its own initializer is a circularity, which TypeScript reports as TS7023.
+         *
+         * A member can be called with the value first, `User.rename(u, "x")`, or last,
+         * `User.rename("x")(u)`. So can `patch` and a trait's members. A member cannot have an
+         * optional, a default or a rest parameter. Pass `undefined` where an argument has no value.
+         *
+         * Called with the value last, a generic member loses its type parameters. Each becomes its
+         * constraint, or `unknown` where none is declared. To keep them, wrap the member in a
+         * function that calls it with the value first: `pipe(u, (v) => User.pick(v, "name"))`.
+         *
+         * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+         */
+        // A separate step because TypeScript cannot infer type arguments partially. A trait's
+        // member is registered, so `.impl` may not register one over it: the type would keep the
+        // trait's signature while `dyn` kept calling what `implTrait` recorded.
+        impl: <M extends CompanionMembers<V>>(
+          fns: Grown<keyof T, M> & Arity<M>,
+        ) => CompanionBuilder<V, N, F, P, H, M & T, D | "impl">;
+      }) & {
+    /**
+     * Implements a trait the type declares. The members the trait leaves open arrive as a second
+     * argument, with their first parameter fixed to the Val as everywhere else; a trait that
+     * leaves none takes no second argument.
+     *
+     * A member the trait declared {@link Final} is not passed here: it arrives unchanged, and
+     * nothing can override it.
+     *
+     * The members can be called with the value first or last, and cannot have an optional, a
+     * default or a rest parameter.
+     *
+     * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+     */
+    implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I>
-    ): CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>>;
+    ) => CompanionBuilder<V, N, F, P, H, T & Unbound<MembersOf<Tr>, V>, D | "implTrait">;
   };
-  /** Registers a function that creates a payload, as `create`. Any arguments, a payload out. */
-  implCreate: (<G extends CreateImpl<V>>(create: G) => CompanionBuilder<V, G, F, P, T>) & {
-    /**
-     * A `create` that bypasses the seal and returns the Val, for a payload the seal always
-     * accepts, such as a random id. Takes no arguments. Development still runs the seal, and
-     * throws if it rejects the payload or if normalization changes it.
-     */
-    noseal: <G extends AnyFn>(create: Argumentless<V, G>) => CompanionBuilder<V, Unsealed, F, P, T>;
-  };
-  /**
-   * Replaces the seal. Its parameter may be wider than the payload, so a schema library can parse
-   * into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
-   */
-  implSeal: <G extends SealImpl<V>>(seal: CheckedSeal<V, G>) => CompanionBuilder<V, N, G, P, T>;
-  /**
-   * Takes keys out of the derivation path: `patch` stops accepting them in its patch.
-   *
-   * For what a `create` generates and nothing afterwards may change: an id, a `createdAt`, a
-   * version counter.
-   *
-   * ```ts
-   * Val.companion<User>()
-   *   .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }))
-   *   .implSeal(seal)
-   *   .fixed<"id">();
-   * ```
-   *
-   * The keys are a type argument and do not exist at runtime. This constrains the derivation
-   * path, not the value: `Val.of` can still forge one.
-   */
-  fixed: <K extends keyof SeedOf<V> & string>() => CompanionBuilder<V, N, F, P | K, T>;
-};
+
+/**
+ * The steps that set up the gates. A step already taken is gone, and one written too late takes
+ * the reason as its type argument or its parameter.
+ */
+type FirstHalf<V extends AnyVal, N, F, P, H, D extends Taken> = ("fixed" extends D
+  ? unknown
+  : {
+      /**
+       * Takes keys out of the derivation path: `patch` stops accepting them in its patch.
+       *
+       * For what a `create` generates and nothing afterwards may change: an id, a `createdAt`, a
+       * version counter.
+       *
+       * ```ts
+       * Val.companion<User>()
+       *   .fixed<"id">()
+       *   .implSeal(seal)
+       *   .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }));
+       * ```
+       *
+       * The keys are a type argument and do not exist at runtime. This constrains the derivation
+       * path, not the value: `Val.of` can still forge one.
+       */
+      fixed: <
+        K extends ([Early<D>] extends [never] ? keyof SeedOf<V> & string : Early<D>),
+      >() => CompanionBuilder<V, N, F, P | K, H, Record<never, never>, D | "fixed">;
+    }) &
+  ("private" extends D
+    ? unknown
+    : {
+        /**
+         * Takes `seal`, `create` or both off the companion. `patch` still goes through the seal.
+         *
+         * The keys are a type argument and do not exist at runtime. `Val.of` can still forge a
+         * value.
+         */
+        private: <
+          K extends ([Early<D>] extends [never] ? "seal" | "create" : Early<D>),
+        >() => CompanionBuilder<V, N, F, P, H | K, Record<never, never>, D | "private">;
+      }) &
+  ("implSeal" extends D
+    ? unknown
+    : {
+        /**
+         * Replaces the seal. Its parameter may be wider than the payload, so a schema library can
+         * parse into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
+         */
+        implSeal: "implCreate" extends D
+          ? (
+              seal: "write `implSeal` before `implCreate`",
+            ) => CompanionBuilder<V, N, F, P, H, Record<never, never>, D>
+          : <G extends SealImpl<V>>(
+              seal: CheckedSeal<V, G>,
+            ) => CompanionBuilder<V, N, G, P, H, Record<never, never>, D | "implSeal">;
+      }) &
+  ("implCreate" extends D
+    ? unknown
+    : {
+        /** Registers a function that creates a payload, as `create`. Any arguments, a payload out. */
+        implCreate: (<G extends CreateImpl<V>>(
+          create: G,
+        ) => CompanionBuilder<V, G, F, P, H, Record<never, never>, D | "implCreate">) & {
+          /**
+           * A `create` that bypasses the seal and returns the Val, for a payload the seal always
+           * accepts, such as a random id. Takes no arguments. Development still runs the seal, and
+           * throws if it rejects the payload or if normalization changes it.
+           */
+          noseal: <G extends AnyFn>(
+            create: Argumentless<V, G>,
+          ) => CompanionBuilder<V, Unsealed, F, P, H, Record<never, never>, D | "implCreate">;
+        };
+      });
 
 /**
  * The payload's own keys, which a trait member may not shadow: a box forwards everything but a
@@ -1067,9 +1084,8 @@ export const assertVariantPayload = (value: unknown): void => {
 };
 
 /**
- * Assignment cannot carry a user's function: a sealer's target is a function, whose `name` and
- * `length` are read-only, so `impl({ name })` would throw. Both are configurable, so defining
- * works. The library's own keys never collide and are assigned.
+ * Assignment would move a `__proto__` key into the prototype rather than keep it an own property.
+ * The library's own keys never collide and are assigned.
  */
 export const define = <T extends object>(target: T, key: string, value: unknown): T => {
   Object.defineProperty(target, key, {
@@ -1129,19 +1145,18 @@ const patched = (
 };
 
 /**
- * Attaches what the steps registered, plus the user's own members, to `target`.
+ * A companion holding what the steps registered, plus the user's own members.
  *
  * Everything that produces a value goes through `seal`: the registered one, or a copy when the
  * type did not replace it. Nothing is copied before that. The one deep copy happens in the
  * default seal that a custom one returns through.
  */
 const attach = (
-  target: Record<string, unknown>,
   fns: Record<string, unknown>,
   ctors: Ctors,
   traits: Record<string, unknown>,
-  callable: boolean,
 ): Record<string, unknown> => {
+  const target: Record<string, unknown> = {};
   const { create, noseal, seal: custom } = ctors;
   const sealedWith = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
     custom
@@ -1191,11 +1206,9 @@ const attach = (
     created.nocopy = (...args: never[]) => adopting(create(...args));
     target.create = created;
   }
-  if (custom) {
-    define(seal, "nocopy", nocopy);
-    target.seal = seal;
-  }
-  if (callable) target.nocopy = nocopy;
+  // Without a custom seal, `seal` is the copy itself, and this gives it the `nocopy` `Val.of` has.
+  define(seal, "nocopy", nocopy);
+  target.seal = seal;
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
@@ -1223,41 +1236,36 @@ const attach = (
 };
 
 /**
- * One builder state: what the steps registered so far, plus the ones still open.
- *
- * A sealer's target is the default constructor itself, which is what lets its steps return
- * something still callable. `.impl` closes the chain either way.
+ * One builder state: what the steps registered so far, plus the ones still open. The order the
+ * type enforces is not checked here, except that the first half's steps go once the second half
+ * starts: a member may take the name of one.
  */
-const build = <V extends AnyVal>(
+const build = (
   ctors: Ctors,
-  callable: boolean,
   traits: Record<string, unknown> = {},
+  fns: Record<string, unknown> = {},
+  first = true,
+  open = true,
 ): object => {
-  // A function is not a `Record`, so the cast is here rather than at every assignment in
-  // `attach`.
-  const base = () =>
-    (callable ? (value: SeedOf<V>): V => own(value) as unknown as V : {}) as unknown as Record<
-      string,
-      unknown
-    >;
-  const target = attach(base(), {}, ctors, traits, callable);
-  const step = (next: Ctors): object => build<V>(next, callable, traits);
+  const target = attach(fns, ctors, traits);
+  const later = (next: Record<string, unknown>, members: Record<string, unknown>, more: boolean) =>
+    build(ctors, next, members, false, more);
 
-  // `.impl` takes one call, so what it returns carries no step.
-  target.impl = (fns: Record<string, unknown> = {}) => attach(base(), fns, ctors, traits, callable);
+  if (open) target.impl = (members: Record<string, unknown>) => later(traits, members, false);
   // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
   // The Val's own go on last, the type having kept every `Final` one out of them.
   target.implTrait = (
     trait: { __valof_shared: Record<string, unknown> },
     impl: Record<string, unknown> = {},
-  ) => build<V>(ctors, callable, { ...traits, ...trait.__valof_shared, ...impl });
-  if (callable) return target;
+  ) => later({ ...traits, ...trait.__valof_shared, ...impl }, fns, open);
+  if (!first) return target;
 
+  const step = (next: Ctors): object => build(next);
   target.implCreate = Object.assign((create: AnyFn) => step({ ...ctors, create, noseal: false }), {
     noseal: (create: AnyFn) => step({ ...ctors, create, noseal: true }),
   });
   target.implSeal = (seal: NonNullable<Ctors["seal"]>) => step({ ...ctors, seal });
-  target.fixed = () => step(ctors);
+  target.fixed = target.private = () => step(ctors);
   return target;
 };
 
@@ -1273,8 +1281,9 @@ type NotEnum<V> = [V] extends [AnyEnum]
   : unknown;
 
 /**
- * The default seal, with the type named explicitly: brand the payload and copy it. A called
- * `Val.sealer` and the seal passed to a custom one do the same thing; only the type differs.
+ * The default seal, with the type named explicitly: brand the payload and copy it. `seal` on a
+ * companion without `.implSeal`, and the seal passed to a custom one, do the same thing; only the
+ * type differs.
  */
 export const of = /* @__PURE__ */ Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
   /**
@@ -1294,19 +1303,10 @@ export const of = /* @__PURE__ */ Object.assign(own as <V extends AnyVal>(value:
 export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 
 /**
- * Creates the constructor for a Val. `Val.companion` is the same shape for a type with a
- * smart constructor, minus the callability.
- *
- * `V` is given as a type argument; the members are inferred by `.impl()`.
- */
-export const sealer = <V extends AnyVal & NotEnum<V>>(): Sealer<V> =>
-  build<V>({}, true) as Sealer<V>;
-
-/**
- * Bundles a type's members without a constructor.
+ * Bundles a type's `seal` and members. `V` is given as a type argument; the steps infer the rest.
  *
  * Constructors get their own steps rather than sitting in `.impl`, which fixes every
  * function's first parameter to the Val. A constructor does not fit that shape.
  */
 export const companion = <V extends AnyVal & NotEnum<V>>(): CompanionBuilder<V> =>
-  build<V>({}, false) as CompanionBuilder<V>;
+  build({}) as CompanionBuilder<V>;

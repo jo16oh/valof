@@ -4,7 +4,7 @@ import { BypassedCompanion, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
-test("names the constructor a sealer already gives the type", async () => {
+test("names the seal a companion has without `implSeal`", async () => {
   expect(await lint("constructor")).toEqual([
     {
       rule: BypassedCompanion,
@@ -12,7 +12,7 @@ test("names the constructor a sealer already gives the type", async () => {
     },
   ]);
   expect(await messages("constructor")).toEqual([
-    "Val.of<User> bypasses User, the constructor for it",
+    "Val.of<User> bypasses User.seal, the constructor for it",
   ]);
 });
 
@@ -34,16 +34,6 @@ test("reads the chain through `.implCreate.noseal`", async () => {
   ]);
 });
 
-test("says what is missing where the companion has no seal to name", async () => {
-  expect(await lint("no-seal")).toEqual([
-    {
-      rule: BypassedCompanion,
-      at: "no-seal.ts:9:68",
-    },
-  ]);
-  expect(await messages("no-seal")).toEqual(["Val.of<Row> brands a payload that no seal checked"]);
-});
-
 test("says nothing where the type has no companion", async () => {
   expect(await lint("no-companion")).toEqual([]);
 });
@@ -56,7 +46,7 @@ test("follows a renamed import to the companion in the other file", async () => 
     },
   ]);
   expect(await messages("renamed-import")).toEqual([
-    "Val.of<Account> bypasses User, the constructor for it",
+    "Val.of<Account> bypasses User.seal, the constructor for it",
   ]);
 });
 
@@ -84,12 +74,5 @@ test("names the variant's frame for a lift, and the entry for one naming the uni
   expect(await messages("enum-companion")).toEqual([
     'Val.of<VariantOf<Shape, "Circle">> bypasses Shape.Circle.create, which seals the payload',
     "Val.of<Shape> bypasses Shape.seal, which selects the variant from the tag",
-  ]);
-});
-
-test("a sealer's variants are callable, and the companion itself is the entry", async () => {
-  expect(await messages("enum-sealer")).toEqual([
-    'Val.of<VariantOf<Shape, "Circle">> bypasses Shape.Circle, the constructor for it',
-    "Val.of<Shape> bypasses Shape, which selects the variant from the tag",
   ]);
 });

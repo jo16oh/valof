@@ -22,7 +22,6 @@ type On<T, K extends keyof T> = K;
  * there makes the published lint declarations import the library's.
  */
 const ENTRY_POINTS: ReadonlySet<string> = new Set([
-  "sealer" satisfies On<typeof Val | typeof Enum, "sealer">,
   "companion" satisfies On<typeof Val | typeof Enum | typeof Trait, "companion">,
 ]);
 
@@ -46,10 +45,8 @@ export type CompanionSite = Where & {
   typeOffset: number;
   /** Where the type argument is written. */
   typeAt: Where;
-  /** The namespace it was reached through, for `Val.sealer<ns.User>()`. */
+  /** The namespace it was reached through, for `Val.companion<ns.User>()`. */
   qualifier: string | undefined;
-  /** Which of the two the chain grew from. A sealer is callable; a companion is not. */
-  root: "sealer" | "companion";
   /** Whether the chain registered a seal of its own, with `.implSeal`. */
   seals: boolean;
 };
@@ -78,7 +75,7 @@ export function fromRoot(node: Node, bound: Bindings): Root | undefined {
   if (!path || path.length === 0) return undefined;
   const [first, second, third] = path as [string, string?, string?];
   if (path.length === 1) return bound.builders.get(first);
-  // `valof.Val.sealer`: step past the namespace, which only says where the name came from.
+  // `valof.Val.companion`: step past the namespace, which only says where the name came from.
   const qualified = bound.namespaces.has(first);
   const name = qualified ? second : original(bound, first);
   const step = qualified ? third : second;
@@ -176,21 +173,18 @@ type Chain = {
   typeArguments: Node | undefined;
   /** Which entry point the chain grew from, once it is known to have one. */
   of: Root | undefined;
-  /** The step the chain grew from. A sealer is callable; a companion is not. */
-  root: "sealer" | "companion" | undefined;
 };
 
 /**
  * Reads a builder chain from the outside in.
  * `Val.companion<Order>().implSeal(f).impl({…})` gives both `implSeal` and `Order`.
  *
- * A call whose receiver is not itself a call is the root, which is what tells `Val.sealer<X>()`
- * apart from the steps chained onto it.
+ * A call whose receiver is not itself a call is the root, which is what tells
+ * `Val.companion<X>()` apart from the steps chained onto it.
  */
 function readChain(node: Node, bound: Bindings): Chain {
   const steps = new Set<string>();
   let of: Root | undefined;
-  let root: "sealer" | "companion" | undefined;
 
   const walk = (current: Node): Node | undefined => {
     if (current.type !== "CallExpression") return undefined;
@@ -201,9 +195,7 @@ function readChain(node: Node, bound: Bindings): Chain {
     const { name, receiver } = step;
     if (receiver.type !== "CallExpression") {
       of = fromRoot(callee, bound);
-      if (!of) return undefined;
-      root = rootPath(callee)?.at(-1) === "companion" ? "companion" : "sealer";
-      return child(current, "typeArguments");
+      return of ? child(current, "typeArguments") : undefined;
     }
     const [argument] = children(current, "arguments");
     if (name && argument) steps.add(name);
@@ -211,7 +203,7 @@ function readChain(node: Node, bound: Bindings): Chain {
   };
 
   const typeArguments = walk(node);
-  return { steps, typeArguments, of, root };
+  return { steps, typeArguments, of };
 }
 
 /**
@@ -242,10 +234,10 @@ export function companionSite(
   bound: Bindings,
   at: (offset: number) => Where,
 ): CompanionSite | undefined {
-  const { steps, typeArguments, of, root } = readChain(node, bound);
+  const { steps, typeArguments, of } = readChain(node, bound);
   const first = unparenthesized(typeArguments ? children(typeArguments, "params")[0] : undefined);
   if (!first || first.type !== "TSTypeReference" || !of) return undefined;
-  // A type argument taking type arguments of its own, `Val.sealer<VariantOf<Shape, "Circle">>()`,
+  // A type argument taking type arguments of its own, `Val.companion<VariantOf<Shape, "Circle">>()`,
   // names no declaration this walk knows. The type rejects that one, and reporting `VariantOf` as
   // the type the companion is for would name something the user never declared.
   if (child(first, "typeArguments")) return undefined;
@@ -264,8 +256,6 @@ export function companionSite(
     typeOffset: named.node["start"] as number,
     typeAt: at(named.node["start"] as number),
     qualifier: named.qualifier,
-    // Set whenever the chain has a root of ours, which is the only way it has type arguments.
-    root: root ?? "sealer",
     seals: steps.has("implSeal"),
   };
 }

@@ -1,1 +1,1 @@
-export { companion, sealer } from "../enum.ts";
+export { companion } from "../enum.ts";

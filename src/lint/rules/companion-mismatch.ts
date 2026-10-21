@@ -4,7 +4,7 @@ import type { Rule } from "./rule.ts";
 
 /**
  * A companion bound to a name other than the type it is for. `const Account =
- * Val.sealer<User>()` compiles, and every call site then reads `Account.greet(user)`.
+ * Val.companion<User>()` compiles, and every call site then reads `Account.greet(user)`.
  */
 export type CompanionMismatch = Where & {
   kind: "companion-mismatch";
@@ -27,20 +27,20 @@ export const CompanionMismatch: Rule<CompanionMismatch> = {
  * bound to a name other than its own.
  *
  * The type and the companion share one name on purpose: `type User = Val<…>` and `const User =
- * Val.sealer<User>()` are a declaration merge, so `User` is the type, the constructor and the
+ * Val.companion<User>()` are a declaration merge, so `User` is the type, the companion and the
  * namespace at once. Two names split that, and the reader has to know both to find either.
  *
  * Compared as written, so `import type { User as Account }` passes with `const Account =
- * Val.sealer<Account>()`. The type belonging to another file is the split-companion
+ * Val.companion<Account>()`. The type belonging to another file is the split-companion
  * rule's finding, not this one's.
  *
  * The chain is where the name is required, not the `.impl` on it, so holding a builder in a
- * variable is reported: `const seal = Val.sealer<User>()` is already the constructor for `User`
+ * variable is reported: `const built = Val.companion<User>()` is already the companion for `User`
  * under a second name. Writing the chain as one `const User` is the fix.
  *
  * A variant carries the same requirement. `const { Circle } = Shape` and `const Circle =
  * Shape.Circle` keep the name the enum declared; `const Round = Shape.Circle` does not, and a
- * reader of `Round({ r: 2 })` cannot tell which enum declared it. Anything else taken off a
+ * reader of `Round.create({ r: 2 })` cannot tell which enum declared it. Anything else taken off a
  * companion, `const x = config.value`, is no variant and is left alone.
  */
 function findings(scans: readonly Scan[]): CompanionMismatch[] {

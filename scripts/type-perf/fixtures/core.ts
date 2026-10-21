@@ -3,13 +3,13 @@
 import { equals, Val, type Patch, type SeedOf } from "valof";
 
 type City = Val<"City", { name: string; zip?: string }>;
-const City = Val.sealer<City>();
+const City = Val.companion<City>();
 
 type Money = Val<"Money", { amount: number; currency: string }>;
-const Money = Val.sealer<Money>();
+const Money = Val.companion<Money>();
 
 type Line = Val<"Line", { sku: string; qty: number; unit: Money; tags: readonly string[] }>;
-const Line = Val.sealer<Line>();
+const Line = Val.companion<Line>();
 
 type Address = Val<
   "Address",
@@ -19,7 +19,7 @@ type Address = Val<
     at: readonly [number, number];
   }
 >;
-const Address = Val.sealer<Address>();
+const Address = Val.companion<Address>();
 
 type Order = Val<
   "Order",
@@ -33,9 +33,10 @@ type Order = Val<
 >;
 
 const Order = Val.companion<Order>()
-  .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
-  .implSeal((seed, seal) => seal(seed))
   .fixed<"id">()
+  .private<"seal">()
+  .implSeal((seed, seal) => seal(seed))
+  .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
   .impl({
     label(o) {
       return `${o.id}: ${o.lines.length}`;
@@ -52,16 +53,23 @@ export const derived = [
   // The patch stops at a nested Val, so the deep one runs inside `Address`.
   Order.patch(order, { ship: Address.patch(order.ship, { street: { name: "Shijo" } }) }),
   Address.patch(order.ship, { street: { unit: { floor: 2, door: "b" } } }),
-  Order.patch(order, { totals: { vat: Money({ amount: 1, currency: "JPY" }) } }),
+  Order.patch(order, { totals: { vat: Money.seal({ amount: 1, currency: "JPY" }) } }),
   Order.patch(order, { note: undefined }),
   Order.patch(order, patch),
   Order.create({
-    ship: Address({
-      city: City({ name: "Kyoto" }),
+    ship: Address.seal({
+      city: City.seal({ name: "Kyoto" }),
       street: { name: "Karasuma", number: 1 },
       at: [35, 135],
     }),
-    lines: [Line({ sku: "a", qty: 1, unit: Money({ amount: 1, currency: "JPY" }), tags: ["x"] })],
+    lines: [
+      Line.seal({
+        sku: "a",
+        qty: 1,
+        unit: Money.seal({ amount: 1, currency: "JPY" }),
+        tags: ["x"],
+      }),
+    ],
     totals: {},
   }),
   Val.of<Order>(order),

@@ -12,7 +12,7 @@ test("reports a companion for a type another file declares", async () => {
   expect(await lint("imported")).toEqual([
     {
       rule: SplitCompanion,
-      at: "imported/companion.ts:5:25",
+      at: "imported/companion.ts:5:28",
     },
   ]);
 });
@@ -21,7 +21,7 @@ test("reports a type reached through a namespace, which is another module by def
   expect(await lint("namespaced")).toEqual([
     {
       rule: SplitCompanion,
-      at: "namespaced/companion.ts:5:31",
+      at: "namespaced/companion.ts:5:34",
     },
   ]);
 });
@@ -30,7 +30,7 @@ test("sees the chain however `Val` was imported", async () => {
   expect(await lint("renamed-val")).toEqual([
     {
       rule: SplitCompanion,
-      at: "renamed-val/companion.ts:5:27",
+      at: "renamed-val/companion.ts:5:30",
     },
   ]);
 });
@@ -40,5 +40,5 @@ test("reports a Trait companion split from its declaration", async () => {
 });
 
 test("reports an Enum companion written beside an imported declaration", async () => {
-  expect(await lint("enum")).toEqual([{ rule: SplitCompanion, at: "enum/companion.ts:5:34" }]);
+  expect(await lint("enum")).toEqual([{ rule: SplitCompanion, at: "enum/companion.ts:5:37" }]);
 });

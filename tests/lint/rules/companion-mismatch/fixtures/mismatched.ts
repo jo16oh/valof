@@ -2,8 +2,8 @@ import { Val } from "valof";
 
 type User = Val<"User", { id: string; name: string }>;
 
-const Account = Val.sealer<User>().impl({
+const Account = Val.companion<User>().impl({
   greet: (u) => u.name,
 });
 
-Account.greet(Account({ id: "a", name: "bob" }));
+Account.greet(Account.seal({ id: "a", name: "bob" }));

@@ -10,4 +10,4 @@ export type Shape = Enum<
   { Circle: { r: number }; Square: { side: number } },
   Labelled & Shared
 >;
-export const Shape = Enum.sealer<Shape>();
+export const Shape = Enum.companion<Shape>();

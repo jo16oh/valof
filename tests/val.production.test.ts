@@ -22,13 +22,13 @@ describe("Val nocopy in production", () => {
     "ProductionDocument",
     { item: Item; metadata: { version: number }; note: string }
   >;
-  const Document = Val.sealer<Document>();
+  const Document = Val.companion<Document>();
 
   test("indexes adopted descendants lazily and preserves an unchanged subtree", () => {
     const item = { label: "kept" } as Item;
     const metadata = { version: 1 } as const;
     const seed = { item, metadata, note: "before" } as const;
-    const document = Document.nocopy(seed);
+    const document = Document.seal.nocopy(seed);
 
     // This is also a guard that the test loaded val.ts through its production branch.
     expect(Object.isFrozen(seed)).toBe(false);
@@ -41,7 +41,7 @@ describe("Val nocopy in production", () => {
   });
 
   test("copies an external object introduced by a patch", () => {
-    const document = Document.nocopy({
+    const document = Document.seal.nocopy({
       item: { label: "kept" } as Item,
       metadata: { version: 1 },
       note: "before",
@@ -55,10 +55,10 @@ describe("Val nocopy in production", () => {
 
   test("finishes indexing an adopted graph containing a cycle", () => {
     type Counter = Value<"ProductionCounter", { count: number }>;
-    const Counter = Val.sealer<Counter>();
+    const Counter = Val.companion<Counter>();
     const seed: { count: number; self?: unknown } = { count: 1 };
     seed.self = seed;
-    const counter = Counter.nocopy(seed as never);
+    const counter = Counter.seal.nocopy(seed as never);
 
     const changed = Counter.patch(counter, { count: 2 });
     expect(changed.count).toBe(2);
@@ -70,11 +70,11 @@ describe("implCreate.noseal in production", () => {
     type SectionId = Value<"ProductionSectionId", string>;
     let sealed = 0;
     const SectionId = Val.companion<SectionId>()
-      .implCreate.noseal(() => "0123abcd")
       .implSeal((text, seal): SectionId | undefined => {
         sealed += 1;
         return seal(text);
-      });
+      })
+      .implCreate.noseal(() => "0123abcd");
 
     expect(SectionId.create()).toBe("0123abcd");
     expect(SectionId.create.nocopy()).toBe("0123abcd");
@@ -87,10 +87,10 @@ describe("a member in production", () => {
   test("hiding its parameters is not checked", () => {
     type Named = Value<"ProductionNamed", { name: string }>;
     const greet = (n: Named, greeting: string) => `${greeting}, ${n.name}`;
-    const Named = Val.sealer<Named>().impl({
+    const Named = Val.companion<Named>().impl({
       greet: (...args: [Named, string]) => greet(...args),
     });
-    expect(Named.greet(Named({ name: "bob" }), "Hi")).toBe("Hi, bob");
+    expect(Named.greet(Named.seal({ name: "bob" }), "Hi")).toBe("Hi, bob");
   });
 });
 
@@ -98,7 +98,7 @@ describe("an enum variant in production", () => {
   // Without the check, the spread that adds the tag turns a string into a character map.
   test("throws on a payload that is not an object", () => {
     type Signal = EnumOf<"ProductionSignal", { Stop: {}; Go: { speed: number } }>;
-    const Signal = Enum.sealer<Signal>();
-    expect(() => Signal.Stop("text" as never)).toThrow(TypeError);
+    const Signal = Enum.companion<Signal>();
+    expect(() => Signal.Stop.create("text" as never)).toThrow(TypeError);
   });
 });

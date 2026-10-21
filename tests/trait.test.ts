@@ -221,15 +221,15 @@ describe("dyn", () => {
     type Marker = Trait<"Marker", Record<never, never>, { wire: (self: Self) => string }>;
     const Marker = Trait.companion<Marker>().impl({ wire: (_m) => "marked" });
     type Email = Val<"Email", string, Marker>;
-    const Email = Val.sealer<Email>().implTrait(Marker);
+    const Email = Val.companion<Email>().implTrait(Marker);
 
     test("gets an empty target to stand behind", () => {
-      const mail = Email("a@example.com");
+      const mail = Email.seal("a@example.com");
       expect([Email.wire(mail), Marker.dyn(Email, mail).wire()]).toEqual(["marked", "marked"]);
     });
 
     test("is the one box that does not stand in for its value", () => {
-      expect(JSON.stringify(Marker.dyn(Email, Email("a@example.com")))).toBe("{}");
+      expect(JSON.stringify(Marker.dyn(Email, Email.seal("a@example.com")))).toBe("{}");
     });
   });
 });

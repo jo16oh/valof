@@ -18,7 +18,7 @@ type ArticleId = Val<"ArticleId", string>;
 type Tags = Val<"Tags", Record<string, true>>;
 type Grid = Val<"Grid", number[][]>;
 
-const User = Val.sealer<User>();
+const User = Val.companion<User>();
 const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
   n >= 0 && Number.isInteger(n)
     ? { ok: true, value: seal(n) }
@@ -46,7 +46,7 @@ describe("Val", () => {
     test("keeps every identity and freezes the adopted graph", () => {
       const tags: readonly string[] = ["one"];
       const raw = { id: "a", name: "alice", tags } as const;
-      const user = Val.sealer<Val<"NocopyUser", typeof raw>>().nocopy(raw);
+      const user = Val.companion<Val<"NocopyUser", typeof raw>>().seal.nocopy(raw);
       expect(user).toBe(raw);
       expect(user.tags).toBe(raw.tags);
       expect(Object.isFrozen(raw)).toBe(true);
@@ -55,7 +55,7 @@ describe("Val", () => {
 
     test("requires a deeply readonly default-sealer input", () => {
       type NocopyUser = Val<"NocopyUser", { id: string; tags: string[]; nested: { n: number } }>;
-      const NocopyUser = Val.sealer<NocopyUser>();
+      const NocopyUser = Val.companion<NocopyUser>();
       const readonly: {
         readonly id: string;
         readonly tags: readonly string[];
@@ -71,24 +71,24 @@ describe("Val", () => {
         readonly tags: string[];
         readonly nested: { readonly n: number };
       } = { id: "a", tags: ["one"], nested: { n: 1 } };
-      NocopyUser.nocopy(readonly);
+      NocopyUser.seal.nocopy(readonly);
       // @ts-expect-error writable properties are not ownership evidence
-      NocopyUser.nocopy(mutable);
+      NocopyUser.seal.nocopy(mutable);
       // @ts-expect-error mutable arrays are not ownership evidence
-      NocopyUser.nocopy(mutableArray);
-      NocopyUser.nocopy({ id: "a", tags: ["one"], nested: { n: 1 } });
+      NocopyUser.seal.nocopy(mutableArray);
+      NocopyUser.seal.nocopy({ id: "a", tags: ["one"], nested: { n: 1 } });
     });
 
     test("accepts readonly optional properties and tuples", () => {
       type WithOptional = Val<"WithOptional", { name: string; nickname?: string }>;
-      const WithOptional = Val.sealer<WithOptional>();
+      const WithOptional = Val.companion<WithOptional>();
       const optionalSeed: SeedOf<WithOptional> = { name: "a" };
 
       type WithTuple = Val<
         "WithTuple",
         { pair: [string, number]; optionalPair: [string, number?] }
       >;
-      const WithTuple = Val.sealer<WithTuple>();
+      const WithTuple = Val.companion<WithTuple>();
       const tupleSeed: SeedOf<WithTuple> = {
         pair: ["a", 1],
         optionalPair: ["b"],
@@ -98,38 +98,38 @@ describe("Val", () => {
         readonly optionalPair: readonly [string, number?];
       } = { pair: ["a", 1], optionalPair: ["b"] };
 
-      WithOptional.nocopy(optionalSeed);
-      WithTuple.nocopy(tupleSeed);
+      WithOptional.seal.nocopy(optionalSeed);
+      WithTuple.seal.nocopy(tupleSeed);
       // @ts-expect-error mutable tuples are not ownership evidence
-      WithTuple.nocopy(mutableTuple);
+      WithTuple.seal.nocopy(mutableTuple);
     });
 
     test("accepts a fresh object literal", () => {
       type Plain = Val<"Plain", { id: string; name: string }>;
-      Val.sealer<Plain>().nocopy({ id: "a", name: "alice" });
+      Val.companion<Plain>().seal.nocopy({ id: "a", name: "alice" });
     });
 
     test("accepts a readonly array as the root payload", () => {
       type Names = Val<"Names", string[]>;
-      const Names = Val.sealer<Names>();
+      const Names = Val.companion<Names>();
       const seed: readonly string[] = ["alice", "bob"];
 
-      expect(Names.nocopy(seed)).toBe(seed);
+      expect(Names.seal.nocopy(seed)).toBe(seed);
     });
 
     test("stops the readonly type check at a nested Val", () => {
       type Address = Val<"Address", { street: string }>;
       type Customer = Val<"Customer", { address: Address }>;
-      const Customer = Val.sealer<Customer>();
+      const Customer = Val.companion<Customer>();
       const address = Val.of<Address>({ street: "main" });
       const seed: { readonly address: Address } = { address };
 
-      expect(Customer.nocopy(seed).address).toBe(address);
+      expect(Customer.seal.nocopy(seed).address).toBe(address);
     });
 
     test("rejects unsupported adopted graphs in development", () => {
       type Point = Val<"NocopyPoint", { x: number }>;
-      const Point = Val.sealer<Point>();
+      const Point = Val.companion<Point>();
       const accessor = {};
       Object.defineProperty(accessor, "x", {
         get() {
@@ -142,19 +142,19 @@ describe("Val", () => {
       const cyclic: { x: number; self?: unknown } = { x: 1 };
       Object.defineProperty(cyclic, "self", { value: cyclic });
 
-      expect(() => Point.nocopy(accessor as never)).toThrow(/accessor/);
-      expect(() => Point.nocopy(new Source() as never)).toThrow(/plain objects/);
-      expect(() => Point.nocopy(cyclic as never)).toThrow(/cycle/);
+      expect(() => Point.seal.nocopy(accessor as never)).toThrow(/accessor/);
+      expect(() => Point.seal.nocopy(new Source() as never)).toThrow(/plain objects/);
+      expect(() => Point.seal.nocopy(cyclic as never)).toThrow(/cycle/);
     });
 
     test("freezes children stored in non-enumerable data properties", () => {
       type Point = Val<"NocopyPoint", { x: number }>;
-      const Point = Val.sealer<Point>();
+      const Point = Val.companion<Point>();
       const child = { y: 2 };
       const raw = { x: 1 } as const;
       Object.defineProperty(raw, "child", { value: child });
 
-      expect(Point.nocopy(raw)).toBe(raw);
+      expect(Point.seal.nocopy(raw)).toBe(raw);
       expect(Object.isFrozen(raw)).toBe(true);
       expect(Object.isFrozen(child)).toBe(true);
     });
@@ -163,8 +163,8 @@ describe("Val", () => {
   describe("unwrap", () => {
     test("hands back a mutable copy", () => {
       type Post = Val<"Post", { title: string; tags: string[] }>;
-      const Post = Val.sealer<Post>();
-      const post = Post({ title: "t", tags: ["a"] });
+      const Post = Val.companion<Post>();
+      const post = Post.seal({ title: "t", tags: ["a"] });
 
       const raw = Val.unwrap(post);
       expect(raw).toEqual({ title: "t", tags: ["a"] });
@@ -180,11 +180,11 @@ describe("Val", () => {
     });
 
     test("works on primitive and array payloads", () => {
-      const ArticleId = Val.sealer<ArticleId>();
-      expect(Val.unwrap(ArticleId("a1b2c3"))).toBe("a1b2c3");
+      const ArticleId = Val.companion<ArticleId>();
+      expect(Val.unwrap(ArticleId.seal("a1b2c3"))).toBe("a1b2c3");
 
-      const Tags = Val.sealer<Val<"Tags", string[]>>();
-      const tags = Tags(["a", "b"]);
+      const Tags = Val.companion<Val<"Tags", string[]>>();
+      const tags = Tags.seal(["a", "b"]);
       const raw = Val.unwrap(tags);
       expect(raw).toEqual(["a", "b"]);
       expect(raw).not.toBe(tags);
@@ -193,9 +193,9 @@ describe("Val", () => {
     test("a nested Val comes back as data", () => {
       type Money = Val<"Money", { amount: number; currency: string }>;
       type Order = Val<"Order", { id: string; total: Money }>;
-      const Money = Val.sealer<Money>();
-      const Order = Val.sealer<Order>();
-      const order = Order({ id: "o", total: Money({ amount: 1, currency: "JPY" }) });
+      const Money = Val.companion<Money>();
+      const Order = Val.companion<Order>();
+      const order = Order.seal({ id: "o", total: Money.seal({ amount: 1, currency: "JPY" }) });
 
       const raw = Val.unwrap(order);
       expect(raw).toEqual({ id: "o", total: { amount: 1, currency: "JPY" } });
@@ -217,27 +217,29 @@ describe("Val", () => {
     test("a nested Val must pass its own seal again", () => {
       type Money = Val<"Money", { amount: number; currency: string }>;
       type Order = Val<"Order", { id: string; total: Money }>;
-      const Money = Val.sealer<Money>();
-      const Order = Val.sealer<Order>();
-      const raw = Val.unwrap(Order({ id: "o", total: Money({ amount: 1, currency: "JPY" }) }));
+      const Money = Val.companion<Money>();
+      const Order = Val.companion<Order>();
+      const raw = Val.unwrap(
+        Order.seal({ id: "o", total: Money.seal({ amount: 1, currency: "JPY" }) }),
+      );
 
       // @ts-expect-error `total` is data now, not a Money
-      Order(raw);
-      Order({ ...raw, total: Money(raw.total) });
+      Order.seal(raw);
+      Order.seal({ ...raw, total: Money.seal(raw.total) });
     });
   });
 
   describe("payloads", () => {
     test("a primitive can be wrapped directly", () => {
-      const ArticleId = Val.sealer<ArticleId>();
-      const id = ArticleId("a1b2c3");
+      const ArticleId = Val.companion<ArticleId>();
+      const id = ArticleId.seal("a1b2c3");
       expect(id).toBe("a1b2c3");
       expectTypeOf(id).toExtend<string>();
     });
 
     test("a Record works as a Set", () => {
-      const Tags = Val.sealer<Tags>();
-      const t = Tags({ a: true, b: true });
+      const Tags = Val.companion<Tags>();
+      const t = Tags.seal({ a: true, b: true });
       expect(t.a).toBe(true);
       expect(t.c).toBeUndefined();
     });
@@ -250,8 +252,8 @@ describe("Val", () => {
     // `{}` takes every value but `null` and `undefined`.
     test("an empty payload takes an object, an existing value included, and nothing else", () => {
       type Marker = Val<"Marker", {}>;
-      const Marker = Val.sealer<Marker>();
-      expectTypeOf(Marker({})).toExtend<SeedOf<Marker>>();
+      const Marker = Val.companion<Marker>();
+      expectTypeOf(Marker.seal({})).toExtend<SeedOf<Marker>>();
       expectTypeOf<string>().not.toExtend<SeedOf<Marker>>();
       expectTypeOf<number[]>().not.toExtend<SeedOf<Marker>>();
       expectTypeOf<Promise<void>>().not.toExtend<SeedOf<Marker>>();
@@ -275,11 +277,11 @@ describe("Val", () => {
 
     test("a tuple keeps its positions, its length and its labels", () => {
       type Point = Val<"Point", string>;
-      const Point = Val.sealer<Point>();
+      const Point = Val.companion<Point>();
       type Pair = Val<"Pair", { at: [Point, number] }>;
-      const Pair = Val.sealer<Pair>();
+      const Pair = Val.companion<Pair>();
 
-      const p = Pair({ at: [Point("a"), 1] });
+      const p = Pair.seal({ at: [Point.seal("a"), 1] });
 
       expectTypeOf(p.at).toEqualTypeOf<readonly [Point, number]>();
       expectTypeOf(p.at[0]).toEqualTypeOf<Point>();
@@ -287,7 +289,7 @@ describe("Val", () => {
       expect(Val.unwrap(p).at).toEqual(["a", 1]);
 
       // @ts-expect-error the positions are not interchangeable
-      Pair({ at: [1, Point("a")] });
+      Pair.seal({ at: [1, Point.seal("a")] });
     });
 
     test("an optional element is allowed; a rest element falls back to an array", () => {
@@ -303,8 +305,8 @@ describe("Val", () => {
     });
 
     test("nested arrays", () => {
-      const Grid = Val.sealer<Grid>();
-      const g = Grid([
+      const Grid = Val.companion<Grid>();
+      const g = Grid.seal([
         [1, 2],
         [3, 4],
       ]);
@@ -363,9 +365,9 @@ describe("Val", () => {
       expectTypeOf<Null>().not.toExtend<AnyVal>();
       expectTypeOf<Maybe>().not.toExtend<AnyVal>();
       // @ts-expect-error null cannot carry the phantom brand
-      Val.sealer<Null>();
+      Val.companion<Null>();
       // @ts-expect-error the nullable branch would disappear from the branded value
-      Val.sealer<Maybe>();
+      Val.companion<Maybe>();
     });
 
     test("an object union is rejected, however it is spelled", () => {
@@ -375,7 +377,7 @@ describe("Val", () => {
       }>();
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
       // @ts-expect-error patch merges, so it cannot switch variants
-      Val.sealer<Bad>();
+      Val.companion<Bad>();
 
       type State = { kind: "a"; a: number } | { kind: "b"; b: string };
       type ViaAlias = Val<"ViaAlias", State>;
@@ -400,7 +402,7 @@ describe("Val", () => {
     test("a union of primitives is not an object union", () => {
       type Ok = Val<"Ok", { tag: "a" | "b"; n: number | null; flag: boolean }>;
       expectTypeOf<Ok>().toExtend<AnyVal>();
-      Val.sealer<Ok>()({ tag: "a", n: null, flag: true });
+      Val.companion<Ok>().seal({ tag: "a", n: null, flag: true });
     });
 
     test("number and symbol keys are rejected", () => {
@@ -431,7 +433,7 @@ describe("Val", () => {
     });
 
     test("object spread drops the brand until the payload is sealed again", () => {
-      const user = User({ id: "a", name: "bob" });
+      const user = User.seal({ id: "a", name: "bob" });
       // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
       const changed = { ...user, name: "sue" };
 
@@ -440,7 +442,7 @@ describe("Val", () => {
       const unsealed: User = changed;
       expect(unsealed).toEqual(changed);
 
-      const resealed = User(changed);
+      const resealed = User.seal(changed);
       expectTypeOf(resealed).toEqualTypeOf<User>();
       expect(resealed).toEqual({ id: "a", name: "sue" });
     });
@@ -448,14 +450,14 @@ describe("Val", () => {
     test("nested Vals keep their brand", () => {
       type Money = Val<"Money", { amount: number; currency: string }>;
       type Order = Val<"Order", { id: string; total: Money }>;
-      const Order = Val.sealer<Order>();
-      const order = Order({ id: "o", total: Val.of<Money>({ amount: 1, currency: "JPY" }) });
+      const Order = Val.companion<Order>();
+      const order = Order.seal({ id: "o", total: Val.of<Money>({ amount: 1, currency: "JPY" }) });
       expectTypeOf(order.total).toEqualTypeOf<Money>();
     });
 
     test("an array Val is a branded ReadonlyArray", () => {
-      const GridVal = Val.sealer<Grid>();
-      const g = GridVal([[1]]);
+      const GridVal = Val.companion<Grid>();
+      const g = GridVal.seal([[1]]);
       expectTypeOf(g).toExtend<readonly (readonly number[])[]>();
     });
 
@@ -466,7 +468,7 @@ describe("Val", () => {
     });
 
     test("does not exist at runtime", () => {
-      const user = User({ id: "a", name: "bob" });
+      const user = User.seal({ id: "a", name: "bob" });
       expect(Object.keys(user)).toEqual(["id", "name"]);
       expect(Reflect.ownKeys(user)).toEqual(["id", "name"]);
       expect(JSON.parse(JSON.stringify(user))).toEqual({ id: "a", name: "bob" });
@@ -478,14 +480,14 @@ describe("Val", () => {
     // Written plain, like any other payload: `Val` makes it readonly, and `Val.unwrap` returns the
     // mutable array the declaration wrote.
     type Tree = Val<"app/Tree", { value: number; children: Rec<Tree>[] }>;
-    const Tree = Val.sealer<Tree>();
+    const Tree = Val.companion<Tree>();
 
     type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
-    const Node = Val.sealer<Node>();
+    const Node = Val.companion<Node>();
 
     test("a type can name itself through Rec", () => {
-      const leaf = Tree({ value: 1, children: [] });
-      const root = Tree({ value: 2, children: [leaf, leaf] });
+      const leaf = Tree.seal({ value: 1, children: [] });
+      const root = Tree.seal({ value: 2, children: [leaf, leaf] });
 
       expectTypeOf<Tree>().toExtend<AnyVal>();
       expectTypeOf(root.children[0]).toEqualTypeOf<Tree | undefined>();
@@ -509,7 +511,7 @@ describe("Val", () => {
         readonly next?: Node;
       }>();
 
-      const node = Node({ value: 1, next: Node({ value: 2 }) });
+      const node = Node.seal({ value: 1, next: Node.seal({ value: 2 }) });
       expect(Object.keys(node)).toEqual(["value", "next"]);
     });
 
@@ -519,7 +521,9 @@ describe("Val", () => {
         children: PayloadOf<Tree>[];
       }>();
 
-      const raw = Val.unwrap(Tree({ value: 2, children: [Tree({ value: 1, children: [] })] }));
+      const raw = Val.unwrap(
+        Tree.seal({ value: 2, children: [Tree.seal({ value: 1, children: [] })] }),
+      );
       raw.children.push({ value: 3, children: [] });
       expect(raw.children.map((child) => child.value)).toEqual([1, 3]);
     });
@@ -536,35 +540,35 @@ describe("Val", () => {
 
     test("Rec reaches through a record and a nested object", () => {
       type Dir = Val<"app/Dir", { name: string; entries: Record<string, Rec<Dir>> }>;
-      const Dir = Val.sealer<Dir>();
-      const leaf = Dir({ name: "leaf", entries: {} });
+      const Dir = Val.companion<Dir>();
+      const leaf = Dir.seal({ name: "leaf", entries: {} });
 
       expectTypeOf<SeedOf<Dir>["entries"]>().toEqualTypeOf<{ readonly [x: string]: Dir }>();
-      expect(Dir({ name: "root", entries: { a: leaf } }).entries["a"]).toBe(leaf);
+      expect(Dir.seal({ name: "root", entries: { a: leaf } }).entries["a"]).toBe(leaf);
 
       type Cell = Val<"app/Cell", { value: number; prev?: { at: Rec<Cell> } }>;
-      const Cell = Val.sealer<Cell>();
-      const head = Cell({ value: 1 });
-      expectTypeOf(Cell({ value: 2, prev: { at: head } }).prev).toEqualTypeOf<
+      const Cell = Val.companion<Cell>();
+      const head = Cell.seal({ value: 1 });
+      expectTypeOf(Cell.seal({ value: 2, prev: { at: head } }).prev).toEqualTypeOf<
         { readonly at: Cell } | undefined
       >();
     });
 
     test("a payload key named after an array member still opens its Rec", () => {
       type Index = Val<"app/Index", { entries: Record<string, Rec<Index>>; name?: string }>;
-      const Index = Val.sealer<Index>();
-      const leaf = Index({ entries: {} });
+      const Index = Val.companion<Index>();
+      const leaf = Index.seal({ entries: {} });
 
-      expect(Index({ entries: { a: leaf }, name: "root" }).entries["a"]).toBe(leaf);
+      expect(Index.seal({ entries: { a: leaf }, name: "root" }).entries["a"]).toBe(leaf);
     });
 
     test("the companion's members take the recursive type", () => {
-      const Sum = Val.sealer<Tree>().impl({
+      const Sum = Val.companion<Tree>().impl({
         total(t: Tree): number {
           return t.value + t.children.reduce((n, c) => n + Sum.total(c), 0);
         },
       });
-      const tree = Sum({ value: 1, children: [Sum({ value: 2, children: [] })] });
+      const tree = Sum.seal({ value: 1, children: [Sum.seal({ value: 2, children: [] })] });
 
       expect(Sum.total(tree)).toBe(3);
     });
@@ -573,10 +577,10 @@ describe("Val", () => {
       type Sized = Trait<"app/Sized", { value: number }, { size: (self: Self) => number }>;
       type Counted = Val<"app/Counted", { value: number; next?: Rec<Counted> }, Sized>;
       const Sized = Trait.companion<Sized>();
-      const Counted = Val.sealer<Counted>().implTrait(Sized, { size: (c) => c.value });
+      const Counted = Val.companion<Counted>().implTrait(Sized, { size: (c) => c.value });
 
       expectTypeOf<Counted>().toExtend<AnyVal>();
-      expect(Counted.size(Counted({ value: 2 }))).toBe(2);
+      expect(Counted.size(Counted.seal({ value: 2 }))).toBe(2);
 
       type Linked = Val<"app/Linked", { other: string; next?: Rec<Linked> }, Sized>;
       expectTypeOf<SeedOf<Linked>>().toEqualTypeOf<{
@@ -637,8 +641,8 @@ describe("Val", () => {
 
     test("values are frozen in development, all the way down", () => {
       type Post = Val<"Post", { title: string; author: { name: string }; tags: string[] }>;
-      const Post = Val.sealer<Post>();
-      const post = Post({ title: "t", author: { name: "alice" }, tags: ["a"] });
+      const Post = Val.companion<Post>();
+      const post = Post.seal({ title: "t", author: { name: "alice" }, tags: ["a"] });
 
       expect(Object.isFrozen(post)).toBe(true);
       expect(Object.isFrozen(post.author)).toBe(true);
@@ -649,10 +653,10 @@ describe("Val", () => {
       // Copying a payload runs its getters, so someone else's code can run mid-copy and reach
       // back into the library.
       type Note = Val<"Note", { id: string; body: { text: string } }>;
-      const Note = Val.sealer<Note>();
-      const other = Note({ id: "b", body: { text: "b" } });
+      const Note = Val.companion<Note>();
+      const other = Note.seal({ id: "b", body: { text: "b" } });
 
-      const note = Note({
+      const note = Note.seal({
         id: "a",
         get body() {
           Val.unwrap(other);
@@ -666,7 +670,7 @@ describe("Val", () => {
     });
 
     test("a mutable copy is not frozen", () => {
-      const raw = Val.unwrap(User({ id: "a", name: "bob" }));
+      const raw = Val.unwrap(User.seal({ id: "a", name: "bob" }));
       expect(Object.isFrozen(raw)).toBe(false);
       raw.name = "sue";
       expect(raw.name).toBe("sue");
@@ -677,27 +681,27 @@ describe("Val", () => {
 describe("copying", () => {
   describe("owning", () => {
     type Order = Val<"Order", { id: string; total: { amount: number; currency: string } }>;
-    const Order = Val.sealer<Order>();
+    const Order = Val.companion<Order>();
 
     test("mutating the argument afterwards does not reach the value", () => {
       const raw = { id: "a", name: "alice" };
-      const user = User(raw);
+      const user = User.seal(raw);
       raw.name = "mallory";
       expect(user.name).toBe("alice");
     });
 
     test("the copy is deep", () => {
       const total = { amount: 100, currency: "JPY" };
-      const order = Order({ id: "o", total });
+      const order = Order.seal({ id: "o", total });
       total.amount = 999;
       expect(order.total.amount).toBe(100);
       expect(order.total).not.toBe(total);
     });
 
     test("arrays are copied, not aliased", () => {
-      const Grid = Val.sealer<Grid>();
+      const Grid = Val.companion<Grid>();
       const rows = [[1, 2], [3]];
-      const grid = Grid(rows);
+      const grid = Grid.seal(rows);
       rows[0]![0] = 99;
       expect(grid[0]![0]).toBe(1);
       expect(grid).toEqual([[1, 2], [3]]);
@@ -705,7 +709,7 @@ describe("copying", () => {
 
     test("a patch handed to `patch` is copied as well", () => {
       const total = { amount: 100, currency: "JPY" };
-      const order = Order.patch(Order({ id: "o", total: { amount: 1, currency: "JPY" } }), {
+      const order = Order.patch(Order.seal({ id: "o", total: { amount: 1, currency: "JPY" } }), {
         total,
       });
       total.amount = 999;
@@ -713,8 +717,8 @@ describe("copying", () => {
     });
 
     test("a `__proto__` key stays an own property", () => {
-      const Tags = Val.sealer<Tags>();
-      const tags = Tags(JSON.parse('{"a":true,"__proto__":{"isAdmin":true}}'));
+      const Tags = Val.companion<Tags>();
+      const tags = Tags.seal(JSON.parse('{"a":true,"__proto__":{"isAdmin":true}}'));
       expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
       expect(Object.getPrototypeOf(tags)).toBe(Object.prototype);
       expect((tags as Record<string, unknown>)["isAdmin"]).toBeUndefined();
@@ -743,8 +747,8 @@ describe("copying", () => {
     });
 
     test("primitives pass through as-is", () => {
-      const ArticleId = Val.sealer<ArticleId>();
-      expect(ArticleId("a1b2c3")).toBe("a1b2c3");
+      const ArticleId = Val.companion<ArticleId>();
+      expect(ArticleId.seal("a1b2c3")).toBe("a1b2c3");
     });
 
     test("the seal copies through Val.of, not by copying its argument itself", () => {
@@ -769,15 +773,15 @@ describe("copying", () => {
     type Money = Val<"Money", { amount: number; currency: string }>;
     type Line = Val<"Line", { sku: string; qty: number }>;
     type Order = Val<"Order", { id: string; note: string; total: Money; lines: Line[] }>;
-    const Money = Val.sealer<Money>();
-    const Line = Val.sealer<Line>();
-    const Order = Val.sealer<Order>();
+    const Money = Val.companion<Money>();
+    const Line = Val.companion<Line>();
+    const Order = Val.companion<Order>();
     const order = () =>
-      Order({
+      Order.seal({
         id: "o",
         note: "n",
-        total: Money({ amount: 1, currency: "JPY" }),
-        lines: [Line({ sku: "s", qty: 1 })],
+        total: Money.seal({ amount: 1, currency: "JPY" }),
+        lines: [Line.seal({ sku: "s", qty: 1 })],
       });
 
     test("`patch` keeps the subtrees it did not touch", () => {
@@ -804,17 +808,17 @@ describe("copying", () => {
     });
 
     test("two values built from one caller object do not share it", () => {
-      const foreign = [Line({ sku: "s", qty: 1 })];
-      const a = Order({
+      const foreign = [Line.seal({ sku: "s", qty: 1 })];
+      const a = Order.seal({
         id: "a",
         note: "n",
-        total: Money({ amount: 1, currency: "JPY" }),
+        total: Money.seal({ amount: 1, currency: "JPY" }),
         lines: foreign,
       });
-      const b = Order({
+      const b = Order.seal({
         id: "b",
         note: "n",
-        total: Money({ amount: 1, currency: "JPY" }),
+        total: Money.seal({ amount: 1, currency: "JPY" }),
         lines: foreign,
       });
       expect(a.lines).not.toBe(foreign);
@@ -832,7 +836,7 @@ describe("copying", () => {
 
     test("an unwrapped payload is not adopted when it is sealed again", () => {
       const raw = Val.unwrap(order());
-      const line = Line(raw.lines[0]!);
+      const line = Line.seal(raw.lines[0]!);
       expect(line).not.toBe(raw.lines[0]);
       raw.lines[0]!.qty = 999;
       expect(line.qty).toBe(1);
@@ -856,10 +860,10 @@ describe("copying", () => {
     });
 
     test("removing a key the value does not have is not a change", () => {
-      const user = User({ id: "a", name: "bob" });
+      const user = User.seal({ id: "a", name: "bob" });
       expect(User.patch(user, { nickname: undefined })).toBe(user);
       expect(
-        User.patch(User({ id: "a", name: "bob", nickname: "b" }), { nickname: undefined }),
+        User.patch(User.seal({ id: "a", name: "bob", nickname: "b" }), { nickname: undefined }),
       ).toEqual({
         id: "a",
         name: "bob",
@@ -869,7 +873,7 @@ describe("copying", () => {
     test("a freshly built child counts as a change", () => {
       // It went through a constructor, so a new instance is what the caller asked for.
       const before = order();
-      expect(Order.patch(before, { total: Money({ amount: 1, currency: "JPY" }) })).not.toBe(
+      expect(Order.patch(before, { total: Money.seal({ amount: 1, currency: "JPY" }) })).not.toBe(
         before,
       );
     });
@@ -901,51 +905,60 @@ describe("copying", () => {
 
 describe("equals", () => {
   test("compares primitive, object and array payloads deeply", () => {
-    const ArticleId = Val.sealer<ArticleId>();
+    const ArticleId = Val.companion<ArticleId>();
     type Numbers = Val<"Numbers", number[]>;
-    const Numbers = Val.sealer<Numbers>();
+    const Numbers = Val.companion<Numbers>();
 
-    expect(equals(ArticleId("a"), ArticleId("a"))).toBe(true);
-    expect(equals(ArticleId("a"), ArticleId("b"))).toBe(false);
-    expect(equals(User({ id: "a", name: "bob" }), User({ id: "a", name: "bob" }))).toBe(true);
-    expect(equals(User({ id: "a", name: "bob" }), User({ id: "a", name: "sue" }))).toBe(false);
-    expect(equals(Numbers([1, 2]), Numbers([1, 2]))).toBe(true);
-    expect(equals(Numbers([1, 2]), Numbers([2, 1]))).toBe(false);
-    expect(equals(Numbers([1, 2]), Numbers([1, 2, 3]))).toBe(false);
+    expect(equals(ArticleId.seal("a"), ArticleId.seal("a"))).toBe(true);
+    expect(equals(ArticleId.seal("a"), ArticleId.seal("b"))).toBe(false);
+    expect(equals(User.seal({ id: "a", name: "bob" }), User.seal({ id: "a", name: "bob" }))).toBe(
+      true,
+    );
+    expect(equals(User.seal({ id: "a", name: "bob" }), User.seal({ id: "a", name: "sue" }))).toBe(
+      false,
+    );
+    expect(equals(Numbers.seal([1, 2]), Numbers.seal([1, 2]))).toBe(true);
+    expect(equals(Numbers.seal([1, 2]), Numbers.seal([2, 1]))).toBe(false);
+    expect(equals(Numbers.seal([1, 2]), Numbers.seal([1, 2, 3]))).toBe(false);
   });
 
   test("is independent of key order and ignores undefined-valued keys", () => {
     type Fields = Val<"Fields", { a?: number; b?: number }>;
-    const Fields = Val.sealer<Fields>();
-    expect(equals(Fields({ a: 1, b: 2 }), Fields({ b: 2, a: 1 }))).toBe(true);
-    expect(equals(Fields({ a: undefined } as unknown as SeedOf<Fields>), Fields({}))).toBe(true);
+    const Fields = Val.companion<Fields>();
+    expect(equals(Fields.seal({ a: 1, b: 2 }), Fields.seal({ b: 2, a: 1 }))).toBe(true);
     expect(
-      equals(Fields({ a: 1, b: undefined } as unknown as SeedOf<Fields>), Fields({ a: 1 })),
+      equals(Fields.seal({ a: undefined } as unknown as SeedOf<Fields>), Fields.seal({})),
+    ).toBe(true);
+    expect(
+      equals(
+        Fields.seal({ a: 1, b: undefined } as unknown as SeedOf<Fields>),
+        Fields.seal({ a: 1 }),
+      ),
     ).toBe(true);
   });
 
   test("treats NaN as equal to NaN, and -0 as equal to 0", () => {
     type NumberValue = Val<"NumberValue", number>;
-    const NumberValue = Val.sealer<NumberValue>();
-    expect(equals(NumberValue(Number.NaN), NumberValue(Number.NaN))).toBe(true);
-    expect(equals(NumberValue(-0), NumberValue(0))).toBe(true);
+    const NumberValue = Val.companion<NumberValue>();
+    expect(equals(NumberValue.seal(Number.NaN), NumberValue.seal(Number.NaN))).toBe(true);
+    expect(equals(NumberValue.seal(-0), NumberValue.seal(0))).toBe(true);
   });
 
   test("compares nested Vals structurally", () => {
     type Order = Val<"Order", { owner: User; lines: number[] }>;
-    const Order = Val.sealer<Order>();
-    const a = Order({ owner: User({ id: "a", name: "bob" }), lines: [1, 2] });
-    const b = Order({ owner: User({ id: "a", name: "bob" }), lines: [1, 2] });
+    const Order = Val.companion<Order>();
+    const a = Order.seal({ owner: User.seal({ id: "a", name: "bob" }), lines: [1, 2] });
+    const b = Order.seal({ owner: User.seal({ id: "a", name: "bob" }), lines: [1, 2] });
     expect(equals(a, b)).toBe(true);
   });
 
   test("infers the Val type from the first argument", () => {
     type Account = Val<"Account", { id: string }>;
-    const Account = Val.sealer<Account>();
-    const user = User({ id: "a", name: "bob" });
-    const account = Account({ id: "a" });
+    const Account = Val.companion<Account>();
+    const user = User.seal({ id: "a", name: "bob" });
+    const account = Account.seal({ id: "a" });
 
-    expect(equals(user, User({ id: "a", name: "bob" }))).toBe(true);
+    expect(equals(user, User.seal({ id: "a", name: "bob" }))).toBe(true);
     const compare: (a: User, b: User) => boolean = equals;
     expect(compare(user, user)).toBe(true);
     // @ts-expect-error the brand differs even when the payload structure is compatible
@@ -957,7 +970,7 @@ describe("equals", () => {
 
 describe("patch", () => {
   test("omitting a key leaves it unchanged", () => {
-    const u = User({ id: "a", name: "bob", nickname: "bo" });
+    const u = User.seal({ id: "a", name: "bob", nickname: "bo" });
     expect(User.patch(u, { name: "sue" })).toEqual({
       id: "a",
       name: "sue",
@@ -966,14 +979,14 @@ describe("patch", () => {
   });
 
   test("undefined deletes the key", () => {
-    const u = User({ id: "a", name: "bob", nickname: "bo" });
+    const u = User.seal({ id: "a", name: "bob", nickname: "bo" });
     const next = User.patch(u, { nickname: undefined });
     expect(Object.hasOwn(next, "nickname")).toBe(false);
     expect(next).toEqual({ id: "a", name: "bob" });
   });
 
   test("does not mutate the original value", () => {
-    const u = User({ id: "a", name: "bob" });
+    const u = User.seal({ id: "a", name: "bob" });
     User.patch(u, { name: "sue" });
     expect(u.name).toBe("bob");
   });
@@ -1001,20 +1014,20 @@ describe("patch", () => {
   });
 
   test("returns the Val itself when the seal is the default", () => {
-    const u = User({ id: "a", name: "bob" });
+    const u = User.seal({ id: "a", name: "bob" });
     expectTypeOf(User.patch(u, { name: "x" })).toEqualTypeOf<User>();
   });
 
   test("is not offered at all on a non-object Val", () => {
     // Only what deep-merges carries it. Everything else is rebuilt through the constructor.
-    expectTypeOf(Val.sealer<ArticleId>()).not.toHaveProperty("patch");
-    expectTypeOf(Val.sealer<Grid>()).not.toHaveProperty("patch");
-    expectTypeOf(Val.sealer<Val<"Pair", [number, string]>>()).not.toHaveProperty("patch");
-    expectTypeOf(Val.sealer<Tags>()).toHaveProperty("patch");
+    expectTypeOf(Val.companion<ArticleId>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.companion<Grid>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.companion<Val<"Pair", [number, string]>>()).not.toHaveProperty("patch");
+    expectTypeOf(Val.companion<Tags>()).toHaveProperty("patch");
   });
 
   test("still guards at runtime, for callers without types", () => {
-    const ArticleId = Val.sealer<ArticleId>() as unknown as {
+    const ArticleId = Val.companion<ArticleId>() as unknown as {
       patch: (...args: unknown[]) => unknown;
     };
     expect(() => ArticleId.patch("a1b2c3", {})).toThrow(/object-shaped/);
@@ -1022,15 +1035,15 @@ describe("patch", () => {
 
   test("with routes through the seal, whatever the seal returns", () => {
     type Box = Val<"Box", { n: number }>;
-    const box = Val.sealer<Box>();
-    const Box = Val.companion<Box>().implSeal((b: { n: number }) => ({ tagged: box(b) }));
+    const box = Val.companion<Box>();
+    const Box = Val.companion<Box>().implSeal((b: { n: number }) => ({ tagged: box.seal(b) }));
     const out = Box.patch(Val.of<Box>({ n: 1 }), { n: 2 });
     expectTypeOf(out).toEqualTypeOf<{ tagged: Box }>();
     expect(out).toEqual({ tagged: { n: 2 } });
   });
 
   test("undefined on a required key is a type error", () => {
-    const u = User({ id: "a", name: "bob" });
+    const u = User.seal({ id: "a", name: "bob" });
     // @ts-expect-error a required key cannot be deleted
     User.patch(u, { name: undefined });
     // optional keys can be deleted
@@ -1039,7 +1052,7 @@ describe("patch", () => {
 
   describe("nested", () => {
     type City = Val<"City", { name: string; zip?: string }>;
-    const City = Val.sealer<City>();
+    const City = Val.companion<City>();
 
     type Shop = Val<
       "Shop",
@@ -1051,12 +1064,12 @@ describe("patch", () => {
         staff: Record<string, { role: string }>;
       }
     >;
-    const Shop = Val.sealer<Shop>();
+    const Shop = Val.companion<Shop>();
     const shop = () =>
-      Shop({
+      Shop.seal({
         id: "s",
         owner: { name: "bob", contact: { email: "b@example.com", phone: "1" } },
-        city: City({ name: "Kyoto", zip: "600" }),
+        city: City.seal({ name: "Kyoto", zip: "600" }),
         tags: ["a"],
         staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
       });
@@ -1109,7 +1122,7 @@ describe("patch", () => {
       Shop.patch(shop(), { city: { name: "Osaka" } });
 
       const before = shop();
-      const after = Shop.patch(before, { city: City({ name: "Osaka" }) });
+      const after = Shop.patch(before, { city: City.seal({ name: "Osaka" }) });
       expect(Object.hasOwn(after.city, "zip")).toBe(false);
       expect(after.city).not.toBe(before.city);
     });
@@ -1122,10 +1135,10 @@ describe("patch", () => {
     });
 
     test("a subtree taken from another value replaces, since it is a value and not a patch", () => {
-      const other = Shop({
+      const other = Shop.seal({
         id: "o",
         owner: { name: "sue", contact: { email: "s@example.com" } },
-        city: City({ name: "Nara" }),
+        city: City.seal({ name: "Nara" }),
         tags: [],
         staff: {},
       });
@@ -1150,8 +1163,8 @@ describe("patch", () => {
 
     test("an optional key and a record entry take the whole value, never a patch", () => {
       type Place = Val<"Place", { name: string; at?: { x: number; y: number } }>;
-      const Place = Val.sealer<Place>();
-      const place = Place({ name: "p" });
+      const Place = Val.companion<Place>();
+      const place = Place.seal({ name: "p" });
 
       // @ts-expect-error `at` may be absent, and a merge into nothing would drop `y`
       Place.patch(place, { at: { x: 1 } });
@@ -1173,7 +1186,7 @@ describe("patch", () => {
         u3: { role: "host" },
       });
       // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
-      expect(Shop({ ...before, staff }).staff).toEqual(staff);
+      expect(Shop.seal({ ...before, staff }).staff).toEqual(staff);
     });
 
     test("goes through the seal, which sees the merged payload", () => {
@@ -1215,12 +1228,12 @@ describe("patch", () => {
 
 describe("data-first and data-last", () => {
   const pipe = <A, B>(a: A, f: (a: A) => B): B => f(a);
-  const Named = Val.sealer<User>().impl({
+  const Named = Val.companion<User>().impl({
     greet: (u) => `Hi, ${u.name}`,
     renamed: (u, name: string): User => Named.patch(u, { name }),
     noted: (u, nickname: string | undefined): User => Named.patch(u, { nickname }),
   });
-  const bob = Named({ id: "a", name: "bob" });
+  const bob = Named.seal({ id: "a", name: "bob" });
   const sue = { id: "a", name: "sue" };
 
   test("a member takes the value first, or last", () => {
@@ -1251,7 +1264,7 @@ describe("data-first and data-last", () => {
 
   describe("a member whose arguments can be left out is rejected", () => {
     test("an optional parameter", () => {
-      Val.sealer<User>().impl({
+      Val.companion<User>().impl({
         // @ts-expect-error a parameter that can be left out
         at: (u: User, n?: number) => u.name.at(n ?? 0),
       });
@@ -1262,21 +1275,21 @@ describe("data-first and data-last", () => {
     });
 
     test("a default parameter", () => {
-      Val.sealer<User>().impl({
+      Val.companion<User>().impl({
         // @ts-expect-error a parameter that can be left out
         at: (u: User, n = 0) => u.name.at(n),
       });
     });
 
     test("a trailing parameter that takes `void`", () => {
-      Val.sealer<User>().impl({
+      Val.companion<User>().impl({
         // @ts-expect-error a parameter that can be left out
         at: (u: User, n: number | void) => u.name.at(n ?? 0),
       });
     });
 
     test("a rest parameter", () => {
-      Val.sealer<User>().impl({
+      Val.companion<User>().impl({
         // @ts-expect-error a parameter that can be left out
         joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
       });
@@ -1284,7 +1297,7 @@ describe("data-first and data-last", () => {
 
     test("no parameter at all", () => {
       expect(() =>
-        Val.sealer<User>().impl({
+        Val.companion<User>().impl({
           // @ts-expect-error the first parameter must be the Val
           anonymous: () => "anonymous",
         }),
@@ -1292,7 +1305,7 @@ describe("data-first and data-last", () => {
     });
 
     test("but not one that takes `undefined` or `unknown`", () => {
-      Val.sealer<User>().impl({
+      Val.companion<User>().impl({
         at: (u, n: number | undefined) => u.name.at(n ?? 0),
         is: (u, other: unknown) => u === other,
       });
@@ -1301,32 +1314,23 @@ describe("data-first and data-last", () => {
 
   test("a member hiding its parameters throws in development", () => {
     const greet = (u: User) => u.name;
-    expect(() => Val.sealer<User>().impl({ greet: (...args: [User]) => greet(...args) })).toThrow(
-      /first parameter/,
-    );
+    expect(() =>
+      Val.companion<User>().impl({ greet: (...args: [User]) => greet(...args) }),
+    ).toThrow(/first parameter/);
   });
 });
 
 describe("building", () => {
-  describe("sealer", () => {
-    test("a bare sealer is callable", () => {
-      const ArticleId = Val.sealer<ArticleId>();
-      expect(typeof ArticleId).toBe("function");
-      expect(ArticleId("a1b2c3")).toBe("a1b2c3");
-    });
+  describe("companion", () => {
+    test("the seal is always there: without `implSeal` it is the default one", () => {
+      const ArticleId = Val.companion<ArticleId>();
+      const seed = { id: "a", name: "bob" } as const;
+      const Person = Val.companion<User>();
 
-    test("impl() keeps the constructor it was built from", () => {
-      const seal = Val.sealer<User>();
-      const withMethods = seal.impl({ shout: (u) => u.name.toUpperCase() });
-      expect(typeof withMethods).toBe("function");
-      expect(withMethods({ id: "a", name: "bob" })).toEqual({ id: "a", name: "bob" });
-      expect(withMethods.shout(Val.of<User>({ id: "a", name: "bob" }))).toBe("BOB");
-    });
-
-    test("impl() does not mutate the sealer it was built from", () => {
-      const seal = Val.sealer<User>();
-      seal.impl({ shout: (u) => u.name });
-      expect("shout" in seal).toBe(false);
+      expect(ArticleId.seal("a1b2c3")).toBe("a1b2c3");
+      expectTypeOf(ArticleId.seal).parameters.toEqualTypeOf<[string]>();
+      expectTypeOf(ArticleId.seal).returns.toEqualTypeOf<ArticleId>();
+      expect(Person.seal.nocopy(seed)).toBe(seed);
     });
 
     test("a companion has no constructor: the seal is the only way in", () => {
@@ -1334,75 +1338,153 @@ describe("building", () => {
       expect(typeof Age).not.toBe("function");
     });
 
-    test("companion() mirrors sealer(), minus the constructor", () => {
+    test("a step does not change the companion it was built from", () => {
       const bare = Val.companion<Age>();
-      expect(typeof bare).not.toBe("function");
-
-      const built = bare.impl({ label: (a) => `${a}` });
-      expect(built.label(Val.of<Age>(7))).toBe("7");
+      bare.impl({ label: (a) => `${a}` });
       expect("label" in bare).toBe(false);
     });
+  });
 
-    test("a sealer has no implSeal: a second, checked seal beside the plain one is a hole", () => {
-      expectTypeOf(Val.sealer<User>()).not.toHaveProperty("implSeal");
+  describe("private", () => {
+    type Score = Val<"PrivateScore", { points: number }>;
+    const check = (s: SeedOf<Score>, seal: (s: SeedOf<Score>) => Score): Result<Score> =>
+      s.points >= 0 ? { ok: true, value: seal(s) } : { ok: false, error: "negative" };
+
+    test("takes `seal` off the companion, and `patch` still goes through it", () => {
+      const Score = Val.companion<Score>().private<"seal">().implSeal(check);
+      expectTypeOf(Score).not.toHaveProperty("seal");
+      expect(Score.patch(Val.of<Score>({ points: 1 }), { points: -1 })).toEqual({
+        ok: false,
+        error: "negative",
+      });
+    });
+
+    test("takes `create` off too, alone or with `seal`", () => {
+      const Created = Val.companion<Score>()
+        .private<"create">()
+        .implCreate(() => ({ points: 0 }));
+      expectTypeOf(Created).not.toHaveProperty("create");
+      expectTypeOf(Created).toHaveProperty("seal");
+
+      const Neither = Val.companion<Score>()
+        .private<"seal" | "create">()
+        .implCreate(() => ({ points: 0 }));
+      expectTypeOf(Neither).not.toHaveProperty("create");
+      expectTypeOf(Neither).not.toHaveProperty("seal");
+    });
+
+    test("takes nothing else", () => {
+      // @ts-expect-error `patch` has no other way in for a member, so it cannot be hidden
+      Val.companion<Score>().private<"patch">();
+    });
+  });
+
+  describe("the order of the steps", () => {
+    type Account = Val<"OrderedAccount", { id: string; owner: string }>;
+    const seal = (a: SeedOf<Account>, s: (a: SeedOf<Account>) => Account) => s(a);
+    const create = (owner: string) => ({ id: "a1", owner });
+
+    test("`fixed` and `private` come first, in either order, then `implSeal`, then `implCreate`", () => {
+      const One = Val.companion<Account>()
+        .fixed<"id">()
+        .private<"seal">()
+        .implSeal(seal)
+        .implCreate(create);
+      const Two = Val.companion<Account>().private<"seal">().fixed<"id">().implCreate(create);
+
+      expect([One.create("bob"), Two.create("bob")]).toEqual([
+        { id: "a1", owner: "bob" },
+        { id: "a1", owner: "bob" },
+      ]);
+    });
+
+    // Every message is the type a parameter takes, so passing or naming the literal is what pins
+    // the wording.
+    test("a step written too late says which one it belongs before", () => {
+      const sealed = Val.companion<Account>().implSeal(seal);
+      // @ts-expect-error write `fixed` and `private` before `implSeal` and `implCreate`
+      sealed.fixed<"id">();
+      // @ts-expect-error same
+      sealed.private<"seal">();
+      sealed.fixed<"write `fixed` and `private` before `implSeal` and `implCreate`">();
+
+      const created = Val.companion<Account>().implCreate(create);
+      // @ts-expect-error write `fixed` and `private` before `implSeal` and `implCreate`
+      created.fixed<"id">();
+      // @ts-expect-error write `implSeal` before `implCreate`
+      created.implSeal(seal);
+      created.implSeal("write `implSeal` before `implCreate`");
+    });
+
+    test("each step of the first half is written once", () => {
+      const all = Val.companion<Account>()
+        .fixed<"id">()
+        .private<"seal">()
+        .implSeal(seal)
+        .implCreate(create);
+      expectTypeOf(Val.companion<Account>().fixed<"id">()).not.toHaveProperty("fixed");
+      expectTypeOf(Val.companion<Account>().private<"seal">()).not.toHaveProperty("private");
+      expectTypeOf(all).not.toHaveProperty("implSeal");
+      expectTypeOf(all).not.toHaveProperty("implCreate");
+    });
+
+    test("`impl` and `implTrait` close the first half", () => {
+      const members = Val.companion<Account>().impl({ owned: (a) => a.owner });
+      for (const step of ["fixed", "private", "implSeal", "implCreate"] as const) {
+        expectTypeOf(members).not.toHaveProperty(step);
+        expect(step in members).toBe(false);
+      }
+    });
+
+    // The first half is gone by then, so a member takes a name a step of it had.
+    test("so a member may take the name `fixed` or `private`", () => {
+      const Flags = Val.companion<Account>().impl({
+        fixed: (a) => a.id === "a1",
+        private: (a) => a.owner === "",
+      });
+      const a = Flags.seal({ id: "a1", owner: "bob" });
+      expect([Flags.fixed(a), Flags.private(a)]).toEqual([true, false]);
     });
   });
 
   describe("impl", () => {
-    test("keeps nocopy on the callable sealer", () => {
-      const Greeter = Val.sealer<User>().impl({ greet: (u) => `Hi, ${u.name}` });
-      const seed = { id: "a", name: "alice" } as const;
-
-      expect(Greeter.nocopy(seed)).toBe(seed);
-    });
-
     test("the first parameter is contextually the Val, so it needs no annotation", () => {
-      const Greeter = Val.sealer<User>().impl({
+      const Greeter = Val.companion<User>().impl({
         greet(u) {
           expectTypeOf(u).toEqualTypeOf<User>();
           return u.name.toUpperCase();
         },
       });
-      expect(Greeter.greet(Greeter({ id: "a", name: "bob" }))).toBe("BOB");
+      expect(Greeter.greet(Greeter.seal({ id: "a", name: "bob" }))).toBe("BOB");
     });
 
     test("extra parameters are the method's own business", () => {
-      const Greeter = Val.sealer<User>().impl({
+      const Greeter = Val.companion<User>().impl({
         greet(u, sep: string) {
           return u.id + sep + u.name;
         },
       });
-      expect(Greeter.greet(Greeter({ id: "a", name: "bob" }), "/")).toBe("a/bob");
+      expect(Greeter.greet(Greeter.seal({ id: "a", name: "bob" }), "/")).toBe("a/bob");
     });
 
     test("a member that is not a function attaches as it is", () => {
-      const Labelled = Val.sealer<User>().impl({ LABEL: "user" });
+      const Labelled = Val.companion<User>().impl({ LABEL: "user" });
       expect(Labelled.LABEL).toBe("user");
     });
 
-    test("`name` and `length` attach, though a sealer is a function that owns both", () => {
-      const Person = Val.sealer<User>().impl({
-        name: (u) => u.name.toUpperCase(),
-        length: (u) => u.name.length,
-      });
-      const bob = Person({ id: "a", name: "bob" });
-      expect(Person.name(bob)).toBe("BOB");
-      expect(Person.length(bob)).toBe(3);
-    });
-
     test("`equals` can name an ordinary comparison", () => {
-      const SameId = Val.sealer<User>().impl({
+      const SameId = Val.companion<User>().impl({
         equals: (a, b: User) => a.id === b.id,
       });
-      const a = SameId({ id: "a", name: "bob" });
-      const b = SameId({ id: "a", name: "sue" });
+      const a = SameId.seal({ id: "a", name: "bob" });
+      const b = SameId.seal({ id: "a", name: "sue" });
 
       expect(SameId.equals(a, b)).toBe(true);
       expect(equals(a, b)).toBe(false);
     });
 
     test("a method whose first parameter is not the Val is rejected", () => {
-      Val.sealer<User>().impl({
+      Val.companion<User>().impl({
         // @ts-expect-error the first parameter must be the Val; a factory belongs elsewhere
         fromId(id: string) {
           return id;
@@ -1425,11 +1507,11 @@ describe("building", () => {
     });
 
     test("a member reaching `patch` or a sibling names the companion, and annotates", () => {
-      const Loud = Val.sealer<User>().impl({
+      const Loud = Val.companion<User>().impl({
         renamed: (u, name: string): User => Loud.patch(u, { name }),
         shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
       });
-      const bob = Loud({ id: "a", name: "bob" });
+      const bob = Loud.seal({ id: "a", name: "bob" });
 
       expect([Loud.renamed(bob, "sue"), Loud.shouted(bob)]).toEqual([
         { id: "a", name: "sue" },
@@ -1437,16 +1519,22 @@ describe("building", () => {
       ]);
     });
 
-    test("one call closes the chain", () => {
-      const Closed = Val.sealer<User>().impl({ greet: (u) => u.name });
-      expectTypeOf(Closed).not.toHaveProperty("impl");
-      expect((Closed as { impl?: unknown }).impl).toBeUndefined();
+    test("is written once, and does not close the chain", () => {
+      type Yelling = Trait<"Yelling", { name: string }, { yell: (self: Self) => string }>;
+      const Yelling = Trait.companion<Yelling>();
+      type Crier = Val<"Crier", { name: string }, Yelling>;
+      const Crier = Val.companion<Crier>()
+        .impl({ greet: (c) => c.name })
+        .implTrait(Yelling, { yell: (c) => c.name.toUpperCase() });
+      const bob = Crier.seal({ name: "bob" });
+
+      expectTypeOf(Crier).not.toHaveProperty("impl");
+      expect([Crier.greet(bob), Crier.yell(bob)]).toEqual(["bob", "BOB"]);
     });
 
-    test("calling it with nothing closes it with no member", () => {
-      const Closed = Val.sealer<User>().impl();
-      expectTypeOf(Closed).not.toHaveProperty("impl");
-      expect(Closed({ id: "a", name: "bob" })).toEqual({ id: "a", name: "bob" });
+    test("takes the members: with no chain to close, there is no call without them", () => {
+      // @ts-expect-error `Val.companion<User>()` is the companion already
+      Val.companion<User>().impl();
     });
 
     test("`patch` is the library's, not yours", () => {
@@ -1459,8 +1547,8 @@ describe("building", () => {
     // `dyn` is the one name a trait member may not take that a Val companion may: `Trait`'s
     // `dyn` reads `__valof_traits`, never the companion's own key.
     test("`dyn` is not among them: a Val companion has none to shadow", () => {
-      const Boxed = Val.sealer<User>().impl({ dyn: (u) => u.name });
-      expect(Boxed.dyn(Boxed({ id: "a", name: "bob" }))).toBe("bob");
+      const Boxed = Val.companion<User>().impl({ dyn: (u) => u.name });
+      expect(Boxed.dyn(Boxed.seal({ id: "a", name: "bob" }))).toBe("bob");
     });
 
     // The three tests above name one `Wired` member each. This one fails if the union grows a
@@ -1513,21 +1601,6 @@ describe("building", () => {
       const s = Score.seal({ points: 3 });
       expect(Score.double(s)).toBe(6);
       expectTypeOf(Score.patch(s, { points: 1 })).toEqualTypeOf<Score>();
-    });
-
-    test("is optional: a companion with no seal is a behaviour bundle over Val.of", () => {
-      type UserId = Val<"UserId", string>;
-      const UserId = Val.companion<UserId>().impl({
-        short(id) {
-          expectTypeOf(id).toEqualTypeOf<UserId>();
-          return id.slice(0, 8);
-        },
-      });
-
-      const id = Val.of<UserId>("0123456789");
-      expect(UserId.short(id)).toBe("01234567");
-      expect(equals(id, Val.of<UserId>("0123456789"))).toBe(true);
-      expectTypeOf(UserId).not.toHaveProperty("seal");
     });
 
     test("the default seal comes in as a second parameter, so Val.of is not needed", () => {
@@ -1685,7 +1758,7 @@ describe("building", () => {
     });
 
     test("a constructor that cannot take the payload is rejected where it is written", () => {
-      const point = Val.sealer<Point>();
+      const point = Val.companion<Point>();
       Val.companion<Point>().implSeal(
         // @ts-expect-error a seal must accept the whole payload; this one takes two numbers
         (x: number, y: number) => point({ x, y }),
@@ -1748,11 +1821,11 @@ describe("building", () => {
       type Dog = Val<"Dog", { name: string }>;
       let calls = 0;
       const Dog = Val.companion<Dog>()
+        .implSeal((dog, seal) => seal({ name: dog.name.trim() }))
         .implCreate((name: string) => {
           calls += 1;
           return { name };
-        })
-        .implSeal((dog, seal) => seal({ name: dog.name.trim() }));
+        });
 
       const input = { name: " spot " } as const;
       const sealed = Dog.seal.nocopy(input);
@@ -1778,12 +1851,12 @@ describe("building", () => {
     test("what create returns is sealed: it is not a way past the seal", () => {
       type Score = Val<"Score", { points: number }>;
       const Score = Val.companion<Score>()
-        .implCreate((points: number) => ({ points }))
         .implSeal((s: SeedOf<Score>, seal): Result<Score> =>
           s.points >= 0
             ? { ok: true, value: seal(s) }
             : { ok: false, error: "points must not be negative" },
-        );
+        )
+        .implCreate((points: number) => ({ points }));
 
       expect(Score.create(3)).toEqual({ ok: true, value: { points: 3 } });
       expect(Score.create(-1)).toEqual({ ok: false, error: "points must not be negative" });
@@ -1794,12 +1867,12 @@ describe("building", () => {
       type Score = Val<"NocopyScore", { points: number }>;
       let created: SeedOf<Score> | undefined;
       const Score = Val.companion<Score>()
-        .implCreate((points: number) => (created = { points }))
         .implSeal((seed, seal): Result<Score> =>
           seed.points >= 0
             ? { ok: true, value: seal(seed) }
             : { ok: false, error: "points must not be negative" },
-        );
+        )
+        .implCreate((points: number) => (created = { points }));
 
       const copied = Score.create(1);
       expect(copied.ok).toBe(true);
@@ -1830,11 +1903,11 @@ describe("building", () => {
 
       let created = 0;
       const Member = Val.companion<Member>()
+        .implSeal((m: SeedOf<Member>, seal) => seal(m))
         .implCreate((f: Fields): SeedOf<Member> => {
           created += 1;
           return { id: `id-${created}`, ...f };
-        })
-        .implSeal((m: SeedOf<Member>, seal) => seal(m));
+        });
 
       const m = Member.create({ name: "bob" });
       expect(m).toEqual({ id: "id-1", name: "bob" });
@@ -1852,8 +1925,8 @@ describe("building", () => {
 
       test("create returns the Val, not what the seal returns", () => {
         const SectionId = Val.companion<SectionId>()
-          .implCreate.noseal(() => "0123abcd")
-          .implSeal((text, seal): Result<SectionId> => ({ ok: true, value: seal(text) }));
+          .implSeal((text, seal): Result<SectionId> => ({ ok: true, value: seal(text) }))
+          .implCreate.noseal(() => "0123abcd");
 
         expect(SectionId.create()).toBe("0123abcd");
         expectTypeOf(SectionId.create).returns.toEqualTypeOf<SectionId>();
@@ -1862,11 +1935,11 @@ describe("building", () => {
       test("throws in development when the seal rejects the created payload or normalization changes it", () => {
         type Cents = Val<"NosealCents", number>;
         const rejected = Val.companion<SectionId>()
-          .implCreate.noseal(() => "not hex")
-          .implSeal(hex);
+          .implSeal(hex)
+          .implCreate.noseal(() => "not hex");
         const changed = Val.companion<Cents>()
-          .implCreate.noseal(() => 1.5)
-          .implSeal((n: number, seal): Cents | undefined => seal(Math.round(n)));
+          .implSeal((n: number, seal): Cents | undefined => seal(Math.round(n)))
+          .implCreate.noseal(() => 1.5);
 
         const message = /payload from `\.implCreate\.noseal`/;
         expect(() => rejected.create()).toThrow(message);
@@ -1874,21 +1947,12 @@ describe("building", () => {
         expect(() => changed.create()).toThrow(message);
       });
 
-      test("a later implCreate goes through the seal again", () => {
-        const SectionId = Val.companion<SectionId>()
-          .implSeal((): SectionId | undefined => undefined)
-          .implCreate.noseal(() => "0123abcd")
-          .implCreate(() => "0123abcd");
-
-        expect(SectionId.create()).toBeUndefined();
-      });
-
       test("nocopy adopts the created payload", () => {
         type Doc = Val<"NosealAdopted", { label: string }>;
         let created: SeedOf<Doc> | undefined;
         const Doc = Val.companion<Doc>()
-          .implCreate.noseal(() => (created = { label: "x" }))
-          .implSeal((d, seal): Doc | undefined => seal(d));
+          .implSeal((d, seal): Doc | undefined => seal(d))
+          .implCreate.noseal(() => (created = { label: "x" }));
 
         expect(Doc.create.nocopy()).toBe(created);
         expect(Doc.create()).not.toBe(created);
@@ -1916,12 +1980,12 @@ describe("building", () => {
     const account = () => {
       let created = 0;
       return Val.companion<Account>()
+        .fixed<"id">()
+        .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim().toLowerCase() }))
         .implCreate((f: Fields): SeedOf<Account> => {
           created += 1;
           return { id: `id-${created}`, ...f };
-        })
-        .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim().toLowerCase() }))
-        .fixed<"id">();
+        });
     };
 
     test("create generates the id, and `patch` preserves it", () => {
@@ -1986,10 +2050,10 @@ describe("building", () => {
     });
 
     test("an implementation reaching the companion names it and annotates its return", () => {
-      const Wired = Val.sealer<Member>().implTrait(Greetable, {
-        toWire: (m, sep): string => `${Wired.nocopy(m).id}${sep}${m.name}`,
+      const Wired = Val.companion<Member>().implTrait(Greetable, {
+        toWire: (m, sep): string => `${Wired.seal.nocopy(m).id}${sep}${m.name}`,
       });
-      expect(Wired.toWire(Wired({ id: "a", name: "alice" }), ":")).toBe("a:alice");
+      expect(Wired.toWire(Wired.seal({ id: "a", name: "alice" }), ":")).toBe("a:alice");
     });
 
     test("a member without a default must be implemented", () => {
@@ -2013,13 +2077,13 @@ describe("building", () => {
 
     test("the trait brings the fields it requires into the payload", () => {
       type Badge = Val<"Badge", { id: string }, Greetable>;
-      const Badge = Val.sealer<Badge>().implTrait(Greetable, {
+      const Badge = Val.companion<Badge>().implTrait(Greetable, {
         toWire: (b, sep) => `${b.id}${sep}${b.name}`,
       });
       expectTypeOf<SeedOf<Badge>>().toEqualTypeOf<{ readonly id: string; readonly name: string }>();
       // @ts-expect-error `name` is missing
-      Badge({ id: "b" });
-      expect(Badge.greet(Badge({ id: "b", name: "bob" }))).toBe("Hi, bob");
+      Badge.seal({ id: "b" });
+      expect(Badge.greet(Badge.seal({ id: "b", name: "bob" }))).toBe("Hi, bob");
 
       type Bare = Val<"Bare", Record<never, never>, Greetable>;
       expectTypeOf<Bare>().toExtend<Greetable>();
@@ -2035,11 +2099,11 @@ describe("building", () => {
         owner: PayloadOf<User>;
       }>();
 
-      const Post = Val.sealer<Post>();
+      const Post = Val.companion<Post>();
       const owner = { id: "u", name: "una" };
-      Post({ id: "p", tags: [], owner: User(owner) });
+      Post.seal({ id: "p", tags: [], owner: User.seal(owner) });
       // @ts-expect-error a record is not a User
-      Post({ id: "p", tags: [], owner });
+      Post.seal({ id: "p", tags: [], owner });
     });
 
     test("the payload may narrow a field the trait requires, but not contradict it", () => {
@@ -2070,23 +2134,12 @@ describe("building", () => {
       expectTypeOf<Both>().toExtend<AnyVal>();
     });
 
-    test("a sealer keeps its constructor", () => {
-      type Point = Val<"Point", { name: string; x: number }, Greetable>;
-      const Point = Val.sealer<Point>()
-        .implTrait(Greetable, { toWire: (p, sep) => `${p.name}${sep}${p.x}` })
-        .impl({ shifted: (p) => p.x + 1 });
-      const p = Point({ name: "o", x: 1 });
-      expect([Point.toWire(p, ":"), Point.shifted(p), Point.greet(p)]).toEqual(["o:1", 2, "Hi, o"]);
-      const seed = { name: "n", x: 2 } as const;
-      expect(Point.nocopy(seed)).toBe(seed);
-    });
-
     test("create, seal, fixed and patch keep working beside a trait", () => {
       type Ticket = Val<"Ticket", { id: string; name: string }, Greetable>;
       const Ticket = Val.companion<Ticket>()
-        .implCreate((name: string) => ({ id: "t1", name }))
-        .implSeal((seed, seal) => seal(seed))
         .fixed<"id">()
+        .implSeal((seed, seal) => seal(seed))
+        .implCreate((name: string) => ({ id: "t1", name }))
         .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}${t.name}` });
       const t = Ticket.create("alice");
       expect([t.id, Ticket.greet(t), Ticket.patch(t, { name: "bob" }).name]).toEqual([
@@ -2112,12 +2165,10 @@ describe("building", () => {
         expect(Row.toWire(Val.of<Row>({ id: "r", n: 1 }), ":")).toBe("r:1");
       });
 
-      test("cannot be named as a type argument instead, on a companion or a sealer", () => {
+      test("cannot be named as a type argument instead", () => {
         const toWire = (r: Row, sep: string) => r.id + sep;
         // @ts-expect-error implTrait takes the trait's companion, not a type argument
         Val.companion<Row>().implTrait<Wired>({ toWire });
-        // @ts-expect-error implTrait takes the trait's companion, not a type argument
-        Val.sealer<Row>().implTrait<Wired>({ toWire });
       });
 
       test("nor be left out, with its members passed alone", () => {
@@ -2201,7 +2252,7 @@ describe("building", () => {
       test("but the same trait cannot be implemented twice", () => {
         Val.companion<Crate>()
           .implTrait(Greetable, { toWire: (c, sep) => `${c.id}${sep}` })
-          // @ts-expect-error another trait already answers to one of these names
+          // @ts-expect-error another member already answers to one of these names
           .implTrait(Greetable, { toWire: (c, sep) => `${c.name}${sep}` });
       });
 
@@ -2215,7 +2266,7 @@ describe("building", () => {
         type Twice = Val<"Twice", { id: string; name: string }, Greetable & Other>;
         Val.companion<Twice>()
           .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}` })
-          // @ts-expect-error another trait already answers to one of these names
+          // @ts-expect-error another member already answers to one of these names
           .implTrait(Other, { toWire: (t, sep) => t.id.length + sep.length });
       });
 
@@ -2241,7 +2292,7 @@ describe("building", () => {
         type Crier = Val<"Crier", { id: string; name: string }, Greetable & Yelling>;
         Val.companion<Crier>()
           .implTrait(Greetable, { toWire: (c, sep) => `${c.id}${sep}` })
-          // @ts-expect-error another trait already answers to one of these names
+          // @ts-expect-error another member already answers to one of these names
           .implTrait(Yelling);
       });
 
@@ -2279,6 +2330,17 @@ describe("building", () => {
           .impl({ greet: taken });
       });
 
+      test("nor may a trait's member take a name `impl` took before it", () => {
+        Val.companion<Member>()
+          .impl({ greet: (m) => m.name })
+          // @ts-expect-error another member already answers to one of these names
+          .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` });
+        // The directive above takes any error on the line, so the branch is named here.
+        expectTypeOf<
+          Takes<Member, Greetable, { greet: unknown }, "ok">
+        >().toEqualTypeOf<"another member already answers to one of these names">();
+      });
+
       test("nor over a final function", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
@@ -2308,8 +2370,8 @@ describe("building", () => {
 
       test("but may take another name starting with `impl`", () => {
         type Grant = Val<"Grant", { kind: string }>;
-        const Grant = Val.sealer<Grant>().impl({ implicit: (g) => g.kind === "implicit" });
-        expect(Grant.implicit(Grant({ kind: "implicit" }))).toBe(true);
+        const Grant = Val.companion<Grant>().impl({ implicit: (g) => g.kind === "implicit" });
+        expect(Grant.implicit(Grant.seal({ kind: "implicit" }))).toBe(true);
       });
 
       test("nor `then`, which would make the companion a thenable", () => {
@@ -2317,13 +2379,6 @@ describe("building", () => {
           // @ts-expect-error `await` on a thenable companion never settles
           // oxlint-disable-next-line no-thenable -- the rejection is what this test reads
           then: (m: Member) => m.name,
-        });
-      });
-
-      test("nor `nocopy`, which a sealer already has", () => {
-        Val.sealer<Member>().impl({
-          // @ts-expect-error the member would replace the sealer's `nocopy`
-          nocopy: (m: Member) => m.name,
         });
       });
 

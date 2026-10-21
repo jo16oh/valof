@@ -7,7 +7,7 @@ const suite = Suite([
     key: "val",
     name: "Val",
     base: true,
-    imports: Imports({ "./dist/index.js": ["Val.sealer", "Val.companion"] }),
+    imports: Imports({ "./dist/index.js": ["Val.companion"] }),
     budget: 1024,
   }),
   Bundle({
@@ -25,7 +25,7 @@ const suite = Suite([
   Bundle({
     key: "enum",
     name: "Enum",
-    imports: Imports({ "./dist/experimental.js": ["Enum.sealer", "Enum.companion"] }),
+    imports: Imports({ "./dist/experimental.js": ["Enum.companion"] }),
     budget: 640,
   }),
   Bundle({
@@ -33,7 +33,7 @@ const suite = Suite([
     name: "Equals + Enum + Trait",
     imports: Imports({
       "./dist/index.js": ["equals"],
-      "./dist/experimental.js": ["Enum.sealer", "Enum.companion", "Trait.companion"],
+      "./dist/experimental.js": ["Enum.companion", "Trait.companion"],
     }),
     budget: 1024,
   }),
@@ -42,7 +42,7 @@ const suite = Suite([
     name: "All",
     imports: Imports({
       "./dist/index.js": ["equals", "Val.of", "Val.unwrap"],
-      "./dist/experimental.js": ["Enum.sealer", "Enum.companion", "Trait.companion"],
+      "./dist/experimental.js": ["Enum.companion", "Trait.companion"],
     }),
     budget: 1024,
   }),

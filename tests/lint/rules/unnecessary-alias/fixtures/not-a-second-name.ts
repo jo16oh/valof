@@ -8,10 +8,10 @@ export type Ro = Readonly<User>;
 export type Wrap<T> = T;
 export type Plain = string;
 
-const User = Val.sealer<User>().impl({
+const User = Val.companion<User>().impl({
   greet: (u) => u.name,
 });
-const Order = Val.sealer<Order>().impl({
+const Order = Val.companion<Order>().impl({
   id: (o) => o.id,
 });
 
