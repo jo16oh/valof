@@ -55,9 +55,6 @@ describe("the declaration", () => {
     // Through a cast, the constructor throws rather than spread the string into its characters.
     expect(() => Signal.Stop.create("text" as never)).toThrow(/variant's payload/);
     expect(() => Signal.Stop.create([1] as never)).toThrow(/variant's payload/);
-
-    const Created = Enum.companion<Signal>();
-    expect(() => Created.Stop.create("text" as never)).toThrow(/variant's payload/);
   });
 
   // The type is structural, and the spread that adds the tag would drop the prototype unseen.
@@ -122,7 +119,6 @@ describe("match on a tag alone", () => {
       });
     expectTypeOf(build).returns.toEqualTypeOf<VariantOf<Shape, "Circle"> | string>();
     expect([build("round"), build("box")]).toEqual([circle, "square"]);
-    expect(Enum.companion<Shape>()[Tag].match("Circle", { Circle: () => 0 })).toBe(0);
   });
 
   test("needs a handler for every tag the argument can hold, and no other", () => {
@@ -141,7 +137,7 @@ describe("match on a tag alone", () => {
   });
 });
 
-describe("a sealer seals a payload by its tag", () => {
+describe("`seal` seals a payload by its tag", () => {
   type Command = Enum<"Command", { New: { count: number }; Fail: { message: string } }>;
   const Command = Enum.companion<Command>();
   type Wire = SealedPayload<Command>;
@@ -199,11 +195,6 @@ describe("the tag", () => {
     type Event = Enum<"Event", { Click: { x: number }; Key: { code: string } }, Tag<"kind">>;
     const Event = Enum.companion<Event>("kind");
 
-    test("reaches a companion's constructors too", () => {
-      const Named = Enum.companion<Event>("kind");
-      expect(Named.Click.create({ x: 1 })).toEqual({ x: 1, kind: "Click" });
-    });
-
     test("`[Tag].key` returns it, typed as the literal", () => {
       expectTypeOf(Event[Tag].key).toEqualTypeOf<"kind">();
       expect(Event[Tag].key).toBe("kind");
@@ -254,7 +245,7 @@ describe("shared fields", () => {
 describe("members", () => {
   type Money = Enum<"Money", { Cash: { yen: number }; Card: { limit: number } }, { id: string }>;
   const Money = Enum.companion<Money>()
-    .implVariant("Cash", (sealer) => sealer.impl({ doubled: (c) => c.yen * 2 }))
+    .implVariant("Cash", (variant) => variant.impl({ doubled: (c) => c.yen * 2 }))
     .impl({
       spendable: (m): number =>
         Money.match(m, { Cash: (c) => Money.Cash.doubled(c), Card: (c) => c.limit }),
@@ -475,10 +466,7 @@ describe("traits", () => {
         { A: { n: number }; B: { s: string } },
         { id: string } & Sized & Wide
       >;
-      // @ts-expect-error another trait already answers to one of these names
-      Enum.companion<Both>().implTrait(Sized).implTrait(Wide);
-      // The two entry points carry the gates separately, so each one is read here.
-      // @ts-expect-error same, on a companion's enum
+      // @ts-expect-error another member already answers to one of these names
       Enum.companion<Both>().implTrait(Sized).implTrait(Wide);
     });
 
@@ -492,18 +480,11 @@ describe("traits", () => {
         Enum.companion<Cmd>()
           .implTrait(Describable, { describe: (c) => c.id })
           .impl({ describe: "a trait the enum declares answers to this name" });
-        Enum.companion<Cmd>()
-          .implTrait(Describable, { describe: (c) => c.id })
-          // @ts-expect-error same, on a companion's enum
-          .impl({ describe: (c) => c._tag });
       });
 
       test("on a variant", () => {
         Enum.companion<Cmd>()
           // @ts-expect-error same, on a variant
-          .implVariant("Add", (variant) => variant.impl({ describe: (a) => `${a.n}` }));
-        Enum.companion<Cmd>()
-          // @ts-expect-error same, on a companion's variant
           .implVariant("Add", (variant) => variant.impl({ describe: (a) => `${a.n}` }));
       });
 
@@ -615,8 +596,6 @@ describe("a broken declaration", () => {
   test("a variant takes no companion of its own, and neither does the union", () => {
     // @ts-expect-error a variant is built by its enum's companion
     Val.companion<VariantOf<Shape, "Circle">>();
-    // @ts-expect-error same, for a companion
-    Val.companion<VariantOf<Shape, "Circle">>();
     // @ts-expect-error same, for the union
     Val.companion<Shape>();
   });
@@ -689,15 +668,23 @@ describe("a seal of its own", () => {
     expect(Money.Cash.doubled(Money.Cash.create({ id: "m1", yen: 2 }) as never)).toBe(4);
   });
 
-  test("a step of the second half takes `implSeal` off", () => {
+  test("`implSeal` comes first, once", () => {
     // A variant's frame reads the enum's seal off the chain as it stands, so a later seal would
     // run in a frame typed without it.
+    type Priced = Trait<"Priced", { id: string }, { price: (self: Self) => number }>;
+    const Priced = Trait.companion<Priced>();
+    type Item = Enum<"Item", { Cash: { yen: number }; Card: { limit: number } }, Priced>;
     const varied = Enum.companion<Money>().implVariant("Cash", (variant) => variant);
     const implemented = Enum.companion<Money>().impl({ id: (m) => m.id });
-    for (const built of [varied, implemented]) {
-      expectTypeOf(built).not.toHaveProperty("implSeal");
+    const traited = Enum.companion<Item>().implTrait(Priced, { price: (_i) => 0 });
+    const sealed = Enum.companion<Money>().implSeal((p, seal) => seal(p));
+    // One line each: over the array's union, the check would read only the keys all four share.
+    expectTypeOf(sealed).not.toHaveProperty("implSeal");
+    expectTypeOf(varied).not.toHaveProperty("implSeal");
+    expectTypeOf(implemented).not.toHaveProperty("implSeal");
+    expectTypeOf(traited).not.toHaveProperty("implSeal");
+    for (const built of [sealed, varied, implemented, traited])
       expect((built as unknown as Record<string, unknown>)["implSeal"]).toBeUndefined();
-    }
   });
 
   test("a seal whose return can be awaited is rejected", () => {
@@ -740,14 +727,6 @@ describe("a seal of its own", () => {
       .implVariant("Cash", (variant) => variant);
     expect(Kept.Cash.create({ id: "m1", yen: 1 })).toEqual({ id: "m1", yen: 1, _tag: "Cash" });
     expect(Kept.Cash.create({ id: "", yen: 1 })).toBeInstanceOf(RangeError);
-  });
-
-  test("a seal a variant wrote stands on the steps it returns", () => {
-    const Plain = Enum.companion<Shape>().implVariant("Circle", (variant) =>
-      variant.implSeal((p, seal) => (p.r > 0 ? seal(p) : new RangeError("r must be positive"))),
-    );
-    expect(Plain.Circle.create({ r: 2 })).toEqual(circle);
-    expect(Plain.Circle.create({ r: 0 })).toBeInstanceOf(RangeError);
   });
 
   test("a frame a step made is closed", () => {
@@ -800,28 +779,20 @@ describe("data-first and data-last", () => {
   const Sized = Enum.companion<Shape>()
     .implVariant("Circle", (variant) => variant.impl({ grown: (c, by: number) => c.r + by }))
     .impl({ sides: (s, round: number) => (s._tag === "Circle" ? round : 4) });
-  const Built = Enum.companion<Shape>()
-    .implVariant("Circle", (variant) => variant.impl({ grown: (c, by: number) => c.r + by }))
-    .impl({ sides: (s, round: number) => (s._tag === "Circle" ? round : 4) });
 
   test("a union member takes the value first, or last", () => {
     expectTypeOf(Sized.sides(0)).toEqualTypeOf<(self: Shape) => number>();
-    expectTypeOf(Built.sides(0)).toEqualTypeOf<(self: Shape) => number>();
-    expect([Sized.sides(circle, 7), Sized.sides(7)(circle), Built.sides(7)(circle)]).toEqual([
-      7, 7, 7,
-    ]);
+    expect([Sized.sides(circle, 7), Sized.sides(7)(circle)]).toEqual([7, 7]);
   });
 
-  test("so do a variant's member and `patch`, on a sealer and on a companion", () => {
+  test("so do a variant's member and `patch`", () => {
     type Circle = VariantOf<Shape, "Circle">;
     expectTypeOf(Sized.Circle.grown(1)).toEqualTypeOf<(self: Circle) => number>();
     expectTypeOf(Sized.Circle.patch({ r: 5 })).toEqualTypeOf<(self: Circle) => Circle>();
-    expect([
-      Sized.Circle.grown(1)(circle),
-      Built.Circle.grown(1)(circle),
-      Sized.Circle.patch({ r: 5 })(circle),
-      Built.Circle.patch({ r: 5 })(circle),
-    ]).toEqual([3, 3, { r: 5, _tag: "Circle" }, { r: 5, _tag: "Circle" }]);
+    expect([Sized.Circle.grown(1)(circle), Sized.Circle.patch({ r: 5 })(circle)]).toEqual([
+      3,
+      { r: 5, _tag: "Circle" },
+    ]);
   });
 
   test("`match` takes the handlers alone, narrowing each one and exhaustive", () => {
@@ -848,10 +819,6 @@ describe("data-first and data-last", () => {
   });
 
   test("a member whose arguments can be left out is rejected", () => {
-    Enum.companion<Shape>().impl({
-      // @ts-expect-error a parameter that can be left out
-      sides: (s: Shape, round?: number) => (s._tag === "Circle" ? (round ?? 0) : 4),
-    });
     Enum.companion<Shape>().impl({
       // @ts-expect-error a parameter that can be left out
       sides: (s: Shape, round?: number) => (s._tag === "Circle" ? (round ?? 0) : 4),

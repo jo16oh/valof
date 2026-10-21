@@ -53,7 +53,7 @@ describe("Val", () => {
       expect(Object.isFrozen(raw.tags)).toBe(true);
     });
 
-    test("requires a deeply readonly default-sealer input", () => {
+    test("requires a deeply readonly default seal's input", () => {
       type NocopyUser = Val<"NocopyUser", { id: string; tags: string[]; nested: { n: number } }>;
       const NocopyUser = Val.companion<NocopyUser>();
       const readonly: {
@@ -746,11 +746,6 @@ describe("copying", () => {
       expect(tags["a"]).toBe(true);
     });
 
-    test("primitives pass through as-is", () => {
-      const ArticleId = Val.companion<ArticleId>();
-      expect(ArticleId.seal("a1b2c3")).toBe("a1b2c3");
-    });
-
     test("the seal copies through Val.of, not by copying its argument itself", () => {
       type Point = Val<"Point", { x: number; y: number }>;
       const Point = Val.companion<Point>().implSeal((p) => Val.of<Point>(p));
@@ -1268,10 +1263,6 @@ describe("data-first and data-last", () => {
         // @ts-expect-error a parameter that can be left out
         at: (u: User, n?: number) => u.name.at(n ?? 0),
       });
-      Val.companion<User>().impl({
-        // @ts-expect-error a parameter that can be left out
-        at: (u: User, n?: number) => u.name.at(n ?? 0),
-      });
     });
 
     test("a default parameter", () => {
@@ -1322,17 +1313,6 @@ describe("data-first and data-last", () => {
 
 describe("building", () => {
   describe("companion", () => {
-    test("the seal is always there: without `implSeal` it is the default one", () => {
-      const ArticleId = Val.companion<ArticleId>();
-      const seed = { id: "a", name: "bob" } as const;
-      const Person = Val.companion<User>();
-
-      expect(ArticleId.seal("a1b2c3")).toBe("a1b2c3");
-      expectTypeOf(ArticleId.seal).parameters.toEqualTypeOf<[string]>();
-      expectTypeOf(ArticleId.seal).returns.toEqualTypeOf<ArticleId>();
-      expect(Person.seal.nocopy(seed)).toBe(seed);
-    });
-
     test("a companion has no constructor: the seal is the only way in", () => {
       expectTypeOf(Age).not.toBeFunction();
       expect(typeof Age).not.toBe("function");
@@ -1429,10 +1409,15 @@ describe("building", () => {
     });
 
     test("`impl` and `implTrait` close the first half", () => {
+      type Owned = Trait<"Owned", { owner: string }, { owned: (self: Self) => string }>;
+      const Owned = Trait.companion<Owned>();
+      type Held = Val<"Held", { id: string; owner: string }, Owned>;
       const members = Val.companion<Account>().impl({ owned: (a) => a.owner });
+      const traits = Val.companion<Held>().implTrait(Owned, { owned: (h) => h.owner });
       for (const step of ["fixed", "private", "implSeal", "implCreate"] as const) {
         expectTypeOf(members).not.toHaveProperty(step);
-        expect(step in members).toBe(false);
+        expectTypeOf(traits).not.toHaveProperty(step);
+        expect([step in members, step in traits]).toEqual([false, false]);
       }
     });
 
@@ -1529,6 +1514,7 @@ describe("building", () => {
       const bob = Crier.seal({ name: "bob" });
 
       expectTypeOf(Crier).not.toHaveProperty("impl");
+      expect("impl" in Crier).toBe(false);
       expect([Crier.greet(bob), Crier.yell(bob)]).toEqual(["bob", "BOB"]);
     });
 
@@ -1761,7 +1747,7 @@ describe("building", () => {
       const point = Val.companion<Point>();
       Val.companion<Point>().implSeal(
         // @ts-expect-error a seal must accept the whole payload; this one takes two numbers
-        (x: number, y: number) => point({ x, y }),
+        (x: number, y: number) => point.seal({ x, y }),
       );
     });
 
@@ -2366,6 +2352,17 @@ describe("building", () => {
           // @ts-expect-error same, for a step only an enum's builder has
           implVariant: (m: Member) => m.name,
         });
+      });
+
+      test("but may take `nocopy`: the seal holds that one, not the companion", () => {
+        const Copied = Val.companion<Member>().impl({ nocopy: (m) => m.name });
+        expect(Copied.nocopy(member)).toBe("alice");
+      });
+
+      // Assigned rather than defined, the member would become the companion's prototype.
+      test("and `__proto__`, which stays a member of its own", () => {
+        const Odd = Val.companion<Member>().impl({ ["__proto__"]: (m: Member) => m.id });
+        expect(Object.hasOwn(Odd, "__proto__")).toBe(true);
       });
 
       test("but may take another name starting with `impl`", () => {
