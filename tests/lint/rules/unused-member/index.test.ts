@@ -68,9 +68,9 @@ describe("what the rule finds", () => {
     ]);
   });
 
-  test("reads through a builder chain, past implSeal and fixed", async () => {
+  test("reads through a builder chain, past its options and implSeal", async () => {
     expect(await lint("builder-chain")).toEqual([
-      { rule: UnusedMember, at: "builder-chain.ts:6:5" },
+      { rule: UnusedMember, at: "builder-chain.ts:5:5" },
     ]);
   });
 

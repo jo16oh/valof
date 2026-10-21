@@ -1,6 +1,5 @@
-const Doc = Val.companion<Doc>()
+const Doc = Val.companion<Doc, [Unpatchable<"id">]>()
   .implSeal((d, seal) => seal(d))
-  .fixed<"id">()
   .impl({
     title: (d) => d.title,
     subtitle: (d) => d.title,

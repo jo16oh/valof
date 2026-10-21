@@ -1,6 +1,6 @@
 // Core API under `vp run type-perf`. Deep payloads, tuples, records and every builder step,
 // because those are where the recursive conditionals run.
-import { equals, Val, type Patch, type SeedOf } from "valof";
+import { equals, Val, type Patch, type SeedOf, type Unpatchable } from "valof";
 
 type City = Val<"City", { name: string; zip?: string }>;
 const City = Val.companion<City>();
@@ -32,8 +32,7 @@ type Order = Val<
   }
 >;
 
-const Order = Val.companion<Order>()
-  .fixed<"id">()
+const Order = Val.companion<Order, [Unpatchable<"id">]>()
   .implSeal((seed, seal) => seal(seed))
   .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
   .impl({

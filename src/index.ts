@@ -6,4 +6,14 @@ export { equals, Val } from "./val.ts";
  * the structure instead, which bloats a consumer's `.d.ts` by orders of magnitude. The rest are the
  * ones a caller writes for themselves.
  */
-export type { AnyVal, Companion, CompanionBuilder, Patch, PayloadOf, Rec, SeedOf } from "./val.ts";
+export type {
+  AnyVal,
+  Companion,
+  CompanionBuilder,
+  Patch,
+  PayloadOf,
+  PrivateSeal,
+  Rec,
+  SeedOf,
+  Unpatchable,
+} from "./val.ts";
