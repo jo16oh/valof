@@ -183,8 +183,7 @@ User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // type error
 ```
 
-Write the steps in this order: `.fixed` and `.private`, then `.implSeal`, then `.implCreate`. A step
-written too late is a type error that says where it belongs.
+Write the steps in this order: `.fixed` and `.private`, then `.implSeal`, then `.implCreate`.
 
 The keys are a type argument, so they do not exist at runtime. This constrains `patch`, not the
 value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an
