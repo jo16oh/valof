@@ -101,7 +101,7 @@ equals(p1, p2); // true
 ### Custom constructors and companion objects
 
 ```ts
-import { Val } from "valof";
+import { Val, type Unpatchable } from "valof";
 
 type Result<T> = { ok: T } | { err: string };
 type Note = Val<"Note", { id: string; text: string }>;
@@ -109,9 +109,8 @@ type Note = Val<"Note", { id: string; text: string }>;
 const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
 const hasText = (s: string) => s.length > 0;
 
-const Note = Val.companion<Note>()
-  // fixed excludes the generated id from patch.
-  .fixed<"id">()
+// Unpatchable excludes the generated id from patch.
+const Note = Val.companion<Note, [Unpatchable<"id">]>()
   // seal validates and normalizes every payload.
   .implSeal((note, seal): Result<Note> => {
     const text = normalize(note.text);

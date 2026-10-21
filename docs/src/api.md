@@ -2,36 +2,37 @@
 
 ## Values
 
-|                           |                                                              |
-| ------------------------- | ------------------------------------------------------------ |
-| `equals(a, b)`            | deeply compares two Vals of the same type                    |
-| `Val.of<V>(value)`        | applies the default seal, branding the value as `V`          |
-| `Val.of.nocopy<V>(value)` | the same, without copying the payload                        |
-| `Val.unwrap(value)`       | returns a mutable copy of the payload                        |
-| `Val.companion<V>()`      | starts a companion, with the default seal                    |
-| `.fixed<K>()`             | excludes keys from `patch`                                   |
-| `.implSeal(f)`            | registers a custom seal                                      |
-| `.implCreate(f)`          | registers a function that creates a payload                  |
-| `.implCreate.noseal(f)`   | the same, bypassing the seal for a payload it always accepts |
-| `.impl(fns)`              | adds the type's members                                      |
-| `.implTrait(Tr, fns?)`    | implements a trait the type declares                         |
+|                                        |                                                              |
+| -------------------------------------- | ------------------------------------------------------------ |
+| `equals(a, b)`                         | deeply compares two Vals of the same type                    |
+| `Val.of<V>(value)`                     | applies the default seal, branding the value as `V`          |
+| `Val.of.nocopy<V>(value)`              | the same, without copying the payload                        |
+| `Val.unwrap(value)`                    | returns a mutable copy of the payload                        |
+| `Val.companion<V>()`                   | starts a companion, with the default seal                    |
+| `Val.companion<V, [PrivateSeal]>()`    | the same, without `seal` on the companion                    |
+| `Val.companion<V, [Unpatchable<K>]>()` | the same, with keys `K` excluded from `patch`                |
+| `.implSeal(f)`                         | registers a custom seal                                      |
+| `.implCreate(f)`                       | registers a function that creates a payload                  |
+| `.implCreate.noseal(f)`                | the same, bypassing the seal for a payload it always accepts |
+| `.impl(fns)`                           | adds the type's members                                      |
+| `.implTrait(Tr, fns?)`                 | implements a trait the type declares                         |
 
-Write `fixed` first, then `implSeal`, then `implCreate`. `impl` and `implTrait` come last, in any
-order. Each step except `implTrait` is written once.
+Write `implSeal` first, then `implCreate`. `impl` and `implTrait` come last, in any order. Each step
+except `implTrait` is written once.
 
 ## Companion members
 
 `User` stands for the companion that belongs to the `User` type.
 
-|                               |                                  |                                                                     |
-| ----------------------------- | -------------------------------- | ------------------------------------------------------------------- |
-| `User.seal(value)`            | every companion                  | applies the seal registered with `.implSeal(f)`, or the default one |
-| `User.seal.nocopy(value)`     | every companion                  | the same as `User.seal`, without copying the payload                |
-| `User.create(...args)`        | registered with `.implCreate(f)` | creates a payload, then passes it to seal                           |
-| `User.create.nocopy(...args)` | registered with `.implCreate(f)` | the same as `User.create`, without copying the payload              |
-| `User.patch(user, patch)`     | `User` has an object payload     | deeply merges the patch, then seals it                              |
-| `User.member(user, ...args)`  | registered with `.impl(fns)`     | runs a member defined for the companion                             |
-| `User.member(...args)(user)`  | registered with `.impl(fns)`     | the same, with the value last                                       |
+|                               |                                       |                                                                     |
+| ----------------------------- | ------------------------------------- | ------------------------------------------------------------------- |
+| `User.seal(value)`            | every companion without `PrivateSeal` | applies the seal registered with `.implSeal(f)`, or the default one |
+| `User.seal.nocopy(value)`     | every companion without `PrivateSeal` | the same as `User.seal`, without copying the payload                |
+| `User.create(...args)`        | registered with `.implCreate(f)`      | creates a payload, then passes it to seal                           |
+| `User.create.nocopy(...args)` | registered with `.implCreate(f)`      | the same as `User.create`, without copying the payload              |
+| `User.patch(user, patch)`     | `User` has an object payload          | deeply merges the patch, then seals it                              |
+| `User.member(user, ...args)`  | registered with `.impl(fns)`          | runs a member defined for the companion                             |
+| `User.member(...args)(user)`  | registered with `.impl(fns)`          | the same, with the value last                                       |
 
 ## Types
 
