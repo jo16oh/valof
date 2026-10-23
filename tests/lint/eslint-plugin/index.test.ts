@@ -53,7 +53,7 @@ test("takes the buffer over the file, so a fix lands before the save", () => {
   const changed =
     'import { Val } from "valof";\n' +
     'export type Order = Val<"Order", { id: string }>;\n\n' +
-    "export const Order = Val.companion<Order>().impl({\n  label: (order) => order.id,\n});\n";
+    "export const Order = Val.companion<Order>().impl({\n  label: (order) => order.id,\n}).build();\n";
   expect(run("order.ts", changed)).toEqual(["5:2-7  Order.label is never read"]);
 });
 
@@ -83,7 +83,6 @@ test("names every rule, under the plugin's own name", () => {
     // The value it makes is well formed; what it went around is the type's own way in.
     "valof/bypassed-companion": "warn",
     "valof/companion-mismatch": "error",
-    "valof/detached-impl": "error",
     "valof/duplicate-brand": "error",
     "valof/incomplete-disable": "error",
     "valof/split-companion": "error",

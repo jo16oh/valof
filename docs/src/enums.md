@@ -19,7 +19,7 @@ import { Enum } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
-const Shape = Enum.companion<Shape>();
+const Shape = Enum.companion<Shape>().build();
 
 const circle = Shape.Circle.create({ r: 2 }); // { r: 2, _tag: "Circle" }
 
@@ -60,7 +60,7 @@ one, which breaks the declarations of a package that exports the companion.
 import { Enum } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.companion<Shape>();
+const Shape = Enum.companion<Shape>().build();
 declare const shape: Shape;
 // ---cut---
 const area = Shape.match(shape, {
@@ -79,7 +79,7 @@ adding one to the declaration fails here rather than falling through at run time
 import { Enum } from "valof/experimental";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.companion<Shape>();
+const Shape = Enum.companion<Shape>().build();
 declare const shape: Shape;
 // ---cut---
 const size = Shape.match(shape, {
@@ -119,7 +119,7 @@ type Command = Enum<
   "Command",
   { New: { name: string }; Rename: { from: string; to: string }; Check: Record<never, never> }
 >;
-const Command = Enum.companion<Command>();
+const Command = Enum.companion<Command>().build();
 // The subcommand, already normalized to its tag, and the arguments after it.
 declare const input: { tag: "New" | "Rename" | "Check"; args: readonly string[] };
 
@@ -143,7 +143,7 @@ The third argument is the shape: the fields every variant holds. It is the same 
 import { Enum } from "valof/experimental";
 // ---cut---
 type Task = Enum<"Task", { Todo: { text: string }; Done: { at: number } }, { id: string }>;
-const Task = Enum.companion<Task>();
+const Task = Enum.companion<Task>().build();
 
 const todo = Task.Todo.create({ id: "t1", text: "write the docs" });
 console.log(todo.id); // t1
@@ -175,7 +175,8 @@ const Shape = Enum.companion<Shape>()
         Circle: (c) => Math.PI * c.r * c.r,
         Square: (q) => q.side * q.side,
       }),
-  });
+  })
+  .build();
 
 Shape.Circle.diameter(Shape.Circle.create({ r: 2 })); // 4
 ```
@@ -204,7 +205,8 @@ const Shape = Enum.companion<Shape>()
     variant.implSeal((payload, seal) =>
       payload.r > 0 ? seal(payload) : new Error("r must be positive"),
     ),
-  );
+  )
+  .build();
 
 Shape.Circle.create({ id: "s1", r: 2 }); // VariantOf<Shape, "Circle"> | Error
 Shape.Square.create({ id: "s2", side: 1 }); // VariantOf<Shape, "Square"> | Error
@@ -234,7 +236,7 @@ already has one:
 import { Enum, Tag } from "valof/experimental";
 // ---cut---
 type Event = Enum<"Event", { Click: { x: number }; Key: { code: string } }, Tag<"kind">>;
-const Event = Enum.companion<Event>("kind");
+const Event = Enum.companion<Event>("kind").build();
 
 Event.Click.create({ x: 1 }); // { x: 1, kind: "Click" }
 Event[Tag].key; // "kind"

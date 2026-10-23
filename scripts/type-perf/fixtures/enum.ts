@@ -26,10 +26,11 @@ const Shape = Enum.companion<Shape>()
         Rect: (r) => r.w * r.h,
         Poly: (p) => p.at.length,
       }),
-  });
+  })
+  .build();
 
 type Named = Trait<"Named", { id: string }, { label: (self: Self, sep: string) => string }>;
-const Named = Trait.companion<Named>();
+const Named = Trait.companion<Named>().build();
 
 type Event = Enum<
   "Event",
@@ -44,10 +45,11 @@ const Event = Enum.companion<Event>("kind")
   .implTrait(Named, {
     label: (e, sep): string =>
       Event.match(e, { Click: (c) => `${c.x}${sep}${c.y}`, Key: (k) => k.code }),
-  });
+  })
+  .build();
 
 type Frame = Val<"Frame", { id: string; shape: Shape; last: Event }>;
-const Frame = Val.companion<Frame>();
+const Frame = Val.companion<Frame>().build();
 
 declare const shape: Shape;
 declare const patch: Patch<SeedOf<Frame>>;

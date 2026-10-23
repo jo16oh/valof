@@ -1,5 +1,5 @@
 import { duals, type Arity, type Duals, type Omission } from "./dual.ts";
-import type { AnyVal, Checked, DeepReadonly, Invalid, Reserved } from "./val.ts";
+import type { AnyVal, CallBuildFirst, Checked, DeepReadonly, Invalid, Reserved } from "./val.ts";
 import * as Trait from "./ns/trait.ts";
 
 declare const SelfMark: unique symbol;
@@ -167,8 +167,7 @@ type HasSelfBranch<T> = [T] extends [Self]
 
 /**
  * Rejects a member a Val could not carry: one returning `Self`, one named `then`, and one named
- * after something the library reserves, `__valof_`, the `impl` step and the trait's own `dyn`
- * included.
+ * after something the library reserves, `__valof_` and the trait's own `dyn` included.
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
@@ -275,29 +274,37 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
   Partial<Record<FinalsOf<Tr>, never>>;
 
 /**
- * Collects what a trait carries. A builder is a companion already, so a trait implementing
- * nothing takes no step at all.
+ * What `Trait.companion` returns, which `impl` adds to and `.build()` closes.
  *
  * @experimental
  */
-export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>> = TraitCompanion<Tr, G> & {
+export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>, Open = true> = {
+  readonly dyn: CallBuildFirst;
   /**
-   * Implements members over the trait. The declaration says which side of the contract implements a
-   * member: a Val may replace an ordinary member through `implTrait`, and may not replace one
-   * declared {@link Final}.
-   *
-   * It takes one call, which ends the chain. A member calling a {@link Final} sibling references
-   * the companion and annotates its return type: referencing it inside its own initializer is a
-   * circularity TypeScript reports as TS7023, and the annotation cuts it. A member a Val may
-   * replace is not on the companion; see {@link TraitCompanion}.
-   *
-   * A member can be called with the value first or last, and cannot have an optional, a default or
-   * a rest parameter.
-   *
-   * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+   * Closes the chain and returns the companion. The builder holds the steps alone: `dyn` and the
+   * members are the companion's.
    */
-  impl: <H extends Shared<Tr, H>>(fns: H & Arity<H>) => TraitCompanion<Tr, G & H>;
-};
+  build: () => TraitCompanion<Tr, G>;
+} & (Open extends true
+  ? {
+      /**
+       * Implements members over the trait. The declaration says which side of the contract
+       * implements a member: a Val may replace an ordinary member through `implTrait`, and may not
+       * replace one declared {@link Final}.
+       *
+       * It takes one call. A member calling a {@link Final} sibling references the companion and
+       * annotates its return type: referencing it inside its own initializer is a circularity
+       * TypeScript reports as TS7023, and the annotation cuts it. A member a Val may replace is
+       * not on the companion; see {@link TraitCompanion}.
+       *
+       * A member can be called with the value first or last, and cannot have an optional, a
+       * default or a rest parameter.
+       *
+       * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+       */
+      impl: <H extends Shared<Tr, H>>(fns: H & Arity<H>) => TraitBuilder<Tr, G & H, false>;
+    }
+  : unknown);
 
 type AnyFn = (...args: never[]) => unknown;
 
@@ -330,9 +337,8 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
  *
  * @experimental
  */
-export const companion = <Tr extends AnyTrait>(): TraitBuilder<Tr> => {
-  const target = make({});
-  // `impl` takes one call: what it returns is the companion, with no step left on it.
-  target["impl"] = (fns: Record<string, unknown>) => make(fns);
-  return target as never;
-};
+export const companion = <Tr extends AnyTrait>(): TraitBuilder<Tr> =>
+  ({
+    impl: (fns: Record<string, unknown>) => ({ build: () => make(fns) }),
+    build: () => make({}),
+  }) as never;

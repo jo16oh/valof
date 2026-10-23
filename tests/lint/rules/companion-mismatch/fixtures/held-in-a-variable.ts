@@ -6,6 +6,6 @@ const seal = Val.companion<User>();
 
 const User = seal.impl({
   greet: (u) => u.name,
-});
+}).build();
 
 User.greet(User.seal({ id: "a", name: "bob" }));

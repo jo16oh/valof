@@ -62,10 +62,10 @@ Read the [documentation](docs/src/introduction.md) for more details.
 import { equals, Val } from "valof";
 
 type UserId = Val<"UserId", string>;
-const UserId = Val.companion<UserId>();
+const UserId = Val.companion<UserId>().build();
 
 type PostId = Val<"PostId", string>;
-const PostId = Val.companion<PostId>();
+const PostId = Val.companion<PostId>().build();
 
 const userId = UserId.seal("xxx-xxx-xxx");
 const postId = PostId.seal("xxx-xxx-xxx");
@@ -78,9 +78,9 @@ userId === postId; // true
 typeof userId === "string"; // true
 
 type Post = Val<"Post", { id: PostId; content: string }>;
-const Post = Val.companion<Post>();
+const Post = Val.companion<Post>().build();
 type User = Val<"User", { id: UserId; name: string; posts: Post[] }>;
-const User = Val.companion<User>();
+const User = Val.companion<User>().build();
 
 const user = User.seal({
   id: UserId.seal("xxx-xxx-xxx"),
@@ -123,7 +123,8 @@ const Note = Val.companion<Note, [Unpatchable<"id">]>()
     append(note, text: string): Result<Note> {
       return Note.seal({ ...note, text: `${note.text} ${text}` });
     },
-  });
+  })
+  .build();
 
 // seal is the way in, with or without a custom seal.
 Note.seal({ id: "note-1", text: " Hello " }); // { ok: { id: "note-1", text: "Hello" } }
@@ -140,17 +141,19 @@ import { pipe } from "remeda";
 
 type Point = Val<"Point", { x: number; y: number }>;
 
-const Point = Val.companion<Point>().impl({
-  move(point, dx: number, dy: number): Point {
-    return Point.patch(point, {
-      x: point.x + dx,
-      y: point.y + dy,
-    });
-  },
-});
+const Point = Val.companion<Point>()
+  .impl({
+    move(point, dx: number, dy: number): Point {
+      return Point.patch(point, {
+        x: point.x + dx,
+        y: point.y + dy,
+      });
+    },
+  })
+  .build();
 
 type Rectangle = Val<"Rectangle", { position: Point; size: Point; label?: string }>;
-const Rectangle = Val.companion<Rectangle>();
+const Rectangle = Val.companion<Rectangle>().build();
 
 const rectangle = Rectangle.seal({
   position: Point.seal({ x: 1, y: 2 }),

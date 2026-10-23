@@ -48,7 +48,7 @@ import { Val, type Rec } from "valof";
 
 // ---cut---
 type Tree = Val<"Tree", { value: number; children: Rec<Tree>[] }>;
-const Tree = Val.companion<Tree>();
+const Tree = Val.companion<Tree>().build();
 
 const leaf = Tree.seal({ value: 1, children: [] });
 const root = Tree.seal({ value: 2, children: [leaf] });
@@ -69,5 +69,5 @@ import { Val } from "valof";
 // ---cut---
 type Tree = Val<"Tree", { value: number; children: Tree[] }>;
 
-const Tree = Val.companion<Tree>();
+const Tree = Val.companion<Tree>().build();
 ```

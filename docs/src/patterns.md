@@ -13,7 +13,7 @@ declare function useEffect(effect: () => void, deps: readonly unknown[]): void;
 
 type City = Val<"City", { name: string }>;
 type Shop = Val<"Shop", { owner: { email: string }; city: City }>;
-const Shop = Val.companion<Shop>();
+const Shop = Val.companion<Shop>().build();
 
 declare const owner: { email: string };
 declare const city: City;
@@ -66,9 +66,9 @@ table.
 import { Val } from "valof";
 
 type Money = Val<"Money", { amount: number; currency: string }>;
-const Money = Val.companion<Money>();
+const Money = Val.companion<Money>().build();
 type PriceTable = Val<"PriceTable", Record<string, Money>>;
-const PriceTable = Val.companion<PriceTable>();
+const PriceTable = Val.companion<PriceTable>().build();
 
 declare const table: PriceTable;
 // ---cut---
@@ -91,9 +91,11 @@ declare const Temporal: {
 // ---cut---
 export type UnixEpochMs = Val<"UnixEpochMs", number>;
 
-export const UnixEpochMs = Val.companion<UnixEpochMs>().impl({
-  showLocal(d) {
-    return Temporal.Instant.fromEpochMilliseconds(d).toLocaleString();
-  },
-});
+export const UnixEpochMs = Val.companion<UnixEpochMs>()
+  .impl({
+    showLocal(d) {
+      return Temporal.Instant.fromEpochMilliseconds(d).toLocaleString();
+    },
+  })
+  .build();
 ```

@@ -32,7 +32,7 @@ import { Val } from "valof";
 
 // ---cut---
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
-const Profile = Val.companion<Profile>();
+const Profile = Val.companion<Profile>().build();
 
 const raw = { name: "alice", address: { city: "Osaka" } };
 const profile = Profile.seal(raw);
@@ -78,7 +78,7 @@ Only when you can make that guarantee, use `.nocopy` to make the payload the val
 import { Val } from "valof";
 
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
-const Profile = Val.companion<Profile>();
+const Profile = Val.companion<Profile>().build();
 
 const seed = { name: "alice", address: { city: "Osaka" } } as const;
 const profile = Profile.seal.nocopy(seed);
@@ -90,7 +90,7 @@ The common trap is a mutable alias behind a readonly view:
 import { Val, type SeedOf } from "valof";
 
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
-const Profile = Val.companion<Profile>();
+const Profile = Val.companion<Profile>().build();
 // ---cut---
 
 const mutable = { name: "alice", address: { city: "Osaka" } };

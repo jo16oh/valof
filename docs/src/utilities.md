@@ -8,7 +8,7 @@
 import { equals, Val } from "valof";
 
 type User = Val<"User", { id: string; profile: { name: string } }>;
-const User = Val.companion<User>();
+const User = Val.companion<User>().build();
 
 const a = User.seal({ id: "a", profile: { name: "alice" } });
 const b = User.seal({ id: "a", profile: { name: "alice" } });
@@ -57,7 +57,7 @@ strips the brand at every depth.
 import { Val } from "valof";
 
 type Post = Val<"Post", { title: string; tags: string[] }>;
-const Post = Val.companion<Post>();
+const Post = Val.companion<Post>().build();
 // ---cut---
 const post = Post.seal({ title: "t", tags: ["a"] });
 

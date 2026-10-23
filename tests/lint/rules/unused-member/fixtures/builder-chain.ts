@@ -3,6 +3,6 @@ const Doc = Val.companion<Doc, [Unpatchable<"id">]>()
   .impl({
     title: (d) => d.title,
     subtitle: (d) => d.title,
-  });
+  }).build();
 
 Doc.title(doc);

@@ -29,7 +29,7 @@ import { Val } from "valof";
 
 // ---cut---
 type UserId = Val<"UserId", string>;
-const UserId = Val.companion<UserId>();
+const UserId = Val.companion<UserId>().build();
 
 const id = UserId.seal("u1");
 ```
@@ -50,7 +50,7 @@ import { Val } from "valof";
 
 // ---cut---
 type Profile = Val<"Profile", { name: string; address: { city: string } }>;
-const Profile = Val.companion<Profile>();
+const Profile = Val.companion<Profile>().build();
 
 const profile = Profile.seal({ name: "alice", address: { city: "Osaka" } });
 const changed = Profile.patch(profile, { address: { city: "Tokyo" } });
@@ -80,15 +80,17 @@ Keeping its instances immutable requires `readonly` on every field and nested pr
 shape depends on property enumerability unless you write and maintain a `toJSON` mapping.
 
 A [companion object](companion-objects.md) collects the constructor and functions under the type's
-name while values remain plain data. `Val.companion<V>().impl({ ... })` creates it. The result
-exposes `seal` and the registered members; the chapter also explains `patch`:
+name while values remain plain data. `Val.companion<V>().impl({ ... }).build()` creates it. The
+result exposes `seal` and the registered members; the chapter also explains `patch`:
 
 ```ts
 import { Val } from "valof";
 
 // ---cut---
 type User = Val<"User", { name: string }>;
-const User = Val.companion<User>().impl({ greeting: (user) => `Hi, ${user.name}` });
+const User = Val.companion<User>()
+  .impl({ greeting: (user) => `Hi, ${user.name}` })
+  .build();
 
 User.greeting(User.seal({ name: "alice" }));
 ```
@@ -108,9 +110,9 @@ import { Val } from "valof";
 
 // ---cut---
 type Age = Val<"Age", number>;
-const Age = Val.companion<Age>().implSeal((value, seal) =>
-  value >= 0 ? seal(value) : new Error("age must not be negative"),
-);
+const Age = Val.companion<Age>()
+  .implSeal((value, seal) => (value >= 0 ? seal(value) : new Error("age must not be negative")))
+  .build();
 
 const age = Age.seal(30); // Age | Error
 ```
@@ -167,7 +169,7 @@ under a `default`, and a `break` closing every case. `strict` reports neither a 
 missing `break`. `noFallthroughCasesInSwitch` catches the second, and the lint rule
 `typescript/switch-exhaustiveness-check` catches the first, once you enable both.
 
-Declare variants in `Enum<...>` and create their companion with `Enum.companion<E>()`.
+Declare variants in `Enum<...>` and create their companion with `Enum.companion<E>().build()`.
 `companion.match(value, handlers)` requires a handler for every variant;
 [enums](enums.md#declare-the-variants) covers shared fields, custom seals and tags:
 
@@ -176,7 +178,7 @@ import { Enum } from "valof/experimental";
 
 // ---cut---
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-const Shape = Enum.companion<Shape>();
+const Shape = Enum.companion<Shape>().build();
 
 const area = Shape.match(Shape.Circle.create({ r: 2 }), {
   Circle: (circle) => Math.PI * circle.r * circle.r,
@@ -229,12 +231,14 @@ import { Val } from "valof";
 
 // ---cut---
 type User = Val<"User", { id: string; name: string }>;
-const User = Val.companion<User>().impl({
-  greet: (u) => `Hi, ${u.name}`,
-});
+const User = Val.companion<User>()
+  .impl({
+    greet: (u) => `Hi, ${u.name}`,
+  })
+  .build();
 
 type Admin = Val<"Admin", { name: string; level: number }>;
-const Admin = Val.companion<Admin>();
+const Admin = Val.companion<Admin>().build();
 // ---cut---
 const admin = Admin.seal({ name: "root", level: 9 });
 
@@ -253,8 +257,10 @@ import { Trait, type Self } from "valof/experimental";
 
 // ---cut---
 type Describable = Trait<"Describable", { name: string }, { describe: (self: Self) => string }>;
-const Describable = Trait.companion<Describable>();
+const Describable = Trait.companion<Describable>().build();
 
 type User = Val<"User", { name: string }, Describable>;
-const User = Val.companion<User>().implTrait(Describable, { describe: (user) => user.name });
+const User = Val.companion<User>()
+  .implTrait(Describable, { describe: (user) => user.name })
+  .build();
 ```

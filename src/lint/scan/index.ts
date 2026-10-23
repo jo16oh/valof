@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
-import type { Enum, EnumBuilder, EnumCompanion } from "../../enum.ts";
-import type { AnyTrait, TraitBuilder, TraitCompanion } from "../../trait.ts";
-import type { AnyVal, Companion, CompanionBuilder, Reserved } from "../../val.ts";
+import type { Enum, EnumCompanion } from "../../enum.ts";
+import type { AnyTrait, TraitCompanion } from "../../trait.ts";
+import type { Reserved } from "../../val.ts";
 
 import {
   child,
@@ -88,17 +88,6 @@ export type CompanionBinding = Where & {
   key: string;
 };
 
-/** An `impl` step written on something that is not a builder chain. */
-export type DetachedStep = Where & {
-  /** The step, as written. */
-  step: string;
-  /** What the step was written on, as this file names it. */
-  baseName: string;
-  base: SymbolRef;
-  /** The variant, for `Shape.Circle.implSeal(…)`. */
-  variant: string | undefined;
-};
-
 /**
  * What one file says about itself.
  *
@@ -138,8 +127,6 @@ export type Scan = {
   sites: CompanionSite[];
   /** Keys taken off a companion and bound to a local name. */
   companionBindings: CompanionBinding[];
-  /** `impl` steps that reach no builder chain of their own. */
-  detachedSteps: DetachedStep[];
   /** `Val.of<X>(…)` calls. */
   lifts: Lift[];
   /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
@@ -199,18 +186,7 @@ function reserved<const N extends readonly Reserved[]>(
 }
 
 /** The names every `.impl` rejects. The type reports one, so it is not a member to report. */
-const RESERVED = reserved([
-  "patch",
-  "seal",
-  "create",
-  "then",
-  "impl",
-  "implSeal",
-  "implCreate",
-  "implTrait",
-  "implVariant",
-  "__valof_.*",
-]);
+const RESERVED = reserved(["patch", "seal", "create", "then", "__valof_.*"]);
 
 /**
  * An enum's `.impl` rejects `match` as well, and a trait's rejects `dyn`. An enum's variant names
@@ -259,7 +235,6 @@ export function scan(
   const namespaceReads = new Map<string, Set<string>>();
   const sites: CompanionSite[] = [];
   const companionBindings: CompanionBinding[] = [];
-  const detachedSteps: DetachedStep[] = [];
   const lifts: Lift[] = [];
 
   /** local name -> the dotted key a read off it counts under, `Shape.Circle`. */
@@ -350,8 +325,6 @@ export function scan(
       case "CallExpression": {
         const lift = valOf(node, file, bound, at);
         if (lift) lifts.push(lift);
-        const detached = detachedStep(node, file, bound, at);
-        if (detached) detachedSteps.push(detached);
         const implementation = implTrait(node, file, bound, sites, objects, at);
         if (implementation) {
           traitImplementations.push(implementation);
@@ -483,7 +456,6 @@ export function scan(
     reAliases,
     sites,
     companionBindings,
-    detachedSteps,
     lifts,
     directives: directives(parsed.comments, source, at),
   };
@@ -693,59 +665,4 @@ function variantImpl(
   }
   // Rooted anywhere else, the chain belongs to something else the callback used.
   return current.type === "Identifier" && current["name"] === builder ? [...found.values()] : [];
-}
-
-/** What a builder has and the companion it ends in does not. A variant's frame adds none. */
-type Step =
-  | Exclude<keyof CompanionBuilder<AnyVal>, keyof Companion<AnyVal, Record<never, never>>>
-  | Exclude<keyof EnumBuilder<Sample>, keyof EnumCompanion<Sample>>
-  | Exclude<keyof TraitBuilder<AnyTrait>, keyof TraitCompanion<AnyTrait>>;
-
-/**
- * The steps a builder chain takes. One written anywhere else was written on a value.
- *
- * Keyed by {@link Step}, so a step one of those builders gains or loses is a type error here.
- */
-const STEPS: ReadonlySet<string> = new Set(
-  Object.keys({
-    impl: true,
-    implSeal: true,
-    implCreate: true,
-    implTrait: true,
-    implVariant: true,
-  } satisfies Record<Step, true>),
-);
-
-/**
- * A step written on something that is not a builder chain, or `undefined`.
- *
- * Only the step the chain begins with is recorded: the ones after it sit on what that one
- * returned, and reporting each of them would report one chain many times.
- *
- * The rule answers whether the base is a companion at all. A `.impl` on anything else resolves to
- * no declaration and is never reported.
- */
-function detachedStep(
-  node: Node,
-  file: string,
-  bound: Bindings,
-  at: (offset: number) => Where,
-): DetachedStep | undefined {
-  const callee = child(node, "callee");
-  if (!callee || callee.type !== "MemberExpression") return undefined;
-  const { name: step, property, receiver } = stepOf(callee) ?? {};
-  if (!step || !property || !STEPS.has(step)) return undefined;
-  if (!receiver || receiver.type === "CallExpression") return undefined;
-  if (fromRoot(callee, bound)) return undefined;
-  const where = at(property["start"] as number);
-  const direct = valueReference(receiver, file, bound);
-  if (direct) return { ...where, step, baseName: direct.name, base: direct, variant: undefined };
-  // `Shape.Circle.implSeal(…)`: the base is the companion, and the key is the variant on it.
-  if (receiver.type !== "MemberExpression") return undefined;
-  const object = child(receiver, "object");
-  const key = child(receiver, "property");
-  const variant = key && keyName(key, receiver["computed"] === true);
-  if (object?.type !== "Identifier" || !variant) return undefined;
-  const base = symbolRef(file, bound, object["name"] as string);
-  return { ...where, step, baseName: base.name, base, variant };
 }

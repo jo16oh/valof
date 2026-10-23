@@ -11,7 +11,7 @@ const { lint: over } = fixtures(import.meta.url);
 const at = (name: string): string => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
 
 const dead = (name: string): string =>
-  `const ${name} = Val.companion<${name}>().impl({\n  shout: (v) => v.toUpperCase(),\n});\n`;
+  `const ${name} = Val.companion<${name}>().impl({\n  shout: (v) => v.toUpperCase(),\n}).build();\n`;
 
 test("walks the buffer in place of the file", async () => {
   expect(await over("buffer")).toEqual([]);

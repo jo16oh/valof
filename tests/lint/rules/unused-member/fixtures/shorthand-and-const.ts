@@ -3,4 +3,4 @@ const User = Val.companion<User>().impl({
     return u.name.toLowerCase();
   },
   MAX: 10,
-});
+}).build();

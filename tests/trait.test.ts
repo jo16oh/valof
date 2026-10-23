@@ -2,7 +2,7 @@ import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import { Val } from "../src/index.ts";
 import { Trait, type AnyTrait, type Dyn, type Final, type Self } from "../src/experimental.ts";
 // `Wired` is not published from the entry point.
-import type { Wired } from "../src/val.ts";
+import type { CallBuildFirst, Wired } from "../src/val.ts";
 import type { BrandsOf } from "../src/trait.ts";
 
 type Greetable = Trait<
@@ -14,21 +14,27 @@ type Greetable = Trait<
     shout: Final<(self: Self) => string>;
   }
 >;
-const Greetable = Trait.companion<Greetable>().impl({
-  greet: (g) => `Hi, ${g.name}`, // a Val may replace this one
-  shout: (g) => g.name.toUpperCase(), // declared Final: no Val may
-});
+const Greetable = Trait.companion<Greetable>()
+  .impl({
+    greet: (g) => `Hi, ${g.name}`, // a Val may replace this one
+    shout: (g) => g.name.toUpperCase(), // declared Final: no Val may
+  })
+  .build();
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
-const User = Val.companion<User>().implTrait(Greetable, {
-  toWire: (u, sep) => `${u.id}${sep}${u.name}`,
-});
+const User = Val.companion<User>()
+  .implTrait(Greetable, {
+    toWire: (u, sep) => `${u.id}${sep}${u.name}`,
+  })
+  .build();
 
 type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
-const Admin = Val.companion<Admin>().implTrait(Greetable, {
-  toWire: (a, sep) => `admin${sep}${a.name}`,
-  greet: (a) => `Sir ${a.name}`,
-});
+const Admin = Val.companion<Admin>()
+  .implTrait(Greetable, {
+    toWire: (a, sep) => `admin${sep}${a.name}`,
+    greet: (a) => `Sir ${a.name}`,
+  })
+  .build();
 
 const user = Val.of<User>({ id: "a", name: "alice" });
 const admin = Val.of<Admin>({ name: "root", level: 9 });
@@ -44,22 +50,24 @@ describe("Trait", () => {
     test("a member cannot return Self", () => {
       type Unsafe = Trait<"Unsafe", { n: number }, { grow: (self: Self) => Self }>;
       // @ts-expect-error a trait member cannot return Self
-      Trait.companion<Unsafe>().impl({});
+      Trait.companion<Unsafe>().impl({}).build();
     });
 
     test("Self cannot hide inside a member's return type", () => {
       type Union = Trait<"Union", { n: number }, { grow: (self: Self) => Self | null }>;
       // @ts-expect-error a union member cannot hide Self
-      Trait.companion<Union>().impl({});
+      Trait.companion<Union>().impl({}).build();
 
       type Closure = Trait<"Closure", { n: number }, { grow: (self: Self) => () => Self }>;
       // @ts-expect-error a returned function cannot hide Self
-      Trait.companion<Closure>().impl({});
+      Trait.companion<Closure>().impl({}).build();
 
       type Safe = Trait<"Safe", { n: number }, { read: (self: Self) => (() => string) | null }>;
-      const Safe = Trait.companion<Safe>().impl({ read: (s) => () => String(s.n) });
+      const Safe = Trait.companion<Safe>()
+        .impl({ read: (s) => () => String(s.n) })
+        .build();
       type Meter = Val<"Meter", { n: number }, Safe>;
-      const Meter = Val.companion<Meter>().implTrait(Safe);
+      const Meter = Val.companion<Meter>().implTrait(Safe).build();
       expect(Meter.read(Val.of<Meter>({ n: 1 }))?.()).toBe("1");
     });
   });
@@ -71,17 +79,45 @@ describe("Trait", () => {
       type BadFn = Trait<"BadFn", { run: () => void }>;
       expectTypeOf<BadFn>().not.toExtend<AnyTrait>();
       // @ts-expect-error functions are not allowed
-      Trait.companion<BadFn>();
+      Trait.companion<BadFn>().build();
 
       type BadUndefined = Trait<"BadUndefined", { nickname: string | undefined }>;
       expectTypeOf<BadUndefined>().not.toExtend<AnyTrait>();
       // @ts-expect-error required property cannot be undefined
-      Trait.companion<BadUndefined>();
+      Trait.companion<BadUndefined>().build();
 
       type BadKey = Trait<"BadKey", Readonly<Record<symbol, string>>>;
       expectTypeOf<BadKey>().not.toExtend<AnyTrait>();
       // @ts-expect-error keys must be strings
-      Trait.companion<BadKey>();
+      Trait.companion<BadKey>().build();
+    });
+  });
+
+  describe("build", () => {
+    test("closes the chain: the companion has no step left", () => {
+      for (const step of ["impl", "build"] as const) {
+        expectTypeOf(Greetable).not.toHaveProperty(step);
+        expect(step in Greetable).toBe(false);
+      }
+    });
+
+    test("a builder holds the steps alone", () => {
+      const bare = Trait.companion<Greetable>();
+      const builder = bare.impl({ shout: (g) => g.name.toUpperCase() });
+      expectTypeOf(builder).not.toHaveProperty("shout");
+      for (const name of ["shout", "dyn", "__valof_shared"])
+        expect([name in bare, name in builder]).toEqual([false, false]);
+    });
+
+    test("a builder used as the companion says to call `.build()`", () => {
+      const builder = Trait.companion<Greetable>().impl({ shout: (g) => g.name.toUpperCase() });
+      expectTypeOf(builder.dyn).toEqualTypeOf<CallBuildFirst>();
+      type Named = Val<"Named", { name: string }, Greetable>;
+      Val.companion<Named>().implTrait(
+        // @ts-expect-error pass the trait's companion, then the members it leaves open
+        builder,
+        { toWire: (n: Named) => n.name },
+      );
     });
   });
 
@@ -89,31 +125,42 @@ describe("Trait", () => {
     test("a member may not take a field's name from its own shape", () => {
       type SelfClash = Trait<"SelfClash", { size: number }, { size: (self: Self) => number }>;
       // @ts-expect-error a trait member cannot take a field's name
-      Trait.companion<SelfClash>().impl({ size: (s: { size: number }) => s.size });
+      Trait.companion<SelfClash>().build();
     });
 
     test("nor one under `__valof_`", () => {
       type Sneaky = Trait<"Sneaky", { name: string }, { __valof_shared: (self: Self) => string }>;
       // @ts-expect-error a trait member cannot take a name the library reserves
-      Trait.companion<Sneaky>().impl({});
+      Trait.companion<Sneaky>().impl({}).build();
     });
 
-    test("nor a step's name", () => {
-      type Stepping = Trait<"Stepping", { name: string }, { implTrait: (self: Self) => string }>;
-      // @ts-expect-error a trait member cannot take a name the library reserves
-      Trait.companion<Stepping>().impl({});
+    test("but may take a step's name: no companion holds a step", () => {
+      type Stepping = Trait<
+        "Stepping",
+        { name: string },
+        { impl: (self: Self) => string; build: Final<(self: Self) => string> }
+      >;
+      const Stepping = Trait.companion<Stepping>()
+        .impl({ build: (s) => s.name })
+        .build();
+      type Step = Val<"Step", { name: string }, Stepping>;
+      const Step = Val.companion<Step>()
+        .implTrait(Stepping, { impl: (s) => s.name.toUpperCase() })
+        .build();
+      const step = Step.seal({ name: "up" });
+      expect([Step.impl(step), Step.build(step), Stepping.build(step)]).toEqual(["UP", "up", "up"]);
     });
 
     test("nor the name the trait itself uses", () => {
       type Boxed = Trait<"Boxed", { name: string }, { dyn: Final<(self: Self) => string> }>;
       // @ts-expect-error a trait member cannot take the name the trait itself uses
-      Trait.companion<Boxed>().impl({});
+      Trait.companion<Boxed>().impl({}).build();
     });
 
     test("nor `then`, which would make the companion a thenable", () => {
       type Awaited = Trait<"Awaited", { name: string }, { then: (self: Self) => string }>;
       // @ts-expect-error a member named `then` would make the companion a thenable
-      Trait.companion<Awaited>().impl({});
+      Trait.companion<Awaited>().impl({}).build();
     });
 
     // The tests above name one wired member each. This one fails if `Wired` grows a name
@@ -136,12 +183,14 @@ describe("Trait", () => {
         { name: string },
         { defaults: (self: Self) => string; finals: Final<(self: Self) => string> }
       >;
-      const Held = Trait.companion<Held>().impl({
-        defaults: (h) => h.name,
-        finals: (h) => h.name.toUpperCase(),
-      });
+      const Held = Trait.companion<Held>()
+        .impl({
+          defaults: (h) => h.name,
+          finals: (h) => h.name.toUpperCase(),
+        })
+        .build();
       type Note = Val<"Note", { name: string }, Held>;
-      const Note = Val.companion<Note>().implTrait(Held);
+      const Note = Val.companion<Note>().implTrait(Held).build();
       const n = Val.of<Note>({ name: "n" });
       expect([Note.defaults(n), Note.finals(n), Held.finals(n)]).toEqual(["n", "N", "N"]);
     });
@@ -186,9 +235,11 @@ describe("dyn", () => {
 
   test("nor may the box take another Val's companion", () => {
     type Weighed = Trait<"Weighed", { name: string }, { heavy: (self: Self) => boolean }>;
-    const Weighed = Trait.companion<Weighed>().impl({ heavy: (w) => w.name.length > 3 });
+    const Weighed = Trait.companion<Weighed>()
+      .impl({ heavy: (w) => w.name.length > 3 })
+      .build();
     type Crate = Val<"Crate", { name: string }, Weighed>;
-    const Crate = Val.companion<Crate>().implTrait(Weighed);
+    const Crate = Val.companion<Crate>().implTrait(Weighed).build();
     expect(() => {
       // @ts-expect-error `Crate` answers for no member of `Greetable`
       Greetable.dyn(Crate, user).greet();
@@ -205,11 +256,14 @@ describe("dyn", () => {
 
   test("each of a Val's traits boxes on its own", () => {
     type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
-    const Weighed = Trait.companion<Weighed>().impl({ heavy: (w) => w.kg > 10 });
+    const Weighed = Trait.companion<Weighed>()
+      .impl({ heavy: (w) => w.kg > 10 })
+      .build();
     type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;
     const Crate = Val.companion<Crate>()
       .implTrait(Greetable, { toWire: (c, sep) => `${c.name}${sep}${c.kg}` })
-      .implTrait(Weighed);
+      .implTrait(Weighed)
+      .build();
     const c = Val.of<Crate>({ name: "box", kg: 20 });
     expect([Greetable.dyn(Crate, c).greet(), Weighed.dyn(Crate, c).heavy()]).toEqual([
       "Hi, box",
@@ -219,9 +273,11 @@ describe("dyn", () => {
 
   describe("a primitive payload", () => {
     type Marker = Trait<"Marker", Record<never, never>, { wire: (self: Self) => string }>;
-    const Marker = Trait.companion<Marker>().impl({ wire: (_m) => "marked" });
+    const Marker = Trait.companion<Marker>()
+      .impl({ wire: (_m) => "marked" })
+      .build();
     type Email = Val<"Email", string, Marker>;
-    const Email = Val.companion<Email>().implTrait(Marker);
+    const Email = Val.companion<Email>().implTrait(Marker).build();
 
     test("gets an empty target to stand behind", () => {
       const mail = Email.seal("a@example.com");
@@ -258,62 +314,76 @@ describe("data-first and data-last", () => {
   test("a member declared with arguments that can be left out is rejected", () => {
     type Optional = Trait<"Optional", { n: number }, { at: (self: Self, i?: number) => number }>;
     // @ts-expect-error a parameter that can be left out
-    Trait.companion<Optional>().impl({});
+    Trait.companion<Optional>().impl({}).build();
 
     type Rest = Trait<"Rest", { n: number }, { sum: (self: Self, ...ns: number[]) => number }>;
     // @ts-expect-error a parameter that can be left out
-    Trait.companion<Rest>().impl({});
+    Trait.companion<Rest>().impl({}).build();
   });
 
   test("so is an implementation leaving out a parameter the declaration requires", () => {
     type Named = Val<"Named", { id: string; name: string }, Greetable>;
-    Val.companion<Named>().implTrait(Greetable, {
-      // @ts-expect-error a parameter that can be left out
-      toWire: (n: Named, sep = "/") => n.id + sep,
-    });
-    Val.companion<Named>().implTrait(Greetable, {
-      // @ts-expect-error a parameter that can be left out
-      toWire: (n: Named, ...seps: string[]) => n.id + seps.join(),
-    });
+    Val.companion<Named>()
+      .implTrait(Greetable, {
+        // @ts-expect-error a parameter that can be left out
+        toWire: (n: Named, sep = "/") => n.id + sep,
+      })
+      .build();
+    Val.companion<Named>()
+      .implTrait(Greetable, {
+        // @ts-expect-error a parameter that can be left out
+        toWire: (n: Named, ...seps: string[]) => n.id + seps.join(),
+      })
+      .build();
   });
 
   test("so is an implementation taking no parameter", () => {
     expect(() =>
-      Trait.companion<Greetable>().impl({
-        // @ts-expect-error the first parameter must be the Val
-        shout: () => "HI",
-      }),
+      Trait.companion<Greetable>()
+        .impl({
+          // @ts-expect-error the first parameter must be the Val
+          shout: () => "HI",
+        })
+        .build(),
     ).toThrow(/first parameter/);
     type Named = Val<"Named", { id: string; name: string }, Greetable>;
     expect(() =>
-      Val.companion<Named>().implTrait(Greetable, {
-        // @ts-expect-error the first parameter must be the Val
-        toWire: () => "named",
-      }),
+      Val.companion<Named>()
+        .implTrait(Greetable, {
+          // @ts-expect-error the first parameter must be the Val
+          toWire: () => "named",
+        })
+        .build(),
     ).toThrow(/first parameter/);
   });
 
   test("an implementation hiding its parameters throws in development", () => {
     const shout = (g: { name: string }) => g.name;
     expect(() =>
-      Trait.companion<Greetable>().impl({ shout: (...args: [{ name: string }]) => shout(...args) }),
+      Trait.companion<Greetable>()
+        .impl({ shout: (...args: [{ name: string }]) => shout(...args) })
+        .build(),
     ).toThrow(/first parameter/);
     type Named = Val<"Named", { name: string }, Greetable>;
     const toWire = (n: Named, sep: string) => n.name + sep;
     expect(() =>
-      Val.companion<Named>().implTrait(Greetable, {
-        toWire: (...args: [Named, string]) => toWire(...args),
-      }),
+      Val.companion<Named>()
+        .implTrait(Greetable, {
+          toWire: (...args: [Named, string]) => toWire(...args),
+        })
+        .build(),
     ).toThrow(/first parameter/);
   });
 });
 
 describe("nesting", () => {
   type Team = Val<"Team", { id: string; name: string; lead: User }, Greetable>;
-  const Team = Val.companion<Team>().implTrait(Greetable, {
-    toWire: (t, sep) => `${t.id}${sep}${t.lead.name}`,
-    greet: (t) => `Team ${t.name}`,
-  });
+  const Team = Val.companion<Team>()
+    .implTrait(Greetable, {
+      toWire: (t, sep) => `${t.id}${sep}${t.lead.name}`,
+      greet: (t) => `Team ${t.name}`,
+    })
+    .build();
   const team = Val.of<Team>({ id: "t", name: "core", lead: user });
 
   test("a Val with a trait nests as a payload field", () => {
@@ -344,7 +414,7 @@ describe("building", () => {
       // `any` from there, and an `expectTypeOf` on these lines would sit under the directive,
       // which swallows it whichever way the claim is written.
       // @ts-expect-error a trait member cannot take a name the library reserves
-      Trait.companion<Wiring>();
+      Trait.companion<Wiring>().build();
       // @ts-expect-error same, at a Val that declares it
       const cell = null as unknown as Val<"Cell", { id: string }, Wiring>;
       // @ts-expect-error same, at a box
@@ -356,33 +426,40 @@ describe("building", () => {
   describe("impl", () => {
     test("a default must implement one of the members", () => {
       type Stray = Trait<"Stray", { n: number }, { half: (self: Self) => number }>;
-      // @ts-expect-error a trait's default must implement one of its members
-      Trait.companion<Stray>().impl({ double: (s: { n: number }) => s.n * 2 });
+      Trait.companion<Stray>()
+        // @ts-expect-error a trait's default must implement one of its members
+        .impl({ double: (s: { n: number }) => s.n * 2 })
+        .build();
     });
 
     test("nor may a final name one that is not a member", () => {
-      Trait.companion<Greetable>().impl({
-        // @ts-expect-error a trait's own implementation must be one of its members
-        whisper: (g: { name: string }) => g.name,
-      });
+      Trait.companion<Greetable>()
+        .impl({
+          // @ts-expect-error a trait's own implementation must be one of its members
+          whisper: (g: { name: string }) => g.name,
+        })
+        .build();
     });
 
-    test("one call closes the chain", () => {
-      const closed = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
-      expectTypeOf(closed).not.toHaveProperty("impl");
-      expect((closed as { impl?: unknown }).impl).toBeUndefined();
+    test("is written once", () => {
+      const once = Trait.companion<Greetable>().impl({ greet: (g) => `Hi, ${g.name}` });
+      expectTypeOf(once).not.toHaveProperty("impl");
     });
 
     test("a member calling a final names the companion and annotates its return", () => {
-      const Loud = Trait.companion<Greetable>().impl({
-        shout: (g): string => g.name.toUpperCase(),
-        greet: (g): string => `Hi, ${Loud.shout(g)}`,
-      });
+      const Loud = Trait.companion<Greetable>()
+        .impl({
+          shout: (g): string => g.name.toUpperCase(),
+          greet: (g): string => `Hi, ${Loud.shout(g)}`,
+        })
+        .build();
 
       type Plain = Val<"Plain", { name: string }, Greetable>;
-      const Plain = Val.companion<Plain>().implTrait(Loud, {
-        toWire: (p, sep) => `plain${sep}${p.name}`,
-      });
+      const Plain = Val.companion<Plain>()
+        .implTrait(Loud, {
+          toWire: (p, sep) => `plain${sep}${p.name}`,
+        })
+        .build();
       expect(Plain.greet(Val.of<Plain>({ name: "alice" }))).toBe("Hi, ALICE");
     });
   });

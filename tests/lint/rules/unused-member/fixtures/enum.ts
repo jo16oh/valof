@@ -6,7 +6,7 @@ export const Shape = Enum.companion<Shape>()
   .implVariant("Square", (variant) => {
     return variant.impl({ perimeter: (s) => s.side * 4, area: (s) => s.side * s.side });
   })
-  .impl({ sides: () => 4 });
+  .impl({ sides: () => 4 }).build();
 
 const { Square } = Shape;
 

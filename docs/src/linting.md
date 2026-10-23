@@ -18,7 +18,6 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `unnecessary-alias`   | a type alias that is a second name for a Val, a Trait or an Enum        | error   |
 | `unimplemented-trait` | a Trait a Val or an Enum declares that its companion does not implement | error   |
 | `companion-mismatch`  | a companion, or a variant, bound to a name other than its own           | error   |
-| `detached-impl`       | an `impl` step written outside the chain that declares its companion    | error   |
 | `split-companion`     | a companion for a type that another file declares                       | error   |
 | `bypassed-companion`  | a `Val.of` for a type whose companion is how it is built                | warning |
 | `unnamed-of`          | a `Val.of` that names no type, taking one from its target               | warning |

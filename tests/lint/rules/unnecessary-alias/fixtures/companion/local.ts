@@ -6,6 +6,6 @@ type Local = User;
 
 const Local = Val.companion<Local>().impl({
   shout: (u) => u.name.toUpperCase(),
-});
+}).build();
 
 export const shout = (u: Local): string => Local.shout(u);

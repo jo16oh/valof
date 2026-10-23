@@ -3,13 +3,13 @@
 import { equals, Val, type Patch, type SeedOf, type Unpatchable } from "valof";
 
 type City = Val<"City", { name: string; zip?: string }>;
-const City = Val.companion<City>();
+const City = Val.companion<City>().build();
 
 type Money = Val<"Money", { amount: number; currency: string }>;
-const Money = Val.companion<Money>();
+const Money = Val.companion<Money>().build();
 
 type Line = Val<"Line", { sku: string; qty: number; unit: Money; tags: readonly string[] }>;
-const Line = Val.companion<Line>();
+const Line = Val.companion<Line>().build();
 
 type Address = Val<
   "Address",
@@ -19,7 +19,7 @@ type Address = Val<
     at: readonly [number, number];
   }
 >;
-const Address = Val.companion<Address>();
+const Address = Val.companion<Address>().build();
 
 type Order = Val<
   "Order",
@@ -42,7 +42,8 @@ const Order = Val.companion<Order, [Unpatchable<"id">]>()
     heaviest(o) {
       return o.lines.reduce((a, b) => (a.qty > b.qty ? a : b));
     },
-  });
+  })
+  .build();
 
 declare const order: Order;
 declare const patch: Patch<SeedOf<Order>>;

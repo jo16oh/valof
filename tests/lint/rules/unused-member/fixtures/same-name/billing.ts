@@ -1,1 +1,1 @@
-const User = Val.companion<User>().impl({ greet: (u) => u.name });
+const User = Val.companion<User>().impl({ greet: (u) => u.name }).build();

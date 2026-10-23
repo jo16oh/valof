@@ -11,7 +11,14 @@ import type {
 import { equals, Val } from "../src/index.ts";
 import { Trait, type Final, type Self } from "../src/experimental.ts";
 // `BrandOf` is not published from the entry point.
-import type { BrandOf, CompanionMembers, Takes, Verdict, Wired } from "../src/val.ts";
+import type {
+  BrandOf,
+  CallBuildFirst,
+  CompanionMembers,
+  Takes,
+  Verdict,
+  Wired,
+} from "../src/val.ts";
 
 type Ok<T> = { ok: true; value: T };
 type Err = { ok: false; error: string };
@@ -26,12 +33,14 @@ type ArticleId = Val<"ArticleId", string>;
 type Tags = Val<"Tags", Record<string, true>>;
 type Grid = Val<"Grid", number[][]>;
 
-const User = Val.companion<User>();
-const Age = Val.companion<Age>().implSeal((n: number, seal): Result<Age> =>
-  n >= 0 && Number.isInteger(n)
-    ? { ok: true, value: seal(n) }
-    : { ok: false, error: "age must be a non-negative integer" },
-);
+const User = Val.companion<User>().build();
+const Age = Val.companion<Age>()
+  .implSeal((n: number, seal): Result<Age> =>
+    n >= 0 && Number.isInteger(n)
+      ? { ok: true, value: seal(n) }
+      : { ok: false, error: "age must be a non-negative integer" },
+  )
+  .build();
 
 describe("Val", () => {
   describe("of", () => {
@@ -54,7 +63,7 @@ describe("Val", () => {
     test("keeps every identity and freezes the adopted graph", () => {
       const tags: readonly string[] = ["one"];
       const raw = { id: "a", name: "alice", tags } as const;
-      const user = Val.companion<Val<"NocopyUser", typeof raw>>().seal.nocopy(raw);
+      const user = Val.companion<Val<"NocopyUser", typeof raw>>().build().seal.nocopy(raw);
       expect(user).toBe(raw);
       expect(user.tags).toBe(raw.tags);
       expect(Object.isFrozen(raw)).toBe(true);
@@ -63,7 +72,7 @@ describe("Val", () => {
 
     test("requires a deeply readonly default seal's input", () => {
       type NocopyUser = Val<"NocopyUser", { id: string; tags: string[]; nested: { n: number } }>;
-      const NocopyUser = Val.companion<NocopyUser>();
+      const NocopyUser = Val.companion<NocopyUser>().build();
       const readonly: {
         readonly id: string;
         readonly tags: readonly string[];
@@ -89,14 +98,14 @@ describe("Val", () => {
 
     test("accepts readonly optional properties and tuples", () => {
       type WithOptional = Val<"WithOptional", { name: string; nickname?: string }>;
-      const WithOptional = Val.companion<WithOptional>();
+      const WithOptional = Val.companion<WithOptional>().build();
       const optionalSeed: SeedOf<WithOptional> = { name: "a" };
 
       type WithTuple = Val<
         "WithTuple",
         { pair: [string, number]; optionalPair: [string, number?] }
       >;
-      const WithTuple = Val.companion<WithTuple>();
+      const WithTuple = Val.companion<WithTuple>().build();
       const tupleSeed: SeedOf<WithTuple> = {
         pair: ["a", 1],
         optionalPair: ["b"],
@@ -114,12 +123,12 @@ describe("Val", () => {
 
     test("accepts a fresh object literal", () => {
       type Plain = Val<"Plain", { id: string; name: string }>;
-      Val.companion<Plain>().seal.nocopy({ id: "a", name: "alice" });
+      Val.companion<Plain>().build().seal.nocopy({ id: "a", name: "alice" });
     });
 
     test("accepts a readonly array as the root payload", () => {
       type Names = Val<"Names", string[]>;
-      const Names = Val.companion<Names>();
+      const Names = Val.companion<Names>().build();
       const seed: readonly string[] = ["alice", "bob"];
 
       expect(Names.seal.nocopy(seed)).toBe(seed);
@@ -128,7 +137,7 @@ describe("Val", () => {
     test("stops the readonly type check at a nested Val", () => {
       type Address = Val<"Address", { street: string }>;
       type Customer = Val<"Customer", { address: Address }>;
-      const Customer = Val.companion<Customer>();
+      const Customer = Val.companion<Customer>().build();
       const address = Val.of<Address>({ street: "main" });
       const seed: { readonly address: Address } = { address };
 
@@ -137,7 +146,7 @@ describe("Val", () => {
 
     test("rejects unsupported adopted graphs in development", () => {
       type Point = Val<"NocopyPoint", { x: number }>;
-      const Point = Val.companion<Point>();
+      const Point = Val.companion<Point>().build();
       const accessor = {};
       Object.defineProperty(accessor, "x", {
         get() {
@@ -157,7 +166,7 @@ describe("Val", () => {
 
     test("freezes children stored in non-enumerable data properties", () => {
       type Point = Val<"NocopyPoint", { x: number }>;
-      const Point = Val.companion<Point>();
+      const Point = Val.companion<Point>().build();
       const child = { y: 2 };
       const raw = { x: 1 } as const;
       Object.defineProperty(raw, "child", { value: child });
@@ -171,7 +180,7 @@ describe("Val", () => {
   describe("unwrap", () => {
     test("hands back a mutable copy", () => {
       type Post = Val<"Post", { title: string; tags: string[] }>;
-      const Post = Val.companion<Post>();
+      const Post = Val.companion<Post>().build();
       const post = Post.seal({ title: "t", tags: ["a"] });
 
       const raw = Val.unwrap(post);
@@ -188,10 +197,10 @@ describe("Val", () => {
     });
 
     test("works on primitive and array payloads", () => {
-      const ArticleId = Val.companion<ArticleId>();
+      const ArticleId = Val.companion<ArticleId>().build();
       expect(Val.unwrap(ArticleId.seal("a1b2c3"))).toBe("a1b2c3");
 
-      const Tags = Val.companion<Val<"Tags", string[]>>();
+      const Tags = Val.companion<Val<"Tags", string[]>>().build();
       const tags = Tags.seal(["a", "b"]);
       const raw = Val.unwrap(tags);
       expect(raw).toEqual(["a", "b"]);
@@ -201,8 +210,8 @@ describe("Val", () => {
     test("a nested Val comes back as data", () => {
       type Money = Val<"Money", { amount: number; currency: string }>;
       type Order = Val<"Order", { id: string; total: Money }>;
-      const Money = Val.companion<Money>();
-      const Order = Val.companion<Order>();
+      const Money = Val.companion<Money>().build();
+      const Order = Val.companion<Order>().build();
       const order = Order.seal({ id: "o", total: Money.seal({ amount: 1, currency: "JPY" }) });
 
       const raw = Val.unwrap(order);
@@ -225,8 +234,8 @@ describe("Val", () => {
     test("a nested Val must pass its own seal again", () => {
       type Money = Val<"Money", { amount: number; currency: string }>;
       type Order = Val<"Order", { id: string; total: Money }>;
-      const Money = Val.companion<Money>();
-      const Order = Val.companion<Order>();
+      const Money = Val.companion<Money>().build();
+      const Order = Val.companion<Order>().build();
       const raw = Val.unwrap(
         Order.seal({ id: "o", total: Money.seal({ amount: 1, currency: "JPY" }) }),
       );
@@ -239,14 +248,14 @@ describe("Val", () => {
 
   describe("payloads", () => {
     test("a primitive can be wrapped directly", () => {
-      const ArticleId = Val.companion<ArticleId>();
+      const ArticleId = Val.companion<ArticleId>().build();
       const id = ArticleId.seal("a1b2c3");
       expect(id).toBe("a1b2c3");
       expectTypeOf(id).toExtend<string>();
     });
 
     test("a Record works as a Set", () => {
-      const Tags = Val.companion<Tags>();
+      const Tags = Val.companion<Tags>().build();
       const t = Tags.seal({ a: true, b: true });
       expect(t.a).toBe(true);
       expect(t.c).toBeUndefined();
@@ -260,7 +269,7 @@ describe("Val", () => {
     // `{}` takes every value but `null` and `undefined`.
     test("an empty payload takes an object, an existing value included, and nothing else", () => {
       type Marker = Val<"Marker", {}>;
-      const Marker = Val.companion<Marker>();
+      const Marker = Val.companion<Marker>().build();
       expectTypeOf(Marker.seal({})).toExtend<SeedOf<Marker>>();
       expectTypeOf<string>().not.toExtend<SeedOf<Marker>>();
       expectTypeOf<number[]>().not.toExtend<SeedOf<Marker>>();
@@ -285,9 +294,9 @@ describe("Val", () => {
 
     test("a tuple keeps its positions, its length and its labels", () => {
       type Point = Val<"Point", string>;
-      const Point = Val.companion<Point>();
+      const Point = Val.companion<Point>().build();
       type Pair = Val<"Pair", { at: [Point, number] }>;
-      const Pair = Val.companion<Pair>();
+      const Pair = Val.companion<Pair>().build();
 
       const p = Pair.seal({ at: [Point.seal("a"), 1] });
 
@@ -313,7 +322,7 @@ describe("Val", () => {
     });
 
     test("nested arrays", () => {
-      const Grid = Val.companion<Grid>();
+      const Grid = Val.companion<Grid>().build();
       const g = Grid.seal([
         [1, 2],
         [3, 4],
@@ -353,7 +362,7 @@ describe("Val", () => {
       type Bad = Val<"Bad", { nickname: string | undefined }>;
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
       // @ts-expect-error required property cannot be undefined
-      Val.companion<Bad>();
+      Val.companion<Bad>().build();
     });
 
     test("functions are rejected", () => {
@@ -373,9 +382,9 @@ describe("Val", () => {
       expectTypeOf<Null>().not.toExtend<AnyVal>();
       expectTypeOf<Maybe>().not.toExtend<AnyVal>();
       // @ts-expect-error null cannot carry the phantom brand
-      Val.companion<Null>();
+      Val.companion<Null>().build();
       // @ts-expect-error the nullable branch would disappear from the branded value
-      Val.companion<Maybe>();
+      Val.companion<Maybe>().build();
     });
 
     test("an object union is rejected, however it is spelled", () => {
@@ -385,7 +394,7 @@ describe("Val", () => {
       }>();
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
       // @ts-expect-error patch merges, so it cannot switch variants
-      Val.companion<Bad>();
+      Val.companion<Bad>().build();
 
       type State = { kind: "a"; a: number } | { kind: "b"; b: string };
       type ViaAlias = Val<"ViaAlias", State>;
@@ -410,7 +419,7 @@ describe("Val", () => {
     test("a union of primitives is not an object union", () => {
       type Ok = Val<"Ok", { tag: "a" | "b"; n: number | null; flag: boolean }>;
       expectTypeOf<Ok>().toExtend<AnyVal>();
-      Val.companion<Ok>().seal({ tag: "a", n: null, flag: true });
+      Val.companion<Ok>().build().seal({ tag: "a", n: null, flag: true });
     });
 
     test("number and symbol keys are rejected", () => {
@@ -458,13 +467,13 @@ describe("Val", () => {
     test("nested Vals keep their brand", () => {
       type Money = Val<"Money", { amount: number; currency: string }>;
       type Order = Val<"Order", { id: string; total: Money }>;
-      const Order = Val.companion<Order>();
+      const Order = Val.companion<Order>().build();
       const order = Order.seal({ id: "o", total: Val.of<Money>({ amount: 1, currency: "JPY" }) });
       expectTypeOf(order.total).toEqualTypeOf<Money>();
     });
 
     test("an array Val is a branded ReadonlyArray", () => {
-      const GridVal = Val.companion<Grid>();
+      const GridVal = Val.companion<Grid>().build();
       const g = GridVal.seal([[1]]);
       expectTypeOf(g).toExtend<readonly (readonly number[])[]>();
     });
@@ -488,10 +497,10 @@ describe("Val", () => {
     // Written plain, like any other payload: `Val` makes it readonly, and `Val.unwrap` returns the
     // mutable array the declaration wrote.
     type Tree = Val<"app/Tree", { value: number; children: Rec<Tree>[] }>;
-    const Tree = Val.companion<Tree>();
+    const Tree = Val.companion<Tree>().build();
 
     type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
-    const Node = Val.companion<Node>();
+    const Node = Val.companion<Node>().build();
 
     test("a type can name itself through Rec", () => {
       const leaf = Tree.seal({ value: 1, children: [] });
@@ -548,14 +557,14 @@ describe("Val", () => {
 
     test("Rec reaches through a record and a nested object", () => {
       type Dir = Val<"app/Dir", { name: string; entries: Record<string, Rec<Dir>> }>;
-      const Dir = Val.companion<Dir>();
+      const Dir = Val.companion<Dir>().build();
       const leaf = Dir.seal({ name: "leaf", entries: {} });
 
       expectTypeOf<SeedOf<Dir>["entries"]>().toEqualTypeOf<{ readonly [x: string]: Dir }>();
       expect(Dir.seal({ name: "root", entries: { a: leaf } }).entries["a"]).toBe(leaf);
 
       type Cell = Val<"app/Cell", { value: number; prev?: { at: Rec<Cell> } }>;
-      const Cell = Val.companion<Cell>();
+      const Cell = Val.companion<Cell>().build();
       const head = Cell.seal({ value: 1 });
       expectTypeOf(Cell.seal({ value: 2, prev: { at: head } }).prev).toEqualTypeOf<
         { readonly at: Cell } | undefined
@@ -564,18 +573,20 @@ describe("Val", () => {
 
     test("a payload key named after an array member still opens its Rec", () => {
       type Index = Val<"app/Index", { entries: Record<string, Rec<Index>>; name?: string }>;
-      const Index = Val.companion<Index>();
+      const Index = Val.companion<Index>().build();
       const leaf = Index.seal({ entries: {} });
 
       expect(Index.seal({ entries: { a: leaf }, name: "root" }).entries["a"]).toBe(leaf);
     });
 
     test("the companion's members take the recursive type", () => {
-      const Sum = Val.companion<Tree>().impl({
-        total(t: Tree): number {
-          return t.value + t.children.reduce((n, c) => n + Sum.total(c), 0);
-        },
-      });
+      const Sum = Val.companion<Tree>()
+        .impl({
+          total(t: Tree): number {
+            return t.value + t.children.reduce((n, c) => n + Sum.total(c), 0);
+          },
+        })
+        .build();
       const tree = Sum.seal({ value: 1, children: [Sum.seal({ value: 2, children: [] })] });
 
       expect(Sum.total(tree)).toBe(3);
@@ -584,8 +595,10 @@ describe("Val", () => {
     test("a trait a recursive type declares is checked as any other", () => {
       type Sized = Trait<"app/Sized", { value: number }, { size: (self: Self) => number }>;
       type Counted = Val<"app/Counted", { value: number; next?: Rec<Counted> }, Sized>;
-      const Sized = Trait.companion<Sized>();
-      const Counted = Val.companion<Counted>().implTrait(Sized, { size: (c) => c.value });
+      const Sized = Trait.companion<Sized>().build();
+      const Counted = Val.companion<Counted>()
+        .implTrait(Sized, { size: (c) => c.value })
+        .build();
 
       expectTypeOf<Counted>().toExtend<AnyVal>();
       expect(Counted.size(Counted.seal({ value: 2 }))).toBe(2);
@@ -649,7 +662,7 @@ describe("Val", () => {
 
     test("values are frozen in development, all the way down", () => {
       type Post = Val<"Post", { title: string; author: { name: string }; tags: string[] }>;
-      const Post = Val.companion<Post>();
+      const Post = Val.companion<Post>().build();
       const post = Post.seal({ title: "t", author: { name: "alice" }, tags: ["a"] });
 
       expect(Object.isFrozen(post)).toBe(true);
@@ -661,7 +674,7 @@ describe("Val", () => {
       // Copying a payload runs its getters, so someone else's code can run mid-copy and reach
       // back into the library.
       type Note = Val<"Note", { id: string; body: { text: string } }>;
-      const Note = Val.companion<Note>();
+      const Note = Val.companion<Note>().build();
       const other = Note.seal({ id: "b", body: { text: "b" } });
 
       const note = Note.seal({
@@ -689,7 +702,7 @@ describe("Val", () => {
 describe("copying", () => {
   describe("owning", () => {
     type Order = Val<"Order", { id: string; total: { amount: number; currency: string } }>;
-    const Order = Val.companion<Order>();
+    const Order = Val.companion<Order>().build();
 
     test("mutating the argument afterwards does not reach the value", () => {
       const raw = { id: "a", name: "alice" };
@@ -707,7 +720,7 @@ describe("copying", () => {
     });
 
     test("arrays are copied, not aliased", () => {
-      const Grid = Val.companion<Grid>();
+      const Grid = Val.companion<Grid>().build();
       const rows = [[1, 2], [3]];
       const grid = Grid.seal(rows);
       rows[0]![0] = 99;
@@ -725,7 +738,7 @@ describe("copying", () => {
     });
 
     test("a `__proto__` key stays an own property", () => {
-      const Tags = Val.companion<Tags>();
+      const Tags = Val.companion<Tags>().build();
       const tags = Tags.seal(JSON.parse('{"a":true,"__proto__":{"isAdmin":true}}'));
       expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
       expect(Object.getPrototypeOf(tags)).toBe(Object.prototype);
@@ -756,7 +769,9 @@ describe("copying", () => {
 
     test("the seal copies through Val.of, not by copying its argument itself", () => {
       type Point = Val<"Point", { x: number; y: number }>;
-      const Point = Val.companion<Point>().implSeal((p) => Val.of<Point>(p));
+      const Point = Val.companion<Point>()
+        .implSeal((p) => Val.of<Point>(p))
+        .build();
       const raw = { x: 1, y: 2 };
       const p = Point.seal(raw);
       raw.x = 99;
@@ -765,7 +780,9 @@ describe("copying", () => {
 
     test("a seal normalises by deriving, and leaves the caller's object alone", () => {
       type Labels = Val<"Labels", string[]>;
-      const Labels = Val.companion<Labels>().implSeal((l, seal) => seal(l.toSorted()));
+      const Labels = Val.companion<Labels>()
+        .implSeal((l, seal) => seal(l.toSorted()))
+        .build();
       const raw = ["b", "a"];
       expect(Labels.seal(raw)).toEqual(["a", "b"]);
       expect(raw).toEqual(["b", "a"]);
@@ -776,9 +793,9 @@ describe("copying", () => {
     type Money = Val<"Money", { amount: number; currency: string }>;
     type Line = Val<"Line", { sku: string; qty: number }>;
     type Order = Val<"Order", { id: string; note: string; total: Money; lines: Line[] }>;
-    const Money = Val.companion<Money>();
-    const Line = Val.companion<Line>();
-    const Order = Val.companion<Order>();
+    const Money = Val.companion<Money>().build();
+    const Line = Val.companion<Line>().build();
+    const Order = Val.companion<Order>().build();
     const order = () =>
       Order.seal({
         id: "o",
@@ -884,10 +901,12 @@ describe("copying", () => {
     test("a no-op still goes through a custom seal, which keeps the identity", () => {
       type Tenure = Val<"Tenure", { years: number }>;
       const seen: number[] = [];
-      const Tenure = Val.companion<Tenure>().implSeal((t, seal) => {
-        seen.push(t.years);
-        return { ok: seal(t) };
-      });
+      const Tenure = Val.companion<Tenure>()
+        .implSeal((t, seal) => {
+          seen.push(t.years);
+          return { ok: seal(t) };
+        })
+        .build();
       const tenure = Tenure.seal({ years: 30 }).ok;
       seen.length = 0;
 
@@ -908,9 +927,9 @@ describe("copying", () => {
 
 describe("equals", () => {
   test("compares primitive, object and array payloads deeply", () => {
-    const ArticleId = Val.companion<ArticleId>();
+    const ArticleId = Val.companion<ArticleId>().build();
     type Numbers = Val<"Numbers", number[]>;
-    const Numbers = Val.companion<Numbers>();
+    const Numbers = Val.companion<Numbers>().build();
 
     expect(equals(ArticleId.seal("a"), ArticleId.seal("a"))).toBe(true);
     expect(equals(ArticleId.seal("a"), ArticleId.seal("b"))).toBe(false);
@@ -927,7 +946,7 @@ describe("equals", () => {
 
   test("is independent of key order and ignores undefined-valued keys", () => {
     type Fields = Val<"Fields", { a?: number; b?: number }>;
-    const Fields = Val.companion<Fields>();
+    const Fields = Val.companion<Fields>().build();
     expect(equals(Fields.seal({ a: 1, b: 2 }), Fields.seal({ b: 2, a: 1 }))).toBe(true);
     expect(
       equals(Fields.seal({ a: undefined } as unknown as SeedOf<Fields>), Fields.seal({})),
@@ -942,14 +961,14 @@ describe("equals", () => {
 
   test("treats NaN as equal to NaN, and -0 as equal to 0", () => {
     type NumberValue = Val<"NumberValue", number>;
-    const NumberValue = Val.companion<NumberValue>();
+    const NumberValue = Val.companion<NumberValue>().build();
     expect(equals(NumberValue.seal(Number.NaN), NumberValue.seal(Number.NaN))).toBe(true);
     expect(equals(NumberValue.seal(-0), NumberValue.seal(0))).toBe(true);
   });
 
   test("compares nested Vals structurally", () => {
     type Order = Val<"Order", { owner: User; lines: number[] }>;
-    const Order = Val.companion<Order>();
+    const Order = Val.companion<Order>().build();
     const a = Order.seal({ owner: User.seal({ id: "a", name: "bob" }), lines: [1, 2] });
     const b = Order.seal({ owner: User.seal({ id: "a", name: "bob" }), lines: [1, 2] });
     expect(equals(a, b)).toBe(true);
@@ -957,7 +976,7 @@ describe("equals", () => {
 
   test("infers the Val type from the first argument", () => {
     type Account = Val<"Account", { id: string }>;
-    const Account = Val.companion<Account>();
+    const Account = Val.companion<Account>().build();
     const user = User.seal({ id: "a", name: "bob" });
     const account = Account.seal({ id: "a" });
 
@@ -996,12 +1015,13 @@ describe("patch", () => {
 
   test("goes through a custom seal when one is defined", () => {
     type Account = Val<"Account", { id: string; balance: number }>;
-    const Account = Val.companion<Account>().implSeal(
-      (a: { id: string; balance: number }, seal): Result<Account> =>
+    const Account = Val.companion<Account>()
+      .implSeal((a: { id: string; balance: number }, seal): Result<Account> =>
         a.balance >= 0
           ? { ok: true, value: seal(a) }
           : { ok: false, error: "balance must not be negative" },
-    );
+      )
+      .build();
 
     const acc = Val.of<Account>({ id: "a", balance: 100 });
     expect(Account.patch(acc, { balance: 50 })).toEqual({
@@ -1023,14 +1043,16 @@ describe("patch", () => {
 
   test("is not offered at all on a non-object Val", () => {
     // Only what deep-merges carries it. Everything else is rebuilt through the constructor.
-    expectTypeOf(Val.companion<ArticleId>()).not.toHaveProperty("patch");
-    expectTypeOf(Val.companion<Grid>()).not.toHaveProperty("patch");
-    expectTypeOf(Val.companion<Val<"Pair", [number, string]>>()).not.toHaveProperty("patch");
-    expectTypeOf(Val.companion<Tags>()).toHaveProperty("patch");
+    expectTypeOf(Val.companion<ArticleId>().build()).not.toHaveProperty("patch");
+    expectTypeOf(Val.companion<Grid>().build()).not.toHaveProperty("patch");
+    expectTypeOf(Val.companion<Val<"Pair", [number, string]>>().build()).not.toHaveProperty(
+      "patch",
+    );
+    expectTypeOf(Val.companion<Tags>().build()).toHaveProperty("patch");
   });
 
   test("still guards at runtime, for callers without types", () => {
-    const ArticleId = Val.companion<ArticleId>() as unknown as {
+    const ArticleId = Val.companion<ArticleId>().build() as unknown as {
       patch: (...args: unknown[]) => unknown;
     };
     expect(() => ArticleId.patch("a1b2c3", {})).toThrow(/object-shaped/);
@@ -1038,8 +1060,10 @@ describe("patch", () => {
 
   test("with routes through the seal, whatever the seal returns", () => {
     type Box = Val<"Box", { n: number }>;
-    const box = Val.companion<Box>();
-    const Box = Val.companion<Box>().implSeal((b: { n: number }) => ({ tagged: box.seal(b) }));
+    const box = Val.companion<Box>().build();
+    const Box = Val.companion<Box>()
+      .implSeal((b: { n: number }) => ({ tagged: box.seal(b) }))
+      .build();
     const out = Box.patch(Val.of<Box>({ n: 1 }), { n: 2 });
     expectTypeOf(out).toEqualTypeOf<{ tagged: Box }>();
     expect(out).toEqual({ tagged: { n: 2 } });
@@ -1055,7 +1079,7 @@ describe("patch", () => {
 
   describe("nested", () => {
     type City = Val<"City", { name: string; zip?: string }>;
-    const City = Val.companion<City>();
+    const City = Val.companion<City>().build();
 
     type Shop = Val<
       "Shop",
@@ -1067,7 +1091,7 @@ describe("patch", () => {
         staff: Record<string, { role: string }>;
       }
     >;
-    const Shop = Val.companion<Shop>();
+    const Shop = Val.companion<Shop>().build();
     const shop = () =>
       Shop.seal({
         id: "s",
@@ -1166,7 +1190,7 @@ describe("patch", () => {
 
     test("an optional key and a record entry take the whole value, never a patch", () => {
       type Place = Val<"Place", { name: string; at?: { x: number; y: number } }>;
-      const Place = Val.companion<Place>();
+      const Place = Val.companion<Place>().build();
       const place = Place.seal({ name: "p" });
 
       // @ts-expect-error `at` may be absent, and a merge into nothing would drop `y`
@@ -1194,9 +1218,9 @@ describe("patch", () => {
 
     test("goes through the seal, which sees the merged payload", () => {
       type Box = Val<"Box", { inner: { n: number; seen: number } }>;
-      const Box = Val.companion<Box>().implSeal((b, seal) =>
-        seal({ inner: { ...b.inner, seen: b.inner.seen + 1 } }),
-      );
+      const Box = Val.companion<Box>()
+        .implSeal((b, seal) => seal({ inner: { ...b.inner, seen: b.inner.seen + 1 } }))
+        .build();
       // `Val.of` skips the seal, so `seen` counts the calls `patch` made: one, at the root.
       const box = Val.of<Box>({ inner: { n: 1, seen: 0 } });
       expect(Box.patch(box, { inner: { n: 2 } })).toEqual({ inner: { n: 2, seen: 1 } });
@@ -1213,7 +1237,8 @@ describe("patch", () => {
         .impl({
           moved: (p, by: { x: number; y: number }): Point =>
             Point.seal({ x: p.x + by.x, y: p.y + by.y }),
-        });
+        })
+        .build();
 
       expect(Point.moved(Point.seal({ x: 1, y: 2 }), { x: 2.7, y: 0 })).toEqual({ x: 3, y: 2 });
     });
@@ -1222,7 +1247,8 @@ describe("patch", () => {
       type UnixEpoch = Val<"UnixEpoch", number>;
       const UnixEpoch = Val.companion<UnixEpoch>()
         .implSeal((t: number, seal) => seal(Math.trunc(t)))
-        .impl({ plus: (t, seconds: number): UnixEpoch => UnixEpoch.seal(t + seconds) });
+        .impl({ plus: (t, seconds: number): UnixEpoch => UnixEpoch.seal(t + seconds) })
+        .build();
 
       expect(UnixEpoch.plus(Val.of<UnixEpoch>(1_756_771_200), 60.5)).toBe(1_756_771_260);
     });
@@ -1231,11 +1257,13 @@ describe("patch", () => {
 
 describe("data-first and data-last", () => {
   const pipe = <A, B>(a: A, f: (a: A) => B): B => f(a);
-  const Named = Val.companion<User>().impl({
-    greet: (u) => `Hi, ${u.name}`,
-    renamed: (u, name: string): User => Named.patch(u, { name }),
-    noted: (u, nickname: string | undefined): User => Named.patch(u, { nickname }),
-  });
+  const Named = Val.companion<User>()
+    .impl({
+      greet: (u) => `Hi, ${u.name}`,
+      renamed: (u, name: string): User => Named.patch(u, { name }),
+      noted: (u, nickname: string | undefined): User => Named.patch(u, { nickname }),
+    })
+    .build();
   const bob = Named.seal({ id: "a", name: "bob" });
   const sue = { id: "a", name: "sue" };
 
@@ -1267,54 +1295,68 @@ describe("data-first and data-last", () => {
 
   describe("a member whose arguments can be left out is rejected", () => {
     test("an optional parameter", () => {
-      Val.companion<User>().impl({
-        // @ts-expect-error a parameter that can be left out
-        at: (u: User, n?: number) => u.name.at(n ?? 0),
-      });
+      Val.companion<User>()
+        .impl({
+          // @ts-expect-error a parameter that can be left out
+          at: (u: User, n?: number) => u.name.at(n ?? 0),
+        })
+        .build();
     });
 
     test("a default parameter", () => {
-      Val.companion<User>().impl({
-        // @ts-expect-error a parameter that can be left out
-        at: (u: User, n = 0) => u.name.at(n),
-      });
+      Val.companion<User>()
+        .impl({
+          // @ts-expect-error a parameter that can be left out
+          at: (u: User, n = 0) => u.name.at(n),
+        })
+        .build();
     });
 
     test("a trailing parameter that takes `void`", () => {
-      Val.companion<User>().impl({
-        // @ts-expect-error a parameter that can be left out
-        at: (u: User, n: number | void) => u.name.at(n ?? 0),
-      });
+      Val.companion<User>()
+        .impl({
+          // @ts-expect-error a parameter that can be left out
+          at: (u: User, n: number | void) => u.name.at(n ?? 0),
+        })
+        .build();
     });
 
     test("a rest parameter", () => {
-      Val.companion<User>().impl({
-        // @ts-expect-error a parameter that can be left out
-        joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
-      });
+      Val.companion<User>()
+        .impl({
+          // @ts-expect-error a parameter that can be left out
+          joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
+        })
+        .build();
     });
 
     test("no parameter at all", () => {
       expect(() =>
-        Val.companion<User>().impl({
-          // @ts-expect-error the first parameter must be the Val
-          anonymous: () => "anonymous",
-        }),
+        Val.companion<User>()
+          .impl({
+            // @ts-expect-error the first parameter must be the Val
+            anonymous: () => "anonymous",
+          })
+          .build(),
       ).toThrow(/first parameter/);
     });
 
     test("but not one that takes `undefined` or `unknown`", () => {
-      Val.companion<User>().impl({
-        at: (u, n: number | undefined) => u.name.at(n ?? 0),
-        is: (u, other: unknown) => u === other,
-      });
+      Val.companion<User>()
+        .impl({
+          at: (u, n: number | undefined) => u.name.at(n ?? 0),
+          is: (u, other: unknown) => u === other,
+        })
+        .build();
     });
   });
 
   test("a member hiding its parameters throws in development", () => {
     const greet = (u: User) => u.name;
     expect(() =>
-      Val.companion<User>().impl({ greet: (...args: [User]) => greet(...args) }),
+      Val.companion<User>()
+        .impl({ greet: (...args: [User]) => greet(...args) })
+        .build(),
     ).toThrow(/first parameter/);
   });
 });
@@ -1326,10 +1368,52 @@ describe("building", () => {
       expect(typeof Age).not.toBe("function");
     });
 
-    test("a step does not change the companion it was built from", () => {
+    test("a step does not change the builder it was taken on", () => {
       const bare = Val.companion<Age>();
       bare.impl({ label: (a) => `${a}` });
-      expect("label" in bare).toBe(false);
+      expect("label" in bare.build()).toBe(false);
+    });
+  });
+
+  describe("build", () => {
+    test("closes the chain: the companion has no step left", () => {
+      const Built = Val.companion<User>()
+        .implCreate((name: string) => ({ id: "a", name }))
+        .impl({ greet: (u) => u.name })
+        .build();
+      for (const step of ["impl", "implSeal", "implCreate", "implTrait", "build"] as const) {
+        expectTypeOf(Built).not.toHaveProperty(step);
+        expect(step in Built).toBe(false);
+      }
+      expect(Built.greet(Built.create("bob"))).toBe("bob");
+    });
+
+    test("a builder holds the steps alone", () => {
+      const builder = Val.companion<User>()
+        .implCreate((name: string) => ({ id: "a", name }))
+        .impl({ greet: (u) => u.name });
+      expectTypeOf(builder).not.toHaveProperty("greet");
+      for (const name of ["seal", "create", "patch", "greet", "__valof_traits"])
+        expect(name in builder).toBe(false);
+    });
+
+    test("a builder used as the companion says to call `.build()`", () => {
+      const builder = Val.companion<User>().implCreate((name: string) => ({ id: "a", name }));
+      expectTypeOf(builder.seal).toEqualTypeOf<CallBuildFirst>();
+      expectTypeOf(builder.create).toEqualTypeOf<CallBuildFirst>();
+      expectTypeOf(builder.patch).toEqualTypeOf<CallBuildFirst>();
+    });
+
+    test("a step keeps what the steps before it registered", () => {
+      type Named = Trait<"BuiltNamed", { name: string }, { named: (self: Self) => string }>;
+      const Named = Trait.companion<Named>().build();
+      type Tagged = Val<"BuiltTagged", { name: string }, Named>;
+      const Tagged = Val.companion<Tagged>()
+        .implTrait(Named, { named: (t) => t.name })
+        .impl({ upper: (t) => t.name.toUpperCase() })
+        .build();
+      const tagged = Tagged.seal({ name: "a" });
+      expect([Tagged.named(tagged), Tagged.upper(tagged)]).toEqual(["a", "A"]);
     });
   });
 
@@ -1355,47 +1439,52 @@ describe("building", () => {
 
     test("`impl` and `implTrait` close the first half", () => {
       type Owned = Trait<"Owned", { owner: string }, { owned: (self: Self) => string }>;
-      const Owned = Trait.companion<Owned>();
+      const Owned = Trait.companion<Owned>().build();
       type Held = Val<"Held", { id: string; owner: string }, Owned>;
       const members = Val.companion<Account>().impl({ owned: (a) => a.owner });
       const traits = Val.companion<Held>().implTrait(Owned, { owned: (h) => h.owner });
       for (const step of ["implSeal", "implCreate"] as const) {
         expectTypeOf(members).not.toHaveProperty(step);
         expectTypeOf(traits).not.toHaveProperty(step);
-        expect([step in members, step in traits]).toEqual([false, false]);
       }
     });
   });
 
   describe("impl", () => {
     test("the first parameter is contextually the Val, so it needs no annotation", () => {
-      const Greeter = Val.companion<User>().impl({
-        greet(u) {
-          expectTypeOf(u).toEqualTypeOf<User>();
-          return u.name.toUpperCase();
-        },
-      });
+      const Greeter = Val.companion<User>()
+        .impl({
+          greet(u) {
+            expectTypeOf(u).toEqualTypeOf<User>();
+            return u.name.toUpperCase();
+          },
+        })
+        .build();
       expect(Greeter.greet(Greeter.seal({ id: "a", name: "bob" }))).toBe("BOB");
     });
 
     test("extra parameters are the method's own business", () => {
-      const Greeter = Val.companion<User>().impl({
-        greet(u, sep: string) {
-          return u.id + sep + u.name;
-        },
-      });
+      const Greeter = Val.companion<User>()
+        .impl({
+          greet(u, sep: string) {
+            return u.id + sep + u.name;
+          },
+        })
+        .build();
       expect(Greeter.greet(Greeter.seal({ id: "a", name: "bob" }), "/")).toBe("a/bob");
     });
 
     test("a member that is not a function attaches as it is", () => {
-      const Labelled = Val.companion<User>().impl({ LABEL: "user" });
+      const Labelled = Val.companion<User>().impl({ LABEL: "user" }).build();
       expect(Labelled.LABEL).toBe("user");
     });
 
     test("`equals` can name an ordinary comparison", () => {
-      const SameId = Val.companion<User>().impl({
-        equals: (a, b: User) => a.id === b.id,
-      });
+      const SameId = Val.companion<User>()
+        .impl({
+          equals: (a, b: User) => a.id === b.id,
+        })
+        .build();
       const a = SameId.seal({ id: "a", name: "bob" });
       const b = SameId.seal({ id: "a", name: "sue" });
 
@@ -1404,33 +1493,41 @@ describe("building", () => {
     });
 
     test("a method whose first parameter is not the Val is rejected", () => {
-      Val.companion<User>().impl({
-        // @ts-expect-error the first parameter must be the Val; a factory belongs elsewhere
-        fromId(id: string) {
-          return id;
-        },
-      });
+      Val.companion<User>()
+        .impl({
+          // @ts-expect-error the first parameter must be the Val; a factory belongs elsewhere
+          fromId(id: string) {
+            return id;
+          },
+        })
+        .build();
     });
 
     test("`seal` cannot be smuggled in as an ordinary method", () => {
-      Val.companion<Age>().impl({
-        // @ts-expect-error `seal` belongs to .implSeal(), not to .impl()
-        seal: (n: number) => Val.of<Age>(n),
-      });
+      Val.companion<Age>()
+        .impl({
+          // @ts-expect-error `seal` belongs to .implSeal(), not to .impl()
+          seal: (n: number) => Val.of<Age>(n),
+        })
+        .build();
     });
 
     test("`create` cannot be smuggled in either: it would never reach the seal", () => {
-      Val.companion<Age>().impl({
-        // @ts-expect-error `create` belongs to .implCreate(), not to .impl()
-        create: (n: number) => Val.of<Age>(n),
-      });
+      Val.companion<Age>()
+        .impl({
+          // @ts-expect-error `create` belongs to .implCreate(), not to .impl()
+          create: (n: number) => Val.of<Age>(n),
+        })
+        .build();
     });
 
     test("a member reaching `patch` or a sibling names the companion, and annotates", () => {
-      const Loud = Val.companion<User>().impl({
-        renamed: (u, name: string): User => Loud.patch(u, { name }),
-        shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
-      });
+      const Loud = Val.companion<User>()
+        .impl({
+          renamed: (u, name: string): User => Loud.patch(u, { name }),
+          shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
+        })
+        .build();
       const bob = Loud.seal({ id: "a", name: "bob" });
 
       expect([Loud.renamed(bob, "sue"), Loud.shouted(bob)]).toEqual([
@@ -1439,36 +1536,38 @@ describe("building", () => {
       ]);
     });
 
-    test("is written once, and does not close the chain", () => {
+    test("is written once, and `implTrait` may follow it", () => {
       type Yelling = Trait<"Yelling", { name: string }, { yell: (self: Self) => string }>;
-      const Yelling = Trait.companion<Yelling>();
+      const Yelling = Trait.companion<Yelling>().build();
       type Crier = Val<"Crier", { name: string }, Yelling>;
-      const Crier = Val.companion<Crier>()
-        .impl({ greet: (c) => c.name })
-        .implTrait(Yelling, { yell: (c) => c.name.toUpperCase() });
+      const implemented = Val.companion<Crier>().impl({ greet: (c) => c.name });
+      const Crier = implemented.implTrait(Yelling, { yell: (c) => c.name.toUpperCase() }).build();
       const bob = Crier.seal({ name: "bob" });
 
-      expectTypeOf(Crier).not.toHaveProperty("impl");
-      expect("impl" in Crier).toBe(false);
+      expectTypeOf(implemented).not.toHaveProperty("impl");
       expect([Crier.greet(bob), Crier.yell(bob)]).toEqual(["bob", "BOB"]);
     });
 
-    test("takes the members: with no chain to close, there is no call without them", () => {
-      // @ts-expect-error `Val.companion<User>()` is the companion already
-      Val.companion<User>().impl();
+    test("takes the members: `.build()` closes the chain, not `.impl()`", () => {
+      // @ts-expect-error Expected 1 arguments, but got 0
+      Val.companion<User>().impl().build();
     });
 
     test("`patch` is the library's, not yours", () => {
-      Val.companion<User>().impl({
-        // @ts-expect-error a derivation with different rules deserves its own name
-        patch: (u: User) => u,
-      });
+      Val.companion<User>()
+        .impl({
+          // @ts-expect-error a derivation with different rules deserves its own name
+          patch: (u: User) => u,
+        })
+        .build();
     });
 
     // `dyn` is the one name a trait member may not take that a Val companion may: `Trait`'s
     // `dyn` reads `__valof_traits`, never the companion's own key.
     test("`dyn` is not among them: a Val companion has none to shadow", () => {
-      const Boxed = Val.companion<User>().impl({ dyn: (u) => u.name });
+      const Boxed = Val.companion<User>()
+        .impl({ dyn: (u) => u.name })
+        .build();
       expect(Boxed.dyn(Boxed.seal({ id: "a", name: "bob" }))).toBe("bob");
     });
 
@@ -1491,11 +1590,13 @@ describe("building", () => {
     type Point = Val<"Point", { x: number; y: number }>;
 
     test("registers `seal` and routes `patch` through it, without any impl", () => {
-      const Score = Val.companion<Score>().implSeal((s: { points: number }, seal): Result<Score> =>
-        s.points >= 0
-          ? { ok: true, value: seal(s) }
-          : { ok: false, error: "points must not be negative" },
-      );
+      const Score = Val.companion<Score>()
+        .implSeal((s: { points: number }, seal): Result<Score> =>
+          s.points >= 0
+            ? { ok: true, value: seal(s) }
+            : { ok: false, error: "points must not be negative" },
+        )
+        .build();
 
       const s = Val.of<Score>({ points: 3 });
       expectTypeOf(Score.patch(s, { points: 1 })).toEqualTypeOf<Result<Score>>();
@@ -1517,7 +1618,8 @@ describe("building", () => {
             expectTypeOf(v).toEqualTypeOf<Score>();
             return v.points * 2;
           },
-        });
+        })
+        .build();
 
       const s = Score.seal({ points: 3 });
       expect(Score.double(s)).toBe(6);
@@ -1525,10 +1627,12 @@ describe("building", () => {
     });
 
     test("the default seal comes in as a second parameter, so Val.of is not needed", () => {
-      const Email = Val.companion<Email>().implSeal((s: string, seal) => {
-        expectTypeOf(seal).toEqualTypeOf<(value: string) => Email>();
-        return seal(s.trim().toLowerCase());
-      });
+      const Email = Val.companion<Email>()
+        .implSeal((s: string, seal) => {
+          expectTypeOf(seal).toEqualTypeOf<(value: string) => Email>();
+          return seal(s.trim().toLowerCase());
+        })
+        .build();
 
       const e = Email.seal("  A@B.com ");
       expectTypeOf(e).toEqualTypeOf<Email>();
@@ -1538,7 +1642,9 @@ describe("building", () => {
 
     test("the default seal copies, so the value is detached from the raw payload", () => {
       type Box = Val<"Box", { tags: string[] }>;
-      const Box = Val.companion<Box>().implSeal((b, seal) => seal(b));
+      const Box = Val.companion<Box>()
+        .implSeal((b, seal) => seal(b))
+        .build();
       const raw = { tags: ["a"] };
       const b = Box.seal(raw);
       raw.tags.push("b");
@@ -1547,10 +1653,12 @@ describe("building", () => {
 
     test("detects a getter that changes between validation and copying", () => {
       type Reading = Val<"Reading", { n: number }>;
-      const Reading = Val.companion<Reading>().implSeal((r, seal) => {
-        void r.n; // validation observes the input before the default seal copies it
-        return seal(r);
-      });
+      const Reading = Val.companion<Reading>()
+        .implSeal((r, seal) => {
+          void r.n; // validation observes the input before the default seal copies it
+          return seal(r);
+        })
+        .build();
       let n = 0;
       const input = {
         get n() {
@@ -1574,24 +1682,30 @@ describe("building", () => {
           },
         },
       );
-      const Reading = Val.companion<Reading>().implSeal((_r, seal) => seal(candidate));
+      const Reading = Val.companion<Reading>()
+        .implSeal((_r, seal) => seal(candidate))
+        .build();
 
       expect(() => Reading.seal({ n: 0 })).toThrow(TypeError);
     });
 
     test("detects mutation of the original input inside the custom seal", () => {
       type Reading = Val<"Reading", { n: number }>;
-      const Reading = Val.companion<Reading>().implSeal((r: { n: number }, seal) => {
-        r.n += 1;
-        return seal(r);
-      });
+      const Reading = Val.companion<Reading>()
+        .implSeal((r: { n: number }, seal) => {
+          r.n += 1;
+          return seal(r);
+        })
+        .build();
 
       expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
     });
 
     test("allows a stable reactive Proxy and detaches the result", () => {
       type Box = Val<"Box", { nested: { n: number } }>;
-      const Box = Val.companion<Box>().implSeal((b, seal) => seal(b));
+      const Box = Val.companion<Box>()
+        .implSeal((b, seal) => seal(b))
+        .build();
       const target = { nested: { n: 1 } };
       const input = new Proxy<typeof target>(target, {
         ownKeys: Reflect.ownKeys,
@@ -1609,30 +1723,34 @@ describe("building", () => {
 
     test("allows normalization into a new plain candidate", () => {
       type Name = Val<"Name", { value: string }>;
-      const Name = Val.companion<Name>().implSeal((n, seal) =>
-        seal({ value: n.value.trim().toLowerCase() }),
-      );
+      const Name = Val.companion<Name>()
+        .implSeal((n, seal) => seal({ value: n.value.trim().toLowerCase() }))
+        .build();
 
       expect(Name.seal({ value: " Alice " })).toEqual({ value: "alice" });
     });
 
     test("reuses the starting snapshot for every default seal call", () => {
       type Reading = Val<"Reading", { n: number }>;
-      const Reading = Val.companion<Reading>().implSeal((r: { n: number }, seal) => {
-        const first = seal(r);
-        r.n += 1;
-        return [first, seal(r)] as const;
-      });
+      const Reading = Val.companion<Reading>()
+        .implSeal((r: { n: number }, seal) => {
+          const first = seal(r);
+          r.n += 1;
+          return [first, seal(r)] as const;
+        })
+        .build();
 
       expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
     });
 
     test("does no comparison when a rejected result never calls the default seal", () => {
       type Reading = Val<"Reading", { n: number }>;
-      const Reading = Val.companion<Reading>().implSeal((_r): Result<Reading> => ({
-        ok: false,
-        error: "rejected",
-      }));
+      const Reading = Val.companion<Reading>()
+        .implSeal((_r): Result<Reading> => ({
+          ok: false,
+          error: "rejected",
+        }))
+        .build();
       let n = 0;
       const input = {
         get n() {
@@ -1645,9 +1763,9 @@ describe("building", () => {
 
     test("does not newly reject wider class or cyclic inputs before the custom seal", () => {
       type Reading = Val<"Reading", { n: number }>;
-      const Reading = Val.companion<Reading>().implSeal((r: object, seal) =>
-        seal({ n: (r as { n: number }).n }),
-      );
+      const Reading = Val.companion<Reading>()
+        .implSeal((r: object, seal) => seal({ n: (r as { n: number }).n }))
+        .build();
       class Source {
         n = 1;
       }
@@ -1659,7 +1777,9 @@ describe("building", () => {
     });
 
     test("the seal accepts an existing value as readily as a raw payload", () => {
-      const Score = Val.companion<Score>().implSeal((s, seal) => seal(s));
+      const Score = Val.companion<Score>()
+        .implSeal((s, seal) => seal(s))
+        .build();
       const s = Val.of<Score>({ points: 3 });
       expect(Score.seal(s)).toEqual({ points: 3 });
     });
@@ -1670,69 +1790,95 @@ describe("building", () => {
     });
 
     test("construct in normal form", () => {
-      const Email = Val.companion<Email>().implSeal((s: string, seal) =>
-        seal(s.trim().toLowerCase()),
-      );
+      const Email = Val.companion<Email>()
+        .implSeal((s: string, seal) => seal(s.trim().toLowerCase()))
+        .build();
       expect(Email.seal("  A@B.com ")).toBe("a@b.com");
       // normalised at construction, so a parent's structural comparison is correct
       expect(equals(Email.seal(" a@b.com"), Email.seal("A@B.COM"))).toBe(true);
     });
 
     test("a constructor that cannot take the payload is rejected where it is written", () => {
-      const point = Val.companion<Point>();
-      Val.companion<Point>().implSeal(
-        // @ts-expect-error a seal must accept the whole payload; this one takes two numbers
-        (x: number, y: number) => point.seal({ x, y }),
-      );
+      const point = Val.companion<Point>().build();
+      Val.companion<Point>()
+        .implSeal(
+          // @ts-expect-error a seal must accept the whole payload; this one takes two numbers
+          (x: number, y: number) => point.seal({ x, y }),
+        )
+        .build();
     });
 
     describe("the seal's parameter", () => {
       type Email = Val<"Email", string>;
 
       test("a parameter wider than the payload is fine while it excludes strings", () => {
-        const wide = Val.companion<User>().implSeal((u: object, seal) => seal(u as SeedOf<User>));
-        const record = Val.companion<User>().implSeal((u: Record<string, unknown>, seal) =>
-          seal(u as SeedOf<User>),
-        );
+        const wide = Val.companion<User>()
+          .implSeal((u: object, seal) => seal(u as SeedOf<User>))
+          .build();
+        const record = Val.companion<User>()
+          .implSeal((u: Record<string, unknown>, seal) => seal(u as SeedOf<User>))
+          .build();
         const raw = { id: "a", name: "bob" };
         expect(wide.seal(raw)).toEqual(raw);
         expect(record.seal(raw)).toEqual(raw);
       });
 
       test("a parameter that also accepts a string is rejected", () => {
-        // @ts-expect-error a seal takes the payload, not a wire format
-        Val.companion<User>().implSeal((u: unknown, seal) => seal(u as SeedOf<User>));
-        // @ts-expect-error `{}` accepts a string too
-        Val.companion<User>().implSeal((u: {}, seal) => seal(u as SeedOf<User>));
-        // @ts-expect-error a primitive payload has nothing to parse
-        Val.companion<Age>().implSeal((n: unknown, seal) => seal(n as number));
-        // @ts-expect-error widening to include a string is the same hole
-        Val.companion<Age>().implSeal((n: number | string, seal) => seal(n as number));
-        // @ts-expect-error an empty payload is an object too, not a string
-        Val.companion<Val<"Marker", {}>>().implSeal((m: unknown, seal) => seal(m as {}));
+        Val.companion<User>()
+          // @ts-expect-error a seal takes the payload, not a wire format
+          .implSeal((u: unknown, seal) => seal(u as SeedOf<User>))
+          .build();
+        Val.companion<User>()
+          // @ts-expect-error `{}` accepts a string too
+          .implSeal((u: {}, seal) => seal(u as SeedOf<User>))
+          .build();
+        Val.companion<Age>()
+          // @ts-expect-error a primitive payload has nothing to parse
+          .implSeal((n: unknown, seal) => seal(n as number))
+          .build();
+        Val.companion<Age>()
+          // @ts-expect-error widening to include a string is the same hole
+          .implSeal((n: number | string, seal) => seal(n as number))
+          .build();
+        Val.companion<Val<"Marker", {}>>()
+          // @ts-expect-error an empty payload is an object too, not a string
+          .implSeal((m: unknown, seal) => seal(m as {}))
+          .build();
       });
 
       test("a payload that is a string is exempt", () => {
-        const Email = Val.companion<Email>().implSeal((e: unknown, seal) => seal(e as string));
+        const Email = Val.companion<Email>()
+          .implSeal((e: unknown, seal) => seal(e as string))
+          .build();
         expect(Email.seal("a@b.com")).toBe("a@b.com");
       });
     });
 
     describe("the seal's return", () => {
       test("a return that can be awaited is rejected", () => {
-        // @ts-expect-error a seal is synchronous
-        Val.companion<Age>().implSeal(async (n, seal) => seal(n));
-        // @ts-expect-error a string payload is exempt from the parameter check alone
-        Val.companion<Val<"Email", string>>().implSeal(async (e, seal) => seal(e));
-        // @ts-expect-error a union that includes a promise is the same
-        Val.companion<Age>().implSeal((n, seal) => (n > 0 ? seal(n) : Promise.resolve(seal(n))));
-        // @ts-expect-error so is a `PromiseLike`, which an async result type implements
-        Val.companion<Age>().implSeal((n, seal) => Promise.resolve(seal(n)) as PromiseLike<Age>);
+        Val.companion<Age>()
+          // @ts-expect-error a seal is synchronous
+          .implSeal(async (n, seal) => seal(n))
+          .build();
+        Val.companion<Val<"Email", string>>()
+          // @ts-expect-error a string payload is exempt from the parameter check alone
+          .implSeal(async (e, seal) => seal(e))
+          .build();
+        Val.companion<Age>()
+          // @ts-expect-error a union that includes a promise is the same
+          .implSeal((n, seal) => (n > 0 ? seal(n) : Promise.resolve(seal(n))))
+          .build();
+        Val.companion<Age>()
+          // @ts-expect-error so is a `PromiseLike`, which an async result type implements
+          .implSeal((n, seal) => Promise.resolve(seal(n)) as PromiseLike<Age>)
+          .build();
       });
 
       test("a return typed `any` is accepted", () => {
-        // oxlint-disable-next-line no-explicit-any -- the case under test
-        Val.companion<Age>().implSeal((n, seal): any => seal(n));
+        Val.companion<Age>()
+          // oxlint-disable-next-line no-explicit-any -- the case under test
+          .implSeal((n, seal): any => seal(n))
+          .build();
       });
     });
   });
@@ -1746,7 +1892,8 @@ describe("building", () => {
         .implCreate((name: string) => {
           calls += 1;
           return { name };
-        });
+        })
+        .build();
 
       const input = { name: " spot " } as const;
       const sealed = Dog.seal.nocopy(input);
@@ -1761,7 +1908,9 @@ describe("building", () => {
 
     test("alone it still derives: the default seal is a payload function too", () => {
       type Point = Val<"Point", { x: number; y: number }>;
-      const Point = Val.companion<Point>().implCreate((x: number, y: number) => ({ x, y }));
+      const Point = Val.companion<Point>()
+        .implCreate((x: number, y: number) => ({ x, y }))
+        .build();
 
       const p = Point.create(1, 2);
       expect(p).toEqual({ x: 1, y: 2 });
@@ -1777,7 +1926,8 @@ describe("building", () => {
             ? { ok: true, value: seal(s) }
             : { ok: false, error: "points must not be negative" },
         )
-        .implCreate((points: number) => ({ points }));
+        .implCreate((points: number) => ({ points }))
+        .build();
 
       expect(Score.create(3)).toEqual({ ok: true, value: { points: 3 } });
       expect(Score.create(-1)).toEqual({ ok: false, error: "points must not be negative" });
@@ -1793,7 +1943,8 @@ describe("building", () => {
             ? { ok: true, value: seal(seed) }
             : { ok: false, error: "points must not be negative" },
         )
-        .implCreate((points: number) => (created = { points }));
+        .implCreate((points: number) => (created = { points }))
+        .build();
 
       const copied = Score.create(1);
       expect(copied.ok).toBe(true);
@@ -1828,7 +1979,8 @@ describe("building", () => {
         .implCreate((f: Fields): SeedOf<Member> => {
           created += 1;
           return { id: `id-${created}`, ...f };
-        });
+        })
+        .build();
 
       const m = Member.create({ name: "bob" });
       expect(m).toEqual({ id: "id-1", name: "bob" });
@@ -1847,7 +1999,8 @@ describe("building", () => {
       test("create returns the Val, not what the seal returns", () => {
         const SectionId = Val.companion<SectionId>()
           .implSeal((text, seal): Result<SectionId> => ({ ok: true, value: seal(text) }))
-          .implCreate.noseal(() => "0123abcd");
+          .implCreate.noseal(() => "0123abcd")
+          .build();
 
         expect(SectionId.create()).toBe("0123abcd");
         expectTypeOf(SectionId.create).returns.toEqualTypeOf<SectionId>();
@@ -1857,10 +2010,12 @@ describe("building", () => {
         type Cents = Val<"NosealCents", number>;
         const rejected = Val.companion<SectionId>()
           .implSeal(hex)
-          .implCreate.noseal(() => "not hex");
+          .implCreate.noseal(() => "not hex")
+          .build();
         const changed = Val.companion<Cents>()
           .implSeal((n: number, seal): Cents | undefined => seal(Math.round(n)))
-          .implCreate.noseal(() => 1.5);
+          .implCreate.noseal(() => 1.5)
+          .build();
 
         const message = /payload from `\.implCreate\.noseal`/;
         expect(() => rejected.create()).toThrow(message);
@@ -1873,7 +2028,8 @@ describe("building", () => {
         let created: SeedOf<Doc> | undefined;
         const Doc = Val.companion<Doc>()
           .implSeal((d, seal): Doc | undefined => seal(d))
-          .implCreate.noseal(() => (created = { label: "x" }));
+          .implCreate.noseal(() => (created = { label: "x" }))
+          .build();
 
         expect(Doc.create.nocopy()).toBe(created);
         expect(Doc.create()).not.toBe(created);
@@ -1905,7 +2061,8 @@ describe("building", () => {
         .implCreate((f: Fields): SeedOf<Account> => {
           created += 1;
           return { id: `id-${created}`, ...f };
-        });
+        })
+        .build();
     };
 
     test("create generates the id, and `patch` preserves it", () => {
@@ -1928,12 +2085,12 @@ describe("building", () => {
 
     test("keys must exist on the payload", () => {
       // @ts-expect-error there is no such field
-      Val.companion<Account, [Unpatchable<"nope">]>();
+      Val.companion<Account, [Unpatchable<"nope">]>().build();
     });
 
     // An intersection of two would collapse to `never` and take nothing out.
     test("the keys of every `Unpatchable` in the list are taken out", () => {
-      const Account = Val.companion<Account, [Unpatchable<"id">, Unpatchable<"owner">]>();
+      const Account = Val.companion<Account, [Unpatchable<"id">, Unpatchable<"owner">]>().build();
       expectTypeOf<Parameters<typeof Account.patch>>().toEqualTypeOf<
         [Account, Patch<Pick<SeedOf<Account>, "note">>]
       >();
@@ -1941,7 +2098,7 @@ describe("building", () => {
 
     test("anything but the markers is rejected", () => {
       // @ts-expect-error a key alone is not a marker
-      Val.companion<Account, ["id"]>();
+      Val.companion<Account, ["id"]>().build();
     });
   });
 
@@ -1949,7 +2106,8 @@ describe("building", () => {
     type Account = Val<"SealedAccount", { id: string; owner: string }>;
     const Account = Val.companion<Account, [PrivateSeal]>()
       .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim() }))
-      .implCreate((owner: string) => ({ id: "a1", owner }));
+      .implCreate((owner: string) => ({ id: "a1", owner }))
+      .build();
 
     test("takes `seal` off the companion, so a caller cannot pass what `create` generates", () => {
       expectTypeOf(Account).not.toHaveProperty("seal");
@@ -1966,16 +2124,22 @@ describe("building", () => {
 
   describe("PrivateSeal and Unpatchable together", () => {
     type Owned = Trait<"OptionOwned", { owner: string }, { owned: (self: Self) => string }>;
-    const Owned = Trait.companion<Owned>();
+    const Owned = Trait.companion<Owned>().build();
     type Held = Val<"OptionHeld", { id: string; owner: string }, Owned>;
     const held = () => Val.companion<Held, [PrivateSeal, Unpatchable<"id">]>();
-    type Patched = Parameters<ReturnType<typeof held>["patch"]>;
+    type Patched = Parameters<ReturnType<ReturnType<typeof held>["build"]>["patch"]>;
 
     // Each step builds the companion's type again, so each has to pass the list on.
     test("hold through every later step", () => {
-      const members = held().impl({ label: (h) => h.owner });
-      const traits = held().implTrait(Owned, { owned: (h) => h.owner });
-      const created = held().implCreate.noseal(() => ({ id: "h1", owner: "bob" }));
+      const members = held()
+        .impl({ label: (h) => h.owner })
+        .build();
+      const traits = held()
+        .implTrait(Owned, { owned: (h) => h.owner })
+        .build();
+      const created = held()
+        .implCreate.noseal(() => ({ id: "h1", owner: "bob" }))
+        .build();
       expectTypeOf<Patched>().toEqualTypeOf<[Held, Patch<{ owner: string }>]>();
       expectTypeOf<Parameters<typeof members.patch>>().toEqualTypeOf<Patched>();
       expectTypeOf<Parameters<typeof traits.patch>>().toEqualTypeOf<Patched>();
@@ -1994,21 +2158,27 @@ describe("building", () => {
         shout: Final<(self: Self) => string>;
       }
     >;
-    const Greetable = Trait.companion<Greetable>().impl({
-      greet: (g) => `Hi, ${g.name}`, // a Val may replace this one
-      shout: (g) => g.name.toUpperCase(), // declared Final: no Val may
-    });
+    const Greetable = Trait.companion<Greetable>()
+      .impl({
+        greet: (g) => `Hi, ${g.name}`, // a Val may replace this one
+        shout: (g) => g.name.toUpperCase(), // declared Final: no Val may
+      })
+      .build();
 
     type Member = Val<"Member", { id: string; name: string }, Greetable>;
-    const Member = Val.companion<Member>().implTrait(Greetable, {
-      toWire: (m, sep) => `${m.id}${sep}${m.name}`,
-    });
+    const Member = Val.companion<Member>()
+      .implTrait(Greetable, {
+        toWire: (m, sep) => `${m.id}${sep}${m.name}`,
+      })
+      .build();
 
     type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
-    const Admin = Val.companion<Admin>().implTrait(Greetable, {
-      toWire: (a, sep) => `admin${sep}${a.name}`,
-      greet: (a) => `Sir ${a.name}`,
-    });
+    const Admin = Val.companion<Admin>()
+      .implTrait(Greetable, {
+        toWire: (a, sep) => `admin${sep}${a.name}`,
+        greet: (a) => `Sir ${a.name}`,
+      })
+      .build();
 
     const member = Val.of<Member>({ id: "a", name: "alice" });
     const admin = Val.of<Admin>({ name: "root", level: 9 });
@@ -2022,36 +2192,42 @@ describe("building", () => {
     });
 
     test("an implementation reaching the companion names it and annotates its return", () => {
-      const Wired = Val.companion<Member>().implTrait(Greetable, {
-        toWire: (m, sep): string => `${Wired.seal.nocopy(m).id}${sep}${m.name}`,
-      });
+      const Wired = Val.companion<Member>()
+        .implTrait(Greetable, {
+          toWire: (m, sep): string => `${Wired.seal.nocopy(m).id}${sep}${m.name}`,
+        })
+        .build();
       expect(Wired.toWire(Wired.seal({ id: "a", name: "alice" }), ":")).toBe("a:alice");
     });
 
     test("a member without a default must be implemented", () => {
       // @ts-expect-error `toWire` is missing
-      Val.companion<Member>().implTrait(Greetable, {});
+      Val.companion<Member>().implTrait(Greetable, {}).build();
     });
 
     test("the members a trait leaves open must be passed", () => {
       // @ts-expect-error the members the trait leaves open are missing
-      Val.companion<Member>().implTrait(Greetable);
+      Val.companion<Member>().implTrait(Greetable).build();
     });
 
     test("the type must declare the trait", () => {
       type Plain = Val<"Plain", { id: string; name: string }>;
-      Val.companion<Plain>().implTrait(
-        // @ts-expect-error the type does not declare this trait
-        Greetable,
-        { toWire: (p, sep) => `${p.id}${sep}` },
-      );
+      Val.companion<Plain>()
+        .implTrait(
+          // @ts-expect-error the type does not declare this trait
+          Greetable,
+          { toWire: (p, sep) => `${p.id}${sep}` },
+        )
+        .build();
     });
 
     test("the trait brings the fields it requires into the payload", () => {
       type Badge = Val<"Badge", { id: string }, Greetable>;
-      const Badge = Val.companion<Badge>().implTrait(Greetable, {
-        toWire: (b, sep) => `${b.id}${sep}${b.name}`,
-      });
+      const Badge = Val.companion<Badge>()
+        .implTrait(Greetable, {
+          toWire: (b, sep) => `${b.id}${sep}${b.name}`,
+        })
+        .build();
       expectTypeOf<SeedOf<Badge>>().toEqualTypeOf<{ readonly id: string; readonly name: string }>();
       // @ts-expect-error `name` is missing
       Badge.seal({ id: "b" });
@@ -2071,7 +2247,7 @@ describe("building", () => {
         owner: PayloadOf<User>;
       }>();
 
-      const Post = Val.companion<Post>();
+      const Post = Val.companion<Post>().build();
       const owner = { id: "u", name: "una" };
       Post.seal({ id: "p", tags: [], owner: User.seal(owner) });
       // @ts-expect-error a record is not a User
@@ -2100,7 +2276,7 @@ describe("building", () => {
       type Either = Val<"Either", { id: string }, Greetable | Weighed>;
       expectTypeOf<Either>().not.toExtend<AnyVal>();
       // @ts-expect-error declare several traits with `&`, not `|`
-      Val.companion<Either>();
+      Val.companion<Either>().build();
 
       type Both = Val<"Both", { name: string; kg: number }, Greetable & Weighed>;
       expectTypeOf<Both>().toExtend<AnyVal>();
@@ -2111,7 +2287,8 @@ describe("building", () => {
       const Ticket = Val.companion<Ticket>()
         .implSeal((seed, seal) => seal(seed))
         .implCreate((name: string) => ({ id: "t1", name }))
-        .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}${t.name}` });
+        .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}${t.name}` })
+        .build();
       const t = Ticket.create("alice");
       expect([t.id, Ticket.greet(t), Ticket.patch(t, { name: "bob" }).name]).toEqual([
         "t1",
@@ -2126,20 +2303,22 @@ describe("building", () => {
 
     describe("a trait that implements nothing of its own", () => {
       type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
-      const Wired = Trait.companion<Wired>();
+      const Wired = Trait.companion<Wired>().build();
       type Row = Val<"Row", { id: string; n: number }, Wired>;
 
       test("is implemented through its companion all the same", () => {
-        const Row = Val.companion<Row>().implTrait(Wired, {
-          toWire: (r, sep) => `${r.id}${sep}${r.n}`,
-        });
+        const Row = Val.companion<Row>()
+          .implTrait(Wired, {
+            toWire: (r, sep) => `${r.id}${sep}${r.n}`,
+          })
+          .build();
         expect(Row.toWire(Val.of<Row>({ id: "r", n: 1 }), ":")).toBe("r:1");
       });
 
       test("cannot be named as a type argument instead", () => {
         const toWire = (r: Row, sep: string) => r.id + sep;
         // @ts-expect-error implTrait takes the trait's companion, not a type argument
-        Val.companion<Row>().implTrait<Wired>({ toWire });
+        Val.companion<Row>().implTrait<Wired>({ toWire }).build();
       });
 
       test("nor be left out, with its members passed alone", () => {
@@ -2148,8 +2327,8 @@ describe("building", () => {
         const unnamed = "pass the trait's companion, then the members it leaves open";
         const row = { toWire: (r: Row, sep: string) => `${r.id}${sep}` };
         // @ts-expect-error the members alone do not say which trait they implement
-        Val.companion<Row>().implTrait(row);
-        Val.companion<Row>().implTrait(unnamed);
+        Val.companion<Row>().implTrait(row).build();
+        Val.companion<Row>().implTrait(unnamed).build();
       });
     });
 
@@ -2159,11 +2338,13 @@ describe("building", () => {
       });
 
       test("a Val cannot override it", () => {
-        Val.companion<Member>().implTrait(Greetable, {
-          toWire: (m, sep) => `${m.id}${sep}`,
-          // @ts-expect-error a Final member is not the Val's to implement
-          shout: (m: Member) => m.name,
-        });
+        Val.companion<Member>()
+          .implTrait(Greetable, {
+            toWire: (m, sep) => `${m.id}${sep}`,
+            // @ts-expect-error a Final member is not the Val's to implement
+            shout: (m: Member) => m.name,
+          })
+          .build();
       });
 
       test("nor through a payload the excess property check does not read", () => {
@@ -2172,27 +2353,34 @@ describe("building", () => {
           shout: (m: Member) => m.name,
         };
         // @ts-expect-error a Final member is declared `never`, so a variable carries no override in
-        Val.companion<Member>().implTrait(Greetable, carried);
+        Val.companion<Member>().implTrait(Greetable, carried).build();
       });
 
       test("a companion that skipped one cannot be implemented", () => {
-        Val.companion<Member>().implTrait(
-          // @ts-expect-error this trait's companion has not implemented every member declared Final
-          Trait.companion<Greetable>().impl({ greet: (g: { name: string }) => g.name }),
-          // Annotated because the first argument is the error: the implementation loses its
-          // contextual type along with it. A healthy call needs neither annotation.
-          { toWire: (m: Member, sep: string) => `${m.id}${sep}` },
-        );
+        Val.companion<Member>()
+          .implTrait(
+            // @ts-expect-error this trait's companion has not implemented every member declared Final
+            Trait.companion<Greetable>()
+              .impl({ greet: (g: { name: string }) => g.name })
+              .build(),
+            // Annotated because the first argument is the error: the implementation loses its
+            // contextual type along with it. A healthy call needs neither annotation.
+            { toWire: (m: Member, sep: string) => `${m.id}${sep}` },
+          )
+          .build();
       });
     });
 
     describe("more than one trait", () => {
       type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
-      const Weighed = Trait.companion<Weighed>().impl({ heavy: (w) => w.kg > 10 });
+      const Weighed = Trait.companion<Weighed>()
+        .impl({ heavy: (w) => w.kg > 10 })
+        .build();
       type Crate = Val<"Crate", { id: string; name: string; kg: number }, Greetable & Weighed>;
       const Crate = Val.companion<Crate>()
         .implTrait(Greetable, { toWire: (c, sep) => `${c.id}${sep}${c.name}` })
-        .implTrait(Weighed);
+        .implTrait(Weighed)
+        .build();
       const crate = Val.of<Crate>({ id: "c", name: "box", kg: 20 });
 
       test("a step keeps what the one before it registered", () => {
@@ -2208,9 +2396,11 @@ describe("building", () => {
       });
 
       test("one may be left unimplemented: it is then a declaration and nothing more", () => {
-        const Half = Val.companion<Crate>().implTrait(Greetable, {
-          toWire: (c, sep) => `${c.id}${sep}`,
-        });
+        const Half = Val.companion<Crate>()
+          .implTrait(Greetable, {
+            toWire: (c, sep) => `${c.id}${sep}`,
+          })
+          .build();
         expect(Half.greet(crate)).toBe("Hi, box");
         expectTypeOf(Half).not.toHaveProperty("heavy");
         expect("heavy" in Half).toBe(false);
@@ -2224,7 +2414,8 @@ describe("building", () => {
         Val.companion<Crate>()
           .implTrait(Greetable, { toWire: (c, sep) => `${c.id}${sep}` })
           // @ts-expect-error another member already answers to one of these names
-          .implTrait(Greetable, { toWire: (c, sep) => `${c.name}${sep}` });
+          .implTrait(Greetable, { toWire: (c, sep) => `${c.name}${sep}` })
+          .build();
       });
 
       test("two traits on one Val may not answer to the same name", () => {
@@ -2233,24 +2424,30 @@ describe("building", () => {
           { name: string },
           { toWire: (self: Self, sep: string) => number }
         >;
-        const Other = Trait.companion<Other>().impl({});
+        const Other = Trait.companion<Other>().impl({}).build();
         type Twice = Val<"Twice", { id: string; name: string }, Greetable & Other>;
         Val.companion<Twice>()
           .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}` })
           // @ts-expect-error another member already answers to one of these names
-          .implTrait(Other, { toWire: (t, sep) => t.id.length + sep.length });
+          .implTrait(Other, { toWire: (t, sep) => t.id.length + sep.length })
+          .build();
       });
 
       test("nor may a member take a name another trait requires as a field", () => {
         type Tagged = Trait<"Tagged", { tag: string }, { size: (self: Self) => number }>;
-        const Tagged = Trait.companion<Tagged>().impl({ size: (t) => t.tag.length });
+        const Tagged = Trait.companion<Tagged>()
+          .impl({ size: (t) => t.tag.length })
+          .build();
         type Labelled = Trait<"Labelled", { name: string }, { tag: (self: Self) => string }>;
-        const Labelled = Trait.companion<Labelled>().impl({ tag: (l) => l.name });
+        const Labelled = Trait.companion<Labelled>()
+          .impl({ tag: (l) => l.name })
+          .build();
         type Parcel = Val<"Parcel", { name: string; tag: string }, Tagged & Labelled>;
         Val.companion<Parcel>()
           .implTrait(Tagged)
           // @ts-expect-error a member cannot take the name of a field the payload holds
-          .implTrait(Labelled);
+          .implTrait(Labelled)
+          .build();
         // The directive above takes any error on the line, so the branch is named here.
         expectTypeOf<
           Takes<Parcel, Labelled, { size: unknown }, "ok">
@@ -2259,21 +2456,27 @@ describe("building", () => {
 
       test("nor to the same final", () => {
         type Yelling = Trait<"Yelling", { name: string }, { shout: Final<(self: Self) => string> }>;
-        const Yelling = Trait.companion<Yelling>().impl({ shout: (y) => y.name });
+        const Yelling = Trait.companion<Yelling>()
+          .impl({ shout: (y) => y.name })
+          .build();
         type Crier = Val<"Crier", { id: string; name: string }, Greetable & Yelling>;
         Val.companion<Crier>()
           .implTrait(Greetable, { toWire: (c, sep) => `${c.id}${sep}` })
           // @ts-expect-error another member already answers to one of these names
-          .implTrait(Yelling);
+          .implTrait(Yelling)
+          .build();
       });
 
       test("but they may require the same field", () => {
         type Weighing = Trait<"Weighing", { name: string }, { kilos: (self: Self) => number }>;
-        const Weighing = Trait.companion<Weighing>().impl({ kilos: (_w) => 0 });
+        const Weighing = Trait.companion<Weighing>()
+          .impl({ kilos: (_w) => 0 })
+          .build();
         type Parcel = Val<"Parcel", { id: string; name: string }, Greetable & Weighing>;
         const Parcel = Val.companion<Parcel>()
           .implTrait(Greetable, { toWire: (p, sep) => `${p.id}${sep}` })
-          .implTrait(Weighing);
+          .implTrait(Weighing)
+          .build();
         const p = Val.of<Parcel>({ id: "p", name: "box" });
         expect([Parcel.greet(p), Parcel.kilos(p)]).toEqual(["Hi, box", 0]);
       });
@@ -2295,17 +2498,20 @@ describe("building", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
           // @ts-expect-error this name is already taken
-          .impl({ greet: (m) => `yo ${m.name}` });
+          .impl({ greet: (m) => `yo ${m.name}` })
+          .build();
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
-          .impl({ greet: taken });
+          .impl({ greet: taken })
+          .build();
       });
 
       test("nor may a trait's member take a name `impl` took before it", () => {
         Val.companion<Member>()
           .impl({ greet: (m) => m.name })
           // @ts-expect-error another member already answers to one of these names
-          .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` });
+          .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
+          .build();
         // The directive above takes any error on the line, so the branch is named here.
         expectTypeOf<
           Takes<Member, Greetable, { greet: unknown }, "ok">
@@ -2316,7 +2522,8 @@ describe("building", () => {
         Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
           // @ts-expect-error this name is already taken
-          .impl({ shout: (m) => m.name });
+          .impl({ shout: (m) => m.name })
+          .build();
       });
 
       test("nor may a companion grow one over the record `dyn` reads", () => {
@@ -2325,53 +2532,59 @@ describe("building", () => {
           .impl({
             // @ts-expect-error the library keeps this one: a function here would leave `dyn` unbound
             __valof_traits: (m: Member) => m.name,
-          });
+          })
+          .build();
       });
 
-      test("nor may it grow one over a step's name, an enum's included", () => {
-        Val.companion<Member>().impl({
-          // @ts-expect-error the steps' names are the library's
-          implTrait: (m: Member) => m.name,
-        });
-        Val.companion<Member>().impl({
-          // @ts-expect-error same, for a step only an enum's builder has
-          implVariant: (m: Member) => m.name,
-        });
+      test("but may take a step's name: the companion holds no step", () => {
+        const Stepped = Val.companion<Member>()
+          .impl({
+            impl: (m) => m.id,
+            implTrait: (m) => m.name,
+            implVariant: (m) => m.id,
+            build: (m) => m.name,
+          })
+          .build();
+        expect([Stepped.impl(member), Stepped.build(member)]).toEqual(["a", "alice"]);
       });
 
       test("but may take `nocopy`: the seal holds that one, not the companion", () => {
-        const Copied = Val.companion<Member>().impl({ nocopy: (m) => m.name });
+        const Copied = Val.companion<Member>()
+          .impl({ nocopy: (m) => m.name })
+          .build();
         expect(Copied.nocopy(member)).toBe("alice");
       });
 
       // Assigned rather than defined, the member would become the companion's prototype.
       test("and `__proto__`, which stays a member of its own", () => {
-        const Odd = Val.companion<Member>().impl({ ["__proto__"]: (m: Member) => m.id });
+        const Odd = Val.companion<Member>()
+          .impl({ ["__proto__"]: (m: Member) => m.id })
+          .build();
         expect(Object.hasOwn(Odd, "__proto__")).toBe(true);
       });
 
-      test("but may take another name starting with `impl`", () => {
-        type Grant = Val<"Grant", { kind: string }>;
-        const Grant = Val.companion<Grant>().impl({ implicit: (g) => g.kind === "implicit" });
-        expect(Grant.implicit(Grant.seal({ kind: "implicit" }))).toBe(true);
-      });
-
       test("nor `then`, which would make the companion a thenable", () => {
-        Val.companion<Member>().impl({
-          // @ts-expect-error `await` on a thenable companion never settles
-          // oxlint-disable-next-line no-thenable -- the rejection is what this test reads
-          then: (m: Member) => m.name,
-        });
+        Val.companion<Member>()
+          .impl({
+            // @ts-expect-error `await` on a thenable companion never settles
+            // oxlint-disable-next-line no-thenable -- the rejection is what this test reads
+            then: (m: Member) => m.name,
+          })
+          .build();
       });
 
       test("a member may not take a name the payload holds", () => {
         type Loud = Trait<"Loud", { name: string }, { greet: (self: Self) => string }>;
-        const Loud = Trait.companion<Loud>().impl({ greet: (l) => l.name });
+        const Loud = Trait.companion<Loud>()
+          .impl({ greet: (l) => l.name })
+          .build();
         type Sign = Val<"Sign", { name: string; greet: string }, Loud>;
-        Val.companion<Sign>().implTrait(
-          // @ts-expect-error a member cannot take the name of a field the payload holds
-          Loud,
-        );
+        Val.companion<Sign>()
+          .implTrait(
+            // @ts-expect-error a member cannot take the name of a field the payload holds
+            Loud,
+          )
+          .build();
       });
     });
   });
