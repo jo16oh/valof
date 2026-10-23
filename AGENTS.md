@@ -138,6 +138,8 @@ itself, and show it in a code block rather than a paragraph.
 Use `## Why` and `## What changed` once the body is long enough to need navigation. A short one
 reads better without them.
 
+Include a label from `.github/release.yml` in the draft. The release notes group PRs by it.
+
 Leave `notes/*.md` out of the body. It is the working record, not something the reviewer acts on.
 Where a memo correction drove the code change, say what the code does now.
 
