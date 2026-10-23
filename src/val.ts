@@ -1,6 +1,6 @@
 // Type-only, so the entry point constrains against an experimental type and nothing crosses at
 // run time. The phantom stays in enum.ts, beside the declaration that carries it.
-import type { AnyEnum, EnumStep } from "./enum.ts";
+import type { AnyEnum } from "./enum.ts";
 import type {
   AnyTrait,
   FinalsOf,
@@ -395,34 +395,21 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
  */
 export type Wired = "patch" | "seal" | "create";
 
-/** The steps a Val's builder takes. */
-type ValStep = "impl" | "implSeal" | "implCreate" | "implTrait";
-
-/**
- * The steps belong to the library, a builder's own or another's. A member taking `impl` or
- * `implTrait` would replace the step, which stays on the companion: `.impl` does not close the
- * chain. The rest shadow nothing, but `User.implSeal(u)` reads as the step it is not.
- *
- * A step the library adds later may take another name starting with `impl`.
- */
-export type Steps = Partial<Record<ValStep, never>> & Partial<Record<EnumStep, never>>;
-
 /** The names every `.impl` rejects. */
-type Rejected = Partial<Record<Wired, never>> &
-  Steps & {
-    /**
-     * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
-     * before the registrations, so a function taking the name would overwrite it and leave every
-     * boxed member unbound.
-     */
-    [key: `__valof_${string}`]: never;
-    /**
-     * A companion holding `then` is a thenable. `await` on it, or returning it from an async
-     * function, calls the member with the resolve and reject functions, and the promise never
-     * settles.
-     */
-    then?: never;
-  };
+type Rejected = Partial<Record<Wired, never>> & {
+  /**
+   * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
+   * before the registrations, so a function taking the name would overwrite it and leave every
+   * boxed member unbound.
+   */
+  [key: `__valof_${string}`]: never;
+  /**
+   * A companion holding `then` is a thenable. `await` on it, or returning it from an async
+   * function, calls the member with the resolve and reject functions, and the promise never
+   * settles.
+   */
+  then?: never;
+};
 
 /** The keys of {@link Rejected}, which valof-lint reads. */
 export type Reserved = keyof Rejected;
@@ -708,7 +695,14 @@ export type Passes<Tr extends AnyTrait, G, I> =
 type Taken = "implSeal" | "implCreate" | "impl" | "implTrait";
 
 /**
- * What `Val.companion` returns, which its steps add to.
+ * What a builder holds where the companion holds its library's names: `.build()` is missing.
+ */
+export interface CallBuildFirst {
+  readonly __valof_unbuilt: "call `.build()` to get the companion";
+}
+
+/**
+ * What `Val.companion` returns, which its steps add to and `.build()` closes.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
@@ -726,8 +720,16 @@ export type CompanionBuilder<
   O extends Options = [],
   T extends CompanionMembers<V> = Record<never, never>,
   D extends Taken = never,
-> = Companion<V, T, N, F, O> &
-  ([Extract<D, "impl" | "implTrait">] extends [never] ? FirstHalf<V, N, F, O, D> : unknown) &
+> = {
+  readonly seal: CallBuildFirst;
+  readonly create: CallBuildFirst;
+  readonly patch: CallBuildFirst;
+  /**
+   * Closes the chain and returns the companion. The builder holds the steps alone: `seal`,
+   * `create`, `patch` and the members are the companion's.
+   */
+  build: () => Companion<V, T, N, F, O>;
+} & ([Extract<D, "impl" | "implTrait">] extends [never] ? FirstHalf<V, N, F, O, D> : unknown) &
   ("impl" extends D
     ? unknown
     : {
@@ -1249,37 +1251,25 @@ const attach = (
 };
 
 /**
- * One builder state: what the steps registered so far, plus the ones still open. The order the
- * type enforces is not checked here, except that the first half's steps go once the second half
- * starts: a member may take the name of one.
+ * One builder state: what the steps registered so far. The order of the steps is the type's to
+ * enforce.
  */
-const build = (
+const builder = (
   ctors: Ctors,
   traits: Record<string, unknown> = {},
   fns: Record<string, unknown> = {},
-  first = true,
-  open = true,
-): object => {
-  const target = attach(fns, ctors, traits);
-  const later = (next: Record<string, unknown>, members: Record<string, unknown>, more: boolean) =>
-    build(ctors, next, members, false, more);
-
-  if (open) target.impl = (members: Record<string, unknown>) => later(traits, members, false);
-  // The finals go on last: the type keeps them out of `impl`, and this keeps a cast out too.
+): object => ({
+  implSeal: (seal: NonNullable<Ctors["seal"]>) => builder({ ...ctors, seal }, traits, fns),
+  implCreate: Object.assign(
+    (create: AnyFn) => builder({ ...ctors, create, noseal: false }, traits, fns),
+    { noseal: (create: AnyFn) => builder({ ...ctors, create, noseal: true }, traits, fns) },
+  ),
+  impl: (members: Record<string, unknown>) => builder(ctors, traits, members),
   // The Val's own go on last, the type having kept every `Final` one out of them.
-  target.implTrait = (
-    trait: { __valof_shared: Record<string, unknown> },
-    impl: Record<string, unknown> = {},
-  ) => later({ ...traits, ...trait.__valof_shared, ...impl }, fns, open);
-  if (!first) return target;
-
-  const step = (next: Ctors): object => build(next);
-  target.implCreate = Object.assign((create: AnyFn) => step({ ...ctors, create, noseal: false }), {
-    noseal: (create: AnyFn) => step({ ...ctors, create, noseal: true }),
-  });
-  target.implSeal = (seal: NonNullable<Ctors["seal"]>) => step({ ...ctors, seal });
-  return target;
-};
+  implTrait: (trait: { __valof_shared: Record<string, unknown> }, impl = {}) =>
+    builder(ctors, { ...traits, ...trait.__valof_shared, ...impl }, fns),
+  build: () => attach(fns, ctors, traits),
+});
 
 /**
  * Rejects a variant and the union it belongs to. An enum's companion holds one frame per variant,
@@ -1327,4 +1317,4 @@ export const companion = <
   V extends AnyVal & NotEnum<V>,
   const O extends readonly CompanionOption<V>[] = [],
 >(): CompanionBuilder<V, undefined, undefined, O> =>
-  build({}) as CompanionBuilder<V, undefined, undefined, O>;
+  builder({}) as CompanionBuilder<V, undefined, undefined, O>;

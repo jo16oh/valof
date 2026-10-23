@@ -1,3 +1,3 @@
 type Greetable = Trait<"Greetable", { name: string }>;
 
-export const Friendly = Trait.companion<Greetable>();
+export const Friendly = Trait.companion<Greetable>().build();

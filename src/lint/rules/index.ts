@@ -3,7 +3,6 @@ import { BypassedCompanion } from "./bypassed-companion.ts";
 import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
-import { DetachedImpl } from "./detached-impl.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Rule } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
@@ -24,7 +23,6 @@ export const RULES = [
   BrandMismatch,
   UnnecessaryAlias,
   UnimplementedTrait,
-  DetachedImpl,
   CompanionMismatch,
   SplitCompanion,
   BypassedCompanion,
@@ -43,7 +41,6 @@ export {
   BrandMismatch,
   BypassedCompanion,
   CompanionMismatch,
-  DetachedImpl,
   DuplicateBrand,
   IncompleteDisable,
   SplitCompanion,

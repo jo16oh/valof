@@ -4,4 +4,4 @@ import * as b from "./b.ts";
 type CompleteUser = Val<"CompleteUser", {}, a.Shared & b.Shared>;
 const CompleteUser = Val.companion<CompleteUser>()
   .implTrait(a.Shared)
-  .implTrait(b.Shared);
+  .implTrait(b.Shared).build();

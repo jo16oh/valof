@@ -1,2 +1,2 @@
 export type User = Val<"User", {}>;
-export const User = Val.companion<User>();
+export const User = Val.companion<User>().build();

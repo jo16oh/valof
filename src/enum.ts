@@ -5,13 +5,13 @@ import {
   define,
   Val,
   type AnyVal,
+  type CallBuildFirst,
   type CompanionMembers,
   type Complete,
   type DeepReadonly,
   type Invalid,
   type Passes,
   type Patch,
-  type Steps,
   type Synchronous,
   type Takes,
   type Wired,
@@ -100,7 +100,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
   | {
       [N in VariantKeys<D>]: N extends "then"
         ? "a variant named `then` would make the companion a thenable"
-        : N extends "match" | "seal" | "_" | keyof Steps | `__valof_${string}`
+        : N extends "match" | "seal" | "_" | `__valof_${string}`
           ? "a variant cannot take a name the library reserves"
           : [D[N]] extends [object]
             ? [D[N]] extends [ReadonlyArray<unknown>]
@@ -548,14 +548,11 @@ export type EnumCompanion<
     readonly __valof_traits: Members;
   };
 
-/** The steps an enum's builder takes. A variant's are among them. */
-export type EnumStep = "impl" | "implVariant" | "implSeal" | "implTrait";
-
 /** The steps an enum's companion has taken. `implSeal` is the first half of the chain. */
 type EnumTaken = "implSeal" | "impl" | "later";
 
 /**
- * What `Enum.companion` returns, which its steps add to.
+ * What `Enum.companion` returns, which its steps add to and `.build()` closes.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
@@ -571,18 +568,25 @@ export type EnumBuilder<
   M = Record<never, never>,
   F = undefined,
   D extends EnumTaken = never,
-> = EnumCompanion<E, VM, M, F> &
-  ([D] extends [never]
-    ? {
-        /**
-         * Replaces the seal every variant passes, for what they all hold. A variant checks its own
-         * payload in `implVariant`, and receives this one to call.
-         */
-        implSeal: <G extends EnumSealImpl<E>>(
-          seal: CheckedSeal<G>,
-        ) => EnumBuilder<E, VM, M, G, "implSeal">;
-      }
-    : unknown) &
+> = {
+  readonly seal: CallBuildFirst;
+  readonly match: CallBuildFirst;
+  /**
+   * Closes the chain and returns the companion. The builder holds the steps alone: the variants,
+   * `seal`, `match` and the members are the companion's.
+   */
+  build: () => EnumCompanion<E, VM, M, F>;
+} & ([D] extends [never]
+  ? {
+      /**
+       * Replaces the seal every variant passes, for what they all hold. A variant checks its own
+       * payload in `implVariant`, and receives this one to call.
+       */
+      implSeal: <G extends EnumSealImpl<E>>(
+        seal: CheckedSeal<G>,
+      ) => EnumBuilder<E, VM, M, G, "implSeal">;
+    }
+  : unknown) &
   ("impl" extends D
     ? unknown
     : {
@@ -645,17 +649,38 @@ const matchTag = dual((tag: string, handlers: Record<string, () => unknown>) =>
 );
 
 /**
- * One builder state. The companion is a proxy: it does not know the variant names, so anything it
- * does not handle itself becomes a frame.
+ * One builder state: what the steps registered so far. The order of the steps is the type's to
+ * enforce.
  */
-const state = (
+const builder = (
   tag: string,
   builds: Builds,
   members: Record<string, unknown>,
   traits: Record<string, unknown>,
   seal: Seal | undefined,
-  first: boolean,
-  open: boolean,
+): object => ({
+  implSeal: (custom: Seal) => builder(tag, builds, members, traits, custom),
+  impl: (fns: Payload) => builder(tag, builds, { ...members, ...duals(fns) }, traits, seal),
+  implVariant: (name: string, build: (steps: object) => object) =>
+    builder(tag, { ...builds, [name]: build }, members, traits, seal),
+  // The trait's own members and the enum's, merged the way `val.ts` merges them.
+  implTrait: (trait: { __valof_shared: Record<string, unknown> }, fns = {}) => {
+    const grown = { ...traits, ...trait.__valof_shared, ...fns };
+    return builder(tag, builds, { ...members, ...duals(grown) }, grown, seal);
+  },
+  build: () => assemble(tag, builds, members, traits, seal),
+});
+
+/**
+ * The companion. It is a proxy: it does not know the variant names, so anything it does not
+ * handle itself becomes a frame.
+ */
+const assemble = (
+  tag: string,
+  builds: Builds,
+  members: Record<string, unknown>,
+  traits: Record<string, unknown>,
+  seal: Seal | undefined,
 ): object => {
   // Remembered for the allocation, not for identity: a frame built twice behaves the same, and
   // rebuilding one on every read would make a fresh closure per member per access.
@@ -676,10 +701,10 @@ const state = (
     type Chain = {
       implSeal: (seal: Seal) => Chain;
       implCreate: (create: (payload: Payload) => Payload) => Chain;
-      impl: (fns: object) => object;
+      impl: (fns: object) => { build: () => object };
     };
     const chain = Val.companion() as unknown as Chain;
-    return (composed ? chain.implSeal(composed) : chain).implCreate(tagged).impl(fns);
+    return (composed ? chain.implSeal(composed) : chain).implCreate(tagged).impl(fns).build();
   };
 
   // The steps are the frame with no member on it, so a callback that collects none returns this
@@ -701,15 +726,7 @@ const state = (
     return made;
   };
 
-  const step = (
-    nextBuilds: Builds,
-    nextMembers: Record<string, unknown>,
-    nextTraits: Record<string, unknown>,
-    nextSeal: Seal | undefined,
-    nextOpen: boolean,
-  ): object => state(tag, nextBuilds, nextMembers, nextTraits, nextSeal, false, nextOpen);
-
-  const self: object = new Proxy(
+  return new Proxy(
     {},
     {
       get(_, key) {
@@ -730,33 +747,10 @@ const state = (
         }
         if (key === Tag) return byTag;
         if (key === "__valof_traits") return traits;
-        if (key === "impl") {
-          return open
-            ? (fns: Payload) => step(builds, { ...members, ...duals(fns) }, traits, seal, false)
-            : undefined;
-        }
-        if (key === "implVariant") {
-          return (name: string, build: (steps: object) => object) =>
-            step({ ...builds, [name]: build }, members, traits, seal, open);
-        }
-        if (key === "implSeal") {
-          return first ? (custom: Seal) => step(builds, members, traits, custom, open) : undefined;
-        }
-        if (key === "implTrait") {
-          // The trait's own members and the enum's, merged the way `val.ts` merges them.
-          return (
-            trait: { __valof_shared: Record<string, unknown> },
-            fns: Record<string, unknown> = {},
-          ) => {
-            const grown = { ...traits, ...trait.__valof_shared, ...fns };
-            return step(builds, { ...members, ...duals(grown) }, grown, seal, open);
-          };
-        }
         return frame(key);
       },
     },
   );
-  return self;
 };
 
 /**
@@ -768,4 +762,4 @@ const state = (
  * @experimental
  */
 export const companion = <E extends AnyEnum>(...tag: TagArg<E>): EnumBuilder<E> =>
-  state(tag[0] ?? "_tag", {}, {}, {}, undefined, true, true) as EnumBuilder<E>;
+  builder(tag[0] ?? "_tag", {}, {}, {}, undefined) as EnumBuilder<E>;

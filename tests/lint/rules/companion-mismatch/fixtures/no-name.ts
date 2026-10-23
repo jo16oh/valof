@@ -4,6 +4,6 @@ type User = Val<"User", { id: string; name: string }>;
 
 const { greet } = Val.companion<User>().impl({
   greet: (u) => u.name,
-});
+}).build();
 
 export const shout = (u: User): string => greet(u).toUpperCase();

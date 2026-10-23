@@ -14,7 +14,6 @@ export {
   BrandMismatch,
   BypassedCompanion,
   CompanionMismatch,
-  DetachedImpl,
   DuplicateBrand,
   IncompleteDisable,
   SplitCompanion,

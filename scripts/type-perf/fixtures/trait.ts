@@ -12,17 +12,21 @@ type Named = Trait<
     shout: Final<(self: Self) => string>;
   }
 >;
-const Named = Trait.companion<Named>().impl({
-  greet: (n) => `Hi, ${n.name}`,
-  shout: (n) => n.name.toUpperCase(),
-});
+const Named = Trait.companion<Named>()
+  .impl({
+    greet: (n) => `Hi, ${n.name}`,
+    shout: (n) => n.name.toUpperCase(),
+  })
+  .build();
 
 type Sized = Trait<
   "Sized",
   { size: { w: number; h: number } },
   { scaled: (self: Self, by: number) => number; area: (self: Self) => number }
 >;
-const Sized = Trait.companion<Sized>().impl({ area: (s) => s.size.w * s.size.h });
+const Sized = Trait.companion<Sized>()
+  .impl({ area: (s) => s.size.w * s.size.h })
+  .build();
 
 type Room = Val<
   "Room",
@@ -36,17 +40,21 @@ const Room = Val.companion<Room>()
     describe(r): string {
       return `${r.name} ${Room.area(r)}`;
     },
-  });
+  })
+  .build();
 
 type Tag = Val<"Tag", { name: string; kind: string }, Named>;
-const Tag = Val.companion<Tag>().implTrait(Named, {
-  label: (t, sep) => `${t.kind}${sep}${t.name}`,
-});
+const Tag = Val.companion<Tag>()
+  .implTrait(Named, {
+    label: (t, sep) => `${t.kind}${sep}${t.name}`,
+  })
+  .build();
 
 type Point = Val<"Point", { name: string; size: { w: number; h: number } }, Named & Sized>;
 const Point = Val.companion<Point>()
   .implTrait(Named, { label: (p, sep) => `${p.name}${sep}` })
-  .implTrait(Sized, { scaled: (p, by) => p.size.w * by });
+  .implTrait(Sized, { scaled: (p, by) => p.size.w * by })
+  .build();
 
 // A Val carrying a trait, nested in one that carries another: the payload check has to stop at
 // the brand rather than walk the trait's own shape.
@@ -57,7 +65,8 @@ type Floor = Val<
 >;
 const Floor = Val.companion<Floor>()
   .implTrait(Named, { label: (f, sep) => `${f.name}${sep}${f.main.id}` })
-  .implTrait(Sized, { scaled: (f, by) => f.size.h * by });
+  .implTrait(Sized, { scaled: (f, by) => f.size.h * by })
+  .build();
 
 declare const floor: Floor;
 declare const room: Room;
