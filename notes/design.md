@@ -26,14 +26,14 @@ import { Val } from "valof";
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed`（2026-10-22 に型引数の `Unpatchable` へ、§6.12）と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
-  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、Proxy を残す判断
+  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、`.build()` で鎖を閉じること（§13.6 を覆した）、Proxy を残す判断
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
 - **§11 型エラーをどこで表面化させるか** パラメータ位置（A）と判定位置（B、`Verdict`）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
-- **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ
+- **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ（§13.6 のビルダーは 2026-10-23 に採った）
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
@@ -2056,11 +2056,72 @@ Val.companion<Account, [Unpatchable<"id">]>()
 #### 書き方が 2 つあるものの整理
 
 - **引数なしの `.impl()` を廃止した。**Enum と Variant も。鎖を閉じるための形だったが、`impl` が鎖を
-  閉じなくなったので役目が無い。`Val.companion<X>()` がそのままコンパニオン
+  閉じなくなったので役目が無い。`Val.companion<X>()` がそのままコンパニオン（2026-10-23 からは
+  `.build()` が閉じる。下の「`.build()` で鎖を閉じる」）
 - **残す: trait の final を 2 つの名前で呼べること。**`User.shout(u)` と `Greetable.shout(u)`。ジェネリックな
   関数（`<T extends Greetable>`）の中では trait 側からしか呼べない
 - 意図的に 2 通りのもの: data-first / data-last（§6.11）、`patch` と `seal({ ...u, x })`（同一性と深い
   マージ）、`X.seal` と `Val.of`（コンパニオンの無い型のため。ある型では `bypassed-companion` が警告）
+
+#### `.build()` で鎖を閉じる、2026-10-23
+
+Val / Enum / Trait の 3 つとも、`.companion()` で始めて `.build()` で閉じる。§13.6 の却下を覆した。
+v0.11 の破壊的変更。既存のコードは `.build()` を足すだけで移れる。
+
+```ts
+const User = Val.companion<User>().impl({ … }).build();
+const Shape = Enum.companion<Shape>().implSeal(…).build();
+const Greetable = Trait.companion<Greetable>().impl({ … }).build();
+```
+
+**§13.6 の却下理由と今。**
+
+- 「全ケースで長くなる」: 残る。メンバの無い Val も `.build()` を書く。入口の名前は変えない
+- 「`.build()` は純粋な儀式」「TS ではオブジェクトリテラルがビルダー」: 当時は `.impl({…})` 1 回だった。
+  今は `implSeal` / `implCreate` / `impl` / `implTrait` が並び、段の鎖そのものがビルダーになった。Enum の
+  作り直し（§9）では段がさらに増える
+- **`sealer` を消した（上）。**`sealer()` は「そのまま companion を返す」と強く読め、`.build()` が続くと
+  読めない。`companion().build()` は「companion を組み立てる」と読める
+
+**解決すること。**
+
+- **detach。**閉じた companion に段が無いので、`User.impl(evil)` や `Shape.implSeal(evil)` は型で書けない。
+  `detached-impl`（§9）が要らなくなり、消した。「companion は 1 箇所」が lint の規則から型の不変条件になる
+- **段の名前の予約。**メンバと段が同じオブジェクトに並ばないので、Val / Trait のメンバも Enum の
+  Variant 名も `impl` / `implTrait` / `build` を名乗れる。`Rejected` から `Steps` を、`Fault` から段の
+  名前を外した。lint の `RESERVED` も同じ
+- **補完。**companion には `seal` / `create` / `patch` とメンバだけが出る
+- Rust のビルダーと同じ形
+
+**解決しないこと。**
+
+- **2 つ目の companion。**別の場所で `Val.companion<User>().implSeal(evil).build()` を作る経路は残る。
+  `split-companion` / `companion-mismatch` の担当
+- **`implVariant` の callback が返す枠。**今の枠は `impl` / `implSeal` を持ったまま companion に載るので、
+  `Shape.Circle.implSeal(evil)` は型を通る。`implVariant` は Enum の作り直しで消すので、この PR では
+  触らなかった。`detached-impl` を消したので、作り直しまでは lint も拾わない
+- **作り直しの E では Variant 名を再び予約する。**builder に `.Circle` と段が並ぶため。そこで `build` も
+  加える
+
+**`.build()` を忘れたときの案内。**エラーは使う側に出る（定義した行ではない）。builder の `seal` /
+`create` / `patch`（Val）、`seal` / `match`（Enum）、`dyn`（Trait）を `CallBuildFirst` 型にした。
+
+- `User.seal(p)` は「Type 'CallBuildFirst' has no call signatures」、companion を受ける関数に渡すと
+  `seal` の不一致まで降りて `CallBuildFirst` が出る
+- **出るのは型の名前で、中の文字列ではない。**だから名前そのものを読める指示にした。却下: probe の
+  `Unbuilt`。何をすべきかが読めない
+- **案内は companion が持つライブラリの名前すべてに置く。**ユーザーのメンバ（`User.greet`）は案内できず、
+  「`CompanionBuilder<…>` に無い」になる
+- 実行時の builder にこれらの名前は無い
+
+**実行時。**builder は段と `build` だけを持つ素のオブジェクトにした。段の順序は型だけが強制する
+（以前は後半の段で前半の段を実行時にも消していた。メンバが段の名前を取れたため）。Enum の builder は
+Proxy をやめ、`build()` が今までの Proxy の companion を返す。Variant の名前が分かるのは companion だけで
+よい。Proxy は段の名前を読まなくなったので、`Shape.impl` は Variant `impl` の枠になる。
+
+**計測。**type-perf: core 6,866 → 6,544、trait 17,729 → 17,120、enum 44,895 → 45,815、`index.d.ts`
+69.67 kB → 69.95 kB。production gzip: Val 887 → 857 B、Enum の増分 +449 → +415 B、Trait の増分
++108 → +110 B。
 
 #### Proxy は残す
 
@@ -2516,6 +2577,7 @@ User.patch(user, { id: "forged" }); // 型エラー
       報告する（`Shape.Circle.implSeal` のようにドット付きの基底も、enum companion として）。無関係な
       `.impl` は何にも解決せず黙る。これで「companion は 1 箇所」が仮定から不変条件になり、
       `unused-member` と `companion-mismatch` の数え方が今のまま正しい（§15.4）
+  - 2026-10-23: 消した。`.build()` で閉じた companion に段が無いので、型が書かせない（§6.12）
 - [ ] `Unpatchable` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
@@ -2559,6 +2621,8 @@ User.patch(user, { id: "forged" }); // 型エラー
   - Variant の `create` は `implCreate` を書いたときだけ生やす。今の Variant の `create` は「タグを足す
     seal」で、Val の `create`（payload を生成する）と意味がずれている
   - Enum の `PrivateSeal` もここで入れる（§6.12）
+  - `implVariant` の枠に残る `impl` / `implSeal` をここで消す。`Shape.Circle.implSeal(evil)` は
+    `.build()` の後も型を通る（§6.12「`.build()` で鎖を閉じる」）
   - `implSeal` の書き方の案
     - 文字列: `implSeal(fn)` と `implSeal("Circle", fn)`。修飾が無いものが型そのもの、と読める
     - 修飾子: `implSeal.Circle(fn)`、`implCreate.Circle.noseal(fn)`。`implCreate.noseal` と揃い、補完に
@@ -2903,6 +2967,9 @@ companion<Age>((n: number): Result<Age> => …);
 
 ### 13.6 却下: Rust 風のビルダー
 
+**2026-10-23: 覆した。全 companion の鎖を `.build()` で閉じる（§6.12「`.build()` で鎖を閉じる」）。**
+下の却下理由のうち、長くなることだけが残る。
+
 ```ts
 Val.builder<Age>().from(fn).impl({ label }).build();
 ```
@@ -2917,7 +2984,7 @@ Val.builder<Age>().from(fn).impl({ label }).build();
 
 ### 13.7 採用: `sealer` / `companion` + `.impl()`
 
-**2026-10-21: `sealer` を廃止し、`companion` 1 本にした（§6.12）。**引数なしの `.impl()` も無くなった。`Val.companion<V>()` がそのまま companion。
+**2026-10-21: `sealer` を廃止し、`companion` 1 本にした（§6.12）。**引数なしの `.impl()` も無くなった。`Val.companion<V>()` がそのまま companion。**2026-10-23: `.build()` で閉じる形にした（§13.6）。**
 
 - **`sealer`**: `-er` を付けたのは `Val.of` と読み違えられないため。値ではなく関数を返すことが名前から分かる
 - **`.impl()`**: 当初は `.companion()`（sealer 側）と `()({...})`（companion 側）で付与手段が 2 つに割れており、違いは「呼べるか否か」だけで分かりにくかった。`.impl()` に統一したことで、差が `sealer` か `companion` かという**意味のある軸だけ**に寄った。`methods` は class を連想させるので不採用（値にメソッドは生えない）。`fns` は中身が全部関数なので同語反復。Rust の `impl` ブロックとも一致する
@@ -6314,7 +6381,7 @@ Enum の検査は通る。書かなかった Variant は、Enum の seal がそ�
 `VariantOf<E, N>` に置き換える。`Result<Shape, E>` のように union を内側に持つ戻りは素通しで、そこの
 union は union のまま。ライブラリは中を見ない。
 
-**鎖は `impl` で閉じる。**`Val` の `Sealer.impl()` が `Sealed` を返すのと同じ。閉じないと、export した
+**鎖は `impl` で閉じる。**（2026-10-23: 今は `.build()` が閉じる。§6.12）`Val` の `Sealer.impl()` が `Sealed` を返すのと同じ。閉じないと、export した
 companion にステップが載ったままで、`Shape.implSeal((p, seal) => seal(p))` が検査を外した別の Shape を
 その場で作れる。`implSeal` / `implVariant` / `implTrait` だけが builder を返し、union のメンバが無ければ
 `impl()`。代償は `Val` と同じで、`implVariant` の callback から `impl` のメンバを読めないこと。
@@ -6985,6 +7052,9 @@ TS2349。`NoInfer<M>` も `M & ThisType<Sealed<V, M>>` も同じ。`self` から
 `.impl` が開いたままなので、export した companion に別のファイルから生やせる。返るのは新しい
 オブジェクトで、元の companion も既存の値も変わらない（Scala の scoped extension に近く、Rust の
 coherence のような一貫性の問題は起きない）。
+
+**2026-10-23: 型で塞いだ。**`.build()` で閉じた companion に段が無い（§6.12「`.build()` で鎖を閉じる」）。
+`detached-impl` は消した。以下は当時の判断。
 
 **型では塞がない。**塞ぐ形（`impl` を持たない型を返す段をもう 1 つ）は鎖を 2 種類にする。lint の
 `detached-impl` で「`Val.companion` / `Val.sealer` / `Enum.*` / `Trait.companion` から繋がっていない
