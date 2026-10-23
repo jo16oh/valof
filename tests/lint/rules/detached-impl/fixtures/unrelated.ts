@@ -1,3 +1,3 @@
-const store = { impl: (value: number) => value, fixed: () => 0 };
+const store = { impl: (value: number) => value };
 
-export const out = [store.impl(1), store.fixed()];
+export const out = [store.impl(1)];

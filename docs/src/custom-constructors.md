@@ -139,14 +139,15 @@ seal to be normalized. The function passed to `.noseal` must always return a can
 production, `create` skips the custom seal. In development, it runs the seal and throws if the seal
 rejects or normalizes the payload.
 
-## Keep generated fields fixed
+## Protect generated fields
 
-`create` can generate an id, a `createdAt` or a version counter. `.fixed` excludes those fields from
-`patch`:
+`create` can generate an id, a `createdAt` or a version counter. A second type argument to
+`Val.companion` protects those fields from callers. `Unpatchable` excludes them from `patch`, and
+`PrivateSeal` removes `seal` from the companion, so a caller cannot pass an id of their own:
 
 ```ts
-// @errors: 2353
-import { Val, type SeedOf } from "valof";
+// @errors: 2353 2339
+import { Val, type PrivateSeal, type SeedOf, type Unpatchable } from "valof";
 
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 declare function ok<T>(value: T): Result<T>;
@@ -157,8 +158,7 @@ declare const user: User;
 // ---cut---
 type User = Val<"User", { id: string; name: string; email: string }>;
 
-const User = Val.companion<User>()
-  .fixed<"id">()
+const User = Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()
   .implSeal((user, seal) => seal(normalize(user)))
   .implCreate((fields: Omit<SeedOf<User>, "id">) => ({
     id: crypto.randomUUID(),
@@ -167,13 +167,14 @@ const User = Val.companion<User>()
 
 User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // type error
+User.seal({ id: "forged", name: "sue", email: "" }); // type error
 ```
 
-Write the steps in this order: `.fixed`, then `.implSeal`, then `.implCreate`.
+Write `.implSeal` before `.implCreate`.
 
-The keys are a type argument, so they do not exist at runtime. This constrains `patch`, not the
-value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an
-id must be unforgeable, it belongs outside the value.
+`PrivateSeal` and `Unpatchable` are types, so they do not exist at runtime. They constrain `patch`
+and `seal`, not the value. `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch
+typed `any`. If an id must be unforgeable, it belongs outside the value.
 
 ## Parse, don't validate
 

@@ -351,8 +351,8 @@ type CheckedSeal<G extends (...args: never[]) => unknown> = Synchronous<
  * A variant's frame on a companion: `create`, `patch`, a `seal` where one was registered, and
  * whatever `implVariant` wrote for it.
  *
- * The constructor does not take the tag and `patch` cannot reach it, the way `.fixed` excludes a
- * key from `patch`.
+ * The constructor does not take the tag and `patch` cannot reach it, the way `Unpatchable` excludes
+ * a key from `patch`.
  *
  * What the seals produce arrives as `R` rather than being read off `FE` and `FV` at each member:
  * one instantiation for the frame instead of one per signature.

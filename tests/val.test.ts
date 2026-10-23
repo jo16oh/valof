@@ -1,5 +1,13 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import type { AnyVal, Patch, PayloadOf, Rec, SeedOf } from "../src/index.ts";
+import type {
+  AnyVal,
+  Patch,
+  PayloadOf,
+  PrivateSeal,
+  Rec,
+  SeedOf,
+  Unpatchable,
+} from "../src/index.ts";
 import { equals, Val } from "../src/index.ts";
 import { Trait, type Final, type Self } from "../src/experimental.ts";
 // `BrandOf` is not published from the entry point.
@@ -1333,22 +1341,14 @@ describe("building", () => {
     // Every message is the type a parameter takes, so passing or naming the literal is what pins
     // the wording.
     test("a step written too late says which one it belongs before", () => {
-      const sealed = Val.companion<Account>().implSeal(seal);
-      // @ts-expect-error write `fixed` before `implSeal` and `implCreate`
-      sealed.fixed<"id">();
-      sealed.fixed<"write `fixed` before `implSeal` and `implCreate`">();
-
       const created = Val.companion<Account>().implCreate(create);
-      // @ts-expect-error write `fixed` before `implSeal` and `implCreate`
-      created.fixed<"id">();
       // @ts-expect-error write `implSeal` before `implCreate`
       created.implSeal(seal);
       created.implSeal("write `implSeal` before `implCreate`");
     });
 
     test("each step of the first half is written once", () => {
-      const all = Val.companion<Account>().fixed<"id">().implSeal(seal).implCreate(create);
-      expectTypeOf(Val.companion<Account>().fixed<"id">()).not.toHaveProperty("fixed");
+      const all = Val.companion<Account>().implSeal(seal).implCreate(create);
       expectTypeOf(all).not.toHaveProperty("implSeal");
       expectTypeOf(all).not.toHaveProperty("implCreate");
     });
@@ -1359,17 +1359,11 @@ describe("building", () => {
       type Held = Val<"Held", { id: string; owner: string }, Owned>;
       const members = Val.companion<Account>().impl({ owned: (a) => a.owner });
       const traits = Val.companion<Held>().implTrait(Owned, { owned: (h) => h.owner });
-      for (const step of ["fixed", "implSeal", "implCreate"] as const) {
+      for (const step of ["implSeal", "implCreate"] as const) {
         expectTypeOf(members).not.toHaveProperty(step);
         expectTypeOf(traits).not.toHaveProperty(step);
         expect([step in members, step in traits]).toEqual([false, false]);
       }
-    });
-
-    // The first half is gone by then, so a member takes a name a step of it had.
-    test("so a member may take the name `fixed`", () => {
-      const Flags = Val.companion<Account>().impl({ fixed: (a) => a.id === "a1" });
-      expect(Flags.fixed(Flags.seal({ id: "a1", owner: "bob" }))).toBe(true);
     });
   });
 
@@ -1899,15 +1893,14 @@ describe("building", () => {
     });
   });
 
-  describe("fixed", () => {
+  describe("Unpatchable", () => {
     type Account = Val<"app/Account", { id: string; owner: string; note: string }>;
     type Fields = Omit<SeedOf<Account>, "id">;
 
     // The counter is closed over per companion, so a test never reads another test's ids.
     const account = () => {
       let created = 0;
-      return Val.companion<Account>()
-        .fixed<"id">()
+      return Val.companion<Account, [Unpatchable<"id">]>()
         .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim().toLowerCase() }))
         .implCreate((f: Fields): SeedOf<Account> => {
           created += 1;
@@ -1935,7 +1928,59 @@ describe("building", () => {
 
     test("keys must exist on the payload", () => {
       // @ts-expect-error there is no such field
-      Val.companion<Account>().fixed<"nope">();
+      Val.companion<Account, [Unpatchable<"nope">]>();
+    });
+
+    // An intersection of two would collapse to `never` and take nothing out.
+    test("the keys of every `Unpatchable` in the list are taken out", () => {
+      const Account = Val.companion<Account, [Unpatchable<"id">, Unpatchable<"owner">]>();
+      expectTypeOf<Parameters<typeof Account.patch>>().toEqualTypeOf<
+        [Account, Patch<Pick<SeedOf<Account>, "note">>]
+      >();
+    });
+
+    test("anything but the markers is rejected", () => {
+      // @ts-expect-error a key alone is not a marker
+      Val.companion<Account, ["id"]>();
+    });
+  });
+
+  describe("PrivateSeal", () => {
+    type Account = Val<"SealedAccount", { id: string; owner: string }>;
+    const Account = Val.companion<Account, [PrivateSeal]>()
+      .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim() }))
+      .implCreate((owner: string) => ({ id: "a1", owner }));
+
+    test("takes `seal` off the companion, so a caller cannot pass what `create` generates", () => {
+      expectTypeOf(Account).not.toHaveProperty("seal");
+    });
+
+    test("`create` and `patch` still go through the seal", () => {
+      const a = Account.create(" bob ");
+      expect([a, Account.patch(a, { owner: " sue " })]).toEqual([
+        { id: "a1", owner: "bob" },
+        { id: "a1", owner: "sue" },
+      ]);
+    });
+  });
+
+  describe("PrivateSeal and Unpatchable together", () => {
+    type Owned = Trait<"OptionOwned", { owner: string }, { owned: (self: Self) => string }>;
+    const Owned = Trait.companion<Owned>();
+    type Held = Val<"OptionHeld", { id: string; owner: string }, Owned>;
+    const held = () => Val.companion<Held, [PrivateSeal, Unpatchable<"id">]>();
+    type Patched = Parameters<ReturnType<typeof held>["patch"]>;
+
+    // Each step builds the companion's type again, so each has to pass the list on.
+    test("hold through every later step", () => {
+      const members = held().impl({ label: (h) => h.owner });
+      const traits = held().implTrait(Owned, { owned: (h) => h.owner });
+      const created = held().implCreate.noseal(() => ({ id: "h1", owner: "bob" }));
+      expectTypeOf<Patched>().toEqualTypeOf<[Held, Patch<{ owner: string }>]>();
+      expectTypeOf<Parameters<typeof members.patch>>().toEqualTypeOf<Patched>();
+      expectTypeOf<Parameters<typeof traits.patch>>().toEqualTypeOf<Patched>();
+      expectTypeOf<Parameters<typeof created.patch>>().toEqualTypeOf<Patched>();
+      expectTypeOf(members).not.toHaveProperty("seal");
     });
   });
 
@@ -2061,10 +2106,9 @@ describe("building", () => {
       expectTypeOf<Both>().toExtend<AnyVal>();
     });
 
-    test("create, seal, fixed and patch keep working beside a trait", () => {
+    test("create, seal and patch keep working beside a trait", () => {
       type Ticket = Val<"Ticket", { id: string; name: string }, Greetable>;
       const Ticket = Val.companion<Ticket>()
-        .fixed<"id">()
         .implSeal((seed, seal) => seal(seed))
         .implCreate((name: string) => ({ id: "t1", name }))
         .implTrait(Greetable, { toWire: (t, sep) => `${t.id}${sep}${t.name}` });

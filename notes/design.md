@@ -25,8 +25,8 @@ import { Val } from "valof";
   - **6.1** コンストラクタは出自で決まる / **6.2** `patch`、patch の `undefined`、深さを問わない patch、merge できるのは既にあるノードだけ / **6.3** Result 非依存 / **6.4** `update` を削除する
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
-  - **6.9** 名前が `seal` になるまで / **6.10** `fixed` と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
-  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由（`PrivateSeal` と `Unpatchable` を型引数へ）、鎖の前半と後半、`impl` が鎖を閉じないこと、Proxy を残す判断
+  - **6.9** 名前が `seal` になるまで / **6.10** `fixed`（2026-10-22 に型引数の `Unpatchable` へ、§6.12）と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
+  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、Proxy を残す判断
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
@@ -1489,7 +1489,7 @@ const Money = Val.companion<Money>()
 
 | 当時の動機                           | 現在                                                                                                    |
 | ------------------------------------ | ------------------------------------------------------------------------------------------------------- |
-| 生成した `id` を更新経路から外す     | `.fixed`（§6.10）                                                                                       |
+| 生成した `id` を更新経路から外す     | `Unpatchable`（§6.10、§6.12）                                                                           |
 | seal の引数が payload より狭い       | `CheckedSeal` が `implSeal` の登録時に落とす（§6.10）                                                   |
 | プリミティブ Val に `patch` を生やす | 患部が無い。merge するものを持たない型に `patch` は嘘。配列はコンストラクタか `seal` で作り直す（§6.4） |
 
@@ -1718,6 +1718,8 @@ custom seal の中で値を作るには `Val.of<Age>(n)` と型引数を書く�
 **残るリスクは `Object.seal` / `sealed class` との混線。** JS の `Object.seal` は実行時にプロパティ追加を禁じる操作だが、valof は凍結しない（§7.1）。Rust / Scala / Kotlin の `sealed` は型宣言に付く形容詞（閉じた継承階層）だが、こちらは値を作る動詞。valof には subtyping も variant もないので誤読の材料は薄いが、README と doc に一行で潰しておく。
 
 ### 6.10 `fixed`: 派生経路から外すキー
+
+**2026-10-22 に companion の型引数 `Unpatchable<K>` へ移した（§6.12）。**下は段だった頃の記録。
 
 `create` が生成した `id` を派生経路から触らせない、という §8.4 のパターンは、**`patch` を上書きする**ことでしか書けなかった。上書きの中身は既定と 1 文字も違わず、**唯一の内容は patch の型**である。§6.5 / §6.6 で「ラバースタンプを書かせない」と決めておきながら、最も頻出するパターンでそれを強制していた。
 
@@ -1954,10 +1956,10 @@ const bob = User.seal({ id: "a", name: "bob" }); // implSeal が無ければ既�
 #### seal を隠す段: 入れなかった
 
 `.private<K extends "seal" | "create">()`（`fixed` と同じく型だけの段）を一度入れて、同じ PR で外した。
-companion の型引数に移す（`Val.companion<User, PrivateSeal & Unpatchable<"id">>()`）。
+companion の型引数に移した（`Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()`、2026-10-22）。
 
 - **型だけで効く宣言を、値の段で書いていた。**実行時に何もしない段が鎖に残り、前半の順序と予約名の
-  問題を作っていた。Enum の第 3 引数（`Tag<"kind"> & …`）と同じく、マーカーの交差で渡す
+  問題を作っていた
 - **隠す対象は `seal` だけでよい。**`create` を公開しても、出力は必ず seal を通るので不変条件は破れない。
   `seal` を公開すると、`create` が生成するはずのフィールドを呼び出し側が渡せる（`User.seal({ id:
 "forged", … })`）。`create` を隠すのは公開する面を整えるだけで、docs の 3 段（parse は `implAssoc`、
@@ -1981,13 +1983,45 @@ companion の型引数に移す（`Val.companion<User, PrivateSeal & Unpatchable
     そこから届く。拒ませると `Shape.seal` の意味がずれ、動作が暗黙になる
   - 1 つの Variant だけ守りたいときは、守りたいものを payload の Val に移して、その Val の seal を隠す
     （`Pending { id: PendingId }`）
+- `PrivateSeal` を付けた型では、メンバも `User.seal` を呼べない。`implAssoc`（§9）が入るまで、作る経路は
+  `create`、`patch`、`Val.of` だけ
+
+#### マーカーはタプルで渡す、2026-10-22
+
+```ts
+Val.companion<User, [PrivateSeal, Unpatchable<"id">]>();
+```
+
+制約は `const O extends readonly (PrivateSeal | Unpatchable<keyof SeedOf<V> & string>)[] = []`。マーカーは
+`Tag` と同じ phantom class。間違いはすべて `O` の位置で落ちる（`[Unpatchable<"idd">]`、`["id"]`、
+括弧を忘れた `Unpatchable<"id">`）。`Unpatchable` を 2 つ並べると両方のキーを外す。
+
+**却下: マーカーの交差（`PrivateSeal & Unpatchable<"id">`）。**最初はこの形で probe した。
+
+- `Unpatchable<"a"> & Unpatchable<"b">` は、リテラル型のプロパティがぶつかって交差全体が `never` に潰れる。
+  `never` はどの制約も満たすので、`O` の制約では拒めない。黙って何も外さない。`PrivateSeal` を交差に
+  含めても一緒に消え、seal が公開される
+- 拒むには、検査を `V` の制約（`V extends AnyVal & NotEnum<V> & Markers<O>`）に置くしかない。エラーが
+  `User` の位置に出て、原因はメッセージまで読まないと分からない。`O` の制約に書くと、既定値を見分ける
+  `unknown extends O` が TS2313（circular constraint）になる
+- 既定値を `never` にすると無関係な型（`"id"`）は `O` の位置で拒めるが、2 回書いた形が既定値と同じ型に
+  なり、どこでも拒めない
+- 無関係な型を拒むために、phantom class でなく省略可能なキーを持つオブジェクト型にする案も見た。
+  TS2559 で拒めるが、`__valof_*` のキーが hover に出る。タプルなら phantom class のまま拒める
+
+**Trait と Enum の第 3 引数は交差のまま。**あちらは型の宣言で、こちらは companion の設定。§15.1 で
+Trait のタプルを退けた理由（交差が仕掛けの本体、最も多く instantiate される `Val` に畳み込みが乗る）は
+こちらには当たらない。オプションは読むだけで、companion の型引数は型ごとに 1 回しか instantiate されない。
+`[PrivateSeal | Unpatchable<"id">]` と書くと両方を指定したと読むが、意図とずれにくいので拒まない。
+
+**計測。**type-perf: core 6,885 → 6,866、trait 17,649 → 17,729、enum 44,827 → 44,895、`index.d.ts`
+68.45 kB → 69.66 kB（主に 2 つのマーカーの JSDoc）。production gzip: Val 897 → 887 B。
 
 #### 鎖の順
 
 ```ts
-Val.companion<Account>()
-  .fixed<"id">() // 前半: fixed → implSeal → implCreate
-  .implSeal(seal)
+Val.companion<Account, [Unpatchable<"id">]>()
+  .implSeal(seal) // 前半: implSeal → implCreate
   .implCreate(create)
   .impl({ … }) // 後半: impl（1 回）と implTrait（複数回）は順不同
   .implTrait(Named, { … });
@@ -1998,15 +2032,13 @@ Val.companion<Account>()
 - 後の段がこれらの結果に依存する。`implAssoc` の callback に渡す `seal` / `create` の型がここで決まる。
   `create` の出力は seal を通る
 - `implSeal` は不変条件の記述で型に近いので、生成より先に置く
-- 遅れて書いた段は理由を言う（`` write `fixed` before `implSeal` and `implCreate` ``、
-  `` write `implSeal` before `implCreate` ``）。`fixed` は型引数の制約に、`implSeal` は引数の型に置く。
-  TS2339 にしない
+- 遅れて書いた段は理由を言う（`` write `implSeal` before `implCreate` ``）。引数の型に置き、TS2339 に
+  しない
 - 2 回目の段は型から消すだけにした。TS2339 で十分に読める
 
 **後半はメンバの登録で、順不同。**登録は互いに依存しない。メンバどうしはコンパニオンの名前を通して呼ぶ。
 
-- 後半の段を 1 つ書いたら、前半の段は型と実行時の両方から消える。メンバは `fixed` を名前に取れる
-  （予約名ではない）
+- 後半の段を 1 つ書いたら、前半の段は型と実行時の両方から消える
 - **`impl` は鎖を閉じない。**§15.4 で閉じた理由は seal の段を残さないことで、seal は後半の最初の段で
   落ちる。`impl` 自身は 1 回
 - 名前の重複はどの向きでも型で拒む。`implTrait` が `impl` の後に来ても、`Takes` が
@@ -2255,21 +2287,20 @@ export function parseUser(json: string): Result<User> {
 
 ### 8.4 更新経路から外したいフィールド
 
-コンストラクタ内で生成する ID、`createdAt`、バージョン番号。`create` が生成し、seal が封をし、`.fixed`（§6.10）が更新経路から外す。
+コンストラクタ内で生成する ID、`createdAt`、バージョン番号。`create` が生成し、seal が封をし、`Unpatchable`（§6.12）が更新経路から外す。
 
 ```ts
 type Fields = Omit<SeedOf<User>, "id">;
 
-export const User = Val.companion<User>()
-  .implCreate((f: Fields): SeedOf<User> => ({ id: crypto.randomUUID(), ...f }))
+export const User = Val.companion<User, [Unpatchable<"id">]>()
   .implSeal((u, seal) => seal(normalize(u)))
-  .fixed<"id">();
+  .implCreate((f: Fields): SeedOf<User> => ({ id: crypto.randomUUID(), ...f }));
 
 User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // 型エラー
 ```
 
-payload 全体を作り直す経路（コンストラクタ、`seal`）は塞がらない。`id` を自分で書けるので、これは「通常の更新経路が動かせない」だけの保証である。
+`seal` は payload 全体を受け取るので、`id` を自分で書ける。`PrivateSeal` を足すと `seal` が型から消え（§6.12）、作る経路は `create` だけになる。
 
 **それでもこれは private ではない。** `user.id` は読めるし、`readonly` は実行時に消えるし、`Val.of<User>({ id: "forged", … })` で偽造できる。得られるのは「通常の更新経路が `id` を動かせない」だけ。偽造も防ぎたいなら `id` は値の外に持つ。
 
@@ -2485,7 +2516,7 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
       報告する（`Shape.Circle.implSeal` のようにドット付きの基底も、enum companion として）。無関係な
       `.impl` は何にも解決せず黙る。これで「companion は 1 箇所」が仮定から不変条件になり、
       `unused-member` と `companion-mismatch` の数え方が今のまま正しい（§15.4）
-- [ ] `fixed` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
+- [ ] `Unpatchable` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
@@ -2536,9 +2567,9 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
     - レコード: `implSeal({ Circle: fn })`。全体を指すものが名前に出ないので弱い
   - §15.2「却下: enum に seal を 1 本書く」の理由のうち、「書く量が変わらない」「`match` で TS7022」は
     弱い（`switch (p._tag)` で書ける）。残るのは戻り型が Variant ごとに分かれないこと
-- [ ] **valof-lint の誤検出、§6.12 から。valof-lint を valof で書き直した後に直す。**`detached-impl` が、
-      `fixed` という名前のメンバを別ファイルから呼ぶと「鎖の外で書いた段」と報告する。`STEPS` がメンバの
-      呼び出しと段を区別しない。`fixed` を型引数（`Unpatchable<K>`）に移せば段ごと消える
+- [x] ~~**valof-lint の誤検出、§6.12 から。**`detached-impl` が、`fixed` という名前のメンバを別ファイルから
+      呼ぶと「鎖の外で書いた段」と報告する。~~ → `fixed` を型引数に移して `STEPS` から外し、消えた
+      （2026-10-22）。段と同じ名前のメンバは型が拒むので、ほかに同じ誤検出は起きない
 - [x] ~~valof-lint の規則 `brand-mismatch` を実装する（§14.12）~~ → 実装した。`incomplete-disable`（§14.14）と `unused-disable`（§14.15）も入れて規則は 6 つ
 - [x] ~~valof-lint が `Trait` を知らない。~~ Trait の宣言、companion、`implTrait`、`dyn` を構文から追跡する。
       足すのは 2 種類
@@ -2604,7 +2635,7 @@ payload 全体を作り直す経路（コンストラクタ、`seal`）は塞が
 - コンストラクタの登録を 2 系統に分ける（`implSeal` = 封をする唯一の関門 / `implCreate` = payload を生成して seal に流す、§6.7 / §6.8）
 - `.impl` のメソッドは第一引数が Val に固定され、注釈不要（§6.5）
 - `patch`（Result 非依存、seal を通る。上書きはさせない、§6.6）
-- `.fixed<K>()`（更新経路から外すキーを型引数で宣言、§6.10）
+- `Unpatchable<K>` と `PrivateSeal`（companion の型引数で、`patch` からキーを外す / `seal` を隠す、§6.12）
 - `Val.of`（既定の seal を型名つきで呼ぶ形、§2.2）
 - `Val.unwrap`（可変なコピーを取り出す出口、§4）
 

@@ -550,16 +550,72 @@ type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
     : F
   : F;
 
-type Derivable<V extends AnyVal, P> = [P] extends [never]
+/** Type-only carrier for {@link PrivateSeal}. Private and protected members stay out of `keyof`. */
+declare class PrivateSealPhantom {
+  private readonly __valof_internal_phantom_private_seal: true;
+}
+
+/** Type-only carrier for {@link Unpatchable}. */
+declare class UnpatchablePhantom<K extends string> {
+  private readonly __valof_internal_phantom_unpatchable: K;
+  /** Declaration emit erases private field types; protected keeps the keys recoverable. */
+  protected readonly __valof_internal_phantom_unpatchable_types: K;
+}
+
+/**
+ * Takes `seal` off the companion. `create` and `patch` still go through it.
+ *
+ * For a type whose `create` generates what a caller must not pass, such as an id: with `seal`
+ * public, `User.seal({ id: "forged", … })` would make one.
+ *
+ * ```ts
+ * const User = Val.companion<User, [PrivateSeal]>()
+ *   .implSeal(seal)
+ *   .implCreate((name: string) => ({ id: crypto.randomUUID(), name }));
+ * ```
+ *
+ * The seal is hidden from the type alone: `Val.of` can still forge a value.
+ */
+export type PrivateSeal = PrivateSealPhantom;
+
+/**
+ * Takes keys out of `patch`: its patch stops accepting them.
+ *
+ * For what a `create` generates and nothing afterwards may change: an id, a `createdAt`, a version
+ * counter.
+ *
+ * ```ts
+ * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>();
+ * ```
+ *
+ * The keys do not exist at runtime. This constrains `patch`, not the value: `Val.of` can still
+ * forge one.
+ */
+export type Unpatchable<K extends string> = UnpatchablePhantom<K>;
+
+/** What the list after the Val in `Val.companion<V, […]>` takes. */
+type CompanionOption<V extends AnyVal> = PrivateSeal | Unpatchable<keyof SeedOf<V> & string>;
+
+// A list, not an intersection: two `Unpatchable`s intersected collapse to `never`, which satisfies
+// every constraint and would read as no option at all.
+type Options = readonly unknown[];
+
+type UnpatchableKeys<O extends Options> = O[number] extends infer E
+  ? E extends UnpatchablePhantom<infer K>
+    ? K
+    : never
+  : never;
+
+type Derivable<V extends AnyVal, O extends Options> = [UnpatchableKeys<O>] extends [never]
   ? SeedOf<V>
-  : Omit<SeedOf<V>, P & keyof SeedOf<V>>;
+  : Omit<SeedOf<V>, UnpatchableKeys<O> & keyof SeedOf<V>>;
 
 /**
  * `patch` exists only when there is something to patch: `Patch` is `never` for primitives and
  * arrays, so for those the function is left out of the type. Write a named derivation of your
  * own instead, and seal inside it.
  */
-type PatchMethod<V extends AnyVal, F, P> = [Patch<Derivable<V, P>>] extends [never]
+type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<Derivable<V, O>>] extends [never]
   ? Record<never, never>
   : {
       /**
@@ -571,7 +627,7 @@ type PatchMethod<V extends AnyVal, F, P> = [Patch<Derivable<V, P>>] extends [nev
        * replace it outright, build the whole payload again through the constructor or `seal`.
        * See {@link Patch}.
        */
-      patch: Derive<V, F, Patch<Derivable<V, P>>>;
+      patch: Derive<V, F, Patch<Derivable<V, O>>>;
     };
 
 /**
@@ -585,11 +641,11 @@ export type Companion<
   M extends CompanionMembers<V>,
   N = undefined,
   F = undefined,
-  P = never,
+  O extends Options = [],
 > = Duals<Omit<M, Wired>, V> &
   CreateMethod<V, N, F> &
-  SealMethod<V, F> &
-  PatchMethod<V, F, P> & {
+  ([Extract<O[number], PrivateSealPhantom>] extends [never] ? SealMethod<V, F> : unknown) &
+  PatchMethod<V, F, O> & {
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
   };
@@ -648,20 +704,15 @@ export type Passes<Tr extends AnyTrait, G, I> =
       ? [impl?: I & Arity<I>]
       : [impl: I & Arity<I>];
 
-/** The steps a companion has taken. The first three are the first half of the chain. */
-type Taken = "fixed" | "implSeal" | "implCreate" | "impl" | "implTrait";
-
-/** Where `fixed` goes, once a step that belongs after it has been written. */
-type Early<D> = [Extract<D, "implSeal" | "implCreate">] extends [never]
-  ? never
-  : "write `fixed` before `implSeal` and `implCreate`";
+/** The steps a companion has taken. The first two are the first half of the chain. */
+type Taken = "implSeal" | "implCreate" | "impl" | "implTrait";
 
 /**
  * What `Val.companion` returns, which its steps add to.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
- * The first half sets up the gates, in this order: `fixed`, then `implSeal`, then `implCreate`.
+ * The first half sets up the gates, in this order: `implSeal`, then `implCreate`.
  * Each comes once. The second half registers members, `impl` once and `implTrait` for each trait,
  * in any order, and its first step ends the first half.
  *
@@ -672,11 +723,11 @@ export type CompanionBuilder<
   V extends AnyVal,
   N = undefined,
   F = undefined,
-  P = never,
+  O extends Options = [],
   T extends CompanionMembers<V> = Record<never, never>,
   D extends Taken = never,
-> = Companion<V, T, N, F, P> &
-  ([Extract<D, "impl" | "implTrait">] extends [never] ? FirstHalf<V, N, F, P, D> : unknown) &
+> = Companion<V, T, N, F, O> &
+  ([Extract<D, "impl" | "implTrait">] extends [never] ? FirstHalf<V, N, F, O, D> : unknown) &
   ("impl" extends D
     ? unknown
     : {
@@ -703,7 +754,7 @@ export type CompanionBuilder<
         // trait's signature while `dyn` kept calling what `implTrait` recorded.
         impl: <M extends CompanionMembers<V>>(
           fns: Grown<keyof T, M> & Arity<M>,
-        ) => CompanionBuilder<V, N, F, P, M & T, D | "impl">;
+        ) => CompanionBuilder<V, N, F, O, M & T, D | "impl">;
       }) & {
     /**
      * Implements a trait the type declares. The members the trait leaves open arrive as a second
@@ -721,58 +772,35 @@ export type CompanionBuilder<
     implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I>
-    ) => CompanionBuilder<V, N, F, P, T & Unbound<MembersOf<Tr>, V>, D | "implTrait">;
+    ) => CompanionBuilder<V, N, F, O, T & Unbound<MembersOf<Tr>, V>, D | "implTrait">;
   };
 
 /**
  * The steps that set up the gates. A step already taken is gone, and one written too late takes
- * the reason as its type argument or its parameter.
+ * the reason as its parameter.
  */
-type FirstHalf<V extends AnyVal, N, F, P, D extends Taken> = ("fixed" extends D
+type FirstHalf<V extends AnyVal, N, F, O extends Options, D extends Taken> = ("implSeal" extends D
   ? unknown
   : {
       /**
-       * Takes keys out of the derivation path: `patch` stops accepting them in its patch.
-       *
-       * For what a `create` generates and nothing afterwards may change: an id, a `createdAt`, a
-       * version counter.
-       *
-       * ```ts
-       * Val.companion<User>()
-       *   .fixed<"id">()
-       *   .implSeal(seal)
-       *   .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }));
-       * ```
-       *
-       * The keys are a type argument and do not exist at runtime. This constrains the derivation
-       * path, not the value: `Val.of` can still forge one.
+       * Replaces the seal. Its parameter may be wider than the payload, so a schema library can
+       * parse into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
        */
-      fixed: <
-        K extends ([Early<D>] extends [never] ? keyof SeedOf<V> & string : Early<D>),
-      >() => CompanionBuilder<V, N, F, P | K, Record<never, never>, D | "fixed">;
+      implSeal: "implCreate" extends D
+        ? (
+            seal: "write `implSeal` before `implCreate`",
+          ) => CompanionBuilder<V, N, F, O, Record<never, never>, D>
+        : <G extends SealImpl<V>>(
+            seal: CheckedSeal<V, G>,
+          ) => CompanionBuilder<V, N, G, O, Record<never, never>, D | "implSeal">;
     }) &
-  ("implSeal" extends D
-    ? unknown
-    : {
-        /**
-         * Replaces the seal. Its parameter may be wider than the payload, so a schema library can
-         * parse into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
-         */
-        implSeal: "implCreate" extends D
-          ? (
-              seal: "write `implSeal` before `implCreate`",
-            ) => CompanionBuilder<V, N, F, P, Record<never, never>, D>
-          : <G extends SealImpl<V>>(
-              seal: CheckedSeal<V, G>,
-            ) => CompanionBuilder<V, N, G, P, Record<never, never>, D | "implSeal">;
-      }) &
   ("implCreate" extends D
     ? unknown
     : {
         /** Registers a function that creates a payload, as `create`. Any arguments, a payload out. */
         implCreate: (<G extends CreateImpl<V>>(
           create: G,
-        ) => CompanionBuilder<V, G, F, P, Record<never, never>, D | "implCreate">) & {
+        ) => CompanionBuilder<V, G, F, O, Record<never, never>, D | "implCreate">) & {
           /**
            * A `create` that bypasses the seal and returns the Val, for a payload the seal always
            * accepts, such as a random id. Takes no arguments. Development still runs the seal, and
@@ -780,7 +808,7 @@ type FirstHalf<V extends AnyVal, N, F, P, D extends Taken> = ("fixed" extends D
            */
           noseal: <G extends AnyFn>(
             create: Argumentless<V, G>,
-          ) => CompanionBuilder<V, Unsealed, F, P, Record<never, never>, D | "implCreate">;
+          ) => CompanionBuilder<V, Unsealed, F, O, Record<never, never>, D | "implCreate">;
         };
       });
 
@@ -1082,7 +1110,7 @@ export const define = <T extends object>(target: T, key: string, value: unknown)
   return target;
 };
 
-/** What the builder's steps registered. `.fixed` is a type argument alone, so it leaves none. */
+/** What the builder's steps registered. */
 type Ctors = {
   create?: AnyFn;
   noseal?: boolean;
@@ -1250,7 +1278,6 @@ const build = (
     noseal: (create: AnyFn) => step({ ...ctors, create, noseal: true }),
   });
   target.implSeal = (seal: NonNullable<Ctors["seal"]>) => step({ ...ctors, seal });
-  target.fixed = () => step(ctors);
   return target;
 };
 
@@ -1290,8 +1317,14 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 /**
  * Bundles a type's `seal` and members. `V` is given as a type argument; the steps infer the rest.
  *
+ * A list may follow `V`: {@link PrivateSeal}, {@link Unpatchable}, or both, as in
+ * `Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()`.
+ *
  * Constructors get their own steps rather than sitting in `.impl`, which fixes every
  * function's first parameter to the Val. A constructor does not fit that shape.
  */
-export const companion = <V extends AnyVal & NotEnum<V>>(): CompanionBuilder<V> =>
-  build({}) as CompanionBuilder<V>;
+export const companion = <
+  V extends AnyVal & NotEnum<V>,
+  const O extends readonly CompanionOption<V>[] = [],
+>(): CompanionBuilder<V, undefined, undefined, O> =>
+  build({}) as CompanionBuilder<V, undefined, undefined, O>;

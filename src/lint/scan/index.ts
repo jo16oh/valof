@@ -713,7 +713,6 @@ const STEPS: ReadonlySet<string> = new Set(
     implCreate: true,
     implTrait: true,
     implVariant: true,
-    fixed: true,
   } satisfies Record<Step, true>),
 );
 
