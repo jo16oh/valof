@@ -71,8 +71,9 @@ re-export a companion.
 | `E.seal(payload)`               | builds the variant that the payload's tag selects                           |
 | `E.create(...args)`             | registered with `.implCreate(f)`; creates a payload, then passes it to seal |
 | `E[Tag].key`                    | the tag field's name                                                        |
-| `E.Variant.seal(payload)`       | builds that variant, writing the tag                                        |
-| `E.Variant.create(...args)`     | registered with `.Variant.implCreate(f)`                                    |
+| `E.Variant.create(fields)`      | writes the tag and passes the payload to that variant's seal                |
+| `E.Variant.seal(payload)`       | builds that variant from the payload a value holds, tag included            |
+| `E.Variant.create(...args)`     | registered with `.Variant.implCreate(f)`, in place of the one above         |
 | `E.Variant.patch(value, patch)` | derives a value of that variant, keeping the tag                            |
 | `.Variant.implSeal(seal)`       | replaces that variant's seal; `.Variant` also has a Val's other steps       |
 | `.implSeal(seal)`               | adds a seal `E.seal` runs before the tag selects a variant; once            |
@@ -82,7 +83,7 @@ re-export a companion.
 | `.build()`                      | ends the chain, and returns the companion                                   |
 | `Tag<T>`                        | names the tag field, intersected into `X`                                   |
 | `VariantOf<E, N>`               | the type of one variant                                                     |
-| `SeedFor<E, N>`                 | what that variant's seal takes                                              |
+| `SeedFor<E, N>`                 | what that variant's `create` takes                                          |
 | `SealedPayload<E>`              | a tagged payload of one variant                                             |
 | `OptionsFor<N, O>`              | the options one variant adds, in the list after `E`                         |
 | `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields                                |

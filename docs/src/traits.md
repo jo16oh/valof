@@ -209,7 +209,7 @@ const Cmd = Enum.companion<Cmd>()
   })
   .build();
 
-Cmd.describe(Cmd.Add.seal({ id: "c1", n: 2 })); // "add 2"
+Cmd.describe(Cmd.Add.create({ id: "c1", n: 2 })); // "add 2"
 ```
 
 A trait's fields become fields every variant shares. `id` comes from `Describable`, and `Cmd.Add`
@@ -268,7 +268,7 @@ The two arguments belong together. The companion has to match the value's own ty
 companion is rejected.
 
 An enum boxes the same way, through its own companion:
-`Describable.dyn(Cmd, Cmd.Add.seal({ id: "c1", n: 2 }))`.
+`Describable.dyn(Cmd, Cmd.Add.create({ id: "c1", n: 2 }))`.
 
 ## Several traits on one Val
 
