@@ -6785,12 +6785,28 @@ const Shape = Enum.companion<Shape, [Unpatchable<"id">]>()
 - **§15.2「Variant のメンバは companion 側に置く」の `implVariant` と、Variant ごとの `impl` を持たない方向
   （§9、2026-10-21）を覆した。**Rust の newtype に書く `impl Circle` と同じく、variant ごとのメンバは自然に
   なる。別の companion は今も立てない（`NotEnum`）。`.Circle` は Shape の鎖の一部
-- **`create` は `implCreate` を書いたときだけ。**今までの `Shape.Circle.create` はタグを足す seal で、Val の
-  `create`（payload を生成する）と意味がずれていた。入口は `Shape.Circle.seal`
-- **variant の seal はタグを自動で付ける。**引数はタグを含まない。呼んだ時点で variant は選ばれているので、
-  `_tag` を書かせても情報が増えない（§6.12「seal は、どの seal を呼んだかで決まる部分を受け取らない」）。
-  キャストで違うタグが来ても上書きし、タグとブランドが一致する。実行時は、タグの付いた payload をそのまま
-  渡す（何も変えない `patch` が値そのものを返すため）
+- **variant の seal はタグを必須にした（2026-10-24）。**引数は値の payload そのもの（`Tagged<E, N>`）で、
+  JSON と `Val.unwrap` の往復で型も値も変わらない。「Variant は Val」に揃う。タグを書き換える処理は無く、
+  seal は届いたタグを他のフィールドと同じく検査できる
+- **タグの鋳造は `create` の役目。**variant には既定の `create`（タグ無しの payload を受け取り、タグを付けて
+  seal へ）が生える。`implCreate(f)` の `f` もタグ無しを返し、同じくタグを付ける。Val の `create` が id を生成
+  するのと同じで、§6.7 の分け方（seal は冪等な検査、create は生成）に収まる。2026-10-21 に「`create` は
+  `implCreate` を書いたときだけ」とした理由（当時の `create` はタグを足す seal で、生成と意味がずれていた）は、
+  タグを鋳造と見ることで消えた
+- **`PrivateSeal` は既定の `create` も型から消す。**既定の `create` はタグ以外のフィールドをすべて呼び出し側が
+  渡すので、seal の代わりになる。`implCreate` の `create` は残る
+- 経緯: 最初はタグを自動で付け、引数から除いた（R）。理由は「呼んだ時点で variant は決まっていて情報が増えない」
+  「毎回書く冗長さ」「タグとブランドが一致する（キャストで来た違うタグを上書き）」。ユーザーが `unknown` 寄りの
+  seal で `Shape.Circle.seal(JSON.parse('{ "_tag": "Square", "r": 1 }'))` が通ることを問題にし、比べ直した
+  - R は構造的部分型のせいで、変数として渡す値ならどのタグでも通っていた。実質「タグは省略可能で、値は検査
+    しない」
+  - Effect（v3、v4.0.6）は、検査しない `Data.taggedEnum` ではタグを除いて上書きし、検査する `Schema.TaggedStruct`
+    の `make` ではタグを省略可能（既定値で補う）、decode（`Schema.decodeUnknown*`）では必須にしている
+  - 省略可能は同じ入口に 2 つの書き方を作る。seal を必須（decode に当たる）、create を省略（make に当たる）と
+    入口で分けると、書き方は 1 つずつに決まる（ユーザー）
+  - **却下: 既定の seal の直前でタグを上書きする安全策。**守れるのは `implSeal` の無い variant に型を偽って
+    違うタグが来た場合だけで、Val の既定の seal が `any` をそのまま使うのと同じ立場。起きやすい間違いは
+    `Shape.seal` が宣言に無い variant を作ることで、上書きでは防げない（ユーザー）
 
 **enum 全体の seal の層（variant → enum → 既定）を廃止した。**§15.2「Variant ごとの seal と union の `seal`」の
 合成を覆した。決め手は `match` との対称性。`match` はタグで handler に振り分けるだけで、全 variant の前に走る
@@ -6798,12 +6814,19 @@ handler は無い。既定の `Shape.seal` も振り分けるだけにした。`
 TS 5.9 の TS2590 の回り道）と、実行時の合成が消えた。
 
 **enum の `implSeal` は `Shape.seal` の入口として戻した。**振り分けの前に走り、callback の `seal` が振り分け。
-戻り型は各 variant の seal の戻り型の union。variant の `seal` / `create` / `patch` は通らない（タグはもう
-決まっている）。
+戻り型は各 variant の seal の戻り型の union。variant の `seal` / `create` / `patch` は通らない（variant はもう
+決まっている）。検証は variant 側にまとまり、enum の `implSeal` は任意。
 
-- 理由は境界の穴。§8.3 の推奨（`Shape.seal(JSON.parse(json))`、検証は seal の中）では、`any` のタグが宣言に
-  無い variant を指しても、どの variant の seal にも届かない。振り分けが先に走るので、全 variant にスキーマを
-  置いても塞げない。`any` を素通しするのは Val の既定の seal も同じで、Enum に固有なのはこの 1 点
+- 要るのは、`Shape.seal` に検証前の値を渡すときだけ。variant の seal はタグも検査できるが、宣言に無いタグの
+  payload はどの variant の seal にも届かない（その名前の枠に seal が無い）。§8.3 の推奨（
+  `Shape.seal(JSON.parse(json))`、検証は seal の中）では、`JSON.parse` が `any` を返すので型も止めない。
+  引数を `object` に広げると、callback の `seal` が `Exclusive<E>` しか受け取らないので、タグを絞り込む検査を
+  書くことになる。`any` を素通しするのは Val の既定の seal も同じで、valof の設計の問題ではない（ユーザー）
+- **一度、層（variant → enum → 既定）を戻して全入口に通した（`wip/enum-seal-layer`）。**入口ごとに通る seal が
+  ずれるのを避けるため。だが variant の seal を先に通すと、variant の枠がタグを上書きしてから enum の seal に
+  渡すので、タグだけ違う値が enum のタグの検査を通る。enum の seal を先に通すと、enum が選んだ variant と
+  呼ばれた入口の一致を確かめるには投げるしかなく、型に表せない。タグを seal で必須にし、検査を variant 側に
+  まとめたことで、層は要らなくなった
 - 既定の `Shape.seal` は残した。`implSeal` の無い `User.seal` と同じ扱いで、§6.12「seal は常に `X.seal(p)`」も
   保つ
 - **enum の `implCreate` も戻した。**出力は `Shape.seal` を通る。`.noseal` は production で seal をすべて
@@ -6819,9 +6842,10 @@ TS 5.9 の TS2590 の回り道）と、実行時の合成が消えた。
 1 つ書くと variant の段は消える。`.Square.implSeal(f)` の次の行の `.impl({…})` を Square のものと読む心配は
 無い。formatter が段ごとに改行し、variant の段は行頭に `.Square` が付く。
 
-**タグは実行時に検査しない。**Proxy は variant の名前を知らない。段を書いた variant の名前は `.build()` で
-分かるが、書かなかったものは分からない。宣言に無いタグが入るのは型を偽る経路（`any`、アサーション、誤った型ガード、
-型エラーの抑制、JS）だけで、境界では enum の `implSeal` に置いたスキーマが拒む。文字列かどうかだけを見る検査は、
+**ライブラリはタグを実行時に検査しない。**Proxy は variant の名前を知らない。段を書いた variant の名前は
+`.build()` で分かるが、書かなかったものは分からない。宣言に無いタグが入るのは型を偽る経路（`any`、アサーション、
+誤った型ガード、型エラーの抑制、JS）だけで、境界では enum の `implSeal` に置いたスキーマが拒む。宣言にある
+variant のタグは、その variant の seal がスキーマで検査できる。文字列かどうかだけを見る検査は、
 守れるものが変わらないので入れなかった。
 
 **variant ごとの trait。**`{ Book: { pages: number } & Named }` と宣言し、`.Book.implTrait(Named, …)` で
@@ -6866,8 +6890,8 @@ name」）と、`seal`、`match`、`create`、`_`、`__valof_*`。`implAssoc` �
 消した。`bypassed-companion` のメッセージは `Shape.Circle.seal` を指す。`unimplemented-trait` は variant で
 宣言した trait をまだ見ない（lint の書き直しの後）。
 
-**計測。**type-perf: enum 45,815 → 32,638、`index.d.ts` 69.95 kB → 76.67 kB。production gzip: Enum の増分
-+415 → +577 B（予算 +640 B）。builder の Proxy と、`noseal` の development の見張りの受け渡しの分。
+**計測。**type-perf: enum 45,815 → 32,757、`index.d.ts` 69.95 kB → 77.24 kB。production gzip: Enum の増分
++415 → +572 B（予算 +640 B）。builder の Proxy と、`noseal` の development の見張りの受け渡しの分。
 
 ### 15.3 `path`: seal をまたぐ patch の合成、2026-09-10
 
