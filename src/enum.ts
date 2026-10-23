@@ -256,7 +256,7 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
  *
  * Write it where the variant is used, rather than giving it a second name with `type Circle =
  * VariantOf<Shape, "Circle">`. The prefix is what says which enum the variant belongs to, and a
- * variant is built through its companion for the same reason: `Shape.Circle.seal({ r: 2 })`.
+ * variant is built through its companion for the same reason: `Shape.Circle.create({ r: 2 })`.
  *
  * @experimental
  */
@@ -275,7 +275,8 @@ export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
   >;
 
 /**
- * What a variant's seal takes: its payload and the shared fields, and never the tag.
+ * What a variant's `create` takes: its payload and the shared fields, without the tag. Its seal
+ * takes this with the tag.
  *
  * Built from the declaration rather than from the variant. `SeedOf<VariantOf<E, N> & AnyVal>`
  * reads `unknown` off the second phantom and collapses to `{}`, which leaves `patch` accepting
@@ -353,10 +354,13 @@ type Creates<A extends unknown[], R> = ((...args: A) => R) & {
   nocopy: (...args: A) => R;
 };
 
-/** One variant's seal. The seal it receives brands the payload, writes the tag and copies it. */
+/**
+ * One variant's seal. It takes the payload a value holds, tag included, so it can check the tag
+ * the way it checks any other field. The seal it receives brands the payload and copies it.
+ */
 type VariantSealImpl<E extends AnyEnum, N extends keyof VariantsOf<E>> = (
-  value: SeedFor<E, N>,
-  seal: (value: SeedFor<E, N>) => VariantOf<E, N>,
+  value: Tagged<E, N>,
+  seal: (value: Tagged<E, N>) => VariantOf<E, N>,
 ) => unknown;
 
 /**
@@ -435,8 +439,18 @@ type Sealed<E extends AnyEnum, N extends keyof VariantsOf<E>, F> = [F] extends [
   : Returned<F>;
 
 /** The public face of `create`: its own arguments, and whatever the seal returns. */
-type CreateMethod<E extends AnyEnum, N extends keyof VariantsOf<E>, C, R> = [C] extends [undefined]
-  ? Record<never, never>
+type CreateMethod<E extends AnyEnum, N extends keyof VariantsOf<E>, C, R, H> = [C] extends [
+  undefined,
+]
+  ? H extends true
+    ? Record<never, never>
+    : {
+        /**
+         * Writes the tag and passes the payload to `seal`, so it returns whatever the seal
+         * returns. The tag is minted here, the way `.implCreate` mints what it generates.
+         */
+        create: Creates<[payload: SeedFor<E, N>], R>;
+      }
   : {
       /**
        * Creates a payload and seals it, so it returns whatever the seal returns. With
@@ -448,11 +462,14 @@ type CreateMethod<E extends AnyEnum, N extends keyof VariantsOf<E>, C, R> = [C] 
     };
 
 /**
- * A variant's frame on a companion: `seal`, `patch`, `create` where one was registered, and the
- * members its steps registered.
+ * A variant's frame on a companion: `seal`, `create`, `patch`, and the members its steps
+ * registered.
  *
- * The seal does not take the tag and `patch` cannot reach it, the way `Unpatchable` excludes a
- * key from `patch`.
+ * The seal takes the tag, which `create` writes. `patch` cannot reach it, the way `Unpatchable`
+ * excludes a key from `patch`.
+ *
+ * {@link PrivateSeal} takes the default `create` off with `seal`: it takes every field but the tag,
+ * so it would stand in for the seal.
  *
  * What the seal produces arrives as `R` rather than being read off `F` at each member: one
  * instantiation for the frame instead of one per signature.
@@ -466,12 +483,12 @@ type Framed<
   T,
   U = Unpatched<O, N>,
 > = Duals<Omit<T, Wired>, VariantOf<E, N>> &
-  CreateMethod<E, N, C, R> &
+  CreateMethod<E, N, C, R, Hidden<O>> &
   (Hidden<O> extends true
     ? unknown
     : {
         /** The single gate a payload of this variant passes. `create` and `patch` go through it. */
-        seal: Creates<[payload: SeedFor<E, N>], R>;
+        seal: Creates<[payload: Tagged<E, N>], R>;
       }) & {
     /** Derives through the same seal. See {@link Patch}. */
     patch: Dual<
@@ -541,14 +558,14 @@ type Exclusive<E extends AnyEnum> = {
 type ByTag<E extends AnyEnum> = {
   /**
    * Dispatches on a tag that arrives without its payload. Every tag the argument's type allows needs
-   * a handler, or `_` covers the rest. A handler takes no argument and calls its variant's seal,
+   * a handler, or `_` covers the rest. A handler takes no argument and calls its variant's `create`,
    * which checks the payload literal for fields the variant does not hold.
    *
    * ```ts
    * Command[Tag].match(input.tag, {
-   *   New: () => Command.New.seal({ name: input.args[0] ?? "" }),
-   *   Rename: () => Command.Rename.seal({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
-   *   Check: () => Command.Check.seal({}),
+   *   New: () => Command.New.create({ name: input.args[0] ?? "" }),
+   *   Rename: () => Command.Rename.create({ from: input.args[0] ?? "", to: input.args[1] ?? "" }),
+   *   Check: () => Command.Check.create({}),
    * });
    * ```
    */
@@ -698,8 +715,8 @@ type VariantSteps<
       ? unknown
       : {
           /**
-           * Replaces this variant's seal. The seal it receives brands the payload, writes the tag,
-           * and copies it. Its parameter may be wider than the payload, so a schema library can
+           * Replaces this variant's seal. It takes the payload with its tag, and the seal it
+           * receives brands the payload and copies it. Its parameter may be wider than the payload, so a schema library can
            * parse into it, but not so wide that a wire format fits.
            */
           implSeal: "create" extends S
@@ -960,34 +977,31 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
 let watching: ((candidate: Payload, sealed: unknown) => void) | undefined;
 
 /**
- * One variant's frame: a Val companion whose seal writes the tag. The tag goes on in the seal, so
- * `create`, `patch` and `seal` all write it, and one a cast let in is replaced. A payload already
- * carrying it is passed on as is, which keeps a `patch` that changed nothing returning its value.
+ * One variant's frame: a Val companion whose `create` mints the tag. `seal` takes the tag with the
+ * payload and checks it like any other field, so nothing rewrites it.
  */
 const frame = (tag: string, name: string, steps: Registered): object => {
-  const tagged = (payload: Payload): Payload =>
-    payload[tag] === name ? payload : { ...payload, [tag]: name };
+  const mint = (payload: Payload): Payload => {
+    // Before the spread, which would turn a string into a character map.
+    assertVariantPayload(payload);
+    return { ...payload, [tag]: name };
+  };
   const { seal, create, noseal, members = {}, traits = {} } = steps;
   let chain = (Val.companion() as unknown as Chain).implSeal((value, terminal) => {
     // Taken here, so a value this seal builds on the way runs with nothing watching it.
     let watcher: typeof watching;
     if (development) [watcher, watching] = [watching, undefined];
-    // Before the spread, which would turn a string into a character map.
     assertVariantPayload(value);
     const end = (checked: Payload) => {
-      const candidate = tagged(checked);
-      const sealed = terminal(candidate);
-      watcher?.(candidate, sealed);
+      const sealed = terminal(checked);
+      watcher?.(checked, sealed);
       return sealed;
     };
     return seal ? seal(value, end) : end(value);
   });
-  if (create) {
-    // Tagged as it comes out, so development's check of `noseal` compares it with what the seal
-    // wrote.
-    const made = (...args: never[]) => tagged(create(...args) as Payload);
-    chain = noseal ? chain.implCreate.noseal(made) : chain.implCreate(made);
-  }
+  // The tag is minted as the payload comes out, the way `create` generates what it generates.
+  const made = create ? (...args: never[]) => mint(create(...args) as Payload) : mint;
+  chain = noseal ? chain.implCreate.noseal(made) : chain.implCreate(made);
   return chain.impl(members).implTrait({ __valof_shared: traits }).build();
 };
 

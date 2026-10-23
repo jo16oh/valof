@@ -53,14 +53,14 @@ const Frame = Val.companion<Frame>().build();
 declare const shape: Shape;
 declare const patch: Patch<SeedOf<Frame>>;
 
-const circle = Shape.Circle.seal({ id: "c", r: 2 });
-const click = Event.Click.seal({ id: "e", x: 1, y: 2 }) as VariantOf<Event, "Click">;
+const circle = Shape.Circle.seal({ _tag: "Circle", id: "c", r: 2 });
+const click = Event.Click.create({ id: "e", x: 1, y: 2 }) as VariantOf<Event, "Click">;
 const frame = Frame.seal({ id: "f", shape: circle, last: click });
 
 export const read = [
   Shape.area(shape),
   Shape.Circle.diameter(circle),
-  Shape.Rect.ratio(Shape.Rect.seal({ id: "r", w: 1, h: 2 })),
+  Shape.Rect.ratio(Shape.Rect.create({ id: "r", w: 1, h: 2 })),
   Shape.match(shape, {
     Circle: (c) => c.r,
     Square: (q) => q.side,
@@ -72,16 +72,16 @@ export const read = [
 
 export const derived = [
   Shape.Circle.patch(circle, { r: 3 }),
-  Shape.Poly.patch(Shape.Poly.seal({ id: "p", at: [[0, 0]] }), { at: [[1, 1]] }),
+  Shape.Poly.patch(Shape.Poly.create({ id: "p", at: [[0, 0]] }), { at: [[1, 1]] }),
   // A variant is a patch boundary: the nested one is replaced, never merged into.
-  Frame.patch(frame, { shape: Shape.Square.seal({ id: "s", side: 1 }) }),
+  Frame.patch(frame, { shape: Shape.Square.create({ id: "s", side: 1 }) }),
   Frame.patch(frame, patch),
 ];
 
 export const sealed = Event.seal({ kind: "Key", id: "e", code: "a" });
 export const byTag = Event[Tag].match(Math.random() > 0.5 ? "Key" : "Click", {
-  Key: () => Event.Key.seal({ id: "e", code: "a" }),
-  Click: () => Event.Click.seal({ id: "e", x: 0, y: 0 }),
+  Key: () => Event.Key.create({ id: "e", code: "a" }),
+  Click: () => Event.Click.create({ id: "e", x: 0, y: 0 }),
 });
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Event, frame.last)];
