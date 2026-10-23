@@ -2541,7 +2541,7 @@ describe("building", () => {
           .impl({
             impl: (m) => m.id,
             implTrait: (m) => m.name,
-            implVariant: (m) => m.id,
+            implCreate: (m) => m.id,
             build: (m) => m.name,
           })
           .build();

@@ -152,8 +152,8 @@ describe("Trait members", () => {
 
 test("credits a variant's member through the enum and through a binding of its own", async () => {
   expect(await lint("enum")).toEqual([
-    { rule: UnusedMember, at: "enum.ts:7:57" },
-    { rule: UnusedMember, at: "enum.ts:9:11" },
+    { rule: UnusedMember, at: "enum.ts:6:48" },
+    { rule: UnusedMember, at: "enum.ts:7:11" },
   ]);
   expect(await messages("enum")).toEqual([
     "Shape.Square.area is never read",
@@ -163,12 +163,6 @@ test("credits a variant's member through the enum and through a binding of its o
 
 test("registers a variant built through a builder held in a variable", async () => {
   expect(await lint("held-enum-builder", { skip: [CompanionMismatch] })).toEqual([
-    { rule: UnusedMember, at: "held-enum-builder.ts:7:18" },
+    { rule: UnusedMember, at: "held-enum-builder.ts:6:44" },
   ]);
-});
-
-// The chain the callback returns is rooted at another companion, so the members are that
-// companion's and no `Shape.Circle.diameter` is registered here.
-test("leaves a variant callback returning another chain to the companion it grew from", async () => {
-  expect(await lint("foreign-variant", { skip: [CompanionMismatch] })).toEqual([]);
 });

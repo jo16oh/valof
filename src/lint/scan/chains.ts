@@ -69,6 +69,20 @@ export function stepOf(callee: Node): Called | undefined {
   return { name, property, receiver };
 }
 
+/**
+ * Reads `….Circle` in `….Circle.impl(f)` as the variant an enum's builder names, with the builder
+ * it was read off: a call, or a builder held in a variable. The step on it belongs to that variant.
+ */
+export function variantOf(receiver: Node): { variant: string; builder: Node } | undefined {
+  if (receiver.type !== "MemberExpression") return undefined;
+  const builder = child(receiver, "object");
+  const property = child(receiver, "property");
+  if (!builder || !property) return undefined;
+  if (builder.type !== "CallExpression" && builder.type !== "Identifier") return undefined;
+  const variant = keyName(property, receiver["computed"] === true);
+  return variant ? { variant, builder } : undefined;
+}
+
 /** Which entry point a chain grows from, however the name was bound. */
 export function fromRoot(node: Node, bound: Bindings): Root | undefined {
   const path = rootPath(node);
@@ -177,7 +191,8 @@ type Chain = {
 
 /**
  * Reads a builder chain from the outside in.
- * `Val.companion<Order>().implSeal(f).impl({…})` gives both `implSeal` and `Order`.
+ * `Val.companion<Order>().implSeal(f).impl({…})` gives both `implSeal` and `Order`. A variant's
+ * step, `.Circle.implSeal(f)`, counts as the step.
  *
  * A call whose receiver is not itself a call is the root, which is what tells
  * `Val.companion<X>()` apart from the steps chained onto it.
@@ -192,7 +207,8 @@ function readChain(node: Node, bound: Bindings): Chain {
     if (!callee || callee.type !== "MemberExpression") return undefined;
     const step = stepOf(callee);
     if (!step) return undefined;
-    const { name, receiver } = step;
+    const { name } = step;
+    const receiver = variantOf(step.receiver)?.builder ?? step.receiver;
     if (receiver.type !== "CallExpression") {
       of = fromRoot(callee, bound);
       return of ? child(current, "typeArguments") : undefined;

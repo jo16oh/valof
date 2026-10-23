@@ -55,7 +55,7 @@ test("looks through parentheses around companion type arguments", async () => {
   ]);
 });
 
-test("names the Enum an aliased companion is for", async () => {
+test("names the Enum an aliased companion is for, through a variant's step", async () => {
   expect(await lint("enum")).toEqual([{ rule: CompanionMismatch, at: "enum.ts:4:14" }]);
   expect(await messages("enum")).toEqual([
     "Shapes is the companion for Shape, and should be named Shape",

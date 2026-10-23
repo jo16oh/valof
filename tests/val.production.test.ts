@@ -102,6 +102,17 @@ describe("an enum variant in production", () => {
   test("throws on a payload that is not an object", () => {
     type Signal = EnumOf<"ProductionSignal", { Stop: {}; Go: { speed: number } }>;
     const Signal = Enum.companion<Signal>().build();
-    expect(() => Signal.Stop.create("text" as never)).toThrow(TypeError);
+    expect(() => Signal.Stop.seal("text" as never)).toThrow(TypeError);
+  });
+});
+
+describe("a variant's implCreate.noseal in production", () => {
+  test("returns the variant without running the seal", () => {
+    type Task = EnumOf<"ProductionTask", { Done: { at: number }; Todo: { text: string } }>;
+    const Task = Enum.companion<Task>()
+      .Done.implSeal((d, seal) => (d.at > 0 ? seal(d) : new RangeError("at must be positive")))
+      .Done.implCreate.noseal(() => ({ at: 0 }))
+      .build();
+    expect(Task.Done.create()).toEqual({ at: 0, _tag: "Done" });
   });
 });
