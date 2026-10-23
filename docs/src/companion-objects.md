@@ -26,9 +26,8 @@ const User = Val.companion<User>()
   .build();
 ```
 
-`Val.companion<User>()` starts the chain. `.impl({ ... })` adds functions under the `User`
-namespace, where they are the companion's members, in one call. `.build()` ends the chain and
-returns the companion, whose `seal` constructs a `User`. Every member takes its Val first, so Valof
+`Val.companion<User>()` starts the chain. `.impl({ ... })` adds member functions to the companion.
+`.build()` ends the chain and returns the companion. Every member takes its Val first, so Valof
 infers that parameter as `User`. You only annotate the parameters that follow it, and the return
 type where a member references `User` itself.
 

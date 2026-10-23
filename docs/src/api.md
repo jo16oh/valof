@@ -18,8 +18,8 @@
 | `.implTrait(Tr, fns?)`                 | implements a trait the type declares                         |
 | `.build()`                             | ends the chain, and returns the companion                    |
 
-Write `implSeal` first, then `implCreate`. `impl` and `implTrait` come next, in any order, and
-`.build()` last. Each step except `implTrait` is written once.
+Write `implSeal` first, then `implCreate`. `impl` and `implTrait` come next, in any order.
+`.build()` ends the chain and returns the companion. Each step except `implTrait` is written once.
 
 ## Companion members
 
