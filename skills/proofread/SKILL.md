@@ -22,6 +22,9 @@ Write direct. Conclusion first, declaratives, no filler hedges, no filler conces
 where an actor exists. Short sentences, and a concrete example before the general statement. Let a
 code block do what a metaphor would.
 
+The reader as the actor is the exception to the passive rule. "An enum value can be built from three
+kinds of input" needs no "you".
+
 A hedge is filler only where the writer is sure. Where it records what the writer does not know, it
 is part of the claim. "A careful admin may notice the URL" claims less than "a careful admin notices
 the URL". Keep that hedge.
@@ -118,6 +121,9 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
 - **A noun whose referent the reader must guess.** `picks the kind` → name the alternatives. Watch
   for a word that also appears as an identifier in the sample below it. Restore a referent only
   where the context determines it. Otherwise report it as unclear.
+- **A placeholder in a syntax the code does not use.** Write it in the syntax the reader types:
+  `E.Variant(payload)`, not `E[Variant](payload)`. Brackets read as a computed key, and `E[Tag]` in
+  the same table really is one.
 - **An opening phrase that carries the evaluation.** `What matters is the order` →
   `The order matters`. Move the judgment into the predicate. Delete the phrase only where the
   sentence claims the same without it.
@@ -147,9 +153,18 @@ git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|
   what came before, and why its steps go in this order, belong in the commit and PR:
   `Without a record, a re-audit reads every staged change again. Instead, each audit leaves a record`
   → `Each audit leaves a record`.
+- **The state before the change, in the past tense.** `An async seal type-checked` does not say
+  when. A PR body describes the behaviour before the merge in the present, with "Currently":
+  `Currently, an async seal is accepted`. Avoid "type-check" as an intransitive verb too, as in
+  `no longer type-checks`. It also reads as the subject doing the checking. Write `is rejected`.
 - **Which constraints to state in prose.** Prose states a constraint where the reader needs it
   before writing the code, as one that shapes how they design their types. One that the type error
   and the declaration's JSDoc explain well enough can be left out of the prose.
+- **A condition the context already states.** A table cell or a one-line summary describes the
+  common case. Leave out a restriction that a nearby row, the type error or the JSDoc already
+  conveys: `adds one variant's members, and its seal on a companion` →
+  `adds one variant's members, and its seal`. In a short phrase, the condition reads as part of the
+  noun, as a seal located on a companion.
 
 ## 4. Let the sample carry the claim
 
