@@ -180,7 +180,7 @@ import { Enum } from "valof/experimental";
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>().build();
 
-const area = Shape.match(Shape.Circle.create({ r: 2 }), {
+const area = Shape.match(Shape.Circle.seal({ r: 2 }), {
   Circle: (circle) => Math.PI * circle.r * circle.r,
   Square: (square) => square.side * square.side,
 });
