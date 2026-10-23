@@ -13,21 +13,24 @@ import { Val } from "valof";
 // ---cut---
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
 
-const User = Val.companion<User>().impl({
-  displayName(user) {
-    return user.nickname ?? user.name;
-  },
-  // A member calling another member annotates its return type, to avoid an implicit `any`.
-  formatLabel(user, separator: string): string {
-    return user.id + separator + User.displayName(user);
-  },
-});
+const User = Val.companion<User>()
+  .impl({
+    displayName(user) {
+      return user.nickname ?? user.name;
+    },
+    // A member calling another member annotates its return type, to avoid an implicit `any`.
+    formatLabel(user, separator: string): string {
+      return user.id + separator + User.displayName(user);
+    },
+  })
+  .build();
 ```
 
-`Val.companion<User>()` creates the companion, whose `seal` constructs a `User`. `.impl({ ... })`
-adds functions under the `User` namespace, where they are the companion's members, in one call.
-Every member takes its Val first, so Valof infers that parameter as `User`. You only annotate the
-parameters that follow it, and the return type where a member references `User` itself.
+`Val.companion<User>()` starts the chain. `.impl({ ... })` adds functions under the `User`
+namespace, where they are the companion's members, in one call. `.build()` ends the chain and
+returns the companion, whose `seal` constructs a `User`. Every member takes its Val first, so Valof
+infers that parameter as `User`. You only annotate the parameters that follow it, and the return
+type where a member references `User` itself.
 
 The result exposes `seal` and the members:
 
@@ -35,14 +38,16 @@ The result exposes `seal` and the members:
 import { Val } from "valof";
 
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
-const User = Val.companion<User>().impl({
-  displayName(user) {
-    return user.nickname ?? user.name;
-  },
-  formatLabel(user, separator: string): string {
-    return user.id + separator + User.displayName(user);
-  },
-});
+const User = Val.companion<User>()
+  .impl({
+    displayName(user) {
+      return user.nickname ?? user.name;
+    },
+    formatLabel(user, separator: string): string {
+      return user.id + separator + User.displayName(user);
+    },
+  })
+  .build();
 // ---cut---
 const user = User.seal({ id: "a", name: "bob" });
 
@@ -60,14 +65,16 @@ import { Val } from "valof";
 
 declare function pipe<A, B, C>(a: A, ab: (a: A) => B, bc: (b: B) => C): C;
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
-const User = Val.companion<User>().impl({
-  displayName(user) {
-    return user.nickname ?? user.name;
-  },
-  formatLabel(user, separator: string): string {
-    return user.id + separator + User.displayName(user);
-  },
-});
+const User = Val.companion<User>()
+  .impl({
+    displayName(user) {
+      return user.nickname ?? user.name;
+    },
+    formatLabel(user, separator: string): string {
+      return user.id + separator + User.displayName(user);
+    },
+  })
+  .build();
 const user = User.seal({ id: "a", name: "bob" });
 // ---cut---
 User.formatLabel(user, ": "); // "a: bob"
@@ -87,9 +94,11 @@ import { Val } from "valof";
 
 type User = Val<"User", { id: string; name: string }>;
 // ---cut---
-const User = Val.companion<User>().impl({
-  greet: (user, greeting: string | undefined) => `${greeting ?? "Hi"}, ${user.name}`,
-});
+const User = Val.companion<User>()
+  .impl({
+    greet: (user, greeting: string | undefined) => `${greeting ?? "Hi"}, ${user.name}`,
+  })
+  .build();
 
 User.greet(User.seal({ id: "a", name: "bob" }), undefined); // "Hi, bob"
 ```
@@ -104,7 +113,7 @@ import { Val } from "valof";
 type User = Val<"User", { id: string; name: string }>;
 // ---cut---
 const toWire: (user: User, sep: string) => string = (user, sep = "/") => user.id + sep + user.name;
-const User = Val.companion<User>().impl({ toWire });
+const User = Val.companion<User>().impl({ toWire }).build();
 
 User.toWire("-")(User.seal({ id: "a", name: "bob" })); // throws: `User.toWire("-")` returned a string
 ```
@@ -121,9 +130,11 @@ import { Val } from "valof";
 declare function pipe<A, B>(a: A, ab: (a: A) => B): B;
 type User = Val<"User", { name: string; age: number }>;
 // ---cut---
-const User = Val.companion<User>().impl({
-  pick: <K extends keyof User>(user: User, key: K) => user[key],
-});
+const User = Val.companion<User>()
+  .impl({
+    pick: <K extends keyof User>(user: User, key: K) => user[key],
+  })
+  .build();
 const user = User.seal({ name: "bob", age: 30 });
 
 pipe(user, User.pick("age")); // string | number
@@ -138,12 +149,12 @@ Without Valof, changing a deeply readonly `shop` means rebuilding every object o
 import { Val } from "valof";
 
 type City = Val<"City", { name: string }>;
-const City = Val.companion<City>();
+const City = Val.companion<City>().build();
 type Shop = Val<
   "Shop",
   { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
 >;
-const Shop = Val.companion<Shop>();
+const Shop = Val.companion<Shop>().build();
 
 declare const shop: Shop;
 // ---cut---
@@ -165,12 +176,12 @@ An object-shaped Val gets `patch`. The same update lists only what changes:
 import { Val } from "valof";
 
 type City = Val<"City", { name: string }>;
-const City = Val.companion<City>();
+const City = Val.companion<City>().build();
 type Shop = Val<
   "Shop",
   { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
 >;
-const Shop = Val.companion<Shop>();
+const Shop = Val.companion<Shop>().build();
 
 declare const shop: Shop;
 // ---cut---
@@ -195,12 +206,12 @@ whole:
 import { Val } from "valof";
 
 type City = Val<"City", { name: string }>;
-const City = Val.companion<City>();
+const City = Val.companion<City>().build();
 type Shop = Val<
   "Shop",
   { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
 >;
-const Shop = Val.companion<Shop>();
+const Shop = Val.companion<Shop>().build();
 
 declare const shop: Shop;
 // ---cut---
@@ -215,12 +226,12 @@ Derive a nested Val with its own `patch`, so its own seal sees the change.
 import { Val } from "valof";
 
 type City = Val<"City", { name: string }>;
-const City = Val.companion<City>();
+const City = Val.companion<City>().build();
 type Shop = Val<
   "Shop",
   { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
 >;
-const Shop = Val.companion<Shop>();
+const Shop = Val.companion<Shop>().build();
 
 declare const shop: Shop;
 declare const changed: Shop;

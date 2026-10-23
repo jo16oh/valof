@@ -16,11 +16,13 @@ declare function err(message: string): Result<never>;
 // ---cut---
 type Age = Val<"Age", number>;
 
-const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> =>
-  value >= 0 && Number.isInteger(value)
-    ? ok(seal(value))
-    : err("age must be a non-negative integer"),
-);
+const Age = Val.companion<Age>()
+  .implSeal((value, seal): Result<Age> =>
+    value >= 0 && Number.isInteger(value)
+      ? ok(seal(value))
+      : err("age must be a non-negative integer"),
+  )
+  .build();
 ```
 
 `.implSeal` replaces the companion's `seal`. Return through the default seal, passed as its second
@@ -59,10 +61,12 @@ declare const z: {
 // ---cut---
 const schema = z.object({ id: z.uuid(), name: z.string().min(1), email: z.email().toLowerCase() });
 
-const User = Val.companion<User>().implSeal((input: object, seal): Result<User> => {
-  const result = schema.safeParse(input);
-  return result.success ? ok(seal(result.data)) : err(z.prettifyError(result.error));
-});
+const User = Val.companion<User>()
+  .implSeal((input: object, seal): Result<User> => {
+    const result = schema.safeParse(input);
+    return result.success ? ok(seal(result.data)) : err(z.prettifyError(result.error));
+  })
+  .build();
 ```
 
 The parameter takes `object` or `Record<string, unknown>`, not `unknown`. A seal takes the payload,
@@ -80,7 +84,9 @@ import { Val } from "valof";
 // ---cut---
 type Email = Val<"Email", string>;
 
-const Email = Val.companion<Email>().implSeal((value, seal) => seal(value.trim().toLowerCase()));
+const Email = Val.companion<Email>()
+  .implSeal((value, seal) => seal(value.trim().toLowerCase()))
+  .build();
 ```
 
 Canonical payloads make structural [`equals`](utilities.md#equals) match what equality means in your
@@ -104,7 +110,8 @@ declare const fields: Fields;
 // ---cut---
 const User = Val.companion<User>()
   .implSeal((user): Result<User> => check(user))
-  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }));
+  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }))
+  .build();
 
 User.create(fields); // Result<User>
 ```
@@ -128,7 +135,8 @@ type SessionId = Val<"SessionId", string>;
 
 const SessionId = Val.companion<SessionId>()
   .implSeal((text, seal): SessionId | undefined => (UUID.test(text) ? seal(text) : undefined))
-  .implCreate.noseal(() => crypto.randomUUID());
+  .implCreate.noseal(() => crypto.randomUUID())
+  .build();
 
 SessionId.create(); // SessionId
 SessionId.seal(input); // SessionId | undefined
@@ -163,7 +171,8 @@ const User = Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()
   .implCreate((fields: Omit<SeedOf<User>, "id">) => ({
     id: crypto.randomUUID(),
     ...fields,
-  }));
+  }))
+  .build();
 
 User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // type error
@@ -200,7 +209,9 @@ declare function ok<T>(value: T): Result<T>;
 declare function err(message: string): Result<never>;
 
 type Age = Val<"Age", number>;
-const Age = Val.companion<Age>().implSeal((value, seal): Result<Age> => ok(seal(value)));
+const Age = Val.companion<Age>()
+  .implSeal((value, seal): Result<Age> => ok(seal(value)))
+  .build();
 declare const input: number;
 // ---cut---
 const result = Age.seal(input); // Result<Age>

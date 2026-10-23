@@ -29,7 +29,7 @@ Now the other side cannot use what arrives until it seals it:
 import { Val, type PayloadOf } from "valof";
 
 type User = Val<"User", { name: string }>;
-const User = Val.companion<User>();
+const User = Val.companion<User>().build();
 
 declare const res: { json(): Promise<PayloadOf<User>> };
 // ---cut---
@@ -90,7 +90,7 @@ derive a value instead:
 import { Val } from "valof";
 
 type User = Val<"User", { name: string }>;
-const User = Val.companion<User>();
+const User = Val.companion<User>().build();
 
 declare const user: User;
 // ---cut---

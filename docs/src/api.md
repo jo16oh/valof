@@ -16,9 +16,10 @@
 | `.implCreate.noseal(f)`                | the same, bypassing the seal for a payload it always accepts |
 | `.impl(fns)`                           | adds the type's members                                      |
 | `.implTrait(Tr, fns?)`                 | implements a trait the type declares                         |
+| `.build()`                             | ends the chain, and returns the companion                    |
 
-Write `implSeal` first, then `implCreate`. `impl` and `implTrait` come last, in any order. Each step
-except `implTrait` is written once.
+Write `implSeal` first, then `implCreate`. `impl` and `implTrait` come next, in any order, and
+`.build()` last. Each step except `implTrait` is written once.
 
 ## Companion members
 
@@ -36,16 +37,16 @@ except `implTrait` is written once.
 
 ## Types
 
-|                       |                                                    |
-| --------------------- | -------------------------------------------------- |
-| `Val<K, T>`           | a branded value type                               |
-| `AnyVal`              | a constraint over any Val                          |
-| `SeedOf<V>`           | the payload accepted by seals                      |
-| `PayloadOf<V>`        | the payload, with the brand removed at every depth |
-| `Patch<T>`            | the patch accepted for a payload                   |
-| `Rec<V>`              | a Val's reference to itself, in its own payload    |
-| `CompanionBuilder<V>` | a companion, with the steps it can still take      |
-| `Companion<V, M>`     | a companion, without the steps                     |
+|                       |                                                         |
+| --------------------- | ------------------------------------------------------- |
+| `Val<K, T>`           | a branded value type                                    |
+| `AnyVal`              | a constraint over any Val                               |
+| `SeedOf<V>`           | the payload accepted by seals                           |
+| `PayloadOf<V>`        | the payload, with the brand removed at every depth      |
+| `Patch<T>`            | the patch accepted for a payload                        |
+| `Rec<V>`              | a Val's reference to itself, in its own payload         |
+| `CompanionBuilder<V>` | a companion's builder, with the steps it can still take |
+| `Companion<V, M>`     | the companion `.build()` returns                        |
 
 You never write the last two. They are exported so that your own `.d.ts` can name them when you
 re-export a companion.
@@ -74,6 +75,7 @@ re-export a companion.
 | `.impl(fns)`                    | adds members taking the union, once                                     |
 | `.implVariant(N, variant => …)` | adds one variant's members, and its seal                                |
 | `.implTrait(Tr, fns?)`          | implements a trait the enum declares                                    |
+| `.build()`                      | ends the chain, and returns the companion                               |
 | `Tag<T>`                        | names the tag field, intersected into `X`                               |
 | `VariantOf<E, N>`               | the type of one variant                                                 |
 | `SeedFor<E, N>`                 | what that variant's constructor takes                                   |
@@ -81,19 +83,20 @@ re-export a companion.
 | `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields                            |
 | `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name                               |
 | `AnyEnum`                       | a constraint over any enum                                              |
-| `EnumBuilder<E>`                | an enum's companion, with the steps it can still take                   |
-| `EnumCompanion<E>`              | an enum's companion, without the steps                                  |
+| `EnumBuilder<E>`                | an enum's builder, with the steps it can still take                     |
+| `EnumCompanion<E>`              | the enum's companion `.build()` returns                                 |
 
 ### Trait
 
-|                            |                                                       |
-| -------------------------- | ----------------------------------------------------- |
-| `Trait<K, Shape, M>`       | a contract Vals share                                 |
-| `Trait.companion<Tr>()`    | starts the trait's own implementation                 |
-| `Tr.impl(fns)`             | implements members over the trait, and ends the chain |
-| `Tr.dyn(companion, value)` | boxes a value with one Val's implementation           |
-| `Self`                     | the implementing Val, inside a member's signature     |
-| `Final<F>`                 | marks a member no Val may replace                     |
-| `Dyn<Tr>`                  | a boxed value, with the concrete type gone            |
-| `AnyTrait`                 | a constraint over any trait                           |
-| `Members`                  | the members a trait declares                          |
+|                            |                                                   |
+| -------------------------- | ------------------------------------------------- |
+| `Trait<K, Shape, M>`       | a contract Vals share                             |
+| `Trait.companion<Tr>()`    | starts the trait's own implementation             |
+| `.impl(fns)`               | implements members over the trait, once           |
+| `.build()`                 | ends the chain, and returns the companion         |
+| `Tr.dyn(companion, value)` | boxes a value with one Val's implementation       |
+| `Self`                     | the implementing Val, inside a member's signature |
+| `Final<F>`                 | marks a member no Val may replace                 |
+| `Dyn<Tr>`                  | a boxed value, with the concrete type gone        |
+| `AnyTrait`                 | a constraint over any trait                       |
+| `Members`                  | the members a trait declares                      |
