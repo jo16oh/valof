@@ -965,7 +965,7 @@ const changedDuringSeal = (): never => {
   throw new TypeError("The payload changed while the custom seal was running.");
 };
 
-const notFixedPoint = (): never => {
+export const notFixedPoint = (): never => {
   throw new TypeError("The seal rejected or changed a payload from `.implCreate.noseal`.");
 };
 

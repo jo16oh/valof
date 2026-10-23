@@ -116,3 +116,15 @@ describe("a variant's implCreate.noseal in production", () => {
     expect(Task.Done.create()).toEqual({ at: 0, _tag: "Done" });
   });
 });
+
+describe("an enum's implCreate.noseal in production", () => {
+  test("returns the variant without running a seal", () => {
+    type Task = EnumOf<"ProductionEnumTask", { Done: { at: number }; Todo: { text: string } }>;
+    const Task = Enum.companion<Task>()
+      .Done.implSeal((d, seal) => (d.at > 0 ? seal(d) : new RangeError("at must be positive")))
+      .implSeal((input, seal) => (input._tag === "Done" ? new TypeError("not done") : seal(input)))
+      .implCreate.noseal(() => ({ _tag: "Done" as const, at: 0 }))
+      .build();
+    expect(Task.create()).toEqual({ at: 0, _tag: "Done" });
+  });
+});

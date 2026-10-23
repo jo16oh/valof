@@ -8,8 +8,12 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
+import { development } from "./env.ts";
 import {
   assertVariantPayload,
+  equals,
+  notFixedPoint,
+  of,
   Val,
   type AnyFn,
   type AnyVal,
@@ -604,9 +608,11 @@ export type EnumCompanion<
     ? unknown
     : {
         /** Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. */
-        create: (
-          ...args: C extends (...args: infer A) => unknown ? A : never
-        ) => [F] extends [undefined] ? Dispatched<E, VM> : Returned<F>;
+        create: C extends Unsealed & { payload: infer P }
+          ? () => Extract<E, Record<TagOf<E>, P[TagOf<E> & keyof P]>>
+          : (
+              ...args: C extends (...args: infer A) => unknown ? A : never
+            ) => [F] extends [undefined] ? Dispatched<E, VM> : Returned<F>;
       }) & {
     /**
      * Dispatches on the tag. Every variant needs a handler, so adding one to the declaration
@@ -804,9 +810,26 @@ export type EnumBuilder<
                * Registers a function that creates a tagged payload, as `create`. Any arguments, a
                * payload of one variant out, which `seal` then receives.
                */
-              implCreate: <G extends (...args: never[]) => Exclusive<E>>(
+              implCreate: (<G extends (...args: never[]) => Exclusive<E>>(
                 create: G,
-              ) => EnumBuilder<E, O, VM, M, F, G, D | "implCreate">;
+              ) => EnumBuilder<E, O, VM, M, F, G, D | "implCreate">) & {
+                /**
+                 * A `create` that bypasses every seal and returns the variant its payload's tag
+                 * names, for a payload the seals always accept. Takes no arguments. Development
+                 * still runs the seals, and throws if one rejects the payload or changes it.
+                 */
+                noseal: <G extends AnyFn>(
+                  create: Argumentless<Exclusive<E>, G>,
+                ) => EnumBuilder<
+                  E,
+                  O,
+                  VM,
+                  M,
+                  F,
+                  Unsealed & { payload: ReturnType<G> },
+                  D | "implCreate"
+                >;
+              };
             })
     : unknown) &
   ("impl" extends D
@@ -857,7 +880,7 @@ type Seal = (value: Payload, seal: (value: Payload) => unknown) => unknown;
 type Registered = {
   seal?: Seal;
   create?: AnyFn;
-  noseal?: boolean;
+  noseal?: boolean | undefined;
   members?: Payload;
   traits?: Payload;
 };
@@ -907,7 +930,9 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
     {
       tag: (key: string) => builder(key, variants, own),
       implSeal: (seal: Seal) => grow({ seal }),
-      implCreate: (create: AnyFn) => grow({ create }),
+      implCreate: Object.assign((create: AnyFn) => grow({ create, noseal: false }), {
+        noseal: (create: AnyFn) => grow({ create, noseal: true }),
+      }),
       impl: (fns: Payload) => grow({ members: { ...members, ...duals(fns) } }),
       // The trait's own members and the enum's, merged the way `val.ts` merges them.
       implTrait: (trait: { __valof_shared: Payload }, fns = {}) => {
@@ -929,6 +954,12 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
 };
 
 /**
+ * What development's check of the enum's `implCreate.noseal` hands the next variant's seal: it
+ * hears what that seal passed to the default one.
+ */
+let watching: ((candidate: Payload, sealed: unknown) => void) | undefined;
+
+/**
  * One variant's frame: a Val companion whose seal writes the tag. The tag goes on in the seal, so
  * `create`, `patch` and `seal` all write it, and one a cast let in is replaced. A payload already
  * carrying it is passed on as is, which keeps a `patch` that changed nothing returning its value.
@@ -938,9 +969,18 @@ const frame = (tag: string, name: string, steps: Registered): object => {
     payload[tag] === name ? payload : { ...payload, [tag]: name };
   const { seal, create, noseal, members = {}, traits = {} } = steps;
   let chain = (Val.companion() as unknown as Chain).implSeal((value, terminal) => {
+    // Taken here, so a value this seal builds on the way runs with nothing watching it.
+    let watcher: typeof watching;
+    if (development) [watcher, watching] = [watching, undefined];
     // Before the spread, which would turn a string into a character map.
     assertVariantPayload(value);
-    return seal ? seal(value, (checked) => terminal(tagged(checked))) : terminal(tagged(value));
+    const end = (checked: Payload) => {
+      const candidate = tagged(checked);
+      const sealed = terminal(candidate);
+      watcher?.(candidate, sealed);
+      return sealed;
+    };
+    return seal ? seal(value, end) : end(value);
   });
   if (create) {
     // Tagged as it comes out, so development's check of `noseal` compares it with what the seal
@@ -957,7 +997,7 @@ const frame = (tag: string, name: string, steps: Registered): object => {
  * throws where the chain is.
  */
 const assemble = (tag: string, variants: Variants, own: Registered): object => {
-  const { seal, create, members = {}, traits = {} } = own;
+  const { seal, create, noseal, members = {}, traits = {} } = own;
   // Remembered for the allocation, not for identity: a frame built twice behaves the same, and
   // rebuilding one on every read would make a fresh closure per member per access.
   const frames = new Map<string, unknown>();
@@ -970,6 +1010,24 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
   const dispatch = (value: Payload) =>
     (at(value[tag] as string) as { seal: (value: Payload) => unknown }).seal(value);
   const sealing = seal ? (value: Payload) => seal(value, dispatch) : dispatch;
+  // Development runs every seal anyway, and throws unless the variant's seal hands the default
+  // one a payload equal to the created one.
+  const unsealed = (payload: Payload): unknown => {
+    if (!development) return of(payload as never);
+    const heard: unknown[] = [];
+    const watch = (value: Payload) => {
+      watching = (candidate, sealed) =>
+        heard.push(equals(payload as never, candidate as never) ? sealed : notFixedPoint());
+      return dispatch(value);
+    };
+    try {
+      if (seal) seal(payload, watch);
+      else watch(payload);
+    } finally {
+      watching = undefined;
+    }
+    return heard.length ? heard[0] : notFixedPoint();
+  };
 
   return resolving(
     {
@@ -977,7 +1035,11 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
         (handlers[value[tag] as string] ?? handlers._)!(value),
       ),
       seal: sealing,
-      ...(create && { create: (...args: never[]) => sealing(create(...args) as Payload) }),
+      ...(create && {
+        create: noseal
+          ? () => unsealed(create() as Payload)
+          : (...args: never[]) => sealing(create(...args) as Payload),
+      }),
       [Tag]: { match: matchTag, key: tag },
       __valof_traits: traits,
       // Last, as the proxy read them first: the declaration keeps a trait member off `match`.

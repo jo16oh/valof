@@ -925,6 +925,71 @@ describe("the enum's seal", () => {
       .build();
   });
 
+  describe("`implCreate.noseal`", () => {
+    const message = /payload from `\.implCreate\.noseal`/;
+    const card = () => ({ _tag: "Card" as const, id: "c", limit: 1 });
+
+    test("returns the variant its payload's tag names, sealed rather than as created", () => {
+      const created = card();
+      const Carded = Enum.companion<Money>()
+        .implCreate.noseal(() => created)
+        .build();
+      expectTypeOf(Carded.create()).toEqualTypeOf<VariantOf<Money, "Card">>();
+      expect(Carded.create()).toEqual({ id: "c", limit: 1, _tag: "Card" });
+      expect(Carded.create()).not.toBe(created);
+    });
+
+    test("is the step `implCreate` is, once and after the seal", () => {
+      const created = Enum.companion<Money>().implCreate.noseal(card);
+      expectTypeOf(created).not.toHaveProperty("implCreate");
+      expectTypeOf(created.implSeal)
+        .parameter(0)
+        .toEqualTypeOf<"write `implSeal` before `implCreate`">();
+    });
+
+    test("runs every seal in development, and throws where one rejects or changes the payload", () => {
+      const byEnum = Enum.companion<Money>()
+        .implSeal((input, seal) =>
+          input._tag === "Card" ? new TypeError("no cards") : seal(input),
+        )
+        .implCreate.noseal(card)
+        .build();
+      const byVariant = Enum.companion<Money>()
+        .Card.implSeal((c, seal) => seal({ ...c, limit: c.limit * 2 }))
+        .implCreate.noseal(card)
+        .build();
+      const changedByEnum = Enum.companion<Money>()
+        .implSeal((input, seal) => seal(input._tag === "Card" ? { ...input, limit: 2 } : input))
+        .implCreate.noseal(card)
+        .build();
+      expect(() => byEnum.create()).toThrow(message);
+      expect(() => byVariant.create()).toThrow(message);
+      expect(() => changedByEnum.create()).toThrow(message);
+    });
+
+    test("a seal building another value on the way does not count as the payload's", () => {
+      const Nested = Enum.companion<Money>()
+        .Card.implSeal((c, seal) => {
+          Money.Cash.seal({ id: "other", yen: 1 });
+          return seal(c);
+        })
+        .implCreate.noseal(card)
+        .build();
+      expect(Nested.create()).toEqual({ id: "c", limit: 1, _tag: "Card" });
+    });
+
+    test("takes no arguments, and returns a tagged payload", () => {
+      Enum.companion<Money>()
+        // @ts-expect-error `.implCreate.noseal` takes a function with no arguments
+        .implCreate.noseal((limit: number) => ({ _tag: "Card" as const, id: "c", limit }))
+        .build();
+      Enum.companion<Money>()
+        // @ts-expect-error the tag says which variant
+        .implCreate.noseal(() => ({ id: "c", limit: 1 }))
+        .build();
+    });
+  });
+
   test("`create` returns a tagged payload of one variant", () => {
     Enum.companion<Money>()
       // @ts-expect-error the tag says which variant
