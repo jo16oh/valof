@@ -91,13 +91,12 @@ The first variant step removes the enum's steps from the chain.
 
 ### Enum companion options
 
-The list `O` after the enum in `Enum.companion<E, O>()` takes a Val's options and `VariantOptions`.
+The list `O` after the enum in `Enum.companion<E, O>()` accepts the
+[companion options](#companion-options), which apply to `E` and every variant, and `VariantOptions`,
+which applies to one.
 
 |                        |                                                                        |
 | ---------------------- | ---------------------------------------------------------------------- |
-| `PrivateSeal`          | removes `E.seal` and every variant's `seal`; on the enum alone         |
-| `PrivateCreate`        | removes `E.create` and every variant's `create`                        |
-| `Unpatchable<K>`       | excludes `K` from `patch`, on every variant that holds it              |
 | `VariantOptions<N, O>` | adds options `O` for variant `N`: `PrivateCreate` and `Unpatchable<K>` |
 
 ### Enum companion
