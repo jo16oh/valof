@@ -37,7 +37,7 @@ gives it another name, which `companion-mismatch` reports.
 `create` writes the tag and passes the payload to the variant's seal. The seal takes the payload a
 value holds, tag included, so a value survives a round trip through JSON:
 `Shape.Circle.seal(JSON.parse(JSON.stringify(circle)))`. Both deep-copy their payload like any other
-constructor. For a payload that carries its tag, or a tag that arrives alone, see
+constructor. For a payload including its tag, or a tag that arrives alone, see
 [Build a value](#build-a-value).
 
 A variant is a Val. It patches, it compares, and it nests. A patch cannot reach the tag, so it
@@ -102,11 +102,11 @@ as ts-pattern fits. `_tag` is real data, so `.with({ _tag: "Circle" }, …)` alr
 
 An enum value can be built from three kinds of input, and each has its own call:
 
-| When you have                                                 | Use                               |
-| ------------------------------------------------------------- | --------------------------------- |
-| the fields of a variant you already know                      | `Shape.Circle.create(fields)`     |
-| a payload carrying its tag, such as a schema library's output | `Shape.seal(payload)`             |
-| the tag alone, with the fields kept elsewhere                 | `Shape[Tag].match(tag, handlers)` |
+| When you have                                                  | Use                               |
+| -------------------------------------------------------------- | --------------------------------- |
+| the fields of a variant you already know                       | `Shape.Circle.create(fields)`     |
+| a payload including its tag, such as a schema library's output | `Shape.seal(payload)`             |
+| the tag alone, with the fields kept elsewhere                  | `Shape[Tag].match(tag, handlers)` |
 
 `Shape.seal(payload)` reads the tag, selects that variant, and passes the payload to its seal.
 Passing a field of another variant is a type error, even when the tag is a union. Where the variant
