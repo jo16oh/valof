@@ -23,7 +23,7 @@ export const BypassedCompanion: Rule<BypassedCompanion> = {
 function instead(site: CompanionSite, type: string, variant: string | undefined): string {
   // An enum's companion holds one frame per variant, and its entry selects one from the tag.
   if (site.of === "Enum" && variant !== undefined)
-    return `bypasses ${type}.${variant}.create, which seals the payload`;
+    return `bypasses ${type}.${variant}.seal, the constructor for it`;
   if (site.of === "Enum") return `bypasses ${type}.seal, which selects the variant from the tag`;
   if (site.seals) return `bypasses ${type}.seal, which checks the payload`;
   return `bypasses ${type}.seal, the constructor for it`;

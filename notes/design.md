@@ -26,7 +26,7 @@ import { Val } from "valof";
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed`（2026-10-22 に型引数の `Unpatchable` へ、§6.12）と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
-  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、`.build()` で鎖を閉じること（§13.6 を覆した）、Proxy を残す判断
+  - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、`.build()` で鎖を閉じること（§13.6 を覆した）、Proxy を残す判断。Enum の段の順は §15.2
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
@@ -37,7 +37,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
@@ -1964,6 +1964,10 @@ companion の型引数に移した（`Val.companion<User, [PrivateSeal, Unpatcha
   `seal` を公開すると、`create` が生成するはずのフィールドを呼び出し側が渡せる（`User.seal({ id:
 "forged", … })`）。`create` を隠すのは公開する面を整えるだけで、docs の 3 段（parse は `implAssoc`、
   生成は `create`、検査は `seal`）で足りる
+  - **2026-10-24: `PrivateCreate` を足した（§15.2「1 本の鎖で作る」）。**不変条件を守らないのは変わらないが、
+    公開する面を整える手段が要る場面がある。Enum の variant には既定の `create` が生え、`implCreate` で
+    置き換えずにただ消したい（`Shape.seal` か、別の関数からだけ作らせる）。`PrivateSeal` と同じく、既定でも
+    `implCreate` のものでも隠す。名前の比較は §15.2
 - **`fixed` も同じ型引数に移し、`Unpatchable<K>` にする。**塞ぐのは `patch` の型だけ。§6.10 で
   `unpatchable` を退けた理由（2 つの派生経路を縛るのに `patch` だけと読める）は、`update` の削除（§6.4）で
   消えた。型の側の `Fixed<T>`（payload のフィールドに付ける形）にはしない。`patch` への制限であって、
@@ -2045,6 +2049,8 @@ Val.companion<Account, [Unpatchable<"id">]>()
   「another member already answers to one of these names」で落とす
 - おすすめの並べ方は docs で示すだけ。Rust に倣って `impl` → `implTrait`
 
+**2026-10-24: Enum の段の順は §15.2「1 本の鎖で作る」に移った。**以下は当時の記録。
+
 **Enum は `implSeal` だけが前半。**`impl`（1 回）、`implVariant`、`implTrait` は順不同で、どれかを書くと
 `implSeal` が消える。§15.2 の `Before`（`implSeal` を `implVariant` より先に強制する）はこれで要らなく
 なり、消した。`implVariant` は Variant の入口を整理するとき（§9）に消すので、変更の少ない形にした。
@@ -2097,10 +2103,10 @@ const Greetable = Trait.companion<Greetable>().impl({ … }).build();
 
 - **2 つ目の companion。**別の場所で `Val.companion<User>().implSeal(evil).build()` を作る経路は残る。
   `split-companion` / `companion-mismatch` の担当
-- **`implVariant` の callback が返す枠。**今の枠は `impl` / `implSeal` を持ったまま companion に載るので、
+- **`implVariant` の callback が返す枠。**（2026-10-24: `implVariant` を消して塞いだ。§15.2）今の枠は `impl` / `implSeal` を持ったまま companion に載るので、
   `Shape.Circle.implSeal(evil)` は型を通る。`implVariant` は Enum の作り直しで消すので、この PR では
   触らなかった。`detached-impl` を消したので、作り直しまでは lint も拾わない
-- **作り直しの E では Variant 名を再び予約する。**builder に `.Circle` と段が並ぶため。そこで `build` も
+- **作り直しの E では Variant 名を再び予約する。**（2026-10-24: 予約した。§15.2）builder に `.Circle` と段が並ぶため。そこで `build` も
   加える
 
 **`.build()` を忘れたときの案内。**エラーは使う側に出る（定義した行ではない）。builder の `seal` /
@@ -2606,10 +2612,12 @@ User.patch(user, { id: "forged" }); // 型エラー
   - production gzip は 852 B のまま。enum のインスタンス化は 32,437 → 32,653、`index.d.mts` は +0.6 kB
 - [x] ~~Variant 名の検査（`src/enum.ts` の `Fault`）が `Reserved` と別の集合である。~~ → 意図どおり。Enum の
       companion は Val の companion と違い、`patch` も `create` も持たない。Variant をその名前にできる
-- [ ] **Enum の companion に `create` を生やすか。**`patch` は要らない。`create` は検討の余地がある。生やすなら
+- [x] ~~**Enum の companion に `create` を生やすか。**~~ → 生やした、2026-10-24。enum の `implCreate` を書いたときだけ。出力は `Shape.seal` を通る（§15.2「1 本の鎖で作る」）。`patch` は要らない。`create` は検討の余地がある。生やすなら
       Variant 名の検査に `create` を足す
   - 2026-10-21: Variant の `create` は `implCreate` を書いたときだけ生やす方向（下の Enum の API）
-- [ ] **Enum の API を作り直す。未決、2026-10-21。**§6.12 で入口を `.seal` に揃えた続き
+- [x] ~~**Enum の API を作り直す。未決、2026-10-21。**~~ → 1 本の鎖にした、2026-10-24（§15.2「1 本の鎖で作る」）。
+      `implVariant` と Variant ごとのメンバを持たない方向、callback で Variant のコンストラクタを渡す形、
+      `implSeal` の書き方の 3 案は、どれも採らなかった。以下は当時の記録。§6.12 で入口を `.seal` に揃えた続き
   - `implVariant` と Variant ごとの `impl` は廃止する方向。Rust も Scala の `enum` も Variant ごとの
     メンバを持たない。union のメンバと `switch` で書ける
   - Variant ごとの `implSeal` は残す。戻り型が Variant ごとに分かれる（`Square` は失敗しない）
@@ -2631,6 +2639,9 @@ User.patch(user, { id: "forged" }); // 型エラー
     - レコード: `implSeal({ Circle: fn })`。全体を指すものが名前に出ないので弱い
   - §15.2「却下: enum に seal を 1 本書く」の理由のうち、「書く量が変わらない」「`match` で TS7022」は
     弱い（`switch (p._tag)` で書ける）。残るのは戻り型が Variant ごとに分かれないこと
+- [ ] **`unimplemented-trait` が variant で宣言した trait を見ない（§15.2「1 本の鎖で作る」）。**誤検出は無いが、
+      実装の書き忘れを警告しない。scan が `{ Book: … & Named }` の trait と `.Book.implTrait` を読む必要がある。
+      valof-lint の書き直しのときに入れる
 - [x] ~~**valof-lint の誤検出、§6.12 から。**`detached-impl` が、`fixed` という名前のメンバを別ファイルから
       呼ぶと「鎖の外で書いた段」と報告する。~~ → `fixed` を型引数に移して `STEPS` から外し、消えた
       （2026-10-22）。段と同じ名前のメンバは型が拒むので、ほかに同じ誤検出は起きない
@@ -6018,6 +6029,8 @@ Property 'nope' does not exist on type 'VariantOf<Shape, "Circle">'.
 
 #### Variant のメンバは companion 側に置く、2026-09-16
 
+**2026-10-24: `implVariant` を消した。**variant の段は鎖の `.Circle.*` に並ぶ（下の「1 本の鎖で作る」）。
+
 **Variant に `Val.companion` を別に立ててはいけない。**`Shape.Circle` と `Circle` が別のオブジェクトになり、
 持っているメンバが食い違う。名前も衝突する。§14.21 の「companion は型名と同じ」に従うと
 `const Circle` は型 `Circle` の companion だが、`const { Circle } = Shape` は enum のコンストラクタで、
@@ -6332,6 +6345,8 @@ Variant の数では増えない。予算は 45,000 に置いた。
 
 #### Variant ごとの seal と union の `seal`、2026-09-16 実装
 
+**2026-10-24: seal の層を廃止した。**enum の `implSeal` は `Shape.seal` だけが通る入口になった（下の「1 本の鎖で作る」）。
+
 **2026-10-14: `seal` の引数を排他的にした。**下の「`seal` の引数を排他的にする」を見る。
 
 **動機は境界の分岐。**タグ付きのペイロードが来る場所で、利用者は今どの Variant かを自分で見て、対応する
@@ -6551,6 +6566,8 @@ Command[Tag].match(tag, {
 
 #### `implVariant` は Variant ごとの鎖、2026-09-18 実装
 
+**2026-10-24: `implVariant` を消した**（下の「1 本の鎖で作る」）。
+
 **レコード 1 個から鎖に変えた。**ネストが 1 段減り、外側の callback が消える。
 
 ```ts
@@ -6748,6 +6765,152 @@ TS 7.0.2 / 6.0.3 / 5.9.3 で同じ結果。
 割ると、間違いが TS2769「最後のオーバーロードが合わない」に化ける（`.impl` のオブジェクト形と同じ理由）。
 
 ---
+
+#### 1 本の鎖で作る、2026-10-24 実装
+
+**`implVariant` を消し、companion を 1 本の鎖にした。**v0.11 の破壊的変更。議論の経緯と比べた案（A〜D と E）は
+`__memo__/enum-api-redesign.md`。
+
+```ts
+const Shape = Enum.companion<Shape, [Unpatchable<"id">]>()
+  .tag("kind") // `Tag<…>` を宣言したときだけ。最初の段
+  .Circle.implSeal((c, seal) => (c.r > 0 ? seal(c) : new RangeError("r"))) // variant の段
+  .Circle.impl({ diameter: (c) => c.r * 2 })
+  .implSeal((input: object, seal) => …) // enum の段は variant の段の後
+  .implCreate(…)
+  .impl({ … })
+  .build();
+```
+
+**variant はそれ自体 Val。**`.Circle.` の後に Val の段（`implSeal` → `implCreate`（`.noseal`）→ `impl` /
+`implTrait`）が並び、順と回数も Val と同じ。どの段も enum の builder を返すので、次の variant は `.Square` で
+続く。
+
+- **§15.2「Variant のメンバは companion 側に置く」の `implVariant` と、Variant ごとの `impl` を持たない方向
+  （§9、2026-10-21）を覆した。**Rust の newtype に書く `impl Circle` と同じく、variant ごとのメンバは自然に
+  なる。別の companion は今も立てない（`NotEnum`）。`.Circle` は Shape の鎖の一部
+- **variant の seal はタグを必須にした（2026-10-24）。**引数は値の payload そのもの（`Tagged<E, N>`）で、
+  JSON と `Val.unwrap` の往復で型も値も変わらない。「Variant は Val」に揃う。タグを書き換える処理は無く、
+  seal は届いたタグを他のフィールドと同じく検査できる
+- **タグの鋳造は `create` の役目。**variant には既定の `create`（タグ無しの payload を受け取り、タグを付けて
+  seal へ）が生える。`implCreate(f)` の `f` もタグ無しを返し、同じくタグを付ける。Val の `create` が id を生成
+  するのと同じで、§6.7 の分け方（seal は冪等な検査、create は生成）に収まる。2026-10-21 に「`create` は
+  `implCreate` を書いたときだけ」とした理由（当時の `create` はタグを足す seal で、生成と意味がずれていた）は、
+  タグを鋳造と見ることで消えた
+- **`PrivateSeal` は seal だけを隠す。**既定の `create` は残る。生成するフィールドはタグだけで、タグは `create` が
+  正しく付けるので、呼び出し側が偽れるものは無い（§6.12 の「`create` が生成するはずのフィールドを渡せる」に
+  当たらない）。一度「既定の `create` は実質タグを付ける seal」として一緒に隠したが、seal は constructor で
+  `create` は factory なので、`PrivateSeal` で両方隠すと seal の意味が散漫になる（ユーザー）
+- **`PrivateCreate` を足した。**`create` を、既定のものも `implCreate` のものも型から消す。Val にも Enum にも
+  付けられる。Enum 全体に付けると全 variant の `create` と `Shape.create` を消し、`VariantOptions<N, [PrivateCreate]>`
+  なら 1 つの variant だけ。`PrivateSeal` を variant ごとに許さないのは `Shape.seal` がタグで全 variant に届くから
+  で、`create` にはその経路が無い
+  - 名前の比較: `NoDefaultCtor`（`PrivateSeal` はカスタムの seal も隠すので「既定」と合わない。否定形で略語）、
+    `PrivateConstructor`（docs は `seal` も `create` も constructor と呼ぶので、`create` まで隠すと読める。
+    Kotlin の `private constructor` と同じ形にするには docs の用語の揃え直しが要る）、`NoCreate`（Val には既定の
+    `create` が無く、`implCreate` との関係で迷う。形容詞の規則（§6.10）にも合わない）。`PrivateSeal` と同じく
+    「`Private○○` は ○○ を公開面から消す」と読める `PrivateCreate` にした
+- 経緯: 最初はタグを自動で付け、引数から除いた（R）。理由は「呼んだ時点で variant は決まっていて情報が増えない」
+  「毎回書く冗長さ」「タグとブランドが一致する（キャストで来た違うタグを上書き）」。ユーザーが `unknown` 寄りの
+  seal で `Shape.Circle.seal(JSON.parse('{ "_tag": "Square", "r": 1 }'))` が通ることを問題にし、比べ直した
+  - R は構造的部分型のせいで、変数として渡す値ならどのタグでも通っていた。実質「タグは省略可能で、値は検査
+    しない」
+  - Effect（v3、v4.0.6）は、検査しない `Data.taggedEnum` ではタグを除いて上書きし、検査する `Schema.TaggedStruct`
+    の `make` ではタグを省略可能（既定値で補う）、decode（`Schema.decodeUnknown*`）では必須にしている
+  - 省略可能は同じ入口に 2 つの書き方を作る。seal を必須（decode に当たる）、create を省略（make に当たる）と
+    入口で分けると、書き方は 1 つずつに決まる（ユーザー）
+  - **却下: 既定の seal の直前でタグを上書きする安全策。**守れるのは `implSeal` の無い variant に型を偽って
+    違うタグが来た場合だけで、Val の既定の seal が `any` をそのまま使うのと同じ立場。起きやすい間違いは
+    `Shape.seal` が宣言に無い variant を作ることで、上書きでは防げない（ユーザー）
+
+**enum 全体の seal の層（variant → enum → 既定）を廃止した。**§15.2「Variant ごとの seal と union の `seal`」の
+合成を覆した。決め手は `match` との対称性。`match` はタグで handler に振り分けるだけで、全 variant の前に走る
+handler は無い。既定の `Shape.seal` も振り分けるだけにした。`Made`（enum の seal の戻りを variant に絞る型と、
+TS 5.9 の TS2590 の回り道）と、実行時の合成が消えた。
+
+**enum の `implSeal` は `Shape.seal` の入口として戻した。**振り分けの前に走り、callback の `seal` が振り分け。
+戻り型は各 variant の seal の戻り型の union。variant の `seal` / `create` / `patch` は通らない（variant はもう
+決まっている）。検証は variant 側にまとまり、enum の `implSeal` は任意。
+
+- 要るのは、`Shape.seal` に検証前の値を渡すときだけ。variant の seal はタグも検査できるが、宣言に無いタグの
+  payload はどの variant の seal にも届かない（その名前の枠に seal が無い）。§8.3 の推奨（
+  `Shape.seal(JSON.parse(json))`、検証は seal の中）では、`JSON.parse` が `any` を返すので型も止めない。
+  引数を `object` に広げると、callback の `seal` が `Exclusive<E>` しか受け取らないので、タグを絞り込む検査を
+  書くことになる。`any` を素通しするのは Val の既定の seal も同じで、valof の設計の問題ではない（ユーザー）
+- **一度、層（variant → enum → 既定）を戻して全入口に通した（`wip/enum-seal-layer`）。**入口ごとに通る seal が
+  ずれるのを避けるため。だが variant の seal を先に通すと、variant の枠がタグを上書きしてから enum の seal に
+  渡すので、タグだけ違う値が enum のタグの検査を通る。enum の seal を先に通すと、enum が選んだ variant と
+  呼ばれた入口の一致を確かめるには投げるしかなく、型に表せない。タグを seal で必須にし、検査を variant 側に
+  まとめたことで、層は要らなくなった
+- 既定の `Shape.seal` は残した。`implSeal` の無い `User.seal` と同じ扱いで、§6.12「seal は常に `X.seal(p)`」も
+  保つ
+- **enum の `implCreate` も戻した。**出力は `Shape.seal` を通る。`.noseal` は production で seal をすべて
+  飛ばし、development では enum と variant の seal を通して既定の seal に渡る payload を確かめる。variant の
+  枠に入った時点で見張りを外すので、seal が途中で作る別の値は数えない
+- **却下: 既定の `Shape.seal` を廃止する。**穴は塞がるが、Val とずれる
+- **却下: callback の `seal` を仮に `Shape` で型付けし、`.build()` で置き換える。**トップレベルしか置き換え
+  られず、`Result<Shape, E>` の中が実際より狭くなる
+- **却下: 宣言に seal の失敗の型を持たせる。**宣言が重い
+
+**enum の段は variant の段の後。**callback の `seal` の戻り型が variant の seal に依存するので、先に置くと
+決まらない。最初にユーザーが出した形で、層の逆転を理由に一度退けていた（層の廃止で理由が消えた）。enum の段を
+1 つ書くと variant の段は消える。`.Square.implSeal(f)` の次の行の `.impl({…})` を Square のものと読む心配は
+無い。formatter が段ごとに改行し、variant の段は行頭に `.Square` が付く。
+
+**ライブラリはタグを実行時に検査しない。**Proxy は variant の名前を知らない。段を書いた variant の名前は
+`.build()` で分かるが、書かなかったものは分からない。宣言に無いタグが入るのは型を偽る経路（`any`、アサーション、
+誤った型ガード、型エラーの抑制、JS）だけで、境界では enum の `implSeal` に置いたスキーマが拒む。宣言にある
+variant のタグは、その variant の seal がスキーマで検査できる。文字列かどうかだけを見る検査は、
+守れるものが変わらないので入れなかった。
+
+**variant ごとの trait。**`{ Book: { pages: number } & Named }` と宣言し、`.Book.implTrait(Named, …)` で
+実装する。payload から trait を取り出し、shape のフィールドはその variant にだけ入る。
+
+- **enum で宣言した trait は variant で宣言できない（`Fault`）。**`dyn` は値ではなく渡した companion で実装を
+  選ぶので、`Named.dyn(Shape, c)` と `Named.dyn(Shape.Circle, c)` が別の実装を呼ぶ
+- union の `implTrait` に variant の trait を渡すと「a variant declares this trait, so it implements the
+  trait itself」で落とす
+- **`Takes` / `PayloadKeys` の `AnyVal` 制約を外した。**`VariantOf<E, N> & AnyVal` で制約を満たすと、2 つ目の
+  Phantom から payload を読んでしまい、メンバ名と payload のフィールドの衝突を見逃す
+
+**companion の型引数（§6.12）を Enum に広げた。**
+
+```ts
+Enum.companion<
+  Order,
+  [PrivateSeal, Unpatchable<"id">, VariantOptions<"Shipped", [Unpatchable<"shippedAt">]>]
+>();
+```
+
+- `Unpatchable<K>` の K は全 variant のキーの union から選び、K を持つ variant すべてで外す
+- `VariantOptions<N, [...]>` は variant ごと。enum 全体の指定に足す。`PrivateSeal` は入れられない（`PrivateCreate` は入れられる）。
+  `Shape.seal` がタグで全 variant に届くので、隠すなら enum 全体（`Shape.seal` と全 variant の `seal`。
+  `create` は残る）
+- **名前は `VariantOptions`（2026-10-24 に `OptionsFor` から改名）。**`OptionsFor` は Enum 専用なのに一般的な名前を
+  取り、リストの中で `"Shipped"` が variant の名前だと宣言を見ないと分からない（ユーザー）。`OptionsFor` を選んだ
+  理由（短い、`SeedFor` と揃う）は弱い。`SeedFor<Shape, "Circle">` は enum を引数に取るので、それだけで読める。
+  `VariantOf` / `VariantsOf` と同じく、何の型かを先頭に置く。`OptionsForVariant` は長い
+- 却下した形（交差とレコード、第 2 型引数、`Unpatchable<{ Parcel: … }>`、名前 `Variant`）はメモの記録
+
+**`.tag("kind")` を最初の段にした。**`companion("kind")` の引数から移した。Val / Trait の `companion()` は
+引数を取らない。`Tag<…>` を宣言したときだけ `companion()` は `{ tag }` だけを返すので、書き忘れも綴り間違いも、
+既定のタグで書くのも型が落とす。
+
+**予約する Variant 名。**builder に `.Circle` と段が並ぶので、`.build()` で外した段の名前（§6.12）を戻した。
+`tag`、`impl`、`implSeal`、`implCreate`、`implTrait`、`implAssoc`、`build`（「a variant cannot take a step's
+name」）と、`seal`、`match`、`create`、`_`、`__valof_*`。`implAssoc` と `create` は後の破壊的変更を避けて先に
+予約した（`implAssoc` は PR 2、enum の `create` は今回入れた）。
+
+**実行時。**builder を Proxy に戻した。段の名前以外のキーは variant の段になる。`.build()` は段を書いた variant の
+枠をその場で作るので、メンバの検査（引数の個数）は鎖の位置で投げる。書かなかった variant の枠は、今までどおり
+最初に読んだときに作る。variant の枠は Val の companion で、seal がタグを書く。
+
+**lint。**scanner が鎖の中の `.Circle` を読み飛ばす（`variantOf`）。`implVariant` の callback を追う処理は
+消した。`bypassed-companion` のメッセージは `Shape.Circle.seal` を指す。`unimplemented-trait` は variant で
+宣言した trait をまだ見ない（lint の書き直しの後）。
+
+**計測。**type-perf: enum 45,815 → 32,757、`index.d.ts` 69.95 kB → 77.24 kB。production gzip: Enum の増分
++415 → +572 B（予算 +640 B）。builder の Proxy と、`noseal` の development の見張りの受け渡しの分。
 
 ### 15.3 `path`: seal をまたぐ patch の合成、2026-09-10
 

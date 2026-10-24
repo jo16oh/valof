@@ -3,6 +3,7 @@ import type {
   AnyVal,
   Patch,
   PayloadOf,
+  PrivateCreate,
   PrivateSeal,
   Rec,
   SeedOf,
@@ -2122,6 +2123,18 @@ describe("building", () => {
     });
   });
 
+  describe("PrivateCreate", () => {
+    type Token = Val<"HiddenToken", { value: string }>;
+    const Token = Val.companion<Token, [PrivateCreate]>()
+      .implCreate(() => ({ value: "t" }))
+      .build();
+
+    test("takes `create` off the companion, and leaves `seal`", () => {
+      expectTypeOf(Token).not.toHaveProperty("create");
+      expect(Token.seal({ value: "v" })).toEqual({ value: "v" });
+    });
+  });
+
   describe("PrivateSeal and Unpatchable together", () => {
     type Owned = Trait<"OptionOwned", { owner: string }, { owned: (self: Self) => string }>;
     const Owned = Trait.companion<Owned>().build();
@@ -2541,7 +2554,7 @@ describe("building", () => {
           .impl({
             impl: (m) => m.id,
             implTrait: (m) => m.name,
-            implVariant: (m) => m.id,
+            implCreate: (m) => m.id,
             build: (m) => m.name,
           })
           .build();

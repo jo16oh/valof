@@ -377,7 +377,7 @@ export type Patch<T> = T extends object
  */
 type PatchValue<T> = [Patch<T>] extends [never] ? T : Patch<T>;
 
-type AnyFn = (...args: never[]) => unknown;
+export type AnyFn = (...args: never[]) => unknown;
 
 /** What a companion may hold besides members: constants, lookup tables, and so on. */
 type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown>;
@@ -472,17 +472,17 @@ export type Synchronous<G extends (...args: never[]) => unknown, Checked> =
 type CreateImpl<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
 
 /** Marks a `create` registered by `.implCreate.noseal`. */
-type Unsealed = { readonly __valof_noseal: true };
+export type Unsealed = { readonly __valof_noseal: true };
 
 /**
  * No arguments, so no input reaches the payload unsealed. A wrong payload is checked against
- * `() => SeedOf<V>`, so the error points at the returned value. `G` stays bare, because an
- * intersection stops TypeScript inferring it.
+ * `() => S`, so the error points at the returned value. `G` stays bare, because an intersection
+ * stops TypeScript inferring it.
  */
-type Argumentless<V extends AnyVal, G extends AnyFn> = [Parameters<G>] extends [[]]
-  ? [ReturnType<G>] extends [SeedOf<V>]
+export type Argumentless<S, G extends AnyFn> = [Parameters<G>] extends [[]]
+  ? [ReturnType<G>] extends [S]
     ? G
-    : () => SeedOf<V>
+    : () => S
   : Invalid<"`.implCreate.noseal` takes a function with no arguments">;
 
 /** The public face of `create`: its own arguments, and whatever the seal returns. */
@@ -542,6 +542,11 @@ declare class PrivateSealPhantom {
   private readonly __valof_internal_phantom_private_seal: true;
 }
 
+/** Type-only carrier for {@link PrivateCreate}. */
+declare class PrivateCreatePhantom {
+  private readonly __valof_internal_phantom_private_create: true;
+}
+
 /** Type-only carrier for {@link Unpatchable}. */
 declare class UnpatchablePhantom<K extends string> {
   private readonly __valof_internal_phantom_unpatchable: K;
@@ -566,6 +571,19 @@ declare class UnpatchablePhantom<K extends string> {
 export type PrivateSeal = PrivateSealPhantom;
 
 /**
+ * Takes `create` off the companion, whether `.implCreate` registered it or an enum's variant has it
+ * by default. `seal` and `patch` stay.
+ *
+ * For a type built through other functions alone. It shapes what the companion offers and guards
+ * no invariant: a `create` passes the seal like every other gate.
+ *
+ * ```ts
+ * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate);
+ * ```
+ */
+export type PrivateCreate = PrivateCreatePhantom;
+
+/**
  * Takes keys out of `patch`: its patch stops accepting them.
  *
  * For what a `create` generates and nothing afterwards may change: an id, a `createdAt`, a version
@@ -581,13 +599,16 @@ export type PrivateSeal = PrivateSealPhantom;
 export type Unpatchable<K extends string> = UnpatchablePhantom<K>;
 
 /** What the list after the Val in `Val.companion<V, […]>` takes. */
-type CompanionOption<V extends AnyVal> = PrivateSeal | Unpatchable<keyof SeedOf<V> & string>;
+type CompanionOption<V extends AnyVal> =
+  | PrivateSeal
+  | PrivateCreate
+  | Unpatchable<keyof SeedOf<V> & string>;
 
 // A list, not an intersection: two `Unpatchable`s intersected collapse to `never`, which satisfies
 // every constraint and would read as no option at all.
-type Options = readonly unknown[];
+export type Options = readonly unknown[];
 
-type UnpatchableKeys<O extends Options> = O[number] extends infer E
+export type UnpatchableKeys<O extends Options> = O[number] extends infer E
   ? E extends UnpatchablePhantom<infer K>
     ? K
     : never
@@ -630,7 +651,7 @@ export type Companion<
   F = undefined,
   O extends Options = [],
 > = Duals<Omit<M, Wired>, V> &
-  CreateMethod<V, N, F> &
+  ([Extract<O[number], PrivateCreatePhantom>] extends [never] ? CreateMethod<V, N, F> : unknown) &
   ([Extract<O[number], PrivateSealPhantom>] extends [never] ? SealMethod<V, F> : unknown) &
   PatchMethod<V, F, O> & {
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
@@ -645,7 +666,7 @@ export type Companion<
  * The check is placed on the parameter rather than the constraint. In the constraint the inferred
  * `M & T` stops satisfying {@link CompanionMembers}, and `equals` breaks with it.
  */
-type Grown<Taken, M> = M & {
+export type Grown<Taken, M> = M & {
   [K in keyof M]: K extends Taken ? "this name is already taken" : unknown;
 };
 
@@ -662,8 +683,11 @@ type Grown<Taken, M> = M & {
  * `Tr` infers only through a branch that names it structurally, as `TraitCompanion<Tr, G>` does.
  * Members passed in the companion's place leave `Tr` at its constraint, where `NamesOf<Tr>` is
  * `string`. The first branch catches that before the rest read a name that is not there.
+ *
+ * `V` is unconstrained so an enum's variant can name it. Intersected with {@link AnyVal} to meet a
+ * constraint, a variant reads its payload off the wrong phantom, and the payload check passes.
  */
-export type Takes<V extends AnyVal, Tr extends AnyTrait, T, Ok> =
+export type Takes<V, Tr extends AnyTrait, T, Ok> =
   string extends NamesOf<Tr>
     ? "pass the trait's companion, then the members it leaves open"
     : [NamesOf<Tr>] extends [TraitsOf<V>]
@@ -809,7 +833,7 @@ type FirstHalf<V extends AnyVal, N, F, O extends Options, D extends Taken> = ("i
            * throws if it rejects the payload or if normalization changes it.
            */
           noseal: <G extends AnyFn>(
-            create: Argumentless<V, G>,
+            create: Argumentless<SeedOf<V>, G>,
           ) => CompanionBuilder<V, Unsealed, F, O, Record<never, never>, D | "implCreate">;
         };
       });
@@ -820,7 +844,7 @@ type FirstHalf<V extends AnyVal, N, F, O extends Options, D extends Taken> = ("i
  *
  * Distributes: `keyof` over an enum's payloads would keep the shared fields alone.
  */
-type PayloadKeys<V extends AnyVal> = V extends unknown
+type PayloadKeys<V> = V extends unknown
   ? Declared<V> extends object
     ? keyof Declared<V>
     : never
@@ -962,7 +986,7 @@ const changedDuringSeal = (): never => {
   throw new TypeError("The payload changed while the custom seal was running.");
 };
 
-const notFixedPoint = (): never => {
+export const notFixedPoint = (): never => {
   throw new TypeError("The seal rejected or changed a payload from `.implCreate.noseal`.");
 };
 
@@ -1307,7 +1331,7 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 /**
  * Bundles a type's `seal` and members. `V` is given as a type argument; the steps infer the rest.
  *
- * A list may follow `V`: {@link PrivateSeal}, {@link Unpatchable}, or both, as in
+ * A list may follow `V`: {@link PrivateSeal}, {@link PrivateCreate}, {@link Unpatchable}, as in
  * `Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()`.
  *
  * Constructors get their own steps rather than sitting in `.impl`, which fixes every
