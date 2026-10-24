@@ -72,19 +72,19 @@ re-export a companion.
 
 ### Enum builder
 
-|                                |                                                                        |
-| ------------------------------ | ---------------------------------------------------------------------- |
-| `Enum.companion<E, O?>()`      | starts an enum's companion, with the options `O`                       |
-| `.tag(key)`                    | names the tag field the companion writes; first, where `Tag<T>` is set |
-| `.implSeal(f)`                 | adds a seal `E.seal` runs before the tag selects a variant             |
-| `.implCreate(f)`               | registers `E.create`                                                   |
-| `.impl(fns)`                   | adds members taking the union                                          |
-| `.implTrait(Tr, fns?)`         | implements a trait the enum declares                                   |
-| `.Variant.implSeal(f)`         | replaces that variant's seal                                           |
-| `.Variant.implCreate(f)`       | replaces that variant's `create`                                       |
-| `.Variant.impl(fns)`           | adds that variant's members                                            |
-| `.Variant.implTrait(Tr, fns?)` | implements a trait that variant declares                               |
-| `.build()`                     | ends the chain, and returns the companion                              |
+|                                      |                                                                        |
+| ------------------------------------ | ---------------------------------------------------------------------- |
+| `Enum.companion<E, O?>()`            | starts an enum's companion, with the options `O`                       |
+| `.tag(key)`                          | names the tag field the companion writes; first, where `Tag<T>` is set |
+| `.implSeal(f)`                       | adds a seal `E.seal` runs before the tag selects a variant             |
+| `.implCreate(f)`                     | registers `E.create`                                                   |
+| `.impl(fns)`                         | adds members taking the union                                          |
+| `.implTrait(Tr, fns?)`               | implements a trait the enum declares                                   |
+| `.[VariantName].implSeal(f)`         | replaces that variant's seal                                           |
+| `.[VariantName].implCreate(f)`       | replaces that variant's `create`                                       |
+| `.[VariantName].impl(fns)`           | adds that variant's members                                            |
+| `.[VariantName].implTrait(Tr, fns?)` | implements a trait that variant declares                               |
+| `.build()`                           | ends the chain, and returns the companion                              |
 
 The enum's steps come first, in a Val's order, and each variant's steps follow in the same order.
 The first variant step removes the enum's steps from the chain.
@@ -101,23 +101,23 @@ which applies to one.
 
 ### Enum companion
 
-`E` stands for an enum's companion, and `E.Variant` for one of its variants.
+`E` stands for an enum's companion, and `[VariantName]` for the name of one of its variants.
 
-|                                    |                                          |                                                                         |
-| ---------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
-| `E.match(value, handlers)`         | every enum                               | matches on a variant's tag field, exhaustively or with `_` for the rest |
-| `E.match(handlers)(value)`         | every enum                               | the same, with the value last                                           |
-| `E[Tag].match(tag, handlers)`      | every enum                               | matches on a tag string, the same way                                   |
-| `E[Tag].match(handlers)(tag)`      | every enum                               | the same, with the tag last, for every tag                              |
-| `E[Tag].key`                       | every enum                               | the tag field's name                                                    |
-| `E.seal(payload)`                  | every enum without `PrivateSeal`         | builds the variant that the payload's tag selects                       |
-| `E.create(...args)`                | registered with `.implCreate(f)`         | creates a payload, then passes it to `E.seal`                           |
-| `E.member(value, ...args)`         | registered with `.impl(fns)`             | runs a member defined for the union                                     |
-| `E.Variant.seal(payload)`          | every enum without `PrivateSeal`         | builds that variant from a payload including its tag                    |
-| `E.Variant.create(fields)`         | every variant without `PrivateCreate`    | writes the tag and passes the payload to that variant's seal            |
-| `E.Variant.create(...args)`        | registered with `.Variant.implCreate(f)` | the same, with the arguments `f` takes                                  |
-| `E.Variant.patch(value, patch)`    | every variant                            | derives a value of that variant, keeping the tag                        |
-| `E.Variant.member(value, ...args)` | registered with `.Variant.impl(fns)`     | runs a member defined for that variant                                  |
+|                                          |                                                |                                                                         |
+| ---------------------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------- |
+| `E.match(value, handlers)`               | every enum                                     | matches on a variant's tag field, exhaustively or with `_` for the rest |
+| `E.match(handlers)(value)`               | every enum                                     | the same, with the value last                                           |
+| `E[Tag].match(tag, handlers)`            | every enum                                     | matches on a tag string, the same way                                   |
+| `E[Tag].match(handlers)(tag)`            | every enum                                     | the same, with the tag last, for every tag                              |
+| `E[Tag].key`                             | every enum                                     | the tag field's name                                                    |
+| `E.seal(payload)`                        | every enum without `PrivateSeal`               | builds the variant that the payload's tag selects                       |
+| `E.create(...args)`                      | registered with `.implCreate(f)`               | creates a payload, then passes it to `E.seal`                           |
+| `E.member(value, ...args)`               | registered with `.impl(fns)`                   | runs a member defined for the union                                     |
+| `E.[VariantName].seal(payload)`          | every enum without `PrivateSeal`               | builds that variant from a payload including its tag                    |
+| `E.[VariantName].create(fields)`         | every variant without `PrivateCreate`          | writes the tag and passes the payload to that variant's seal            |
+| `E.[VariantName].create(...args)`        | registered with `.[VariantName].implCreate(f)` | the same, with the arguments `f` takes                                  |
+| `E.[VariantName].patch(value, patch)`    | every variant                                  | derives a value of that variant, keeping the tag                        |
+| `E.[VariantName].member(value, ...args)` | registered with `.[VariantName].impl(fns)`     | runs a member defined for that variant                                  |
 
 ### Enum types
 
