@@ -11,7 +11,7 @@ export type {
   EnumBuilder,
   EnumCompanion,
   NameOf,
-  OptionsFor,
+  VariantOptions,
   SealedPayload,
   SeedFor,
   SharedOf,

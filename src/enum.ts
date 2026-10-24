@@ -375,11 +375,11 @@ type CheckedSeal<G extends (...args: never[]) => unknown> = Synchronous<
     : G
 >;
 
-/** A list a variant's options sit in. See {@link OptionsFor}. */
-declare class OptionsForPhantom<N extends string, L> {
-  private readonly __valof_internal_phantom_options_for: [N, L];
+/** A list a variant's options sit in. See {@link VariantOptions}. */
+declare class VariantOptionsPhantom<N extends string, L> {
+  private readonly __valof_internal_phantom_variant_options: [N, L];
   /** Declaration emit erases private field types; protected keeps the type arguments recoverable. */
-  protected readonly __valof_internal_phantom_options_for_types: [N, L];
+  protected readonly __valof_internal_phantom_variant_options_types: [N, L];
 }
 
 /**
@@ -389,7 +389,7 @@ declare class OptionsForPhantom<N extends string, L> {
  * ```ts
  * const Order = Enum.companion<Order, [
  *   Unpatchable<"id">, // every variant holding `id`
- *   OptionsFor<"Shipped", [Unpatchable<"shippedAt">]>,
+ *   VariantOptions<"Shipped", [Unpatchable<"shippedAt">]>,
  * ]>().build();
  * ```
  *
@@ -398,7 +398,7 @@ declare class OptionsForPhantom<N extends string, L> {
  *
  * @experimental
  */
-export type OptionsFor<N extends string, L extends Options> = OptionsForPhantom<N, L>;
+export type VariantOptions<N extends string, L extends Options> = VariantOptionsPhantom<N, L>;
 
 /** Every key some variant's seal takes. */
 type AnyKey<E extends AnyEnum> = {
@@ -412,14 +412,14 @@ type EnumOption<E extends AnyEnum> =
   | PrivateCreate
   | Unpatchable<AnyKey<E>>
   | {
-      [N in keyof VariantsOf<E>]: OptionsFor<
+      [N in keyof VariantsOf<E>]: VariantOptions<
         N & string,
         readonly (PrivateCreate | Unpatchable<keyof SeedFor<E, N> & string>)[]
       >;
     }[keyof VariantsOf<E>];
 
 type ListFor<O extends Options, N> = O[number] extends infer X
-  ? X extends OptionsForPhantom<infer M, infer L extends Options>
+  ? X extends VariantOptionsPhantom<infer M, infer L extends Options>
     ? M extends N
       ? L
       : never
@@ -1076,7 +1076,7 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
  * Bundles an enum's `seal`, its variants and its members. `.build()` closes the chain.
  *
  * A list may follow `E`: {@link PrivateSeal}, {@link PrivateCreate}, `Unpatchable`, and
- * {@link OptionsFor} for one variant, as in `Enum.companion<Order, [PrivateSeal, Unpatchable<"id">]>()`.
+ * {@link VariantOptions} for one variant, as in `Enum.companion<Order, [PrivateSeal, Unpatchable<"id">]>()`.
  *
  * @experimental
  */

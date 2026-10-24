@@ -16,7 +16,7 @@ import {
   type Dyn,
   type Final,
   type NameOf,
-  type OptionsFor,
+  type VariantOptions,
   type SeedFor,
   type SealedPayload,
   type Self,
@@ -1138,8 +1138,8 @@ describe("the companion's options", () => {
     );
   });
 
-  test("`OptionsFor` takes `create` off one variant", () => {
-    const Order = Enum.companion<Order, [OptionsFor<"Shipped", [PrivateCreate]>]>().build();
+  test("`VariantOptions` takes `create` off one variant", () => {
+    const Order = Enum.companion<Order, [VariantOptions<"Shipped", [PrivateCreate]>]>().build();
     expectTypeOf(Order.Shipped).not.toHaveProperty("create");
     expect(Order.Pending.create({ id: "o", note: "n" })).toMatchObject({ _tag: "Pending" });
   });
@@ -1159,10 +1159,10 @@ describe("the companion's options", () => {
     });
   });
 
-  test("`OptionsFor` takes a key off one variant, on top of the enum's", () => {
+  test("`VariantOptions` takes a key off one variant, on top of the enum's", () => {
     const Order = Enum.companion<
       Order,
-      [Unpatchable<"id">, OptionsFor<"Shipped", [Unpatchable<"note">]>]
+      [Unpatchable<"id">, VariantOptions<"Shipped", [Unpatchable<"note">]>]
     >().build();
     const pending = Order.Pending.create({ id: "o", note: "n" });
     const shipped = Order.Shipped.create({ id: "o", note: "n", shippedAt: 1 });
@@ -1181,11 +1181,11 @@ describe("the companion's options", () => {
     // @ts-expect-error no variant holds `idd`
     Enum.companion<Order, [Unpatchable<"idd">]>();
     // @ts-expect-error the enum has no `Shiped`
-    Enum.companion<Order, [OptionsFor<"Shiped", [Unpatchable<"note">]>]>();
+    Enum.companion<Order, [VariantOptions<"Shiped", [Unpatchable<"note">]>]>();
     // @ts-expect-error `Pending` holds no `shippedAt`
-    Enum.companion<Order, [OptionsFor<"Pending", [Unpatchable<"shippedAt">]>]>();
+    Enum.companion<Order, [VariantOptions<"Pending", [Unpatchable<"shippedAt">]>]>();
     // @ts-expect-error `Order.seal` reaches every variant, so only the enum hides it
-    Enum.companion<Order, [OptionsFor<"Pending", [PrivateSeal]>]>();
+    Enum.companion<Order, [VariantOptions<"Pending", [PrivateSeal]>]>();
   });
 });
 
