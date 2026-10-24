@@ -3,6 +3,7 @@ import type {
   AnyVal,
   Patch,
   PayloadOf,
+  PrivateCreate,
   PrivateSeal,
   Rec,
   SeedOf,
@@ -2119,6 +2120,18 @@ describe("building", () => {
         { id: "a1", owner: "bob" },
         { id: "a1", owner: "sue" },
       ]);
+    });
+  });
+
+  describe("PrivateCreate", () => {
+    type Token = Val<"HiddenToken", { value: string }>;
+    const Token = Val.companion<Token, [PrivateCreate]>()
+      .implCreate(() => ({ value: "t" }))
+      .build();
+
+    test("takes `create` off the companion, and leaves `seal`", () => {
+      expectTypeOf(Token).not.toHaveProperty("create");
+      expect(Token.seal({ value: "v" })).toEqual({ value: "v" });
     });
   });
 

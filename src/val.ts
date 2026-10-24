@@ -542,6 +542,11 @@ declare class PrivateSealPhantom {
   private readonly __valof_internal_phantom_private_seal: true;
 }
 
+/** Type-only carrier for {@link PrivateCreate}. */
+declare class PrivateCreatePhantom {
+  private readonly __valof_internal_phantom_private_create: true;
+}
+
 /** Type-only carrier for {@link Unpatchable}. */
 declare class UnpatchablePhantom<K extends string> {
   private readonly __valof_internal_phantom_unpatchable: K;
@@ -566,6 +571,19 @@ declare class UnpatchablePhantom<K extends string> {
 export type PrivateSeal = PrivateSealPhantom;
 
 /**
+ * Takes `create` off the companion, whether `.implCreate` registered it or an enum's variant has it
+ * by default. `seal` and `patch` stay.
+ *
+ * For a type built through other functions alone. It shapes what the companion offers and guards
+ * no invariant: a `create` passes the seal like every other gate.
+ *
+ * ```ts
+ * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate);
+ * ```
+ */
+export type PrivateCreate = PrivateCreatePhantom;
+
+/**
  * Takes keys out of `patch`: its patch stops accepting them.
  *
  * For what a `create` generates and nothing afterwards may change: an id, a `createdAt`, a version
@@ -581,7 +599,10 @@ export type PrivateSeal = PrivateSealPhantom;
 export type Unpatchable<K extends string> = UnpatchablePhantom<K>;
 
 /** What the list after the Val in `Val.companion<V, […]>` takes. */
-type CompanionOption<V extends AnyVal> = PrivateSeal | Unpatchable<keyof SeedOf<V> & string>;
+type CompanionOption<V extends AnyVal> =
+  | PrivateSeal
+  | PrivateCreate
+  | Unpatchable<keyof SeedOf<V> & string>;
 
 // A list, not an intersection: two `Unpatchable`s intersected collapse to `never`, which satisfies
 // every constraint and would read as no option at all.
@@ -630,7 +651,7 @@ export type Companion<
   F = undefined,
   O extends Options = [],
 > = Duals<Omit<M, Wired>, V> &
-  CreateMethod<V, N, F> &
+  ([Extract<O[number], PrivateCreatePhantom>] extends [never] ? CreateMethod<V, N, F> : unknown) &
   ([Extract<O[number], PrivateSealPhantom>] extends [never] ? SealMethod<V, F> : unknown) &
   PatchMethod<V, F, O> & {
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
@@ -1310,7 +1331,7 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 /**
  * Bundles a type's `seal` and members. `V` is given as a type argument; the steps infer the rest.
  *
- * A list may follow `V`: {@link PrivateSeal}, {@link Unpatchable}, or both, as in
+ * A list may follow `V`: {@link PrivateSeal}, {@link PrivateCreate}, {@link Unpatchable}, as in
  * `Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()`.
  *
  * Constructors get their own steps rather than sitting in `.impl`, which fixes every

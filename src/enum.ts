@@ -27,6 +27,7 @@ import {
   type Options,
   type Passes,
   type Patch,
+  type PrivateCreate,
   type PrivateSeal,
   type Synchronous,
   type Takes,
@@ -393,6 +394,7 @@ declare class OptionsForPhantom<N extends string, L> {
  * ```
  *
  * {@link PrivateSeal} goes on the enum alone: `Order.seal` reaches every variant by its tag.
+ * {@link PrivateCreate} may go on one variant.
  *
  * @experimental
  */
@@ -407,11 +409,12 @@ type AnyKey<E extends AnyEnum> = {
 /** What the list after the enum accepts. */
 type EnumOption<E extends AnyEnum> =
   | PrivateSeal
+  | PrivateCreate
   | Unpatchable<AnyKey<E>>
   | {
       [N in keyof VariantsOf<E>]: OptionsFor<
         N & string,
-        readonly Unpatchable<keyof SeedFor<E, N> & string>[]
+        readonly (PrivateCreate | Unpatchable<keyof SeedFor<E, N> & string>)[]
       >;
     }[keyof VariantsOf<E>];
 
@@ -428,6 +431,13 @@ type Unpatched<O extends Options, N> = UnpatchableKeys<O> | UnpatchableKeys<List
 
 type Hidden<O extends Options> = [Extract<O[number], PrivateSeal>] extends [never] ? false : true;
 
+/** Whether `PrivateCreate` takes `create` off variant `N`: on the enum, or in its own list. */
+type NoCreate<O extends Options, N> = [
+  Extract<O[number] | ListFor<O, N>[number], PrivateCreate>,
+] extends [never]
+  ? false
+  : true;
+
 /** What one variant's builder state holds under `` `${N}:${K}` ``, or `D` where nothing does. */
 type At<VM, N extends string, K extends string, D = undefined> = `${N}:${K}` extends keyof VM
   ? VM[`${N}:${K}`]
@@ -439,18 +449,14 @@ type Sealed<E extends AnyEnum, N extends keyof VariantsOf<E>, F> = [F] extends [
   : Returned<F>;
 
 /** The public face of `create`: its own arguments, and whatever the seal returns. */
-type CreateMethod<E extends AnyEnum, N extends keyof VariantsOf<E>, C, R, H> = [C] extends [
-  undefined,
-]
-  ? H extends true
-    ? Record<never, never>
-    : {
-        /**
-         * Writes the tag and passes the payload to `seal`, so it returns whatever the seal
-         * returns. The tag is minted here, the way `.implCreate` mints what it generates.
-         */
-        create: Creates<[payload: SeedFor<E, N>], R>;
-      }
+type CreateMethod<E extends AnyEnum, N extends keyof VariantsOf<E>, C, R> = [C] extends [undefined]
+  ? {
+      /**
+       * Writes the tag and passes the payload to `seal`, so it returns whatever the seal returns.
+       * The tag is minted here, the way `.implCreate` mints what it generates.
+       */
+      create: Creates<[payload: SeedFor<E, N>], R>;
+    }
   : {
       /**
        * Creates a payload and seals it, so it returns whatever the seal returns. With
@@ -468,8 +474,9 @@ type CreateMethod<E extends AnyEnum, N extends keyof VariantsOf<E>, C, R, H> = [
  * The seal takes the tag, which `create` writes. `patch` cannot reach it, the way `Unpatchable`
  * excludes a key from `patch`.
  *
- * {@link PrivateSeal} takes the default `create` off with `seal`: it takes every field but the tag,
- * so it would stand in for the seal.
+ * {@link PrivateSeal} takes `seal` off alone. The default `create` mints the tag and generates
+ * nothing else a caller could forge. {@link PrivateCreate} takes `create` off, the default one or
+ * one `.implCreate` registered.
  *
  * What the seal produces arrives as `R` rather than being read off `F` at each member: one
  * instantiation for the frame instead of one per signature.
@@ -483,7 +490,7 @@ type Framed<
   T,
   U = Unpatched<O, N>,
 > = Duals<Omit<T, Wired>, VariantOf<E, N>> &
-  CreateMethod<E, N, C, R, Hidden<O>> &
+  (NoCreate<O, N> extends true ? unknown : CreateMethod<E, N, C, R>) &
   (Hidden<O> extends true
     ? unknown
     : {
@@ -623,14 +630,16 @@ export type EnumCompanion<
       }) &
   ([C] extends [undefined]
     ? unknown
-    : {
-        /** Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. */
-        create: C extends Unsealed & { payload: infer P }
-          ? () => Extract<E, Record<TagOf<E>, P[TagOf<E> & keyof P]>>
-          : (
-              ...args: C extends (...args: infer A) => unknown ? A : never
-            ) => [F] extends [undefined] ? Dispatched<E, VM> : Returned<F>;
-      }) & {
+    : [Extract<O[number], PrivateCreate>] extends [never]
+      ? {
+          /** Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. */
+          create: C extends Unsealed & { payload: infer P }
+            ? () => Extract<E, Record<TagOf<E>, P[TagOf<E> & keyof P]>>
+            : (
+                ...args: C extends (...args: infer A) => unknown ? A : never
+              ) => [F] extends [undefined] ? Dispatched<E, VM> : Returned<F>;
+        }
+      : unknown) & {
     /**
      * Dispatches on the tag. Every variant needs a handler, so adding one to the declaration
      * fails here rather than falling through at run time. `_` handles the variants that have no
@@ -1066,8 +1075,8 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
 /**
  * Bundles an enum's `seal`, its variants and its members. `.build()` closes the chain.
  *
- * A list may follow `E`: {@link PrivateSeal}, `Unpatchable`, and {@link OptionsFor} for one
- * variant, as in `Enum.companion<Order, [PrivateSeal, Unpatchable<"id">]>()`.
+ * A list may follow `E`: {@link PrivateSeal}, {@link PrivateCreate}, `Unpatchable`, and
+ * {@link OptionsFor} for one variant, as in `Enum.companion<Order, [PrivateSeal, Unpatchable<"id">]>()`.
  *
  * @experimental
  */

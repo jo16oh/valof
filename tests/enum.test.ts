@@ -3,6 +3,7 @@ import {
   equals,
   Val,
   type PayloadOf,
+  type PrivateCreate,
   type PrivateSeal,
   type Rec,
   type Unpatchable,
@@ -1116,9 +1117,31 @@ describe("the companion's options", () => {
     expectTypeOf(Order).not.toHaveProperty("seal");
     expectTypeOf(Order.Pending).not.toHaveProperty("seal");
     expectTypeOf(Order.Shipped).not.toHaveProperty("seal");
-    // The default `create` takes every field but the tag, so it would stand in for the seal.
-    expectTypeOf(Order.Shipped).not.toHaveProperty("create");
     expect(Order.Pending.create("n")).toEqual({ id: "o", note: "n", _tag: "Pending" });
+    // `PrivateSeal` hides the seal alone: the default `create` mints the tag, and generates nothing
+    // else a caller could forge.
+    expect(Order.Shipped.create({ id: "s", note: "n", shippedAt: 1 })).toMatchObject({
+      _tag: "Shipped",
+    });
+  });
+
+  test("`PrivateCreate` takes `create` off the enum and every variant, the default or registered", () => {
+    const Order = Enum.companion<Order, [PrivateCreate]>()
+      .Pending.implCreate((note: string) => ({ id: "o", note }))
+      .implCreate(() => ({ _tag: "Pending" as const, id: "p", note: "" }))
+      .build();
+    expectTypeOf(Order).not.toHaveProperty("create");
+    expectTypeOf(Order.Pending).not.toHaveProperty("create");
+    expectTypeOf(Order.Shipped).not.toHaveProperty("create");
+    expect(Order.Shipped.seal({ _tag: "Shipped", id: "s", note: "n", shippedAt: 1 })).toMatchObject(
+      { _tag: "Shipped" },
+    );
+  });
+
+  test("`OptionsFor` takes `create` off one variant", () => {
+    const Order = Enum.companion<Order, [OptionsFor<"Shipped", [PrivateCreate]>]>().build();
+    expectTypeOf(Order.Shipped).not.toHaveProperty("create");
+    expect(Order.Pending.create({ id: "o", note: "n" })).toMatchObject({ _tag: "Pending" });
   });
 
   test("`Unpatchable` takes a key off every variant that holds it", () => {
