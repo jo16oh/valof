@@ -37,7 +37,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `OptionsFor`、`.tag` の段、予約名）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
@@ -6802,7 +6802,7 @@ const Shape = Enum.companion<Shape, [Unpatchable<"id">]>()
   当たらない）。一度「既定の `create` は実質タグを付ける seal」として一緒に隠したが、seal は constructor で
   `create` は factory なので、`PrivateSeal` で両方隠すと seal の意味が散漫になる（ユーザー）
 - **`PrivateCreate` を足した。**`create` を、既定のものも `implCreate` のものも型から消す。Val にも Enum にも
-  付けられる。Enum 全体に付けると全 variant の `create` と `Shape.create` を消し、`OptionsFor<N, [PrivateCreate]>`
+  付けられる。Enum 全体に付けると全 variant の `create` と `Shape.create` を消し、`VariantOptions<N, [PrivateCreate]>`
   なら 1 つの variant だけ。`PrivateSeal` を variant ごとに許さないのは `Shape.seal` がタグで全 variant に届くから
   で、`create` にはその経路が無い
   - 名前の比較: `NoDefaultCtor`（`PrivateSeal` はカスタムの seal も隠すので「既定」と合わない。否定形で略語）、
@@ -6878,14 +6878,18 @@ variant のタグは、その variant の seal がスキーマで検査できる
 ```ts
 Enum.companion<
   Order,
-  [PrivateSeal, Unpatchable<"id">, OptionsFor<"Shipped", [Unpatchable<"shippedAt">]>]
+  [PrivateSeal, Unpatchable<"id">, VariantOptions<"Shipped", [Unpatchable<"shippedAt">]>]
 >();
 ```
 
 - `Unpatchable<K>` の K は全 variant のキーの union から選び、K を持つ variant すべてで外す
-- `OptionsFor<N, [...]>` は variant ごと。enum 全体の指定に足す。`PrivateSeal` は入れられない。
+- `VariantOptions<N, [...]>` は variant ごと。enum 全体の指定に足す。`PrivateSeal` は入れられない（`PrivateCreate` は入れられる）。
   `Shape.seal` がタグで全 variant に届くので、隠すなら enum 全体（`Shape.seal` と全 variant の `seal`。
   `create` は残る）
+- **名前は `VariantOptions`（2026-10-24 に `OptionsFor` から改名）。**`OptionsFor` は Enum 専用なのに一般的な名前を
+  取り、リストの中で `"Shipped"` が variant の名前だと宣言を見ないと分からない（ユーザー）。`OptionsFor` を選んだ
+  理由（短い、`SeedFor` と揃う）は弱い。`SeedFor<Shape, "Circle">` は enum を引数に取るので、それだけで読める。
+  `VariantOf` / `VariantsOf` と同じく、何の型かを先頭に置く。`OptionsForVariant` は長い
 - 却下した形（交差とレコード、第 2 型引数、`Unpatchable<{ Parcel: … }>`、名前 `Variant`）はメモの記録
 
 **`.tag("kind")` を最初の段にした。**`companion("kind")` の引数から移した。Val / Trait の `companion()` は
