@@ -92,8 +92,8 @@ The first variant step removes the enum's steps from the chain.
 ### Enum companion options
 
 The list `O` after the enum in `Enum.companion<E, O>()` accepts the
-[companion options](#companion-options), which apply to `E` and every variant, and `VariantOptions`,
-which applies to one.
+[companion options](#companion-options), which apply to `E` and every variant. To configure one
+variant's companion, add `VariantOptions`:
 
 |                        |                                                                        |
 | ---------------------- | ---------------------------------------------------------------------- |
