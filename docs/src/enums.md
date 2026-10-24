@@ -288,11 +288,11 @@ different ones.
 ## Companion options
 
 The list after the enum accepts the same options as a Val's. `Unpatchable<K>` excludes `K` from
-`patch` on every variant that holds it. `OptionsFor` adds options for one variant:
+`patch` on every variant that holds it. `VariantOptions` adds options for one variant:
 
 ```ts
 import type { Unpatchable } from "valof";
-import { Enum, type OptionsFor } from "valof/experimental";
+import { Enum, type VariantOptions } from "valof/experimental";
 // ---cut---
 type Order = Enum<
   "Order",
@@ -302,14 +302,14 @@ type Order = Enum<
 
 const Order = Enum.companion<
   Order,
-  [Unpatchable<"id">, OptionsFor<"Shipped", [Unpatchable<"shippedAt">]>]
+  [Unpatchable<"id">, VariantOptions<"Shipped", [Unpatchable<"shippedAt">]>]
 >().build();
 ```
 
 `PrivateSeal` goes on the enum alone. It removes `Order.seal` and every variant's `seal`, because
 `Order.seal` reaches every variant through the tag. `PrivateCreate` removes `create`, the default
 one or one `.implCreate` registered. On the enum, it removes every variant's `create` and
-`Order.create`. In `OptionsFor`, it removes one variant's `create`.
+`Order.create`. In `VariantOptions`, it removes one variant's `create`.
 
 ## Custom tag key
 

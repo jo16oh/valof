@@ -86,7 +86,7 @@ re-export a companion.
 | `VariantOf<E, N>`               | the type of one variant                                                     |
 | `SeedFor<E, N>`                 | what that variant's `create` takes                                          |
 | `SealedPayload<E>`              | a tagged payload of one variant                                             |
-| `OptionsFor<N, O>`              | the options one variant adds, in the list after `E`                         |
+| `VariantOptions<N, O>`          | the options one variant adds, in the list after `E`                         |
 | `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields                                |
 | `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name                                   |
 | `AnyEnum`                       | a constraint over any enum                                                  |
