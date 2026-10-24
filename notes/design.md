@@ -1964,6 +1964,10 @@ companion の型引数に移した（`Val.companion<User, [PrivateSeal, Unpatcha
   `seal` を公開すると、`create` が生成するはずのフィールドを呼び出し側が渡せる（`User.seal({ id:
 "forged", … })`）。`create` を隠すのは公開する面を整えるだけで、docs の 3 段（parse は `implAssoc`、
   生成は `create`、検査は `seal`）で足りる
+  - **2026-10-24: `PrivateCreate` を足した（§15.2「1 本の鎖で作る」）。**不変条件を守らないのは変わらないが、
+    公開する面を整える手段が要る場面がある。Enum の variant には既定の `create` が生え、`implCreate` で
+    置き換えずにただ消したい（`Shape.seal` か、別の関数からだけ作らせる）。`PrivateSeal` と同じく、既定でも
+    `implCreate` のものでも隠す。名前の比較は §15.2
 - **`fixed` も同じ型引数に移し、`Unpatchable<K>` にする。**塞ぐのは `patch` の型だけ。§6.10 で
   `unpatchable` を退けた理由（2 つの派生経路を縛るのに `patch` だけと読める）は、`update` の削除（§6.4）で
   消えた。型の側の `Fixed<T>`（payload のフィールドに付ける形）にはしない。`patch` への制限であって、
@@ -6793,8 +6797,19 @@ const Shape = Enum.companion<Shape, [Unpatchable<"id">]>()
   するのと同じで、§6.7 の分け方（seal は冪等な検査、create は生成）に収まる。2026-10-21 に「`create` は
   `implCreate` を書いたときだけ」とした理由（当時の `create` はタグを足す seal で、生成と意味がずれていた）は、
   タグを鋳造と見ることで消えた
-- **`PrivateSeal` は既定の `create` も型から消す。**既定の `create` はタグ以外のフィールドをすべて呼び出し側が
-  渡すので、seal の代わりになる。`implCreate` の `create` は残る
+- **`PrivateSeal` は seal だけを隠す。**既定の `create` は残る。生成するフィールドはタグだけで、タグは `create` が
+  正しく付けるので、呼び出し側が偽れるものは無い（§6.12 の「`create` が生成するはずのフィールドを渡せる」に
+  当たらない）。一度「既定の `create` は実質タグを付ける seal」として一緒に隠したが、seal は constructor で
+  `create` は factory なので、`PrivateSeal` で両方隠すと seal の意味が散漫になる（ユーザー）
+- **`PrivateCreate` を足した。**`create` を、既定のものも `implCreate` のものも型から消す。Val にも Enum にも
+  付けられる。Enum 全体に付けると全 variant の `create` と `Shape.create` を消し、`OptionsFor<N, [PrivateCreate]>`
+  なら 1 つの variant だけ。`PrivateSeal` を variant ごとに許さないのは `Shape.seal` がタグで全 variant に届くから
+  で、`create` にはその経路が無い
+  - 名前の比較: `NoDefaultCtor`（`PrivateSeal` はカスタムの seal も隠すので「既定」と合わない。否定形で略語）、
+    `PrivateConstructor`（docs は `seal` も `create` も constructor と呼ぶので、`create` まで隠すと読める。
+    Kotlin の `private constructor` と同じ形にするには docs の用語の揃え直しが要る）、`NoCreate`（Val には既定の
+    `create` が無く、`implCreate` との関係で迷う。形容詞の規則（§6.10）にも合わない）。`PrivateSeal` と同じく
+    「`Private○○` は ○○ を公開面から消す」と読める `PrivateCreate` にした
 - 経緯: 最初はタグを自動で付け、引数から除いた（R）。理由は「呼んだ時点で variant は決まっていて情報が増えない」
   「毎回書く冗長さ」「タグとブランドが一致する（キャストで来た違うタグを上書き）」。ユーザーが `unknown` 寄りの
   seal で `Shape.Circle.seal(JSON.parse('{ "_tag": "Square", "r": 1 }'))` が通ることを問題にし、比べ直した
