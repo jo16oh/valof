@@ -72,19 +72,19 @@ re-export a companion.
 
 ### Enum builder
 
-|                                      |                                                                        |
-| ------------------------------------ | ---------------------------------------------------------------------- |
-| `Enum.companion<E, O?>()`            | starts an enum's companion, with the options `O`                       |
-| `.tag(key)`                          | names the tag field the companion writes; first, where `Tag<T>` is set |
-| `.implSeal(f)`                       | adds a seal `E.seal` runs before the tag selects a variant             |
-| `.implCreate(f)`                     | registers `E.create`                                                   |
-| `.impl(fns)`                         | adds members taking the union                                          |
-| `.implTrait(Tr, fns?)`               | implements a trait the enum declares                                   |
-| `.[VariantName].implSeal(f)`         | replaces that variant's seal                                           |
-| `.[VariantName].implCreate(f)`       | replaces that variant's `create`                                       |
-| `.[VariantName].impl(fns)`           | adds that variant's members                                            |
-| `.[VariantName].implTrait(Tr, fns?)` | implements a trait that variant declares                               |
-| `.build()`                           | ends the chain, and returns the companion                              |
+|                                      |                                                            |
+| ------------------------------------ | ---------------------------------------------------------- |
+| `Enum.companion<E, O?>()`            | starts an enum's companion, with the options `O`           |
+| `.tag(key)`                          | names the tag field the companion writes                   |
+| `.implSeal(f)`                       | adds a seal `E.seal` runs before the tag selects a variant |
+| `.implCreate(f)`                     | registers `E.create`                                       |
+| `.impl(fns)`                         | adds members taking the union                              |
+| `.implTrait(Tr, fns?)`               | implements a trait the enum declares                       |
+| `.[VariantName].implSeal(f)`         | replaces that variant's seal                               |
+| `.[VariantName].implCreate(f)`       | replaces that variant's `create`                           |
+| `.[VariantName].impl(fns)`           | adds that variant's members                                |
+| `.[VariantName].implTrait(Tr, fns?)` | implements a trait that variant declares                   |
+| `.build()`                           | ends the chain, and returns the companion                  |
 
 The enum's steps come first, in a Val's order, and each variant's steps follow in the same order.
 The first variant step removes the enum's steps from the chain.
