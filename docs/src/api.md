@@ -10,6 +10,7 @@
 | `Val.unwrap(value)`                    | returns a mutable copy of the payload                        |
 | `Val.companion<V>()`                   | starts a companion, with the default seal                    |
 | `Val.companion<V, [PrivateSeal]>()`    | the same, without `seal` on the companion                    |
+| `Val.companion<V, [PrivateCreate]>()`  | the same, without `create` on the companion                  |
 | `Val.companion<V, [Unpatchable<K>]>()` | the same, with keys `K` excluded from `patch`                |
 | `.implSeal(f)`                         | registers a custom seal                                      |
 | `.implCreate(f)`                       | registers a function that creates a payload                  |

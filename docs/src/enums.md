@@ -307,8 +307,9 @@ const Order = Enum.companion<
 ```
 
 `PrivateSeal` goes on the enum alone. It removes `Order.seal` and every variant's `seal`, because
-`Order.seal` reaches every variant through the tag. A variant's default `create` is removed with
-them, because it accepts every field but the tag. A `create` that `.implCreate` registered stays.
+`Order.seal` reaches every variant through the tag. `PrivateCreate` removes `create`, the default
+one or one `.implCreate` registered. On the enum, it removes every variant's `create` and
+`Order.create`. In `OptionsFor`, it removes one variant's `create`.
 
 ## Custom tag key
 
