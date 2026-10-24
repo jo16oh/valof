@@ -11,21 +11,28 @@
 
 ## Builder
 
-|                                        |                                                              |
-| -------------------------------------- | ------------------------------------------------------------ |
-| `Val.companion<V>()`                   | starts a companion, with the default seal                    |
-| `Val.companion<V, [PrivateSeal]>()`    | the same, without `seal` on the companion                    |
-| `Val.companion<V, [PrivateCreate]>()`  | the same, without `create` on the companion                  |
-| `Val.companion<V, [Unpatchable<K>]>()` | the same, with keys `K` excluded from `patch`                |
-| `.implSeal(f)`                         | registers a custom seal                                      |
-| `.implCreate(f)`                       | registers a function that creates a payload                  |
-| `.implCreate.noseal(f)`                | the same, bypassing the seal for a payload it always accepts |
-| `.impl(fns)`                           | adds the type's members                                      |
-| `.implTrait(Tr, fns?)`                 | implements a trait the type declares                         |
-| `.build()`                             | ends the chain, and returns the companion                    |
+|                          |                                                               |
+| ------------------------ | ------------------------------------------------------------- |
+| `Val.companion<V, O?>()` | starts a companion, with the default seal and the options `O` |
+| `.implSeal(f)`           | registers a custom seal                                       |
+| `.implCreate(f)`         | registers a function that creates a payload                   |
+| `.implCreate.noseal(f)`  | the same, bypassing the seal for a payload it always accepts  |
+| `.impl(fns)`             | adds the type's members                                       |
+| `.implTrait(Tr, fns?)`   | implements a trait the type declares                          |
+| `.build()`               | ends the chain, and returns the companion                     |
 
 Write `implSeal` first, then `implCreate`. `impl` and `implTrait` come next, in any order. Each step
 except `implTrait` is written once.
+
+## Companion options
+
+The list `O` after the type in `Val.companion<V, O>()` takes these, in any combination.
+
+|                  |                                     |
+| ---------------- | ----------------------------------- |
+| `PrivateSeal`    | removes `seal` from the companion   |
+| `PrivateCreate`  | removes `create` from the companion |
+| `Unpatchable<K>` | excludes keys `K` from `patch`      |
 
 ## Companion
 
@@ -82,6 +89,17 @@ re-export a companion.
 The enum's steps come first, in a Val's order, and each variant's steps follow in the same order.
 The first variant step removes the enum's steps from the chain.
 
+### Enum companion options
+
+The list `O` after the enum in `Enum.companion<E, O>()` takes a Val's options and `VariantOptions`.
+
+|                        |                                                                        |
+| ---------------------- | ---------------------------------------------------------------------- |
+| `PrivateSeal`          | removes `E.seal` and every variant's `seal`; on the enum alone         |
+| `PrivateCreate`        | removes `E.create` and every variant's `create`                        |
+| `Unpatchable<K>`       | excludes `K` from `patch`, on every variant that holds it              |
+| `VariantOptions<N, O>` | adds options `O` for variant `N`: `PrivateCreate` and `Unpatchable<K>` |
+
 ### Enum companion
 
 `E` stands for an enum's companion, and `E.Variant` for one of its variants.
@@ -111,7 +129,6 @@ The first variant step removes the enum's steps from the chain.
 | `VariantOf<E, N>`               | the type of one variant                             |
 | `SeedFor<E, N>`                 | what that variant's `create` takes                  |
 | `SealedPayload<E>`              | a tagged payload of one variant                     |
-| `VariantOptions<N, O>`          | the options one variant adds, in the list after `E` |
 | `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields        |
 | `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name           |
 | `AnyEnum`                       | a constraint over any enum                          |
