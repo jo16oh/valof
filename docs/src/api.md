@@ -73,7 +73,7 @@ re-export a companion.
 | `E.create(...args)`             | registered with `.implCreate(f)`; creates a payload, then passes it to seal |
 | `E[Tag].key`                    | the tag field's name                                                        |
 | `E.Variant.create(fields)`      | writes the tag and passes the payload to that variant's seal                |
-| `E.Variant.seal(payload)`       | builds that variant from the payload a value holds, tag included            |
+| `E.Variant.seal(payload)`       | builds that variant from a payload including its tag                        |
 | `E.Variant.create(...args)`     | registered with `.Variant.implCreate(f)`, in place of the one above         |
 | `E.Variant.patch(value, patch)` | derives a value of that variant, keeping the tag                            |
 | `.Variant.implSeal(seal)`       | replaces that variant's seal; `.Variant` also has a Val's other steps       |
