@@ -48,17 +48,16 @@ title and body as a draft and stop there.
 1. The release workflow generates the release notes from the titles of the PRs in the release. Where
    they need a note or emphasis, write it for users in a file outside the repo. Step 3 makes it the
    PR body.
-2. Set `#valof` in `package.json` to `./src/index.ts`, run `vp check` and `vp run bundle-size`, and
-   set it back to `valof-release`. Report what breaks, and where the new API is awkward to use in
-   the scripts. A user encounters both when upgrading. If a problem is serious, stop the release and
-   rework the design.
+2. In a PR of its own, run `vp run pin-valof origin/main`, which points the scripts' `#valof` at
+   that commit, and fix the scripts where `vp check` or `vp run bundle-size` fails. Report what
+   breaks, and where the new API is awkward to use in the scripts. A user encounters both when
+   upgrading. If a problem is serious, stop the release and rework the design. CI fails the release
+   PR while the pinned commit builds a different `dist` from the release.
 3. Run `vp run bump-version --release <type> --yes`, where `<type>` is the release type I give, such
    as `patch`. Add `--body-file notes.md` when step 1 wrote one. The script updates the bundle-size
    claims, pushes a release branch, and opens its PR. Options other than `--body-file` go to bumpp.
 4. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
    release, and publishes the book.
-5. Once npm has the new version, set `valof-release` in `package.json` to it, and fix the scripts
-   where step 2 found a break.
 
 Step 3 pushes and opens a PR. It is the only exception to "Never push, and never open a PR" above.
 Run it only on my explicit go-ahead.
