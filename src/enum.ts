@@ -1,10 +1,19 @@
 import { dual, duals, type Arity, type Dual, type Duals } from "./dual.ts";
+import { Shared, Traits } from "./keys.ts";
+import type {
+  EnumKey,
+  EnumTypes,
+  TagKey,
+  TagTypes,
+  VariantOptionsKey,
+  VariantOptionsTypes,
+} from "./keys.ts";
 import type {
   AnyTrait,
   Implement,
-  Members,
   MembersOf,
   NamesOf,
+  TraitHost,
   TraitsOf,
   Unbound,
 } from "./trait.ts";
@@ -45,13 +54,13 @@ import * as Enum from "./ns/enum.ts";
  *
  * @experimental
  */
-export const Tag = "__valof_tag";
+export const Tag: unique symbol = Symbol();
 
 /** Type-only carrier for the tag name. Private and protected members stay out of `keyof`. */
 declare class TagPhantom<T extends string> {
-  private readonly __valof_internal_phantom_tag: T;
+  private readonly [TagKey]: T;
   /** Declaration emit erases private field types; protected keeps the name recoverable. */
-  protected readonly __valof_internal_phantom_tag_types: T;
+  protected readonly [TagTypes]: T;
 }
 
 /**
@@ -74,9 +83,9 @@ export type Tag<T extends string> = TagPhantom<T>;
  * variants, the shared fields, the traits and the tag name back off the union.
  */
 declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
-  private readonly __valof_internal_phantom_enum: [K, V, S, Tr, Tg, VT];
+  private readonly [EnumKey]: [K, V, S, Tr, Tg, VT];
   /** Declaration emit erases private field types; protected keeps the type arguments recoverable. */
-  protected readonly __valof_internal_phantom_enum_types: [K, V, S, Tr, Tg, VT];
+  protected readonly [EnumTypes]: [K, V, S, Tr, Tg, VT];
 }
 
 /**
@@ -135,7 +144,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
         ? "a variant named `then` would make the companion a thenable"
         : N extends Steps
           ? "a variant cannot take a step's name"
-          : N extends "match" | "seal" | "create" | "_" | `__valof_${string}`
+          : N extends "match" | "seal" | "create" | "_"
             ? "a variant cannot take a name the library reserves"
             : [D[N]] extends [object]
               ? [D[N]] extends [ReadonlyArray<unknown>]
@@ -377,9 +386,9 @@ type CheckedSeal<G extends (...args: never[]) => unknown> = Synchronous<
 
 /** A list a variant's options sit in. See {@link VariantOptions}. */
 declare class VariantOptionsPhantom<N extends string, L> {
-  private readonly __valof_internal_phantom_variant_options: [N, L];
+  private readonly [VariantOptionsKey]: [N, L];
   /** Declaration emit erases private field types; protected keeps the type arguments recoverable. */
-  protected readonly __valof_internal_phantom_variant_options_types: [N, L];
+  protected readonly [VariantOptionsTypes]: [N, L];
 }
 
 /**
@@ -507,9 +516,7 @@ type Framed<
       ) => R,
       VariantOf<E, N>
     >;
-    /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
-    readonly __valof_traits: Members;
-  };
+  } & TraitHost;
 
 type Frame<
   E extends AnyEnum,
@@ -651,9 +658,7 @@ export type EnumCompanion<
      */
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
-    /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
-    readonly __valof_traits: Members;
-  };
+  } & TraitHost;
 
 /** The steps the enum's own part of the chain has taken. */
 type EnumTaken = "implSeal" | "implCreate" | "impl" | "implTrait";
@@ -918,7 +923,7 @@ type Chain = {
   implSeal: (seal: Seal) => Chain;
   implCreate: ((create: AnyFn) => Chain) & { noseal: (create: AnyFn) => Chain };
   impl: (fns: Payload) => Chain;
-  implTrait: (trait: { __valof_shared: Payload }) => Chain;
+  implTrait: (trait: { [Shared]: Payload }) => Chain;
   build: () => object;
 };
 
@@ -928,19 +933,21 @@ const matchTag = dual((tag: string, handlers: Record<string, () => unknown>) =>
 );
 
 /**
- * Reads `key` off `own` or resolves it through `rest`. A symbol reaches here from `await`,
- * `JSON.stringify` and every other protocol read, and `then` would make the object a thenable.
- * Both would otherwise resolve to a variant, since nothing at run time lists the names. A `then`
- * variant is an error at the declaration, like a `then` member anywhere else.
+ * Reads `key` off `own` or resolves a string through `rest`. A symbol `own` lacks reaches here from
+ * `await`, `JSON.stringify` and every other protocol read, and `then` would make the object a
+ * thenable. Both would otherwise resolve to a variant, since nothing at run time lists the names. A
+ * `then` variant is an error at the declaration, like a `then` member anywhere else.
  */
 const resolving = (own: object, rest: (key: string) => unknown): object =>
   new Proxy(own, {
     get: (target, key) =>
-      typeof key !== "string" || key === "then"
+      key === "then"
         ? undefined
         : Object.hasOwn(target, key)
-          ? (target as Payload)[key]
-          : rest(key),
+          ? (target as Record<PropertyKey, unknown>)[key]
+          : typeof key === "string"
+            ? rest(key)
+            : undefined,
   });
 
 /**
@@ -961,8 +968,8 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
       }),
       impl: (fns: Payload) => grow({ members: { ...members, ...duals(fns) } }),
       // The trait's own members and the enum's, merged the way `val.ts` merges them.
-      implTrait: (trait: { __valof_shared: Payload }, fns = {}) => {
-        const grown = { ...traits, ...trait.__valof_shared, ...fns };
+      implTrait: (trait: { [Shared]: Payload }, fns = {}) => {
+        const grown = { ...traits, ...trait[Shared], ...fns };
         return grow({ members: { ...members, ...duals(grown) }, traits: grown });
       },
       build: () => assemble(tag, variants, own),
@@ -973,8 +980,8 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
         noseal: (create: AnyFn) => step(name, { create, noseal: true }),
       }),
       impl: (fns: Payload) => step(name, { members: fns }),
-      implTrait: (trait: { __valof_shared: Payload }, fns = {}) =>
-        step(name, { traits: { ...variants[name]?.traits, ...trait.__valof_shared, ...fns } }),
+      implTrait: (trait: { [Shared]: Payload }, fns = {}) =>
+        step(name, { traits: { ...variants[name]?.traits, ...trait[Shared], ...fns } }),
     }),
   );
 };
@@ -1011,7 +1018,10 @@ const frame = (tag: string, name: string, steps: Registered): object => {
   // The tag is minted as the payload comes out, the way `create` generates what it generates.
   const made = create ? (...args: never[]) => mint(create(...args) as Payload) : mint;
   chain = noseal ? chain.implCreate.noseal(made) : chain.implCreate(made);
-  return chain.impl(members).implTrait({ __valof_shared: traits }).build();
+  return chain
+    .impl(members)
+    .implTrait({ [Shared]: traits })
+    .build();
 };
 
 /**
@@ -1064,7 +1074,7 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
           : (...args: never[]) => sealing(create(...args) as Payload),
       }),
       [Tag]: { match: matchTag, key: tag },
-      __valof_traits: traits,
+      [Traits]: traits,
       // Last, as the proxy read them first: the declaration keeps a trait member off `match`.
       ...members,
     },

@@ -5,16 +5,30 @@ import type {
   AnyTrait,
   FinalsOf,
   Implement,
-  Members,
   MembersOf,
   NamesOf,
   ShapeOf,
   TraitBrand,
   TraitCompanion,
+  TraitHost,
   TraitsOf,
   Unbound,
 } from "./trait.ts";
 import { dual } from "./dual.ts";
+import { Shared, Traits } from "./keys.ts";
+import type {
+  NoSeal,
+  PhantomBrand,
+  PhantomPayload,
+  PhantomTypes,
+  PrivateCreateKey,
+  PrivateSealKey,
+  RecKey,
+  Unbuilt,
+  UnpatchableKey,
+  UnpatchableTypes,
+  VerdictKey,
+} from "./keys.ts";
 import type { Arity, Dual, Duals } from "./dual.ts";
 import { development } from "./env.ts";
 import * as Val from "./ns/val.ts";
@@ -24,10 +38,10 @@ type Primitive = string | number | boolean | bigint | null;
 
 /** Type-only nominal identity. Private members disappear from `keyof` and object spreads. */
 declare class Phantom<K extends string, T> {
-  private readonly __valof_internal_phantom_brand: K;
-  private readonly __valof_internal_phantom_payload: T;
+  private readonly [PhantomBrand]: K;
+  private readonly [PhantomPayload]: T;
   /** Declaration emit erases private field types; protected keeps the type arguments recoverable. */
-  protected readonly __valof_internal_phantom_types: readonly [K, T];
+  protected readonly [PhantomTypes]: readonly [K, T];
 }
 
 /**
@@ -35,7 +49,7 @@ declare class Phantom<K extends string, T> {
  * while a type alias resolves, which is what lets a Val reference itself: see {@link Rec}.
  */
 export declare class Verdict<X> {
-  private readonly __valof_internal_verdict: X;
+  private readonly [VerdictKey]: X;
 }
 
 export type AnyVal = Phantom<string, unknown> & Verdict<true>;
@@ -58,7 +72,7 @@ export type AnyVal = Phantom<string, unknown> & Verdict<true>;
  * being declared, which is the circularity this breaks.
  */
 export interface Rec<V> {
-  readonly __valof_internal_rec: V;
+  readonly [RecKey]: V;
 }
 
 /** Marker surfaced in the type when a declaration violates the allowed-type rules. */
@@ -73,10 +87,16 @@ type OptionalKeys<T> = {
 
 /**
  * Read by key, never by assignability: comparing `Rec<Tree>` against `Rec<unknown>` reads the
- * type argument, and that is the resolution `Rec` exists to defer. An index signature matches
- * every key, so it is excluded first.
+ * type argument, and that is the resolution `Rec` exists to defer. A string or symbol index
+ * signature matches every key of its kind, so both are excluded first.
  */
-type IsRec<T> = string extends keyof T ? false : keyof Rec<unknown> extends keyof T ? true : false;
+type IsRec<T> = string extends keyof T
+  ? false
+  : symbol extends keyof T
+    ? false
+    : keyof Rec<unknown> extends keyof T
+      ? true
+      : false;
 
 type Validate<T, Root extends boolean = true> =
   IsRec<T> extends true
@@ -398,12 +418,6 @@ export type Wired = "patch" | "seal" | "create";
 /** The names every `.impl` rejects. */
 type Rejected = Partial<Record<Wired, never>> & {
   /**
-   * The record `Trait`'s `dyn` reads, and anything else the library keeps on a companion. Defined
-   * before the registrations, so a function taking the name would overwrite it and leave every
-   * boxed member unbound.
-   */
-  [key: `__valof_${string}`]: never;
-  /**
    * A companion holding `then` is a thenable. `await` on it, or returning it from an async
    * function, calls the member with the resolve and reject functions, and the promise never
    * settles.
@@ -472,7 +486,7 @@ export type Synchronous<G extends (...args: never[]) => unknown, Checked> =
 type CreateImpl<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
 
 /** Marks a `create` registered by `.implCreate.noseal`. */
-export type Unsealed = { readonly __valof_noseal: true };
+export type Unsealed = { readonly [NoSeal]: true };
 
 /**
  * No arguments, so no input reaches the payload unsealed. A wrong payload is checked against
@@ -539,9 +553,9 @@ type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
 
 /** Type-only carrier for {@link Unpatchable}. */
 declare class UnpatchablePhantom<K extends string> {
-  private readonly __valof_internal_phantom_unpatchable: K;
+  private readonly [UnpatchableKey]: K;
   /** Declaration emit erases private field types; protected keeps the keys recoverable. */
-  protected readonly __valof_internal_phantom_unpatchable_types: K;
+  protected readonly [UnpatchableTypes]: K;
 }
 
 /**
@@ -562,7 +576,7 @@ declare class UnpatchablePhantom<K extends string> {
 // without type arguments as its class, and a consumer's `.d.ts` cannot reference a class the entry
 // does not export.
 export declare class PrivateSeal {
-  private readonly __valof_internal_phantom_private_seal: true;
+  private readonly [PrivateSealKey]: true;
 }
 
 /**
@@ -577,7 +591,7 @@ export declare class PrivateSeal {
  * ```
  */
 export declare class PrivateCreate {
-  private readonly __valof_internal_phantom_private_create: true;
+  private readonly [PrivateCreateKey]: true;
 }
 
 /**
@@ -650,10 +664,8 @@ export type Companion<
 > = Duals<Omit<M, Wired>, V> &
   ([Extract<O[number], PrivateCreate>] extends [never] ? CreateMethod<V, N, F> : unknown) &
   ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
-  PatchMethod<V, F, O> & {
-    /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
-    readonly __valof_traits: Members;
-  };
+  PatchMethod<V, F, O> &
+  TraitHost;
 
 /**
  * What `.impl` accepts once a name is taken: anything but a name a trait already uses, its shared
@@ -719,7 +731,7 @@ type Taken = "implSeal" | "implCreate" | "impl" | "implTrait";
  * What a builder holds where the companion holds its library's names: `.build()` is missing.
  */
 export interface CallBuildFirst {
-  readonly __valof_unbuilt: "call `.build()` to get the companion";
+  readonly [Unbuilt]: "call `.build()` to get the companion";
 }
 
 /**
@@ -1264,7 +1276,7 @@ const attach = (
 
   // A trait's members join the type's own, so they grow the same way. The record is
   // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never imports `trait.ts`.
-  target.__valof_traits = traits;
+  (target as Record<symbol, unknown>)[Traits] = traits;
   for (const key of Object.keys(traits)) define(target, key, dual(traits[key]));
   for (const key of Object.keys(fns)) define(target, key, dual(fns[key]));
 
@@ -1287,8 +1299,8 @@ const builder = (
   ),
   impl: (members: Record<string, unknown>) => builder(ctors, traits, members),
   // The Val's own go on last, the type having kept every `Final` one out of them.
-  implTrait: (trait: { __valof_shared: Record<string, unknown> }, impl = {}) =>
-    builder(ctors, { ...traits, ...trait.__valof_shared, ...impl }, fns),
+  implTrait: (trait: { [Shared]: Record<string, unknown> }, impl = {}) =>
+    builder(ctors, { ...traits, ...trait[Shared], ...impl }, fns),
   build: () => attach(fns, ctors, traits),
 });
 

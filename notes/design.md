@@ -14,7 +14,7 @@ import { Val } from "valof";
 節ごとに独立して読める。必要な節だけ開く。
 
 - **§1 設計思想** 「値はプレーンなデータであり、振る舞いは外にある」。他の全判断の根拠。メンバを dual にして払う呼び出しごとのコスト
-- **§2 基本 API** `Val.companion` / `.seal` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録）、2.2 `Val.of` は逃げ道ではない
+- **§2 基本 API** `Val.companion` / `.seal` / `.impl`。2.1 ブランドがファントム文字列である理由（symbol と、境界で落ちる関数型を却下した記録。2026-10-26 にキーを symbol に戻した）、2.2 `Val.of` は逃げ道ではない
 - **§3 許可型** Primitive / Val / ReadonlyArray / Record だけ。payload に `readonly` を書かない理由、3.5 `undefined` を値として禁じる理由と、EOPT の壁、3.6 object の union を禁じる理由、3.7 自己参照 `Rec`
 - **§4 DeepReadonly**
   - **4.1** コンストラクタが既定で引数をコピーする理由と、明示的な `.nocopy`。型でも lint でも塞げないこと（線形型が無い）、所有権追跡（WeakSet、全ノード登録）、却下した symbol 印、ダイヤモンドと GC、`unwrap` の摩擦、型チェック速度のベンチ
@@ -37,7 +37,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
@@ -94,6 +94,8 @@ User.greet(user);
 
 ### 2.1 ブランド
 
+**2026-10-26: キーは symbol になった（下の「キーを symbol に戻した」）。**以下は当時の記録。
+
 ライブラリ内部に固定のファントム文字列キーを持ち、値は文字列リテラルとする。
 
 ```ts
@@ -124,6 +126,45 @@ from external module ".../valof/dist/index" but cannot be named.
 ブランドはどのみち実行時に存在しないので、衝突耐性は symbol であること自体ではなく**名前の長さ**で買える。`__valof_internal_phantom_` 接頭辞を実際のプロパティ名に使う者はいない。`phantom` を名前に入れているのは、ホバーやエラーメッセージでこのキーに出くわした人が実行時に探しに行かないようにするため。
 
 代償として文字列キーは `keyof Val<...>` に現れる。ペイロードのキーだけが欲しい場面では `PayloadOf<V>` / `SeedOf<V>` を使う（`patch` は元からこちらを経由する）。
+
+#### 2026-10-26: キーを symbol に戻した
+
+**ライブラリのキーはすべて symbol にした。**文字列キーはエディタの補完に出る。キーは `Tag` を除いて
+`src/keys.ts` に集め、entry からは export しない。`Tag` は `enum.ts` に置き、`valof/experimental` から
+export する。
+
+- 実行時に読む `Tag`、`Traits`、`Shared` は `Symbol()`
+- 型にしか無いキー（`Rec`、`Unsealed`、`CallBuildFirst` が持つもの）と、phantom class のメンバのキーは
+  `declare const …: unique symbol`。private な phantom のキーは文字列のままでも補完に出ない（TS 5.9 の
+  language service で確認）。それでも symbol にしたのは、予約を外したあと、利用者のフィールド名と
+  衝突させないため
+- `__valof_` の前方一致の予約を外した。`.impl` の型、Variant 名、valof-lint の 3 箇所
+
+**「なぜ `unique symbol` をやめたか」の TS4023 は、型が名前で出力される場所では起きない。**当時は
+`Val.sealer().impl()` が返す companion の型が展開されて出力された。今は `Companion<…>` や
+`EnumCompanion<…>` の名前で出力され、キーまで展開されない。phantom のキーは class の private / protected
+メンバなので、class の名前で出力される。
+
+- 無名の型に symbol キーを直接書くと、その型は展開されて出力され、TS4023 になる。Variant の枠
+  （`Shape.Circle`）で起きたので、`[Traits]` を `TraitHost` に包んだ。ts-compatibility の fixture が検査する
+- 利用者が companion を `Omit` や mapped 型に通すと、展開されて TS4023 になる。`Tag` は型だけの import
+  （`import { type Tag } from "valof/experimental"`）で通る。`Traits` は export していないので、書く手段が
+  無い
+- `IsRec` が symbol の index signature を除外するようにした。キーを symbol にすると、symbol の index
+  signature はどの `unique symbol` キーも受けるので、`Record<symbol, string>` を `Rec` と誤判定する
+
+**却下: phantom class をやめ、無名の型に symbol キーを直接書く。**TS はスプレッドで private メンバを
+落とすが、symbol キーは落とさない。`const c: User = { ...u }` が通り、seal を経ずに Val を作れる。
+`(u) => ({ ...u, extra: 1 })` を export すると TS4023 になる。
+
+**却下: `Symbol.for("valof.traits")`。**valof が 2 つ入っても読み合えるが、別バージョンが重複したら、互いの
+記録を読めないほうが正しい。`Traits` と `Shared` が持つ記録の形を、バージョン間の約束にしない。重複したときに
+分かれるのはキーだけでもない。`owned` の WeakSet もコピーごとにあり、もう一方のコピーが作った Val を `patch`
+に渡すと、置換ではなく merge になる（§6.2）。`Symbol()` に説明の文字列も渡さない。デバッグ表示のためだけに
+バイトを払うことになる。
+
+main 比のコスト: Val の production gzip 857 → 855 B、enum の instantiations 32,956 → 32,988、`index.d.ts`
+78.22 → 78.73 kB。
 
 #### `declaration: true` はどの境界で要るか
 
@@ -6547,6 +6588,9 @@ Command[Tag].match(tag, {
 が通る。余計なフィールドを防ぐという目的を果たせない。
 
 #### キーは文字列 `Tag = "__valof_tag"`
+
+**2026-10-26: `Tag` は `Symbol()` になった（§2.1「キーを symbol に戻した」）。**以下は当時の記録。予約も、
+下で予定した lint の規則も要らなくなった。
 
 `Tag` を値としても export し、companion のそのキーに `{ match, key }` を置く。
 

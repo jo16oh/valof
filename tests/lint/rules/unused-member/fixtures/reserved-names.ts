@@ -9,8 +9,6 @@ const Id = Val.companion<Id>().impl({
   dispatch: (i) => i,
   thenable: (i) => i,
   implTrait: (i) => i,
-  __valof_traits: (i) => i,
-  __valof_x: (i) => i,
 }).build();
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;

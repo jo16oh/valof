@@ -4,6 +4,7 @@ import { Trait, type AnyTrait, type Dyn, type Final, type Self } from "../src/ex
 // `Wired` is not published from the entry point.
 import type { CallBuildFirst, Wired } from "../src/val.ts";
 import type { BrandsOf } from "../src/trait.ts";
+import { Shared } from "../src/keys.ts";
 
 type Greetable = Trait<
   "Greetable",
@@ -105,7 +106,7 @@ describe("Trait", () => {
       const bare = Trait.companion<Greetable>();
       const builder = bare.impl({ shout: (g) => g.name.toUpperCase() });
       expectTypeOf(builder).not.toHaveProperty("shout");
-      for (const name of ["shout", "dyn", "__valof_shared"])
+      for (const name of ["shout", "dyn", Shared])
         expect([name in bare, name in builder]).toEqual([false, false]);
     });
 
@@ -128,12 +129,6 @@ describe("Trait", () => {
       Trait.companion<SelfClash>().build();
     });
 
-    test("nor one under `__valof_`", () => {
-      type Sneaky = Trait<"Sneaky", { name: string }, { __valof_shared: (self: Self) => string }>;
-      // @ts-expect-error a trait member cannot take a name the library reserves
-      Trait.companion<Sneaky>().impl({}).build();
-    });
-
     test("but may take a step's name: no companion holds a step", () => {
       type Stepping = Trait<
         "Stepping",
@@ -149,6 +144,25 @@ describe("Trait", () => {
         .build();
       const step = Step.seal({ name: "up" });
       expect([Step.impl(step), Step.build(step), Stepping.build(step)]).toEqual(["UP", "up", "up"]);
+    });
+
+    test("and any string the library once kept", () => {
+      type Kept = Trait<
+        "Kept",
+        { name: string },
+        { __valof_shared: Final<(self: Self) => string>; greet: (self: Self) => string }
+      >;
+      const Kept = Trait.companion<Kept>()
+        .impl({ __valof_shared: (k) => k.name, greet: (k) => `Hi, ${k.name}` })
+        .build();
+      type Keeper = Val<"Keeper", { name: string }, Kept>;
+      const Keeper = Val.companion<Keeper>().implTrait(Kept).build();
+      const keeper = Keeper.seal({ name: "kay" });
+      expect([
+        Kept.__valof_shared(keeper),
+        Keeper.__valof_shared(keeper),
+        Kept.dyn(Keeper, keeper).greet(),
+      ]).toEqual(["kay", "kay", "Hi, kay"]);
     });
 
     test("nor the name the trait itself uses", () => {
