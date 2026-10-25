@@ -26,6 +26,8 @@ export default defineConfig({
       customExports: (exports) => ({
         ".": "./dist/index.js",
         "./experimental": "./dist/experimental.js",
+        // For a consumer's emitted declarations, which reference types the entries leave out.
+        "./internal/*": "./dist/*.js",
         ...exports,
       }),
       bin: {

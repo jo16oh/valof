@@ -537,16 +537,6 @@ type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
     : F
   : F;
 
-/** Type-only carrier for {@link PrivateSeal}. Private and protected members stay out of `keyof`. */
-declare class PrivateSealPhantom {
-  private readonly __valof_internal_phantom_private_seal: true;
-}
-
-/** Type-only carrier for {@link PrivateCreate}. */
-declare class PrivateCreatePhantom {
-  private readonly __valof_internal_phantom_private_create: true;
-}
-
 /** Type-only carrier for {@link Unpatchable}. */
 declare class UnpatchablePhantom<K extends string> {
   private readonly __valof_internal_phantom_unpatchable: K;
@@ -568,7 +558,12 @@ declare class UnpatchablePhantom<K extends string> {
  *
  * The seal is hidden from the type alone: `Val.of` can still forge a value.
  */
-export type PrivateSeal = PrivateSealPhantom;
+// This and `PrivateCreate` are classes, not aliases of one. Declaration emit writes an alias
+// without type arguments as its class, and a consumer's `.d.ts` cannot reference a class the entry
+// does not export. A private member stays out of `keyof`.
+export declare class PrivateSeal {
+  private readonly __valof_internal_phantom_private_seal: true;
+}
 
 /**
  * Takes `create` off the companion, whether `.implCreate` registered it or an enum's variant has it
@@ -581,7 +576,9 @@ export type PrivateSeal = PrivateSealPhantom;
  * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate);
  * ```
  */
-export type PrivateCreate = PrivateCreatePhantom;
+export declare class PrivateCreate {
+  private readonly __valof_internal_phantom_private_create: true;
+}
 
 /**
  * Takes keys out of `patch`: its patch stops accepting them.
@@ -651,8 +648,8 @@ export type Companion<
   F = undefined,
   O extends Options = [],
 > = Duals<Omit<M, Wired>, V> &
-  ([Extract<O[number], PrivateCreatePhantom>] extends [never] ? CreateMethod<V, N, F> : unknown) &
-  ([Extract<O[number], PrivateSealPhantom>] extends [never] ? SealMethod<V, F> : unknown) &
+  ([Extract<O[number], PrivateCreate>] extends [never] ? CreateMethod<V, N, F> : unknown) &
+  ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
   PatchMethod<V, F, O> & {
     /** Every member `implTrait` registered. Read by `Trait`'s `dyn`. */
     readonly __valof_traits: Members;
