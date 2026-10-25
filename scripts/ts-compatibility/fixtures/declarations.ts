@@ -9,10 +9,10 @@ export type Greetable = Trait<
   { name: string },
   { greet: (self: Self) => string; shout: Final<(self: Self) => string> }
 >;
-export const greetableBuilder = Trait.companion<Greetable>().impl({
+export const greetableBuilder = Trait.companion<Greetable>().impl(() => ({
   greet: (g) => g.name,
   shout: (g) => g.name.toUpperCase(),
-});
+}));
 export const Greetable = greetableBuilder.build();
 
 export type User = Val<"User", { id: string; name: string }, Greetable>;
@@ -39,8 +39,8 @@ export const children = (tree: Tree) => tree.children;
 
 export type Shape = Enum<"Shape", { Circle: { r: number }; Rect: { w: number } }, Greetable>;
 export const shapeBuilder = Enum.companion<Shape>()
-  .Circle.impl({ diameter: (c) => c.r * 2 })
-  .implTrait(Greetable, { greet: (s) => s._tag });
+  .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+  .implTrait(Greetable, () => ({ greet: (s) => s._tag }));
 export const Shape = shapeBuilder.build();
 export const byTag = Shape[Tag];
 export const circle = Shape.Circle;
