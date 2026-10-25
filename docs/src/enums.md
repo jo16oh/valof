@@ -34,11 +34,9 @@ Call a variant through the companion. `const { Circle } = Shape` works, and a re
 `Circle.create({ r: 2 })` then has to find which enum declared it. `const Round = Shape.Circle`
 gives it another name, which `companion-mismatch` reports.
 
-`create` writes the tag and passes the payload to the variant's seal. The seal takes the payload a
-value holds, tag included, so a value survives a round trip through JSON:
-`Shape.Circle.seal(JSON.parse(JSON.stringify(circle)))`. Both deep-copy their payload like any other
-constructor. For a payload including its tag, or a tag that arrives alone, see
-[Build a value](#build-a-value).
+The default `create` writes the tag and passes the payload to the variant's seal. The seal takes the
+payload with its tag. Both deep-copy their payload like any other constructor. For a payload
+including its tag, or a tag that arrives alone, see [Build a value](#build-a-value).
 
 A variant is a Val. It patches, it compares, and it nests. A patch cannot reach the tag, so it
 cannot switch variants.

@@ -181,9 +181,9 @@ User.seal({ id: "forged", name: "sue", email: "" }); // type error
 
 Write `.implSeal` before `.implCreate`.
 
-`PrivateCreate` removes `create` from the companion instead, for a type that callers build through
-`seal` or functions of its own. It protects no field, because `create` passes the seal like every
-other gate.
+`PrivateCreate` removes `create` from the companion. Use it when callers should build the type
+through `seal` or other functions, not `create`. It protects no field, because the payload `create`
+returns passes the seal.
 
 `PrivateSeal`, `PrivateCreate` and `Unpatchable` are types, so they do not exist at runtime. They
 constrain the companion, not the value. `Val.of<User>({ id: "forged", … })` still builds one, and so
