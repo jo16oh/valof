@@ -20,6 +20,7 @@ import {
   type SeedFor,
   type SealedPayload,
   type Self,
+  Otherwise,
   Tag,
   type VariantOf,
 } from "../src/experimental.ts";
@@ -142,6 +143,37 @@ describe("match", () => {
       _: () => 0,
     });
   });
+
+  test("`[Otherwise]` does what `_` does, and may not appear beside it or beside every handler", () => {
+    const read = (s: Shape) =>
+      Shape.match(s, {
+        Circle: (c) => c.r,
+        [Otherwise]: (rest) => {
+          expectTypeOf(rest).toEqualTypeOf<VariantOf<Shape, "Square">>();
+          return `${rest.side}`;
+        },
+      });
+    expect([read(circle), read(square)]).toEqual([2, "3"]);
+    Shape.match(circle, {
+      Circle: (c) => c.r,
+      Square: (s) => s.side,
+      // @ts-expect-error every variant has a handler, so `[Otherwise]` never runs
+      [Otherwise]: () => 0,
+    });
+    Shape.match(circle, {
+      Circle: (c) => c.r,
+      [Otherwise]: () => 0,
+      // @ts-expect-error `[Otherwise]` handles the rest already
+      _: () => 0,
+    });
+  });
+
+  // `Symbol.for(…)` in a literal widens to `symbol`, which the type cannot distinguish from
+  // `Otherwise`.
+  test("a symbol other than `Otherwise` is rejected", () => {
+    // @ts-expect-error this enum has no such variant
+    Shape.match(circle, { Circle: (c) => c.r, [Symbol.for("valof.otherwise")]: () => 0 });
+  });
 });
 
 describe("match on a tag alone", () => {
@@ -176,6 +208,12 @@ describe("match on a tag alone", () => {
     const build = (name: string) =>
       Shape[Tag].match(pick(name), { Circle: () => 0, _: () => "other" });
     expectTypeOf(build).returns.toEqualTypeOf<number | string>();
+    expect([build("round"), build("box")]).toEqual([0, "other"]);
+  });
+
+  test("so does `[Otherwise]`", () => {
+    const build = (name: string) =>
+      Shape[Tag].match(pick(name), { Circle: () => 0, [Otherwise]: () => "other" });
     expect([build("round"), build("box")]).toEqual([0, "other"]);
   });
 
@@ -701,46 +739,98 @@ describe("traits", () => {
   });
 });
 
-// Each check goes on the companion. A broken declaration stops satisfying the constraint, and the
-// companion is the line the user writes.
-describe("a broken declaration", () => {
-  test("a variant may not be called `then`", () => {
-    type Awaited = Enum<"Awaited", { then: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error a variant named `then` would make the companion a thenable
-    Enum.companion<Awaited>().build();
+// On the builder and the companion, a variant named after a step or a function is a property of
+// that step or function. `.impl(…)` is the step, and `.impl.implSeal(…)` the variant's.
+describe("a variant may be named after the library's steps and functions", () => {
+  type Cmd = Enum<
+    "Cmd",
+    {
+      tag: { n: number };
+      impl: { n: number };
+      build: { n: number };
+      seal: { n: number };
+      create: { n: number };
+      match: { n: number };
+      then: { n: number };
+    }
+  >;
+  const Cmd = Enum.companion<Cmd>()
+    .impl.implSeal((v, seal) => seal({ ...v, n: v.n + 1 }))
+    .tag.impl({ twice: (c) => c.n * 2 })
+    .build.impl({ twice: (c) => c.n * 2 })
+    .seal.impl({ twice: (c) => c.n * 2 })
+    .implCreate(() => ({ _tag: "create" as const, n: 0 }))
+    .impl({ named: (c) => c._tag })
+    .build();
+
+  test("a step's name", () => {
+    expect(Cmd.impl.create({ n: 1 })).toEqual({ _tag: "impl", n: 2 });
+    expect(Cmd.tag.twice(Cmd.tag.create({ n: 2 }))).toBe(4);
+    expect(Cmd.build.twice(Cmd.build.create({ n: 3 }))).toBe(6);
+    expect(Cmd.named(Cmd.build.create({ n: 3 }))).toBe("build");
   });
 
-  test("a variant may not take a name the library reserves", () => {
-    type Sealed = Enum<"Sealed", { seal: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error a variant cannot take a name the library reserves
-    Enum.companion<Sealed>().build();
+  test("`seal`, `create` and `match`, which stay the enum's when called", () => {
+    const sealed = Cmd.seal.create({ n: 1 });
+    expect(Cmd.seal({ _tag: "seal", n: 1 })).toEqual(sealed);
+    expect(Cmd.seal.twice(sealed)).toBe(2);
+    expect(Cmd.create()).toEqual({ _tag: "create", n: 0 });
+    expect(Cmd.create.create({ n: 1 })).toEqual({ _tag: "create", n: 1 });
+    expect(Cmd.match(Cmd.match.create({ n: 1 }), { match: (m) => m.n, _: () => 0 })).toBe(1);
   });
 
-  test("but may take any string the library once kept", () => {
+  // The frame's own property hides the function's own one, which `Object.assign` cannot replace.
+  test("a member named after a function's own property is the member", () => {
+    type Named = Enum<"Named", { seal: { n: number }; Other: { n: number } }>;
+    const Named = Enum.companion<Named>()
+      .seal.impl({ name: (c) => `n${c.n}`, length: (c) => c.n })
+      .build();
+    const sealed = Named.seal.create({ n: 3 });
+    expect([Named.seal.name(sealed), Named.seal.length(sealed)]).toEqual(["n3", 3]);
+  });
+
+  test("`PrivateSeal` removes the enum's `seal` and keeps the variant's frame", () => {
+    type Hidden = Enum<"Hidden", { seal: { n: number }; Other: { n: number } }>;
+    const Hidden = Enum.companion<Hidden, [PrivateSeal]>().build();
+    // @ts-expect-error This expression is not callable
+    Hidden.seal({ _tag: "seal", n: 1 });
+    expect(Hidden.seal.create({ n: 1 })).toEqual({ _tag: "seal", n: 1 });
+  });
+
+  // A frame is not a function, so the companion is not a thenable.
+  test("`then`", () => {
+    expect(Cmd.then.create({ n: 1 })).toEqual({ _tag: "then", n: 1 });
+  });
+
+  test("`_`, which is that variant's handler, with `[Otherwise]` handling the rest", () => {
+    type Wild = Enum<"Wild", { _: { n: number }; A: { n: number }; B: { n: number } }>;
+    const Wild = Enum.companion<Wild>().build();
+    const read = (w: Wild) =>
+      Wild.match(w, {
+        _: (u) => {
+          expectTypeOf(u).toEqualTypeOf<VariantOf<Wild, "_">>();
+          return "_";
+        },
+        [Otherwise]: (rest) => rest._tag,
+      });
+    expect([read(Wild._.create({ n: 1 })), read(Wild.A.create({ n: 1 }))]).toEqual(["_", "A"]);
+    const byTag = (tag: "_" | "A") =>
+      Wild[Tag].match(tag, { _: () => "_", [Otherwise]: () => "rest" });
+    expect([byTag("_"), byTag("A")]).toEqual(["_", "rest"]);
+    // @ts-expect-error Property 'A' is missing
+    Wild.match(Wild.A.create({ n: 1 }), { _: () => 0 });
+  });
+
+  test("any string the library once kept", () => {
     type Kept = Enum<"Kept", { __valof_traits: { n: number }; Other: { n: number } }>;
     const Kept = Enum.companion<Kept>().build();
     expect(Kept.__valof_traits.create({ n: 1 })).toEqual({ _tag: "__valof_traits", n: 1 });
   });
+});
 
-  test("nor `_`, which `match` takes for the rest", () => {
-    type Wild = Enum<"Wild", { _: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error a variant cannot take a name the library reserves
-    Enum.companion<Wild>().build();
-  });
-
-  // The builder holds `.Circle` beside the steps.
-  test("nor a step's name", () => {
-    type Stepped = Enum<"Stepped", { impl: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error a variant cannot take a step's name
-    Enum.companion<Stepped>().build();
-    type Built = Enum<"Built", { build: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error same, for `build`
-    Enum.companion<Built>().build();
-    type Git = Enum<"Git", { commit: { sha: string }; tag: { name: string } }, Tag<"type">>;
-    // @ts-expect-error same, for `tag`
-    Enum.companion<Git>().tag("type").build();
-  });
-
+// Each check goes on the companion. A broken declaration stops satisfying the constraint, and the
+// companion is the line the user writes.
+describe("a broken declaration", () => {
   // The member would replace the variant or `match` at run time, under the library's type.
   test("a trait member may not take a variant's name, nor `match`", () => {
     type Sq = Trait<"Sq", Record<never, never>, { Square: (self: Self) => string }>;
@@ -1466,8 +1556,9 @@ describe("the builder and the companion are proxies", () => {
   test.each([
     ["the builder", Enum.companion<Shape>()],
     ["the companion", Shape],
-  ])("on %s, a symbol and `then` come back undefined", (_, proxy) => {
+  ])("on %s, a symbol is undefined, and `then` is not a function", async (_, proxy) => {
     const read = proxy as unknown as Record<PropertyKey, unknown>;
-    expect([read[Symbol.iterator], read["then"]]).toEqual([undefined, undefined]);
+    expect(read[Symbol.iterator]).toBeUndefined();
+    expect(await Promise.resolve(proxy)).toBe(proxy);
   });
 });

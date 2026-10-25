@@ -187,7 +187,7 @@ function reserved<const N extends readonly Reserved[]>(
 }
 
 /** The names every `.impl` rejects. The type reports one, so it is not a member to report. */
-const RESERVED = reserved(["patch", "seal", "create", "then"]);
+const RESERVED = reserved(["patch", "seal", "create"]);
 
 /**
  * An enum's `.impl` rejects `match` as well, and a trait's rejects `dyn`. An enum's variant names

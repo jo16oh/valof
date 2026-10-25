@@ -37,7 +37,7 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
@@ -5014,6 +5014,9 @@ const RESERVED = reserved([
 
 2026-10-19 に `` `impl${string}` `` を step の名前のリスト（`Steps`）に替えた。経緯は下の「`impl` の前方一致をやめる」にある。
 
+2026-10-26: `then` も外した（§15.2「予約名を外す」）。`Rejected` は `Partial<Record<Wired, never>>` だけになり、
+`RESERVED` は `patch`、`seal`、`create` の 3 つになった。
+
 - **`Reserved` は `Rejected` のキーから読む。**2 つはずれない。理由のコメントも名前の横に置いたままに
   できる。`CompanionMembers<V>` は `Rejected & { … }` になった。利用者から見た型は同じで、エラーコードと
   位置と hover が変わらないことを監査が確かめた
@@ -6391,6 +6394,8 @@ companion が settle しない thenable になる。`patch` は同じ経路に `
 壊すから。`then` は `await` がハングするだけで、原因の名前が呼び出し側のコードに残る。踏むのは型を外した側
 だけなので、型レベルの 3 箇所で足りるとした。
 
+**2026-10-26: `then` の予約を、メンバ名からも Variant 名からも外した。**§15.2「予約名を外す」。
+
 **利用者側の宣言出力を CI に入れた。**`scripts/ts-compatibility/` が本のブロックをもう 1 度、
 `declaration: true` で回す。ブロックのトップレベルの `const` / `type` / `function` に `export` を足して
 書き出す。推論した型は `.d.ts` に書き出すときだけ名前を要求するので、型検査だけでは TS4023 も TS4094 も
@@ -6797,7 +6802,7 @@ Shape.match(shape, { Circle: (c) => c.r, _: (rest) => rest.side });
   に差し替える
 - 知らないキーは、`_` があってもなくても落ちる。`Only` は要らなくなった
 - `_` を Variant 名の予約名に足した（`Fault`）。実行時は `(handlers[tag] ?? handlers._)`。`_` という
-  Variant は型が拒むので、`??` で足りる
+  Variant は型が拒むので、`??` で足りる（2026-10-26 に予約を外した。§15.2「予約名を外す」）
 - 戻り値は今までどおりハンドラの戻り値の union。型引数をキーの集合 `K` とリテラル全体 `H` の 2 つにし、
   `H` から読む
 - コストは enum fixture の instantiations が 46,593 → 47,750（`_` を使う行を足して 48,471）、
@@ -6965,7 +6970,7 @@ Enum.companion<
 **予約する Variant 名。**builder に `.Circle` と段が並ぶので、`.build()` で外した段の名前（§6.12）を戻した。
 `tag`、`impl`、`implSeal`、`implCreate`、`implTrait`、`implAssoc`、`build`（「a variant cannot take a step's
 name」）と、`seal`、`match`、`create`、`_`、`__valof_*`。`implAssoc` と `create` は後の破壊的変更を避けて先に
-予約した（`implAssoc` は PR 2、enum の `create` は今回入れた）。
+予約した（`implAssoc` は PR 2、enum の `create` は今回入れた）。2026-10-26 にすべて外した。下の「予約名を外す」。
 
 **実行時。**builder を Proxy に戻した。段の名前以外のキーは variant の段になる。`.build()` は段を書いた variant の
 枠をその場で作るので、メンバの検査（引数の個数）は鎖の位置で投げる。書かなかった variant の枠は、今までどおり
@@ -6977,6 +6982,95 @@ name」）と、`seal`、`match`、`create`、`_`、`__valof_*`。`implAssoc` �
 
 **計測。**type-perf: enum 45,815 → 32,757、`index.d.ts` 69.95 kB → 77.24 kB。production gzip: Enum の増分
 +415 → +572 B（予算 +640 B）。builder の Proxy と、`noseal` の development の見張りの受け渡しの分。
+
+#### 予約名を外す、2026-10-26
+
+**Variant 名の予約をすべて外した。**段の名前（`tag`、`impl`、`implSeal`、`implCreate`、`implTrait`、`build`）、
+`seal`、`create`、`match`、`then`、`_`。`__valof_*` は PR #90 で消えていた（§2.1）。`create` という Variant は
+CRUD のイベントでよく出る。予約を外すのは破壊的変更ではない。
+
+**呼べる枠。**名前が Variant と重なった段や関数は、呼べば段や enum の関数で、プロパティを読めば Variant の枠に
+なる。`.impl({ … })` は段、`.impl.implSeal(…)` は `impl` という Variant の段。`Shape.seal(payload)` は enum の
+seal、`Shape.seal.create(…)` は `seal` という Variant の create。
+
+- 型は何も足していない。builder も companion も交差なので、`Fault` の行を消せば `{ impl: 段 } & { impl: 枠 }`
+  が呼び出しシグネチャと枠の交差になる。`PrivateSeal` を付けると呼び出しシグネチャだけが消える
+- 実行時は、`resolving` が渡されたオブジェクトの関数を Proxy で包む。プロパティの読み取りは、同じ名前の
+  Variant の枠が自分で持つものを先に返す。関数の `name`、`length`、`call` などを隠す。枠は最初に読んだときに
+  作る。companion のメンバは包まない。メンバは Variant 名を取れないので（`UnionMembers`）、重ならない
+- Variant の有無は実行時に分からないので、`seal` という Variant が無い enum でも `Shape.seal.create` は枠を
+  返す。型には出ない
+- lint の scanner は既に構文で分けていた。`.impl.implSeal(f)` の `.impl` は `variantOf` が Variant として読む
+
+**却下: 関数に枠のプロパティを直接生やす。**呼び出しは Proxy を通らない。2 案を測った。
+
+| 案                                | Enum の production gzip | 鎖の組み立て | `seal` の呼び出し |
+| --------------------------------- | ----------------------- | ------------ | ----------------- |
+| Proxy で包む（採用）              | +608 B                  | 2.7 µs       | +約 10 ns         |
+| `Object.assign(fn, frame)`        | +595 B                  | 4.9 µs       | 変わらない        |
+| companion だけ `defineProperties` | +626 B                  | 6.8 µs       | 変わらない        |
+
+基準は +575 B、2.1 µs、145 ns（2 variant、5 段、Node 24）。`Object.assign` は、`seal` という Variant が `name` や
+`length` というメンバを持つと build で投げる。関数の `name` と `length` は書き込めない。型で拒めば済むが、
+予約を外す変更で予約を足すことになる。`defineProperties` は builder にも使うと 28.8 µs かかった（1 段ごとに
+6 個の関数に書く）。
+
+**`then`。**Variant の枠はオブジェクトで、Promise が thenable とみなすのは `then` が関数のときだけなので、
+`then` という Variant があっても companion は thenable にならない。そこで proxy の `key === "then"` のガードも
+消した（−9 B）。`then` を読むと枠が返る。
+
+メンバ名の `then` も外した。Val、Trait の型と valof-lint の `RESERVED` の 3 箇所。companion を `await` する場面は
+現実的に無く、書いて壊れても利用者の責任で、valof が保証する範囲ではない。重複した valof を保証しないのと
+同じ考え方（§2.1）。踏むと `await` が settle しないまま止まり、エラーは出ない。Val の `.impl` の JSDoc に 1 行
+残した。Result や Option の Val では `then` がメンバ名として自然である（`Result.then(r, f)`）。
+
+**`_` と `Otherwise`。**`_` は、`_` という Variant があればそのハンドラになる。どの enum でも使える
+ワイルドカードとして、`Otherwise` を `valof/experimental` から export した。
+
+```ts
+Shape.match(shape, { Circle: (c) => c.r, [Otherwise]: (rest) => rest.side });
+```
+
+- 型は `unique symbol`。import した `[Otherwise]` はキーの集合に `unique symbol` として入る
+- 値は `Symbol()`。`Symbol.for` を却下した理由（§2.1）がここにも当てはまる。重複した valof は型でも読み合えない。
+  それぞれの `Otherwise` は別の `unique symbol` なので、もう一方の `[Otherwise]` は「no such variant」で落ちる。
+  `Symbol.for` が通すのは型を通らない呼び出しだけで、そのぶんバイトもかかる
+- 実行時は `handlers[tag] ?? handlers[Otherwise] ?? handlers._`。`_` という Variant では `_` がハンドラなので、
+  `[Otherwise]` を先に読む。`match` と `[Tag].match` は同じ関数 `arm` を通る
+- `_` と `[Otherwise]` を両方書くと型エラー（「`[Otherwise]` handles the rest already」）。1 つのリテラルに
+  ワイルドカードが 2 つあるのは間違いで、許すと実行時は `[Otherwise]` が黙って勝つ
+- 書き方が 2 つになるのは許した。`[Otherwise]` は滅多に使わないエスケープハッチで、`Val.of` と同じ扱い
+- コストは +11 B
+
+却下した書き方:
+
+- `[_]`（`_` 自体を symbol にする）: `match` の `_` はよく書くので、呼ぶファイルごとの import が重い。`_` という
+  識別子は lodash とぶつかる
+- `"*"`: 識別子でなくても Variant 名になる（`Scope["*"]`）。外から来るタグとして `_` よりよく出る（CORS、権限の
+  スコープ、glob）。`default` を退けたのと同じ理由
+- import なしの `[Symbol.for("_")]`: オブジェクトリテラルの中では型が `symbol` に落ち、`Symbol.for("typo")` と
+  区別できない（TS 7.0.2 で probe）。受けるなら symbol のキーを何でも受けるしかない
+
+**`match` の置き場所は変えない（2026-10-25 の見直し）。**呼べる枠で `match` も Variant と区別できるので、
+`Enum.match` に移す理由が消えた。
+
+- 値の `match` は `Shape.match(shape, { … })` のまま。`Enum.match` は呼ぶファイルごとに `Enum` の import が要る
+- タグの `match` とフィールド名は `Shape[Tag].match` と `Shape[Tag].key` のまま。`Tag` の import は要るが、
+  どちらも滅多に使わない。補完に出ないことは、`match` の JSDoc から `{@link}` して hover で届ける
+- 却下: `Shape.tag().match(tag, …)` と `Shape.tag().key`。import は要らず、戻り値が別のオブジェクトなので後で
+  足す API も予約を増やさない。だが `()` が要り、`tag` が 2 回並び、段の `.tag("kind")` と同じ名前で意味が違う。
+  `Shape.tag()` はタグそのものを返すように読める
+- 却下: `Enum.matchTag(Shape, …)` / `Enum.tagFieldNameOf(Shape)`、`Shape.match.tag(…)`（語順と、`match` という
+  Variant のメンバ名 `tag` とぶつかる）、`Shape.matchTag`
+- probe（型）: `Shape.match` を `Match<E>` と Variant の枠の交差にしても、data-first、data-last、戻り値の union、
+  アームの書き忘れのエラーがそのまま通る
+
+**残る予約。**enum の `.impl` のメンバは Variant 名と `match` を取れない。trait のメンバは Variant 名と `match` を
+取れない。companion で同じ名前のキーを奪い合うからで、呼び出しとプロパティアクセスでは分けられない。`patch`、
+`seal`、`create`（`Wired`）はどの `.impl` も拒む。
+
+**計測。**production gzip: Enum +575 → +608 B（予算 +640 B、据え置き）。type-perf: enum 32,988 → 33,184、
+`index.d.ts` 78.73 → 78.94 kB。
 
 ### 15.3 `path`: seal をまたぐ patch の合成、2026-09-10
 

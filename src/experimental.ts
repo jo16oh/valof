@@ -4,7 +4,7 @@
  * The design is still changing.
  */
 
-export { Enum, Tag } from "./enum.ts";
+export { Enum, Otherwise, Tag } from "./enum.ts";
 
 export type {
   AnyEnum,

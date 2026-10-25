@@ -25,6 +25,7 @@ describe("what the rule finds", () => {
       "Shape.dyn is never read",
       "Named.greet is never read",
       "Named.match is never read",
+      "Named.then is never read",
     ]);
   });
 
@@ -162,6 +163,10 @@ test("credits a variant's member through the enum and through a binding of its o
     "Shape.Square.area is never read",
     "Shape.area is never read",
   ]);
+});
+
+test("reads a variant named after a step or a companion function", async () => {
+  expect(await messages("library-named-variant")).toEqual(["Cmd.impl.unread is never read"]);
 });
 
 test("registers a variant built through a builder held in a variable", async () => {
