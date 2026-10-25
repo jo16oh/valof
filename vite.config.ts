@@ -26,6 +26,8 @@ export default defineConfig({
       customExports: (exports) => ({
         ".": "./dist/index.js",
         "./experimental": "./dist/experimental.js",
+        // For a consumer with `declaration: true`.
+        "./internal/*": "./dist/*.js",
         ...exports,
       }),
       bin: {

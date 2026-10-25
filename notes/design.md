@@ -30,7 +30,7 @@ import { Val } from "valof";
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
-- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降）
+- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降、npm と同じ形で入れた `dist` を `exports` 越しに検査する）
 - **§11 型エラーをどこで表面化させるか** パラメータ位置（A）と判定位置（B、`Verdict`）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ（§13.6 のビルダーは 2026-10-23 に採った）
@@ -42,7 +42,7 @@ import { Val } from "valof";
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
-- **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify
+- **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify。18.4 利用者の宣言出力が参照する `internal/*`（却下した entry からの export、クラスにした `PrivateSeal` / `PrivateCreate`）
 
 ---
 
@@ -1997,7 +1997,7 @@ Val.companion<User, [PrivateSeal, Unpatchable<"id">]>();
 ```
 
 制約は `const O extends readonly (PrivateSeal | Unpatchable<keyof SeedOf<V> & string>)[] = []`。マーカーは
-`Tag` と同じ phantom class。間違いはすべて `O` の位置で落ちる（`[Unpatchable<"idd">]`、`["id"]`、
+`Tag` と同じ phantom class（2026-10-25 に `PrivateSeal` はクラスそのものにした、§18.4）。間違いはすべて `O` の位置で落ちる（`[Unpatchable<"idd">]`、`["id"]`、
 括弧を忘れた `Unpatchable<"id">`）。`Unpatchable` を 2 つ並べると両方のキーを外す。
 
 **却下: マーカーの交差（`PrivateSeal & Unpatchable<"id">`）。**最初はこの形で probe した。
@@ -2724,7 +2724,7 @@ TaggedEnum、Map/Set のラッパー、Result、実行時 freeze（dev を除く
 
 下限は「動く最古のバージョン」ではない。実測では **4 系も 5.0.4 も通る**。それでも切り上げるのは、ラインの途中のバージョンが持ち込むエッジケース（半端に入ったフラグ、まだ効いていない非推奨）を支える相手がいないからで、ラインの最終リリースはその系列の意味が固まった点である。TS 7 が最新の今、2 つ前のラインの最後が 5.9.3 に当たる。
 
-CI は `vp run ts-compatibility`（`scripts/ts-compatibility/`）で、**公開する `dist/index.d.mts` に対して** 各ラインを回す。
+CI は `vp run ts-compatibility`（`scripts/ts-compatibility/`）で、**公開する `dist` の宣言に対して** 各ラインを回す。
 
 #### なぜ src ではなく宣言ファイルなのか
 
@@ -2764,7 +2764,26 @@ CI は `vp run ts-compatibility`（`scripts/ts-compatibility/`）で、**公開�
 
 7 系も回す。`vp check` の tsgo と同じラインだが、あちらが見るのは src で、こちらは dist。利用者が踏む経路が違う。Go 実装なので追加コストはほぼない。
 
-この規則を入れた時点で、6.0.3 だけが落ちた。ライブラリではなく fixture の `baseUrl` が TS 6 で削除されていたためで、**ラインごとに回さなければ気づかない類のもの**だった。生成する tsconfig は `baseUrl` を使わず、`paths` を tsconfig 自身からの相対で解決させている。
+この規則を入れた時点で、6.0.3 だけが落ちた。ライブラリではなく fixture の `baseUrl` が TS 6 で削除されていたためで、**ラインごとに回さなければ気づかない類のもの**だった。
+
+#### `exports` を通して解決する、2026-10-25
+
+**以前は `paths` で `dist/*.d.ts` を直接指していた。**これでは `exports` を素通りし、宣言が `dist` のどのファイルでも参照できる。利用者の宣言出力が失敗する問題（§18.4）が見えず、修正前は book のコードブロックが 13 個落ちる状態で緑だった。
+
+今は `dist` と `package.json` を作業ディレクトリの `node_modules/valof` にコピーする。npm が入れるのと同じ形で、宣言が参照できる範囲を `exports` が決める。`paths` は消した。
+
+- **作業ディレクトリに自前の `package.json` を書く。**無いと、`valof` が自己参照でこのリポジトリに解決され、コピーを通らない
+- **book に無い形は `scripts/ts-compatibility/fixtures/*.ts` に置く。**book のコードブロックと一緒に回す。今は、ビルド前の builder を export する形（`CallBuildFirst` を参照する）と、`PrivateSeal`、`PrivateCreate` を渡した companion の 3 つ
+- **fixture は oxlint の型検査から外す。**CI は `vp check` をビルドの前に走らせ、fixture の `valof` は自己参照で `dist` を探すので、`dist` が無くて落ちる
+
+検査が通らなくなる変更を実測した。`paths` を戻すと、`./internal/*` を消しても緑のままになる。
+
+| 変更                                     | 落ちるもの                                 |
+| ---------------------------------------- | ------------------------------------------ |
+| `./internal/*` を消す                    | book の 9 ブロックと fixture の builder    |
+| `PrivateSeal` を alias に戻す            | fixture の `PrivateSeal`（TS4094）         |
+| `PrivateCreate` を alias に戻す          | fixture の `PrivateCreate`（TS4094）       |
+| 作業ディレクトリの `package.json` を消す | 5.9 だけ（TS2209、自己参照で root が曖昧） |
 
 ---
 
@@ -7553,3 +7572,36 @@ tsc はインデントを空白 4 つで出し、tsdown はタブで出してい
   ダウンロードとパースだけ
 - **却下: `.d.ts` の minify。**JSDoc を消すと 26.7 kB になるが、hover の説明が消える。空白だけ詰めると
   go-to-definition で開いた宣言が読めない
+
+### 18.4 利用者の宣言出力が参照する `internal/*`、2026-10-25
+
+**利用者が `declaration: true` にすると、companion を export するだけで宣言出力が失敗していた。**
+`moduleResolution` が `bundler` でも `nodenext` でも同じ。推論した型が、どの entry も export していない型を
+参照するためである。
+
+- Enum、Trait、`implTrait` の companion と builder が TS2742 / TS2883 で落ちた。`Unbound`、`Unsealed`、
+  `CallBuildFirst` など
+- `PrivateSeal` を渡した companion は TS4094 で落ちた
+
+**`exports` に `"./internal/*": "./dist/*.js"` を足した。**利用者の宣言出力はこう書く。
+
+```ts
+readonly dyn: import("valof/internal/val").CallBuildFirst;
+```
+
+`package.json` の `exports` はビルドが再生成するので、`vite.config.ts` の `customExports` に書く。この
+subpath は semver の対象外で、利用者がパスを書くためのものではない。
+
+**利用者向けの文書には書かない。**記述が無いこと自体が、公開 API ではないことを示す。最初は `api.md` に
+「semver の対象外」と書いたが、利用者に関係しないので消した。
+
+**却下: 参照される型を entry から export する。**内部向けの経路は `package.json` の `exports` に 1 行で
+並べたほうが、一覧で見える。entry の export は公開する名前の一覧のまま残る。深く比べて決めたわけではない。
+
+**`PrivateSeal` と `PrivateCreate` をクラスそのものにした。**以前は export しないクラス
+（`PrivateSealPhantom`）の型 alias だった。宣言出力は型引数の無い alias をクラスに展開し、利用者の `.d.ts` は
+export されていないクラスを書けないので、private メンバを持つ匿名クラスとして TS4094 になる。`Unpatchable<K>`
+は型引数があり、alias のまま出力される（`[Unpatchable<"id">]`、7.0 で確認）。`PrivateCreate` は #87 で同じ形で
+入ったので、同じく直した。
+
+検査の方法も変えた（§10.1）。

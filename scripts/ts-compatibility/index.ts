@@ -1,4 +1,4 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { docBlocks } from "../../docs/tools/twoslash/index.ts";
@@ -25,6 +25,17 @@ await pack();
 await rm(directory, { recursive: true, force: true });
 await mkdir(directory, { recursive: true });
 
+// Installed the way npm installs it, so `exports` decides what a declaration may reference. A path
+// to `dist` would let it reach a module the package does not export.
+const installed = join(directory, "node_modules/valof");
+await cp(join(root, "dist"), join(installed, "dist"), { recursive: true });
+await copyFile(join(root, "package.json"), join(installed, "package.json"));
+// A package of its own, or `valof` resolves to this repository by self-reference.
+await writeFile(
+  join(directory, "package.json"),
+  `${JSON.stringify({ private: true, type: "module" })}\n`,
+);
+
 // A block that imports nothing is a script, and its declarations land in a global scope every
 // other one shares: two blocks declaring `User` collide. `export {}` gives it a scope of its own
 // without changing what is checked.
@@ -41,7 +52,11 @@ for (const block of blocks) {
   await writeFile(file, exported(isolated(block.code)));
 }
 
-// `paths` without `baseUrl`, which TypeScript 6 removed. They resolve against this file instead.
+// Exports the book does not show, kept beside this script.
+const extras = join(root, "scripts/ts-compatibility/fixtures");
+const files = await readdir(extras);
+for (const file of files) await copyFile(join(extras, file), join(directory, `fixture-${file}`));
+
 await writeFile(
   join(directory, "tsconfig.json"),
   `${JSON.stringify(
@@ -57,12 +72,6 @@ await writeFile(
         types: ["node"],
         noEmit: true,
         skipLibCheck: true,
-        paths: {
-          // The published declarations, reached the way a consumer reaches them.
-          valof: ["../../../dist/index.d.ts"],
-          "valof/experimental": ["../../../dist/experimental.d.ts"],
-          "valof/eslint-plugin": ["../../../dist/eslint-plugin.d.mts"],
-        },
       },
       include: ["*.ts"],
     },
@@ -94,7 +103,7 @@ await writeFile(
   )}\n`,
 );
 
-console.log(`  ${blocks.length} blocks from the book`);
+console.log(`  ${blocks.length} blocks from the book, ${files.length} fixtures`);
 
 const failed: string[] = [];
 
