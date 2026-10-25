@@ -306,7 +306,6 @@ A member name is rejected when a Val could not carry it:
 
 - a field's name from the trait's own shape
 - `patch`, `seal` or `create`, which the library defines
-- anything under `__valof_` or starting with `impl`
 - `dyn`, which the trait itself uses
 - `then`, which would make the companion a thenable
 
