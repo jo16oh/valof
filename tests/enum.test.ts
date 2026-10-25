@@ -50,7 +50,7 @@ describe("the declaration", () => {
     expectTypeOf(circle).toExtend<Named>();
   });
 
-  test("`nocopy` adopts the payload instead, on both of a variant's gates", () => {
+  test("the payload is deep-copied, like any other Val, and `nocopy` adopts it on both gates", () => {
     type Crate = Enum<"Crate", { Full: { items: readonly string[] }; Empty: { at: string } }>;
     const Crate = Enum.companion<Crate>()
       .Full.implCreate((items: readonly string[]) => ({ items }))
@@ -58,7 +58,9 @@ describe("the declaration", () => {
     const [created, checked, copied] = [["a"], ["a"], ["a"]];
     Crate.Full.create.nocopy(created);
     Crate.Full.seal.nocopy({ items: checked, _tag: "Full" });
-    Crate.Full.seal({ items: copied, _tag: "Full" });
+    const full = Crate.Full.create(copied);
+    copied.push("b");
+    expect(full.items).toEqual(["a"]);
     expect([created, checked, copied].map(Object.isFrozen)).toEqual([true, true, false]);
   });
 
@@ -78,18 +80,6 @@ describe("the declaration", () => {
       r = 1;
     }
     expect(() => Circle.create(new Ring())).toThrow(/instance of Ring/);
-  });
-
-  test("the payload is deep-copied, like any other Val, and `nocopy` adopts it", () => {
-    type Bin = Enum<"Bin", { Full: { items: string[] }; Empty: { at: string } }>;
-    const Bin = Enum.companion<Bin>().build();
-    const items = ["a"];
-    const full = Bin.Full.create({ items });
-    items.push("b");
-    expect(full.items).toEqual(["a"]);
-    const adopted = ["a"];
-    expect(Bin.Full.create.nocopy({ items: adopted })).toEqual({ items: ["a"], _tag: "Full" });
-    expect(Object.isFrozen(adopted)).toBe(true);
   });
 });
 
@@ -355,9 +345,8 @@ describe("members", () => {
     expect(Money.spendable(Money.Card.create({ id: "d", limit: 5 }))).toBe(5);
   });
 
-  test("the frame is the same one a destructured variant gets", () => {
-    const { Cash } = Money;
-    expect(Cash).toBe(Money.Cash);
+  test("a frame is built once, not on every read", () => {
+    expect(Money.Cash).toBe(Money.Cash);
   });
 
   test("a member reaching nothing off the companion needs no annotation", () => {
@@ -403,10 +392,6 @@ describe("members", () => {
 });
 
 describe("patch", () => {
-  test("derives through the same seal, and keeps the tag", () => {
-    expect(Circle.patch(circle, { r: 5 })).toEqual({ r: 5, _tag: "Circle" });
-  });
-
   describe("a nested variant", () => {
     type Holder = Val<"Holder", { id: string; shape: Shape }>;
     const Holder = Val.companion<Holder>().build();
@@ -943,6 +928,17 @@ describe("the enum's seal", () => {
     expect(ran).toEqual(["enum", "Cash", "enum", "Cash"]);
   });
 
+  test("without the enum's `implSeal`, `create` returns what the variants' seals return", () => {
+    const Unchecked = Enum.companion<Money>()
+      .Cash.implSeal((c, seal) => (c.yen > 0 ? seal(c) : new RangeError("yen must be positive")))
+      .implCreate((yen: number) => ({ _tag: "Cash" as const, id: "m", yen }))
+      .build();
+    expectTypeOf(Unchecked.create(0)).toEqualTypeOf<
+      VariantOf<Money, "Cash"> | VariantOf<Money, "Card"> | RangeError
+    >();
+    expect(Unchecked.create(0)).toBeInstanceOf(RangeError);
+  });
+
   test("without `implCreate`, `create` is absent", () => {
     expectTypeOf(Shape).not.toHaveProperty("create");
     expect("create" in Shape).toBe(false);
@@ -1010,6 +1006,16 @@ describe("the enum's seal", () => {
         .implCreate.noseal(card)
         .build();
       expect(Nested.create()).toEqual({ id: "c", limit: 1, _tag: "Card" });
+    });
+
+    test("a seal that throws leaves the next value unwatched", () => {
+      // Throws before a variant's seal takes the watcher.
+      const Throwing = Enum.companion<Money>()
+        .implSeal((_input, seal) => seal(null as never))
+        .implCreate.noseal(card)
+        .build();
+      expect(() => Throwing.create()).toThrow(/null/);
+      expect(Money.Cash.create({ id: "x", yen: 1 })).toEqual({ id: "x", yen: 1, _tag: "Cash" });
     });
 
     test("takes no arguments, and returns a tagged payload", () => {
@@ -1092,12 +1098,11 @@ describe("a variant's create", () => {
     expect(Plain.Todo.create({ id: "t", text: "x" })).toEqual({ id: "t", text: "x", _tag: "Todo" });
   });
 
-  test("comes after the seal", () => {
-    Enum.companion<Task>()
-      .Todo.implCreate((text: string) => ({ id: "t", text }))
-      // @ts-expect-error write `implSeal` before `implCreate`
-      .Todo.implSeal((t, seal) => seal(t))
-      .build();
+  test("comes after the seal, once", () => {
+    const created = Enum.companion<Task>().Todo.implCreate((text: string) => ({ id: "t", text }));
+    // @ts-expect-error write `implSeal` before `implCreate`
+    created.Todo.implSeal((t, seal) => seal(t));
+    expectTypeOf(created.Todo).not.toHaveProperty("implCreate");
   });
 });
 

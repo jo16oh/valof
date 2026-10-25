@@ -152,12 +152,15 @@ describe("Trait members", () => {
 
 test("credits a variant's member through the enum and through a binding of its own", async () => {
   expect(await lint("enum")).toEqual([
+    { rule: UnusedMember, at: "enum.ts:5:44" },
     { rule: UnusedMember, at: "enum.ts:6:48" },
     { rule: UnusedMember, at: "enum.ts:7:11" },
   ]);
+  // One name on two variants and on the union is three members.
   expect(await messages("enum")).toEqual([
+    "Shape.Circle.area is never read",
     "Shape.Square.area is never read",
-    "Shape.sides is never read",
+    "Shape.area is never read",
   ]);
 });
 
