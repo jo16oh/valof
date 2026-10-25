@@ -71,6 +71,7 @@ export async function build(commit: string): Promise<void> {
   console.log(`valof ${commit.slice(0, 7)} built for #valof`);
 }
 
+// Only when run as a command. ts-compatibility and the tests import this file for its functions.
 if (import.meta.main) {
   const [rev] = process.argv.slice(2).filter((arg) => arg !== "--");
   if (rev === undefined) {
