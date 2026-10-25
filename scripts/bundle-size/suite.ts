@@ -32,65 +32,67 @@ export type Report = Val<
     separateBase: BuildResult[];
   }
 >;
-export const Report = Val.sealer<Report>();
+export const Report = Val.companion<Report>().build();
 
 export type Suite = Val<"Suite", Bundle[]>;
-export const Suite = Val.sealer<Suite>().impl({
-  base: (suite): R<Imports, NoBaseError> => {
-    const [first, ...others] = suite
-      .filter((bundle) => bundle.base)
-      .map((bundle) => bundle.imports);
-    return first !== undefined
-      ? R.ok(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
-      : R.err(new NoBaseError());
-  },
-  measure: (
-    suite: Suite,
-  ): Promise<
-    R<
-      Report,
-      | PackError
-      | NoBaseError
-      | NoChunkError
-      | CompileError
-      | MinifyError
-      | DevCodeKeptError
-      | AddsNothingError
-    >
-  > =>
-    R.gen(async function* () {
-      yield* R.await(pack());
+export const Suite = Val.companion<Suite>()
+  .impl({
+    base: (suite): R<Imports, NoBaseError> => {
+      const [first, ...others] = suite
+        .filter((bundle) => bundle.base)
+        .map((bundle) => bundle.imports);
+      return first !== undefined
+        ? R.ok(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
+        : R.err(new NoBaseError());
+    },
+    measure: (
+      suite: Suite,
+    ): Promise<
+      R<
+        Report,
+        | PackError
+        | NoBaseError
+        | NoChunkError
+        | CompileError
+        | MinifyError
+        | DevCodeKeptError
+        | AddsNothingError
+      >
+    > =>
+      R.gen(async function* () {
+        yield* R.await(pack());
 
-      const baseImports = yield* Suite.base(suite);
-      const results = yield* flow(
-        suite.map((bundle) =>
-          flow(
-            bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports),
-            measure,
-            R.map((build) => ({ bundle, build })),
+        const baseImports = yield* Suite.base(suite);
+        const results = yield* flow(
+          suite.map((bundle) =>
+            flow(
+              bundle.base ? bundle.imports : Imports.merge(baseImports, bundle.imports),
+              measure,
+              R.map((build) => ({ bundle, build })),
+            ),
           ),
-        ),
-        R.allAsync,
-        GenAwait,
-      );
+          R.allAsync,
+          GenAwait,
+        );
 
-      const [only, ...more] = results.filter(({ bundle }) => bundle.base);
-      const base =
-        only !== undefined && more.length === 0
-          ? only.build
-          : yield* flow(baseImports, measure, GenAwait);
-      const separateBase = base === only?.build ? [] : [base];
+        const [only, ...more] = results.filter(({ bundle }) => bundle.base);
+        const base =
+          only !== undefined && more.length === 0
+            ? only.build
+            : yield* flow(baseImports, measure, GenAwait);
+        const separateBase = base === only?.build ? [] : [base];
 
-      for (const build of [...separateBase, ...results.map(({ build }) => build)]) {
-        yield* BuildResult.check(build);
-      }
+        for (const build of [...separateBase, ...results.map(({ build }) => build)]) {
+          yield* BuildResult.check(build);
+        }
 
-      const bundles = results.map(({ bundle, build }) => BundleSize.create(bundle, build, base));
+        const bundles = results.map(({ bundle, build }) => BundleSize.create(bundle, build, base));
 
-      for (const size of bundles) {
-        yield* BundleSize.check(size, base);
-      }
+        for (const size of bundles) {
+          yield* BundleSize.check(size, base);
+        }
 
-      return R.ok(Report({ base, bundles, separateBase }));
-    }),
-});
+        return R.ok(Report.seal({ base, bundles, separateBase }));
+      }),
+  })
+  .build();

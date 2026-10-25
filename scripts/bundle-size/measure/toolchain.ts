@@ -83,7 +83,7 @@ export function measure(
     );
 
     return R.ok(
-      BuildResult({
+      BuildResult.seal({
         imports,
         readsNodeEnv,
         production: yield* Compiled.measure(production),
@@ -94,42 +94,48 @@ export function measure(
 }
 
 type Code = Val<"Code", string>;
-const Code = Val.sealer<Code>().impl({
-  minify: (code): R<Code, MinifyError> =>
-    R.try({
-      try: () => Code(minifySync("bundle.mjs", code).code),
-      catch: (cause) => new MinifyError({ cause }),
-    }),
-  sizes: (code): R<Sizes, MinifyError> =>
-    Code.minify(code).map((minified) => {
-      const bytes = Buffer.from(minified, "utf8");
-      return Sizes({
-        minified: bytes.byteLength,
-        gzip: gzipSync(bytes, { level: 9 }).byteLength,
-        brotli: brotliCompressSync(bytes, {
-          params: {
-            [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
-            [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
-          },
-        }).byteLength,
-      });
-    }),
-});
+const Code = Val.companion<Code>()
+  .impl({
+    minify: (code): R<Code, MinifyError> =>
+      R.try({
+        try: () => Code.seal(minifySync("bundle.mjs", code).code),
+        catch: (cause) => new MinifyError({ cause }),
+      }),
+    sizes: (code): R<Sizes, MinifyError> =>
+      Code.minify(code).map((minified) => {
+        const bytes = Buffer.from(minified, "utf8");
+        return Sizes.seal({
+          minified: bytes.byteLength,
+          gzip: gzipSync(bytes, { level: 9 }).byteLength,
+          brotli: brotliCompressSync(bytes, {
+            params: {
+              [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
+              [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
+            },
+          }).byteLength,
+        });
+      }),
+  })
+  .build();
 
 type Module = Val<"Module", string>;
-const Module = Val.sealer<Module>().impl({
-  /** Whether the module's source reads `NODE_ENV`, before `define` replaces it. */
-  readsNodeEnv: (module, mode: Mode): Promise<R<boolean, CompileError>> =>
-    attempt(mode, "reading the library", async () =>
-      (await readFile(module, "utf8")).includes("NODE_ENV"),
-    ),
-});
+const Module = Val.companion<Module>()
+  .impl({
+    /** Whether the module's source reads `NODE_ENV`, before `define` replaces it. */
+    readsNodeEnv: (module, mode: Mode): Promise<R<boolean, CompileError>> =>
+      attempt(mode, "reading the library", async () =>
+        (await readFile(module, "utf8")).includes("NODE_ENV"),
+      ),
+  })
+  .build();
 
 type Compiled = Val<"Compiled", { code: Code; modules: Module[]; library: number }>;
-const Compiled = Val.sealer<Compiled>().impl({
-  measure: (compiled): R<Build, MinifyError> =>
-    Code.sizes(compiled.code).map((sizes) => Build({ sizes, library: compiled.library })),
-});
+const Compiled = Val.companion<Compiled>()
+  .impl({
+    measure: (compiled): R<Build, MinifyError> =>
+      Code.sizes(compiled.code).map((sizes) => Build.seal({ sizes, library: compiled.library })),
+  })
+  .build();
 
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError | CompileError>> {
   return R.gen(async function* () {
@@ -183,11 +189,11 @@ function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError
       const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
 
       return R.ok(
-        Compiled({
-          code: Code(chunk.code),
+        Compiled.seal({
+          code: Code.seal(chunk.code),
           modules: chunk.moduleIds
             .filter((id) => id !== chunk.facadeModuleId)
-            .map((id) => Module(id)),
+            .map((id) => Module.seal(id)),
           // A module's own `renderedLength` counts code that tree-shaking drops, so the library is
           // what the chunk holds beyond its entry.
           library: chunk.code.length - (entry?.renderedLength ?? 0),
