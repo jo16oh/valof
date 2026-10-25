@@ -714,8 +714,8 @@ export type Passes<Tr extends AnyTrait, G, I> =
   string extends NamesOf<Tr>
     ? [impl?: unknown]
     : [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-      ? [impl?: I & Arity<I>]
-      : [impl: I & Arity<I>];
+      ? [impl?: () => I & Arity<I>]
+      : [impl: () => I & Arity<I>];
 
 /** The steps a companion has taken. The first two are the first half of the chain. */
 type Taken = "implSeal" | "implCreate" | "impl" | "implTrait";
@@ -783,7 +783,7 @@ export type CompanionBuilder<
         // member is registered, so `.impl` may not register one over it: the type would keep the
         // trait's signature while `dyn` kept calling what `implTrait` recorded.
         impl: <M extends CompanionMembers<V>>(
-          fns: Grown<keyof T, M> & Arity<M>,
+          fns: () => Grown<keyof T, M> & Arity<M>,
         ) => CompanionBuilder<V, N, F, O, M & T, D | "impl">;
       }) & {
     /**
@@ -1292,10 +1292,10 @@ const builder = (
     (create: AnyFn) => builder({ ...ctors, create, noseal: false }, traits, fns),
     { noseal: (create: AnyFn) => builder({ ...ctors, create, noseal: true }, traits, fns) },
   ),
-  impl: (members: Record<string, unknown>) => builder(ctors, traits, members),
+  impl: (members: () => Record<string, unknown>) => builder(ctors, traits, members()),
   // The Val's own go on last, the type having kept every `Final` one out of them.
-  implTrait: (trait: { [Shared]: Record<string, unknown> }, impl = {}) =>
-    builder(ctors, { ...traits, ...trait[Shared], ...impl }, fns),
+  implTrait: (trait: { [Shared]: Record<string, unknown> }, impl?: () => Record<string, unknown>) =>
+    builder(ctors, { ...traits, ...trait[Shared], ...impl?.() }, fns),
   build: () => attach(fns, ctors, traits),
 });
 

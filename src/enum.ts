@@ -782,7 +782,8 @@ type VariantSteps<
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
         impl: <G extends CompanionMembers<VariantOf<E, N>>>(
-          fns: Grown<keyof At<VM, N, "members", Record<never, never>>, Unclaimed<E, G>> & Arity<G>,
+          fns: () => Grown<keyof At<VM, N, "members", Record<never, never>>, Unclaimed<E, G>> &
+            Arity<G>,
         ) => After<E, O, VM, M, { [K in `${N}:impl`]: true } & { [K in `${N}:members`]: G }>;
       });
 
@@ -895,7 +896,7 @@ export type EnumBuilder<
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
         impl: <G extends UnionMembers<E>>(
-          fns: Unclaimed<E, G> & Arity<G>,
+          fns: () => Unclaimed<E, G> & Arity<G>,
         ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl">;
       }) & {
     /**
@@ -938,7 +939,7 @@ type Variants = Record<string, Registered>;
 type Chain = {
   implSeal: (seal: Seal) => Chain;
   implCreate: ((create: AnyFn) => Chain) & { noseal: (create: AnyFn) => Chain };
-  impl: (fns: Payload) => Chain;
+  impl: (fns: () => Payload) => Chain;
   implTrait: (trait: { [Shared]: Payload }) => Chain;
   build: () => object;
 };
@@ -1008,10 +1009,10 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
       implCreate: Object.assign((create: AnyFn) => grow({ create, noseal: false }), {
         noseal: (create: AnyFn) => grow({ create, noseal: true }),
       }),
-      impl: (fns: Payload) => grow({ members: { ...members, ...duals(fns) } }),
+      impl: (fns: () => Payload) => grow({ members: { ...members, ...duals(fns()) } }),
       // The trait's own members and the enum's, merged the way `val.ts` merges them.
-      implTrait: (trait: { [Shared]: Payload }, fns = {}) => {
-        const grown = { ...traits, ...trait[Shared], ...fns };
+      implTrait: (trait: { [Shared]: Payload }, fns?: () => Payload) => {
+        const grown = { ...traits, ...trait[Shared], ...fns?.() };
         return grow({ members: { ...members, ...duals(grown) }, traits: grown });
       },
       build: () => assemble(tag, variants, own),
@@ -1021,9 +1022,9 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
       implCreate: Object.assign((create: AnyFn) => step(name, { create, noseal: false }), {
         noseal: (create: AnyFn) => step(name, { create, noseal: true }),
       }),
-      impl: (fns: Payload) => step(name, { members: fns }),
-      implTrait: (trait: { [Shared]: Payload }, fns = {}) =>
-        step(name, { traits: { ...variants[name]?.traits, ...trait[Shared], ...fns } }),
+      impl: (fns: () => Payload) => step(name, { members: fns() }),
+      implTrait: (trait: { [Shared]: Payload }, fns?: () => Payload) =>
+        step(name, { traits: { ...variants[name]?.traits, ...trait[Shared], ...fns?.() } }),
     }),
   );
 };
@@ -1061,7 +1062,7 @@ const frame = (tag: string, name: string, steps: Registered): object => {
   const made = create ? (...args: never[]) => mint(create(...args) as Payload) : mint;
   chain = noseal ? chain.implCreate.noseal(made) : chain.implCreate(made);
   return chain
-    .impl(members)
+    .impl(() => members)
     .implTrait({ [Shared]: traits })
     .build();
 };
