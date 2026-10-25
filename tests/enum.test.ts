@@ -714,10 +714,12 @@ describe("a broken declaration", () => {
     type Sealed = Enum<"Sealed", { seal: { n: number }; Other: { n: number } }>;
     // @ts-expect-error a variant cannot take a name the library reserves
     Enum.companion<Sealed>().build();
+  });
 
-    type Sneaky = Enum<"Sneaky", { __valof_traits: { n: number }; Other: { n: number } }>;
-    // @ts-expect-error same, for the library's own keys
-    Enum.companion<Sneaky>().build();
+  test("but may take any string the library once kept", () => {
+    type Kept = Enum<"Kept", { __valof_traits: { n: number }; Other: { n: number } }>;
+    const Kept = Enum.companion<Kept>().build();
+    expect(Kept.__valof_traits.create({ n: 1 })).toEqual({ _tag: "__valof_traits", n: 1 });
   });
 
   test("nor `_`, which `match` takes for the rest", () => {

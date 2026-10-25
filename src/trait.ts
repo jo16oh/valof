@@ -1,4 +1,6 @@
 import { duals, type Arity, type Duals, type Omission } from "./dual.ts";
+import { Shared, Traits } from "./keys.ts";
+import type { TraitBrands, TraitTypes } from "./keys.ts";
 import type { AnyVal, CallBuildFirst, Checked, DeepReadonly, Invalid, Reserved } from "./val.ts";
 import * as Trait from "./ns/trait.ts";
 
@@ -48,9 +50,9 @@ export type Members = Readonly<Record<string, AnyMember>>;
  * disappear from `keyof` and object spreads, so the brand stays out of `{ ...value }`.
  */
 declare class TraitPhantom<B> {
-  private readonly __valof_internal_phantom_trait_brands: B;
+  private readonly [TraitBrands]: B;
   /** Declaration emit erases private field types; protected keeps the brand map recoverable. */
-  protected readonly __valof_internal_phantom_trait_types: B;
+  protected readonly [TraitTypes]: B;
 }
 
 /**
@@ -167,7 +169,7 @@ type HasSelfBranch<T> = [T] extends [Self]
 
 /**
  * Rejects a member a Val could not carry: one returning `Self`, one named `then`, and one named
- * after something the library reserves, `__valof_` and the trait's own `dyn` included.
+ * after something the library reserves, the trait's own `dyn` included.
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
@@ -209,13 +211,14 @@ type Declarable<Shape, M extends Members> = {
 export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
 
 /**
- * Where a companion records what it implemented. Read by {@link TraitCompanion.dyn}.
+ * Where a companion records every member `implTrait` registered. Read by
+ * {@link TraitCompanion.dyn}.
  *
  * One flat record, because no two traits on a Val may register the same name. A box therefore
  * binds every member the Val implements, and the ones outside this trait are invisible through
  * {@link Dyn}.
  */
-export type TraitHost = { readonly __valof_traits: Members };
+export type TraitHost = { readonly [Traits]: Members };
 
 /**
  * What `Trait.companion` returns, which its `impl` grows.
@@ -235,7 +238,7 @@ export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Dual
   Tr
 > & {
   /** Everything the trait implemented, which `implTrait` copies onto the Val. */
-  readonly __valof_shared: G;
+  readonly [Shared]: G;
   /**
    * Boxes a value with one Val's implementation. See {@link Dyn}.
    *
@@ -312,7 +315,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   // Spread whole rather than the finals alone: the mark saying which those are is a type, gone by
   // now. Only the finals are named on the type, so the rest are unreachable without a cast.
   ...duals(impls),
-  __valof_shared: impls,
+  [Shared]: impls,
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
   // trait holds.
@@ -322,9 +325,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   dyn: (companion: TraitHost, value: unknown) =>
     new Proxy(value !== null && typeof value === "object" ? value : {}, {
       get(_, key) {
-        const member = (companion.__valof_traits as unknown as Record<string, AnyFn>)[
-          key as string
-        ];
+        const member = (companion[Traits] as unknown as Record<string, AnyFn>)[key as string];
         return member
           ? (...args: never[]) => member(value as never, ...args)
           : (value as Record<string, unknown>)[key as string];

@@ -11,6 +11,7 @@ import type {
 } from "../src/index.ts";
 import { equals, Val } from "../src/index.ts";
 import { Trait, type Final, type Self } from "../src/experimental.ts";
+import { Traits } from "../src/keys.ts";
 // `BrandOf` is not published from the entry point.
 import type {
   BrandOf,
@@ -1394,7 +1395,7 @@ describe("building", () => {
         .implCreate((name: string) => ({ id: "a", name }))
         .impl({ greet: (u) => u.name });
       expectTypeOf(builder).not.toHaveProperty("greet");
-      for (const name of ["seal", "create", "patch", "greet", "__valof_traits"])
+      for (const name of ["seal", "create", "patch", "greet", Traits])
         expect(name in builder).toBe(false);
     });
 
@@ -1564,7 +1565,7 @@ describe("building", () => {
     });
 
     // `dyn` is the one name a trait member may not take that a Val companion may: `Trait`'s
-    // `dyn` reads `__valof_traits`, never the companion's own key.
+    // `dyn` reads a symbol key, never the companion's own `dyn`.
     test("`dyn` is not among them: a Val companion has none to shadow", () => {
       const Boxed = Val.companion<User>()
         .impl({ dyn: (u) => u.name })
@@ -2539,14 +2540,16 @@ describe("building", () => {
           .build();
       });
 
-      test("nor may a companion grow one over the record `dyn` reads", () => {
-        Val.companion<Member>()
+      // A string key here once overwrote the record `dyn` reads.
+      test("but may take any string the library once kept", () => {
+        const Kept = Val.companion<Member>()
           .implTrait(Greetable, { toWire: (m, sep) => `${m.id}${sep}` })
-          .impl({
-            // @ts-expect-error the library keeps this one: a function here would leave `dyn` unbound
-            __valof_traits: (m: Member) => m.name,
-          })
+          .impl({ __valof_traits: (m) => m.name })
           .build();
+        expect([Kept.__valof_traits(member), Greetable.dyn(Kept, member).greet()]).toEqual([
+          "alice",
+          "Hi, alice",
+        ]);
       });
 
       test("but may take a step's name: the companion holds no step", () => {
