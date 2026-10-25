@@ -7590,7 +7590,10 @@ readonly dyn: import("valof/internal/val").CallBuildFirst;
 ```
 
 `package.json` の `exports` はビルドが再生成するので、`vite.config.ts` の `customExports` に書く。この
-subpath は semver の対象外で、利用者がパスを書くためのものではない（`api.md`）。
+subpath は semver の対象外で、利用者がパスを書くためのものではない。
+
+**利用者向けの文書には書かない。**記述が無いこと自体が、公開 API ではないことを示す。最初は `api.md` に
+「semver の対象外」と書いたが、利用者に関係しないので消した。
 
 **却下: 参照される型を entry から export する。**内部向けの経路は `package.json` の `exports` に 1 行で
 並べたほうが、一覧で見える。entry の export は公開する名前の一覧のまま残る。深く比べて決めたわけではない。
