@@ -36,6 +36,7 @@ import {
   companionSite,
   fromRoot,
   stepOf,
+  variantOf,
   typeReference,
   valOf,
   type CompanionSite,
@@ -578,7 +579,10 @@ function objectMembers(
   return [...byName.values()];
 }
 
-/** Every `.impl` in a builder chain of any root, including repeated Trait `.impl` calls. */
+/**
+ * Every `.impl` in a builder chain of any root, including repeated Trait `.impl` calls. A
+ * variant's, `.Circle.impl({…})`, registers under `` `${enum}.${variant}` ``.
+ */
 function implMembers(
   node: Node,
   companion: string,
@@ -590,79 +594,19 @@ function implMembers(
   let current: Node = node;
   while (current.type === "CallExpression") {
     const callee = child(current, "callee");
-    if (!callee || callee.type !== "MemberExpression") break;
-    const receiver = child(callee, "object");
-    const property = child(callee, "property");
-    if (!receiver || !property) break;
-    const step = keyName(property, callee["computed"] === true);
+    const step = callee?.type === "MemberExpression" ? stepOf(callee) : undefined;
+    if (!step) break;
+    const variant = variantOf(step.receiver);
+    const receiver = variant?.builder ?? step.receiver;
     const root = fromRoot(receiver, bound);
-    if (step === "impl" && root !== undefined) {
-      const [object] = children(current, "arguments");
-      if (object)
-        for (const member of objectMembers(object, companion, objects, at, new Set()))
-          if (!rejected(member.member, root)) found.set(member.member, member);
+    const [object] = children(current, "arguments");
+    if (step.name === "impl" && root !== undefined && object) {
+      const owner = variant ? `${companion}.${variant.variant}` : companion;
+      for (const member of objectMembers(object, owner, objects, at, new Set()))
+        if (!rejected(member.member, variant ? undefined : root))
+          found.set(`${owner}\0${member.member}`, member);
     }
-    if (step === "implVariant" && root !== undefined)
-      for (const member of variantMembers(current, companion, objects, at))
-        found.set(`${member.companion}\0${member.member}`, member);
     current = receiver;
   }
   return [...found.values()];
-}
-
-/**
- * The members one `implVariant(name, build)` registered, under `` `${enum}.${variant}` ``.
- *
- * The callback's argument is that variant's own builder, so the chain to follow is the one rooted
- * at the first parameter: an expression body, or a block whose one statement is a `return`.
- */
-function variantMembers(
-  call: Node,
-  companion: string,
-  objects: ReadonlyMap<string, Node>,
-  at: (offset: number) => Where,
-): Member[] {
-  const [named, body] = children(call, "arguments");
-  const variant = named && keyName(named, false);
-  if (!variant || !body) return [];
-  const builder = children(body, "params")[0];
-  const chain = returned(child(body, "body"));
-  if (builder?.type !== "Identifier" || !chain) return [];
-  return variantImpl(chain, builder["name"] as string, `${companion}.${variant}`, objects, at);
-}
-
-/** The expression a callback hands back, for an expression body and a lone `return` alike. */
-function returned(body: Node | undefined): Node | undefined {
-  if (!body) return undefined;
-  if (body.type !== "BlockStatement") return body;
-  const [statement] = children(body, "body");
-  return statement?.type === "ReturnStatement" ? child(statement, "argument") : undefined;
-}
-
-/** Every `.impl` in one variant's chain, which is rooted at the builder the callback took. */
-function variantImpl(
-  node: Node,
-  builder: string,
-  companion: string,
-  objects: ReadonlyMap<string, Node>,
-  at: (offset: number) => Where,
-): Member[] {
-  const found = new Map<string, Member>();
-  let current: Node = node;
-  while (current.type === "CallExpression") {
-    const callee = child(current, "callee");
-    if (!callee || callee.type !== "MemberExpression") break;
-    const receiver = child(callee, "object");
-    const property = child(callee, "property");
-    if (!receiver || !property) break;
-    if (keyName(property, callee["computed"] === true) === "impl") {
-      const [object] = children(current, "arguments");
-      if (object)
-        for (const member of objectMembers(object, companion, objects, at, new Set()))
-          if (!rejected(member.member)) found.set(member.member, member);
-    }
-    current = receiver;
-  }
-  // Rooted anywhere else, the chain belongs to something else the callback used.
-  return current.type === "Identifier" && current["name"] === builder ? [...found.values()] : [];
 }

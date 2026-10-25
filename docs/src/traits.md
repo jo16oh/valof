@@ -193,8 +193,8 @@ default even for a Val that replaced it. Call it through that Val's companion, w
 
 ## Implement Traits on an Enum
 
-An [enum](enums.md) implements a trait once, over the union. What differs per variant is a `match`
-inside the implementation:
+An [enum](enums.md) implements a trait it declares once, over the union. What differs per variant is
+a `match` inside the implementation:
 
 ```ts
 import { Enum, Trait, type Self } from "valof/experimental";

@@ -12,6 +12,7 @@ export type {
   CompanionBuilder,
   Patch,
   PayloadOf,
+  PrivateCreate,
   PrivateSeal,
   Rec,
   SeedOf,

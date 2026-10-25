@@ -72,7 +72,7 @@ test("names the variant's frame for a lift, and the entry for one naming the uni
     { rule: BypassedCompanion, at: "enum-companion.ts:8:30" },
   ]);
   expect(await messages("enum-companion")).toEqual([
-    'Val.of<VariantOf<Shape, "Circle">> bypasses Shape.Circle.create, which seals the payload',
+    'Val.of<VariantOf<Shape, "Circle">> bypasses Shape.Circle.seal, the constructor for it',
     "Val.of<Shape> bypasses Shape.seal, which selects the variant from the tag",
   ]);
 });
