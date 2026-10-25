@@ -64,6 +64,10 @@ except `implTrait` is written once.
 You never write the last two. They are exported so that your own `.d.ts` can name them when you
 re-export a companion.
 
+Your `.d.ts` can also import from `valof/internal/*`, for the types that `valof` and
+`valof/experimental` leave out. Do not import from it yourself. It is outside semver, and any
+release can change it.
+
 ## `valof/experimental`
 
 <!-- prettier-ignore -->
