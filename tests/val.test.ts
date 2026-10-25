@@ -2579,14 +2579,13 @@ describe("building", () => {
         expect(Object.hasOwn(Odd, "__proto__")).toBe(true);
       });
 
-      test("nor `then`, which would make the companion a thenable", () => {
-        Val.companion<Member>()
-          .impl({
-            // @ts-expect-error `await` on a thenable companion never settles
-            // oxlint-disable-next-line no-thenable -- the rejection is what this test reads
-            then: (m: Member) => m.name,
-          })
+      // The companion becomes a thenable, and the caller is responsible for avoiding that.
+      test("but may take `then`", () => {
+        const Thenable = Val.companion<Member>()
+          // oxlint-disable-next-line no-thenable -- accepting it is what this test reads
+          .impl({ then: (m: Member) => m.name })
           .build();
+        expect(Thenable.then(member)).toBe("alice");
       });
 
       test("a member may not take a name the payload holds", () => {

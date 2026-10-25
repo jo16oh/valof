@@ -416,14 +416,7 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
 export type Wired = "patch" | "seal" | "create";
 
 /** The names every `.impl` rejects. */
-type Rejected = Partial<Record<Wired, never>> & {
-  /**
-   * A companion holding `then` is a thenable. `await` on it, or returning it from an async
-   * function, calls the member with the resolve and reject functions, and the promise never
-   * settles.
-   */
-  then?: never;
-};
+type Rejected = Partial<Record<Wired, never>>;
 
 /** The keys of {@link Rejected}, which valof-lint reads. */
 export type Reserved = keyof Rejected;
@@ -769,6 +762,8 @@ export type CompanionBuilder<
         /**
          * Collects the members for the type, in one call. Everything the library reserves has its
          * own step.
+         *
+         * A member named `then` makes the companion a thenable. `await` on it never settles.
          *
          * A member reaching the companion, for `patch`, for `seal`, for a trait's member or for a
          * sibling, references it and annotates its return type. Referencing a declaration inside

@@ -171,9 +171,8 @@ describe("Trait", () => {
       Trait.companion<Boxed>().impl({}).build();
     });
 
-    test("nor `then`, which would make the companion a thenable", () => {
+    test("but may take `then`", () => {
       type Awaited = Trait<"Awaited", { name: string }, { then: (self: Self) => string }>;
-      // @ts-expect-error a member named `then` would make the companion a thenable
       Trait.companion<Awaited>().impl({}).build();
     });
 

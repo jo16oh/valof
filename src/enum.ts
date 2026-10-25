@@ -56,6 +56,19 @@ import * as Enum from "./ns/enum.ts";
  */
 export const Tag: unique symbol = Symbol();
 
+/**
+ * The key of the handler `match` runs for the variants that have no handler of their own, like `_`.
+ * In an enum with a variant named `_`, `_` is that variant's handler, and only this key handles the
+ * rest.
+ *
+ * ```ts
+ * Shape.match(shape, { Circle: (c) => c.r, [Otherwise]: (rest) => rest.side });
+ * ```
+ *
+ * @experimental
+ */
+export const Otherwise: unique symbol = Symbol();
+
 /** Type-only carrier for the tag name. Private and protected members stay out of `keyof`. */
 declare class TagPhantom<T extends string> {
   private readonly [TagKey]: T;
@@ -122,9 +135,6 @@ type TraitNames<Tr> = [Tr] extends [never] ? never : Tr extends AnyTrait ? Names
 /** Distributes, so each key is compared against the whole: they differ only in a union. */
 type Single<N, All = N> = N extends unknown ? ([All] extends [N] ? true : false) : false;
 
-/** The builder's own names, which hold the steps beside each variant's. */
-type Steps = "tag" | "impl" | "implSeal" | "implCreate" | "implTrait" | "implAssoc" | "build";
-
 /**
  * Why this declaration cannot stand, or `never`. Read from the type arguments alone, so it lives in
  * the brand position (notes §11.2).
@@ -140,23 +150,17 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
       ? "an enum needs at least two variants; one is a Val"
       : never)
   | {
-      [N in VariantKeys<D>]: N extends "then"
-        ? "a variant named `then` would make the companion a thenable"
-        : N extends Steps
-          ? "a variant cannot take a step's name"
-          : N extends "match" | "seal" | "create" | "_"
-            ? "a variant cannot take a name the library reserves"
-            : [D[N]] extends [object]
-              ? [D[N]] extends [ReadonlyArray<unknown>]
-                ? "a variant's payload must be a record of fields"
-                : Tg extends keyof D[N]
-                  ? "the tag cannot take the name of a field the payload holds"
-                  : // `dyn` picks the implementation by the companion it is passed, so the enum's
-                    // and the variant's would answer the same call differently.
-                    [TraitNames<Tr> & TraitNames<TraitsIn<D[N]>>] extends [never]
-                    ? never
-                    : "a variant cannot declare a trait the enum declares"
-              : "a variant's payload must be a record of fields";
+      [N in VariantKeys<D>]: [D[N]] extends [object]
+        ? [D[N]] extends [ReadonlyArray<unknown>]
+          ? "a variant's payload must be a record of fields"
+          : Tg extends keyof D[N]
+            ? "the tag cannot take the name of a field the payload holds"
+            : // `dyn` picks the implementation by the companion it is passed, so the enum's
+              // and the variant's would answer the same call differently.
+              [TraitNames<Tr> & TraitNames<TraitsIn<D[N]>>] extends [never]
+              ? never
+              : "a variant cannot declare a trait the enum declares"
+        : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
   | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never)
   // The companion reads a member first, so the type would show the library's and run the member.
@@ -319,9 +323,14 @@ type Handlers<E extends AnyEnum> = {
 };
 
 /**
- * What `match` accepts. `F` holds a handler per tag. Without `_`, the literal needs every one of
- * them. With `_`, it needs only `_`, which takes `Rest` and is rejected once no tag is left. A key
- * `F` does not hold gets `Stray`.
+ * The keys whose handler runs for the rest: `[Otherwise]`, and `_` unless a variant is named `_`.
+ */
+type Wild<F> = typeof Otherwise | ("_" extends keyof F ? never : "_");
+
+/**
+ * What `match` accepts. `F` holds a handler per tag. Without a {@link Wild} key, the literal needs
+ * every one of them. With one, it needs only that key, which takes `Rest` and is rejected once no
+ * tag is left. The literal may hold only one of them. A key `F` does not hold gets `Stray`.
  *
  * The excess property check cannot reject a stray key: the parameter intersects `H`, which is
  * inferred from the literal, so the check is placed on the parameter instead (notes §11.1).
@@ -329,17 +338,23 @@ type Handlers<E extends AnyEnum> = {
 // Only the key set `K` is inferred. Inferring the whole literal as `H` leaves `_`'s argument at
 // `never`. A union of the two forms in place of the conditional reports a forgotten variant as
 // "Property '_' is missing".
-type Arms<F, K extends PropertyKey, Rest, Stray> = "_" extends K
-  ? {
+type Arms<F, K extends PropertyKey, Rest, Stray> = [Extract<K, Wild<F>>] extends [never]
+  ? { [N in K | keyof F]: N extends keyof F ? F[N] : Stray }
+  : {
       [N in K]: N extends keyof F
         ? F[N]
-        : N extends "_"
+        : N extends Wild<F>
           ? [Exclude<keyof F, K>] extends [never]
-            ? "every variant has a handler, so `_` never runs"
-            : Rest
+            ? N extends "_"
+              ? "every variant has a handler, so `_` never runs"
+              : "every variant has a handler, so `[Otherwise]` never runs"
+            : N extends "_"
+              ? typeof Otherwise extends K
+                ? "`[Otherwise]` handles the rest already"
+                : Rest
+              : Rest
           : Stray;
-    }
-  : { [N in K | keyof F]: N extends keyof F ? F[N] : Stray };
+    };
 
 type EnumArms<E extends AnyEnum, K extends PropertyKey> = Arms<
   Handlers<E>,
@@ -572,8 +587,8 @@ type Exclusive<E extends AnyEnum> = {
 type ByTag<E extends AnyEnum> = {
   /**
    * Dispatches on a tag that arrives without its payload. Every tag the argument's type allows needs
-   * a handler, or `_` covers the rest. A handler takes no argument and calls its variant's `create`,
-   * which checks the payload literal for fields the variant does not hold.
+   * a handler, or `_` or {@link Otherwise} covers the rest. A handler takes no argument and calls
+   * its variant's `create`, which checks the payload literal for fields the variant does not hold.
    *
    * ```ts
    * Command[Tag].match(input.tag, {
@@ -651,7 +666,8 @@ export type EnumCompanion<
      * Dispatches on the tag. Every variant needs a handler, so adding one to the declaration
      * fails here rather than falling through at run time. `_` handles the variants that have no
      * handler of their own, narrowed to them, and is a type error beside a handler for every
-     * variant.
+     * variant. {@link Otherwise} does the same, and is the only one that handles the rest where a
+     * variant is named `_`.
      *
      * The return type is the handlers' union: taking it as a type argument of its own would fix
      * it to the first handler and reject the rest. For a guard rather than a tag, use ts-pattern.
@@ -927,28 +943,54 @@ type Chain = {
   build: () => object;
 };
 
-// No variant is named `_`: the declaration rejects it.
-const matchTag = dual((tag: string, handlers: Record<string, () => unknown>) =>
-  (handlers[tag] ?? handlers._)!(),
-);
+type Handler = (value?: unknown) => unknown;
+
+type HandlerMap = Record<PropertyKey, Handler>;
 
 /**
- * Reads `key` off `own` or resolves a string through `rest`. A symbol `own` lacks reaches here from
- * `await`, `JSON.stringify` and every other protocol read, and `then` would make the object a
- * thenable. Both would otherwise resolve to a variant, since nothing at run time lists the names. A
- * `then` variant is an error at the declaration, like a `then` member anywhere else.
+ * The handler for `tag`. `[Otherwise]` is read before `_`, because where a variant is named `_`,
+ * `_` is that variant's handler and `[Otherwise]` handles the rest.
  */
-const resolving = (own: object, rest: (key: string) => unknown): object =>
-  new Proxy(own, {
-    get: (target, key) =>
-      key === "then"
-        ? undefined
-        : Object.hasOwn(target, key)
+const arm = (handlers: HandlerMap, tag: string): Handler =>
+  (handlers[tag] ?? handlers[Otherwise] ?? handlers._)!;
+
+const matchTag = dual((tag: string, handlers: HandlerMap) => arm(handlers, tag)());
+
+/**
+ * Reads `key` off `own` or resolves a string through `rest`, which returns the frame of the
+ * variant by that name. A symbol `own` lacks reaches here from `await`, `JSON.stringify` and every
+ * other protocol read, and would otherwise resolve to a variant, since nothing at run time lists
+ * the names. `then` resolves to a frame, which is not a function, so the object is not a thenable.
+ *
+ * Each function in `own` reads its properties from the frame of the variant with the same name
+ * first, so `.impl(…)` is the step and `.impl.implSeal(…)` the variant's. The frame's properties
+ * hide the function's own, `name` and `length` included. No variant shares a name with one of
+ * `members`.
+ */
+const resolving = (
+  own: Record<string, unknown>,
+  rest: (key: string) => unknown,
+  members?: object,
+): object => {
+  for (const key in own)
+    own[key] = new Proxy(own[key] as object, {
+      get: (target, property) => {
+        const frame = rest(key) as object;
+        return (Object.hasOwn(frame, property) ? frame : target)[property as never];
+      },
+    });
+  return new Proxy(
+    { ...own, ...members },
+    {
+      get: (target, key) =>
+        Object.hasOwn(target, key)
           ? (target as Record<PropertyKey, unknown>)[key]
           : typeof key === "string"
             ? rest(key)
             : undefined,
-  });
+    },
+  );
+};
 
 /**
  * One builder state: what the steps registered so far. The order of the steps is the type's to
@@ -1064,8 +1106,8 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
 
   return resolving(
     {
-      match: dual((value: Payload, handlers: Record<string, (v: unknown) => unknown>) =>
-        (handlers[value[tag] as string] ?? handlers._)!(value),
+      match: dual((value: Payload, handlers: HandlerMap) =>
+        arm(handlers, value[tag] as string)(value),
       ),
       seal: sealing,
       ...(create && {
@@ -1075,10 +1117,10 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
       }),
       [Tag]: { match: matchTag, key: tag },
       [Traits]: traits,
-      // Last, as the proxy read them first: the declaration keeps a trait member off `match`.
-      ...members,
     },
     at,
+    // Last, as the proxy read them first: the declaration keeps a trait member off `match`.
+    members,
   );
 };
 
