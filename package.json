@@ -32,7 +32,7 @@
   "type": "module",
   "sideEffects": false,
   "imports": {
-    "#valof": "valof-release"
+    "#valof": "valof-pinned-for-scripts"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -56,7 +56,8 @@
     "ts-compatibility": "node scripts/ts-compatibility/index.ts",
     "type-perf": "node scripts/type-perf/index.ts",
     "prepublishOnly": "vp run build",
-    "prepare": "vp config && vp fmt AGENTS.md",
+    "prepare": "vp config && vp fmt AGENTS.md && node scripts/pin-valof/index.ts",
+    "pin-valof": "node scripts/pin-valof/index.ts",
     "bump-version": "scripts/bump-version.sh"
   },
   "devDependencies": {
@@ -73,7 +74,7 @@
     "typescript": "^7.0.2",
     "typescript-5": "npm:typescript@^5.9.3",
     "typescript-6": "npm:typescript@^6.0.3",
-    "valof-release": "npm:valof@0.9.1",
+    "valof-pinned-for-scripts": "link:node_modules/.valof-pinned-for-scripts",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },
@@ -91,5 +92,6 @@
       "version": "11.25.0",
       "onFail": "download"
     }
-  }
+  },
+  "valof-pinned-for-scripts-commit": "037241ff776399be36ddcf8097705224627cba3e"
 }

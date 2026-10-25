@@ -1,19 +1,21 @@
 import { Val } from "#valof";
 
 export type Imports = Val<"Imports", Record<string, string[]>>;
-export const Imports = Val.sealer<Imports>().impl({
-  names: (imports): string[] => Object.values(imports).flat(),
-  merge: (imports, other: Imports): Imports => {
-    const merged: Record<string, string[]> = {};
-    for (const source of [imports, other]) {
-      for (const [module, names] of Object.entries(source)) {
-        merged[module] = [...new Set([...(merged[module] ?? []), ...names])];
+export const Imports = Val.companion<Imports>()
+  .impl({
+    names: (imports): string[] => Object.values(imports).flat(),
+    merge: (imports, other: Imports): Imports => {
+      const merged: Record<string, string[]> = {};
+      for (const source of [imports, other]) {
+        for (const [module, names] of Object.entries(source)) {
+          merged[module] = [...new Set([...(merged[module] ?? []), ...names])];
+        }
       }
-    }
 
-    return Imports(merged);
-  },
-});
+      return Imports.seal(merged);
+    },
+  })
+  .build();
 
 export type Bundle = Val<
   "Bundle",
@@ -27,4 +29,4 @@ export type Bundle = Val<
     budget: number;
   }
 >;
-export const Bundle = Val.sealer<Bundle>();
+export const Bundle = Val.companion<Bundle>().build();

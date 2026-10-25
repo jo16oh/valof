@@ -4,9 +4,6 @@ allowBuilds:
 catalog:
   vite: npm:@voidzero-dev/vite-plus-core@0.2.9
   vite-plus: 0.2.9
-minimumReleaseAgeExclude:
-  # `valof-release` moves to a release minutes after it is published.
-  - valof
 overrides:
   vite: "catalog:"
 peerDependencyRules:

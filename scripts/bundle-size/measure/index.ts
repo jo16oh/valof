@@ -27,7 +27,7 @@ export type Mode = "production" | "development";
 export const modes: readonly Mode[] = ["production", "development"];
 
 export type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;
-export const Sizes = Val.sealer<Sizes>();
+export const Sizes = Val.companion<Sizes>().build();
 
 export type Build = Val<
   "Build",
@@ -37,7 +37,7 @@ export type Build = Val<
     library: number;
   }
 >;
-export const Build = Val.sealer<Build>();
+export const Build = Val.companion<Build>().build();
 
 export type BuildResult = Val<
   "BuildResult",
@@ -48,12 +48,14 @@ export type BuildResult = Val<
     development: Build;
   }
 >;
-export const BuildResult = Val.sealer<BuildResult>().impl({
-  check: (build): R<void, DevCodeKeptError> =>
-    !build.readsNodeEnv || build.production.sizes.minified !== build.development.sizes.minified
-      ? R.ok()
-      : R.err(new DevCodeKeptError({ imports: build.imports })),
-});
+export const BuildResult = Val.companion<BuildResult>()
+  .impl({
+    check: (build): R<void, DevCodeKeptError> =>
+      !build.readsNodeEnv || build.production.sizes.minified !== build.development.sizes.minified
+        ? R.ok()
+        : R.err(new DevCodeKeptError({ imports: build.imports })),
+  })
+  .build();
 
 export type BundleSize = Val<
   "BundleSize",
@@ -77,4 +79,5 @@ export const BundleSize = Val.companion<BundleSize>()
       size.bundle.base || size.build.production.library !== base.production.library
         ? R.ok()
         : R.err(new AddsNothingError({ bundle: size.bundle })),
-  });
+  })
+  .build();

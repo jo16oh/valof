@@ -41,7 +41,12 @@ jobs:
 
       - run: vp run type-perf
 
-      - run: vp run ts-compatibility
+      - if: "!startsWith(github.head_ref, 'chore/release-')"
+        run: vp run ts-compatibility
+
+      # The scripts catch up with the API before a release, not after it.
+      - if: startsWith(github.head_ref, 'chore/release-')
+        run: vp run ts-compatibility --require-pin
 
   workflows:
     runs-on: ubuntu-latest

@@ -13,7 +13,7 @@ export const Cli = {
         ok: (report) => {
           console.log(render(report, process.argv.includes("--json")));
 
-          const overs = report.bundles.filter(BundleSize.over).map(over);
+          const overs = report.bundles.filter((size) => BundleSize.over(size)).map(over);
           for (const line of overs.length > 0 ? ["", ...overs] : []) {
             console.error(line);
           }

@@ -43,6 +43,7 @@ import { Val } from "valof";
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
 - **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify。18.4 利用者の宣言出力が参照する `internal/*`（却下した entry からの export、クラスにした `PrivateSeal` / `PrivateCreate`）
+- **§19 scripts が使う valof を固定する** `#valof` をコミットのビルドに向ける。一致の判定、リリース PR だけ一致を必須にすること、ts-compatibility が scripts をコピーして読むこと、ハッシュを `package.json` に書く理由（`optimisticRepeatInstall`）、却下した git 依存・pkg.pr.new・その場で読む案。追従で見つかった dual メンバーと lint
 
 ---
 
@@ -2725,6 +2726,8 @@ TaggedEnum、Map/Set のラッパー、Result、実行時 freeze（dev を除く
 下限は「動く最古のバージョン」ではない。実測では **4 系も 5.0.4 も通る**。それでも切り上げるのは、ラインの途中のバージョンが持ち込むエッジケース（半端に入ったフラグ、まだ効いていない非推奨）を支える相手がいないからで、ラインの最終リリースはその系列の意味が固まった点である。TS 7 が最新の今、2 つ前のラインの最後が 5.9.3 に当たる。
 
 CI は `vp run ts-compatibility`（`scripts/ts-compatibility/`）で、**公開する `dist` の宣言に対して** 各ラインを回す。
+
+scripts も fixture として読む。固定先が今の `dist` と同じものをビルドするときだけ（§19）。
 
 #### なぜ src ではなく宣言ファイルなのか
 
@@ -7605,3 +7608,55 @@ export されていないクラスを書けないので、private メンバを�
 入ったので、同じく直した。
 
 検査の方法も変えた（§10.1）。
+
+## 19. scripts が使う valof を固定する、2026-10-25
+
+**`#valof` は、`package.json` の `valof-pinned-for-scripts-commit` が指すコミットのビルドに解決する。**bundle-size などの scripts は valof で書いてある。以前は `valof-release`（npm の 0.9.1）を指していて、scripts の追従はリリースの後だった。
+
+```json
+"imports": { "#valof": "valof-pinned-for-scripts" },
+"devDependencies": {
+  "valof-pinned-for-scripts": "link:node_modules/.valof-pinned-for-scripts"
+},
+"valof-pinned-for-scripts-commit": "<sha>"
+```
+
+- `prepare` が `vp install` の後に `scripts/pin-valof/index.ts` を走らせ、固定先を `git archive` で取り出して `vp run build` し、`dist` と `package.json` を link 先に置く。sha が同じなら飛ばす。手元に無いコミットは `git fetch --depth=1` する（CI の checkout は 1 コミットだけ）
+- 固定を動かすのは `vp run pin-valof <rev>`。lockfile には link のパスしか載らないので、固定を動かしても lockfile は変わらない
+- 固定する理由はローカルの作業中にある。`src` を書きかけで壊しても、scripts は固定先の valof で動く
+
+**一致の判定は、固定先と作業ツリーのビルド入力の差分で見る。**
+
+```sh
+git diff --quiet "$pin" -- src vite.config.ts tsconfig.json tsconfig.build.json
+```
+
+- HEAD ではなく作業ツリーと比べる。`dist` は作業ツリーからビルドされる。CI では両者は同じ
+- `tsconfig.json` を入れる。`tsconfig.build.json` が extends していて、`target` などが出力に効く
+- `package.json` は入れない。固定のハッシュを書く場所で、リリースの version 更新でも変わる。valof には runtime の依存が無いので、外しても漏れは無い
+
+**ts-compatibility は、一致しているときだけ scripts を fixture として読む。**`#valof` を import する scripts を、型検査と宣言出力で各ラインに回す。一致していなければ、読まなかったことをログに出すだけで落とさない。リリース PR（`chore/release-*`）だけは `--require-pin` で一致を必須にする。これで scripts の追従がリリース前に済む。
+
+- scripts を作業ディレクトリにコピーし、`{"imports": {"#valof": "valof"}}` の `package.json` を置く。`#valof` は作業ディレクトリの `node_modules/valof` に `exports` 越しに解決する。作業ディレクトリはリポジトリの中にあるので、rolldown などの devDependencies は親を辿って解決する
+- tsconfig は scripts のもの（`nodenext`）を extends する。本のブロックの `bundler` と合わせて、2 つの解決方式を見ることになる
+- `*.test.ts` はコピーしない。`vp test` が作業ディレクトリのテストまで拾う
+
+**lint は対象外。**lint は valof パッケージの一部で、`src` を相対パスで import する。`vp check` が今の `src` に対して型検査する。
+
+**ハッシュは `package.json` の独自フィールドに書く。**pnpm の `optimisticRepeatInstall` は、lockfile にも `package.json` にも変化が無いと `prepare` を飛ばす。`scripts/` の下のファイルに書くと、pull やブランチの切り替えでハッシュが変わっても `vp install` が up to date と判断し、古い固定先のまま `vp check` が走る。`optimisticRepeatInstall: false` にすれば毎回走るが、install が 0.16 秒から 1.1 秒に延びる。代償は、ハッシュが npm の tarball に載ること。
+
+**名前に `pinned` と `for-scripts` を入れる。**この固定は ts-compatibility だけでなく、`vp check` や bundle-size の `#valof` すべての解決先になる。`pinned` は、scripts が今の `src` ではない valof で動くことを示す。
+
+#### 却下した案
+
+- **git 依存（`github:jo16oh/valof#<sha>`）**: `dist` をコミットしていないので、インストールのたびにビルドが要る。`prepare` は `vp config` だけでビルドしない。devDependencies 一式と、pnpm 11 の `allowBuilds` の許可も要る
+- **pkg.pr.new でコミットごとに公開**: CI では固定先のビルドが要らない（一致していれば今の `dist` と同じ）ので、公開する意味が無い
+- **「PR の最後のコミットが、ひとつ前のハッシュに固定を書き換えている」を検査**: `git diff` の判定に置き換えた。固定の後に docs やテストだけのコミットを積んでも通り、ビルドに効かない PR に書き換えコミットを強制しない
+- **固定せず、`#valof` を常に今のビルドに向ける**: API を変える PR ごとに scripts の追従が必須になる。作業中に `src` が壊れていると、scripts も動かない
+- **すべての PR で一致を必須にする**: API を変える PR ごとに追従が必須になる。リリース前だけで足りる
+- **ts-compatibility が scripts をその場で読む**: `#valof` は root の `package.json` の `imports` を通り、固定先に解決する。作業ディレクトリの `dist` に振り向けるには `paths` か条件付きの `imports` が要る。`paths` は `exports` を素通りして、§18.4 の問題を隠していた
+- **`git worktree` で固定先をチェックアウト**: 登録の後始末が要る。`git archive` で一時ディレクトリに取り出せば足りる
+
+#### 追従で見つかった API の使いにくさ
+
+`report.bundles.filter(BundleSize.over)` が oxlint の `no-unnecessary-condition` に掛かった。lint はメンバーの data-last 形の戻り値（関数なので常に truthy）を見る。TS は通すので、利用者は lint を入れて初めて気づく。scripts は `(size) => BundleSize.over(size)` と包んだ。

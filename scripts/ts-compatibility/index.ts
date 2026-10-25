@@ -1,7 +1,8 @@
-import { copyFile, cp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { docBlocks } from "../../docs/tools/twoslash/index.ts";
+import { matches, pinned } from "../pin-valof/index.ts";
 import { aliases, pack, root, tsc, version } from "../shared/typescript-lines.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
@@ -103,7 +104,51 @@ await writeFile(
   )}\n`,
 );
 
+/**
+ * The scripts, which are written against the pinned commit, as code a user wrote. They read
+ * against this `dist` only when the pin builds the same one; `--require-pin` fails otherwise,
+ * which a release PR passes so the scripts catch up before a release.
+ *
+ * Copied, with a `package.json` that sends `#valof` to the installed package. The copy sits inside
+ * the repository, so every other import still reaches its `node_modules`.
+ */
+const scripts = join(directory, "scripts");
+const pin = await pinned();
+const current = await matches(pin);
+const importers = current ? await valofImporters() : [];
+if (current) {
+  // Without the tests, which `vp test` would otherwise pick up here too.
+  await cp(join(root, "scripts"), scripts, {
+    recursive: true,
+    filter: (source) => !source.endsWith(".test.ts"),
+  });
+  await writeFile(
+    join(scripts, "package.json"),
+    `${JSON.stringify({ private: true, type: "module", imports: { "#valof": "valof" } })}\n`,
+  );
+  await writeFile(
+    join(scripts, "tsconfig.json"),
+    `${JSON.stringify(
+      {
+        extends: join(root, "tsconfig.json"),
+        compilerOptions: { noEmit: false, emitDeclarationOnly: true, outDir: "dts" },
+        files: importers,
+      },
+      undefined,
+      2,
+    )}\n`,
+  );
+}
+
 console.log(`  ${blocks.length} blocks from the book, ${files.length} fixtures`);
+if (current) {
+  console.log(`  ${importers.length} scripts on valof ${pin.slice(0, 7)}`);
+} else if (process.argv.includes("--require-pin")) {
+  console.error(`valof ${pin.slice(0, 7)} builds a different dist; run \`vp run pin-valof HEAD\``);
+  process.exit(1);
+} else {
+  console.log(`  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`);
+}
 
 const failed: string[] = [];
 
@@ -113,6 +158,7 @@ for (const alias of aliases) {
   try {
     await tsc(alias)(["-p", directory]);
     await tsc(alias)(["-p", join(directory, "tsconfig.declaration.json")]);
+    if (current) await tsc(alias)(["-p", scripts]);
     console.log(`  typescript@${released}  pass`);
   } catch (error) {
     failed.push(released);
@@ -126,4 +172,15 @@ console.log();
 if (failed.length > 0) {
   console.error(`the declarations do not typecheck on ${failed.join(", ")}`);
   process.exit(1);
+}
+
+async function valofImporters(): Promise<string[]> {
+  const files = await readdir(join(root, "scripts"), { recursive: true });
+  const importers: string[] = [];
+  // The tests stay out of the copy, so out of the program as well.
+  for (const file of files.filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))) {
+    const code = await readFile(join(root, "scripts", file), "utf8");
+    if (/^import\b[^;]*from "#valof"/m.test(code)) importers.push(file);
+  }
+  return importers.sort();
 }
