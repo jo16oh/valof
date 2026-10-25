@@ -560,7 +560,7 @@ declare class UnpatchablePhantom<K extends string> {
  */
 // This and `PrivateCreate` are classes, not aliases of one. Declaration emit writes an alias
 // without type arguments as its class, and a consumer's `.d.ts` cannot reference a class the entry
-// does not export. A private member stays out of `keyof`.
+// does not export.
 export declare class PrivateSeal {
   private readonly __valof_internal_phantom_private_seal: true;
 }
