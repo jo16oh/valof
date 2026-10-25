@@ -88,23 +88,7 @@ const size = Shape.match(shape, {
 });
 ```
 
-`_` then handles a variant added to the declaration, with no type error.
-
-A variant may be named `_`, and `_` is its handler. `[Otherwise]` then handles the rest, and works
-in any enum:
-
-```ts
-import { Enum, Otherwise } from "valof/experimental";
-
-type Token = Enum<"Token", { _: Record<never, never>; Word: { text: string }; Num: { n: number } }>;
-const Token = Enum.companion<Token>().build();
-declare const token: Token;
-// ---cut---
-const kind = Token.match(token, {
-  _: () => "placeholder",
-  [Otherwise]: (rest) => rest._tag,
-});
-```
+`_` then handles a variant added to the declaration, with no type error.[^otherwise]
 
 `match` sits on the companion because the tag's name is customizable, and a free function would have
 to hard-code it.
@@ -359,3 +343,7 @@ type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 // ---cut---
 const area = ({ r }: VariantOf<Shape, "Circle">) => r * r * Math.PI;
 ```
+
+[^otherwise]:
+    For an enum that has a variant named `_`, write `[Otherwise]` in place of `_` to handle the
+    rest. `Otherwise` is a symbol exported from `valof/experimental`.
