@@ -14,7 +14,7 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
-import { dual } from "./dual.ts";
+import { dual, duals, loose } from "./dual.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
   NoSeal,
@@ -29,7 +29,7 @@ import type {
   UnpatchableTypes,
   VerdictKey,
 } from "./keys.ts";
-import type { Arity, Dual, Duals } from "./dual.ts";
+import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual.ts";
 import { development } from "./env.ts";
 import * as Val from "./ns/val.ts";
 
@@ -437,6 +437,9 @@ export type CompanionMembers<V> = Rejected & {
   [key: string]: ((value: V, ...rest: any[]) => unknown) | NonFn;
 };
 
+/** The members `.implAssoc` accepts: anything but a name the library reserves. */
+export type AssocMembers = Rejected & Record<string, unknown>;
+
 /**
  * What the seal produces, propagated verbatim. The library never inspects it, so `Result` and
  * friends need no support here.
@@ -654,7 +657,9 @@ export type Companion<
   N = undefined,
   F = undefined,
   O extends Options = [],
+  A = Record<never, never>,
 > = Duals<Omit<M, Wired>, V> &
+  Looses<A> &
   ([Extract<O[number], PrivateCreate>] extends [never] ? CreateMethod<V, N, F> : unknown) &
   ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
   PatchMethod<V, F, O> &
@@ -731,7 +736,7 @@ type Supplied<V extends AnyVal, N, F, O extends Options> = CreateMethod<V, N, F>
   PatchMethod<V, F, O>;
 
 /** The steps a companion has taken. The first two are the first half of the chain. */
-type Taken = "implSeal" | "implCreate" | "impl" | "implTrait";
+type Taken = "implSeal" | "implCreate" | "impl" | "implTrait" | "implAssoc";
 
 /**
  * What a builder holds where the companion holds its library's names: `.build()` is missing.
@@ -759,6 +764,7 @@ export type CompanionBuilder<
   O extends Options = [],
   T extends CompanionMembers<V> = Record<never, never>,
   D extends Taken = never,
+  A = Record<never, never>,
 > = {
   readonly seal: CallBuildFirst;
   readonly create: CallBuildFirst;
@@ -767,8 +773,10 @@ export type CompanionBuilder<
    * Closes the chain and returns the companion. The builder holds the steps alone: `seal`,
    * `create`, `patch` and the members are the companion's.
    */
-  build: () => Companion<V, T, N, F, O>;
-} & ([Extract<D, "impl" | "implTrait">] extends [never] ? FirstHalf<V, N, F, O, D> : unknown) &
+  build: () => Companion<V, T, N, F, O, A>;
+} & ([Extract<D, "impl" | "implTrait" | "implAssoc">] extends [never]
+  ? FirstHalf<V, N, F, O, D>
+  : unknown) &
   ("impl" extends D
     ? unknown
     : {
@@ -798,9 +806,26 @@ export type CompanionBuilder<
         impl: <M extends CompanionMembers<V>>(
           fns: (
             supplied: NoInfer<Supplied<V, N, F, O>>,
-          ) => Grown<keyof T, M> & Arity<M> & ThisType<undefined>,
-        ) => CompanionBuilder<V, N, F, O, M & T, D | "impl">;
+          ) => Grown<keyof T | keyof A, M> & Arity<M> & ThisType<undefined>,
+        ) => CompanionBuilder<V, N, F, O, M & T, D | "impl", A>;
       }) & {
+    /**
+     * Collects the members the function returns that do not take the Val: `fromRow`, `parse`, a
+     * constant. Write it any number of times.
+     *
+     * The function receives `seal`, `create` and `patch`. A member reaching the companion for
+     * anything else (a sibling or another step's member) references it and annotates its return
+     * type, as in `.impl`.
+     *
+     * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
+     * `Money.scaled(2)(5)`. One taking no argument is called as it is. A member cannot have an
+     * optional, a default or a rest parameter.
+     */
+    implAssoc: <M extends AssocMembers>(
+      fns: (
+        supplied: NoInfer<Supplied<V, N, F, O>>,
+      ) => Grown<keyof T | keyof A, M> & LooseArity<M> & ThisType<undefined>,
+    ) => CompanionBuilder<V, N, F, O, T, D | "implAssoc", A & M>;
     /**
      * Implements a trait the type declares. A function passed as the second argument returns the
      * members the trait leaves open, with their first parameter fixed to the Val as everywhere
@@ -815,9 +840,9 @@ export type CompanionBuilder<
      * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
      */
     implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
-      trait: Takes<V, Tr, T, Complete<Tr, G>>,
+      trait: Takes<V, Tr, T & A, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I, Supplied<V, N, F, O>>
-    ) => CompanionBuilder<V, N, F, O, T & Unbound<MembersOf<Tr>, V>, D | "implTrait">;
+    ) => CompanionBuilder<V, N, F, O, T & Unbound<MembersOf<Tr>, V>, D | "implTrait", A>;
   };
 
 /**
@@ -1170,6 +1195,7 @@ export type Registered<P = unknown> = {
   noseal?: boolean;
   members?: Members;
   traits?: Implementation[];
+  assoc?: Members[];
 };
 
 /**
@@ -1221,7 +1247,14 @@ const patched = (
  */
 export const attach = (registered: Registered): Record<string, unknown> => {
   const target: Record<string, unknown> = {};
-  const { create, noseal, seal: custom, members: fns, traits: implemented = [] } = registered;
+  const {
+    create,
+    noseal,
+    seal: custom,
+    members: fns,
+    traits: implemented = [],
+    assoc,
+  } = registered;
   const sealedWith = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
     custom
       ? development
@@ -1298,13 +1331,18 @@ export const attach = (registered: Registered): Record<string, unknown> => {
     {},
     ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
   );
-  const members = { ...fns?.(target) };
   (target as Record<symbol, unknown>)[Traits] = traits;
-  for (const key of Object.keys(traits)) target[key] = dual(traits[key]);
-  for (const key of Object.keys(members)) target[key] = dual(members[key]);
-
-  return target;
+  return Object.assign(
+    target,
+    duals(traits),
+    duals({ ...fns?.(target) }),
+    associated(assoc, target),
+  );
 };
+
+/** What the `.implAssoc` functions return, each member made {@link loose}. */
+export const associated = (assoc: Members[] = [], supplied: object): Record<string, unknown> =>
+  Object.assign({}, ...assoc.map((fns) => duals(fns(supplied), loose)));
 
 /**
  * The steps on a builder, each handing what it registers to `grow`. `registered` is what the steps
@@ -1321,6 +1359,7 @@ export const steps = <P>(
   impl: (members: Members) => grow({ members }),
   implTrait: (...implementation: Implementation) =>
     grow({ traits: [...(registered?.traits ?? []), implementation] }),
+  implAssoc: (fns: Members) => grow({ assoc: [...(registered?.assoc ?? []), fns] }),
 });
 
 /** One builder state: what the steps registered so far. */
