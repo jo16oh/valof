@@ -147,7 +147,7 @@ seal to be normalized. The function passed to `.noseal` must always return a can
 production, `create` skips the custom seal. In development, it runs the seal and throws if the seal
 rejects or normalizes the payload.
 
-## Add entry points with `implAssoc`
+## Define other constructors with `implAssoc`
 
 An `.impl` member takes the Val first. A function that builds the Val from something else, such as a
 string or several other values, goes in `.implAssoc`:
@@ -163,47 +163,34 @@ declare const yens: readonly Yen[];
 type Yen = Val<"Yen", number>;
 
 const Yen = Val.companion<Yen>()
+  .implSeal((yen, seal): Result<Yen> =>
+    Number.isSafeInteger(yen) && yen >= 0
+      ? ok(seal(yen))
+      : err("must be a non-negative safe integer"),
+  )
   .implAssoc(({ seal }) => ({
     parse: (text: string): Result<Yen> =>
-      /^¥\d+$/.test(text) ? ok(seal(Number(text.slice(1)))) : err("expected ¥ followed by digits"),
+      /^¥\d+$/.test(text) ? seal(Number(text.slice(1))) : err("expected ¥ followed by digits"),
     sum: (yens: readonly Yen[]) => seal(yens.reduce((total, yen) => total + yen, 0)),
   }))
   .build();
 
 Yen.parse("¥120"); // Result<Yen>
-Yen.sum(yens); // Yen
+Yen.parse("¥99999999999999999"); // the seal's error: not a safe integer
+Yen.sum(yens); // Result<Yen>
 ```
 
 The function receives `seal`, `create` and `patch`, like the one passed to `.impl`. `seal` is the
-companion's, so a seal registered with `.implSeal` checks what `parse` and `sum` build. Write
-`.implAssoc` after `.implSeal` and `.implCreate`, any number of times.
+companion's, so the custom seal checks what `parse` and `sum` build. Write `.implAssoc` after
+`.implSeal` and `.implCreate`, any number of times.
+
+Keep an invariant in the seal, and let a member only convert its input into a payload. `parse`
+checks the string's format, and the seal checks the amount. A check written in a member does not run
+when another path builds the value, such as `patch` on an object payload.
 
 A member can be called with its first argument last, as an `.impl` member can with the value. One
 taking no argument is called as it is. A member cannot have an optional, a default or a rest
 parameter, and one referencing the companion annotates its return type.
-
-## Keep invariants in the seal
-
-`patch` passes the new payload to the seal, not to the member that built the value. A check written
-in an `.implAssoc` member does not run on a derived value:
-
-```ts
-import { Val } from "valof";
-// ---cut---
-type Money = Val<"Money", { cents: number }>;
-
-const Money = Val.companion<Money>()
-  .implAssoc(({ seal }) => ({
-    fromCents: (cents: number) => (cents >= 0 ? seal({ cents }) : undefined),
-  }))
-  .build();
-
-declare const money: Money;
-Money.patch(money, { cents: -1 }); // a Money holding -1 cents
-```
-
-Write an invariant in `.implSeal`, which `patch` passes too. Let an `.implAssoc` member only convert
-its input into a payload.
 
 ## Protect generated fields
 
