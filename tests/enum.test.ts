@@ -392,6 +392,32 @@ describe("members", () => {
       .build();
   });
 
+  test("an implementation has no `this`, on the union or on a variant", () => {
+    type Named = Trait<"Named", { id: string }, { label: (self: Self) => string }>;
+    const Named = Trait.companion<Named>().build();
+    type Coded = Trait<"Coded", { n: number }, { code: (self: Self) => number }>;
+    const Coded = Trait.companion<Coded>().build();
+    type Card = Enum<
+      "Card",
+      { A: { n: number } & Coded; B: { s: string } },
+      { id: string } & Named
+    >;
+    Enum.companion<Card>()
+      .A.implTrait(Coded, () => ({
+        code(a) {
+          expectTypeOf(this).toEqualTypeOf<undefined>();
+          return a.n;
+        },
+      }))
+      .implTrait(Named, () => ({
+        label(c) {
+          expectTypeOf(this).toEqualTypeOf<undefined>();
+          return c.id;
+        },
+      }))
+      .build();
+  });
+
   test("a variant's member takes that variant, with no annotation", () => {
     expectTypeOf<Parameters<typeof Money.Cash.doubled>>().toEqualTypeOf<
       [self: VariantOf<Money, "Cash">]
