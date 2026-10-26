@@ -28,21 +28,21 @@ Shape.Circle.patch(circle, { r: 5 }); // { r: 5, _tag: "Circle" }, the tag stays
 equals(circle, Shape.Circle.seal({ _tag: "Circle", r: 2 })); // true
 ```
 
-Each key of the object type is a variant, and its value is that variant's payload. Valof derives the
-union and each variant's brand from this one declaration. The brand of `Shape.Circle` is
+Each key of the second type argument is a variant, and its value is that variant's payload. Valof
+derives the union and each variant's brand from this one declaration. The brand of `Shape.Circle` is
 `"Shape.Circle"`. Adding a variant takes one line.
 
 Call a variant through the companion, as in `Shape.Circle.create(…)`. `const { Circle } = Shape`
 works, but a reader of `Circle.create({ r: 2 })` then has to look up the enum that declares
-`Circle`. The `companion-mismatch` rule reports a variant under another name, as in
-`const Round = Shape.Circle`.
+`Circle`. The [`companion-mismatch`](linting.md#rules) lint rule reports a variant bound to another
+name, as in `const Round = Shape.Circle`.
 
 The default `create` takes the fields without the tag. It adds the tag and passes the payload to the
 variant's seal. The seal takes the payload with its tag. Both deep-copy the payload, like any other
 constructor. To build a value from a payload that has its tag, or from a tag alone, see
 [Build a value](#build-a-value).
 
-`patch` and `equals` work on a variant as on any Val, and a variant can be nested in another
+`patch` and `equals` work on a variant as on any Val. A variant can also be nested in another
 payload. `patch` cannot change the tag, so it cannot turn a value into another variant.
 
 ```ts
@@ -55,8 +55,9 @@ type Card = Enum<"Card", { Plain: { w: number }; Framed: { w: number; style: Sty
 As with any nested Val, a patch replaces a nested variant rather than merging into it. Derive the
 nested variant with its own `patch`, so that its own seal checks the change.
 
-Declare at least two variants. An enum with one variant is a Val. TypeScript also drops the alias of
-a union with one member, which breaks the declaration files of a package that exports the companion.
+Declare at least two variants. `Enum` rejects a declaration with one variant, because one variant is
+a Val. TypeScript also drops the alias of a union with one member, which breaks the declaration
+files of a package that exports the companion.
 
 ## Match on the tag
 
@@ -74,9 +75,9 @@ const area = Shape.match(shape, {
 ```
 
 Each handler receives its own variant, already narrowed, so it needs no type annotation. `match`
-requires a handler for every variant. A variant added to the declaration is a type error here until
-it has a handler, rather than falling through at run time. You write no `break` or `assertNever`,
-and enable no lint rule. `match` returns the union of the handlers' return types.
+requires a handler for every variant. Adding a variant to the declaration causes a type error here
+until the variant has a handler, rather than falling through at run time. You write no `break` or
+`assertNever`, and enable no lint rule. `match` returns the union of the handlers' return types.
 
 `_` handles the variants that have no handler of their own. Its argument is narrowed to those
 variants:
@@ -94,9 +95,9 @@ const size = Shape.match(shape, {
 });
 ```
 
-A variant added to the declaration later goes to `_`, with no type error.[^otherwise]
+`_` also handles a variant added to the declaration later, with no type error.[^otherwise]
 
-`match` branches on the tag alone. To branch on the fields inside a variant, use a pattern matching
+Use `match` to branch on the tag. To branch on the fields inside a variant, use a pattern matching
 library such as ts-pattern. The tag is an ordinary field, so `.with({ _tag: "Circle" }, …)` already
 works.
 
@@ -136,14 +137,14 @@ const command = Command[Tag].match(input.tag, {
 });
 ```
 
-As with `match`, every tag in the argument's type needs a handler, and `_` handles the rest. A
-handler takes no argument. It calls its variant's `create`, so TypeScript checks each payload
-against that variant.
+As with `match`, every tag in the argument's type needs a handler, so adding a variant to the
+declaration causes a type error here too. `_` handles the remaining tags. A handler takes no
+argument. It calls its variant's `create`, so TypeScript checks each payload against that variant.
 
 ## Common shape for every variant
 
 The third type argument of `Enum` is the shape, which lists the fields that every variant has. A
-[trait](traits.md) takes the same argument.
+[trait](traits.md) takes the same shape, as its second type argument.
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -174,8 +175,9 @@ type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>()
   .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
   .impl(() => ({
-    // Annotate the return type of a member that calls `match`, a variant or another member.
-    // Without it, the type is an implicit `any`. The same applies to a variant's member.
+    // Annotate the return type of a member that uses `match`, a variant or another member
+    // through the companion. Without it, the return type is an implicit `any`. The same applies
+    // to a variant's member.
     area: (s): number =>
       Shape.match(s, {
         Circle: (c) => Math.PI * c.r * c.r,
@@ -212,7 +214,8 @@ Shape.Square.create({ side: 1 }); // VariantOf<Shape, "Square">
 ```
 
 As for a Val, `create` and `patch` return whatever the seal returns, so no way of building a variant
-skips its seal. `Shape.seal` returns the union of what the variants' seals return.
+skips its seal, except `.implCreate.noseal`. Without an enum `.implSeal`, `Shape.seal` returns the
+union of what the variants' seals return.
 
 Register the enum's `.implSeal` to check a payload that has not been validated, such as an object
 from `JSON.parse`. It runs in `Shape.seal` before the tag selects a variant, so it can also reject a
@@ -270,8 +273,8 @@ Without `.implCreate`, a variant's `create` takes the fields, and the enum has n
 
 ## A trait on one variant
 
-A trait intersected into one variant's payload applies to that variant alone. Implement it on that
-variant:
+A trait intersected into one variant's payload applies to that variant alone, and that variant
+implements it:
 
 ```ts
 import { Enum, Trait, type Self } from "valof/experimental";
@@ -344,8 +347,8 @@ discriminator.
 
 ## Use a variant's type
 
-`VariantOf` is the type of one variant. Type errors and hovers print it in this form. Write it where
-you need it.
+`VariantOf` is the type of one variant. Type errors and hovers print this type. Write it where you
+need it.
 
 ```ts
 import { Enum, type VariantOf } from "valof/experimental";
