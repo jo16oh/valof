@@ -153,8 +153,7 @@ apply to the enum and every variant. To configure a specific variant's companion
 | `.implAssoc(f)`         | adds the members `f` returns, which do not take a value implementing the trait |
 | `.build()`              | ends the chain, and returns the companion                                      |
 
-The function passed to `implAssoc` receives nothing. Its members stay on the trait's companion.
-`implTrait` copies none of them onto a Val.
+Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 
 ### Trait companion
 
