@@ -44,3 +44,16 @@ export const shapeBuilder = Enum.companion<Shape>()
 export const Shape = shapeBuilder.build();
 export const byTag = Shape[Tag];
 export const circle = Shape.Circle;
+
+export type Money = Val<"Money", { cents: number }>;
+export const Money = Val.companion<Money>()
+  .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
+  .build();
+export const Sized = Enum.companion<Shape>()
+  .Circle.implAssoc(({ create }) => ({ unit: () => create({ name: "c", r: 1 }) }))
+  .implAssoc(({ seal }) => ({ rect: (w: number) => seal({ _tag: "Rect", name: "r", w }) }))
+  .implTrait(Greetable, () => ({ greet: (s) => s._tag }))
+  .build();
+export const Greeting = Trait.companion<Greetable>()
+  .implAssoc(() => ({ names: (gs: readonly Greetable[]) => gs.map((g) => g.name) }))
+  .build();

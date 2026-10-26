@@ -1,4 +1,12 @@
-import { dual, duals, type Arity, type Dual, type Duals } from "./dual.ts";
+import {
+  dual,
+  duals,
+  type Arity,
+  type Dual,
+  type Duals,
+  type LooseArity,
+  type Looses,
+} from "./dual.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
   EnumKey,
@@ -20,6 +28,7 @@ import type {
 import { development } from "./env.ts";
 import {
   assertVariantPayload,
+  associated,
   attach,
   equals,
   notFixedPoint,
@@ -29,6 +38,7 @@ import {
   type AnyFn,
   type AnyVal,
   type Argumentless,
+  type AssocMembers,
   type CallBuildFirst,
   type CompanionMembers,
   type Complete,
@@ -515,8 +525,10 @@ type Framed<
   R,
   C,
   T,
+  A,
   U = Unpatched<O, N>,
 > = Duals<Omit<T, Wired>, VariantOf<E, N>> &
+  Looses<A> &
   (NoCreate<O, N> extends true ? unknown : CreateMethod<E, N, C, R>) &
   (Hidden<O> extends true ? unknown : VariantSeal<E, N, R>) &
   VariantPatch<E, N, R, U> &
@@ -562,7 +574,8 @@ type Frame<
   O,
   Sealed<E, N, At<VM, N, "seal">>,
   At<VM, N, "create">,
-  At<VM, N, "members", Record<never, never>>
+  At<VM, N, "members", Record<never, never>>,
+  At<VM, N, "assoc", Record<never, never>>
 >;
 
 /** Rejects a trait member's name. The companion and `dyn` would still call the trait's. */
@@ -577,6 +590,10 @@ type Unclaimed<E extends AnyEnum, M> = M & {
  * variant.
  */
 type UnionMembers<E extends AnyEnum> = CompanionMembers<E> &
+  Partial<Record<(keyof VariantsOf<E> & string) | "match", never>>;
+
+/** What `.implAssoc` on the union accepts. Its names are reserved as `.impl`'s are. */
+type UnionAssoc<E extends AnyEnum> = AssocMembers &
   Partial<Record<(keyof VariantsOf<E> & string) | "match", never>>;
 
 /** Dispatches on the tag. See {@link EnumCompanion.match}. */
@@ -647,9 +664,11 @@ export type EnumCompanion<
   M = Record<never, never>,
   F = undefined,
   C = undefined,
+  A = Record<never, never>,
 > = {
   [N in keyof VariantsOf<E>]: Frame<E, O, VM, N & string>;
 } & Duals<Omit<M, Wired | "match" | keyof VariantsOf<E>>, E> &
+  Looses<A> &
   (Hidden<O> extends true ? unknown : EnumSeal<E, VM, F>) &
   ([Extract<O[number], PrivateCreate>] extends [never] ? EnumCreate<E, VM, F, C> : unknown) & {
     /**
@@ -672,9 +691,8 @@ type EnumSeal<E extends AnyEnum, VM, F> = {
    * enum's seal runs first, and its return is what this returns. Without one, the return is the
    * variants' seals' returns, as a union.
    *
-   * Passing a field of another variant is a type error, even when the tag is a union. A tag the
-   * declaration lacks gets past the type through a cast or `any` alone, and only the enum's seal
-   * can reject it: the variants' seals run once one is selected.
+   * A payload may hold only the fields of the variant its tag names.
+   * `Shape.seal({ _tag: "Circle", side: 1 })` is a type error.
    */
   seal: [F] extends [undefined]
     ? (payload: Exclusive<E>) => Dispatched<E, VM>
@@ -693,12 +711,17 @@ type EnumCreate<E extends AnyEnum, VM, F, C> = [C] extends [undefined]
     };
 
 /** The steps the enum's own part of the chain has taken. */
-type EnumTaken = "implSeal" | "implCreate" | "impl" | "implTrait";
+type EnumTaken = "implSeal" | "implCreate" | "impl" | "implTrait" | "implAssoc";
 
 /** The steps one variant has taken, read off the builder's state. */
 type VariantTaken<VM, N extends string> = {
-  [S in "seal" | "create" | "impl" | "trait"]: `${N}:${S}` extends keyof VM ? S : never;
-}["seal" | "create" | "impl" | "trait"];
+  [S in "seal" | "create" | "impl" | "trait" | "assoc"]: `${N}:${S}` extends keyof VM ? S : never;
+}["seal" | "create" | "impl" | "trait" | "assoc"];
+
+/** The names one variant's members and `implAssoc` took, which a later step may not take again. */
+type VariantNames<VM, N extends string> =
+  | keyof At<VM, N, "members", Record<never, never>>
+  | keyof At<VM, N, "assoc", Record<never, never>>;
 
 /** The builder after one variant's step, with `S` added. */
 type After<E extends AnyEnum, O extends Options, VM, M, S> = EnumBuilder<E, O, VM & S, M>;
@@ -725,7 +748,12 @@ type VariantTrait<
   M,
   N extends keyof VariantsOf<E> & string,
 > = <Tr extends AnyTrait, G, I extends Implement<Tr, G, VariantOf<E, N>>>(
-  trait: Takes<VariantOf<E, N>, Tr, At<VM, N, "members", Record<never, never>>, Complete<Tr, G>>,
+  trait: Takes<
+    VariantOf<E, N>,
+    Tr,
+    At<VM, N, "members", Record<never, never>> & At<VM, N, "assoc", Record<never, never>>,
+    Complete<Tr, G>
+  >,
   ...impl: Passes<Tr, G, I, VariantSupplied<E, O, VM, N>>
 ) => After<
   E,
@@ -756,7 +784,17 @@ type VariantSteps<
   readonly create: CallBuildFirst;
   readonly patch: CallBuildFirst;
   implTrait: VariantTrait<E, O, VM, M, N>;
-} & ([Extract<S, "impl" | "trait">] extends [never]
+  /**
+   * Collects this variant's members that do not take it: `fromRadius`, a constant. Write it any
+   * number of times. See `Val`'s `implAssoc`.
+   */
+  implAssoc: <G extends AssocMembers>(
+    fns: (
+      // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
+      supplied: NoInfer<VariantSupplied<E, O, VM, N>>,
+    ) => Grown<VariantNames<VM, N>, Unclaimed<E, G>> & LooseArity<G> & ThisType<undefined>,
+  ) => After<E, O, VM, M, { [K in `${N}:assoc`]: G }>;
+} & ([Extract<S, "impl" | "trait" | "assoc">] extends [never]
   ? ("seal" extends S
       ? unknown
       : {
@@ -802,9 +840,7 @@ type VariantSteps<
           fns: (
             // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
             supplied: NoInfer<VariantSupplied<E, O, VM, N>>,
-          ) => Grown<keyof At<VM, N, "members", Record<never, never>>, Unclaimed<E, G>> &
-            Arity<G> &
-            ThisType<undefined>,
+          ) => Grown<VariantNames<VM, N>, Unclaimed<E, G>> & Arity<G> & ThisType<undefined>,
         ) => After<E, O, VM, M, { [K in `${N}:impl`]: true } & { [K in `${N}:members`]: G }>;
       });
 
@@ -841,6 +877,7 @@ export type EnumBuilder<
   F = undefined,
   C = undefined,
   D extends EnumTaken = never,
+  A = Record<never, never>,
 > = {
   readonly seal: CallBuildFirst;
   readonly match: CallBuildFirst;
@@ -848,11 +885,11 @@ export type EnumBuilder<
    * Closes the chain and returns the companion. The builder holds the steps alone: the variants'
    * frames, `seal`, `match` and the members are the companion's.
    */
-  build: () => EnumCompanion<E, O, VM, M, F, C>;
+  build: () => EnumCompanion<E, O, VM, M, F, C, A>;
 } & ([D] extends [never]
   ? { readonly [N in keyof VariantsOf<E>]: VariantSteps<E, O, VM, M, N & string> }
   : unknown) &
-  ([Extract<D, "impl" | "implTrait">] extends [never]
+  ([Extract<D, "impl" | "implTrait" | "implAssoc">] extends [never]
     ? ("implSeal" extends D
         ? unknown
         : {
@@ -861,10 +898,10 @@ export type EnumBuilder<
              * seal it receives selects the variant and runs that variant's seal. A variant's own
              * `seal`, `create` and `patch` do not pass through it.
              *
-             * This is the place to check the tag: a payload from a cast or `any` can name a
-             * variant the declaration lacks, and no variant's seal sees it. Its parameter may be
-             * wider than the payload, so a schema library can parse into it, but not so wide that
-             * a wire format fits.
+             * This is the place to check a payload that has not been validated, such as an object
+             * from `JSON.parse`. Its parameter may be wider than the payload, up to `object`, so a
+             * schema library can validate it. It runs before the tag selects a variant, so it can
+             * also reject a tag that selects no variant.
              */
             implSeal: "implCreate" extends D
               ? (seal: "write `implSeal` before `implCreate`") => EnumBuilder<E, O, VM, M, F, C, D>
@@ -921,17 +958,30 @@ export type EnumBuilder<
           fns: (
             // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
             supplied: NoInfer<EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>,
-          ) => Unclaimed<E, G> & Arity<G> & ThisType<undefined>,
-        ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl">;
+          ) => Grown<keyof A, Unclaimed<E, G>> & Arity<G> & ThisType<undefined>,
+        ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl", A>;
       }) & {
+    /**
+     * Collects the members that do not take the union: `parse`, `fromArgs`, a constant. Write it
+     * any number of times. See `Val`'s `implAssoc`.
+     *
+     * A member building a variant calls the variant's constructor through the companion, and
+     * annotates its return type: `parse: (raw: string): Shape => Shape.Circle.create(…)`.
+     */
+    implAssoc: <G extends UnionAssoc<E>>(
+      fns: (
+        // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
+        supplied: NoInfer<EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>,
+      ) => Grown<keyof M | keyof A, Unclaimed<E, G>> & LooseArity<G> & ThisType<undefined>,
+    ) => EnumBuilder<E, O, VM, M, F, C, D | "implAssoc", A & G>;
     /**
      * Implements a trait the enum declares. The implementation takes the union, so a member that
      * differs per variant is a `match` inside it.
      */
     implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
-      trait: UnionTakes<E, Tr, M, Complete<Tr, G>>,
+      trait: UnionTakes<E, Tr, M & A, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I, EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>
-    ) => EnumBuilder<E, O, VM, M & Unbound<MembersOf<Tr>, E>, F, C, D | "implTrait">;
+    ) => EnumBuilder<E, O, VM, M & Unbound<MembersOf<Tr>, E>, F, C, D | "implTrait", A>;
   };
 
 /** Where the chain starts: a tag of its own is named first, since the builder writes it. */
@@ -1060,7 +1110,7 @@ const frame = (tag: string, name: string, registered: Registered): object => {
  * throws where the chain is.
  */
 const assemble = (tag: string, variants: Variants, own: Registered): object => {
-  const { seal, create, noseal, members, traits = [] } = own;
+  const { seal, create, noseal, members, traits = [], assoc } = own;
   // Remembered for the allocation, not for identity: a frame built twice behaves the same, and
   // rebuilding one on every read would make a fresh closure per member per access.
   const frames = new Map<string, unknown>();
@@ -1114,7 +1164,7 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
     gates,
     at,
     // Last, as the proxy read them first: the declaration keeps a trait member off `match`.
-    duals({ ...members?.(gates), ...implemented }),
+    { ...duals({ ...members?.(gates), ...implemented }), ...associated(assoc, gates) },
   );
 };
 

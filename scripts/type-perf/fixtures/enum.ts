@@ -1,7 +1,7 @@
 // What `Enum` costs: the union derived from the declaration, `match`'s narrowing and its
 // exhaustiveness, `_` taking the rest, `match` on a tag alone, a variant's own members, a seal on
-// the enum and one on a variant, a trait implemented over the union, and a variant nested in a
-// Val, where the patch boundary runs.
+// the enum and one on a variant, a trait implemented over the union, `implAssoc` on the union and
+// on a variant, and a variant nested in a Val, where the patch boundary runs.
 import { Val, type Patch, type SeedOf } from "valof";
 import { Enum, Tag, Trait, type Dyn, type Self, type VariantOf } from "valof/experimental";
 
@@ -21,6 +21,7 @@ const Shape = Enum.companion<Shape>()
     grown: (c) => seal({ ...c, r: c.r + 1 }),
   }))
   .Rect.impl(() => ({ ratio: (r) => r.w / r.h }))
+  .Square.implAssoc(({ create }) => ({ unitSquare: (id: string) => create({ id, side: 1 }) }))
   .impl(({ seal }) => ({
     unit: (s) => seal({ _tag: "Circle", id: s.id, r: 1 }),
     area: (s): number =>
@@ -30,6 +31,9 @@ const Shape = Enum.companion<Shape>()
         Rect: (r) => r.w * r.h,
         Poly: (p) => p.at.length,
       }),
+  }))
+  .implAssoc(({ seal }) => ({
+    circle: (id: string, r: number) => seal({ _tag: "Circle", id, r }),
   }))
   .build();
 
@@ -66,6 +70,8 @@ const click = Event.Click.create({ id: "e", x: 1, y: 2 }) as VariantOf<Event, "C
 const frame = Frame.seal({ id: "f", shape: circle, last: click });
 
 export const read = [
+  Shape.circle("c", 1),
+  Shape.Square.unitSquare("s"),
   Shape.area(shape),
   Shape.Circle.diameter(circle),
   Shape.Rect.ratio(Shape.Rect.create({ id: "r", w: 1, h: 2 })),

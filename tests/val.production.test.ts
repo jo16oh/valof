@@ -95,6 +95,16 @@ describe("a member in production", () => {
       .build();
     expect(Named.greet(Named.seal({ name: "bob" }), "Hi")).toBe("Hi, bob");
   });
+
+  test("of `implAssoc` hiding its parameters is not checked either", () => {
+    type Money = Value<"ProductionMoney", { cents: number }>;
+    const Money = Val.companion<Money>()
+      .implAssoc(({ seal }) => ({
+        fromCents: (...args: [number]) => seal({ cents: args[0] }),
+      }))
+      .build();
+    expect(Money.fromCents(5)).toEqual({ cents: 5 });
+  });
 });
 
 describe("an enum variant in production", () => {

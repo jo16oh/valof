@@ -27,6 +27,7 @@ import { Val } from "valof";
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed`（2026-10-22 に型引数の `Unpatchable` へ、§6.12）と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
   - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、`.build()` で鎖を閉じること（§13.6 を覆した）、Proxy を残す判断。Enum の段の順は §15.2
+  - **6.13** `implAssoc`: Val を受け取らないメンバ。段を分ける理由、渡すもの、dual にする（§6.11 を覆した）、引数の検査が戻り値の注釈を要る理由、長さ 0 の関数のソースを読む検査、`[Shared]` に入れない Trait の関連関数、`build` に `& A` を付けると宣言出力が壊れること、残る穴（`from*` に検査を書く）、却下した案
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
@@ -1507,7 +1508,9 @@ Type '(n: number) => Age' is not assignable to type 'undefined'.
 
 #### 失うもの
 
-第一引数が Val でない補助ファクトリ（`Money.fromCents(n)` / `IsoDate.parse(s)`）は companion に置けない。これらは「値に対する振る舞い」ではないので、素の export 関数に分離されるほうが筋が通る。多引数のコンストラクタ（`Point.create(x, y)`）は `implCreate` が引き受けるので影響なし。
+第一引数が Val でない補助ファクトリ（`Money.fromCents(n)` / `IsoDate.parse(s)`）は `.impl` に置けない。これらは「値に対する振る舞い」ではないので、素の export 関数に分離されるほうが筋が通る。多引数のコンストラクタ（`Point.create(x, y)`）は `implCreate` が引き受けるので影響なし。
+
+→ 2026-10-26 に `implAssoc` の段に置けるようにした（§6.13）。
 
 ### 6.6 `patch` は上書きさせない
 
@@ -1669,7 +1672,7 @@ User.create(fields); // → Result<User>
 - **ユーザーコードから `Val.of` が 1 つ減る**
 - **カスタム seal がないときは既定の seal（コピー）に落ちる。** `implCreate` の制約を `F` の有無で変えると登録順で `create` の型が変わるので、常に `SeedOf<V>` を要求して実行時にどちらの seal を使うかを決める
 
-失うのは **`create` 自身が失敗できること**。`Result<SeedOf<V>>` を返されるとライブラリが bind しなければならず、「ライブラリは `Result` を知らない」（§6.3）に反する。壊れうる入力の検査は seal 側に寄せる（`seal(v: object)` は制約を通るので zod 形はそのまま書ける）。どうしてもペイロードを組む段階で失敗するものは素の export 関数に分ける。
+失うのは **`create` 自身が失敗できること**。`Result<SeedOf<V>>` を返されるとライブラリが bind しなければならず、「ライブラリは `Result` を知らない」（§6.3）に反する。壊れうる入力の検査は seal 側に寄せる（`seal(v: object)` は制約を通るので zod 形はそのまま書ける）。どうしてもペイロードを組む段階で失敗するものは素の export 関数に分ける。→ 2026-10-26 から `implAssoc` のメンバに置く。メンバは受け取った `seal` を自分で呼ぶ（§6.13）。
 
 #### seal の引数は不変のまま、コピーは `Val.of` の 1 回だけ
 
@@ -1813,7 +1816,7 @@ pipe(shape, Shape.match({ Circle: (c) => …, Square: (s) => … }));
 #### 範囲
 
 - **包む。**`.impl` のメンバ、`patch`、Trait のメンバ（Val の companion に載るものと、Trait の companion 自身のもの）、Enum の `.impl` / `implTrait` のメンバ、`match`、`[Tag].match`
-- **包まない。**`seal`、`create`、`implAssoc` のメンバ。どれも第 1 引数が self ではない
+- **包まない。**`seal`、`create`、`implAssoc` のメンバ。どれも第 1 引数が self ではない。→ 2026-10-26 に `implAssoc` のメンバを包むことにした。第 1 引数が後に回る（§6.13）
 - **Trait の companion 自身のメンバも包む。**同じ final を `User.shout` と `Greetable.shout` の 2 通りで呼べる。片方だけ dual だと形が食い違う。2 つは別々に包むので、`User.shout === Greetable.shout` は成り立たない。関数の同一性に頼る利用者はいないと判断した
 - **Enum は外せない。**`Enum.companion` の Variant の枠は `Val.companion().impl(fns)` で作るので、包まなくても dual になる。Enum だけ後から dual にすると、`.impl` の引数の制約が増えるので破壊的変更になる
 - **`dyn` は包まない。**箱のメソッドは self を束縛済みで、包むと `box.rename("x")` が関数を返す。`dyn(companion, value)` も第 1 引数が self ではない。`xs.map(Greetable.dyn(User))` のようなカリー化は、後から足しても破壊的変更にならない
@@ -1840,7 +1843,7 @@ pipe(shape, Shape.match({ Circle: (c) => …, Square: (s) => … }));
   - 型注釈つきの変数やオブジェクトを渡す形（`const toWire: (u: User, sep: string) => string = (u, sep = "/") => …` を `.impl({ toWire })`）
   - `implTrait<Sized>({ … })` も同じ形だったので、外した（§15.1「型引数の形をなくす」）
   - **型では塞げない。**注釈を付けた時点で、デフォルト引数の事実はどの型にも残らない。docs で注意する。lint の規則は §9
-  - **却下: development で `f.toString()` を読み、引数の並びの `=` と `...` を探す。**分割代入のデフォルト、コメント、トランスパイルされたコードで誤検出する。誤検出で投げると正しいコードを壊す
+  - **却下: development で `f.toString()` を読み、引数の並びの `=` と `...` を探す。**分割代入のデフォルト、コメント、トランスパイルされたコードで誤検出する。誤検出で投げると正しいコードを壊す。`implAssoc` では長さ 0 の関数に限って、並びが空かどうかだけを読む（§6.13）
 - **`Declarable` の判定の向きで型が暴走した。**`unknown extends Omission<M[K]> ? … : …` と書くと、再帰する Val（`Rec`）の展開で TS2589 になった。`Omission<M[K]> extends string ? … : …` なら通る
 - **禁じるのは省略で、`undefined` ではない。**`a: T | undefined` は必須引数で、`--strict`、`--exactOptionalPropertyTypes`、`--strictNullChecks false` のどれでも `f(u)` は TS2554 になる。外部の optional な値は `User.f(u, opts.x)` とそのまま渡せる。払うのは、何も渡さない呼び出しを `f(u, undefined)` と書くことだけ
 
@@ -2179,6 +2182,145 @@ Proxy をやめ、`build()` が今までの Proxy の companion を返す。Vari
 - Enum の Proxy は残す。Effect もこの形で、コンパニオンは取り回さないので型の側の振る舞いと見られる
 - **却下: Variant の名前を実行時に渡す。**名前を 2 回書き、引数の並びも崩れる
 
+### 6.13 `implAssoc`: Val を受け取らないメンバ、2026-10-26
+
+**Val を受け取らないメンバ（`from*`、`parse*`、定数、`Dyn` の配列の集約）を置く段を `impl` と分ける。**
+Val と Enum の companion、Enum の variant、Trait の companion に置く。
+
+```ts
+const User = Val.companion<User>()
+  .implCreate((f: Fields) => ({ id: crypto.randomUUID(), ...f }))
+  .implSeal((u, seal) => (u.name ? seal(u) : undefined))
+  .implAssoc(({ seal, create }) => ({
+    fromForm: (form: FormData) => create({ name: String(form.get("name")).trim() }),
+    fromRow: (row: Row) => seal({ id: row.id, name: row.name }),
+  }))
+  .build();
+```
+
+出どころは shumoku-next のスクリプト（valof 0.8.2）。`SectionId.mint(used, count)` と
+`Command.parse(argv)` を companion に置けず、外の関数にした。
+
+#### 段を分ける理由
+
+- **実行時に型は無い。**`impl` 1 つで注釈を見て分けると、ライブラリが実行時にメンバの種類を見分けられない。
+  `impl` のメンバは `dual` で包み、Trait のデフォルト実装は `[Shared]` から `implTrait` が Val へ写し、
+  `dyn` は `[Traits]` を読む。どれも関連関数を除く必要がある
+- **型が弱くなる。**下の「却下: `impl` のまま注釈で判別」
+- オブジェクト指向の static method と method の区別と同じ形（ユーザー）。Rust は 1 つの `impl` で
+  `self` の有無で分けるが、`self` が構文だから見分けられる。JS の関数には実行時に残る受け手の印が無い
+
+#### 名前
+
+- Rust の関連関数（associated function）から取る。`impl` + 1 語で他の段と揃う
+- **却下: `implStatic`。**クラスではないし、`impl` のメンバも companion の上の関数なので区別にならない
+- Trait の `implAssoc` は Rust の trait の associated fn（実装側が用意する `fn default() -> Self`）とは
+  別物で、Rust では `impl dyn Trait { … }` に当たる。実装側に関連関数を求める宣言を入れるなら、Trait の
+  型の宣言側に書くので段の名前とは衝突しない（ユーザー）
+
+#### 渡すもの
+
+- **Val と variant は companion の `seal`、`create`（`implCreate` があるときだけ）、`patch`。**`impl` と
+  同じ `Supplied`（§15.4）。Enum の union は `seal` と `create`
+- **渡す `seal` は companion の seal である。**`implSeal` があればそれ、無ければ既定の seal。「値になる経路は
+  すべて seal を通る」（§6.8）が `from*` でも保たれ、あとから `implSeal` を足しても `from*` に効く
+- **private でも渡す。**`PrivateSeal` / `PrivateCreate` の型でも、作者の書くコードには渡す
+- **Trait には何も渡さない。**`dyn` は Val の companion を知らなければ箱に包めないので、渡しても使えない
+  （ユーザー）
+- **メンバは自分で `seal` を呼ぶので、payload を組む段階で失敗できる。**§6.8 は `create` にこれを許さず、
+  素の export 関数に追い出していた。ライブラリは戻り値を見ないので §6.3 は破らない
+- **役割は 3 つ。**検査は `implSeal`、鋳造は `implCreate`、`from*` は引数を整えて `seal` か `create` に
+  渡すだけ
+
+#### dual にする
+
+**`implAssoc` のメンバも dual にする。**§6.11 の「包まない」を覆した（ユーザー）。第 1 引数が後に回る
+だけで、メソッドと同じ規則になる。第 1 引数以外の部分適用はアロー関数で書く。
+
+- **引数の無いメンバは包まずに載せる。**`dual` は引数の個数で判別するので、包むと `Money.zero()` が関数を
+  返す。`impl` の development の throw はそのまま残す
+- **省略できる引数を型で禁じる。**`impl` と同じ `Omission` を、引数の無いものだけ許して掛ける（`LooseArity`）。
+  TS の `radix?` は実行時に消えるので、`parse(raw)` を data-last と取り違えても実行時には捕まえられない
+- **そのため、companion を参照するメンバは戻り値を注釈する。**`impl` と同じ規則になる（ユーザー）。
+  検査の `infer` が推論の途中でメンバの戻り型を解決しにいき、循環して TS7022 / TS7023 になる。
+  最小のモデルで確かめた（検査ありで循環、無しで通る）。`infer` を使わない比較なら循環しないが、
+  optional な引数を見分けられない。`impl` で companion を参照すると注釈が要るのも、同じ `Arity` が
+  原因と見られる。検査を入れる前の試作では、注釈なしで参照できた
+- **development は長さ 0 の関数のソースを読む。**`length` が 0 なのは引数が無いときと、最初の引数が
+  rest かデフォルト付きのとき。後者は data-last の呼び出しを黙って data-first として走らせる
+  （`memoize(fn)` が返すラッパーに型注釈を付けた形）。`Function.prototype.toString` からコメントを除き、
+  引数の並びが空でなければ投げる
+  - §6.11 で却下した「`toString()` から `=` と `...` を探す」とは問いが違う。長さ 0 の関数に限り、
+    並びが空かどうかだけを見る。空でない並びはどれも禁じた形なので、分割代入のデフォルトも正しく拒む
+  - 誤るのは見逃しの方向だけ。`bind` した関数、組み込み関数、ES5 にトランスパイルした rest は空に見える
+  - 残る誤検出は、計算されたキーに括弧を含むメソッド（`[k("x")]() {}`）
+
+#### 名前と入れ物
+
+- `impl` / `implTrait` / `implAssoc` のあいだで同じ名前を型で禁じる（`Grown`、`Takes`）。companion の上では
+  同じオブジェクトのプロパティになる
+- 予約名は `impl` と同じ（Wired）。Enum の union は variant の名前と `match` も、Trait は宣言したメンバの名前
+  （`Final` でないものも、実行時は全部載る）と `dyn` も拒む
+- **`impl` と別の入れ物に登録する**（`Registered.assoc`）。Trait では `[Shared]` に入れない。デフォルト実装は
+  `implTrait` で第 1 引数を Val に置き換えられるが、関連関数はできない（ユーザー）
+- 鎖の後半の段で、何度でも書ける。最初の `implAssoc` で前半（`implSeal` と `implCreate`）が閉じる。渡す
+  `seal` の型がそこで決まるため。`impl` は 1 回のまま
+- variant にも置く（「variant は Val の段を全部持つ」）。実行時は共有の `steps`（§16.3）から生える
+- Enum の `implAssoc` から variant を作るときは `Shape.Circle.create(…)` を参照して戻り値を注釈する
+  （ユーザー）。variant のコンストラクタは渡さない
+
+#### 型
+
+- **assoc のメンバは `Companion` / `EnumCompanion` / `TraitCompanion` の最後の型引数にする。**
+  `build: () => Companion<…> & A` にすると、利用者の宣言出力が alias 名を失って展開され、TS4023 /
+  TS7056 で落ちる。ts-compatibility の宣言 fixture にこの形を置いた。この形に戻すと ts-compatibility は
+  エラーではなく 10 分以上終わらなくなった
+- 段の関数の引数は `NoInfer` で包む（§15.4、#94）。包まないと引数を取る関数で instantiations が跳ねる
+
+#### 残る穴: `from*` に検査を書く
+
+seal なしの companion で `from*` に不変条件の検査を書くと、`patch` は既定の seal を通るので検査を飛ばす。
+
+```ts
+Val.companion<Money>().implAssoc(({ seal }) => ({
+  fromCents: (cents: number) => (cents >= 0 ? seal({ cents }) : undefined),
+}));
+
+Money.patch(money, { cents: -1 }); // 通る
+```
+
+- 型でも lint でも正確には防げない。パースの失敗と不変条件の検査は、どちらも「一部の入力を拒む」
+- 同じ穴は今もある（throw する `create`、`Val.of` を呼ぶ export 関数）。増えるのは警告なしで書ける分
+- docs で「不変条件は seal に書く」と書く。パースは 2 層になる。デコード（ワイヤ形式 → payload）は
+  `parse*` / `from*`、精緻化（payload → Val）は seal だけ
+- **lint は入れない。**拾うなら「値にならない出口を持つメンバ」を見ることになり、不変条件の無い型の
+  パーサ（`Point.fromString`）が誤検出になる
+
+#### 計測
+
+production gzip: Val 899 → 967 B（予算 1.00 kB）、Trait の増分 +101 → +105 B、Enum の増分 +465 → +456 B。
+メンバを載せる 3 つのループを `duals` 1 つにまとめた（`wrap` を引数で受ける）。まとめる前は Val 976 B、
+Trait +126 B、Enum +470 B。type-perf（fixture に `implAssoc` を足した後）: core 7,214、trait 18,320、
+enum 36,361。`index.d.ts` 82.49 → 87.47 kB（JSDoc の注意を削った後）。
+
+#### 却下した案
+
+- **`impl` のまま、第 1 引数に注釈があればその型として扱う。**オーバーロードはオブジェクト全体に対して
+  選ばれ、注釈ありのメンバが 1 つ混ざると、注釈なしの第 1 引数が黙って `any` になる。メンバごとに判定する
+  マップ型なら通るが、条件型の書き方に敏感だった。`note: Nota` の書き間違いも別の型を取る関数として通る。
+  実行時の区別は上の「段を分ける理由」
+- **既定の seal を渡す。**`from*` が黙ってカスタム seal を迂回し、あとから `implSeal` を足しても効かない
+- **seal なしの companion には `seal` を渡さない。**`Val.of` が公開されているので守れるものがない
+- **`implCreate` を廃止して `implAssoc` で書かせる。**呼び出し側が選ぶ `create.nocopy` と、
+  `implCreate.noseal`（§9）の「引数を取れない」の型の縛りを失う
+- **包まない（§6.11 の当初の判断）。**上の「dual にする」
+- **dual にして引数の検査を外す。**注釈なしで companion を参照できるが、`parse(raw, options?)` の
+  data-last の取り違えを黙って通す
+- **callback 形とオブジェクト形の両方を受ける。**段は関数を取る（§15.4）
+
+命名の lint（`from*` / `parse*` / `create*`）、参照の lint、`unused-member` が `implAssoc` を見ることは、
+lint の書き直しの後に入れる（§9）。
+
 ---
 
 ## 7. 見送ったもの（と、その理由）
@@ -2502,10 +2644,16 @@ User.patch(user, { id: "forged" }); // 型エラー
   - **payload の型を間違えたときは、戻り値の位置でエラーになる。**`G` の制約は引数の形だけにして、
     戻り型が合わなければ引数の型を `() => SeedOf<V>` にする。`G & (() => SeedOf<V>)` にすると、戻り型が
     一致したときに TypeScript が交差の片側と打ち消して `G` を推論しない（5.9 / 6.0 / 7.0 で確認）
-  - **引数を取って必ず成功する生成関数は `implAssoc` と `Val.of` で書く。**検証済みの Val だけを受け取る
-    形（`Session.create(user)`）がこれに当たる。`implAssoc` は Val を受け取らないメンバーを置く段で、
-    未実装、このメモにも未記載。この経路に development の検査は付かない。`bypassed-companion`（§14.23）
-    は変えず、この `Val.of` にも警告する。書けるが勧める形ではないので、disable コメントが妥当
+  - **引数を取って必ず成功する生成関数は `implAssoc`（§6.13）と `Val.of` で書く。**検証済みの Val だけを
+    受け取る形（`Session.create(user)`）がこれに当たる。この経路に development の検査は付かない。
+    `bypassed-companion`（§14.23）は変えず、この `Val.of` にも警告する。書けるが勧める形ではないので、
+    disable コメントが妥当
+    - `implAssoc` に渡す `seal` はカスタム seal なので、seal が失敗しうる型の問題は `implAssoc` では解けない。
+      `noseal` の位置づけは変えない。引数の禁止は入力の検査を飛ばさせないための制約で、命名規則の
+      `create*` とは衝突しない
+    - 引数を取る `create*` は `create()` してから `patch` できる
+      （`createLabeled: (label: string) => Doc.patch(create(), { label })`）。戻り型は seal の戻り型に戻る。
+      `label` は入力なので精緻化を通るのが正しい
   - **クロージャ越しの入力は型で塞がない。**Val の定義が関数の中にある時点で気づける。検査するなら
     「ファイルのトップレベル以外での Val 定義を禁じる」lint 規則。モジュールレベルの可変な状態を読む
     生成関数はこの規則でも残る。そこを縛ると TypeScript の意味論を超えるので縛らない
@@ -2684,6 +2832,13 @@ User.patch(user, { id: "forged" }); // 型エラー
 - [ ] **`unimplemented-trait` が variant で宣言した trait を見ない（§15.2「1 本の鎖で作る」）。**誤検出は無いが、
       実装の書き忘れを警告しない。scan が `{ Book: … & Named }` の trait と `.Book.implTrait` を読む必要がある。
       valof-lint の書き直しのときに入れる
+- [ ] **`implAssoc` のメンバを見る lint（§6.13）。**valof-lint の書き直しの後に入れる
+  - 命名: `seal` / `create` を呼ぶ `implAssoc` のメンバは `from*` / `parse*` / `create*`（単語の境界で見る）。
+    `impl` の側でこの接頭辞を使ったら警告。接頭辞は `/^(?:from|parse|create)(?:$|[A-Z0-9_])/` で見る。
+    却下: `of`（`Val.of` は seal を通らず、`Money.of` は通る）、`with*`（JS では派生を指す）、`decode*` /
+    `try*` / `new*`（`parse*` と重なる、失敗は戻り型が示す、型リテラルで構築シグネチャになる）
+  - 参照: 引数の型注釈か実装にその型が現れないメンバを警告する。companion を補助関数の置き場にさせない
+  - `unused-member` が `implAssoc` のメンバも見る
 - [x] ~~**valof-lint の誤検出、§6.12 から。**`detached-impl` が、`fixed` という名前のメンバを別ファイルから
       呼ぶと「鎖の外で書いた段」と報告する。~~ → `fixed` を型引数に移して `STEPS` から外し、消えた
       （2026-10-22）。段と同じ名前のメンバは型が拒むので、ほかに同じ誤検出は起きない
@@ -7473,7 +7628,7 @@ const User = Val.companion<User>()
 
 #### 関数に `seal`、`create`、`patch` を渡す、2026-10-26
 
-**`impl` / `implTrait` の関数は companion の `seal`、`create`、`patch` を受け取る。**`implAssoc`（PR 2）も同じものを受け取る。
+**`impl` / `implTrait` の関数は companion の `seal`、`create`、`patch` を受け取る。**`implAssoc`（§6.13）も同じものを受け取る。
 
 ```ts
 const User = Val.companion<User>()

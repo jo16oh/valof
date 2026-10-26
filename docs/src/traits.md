@@ -271,6 +271,9 @@ companion is rejected.
 An enum boxes the same way, through its own companion:
 `Describable.dyn(Cmd, Cmd.Add.create({ id: "c1", n: 2 }))`.
 
+A function over boxes goes on the trait's companion, through `.implAssoc`. `implTrait` does not copy
+it onto a Val.
+
 ## Several traits on one Val
 
 Intersect them in the declaration, and implement each in its own step:
