@@ -35,6 +35,10 @@ type Order = Val<
 const Order = Val.companion<Order, [Unpatchable<"id">]>()
   .implSeal((seed, seal) => seal(seed))
   .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
+  .implAssoc(({ seal, create }) => ({
+    fromShip: (id: string, ship: Address) => seal({ id, ship, lines: [], totals: {} }),
+    blank: (ship: Address) => create({ ship, lines: [], totals: {} }),
+  }))
   .impl(({ seal }) => ({
     label(o) {
       return `${o.id}: ${o.lines.length}`;
@@ -56,6 +60,9 @@ export const derived = [
   Order.patch(order, { totals: { vat: Money.seal({ amount: 1, currency: "JPY" }) } }),
   Order.patch(order, { note: undefined }),
   Order.patch(order, patch),
+  Order.fromShip("o", order.ship),
+  Order.fromShip(order.ship)("o"),
+  Order.blank(order.ship),
   Order.create({
     ship: Address.seal({
       city: City.seal({ name: "Kyoto" }),
