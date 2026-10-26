@@ -861,8 +861,10 @@ type PayloadKeys<V> = V extends unknown
     : never
   : never;
 
+export const isObject = (v: unknown): v is object => typeof v === "object" && v !== null;
+
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
+  isObject(v) && !Array.isArray(v);
 
 const assertPlainObject = (value: object): void => {
   const proto = Object.getPrototypeOf(value) as object | null;
@@ -956,7 +958,7 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
   const active = new WeakSet<object>();
 
   const snapshot = (value: unknown): SealSnapshot => {
-    if (value === null || typeof value !== "object") {
+    if (!isObject(value)) {
       return typeof value === "function" || typeof value === "symbol"
         ? unsnapshotable
         : (value as Primitive | undefined);
@@ -1013,7 +1015,7 @@ export const notFixedPoint = (): never => {
  */
 const deepCopy = (owning: boolean) => {
   const copy = <T>(value: T): T => {
-    if (value === null || typeof value !== "object") return value;
+    if (!isObject(value)) return value;
     if (owning && adopted.has(value)) {
       indexAdopted(value);
       return value;
@@ -1071,7 +1073,7 @@ const indexAdopted = (root: object): void => {
   if (!adopted.has(root)) return;
   const seen = new WeakSet<object>();
   const visit = (value: unknown): void => {
-    if (value === null || typeof value !== "object" || seen.has(value)) return;
+    if (!isObject(value) || seen.has(value)) return;
     seen.add(value);
     owned.add(value);
     for (const key of Object.keys(value)) visit((value as Record<string, unknown>)[key]);
@@ -1082,7 +1084,7 @@ const indexAdopted = (root: object): void => {
 
 /** Adopt a caller-owned payload. Development validates and freezes every node before returning. */
 const adopt = <T>(value: T): T => {
-  if (value === null || typeof value !== "object") return value;
+  if (!isObject(value)) return value;
   if (owned.has(value)) return value;
 
   if (!development) {
@@ -1093,7 +1095,7 @@ const adopt = <T>(value: T): T => {
   const active = new WeakSet<object>();
   const done = new WeakSet<object>();
   const visit = (node: unknown): void => {
-    if (node === null || typeof node !== "object" || owned.has(node) || done.has(node)) return;
+    if (!isObject(node) || owned.has(node) || done.has(node)) return;
     if (active.has(node)) throw new TypeError("a Val payload cannot contain a cycle");
     active.add(node);
     try {
