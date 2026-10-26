@@ -18,6 +18,9 @@
 npm install valof
 ```
 
+Valof requires TypeScript 5.9 or later. The recommended compiler options are `strict` and
+`exactOptionalPropertyTypes`.
+
 ## Why Valof?
 
 Valof is a TypeScript library for branded, immutable domain types, such as value objects and enums.
@@ -48,11 +51,12 @@ It enforces the conventions through types and linting.
   different types together.
 
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
+  [Linting](https://jo16oh.github.io/valof/latest/linting.html) shows the setup.
 
 - **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->898 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
-Read the [documentation](docs/src/introduction.md) for more details.
+Read [The Valof Book](https://jo16oh.github.io/valof/latest/) for more details.
 
 ## Examples
 
