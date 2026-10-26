@@ -52,10 +52,10 @@ const Greetable = Trait.companion<Greetable>().build();
 
 type User = Val<"User", { id: string }, Greetable>;
 const User = Val.companion<User>()
-  .implTrait(Greetable, {
+  .implTrait(Greetable, () => ({
     greet: (u) => `Hi, ${u.name}`,
     toWire: (u, sep) => `${u.id}${sep}${u.name}`,
-  })
+  }))
   .build();
 
 User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
@@ -105,30 +105,31 @@ type Greetable = Trait<
 >;
 // ---cut---
 const Greetable = Trait.companion<Greetable>()
-  .impl({ greet: (g) => `Hi, ${g.name}` })
+  .impl(() => ({ greet: (g) => `Hi, ${g.name}` }))
   .build();
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
 const User = Val.companion<User>()
-  .implTrait(Greetable, {
+  .implTrait(Greetable, () => ({
     toWire: (u, sep) => `${u.id}${sep}${u.name}`,
-  })
+  }))
   .build();
 
 type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
 const Admin = Val.companion<Admin>()
-  .implTrait(Greetable, {
+  .implTrait(Greetable, () => ({
     toWire: (a, sep) => `admin${sep}${a.name}`,
     greet: (a) => `Sir ${a.name}`,
-  })
+  }))
   .build();
 
 User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 Admin.greet(Admin.seal({ name: "root", level: 9 })); // "Sir root"
 ```
 
-A trait that implements something takes its companion as the first argument. The second is what the
-trait left open, plus any default the Val replaces, as `Admin` replaced `greet`.
+A trait that implements something takes its companion as the first argument. The second is a
+function returning what the trait left open, plus any default the Val replaces, as `Admin` replaced
+`greet`.
 
 ## Defaults no Val may replace
 
@@ -149,18 +150,18 @@ type Greetable = Trait<
 >;
 
 const Greetable = Trait.companion<Greetable>()
-  .impl({
+  .impl(() => ({
     greet: (g) => `Hi, ${g.name}`, // a Val may replace this one
     shout: (g) => g.name.toUpperCase(), // declared Final: no Val may
-  })
+  }))
   .build();
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
 const User = Val.companion<User>().implTrait(Greetable).build();
 ```
 
-The trait implements both, so `implTrait` needs no second argument. A Val may still pass `greet` to
-replace it. Passing `shout` is an error.
+The trait implements both, so `implTrait` needs no second argument. A Val may still return `greet`
+from the function to replace it. Returning `shout` is an error.
 
 Only `Final` members are exposed on the trait's own type. `Greetable.shout(user)` typechecks and
 `Greetable.greet` does not.
@@ -180,11 +181,11 @@ type Greetable = Trait<
 >;
 // ---cut---
 const Greetable = Trait.companion<Greetable>()
-  .impl({
+  .impl(() => ({
     shout: (g): string => g.name.toUpperCase(),
     // A member referencing `Greetable` itself annotates its return type, to avoid an implicit `any`.
     greet: (g): string => `Hi, ${Greetable.shout(g)}`,
-  })
+  }))
   .build();
 ```
 
@@ -204,9 +205,9 @@ const Describable = Trait.companion<Describable>().build();
 
 type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, Describable>;
 const Cmd = Enum.companion<Cmd>()
-  .implTrait(Describable, {
+  .implTrait(Describable, () => ({
     describe: (c): string => Cmd.match(c, { Add: (a) => `add ${a.n}`, Del: (d) => `del ${d.at}` }),
-  })
+  }))
   .build();
 
 Cmd.describe(Cmd.Add.create({ id: "c1", n: 2 })); // "add 2"
@@ -230,22 +231,22 @@ type Greetable = Trait<
   { greet: (self: Self) => string; toWire: (self: Self, sep: string) => string }
 >;
 const Greetable = Trait.companion<Greetable>()
-  .impl({ greet: (g) => `Hi, ${g.name}` })
+  .impl(() => ({ greet: (g) => `Hi, ${g.name}` }))
   .build();
 
 type User = Val<"User", { id: string; name: string }, Greetable>;
 const User = Val.companion<User>()
-  .implTrait(Greetable, {
+  .implTrait(Greetable, () => ({
     toWire: (u, sep) => `${u.id}${sep}${u.name}`,
-  })
+  }))
   .build();
 
 type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
 const Admin = Val.companion<Admin>()
-  .implTrait(Greetable, {
+  .implTrait(Greetable, () => ({
     toWire: (a, sep) => `admin${sep}${a.name}`,
     greet: (a) => `Sir ${a.name}`,
-  })
+  }))
   .build();
 // ---cut---
 const party: Dyn<Greetable>[] = [
@@ -280,12 +281,12 @@ import { Trait, type Self } from "valof/experimental";
 
 type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
 const Greetable = Trait.companion<Greetable>()
-  .impl({ greet: (g) => `Hi, ${g.name}` })
+  .impl(() => ({ greet: (g) => `Hi, ${g.name}` }))
   .build();
 // ---cut---
 type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
 const Weighed = Trait.companion<Weighed>()
-  .impl({ heavy: (w) => w.kg > 10 })
+  .impl(() => ({ heavy: (w) => w.kg > 10 }))
   .build();
 
 type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;

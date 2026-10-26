@@ -263,8 +263,8 @@ export type Shared<Tr extends AnyTrait, G> = {
 };
 
 /**
- * What a Val must pass to `implTrait`: the members the trait left open, and any override of the
- * ones it implemented.
+ * What the function passed to `implTrait` returns: the members the trait left open, and any
+ * override of the ones it implemented.
  *
  * A {@link Final} member is declared `never` rather than left out. Left out, it is only the
  * excess property check that rejects one, and that check reads a fresh object literal alone: a
@@ -289,9 +289,9 @@ export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>, Open = t
 } & (Open extends true
   ? {
       /**
-       * Implements members over the trait. The declaration says which side of the contract
-       * implements a member: a Val may replace an ordinary member through `implTrait`, and may not
-       * replace one declared {@link Final}.
+       * Implements over the trait the members the function returns. The declaration says which
+       * side of the contract implements a member: a Val may replace an ordinary member through
+       * `implTrait`, and may not replace one declared {@link Final}.
        *
        * It takes one call. A member calling a {@link Final} sibling references the companion and
        * annotates its return type: referencing it inside its own initializer is a circularity

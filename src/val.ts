@@ -707,8 +707,8 @@ export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] 
 
 /**
  * The second argument, absent where the trait answered for every member itself. Optional where `Tr`
- * was not inferred, so a call passing the members alone reports {@link Takes}'s message rather than
- * a missing argument.
+ * was not inferred, so a call passing the function alone reports {@link Takes}'s message rather
+ * than a missing argument.
  */
 export type Passes<Tr extends AnyTrait, G, I> =
   string extends NamesOf<Tr>
@@ -760,8 +760,8 @@ export type CompanionBuilder<
     ? unknown
     : {
         /**
-         * Collects the members for the type, in one call. Everything the library reserves has its
-         * own step.
+         * Collects the members the function returns, in one call. Everything the library reserves
+         * has its own step.
          *
          * A member named `then` makes the companion a thenable. `await` on it never settles.
          *
@@ -787,11 +787,11 @@ export type CompanionBuilder<
         ) => CompanionBuilder<V, N, F, O, M & T, D | "impl">;
       }) & {
     /**
-     * Implements a trait the type declares. The members the trait leaves open arrive as a second
-     * argument, with their first parameter fixed to the Val as everywhere else; a trait that
-     * leaves none takes no second argument.
+     * Implements a trait the type declares. A function passed as the second argument returns the
+     * members the trait leaves open, with their first parameter fixed to the Val as everywhere
+     * else; a trait that leaves none takes no second argument.
      *
-     * A member the trait declared {@link Final} is not passed here: it arrives unchanged, and
+     * A member the trait declared {@link Final} is not returned here. It arrives unchanged, and
      * nothing can override it.
      *
      * The members can be called with the value first or last, and cannot have an optional, a

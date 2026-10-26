@@ -166,8 +166,8 @@ import { Enum } from "valof/experimental";
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
 const Shape = Enum.companion<Shape>()
-  .Circle.impl({ diameter: (c) => c.r * 2 })
-  .impl({
+  .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+  .impl(() => ({
     // A member calling `match`, a variant, or a sibling annotates its return type, to avoid an
     // implicit `any`. A variant's member reaches the companion the same way.
     area: (s): number =>
@@ -175,7 +175,7 @@ const Shape = Enum.companion<Shape>()
         Circle: (c) => Math.PI * c.r * c.r,
         Square: (q) => q.side * q.side,
       }),
-  })
+  }))
   .build();
 
 Shape.Circle.diameter(Shape.Circle.create({ r: 2 })); // 4
@@ -273,7 +273,7 @@ const Named = Trait.companion<Named>().build();
 
 type Item = Enum<"Item", { Book: { pages: number } & Named; Pen: { ink: string } }>;
 const Item = Enum.companion<Item>()
-  .Book.implTrait(Named, { named: (b) => `${b.label}, ${b.pages} pages` })
+  .Book.implTrait(Named, () => ({ named: (b) => `${b.label}, ${b.pages} pages` }))
   .build();
 
 Named.dyn(Item.Book, Item.Book.create({ label: "Dune", pages: 412 })).named(); // "Dune, 412 pages"

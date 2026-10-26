@@ -80,8 +80,8 @@ Keeping its instances immutable requires `readonly` on every field and nested pr
 shape depends on property enumerability unless you write and maintain a `toJSON` mapping.
 
 A [companion object](companion-objects.md) collects the constructor and functions under the type's
-name while values remain plain data. `Val.companion<V>().impl({ ... }).build()` creates it. The
-result exposes `seal` and the registered members; the chapter also explains `patch`:
+name while values remain plain data. `Val.companion<V>().impl(() => ({ ... })).build()` creates it.
+The result exposes `seal` and the registered members; the chapter also explains `patch`:
 
 ```ts
 import { Val } from "valof";
@@ -89,7 +89,7 @@ import { Val } from "valof";
 // ---cut---
 type User = Val<"User", { name: string }>;
 const User = Val.companion<User>()
-  .impl({ greeting: (user) => `Hi, ${user.name}` })
+  .impl(() => ({ greeting: (user) => `Hi, ${user.name}` }))
   .build();
 
 User.greeting(User.seal({ name: "alice" }));
@@ -232,9 +232,9 @@ import { Val } from "valof";
 // ---cut---
 type User = Val<"User", { id: string; name: string }>;
 const User = Val.companion<User>()
-  .impl({
+  .impl(() => ({
     greet: (u) => `Hi, ${u.name}`,
-  })
+  }))
   .build();
 
 type Admin = Val<"Admin", { name: string; level: number }>;
@@ -261,6 +261,6 @@ const Describable = Trait.companion<Describable>().build();
 
 type User = Val<"User", { name: string }, Describable>;
 const User = Val.companion<User>()
-  .implTrait(Describable, { describe: (user) => user.name })
+  .implTrait(Describable, () => ({ describe: (user) => user.name }))
   .build();
 ```

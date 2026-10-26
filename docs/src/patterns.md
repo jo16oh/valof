@@ -92,10 +92,10 @@ declare const Temporal: {
 export type UnixEpochMs = Val<"UnixEpochMs", number>;
 
 export const UnixEpochMs = Val.companion<UnixEpochMs>()
-  .impl({
+  .impl(() => ({
     showLocal(d) {
       return Temporal.Instant.fromEpochMilliseconds(d).toLocaleString();
     },
-  })
+  }))
   .build();
 ```

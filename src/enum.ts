@@ -776,8 +776,9 @@ type VariantSteps<
     ? unknown
     : {
         /**
-         * Collects the members taking this variant, in one call. They can be called with the value
-         * first or last, and cannot have an optional, a default or a rest parameter.
+         * Collects the members taking this variant, which the function returns, in one call. They
+         * can be called with the value first or last, and cannot have an optional, a default or a
+         * rest parameter.
          *
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
@@ -884,7 +885,7 @@ export type EnumBuilder<
     ? unknown
     : {
         /**
-         * Collects the members taking the union, in one call.
+         * Collects the members taking the union, which the function returns, in one call.
          *
          * A member reaching the companion, for `match`, for a variant or for a sibling,
          * references it and annotates its return type. Referencing a declaration inside its own
