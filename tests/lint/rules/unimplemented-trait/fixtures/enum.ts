@@ -1,7 +1,7 @@
 import { Enum, Trait } from "valof/experimental";
 
 export type Labelled = Trait<"Labelled", { id: string }>;
-export const Labelled = Trait.companion<Labelled>().impl({ label: (l) => `#${l.id}` }).build();
+export const Labelled = Trait.companion<Labelled>().impl(() => ({ label: (l) => `#${l.id}` })).build();
 
 export type Shared = { note: string };
 

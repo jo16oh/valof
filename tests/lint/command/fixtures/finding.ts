@@ -1,6 +1,6 @@
-const Id = Val.companion<Id>().impl({
+const Id = Val.companion<Id>().impl(() => ({
   short: (i) => i.slice(0, 4),
   shout: (i) => i.toUpperCase(),
-}).build();
+})).build();
 
 Id.short(id);

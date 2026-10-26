@@ -1,8 +1,8 @@
 import * as valof from "valof";
 
-const User = valof.Val.companion<User>().impl({
+const User = valof.Val.companion<User>().impl(() => ({
   greet: (u) => u.name,
   shout: (u) => u.id,
-}).build();
+})).build();
 
 User.greet(user);

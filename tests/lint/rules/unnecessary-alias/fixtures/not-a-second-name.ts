@@ -8,12 +8,12 @@ export type Ro = Readonly<User>;
 export type Wrap<T> = T;
 export type Plain = string;
 
-const User = Val.companion<User>().impl({
+const User = Val.companion<User>().impl(() => ({
   greet: (u) => u.name,
-}).build();
-const Order = Val.companion<Order>().impl({
+})).build();
+const Order = Val.companion<Order>().impl(() => ({
   id: (o) => o.id,
-}).build();
+})).build();
 
 export const greet = (u: User): string => User.greet(u);
 export const id = (o: Order): string => Order.id(o);

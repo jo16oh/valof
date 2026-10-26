@@ -77,8 +77,8 @@ describe("what the rule finds", () => {
 
   test("keeps both declarations when two modules name a companion alike", async () => {
     expect(await lint("same-name")).toEqual([
-      { rule: UnusedMember, at: "same-name/billing.ts:1:43" },
-      { rule: UnusedMember, at: "same-name/orders.ts:1:43" },
+      { rule: UnusedMember, at: "same-name/billing.ts:1:50" },
+      { rule: UnusedMember, at: "same-name/orders.ts:1:50" },
     ]);
   });
 
@@ -86,7 +86,7 @@ describe("what the rule finds", () => {
     expect(await lint("no-cross-file-credit")).toEqual([
       {
         rule: UnusedMember,
-        at: "no-cross-file-credit/declaration.ts:1:43",
+        at: "no-cross-file-credit/declaration.ts:1:50",
       },
     ]);
   });
@@ -113,7 +113,14 @@ describe("what the rule finds", () => {
 describe("what name resolution cannot reach", () => {
   test("reports a member that is only ever read through a computed key", async () => {
     expect(await lint("computed-key")).toEqual([
-      { rule: UnusedMember, at: "computed-key.ts:1:50" },
+      { rule: UnusedMember, at: "computed-key.ts:1:57" },
+    ]);
+  });
+
+  test("reads the object a step's function returns, inline or through a const", async () => {
+    expect(await lint("step-functions")).toEqual([
+      { rule: UnusedMember, at: "step-functions.ts:1:16" },
+      { rule: UnusedMember, at: "step-functions.ts:4:26" },
     ]);
   });
 
@@ -135,7 +142,7 @@ describe("Trait members", () => {
 
   test("resolves const objects and recursive spreads", async () => {
     expect(await lint("resolved-overrides")).toEqual([
-      { rule: UnusedMember, at: "resolved-overrides.ts:2:55" },
+      { rule: UnusedMember, at: "resolved-overrides.ts:2:62" },
     ]);
   });
 
@@ -145,17 +152,17 @@ describe("Trait members", () => {
 
   test("distinguishes overrides belonging to different Vals", async () => {
     expect(await lint("multiple-vals")).toEqual([
-      { rule: UnusedMember, at: "multiple-vals.ts:2:55" },
-      { rule: UnusedMember, at: "multiple-vals.ts:8:61" },
+      { rule: UnusedMember, at: "multiple-vals.ts:2:62" },
+      { rule: UnusedMember, at: "multiple-vals.ts:8:68" },
     ]);
   });
 });
 
 test("credits a variant's member through the enum and through a binding of its own", async () => {
   expect(await lint("enum")).toEqual([
-    { rule: UnusedMember, at: "enum.ts:5:44" },
-    { rule: UnusedMember, at: "enum.ts:6:48" },
-    { rule: UnusedMember, at: "enum.ts:7:11" },
+    { rule: UnusedMember, at: "enum.ts:5:51" },
+    { rule: UnusedMember, at: "enum.ts:6:55" },
+    { rule: UnusedMember, at: "enum.ts:7:18" },
   ]);
   // One name on two variants and on the union is three members.
   expect(await messages("enum")).toEqual([
@@ -171,6 +178,6 @@ test("reads a variant named after a step or a companion function", async () => {
 
 test("registers a variant built through a builder held in a variable", async () => {
   expect(await lint("held-enum-builder", { skip: [CompanionMismatch] })).toEqual([
-    { rule: UnusedMember, at: "held-enum-builder.ts:6:44" },
+    { rule: UnusedMember, at: "held-enum-builder.ts:6:51" },
   ]);
 });
