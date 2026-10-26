@@ -1580,6 +1580,32 @@ describe("building", () => {
       expect([Held.method(u)[0], Held.expression(u)[0]]).toEqual([undefined, undefined]);
     });
 
+    test("the function receives `seal`, `create` and `patch`, so a member reaching them needs no annotation", () => {
+      const Named = Val.companion<User>()
+        .implSeal((u, seal) => (u.name ? seal(u) : new RangeError("name must not be empty")))
+        .implCreate((name: string) => ({ id: "n1", name }))
+        .impl(({ seal, create, patch }) => ({
+          renamed: (u, name: string) => patch(u, { name }),
+          resealed: (u, name: string) => seal({ id: u.id, name }),
+          another: (u) => create(u.name),
+        }))
+        .build();
+      const u = Named.seal({ id: "a", name: "alice" }) as User;
+      expectTypeOf(Named.renamed(u, "bob")).toEqualTypeOf<User | RangeError>();
+      expect([Named.renamed(u, "bob"), Named.resealed(u, ""), Named.another(u)]).toEqual([
+        { id: "a", name: "bob" },
+        new RangeError("name must not be empty"),
+        { id: "n1", name: "alice" },
+      ]);
+    });
+
+    test("without `implCreate`, the function receives no `create`", () => {
+      Val.companion<User>()
+        // @ts-expect-error `create` exists only with `implCreate`
+        .impl(({ create }) => ({ again: (u) => create(u.name) }))
+        .build();
+    });
+
     test("`patch` is the library's, not yours", () => {
       Val.companion<User>()
         .impl(() => ({
@@ -2140,6 +2166,22 @@ describe("building", () => {
       expectTypeOf(Account).not.toHaveProperty("seal");
     });
 
+    test("a step's function still receives `seal`, and `create` under `PrivateCreate`", () => {
+      const Held = Val.companion<Account, [PrivateSeal, PrivateCreate]>()
+        .implSeal((a, seal) => seal({ ...a, owner: a.owner.trim() }))
+        .implCreate((owner: string) => ({ id: "a1", owner }))
+        .impl(({ seal, create }) => ({
+          reowned: (a, owner: string) => seal({ id: a.id, owner }),
+          again: (a) => create(a.owner),
+        }))
+        .build();
+      const a = Account.create(" bob ");
+      expect([Held.reowned(a, " sue "), Held.again(a)]).toEqual([
+        { id: "a1", owner: "sue" },
+        { id: "a1", owner: "bob" },
+      ]);
+    });
+
     test("`create` and `patch` still go through the seal", () => {
       const a = Account.create(" bob ");
       expect([a, Account.patch(a, { owner: " sue " })]).toEqual([
@@ -2270,6 +2312,15 @@ describe("building", () => {
           },
         }))
         .build();
+    });
+
+    test("the function receives the same `seal`, `create` and `patch`", () => {
+      const Patched = Val.companion<Member>()
+        .implTrait(Greetable, ({ patch }) => ({
+          toWire: (m, sep) => patch(m, { name: sep }).name,
+        }))
+        .build();
+      expect(Patched.toWire(Patched.seal({ id: "a", name: "alice" }), ":")).toBe(":");
     });
 
     test("the members a trait leaves open must be passed", () => {

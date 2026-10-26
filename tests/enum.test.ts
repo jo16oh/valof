@@ -418,6 +418,36 @@ describe("members", () => {
       .build();
   });
 
+  test("a step's function receives the union's `seal`, and a variant's `seal` and `patch`", () => {
+    type Named = Trait<"Named", { id: string }, { label: (self: Self) => string }>;
+    const Named = Trait.companion<Named>().build();
+    type Coded = Trait<"Coded", { n: number }, { code: (self: Self) => number }>;
+    const Coded = Trait.companion<Coded>().build();
+    type Card = Enum<
+      "Card",
+      { A: { n: number } & Coded; B: { s: string } },
+      { id: string } & Named
+    >;
+    const Card = Enum.companion<Card>()
+      .A.impl(({ patch }) => ({ next: (a) => patch(a, { n: a.n + 1 }) }))
+      .A.implTrait(Coded, ({ seal }) => ({
+        code: (a) => seal({ _tag: "A", id: a.id, n: a.n * 2 }).n,
+      }))
+      .impl((supplied) => {
+        expectTypeOf(supplied).not.toHaveProperty("patch");
+        return { again: (c) => supplied.seal(c) };
+      })
+      .implTrait(Named, ({ seal }) => ({ label: (c) => seal(c).id }))
+      .build();
+    const a = Card.A.create({ id: "a", n: 1 });
+    expect([Card.A.next(a).n, Card.A.code(a), Card.again(a), Card.label(a)]).toEqual([
+      2,
+      2,
+      a,
+      "a",
+    ]);
+  });
+
   test("a variant's member takes that variant, with no annotation", () => {
     expectTypeOf<Parameters<typeof Money.Cash.doubled>>().toEqualTypeOf<
       [self: VariantOf<Money, "Cash">]
