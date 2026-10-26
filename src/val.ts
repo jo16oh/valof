@@ -1147,11 +1147,19 @@ export const define = <T extends object>(target: T, key: string, value: unknown)
   return target;
 };
 
-/** What the builder's steps registered. */
-type Ctors = {
+/** A step's function: the members it returns from the gates it receives. */
+type Members = (supplied: object) => Record<string, unknown>;
+
+/** A trait and the function that implements it. */
+type Implementation = [trait: { [Shared]: Record<string, unknown> }, fns?: Members];
+
+/** What a builder's steps registered: a Val's, an enum's, or one of its variants'. */
+export type Registered<P = unknown> = {
+  seal?: (value: P, seal: (value: P) => unknown) => unknown;
   create?: AnyFn;
   noseal?: boolean;
-  seal?: (value: unknown, seal: (value: unknown) => unknown) => unknown;
+  members?: Members;
+  traits?: Implementation[];
 };
 
 /**
@@ -1201,13 +1209,9 @@ const patched = (
  * type did not replace it. Nothing is copied before that. The one deep copy happens in the
  * default seal that a custom one returns through.
  */
-const attach = (
-  fns: Members | undefined,
-  ctors: Ctors,
-  implemented: Members[],
-): Record<string, unknown> => {
+export const attach = (registered: Registered): Record<string, unknown> => {
   const target: Record<string, unknown> = {};
-  const { create, noseal, seal: custom } = ctors;
+  const { create, noseal, seal: custom, members: fns, traits: implemented = [] } = registered;
   const sealedWith = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
     custom
       ? development
@@ -1277,9 +1281,13 @@ const attach = (
   });
 
   // The steps' functions run once the gates they receive exist. A trait's members join the
-  // type's own, so they grow the same way. The record is what `Trait`'s `dyn` reads, and keeping
-  // it here means `val.ts` never imports `trait.ts`.
-  const traits = Object.assign({}, ...implemented.map((members) => members(target)));
+  // type's own, so they grow the same way. The Val's own go on last, the type having kept every
+  // `Final` one out of them. The record is what `Trait`'s `dyn` reads, and keeping it here means
+  // `val.ts` never imports `trait.ts`.
+  const traits = Object.assign(
+    {},
+    ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
+  );
   const members = { ...fns?.(target) };
   (target as Record<symbol, unknown>)[Traits] = traits;
   for (const key of Object.keys(traits)) define(target, key, dual(traits[key]));
@@ -1288,24 +1296,27 @@ const attach = (
   return target;
 };
 
-/** A step's function: the members it returns from the gates it receives. */
-type Members = (supplied: object) => Record<string, unknown>;
-
 /**
- * One builder state: what the steps registered so far. The order of the steps is the type's to
- * enforce.
+ * The steps on a builder, each handing what it registers to `grow`. `registered` is what the steps
+ * before it registered. The order of the steps is the type's to enforce.
  */
-const builder = (ctors: Ctors, traits: Members[] = [], fns?: Members): object => ({
-  implSeal: (seal: NonNullable<Ctors["seal"]>) => builder({ ...ctors, seal }, traits, fns),
-  implCreate: Object.assign(
-    (create: AnyFn) => builder({ ...ctors, create, noseal: false }, traits, fns),
-    { noseal: (create: AnyFn) => builder({ ...ctors, create, noseal: true }, traits, fns) },
-  ),
-  impl: (members: Members) => builder(ctors, traits, members),
-  // The Val's own go on last, the type having kept every `Final` one out of them.
-  implTrait: (trait: { [Shared]: Record<string, unknown> }, impl?: Members) =>
-    builder(ctors, [...traits, (supplied) => ({ ...trait[Shared], ...impl?.(supplied) })], fns),
-  build: () => attach(fns, ctors, traits),
+export const steps = <P>(
+  registered: Registered<P> | undefined,
+  grow: (change: Registered<P>) => object,
+) => ({
+  implSeal: (seal: NonNullable<Registered<P>["seal"]>) => grow({ seal }),
+  implCreate: Object.assign((create: AnyFn) => grow({ create, noseal: false }), {
+    noseal: (create: AnyFn) => grow({ create, noseal: true }),
+  }),
+  impl: (members: Members) => grow({ members }),
+  implTrait: (...implementation: Implementation) =>
+    grow({ traits: [...(registered?.traits ?? []), implementation] }),
+});
+
+/** One builder state: what the steps registered so far. */
+const builder = (registered: Registered): object => ({
+  ...steps(registered, (change) => builder({ ...registered, ...change })),
+  build: () => attach(registered),
 });
 
 /**
