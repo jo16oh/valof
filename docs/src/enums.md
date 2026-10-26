@@ -5,8 +5,9 @@
 > Enums are experimental. They ship from `valof/experimental` so that an import says so, and the
 > design is still changing.
 
-An enum is a closed set of variants. A Val is one shape; an enum is a choice between several, and
-because the set is closed, handling every case can be checked.
+An enum is a discriminated union declared in one place. A Val is one shape, and an enum is a choice
+between several. Its variants form a closed set, so TypeScript can check that every variant is
+handled.
 
 > For the limits of a hand-written discriminated union, see
 > [TypeScript problems Valof addresses](typescript-problems.md#enums).
@@ -28,7 +29,7 @@ equals(circle, Shape.Circle.seal({ _tag: "Circle", r: 2 })); // true
 ```
 
 The record is the whole declaration. The union is derived from it, and so is each variant's brand:
-`Shape.Circle` is branded `"Shape.Circle"`. Adding a variant is one line, in one place.
+`Shape.Circle` is branded `"Shape.Circle"`. Adding a variant is one line.
 
 Call a variant through the companion. `const { Circle } = Shape` works, and a reader of
 `Circle.create({ r: 2 })` then has to find which enum declared it. `const Round = Shape.Circle`
