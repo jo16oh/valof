@@ -798,6 +798,9 @@ export type CompanionBuilder<
      * A member the trait declared {@link Final} is not returned here. It arrives unchanged, and
      * nothing can override it.
      *
+     * A method or a `function` member is called as a plain function, so `this` is `undefined`
+     * inside it.
+     *
      * The members can be called with the value first or last, and cannot have an optional, a
      * default or a rest parameter.
      *
