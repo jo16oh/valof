@@ -1136,8 +1136,8 @@ export const assertVariantPayload = (value: unknown): void => {
 };
 
 /**
- * Assignment would move a `__proto__` key into the prototype rather than keep it an own property.
- * The library's own keys never collide and are assigned.
+ * Assignment would move a `__proto__` key into the prototype rather than keep it an own property,
+ * so a payload's keys go through here. The library's own keys and the members are assigned.
  */
 export const define = <T extends object>(target: T, key: string, value: unknown): T => {
   Object.defineProperty(target, key, {
@@ -1292,8 +1292,8 @@ export const attach = (registered: Registered): Record<string, unknown> => {
   );
   const members = { ...fns?.(target) };
   (target as Record<symbol, unknown>)[Traits] = traits;
-  for (const key of Object.keys(traits)) define(target, key, dual(traits[key]));
-  for (const key of Object.keys(members)) define(target, key, dual(members[key]));
+  for (const key of Object.keys(traits)) target[key] = dual(traits[key]);
+  for (const key of Object.keys(members)) target[key] = dual(members[key]);
 
   return target;
 };
