@@ -1,6 +1,6 @@
 import {
+  createMembers,
   dual,
-  duals,
   type Arity,
   type Dual,
   type Duals,
@@ -830,9 +830,9 @@ type VariantSteps<
     ? unknown
     : {
         /**
-         * Collects the members taking this variant, which the function returns, in one call. They
-         * can be called with the value first or last, and cannot have an optional, a default or a
-         * rest parameter.
+         * Collects the members taking this variant, which the function returns, in one call. A
+         * member taking more than one argument can be called with the value first or last. None can
+         * have an optional, a default or a rest parameter.
          *
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
@@ -949,8 +949,8 @@ export type EnumBuilder<
          * Referencing a declaration inside its own initializer is a circularity, which TypeScript
          * reports as TS7023.
          *
-         * The members, `match` and `[Tag].match` can be called with the value first or last. A
-         * member cannot have an optional, a default or a rest parameter.
+         * `match`, `[Tag].match` and a member taking more than one argument can be called with the
+         * value first or last. A member cannot have an optional, a default or a rest parameter.
          *
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
@@ -1164,7 +1164,7 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
     gates,
     at,
     // Last, as the proxy read them first: the declaration keeps a trait member off `match`.
-    { ...duals({ ...members?.(gates), ...implemented }), ...associated(assoc, gates) },
+    { ...createMembers({ ...members?.(gates), ...implemented }), ...associated(assoc, gates) },
   );
 };
 

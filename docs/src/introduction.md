@@ -47,7 +47,7 @@ It enforces the conventions through types and linting.
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
   [Linting](linting.md) shows the setup.
 
-- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->967 B
+- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->965 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 > For background on individual features, see

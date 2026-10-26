@@ -172,7 +172,7 @@ const moved = Rectangle.patch(rectangle, {
 });
 moved.size === rectangle.size; // true: untouched branches keep their reference identity
 
-// Every member can also be called with the value last, so it can be passed to a pipe.
+// A member taking more than one argument can also be called with the value last, for a pipe.
 const shifted = pipe(rectangle.position, Point.move(3, 4), Point.move(-1, 0)); // { x: 3, y: 6 }
 
 const unlabeled = Rectangle.patch(moved, { label: undefined });

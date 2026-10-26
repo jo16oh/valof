@@ -2,7 +2,8 @@ import { development } from "./env.ts";
 
 /**
  * A member callable two ways: `User.rename(u, "x")`, or `User.rename("x")(u)` with the value
- * passed later. `pipe(u, User.rename("x"))` uses the second.
+ * passed later. `pipe(u, User.rename("x"))` uses the second. A member taking only the value is
+ * left as it is: `pipe(u, User.greet)`.
  *
  * The data-first form goes last, since a member passed as a callback is typed by its last
  * signature. That form is the member's own type, so a generic member stays generic in it. The
@@ -10,7 +11,9 @@ import { development } from "./env.ts";
  * function: `pipe(u, (v) => User.pick(v, "name"))`.
  */
 export type Dual<F, S> = F extends (self: never, ...args: infer A) => infer R
-  ? ((...args: A) => (self: S) => R) & F
+  ? A extends []
+    ? F
+    : ((...args: A) => (self: S) => R) & F
   : F;
 
 /** {@link Dual} over every member. `S` is passed rather than inferred, so a hover shows `User` rather than its expansion. */
@@ -18,10 +21,10 @@ export type Duals<M, S> = { [K in keyof M]: Dual<M[K], S> };
 
 /**
  * {@link Dual} for a member that does not take the value: its first argument moves last instead.
- * One taking no argument is left as it is.
+ * One taking one argument or none is left as it is.
  */
 export type Loose<F> = F extends (first: infer S, ...args: infer A) => infer R
-  ? Parameters<F> extends []
+  ? A extends []
     ? F
     : ((...args: A) => (first: S) => R) & F
   : F;
@@ -61,56 +64,53 @@ export type Omission<F> = F extends (...args: infer P) => unknown
   : unknown;
 
 /**
- * Makes each function a {@link Dual}, and leaves every other member as it is. See {@link dual}.
- * `wrap` replaces {@link dual}.
+ * Makes each function a {@link Dual}, and leaves every other member as it is. One taking one
+ * argument or none has no second form, so it is bound to `undefined` rather than wrapped. `this`
+ * is then `undefined`, as in a wrapped member. `loose` marks members that do not take the value.
+ * Such a member may take no argument.
+ *
+ * A `length` of 0 is also what a rest or default parameter leaves, which would run every
+ * data-last call data-first. Development throws on a `length` of 0. For a loose member, it throws
+ * only where the source shows such a parameter: an empty parameter list is the only one that
+ * declares no parameter. Comments are dropped first, and a source it cannot read, a bound or
+ * native function's, reads as empty.
  */
-export function duals(
+export function createMembers(
   members: Record<string, unknown>,
-  wrap: (f: unknown) => unknown = dual,
+  loose?: boolean,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = {};
-  for (const key of Object.keys(members)) out[key] = wrap(members[key]);
+  for (const key of Object.keys(members)) {
+    const f = members[key];
+    if (
+      development &&
+      typeof f == "function" &&
+      !f.length &&
+      (!loose ||
+        /^[^(]*\(\s*[^)\s]/.test(
+          Function.prototype.toString.call(f).replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, ""),
+        ))
+    ) {
+      throw new TypeError(
+        loose
+          ? "A member cannot hide its parameters behind a rest or a default parameter."
+          : "A member must have the value as its first parameter, not inside a rest parameter.",
+      );
+    }
+    out[key] = typeof f != "function" ? f : f.length > 1 ? dual(f as AnyFn) : f.bind(undefined);
+  }
   return out;
 }
 
 /**
  * Wraps `f`. Called with one argument fewer than `f` declares, the wrapper returns a function that
- * takes the value. Any other count calls `f` directly, so `xs.map(User.greet)` still passes the element first.
+ * takes the value. Any other count calls `f` directly, so `xs.map(User.rename)` still passes the
+ * element first.
  */
-export function dual(f: unknown): unknown {
-  if (typeof f != "function") return f;
-  // A wrapper that spreads its arguments has a `length` of 0, so every data-last call to it would
-  // run data-first.
-  if (development && !f.length) {
-    throw new TypeError(
-      "A member must have the value as its first parameter, not inside a rest parameter.",
-    );
-  }
+export function dual(f: (...args: never[]) => unknown): AnyFn {
   const n = f.length;
-  return (...args: unknown[]) =>
-    args.length === n - 1 ? (self: unknown) => f(self, ...args) : f(...args);
+  return (...args) =>
+    args.length === n - 1 ? (self: unknown) => (f as AnyFn)(self, ...args) : (f as AnyFn)(...args);
 }
 
-/**
- * {@link dual} for a member that does not take the value. One declaring no parameter is left as
- * it is.
- *
- * A `length` of 0 is also what a rest or default parameter leaves, which would run every
- * first-argument-last call first-argument-first. Development reads the source to tell them apart:
- * an empty parameter list is the only one that declares no parameter. Comments are dropped
- * first, and a source it cannot read, a bound or native function's, reads as empty.
- */
-export function loose(f: unknown): unknown {
-  if (typeof f != "function" || f.length) return dual(f);
-  if (
-    development &&
-    /^[^(]*\(\s*[^)\s]/.test(
-      Function.prototype.toString.call(f).replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, ""),
-    )
-  ) {
-    throw new TypeError(
-      "A member cannot hide its parameters behind a rest or a default parameter.",
-    );
-  }
-  return f;
-}
+type AnyFn = (...args: unknown[]) => unknown;

@@ -1958,6 +1958,17 @@ Val.sealer<User>().impl({
 - **却下: 型だけを export して `as` で注釈する。**実装と書いた型の食い違いを検査しない
 - **型引数は省略できない。**2 本とも `<K extends keyof User>` を書く。型エイリアスの型引数はシグネチャの型引数とは別物で、重複は消せない
 
+#### 値だけを取るメンバは data-last 形を持たない、2026-10-27
+
+`over: (s) => s.n > 1` の `over()` は、`over` そのものを返すだけで使い道が無い。`over` が既に 1 引数の関数なので、`pipe(size, BundleSize.over)` と書ける。v0.11 の破壊的変更（ユーザー）。
+
+- **型。**`Dual<F, S>` は、値の後ろの引数が `[]` のとき `F` だけを返す。`Loose<F>` も、第 1 引数の後ろが `[]` のとき（引数 0 個と 1 個）`F` を返す。`M.member()` は型エラーになる
+- **きっかけは lint の誤検知。**`xs.filter(BundleSize.over)` が oxlint の `no-unnecessary-condition` に掛かった（§19）。tsgolint 7.0.2001 は、交差型でもオーバーロードでも、シグネチャのどれかが常に truthy を返すと報告する。順を入れ替えても、もう片方が `boolean` を返しても変わらない。素の関数なら報告しない。upstream には報告しない（ユーザー）
+- **引数 1 個のメンバ（`implAssoc` は 0 個も）は、包まずに `f.bind(undefined)` で載せる。**`impl` も `implAssoc` も同じ。包まずに `f` を返すと、`User.greet(u)` の `this` が companion になり、`ThisType<undefined>` と食い違う。#95 の `implAssoc` の引数 0 個のメンバがそうなっていた。包む関数を通るぶんの呼び出しコストも消える
+- **`impl` と `implAssoc` で扱いを分けない（ユーザー）。**`implAssoc` だけ `bind` する案は、型に出ない差でも挙動が分かれるので採らない
+- **`dual` は包むだけにする（ユーザー）。**`bind` か `dual` かの振り分けと development の検査は、レコードを受ける `createMembers`（旧 `duals`）が持つ。`dual` に `bind` を足すと責務が 2 つになる。関数 `loose` は、`createMembers` の第 2 引数 `loose` になった
+- **コスト。**Val 967 → 965 B。instantiations は core 7,214 → 7,186、trait 18,320 → 17,642、enum 36,361 → 35,703
+
 #### 却下: data-last 用の名前空間（`User.$.rename("x")`）
 
 書き味がクロージャで包むのと変わらない。
@@ -2238,7 +2249,8 @@ const User = Val.companion<User>()
 だけで、メソッドと同じ規則になる。第 1 引数以外の部分適用はアロー関数で書く。
 
 - **引数の無いメンバは包まずに載せる。**`dual` は引数の個数で判別するので、包むと `Money.zero()` が関数を
-  返す。`impl` の development の throw はそのまま残す
+  返す。`impl` の development の throw はそのまま残す。→ 2026-10-27 に `f.bind(undefined)` で載せることにした。
+  そのまま載せると `this` が companion になる。引数 1 個のメンバも data-last 形を持たない（§6.11）
 - **省略できる引数を型で禁じる。**`impl` と同じ `Omission` を、引数の無いものだけ許して掛ける（`LooseArity`）。
   TS の `radix?` は実行時に消えるので、`parse(raw)` を data-last と取り違えても実行時には捕まえられない
 - **そのため、companion を参照するメンバは戻り値を注釈する。**`impl` と同じ規則になる（ユーザー）。
@@ -8044,4 +8056,4 @@ git diff --quiet "$pin" -- src vite.config.ts tsconfig.json tsconfig.build.json
 
 #### 追従で見つかった API の使いにくさ
 
-`report.bundles.filter(BundleSize.over)` が oxlint の `no-unnecessary-condition` に掛かった。lint はメンバーの data-last 形の戻り値（関数なので常に truthy）を見る。TS は通すので、利用者は lint を入れて初めて気づく。scripts は `(size) => BundleSize.over(size)` と包んだ。
+`report.bundles.filter(BundleSize.over)` が oxlint の `no-unnecessary-condition` に掛かった。lint はメンバーの data-last 形の戻り値（関数なので常に truthy）を見る。TS は通すので、利用者は lint を入れて初めて気づく。scripts は `(size) => BundleSize.over(size)` と包んだ。→ 2026-10-27 に、値だけを取るメンバの data-last 形をなくした（§6.11）。scripts は次の `pin-valof` で包みを外せる。

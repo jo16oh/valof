@@ -786,9 +786,8 @@ describe("traits", () => {
     ]);
   });
 
-  test("its member takes the value first, or last", () => {
-    expectTypeOf(Cmd.describe()).toEqualTypeOf<(self: Cmd) => string>();
-    expect(Cmd.describe()(add)).toBe("add 2");
+  test("its member taking only the value has no form taking it last", () => {
+    expectTypeOf(Cmd.describe).toEqualTypeOf<(self: Cmd) => string>();
   });
 
   test("a variant goes into a box like any other Val", () => {

@@ -14,7 +14,7 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
-import { dual, duals, loose } from "./dual.ts";
+import { createMembers, dual } from "./dual.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
   NoSeal,
@@ -785,8 +785,10 @@ export type CompanionBuilder<
          * TypeScript reports as TS7023.
          *
          * A member can be called with the value first, `User.rename(u, "x")`, or last,
-         * `User.rename("x")(u)`. So can `patch` and a trait's members. A member cannot have an
-         * optional, a default or a rest parameter. Pass `undefined` where an argument has no value.
+         * `User.rename("x")(u)`. So can `patch` and a trait's member taking more than one
+         * argument. One taking only the value has no second form: `pipe(u, User.greet)`. A member
+         * cannot have an optional, a default or a rest parameter. Pass `undefined` where an
+         * argument has no value.
          *
          * Called with the value last, a generic member loses its type parameters. Each becomes its
          * constraint, or `unknown` where none is declared. To keep them, wrap the member in a
@@ -813,8 +815,8 @@ export type CompanionBuilder<
      * type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
-     * `Money.scaled(2)(5)`. One taking no argument is called as it is. A member cannot have an
-     * optional, a default or a rest parameter.
+     * `Money.scaled(2)(5)`. A member taking one argument or none has no second form. A member
+     * cannot have an optional, a default or a rest parameter.
      */
     implAssoc: <M extends AssocMembers>(
       fns: (
@@ -829,8 +831,8 @@ export type CompanionBuilder<
      * A member the trait declared {@link Final} is not returned here. It arrives unchanged, and
      * nothing can override it.
      *
-     * The members can be called with the value first or last, and cannot have an optional, a
-     * default or a rest parameter.
+     * A member taking more than one argument can be called with the value first or last. None can
+     * have an optional, a default or a rest parameter.
      *
      * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
      */
@@ -1329,15 +1331,18 @@ export const attach = (registered: Registered): Record<string, unknown> => {
   (target as Record<symbol, unknown>)[Traits] = traits;
   return Object.assign(
     target,
-    duals(traits),
-    duals({ ...fns?.(target) }),
+    createMembers(traits),
+    createMembers({ ...fns?.(target) }),
     associated(assoc, target),
   );
 };
 
-/** What the `.implAssoc` functions return, each member made {@link loose}. */
+/**
+ * What the `.implAssoc` functions return, passed to {@link createMembers} as members that do not take
+ * the value.
+ */
 export const associated = (assoc: Members[] = [], supplied: object): Record<string, unknown> =>
-  Object.assign({}, ...assoc.map((fns) => duals(fns(supplied), loose)));
+  Object.assign({}, ...assoc.map((fns) => createMembers(fns(supplied), true)));
 
 /**
  * The steps on a builder, each handing what it registers to `grow`. `registered` is what the steps

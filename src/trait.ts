@@ -1,5 +1,5 @@
 import {
-  duals,
+  createMembers,
   type Arity,
   type Duals,
   type LooseArity,
@@ -317,8 +317,9 @@ export type TraitBuilder<
    * receives nothing.
    *
    * They stay on the trait's companion: `implTrait` copies none of them onto a Val. A member
-   * reaching the companion names it and annotates its return type. A member can be called with
-   * its first argument first, or last, and cannot have an optional, a default or a rest parameter.
+   * reaching the companion references it and annotates its return type. A member taking more than
+   * one argument can be called with its first argument first, or last. None can have an optional,
+   * a default or a rest parameter.
    */
   implAssoc: <M extends TraitAssoc<Tr>>(
     fns: () => Grown<keyof A, M> & LooseArity<M> & ThisType<undefined>,
@@ -335,8 +336,8 @@ export type TraitBuilder<
        * TypeScript reports as TS7023, and the annotation cuts it. A member a Val may replace is
        * not on the companion; see {@link TraitCompanion}.
        *
-       * A member can be called with the value first or last, and cannot have an optional, a
-       * default or a rest parameter.
+       * A member taking more than one argument can be called with the value first or last. None can
+       * have an optional, a default or a rest parameter.
        *
        * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
        */
@@ -355,7 +356,7 @@ type AnyFn = (...args: never[]) => unknown;
 const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   // Spread whole rather than the finals alone: the mark saying which those are is a type, gone by
   // now. Only the finals are named on the type, so the rest are unreachable without a cast.
-  ...duals(impls),
+  ...createMembers(impls),
   [Shared]: impls,
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
