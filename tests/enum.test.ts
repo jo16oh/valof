@@ -448,6 +448,25 @@ describe("members", () => {
     ]);
   });
 
+  test("a step's function receives `create`, and the gates `PrivateSeal` and `PrivateCreate` hide", () => {
+    type Card = Enum<"Card", { A: { n: number }; B: { s: string } }, { id: string }>;
+    const Card = Enum.companion<Card, [PrivateSeal, PrivateCreate]>()
+      .A.impl(({ seal, create }) => ({
+        copy: (a) => create({ id: a.id, n: a.n }),
+        next: (a) => seal({ _tag: "A", id: a.id, n: a.n + 1 }),
+      }))
+      .implCreate((id: string) => ({ _tag: "A", id, n: 0 }))
+      .impl(({ seal, create }) => ({ fresh: (c) => create(c.id), again: (c) => seal(c) }))
+      .build();
+    const a = Enum.companion<Card>().build().A.create({ id: "a", n: 1 });
+    expect([Card.A.copy(a), Card.A.next(a), Card.fresh(a), Card.again(a)]).toEqual([
+      a,
+      { _tag: "A", id: "a", n: 2 },
+      { _tag: "A", id: "a", n: 0 },
+      a,
+    ]);
+  });
+
   test("a variant's member takes that variant, with no annotation", () => {
     expectTypeOf<Parameters<typeof Money.Cash.doubled>>().toEqualTypeOf<
       [self: VariantOf<Money, "Cash">]
