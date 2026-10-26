@@ -95,8 +95,9 @@ export function dual(f: unknown): unknown {
 }
 
 /**
- * {@link dual} for a member that does not take the value. One taking no argument is bound to
- * `undefined` rather than wrapped, so `this` is `undefined` as in every other member.
+ * {@link dual} for a member that does not take the value. One taking one argument or none has no
+ * second form, so it is bound to `undefined` rather than wrapped. Binding makes `this` `undefined`,
+ * as in every other member.
  *
  * A `length` of 0 is also what a rest or default parameter leaves, which would run every
  * first-argument-last call first-argument-first. Development reads the source to tell them apart:
@@ -104,9 +105,10 @@ export function dual(f: unknown): unknown {
  * first, and a source it cannot read, a bound or native function's, reads as empty.
  */
 export function loose(f: unknown): unknown {
-  if (typeof f != "function" || f.length) return dual(f);
+  if (typeof f != "function" || f.length > 1) return dual(f);
   if (
     development &&
+    !f.length &&
     /^[^(]*\(\s*[^)\s]/.test(
       Function.prototype.toString.call(f).replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, ""),
     )

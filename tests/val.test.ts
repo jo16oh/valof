@@ -1701,6 +1701,9 @@ describe("building", () => {
         .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
         .build();
       expectTypeOf(Money.fromCents).toEqualTypeOf<(cents: number) => Money>();
+      // Not even at run time: called with no argument, it runs.
+      // @ts-expect-error the argument is required
+      expect(Money.fromCents()).toEqual({ cents: undefined });
     });
 
     test("a member passed unapplied runs first-argument-first, whatever the caller passes", () => {
