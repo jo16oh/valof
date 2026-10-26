@@ -375,6 +375,23 @@ describe("members", () => {
     }))
     .build();
 
+  test("a member has no `this`, on the union or on a variant", () => {
+    Enum.companion<Shape>()
+      .Circle.impl(() => ({
+        d(c) {
+          expectTypeOf(this).toEqualTypeOf<undefined>();
+          return c.r * 2;
+        },
+      }))
+      .impl(() => ({
+        tag(s) {
+          expectTypeOf(this).toEqualTypeOf<undefined>();
+          return s._tag;
+        },
+      }))
+      .build();
+  });
+
   test("a variant's member takes that variant, with no annotation", () => {
     expectTypeOf<Parameters<typeof Money.Cash.doubled>>().toEqualTypeOf<
       [self: VariantOf<Money, "Cash">]

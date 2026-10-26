@@ -48,6 +48,17 @@ describe("Trait", () => {
       expectTypeOf<ReturnType<typeof User.toWire>>().toEqualTypeOf<string>();
     });
 
+    test("a member has no `this`", () => {
+      Trait.companion<Greetable>()
+        .impl(() => ({
+          shout(g) {
+            expectTypeOf(this).toEqualTypeOf<undefined>();
+            return g.name.toUpperCase();
+          },
+        }))
+        .build();
+    });
+
     test("a member cannot return Self", () => {
       type Unsafe = Trait<"Unsafe", { n: number }, { grow: (self: Self) => Self }>;
       // @ts-expect-error a trait member cannot return Self

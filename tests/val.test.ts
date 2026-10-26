@@ -1563,6 +1563,23 @@ describe("building", () => {
       expectTypeOf(bare).toBeFunction();
     });
 
+    test("a member has no `this`, which the type says", () => {
+      const Held = Val.companion<User>()
+        .impl(() => ({
+          method(u) {
+            return [this, u] as const;
+          },
+          expression: function (u: User) {
+            return [this, u] as const;
+          },
+        }))
+        .build();
+      const u = Held.seal({ id: "a", name: "alice" });
+      expectTypeOf(Held.method(u)[0]).toEqualTypeOf<undefined>();
+      expectTypeOf(Held.expression(u)[0]).toEqualTypeOf<undefined>();
+      expect([Held.method(u)[0], Held.expression(u)[0]]).toEqual([undefined, undefined]);
+    });
+
     test("`patch` is the library's, not yours", () => {
       Val.companion<User>()
         .impl(() => ({
@@ -2226,6 +2243,17 @@ describe("building", () => {
       Val.companion<Member>()
         // @ts-expect-error `toWire` is missing
         .implTrait(Greetable, () => ({}))
+        .build();
+    });
+
+    test("an implementation has no `this`, which the type says", () => {
+      Val.companion<Member>()
+        .implTrait(Greetable, () => ({
+          toWire(m, sep) {
+            expectTypeOf(this).toEqualTypeOf<undefined>();
+            return `${m.id}${sep}`;
+          },
+        }))
         .build();
     });
 
