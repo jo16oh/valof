@@ -1964,9 +1964,10 @@ Val.sealer<User>().impl({
 
 - **型。**`Dual<F, S>` は、値の後ろの引数が `[]` のとき `F` だけを返す。`Loose<F>` も、第 1 引数の後ろが `[]` のとき（引数 0 個と 1 個）`F` を返す。`M.member()` は型エラーになる
 - **きっかけは lint の誤検知。**`xs.filter(BundleSize.over)` が oxlint の `no-unnecessary-condition` に掛かった（§19）。tsgolint 7.0.2001 は、交差型でもオーバーロードでも、シグネチャのどれかが常に truthy を返すと報告する。順を入れ替えても、もう片方が `boolean` を返しても変わらない。素の関数なら報告しない。upstream には報告しない（ユーザー）
-- **`impl` などのメンバは、実行時の包みを残す。**包まずに `f` を返すと、`User.greet(u)` の `this` が companion になる。`ThisType<undefined>` と食い違う。`f.bind(undefined)` なら揃うが、+7 B 前後かかる（`impl` と `implAssoc` の両方に入れた試作との差からの推定）。包みを残せば 0 B
-- **`implAssoc` の引数 0 個と 1 個のメンバは `f.bind(undefined)` で載せる。**0 個のものは #95 で包まずに載せていたので、`this` が companion だった。1 個のものは包む関数を通るぶんの呼び出しコストが消える。合わせて +9 B（0 個で +6 B、1 個で +3 B）。`impl` 側は揃えない。その +7 B 前後を払っても、型に出ない差なので利用者には見えない
-- **コスト。**Val 967 → 976 B。instantiations は core 7,214 → 7,186、trait 18,320 → 17,642、enum 36,361 → 35,703
+- **引数 1 個のメンバ（`implAssoc` は 0 個も）は、包まずに `f.bind(undefined)` で載せる。**`impl` も `implAssoc` も同じ。包まずに `f` を返すと、`User.greet(u)` の `this` が companion になり、`ThisType<undefined>` と食い違う。#95 の `implAssoc` の引数 0 個のメンバがそうなっていた。包む関数を通るぶんの呼び出しコストも消える
+- **`impl` と `implAssoc` で扱いを分けない（ユーザー）。**`implAssoc` だけ `bind` する案は、型に出ない差でも挙動が分かれるので採らない
+- **`dual` は包むだけにする（ユーザー）。**`bind` か `dual` かの振り分けと development の検査は、レコードを受ける `createMembers`（旧 `duals`）が持つ。`dual` に `bind` を足すと責務が 2 つになる。関数 `loose` は、`createMembers` の第 2 引数 `loose` になった
+- **コスト。**Val 967 → 965 B。instantiations は core 7,214 → 7,186、trait 18,320 → 17,642、enum 36,361 → 35,703
 
 #### 却下: data-last 用の名前空間（`User.$.rename("x")`）
 
