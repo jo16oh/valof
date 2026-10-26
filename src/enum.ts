@@ -691,9 +691,8 @@ type EnumSeal<E extends AnyEnum, VM, F> = {
    * enum's seal runs first, and its return is what this returns. Without one, the return is the
    * variants' seals' returns, as a union.
    *
-   * Passing a field of another variant is a type error, even when the tag is a union. A tag the
-   * declaration lacks gets past the type through a cast or `any` alone, and only the enum's seal
-   * can reject it: the variants' seals run once one is selected.
+   * A payload may hold only the fields of the variant its tag names.
+   * `Shape.seal({ _tag: "Circle", side: 1 })` is a type error.
    */
   seal: [F] extends [undefined]
     ? (payload: Exclusive<E>) => Dispatched<E, VM>
@@ -899,10 +898,10 @@ export type EnumBuilder<
              * seal it receives selects the variant and runs that variant's seal. A variant's own
              * `seal`, `create` and `patch` do not pass through it.
              *
-             * This is the place to check the tag: a payload from a cast or `any` can name a
-             * variant the declaration lacks, and no variant's seal sees it. Its parameter may be
-             * wider than the payload, so a schema library can parse into it, but not so wide that
-             * a wire format fits.
+             * This is the place to check a payload that has not been validated, such as an object
+             * from `JSON.parse`. Its parameter may be wider than the payload, up to `object`, so a
+             * schema library can validate it. It runs before the tag selects a variant, so it can
+             * also reject a tag that selects no variant.
              */
             implSeal: "implCreate" extends D
               ? (seal: "write `implSeal` before `implCreate`") => EnumBuilder<E, O, VM, M, F, C, D>

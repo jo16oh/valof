@@ -565,8 +565,6 @@ declare class UnpatchablePhantom<K extends string> {
  *   .implSeal(seal)
  *   .implCreate((name: string) => ({ id: crypto.randomUUID(), name }));
  * ```
- *
- * The seal is hidden from the type alone: `Val.of` can still forge a value.
  */
 // This and `PrivateCreate` are classes, not aliases of one. Declaration emit writes an alias
 // without type arguments as its class, and a consumer's `.d.ts` cannot reference a class the entry
@@ -599,9 +597,6 @@ export declare class PrivateCreate {
  * ```ts
  * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>();
  * ```
- *
- * The keys do not exist at runtime. This constrains `patch`, not the value: `Val.of` can still
- * forge one.
  */
 export type Unpatchable<K extends string> = UnpatchablePhantom<K>;
 
