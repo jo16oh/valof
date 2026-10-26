@@ -271,6 +271,22 @@ companion is rejected.
 An enum boxes the same way, through its own companion:
 `Describable.dyn(Cmd, Cmd.Add.create({ id: "c1", n: 2 }))`.
 
+A function over boxes goes on the trait's companion, through `.implAssoc`:
+
+```ts
+import { Trait, type Dyn, type Self } from "valof/experimental";
+
+type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
+// ---cut---
+const Greetable = Trait.companion<Greetable>()
+  .implAssoc(() => ({
+    greetAll: (party: readonly Dyn<Greetable>[]) => party.map((p) => p.greet()),
+  }))
+  .build();
+```
+
+The members stay on the trait's companion. `implTrait` copies none of them onto a Val.
+
 ## Several traits on one Val
 
 Intersect them in the declaration, and implement each in its own step:

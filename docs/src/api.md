@@ -19,14 +19,15 @@
 | `.implCreate.noseal(f)`  | the same, bypassing the seal for a payload it always accepts  |
 | `.impl(f)`               | adds the members `f` returns                                  |
 | `.implTrait(Tr, f?)`     | implements a trait the type declares                          |
+| `.implAssoc(f)`          | adds the members `f` returns, which do not take the Val       |
 | `.build()`               | ends the chain, and returns the companion                     |
 
-Write `implSeal` first, then `implCreate`. `impl` and `implTrait` come next, in any order. Each step
-except `implTrait` is written once.
+Write `implSeal` first, then `implCreate`. `impl`, `implTrait` and `implAssoc` come next, in any
+order. `implSeal`, `implCreate` and `impl` are written once, and the other two any number of times.
 
-The function passed to `impl` and `implTrait` receives `seal`, `create` and `patch`, including the
-ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `create` only where
-`implCreate` registered one.
+The function passed to `impl`, `implTrait` and `implAssoc` receives `seal`, `create` and `patch`,
+including the ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `create`
+only where `implCreate` registered one.
 
 ## Companion options
 
@@ -42,15 +43,17 @@ ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `c
 
 `User` stands for the companion that belongs to the `User` type.
 
-|                                |                                       |                                                                     |
-| ------------------------------ | ------------------------------------- | ------------------------------------------------------------------- |
-| `User.seal(value)`             | every companion without `PrivateSeal` | applies the seal registered with `.implSeal(f)`, or the default one |
-| `User.seal.nocopy(value)`      | every companion without `PrivateSeal` | the same as `User.seal`, without copying the payload                |
-| `User.create(...args)`         | registered with `.implCreate(f)`      | creates a payload, then passes it to seal                           |
-| `User.create.nocopy(...args)`  | registered with `.implCreate(f)`      | the same as `User.create`, without copying the payload              |
-| `User.patch(user, patch)`      | `User` has an object payload          | deeply merges the patch, then seals it                              |
-| `User.[member](user, ...args)` | registered with `.impl(f)`            | runs a member defined for the companion                             |
-| `User.[member](...args)(user)` | registered with `.impl(f)`            | the same, with the value last                                       |
+|                                 |                                       |                                                                     |
+| ------------------------------- | ------------------------------------- | ------------------------------------------------------------------- |
+| `User.seal(value)`              | every companion without `PrivateSeal` | applies the seal registered with `.implSeal(f)`, or the default one |
+| `User.seal.nocopy(value)`       | every companion without `PrivateSeal` | the same as `User.seal`, without copying the payload                |
+| `User.create(...args)`          | registered with `.implCreate(f)`      | creates a payload, then passes it to seal                           |
+| `User.create.nocopy(...args)`   | registered with `.implCreate(f)`      | the same as `User.create`, without copying the payload              |
+| `User.patch(user, patch)`       | `User` has an object payload          | deeply merges the patch, then seals it                              |
+| `User.[member](user, ...args)`  | registered with `.impl(f)`            | runs a member defined for the companion                             |
+| `User.[member](...args)(user)`  | registered with `.impl(f)`            | the same, with the value last                                       |
+| `User.[member](...args)`        | registered with `.implAssoc(f)`       | runs a member that does not take the Val                            |
+| `User.[member](...rest)(first)` | registered with `.implAssoc(f)`       | the same, with the first argument last                              |
 
 ## Types
 
@@ -84,17 +87,19 @@ re-export a companion.
 | `.implCreate(f)`                   | registers `E.create`                                           |
 | `.impl(f)`                         | adds the members `f` returns, which take the union             |
 | `.implTrait(Tr, f?)`               | implements a trait the enum declares                           |
+| `.implAssoc(f)`                    | adds the members `f` returns, which do not take the union      |
 | `.[VariantName].implSeal(f)`       | replaces that variant's seal                                   |
 | `.[VariantName].implCreate(f)`     | replaces that variant's `create`                               |
 | `.[VariantName].impl(f)`           | adds the members `f` returns, which take that variant          |
 | `.[VariantName].implTrait(Tr, f?)` | implements a trait that variant declares                       |
+| `.[VariantName].implAssoc(f)`      | adds the members `f` returns, which do not take that variant   |
 | `.build()`                         | ends the chain, and returns the companion                      |
 
-The enum's steps come first, in the same order as `Val.companion`'s. Each variant's steps follow in
-that order. The first variant step removes the enum's steps from the chain.
+Each variant's steps come first, in the same order as `Val.companion`'s. The enum's steps follow in
+that order. The first enum step removes the variants' steps from the chain.
 
-The function passed to the enum's `impl` and `implTrait` receives `E.seal` and `E.create`. The one
-passed to a variant's receives that variant's `seal`, `create` and `patch`.
+The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `E.seal` and
+`E.create`. The one passed to a variant's receives that variant's `seal`, `create` and `patch`.
 
 ### Enum companion options
 
@@ -120,11 +125,13 @@ apply to the enum and every variant. To configure a specific variant's companion
 | `E.seal(payload)`                          | every enum without `PrivateSeal`               | builds the variant that the payload's tag selects                       |
 | `E.create(...args)`                        | registered with `.implCreate(f)`               | creates a payload, then passes it to `E.seal`                           |
 | `E.[member](value, ...args)`               | registered with `.impl(f)`                     | runs a member defined for the union                                     |
+| `E.[member](...args)`                      | registered with `.implAssoc(f)`                | runs a member that does not take the union                              |
 | `E.[VariantName].seal(payload)`            | every enum without `PrivateSeal`               | builds that variant from a payload including its tag                    |
 | `E.[VariantName].create(fields)`           | every variant without `PrivateCreate`          | writes the tag and passes the payload to that variant's seal            |
 | `E.[VariantName].create(...args)`          | registered with `.[VariantName].implCreate(f)` | the same, with the arguments `f` takes                                  |
 | `E.[VariantName].patch(value, patch)`      | every variant                                  | derives a value of that variant, keeping the tag                        |
 | `E.[VariantName].[member](value, ...args)` | registered with `.[VariantName].impl(f)`       | runs a member defined for that variant                                  |
+| `E.[VariantName].[member](...args)`        | registered with `.[VariantName].implAssoc(f)`  | runs a member that does not take that variant                           |
 
 ### Enum types
 
@@ -143,17 +150,22 @@ apply to the enum and every variant. To configure a specific variant's companion
 
 ### Trait builder
 
-|                         |                                           |
-| ----------------------- | ----------------------------------------- |
-| `Trait.companion<Tr>()` | starts the trait's own implementation     |
-| `.impl(f)`              | implements the members `f` returns, once  |
-| `.build()`              | ends the chain, and returns the companion |
+|                         |                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------ |
+| `Trait.companion<Tr>()` | starts the trait's own implementation                                          |
+| `.impl(f)`              | implements the members `f` returns, once                                       |
+| `.implAssoc(f)`         | adds the members `f` returns, which do not take a value implementing the trait |
+| `.build()`              | ends the chain, and returns the companion                                      |
+
+The function passed to `implAssoc` receives nothing. Its members stay on the trait's companion.
+`implTrait` copies none of them onto a Val.
 
 ### Trait companion
 
-|                            |                                             |
-| -------------------------- | ------------------------------------------- |
-| `Tr.dyn(companion, value)` | boxes a value with one Val's implementation |
+|                            |                                               |
+| -------------------------- | --------------------------------------------- |
+| `Tr.dyn(companion, value)` | boxes a value with one Val's implementation   |
+| `Tr.[member](...args)`     | runs a member registered with `.implAssoc(f)` |
 
 ### Trait types
 

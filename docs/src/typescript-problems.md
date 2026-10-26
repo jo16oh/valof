@@ -97,13 +97,14 @@ User.greeting(User.seal({ name: "alice" }));
 
 ## Parse, don't validate
 
-Valof makes parsing a convention. A companion has one `seal`, and `seal`, `create` and `patch` pass
-their payloads through it. A custom seal returns a validated, normalized Val or its failure, so the
-result type records that parsing succeeded.
+Valof makes parsing a convention, in two steps. An `.implAssoc` member decodes a wire format into
+the payload, and the seal turns the payload into a Val. A companion has one `seal`, and `create`,
+`patch` and the `.implAssoc` members pass their payloads to it. A custom seal returns a validated,
+normalized Val or its failure, so the result type records that parsing succeeded.
 
-Start with `Val.companion<V>()` and register the parser with `.implSeal`. The resulting `.seal`
-returns the value or the parser's failure; [custom constructors](custom-constructors.md) explains
-schemas, normalization and generated fields:
+Start with `Val.companion<V>()` and register the checks with `.implSeal`. The resulting `.seal`
+returns the value or the seal's failure; [custom constructors](custom-constructors.md) explains
+schemas, normalization, generated fields and `.implAssoc`:
 
 ```ts
 import { Val } from "valof";

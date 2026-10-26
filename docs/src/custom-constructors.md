@@ -147,6 +147,58 @@ seal to be normalized. The function passed to `.noseal` must always return a can
 production, `create` skips the custom seal. In development, it runs the seal and throws if the seal
 rejects or normalizes the payload.
 
+## Add entry points with `implAssoc`
+
+An `.impl` member takes the Val first. A function that builds the Val from something else, such as a
+database row, goes in `.implAssoc`:
+
+```ts
+import { Val } from "valof";
+// ---cut---
+type User = Val<"User", { id: string; name: string }>;
+type Row = { id: string; display_name: string };
+
+const User = Val.companion<User>()
+  .implSeal((user, seal) => (user.name ? seal(user) : undefined))
+  .implAssoc(({ seal }) => ({
+    fromRow: (row: Row) => seal({ id: row.id, name: row.display_name }),
+  }))
+  .build();
+
+User.fromRow({ id: "a", display_name: " bob " }); // User | undefined
+```
+
+The function receives `seal`, `create` and `patch`, like the one passed to `.impl`. `seal` is the
+companion's, so `fromRow` returns what the custom seal returns. Write `.implAssoc` after `.implSeal`
+and `.implCreate`, any number of times.
+
+A member can be called with its first argument last, as an `.impl` member can with the value. One
+taking no argument is called as it is. A member cannot have an optional, a default or a rest
+parameter, and one referencing the companion annotates its return type.
+
+## Keep invariants in the seal
+
+`patch` passes the new payload to the seal, not to the member that built the value. A check written
+in an `.implAssoc` member does not run on a derived value:
+
+```ts
+import { Val } from "valof";
+// ---cut---
+type Money = Val<"Money", { cents: number }>;
+
+const Money = Val.companion<Money>()
+  .implAssoc(({ seal }) => ({
+    fromCents: (cents: number) => (cents >= 0 ? seal({ cents }) : undefined),
+  }))
+  .build();
+
+declare const money: Money;
+Money.patch(money, { cents: -1 }); // a Money holding -1 cents
+```
+
+Write an invariant in `.implSeal`, which `patch` passes too. Let an `.implAssoc` member only convert
+its input into a payload.
+
 ## Protect generated fields
 
 `create` can generate an id, a `createdAt` or a version counter. A second type argument to
@@ -185,8 +237,8 @@ Write `.implSeal` before `.implCreate`.
 through `seal` or other functions, not `create`. It protects no field, because the payload `create`
 returns passes the seal.
 
-The function passed to `impl` and `implTrait` still receives `seal` and `create`, so the companion's
-own members can build the type.
+The function passed to `impl`, `implTrait` and `implAssoc` still receives `seal` and `create`, so
+the companion's own members can build the type.
 
 `PrivateSeal`, `PrivateCreate` and `Unpatchable` are types, so they do not exist at runtime. They
 constrain the companion, not the value. `Val.of<User>({ id: "forged", … })` still builds one, and so
@@ -206,7 +258,15 @@ const valid = isValidAge(input); // boolean; input is still a number
 The type records nothing that the validator learned. Each consumer must trust that the check ran or
 repeat it. This spreads validation through processing code, an anti-pattern called shotgun parsing.
 
-A parser instead turns less precise input into more precise output, or returns a failure:
+A parser instead turns less precise input into more precise output, or returns a failure. Parsing a
+wire format into a Val takes two steps:
+
+1. **Decode** the wire format into the payload's shape: a row into fields, a string into a number.
+   An `.implAssoc` member does this.
+2. **Refine** the payload into the Val: check the invariants, normalize, and brand. Only the seal
+   does this, because `create`, `patch` and the `seal` passed to `.implAssoc` all call it.
+
+`Age.seal` is the second step:
 
 ```ts
 import { Val } from "valof";
@@ -224,12 +284,13 @@ declare const input: number;
 const result = Age.seal(input); // Result<Age>
 ```
 
-`Age.seal` is that parser. Once a value has been successfully sealed as an `Age`, its type
-guarantees that it is validated and normalized wherever it is passed, so downstream code does not
-need to repeat either step. The seals in this chapter put
+Once a value has been successfully sealed as an `Age`, its type guarantees that it is validated and
+normalized wherever it is passed, so downstream code does not need to repeat either step. The seals
+in this chapter put
 [**“parse, don't validate”**](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
 into practice. They return a validated, canonical Val instead of returning facts about the input.
 Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's
 words,
 [parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101):
-the `Age` type can now represent only valid ages. `create` and `patch` reuse the same parser.
+the `Age` type can now represent only valid ages. `create` and `patch` reuse the same seal, and so
+does the `seal` passed to `.implAssoc`.
