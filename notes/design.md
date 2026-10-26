@@ -37,10 +37,10 @@ import { Val } from "valof";
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
-  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し）
+  - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し、`__proto__` も守らない）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）。**2026-10-26 に段の引数を関数に揃えた**（注釈の税は変わらない）
-- **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
+- **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる、16.3 Enum の production gzip を削る（段の共有、却下した予算 +512 B）
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
 - **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify。18.4 利用者の宣言出力が参照する `internal/*`（却下した entry からの export、クラスにした `PrivateSeal` / `PrivateCreate`）
 - **§19 scripts が使う valof を固定する** `#valof` をコミットのビルドに向ける。一致の判定、リリース PR だけ一致を必須にすること、ts-compatibility が scripts をコピーして読むこと、ハッシュを `package.json` に書く理由（`optimisticRepeatInstall`）、却下した git 依存・pkg.pr.new・その場で読む案。追従で見つかった dual メンバーと lint
@@ -7024,6 +7024,14 @@ seal、`Shape.seal.create(…)` は `seal` という Variant の create。
 同じ考え方（§2.1）。踏むと `await` が settle しないまま止まり、エラーは出ない。Val の `.impl` の JSDoc に 1 行
 残した。→ 2026-10-26 に消した。companion を `await` するのは変なコードで、thenable の挙動は JS 一般の事情なので、valof が言及することではない。Result や Option の Val では `then` がメンバ名として自然である（`Result.then(r, f)`）。
 
+**`__proto__` も守らない、2026-10-26。**Val の `attach` はメンバを `define` で載せ、`["__proto__"]` という
+メンバを own property に残していた。テストもあった。Trait と Enum は `duals` の代入で載せるので、同じメンバは
+エラーなしに消えていた。計算されたキーで書かない限りメンバにならない名前で、書いたときは利用者の責任。`then` と
+同じ考え方で、Variant 名の `__proto__` も同じ。Val も代入に揃え、テストを消した（§16.3）。
+
+payload のキーは `define` のまま。`JSON.parse` した入力には、悪意がなくても `__proto__` というキーが来る。
+代入にすると、コピーでそのデータが消え、プロトタイプが変わる。
+
 **`_` と `Otherwise`。**`_` は、`_` という Variant があればそのハンドラになる。どの enum でも使える
 ワイルドカードとして、`Otherwise` を `valof/experimental` から export した。
 
@@ -7477,7 +7485,7 @@ const User = Val.companion<User>()
 - **`self` との違い。**`self` は companion 全体を渡し、兄弟が載っていないという境界を docs に書かせた。今回はライブラリの関数だけを渡す。兄弟の境界は `implAssoc` にも同じく残るので、`impl` だけの例外ではない
 - **渡すもの。**Val と variant は `seal`、`create`（`implCreate` があるときだけ）、`patch`。Enum の union は `seal` と `create`（union に `patch` は無い）。Trait の `impl` は `() =>` のまま（trait の companion に門が無い）。`equals` は自由関数なので渡さない
 - **private でも渡す。**`PrivateSeal` / `PrivateCreate` は外からの入口を閉じるもので、companion の作者が書くコードには渡す。`implAssoc` の計画（`PrivateSeal` は渡す）と揃え、`PrivateCreate` も渡すと決めた
-- **関数は `build` で呼ぶ。**段の時点では `seal` が組み上がっていない。`build` で companion を作ってから、それを渡して呼ぶ。実行時は Val の `attach`、Enum の `assemble` と `frame`。variant の枠は内部で `Val.companion` の鎖なので、Val と同じ経路でその variant の門が渡る
+- **関数は `build` で呼ぶ。**段の時点では `seal` が組み上がっていない。`build` で companion を作ってから、それを渡して呼ぶ。実行時は Val の `attach`、Enum の `assemble` と `frame`。`frame` は variant の枠を `attach` で作るので、Val と同じ経路でその variant の門が渡る（2026-10-26 に `Val.companion` の鎖を通すのをやめた、§16.3）
 - **型。**Val は `Supplied`（`CreateMethod & SealMethod & PatchMethod`）、Enum は `EnumSeal` / `EnumCreate` / `VariantSupplied` を companion の型から切り出した。`Passes` は渡すものを 4 つ目の型引数で受ける。注釈なしで `patch(u, { name })` を返すメンバの戻り値は推論される（5.9 と 7.0）
 
 **計測。**instantiations は core 6,486 → 6,573、trait 17,421 → 16,615、enum 33,092 → 33,552、`index.d.ts` 79.30 → 80.33 kB。production gzip は Val 857 B → 886 B、Enum の分 +617 B → +628 B（残り 12 B）。**予算は動かさない。**
@@ -7615,6 +7623,45 @@ core の予算を 60 B 上げれば通る。サイズの比較は余りに左右
   dead code elimination で、別の工程
 - **却下: `DeadCodeEliminationError`。**この検査が見るのは development 用の分岐だけで、dead code 全般ではない。
   名前が検査の保証より広い
+
+### 16.3 Enum の production gzip を削る、2026-10-26
+
+**#92 で Enum の増分が +628 B になり、予算 +640 B の残りが 12 B だった。**予算は据え置き、実行時のコードを
+削った。
+
+|           | 前     | 後     | 予算     |
+| --------- | ------ | ------ | -------- |
+| `Val`     | 886 B  | 899 B  | 1.00 kB  |
+| + `Trait` | +105 B | +101 B | +256 B   |
+| + `Enum`  | +628 B | +465 B | +640 B   |
+| 全部      | +902 B | +735 B | +1.00 kB |
+
+- **段を共有する。**`val.ts` の `steps` が `implSeal` から `implTrait` までを作り、Val の builder、enum の段、
+  variant の段の 3 箇所が使う。Val の builder の状態は `Registered` 1 つにまとめ、`attach` が受け取る。
+  Val +20 B、Enum の増分 −109 B
+- **variant の枠は `attach` を直接呼ぶ。**前は `frame` が `Val.companion` の鎖を段ごとに呼んでいた。Enum の
+  増分がさらに −52 B
+- **`assemble` の `duals` を 1 回にまとめる。**−3 B
+- **`isObject` を共有する。**`val.ts` のオブジェクト判定 5 箇所と `isObjectShaped`、Trait の `dyn`。Val −3 B、
+  Trait の増分 −10 B
+- **メンバを代入で載せる。**Val −4 B。`["__proto__"]` というメンバは守らない（§15.2「予約名を外す」）
+
+Val は 13 B 増えた。Enum も Trait も使わない利用者が払う分で、段の定義を 1 箇所にまとめる保守性と引き換えに
+した（ユーザー）。
+
+**却下した案。**数値は production gzip で、bundle を手で書き換えた試作で測った。
+
+- **段を共有せず、枠が `attach` を直接呼ぶだけにする。**Val −3 B、Enum の増分 −50 B。Val は増えないが、Enum の
+  残りは 62 B（10%）にとどまる
+- **`steps` の中で spread する。**Val 912 B で、採用した形より 6 B 重い
+- **trait の合成を `attach` と `assemble` で共有する。**+5 B
+- **`attach` のメンバのループ 2 つを 1 つにする。**minify 後は縮むが、gzip で Val +4 B
+- **メンバを `Object.assign(target, duals({ ...traits, ...members }))` で載せる。**Val +10 B、全部 −7 B。Val が
+  減るループの代入を採った
+- **Trait の `companion` の `build` を `impl` 経由にする。**+3 B
+
+**却下: Enum の予算を +512 B に下げる。**残りが 51 B（10%）になり、§16.1 の「どれも 26% 以上の余り」を
+下回る。§16.1 で +512 を却下したもう 1 つの理由（`match` の `_`）は #91 で消えたが、余りの基準は残る。
 
 ---
 

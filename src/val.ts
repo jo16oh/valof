@@ -861,8 +861,10 @@ type PayloadKeys<V> = V extends unknown
     : never
   : never;
 
+export const isObject = (v: unknown): v is object => typeof v === "object" && v !== null;
+
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
+  isObject(v) && !Array.isArray(v);
 
 const assertPlainObject = (value: object): void => {
   const proto = Object.getPrototypeOf(value) as object | null;
@@ -956,7 +958,7 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
   const active = new WeakSet<object>();
 
   const snapshot = (value: unknown): SealSnapshot => {
-    if (value === null || typeof value !== "object") {
+    if (!isObject(value)) {
       return typeof value === "function" || typeof value === "symbol"
         ? unsnapshotable
         : (value as Primitive | undefined);
@@ -1013,7 +1015,7 @@ export const notFixedPoint = (): never => {
  */
 const deepCopy = (owning: boolean) => {
   const copy = <T>(value: T): T => {
-    if (value === null || typeof value !== "object") return value;
+    if (!isObject(value)) return value;
     if (owning && adopted.has(value)) {
       indexAdopted(value);
       return value;
@@ -1071,7 +1073,7 @@ const indexAdopted = (root: object): void => {
   if (!adopted.has(root)) return;
   const seen = new WeakSet<object>();
   const visit = (value: unknown): void => {
-    if (value === null || typeof value !== "object" || seen.has(value)) return;
+    if (!isObject(value) || seen.has(value)) return;
     seen.add(value);
     owned.add(value);
     for (const key of Object.keys(value)) visit((value as Record<string, unknown>)[key]);
@@ -1082,7 +1084,7 @@ const indexAdopted = (root: object): void => {
 
 /** Adopt a caller-owned payload. Development validates and freezes every node before returning. */
 const adopt = <T>(value: T): T => {
-  if (value === null || typeof value !== "object") return value;
+  if (!isObject(value)) return value;
   if (owned.has(value)) return value;
 
   if (!development) {
@@ -1093,7 +1095,7 @@ const adopt = <T>(value: T): T => {
   const active = new WeakSet<object>();
   const done = new WeakSet<object>();
   const visit = (node: unknown): void => {
-    if (node === null || typeof node !== "object" || owned.has(node) || done.has(node)) return;
+    if (!isObject(node) || owned.has(node) || done.has(node)) return;
     if (active.has(node)) throw new TypeError("a Val payload cannot contain a cycle");
     active.add(node);
     try {
@@ -1134,8 +1136,8 @@ export const assertVariantPayload = (value: unknown): void => {
 };
 
 /**
- * Assignment would move a `__proto__` key into the prototype rather than keep it an own property.
- * The library's own keys never collide and are assigned.
+ * Assignment would move a `__proto__` key into the prototype rather than keep it an own property,
+ * so a payload's keys go through here. The library's own keys and the members are assigned.
  */
 export const define = <T extends object>(target: T, key: string, value: unknown): T => {
   Object.defineProperty(target, key, {
@@ -1147,11 +1149,19 @@ export const define = <T extends object>(target: T, key: string, value: unknown)
   return target;
 };
 
-/** What the builder's steps registered. */
-type Ctors = {
+/** A step's function: the members it returns from the gates it receives. */
+type Members = (supplied: object) => Record<string, unknown>;
+
+/** A trait and the function that implements it. */
+type Implementation = [trait: { [Shared]: Record<string, unknown> }, fns?: Members];
+
+/** What a builder's steps registered: a Val's, an enum's, or one of its variants'. */
+export type Registered<P = unknown> = {
+  seal?: (value: P, seal: (value: P) => unknown) => unknown;
   create?: AnyFn;
   noseal?: boolean;
-  seal?: (value: unknown, seal: (value: unknown) => unknown) => unknown;
+  members?: Members;
+  traits?: Implementation[];
 };
 
 /**
@@ -1201,13 +1211,9 @@ const patched = (
  * type did not replace it. Nothing is copied before that. The one deep copy happens in the
  * default seal that a custom one returns through.
  */
-const attach = (
-  fns: Members | undefined,
-  ctors: Ctors,
-  implemented: Members[],
-): Record<string, unknown> => {
+export const attach = (registered: Registered): Record<string, unknown> => {
   const target: Record<string, unknown> = {};
-  const { create, noseal, seal: custom } = ctors;
+  const { create, noseal, seal: custom, members: fns, traits: implemented = [] } = registered;
   const sealedWith = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
     custom
       ? development
@@ -1277,35 +1283,42 @@ const attach = (
   });
 
   // The steps' functions run once the gates they receive exist. A trait's members join the
-  // type's own, so they grow the same way. The record is what `Trait`'s `dyn` reads, and keeping
-  // it here means `val.ts` never imports `trait.ts`.
-  const traits = Object.assign({}, ...implemented.map((members) => members(target)));
+  // type's own, so they grow the same way. The Val's own go on last, the type having kept every
+  // `Final` one out of them. The record is what `Trait`'s `dyn` reads, and keeping it here means
+  // `val.ts` never imports `trait.ts`.
+  const traits = Object.assign(
+    {},
+    ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
+  );
   const members = { ...fns?.(target) };
   (target as Record<symbol, unknown>)[Traits] = traits;
-  for (const key of Object.keys(traits)) define(target, key, dual(traits[key]));
-  for (const key of Object.keys(members)) define(target, key, dual(members[key]));
+  for (const key of Object.keys(traits)) target[key] = dual(traits[key]);
+  for (const key of Object.keys(members)) target[key] = dual(members[key]);
 
   return target;
 };
 
-/** A step's function: the members it returns from the gates it receives. */
-type Members = (supplied: object) => Record<string, unknown>;
-
 /**
- * One builder state: what the steps registered so far. The order of the steps is the type's to
- * enforce.
+ * The steps on a builder, each handing what it registers to `grow`. `registered` is what the steps
+ * before it registered. The order of the steps is the type's to enforce.
  */
-const builder = (ctors: Ctors, traits: Members[] = [], fns?: Members): object => ({
-  implSeal: (seal: NonNullable<Ctors["seal"]>) => builder({ ...ctors, seal }, traits, fns),
-  implCreate: Object.assign(
-    (create: AnyFn) => builder({ ...ctors, create, noseal: false }, traits, fns),
-    { noseal: (create: AnyFn) => builder({ ...ctors, create, noseal: true }, traits, fns) },
-  ),
-  impl: (members: Members) => builder(ctors, traits, members),
-  // The Val's own go on last, the type having kept every `Final` one out of them.
-  implTrait: (trait: { [Shared]: Record<string, unknown> }, impl?: Members) =>
-    builder(ctors, [...traits, (supplied) => ({ ...trait[Shared], ...impl?.(supplied) })], fns),
-  build: () => attach(fns, ctors, traits),
+export const steps = <P>(
+  registered: Registered<P> | undefined,
+  grow: (change: Registered<P>) => object,
+) => ({
+  implSeal: (seal: NonNullable<Registered<P>["seal"]>) => grow({ seal }),
+  implCreate: Object.assign((create: AnyFn) => grow({ create, noseal: false }), {
+    noseal: (create: AnyFn) => grow({ create, noseal: true }),
+  }),
+  impl: (members: Members) => grow({ members }),
+  implTrait: (...implementation: Implementation) =>
+    grow({ traits: [...(registered?.traits ?? []), implementation] }),
+});
+
+/** One builder state: what the steps registered so far. */
+const builder = (registered: Registered): object => ({
+  ...steps(registered, (change) => builder({ ...registered, ...change })),
+  build: () => attach(registered),
 });
 
 /**

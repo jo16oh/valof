@@ -1,7 +1,15 @@
 import { duals, type Arity, type Duals, type Omission } from "./dual.ts";
 import { Shared, Traits } from "./keys.ts";
 import type { TraitBrands, TraitTypes } from "./keys.ts";
-import type { AnyVal, CallBuildFirst, Checked, DeepReadonly, Invalid, Reserved } from "./val.ts";
+import {
+  isObject,
+  type AnyVal,
+  type CallBuildFirst,
+  type Checked,
+  type DeepReadonly,
+  type Invalid,
+  type Reserved,
+} from "./val.ts";
 import * as Trait from "./ns/trait.ts";
 
 declare const SelfMark: unique symbol;
@@ -323,7 +331,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   // A primitive cannot be a proxy's target, so an empty object is used as the target. Nothing is
   // lost: a trait a primitive Val can declare has no fields to read.
   dyn: (companion: TraitHost, value: unknown) =>
-    new Proxy(value !== null && typeof value === "object" ? value : {}, {
+    new Proxy(isObject(value) ? value : {}, {
       get(_, key) {
         const member = (companion[Traits] as unknown as Record<string, AnyFn>)[key as string];
         return member

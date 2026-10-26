@@ -20,9 +20,11 @@ import type {
 import { development } from "./env.ts";
 import {
   assertVariantPayload,
+  attach,
   equals,
   notFixedPoint,
   of,
+  steps,
   Val,
   type AnyFn,
   type AnyVal,
@@ -38,6 +40,7 @@ import {
   type Patch,
   type PrivateCreate,
   type PrivateSeal,
+  type Registered as Steps,
   type Synchronous,
   type Takes,
   type Unpatchable,
@@ -942,33 +945,10 @@ type Start<E extends AnyEnum, O extends Options> = [TagOf<E>] extends ["_tag"]
 
 type Payload = Record<string, unknown>;
 
-type Seal = (value: Payload, seal: (value: Payload) => unknown) => unknown;
-
-/** What one variant's steps registered. */
-/** A step's function: the members it returns from the gates it receives. */
-type Members = (supplied: object) => Payload;
-
-/** A trait and the function that implements it. */
-type Implementation = [trait: { [Shared]: Payload }, fns?: Members];
-
-type Registered = {
-  seal?: Seal;
-  create?: AnyFn;
-  noseal?: boolean | undefined;
-  members?: Members;
-  traits?: Implementation[];
-};
+/** What the enum's steps, or one variant's, registered. */
+type Registered = Steps<Payload>;
 
 type Variants = Record<string, Registered>;
-
-/** A `Val.companion` builder, as the steps call it. */
-type Chain = {
-  implSeal: (seal: Seal) => Chain;
-  implCreate: ((create: AnyFn) => Chain) & { noseal: (create: AnyFn) => Chain };
-  impl: (fns?: Members) => Chain;
-  implTrait: (...implementation: Implementation) => Chain;
-  build: () => object;
-};
 
 type Handler = (value?: unknown) => unknown;
 
@@ -1023,33 +1003,18 @@ const resolving = (
  * One builder state: what the steps registered so far. The order of the steps is the type's to
  * enforce. A name that is not a step is a variant's, whose steps register under it.
  */
-const builder = (tag: string, variants: Variants, own: Registered): object => {
-  const step = (name: string, change: Registered) =>
-    builder(tag, { ...variants, [name]: { ...variants[name], ...change } }, own);
-  const grow = (change: Registered) => builder(tag, variants, { ...own, ...change });
-  return resolving(
+const builder = (tag: string, variants: Variants, own: Registered): object =>
+  resolving(
     {
       tag: (key: string) => builder(key, variants, own),
-      implSeal: (seal: Seal) => grow({ seal }),
-      implCreate: Object.assign((create: AnyFn) => grow({ create, noseal: false }), {
-        noseal: (create: AnyFn) => grow({ create, noseal: true }),
-      }),
-      impl: (members: Members) => grow({ members }),
-      implTrait: (...implementation: Implementation) =>
-        grow({ traits: [...(own.traits ?? []), implementation] }),
+      ...steps(own, (change) => builder(tag, variants, { ...own, ...change })),
       build: () => assemble(tag, variants, own),
     },
-    (name) => ({
-      implSeal: (seal: Seal) => step(name, { seal }),
-      implCreate: Object.assign((create: AnyFn) => step(name, { create, noseal: false }), {
-        noseal: (create: AnyFn) => step(name, { create, noseal: true }),
-      }),
-      impl: (members: Members) => step(name, { members }),
-      implTrait: (...implementation: Implementation) =>
-        step(name, { traits: [...(variants[name]?.traits ?? []), implementation] }),
-    }),
+    (name) =>
+      steps(variants[name], (change) =>
+        builder(tag, { ...variants, [name]: { ...variants[name], ...change } }, own),
+      ),
   );
-};
 
 /**
  * What development's check of the enum's `implCreate.noseal` hands the next variant's seal: it
@@ -1061,31 +1026,30 @@ let watching: ((candidate: Payload, sealed: unknown) => void) | undefined;
  * One variant's frame: a Val companion whose `create` mints the tag. `seal` takes the tag with the
  * payload and checks it like any other field, so nothing rewrites it.
  */
-const frame = (tag: string, name: string, steps: Registered): object => {
+const frame = (tag: string, name: string, registered: Registered): object => {
   const mint = (payload: Payload): Payload => {
     // Before the spread, which would turn a string into a character map.
     assertVariantPayload(payload);
     return { ...payload, [tag]: name };
   };
-  const { seal, create, noseal, members, traits = [] } = steps;
-  let chain = (Val.companion() as unknown as Chain).implSeal((value, terminal) => {
-    // Taken here, so a value this seal builds on the way runs with nothing watching it.
-    let watcher: typeof watching;
-    if (development) [watcher, watching] = [watching, undefined];
-    assertVariantPayload(value);
-    const end = (checked: Payload) => {
-      const sealed = terminal(checked);
-      watcher?.(checked, sealed);
-      return sealed;
-    };
-    return seal ? seal(value, end) : end(value);
+  const { seal, create } = registered;
+  return attach({
+    ...registered,
+    seal: (value, terminal) => {
+      // Taken here, so a value this seal builds on the way runs with nothing watching it.
+      let watcher: typeof watching;
+      if (development) [watcher, watching] = [watching, undefined];
+      assertVariantPayload(value);
+      const end = (checked: unknown) => {
+        const sealed = terminal(checked);
+        watcher?.(checked as Payload, sealed);
+        return sealed;
+      };
+      return seal ? seal(value as Payload, end) : end(value);
+    },
+    // The tag is minted as the payload comes out, the way `create` generates what it generates.
+    create: create ? (...args: never[]) => mint(create(...args) as Payload) : mint,
   });
-  // The tag is minted as the payload comes out, the way `create` generates what it generates.
-  const made = create ? (...args: never[]) => mint(create(...args) as Payload) : mint;
-  chain = noseal ? chain.implCreate.noseal(made) : chain.implCreate(made);
-  return traits
-    .reduce((built, implementation) => built.implTrait(...implementation), chain.impl(members))
-    .build();
 };
 
 /**
@@ -1148,7 +1112,7 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
     gates,
     at,
     // Last, as the proxy read them first: the declaration keeps a trait member off `match`.
-    { ...duals({ ...members?.(gates) }), ...duals(implemented) },
+    duals({ ...members?.(gates), ...implemented }),
   );
 };
 

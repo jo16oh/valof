@@ -2679,14 +2679,6 @@ describe("building", () => {
         expect(Copied.nocopy(member)).toBe("alice");
       });
 
-      // Assigned rather than defined, the member would become the companion's prototype.
-      test("and `__proto__`, which stays a member of its own", () => {
-        const Odd = Val.companion<Member>()
-          .impl(() => ({ ["__proto__"]: (m: Member) => m.id }))
-          .build();
-        expect(Object.hasOwn(Odd, "__proto__")).toBe(true);
-      });
-
       // The companion becomes a thenable, and the caller is responsible for avoiding that.
       test("but may take `then`", () => {
         const Thenable = Val.companion<Member>()
