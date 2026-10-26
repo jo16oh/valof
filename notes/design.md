@@ -2298,10 +2298,10 @@ Money.patch(money, { cents: -1 }); // 通る
 
 #### 計測
 
-production gzip: Val 899 → 967 B（予算 1.00 kB）、Trait の増分 +98 → +105 B、Enum の増分 +465 → +456 B。
+production gzip: Val 899 → 967 B（予算 1.00 kB）、Trait の増分 +101 → +105 B、Enum の増分 +465 → +456 B。
 メンバを載せる 3 つのループを `duals` 1 つにまとめた（`wrap` を引数で受ける）。まとめる前は Val 976 B、
 Trait +126 B、Enum +470 B。type-perf（fixture に `implAssoc` を足した後）: core 7,214、trait 18,320、
-enum 36,361。`index.d.ts` 83.30 → 87.75 kB。
+enum 36,361。`index.d.ts` 82.49 → 87.47 kB（JSDoc の注意を削った後）。
 
 #### 却下した案
 
