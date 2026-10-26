@@ -1,5 +1,5 @@
 import {
-  duals,
+  createMembers,
   type Arity,
   type Duals,
   type LooseArity,
@@ -356,7 +356,7 @@ type AnyFn = (...args: never[]) => unknown;
 const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   // Spread whole rather than the finals alone: the mark saying which those are is a type, gone by
   // now. Only the finals are named on the type, so the rest are unreachable without a cast.
-  ...duals(impls),
+  ...createMembers(impls),
   [Shared]: impls,
   // A proxy rather than a built object: a member is bound when it is called, and everything
   // else is the value's own. Nothing is copied, so the box costs one allocation whatever the

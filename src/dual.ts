@@ -66,15 +66,19 @@ export type Omission<F> = F extends (...args: infer P) => unknown
 /**
  * Makes each function a {@link Dual}, and leaves every other member as it is. One taking one
  * argument or none has no second form, so it is bound to `undefined` rather than wrapped. `this`
- * is then `undefined`, as in a wrapped member. `loose` marks members that do not take the value,
- * which may take no argument.
+ * is then `undefined`, as in a wrapped member. `loose` marks members that do not take the value.
+ * Such a member may take no argument.
  *
  * A `length` of 0 is also what a rest or default parameter leaves, which would run every
- * data-last call data-first. Development throws on one. For a loose member, it reads the source to
- * tell them apart: an empty parameter list is the only one that declares no parameter. Comments
- * are dropped first, and a source it cannot read, a bound or native function's, reads as empty.
+ * data-last call data-first. Development throws on a `length` of 0. For a loose member, it throws
+ * only where the source shows such a parameter: an empty parameter list is the only one that
+ * declares no parameter. Comments are dropped first, and a source it cannot read, a bound or
+ * native function's, reads as empty.
  */
-export function duals(members: Record<string, unknown>, loose?: boolean): Record<string, unknown> {
+export function createMembers(
+  members: Record<string, unknown>,
+  loose?: boolean,
+): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(members)) {
     const f = members[key];

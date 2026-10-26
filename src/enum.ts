@@ -1,6 +1,6 @@
 import {
+  createMembers,
   dual,
-  duals,
   type Arity,
   type Dual,
   type Duals,
@@ -1164,7 +1164,7 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
     gates,
     at,
     // Last, as the proxy read them first: the declaration keeps a trait member off `match`.
-    { ...duals({ ...members?.(gates), ...implemented }), ...associated(assoc, gates) },
+    { ...createMembers({ ...members?.(gates), ...implemented }), ...associated(assoc, gates) },
   );
 };
 

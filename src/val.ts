@@ -14,7 +14,7 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
-import { dual, duals } from "./dual.ts";
+import { createMembers, dual } from "./dual.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
   NoSeal,
@@ -1330,15 +1330,18 @@ export const attach = (registered: Registered): Record<string, unknown> => {
   (target as Record<symbol, unknown>)[Traits] = traits;
   return Object.assign(
     target,
-    duals(traits),
-    duals({ ...fns?.(target) }),
+    createMembers(traits),
+    createMembers({ ...fns?.(target) }),
     associated(assoc, target),
   );
 };
 
-/** What the `.implAssoc` functions return, made {@link duals} as members that do not take the value. */
+/**
+ * What the `.implAssoc` functions return, passed to {@link createMembers} as members that do not take
+ * the value.
+ */
 export const associated = (assoc: Members[] = [], supplied: object): Record<string, unknown> =>
-  Object.assign({}, ...assoc.map((fns) => duals(fns(supplied), true)));
+  Object.assign({}, ...assoc.map((fns) => createMembers(fns(supplied), true)));
 
 /**
  * The steps on a builder, each handing what it registers to `grow`. `registered` is what the steps
