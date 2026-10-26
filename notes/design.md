@@ -39,7 +39,7 @@ import { Val } from "valof";
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
-  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）
+  - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）。**2026-10-26 に段の引数を関数に揃えた**（注釈の税は変わらない）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
 - **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify。18.4 利用者の宣言出力が参照する `internal/*`（却下した entry からの export、クラスにした `PrivateSeal` / `PrivateCreate`）
@@ -7442,6 +7442,25 @@ const User = Val.companion<User>()
 **計測。**core 5,694 据え置き、trait 14,291 → 13,721、enum 77,569 → 70,844、`index.d.mts` 34.72 kB → 34.03 kB。production gzip は 899 B → 852 B、Trait 込み 978 B → 932 B、Enum 込み 1.34 kB → 1.27 kB。enum が 8.7% 落ちたのは、ユニオン型に載っていた mapped type の推論経路が 1 本に減った分。**予算は動かさない。**
 
 **却下: non-final も trait の名前空間に載せる。**`self` を消したのだから Final 規則も要らないのでは、という筋。probe すると別の理由で立っていた。型では `TraitCompanion` が `Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>` なので non-final は最初から載っていない（TS2339）。実行時に型を剥がして呼ぶと、`shout` を差し替えた `Admin` でも `Admin.greet(...)` は `"Hi, ROOT"` を返す。`"Hi, root!!!"` ではない。**trait の名前空間から読むと、Val の差し替えを黙って飛び越える。**§15.1 の「却下: 上書きできる関数を名前空間に置く」と同じ結論に、実測で戻った。開けるなら型を広げるだけでは足りず、レシーバの companion への late dispatch が要る。別の変更。
+
+#### 段の引数を関数に揃える、2026-10-26
+
+**`impl` / `implTrait` は引数なしの関数だけを取る。**Val / Enum / Trait の `impl`、`implTrait`、Enum の variant の段。オブジェクト形は残さない。段は関数で呼ぶ。
+
+```ts
+const User = Val.companion<User>()
+  .implSeal((p, seal) => …)
+  .impl(() => ({ renamed: (u, name: string): User => User.patch(u, { name }) }))
+  .build();
+```
+
+- **覆したもの。**上の「`self` も同じ日に消した」でオブジェクト 1 形式にした。今回は形の一貫性で関数 1 形式に戻す。`self` は戻さない
+- **根拠は一貫性と見た目だけ。**「段は関数を取る」の一言で済む。`implAssoc` の形も同じ規則に乗る。`() =>` が段の名前と中身を区切る（`.Circle.impl(() => ({`）
+- **注釈の税は変わらない。**引数なしの関数は循環を切らない。companion を参照するメンバは今と同じく TS7022 と TS7023（メンバ名入り）で止まり、戻り値の注釈で通る。§15.4 冒頭の callback（`self` を渡す）とは別物。5.9 と 7.0 で確かめた。第 1 引数の contextual typing、違反したメンバのエラー位置と文言もオブジェクト形と同じ
+- **払うもの。**`() => ({ … })` の定型。lint の scanner は関数の本体を読む。`() => ({…})`、`() => held`、関数を持つ const まで読み、ブロック本体は読まない
+- **関数は段で呼ぶ。**`build` まで遅らせても const の初期化の中なので、利用者からは区別できない
+
+**計測。**instantiations は core 6,579 → 6,486、trait 17,135 → 17,421、enum 33,184 → 33,092、`index.d.ts` 79.01 kB → 79.04 kB。production gzip は Val 855 B → 857 B、Trait の分 +110 B → +112 B、Enum の分 +608 B → +617 B（予算 640 B の残り 23 B）。**予算は動かさない。**Enum は次の PR で削る。
 
 ---
 
