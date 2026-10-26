@@ -2777,6 +2777,7 @@ User.patch(user, { id: "forged" }); // 型エラー
 - [ ] `Unpatchable` はトップレベルのキーしか外せない（§6.10）。deep patch が入ったので、深い位置のキーを外したい要求が出るか様子見。パスを型引数で受ける形になるが、`Patch` の再帰と噛み合うかは未検証
 - [x] ~~`owned` の記録を失った payload の挙動を README に載せるか（§6.2）~~ → 載せない。`structuredClone` を通れば別のオブジェクトになる、は JS を書く人には自明で、そこから派生のコピーも merge も導ける。記録は §6.2 に残す
 - [x] ~~README のコード例を型検査するか~~ → やらない。twoslash が Rust の doctest に当たるが、前置きを隠す `// ---cut---` が効くのは twoslash のレンダラだけで、**README を読む GitHub と npm では前置きがそのまま見える**。隠すにはドキュメント専用サイトが要り、この規模のプロジェクトには重い。フェンスに id を振って前置きを別ファイルに置く自前の仕組みも書けるが、保守対象が 1 つ増える
+  - 2026-09-16: 翻した（#39）。`docs/tools/twoslash` が README の ts ブロックを 1 つずつ型検査する。README では cut を使わず、前置きも見せるブロックとして書く。外部パッケージの import は `docs/tools/twoslash/stubs/` の宣言に `paths` で向ける（今は `remeda`）
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
 - [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`
