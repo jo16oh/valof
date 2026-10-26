@@ -7458,10 +7458,29 @@ const User = Val.companion<User>()
 - **根拠は一貫性と見た目だけ。**「段は関数を取る」の一言で済む。`implAssoc` の形も同じ規則に乗る。`() =>` が段の名前と中身を区切る（`.Circle.impl(() => ({`）
 - **注釈の税は変わらない。**引数なしの関数は循環を切らない。companion を参照するメンバは今と同じく TS7022 と TS7023（メンバ名入り）で止まり、戻り値の注釈で通る。§15.4 冒頭の callback（`self` を渡す）とは別物。5.9 と 7.0 で確かめた。第 1 引数の contextual typing、違反したメンバのエラー位置と文言もオブジェクト形と同じ
 - **払うもの。**`() => ({ … })` の定型。lint の scanner は関数の本体を読む。`() => ({…})`、`() => held`、関数を持つ const まで読み、ブロック本体は読まない
-- **関数は段で呼ぶ。**`build` まで遅らせても const の初期化の中なので、利用者からは区別できない
+- **関数は段で呼ぶ。**`build` まで遅らせても const の初期化の中なので、利用者からは区別できない。→ 同じ日に `build` で呼ぶ形に変えた（下の「関数に `seal`、`create`、`patch` を渡す」）
 - **`this` は `undefined` と型付けする。**段の引数の型に `ThisType<undefined>`。メンバは受け手なしで呼ばれる（`dual` の `f(...args)`）ので、実行時の `this` は `undefined`。それまでの型は文脈のオブジェクト型を `this` にしていて、`implTrait` では `this.toWire(…)` が黙って通り、実行時に落ちた。他の段では無関係なエラー（`Cannot invoke…`、`Property … does not exist on type 'Shared<…>'`）になっていた。instantiations は変わらず、`index.d.ts` は 79.04 → 79.30 kB
   - **却下: アロー関数だけを許す lint 規則。**防ぎたいのは `this` で状態を持つことで、型で止められる。メソッド記法は `this` を使わない限り無害なので禁じない。lint を入れていない利用者にも効く
   - 段の関数のブロック本体を警告する規則は tasks に積んだ（2026-10-26）
+
+#### 関数に `seal`、`create`、`patch` を渡す、2026-10-26
+
+**`impl` / `implTrait` の関数は companion の `seal`、`create`、`patch` を受け取る。**`implAssoc`（PR 2）も同じものを受け取る。
+
+```ts
+const User = Val.companion<User>()
+  .impl(({ patch }) => ({ renamed: (u, name: string) => patch(u, { name }) }))
+  .build();
+```
+
+- **覆したもの。**上の「`self` も同じ日に消した」と、この節の「`self` は戻さない」。`implAssoc` が `({ seal, create })` を受け取るのに `impl` だけ受け取らないと、段ごとに書き方が分かれる（ユーザー）。`implSeal` は元から `(p, seal) =>` で受け取っている。規則は「段の関数はライブラリの関数を引数で受け取る。自分で書いた名前（兄弟、関連関数、trait のメンバ、Enum の `match`）は外側の const を名指しして戻り値を注釈する」の一言になる
+- **`self` との違い。**`self` は companion 全体を渡し、兄弟が載っていないという境界を docs に書かせた。今回はライブラリの関数だけを渡す。兄弟の境界は `implAssoc` にも同じく残るので、`impl` だけの例外ではない
+- **渡すもの。**Val と variant は `seal`、`create`（`implCreate` があるときだけ）、`patch`。Enum の union は `seal` と `create`（union に `patch` は無い）。Trait の `impl` は `() =>` のまま（trait の companion に門が無い）。`equals` は自由関数なので渡さない
+- **private でも渡す。**`PrivateSeal` / `PrivateCreate` は外からの入口を閉じるもので、companion の作者が書くコードには渡す。`implAssoc` の計画（`PrivateSeal` は渡す）と揃え、`PrivateCreate` も渡すと決めた
+- **関数は `build` で呼ぶ。**段の時点では `seal` が組み上がっていない。`build` で companion を作ってから、それを渡して呼ぶ。実行時は Val の `attach`、Enum の `assemble` と `frame`。variant の枠は内部で `Val.companion` の鎖なので、Val と同じ経路でその variant の門が渡る
+- **型。**Val は `Supplied`（`CreateMethod & SealMethod & PatchMethod`）、Enum は `EnumSeal` / `EnumCreate` / `VariantSupplied` を companion の型から切り出した。`Passes` は渡すものを 4 つ目の型引数で受ける。注釈なしで `patch(u, { name })` を返すメンバの戻り値は推論される（5.9 と 7.0）
+
+**計測。**instantiations は core 6,486 → 6,573、trait 17,421 → 16,615、enum 33,092 → 33,552、`index.d.ts` 79.30 → 80.33 kB。production gzip は Val 857 B → 886 B、Enum の分 +617 B → +628 B（残り 12 B）。**予算は動かさない。**
 
 **計測。**instantiations は core 6,579 → 6,486、trait 17,135 → 17,421、enum 33,184 → 33,092、`index.d.ts` 79.01 kB → 79.04 kB。production gzip は Val 855 B → 857 B、Trait の分 +110 B → +112 B、Enum の分 +608 B → +617 B（予算 640 B の残り 23 B）。**予算は動かさない。**Enum は次の PR で削る。
 
