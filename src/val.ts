@@ -711,13 +711,21 @@ export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] 
  * than a missing argument.
  */
 export type Passes<Tr extends AnyTrait, G, I, S> =
+  // `NoInfer` for the type cost: see `Supplied`.
   string extends NamesOf<Tr>
     ? [impl?: unknown]
     : [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-      ? [impl?: (supplied: S) => I & Arity<I> & ThisType<undefined>]
-      : [impl: (supplied: S) => I & Arity<I> & ThisType<undefined>];
+      ? [impl?: (supplied: NoInfer<S>) => I & Arity<I> & ThisType<undefined>]
+      : [impl: (supplied: NoInfer<S>) => I & Arity<I> & ThisType<undefined>];
 
-/** What a step's function receives: `seal`, `create` and `patch`, the private ones included. */
+/**
+ * What a step's function receives: `seal`, `create` and `patch`, the private ones included.
+ *
+ * Each step wraps it in `NoInfer` where it uses it. It holds no type parameter to infer, but
+ * inference walks all of it anyway. In the type-perf `core` fixture, `impl(({ seal }) => …)` took
+ * 15,800 instantiations, and 6,700 with the wrapper. Wrapped inside this alias, the parameter's
+ * hover shows the expanded type instead of `Supplied<…>`.
+ */
 type Supplied<V extends AnyVal, N, F, O extends Options> = CreateMethod<V, N, F> &
   SealMethod<V, F> &
   PatchMethod<V, F, O>;
@@ -789,7 +797,7 @@ export type CompanionBuilder<
         // types `this` as `undefined`, its value at run time.
         impl: <M extends CompanionMembers<V>>(
           fns: (
-            supplied: Supplied<V, N, F, O>,
+            supplied: NoInfer<Supplied<V, N, F, O>>,
           ) => Grown<keyof T, M> & Arity<M> & ThisType<undefined>,
         ) => CompanionBuilder<V, N, F, O, M & T, D | "impl">;
       }) & {
