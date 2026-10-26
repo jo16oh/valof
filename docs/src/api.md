@@ -43,15 +43,15 @@ only where `implCreate` registered one.
 
 `User` stands for the companion that belongs to the `User` type.
 
-|                                 |                                               |                                                                     |
-| ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------- |
-| `User.seal(value)`              | every companion without `PrivateSeal`         | applies the seal registered with `.implSeal(f)`, or the default one |
-| `User.seal.nocopy(value)`       | every companion without `PrivateSeal`         | the same as `User.seal`, without copying the payload                |
-| `User.create(...args)`          | registered with `.implCreate(f)`              | creates a payload, then passes it to seal                           |
-| `User.create.nocopy(...args)`   | registered with `.implCreate(f)`              | the same as `User.create`, without copying the payload              |
-| `User.patch(user, patch)`       | `User` has an object payload                  | deeply merges the patch, then seals it                              |
-| `User.[member](first, ...rest)` | registered with `.impl(f)` or `.implAssoc(f)` | runs a member defined for the companion                             |
-| `User.[member](...rest)(first)` | registered with `.impl(f)` or `.implAssoc(f)` | the same, with the first argument last, where `rest` is not empty   |
+|                                 |                                               |                                                                                       |
+| ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------- |
+| `User.seal(value)`              | every companion without `PrivateSeal`         | applies the seal registered with `.implSeal(f)`, or the default one                   |
+| `User.seal.nocopy(value)`       | every companion without `PrivateSeal`         | the same as `User.seal`, without copying the payload                                  |
+| `User.create(...args)`          | registered with `.implCreate(f)`              | creates a payload, then passes it to seal                                             |
+| `User.create.nocopy(...args)`   | registered with `.implCreate(f)`              | the same as `User.create`, without copying the payload                                |
+| `User.patch(user, patch)`       | `User` has an object payload                  | deeply merges the patch, then seals it                                                |
+| `User.[member](first, ...rest)` | registered with `.impl(f)` or `.implAssoc(f)` | runs a member defined for the companion                                               |
+| `User.[member](...rest)(first)` | registered with `.impl(f)` or `.implAssoc(f)` | the same, with the first argument last, where the member takes more than one argument |
 
 ## Types
 
