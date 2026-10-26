@@ -765,6 +765,9 @@ export type CompanionBuilder<
          *
          * A member named `then` makes the companion a thenable. `await` on it never settles.
          *
+         * A method or a `function` member is called as a plain function, so `this` is
+         * `undefined` inside it.
+         *
          * A member reaching the companion, for `patch`, for `seal`, for a trait's member or for a
          * sibling, references it and annotates its return type. Referencing a declaration inside
          * its own initializer is a circularity, which TypeScript reports as TS7023.
@@ -781,8 +784,8 @@ export type CompanionBuilder<
          */
         // A separate step because TypeScript cannot infer type arguments partially. A trait's
         // member is registered, so `.impl` may not register one over it: the type would keep the
-        // trait's signature while `dyn` kept calling what `implTrait` recorded. A member runs
-        // with no receiver, so `ThisType` makes `this` the `undefined` it is at run time.
+        // trait's signature while `dyn` kept calling what `implTrait` recorded. `ThisType`
+        // types `this` as `undefined`, its value at run time.
         impl: <M extends CompanionMembers<V>>(
           fns: () => Grown<keyof T, M> & Arity<M> & ThisType<undefined>,
         ) => CompanionBuilder<V, N, F, O, M & T, D | "impl">;

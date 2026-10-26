@@ -888,6 +888,9 @@ export type EnumBuilder<
         /**
          * Collects the members taking the union, which the function returns, in one call.
          *
+         * A method or a `function` member is called as a plain function, so `this` is
+         * `undefined` inside it.
+         *
          * A member reaching the companion, for `match`, for a variant or for a sibling,
          * references it and annotates its return type. Referencing a declaration inside its own
          * initializer is a circularity, which TypeScript reports as TS7023.
