@@ -250,10 +250,10 @@ User.patch(user, { id: "forged" }); // type error
 A validator checks its input but returns no more precise value:
 
 ```ts
-declare function isValidAge(value: number): boolean;
-declare const input: number;
+declare function isValidInterval(text: string): boolean;
+declare const input: string;
 // ---cut---
-const valid = isValidAge(input); // boolean; input is still a number
+const valid = isValidInterval(input); // boolean; input is still a string
 ```
 
 The type records nothing that the validator learned. Each consumer must trust that the check ran or
@@ -262,12 +262,12 @@ repeat it. This spreads validation through processing code, an anti-pattern call
 A parser instead turns less precise input into more precise output, or returns a failure. Parsing a
 wire format into a Val takes two steps:
 
-1. **Decode** the wire format into the payload's shape: a row into fields, a string into a number.
-   An `.implAssoc` member does this.
+1. **Decode** the wire format into the payload's shape: `"1..10"` into `{ min: 1, max: 10 }`. An
+   `.implAssoc` member does this.
 2. **Seal** the payload into the Val: check the invariants, normalize, and brand. Only the seal does
    this, because `create`, `patch` and the `seal` passed to `.implAssoc` all call it.
 
-`Age.seal` is the second step:
+`Interval.parse` takes both steps, and `create` and `patch` reach the same seal:
 
 ```ts
 import { Val } from "valof";
@@ -275,22 +275,38 @@ import { Val } from "valof";
 type Result<T> = { ok: true; value: T } | { ok: false; error: string };
 declare function ok<T>(value: T): Result<T>;
 declare function err(message: string): Result<never>;
-
-type Age = Val<"Age", number>;
-const Age = Val.companion<Age>()
-  .implSeal((value, seal): Result<Age> => ok(seal(value)))
-  .build();
-declare const input: number;
+declare const interval: Interval;
 // ---cut---
-const result = Age.seal(input); // Result<Age>
+type Interval = Val<"Interval", { min: number; max: number }>;
+
+const Interval = Val.companion<Interval>()
+  .implSeal((interval, seal): Result<Interval> =>
+    interval.min <= interval.max ? ok(seal(interval)) : err("min must not exceed max"),
+  )
+  .implCreate((size: number) => ({ min: 0, max: size }))
+  .implAssoc(({ seal }) => ({
+    parse: (text: string): Result<Interval> => {
+      const match = /^(\d+)\.\.(\d+)$/.exec(text);
+      return match
+        ? seal({ min: Number(match[1]), max: Number(match[2]) })
+        : err("expected min..max");
+    },
+  }))
+  .build();
+
+Interval.parse("1..10"); // Result<Interval>
+Interval.parse("10..1"); // the seal's error
+Interval.create(5); // Result<Interval>
+Interval.patch(interval, { max: -1 }); // Result<Interval>
 ```
 
-Once a value has been successfully sealed as an `Age`, its type guarantees that it is validated and
-normalized wherever it is passed, so downstream code does not need to repeat either step. The seals
-in this chapter put
+Once a value has been successfully sealed as an `Interval`, its type guarantees that it is validated
+and normalized wherever it is passed, so downstream code does not need to repeat either step. The
+seals in this chapter put
 [**“parse, don't validate”**](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
 into practice. They return a validated, canonical Val instead of returning facts about the input.
 Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's
 words,
 [parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101):
-the `Age` type can now represent only valid ages. `create` and `patch` reuse the same parser.
+the `Interval` type can now represent only valid intervals. `create` and `patch` reuse the same
+parser.
