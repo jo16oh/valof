@@ -32,10 +32,7 @@ Each key of the second type argument is a variant, and its value is that variant
 derives the union and each variant's brand from this one declaration. The brand of `Shape.Circle` is
 `"Shape.Circle"`. To add a variant, add a key to this declaration.
 
-Call a variant through the companion, as in `Shape.Circle.create(…)`. `const { Circle } = Shape`
-works, but a reader of `Circle.create({ r: 2 })` then has to look up the enum that declares
-`Circle`. The [`companion-mismatch`](linting.md#rules) lint rule reports a variant bound to another
-name, as in `const Round = Shape.Circle`.
+Call a variant through the companion, as in `Shape.Circle.create(…)`.
 
 The default `create` takes the fields without the tag. It adds the tag and passes the payload to the
 variant's seal. The seal takes the payload with its tag. Both deep-copy the payload, like any other
