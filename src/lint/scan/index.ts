@@ -60,7 +60,7 @@ export type { CompanionSite, Lift } from "./chains.ts";
 export type { Directive, Spelling } from "./directives.ts";
 export { silences } from "./directives.ts";
 
-/** A member `.impl({…})` registered, under the local name of its companion. */
+/** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
 export type Member = Where & { companion: string; member: string };
 /** One implementation attached to a Val companion chain. */
 export type TraitImplementation = {
@@ -101,7 +101,7 @@ export type Scan = {
   file: string;
   /** How the file bound the names it uses. */
   bound: Bindings;
-  /** What `.impl({…})` registered here. */
+  /** What `.impl(() => ({…}))` registered here. */
   members: Member[];
   /** Trait implementations, including the keys which replace a default implementation. */
   traitImplementations: TraitImplementation[];
@@ -208,9 +208,9 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * Walks one file once, for every rule.
  *
  * One walk rather than one per rule because the rules share their footing: {@link Bindings}
- * resolves a name for all three, and the chain analysis that spots `.impl({…})` is the same one
- * that spots `.implSeal`. What comes back is material, not findings; deciding is the rules'
- * job, and they see every file rather than this one.
+ * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
+ * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
+ * rules' job, and they see every file rather than this one.
  *
  * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
  * unsaved. The file may not exist at all.
@@ -537,8 +537,24 @@ function implTrait(
   const [traitRef, object] = children(node, "arguments");
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
-  const resolved = object ? objectMembers(object, val.name, objects, at, new Set()) : [];
+  const resolved = object ? stepMembers(object, val.name, objects, at) : [];
   return { val, trait, overrides: resolved };
+}
+
+/**
+ * The members a step's function returns: `() => ({…})`, `() => held`, or a const holding either.
+ * A block body is not read.
+ */
+function stepMembers(
+  node: Node,
+  companion: string,
+  objects: ReadonlyMap<string, Node>,
+  at: (offset: number) => Where,
+): Member[] {
+  const fn = node.type === "Identifier" ? objects.get(node["name"] as string) : node;
+  const body =
+    fn?.type === "ArrowFunctionExpression" ? unparenthesized(child(fn, "body")) : undefined;
+  return body ? objectMembers(body, companion, objects, at, new Set()) : [];
 }
 
 /** Resolves inline/const objects and spreads, retaining known keys even beside an unknown spread. */
@@ -581,7 +597,7 @@ function objectMembers(
 
 /**
  * Every `.impl` in a builder chain of any root, including repeated Trait `.impl` calls. A
- * variant's, `.Circle.impl({…})`, registers under `` `${enum}.${variant}` ``.
+ * variant's, `.Circle.impl(() => ({…}))`, registers under `` `${enum}.${variant}` ``.
  */
 function implMembers(
   node: Node,
@@ -602,7 +618,7 @@ function implMembers(
     const [object] = children(current, "arguments");
     if (step.name === "impl" && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
-      for (const member of objectMembers(object, owner, objects, at, new Set()))
+      for (const member of stepMembers(object, owner, objects, at))
         if (!rejected(member.member, variant ? undefined : root))
           found.set(`${owner}\0${member.member}`, member);
     }

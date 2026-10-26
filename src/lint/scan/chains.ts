@@ -191,8 +191,8 @@ type Chain = {
 
 /**
  * Reads a builder chain from the outside in.
- * `Val.companion<Order>().implSeal(f).impl({…})` gives both `implSeal` and `Order`. A variant's
- * step, `.Circle.implSeal(f)`, counts as the step.
+ * `Val.companion<Order>().implSeal(f).impl(() => ({…}))` gives both `implSeal` and `Order`. A
+ * variant's step, `.Circle.implSeal(f)`, counts as the step.
  *
  * A call whose receiver is not itself a call is the root, which is what tells
  * `Val.companion<X>()` apart from the steps chained onto it.

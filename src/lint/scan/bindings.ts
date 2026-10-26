@@ -26,7 +26,7 @@ export type Bindings = {
   namespaces: Map<string, string>;
   /**
    * Locals holding a builder, under the root it grew from, so `const built =
-   * Val.companion<X>(); built.impl({…})` is seen.
+   * Val.companion<X>(); built.impl(() => ({…}))` is seen.
    */
   builders: Map<string, Root>;
 };

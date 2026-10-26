@@ -16,10 +16,17 @@ export const children = (node: Node, key: string): Node[] => {
   return Array.isArray(value) ? value.filter(isNode) : [];
 };
 
-/** Removes syntax-only parentheses around a type, however many were written. */
+/**
+ * Removes syntax-only parentheses around a type or an expression, however many were written.
+ * oxc-parser keeps them as nodes, ESLint's parsers drop them.
+ */
 export function unparenthesized(node: Node | undefined): Node | undefined {
   let current = node;
-  while (current?.type === "TSParenthesizedType") current = child(current, "typeAnnotation");
+  while (current?.type === "TSParenthesizedType" || current?.type === "ParenthesizedExpression")
+    current = child(
+      current,
+      current.type === "TSParenthesizedType" ? "typeAnnotation" : "expression",
+    );
   return current;
 }
 
