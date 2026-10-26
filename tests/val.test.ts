@@ -1555,10 +1555,12 @@ describe("building", () => {
     });
 
     test("takes the members: `.build()` closes the chain, not `.impl()`", () => {
-      expect(() => {
+      // Never called: the empty call would throw before the type is the point.
+      const bare = () => {
         // @ts-expect-error Expected 1 arguments, but got 0
         Val.companion<User>().impl().build();
-      }).toThrow(TypeError);
+      };
+      expectTypeOf(bare).toBeFunction();
     });
 
     test("`patch` is the library's, not yours", () => {

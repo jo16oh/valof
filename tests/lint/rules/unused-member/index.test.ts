@@ -117,10 +117,9 @@ describe("what name resolution cannot reach", () => {
     ]);
   });
 
-  test("reads the object a step's function returns, inline or through a const", async () => {
+  test("reads a function held in a const, and not one with a block body", async () => {
     expect(await lint("step-functions")).toEqual([
-      { rule: UnusedMember, at: "step-functions.ts:1:16" },
-      { rule: UnusedMember, at: "step-functions.ts:4:26" },
+      { rule: UnusedMember, at: "step-functions.ts:1:26" },
     ]);
   });
 
