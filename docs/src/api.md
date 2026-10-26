@@ -51,7 +51,7 @@ only where `implCreate` registered one.
 | `User.create.nocopy(...args)`   | registered with `.implCreate(f)`              | the same as `User.create`, without copying the payload              |
 | `User.patch(user, patch)`       | `User` has an object payload                  | deeply merges the patch, then seals it                              |
 | `User.[member](first, ...rest)` | registered with `.impl(f)` or `.implAssoc(f)` | runs a member defined for the companion                             |
-| `User.[member](...rest)(first)` | registered with `.impl(f)` or `.implAssoc(f)` | the same, with the first argument last                              |
+| `User.[member](...rest)(first)` | registered with `.impl(f)` or `.implAssoc(f)` | the same, with the first argument last, where `rest` is not empty   |
 
 ## Types
 
