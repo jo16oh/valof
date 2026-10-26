@@ -785,8 +785,9 @@ export type CompanionBuilder<
          * TypeScript reports as TS7023.
          *
          * A member can be called with the value first, `User.rename(u, "x")`, or last,
-         * `User.rename("x")(u)`. So can `patch` and a trait's members. A member cannot have an
-         * optional, a default or a rest parameter. Pass `undefined` where an argument has no value.
+         * `User.rename("x")(u)`. So can `patch` and a trait's member taking more than the value. One taking only the value
+         * has no second form: `pipe(u, User.greet)`. A member cannot have an optional, a default
+         * or a rest parameter. Pass `undefined` where an argument has no value.
          *
          * Called with the value last, a generic member loses its type parameters. Each becomes its
          * constraint, or `unknown` where none is declared. To keep them, wrap the member in a
@@ -813,7 +814,7 @@ export type CompanionBuilder<
      * type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
-     * `Money.scaled(2)(5)`. One taking no argument is called as it is. A member cannot have an
+     * `Money.scaled(2)(5)`. One taking one argument or none has no second form. A member cannot have an
      * optional, a default or a rest parameter.
      */
     implAssoc: <M extends AssocMembers>(
@@ -829,8 +830,8 @@ export type CompanionBuilder<
      * A member the trait declared {@link Final} is not returned here. It arrives unchanged, and
      * nothing can override it.
      *
-     * The members can be called with the value first or last, and cannot have an optional, a
-     * default or a rest parameter.
+     * A member taking more than the value can be called with the value first or last. None can
+     * have an optional, a default or a rest parameter.
      *
      * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
      */

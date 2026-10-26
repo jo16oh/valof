@@ -1275,6 +1275,10 @@ describe("data-first and data-last", () => {
     expect([Named.renamed(bob, "sue"), Named.renamed("sue")(bob)]).toEqual([sue, sue]);
   });
 
+  test("a member taking only the value has no form taking it last", () => {
+    expectTypeOf(Named.greet).toEqualTypeOf<(self: User) => string>();
+  });
+
   test("so does `patch`", () => {
     expectTypeOf(Named.patch({ name: "sue" })).toEqualTypeOf<(self: User) => User>();
     expect(Named.patch({ name: "sue" })(bob)).toEqual(sue);
@@ -1692,6 +1696,13 @@ describe("building", () => {
       expect([Money.scaled(5, 2), Money.scaled(2)(5)]).toEqual([{ cents: 10 }, { cents: 10 }]);
     });
 
+    test("a member taking one argument has no form taking it last", () => {
+      const Money = Val.companion<Money>()
+        .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
+        .build();
+      expectTypeOf(Money.fromCents).toEqualTypeOf<(cents: number) => Money>();
+    });
+
     test("a member passed unapplied runs first-argument-first, whatever the caller passes", () => {
       const Money = Val.companion<Money>()
         .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
@@ -1781,11 +1792,11 @@ describe("building", () => {
       const Money = Val.companion<Money>()
         .implAssoc(() => ({ block, line, bound, now: Date.now }))
         .build();
-      expect([Money.block, Money.line, Money.bound, Money.now]).toEqual([
-        block,
-        line,
-        bound,
-        Date.now,
+      expect([Money.block(), Money.line(), Money.bound(), typeof Money.now()]).toEqual([
+        0,
+        0,
+        0,
+        "number",
       ]);
     });
 
@@ -1841,14 +1852,18 @@ describe("building", () => {
     });
 
     test("a member has no `this`, which the type says", () => {
-      Val.companion<Money>()
+      const Held = Val.companion<Money>()
         .implAssoc(() => ({
-          fromCents(cents: number) {
+          fromCents(cents: number): unknown {
             expectTypeOf(this).toEqualTypeOf<undefined>();
-            return cents;
+            return [this, cents];
+          },
+          zero(): unknown {
+            return this;
           },
         }))
         .build();
+      expect([Held.fromCents(1), Held.zero()]).toEqual([[undefined, 1], undefined]);
     });
   });
 

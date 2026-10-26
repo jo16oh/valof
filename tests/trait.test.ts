@@ -331,20 +331,17 @@ describe("data-first and data-last", () => {
 
   test("a trait's member takes the value first, or last, on the Val's companion", () => {
     expectTypeOf(User.toWire("/")).toEqualTypeOf<(self: User) => string>();
-    const shouted = pipe(user, User.shout);
-    expectTypeOf(shouted).toEqualTypeOf<string>();
-    expect([User.toWire(user, "/"), User.toWire("/")(user), shouted, User.shout()(user)]).toEqual([
-      "a/alice",
-      "a/alice",
-      "ALICE",
-      "ALICE",
-    ]);
+    expect([User.toWire(user, "/"), User.toWire("/")(user)]).toEqual(["a/alice", "a/alice"]);
   });
 
-  test("and a Final member on the trait's own companion", () => {
-    const shouted = pipe(user, Greetable.shout);
-    expectTypeOf(shouted).toEqualTypeOf<string>();
-    expect([shouted, Greetable.shout()(admin)]).toEqual(["ALICE", "ROOT"]);
+  test("one taking only the value has no form taking it last", () => {
+    expectTypeOf(User.shout).toEqualTypeOf<(self: User) => string>();
+    expect(pipe(user, User.shout)).toBe("ALICE");
+  });
+
+  test("nor does a Final member on the trait's own companion", () => {
+    expectTypeOf(Greetable.shout).toEqualTypeOf<(self: Greetable) => string>();
+    expect(pipe(admin, Greetable.shout)).toBe("ROOT");
   });
 
   test("a member declared with arguments that can be left out is rejected", () => {

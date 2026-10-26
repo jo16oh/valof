@@ -2,7 +2,8 @@ import { development } from "./env.ts";
 
 /**
  * A member callable two ways: `User.rename(u, "x")`, or `User.rename("x")(u)` with the value
- * passed later. `pipe(u, User.rename("x"))` uses the second.
+ * passed later. `pipe(u, User.rename("x"))` uses the second. A member taking only the value is
+ * left as it is: `pipe(u, User.greet)`.
  *
  * The data-first form goes last, since a member passed as a callback is typed by its last
  * signature. That form is the member's own type, so a generic member stays generic in it. The
@@ -10,7 +11,9 @@ import { development } from "./env.ts";
  * function: `pipe(u, (v) => User.pick(v, "name"))`.
  */
 export type Dual<F, S> = F extends (self: never, ...args: infer A) => infer R
-  ? ((...args: A) => (self: S) => R) & F
+  ? A extends []
+    ? F
+    : ((...args: A) => (self: S) => R) & F
   : F;
 
 /** {@link Dual} over every member. `S` is passed rather than inferred, so a hover shows `User` rather than its expansion. */
@@ -18,10 +21,10 @@ export type Duals<M, S> = { [K in keyof M]: Dual<M[K], S> };
 
 /**
  * {@link Dual} for a member that does not take the value: its first argument moves last instead.
- * One taking no argument is left as it is.
+ * One taking one argument or none is left as it is.
  */
 export type Loose<F> = F extends (first: infer S, ...args: infer A) => infer R
-  ? Parameters<F> extends []
+  ? A extends []
     ? F
     : ((...args: A) => (first: S) => R) & F
   : F;
@@ -92,8 +95,8 @@ export function dual(f: unknown): unknown {
 }
 
 /**
- * {@link dual} for a member that does not take the value. One declaring no parameter is left as
- * it is.
+ * {@link dual} for a member that does not take the value. One taking no argument is bound to
+ * `undefined` rather than wrapped, so `this` is `undefined` as in every other member.
  *
  * A `length` of 0 is also what a rest or default parameter leaves, which would run every
  * first-argument-last call first-argument-first. Development reads the source to tell them apart:
@@ -112,5 +115,5 @@ export function loose(f: unknown): unknown {
       "A member cannot hide its parameters behind a rest or a default parameter.",
     );
   }
-  return f;
+  return f.bind(undefined);
 }
