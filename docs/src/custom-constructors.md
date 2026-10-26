@@ -197,10 +197,6 @@ parameter, and one referencing the companion annotates its return type.
 A list after the type in `Val.companion` restricts what the companion offers callers, in any
 combination.
 
-The options are types, so they do not exist at runtime. They constrain the companion, not the value.
-`Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an id must
-be unforgeable, it belongs outside the value.
-
 ### Hide `seal` and `create`
 
 `create` can generate an id. `PrivateSeal` removes `seal` from the companion, so a caller cannot
