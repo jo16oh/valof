@@ -8,14 +8,14 @@ type Greetable = Trait<
   }
 >;
 
-const Greetable = Trait.companion<Greetable>().impl({
+const Greetable = Trait.companion<Greetable>().impl(() => ({
   greet: () => "hello",
   wave: () => "wave",
   nod: () => "nod",
-}).build();
+})).build();
 
 type User = Val<"User", { name: string }, Greetable>;
-const User = Val.companion<User>().implTrait(Greetable, { greet: () => "hi" }).build();
+const User = Val.companion<User>().implTrait(Greetable, () => ({ greet: () => "hi" })).build();
 
 Greetable.dyn(User, {}).greet;
 const boxed = Greetable.dyn(User, {});

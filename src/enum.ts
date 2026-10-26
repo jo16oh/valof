@@ -515,23 +515,38 @@ type Framed<
   U = Unpatched<O, N>,
 > = Duals<Omit<T, Wired>, VariantOf<E, N>> &
   (NoCreate<O, N> extends true ? unknown : CreateMethod<E, N, C, R>) &
-  (Hidden<O> extends true
-    ? unknown
-    : {
-        /** The single gate a payload of this variant passes. `create` and `patch` go through it. */
-        seal: Creates<[payload: Tagged<E, N>], R>;
-      }) & {
-    /** Derives through the same seal. See {@link Patch}. */
-    patch: Dual<
-      (
-        value: VariantOf<E, N>,
-        patch: Patch<
-          [U] extends [never] ? SeedFor<E, N> : Omit<SeedFor<E, N>, U & keyof SeedFor<E, N>>
-        >,
-      ) => R,
-      VariantOf<E, N>
-    >;
-  } & TraitHost;
+  (Hidden<O> extends true ? unknown : VariantSeal<E, N, R>) &
+  VariantPatch<E, N, R, U> &
+  TraitHost;
+
+type VariantSeal<E extends AnyEnum, N extends keyof VariantsOf<E>, R> = {
+  /** The single gate a payload of this variant passes. `create` and `patch` go through it. */
+  seal: Creates<[payload: Tagged<E, N>], R>;
+};
+
+type VariantPatch<E extends AnyEnum, N extends keyof VariantsOf<E>, R, U> = {
+  /** Derives through the same seal. See {@link Patch}. */
+  patch: Dual<
+    (
+      value: VariantOf<E, N>,
+      patch: Patch<
+        [U] extends [never] ? SeedFor<E, N> : Omit<SeedFor<E, N>, U & keyof SeedFor<E, N>>
+      >,
+    ) => R,
+    VariantOf<E, N>
+  >;
+};
+
+/** What a variant's step's function receives: its `seal`, `create` and `patch`, private or not. */
+type VariantSupplied<
+  E extends AnyEnum,
+  O extends Options,
+  VM,
+  N extends keyof VariantsOf<E> & string,
+  R = Sealed<E, N, At<VM, N, "seal">>,
+> = CreateMethod<E, N, At<VM, N, "create">, R> &
+  VariantSeal<E, N, R> &
+  VariantPatch<E, N, R, Unpatched<O, N>>;
 
 type Frame<
   E extends AnyEnum,
@@ -632,36 +647,8 @@ export type EnumCompanion<
 > = {
   [N in keyof VariantsOf<E>]: Frame<E, O, VM, N & string>;
 } & Duals<Omit<M, Wired | "match" | keyof VariantsOf<E>>, E> &
-  (Hidden<O> extends true
-    ? unknown
-    : {
-        /**
-         * Reads the tag, selects that variant, and passes the payload to its seal. With
-         * `.implSeal`, the enum's seal runs first, and its return is what this returns. Without
-         * one, the return is the variants' seals' returns, as a union.
-         *
-         * Passing a field of another variant is a type error, even when the tag is a union. A tag
-         * the declaration lacks gets past the type through a cast or `any` alone, and only the
-         * enum's seal can reject it: the variants' seals run once one is selected.
-         */
-        seal: [F] extends [undefined]
-          ? (payload: Exclusive<E>) => Dispatched<E, VM>
-          : (
-              value: F extends (value: infer V, ...rest: never[]) => unknown ? V : never,
-            ) => Returned<F>;
-      }) &
-  ([C] extends [undefined]
-    ? unknown
-    : [Extract<O[number], PrivateCreate>] extends [never]
-      ? {
-          /** Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. */
-          create: C extends Unsealed & { payload: infer P }
-            ? () => Extract<E, Record<TagOf<E>, P[TagOf<E> & keyof P]>>
-            : (
-                ...args: C extends (...args: infer A) => unknown ? A : never
-              ) => [F] extends [undefined] ? Dispatched<E, VM> : Returned<F>;
-        }
-      : unknown) & {
+  (Hidden<O> extends true ? unknown : EnumSeal<E, VM, F>) &
+  ([Extract<O[number], PrivateCreate>] extends [never] ? EnumCreate<E, VM, F, C> : unknown) & {
     /**
      * Dispatches on the tag. Every variant needs a handler, so adding one to the declaration
      * fails here rather than falling through at run time. `_` handles the variants that have no
@@ -675,6 +662,32 @@ export type EnumCompanion<
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
   } & TraitHost;
+
+type EnumSeal<E extends AnyEnum, VM, F> = {
+  /**
+   * Reads the tag, selects that variant, and passes the payload to its seal. With `.implSeal`, the
+   * enum's seal runs first, and its return is what this returns. Without one, the return is the
+   * variants' seals' returns, as a union.
+   *
+   * Passing a field of another variant is a type error, even when the tag is a union. A tag the
+   * declaration lacks gets past the type through a cast or `any` alone, and only the enum's seal
+   * can reject it: the variants' seals run once one is selected.
+   */
+  seal: [F] extends [undefined]
+    ? (payload: Exclusive<E>) => Dispatched<E, VM>
+    : (value: F extends (value: infer V, ...rest: never[]) => unknown ? V : never) => Returned<F>;
+};
+
+type EnumCreate<E extends AnyEnum, VM, F, C> = [C] extends [undefined]
+  ? unknown
+  : {
+      /** Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. */
+      create: C extends Unsealed & { payload: infer P }
+        ? () => Extract<E, Record<TagOf<E>, P[TagOf<E> & keyof P]>>
+        : (
+            ...args: C extends (...args: infer A) => unknown ? A : never
+          ) => [F] extends [undefined] ? Dispatched<E, VM> : Returned<F>;
+    };
 
 /** The steps the enum's own part of the chain has taken. */
 type EnumTaken = "implSeal" | "implCreate" | "impl" | "implTrait";
@@ -710,7 +723,7 @@ type VariantTrait<
   N extends keyof VariantsOf<E> & string,
 > = <Tr extends AnyTrait, G, I extends Implement<Tr, G, VariantOf<E, N>>>(
   trait: Takes<VariantOf<E, N>, Tr, At<VM, N, "members", Record<never, never>>, Complete<Tr, G>>,
-  ...impl: Passes<Tr, G, I>
+  ...impl: Passes<Tr, G, I, VariantSupplied<E, O, VM, N>>
 ) => After<
   E,
   O,
@@ -776,13 +789,18 @@ type VariantSteps<
     ? unknown
     : {
         /**
-         * Collects the members taking this variant, in one call. They can be called with the value
-         * first or last, and cannot have an optional, a default or a rest parameter.
+         * Collects the members taking this variant, which the function returns, in one call. They
+         * can be called with the value first or last, and cannot have an optional, a default or a
+         * rest parameter.
          *
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
         impl: <G extends CompanionMembers<VariantOf<E, N>>>(
-          fns: Grown<keyof At<VM, N, "members", Record<never, never>>, Unclaimed<E, G>> & Arity<G>,
+          fns: (
+            supplied: VariantSupplied<E, O, VM, N>,
+          ) => Grown<keyof At<VM, N, "members", Record<never, never>>, Unclaimed<E, G>> &
+            Arity<G> &
+            ThisType<undefined>,
         ) => After<E, O, VM, M, { [K in `${N}:impl`]: true } & { [K in `${N}:members`]: G }>;
       });
 
@@ -883,11 +901,12 @@ export type EnumBuilder<
     ? unknown
     : {
         /**
-         * Collects the members taking the union, in one call.
+         * Collects the members taking the union, which the function returns, in one call.
          *
-         * A member reaching the companion, for `match`, for a variant or for a sibling,
-         * references it and annotates its return type. Referencing a declaration inside its own
-         * initializer is a circularity, which TypeScript reports as TS7023.
+         * The function receives `seal` and `create`. A member reaching the companion for anything
+         * else (`match`, a variant or a sibling) references it and annotates its return type.
+         * Referencing a declaration inside its own initializer is a circularity, which TypeScript
+         * reports as TS7023.
          *
          * The members, `match` and `[Tag].match` can be called with the value first or last. A
          * member cannot have an optional, a default or a rest parameter.
@@ -895,7 +914,9 @@ export type EnumBuilder<
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
         impl: <G extends UnionMembers<E>>(
-          fns: Unclaimed<E, G> & Arity<G>,
+          fns: (
+            supplied: EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>,
+          ) => Unclaimed<E, G> & Arity<G> & ThisType<undefined>,
         ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl">;
       }) & {
     /**
@@ -904,7 +925,7 @@ export type EnumBuilder<
      */
     implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
       trait: UnionTakes<E, Tr, M, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, I>
+      ...impl: Passes<Tr, G, I, EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>
     ) => EnumBuilder<E, O, VM, M & Unbound<MembersOf<Tr>, E>, F, C, D | "implTrait">;
   };
 
@@ -924,12 +945,18 @@ type Payload = Record<string, unknown>;
 type Seal = (value: Payload, seal: (value: Payload) => unknown) => unknown;
 
 /** What one variant's steps registered. */
+/** A step's function: the members it returns from the gates it receives. */
+type Members = (supplied: object) => Payload;
+
+/** A trait and the function that implements it. */
+type Implementation = [trait: { [Shared]: Payload }, fns?: Members];
+
 type Registered = {
   seal?: Seal;
   create?: AnyFn;
   noseal?: boolean | undefined;
-  members?: Payload;
-  traits?: Payload;
+  members?: Members;
+  traits?: Implementation[];
 };
 
 type Variants = Record<string, Registered>;
@@ -938,8 +965,8 @@ type Variants = Record<string, Registered>;
 type Chain = {
   implSeal: (seal: Seal) => Chain;
   implCreate: ((create: AnyFn) => Chain) & { noseal: (create: AnyFn) => Chain };
-  impl: (fns: Payload) => Chain;
-  implTrait: (trait: { [Shared]: Payload }) => Chain;
+  impl: (fns?: Members) => Chain;
+  implTrait: (...implementation: Implementation) => Chain;
   build: () => object;
 };
 
@@ -997,7 +1024,6 @@ const resolving = (
  * enforce. A name that is not a step is a variant's, whose steps register under it.
  */
 const builder = (tag: string, variants: Variants, own: Registered): object => {
-  const { members = {}, traits = {} } = own;
   const step = (name: string, change: Registered) =>
     builder(tag, { ...variants, [name]: { ...variants[name], ...change } }, own);
   const grow = (change: Registered) => builder(tag, variants, { ...own, ...change });
@@ -1008,12 +1034,9 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
       implCreate: Object.assign((create: AnyFn) => grow({ create, noseal: false }), {
         noseal: (create: AnyFn) => grow({ create, noseal: true }),
       }),
-      impl: (fns: Payload) => grow({ members: { ...members, ...duals(fns) } }),
-      // The trait's own members and the enum's, merged the way `val.ts` merges them.
-      implTrait: (trait: { [Shared]: Payload }, fns = {}) => {
-        const grown = { ...traits, ...trait[Shared], ...fns };
-        return grow({ members: { ...members, ...duals(grown) }, traits: grown });
-      },
+      impl: (members: Members) => grow({ members }),
+      implTrait: (...implementation: Implementation) =>
+        grow({ traits: [...(own.traits ?? []), implementation] }),
       build: () => assemble(tag, variants, own),
     },
     (name) => ({
@@ -1021,9 +1044,9 @@ const builder = (tag: string, variants: Variants, own: Registered): object => {
       implCreate: Object.assign((create: AnyFn) => step(name, { create, noseal: false }), {
         noseal: (create: AnyFn) => step(name, { create, noseal: true }),
       }),
-      impl: (fns: Payload) => step(name, { members: fns }),
-      implTrait: (trait: { [Shared]: Payload }, fns = {}) =>
-        step(name, { traits: { ...variants[name]?.traits, ...trait[Shared], ...fns } }),
+      impl: (members: Members) => step(name, { members }),
+      implTrait: (...implementation: Implementation) =>
+        step(name, { traits: [...(variants[name]?.traits ?? []), implementation] }),
     }),
   );
 };
@@ -1044,7 +1067,7 @@ const frame = (tag: string, name: string, steps: Registered): object => {
     assertVariantPayload(payload);
     return { ...payload, [tag]: name };
   };
-  const { seal, create, noseal, members = {}, traits = {} } = steps;
+  const { seal, create, noseal, members, traits = [] } = steps;
   let chain = (Val.companion() as unknown as Chain).implSeal((value, terminal) => {
     // Taken here, so a value this seal builds on the way runs with nothing watching it.
     let watcher: typeof watching;
@@ -1060,9 +1083,8 @@ const frame = (tag: string, name: string, steps: Registered): object => {
   // The tag is minted as the payload comes out, the way `create` generates what it generates.
   const made = create ? (...args: never[]) => mint(create(...args) as Payload) : mint;
   chain = noseal ? chain.implCreate.noseal(made) : chain.implCreate(made);
-  return chain
-    .impl(members)
-    .implTrait({ [Shared]: traits })
+  return traits
+    .reduce((built, implementation) => built.implTrait(...implementation), chain.impl(members))
     .build();
 };
 
@@ -1072,7 +1094,7 @@ const frame = (tag: string, name: string, steps: Registered): object => {
  * throws where the chain is.
  */
 const assemble = (tag: string, variants: Variants, own: Registered): object => {
-  const { seal, create, noseal, members = {}, traits = {} } = own;
+  const { seal, create, noseal, members, traits = [] } = own;
   // Remembered for the allocation, not for identity: a frame built twice behaves the same, and
   // rebuilding one on every read would make a fresh closure per member per access.
   const frames = new Map<string, unknown>();
@@ -1104,23 +1126,29 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
     return heard.length ? heard[0] : notFixedPoint();
   };
 
+  const gates: Record<PropertyKey, unknown> = {
+    match: dual((value: Payload, handlers: HandlerMap) =>
+      arm(handlers, value[tag] as string)(value),
+    ),
+    seal: sealing,
+    ...(create && {
+      create: noseal
+        ? () => unsealed(create() as Payload)
+        : (...args: never[]) => sealing(create(...args) as Payload),
+    }),
+    [Tag]: { match: matchTag, key: tag },
+  };
+  // The trait's own members and the enum's, merged the way `val.ts` merges them.
+  const implemented = Object.assign(
+    {},
+    ...traits.map(([trait, fns]) => ({ ...trait[Shared], ...fns?.(gates) })),
+  );
+  gates[Traits] = implemented;
   return resolving(
-    {
-      match: dual((value: Payload, handlers: HandlerMap) =>
-        arm(handlers, value[tag] as string)(value),
-      ),
-      seal: sealing,
-      ...(create && {
-        create: noseal
-          ? () => unsealed(create() as Payload)
-          : (...args: never[]) => sealing(create(...args) as Payload),
-      }),
-      [Tag]: { match: matchTag, key: tag },
-      [Traits]: traits,
-    },
+    gates,
     at,
     // Last, as the proxy read them first: the declaration keeps a trait member off `match`.
-    members,
+    { ...duals({ ...members?.(gates) }), ...duals(implemented) },
   );
 };
 

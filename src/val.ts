@@ -707,15 +707,20 @@ export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] 
 
 /**
  * The second argument, absent where the trait answered for every member itself. Optional where `Tr`
- * was not inferred, so a call passing the members alone reports {@link Takes}'s message rather than
- * a missing argument.
+ * was not inferred, so a call passing the function alone reports {@link Takes}'s message rather
+ * than a missing argument.
  */
-export type Passes<Tr extends AnyTrait, G, I> =
+export type Passes<Tr extends AnyTrait, G, I, S> =
   string extends NamesOf<Tr>
     ? [impl?: unknown]
     : [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-      ? [impl?: I & Arity<I>]
-      : [impl: I & Arity<I>];
+      ? [impl?: (supplied: S) => I & Arity<I> & ThisType<undefined>]
+      : [impl: (supplied: S) => I & Arity<I> & ThisType<undefined>];
+
+/** What a step's function receives: `seal`, `create` and `patch`, the private ones included. */
+type Supplied<V extends AnyVal, N, F, O extends Options> = CreateMethod<V, N, F> &
+  SealMethod<V, F> &
+  PatchMethod<V, F, O>;
 
 /** The steps a companion has taken. The first two are the first half of the chain. */
 type Taken = "implSeal" | "implCreate" | "impl" | "implTrait";
@@ -760,14 +765,13 @@ export type CompanionBuilder<
     ? unknown
     : {
         /**
-         * Collects the members for the type, in one call. Everything the library reserves has its
-         * own step.
+         * Collects the members the function returns, in one call. Everything the library reserves
+         * has its own step.
          *
-         * A member named `then` makes the companion a thenable. `await` on it never settles.
-         *
-         * A member reaching the companion, for `patch`, for `seal`, for a trait's member or for a
-         * sibling, references it and annotates its return type. Referencing a declaration inside
-         * its own initializer is a circularity, which TypeScript reports as TS7023.
+         * The function receives `seal`, `create` and `patch`. A member reaching the companion for
+         * anything else (a trait's member or a sibling) references it and annotates its return
+         * type. Referencing a declaration inside its own initializer is a circularity, which
+         * TypeScript reports as TS7023.
          *
          * A member can be called with the value first, `User.rename(u, "x")`, or last,
          * `User.rename("x")(u)`. So can `patch` and a trait's members. A member cannot have an
@@ -781,17 +785,20 @@ export type CompanionBuilder<
          */
         // A separate step because TypeScript cannot infer type arguments partially. A trait's
         // member is registered, so `.impl` may not register one over it: the type would keep the
-        // trait's signature while `dyn` kept calling what `implTrait` recorded.
+        // trait's signature while `dyn` kept calling what `implTrait` recorded. `ThisType`
+        // types `this` as `undefined`, its value at run time.
         impl: <M extends CompanionMembers<V>>(
-          fns: Grown<keyof T, M> & Arity<M>,
+          fns: (
+            supplied: Supplied<V, N, F, O>,
+          ) => Grown<keyof T, M> & Arity<M> & ThisType<undefined>,
         ) => CompanionBuilder<V, N, F, O, M & T, D | "impl">;
       }) & {
     /**
-     * Implements a trait the type declares. The members the trait leaves open arrive as a second
-     * argument, with their first parameter fixed to the Val as everywhere else; a trait that
-     * leaves none takes no second argument.
+     * Implements a trait the type declares. A function passed as the second argument returns the
+     * members the trait leaves open, with their first parameter fixed to the Val as everywhere
+     * else; a trait that leaves none takes no second argument.
      *
-     * A member the trait declared {@link Final} is not passed here: it arrives unchanged, and
+     * A member the trait declared {@link Final} is not returned here. It arrives unchanged, and
      * nothing can override it.
      *
      * The members can be called with the value first or last, and cannot have an optional, a
@@ -801,7 +808,7 @@ export type CompanionBuilder<
      */
     implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T, Complete<Tr, G>>,
-      ...impl: Passes<Tr, G, I>
+      ...impl: Passes<Tr, G, I, Supplied<V, N, F, O>>
     ) => CompanionBuilder<V, N, F, O, T & Unbound<MembersOf<Tr>, V>, D | "implTrait">;
   };
 
@@ -1195,9 +1202,9 @@ const patched = (
  * default seal that a custom one returns through.
  */
 const attach = (
-  fns: Record<string, unknown>,
+  fns: Members | undefined,
   ctors: Ctors,
-  traits: Record<string, unknown>,
+  implemented: Members[],
 ): Record<string, unknown> => {
   const target: Record<string, unknown> = {};
   const { create, noseal, seal: custom } = ctors;
@@ -1269,33 +1276,35 @@ const attach = (
     return Object.is(merged, value) ? keep(value) : seal(merged);
   });
 
-  // A trait's members join the type's own, so they grow the same way. The record is
-  // what `Trait`'s `dyn` reads, and keeping it here means `val.ts` never imports `trait.ts`.
+  // The steps' functions run once the gates they receive exist. A trait's members join the
+  // type's own, so they grow the same way. The record is what `Trait`'s `dyn` reads, and keeping
+  // it here means `val.ts` never imports `trait.ts`.
+  const traits = Object.assign({}, ...implemented.map((members) => members(target)));
+  const members = { ...fns?.(target) };
   (target as Record<symbol, unknown>)[Traits] = traits;
   for (const key of Object.keys(traits)) define(target, key, dual(traits[key]));
-  for (const key of Object.keys(fns)) define(target, key, dual(fns[key]));
+  for (const key of Object.keys(members)) define(target, key, dual(members[key]));
 
   return target;
 };
+
+/** A step's function: the members it returns from the gates it receives. */
+type Members = (supplied: object) => Record<string, unknown>;
 
 /**
  * One builder state: what the steps registered so far. The order of the steps is the type's to
  * enforce.
  */
-const builder = (
-  ctors: Ctors,
-  traits: Record<string, unknown> = {},
-  fns: Record<string, unknown> = {},
-): object => ({
+const builder = (ctors: Ctors, traits: Members[] = [], fns?: Members): object => ({
   implSeal: (seal: NonNullable<Ctors["seal"]>) => builder({ ...ctors, seal }, traits, fns),
   implCreate: Object.assign(
     (create: AnyFn) => builder({ ...ctors, create, noseal: false }, traits, fns),
     { noseal: (create: AnyFn) => builder({ ...ctors, create, noseal: true }, traits, fns) },
   ),
-  impl: (members: Record<string, unknown>) => builder(ctors, traits, members),
+  impl: (members: Members) => builder(ctors, traits, members),
   // The Val's own go on last, the type having kept every `Final` one out of them.
-  implTrait: (trait: { [Shared]: Record<string, unknown> }, impl = {}) =>
-    builder(ctors, { ...traits, ...trait[Shared], ...impl }, fns),
+  implTrait: (trait: { [Shared]: Record<string, unknown> }, impl?: Members) =>
+    builder(ctors, [...traits, (supplied) => ({ ...trait[Shared], ...impl?.(supplied) })], fns),
   build: () => attach(fns, ctors, traits),
 });
 

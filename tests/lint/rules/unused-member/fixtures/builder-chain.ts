@@ -1,8 +1,8 @@
 const Doc = Val.companion<Doc, [Unpatchable<"id">]>()
   .implSeal((d, seal) => seal(d))
-  .impl({
+  .impl(() => ({
     title: (d) => d.title,
     subtitle: (d) => d.title,
-  }).build();
+  })).build();
 
 Doc.title(doc);

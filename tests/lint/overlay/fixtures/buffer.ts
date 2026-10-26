@@ -1,5 +1,5 @@
-const User = Val.companion<User>().impl({
+const User = Val.companion<User>().impl(() => ({
   shout: (u) => u.toUpperCase(),
-}).build();
+})).build();
 
 User.shout(u);

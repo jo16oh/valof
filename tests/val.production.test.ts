@@ -89,9 +89,9 @@ describe("a member in production", () => {
     type Named = Value<"ProductionNamed", { name: string }>;
     const greet = (n: Named, greeting: string) => `${greeting}, ${n.name}`;
     const Named = Val.companion<Named>()
-      .impl({
+      .impl(() => ({
         greet: (...args: [Named, string]) => greet(...args),
-      })
+      }))
       .build();
     expect(Named.greet(Named.seal({ name: "bob" }), "Hi")).toBe("Hi, bob");
   });

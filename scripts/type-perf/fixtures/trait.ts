@@ -13,10 +13,10 @@ type Named = Trait<
   }
 >;
 const Named = Trait.companion<Named>()
-  .impl({
+  .impl(() => ({
     greet: (n) => `Hi, ${n.name}`,
     shout: (n) => n.name.toUpperCase(),
-  })
+  }))
   .build();
 
 type Sized = Trait<
@@ -25,7 +25,7 @@ type Sized = Trait<
   { scaled: (self: Self, by: number) => number; area: (self: Self) => number }
 >;
 const Sized = Trait.companion<Sized>()
-  .impl({ area: (s) => s.size.w * s.size.h })
+  .impl(() => ({ area: (s) => s.size.w * s.size.h }))
   .build();
 
 type Room = Val<
@@ -34,26 +34,26 @@ type Room = Val<
   Named & Sized
 >;
 const Room = Val.companion<Room>()
-  .implTrait(Named, { label: (r, sep) => `${r.id}${sep}${r.name}` })
-  .implTrait(Sized, { scaled: (r, by) => r.size.w * by })
-  .impl({
+  .implTrait(Named, () => ({ label: (r, sep) => `${r.id}${sep}${r.name}` }))
+  .implTrait(Sized, () => ({ scaled: (r, by) => r.size.w * by }))
+  .impl(() => ({
     describe(r): string {
       return `${r.name} ${Room.area(r)}`;
     },
-  })
+  }))
   .build();
 
 type Tag = Val<"Tag", { name: string; kind: string }, Named>;
 const Tag = Val.companion<Tag>()
-  .implTrait(Named, {
+  .implTrait(Named, () => ({
     label: (t, sep) => `${t.kind}${sep}${t.name}`,
-  })
+  }))
   .build();
 
 type Point = Val<"Point", { name: string; size: { w: number; h: number } }, Named & Sized>;
 const Point = Val.companion<Point>()
-  .implTrait(Named, { label: (p, sep) => `${p.name}${sep}` })
-  .implTrait(Sized, { scaled: (p, by) => p.size.w * by })
+  .implTrait(Named, () => ({ label: (p, sep) => `${p.name}${sep}` }))
+  .implTrait(Sized, () => ({ scaled: (p, by) => p.size.w * by }))
   .build();
 
 // A Val carrying a trait, nested in one that carries another: the payload check has to stop at
@@ -64,8 +64,8 @@ type Floor = Val<
   Named & Sized
 >;
 const Floor = Val.companion<Floor>()
-  .implTrait(Named, { label: (f, sep) => `${f.name}${sep}${f.main.id}` })
-  .implTrait(Sized, { scaled: (f, by) => f.size.h * by })
+  .implTrait(Named, () => ({ label: (f, sep) => `${f.name}${sep}${f.main.id}` }))
+  .implTrait(Sized, () => ({ scaled: (f, by) => f.size.h * by }))
   .build();
 
 declare const floor: Floor;

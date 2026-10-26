@@ -16,9 +16,9 @@ type Shape = Enum<
   { id: string }
 >;
 const Shape = Enum.companion<Shape>()
-  .Circle.impl({ diameter: (c) => c.r * 2 })
-  .Rect.impl({ ratio: (r) => r.w / r.h })
-  .impl({
+  .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+  .Rect.impl(() => ({ ratio: (r) => r.w / r.h }))
+  .impl(() => ({
     area: (s): number =>
       Shape.match(s, {
         Circle: (c) => Math.PI * c.r * c.r,
@@ -26,7 +26,7 @@ const Shape = Enum.companion<Shape>()
         Rect: (r) => r.w * r.h,
         Poly: (p) => p.at.length,
       }),
-  })
+  }))
   .build();
 
 type Named = Trait<"Named", { id: string }, { label: (self: Self, sep: string) => string }>;
@@ -41,10 +41,10 @@ const Event = Enum.companion<Event>()
   .tag("kind")
   .Key.implSeal((k, seal) => (k.code ? seal(k) : new RangeError("code must not be empty")))
   .implSeal((e, seal) => (e.id ? seal(e) : new RangeError("id must not be empty")))
-  .implTrait(Named, {
+  .implTrait(Named, () => ({
     label: (e, sep): string =>
       Event.match(e, { Click: (c) => `${c.x}${sep}${c.y}`, Key: (k) => k.code }),
-  })
+  }))
   .build();
 
 type Frame = Val<"Frame", { id: string; shape: Shape; last: Event }>;

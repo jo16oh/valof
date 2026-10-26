@@ -14,7 +14,7 @@ import { Val } from "valof";
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
 
 const User = Val.companion<User>()
-  .impl({
+  .impl(() => ({
     displayName(user) {
       return user.nickname ?? user.name;
     },
@@ -22,14 +22,17 @@ const User = Val.companion<User>()
     formatLabel(user, separator: string): string {
       return user.id + separator + User.displayName(user);
     },
-  })
+  }))
   .build();
 ```
 
-`Val.companion<User>()` starts the chain. `.impl({ ... })` adds member functions to the companion.
-`.build()` ends the chain and returns the companion. Every member takes its Val first, so Valof
-infers that parameter as `User`. You only annotate the parameters that follow it, and the return
-type where a member references `User` itself.
+`Val.companion<User>()` starts the chain. `.impl(() => ({ ... }))` adds member functions to the
+companion. `.build()` ends the chain and returns the companion. Every member takes its Val first, so
+Valof infers that parameter as `User`. You only annotate the parameters that follow it, and the
+return type where a member references `User` itself.
+
+The function passed to `.impl` receives `seal`, `create` and `patch`. A member calling them does not
+reference `User`, so its return type needs no annotation.
 
 The result exposes `seal` and the members:
 
@@ -38,14 +41,14 @@ import { Val } from "valof";
 
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
 const User = Val.companion<User>()
-  .impl({
+  .impl(() => ({
     displayName(user) {
       return user.nickname ?? user.name;
     },
     formatLabel(user, separator: string): string {
       return user.id + separator + User.displayName(user);
     },
-  })
+  }))
   .build();
 // ---cut---
 const user = User.seal({ id: "a", name: "bob" });
@@ -65,14 +68,14 @@ import { Val } from "valof";
 declare function pipe<A, B, C>(a: A, ab: (a: A) => B, bc: (b: B) => C): C;
 type User = Val<"User", { id: string; name: string; nickname?: string }>;
 const User = Val.companion<User>()
-  .impl({
+  .impl(() => ({
     displayName(user) {
       return user.nickname ?? user.name;
     },
     formatLabel(user, separator: string): string {
       return user.id + separator + User.displayName(user);
     },
-  })
+  }))
   .build();
 const user = User.seal({ id: "a", name: "bob" });
 // ---cut---
@@ -94,9 +97,9 @@ import { Val } from "valof";
 type User = Val<"User", { id: string; name: string }>;
 // ---cut---
 const User = Val.companion<User>()
-  .impl({
+  .impl(() => ({
     greet: (user, greeting: string | undefined) => `${greeting ?? "Hi"}, ${user.name}`,
-  })
+  }))
   .build();
 
 User.greet(User.seal({ id: "a", name: "bob" }), undefined); // "Hi, bob"
@@ -112,7 +115,9 @@ import { Val } from "valof";
 type User = Val<"User", { id: string; name: string }>;
 // ---cut---
 const toWire: (user: User, sep: string) => string = (user, sep = "/") => user.id + sep + user.name;
-const User = Val.companion<User>().impl({ toWire }).build();
+const User = Val.companion<User>()
+  .impl(() => ({ toWire }))
+  .build();
 
 User.toWire("-")(User.seal({ id: "a", name: "bob" })); // throws: `User.toWire("-")` returned a string
 ```
@@ -130,9 +135,9 @@ declare function pipe<A, B>(a: A, ab: (a: A) => B): B;
 type User = Val<"User", { name: string; age: number }>;
 // ---cut---
 const User = Val.companion<User>()
-  .impl({
+  .impl(() => ({
     pick: <K extends keyof User>(user: User, key: K) => user[key],
-  })
+  }))
   .build();
 const user = User.seal({ name: "bob", age: 30 });
 
