@@ -192,39 +192,33 @@ A member can be called with its first argument last, as an `.impl` member can wi
 taking no argument is called as it is. A member cannot have an optional, a default or a rest
 parameter, and one referencing the companion annotates its return type.
 
-## Protect generated fields
+## Restrict the companion with options
 
-`create` can generate an id, a `createdAt` or a version counter. A second type argument to
-`Val.companion` protects those fields from callers. `Unpatchable` excludes them from `patch`, and
-`PrivateSeal` removes `seal` from the companion, so a caller cannot pass an id of their own:
+A list after the type in `Val.companion` restricts what the companion offers callers, in any
+combination: `Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()`.
+
+The options are types, so they do not exist at runtime. They constrain the companion, not the value.
+`Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an id must
+be unforgeable, it belongs outside the value.
+
+### Hide `seal` and `create`
+
+`create` can generate an id. `PrivateSeal` removes `seal` from the companion, so a caller cannot
+pass an id of their own:
 
 ```ts
-// @errors: 2353 2339
-import { Val, type PrivateSeal, type SeedOf, type Unpatchable } from "valof";
-
-type Result<T> = { ok: true; value: T } | { ok: false; error: string };
-declare function ok<T>(value: T): Result<T>;
-declare function err(message: string): Result<never>;
-
-declare function normalize(user: SeedOf<User>): SeedOf<User>;
-declare const user: User;
+// @errors: 2339
+import { Val, type PrivateSeal } from "valof";
 // ---cut---
-type User = Val<"User", { id: string; name: string; email: string }>;
+type User = Val<"User", { id: string; name: string }>;
 
-const User = Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()
-  .implSeal((user, seal) => seal(normalize(user)))
-  .implCreate((fields: Omit<SeedOf<User>, "id">) => ({
-    id: crypto.randomUUID(),
-    ...fields,
-  }))
+const User = Val.companion<User, [PrivateSeal]>()
+  .implCreate((name: string) => ({ id: crypto.randomUUID(), name }))
   .build();
 
-User.patch(user, { name: "sue" }); // OK
-User.patch(user, { id: "forged" }); // type error
-User.seal({ id: "forged", name: "sue", email: "" }); // type error
+User.create("sue"); // User
+User.seal({ id: "forged", name: "sue" }); // type error
 ```
-
-Write `.implSeal` before `.implCreate`.
 
 `PrivateCreate` removes `create` from the companion. Use it when callers should build the type
 through `seal` or other functions, not `create`. It protects no field, because the payload `create`
@@ -233,9 +227,23 @@ returns passes the seal.
 The function passed to `impl`, `implTrait` and `implAssoc` still receives `seal` and `create`, so
 the companion's own members can build the type.
 
-`PrivateSeal`, `PrivateCreate` and `Unpatchable` are types, so they do not exist at runtime. They
-constrain the companion, not the value. `Val.of<User>({ id: "forged", … })` still builds one, and so
-does a patch typed `any`. If an id must be unforgeable, it belongs outside the value.
+### Exclude keys from `patch`
+
+`Unpatchable` excludes keys from `patch`, so an id keeps the value `create` generated:
+
+```ts
+// @errors: 2353
+import { Val, type Unpatchable } from "valof";
+
+declare const user: User;
+// ---cut---
+type User = Val<"User", { id: string; name: string }>;
+
+const User = Val.companion<User, [Unpatchable<"id">]>().build();
+
+User.patch(user, { name: "sue" }); // OK
+User.patch(user, { id: "forged" }); // type error
+```
 
 ## Parse, don't validate
 
