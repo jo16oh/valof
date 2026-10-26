@@ -33,8 +33,13 @@ type Room = Val<
   { id: string; name: string; size: { w: number; h: number } },
   Named & Sized
 >;
+// Without `implCreate`, what `implTrait` passes is too small for the budget to catch inference
+// walking it.
 const Room = Val.companion<Room>()
-  .implTrait(Named, () => ({ label: (r, sep) => `${r.id}${sep}${r.name}` }))
+  .implCreate((name: string) => ({ id: name, name, size: { w: 1, h: 1 } }))
+  .implTrait(Named, ({ patch }) => ({
+    label: (r, sep) => `${r.id}${sep}${patch(r, { name: r.name.trim() }).name}`,
+  }))
   .implTrait(Sized, () => ({ scaled: (r, by) => r.size.w * by }))
   .impl(() => ({
     describe(r): string {
