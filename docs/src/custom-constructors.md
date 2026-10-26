@@ -264,8 +264,8 @@ wire format into a Val takes two steps:
 
 1. **Decode** the wire format into the payload's shape: a row into fields, a string into a number.
    An `.implAssoc` member does this.
-2. **Refine** the payload into the Val: check the invariants, normalize, and brand. Only the seal
-   does this, because `create`, `patch` and the `seal` passed to `.implAssoc` all call it.
+2. **Seal** the payload into the Val: check the invariants, normalize, and brand. Only the seal does
+   this, because `create`, `patch` and the `seal` passed to `.implAssoc` all call it.
 
 `Age.seal` is the second step:
 
@@ -293,5 +293,4 @@ into practice. They return a validated, canonical Val instead of returning facts
 Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's
 words,
 [parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101):
-the `Age` type can now represent only valid ages. `create` and `patch` reuse the same seal, and so
-does the `seal` passed to `.implAssoc`.
+the `Age` type can now represent only valid ages. `create` and `patch` reuse the same parser.
