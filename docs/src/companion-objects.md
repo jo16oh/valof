@@ -34,8 +34,9 @@ and the return type where a member references `User` itself.
 The function passed to `.impl` receives `seal`, `create` and `patch`. A member calling them does not
 reference `User`, so its return type needs no annotation.
 
-A function that does not take the Val, such as one parsing it from a string, goes in `.implAssoc`.
-See [Custom constructors](custom-constructors.md#add-entry-points-with-implassoc).
+A function that does not take the Val, such as one parsing it from a string or one summing several,
+goes in `.implAssoc`. See
+[Custom constructors](custom-constructors.md#add-entry-points-with-implassoc).
 
 The result exposes `seal` and the members:
 
@@ -88,9 +89,8 @@ User.formatLabel(": ")(user); // "a: bob"
 pipe(user, User.patch({ nickname: "b" }), User.displayName); // "b"
 ```
 
-`patch`, a trait's members, an enum's `match` and `[Tag].match` can be called either way too. An
-`.implAssoc` member can be called with its first argument last. Valof ships no `pipe`. Use the one
-from your favorite library.
+`patch`, a trait's members, an enum's `match` and `[Tag].match` can be called either way too. Valof
+ships no `pipe`. Use the one from your favorite library.
 
 A member cannot have an optional, a default or a rest parameter. Pass `undefined` explicitly where
 an argument has no value:

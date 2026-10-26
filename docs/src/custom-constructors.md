@@ -150,27 +150,33 @@ rejects or normalizes the payload.
 ## Add entry points with `implAssoc`
 
 An `.impl` member takes the Val first. A function that builds the Val from something else, such as a
-database row, goes in `.implAssoc`:
+string or several other values, goes in `.implAssoc`:
 
 ```ts
 import { Val } from "valof";
-// ---cut---
-type User = Val<"User", { id: string; name: string }>;
-type Row = { id: string; display_name: string };
 
-const User = Val.companion<User>()
-  .implSeal((user, seal) => (user.name ? seal(user) : undefined))
+type Result<T> = { ok: true; value: T } | { ok: false; error: string };
+declare function ok<T>(value: T): Result<T>;
+declare function err(message: string): Result<never>;
+declare const yens: readonly Yen[];
+// ---cut---
+type Yen = Val<"Yen", number>;
+
+const Yen = Val.companion<Yen>()
   .implAssoc(({ seal }) => ({
-    fromRow: (row: Row) => seal({ id: row.id, name: row.display_name }),
+    parse: (text: string): Result<Yen> =>
+      /^¥\d+$/.test(text) ? ok(seal(Number(text.slice(1)))) : err("expected ¥ followed by digits"),
+    sum: (yens: readonly Yen[]) => seal(yens.reduce((total, yen) => total + yen, 0)),
   }))
   .build();
 
-User.fromRow({ id: "a", display_name: " bob " }); // User | undefined
+Yen.parse("¥120"); // Result<Yen>
+Yen.sum(yens); // Yen
 ```
 
 The function receives `seal`, `create` and `patch`, like the one passed to `.impl`. `seal` is the
-companion's, so `fromRow` returns what the custom seal returns. Write `.implAssoc` after `.implSeal`
-and `.implCreate`, any number of times.
+companion's, so a seal registered with `.implSeal` checks what `parse` and `sum` build. Write
+`.implAssoc` after `.implSeal` and `.implCreate`, any number of times.
 
 A member can be called with its first argument last, as an `.impl` member can with the value. One
 taking no argument is called as it is. A member cannot have an optional, a default or a rest
