@@ -5,8 +5,8 @@
 > Enums are experimental. They ship from `valof/experimental` so that an import says so, and the
 > design is still changing.
 
-An enum is a discriminated union declared in one place. A Val is one shape, and an enum is a choice
-between several. Its variants form a closed set, so TypeScript can check that every variant is
+An enum is a discriminated union declared in one place. Each variant is a Val, and the enum is the
+union of those Vals. The variants form a closed set, so TypeScript can check that every variant is
 handled.
 
 > For the limits of a hand-written discriminated union, see
@@ -28,19 +28,22 @@ Shape.Circle.patch(circle, { r: 5 }); // { r: 5, _tag: "Circle" }, the tag stays
 equals(circle, Shape.Circle.seal({ _tag: "Circle", r: 2 })); // true
 ```
 
-The record is the whole declaration. The union is derived from it, and so is each variant's brand:
-`Shape.Circle` is branded `"Shape.Circle"`. Adding a variant is one line.
+Each key of the object type is a variant, and its value is that variant's payload. Valof derives the
+union and each variant's brand from this one declaration. The brand of `Shape.Circle` is
+`"Shape.Circle"`. Adding a variant takes one line.
 
-Call a variant through the companion. `const { Circle } = Shape` works, and a reader of
-`Circle.create({ r: 2 })` then has to find which enum declared it. `const Round = Shape.Circle`
-gives it another name, which `companion-mismatch` reports.
+Call a variant through the companion, as in `Shape.Circle.create(…)`. `const { Circle } = Shape`
+works, but a reader of `Circle.create({ r: 2 })` then has to look up the enum that declares
+`Circle`. The `companion-mismatch` rule reports a variant under another name, as in
+`const Round = Shape.Circle`.
 
-The default `create` writes the tag and passes the payload to the variant's seal. The seal takes the
-payload with its tag. Both deep-copy their payload like any other constructor. For a payload
-including its tag, or a tag that arrives alone, see [Build a value](#build-a-value).
+The default `create` takes the fields without the tag. It adds the tag and passes the payload to the
+variant's seal. The seal takes the payload with its tag. Both deep-copy the payload, like any other
+constructor. To build a value from a payload that has its tag, or from a tag alone, see
+[Build a value](#build-a-value).
 
-A variant is a Val. It patches, it compares, and it nests. A patch cannot reach the tag, so it
-cannot switch variants.
+`patch` and `equals` work on a variant as on any Val, and a variant can be nested in another
+payload. `patch` cannot change the tag, so it cannot turn a value into another variant.
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -49,11 +52,11 @@ type Style = Enum<"Style", { Solid: { width: number }; Dashed: { gap: number } }
 type Card = Enum<"Card", { Plain: { w: number }; Framed: { w: number; style: Style } }>;
 ```
 
-A nested variant is a patch boundary like any nested Val. Replace it with one a seal built, rather
-than merging into it.
+As with any nested Val, a patch replaces a nested variant rather than merging into it. Derive the
+nested variant with its own `patch`, so that its own seal checks the change.
 
-Define two variants at least. One variant is a Val, and TypeScript loses the alias for a union of
-one, which breaks the declarations of a package that exports the companion.
+Declare at least two variants. An enum with one variant is a Val. TypeScript also drops the alias of
+a union with one member, which breaks the declaration files of a package that exports the companion.
 
 ## Match on the tag
 
@@ -70,11 +73,13 @@ const area = Shape.match(shape, {
 });
 ```
 
-Each handler takes its own variant, narrowed, with no annotation. Every variant needs a handler, so
-adding one to the declaration fails here rather than falling through at run time. No `break`, no
-`assertNever`, and no lint rule to enable. The return type is the handlers' union.
+Each handler receives its own variant, already narrowed, so it needs no type annotation. `match`
+requires a handler for every variant. A variant added to the declaration is a type error here until
+it has a handler, rather than falling through at run time. You write no `break` or `assertNever`,
+and enable no lint rule. `match` returns the union of the handlers' return types.
 
-`_` handles the variants that have no handler of their own, with its argument narrowed to them:
+`_` handles the variants that have no handler of their own. Its argument is narrowed to those
+variants:
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -89,13 +94,11 @@ const size = Shape.match(shape, {
 });
 ```
 
-`_` then handles a variant added to the declaration, with no type error.[^otherwise]
+A variant added to the declaration later goes to `_`, with no type error.[^otherwise]
 
-`match` sits on the companion because the tag's name is customizable, and a free function would have
-to hard-code it.
-
-Use `match` to split on the tag. For a condition inside a variant, a pattern matching library such
-as ts-pattern fits. `_tag` is real data, so `.with({ _tag: "Circle" }, …)` already works.
+`match` branches on the tag alone. To branch on the fields inside a variant, use a pattern matching
+library such as ts-pattern. The tag is an ordinary field, so `.with({ _tag: "Circle" }, …)` already
+works.
 
 ## Build a value
 
@@ -107,12 +110,13 @@ An enum value can be built from three kinds of input, and each has its own call:
 | a payload including its tag, such as a schema library's output | `Shape.seal(payload)`             |
 | the tag alone, with the fields kept elsewhere                  | `Shape[Tag].match(tag, handlers)` |
 
-`Shape.seal(payload)` reads the tag, selects that variant, and passes the payload to its seal.
-Passing a field of another variant is a type error, even when the tag is a union. Where the variant
-is known, `Shape.Circle.seal(payload)` accepts the same payload and returns that variant.
+`Shape.seal(payload)` reads the tag, selects that variant, and passes the payload to the variant's
+seal. A payload with a field of another variant is a type error. When you know the variant,
+`Shape.Circle.seal(payload)` takes the same payload and returns that variant.
 
-When the tag arrives alone, `[Tag].match` selects the handler from the tag. On a command line, the
-first argument is the subcommand, and how to read the rest depends on it:
+When you have the tag alone, `Shape[Tag].match` calls the handler for that tag. For example, the
+first argument on a command line is a subcommand, and the subcommand decides how to read the
+remaining arguments:
 
 ```ts
 import { Enum, Tag } from "valof/experimental";
@@ -132,14 +136,14 @@ const command = Command[Tag].match(input.tag, {
 });
 ```
 
-Every tag the argument's type allows needs a handler, so adding a variant to the declaration fails
-here too, as it does for `match`. `_` handles the remaining tags here too. A handler takes no
-argument and calls its variant's `create`, so each payload is checked against its own variant.
+As with `match`, every tag in the argument's type needs a handler, and `_` handles the rest. A
+handler takes no argument. It calls its variant's `create`, so TypeScript checks each payload
+against that variant.
 
 ## Common shape for every variant
 
-The third argument is the shape: the fields every variant holds. It is the same argument a
-[trait](traits.md) takes.
+The third type argument of `Enum` is the shape, which lists the fields that every variant has. A
+[trait](traits.md) takes the same argument.
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -151,15 +155,16 @@ const todo = Task.Todo.create({ id: "t1", text: "write the docs" });
 console.log(todo.id); // t1
 ```
 
-Every variant's `create` and seal require the shape, the union reads it without a `match`, and
-`VariantOf` carries it.
+Every variant's `create` and seal require those fields. A value of the union type has them, so you
+can read them without `match`. `VariantOf` includes them too.
 
-The same argument declares the [traits](traits.md) the enum implements.
+The same type argument also declares the [traits](traits.md) that the enum implements.
 
 ## Build the companion
 
-The companion is one chain. Each variant's steps come first, under its name, and they are the steps
-of a Val's companion. The enum's own steps follow, and `.build()` closes the chain.
+You build the companion in one chain. Each variant's steps come first, after the variant's name, as
+in `.Circle.impl(…)`. They are the same steps as in `Val.companion`. The enum's own steps follow,
+and `.build()` ends the chain.
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -169,8 +174,8 @@ type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>()
   .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
   .impl(() => ({
-    // A member calling `match`, a variant, or a sibling annotates its return type, to avoid an
-    // implicit `any`. A variant's member reaches the companion the same way.
+    // Annotate the return type of a member that calls `match`, a variant or another member.
+    // Without it, the type is an implicit `any`. The same applies to a variant's member.
     area: (s): number =>
       Shape.match(s, {
         Circle: (c) => Math.PI * c.r * c.r,
@@ -182,15 +187,16 @@ const Shape = Enum.companion<Shape>()
 Shape.Circle.diameter(Shape.Circle.create({ r: 2 })); // 4
 ```
 
-A variant you write nothing for keeps the default companion. Each variant's steps follow the order a
-Val's do: `implSeal`, then `implCreate`, then `impl` (once), `implTrait` and `implAssoc`, in any
-order. The enum's steps follow the same order. The first of them removes the variants' steps from
-the chain.
+A variant with no steps keeps the default companion. A variant's steps go in the same order as in
+`Val.companion`: `implSeal`, then `implCreate`, then `impl` (once), `implTrait` and `implAssoc` in
+any order. The enum's steps go in the same order. After the first enum step, the chain no longer
+offers the variants' steps.
 
 ## Check the payload
 
-A variant's `.implSeal` replaces that variant's seal, the same as [a Val's](custom-constructors.md).
-It receives the payload with its tag, so it can check the tag the way it checks any other field:
+A variant's `.implSeal` replaces the variant's seal, as it does in
+[`Val.companion`](custom-constructors.md). The seal receives the payload with its tag, so it can
+check the tag like any other field:
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -205,9 +211,8 @@ Shape.Circle.create({ r: 2 }); // VariantOf<Shape, "Circle"> | Error
 Shape.Square.create({ side: 1 }); // VariantOf<Shape, "Square">
 ```
 
-Whatever a seal returns propagates, as it does for a Val. `create` and `patch` derive through the
-same seal, so no construction skips it. `Shape.seal` passes the payload to the variant's seal, so
-its return is the variants' returns, as a union.
+As for a Val, `create` and `patch` return whatever the seal returns, so no way of building a variant
+skips its seal. `Shape.seal` returns the union of what the variants' seals return.
 
 Register the enum's `.implSeal` to check a payload that has not been validated, such as an object
 from `JSON.parse`. It runs in `Shape.seal` before the tag selects a variant, so it can also reject a
@@ -234,15 +239,17 @@ const Shape = Enum.companion<Shape>()
 Shape.seal(JSON.parse('{ "_tag": "Triangle" }')); // the schema's Error
 ```
 
-The seal it receives selects the variant and runs its seal. A variant's own `seal`, `create` and
-`patch` do not pass through the enum's seal, because the variant is already known there. A payload a
-schema library has already checked, typed as a variant's payload, needs no enum seal.
+The `seal` that the enum's `.implSeal` receives selects the variant and runs that variant's seal. A
+variant's own `seal`, `create` and `patch` skip the enum's seal, because they already know the
+variant. A payload that a schema library has already validated as one variant's payload does not
+need the enum's seal.
 
 ## Create a payload
 
-`.implCreate` replaces `create`, the same as [a Val's](custom-constructors.md). On a variant, it
-creates that variant's payload without the tag, and the tag is written before its seal receives it.
-On the enum, it creates a tagged payload, which `Shape.seal` receives:
+`.implCreate` replaces `create`, as it does in [`Val.companion`](custom-constructors.md). A
+variant's `.implCreate` returns the payload without the tag. Valof adds the tag before the variant's
+seal receives the payload. The enum's `.implCreate` returns a payload with its tag, and `Task.seal`
+receives it:
 
 ```ts
 import { Enum } from "valof/experimental";
@@ -258,13 +265,13 @@ Task.Todo.create("write the docs"); // VariantOf<Task, "Todo">
 Task.create(Date.now()); // Task
 ```
 
-Without `.implCreate`, a variant's `create` accepts the fields, and the enum has no `create`.
-`.implCreate.noseal` works on both, as it does on a Val.
+Without `.implCreate`, a variant's `create` takes the fields, and the enum has no `create`.
+`.implCreate.noseal` works on a variant and on the enum, as it does in `Val.companion`.
 
 ## A trait on one variant
 
-A trait intersected into one variant's payload belongs to that variant alone, and the variant
-implements it:
+A trait intersected into one variant's payload applies to that variant alone. Implement it on that
+variant:
 
 ```ts
 import { Enum, Trait, type Self } from "valof/experimental";
@@ -280,14 +287,15 @@ const Item = Enum.companion<Item>()
 Named.dyn(Item.Book, Item.Book.create({ label: "Dune", pages: 412 })).named(); // "Dune, 412 pages"
 ```
 
-A trait the enum declares cannot be declared again on a variant. `dyn` selects the implementation by
-the companion it receives, so `Named.dyn(Item, book)` and `Named.dyn(Item.Book, book)` would call
-different ones.
+A variant cannot declare a trait that the enum already declares. `dyn` selects the implementation
+from the companion passed to it. If both declared the trait, `Named.dyn(Item, book)` and
+`Named.dyn(Item.Book, book)` would call different implementations.
 
 ## Companion options
 
-The list after the enum accepts the same options as a Val's. `Unpatchable<K>` excludes `K` from
-`patch` on every variant that holds it. `VariantOptions` adds options for one variant:
+The second type argument of `Enum.companion` takes the same options as in `Val.companion`.
+`Unpatchable<"id">` excludes `id` from `patch` on every variant that has it. `VariantOptions` adds
+options for one variant:
 
 ```ts
 import type { Unpatchable } from "valof";
@@ -305,15 +313,16 @@ const Order = Enum.companion<
 >().build();
 ```
 
-`PrivateSeal` goes on the enum alone. It removes `Order.seal` and every variant's `seal`, because
-`Order.seal` reaches every variant through the tag. `PrivateCreate` removes `create`, the default
-one or one `.implCreate` registered. On the enum, it removes every variant's `create` and
-`Order.create`. In `VariantOptions`, it removes one variant's `create`.
+`PrivateSeal` goes on the enum only, not in `VariantOptions`. It removes `Order.seal` and every
+variant's `seal`, because `Order.seal` can build any variant from its tag. `PrivateCreate` removes
+`create`, whether it is the default one or one registered with `.implCreate`. On the enum, it
+removes `Order.create` and every variant's `create`. In `VariantOptions`, it removes that variant's
+`create`.
 
 ## Custom tag key
 
-The tag is real data, not a phantom. It crosses the wire, so you can customize the name when an API
-already has one:
+The tag is real data, not a phantom type like the brand. It is serialized with the value, so you can
+rename it to the field name that an API already uses:
 
 ```ts
 import { Enum, Tag } from "valof/experimental";
@@ -325,16 +334,17 @@ Event.Click.create({ x: 1 }); // { x: 1, kind: "Click" }
 Event[Tag].key; // "kind"
 ```
 
-`Tag` goes in the third argument, beside the shared fields, because the tag is a field every variant
-holds. `.tag` is the first step, because the companion writes the tag at run time, and the type
-argument is not readable from a value. The type requires it, rejects a misspelled name, and the
-builder has no `.tag` where the default applies.
+`Tag` goes in the third type argument, beside the shared fields, because every variant has the tag
+field. `.tag` must be the first step. The companion writes the tag at run time, and a type argument
+does not exist at run time. TypeScript requires `.tag` for a renamed tag and rejects a misspelled
+name. With the default tag, the builder has no `.tag`.
 
-`Event[Tag].key` returns the name, for a schema library that asks for the discriminator.
+`Event[Tag].key` returns the tag's name. Pass it to a schema library that asks for the
+discriminator.
 
 ## Use a variant's type
 
-`VariantOf` is the type of a single variant, and it is what errors and hovers print. Write it where
+`VariantOf` is the type of one variant. Type errors and hovers print it in this form. Write it where
 you need it.
 
 ```ts
