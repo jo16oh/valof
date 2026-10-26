@@ -30,7 +30,7 @@ equals(circle, Shape.Circle.seal({ _tag: "Circle", r: 2 })); // true
 
 Each key of the second type argument is a variant, and its value is that variant's payload. Valof
 derives the union and each variant's brand from this one declaration. The brand of `Shape.Circle` is
-`"Shape.Circle"`. Adding a variant takes one line.
+`"Shape.Circle"`. To add a variant, add a key to this declaration.
 
 Call a variant through the companion, as in `Shape.Circle.create(…)`. `const { Circle } = Shape`
 works, but a reader of `Circle.create({ r: 2 })` then has to look up the enum that declares
