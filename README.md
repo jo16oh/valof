@@ -118,10 +118,11 @@ const Note = Val.companion<Note, [Unpatchable<"id">]>()
   })
   // create generates the id once. Derivations do not run it again.
   .implCreate((text: string) => ({ id: crypto.randomUUID(), text }))
-  // impl collects behavior. It infers each member's first parameter as Note.
-  .impl(() => ({
-    append(note, text: string): Result<Note> {
-      return Note.seal({ ...note, text: `${note.text} ${text}` });
+  // impl collects behavior from a function that receives seal, create and patch. It infers each
+  // member's first parameter as Note.
+  .impl(({ seal }) => ({
+    append(note, text: string) {
+      return seal({ ...note, text: `${note.text} ${text}` });
     },
   }))
   .build();
@@ -142,9 +143,9 @@ import { pipe } from "remeda";
 type Point = Val<"Point", { x: number; y: number }>;
 
 const Point = Val.companion<Point>()
-  .impl(() => ({
-    move(point, dx: number, dy: number): Point {
-      return Point.patch(point, {
+  .impl(({ patch }) => ({
+    move(point, dx: number, dy: number) {
+      return patch(point, {
         x: point.x + dx,
         y: point.y + dy,
       });

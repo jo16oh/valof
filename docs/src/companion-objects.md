@@ -31,6 +31,20 @@ companion. `.build()` ends the chain and returns the companion. Every member tak
 Valof infers that parameter as `User`. You only annotate the parameters that follow it, and the
 return type where a member references `User` itself.
 
+The function passed to `.impl` receives `seal`, `create` and `patch`. A member calling them does not
+reference `User`, so its return type needs no annotation:
+
+```ts
+import { Val } from "valof";
+type User = Val<"User", { id: string; name: string }>;
+// ---cut---
+const User = Val.companion<User>()
+  .impl(({ patch }) => ({
+    renamed: (user, name: string) => patch(user, { name }),
+  }))
+  .build();
+```
+
 The result exposes `seal` and the members:
 
 ```ts

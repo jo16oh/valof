@@ -24,6 +24,10 @@
 Write `implSeal` first, then `implCreate`. `impl` and `implTrait` come next, in any order. Each step
 except `implTrait` is written once.
 
+The function passed to `impl` and `implTrait` receives `seal`, `create` and `patch`, including the
+ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `create` only where
+`implCreate` registered one.
+
 ## Companion options
 
 `Val.companion` accepts these options in a list after the type, in any combination.
@@ -88,6 +92,9 @@ re-export a companion.
 
 The enum's steps come first, in the same order as `Val.companion`'s. Each variant's steps follow in
 that order. The first variant step removes the enum's steps from the chain.
+
+The function passed to the enum's `impl` and `implTrait` receives `E.seal` and `E.create`. The one
+passed to a variant's receives that variant's `seal`, `create` and `patch`.
 
 ### Enum companion options
 

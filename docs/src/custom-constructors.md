@@ -185,6 +185,9 @@ Write `.implSeal` before `.implCreate`.
 through `seal` or other functions, not `create`. It protects no field, because the payload `create`
 returns passes the seal.
 
+The function passed to `impl` and `implTrait` still receives `seal` and `create`, so the companion's
+own members can build the type.
+
 `PrivateSeal`, `PrivateCreate` and `Unpatchable` are types, so they do not exist at runtime. They
 constrain the companion, not the value. `Val.of<User>({ id: "forged", … })` still builds one, and so
 does a patch typed `any`. If an id must be unforgeable, it belongs outside the value.

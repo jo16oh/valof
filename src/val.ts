@@ -768,9 +768,10 @@ export type CompanionBuilder<
          * Collects the members the function returns, in one call. Everything the library reserves
          * has its own step.
          *
-         * A member reaching the companion, for `patch`, for `seal`, for a trait's member or for a
-         * sibling, references it and annotates its return type. Referencing a declaration inside
-         * its own initializer is a circularity, which TypeScript reports as TS7023.
+         * The function receives `seal`, `create` and `patch`. A member reaching the companion for
+         * anything else (a trait's member or a sibling) references it and annotates its return
+         * type. Referencing a declaration inside its own initializer is a circularity, which
+         * TypeScript reports as TS7023.
          *
          * A member can be called with the value first, `User.rename(u, "x")`, or last,
          * `User.rename("x")(u)`. So can `patch` and a trait's members. A member cannot have an
