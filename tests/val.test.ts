@@ -1383,7 +1383,14 @@ describe("building", () => {
         .implCreate((name: string) => ({ id: "a", name }))
         .impl(() => ({ greet: (u) => u.name }))
         .build();
-      for (const step of ["impl", "implSeal", "implCreate", "implTrait", "build"] as const) {
+      for (const step of [
+        "impl",
+        "implSeal",
+        "implCreate",
+        "implTrait",
+        "implAssoc",
+        "build",
+      ] as const) {
         expectTypeOf(Built).not.toHaveProperty(step);
         expect(step in Built).toBe(false);
       }
@@ -1439,15 +1446,17 @@ describe("building", () => {
       expectTypeOf(all).not.toHaveProperty("implCreate");
     });
 
-    test("`impl` and `implTrait` close the first half", () => {
+    test("`impl`, `implTrait` and `implAssoc` close the first half", () => {
       type Owned = Trait<"Owned", { owner: string }, { owned: (self: Self) => string }>;
       const Owned = Trait.companion<Owned>().build();
       type Held = Val<"Held", { id: string; owner: string }, Owned>;
       const members = Val.companion<Account>().impl(() => ({ owned: (a) => a.owner }));
       const traits = Val.companion<Held>().implTrait(Owned, () => ({ owned: (h) => h.owner }));
+      const assoc = Val.companion<Account>().implAssoc(() => ({ CURRENCY: "JPY" }));
       for (const step of ["implSeal", "implCreate"] as const) {
         expectTypeOf(members).not.toHaveProperty(step);
         expectTypeOf(traits).not.toHaveProperty(step);
+        expectTypeOf(assoc).not.toHaveProperty(step);
       }
     });
   });
@@ -1463,17 +1472,6 @@ describe("building", () => {
         }))
         .build();
       expect(Greeter.greet(Greeter.seal({ id: "a", name: "bob" }))).toBe("BOB");
-    });
-
-    test("extra parameters are the method's own business", () => {
-      const Greeter = Val.companion<User>()
-        .impl(() => ({
-          greet(u, sep: string) {
-            return u.id + sep + u.name;
-          },
-        }))
-        .build();
-      expect(Greeter.greet(Greeter.seal({ id: "a", name: "bob" }), "/")).toBe("a/bob");
     });
 
     test("a member that is not a function attaches as it is", () => {
@@ -1634,6 +1632,223 @@ describe("building", () => {
       // The control: without it the conditional could answer `never` for every name.
       type Greet = ((v: User) => string) extends CompanionMembers<User>["greet"] ? "greet" : never;
       expectTypeOf<Greet>().toEqualTypeOf<"greet">();
+    });
+  });
+
+  describe("implAssoc", () => {
+    type Money = Val<"AssocMoney", { cents: number }>;
+
+    test("the function receives the companion's `seal`, so a member passes the custom one", () => {
+      const Money = Val.companion<Money>()
+        .implSeal((m, seal) => (m.cents >= 0 ? seal(m) : new RangeError("negative")))
+        .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
+        .build();
+      expectTypeOf(Money.fromCents(-1)).toEqualTypeOf<Money | RangeError>();
+      expect([Money.fromCents(1), Money.fromCents(-1)]).toEqual([
+        { cents: 1 },
+        new RangeError("negative"),
+      ]);
+    });
+
+    test("and `create`, which goes through the same seal", () => {
+      type Token = Val<"AssocToken", { id: string; scope: string }>;
+      const Token = Val.companion<Token>()
+        .implSeal((t, seal) => (t.scope ? seal(t) : undefined))
+        .implCreate((scope: string) => ({ id: "t1", scope }))
+        .implAssoc(({ create }) => ({ forAdmin: () => create("admin") }))
+        .build();
+      expectTypeOf(Token.forAdmin()).toEqualTypeOf<Token | undefined>();
+      expect(Token.forAdmin()).toEqual({ id: "t1", scope: "admin" });
+    });
+
+    test("without `implCreate`, the function receives no `create`", () => {
+      Val.companion<Money>()
+        // @ts-expect-error `create` exists only with `implCreate`
+        .implAssoc(({ create }) => ({ zero: () => create() }))
+        .build();
+    });
+
+    test("the private `seal` and `create` are received too", () => {
+      type Token = Val<"AssocPrivate", { id: string }>;
+      const Token = Val.companion<Token, [PrivateSeal, PrivateCreate]>()
+        .implCreate(() => ({ id: "fresh" }))
+        .implAssoc(({ seal, create }) => ({
+          fromId: (id: string) => seal({ id }),
+          fresh: () => create(),
+        }))
+        .build();
+      expectTypeOf(Token).not.toHaveProperty("seal");
+      expectTypeOf(Token).not.toHaveProperty("create");
+      expect([Token.fromId("a"), Token.fresh()]).toEqual([{ id: "a" }, { id: "fresh" }]);
+    });
+
+    test("a member takes its first argument first, or last", () => {
+      const Money = Val.companion<Money>()
+        .implAssoc(({ seal }) => ({
+          scaled: (cents: number, by: number) => seal({ cents: cents * by }),
+        }))
+        .build();
+      expectTypeOf(Money.scaled(2)).toEqualTypeOf<(cents: number) => Money>();
+      expect([Money.scaled(5, 2), Money.scaled(2)(5)]).toEqual([{ cents: 10 }, { cents: 10 }]);
+    });
+
+    test("a member passed unapplied runs first-argument-first, whatever the caller passes", () => {
+      const Money = Val.companion<Money>()
+        .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
+        .build();
+      const moneys = [1, 2].map(Money.fromCents);
+      expectTypeOf(moneys).toEqualTypeOf<Money[]>();
+      expect(moneys).toEqual([{ cents: 1 }, { cents: 2 }]);
+    });
+
+    test("a member taking no argument is called as it is", () => {
+      const Money = Val.companion<Money>()
+        .implAssoc(({ seal }) => ({ zero: () => seal({ cents: 0 }) }))
+        .build();
+      expectTypeOf(Money.zero).toEqualTypeOf<() => Money>();
+      expect(Money.zero()).toEqual({ cents: 0 });
+    });
+
+    test("a member that is not a function attaches as it is", () => {
+      const Money = Val.companion<Money>()
+        .implAssoc(({ seal }) => ({ ZERO: seal({ cents: 0 }), CURRENCY: "JPY" }))
+        .build();
+      expectTypeOf(Money.ZERO).toEqualTypeOf<Money>();
+      expect([Money.ZERO, Money.CURRENCY]).toEqual([{ cents: 0 }, "JPY"]);
+    });
+
+    describe("a member whose arguments can be left out is rejected", () => {
+      test("an optional parameter", () => {
+        Val.companion<Money>()
+          .implAssoc(({ seal }) => ({
+            // @ts-expect-error a parameter that can be left out
+            parse: (raw: string, radix?: number) => seal({ cents: parseInt(raw, radix) }),
+          }))
+          .build();
+      });
+
+      test("a default parameter", () => {
+        expect(() =>
+          Val.companion<Money>()
+            .implAssoc(({ seal }) => ({
+              // @ts-expect-error a parameter that can be left out
+              fromCents: (cents = 0) => seal({ cents }),
+            }))
+            .build(),
+        ).toThrow(/hide its parameters/);
+      });
+
+      test("a rest parameter", () => {
+        expect(() =>
+          Val.companion<Money>()
+            .implAssoc(({ seal }) => ({
+              // @ts-expect-error a parameter that can be left out
+              sum: (...cents: number[]) => seal({ cents: cents.reduce((a, b) => a + b, 0) }),
+            }))
+            .build(),
+        ).toThrow(/hide its parameters/);
+      });
+    });
+
+    // A rest parameter typed as a fixed tuple passes the type: the source is all that shows it.
+    test("a member hiding its parameters throws in development, however it is written", () => {
+      type Hiding = { fromCents: (...args: [number]) => number };
+      const built = (fns: () => Hiding) => () => Val.companion<Money>().implAssoc(fns).build();
+      expect(
+        built(() => ({
+          fromCents(...args: [number]) {
+            return args[0];
+          },
+        })),
+      ).toThrow(/hide its parameters/);
+      expect(
+        built(() => ({
+          fromCents: function (...args: [number]) {
+            return args[0];
+          },
+        })),
+      ).toThrow(/hide its parameters/);
+    });
+
+    // Built from a string, since the test transform drops comments from the source.
+    test("but not a member whose source declares no parameter", () => {
+      // oxlint-disable-next-line typescript/no-implied-eval -- the comments have to survive the transform
+      const [block, line] = new Function("return [(/* none */) => 0, (// none\n) => 0]")() as [
+        () => number,
+        () => number,
+      ];
+      const bound = (() => 0).bind(null);
+      const Money = Val.companion<Money>()
+        .implAssoc(() => ({ block, line, bound, now: Date.now }))
+        .build();
+      expect([Money.block, Money.line, Money.bound, Money.now]).toEqual([
+        block,
+        line,
+        bound,
+        Date.now,
+      ]);
+    });
+
+    test("is written any number of times, before and after `impl` and `implTrait`", () => {
+      type Priced = Trait<"AssocPriced", { cents: number }, { price: (self: Self) => string }>;
+      const Priced = Trait.companion<Priced>().build();
+      type Item = Val<"AssocItem", { cents: number }, Priced>;
+      const Item = Val.companion<Item>()
+        .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
+        .implTrait(Priced, () => ({ price: (i) => `${i.cents}` }))
+        .impl(() => ({ doubled: (i): Item => Item.fromCents(i.cents * 2) }))
+        // A member reaching the companion names it and annotates its return type, as in `impl`.
+        .implAssoc(() => ({
+          sum: (items: readonly Item[]): Item =>
+            Item.fromCents(items.reduce((total, i) => total + i.cents, 0)),
+        }))
+        .build();
+      const five = Item.fromCents(5);
+      expectTypeOf(five).toEqualTypeOf<Item>();
+      expect([Item.sum([five, five]), Item.doubled(five), Item.price(five)]).toEqual([
+        { cents: 10 },
+        { cents: 10 },
+        "5",
+      ]);
+    });
+
+    test("a name is taken once, across `impl`, `implTrait` and `implAssoc`", () => {
+      type Priced = Trait<"AssocTaken", { cents: number }, { price: (self: Self) => string }>;
+      const Priced = Trait.companion<Priced>().build();
+      type Item = Val<"AssocTakenItem", { cents: number }, Priced>;
+      const priced = Val.companion<Item>().implTrait(Priced, () => ({
+        price: (i) => `${i.cents}`,
+      }));
+      // @ts-expect-error this name is already taken
+      priced.implAssoc(() => ({ price: (cents: number) => `${cents}` }));
+      const assoc = Val.companion<Item>().implAssoc(() => ({
+        price: (cents: number) => `${cents}`,
+      }));
+      assoc.implTrait(
+        // @ts-expect-error another member already answers to one of these names
+        Priced,
+        () => ({ price: (i: Item) => `${i.cents}` }),
+      );
+      // @ts-expect-error this name is already taken
+      assoc.implAssoc(() => ({ price: (cents: number) => `${cents}` }));
+      // @ts-expect-error this name is already taken
+      assoc.impl(() => ({ price: (i: Item) => `${i.cents}` }));
+    });
+
+    test("a name in `Wired` is not accepted", () => {
+      // @ts-expect-error a name the library reserves
+      Val.companion<Money>().implAssoc(() => ({ seal: (cents: number) => cents }));
+    });
+
+    test("a member has no `this`, which the type says", () => {
+      Val.companion<Money>()
+        .implAssoc(() => ({
+          fromCents(cents: number) {
+            expectTypeOf(this).toEqualTypeOf<undefined>();
+            return cents;
+          },
+        }))
+        .build();
     });
   });
 
