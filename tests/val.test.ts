@@ -2255,6 +2255,21 @@ describe("building", () => {
           },
         }))
         .build();
+
+      // Where the trait implemented every member, the function is optional.
+      type Hello = Trait<"Hello", { name: string }, { hello: (self: Self) => string }>;
+      const Hello = Trait.companion<Hello>()
+        .impl(() => ({ hello: (h) => h.name }))
+        .build();
+      type Guest = Val<"Guest", { name: string }, Hello>;
+      Val.companion<Guest>()
+        .implTrait(Hello, () => ({
+          hello(g) {
+            expectTypeOf(this).toEqualTypeOf<undefined>();
+            return g.name;
+          },
+        }))
+        .build();
     });
 
     test("the members a trait leaves open must be passed", () => {
