@@ -7022,7 +7022,7 @@ seal、`Shape.seal.create(…)` は `seal` という Variant の create。
 メンバ名の `then` も外した。Val、Trait の型と valof-lint の `RESERVED` の 3 箇所。companion を `await` する場面は
 現実的に無く、書いて壊れても利用者の責任で、valof が保証する範囲ではない。重複した valof を保証しないのと
 同じ考え方（§2.1）。踏むと `await` が settle しないまま止まり、エラーは出ない。Val の `.impl` の JSDoc に 1 行
-残した。Result や Option の Val では `then` がメンバ名として自然である（`Result.then(r, f)`）。
+残した。→ 2026-10-26 に消した。companion を `await` するのは変なコードで、thenable の挙動は JS 一般の事情なので、valof が言及することではない。Result や Option の Val では `then` がメンバ名として自然である（`Result.then(r, f)`）。
 
 **`_` と `Otherwise`。**`_` は、`_` という Variant があればそのハンドラになる。どの enum でも使える
 ワイルドカードとして、`Otherwise` を `valof/experimental` から export した。
