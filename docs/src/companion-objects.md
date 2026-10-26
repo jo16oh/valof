@@ -34,8 +34,8 @@ and the return type where a member references `User` itself.
 The function passed to `.impl` receives `seal`, `create` and `patch`. A member calling them does not
 reference `User`, so its return type needs no annotation.
 
-A function that does not take the Val, such as one parsing it from a string or one summing several,
-goes in `.implAssoc`. See
+A function that does not take the Val as its first argument, such as one that parses it from a
+string or aggregates an array of Vals into one, goes in `.implAssoc`. See
 [Custom constructors](custom-constructors.md#add-entry-points-with-implassoc).
 
 The result exposes `seal` and the members:
