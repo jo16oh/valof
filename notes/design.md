@@ -6086,6 +6086,9 @@ Shape.Circle({ r: 2 });
 引かないと分からない。改名（`const Round = Shape.Circle`）は `companion-mismatch` が報告する。型も同じで、
 `type Circle = VariantOf<Shape, "Circle">` は勧めず、使う場所に `VariantOf` を書く。
 
+**2026-10-27: 分割代入は非推奨にした（ユーザー）。**`enums.md` から `const { Circle } = Shape` と改名の記述を落とし、
+「companion を通して呼ぶ」だけを書く。lint で報告するかは未定
+
 **要点は proxy ではなく宣言の向き。**Variant をレコード 1 つに宣言して union を導出する。手書きの union に
 proxy を足す形だと、**Variant 追加時に 2 箇所直す**問題がそのまま残る。proxy は文字列の二重管理を消す補助。
 
