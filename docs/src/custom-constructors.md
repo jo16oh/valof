@@ -195,7 +195,7 @@ parameter, and one referencing the companion annotates its return type.
 ## Restrict the companion with options
 
 A list after the type in `Val.companion` restricts what the companion offers callers, in any
-combination: `Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()`.
+combination.
 
 The options are types, so they do not exist at runtime. They constrain the companion, not the value.
 `Val.of<User>({ id: "forged", … })` still builds one, and so does a patch typed `any`. If an id must
@@ -204,21 +204,7 @@ be unforgeable, it belongs outside the value.
 ### Hide `seal` and `create`
 
 `create` can generate an id. `PrivateSeal` removes `seal` from the companion, so a caller cannot
-pass an id of their own:
-
-```ts
-// @errors: 2339
-import { Val, type PrivateSeal } from "valof";
-// ---cut---
-type User = Val<"User", { id: string; name: string }>;
-
-const User = Val.companion<User, [PrivateSeal]>()
-  .implCreate((name: string) => ({ id: crypto.randomUUID(), name }))
-  .build();
-
-User.create("sue"); // User
-User.seal({ id: "forged", name: "sue" }); // type error
-```
+pass an id of their own.
 
 `PrivateCreate` removes `create` from the companion. Use it when callers should build the type
 through `seal` or other functions, not `create`. It protects no field, because the payload `create`
@@ -229,18 +215,24 @@ the companion's own members can build the type.
 
 ### Exclude keys from `patch`
 
-`Unpatchable` excludes keys from `patch`, so an id keeps the value `create` generated:
+`Unpatchable` excludes keys from `patch`, so an id keeps the value `create` generated.
+
+### Examples
 
 ```ts
-// @errors: 2353
-import { Val, type Unpatchable } from "valof";
+// @errors: 2339 2353
+import { Val, type PrivateSeal, type Unpatchable } from "valof";
 
 declare const user: User;
 // ---cut---
 type User = Val<"User", { id: string; name: string }>;
 
-const User = Val.companion<User, [Unpatchable<"id">]>().build();
+const User = Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()
+  .implCreate((name: string) => ({ id: crypto.randomUUID(), name }))
+  .build();
 
+User.create("sue"); // User
+User.seal({ id: "forged", name: "sue" }); // type error
 User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // type error
 ```
