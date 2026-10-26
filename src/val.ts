@@ -765,9 +765,6 @@ export type CompanionBuilder<
          *
          * A member named `then` makes the companion a thenable. `await` on it never settles.
          *
-         * A method or a `function` member is called as a plain function, so `this` is
-         * `undefined` inside it.
-         *
          * A member reaching the companion, for `patch`, for `seal`, for a trait's member or for a
          * sibling, references it and annotates its return type. Referencing a declaration inside
          * its own initializer is a circularity, which TypeScript reports as TS7023.
@@ -797,9 +794,6 @@ export type CompanionBuilder<
      *
      * A member the trait declared {@link Final} is not returned here. It arrives unchanged, and
      * nothing can override it.
-     *
-     * A method or a `function` member is called as a plain function, so `this` is `undefined`
-     * inside it.
      *
      * The members can be called with the value first or last, and cannot have an optional, a
      * default or a rest parameter.
