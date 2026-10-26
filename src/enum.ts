@@ -784,7 +784,8 @@ type VariantSteps<
          */
         impl: <G extends CompanionMembers<VariantOf<E, N>>>(
           fns: () => Grown<keyof At<VM, N, "members", Record<never, never>>, Unclaimed<E, G>> &
-            Arity<G>,
+            Arity<G> &
+            ThisType<undefined>,
         ) => After<E, O, VM, M, { [K in `${N}:impl`]: true } & { [K in `${N}:members`]: G }>;
       });
 
@@ -897,7 +898,7 @@ export type EnumBuilder<
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
         impl: <G extends UnionMembers<E>>(
-          fns: () => Unclaimed<E, G> & Arity<G>,
+          fns: () => Unclaimed<E, G> & Arity<G> & ThisType<undefined>,
         ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl">;
       }) & {
     /**

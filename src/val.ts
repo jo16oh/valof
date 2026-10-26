@@ -714,8 +714,8 @@ export type Passes<Tr extends AnyTrait, G, I> =
   string extends NamesOf<Tr>
     ? [impl?: unknown]
     : [keyof Omit<MembersOf<Tr>, keyof G>] extends [never]
-      ? [impl?: () => I & Arity<I>]
-      : [impl: () => I & Arity<I>];
+      ? [impl?: () => I & Arity<I> & ThisType<undefined>]
+      : [impl: () => I & Arity<I> & ThisType<undefined>];
 
 /** The steps a companion has taken. The first two are the first half of the chain. */
 type Taken = "implSeal" | "implCreate" | "impl" | "implTrait";
@@ -781,9 +781,10 @@ export type CompanionBuilder<
          */
         // A separate step because TypeScript cannot infer type arguments partially. A trait's
         // member is registered, so `.impl` may not register one over it: the type would keep the
-        // trait's signature while `dyn` kept calling what `implTrait` recorded.
+        // trait's signature while `dyn` kept calling what `implTrait` recorded. A member runs
+        // with no receiver, so `ThisType` makes `this` the `undefined` it is at run time.
         impl: <M extends CompanionMembers<V>>(
-          fns: () => Grown<keyof T, M> & Arity<M>,
+          fns: () => Grown<keyof T, M> & Arity<M> & ThisType<undefined>,
         ) => CompanionBuilder<V, N, F, O, M & T, D | "impl">;
       }) & {
     /**

@@ -303,7 +303,9 @@ export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>, Open = t
        *
        * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
        */
-      impl: <H extends Shared<Tr, H>>(fns: () => H & Arity<H>) => TraitBuilder<Tr, G & H, false>;
+      impl: <H extends Shared<Tr, H>>(
+        fns: () => H & Arity<H> & ThisType<undefined>,
+      ) => TraitBuilder<Tr, G & H, false>;
     }
   : unknown);
 
