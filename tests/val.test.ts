@@ -1277,6 +1277,9 @@ describe("data-first and data-last", () => {
 
   test("a member taking only the value has no form taking it last", () => {
     expectTypeOf(Named.greet).toEqualTypeOf<(self: User) => string>();
+    // Not even at run time: called with no argument, it runs.
+    // @ts-expect-error the value is required
+    expect(() => Named.greet()).toThrow(TypeError);
   });
 
   test("so does `patch`", () => {
