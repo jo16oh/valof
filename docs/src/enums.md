@@ -208,10 +208,9 @@ Whatever a seal returns propagates, as it does for a Val. `create` and `patch` d
 same seal, so no construction skips it. `Shape.seal` passes the payload to the variant's seal, so
 its return is the variants' returns, as a union.
 
-A variant's seal sees the tag of every payload it receives, and a payload whose tag is not a
-declared variant reaches none of them. A payload from `JSON.parse` is `any`, so its tag can hold
-such a name. To pass such a payload to `Shape.seal`, register the enum's `.implSeal`. It runs in
-`Shape.seal` before the tag selects a variant, so it can reject the tag:
+Register the enum's `.implSeal` to check a payload that has not been validated, such as an object
+from `JSON.parse`. It runs in `Shape.seal` before the tag selects a variant, so it can also reject a
+tag that selects no variant:
 
 ```ts
 import { Enum, type SealedPayload } from "valof/experimental";
