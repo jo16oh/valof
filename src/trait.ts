@@ -1,12 +1,22 @@
-import { duals, type Arity, type Duals, type Omission } from "./dual.ts";
+import {
+  duals,
+  type Arity,
+  type Duals,
+  type LooseArity,
+  type Looses,
+  type Omission,
+} from "./dual.ts";
 import { Shared, Traits } from "./keys.ts";
 import type { TraitBrands, TraitTypes } from "./keys.ts";
 import {
+  associated,
   isObject,
   type AnyVal,
+  type AssocMembers,
   type CallBuildFirst,
   type Checked,
   type DeepReadonly,
+  type Grown,
   type Invalid,
   type Reserved,
 } from "./val.ts";
@@ -239,23 +249,25 @@ export type TraitHost = { readonly [Traits]: Members };
  *
  * @experimental
  */
-export type TraitCompanion<Tr extends AnyTrait, G = Record<never, never>> = Duals<
-  Unbound<Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>, Tr>,
-  Tr
-> & {
-  /** Everything the trait implemented, which `implTrait` copies onto the Val. */
-  readonly [Shared]: G;
-  /**
-   * Boxes a value with one Val's implementation. See {@link Dyn}.
-   *
-   * The two arguments are tied together: the companion has to match the value's own type,
-   * which is what keeps another Val's companion out. Passing one used to type-check and throw.
-   */
-  readonly dyn: <W extends Tr>(
-    companion: TraitHost & Unbound<MembersOf<Tr>, W>,
-    value: W,
-  ) => Dyn<Tr>;
-};
+export type TraitCompanion<
+  Tr extends AnyTrait,
+  G = Record<never, never>,
+  A = Record<never, never>,
+> = Duals<Unbound<Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>, Tr>, Tr> &
+  Looses<A> & {
+    /** Everything the trait implemented, which `implTrait` copies onto the Val. */
+    readonly [Shared]: G;
+    /**
+     * Boxes a value with one Val's implementation. See {@link Dyn}.
+     *
+     * The two arguments are tied together: the companion has to match the value's own type,
+     * which is what keeps another Val's companion out. Passing one used to type-check and throw.
+     */
+    readonly dyn: <W extends Tr>(
+      companion: TraitHost & Unbound<MembersOf<Tr>, W>,
+      value: W,
+    ) => Dyn<Tr>;
+  };
 
 /**
  * What the trait implements itself: its own members, over the trait.
@@ -287,13 +299,30 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
  *
  * @experimental
  */
-export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>, Open = true> = {
+export type TraitBuilder<
+  Tr extends AnyTrait,
+  G = Record<never, never>,
+  Open = true,
+  A = Record<never, never>,
+> = {
   readonly dyn: CallBuildFirst;
   /**
    * Closes the chain and returns the companion. The builder holds the steps alone: `dyn` and the
    * members are the companion's.
    */
-  build: () => TraitCompanion<Tr, G>;
+  build: () => TraitCompanion<Tr, G, A>;
+  /**
+   * Collects members that do not take the trait, such as one over boxes:
+   * `total: (shapes: readonly Dyn<Sized>[]) => …`. Write it any number of times. The function
+   * receives nothing.
+   *
+   * They stay on the trait's companion: `implTrait` copies none of them onto a Val. A member
+   * reaching the companion names it and annotates its return type. A member can be called with
+   * its first argument first, or last, and cannot have an optional, a default or a rest parameter.
+   */
+  implAssoc: <M extends TraitAssoc<Tr>>(
+    fns: () => Grown<keyof A, M> & LooseArity<M> & ThisType<undefined>,
+  ) => TraitBuilder<Tr, G, Open, A & M>;
 } & (Open extends true
   ? {
       /**
@@ -313,9 +342,13 @@ export type TraitBuilder<Tr extends AnyTrait, G = Record<never, never>, Open = t
        */
       impl: <H extends Shared<Tr, H>>(
         fns: () => H & Arity<H> & ThisType<undefined>,
-      ) => TraitBuilder<Tr, G & H, false>;
+      ) => TraitBuilder<Tr, G & H, false, A>;
     }
   : unknown);
+
+/** What `.implAssoc` accepts: anything but a member's name, `dyn` and a name the library reserves. */
+type TraitAssoc<Tr extends AnyTrait> = AssocMembers &
+  Partial<Record<"dyn" | keyof MembersOf<Tr>, never>>;
 
 type AnyFn = (...args: never[]) => unknown;
 
@@ -346,8 +379,13 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
  *
  * @experimental
  */
-export const companion = <Tr extends AnyTrait>(): TraitBuilder<Tr> =>
-  ({
-    impl: (fns: () => Record<string, unknown>) => ({ build: () => make(fns()) }),
-    build: () => make({}),
-  }) as never;
+export const companion = <Tr extends AnyTrait>(): TraitBuilder<Tr> => builder() as never;
+
+type Step = () => Record<string, unknown>;
+
+/** One builder state: the `impl` function and the `implAssoc` ones registered so far. */
+const builder = (impl?: Step, assoc: Step[] = []): object => ({
+  impl: (fns: Step) => builder(fns, assoc),
+  implAssoc: (fns: Step) => builder(impl, [...assoc, fns]),
+  build: () => ({ ...make(impl?.() ?? {}), ...associated(assoc, {}) }),
+});
