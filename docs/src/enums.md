@@ -35,22 +35,10 @@ derives the union and each variant's brand from this one declaration. The brand 
 Call a variant through the companion, as in `Shape.Circle.create(…)`.
 
 The default `create` takes the fields without the tag. It adds the tag and passes the payload to the
-variant's seal. The seal takes the payload with its tag. Both deep-copy the payload, like any other
-constructor. To build a value from a payload that has its tag, or from a tag alone, see
+variant's seal. The seal takes the payload with its tag. To build a value from a tag alone, see
 [Build a value](#build-a-value).
 
-`patch` and `equals` work on a variant as on any Val. A variant can also be nested in another
-payload. `patch` cannot change the tag, so it cannot turn a value into another variant.
-
-```ts
-import { Enum } from "valof/experimental";
-// ---cut---
-type Style = Enum<"Style", { Solid: { width: number }; Dashed: { gap: number } }>;
-type Card = Enum<"Card", { Plain: { w: number }; Framed: { w: number; style: Style } }>;
-```
-
-As with any nested Val, a patch replaces a nested variant rather than merging into it. Derive the
-nested variant with its own `patch`, so that its own seal checks the change.
+`patch` cannot change the tag, so it cannot turn a value into another variant.
 
 Declare at least two variants. `Enum` rejects a declaration with one variant, because one variant is
 a Val. TypeScript also drops the alias of a union with one member, which breaks the declaration
@@ -210,9 +198,7 @@ Shape.Circle.create({ r: 2 }); // VariantOf<Shape, "Circle"> | Error
 Shape.Square.create({ side: 1 }); // VariantOf<Shape, "Square">
 ```
 
-As for a Val, `create` and `patch` return whatever the seal returns, so no way of building a variant
-skips its seal, except `.implCreate.noseal`. Without an enum `.implSeal`, `Shape.seal` returns the
-union of what the variants' seals return.
+Without an enum `.implSeal`, `Shape.seal` returns the union of what the variants' seals return.
 
 Register the enum's `.implSeal` to check a payload that has not been validated, such as an object
 from `JSON.parse`. It runs in `Shape.seal` before the tag selects a variant, so it can also reject a
@@ -266,7 +252,7 @@ Task.create(Date.now()); // Task
 ```
 
 Without `.implCreate`, a variant's `create` takes the fields, and the enum has no `create`.
-`.implCreate.noseal` works on a variant and on the enum, as it does in `Val.companion`.
+`.implCreate.noseal` also works on the enum.
 
 ## A trait on one variant
 
