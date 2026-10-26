@@ -16,9 +16,13 @@ type Shape = Enum<
   { id: string }
 >;
 const Shape = Enum.companion<Shape>()
-  .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+  .Circle.impl(({ seal }) => ({
+    diameter: (c) => c.r * 2,
+    grown: (c) => seal({ ...c, r: c.r + 1 }),
+  }))
   .Rect.impl(() => ({ ratio: (r) => r.w / r.h }))
-  .impl(() => ({
+  .impl(({ seal }) => ({
+    unit: (s) => seal({ _tag: "Circle", id: s.id, r: 1 }),
     area: (s): number =>
       Shape.match(s, {
         Circle: (c) => Math.PI * c.r * c.r,
@@ -41,9 +45,13 @@ const Event = Enum.companion<Event>()
   .tag("kind")
   .Key.implSeal((k, seal) => (k.code ? seal(k) : new RangeError("code must not be empty")))
   .implSeal((e, seal) => (e.id ? seal(e) : new RangeError("id must not be empty")))
-  .implTrait(Named, () => ({
-    label: (e, sep): string =>
-      Event.match(e, { Click: (c) => `${c.x}${sep}${c.y}`, Key: (k) => k.code }),
+  .implTrait(Named, ({ seal }) => ({
+    label: (e, sep): string => {
+      const checked = seal(e);
+      return checked instanceof Error
+        ? checked.message
+        : Event.match(checked, { Click: (c) => `${c.x}${sep}${c.y}`, Key: (k) => k.code });
+    },
   }))
   .build();
 

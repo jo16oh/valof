@@ -35,13 +35,14 @@ type Order = Val<
 const Order = Val.companion<Order, [Unpatchable<"id">]>()
   .implSeal((seed, seal) => seal(seed))
   .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
-  .impl(() => ({
+  .impl(({ seal }) => ({
     label(o) {
       return `${o.id}: ${o.lines.length}`;
     },
     heaviest(o) {
       return o.lines.reduce((a, b) => (a.qty > b.qty ? a : b));
     },
+    noted: (o, note: string) => seal({ ...o, note }),
   }))
   .build();
 

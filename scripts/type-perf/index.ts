@@ -37,6 +37,11 @@ type Fixture = (typeof fixtures)[number];
  * `trait` went from 15,000 to 17,000 when `implTrait` grew the callback form: an implementation
  * is now `Implement<…> | ((self) => Implement<…>)`, and the union is related twice at every call
  * the fixture makes. An alarm, not a ratchet.
+ *
+ * Each fixture has a step whose function takes what the step passes, as `impl(({ seal }) => …)`. A
+ * function that takes nothing skips the cost `NoInfer` removes (`Supplied` in `src/val.ts`). With
+ * the wrapper removed, `core` and `trait` exceed their budgets. `enum` stays within its own, so the
+ * comments at its steps are the only record.
  */
 const budget: Record<Fixture, number> = { core: 10_000, trait: 22_000, enum: 90_000 };
 

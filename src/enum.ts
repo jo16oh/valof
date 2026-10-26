@@ -800,7 +800,8 @@ type VariantSteps<
          */
         impl: <G extends CompanionMembers<VariantOf<E, N>>>(
           fns: (
-            supplied: VariantSupplied<E, O, VM, N>,
+            // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
+            supplied: NoInfer<VariantSupplied<E, O, VM, N>>,
           ) => Grown<keyof At<VM, N, "members", Record<never, never>>, Unclaimed<E, G>> &
             Arity<G> &
             ThisType<undefined>,
@@ -918,7 +919,8 @@ export type EnumBuilder<
          */
         impl: <G extends UnionMembers<E>>(
           fns: (
-            supplied: EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>,
+            // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
+            supplied: NoInfer<EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>,
           ) => Unclaimed<E, G> & Arity<G> & ThisType<undefined>,
         ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl">;
       }) & {
