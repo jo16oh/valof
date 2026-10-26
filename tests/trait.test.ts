@@ -113,7 +113,7 @@ describe("Trait", () => {
 
   describe("build", () => {
     test("closes the chain: the companion has no step left", () => {
-      for (const step of ["impl", "build"] as const) {
+      for (const step of ["impl", "implAssoc", "build"] as const) {
         expectTypeOf(Greetable).not.toHaveProperty(step);
         expect(step in Greetable).toBe(false);
       }
@@ -501,6 +501,89 @@ describe("building", () => {
         }))
         .build();
       expect(Plain.greet(Val.of<Plain>({ name: "alice" }))).toBe("Hi, ALICE");
+    });
+  });
+
+  describe("implAssoc", () => {
+    test("collects members that do not take the trait, such as one over boxes", () => {
+      const Greeting = Trait.companion<Greetable>()
+        .implAssoc(() => ({
+          greetAll: (boxes: readonly Dyn<Greetable>[]) => boxes.map((b) => b.greet()),
+          joined: (sep: string, boxes: readonly Dyn<Greetable>[]) =>
+            boxes.map((b) => b.name).join(sep),
+          none: () => [],
+        }))
+        .build();
+      const boxes = [Greeting.dyn(User, user), Greeting.dyn(Admin, admin)];
+      expectTypeOf(Greeting.greetAll(boxes)).toEqualTypeOf<string[]>();
+      expect([
+        Greeting.greetAll(boxes),
+        Greeting.joined("/", boxes),
+        Greeting.joined(boxes)("/"),
+        Greeting.none(),
+      ]).toEqual([["Hi, alice", "Sir root"], "alice/root", "alice/root", []]);
+    });
+
+    test("its function receives nothing", () => {
+      Trait.companion<Greetable>()
+        // @ts-expect-error the function takes no parameter
+        .implAssoc((supplied: { dyn: unknown }) => ({ boxed: () => supplied.dyn }))
+        .build();
+    });
+
+    test("stays on the trait's companion, off every Val that implements it", () => {
+      const Greeting = Trait.companion<Greetable>()
+        .impl(() => ({ shout: (g) => g.name.toUpperCase() }))
+        .implAssoc(() => ({ VERSION: 1 }))
+        .build();
+      type Guest = Val<"AssocGuest", { name: string }, Greetable>;
+      const Guest = Val.companion<Guest>()
+        .implTrait(Greeting, () => ({
+          greet: (g) => g.name,
+          toWire: (g, sep) => `guest${sep}${g.name}`,
+        }))
+        .build();
+      const guest = Guest.seal({ name: "g" });
+      expectTypeOf(Guest).not.toHaveProperty("VERSION");
+      expect(["VERSION" in Guest, Reflect.get(Greeting.dyn(Guest, guest), "VERSION")]).toEqual([
+        false,
+        undefined,
+      ]);
+      expect(Greeting.VERSION).toBe(1);
+    });
+
+    test("is written any number of times, before and after `impl`", () => {
+      const Greeting = Trait.companion<Greetable>()
+        .implAssoc(() => ({ PREFIX: "Hi" }))
+        .impl(() => ({ shout: (g) => g.name.toUpperCase() }))
+        // A member reaching the companion names it and annotates its return type, as in `impl`.
+        .implAssoc(() => ({
+          shoutAll: (gs: readonly Greetable[]): string[] => gs.map((g) => Greeting.shout(g)),
+        }))
+        .build();
+      expectTypeOf(Greeting.PREFIX).toEqualTypeOf<string>();
+      expect([Greeting.PREFIX, Greeting.shoutAll([user])]).toEqual(["Hi", ["ALICE"]]);
+    });
+
+    test("a name is taken once, and the trait's members, `dyn` and the library's are reserved", () => {
+      const assoc = Trait.companion<Greetable>().implAssoc(() => ({ total: 1 }));
+      // @ts-expect-error this name is already taken
+      assoc.implAssoc(() => ({ total: 2 }));
+      // @ts-expect-error a member the trait declares, Final or not
+      Trait.companion<Greetable>().implAssoc(() => ({ greet: 1 }));
+      // @ts-expect-error a member the trait declares, Final or not
+      Trait.companion<Greetable>().implAssoc(() => ({ shout: 1 }));
+      // @ts-expect-error the name the trait itself uses
+      Trait.companion<Greetable>().implAssoc(() => ({ dyn: 1 }));
+      // @ts-expect-error a name the library reserves
+      Trait.companion<Greetable>().implAssoc(() => ({ seal: 1 }));
+    });
+
+    test("a member whose arguments can be left out is rejected", () => {
+      Trait.companion<Greetable>().implAssoc(() => ({
+        // @ts-expect-error a parameter that can be left out
+        names: (gs: readonly Greetable[], sep?: string) => gs.map((g) => g.name).join(sep),
+      }));
     });
   });
 });
