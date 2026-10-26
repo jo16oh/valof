@@ -282,10 +282,11 @@ const Interval = Val.companion<Interval>()
   }))
   .build();
 
-Interval.parse("1..10"); // Result<Interval>
-Interval.parse("10..1"); // the seal's error
-Interval.create(5); // Result<Interval>
-Interval.patch(interval, { max: -1 }); // Result<Interval>
+Interval.parse("1..10"); // Ok
+Interval.parse("1-10"); // Err("expected min..max")
+Interval.parse("10..1"); // Err("min must not exceed max")
+Interval.create(5); // Ok
+Interval.patch(interval, { max: -1 }); // Err("min must not exceed max")
 ```
 
 Once a value has been successfully sealed as an `Interval`, its type guarantees that it is validated
