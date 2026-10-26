@@ -186,26 +186,6 @@ Val's do: `implSeal`, then `implCreate`, then `impl` (once), `implTrait` and `im
 order. The enum's steps follow the same order. The first of them removes the variants' steps from
 the chain.
 
-`.implAssoc` adds members that do not take a value, such as a parser. A member building a variant
-calls the variant's `create` through the companion and annotates its return type:
-
-```ts
-import { Enum } from "valof/experimental";
-// ---cut---
-type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
-
-const Shape = Enum.companion<Shape>()
-  .implAssoc(() => ({
-    parse: (raw: string): Shape =>
-      raw.startsWith("c")
-        ? Shape.Circle.create({ r: Number(raw.slice(1)) })
-        : Shape.Square.create({ side: Number(raw.slice(1)) }),
-  }))
-  .build();
-
-Shape.parse("c2"); // Shape
-```
-
 ## Check the payload
 
 A variant's `.implSeal` replaces that variant's seal, the same as [a Val's](custom-constructors.md).
