@@ -317,9 +317,9 @@ export type TraitBuilder<
    * receives nothing.
    *
    * They stay on the trait's companion: `implTrait` copies none of them onto a Val. A member
-   * reaching the companion references it and annotates its return type. A member taking more than one
-   * argument can be called with its first argument first, or last. None can have an optional, a
-   * default or a rest parameter.
+   * reaching the companion references it and annotates its return type. A member taking more than
+   * one argument can be called with its first argument first, or last. None can have an optional,
+   * a default or a rest parameter.
    */
   implAssoc: <M extends TraitAssoc<Tr>>(
     fns: () => Grown<keyof A, M> & LooseArity<M> & ThisType<undefined>,
@@ -336,7 +336,7 @@ export type TraitBuilder<
        * TypeScript reports as TS7023, and the annotation cuts it. A member a Val may replace is
        * not on the companion; see {@link TraitCompanion}.
        *
-       * A member taking more than the value can be called with the value first or last. None can
+       * A member taking more than one argument can be called with the value first or last. None can
        * have an optional, a default or a rest parameter.
        *
        * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.

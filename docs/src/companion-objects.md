@@ -64,7 +64,7 @@ User.formatLabel(user, ": ");
 ## Call a member with the value last
 
 Vals are plain data, so their members can't be chained like methods. Instead, a member taking more
-than the value can be called with the value last, which is the form a pipeline expects. A member
+than one argument can be called with the value last, which is the form a pipeline expects. A member
 taking only the value is passed as it is:
 
 ```ts
@@ -90,7 +90,7 @@ User.formatLabel(": ")(user); // "a: bob"
 pipe(user, User.patch({ nickname: "b" }), User.displayName); // "b"
 ```
 
-`patch`, a trait's member taking more than the value, an enum's `match` and `[Tag].match` can be
+`patch`, a trait's member taking more than one argument, an enum's `match` and `[Tag].match` can be
 called either way too. Valof ships no `pipe`. Use the one from your favorite library.
 
 A member cannot have an optional, a default or a rest parameter. Pass `undefined` explicitly where

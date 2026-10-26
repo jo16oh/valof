@@ -830,9 +830,9 @@ type VariantSteps<
     ? unknown
     : {
         /**
-         * Collects the members taking this variant, which the function returns, in one call. One
-         * taking more than the value can be called with the value first or last. None can have an
-         * optional, a default or a rest parameter.
+         * Collects the members taking this variant, which the function returns, in one call. A
+         * member taking more than one argument can be called with the value first or last. None can
+         * have an optional, a default or a rest parameter.
          *
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
@@ -949,7 +949,7 @@ export type EnumBuilder<
          * Referencing a declaration inside its own initializer is a circularity, which TypeScript
          * reports as TS7023.
          *
-         * `match`, `[Tag].match` and a member taking more than the value can be called with the
+         * `match`, `[Tag].match` and a member taking more than one argument can be called with the
          * value first or last. A member cannot have an optional, a default or a rest parameter.
          *
          * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
