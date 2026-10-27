@@ -19,7 +19,7 @@
 | `.implCreate.noseal(f)`  | the same, bypassing the seal for a payload it always accepts  |
 | `.impl(f)`               | adds the members `f` returns                                  |
 | `.implTrait(Tr, f?)`     | implements a trait the type declares                          |
-| `.implAssoc(f)`          | adds the members `f` returns, which do not take the Val       |
+| `.implAssoc(f)`          | adds the members `f` returns, which do not take the Val first |
 | `.build()`               | ends the chain, and returns the companion                     |
 
 Write `implSeal` first, then `implCreate`. `impl`, `implTrait` and `implAssoc` come next, in any
@@ -71,27 +71,31 @@ re-export a companion.
 
 ## Enum Companion Builder
 
-|                                    |                                                                |
-| ---------------------------------- | -------------------------------------------------------------- |
-| `Enum.companion<E, O?>()`          | starts an enum's companion, with the options `O`               |
-| `.tag(key)`                        | names the tag field the companion writes                       |
-| `.implSeal(f)`                     | adds a seal. `E.seal` runs it before the tag selects a variant |
-| `.implCreate(f)`                   | registers `E.create`                                           |
-| `.impl(f)`                         | adds the members `f` returns, which take the union             |
-| `.implTrait(Tr, f?)`               | implements a trait the enum declares                           |
-| `.implAssoc(f)`                    | adds the members `f` returns, which do not take the union      |
-| `.[VariantName].implSeal(f)`       | replaces that variant's seal                                   |
-| `.[VariantName].implCreate(f)`     | replaces that variant's `create`                               |
-| `.[VariantName].impl(f)`           | adds the members `f` returns, which take that variant          |
-| `.[VariantName].implTrait(Tr, f?)` | implements a trait that variant declares                       |
-| `.[VariantName].implAssoc(f)`      | adds the members `f` returns, which do not take that variant   |
-| `.build()`                         | ends the chain, and returns the companion                      |
+|                                       |                                                                    |
+| ------------------------------------- | ------------------------------------------------------------------ |
+| `Enum.companion<E, O?>()`             | starts an enum's companion, with the options `O`                   |
+| `.tag(key)`                           | names the tag field the companion writes                           |
+| `.implSeal(f)`                        | adds a seal. `E.seal` runs it before the tag selects a variant     |
+| `.implCreate(f)`                      | registers `E.create`                                               |
+| `.implCreate.noseal(f)`               | the same, bypassing the seal for a payload it always accepts       |
+| `.impl(f)`                            | adds the members `f` returns, which take the union                 |
+| `.implTrait(Tr, f?)`                  | implements a trait the enum declares                               |
+| `.implAssoc(f)`                       | adds the members `f` returns, which do not take the union first    |
+| `.[VariantName].implSeal(f)`          | replaces that variant's seal                                       |
+| `.[VariantName].implCreate(f)`        | replaces that variant's `create`                                   |
+| `.[VariantName].implCreate.noseal(f)` | the same, bypassing the seal for a payload it always accepts       |
+| `.[VariantName].impl(f)`              | adds the members `f` returns, which take that variant              |
+| `.[VariantName].implTrait(Tr, f?)`    | implements a trait that variant declares                           |
+| `.[VariantName].implAssoc(f)`         | adds the members `f` returns, which do not take that variant first |
+| `.build()`                            | ends the chain, and returns the companion                          |
 
-Each variant's steps come first, in the same order as `Val.companion`'s. The enum's steps follow in
-that order. The first enum step removes the variants' steps from the chain.
+`.tag` comes first where the builder has it. Each variant's steps follow, in the same order as
+`Val.companion`'s. The enum's steps come after them, in that order. The first enum step removes the
+variants' steps from the chain.
 
-The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `E.seal` and
-`E.create`. The one passed to a variant's receives that variant's `seal`, `create` and `patch`.
+The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `E.seal`, and
+`E.create` where the enum's `implCreate` registered one. The one passed to a variant's receives that
+variant's `seal`, `create` and `patch`.
 
 ## Enum Companion Options
 
@@ -127,27 +131,28 @@ They apply to the enum and every variant. To configure a specific variant's comp
 
 ## Enum Types
 
-|                                 |                                                     |
-| ------------------------------- | --------------------------------------------------- |
-| `Enum<K, D, X>`                 | a closed set of variants, as one union              |
-| `Tag<T>`                        | names the tag field, intersected into `X`           |
-| `VariantOf<E, N>`               | the type of one variant                             |
-| `SeedFor<E, N>`                 | what that variant's `create` takes                  |
-| `SealedPayload<E>`              | a tagged payload of one variant                     |
-| `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields        |
-| `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name           |
-| `AnyEnum`                       | a constraint over any enum                          |
-| `EnumBuilder<E>`                | an enum's builder, with the steps it can still take |
-| `EnumCompanion<E>`              | the enum's companion `.build()` returns             |
+|                                 |                                                                  |
+| ------------------------------- | ---------------------------------------------------------------- |
+| `Enum<K, D, X>`                 | a closed set of variants, as one union                           |
+| `Tag<T>`                        | names the tag field, intersected into `X`                        |
+| `Otherwise`                     | a `match` handler key for the rest, where a variant is named `_` |
+| `VariantOf<E, N>`               | the type of one variant                                          |
+| `SeedFor<E, N>`                 | what that variant's `create` takes                               |
+| `SealedPayload<E>`              | a tagged payload of one variant                                  |
+| `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields                     |
+| `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name                        |
+| `AnyEnum`                       | a constraint over any enum                                       |
+| `EnumBuilder<E>`                | an enum's builder, with the steps it can still take              |
+| `EnumCompanion<E>`              | the enum's companion `.build()` returns                          |
 
 ## Trait Companion Builder
 
-|                         |                                                                                |
-| ----------------------- | ------------------------------------------------------------------------------ |
-| `Trait.companion<Tr>()` | starts the trait's own implementation                                          |
-| `.impl(f)`              | implements the members `f` returns, once                                       |
-| `.implAssoc(f)`         | adds the members `f` returns, which do not take a value implementing the trait |
-| `.build()`              | ends the chain, and returns the companion                                      |
+|                         |                                                                                      |
+| ----------------------- | ------------------------------------------------------------------------------------ |
+| `Trait.companion<Tr>()` | starts the trait's own implementation                                                |
+| `.impl(f)`              | implements the members `f` returns, once                                             |
+| `.implAssoc(f)`         | adds the members `f` returns, which do not take a value implementing the trait first |
+| `.build()`              | ends the chain, and returns the companion                                            |
 
 Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 
@@ -161,11 +166,13 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 
 ## Trait Types
 
-|                      |                                                   |
-| -------------------- | ------------------------------------------------- |
-| `Trait<K, Shape, M>` | a contract Vals share                             |
-| `Self`               | the implementing Val, inside a member's signature |
-| `Final<F>`           | marks a member no Val may replace                 |
-| `Dyn<Tr>`            | a boxed value, with the concrete type gone        |
-| `AnyTrait`           | a constraint over any trait                       |
-| `Members`            | the members a trait declares                      |
+|                      |                                                     |
+| -------------------- | --------------------------------------------------- |
+| `Trait<K, Shape, M>` | a contract Vals share                               |
+| `Self`               | the implementing Val, inside a member's signature   |
+| `Final<F>`           | marks a member no Val may replace                   |
+| `Dyn<Tr>`            | a boxed value, with the concrete type gone          |
+| `AnyTrait`           | a constraint over any trait                         |
+| `Members`            | the members a trait declares                        |
+| `TraitBuilder<Tr>`   | a trait's builder, with the steps it can still take |
+| `TraitCompanion<Tr>` | the trait's companion `.build()` returns            |
