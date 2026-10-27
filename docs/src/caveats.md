@@ -83,7 +83,7 @@ const changed = produce(user, (draft) => {
 }); // User
 ```
 
-The result is still typed as `User`, although its seal never saw the change. Use `User.patch` to
+The result is still typed as `User`, although its seal never checked the change. Use `User.patch` to
 derive a value instead:
 
 ```ts
@@ -102,10 +102,9 @@ payload to `User.seal`.
 
 ## A `__proto__` key survives sealing
 
-A `__proto__` key survives. It is a legal JSON key, so sealing keeps it as an own property. That is
-inert inside a value, but not in code that merges a payload with `Object.assign` or a recursive
-merge. There, assigning the key sets a prototype instead of copying it. Sanitize untrusted input
-yourself.
+Sealing keeps a `__proto__` key as an own property, because it is a legal JSON key. That is inert
+inside a value, but not in code that merges a payload with `Object.assign` or a recursive merge.
+There, assigning the key sets a prototype instead of copying it. Sanitize untrusted input yourself.
 
 ## Deeply nested payloads can overflow the stack
 

@@ -69,8 +69,8 @@ const User = Val.companion<User>()
   .build();
 ```
 
-The parameter takes `object` or `Record<string, unknown>`, not `unknown`. A seal takes the payload,
-not a wire format.
+The parameter can be typed `object` or `Record<string, unknown>`, but not `unknown`. A seal takes
+the payload, not a wire format.
 
 The schema runs on every derivation, not just the first parse. Reject unknown keys yourself. A patch
 is merged as given, so an undeclared key survives unless the seal removes it.
@@ -175,8 +175,8 @@ const Yen = Val.companion<Yen>()
   }))
   .build();
 
-Yen.parse("¥120"); // Result<Yen>
-Yen.parse("¥99999999999999999"); // the seal's error: not a safe integer
+Yen.parse("¥120"); // Ok
+Yen.parse("¥99999999999999999"); // Err("must be a non-negative safe integer")
 Yen.sum(yens); // Result<Yen>
 ```
 

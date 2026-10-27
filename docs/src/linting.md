@@ -58,8 +58,8 @@ like any other.
 
 ## Plugin for ESLint and Oxlint
 
-The same rules, one per finding kind. Name one to give it its own severity, or turn it off. The
-project to read is one setting for all of them, a path or a list of them, and defaults to
+The same rules, one per finding kind. Each rule can be given its own severity, or turned off, by its
+name. The project to read is one setting for all of them, a path or a list of them, and defaults to
 `src/**/*.ts`. A path starting with `!` is excluded from it.
 
 ESLint needs a parser that reads your TypeScript.

@@ -64,7 +64,7 @@ User.formatLabel(user, ": ");
 
 ## Call a member with the value last
 
-Vals are plain data, so their members can't be chained like methods. Instead, a member taking more
+Vals are plain data, so their members cannot be chained like methods. Instead, a member taking more
 than one argument can be called with the value last, which is the form a pipeline expects. A member
 taking only the value is passed as it is:
 
@@ -112,8 +112,8 @@ User.greet(User.seal({ id: "a", name: "bob" }), undefined); // "Hi, bob"
 ```
 
 Valof checks the parameters that a member's type shows, not the ones in its implementation. A type
-annotation can hide a default or a rest parameter. The member then type-checks, but breaks a call
-with the value last:
+annotation can hide a default or a rest parameter. The member is then accepted, but a call with the
+value last fails:
 
 ```ts
 import { Val } from "valof";
@@ -228,7 +228,7 @@ declare const shop: Shop;
 Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
 ```
 
-Derive a nested Val with its own `patch`, so its own seal sees the change.
+Derive a nested Val with its own `patch`, so its own seal checks the change.
 
 `patch` copies only the path to what changed. Untouched branches keep their reference identity:
 
