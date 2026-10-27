@@ -721,7 +721,8 @@ export type Passes<Tr extends AnyTrait, G, I, S> =
       : [impl: (supplied: NoInfer<S>) => I & Arity<I> & ThisType<undefined>];
 
 /**
- * What a step's function receives: `seal`, `create` and `patch`, the private ones included.
+ * What a step's function receives: `seal`, `create` where `.implCreate` registered one, and
+ * `patch` for an object payload. `PrivateSeal` and `PrivateCreate` do not remove them here.
  *
  * Each step wraps it in `NoInfer` where it uses it. It holds no type parameter to infer, but
  * inference walks all of it anyway. In the type-perf `core` fixture, `impl(({ seal }) => …)` took
@@ -781,10 +782,11 @@ export type CompanionBuilder<
          * Collects the members the function returns, in one call. Everything the library reserves
          * has its own step.
          *
-         * The function receives `seal`, and `create` and `patch` where the companion has them. A
-         * member reaching the companion for anything else (a trait's member or a sibling)
-         * references it and annotates its return type. Referencing a declaration inside its own initializer is a circularity, which
-         * TypeScript reports as TS7023.
+         * The function receives `seal`, `create` where `.implCreate` registered one, and `patch`
+         * for an object payload. A member reaching the companion for anything else (a trait's
+         * member or a sibling) references it and annotates its return type. Referencing a
+         * declaration inside its own initializer is a circularity, which TypeScript reports as
+         * TS7023.
          *
          * A member can be called with the value first, `User.rename(u, "x")`, or last,
          * `User.rename("x")(u)`. So can `patch` and a trait's member taking more than one
@@ -812,9 +814,9 @@ export type CompanionBuilder<
      * Collects the members the function returns that do not take the Val first: `fromRow`,
      * `parse`, a constant. Write it any number of times.
      *
-     * The function receives `seal`, and `create` and `patch` where the companion has them. A
-     * member reaching the companion for anything else (a sibling or another step's member)
-     * references it and annotates its return type, as in `.impl`.
+     * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
+     * an object payload. A member reaching the companion for anything else (a sibling or another
+     * step's member) references it and annotates its return type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
      * `Money.scaled(2)(5)`. A member taking one argument or none has no second form. A member
