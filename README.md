@@ -10,7 +10,8 @@
 
 <!-- prettier-ignore -->
 > [!IMPORTANT]
-> Valof is pre-1.0. A minor release can change the API.
+> Valof is pre-1.0. Any minor release can break any part of the API. Read the release notes
+> before upgrading.
 
 ## Installation
 
@@ -46,9 +47,9 @@ It enforces the conventions through types and linting.
 - **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
   their reference identity.
 
-- **Rust-like abstractions (experimental)**: `Enum` is a closed set of variants with exhaustive
-  `match`. `Trait` shares behavior across Vals. `dyn` adds dynamic dispatch without classes, holding
-  different types together.
+- **Rust-like abstractions**: `Enum` is a closed set of variants with exhaustive `match`. `Trait`
+  shares behavior across Vals. `dyn` adds dynamic dispatch without classes, holding different types
+  together.
 
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
   [Linting](https://jo16oh.github.io/valof/latest/linting.html) shows the setup.
@@ -177,6 +178,39 @@ const shifted = pipe(rectangle.position, Point.move(3, 4), Point.move(-1, 0)); /
 
 const unlabeled = Rectangle.patch(moved, { label: undefined });
 "label" in unlabeled; // false: undefined deletes an optional property
+```
+
+### Enums and traits
+
+```ts
+import { Enum, Trait, Val, type Dyn, type Self } from "valof";
+
+// A trait declares the fields and the functions that the Vals implementing it share.
+type Describable = Trait<"Describable", { label: string }, { describe: (self: Self) => string }>;
+const Describable = Trait.companion<Describable>().build();
+
+// An enum is a closed set of variants, and each variant is a Val.
+type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }, Describable>;
+const Shape = Enum.companion<Shape>()
+  .implTrait(Describable, () => ({
+    // match requires a handler for every variant.
+    describe: (s): string =>
+      Shape.match(s, { Circle: (c) => `circle ${c.r}`, Square: (q) => `square ${q.side}` }),
+  }))
+  .build();
+
+type Note = Val<"Note", { label: string; text: string }, Describable>;
+const Note = Val.companion<Note>()
+  .implTrait(Describable, () => ({ describe: (n) => n.text }))
+  .build();
+
+// dyn pairs each value with its own type's implementation, so values of different types share an
+// array.
+const items: Dyn<Describable>[] = [
+  Describable.dyn(Shape, Shape.Circle.create({ label: "a", r: 2 })),
+  Describable.dyn(Note, Note.seal({ label: "b", text: "Hello" })),
+];
+items.map((item) => item.describe()); // ["circle 2", "Hello"]
 ```
 
 ## Development

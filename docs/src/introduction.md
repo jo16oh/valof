@@ -13,7 +13,8 @@ the sidebar to find a specific topic.
 
 <!-- prettier-ignore -->
 > [!IMPORTANT]
-> Valof is pre-1.0. A minor release can change the API.
+> Valof is pre-1.0. Any minor release can break any part of the API. Read the release notes
+> before upgrading.
 
 ## Why Valof?
 
@@ -40,9 +41,9 @@ It enforces the conventions through types and linting.
 - **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
   their reference identity.
 
-- **Rust-like abstractions (experimental)**: `Enum` is a closed set of variants with exhaustive
-  `match`. `Trait` shares behavior across Vals. `dyn` adds dynamic dispatch without classes, holding
-  different types together.
+- **Rust-like abstractions**: `Enum` is a closed set of variants with exhaustive `match`. `Trait`
+  shares behavior across Vals. `dyn` adds dynamic dispatch without classes, holding different types
+  together.
 
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
   [Linting](linting.md) shows the setup.

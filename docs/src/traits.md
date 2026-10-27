@@ -1,10 +1,5 @@
 # Traits
 
-<!-- prettier-ignore -->
-> [!WARNING]
-> Traits are experimental. They ship from `valof/experimental` so that an import says so, and
-> the design is still changing.
-
 > For the contract that a trait adds, see
 > [TypeScript problems Valof addresses](typescript-problems.md#traits).
 
@@ -13,7 +8,7 @@
 A trait declares the fields and the functions:
 
 ```ts
-import { Trait, type Self } from "valof/experimental";
+import { Trait, type Self } from "valof";
 
 type Greetable = Trait<
   "Greetable",
@@ -39,8 +34,7 @@ and they take the value first like any other member.
 A Val declares its traits in the third argument, and its companion implements them:
 
 ```ts
-import { Val } from "valof";
-import { Trait, type Self } from "valof/experimental";
+import { Trait, Val, type Self } from "valof";
 
 type Greetable = Trait<
   "Greetable",
@@ -79,7 +73,7 @@ A plain object that happens to hold the fields is not one of them:
 
 ```ts
 // @errors: 2322
-import { Trait, type Self } from "valof/experimental";
+import { Trait, type Self } from "valof";
 // ---cut---
 type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
 
@@ -95,8 +89,7 @@ Every Val writing its own `greet` repeats the same line. A trait can implement a
 reading the shape alone, and that becomes the default for every Val that does not replace it:
 
 ```ts
-import { Val } from "valof";
-import { Trait, type Self } from "valof/experimental";
+import { Trait, Val, type Self } from "valof";
 
 type Greetable = Trait<
   "Greetable",
@@ -136,8 +129,7 @@ function returning what the trait left open, plus any default the Val replaces, 
 Mark one `Final`:
 
 ```ts
-import { Val } from "valof";
-import { Trait, type Final, type Self } from "valof/experimental";
+import { Trait, Val, type Final, type Self } from "valof";
 
 // ---cut---
 type Greetable = Trait<
@@ -169,7 +161,7 @@ Only `Final` members are exposed on the trait's own type. `Greetable.shout(user)
 A default calling a `Final` member references the trait and annotates its return type:
 
 ```ts
-import { Trait, type Final, type Self } from "valof/experimental";
+import { Trait, type Final, type Self } from "valof";
 
 type Greetable = Trait<
   "Greetable",
@@ -198,7 +190,7 @@ An [enum](enums.md) implements a trait it declares once, over the union. What di
 a `match` inside the implementation:
 
 ```ts
-import { Enum, Trait, type Self } from "valof/experimental";
+import { Enum, Trait, type Self } from "valof";
 // ---cut---
 type Describable = Trait<"Describable", { id: string }, { describe: (self: Self) => string }>;
 const Describable = Trait.companion<Describable>().build();
@@ -222,8 +214,7 @@ requires it. Variants cannot implement traits.
 concrete type is gone; the trait is what is left. This is inspired by Rust's `Box<dyn Trait>`:
 
 ```ts
-import { Val } from "valof";
-import { Trait, type Dyn, type Self } from "valof/experimental";
+import { Trait, Val, type Dyn, type Self } from "valof";
 
 type Greetable = Trait<
   "Greetable",
@@ -279,8 +270,7 @@ it onto a Val.
 Intersect them in the declaration, and implement each in its own step:
 
 ```ts
-import { Val } from "valof";
-import { Trait, type Self } from "valof/experimental";
+import { Trait, Val, type Self } from "valof";
 
 type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
 const Greetable = Trait.companion<Greetable>()

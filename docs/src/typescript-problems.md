@@ -175,7 +175,7 @@ Declare variants in `Enum<...>` and create their companion with `Enum.companion<
 [enums](enums.md#declare-the-variants) covers shared fields, custom seals and tags:
 
 ```ts
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 
 // ---cut---
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
@@ -253,8 +253,7 @@ Declare a `Trait`, add it to a Val's third type argument, then register its memb
 `.implTrait`; [traits](traits.md#declare-what-vals-share) covers defaults, enums and `dyn`:
 
 ```ts
-import { Val } from "valof";
-import { Trait, type Self } from "valof/experimental";
+import { Trait, Val, type Self } from "valof";
 
 // ---cut---
 type Describable = Trait<"Describable", { name: string }, { describe: (self: Self) => string }>;
