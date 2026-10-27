@@ -120,6 +120,9 @@ User.create(fields); // Result<User>
 their payloads through your seal. Sealing a value's own payload must return that value. **Generate
 an id or timestamp in `create`, not in `seal`**.
 
+To keep callers from passing or patching a generated id, see
+[Restrict the companion with options](companion-objects.md#restrict-the-companion-with-options).
+
 ## Bypass the seal in `create`
 
 A `create` whose payload the seal always accepts never fails, but it still returns the seal's
@@ -191,47 +194,6 @@ when another path builds the value, such as `patch` on an object payload.
 A member taking more than one argument can be called with its first argument last. A member cannot
 have an optional, a default or a rest parameter, and one referencing the companion annotates its
 return type.
-
-## Restrict the companion with options
-
-Options in a list after the type in `Val.companion` restrict what the companion offers callers. Any
-of them can be combined.
-
-### Hide `seal` and `create`
-
-`create` can generate an id. `PrivateSeal` removes `seal` from the companion, so a caller cannot
-pass an id of their own.
-
-`PrivateCreate` removes `create` from the companion. Use it when callers should build the type
-through `seal` or other functions, not `create`. It protects no field, because the payload `create`
-returns passes the seal.
-
-The function passed to `impl`, `implTrait` and `implAssoc` still receives `seal` and `create`, so
-the companion's own members can build the type.
-
-### Exclude keys from `patch`
-
-`Unpatchable` excludes keys from `patch`, so an id keeps the value `create` generated.
-
-### Examples
-
-```ts
-// @errors: 2339 2353
-import { Val, type PrivateSeal, type Unpatchable } from "valof";
-
-declare const user: User;
-// ---cut---
-type User = Val<"User", { id: string; name: string }>;
-
-const User = Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()
-  .implCreate((name: string) => ({ id: crypto.randomUUID(), name }))
-  .build();
-
-User.create("sue"); // User
-User.seal({ id: "forged", name: "sue" }); // type error
-User.patch(user, { name: "sue" }); // OK
-User.patch(user, { id: "forged" }); // type error
-```
 
 ## Parse, don't validate
 

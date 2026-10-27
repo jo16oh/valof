@@ -252,3 +252,44 @@ Shop.patch(shop, {}) === shop; // true
 
 Reference comparisons, such as React dependency arrays, can then skip work when their value did not
 change. Primitive and array Vals have no `patch`, because they have nothing to merge.
+
+## Restrict the companion with options
+
+Options in the second type argument of `Val.companion` restrict what the companion offers callers.
+Any of them can be combined.
+
+### Hide `seal` and `create`
+
+[`create`](custom-constructors.md#generate-fields-with-create) can generate an id. `PrivateSeal`
+removes `seal` from the companion, so a caller cannot pass an id of their own.
+
+`PrivateCreate` removes `create` from the companion. Use it when callers should build the type
+through `seal` or other functions, not `create`. It protects no field, because the payload `create`
+returns passes the seal.
+
+The function passed to `.impl`, [`.implTrait`](traits.md#implement-it-on-a-val) and `.implAssoc`
+still receives `seal` and `create`, so the companion's own members can build the type.
+
+### Exclude keys from `patch`
+
+`Unpatchable` excludes keys from `patch`, so an id keeps the value `create` generated.
+
+### Examples
+
+```ts
+// @errors: 2339 2353
+import { Val, type PrivateSeal, type Unpatchable } from "valof";
+
+declare const user: User;
+// ---cut---
+type User = Val<"User", { id: string; name: string }>;
+
+const User = Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()
+  .implCreate((name: string) => ({ id: crypto.randomUUID(), name }))
+  .build();
+
+User.create("sue"); // User
+User.seal({ id: "forged", name: "sue" }); // type error
+User.patch(user, { name: "sue" }); // OK
+User.patch(user, { id: "forged" }); // type error
+```

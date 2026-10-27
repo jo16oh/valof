@@ -203,8 +203,26 @@ Cmd.describe(Cmd.Add.create({ id: "c1", n: 2 })); // "add 2"
 ```
 
 A trait's fields become fields every variant shares. `id` comes from `Describable`, and `Cmd.Add`
-requires it. A trait on one variant alone is declared in that variant's payload, as
-[A trait on one variant](enums.md#a-trait-on-one-variant) shows.
+requires it.
+
+A trait intersected into one variant's payload applies to that variant alone, and that variant
+implements it:
+
+```ts
+import { Enum, Trait, type Self } from "valof";
+// ---cut---
+type Named = Trait<"Named", { label: string }, { named: (self: Self) => string }>;
+const Named = Trait.companion<Named>().build();
+
+type Item = Enum<"Item", { Book: { pages: number } & Named; Pen: { ink: string } }>;
+const Item = Enum.companion<Item>()
+  .Book.implTrait(Named, () => ({ named: (b) => `${b.label}, ${b.pages} pages` }))
+  .build();
+
+Item.Book.named(Item.Book.create({ label: "Dune", pages: 412 })); // "Dune, 412 pages"
+```
+
+A variant cannot declare a trait that the enum already declares.
 
 ## Hold values of different types together
 
@@ -259,6 +277,10 @@ companion is rejected.
 
 An enum boxes the same way, through its own companion:
 `Describable.dyn(Cmd, Cmd.Add.create({ id: "c1", n: 2 }))`.
+
+`dyn` selects the implementation from the companion passed to it. If an enum and its variant both
+declared a trait, `Named.dyn(Item, book)` and `Named.dyn(Item.Book, book)` would call different
+implementations, so a variant cannot declare a trait that the enum already declares.
 
 A function over boxes is registered on the trait's companion, with `.implAssoc`. `implTrait` does
 not copy it onto a Val.
