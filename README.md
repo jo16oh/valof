@@ -59,156 +59,75 @@ Read [The Valof Book](https://jo16oh.github.io/valof/latest/) for more details.
 
 ## Examples
 
-### Branded plain data
-
-```ts
-import { equals, Val } from "valof";
-
-type UserId = Val<"UserId", string>;
-const UserId = Val.companion<UserId>().build();
-
-type PostId = Val<"PostId", string>;
-const PostId = Val.companion<PostId>().build();
-
-const userId = UserId.seal("xxx-xxx-xxx");
-const postId = PostId.seal("xxx-xxx-xxx");
-
-// @ts-expect-error brands distinguish UserId from PostId
-let _: UserId = postId;
-// The phantom brand has no effect at runtime.
-// @ts-expect-error brands are disjoint at type level
-userId === postId; // true
-typeof userId === "string"; // true
-
-type Post = Val<"Post", { id: PostId; content: string }>;
-const Post = Val.companion<Post>().build();
-type User = Val<"User", { id: UserId; name: string; posts: Post[] }>;
-const User = Val.companion<User>().build();
-
-const user = User.seal({
-  id: UserId.seal("xxx-xxx-xxx"),
-  name: "joe",
-  posts: [Post.seal({ id: PostId.seal("1"), content: "Hello, World!" })],
-});
-
-// @ts-expect-error Vals are deeply readonly
-user.posts.push(Post.seal({ id: PostId.seal("2"), content: "Immutability matters." }));
-
-// `equals` compares Vals structurally
-const p1 = Post.seal({ id: PostId.seal("a"), content: "a" });
-const p2 = Post.seal({ id: PostId.seal("a"), content: "a" });
-p1 === p2; // false
-equals(p1, p2); // true
-```
-
-### Custom constructors and companion objects
-
-```ts
-import { Val, type Unpatchable } from "valof";
-
-type Result<T> = { ok: T } | { err: string };
-type Note = Val<"Note", { id: string; text: string }>;
-
-const normalize = (s: string) => s.trim().replace(/\s+/g, " ");
-const hasText = (s: string) => s.length > 0;
-
-// Unpatchable excludes the generated id from patch.
-const Note = Val.companion<Note, [Unpatchable<"id">]>()
-  // seal validates and normalizes every payload.
-  .implSeal((note, seal): Result<Note> => {
-    const text = normalize(note.text);
-    return hasText(text) ? { ok: seal({ ...note, text }) } : { err: "empty note" };
-  })
-  // create generates the id once. Derivations do not run it again.
-  .implCreate((text: string) => ({ id: crypto.randomUUID(), text }))
-  // impl collects behavior from a function that receives seal, create and patch. It infers each
-  // member's first parameter as Note.
-  .impl(({ seal }) => ({
-    append(note, text: string) {
-      return seal({ ...note, text: `${note.text} ${text}` });
-    },
-  }))
-  .build();
-
-// seal is the way in, with or without a custom seal.
-Note.seal({ id: "note-1", text: " Hello " }); // { ok: { id: "note-1", text: "Hello" } }
-
-const result = Note.create(" Hello ");
-if ("ok" in result) Note.append(result.ok, "World"); // { ok: { id: "...", text: "Hello World" } }
-```
-
-### Deriving new values
-
-```ts
-import { Val } from "valof";
-import { pipe } from "remeda";
-
-type Point = Val<"Point", { x: number; y: number }>;
-
-const Point = Val.companion<Point>()
-  .impl(({ patch }) => ({
-    move(point, dx: number, dy: number) {
-      return patch(point, {
-        x: point.x + dx,
-        y: point.y + dy,
-      });
-    },
-  }))
-  .build();
-
-type Rectangle = Val<"Rectangle", { position: Point; size: Point; label?: string }>;
-const Rectangle = Val.companion<Rectangle>().build();
-
-const rectangle = Rectangle.seal({
-  position: Point.seal({ x: 1, y: 2 }),
-  size: Point.seal({ x: 10, y: 20 }),
-  label: "draft",
-});
-
-// patch is available only on object-shaped Vals.
-const moved = Rectangle.patch(rectangle, {
-  position: Point.move(rectangle.position, 3, 4),
-});
-moved.size === rectangle.size; // true: untouched branches keep their reference identity
-
-// A member taking more than one argument can also be called with the value last, for a pipe.
-const shifted = pipe(rectangle.position, Point.move(3, 4), Point.move(-1, 0)); // { x: 3, y: 6 }
-
-const unlabeled = Rectangle.patch(moved, { label: undefined });
-"label" in unlabeled; // false: undefined deletes an optional property
-```
-
-### Enums and traits
-
 ```ts
 import { Enum, Trait, Val, type Dyn, type Self } from "valof";
 
-// A trait declares the fields and the functions that the Vals implementing it share.
-type Describable = Trait<"Describable", { label: string }, { describe: (self: Self) => string }>;
-const Describable = Trait.companion<Describable>().build();
+type Result<T> = { ok: T } | { err: string };
 
-// An enum is a closed set of variants, and each variant is a Val.
-type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }, Describable>;
-const Shape = Enum.companion<Shape>()
-  .implTrait(Describable, () => ({
-    // match requires a handler for every variant.
-    describe: (s): string =>
-      Shape.match(s, { Circle: (c) => `circle ${c.r}`, Square: (q) => `square ${q.side}` }),
+type TaskId = Val<"TaskId", string>;
+const TaskId = Val.companion<TaskId>().build();
+
+type Status = Enum<"Status", { Todo: { due: string }; Done: { at: string } }>;
+const Status = Enum.companion<Status>().build();
+
+type Summarizable = Trait<"Summarizable", { title: string }, { summarize: (self: Self) => string }>;
+const Summarizable = Trait.companion<Summarizable>().build();
+
+type Task = Val<"Task", { id: TaskId; status: Status; tags: string[] }, Summarizable>;
+const Task = Val.companion<Task>()
+  .implSeal((task, seal): Result<Task> =>
+    task.title.trim() === "" ? { err: "empty title" } : { ok: seal(task) },
+  )
+  .impl(({ patch }) => ({
+    complete: (task, at: string) => patch(task, { status: Status.Done.create({ at }) }),
+  }))
+  .implTrait(Summarizable, () => ({
+    summarize: (t): string =>
+      Status.match(t.status, {
+        Todo: (s) => `${t.title} (due ${s.due})`,
+        Done: () => `${t.title} (done)`,
+      }),
   }))
   .build();
 
-type Note = Val<"Note", { label: string; text: string }, Describable>;
+type Note = Val<"Note", { text: string }, Summarizable>;
 const Note = Val.companion<Note>()
-  .implTrait(Describable, () => ({ describe: (n) => n.text }))
+  .implTrait(Summarizable, () => ({ summarize: (n) => n.title }))
   .build();
 
-// dyn pairs each value with its own type's implementation, so values of different types share an
-// array.
-const items: Dyn<Describable>[] = [
-  Describable.dyn(Shape, Shape.Circle.create({ label: "a", r: 2 })),
-  Describable.dyn(Note, Note.seal({ label: "b", text: "Hello" })),
-];
-items.map((item) => item.describe()); // ["circle 2", "Hello"]
+function main() {
+  const result = Task.seal({
+    id: TaskId.seal("t1"),
+    title: "Write the README",
+    status: Status.Todo.create({ due: "10-31" }),
+    tags: ["docs"],
+  });
+
+  if ("err" in result) return;
+  const task = result.ok;
+
+  task.status._tag; // "Todo"
+
+  const done = Task.complete(task, "10-27");
+  if ("err" in done) return;
+  done.ok.status._tag; // "Done"
+  done.ok.tags === task.tags; // true: structural sharing
+
+  // Dynamic dispatch, as in Rust's `Box<dyn Trait>`. Each item calls its own type's `summarize`.
+  const board: Dyn<Summarizable>[] = [
+    Summarizable.dyn(Task, task),
+    Summarizable.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
+  ];
+  board.map((item) => item.summarize()).forEach((s) => console.log(s)); // "Write the README (due 10-31)", "Ideas"
+}
+
+function errors(task: Task) {
+  Task.seal({ ...task, title: " " }); // { err: "empty title" }
+  // @ts-expect-error a plain string has no TaskId brand
+  Task.seal({ ...task, id: "t2" });
+  // @ts-expect-error Vals are deeply readonly
+  task.tags.push("urgent");
+}
 ```
 
 ## Development
