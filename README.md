@@ -10,8 +10,7 @@
 
 <!-- prettier-ignore -->
 > [!IMPORTANT]
-> Valof is pre-1.0. Any minor release can break any part of the API. Read the release notes
-> before upgrading.
+> Valof is pre-1.0. A minor release can change the API. Read the release notes before upgrading.
 
 ## Installation
 

@@ -5338,7 +5338,7 @@ entry を足すときは毎回確認する、とあの節に書いてある。�
 
 - 理由: Val は experimental ではないのに破壊的変更が入り続けている。Enum と Trait にだけ印があると、Val が
   安定していると読まれる。pre-1.0 である限り、破壊的変更がありうることはライブラリ全体として強く言えば
-  足りる（ユーザー、2026-10-27）。README と book の pre-1.0 の警告を強めた
+  足りる（ユーザー、2026-10-27）。README と book の pre-1.0 の警告に、更新前にリリースノートを読むよう足した
 - 宣言のコスト: `val.ts` が既に enum / trait の型を import しているので、`import "valof"` は以前から両方の宣言を
   読んでいた（上の「機能ごとの subpath」と同じ理由）。変更後の `index.d.ts` は 87.88 kB（予算 96 kB）
 - 実行時: `sideEffects: false` で、`Val` だけを import したバンドルは 965 B のまま。`enum.js` と
