@@ -64,9 +64,8 @@ declare const user: User;
 Object.assign(user, { name: "mallory" });
 ```
 
-`Object.defineProperty` and `Reflect.set` have the same problem. Valof freezes values in
-development, so `Object.assign` and `Object.defineProperty` throw there, and `Reflect.set` returns
-`false`. Production skips the freeze, and they mutate the Val.
+`Object.defineProperty` has the same problem. Valof freezes values in development, so both calls
+throw there. Production skips the freeze, and they mutate the Val.
 
 Other utilities return a new object but preserve the input type. Immer, for example, makes a
 readonly input writable inside a callback:
