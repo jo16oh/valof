@@ -28,7 +28,8 @@ declare const SelfMark: unique symbol;
  * The implementing Val, standing in for it inside a trait's member signatures.
  *
  * An opaque marker rather than a reference to the trait, which would be circular. `implTrait`
- * substitutes the Val for it, in parameter positions only: a member may not return `Self`.
+ * substitutes the Val for a parameter typed `Self` alone: in `readonly Self[]`, it stays `Self`. A
+ * member may not return `Self`.
  */
 export type Self = { readonly [SelfMark]: true };
 
@@ -37,8 +38,8 @@ type AnyMember = (self: never, ...args: never[]) => unknown;
 declare const FinalMark: unique symbol;
 
 /**
- * Marks a member the trait implements permanently: `implTrait` may not replace it, and a trait
- * carrying one cannot be implemented without its companion.
+ * Marks a member the trait implements permanently: `implTrait` may not replace it, and rejects the
+ * trait until the trait's companion implements it.
  *
  * The mark is phantom, so it costs nothing at run time and reads off the declaration:
  *
@@ -225,16 +226,17 @@ export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
 export type TraitHost = { readonly [Traits]: Members };
 
 /**
- * What `Trait.companion` returns, which its `impl` grows.
- *
- * Only the members declared {@link Final} are exposed on it. A trait namespace that could call a
- * default would look like it dispatched, and it cannot: every call goes through the Val's
- * companion or a {@link Dyn}, both of which reach the Val's own version. The rest are on the
- * object all the same, since telling them apart at run time would take a mark the type erases.
- *
- * What it publishes takes the trait, not the shape the implementation was written over. A trait
- * is a contract between Vals, and an object that merely holds the fields is not one of them.
+ * What the trait's `.build()` returns: `dyn`, the members declared {@link Final}, and the
+ * `.implAssoc` members. A member a Val may replace is not on it: call it through the Val's
+ * companion or a {@link Dyn}.
  */
+// A trait namespace that could call a default would look like it dispatched, and it cannot: every
+// call goes through the Val's companion or a `Dyn`, both of which reach the Val's own version. The
+// rest are on the object all the same, since telling them apart at run time would take a mark the
+// type erases.
+//
+// What it publishes takes the trait, not the shape the implementation was written over. A trait is
+// a contract between Vals, and an object that merely holds the fields is not one of them.
 export type TraitCompanion<
   Tr extends AnyTrait,
   G = Record<never, never>,
