@@ -19,8 +19,7 @@
 npm install valof
 ```
 
-Valof requires TypeScript 5.9 or later. The recommended compiler options are `strict` and
-`exactOptionalPropertyTypes`.
+The recommended compiler options are `strict` and `exactOptionalPropertyTypes`.
 
 ## Why Valof?
 

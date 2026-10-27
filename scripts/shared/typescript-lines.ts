@@ -11,7 +11,7 @@ export const run = promisify(execFile);
 export const root = fileURLToPath(new URL("../../", import.meta.url));
 
 /**
- * The floor the README claims, the line above it, and the current one, each installed under an
+ * The oldest line supported, the line above it, and the current one, each installed under an
  * alias. Read from `node_modules`, so a new major enters this check when someone adds its alias.
  *
  * A line's last release is where its semantics settled, and supporting one from there avoids the
