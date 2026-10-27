@@ -95,31 +95,38 @@ const Note = Val.companion<Note>()
   .implTrait(Summarizable, () => ({ summarize: (n) => n.title }))
   .build();
 
-const result = Task.seal({
-  id: TaskId.seal("t1"),
-  title: "Write the README",
-  status: Status.Todo.create({ due: "10-31" }),
-  tags: ["docs"],
-});
+function main() {
+  const result = Task.seal({
+    id: TaskId.seal("t1"),
+    title: "Write the README",
+    status: Status.Todo.create({ due: "10-31" }),
+    tags: ["docs"],
+  });
 
-if ("err" in result) throw new Error(result.err);
-const task = result.ok;
+  if ("err" in result) return;
+  const task = result.ok;
 
-const done = Task.complete(task, "10-27");
-if ("ok" in done) done.ok.tags === task.tags; // true: structural sharing
+  task.status._tag; // "Todo"
 
-const board: Dyn<Summarizable>[] = [
-  Summarizable.dyn(Task, task),
-  Summarizable.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
-];
-board.map((item) => item.summarize()).forEach((s) => console.log(s)); // "Write the README (due 10-31)", "Ideas"
+  const done = Task.complete(task, "10-27");
+  if ("err" in done) return;
+  done.ok.status._tag; // "Done"
+  done.ok.tags === task.tags; // true: structural sharing
 
-// Errors
-Task.seal({ ...task, title: " " }); // { err: "empty title" }
-// @ts-expect-error a plain string has no TaskId brand
-Task.seal({ ...task, id: "t2" });
-// @ts-expect-error Vals are deeply readonly
-task.tags.push("urgent");
+  const board: Dyn<Summarizable>[] = [
+    Summarizable.dyn(Task, task),
+    Summarizable.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
+  ];
+  board.map((item) => item.summarize()).forEach((s) => console.log(s)); // "Write the README (due 10-31)", "Ideas"
+}
+
+function errors(task: Task) {
+  Task.seal({ ...task, title: " " }); // { err: "empty title" }
+  // @ts-expect-error a plain string has no TaskId brand
+  Task.seal({ ...task, id: "t2" });
+  // @ts-expect-error Vals are deeply readonly
+  task.tags.push("urgent");
+}
 ```
 
 ## Development
