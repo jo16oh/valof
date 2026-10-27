@@ -265,5 +265,4 @@ const User = Val.companion<User>()
   .build();
 ```
 
-[^noseal]:
-    Except a `create` registered with `.implCreate.noseal`, which skips the seal in production.
+[^noseal]: A `create` registered with `.implCreate.noseal` skips the seal in production.
