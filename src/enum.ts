@@ -596,8 +596,7 @@ type Exclusive<E extends AnyEnum> = {
 type ByTag<E extends AnyEnum> = {
   /**
    * Dispatches on a tag that arrives without its payload. Every tag the argument's type allows needs
-   * a handler, or `_` or {@link Otherwise} covers the rest. A handler takes no argument and calls
-   * its variant's `create`, which checks the payload literal for fields the variant does not hold.
+   * a handler, or `_` or {@link Otherwise} covers the rest. A handler takes no argument.
    *
    * ```ts
    * Command[Tag].match(input.tag, {
@@ -674,7 +673,10 @@ type EnumSeal<E extends AnyEnum, VM, F> = {
 type EnumCreate<E extends AnyEnum, VM, F, C> = [C] extends [undefined]
   ? unknown
   : {
-      /** Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. */
+      /**
+       * Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. With
+       * `.implCreate.noseal`, returns the variant.
+       */
       create: C extends Unsealed & { payload: infer P }
         ? () => Extract<E, Record<TagOf<E>, P[TagOf<E> & keyof P]>>
         : (

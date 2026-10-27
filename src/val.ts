@@ -316,8 +316,8 @@ type Opened<T> =
 /**
  * The payload as constructors, `Val.of` and a custom seal accept it.
  *
- * Deep-readonly to accept more, not to enforce: every constructor deep-copies its argument. A
- * Val is itself deep-readonly, so a payload taken from an existing value fits.
+ * Deep-readonly to accept more, not to enforce: every constructor except `nocopy` deep-copies its
+ * argument. A Val is itself deep-readonly, so a payload taken from an existing value fits.
  */
 export type SeedOf<V extends AnyVal> = DeepReadonly<Declared<V>, true>;
 
