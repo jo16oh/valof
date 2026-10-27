@@ -138,9 +138,8 @@ The third type argument also declares the [traits](traits.md) that the enum impl
 ## Build the companion
 
 You build the companion in one chain. [`.tag`](#custom-tag-key) comes first if the enum has a custom
-tag key. Then each variant's steps follow, after the variant's name, as in `.Circle.impl(…)`. They
-are the same steps as in `Val.companion`. The enum's own steps come after them, and `.build()` ends
-the chain.
+tag key. Each variant's steps come next, under the variant's name, as in `.Circle.impl(…)`. The
+enum's own steps come after them, and `.build()` ends the chain.
 
 ```ts
 import { Enum } from "valof";
@@ -265,13 +264,11 @@ from the companion passed to it. If both declared the trait, `Named.dyn(Item, bo
 
 ## Companion options
 
-The second type argument of `Enum.companion` takes the same options as in `Val.companion`.
-`Unpatchable<"id">` excludes `id` from `patch` on every variant that has it. `VariantOptions` adds
-options for one variant:
+`Enum.companion` accepts the same options as `Val.companion`, in a list after the enum.
+`Unpatchable<"id">` excludes `id` from `patch` on every variant that has it:
 
 ```ts
-import type { Unpatchable } from "valof";
-import { Enum, type VariantOptions } from "valof";
+import { Enum, type Unpatchable, type VariantOptions } from "valof";
 // ---cut---
 type Order = Enum<
   "Order",
@@ -317,7 +314,8 @@ discriminator.
 
 ## Use a variant's type
 
-`VariantOf` is the type of one variant. Write it where you need it.
+`VariantOf` is the type of one variant. Write it at each use, rather than naming it with a `type`
+alias.
 
 ```ts
 import { Enum, type VariantOf } from "valof";
