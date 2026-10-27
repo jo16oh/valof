@@ -31,7 +31,7 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 
 ## Val Companion Options
 
-`Val.companion` accepts these options in a list after the type, in any combination.
+`Val.companion` accepts any of these options in a list after the type.
 
 |                  |                                     |
 | ---------------- | ----------------------------------- |

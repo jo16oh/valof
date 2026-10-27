@@ -194,8 +194,8 @@ return type.
 
 ## Restrict the companion with options
 
-A list after the type in `Val.companion` restricts what the companion offers callers, in any
-combination.
+Options in a list after the type in `Val.companion` restrict what the companion offers callers. Any
+of them can be combined.
 
 ### Hide `seal` and `create`
 
@@ -253,7 +253,7 @@ wire format into a Val takes two steps:
 1. **Decode** the wire format into the payload's shape: `"1..10"` into `{ min: 1, max: 10 }`. An
    `.implAssoc` member does this.
 2. **Seal** the payload into the Val: check the invariants, normalize, and brand. Only the seal does
-   this, because `create`, `patch` and the `seal` passed to `.implAssoc` all call it.
+   this, because `create`, `patch` and the `.implAssoc` members pass their payloads to it.
 
 `Interval.parse` takes both steps, and `create` and `patch` reach the same seal:
 
