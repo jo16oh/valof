@@ -255,13 +255,7 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
   AnyTrait
 >;
 
-/**
- * One variant of the union.
- *
- * Write it where the variant is used, rather than giving it a second name with `type Circle =
- * VariantOf<Shape, "Circle">`. The prefix is what says which enum the variant belongs to, and a
- * variant is built through its companion for the same reason: `Shape.Circle.create({ r: 2 })`.
- */
+/** One variant of the union. */
 // The top level is an intersection rather than an `Extract`, which is the same type and a different
 // hover: `Extract` resolves and the alias name goes with it, so an error prints the expanded
 // intersection.
