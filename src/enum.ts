@@ -109,7 +109,8 @@ declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
 }
 
 /** Every enum, as a constraint. A broken declaration does not satisfy it. */
-// One check, so it covers the companion and `match` alike.
+// A broken declaration fails this one constraint, so the companion and `match` need no check of
+// their own.
 export type AnyEnum = AnyVal &
   EnumPhantom<string, Record<string, object>, object, AnyTrait, string, Record<string, AnyTrait>>;
 

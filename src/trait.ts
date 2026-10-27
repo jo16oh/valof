@@ -232,8 +232,8 @@ export type TraitHost = { readonly [Traits]: Members };
  */
 // A trait namespace that could call a default would look like it dispatched, and it cannot: every
 // call goes through the Val's companion or a `Dyn`, both of which reach the Val's own version. The
-// rest are on the object all the same, since telling them apart at run time would take a mark the
-// type erases.
+// replaceable members are on the object all the same, since telling them apart at run time would
+// take a mark the type erases.
 //
 // What it publishes takes the trait, not the shape the implementation was written over. A trait is
 // a contract between Vals, and an object that merely holds the fields is not one of them.
