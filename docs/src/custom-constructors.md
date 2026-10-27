@@ -180,17 +180,17 @@ Yen.parse("¥99999999999999999"); // the seal's error: not a safe integer
 Yen.sum(yens); // Result<Yen>
 ```
 
-The function receives what the one passed to `.impl` receives. `seal` is the companion's, so the
-custom seal checks what `parse` and `sum` build. Write `.implAssoc` after `.implSeal` and
-`.implCreate`, any number of times.
+The function receives the same `seal`, `create` and `patch` as the one passed to `.impl`. `seal` is
+the companion's, so the custom seal checks what `parse` and `sum` build. Write `.implAssoc` after
+`.implSeal` and `.implCreate`, any number of times.
 
 Keep an invariant in the seal, and let a member only convert its input into a payload. `parse`
 checks the string's format, and the seal checks the amount. A check written in a member does not run
 when another path builds the value, such as `patch` on an object payload.
 
-A member taking more than one argument can be called with its first argument last, as an `.impl`
-member can with the value. A member cannot have an optional, a default or a rest parameter, and one
-referencing the companion annotates its return type.
+A member taking more than one argument can be called with its first argument last. A member cannot
+have an optional, a default or a rest parameter, and one referencing the companion annotates its
+return type.
 
 ## Restrict the companion with options
 
