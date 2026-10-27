@@ -24,7 +24,7 @@ The second argument is the shape: the fields every implementing Val holds. It fo
 as a payload, so a shape no Val could ever hold is an error where it is written.
 
 The third declares the functions. They become members of every companion that implements the trait,
-and they take the value first like any other member.
+and they take the value first, as an `.impl` member does.
 
 `Self` stands for the implementing Val. A member may take it, and may not return it. What returns a
 `Self` is a constructor, and a trait has no brand to seal with.
@@ -120,9 +120,8 @@ User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 Admin.greet(Admin.seal({ name: "root", level: 9 })); // "Sir root"
 ```
 
-A trait that implements something takes its companion as the first argument. The second is a
-function returning what the trait left open, plus any default the Val replaces, as `Admin` replaced
-`greet`.
+`implTrait` takes the trait's companion as the first argument. The second is a function returning
+what the trait left open, plus any default the Val replaces, as `Admin` replaced `greet`.
 
 ## Defaults no Val may replace
 
@@ -155,8 +154,8 @@ const User = Val.companion<User>().implTrait(Greetable).build();
 The trait implements both, so `implTrait` needs no second argument. A Val may still return `greet`
 from the function to replace it. Returning `shout` is an error.
 
-Only `Final` members are exposed on the trait's own type. `Greetable.shout(user)` typechecks and
-`Greetable.greet` does not.
+The trait's companion has no member a Val may replace. `Greetable.shout(user)` is accepted, and
+`Greetable.greet` is a type error.
 
 A default calling a `Final` member references the trait and annotates its return type:
 
