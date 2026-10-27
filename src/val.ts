@@ -855,7 +855,7 @@ type FirstHalf<V extends AnyVal, N, F, O extends Options, D extends Taken> = ("i
   : {
       /**
        * Replaces the seal. Its parameter may be wider than the payload, so a schema library can
-       * validate it. It may not accept a string unless the payload is one: decode a wire format
+       * validate it. It may not accept a string unless the payload is one. Decode a wire format
        * before sealing.
        */
       implSeal: "implCreate" extends D

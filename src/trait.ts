@@ -28,8 +28,8 @@ declare const SelfMark: unique symbol;
  * The implementing Val, standing in for it inside a trait's member signatures.
  *
  * An opaque marker rather than a reference to the trait, which would be circular. `implTrait`
- * substitutes the Val for a parameter typed `Self` alone. In `readonly Self[]`, it stays `Self`. A
- * member may not return `Self`.
+ * substitutes the Val for a parameter typed exactly `Self`. In `readonly Self[]`, it stays `Self`.
+ * A member may not return `Self`.
  */
 export type Self = { readonly [SelfMark]: true };
 
@@ -227,8 +227,8 @@ export type TraitHost = { readonly [Traits]: Members };
 
 /**
  * What the trait's `.build()` returns: `dyn`, the members declared {@link Final}, and the
- * `.implAssoc` members. A member a Val may replace is not on it. Call it through the Val's
- * companion or a {@link Dyn}.
+ * `.implAssoc` members. A member a Val may replace is not on it. Call such a member through
+ * the Val's companion or a {@link Dyn}.
  */
 // A trait namespace that could call a default would look like it dispatched, and it cannot: every
 // call goes through the Val's companion or a `Dyn`, both of which reach the Val's own version. The

@@ -740,7 +740,7 @@ type VariantTrait<
  * its order. Each returns the enum's builder, so the next variant follows with `.Square`.
  *
  * The gates come first, `implSeal` then `implCreate`. `impl` (once), `implTrait` and `implAssoc`
- * follow, and the first of them takes the gates off.
+ * follow, and the first of them removes the gates from the chain.
  */
 type VariantSteps<
   E extends AnyEnum,
@@ -771,7 +771,7 @@ type VariantSteps<
           /**
            * Replaces this variant's seal. It takes the payload with its tag, and the seal it
            * receives brands the payload and copies it. Its parameter may be wider than the payload,
-           * so a schema library can validate it. It may not accept a string: decode a wire format
+           * so a schema library can validate it. It may not accept a string. Decode a wire format
            * before sealing.
            */
           implSeal: "create" extends S
@@ -838,8 +838,8 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
  * `implTrait` and `implAssoc` after them. The first of the enum's steps removes the variants' steps
  * from the chain.
  */
-// The variants come first because the enum's seal hands the payload to theirs, so its type is
-// known once theirs are.
+// The variants come before the enum because the enum's seal passes the payload to theirs, so its
+// type is known once theirs are.
 export type EnumBuilder<
   E extends AnyEnum,
   O extends Options = [],
@@ -865,14 +865,14 @@ export type EnumBuilder<
         ? unknown
         : {
             /**
-             * Registers the seal `seal` on the enum runs, before the tag selects a variant. The
-             * seal it receives selects the variant and runs that variant's seal. A variant's own
-             * `seal`, `create` and `patch` do not pass through it.
+             * Registers the seal that the enum's `seal` runs before the tag selects a variant, so
+             * it can also reject a tag that selects no variant. The seal it receives selects the
+             * variant and runs that variant's seal. A variant's own `seal`, `create` and `patch` do
+             * not pass through it.
              *
              * This is the place to check a payload that has not been validated, such as an object
              * from `JSON.parse`. Its parameter may be wider than the payload, so a schema library
-             * can validate it, but may not accept a string. It runs before the tag selects a variant, so it can
-             * also reject a tag that selects no variant.
+             * can validate it, but may not accept a string.
              */
             implSeal: "implCreate" extends D
               ? (seal: "write `implSeal` before `implCreate`") => EnumBuilder<E, O, VM, M, F, C, D>
