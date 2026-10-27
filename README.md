@@ -101,18 +101,20 @@ const result = Task.seal({
   status: Status.Todo.create({ due: "10-31" }),
   tags: ["docs"],
 });
+
 if ("err" in result) throw new Error(result.err);
 const task = result.ok;
 
 const done = Task.complete(task, "10-27");
-if ("ok" in done) done.ok.tags === task.tags; // true
+if ("ok" in done) done.ok.tags === task.tags; // true: structural sharing
 
 const board: Dyn<Summarizable>[] = [
   Summarizable.dyn(Task, task),
   Summarizable.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
 ];
-board.map((item) => item.summarize()); // ["Write the README (due 10-31)", "Ideas"]
+board.map((item) => item.summarize()).forEach((s) => console.log(s)); // "Write the README (due 10-31)", "Ideas"
 
+// Errors
 Task.seal({ ...task, title: " " }); // { err: "empty title" }
 // @ts-expect-error not a TaskId
 Task.seal({ ...task, id: "t2" });
