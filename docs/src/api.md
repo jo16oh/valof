@@ -66,8 +66,8 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | `CompanionBuilder<V>` | a companion's builder, with the steps it can still take |
 | `Companion<V, M>`     | the companion `.build()` returns                        |
 
-You never write the last two. They are exported so that your own `.d.ts` can name them when you
-re-export a companion.
+You never write the builder and companion types, here or for an enum or a trait. They are exported
+so that your own `.d.ts` can name them when you re-export a companion.
 
 ## Enum Companion Builder
 
@@ -94,8 +94,8 @@ as `Val.companion`'s. The enum's steps come after them, in that order. The first
 the variants' steps from the chain.
 
 The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `E.seal`, and
-`E.create` where the enum's `implCreate` registered one. The one passed to a variant's receives that
-variant's `seal`, `create` and `patch`.
+`E.create` where the enum's `implCreate` registered one. The function passed to a variant's `impl`,
+`implTrait` and `implAssoc` receives that variant's `seal`, `create` and `patch`.
 
 ## Enum Companion Options
 
