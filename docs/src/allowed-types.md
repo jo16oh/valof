@@ -35,9 +35,8 @@ Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `M
 all classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
 TypeScript rejects them, on the first use of the Val rather than on the `type` line.
 
-A class of plain fields is the one TypeScript cannot distinguish from an object. Sealing one throws
-in development. A production build skips that check and copies the own enumerable keys, so an
-instance keeps its fields but loses its prototype.
+A class of plain fields is the one TypeScript cannot distinguish from an object, and sealing one
+throws in development.
 
 ## A type that references itself
 
