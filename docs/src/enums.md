@@ -137,9 +137,10 @@ The third type argument also declares the [traits](traits.md) that the enum impl
 
 ## Build the companion
 
-You build the companion in one chain. Each variant's steps come first, after the variant's name, as
-in `.Circle.impl(…)`. Only [`.tag`](#custom-tag-key) comes before them. They are the same steps as
-in `Val.companion`. The enum's own steps follow, and `.build()` ends the chain.
+You build the companion in one chain. [`.tag`](#custom-tag-key) comes first if the enum has a custom
+tag key. Then each variant's steps follow, after the variant's name, as in `.Circle.impl(…)`. They
+are the same steps as in `Val.companion`. The enum's own steps come after them, and `.build()` ends
+the chain.
 
 ```ts
 import { Enum } from "valof";
