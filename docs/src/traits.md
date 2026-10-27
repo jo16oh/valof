@@ -206,8 +206,7 @@ Cmd.describe(Cmd.Add.create({ id: "c1", n: 2 })); // "add 2"
 ```
 
 A trait's fields become fields every variant shares. `id` comes from `Describable`, and `Cmd.Add`
-requires it. A trait on one variant alone is declared in that variant's payload, as
-[A trait on one variant](enums.md#a-trait-on-one-variant) shows.
+requires it. Variants cannot implement traits.
 
 ## Hold values of different types together
 
