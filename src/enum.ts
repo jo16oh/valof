@@ -108,10 +108,9 @@ declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
   protected readonly [EnumTypes]: [K, V, S, Tr, Tg, VT];
 }
 
-/**
- * Every enum, as a constraint. A broken declaration does not satisfy it, so one check covers the
- * companion and `match` alike.
- */
+/** Every enum, as a constraint. A broken declaration does not satisfy it. */
+// A broken declaration fails this one constraint, so the companion and `match` need no check of
+// their own.
 export type AnyEnum = AnyVal &
   EnumPhantom<string, Record<string, object>, object, AnyTrait, string, Record<string, AnyTrait>>;
 
@@ -178,7 +177,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
 type MemberNames<Tr extends AnyTrait> =
   MembersOf<Tr> extends infer M ? (M extends unknown ? keyof M : never) : never;
 
-// The fault goes in the brand the phantom carries, never at the top level of `Enum`. An alias
+// The fault is placed in the brand the phantom carries, never at the top level of `Enum`. An alias
 // whose top level is a conditional loses its name once it resolves, and a consumer's `.d.ts`
 // then expands the union onto val.ts's private `Phantom`: TS4094 on the one line
 // `export const Shape = Enum.companion<Shape>().build()`.
@@ -256,17 +255,10 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
   AnyTrait
 >;
 
-/**
- * One variant of the union.
- *
- * The top level is an intersection rather than an `Extract`, which is the same type and a
- * different hover: `Extract` resolves and the alias name goes with it, so an error prints the
- * expanded intersection.
- *
- * Write it where the variant is used, rather than giving it a second name with `type Circle =
- * VariantOf<Shape, "Circle">`. The prefix is what says which enum the variant belongs to, and a
- * variant is built through its companion for the same reason: `Shape.Circle.create({ r: 2 })`.
- */
+/** One variant of the union. */
+// The top level is an intersection rather than an `Extract`, which is the same type and a different
+// hover: `Extract` resolves and the alias name goes with it, so an error prints the expanded
+// intersection.
 export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
   `${NameOf<E>}.${N & string}`,
   VariantsOf<E>[N] & SharedOf<E> & { [P in TagOf<E>]: N & string },
@@ -284,11 +276,10 @@ export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
 /**
  * What a variant's `create` takes: its payload and the shared fields, without the tag. Its seal
  * takes this with the tag.
- *
- * Built from the declaration rather than from the variant. `SeedOf<VariantOf<E, N> & AnyVal>`
- * reads `unknown` off the second phantom and collapses to `{}`, which leaves `patch` accepting
- * anything.
  */
+// Built from the declaration rather than from the variant. `SeedOf<VariantOf<E, N> & AnyVal>`
+// reads `unknown` off the second phantom and collapses to `{}`, which leaves `patch` accepting
+// anything.
 export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
   VariantsOf<E>[N] & SharedOf<E>,
   true
@@ -406,8 +397,8 @@ declare class VariantOptionsPhantom<N extends string, L> {
  * ]>().build();
  * ```
  *
- * {@link PrivateSeal} goes on the enum alone: `Order.seal` reaches every variant by its tag.
- * {@link PrivateCreate} may go on one variant.
+ * {@link PrivateSeal} is set on the enum alone, because `Order.seal` builds any variant from its
+ * tag. {@link PrivateCreate} may be set on one variant.
  */
 export type VariantOptions<N extends string, L extends Options> = VariantOptionsPhantom<N, L>;
 
@@ -509,7 +500,10 @@ type Framed<
   TraitHost;
 
 type VariantSeal<E extends AnyEnum, N extends keyof VariantsOf<E>, R> = {
-  /** The single gate a payload of this variant passes. `create` and `patch` go through it. */
+  /**
+   * The single gate a payload of this variant passes. `create` and `patch` go through it, except
+   * that a `create` registered with `.implCreate.noseal` skips it in production.
+   */
   seal: Creates<[payload: Tagged<E, N>], R>;
 };
 
@@ -596,8 +590,7 @@ type Exclusive<E extends AnyEnum> = {
 type ByTag<E extends AnyEnum> = {
   /**
    * Dispatches on a tag that arrives without its payload. Every tag the argument's type allows needs
-   * a handler, or `_` or {@link Otherwise} covers the rest. A handler takes no argument and calls
-   * its variant's `create`, which checks the payload literal for fields the variant does not hold.
+   * a handler, or `_` or {@link Otherwise} covers the rest. A handler takes no argument.
    *
    * ```ts
    * Command[Tag].match(input.tag, {
@@ -649,10 +642,9 @@ export type EnumCompanion<
      * handler of their own, narrowed to them, and is a type error beside a handler for every
      * variant. {@link Otherwise} does the same, and is the only one that handles the rest where a
      * variant is named `_`.
-     *
-     * The return type is the handlers' union: taking it as a type argument of its own would fix
-     * it to the first handler and reject the rest. For a guard rather than a tag, use ts-pattern.
      */
+    // The return type is the handlers' union: taking it as a type argument of its own would fix
+    // it to the first handler and reject the rest.
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
   } & TraitHost;
@@ -662,9 +654,6 @@ type EnumSeal<E extends AnyEnum, VM, F> = {
    * Reads the tag, selects that variant, and passes the payload to its seal. With `.implSeal`, the
    * enum's seal runs first, and its return is what this returns. Without one, the return is the
    * variants' seals' returns, as a union.
-   *
-   * A payload may hold only the fields of the variant its tag names.
-   * `Shape.seal({ _tag: "Circle", side: 1 })` is a type error.
    */
   seal: [F] extends [undefined]
     ? (payload: Exclusive<E>) => Dispatched<E, VM>
@@ -674,7 +663,10 @@ type EnumSeal<E extends AnyEnum, VM, F> = {
 type EnumCreate<E extends AnyEnum, VM, F, C> = [C] extends [undefined]
   ? unknown
   : {
-      /** Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. */
+      /**
+       * Creates a tagged payload and passes it to `seal`, so it returns what `seal` returns. With
+       * `.implCreate.noseal`, returns the variant.
+       */
       create: C extends Unsealed & { payload: infer P }
         ? () => Extract<E, Record<TagOf<E>, P[TagOf<E> & keyof P]>>
         : (
@@ -741,8 +733,8 @@ type VariantTrait<
  * One variant's steps on the builder, `.Circle.implSeal(…)`: the steps `Val.companion` takes, in
  * its order. Each returns the enum's builder, so the next variant follows with `.Square`.
  *
- * The gates come first, `implSeal` then `implCreate`. `impl` (once) and `implTrait` follow, and
- * the first of them takes the gates off.
+ * The gates come first, `implSeal` then `implCreate`. `impl` (once), `implTrait` and `implAssoc`
+ * follow, and the first of them removes the gates from the chain.
  */
 type VariantSteps<
   E extends AnyEnum,
@@ -757,8 +749,8 @@ type VariantSteps<
   readonly patch: CallBuildFirst;
   implTrait: VariantTrait<E, O, VM, M, N>;
   /**
-   * Collects this variant's members that do not take it: `fromRadius`, a constant. Write it any
-   * number of times. See `Val`'s `implAssoc`.
+   * Collects this variant's members that do not take it first: `fromRadius`, a constant. Write it
+   * any number of times. See `Val`'s `implAssoc`.
    */
   implAssoc: <G extends AssocMembers>(
     fns: (
@@ -772,8 +764,9 @@ type VariantSteps<
       : {
           /**
            * Replaces this variant's seal. It takes the payload with its tag, and the seal it
-           * receives brands the payload and copies it. Its parameter may be wider than the payload, so a schema library can
-           * parse into it, but not so wide that a wire format fits.
+           * receives brands the payload and copies it. Its parameter may be wider than the payload,
+           * so a schema library can validate it. It may not accept a string. Decode a wire format
+           * before sealing.
            */
           implSeal: "create" extends S
             ? (seal: "write `implSeal` before `implCreate`") => After<E, O, VM, M, unknown>
@@ -834,11 +827,13 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
- * Each variant's steps come first, under its name. Then the enum's, in `Val`'s order: `implSeal`
- * then `implCreate`, and `impl` (once) and `implTrait` after them. The enum's seal hands the payload
- * to the variants' seals, so its type is known once theirs are. The first of the enum's steps
- * takes the variants' off.
+ * `.tag` comes first if the enum has a custom tag key. Each variant's steps come next, under its
+ * name. Then the enum's, in `Val`'s order: `implSeal` then `implCreate`, and `impl` (once),
+ * `implTrait` and `implAssoc` after them. The first of the enum's steps removes the variants' steps
+ * from the chain.
  */
+// The variants come before the enum because the enum's seal passes the payload to theirs, so its
+// type is known once theirs are.
 export type EnumBuilder<
   E extends AnyEnum,
   O extends Options = [],
@@ -864,14 +859,14 @@ export type EnumBuilder<
         ? unknown
         : {
             /**
-             * Registers the seal `seal` on the enum runs, before the tag selects a variant. The
-             * seal it receives selects the variant and runs that variant's seal. A variant's own
-             * `seal`, `create` and `patch` do not pass through it.
+             * Registers the seal that the enum's `seal` runs before the tag selects a variant, so
+             * it can also reject a tag that selects no variant. The seal it receives selects the
+             * variant and runs that variant's seal. A variant's own `seal`, `create` and `patch` do
+             * not pass through it.
              *
              * This is the place to check a payload that has not been validated, such as an object
-             * from `JSON.parse`. Its parameter may be wider than the payload, up to `object`, so a
-             * schema library can validate it. It runs before the tag selects a variant, so it can
-             * also reject a tag that selects no variant.
+             * from `JSON.parse`. Its parameter may be wider than the payload, so a schema library
+             * can validate it, but may not accept a string.
              */
             implSeal: "implCreate" extends D
               ? (seal: "write `implSeal` before `implCreate`") => EnumBuilder<E, O, VM, M, F, C, D>
@@ -914,10 +909,10 @@ export type EnumBuilder<
         /**
          * Collects the members taking the union, which the function returns, in one call.
          *
-         * The function receives `seal` and `create`. A member reaching the companion for anything
-         * else (`match`, a variant or a sibling) references it and annotates its return type.
-         * Referencing a declaration inside its own initializer is a circularity, which TypeScript
-         * reports as TS7023.
+         * The function receives `seal`, and `create` where `.implCreate` registered one. A member
+         * reaching the companion for anything else (`match`, a variant or a sibling) references it
+         * and annotates its return type. Referencing a declaration inside its own initializer is a
+         * circularity, which TypeScript reports as TS7023.
          *
          * `match`, `[Tag].match` and a member taking more than one argument can be called with the
          * value first or last. A member cannot have an optional, a default or a rest parameter.
@@ -932,8 +927,8 @@ export type EnumBuilder<
         ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl", A>;
       }) & {
     /**
-     * Collects the members that do not take the union: `parse`, `fromArgs`, a constant. Write it
-     * any number of times. See `Val`'s `implAssoc`.
+     * Collects the members that do not take the union first: `parse`, `fromArgs`, a constant.
+     * Write it any number of times. See `Val`'s `implAssoc`.
      *
      * A member building a variant calls the variant's constructor through the companion, and
      * annotates its return type: `parse: (raw: string): Shape => Shape.Circle.create(…)`.
@@ -958,10 +953,7 @@ export type EnumBuilder<
 type Start<E extends AnyEnum, O extends Options> = [TagOf<E>] extends ["_tag"]
   ? EnumBuilder<E, O>
   : {
-      /**
-       * Names the tag field, which the companion writes at run time. The type argument is not
-       * readable from a value, so the name is given again here.
-       */
+      /** Names the tag field, which the companion writes at run time. */
       tag: (key: TagOf<E>) => EnumBuilder<E, O>;
     };
 

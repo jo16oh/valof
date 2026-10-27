@@ -103,6 +103,6 @@ mutable.address.city = "Tokyo";
 ```
 
 `readonly` is only a guardrail. Mutable views, casts, accessors and proxies can still break this
-contract. The default seal's `nocopy` requires deeply readonly input; `Val.of.nocopy<V>` and custom
+contract. The default seal's `nocopy` requires deeply readonly input. `Val.of.nocopy<V>` and custom
 seals leave the responsibility to their callers and implementations. Development validates and
-freezes the payload graph; production trusts the contract. `patch` still copies.
+freezes the payload, and production trusts the contract. `patch` still copies.

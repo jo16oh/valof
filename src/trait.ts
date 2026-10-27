@@ -28,7 +28,8 @@ declare const SelfMark: unique symbol;
  * The implementing Val, standing in for it inside a trait's member signatures.
  *
  * An opaque marker rather than a reference to the trait, which would be circular. `implTrait`
- * substitutes the Val for it, in parameter positions only: a member may not return `Self`.
+ * substitutes the Val for a parameter typed exactly `Self`. In `readonly Self[]`, it stays `Self`.
+ * A member may not return `Self`.
  */
 export type Self = { readonly [SelfMark]: true };
 
@@ -37,10 +38,10 @@ type AnyMember = (self: never, ...args: never[]) => unknown;
 declare const FinalMark: unique symbol;
 
 /**
- * Marks a member the trait implements permanently: `implTrait` may not replace it, and a trait
- * carrying one cannot be implemented without its companion.
+ * Marks a member the trait implements permanently. `implTrait` may not replace it, and rejects the
+ * trait until the trait's companion implements it.
  *
- * The mark is phantom, so it costs nothing at run time and reads off the declaration:
+ * The mark exists only in the type, so it costs nothing at run time. The declaration shows it:
  *
  * ```ts
  * type Greetable = Trait<
@@ -210,7 +211,7 @@ type Declarable<Shape, M extends Members> = {
  * taking `Greetable` accepts one.
  *
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
- * `equals` and no `patch`, and `Checked` keeps it out of a payload.
+ * `equals` and no `patch`, and a payload cannot hold one.
  */
 export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
 
@@ -225,16 +226,17 @@ export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
 export type TraitHost = { readonly [Traits]: Members };
 
 /**
- * What `Trait.companion` returns, which its `impl` grows.
- *
- * Only the members declared {@link Final} are exposed on it. A trait namespace that could call a
- * default would look like it dispatched, and it cannot: every call goes through the Val's
- * companion or a {@link Dyn}, both of which reach the Val's own version. The rest are on the
- * object all the same, since telling them apart at run time would take a mark the type erases.
- *
- * What it publishes takes the trait, not the shape the implementation was written over. A trait
- * is a contract between Vals, and an object that merely holds the fields is not one of them.
+ * What the trait's `.build()` returns: `dyn`, the members declared {@link Final}, and the
+ * `.implAssoc` members. A member a Val may replace is not on it. Call such a member through
+ * the Val's companion or a {@link Dyn}.
  */
+// A trait namespace that could call a default would look like it dispatched, and it cannot: every
+// call goes through the Val's companion or a `Dyn`, both of which reach the Val's own version. The
+// replaceable members are on the object all the same, since telling them apart at run time would
+// take a mark the type erases.
+//
+// What it publishes takes the trait, not the shape the implementation was written over. A trait is
+// a contract between Vals, and an object that merely holds the fields is not one of them.
 export type TraitCompanion<
   Tr extends AnyTrait,
   G = Record<never, never>,
@@ -247,7 +249,7 @@ export type TraitCompanion<
      * Boxes a value with one Val's implementation. See {@link Dyn}.
      *
      * The two arguments are tied together: the companion has to match the value's own type,
-     * which is what keeps another Val's companion out. Passing one used to type-check and throw.
+     * which is what keeps another Val's companion out.
      */
     readonly dyn: <W extends Tr>(
       companion: TraitHost & Unbound<MembersOf<Tr>, W>,
@@ -296,14 +298,13 @@ export type TraitBuilder<
    */
   build: () => TraitCompanion<Tr, G, A>;
   /**
-   * Collects members that do not take the trait, such as one over boxes:
+   * Collects members that do not take the trait first, such as one over boxes:
    * `total: (shapes: readonly Dyn<Sized>[]) => …`. Write it any number of times. The function
    * receives nothing.
    *
-   * They stay on the trait's companion: `implTrait` copies none of them onto a Val. A member
-   * reaching the companion references it and annotates its return type. A member taking more than
-   * one argument can be called with its first argument first, or last. None can have an optional,
-   * a default or a rest parameter.
+   * `implTrait` does not copy them onto a Val. A member reaching the companion references it and
+   * annotates its return type. A member taking more than one argument can be called with its first
+   * argument first, or last. None can have an optional, a default or a rest parameter.
    */
   implAssoc: <M extends TraitAssoc<Tr>>(
     fns: () => Grown<keyof A, M> & LooseArity<M> & ThisType<undefined>,

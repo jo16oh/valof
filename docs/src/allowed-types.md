@@ -35,9 +35,8 @@ Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `M
 all classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
 TypeScript rejects them, on the first use of the Val rather than on the `type` line.
 
-A class of plain fields is the one TypeScript cannot distinguish from an object. Sealing one throws
-in development. A production build skips that check and copies the own enumerable keys, so a `Date`
-is copied as `{}`, and an instance keeps its fields but loses its prototype.
+A class of plain fields is the one TypeScript cannot distinguish from an object, and sealing one
+throws in development.
 
 ## A type that references itself
 
@@ -59,8 +58,7 @@ root.children[0]; // Tree
 `Rec` is erased. The value holds a `Tree`, the constructor takes a `Tree`, and `patch` and the
 companion's members work as they do for any other type. It exists for the declaration alone.
 
-Without it the declaration compiles and the first use of the type fails. Resolving `Tree` would need
-`Tree`, and a `Rec` is a reference to an interface, which TypeScript resolves later.
+Without it the declaration compiles and the first use of the type fails.
 
 ```ts
 // @errors: 2589

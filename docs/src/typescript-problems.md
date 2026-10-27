@@ -99,8 +99,8 @@ User.greeting(User.seal({ name: "alice" }));
 
 Valof makes parsing a convention, in two steps. An `.implAssoc` member decodes a wire format into
 the payload, and the seal turns the payload into a Val. A companion has one `seal`, and `create`,
-`patch` and the `.implAssoc` members pass their payloads to it. A custom seal returns a validated,
-normalized Val or its failure, so the result type records that parsing succeeded.
+`patch` and the `.implAssoc` members pass their payloads to it.[^noseal] A custom seal returns a
+validated, normalized Val or its failure, so the result type records that parsing succeeded.
 
 Start with `Val.companion<V>()` and register the checks with `.implSeal`. The resulting `.seal`
 returns the value or the seal's failure; [custom constructors](custom-constructors.md) explains
@@ -121,7 +121,7 @@ const age = Age.seal(30); // Age | Error
 ## Enums
 
 An [enum](enums.md) keeps a closed set of variants in one declaration and requires a handler for
-every variant.
+every variant, or `_` for the rest.
 
 ### A hand-written union scatters the set
 
@@ -171,7 +171,7 @@ missing `break`. `noFallthroughCasesInSwitch` catches the second, and the lint r
 `typescript/switch-exhaustiveness-check` catches the first, once you enable both.
 
 Declare variants in `Enum<...>` and create their companion with `Enum.companion<E>().build()`.
-`companion.match(value, handlers)` requires a handler for every variant;
+`companion.match(value, handlers)` requires a handler for every variant, or `_` for the rest;
 [enums](enums.md#declare-the-variants) covers shared fields, custom seals and tags:
 
 ```ts
@@ -264,3 +264,5 @@ const User = Val.companion<User>()
   .implTrait(Describable, () => ({ describe: (user) => user.name }))
   .build();
 ```
+
+[^noseal]: A `create` registered with `.implCreate.noseal` skips the seal in production.

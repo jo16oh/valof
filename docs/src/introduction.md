@@ -34,7 +34,7 @@ It enforces the conventions through types and linting.
 - **Companion object**: Keep a type's constructor and functions together without a class. The first
   Val parameter is inferred.
 
-- **"Parse, don't validate"**: Every creation and derivation goes through one `seal`. Use any
+- **"Parse, don't validate"**: Every creation and derivation goes through one `seal`.[^seal] Use any
   validation library and any Result type.
 
 - **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
@@ -52,3 +52,8 @@ It enforces the conventions through types and linting.
 
 > For background on individual features, see
 > [TypeScript problems Valof addresses](typescript-problems.md).
+
+[^seal]:
+    `Val.of` is an escape hatch that applies the default seal rather than a companion's, and the
+    [linter](linting.md#rules) warns on it for a type that has a companion. A `create` registered
+    with `.implCreate.noseal` skips the seal in production.

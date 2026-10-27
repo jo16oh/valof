@@ -35,8 +35,7 @@ tag alone, see [Build a value](#build-a-value).
 `patch` cannot change the tag, so it cannot turn a value into another variant.
 
 Declare at least two variants. `Enum` rejects a declaration with one variant, because one variant is
-a Val. TypeScript also drops the alias of a union with one member, which breaks the declaration
-files of a package that exports the companion.
+a Val.
 
 ## Match on the tag
 
@@ -138,9 +137,9 @@ The third type argument also declares the [traits](traits.md) that the enum impl
 
 ## Build the companion
 
-You build the companion in one chain. Each variant's steps come first, after the variant's name, as
-in `.Circle.impl(…)`. They are the same steps as in `Val.companion`. The enum's own steps follow,
-and `.build()` ends the chain.
+You build the companion in one chain. [`.tag`](#custom-tag-key) comes first if the enum has a custom
+tag key. Each variant's steps come next, under the variant's name, as in `.Circle.impl(…)`. The
+enum's own steps come after them, and `.build()` ends the chain.
 
 ```ts
 import { Enum } from "valof";
@@ -265,13 +264,11 @@ from the companion passed to it. If both declared the trait, `Named.dyn(Item, bo
 
 ## Companion options
 
-The second type argument of `Enum.companion` takes the same options as in `Val.companion`.
-`Unpatchable<"id">` excludes `id` from `patch` on every variant that has it. `VariantOptions` adds
-options for one variant:
+`Enum.companion` takes the same options as `Val.companion`, in its second type argument.
+`Unpatchable<"id">` excludes `id` from `patch` on every variant that has it:
 
 ```ts
-import type { Unpatchable } from "valof";
-import { Enum, type VariantOptions } from "valof";
+import { Enum, type Unpatchable, type VariantOptions } from "valof";
 // ---cut---
 type Order = Enum<
   "Order",
@@ -308,8 +305,8 @@ Event.Click.create({ x: 1 }); // { x: 1, kind: "Click" }
 Event[Tag].key; // "kind"
 ```
 
-`Tag` goes in the third type argument, beside the shared fields, because every variant has the tag
-field. `.tag` must be the first step. `.tag` is required for a renamed tag, and it rejects a
+`Tag` is declared in the third type argument, beside the shared fields, because every variant has
+the tag field. `.tag` must be the first step. `.tag` is required for a renamed tag, and it rejects a
 misspelled name. With the default tag, the builder has no `.tag`.
 
 `Event[Tag].key` returns the tag's name. Pass it to a schema library that asks for the
@@ -317,7 +314,7 @@ discriminator.
 
 ## Use a variant's type
 
-`VariantOf` is the type of one variant. Write it where you need it.
+`VariantOf` is the type of one variant.
 
 ```ts
 import { Enum, type VariantOf } from "valof";

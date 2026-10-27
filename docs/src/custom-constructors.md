@@ -69,8 +69,8 @@ const User = Val.companion<User>()
   .build();
 ```
 
-The parameter takes `object` or `Record<string, unknown>`, not `unknown`. A seal takes the payload,
-not a wire format.
+The parameter can be typed `object` or `Record<string, unknown>`, but not `unknown`. A seal takes
+the payload, not a wire format.
 
 The schema runs on every derivation, not just the first parse. Reject unknown keys yourself. A patch
 is merged as given, so an undeclared key survives unless the seal removes it.
@@ -150,7 +150,7 @@ rejects or normalizes the payload.
 ## Define other constructors with `implAssoc`
 
 An `.impl` member takes the Val first. A function that builds the Val from something else, such as a
-string or several other values, goes in `.implAssoc`:
+string or several other values, is registered with `.implAssoc`:
 
 ```ts
 import { Val } from "valof";
@@ -175,27 +175,27 @@ const Yen = Val.companion<Yen>()
   }))
   .build();
 
-Yen.parse("¥120"); // Result<Yen>
-Yen.parse("¥99999999999999999"); // the seal's error: not a safe integer
+Yen.parse("¥120"); // Ok
+Yen.parse("¥99999999999999999"); // Err("must be a non-negative safe integer")
 Yen.sum(yens); // Result<Yen>
 ```
 
-The function receives `seal`, `create` and `patch`, like the one passed to `.impl`. `seal` is the
-companion's, so the custom seal checks what `parse` and `sum` build. Write `.implAssoc` after
+The function receives the same `seal`, `create` and `patch` as the one passed to `.impl`. `seal` is
+the companion's, so the custom seal checks what `parse` and `sum` build. Write `.implAssoc` after
 `.implSeal` and `.implCreate`, any number of times.
 
 Keep an invariant in the seal, and let a member only convert its input into a payload. `parse`
 checks the string's format, and the seal checks the amount. A check written in a member does not run
 when another path builds the value, such as `patch` on an object payload.
 
-A member can be called with its first argument last, as an `.impl` member can with the value. One
-taking no argument is called as it is. A member cannot have an optional, a default or a rest
-parameter, and one referencing the companion annotates its return type.
+A member taking more than one argument can be called with its first argument last. A member cannot
+have an optional, a default or a rest parameter, and one referencing the companion annotates its
+return type.
 
 ## Restrict the companion with options
 
-A list after the type in `Val.companion` restricts what the companion offers callers, in any
-combination.
+Options in a list after the type in `Val.companion` restrict what the companion offers callers. Any
+of them can be combined.
 
 ### Hide `seal` and `create`
 
@@ -253,7 +253,7 @@ wire format into a Val takes two steps:
 1. **Decode** the wire format into the payload's shape: `"1..10"` into `{ min: 1, max: 10 }`. An
    `.implAssoc` member does this.
 2. **Seal** the payload into the Val: check the invariants, normalize, and brand. Only the seal does
-   this, because `create`, `patch` and the `seal` passed to `.implAssoc` all call it.
+   this, because `create`, `patch` and the `.implAssoc` members pass their payloads to it.
 
 `Interval.parse` takes both steps, and `create` and `patch` reach the same seal:
 

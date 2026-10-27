@@ -60,17 +60,18 @@ export type AnyVal = Phantom<string, unknown> & Verdict<true>;
  *
  * ```ts
  * type Tree = Val<"app/Tree", { value: number; children: Rec<Tree>[] }>;
+ * const Tree = Val.companion<Tree>().build();
  *
- * const leaf = Tree({ value: 1, children: [] });
- * const root = Tree({ value: 2, children: [leaf] });
+ * const leaf = Tree.seal({ value: 1, children: [] });
+ * const root = Tree.seal({ value: 2, children: [leaf] });
  * root.children[0]; // Tree
  * ```
  *
  * Write it around the type being declared and nothing else. `Rec<number>` erases to `number`, and
- * `Rec<Other>` to `Other`: neither is a type error, so nothing reports either one. The type
- * parameter is unconstrained because checking a constraint would resolve the type that is still
- * being declared, which is the circularity this breaks.
+ * `Rec<Other>` to `Other`: neither is a type error, so nothing reports either one.
  */
+// The type parameter is unconstrained because checking a constraint would resolve the type that is
+// still being declared, which is the circularity this breaks.
 export interface Rec<V> {
   readonly [RecKey]: V;
 }
@@ -266,9 +267,9 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
  * A branded value type. A declared trait adds the fields it requires to the payload.
  *
  * A payload that breaks the allowed-type rules is a type error, and so is one that contradicts a
- * declared trait: both land in the verdict, which stops the Val satisfying {@link AnyVal}. See
- * {@link Verdicted}.
+ * declared trait.
  */
+// Both land in the verdict, which stops the Val satisfying `AnyVal`. See `Verdicted`.
 type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
   Grounded<Holding<T, Tr>>
 > &
@@ -315,8 +316,8 @@ type Opened<T> =
 /**
  * The payload as constructors, `Val.of` and a custom seal accept it.
  *
- * Deep-readonly to accept more, not to enforce: every constructor deep-copies its argument. A
- * Val is itself deep-readonly, so a payload taken from an existing value fits.
+ * Deep-readonly to accept more, not to enforce: every constructor except `nocopy` deep-copies its
+ * argument. A Val is itself deep-readonly, so a payload taken from an existing value fits.
  */
 export type SeedOf<V extends AnyVal> = DeepReadonly<Declared<V>, true>;
 
@@ -367,11 +368,11 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
 /**
  * The patch accepted by `patch`, at every depth.
  *
- * Taken over a payload rather than a Val, so a custom `patch` can patch a subset of the fields:
- * `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
+ * Taken over a payload rather than a Val, so a member calling `patch` can accept a subset of the
+ * fields. `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
  *
  * - omit the key → leave it unchanged
- * - `{ k: undefined }` → delete it (only optional keys allow this at the type level)
+ * - `{ k: undefined }` → delete it (under `exactOptionalPropertyTypes`, for an optional key only)
  * - `{ k: value }` → set it
  * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required `k` only
  *
@@ -517,8 +518,9 @@ type CreateMethod<V extends AnyVal, N, F> = [Creating<V, N, F>] extends [undefin
 
 type SealMethod<V extends AnyVal, F> = {
   /**
-   * The single gate a payload passes to become a value. `create` and `patch` both go through it.
-   * Without `.implSeal`, it brands the payload and copies it.
+   * The single gate a payload passes to become a value. `create` and `patch` go through it, except
+   * that a `create` registered with `.implCreate.noseal` skips it in production. Without
+   * `.implSeal`, it brands the payload and copies it.
    */
   seal: [F] extends [undefined]
     ? ((value: SeedOf<V>) => V) & {
@@ -562,8 +564,8 @@ declare class UnpatchablePhantom<K extends string> {
  *
  * ```ts
  * const User = Val.companion<User, [PrivateSeal]>()
- *   .implSeal(seal)
- *   .implCreate((name: string) => ({ id: crypto.randomUUID(), name }));
+ *   .implCreate((name: string) => ({ id: crypto.randomUUID(), name }))
+ *   .build();
  * ```
  */
 // This and `PrivateCreate` are classes, not aliases of one. Declaration emit writes an alias
@@ -581,7 +583,7 @@ export declare class PrivateSeal {
  * no invariant: a `create` passes the seal like every other gate.
  *
  * ```ts
- * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate);
+ * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate).build();
  * ```
  */
 export declare class PrivateCreate {
@@ -595,7 +597,7 @@ export declare class PrivateCreate {
  * counter.
  *
  * ```ts
- * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>();
+ * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>().build();
  * ```
  */
 export type Unpatchable<K extends string> = UnpatchablePhantom<K>;
@@ -719,7 +721,8 @@ export type Passes<Tr extends AnyTrait, G, I, S> =
       : [impl: (supplied: NoInfer<S>) => I & Arity<I> & ThisType<undefined>];
 
 /**
- * What a step's function receives: `seal`, `create` and `patch`, the private ones included.
+ * What a step's function receives: `seal`, `create` where `.implCreate` registered one, and
+ * `patch` for an object payload. `PrivateSeal` and `PrivateCreate` do not remove them here.
  *
  * Each step wraps it in `NoInfer` where it uses it. It holds no type parameter to infer, but
  * inference walks all of it anyway. In the type-perf `core` fixture, `impl(({ seal }) => …)` took
@@ -746,8 +749,8 @@ export interface CallBuildFirst {
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * The first half sets up the gates, in this order: `implSeal`, then `implCreate`.
- * Each comes once. The second half registers members, `impl` once and `implTrait` for each trait,
- * in any order, and its first step ends the first half.
+ * Each comes once. The second half registers members, in any order: `impl` once, `implTrait` for
+ * each trait, and `implAssoc` any number of times. Its first step ends the first half.
  *
  * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Generating
  * ids, timestamps and the like belongs in `create`, whose payload is then sealed like any other.
@@ -779,10 +782,11 @@ export type CompanionBuilder<
          * Collects the members the function returns, in one call. Everything the library reserves
          * has its own step.
          *
-         * The function receives `seal`, `create` and `patch`. A member reaching the companion for
-         * anything else (a trait's member or a sibling) references it and annotates its return
-         * type. Referencing a declaration inside its own initializer is a circularity, which
-         * TypeScript reports as TS7023.
+         * The function receives `seal`, `create` where `.implCreate` registered one, and `patch`
+         * for an object payload. A member reaching the companion for anything else (a trait's
+         * member or a sibling) references it and annotates its return type. Referencing a
+         * declaration inside its own initializer is a circularity, which TypeScript reports as
+         * TS7023.
          *
          * A member can be called with the value first, `User.rename(u, "x")`, or last,
          * `User.rename("x")(u)`. So can `patch` and a trait's member taking more than one
@@ -807,12 +811,12 @@ export type CompanionBuilder<
         ) => CompanionBuilder<V, N, F, O, M & T, D | "impl", A>;
       }) & {
     /**
-     * Collects the members the function returns that do not take the Val: `fromRow`, `parse`, a
-     * constant. Write it any number of times.
+     * Collects the members the function returns that do not take the Val first: `fromRow`,
+     * `parse`, a constant. Write it any number of times.
      *
-     * The function receives `seal`, `create` and `patch`. A member reaching the companion for
-     * anything else (a sibling or another step's member) references it and annotates its return
-     * type, as in `.impl`.
+     * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
+     * an object payload. A member reaching the companion for anything else (a sibling or another
+     * step's member) references it and annotates its return type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
      * `Money.scaled(2)(5)`. A member taking one argument or none has no second form. A member
@@ -851,7 +855,8 @@ type FirstHalf<V extends AnyVal, N, F, O extends Options, D extends Taken> = ("i
   : {
       /**
        * Replaces the seal. Its parameter may be wider than the payload, so a schema library can
-       * parse into it, but not so wide that a wire format fits: see {@link CheckedSeal}.
+       * validate it. It may not accept a string unless the payload is one. Decode a wire format
+       * before sealing.
        */
       implSeal: "implCreate" extends D
         ? (
@@ -1386,19 +1391,18 @@ type NotEnum<V> = [V] extends [AnyEnum]
  */
 export const of = /* @__PURE__ */ Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
   /**
-   * Uses a payload without copying it. With an explicit `V`, TypeScript cannot also infer
-   * the argument's precise readonlyness; the caller must ensure it will not change.
+   * Uses a payload without copying it. The caller must ensure it will not change.
    */
+  // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
+  // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
   nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
 });
 
 /**
- * The other direction: a plain, mutable copy of the payload, for code that does not know
- * about `readonly`.
- *
- * It copies because the brand is phantom: a Val is its payload at run time, so returning that
- * object under a mutable type would put the caller's writes into the value.
+ * A plain, mutable copy of the payload, for code that does not know about `readonly`.
  */
+// It copies because the brand is phantom: a Val is its payload at run time, so returning that
+// object under a mutable type would put the caller's writes into the value.
 export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 
 /**
@@ -1406,10 +1410,9 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
  *
  * A list may follow `V`: {@link PrivateSeal}, {@link PrivateCreate}, {@link Unpatchable}, as in
  * `Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()`.
- *
- * Constructors get their own steps rather than sitting in `.impl`, which fixes every
- * function's first parameter to the Val. A constructor does not fit that shape.
  */
+// Constructors get their own steps rather than sitting in `.impl`, which fixes every function's
+// first parameter to the Val. A constructor does not fit that shape.
 export const companion = <
   V extends AnyVal & NotEnum<V>,
   const O extends readonly CompanionOption<V>[] = [],

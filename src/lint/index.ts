@@ -14,8 +14,8 @@ export type Options = {
    *
    * Three rules need a second file to say anything: a duplicate brand needs the other alias, a
    * second name needs the Val alias, and a member is read from wherever it is read. Narrowing the
-   * run instead of the report turns those into silence, and turns a
-   * directive that is doing its job into an `unused-disable`.
+   * run instead of the report turns those into silence, and turns a directive that is doing its
+   * job into an `unused-disable`.
    */
   report?: ReadonlySet<string>;
   /**
@@ -24,22 +24,18 @@ export type Options = {
    * For an editor: the buffer the user is typing in has not been saved, and a run over what disk
    * holds reports on the file as it was. A path here that is not in `files` is scanned all the
    * same, and the file need not exist.
-   *
    */
   overlay?: ReadonlyMap<string, string>;
 };
 
-/**
- * Reports what the type checker cannot. See {@link RULES} for what each rule looks for.
- *
- * Every file is walked once, by {@link scan}, and each rule runs over what it collected. There is
- * no branch per rule here: a rule is the object in `RULES`, and adding one changes nothing in
- * this function.
- *
- * The parser is loaded here rather than imported at the top: it is an optional peer dependency,
- * and a static import would be hoisted above the caller's own error handling once bundled,
- * turning a missing install into a stack trace instead of an instruction.
- */
+/** Reports what the type checker cannot. See {@link RULES} for what each rule looks for. */
+// Every file is walked once, by `scan`, and each rule runs over what it collected. There is no
+// branch per rule here: a rule is the object in `RULES`, and adding one changes nothing in this
+// function.
+//
+// The parser is loaded here rather than imported at the top: it is an optional peer dependency,
+// and a static import would be hoisted above the caller's own error handling once bundled, turning
+// a missing install into a stack trace instead of an instruction.
 export async function lint(
   files: readonly string[],
   { skip, report, overlay }: Options = {},

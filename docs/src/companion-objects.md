@@ -31,11 +31,12 @@ companion. `.build()` ends the chain and returns the companion. Every `.impl` me
 first, so Valof infers that parameter as `User`. You only annotate the parameters that follow it,
 and the return type where a member references `User` itself.
 
-The function passed to `.impl` receives `seal`, `create` and `patch`. A member calling them does not
-reference `User`, so its return type needs no annotation.
+The function passed to `.impl` receives `seal`, `create` where `.implCreate` registered one, and
+`patch` for a Val that holds an object payload. A member calling them does not reference `User`, so
+its return type needs no annotation.
 
 A function that does not take the Val as its first argument, such as one that parses it from a
-string or aggregates an array of Vals into one, goes in `.implAssoc`. See
+string or aggregates an array of Vals into one, is registered with `.implAssoc`. See
 [Custom constructors](custom-constructors.md#define-other-constructors-with-implassoc).
 
 The result exposes `seal` and the members:
@@ -63,7 +64,7 @@ User.formatLabel(user, ": ");
 
 ## Call a member with the value last
 
-Vals are plain data, so their members can't be chained like methods. Instead, a member taking more
+Vals are plain data, so their members cannot be chained like methods. Instead, a member taking more
 than one argument can be called with the value last, which is the form a pipeline expects. A member
 taking only the value is passed as it is:
 
@@ -111,8 +112,8 @@ User.greet(User.seal({ id: "a", name: "bob" }), undefined); // "Hi, bob"
 ```
 
 Valof checks the parameters that a member's type shows, not the ones in its implementation. A type
-annotation can hide a default or a rest parameter. The member then type-checks, but breaks a call
-with the value last:
+annotation can hide a default or a rest parameter. The member is then accepted, but a call with the
+value last fails:
 
 ```ts
 import { Val } from "valof";
@@ -227,7 +228,7 @@ declare const shop: Shop;
 Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
 ```
 
-Derive a nested Val with its own `patch`, so its own seal sees the change.
+Derive a nested Val with its own `patch`, so its own seal checks the change.
 
 `patch` copies only the path to what changed. Untouched branches keep their reference identity:
 

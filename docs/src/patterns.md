@@ -3,7 +3,7 @@
 ## Framework state
 
 A value is a plain object, so a state container holds it as it stands. Replace it whole. The
-untouched subtrees keep their identity, so a dependency array sees no change.
+untouched subtrees keep their identity, so a dependency array detects no change.
 
 ```ts
 import { Val } from "valof";
@@ -29,8 +29,8 @@ Solid reads the same with `createSignal`, and takes the comparison directly:
 `createSignal(user, { equals })`.
 
 **Svelte and Vue are deeply reactive by default, so ask for a shallow container.** A deep one gives
-your code a proxy in place of the value, and `patch` no longer recognizes the nodes it owns, so it
-copies them again.
+your code a proxy in place of the value. `patch` rebuilds a changed value and its parents, and keeps
+the untouched branches by reference. Given a proxy, it copies those branches as well.
 
 Values are frozen in development, so Vue skips them and `ref` behaves like `shallowRef` until you
 build for production. A write through Vue's `ref` or Solid's `createStore` then mutates the value
@@ -59,8 +59,8 @@ type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test.
 [`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
 
-`patch` sets one entry at a time, and `undefined` removes it. Call `seal` to rebuild the whole
-table.
+`patch` sets the entries it lists, and removes an entry set to `undefined`. Call `seal` to rebuild
+the whole table.
 
 ```ts
 import { Val } from "valof";
@@ -74,10 +74,7 @@ declare const table: PriceTable;
 // ---cut---
 PriceTable.patch(table, { apple: Money.seal({ amount: 120, currency: "JPY" }), fig: undefined });
 
-PriceTable.seal(
-  // the value type is named because a Val carries its phantom keys in the type as well
-  Object.fromEntries(Object.entries<Money>(table).filter(([, m]) => m.amount < 500)),
-);
+PriceTable.seal(Object.fromEntries(Object.entries(table).filter(([, m]) => m.amount < 500)));
 ```
 
 ## Dates
