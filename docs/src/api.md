@@ -27,7 +27,7 @@ order. `implSeal`, `implCreate` and `impl` are written once, and the other two a
 
 The function passed to `impl`, `implTrait` and `implAssoc` receives `seal`, `create` and `patch`,
 including the ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `create`
-only where `implCreate` registered one, and `patch` only for an object payload.
+only where `implCreate` registered one, and `patch` only for a Val that holds an object payload.
 
 ## Val Companion Options
 
