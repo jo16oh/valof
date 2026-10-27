@@ -65,7 +65,8 @@ Object.assign(user, { name: "mallory" });
 ```
 
 `Object.defineProperty` and `Reflect.set` have the same problem. Valof freezes values in
-development, so these calls throw there. Production skips the freeze, and they mutate the Val.
+development, so `Object.assign` and `Object.defineProperty` throw there, and `Reflect.set` returns
+`false`. Production skips the freeze, and they mutate the Val.
 
 Other utilities return a new object but preserve the input type. Immer, for example, makes a
 readonly input writable inside a callback:
@@ -98,14 +99,14 @@ const changed = User.patch(user, { name: "mallory" });
 ```
 
 When an API mutates its input, pass it `Val.unwrap(user)`. When it returns a new payload, pass that
-payload to `User` or `User.seal`.
+payload to `User.seal`.
 
 ## A `__proto__` key survives sealing
 
-A `__proto__` key survives. It is a legal JSON key, and round-tripping JSON takes priority, so
-sealing keeps it as an own property rather than dropping data. That is inert inside a value, but not
-in code that merges a payload with `Object.assign` or a recursive merge. There, assigning the key
-sets a prototype instead of copying it. Sanitize untrusted input yourself.
+A `__proto__` key survives. It is a legal JSON key, so sealing keeps it as an own property. That is
+inert inside a value, but not in code that merges a payload with `Object.assign` or a recursive
+merge. There, assigning the key sets a prototype instead of copying it. Sanitize untrusted input
+yourself.
 
 ## Deeply nested payloads can overflow the stack
 
