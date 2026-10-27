@@ -368,8 +368,8 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
 /**
  * The patch accepted by `patch`, at every depth.
  *
- * Taken over a payload rather than a Val, so a custom `patch` can patch a subset of the fields:
- * `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
+ * Taken over a payload rather than a Val, so a member calling `patch` can accept a subset of the
+ * fields. `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
  *
  * - omit the key → leave it unchanged
  * - `{ k: undefined }` → delete it (under `exactOptionalPropertyTypes`, for an optional key only)
