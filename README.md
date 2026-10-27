@@ -64,16 +64,16 @@ import { Enum, Trait, Val, type Dyn, type Self } from "valof";
 
 type Result<T> = { ok: T } | { err: string };
 
-type Labeled = Trait<"Labeled", { title: string }, { label: (self: Self) => string }>;
-const Labeled = Trait.companion<Labeled>().build();
-
 type TaskId = Val<"TaskId", string>;
 const TaskId = Val.companion<TaskId>().build();
 
 type Status = Enum<"Status", { Todo: { due: string }; Done: { at: string } }>;
 const Status = Enum.companion<Status>().build();
 
-type Task = Val<"Task", { id: TaskId; status: Status; tags: string[] }, Labeled>;
+type Summarizable = Trait<"Summarizable", { title: string }, { summarize: (self: Self) => string }>;
+const Summarizable = Trait.companion<Summarizable>().build();
+
+type Task = Val<"Task", { id: TaskId; status: Status; tags: string[] }, Summarizable>;
 const Task = Val.companion<Task>()
   .implSeal((task, seal): Result<Task> =>
     task.title.trim() === "" ? { err: "empty title" } : { ok: seal(task) },
@@ -81,8 +81,8 @@ const Task = Val.companion<Task>()
   .impl(({ patch }) => ({
     complete: (task, at: string) => patch(task, { status: Status.Done.create({ at }) }),
   }))
-  .implTrait(Labeled, () => ({
-    label: (t): string =>
+  .implTrait(Summarizable, () => ({
+    summarize: (t): string =>
       Status.match(t.status, {
         Todo: (s) => `${t.title} (due ${s.due})`,
         Done: () => `${t.title} (done)`,
@@ -90,17 +90,12 @@ const Task = Val.companion<Task>()
   }))
   .build();
 
-type Note = Val<"Note", { text: string }, Labeled>;
+type Note = Val<"Note", { text: string }, Summarizable>;
 const Note = Val.companion<Note>()
-  .implTrait(Labeled, () => ({ label: (n) => n.title }))
+  .implTrait(Summarizable, () => ({ summarize: (n) => n.title }))
   .build();
 
 const status = Status.Todo.create({ due: "10-31" });
-
-// @ts-expect-error not a TaskId
-Task.seal({ id: "t1", title: "Write the README", status, tags: [] });
-
-Task.seal({ id: TaskId.seal("t1"), title: " ", status, tags: [] }); // { err: "empty title" }
 
 const result = Task.seal({
   id: TaskId.seal("t1"),
@@ -108,20 +103,23 @@ const result = Task.seal({
   status,
   tags: ["docs"],
 });
-if ("ok" in result) {
-  const task = result.ok;
-  // @ts-expect-error readonly
-  task.tags.push("urgent");
+if ("err" in result) throw new Error(result.err);
+const task = result.ok;
 
-  const done = Task.complete(task, "10-27");
-  if ("ok" in done) done.ok.tags === task.tags; // true
+const done = Task.complete(task, "10-27");
+if ("ok" in done) done.ok.tags === task.tags; // true
 
-  const board: Dyn<Labeled>[] = [
-    Labeled.dyn(Task, task),
-    Labeled.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
-  ];
-  board.map((item) => item.label()); // ["Write the README (due 10-31)", "Ideas"]
-}
+const board: Dyn<Summarizable>[] = [
+  Summarizable.dyn(Task, task),
+  Summarizable.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
+];
+board.map((item) => item.summarize()); // ["Write the README (due 10-31)", "Ideas"]
+
+Task.seal({ id: TaskId.seal("t2"), title: " ", status, tags: [] }); // { err: "empty title" }
+// @ts-expect-error not a TaskId
+Task.seal({ id: "t2", title: "Write the book", status, tags: [] });
+// @ts-expect-error readonly
+task.tags.push("urgent");
 ```
 
 ## Development
