@@ -518,8 +518,9 @@ type CreateMethod<V extends AnyVal, N, F> = [Creating<V, N, F>] extends [undefin
 
 type SealMethod<V extends AnyVal, F> = {
   /**
-   * The single gate a payload passes to become a value. `create` and `patch` both go through it.
-   * Without `.implSeal`, it brands the payload and copies it.
+   * The single gate a payload passes to become a value. `create` and `patch` both go through it,
+   * unless `.implCreate.noseal` registered `create`. Without `.implSeal`, it brands the payload and
+   * copies it.
    */
   seal: [F] extends [undefined]
     ? ((value: SeedOf<V>) => V) & {

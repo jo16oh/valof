@@ -505,7 +505,10 @@ type Framed<
   TraitHost;
 
 type VariantSeal<E extends AnyEnum, N extends keyof VariantsOf<E>, R> = {
-  /** The single gate a payload of this variant passes. `create` and `patch` go through it. */
+  /**
+   * The single gate a payload of this variant passes. `create` and `patch` go through it, unless
+   * `.implCreate.noseal` registered `create`.
+   */
   seal: Creates<[payload: Tagged<E, N>], R>;
 };
 
