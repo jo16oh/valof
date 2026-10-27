@@ -35,7 +35,7 @@ The function passed to `.impl` receives `seal`, `create` and `patch`. A member c
 reference `User`, so its return type needs no annotation.
 
 A function that does not take the Val as its first argument, such as one that parses it from a
-string or aggregates an array of Vals into one, is registered with `.implAssoc`. See
+string or aggregates an array of Vals into one, goes in `.implAssoc`. See
 [Custom constructors](custom-constructors.md#define-other-constructors-with-implassoc).
 
 The result exposes `seal` and the members:

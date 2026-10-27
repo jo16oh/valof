@@ -308,8 +308,8 @@ Event.Click.create({ x: 1 }); // { x: 1, kind: "Click" }
 Event[Tag].key; // "kind"
 ```
 
-`Tag` is declared in the third type argument, beside the shared fields, because every variant has
-the tag field. `.tag` must be the first step. `.tag` is required for a renamed tag, and it rejects a
+`Tag` goes in the third type argument, beside the shared fields, because every variant has the tag
+field. `.tag` must be the first step. `.tag` is required for a renamed tag, and it rejects a
 misspelled name. With the default tag, the builder has no `.tag`.
 
 `Event[Tag].key` returns the tag's name. Pass it to a schema library that asks for the

@@ -150,7 +150,7 @@ rejects or normalizes the payload.
 ## Define other constructors with `implAssoc`
 
 An `.impl` member takes the Val first. A function that builds the Val from something else, such as a
-string or several other values, is registered with `.implAssoc`:
+string or several other values, goes in `.implAssoc`:
 
 ```ts
 import { Val } from "valof";
