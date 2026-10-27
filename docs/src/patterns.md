@@ -3,7 +3,7 @@
 ## Framework state
 
 A value is a plain object, so a state container holds it as it stands. Replace it whole. The
-untouched subtrees keep their identity, so a dependency array sees no change.
+untouched subtrees keep their identity, so a dependency array detects no change.
 
 ```ts
 import { Val } from "valof";
@@ -29,8 +29,8 @@ Solid reads the same with `createSignal`, and takes the comparison directly:
 `createSignal(user, { equals })`.
 
 **Svelte and Vue are deeply reactive by default, so ask for a shallow container.** A deep one gives
-your code a proxy in place of the value, and `patch` no longer recognizes the value's untouched
-branches, so it copies them again.
+your code a proxy in place of the value. `patch` rebuilds a changed value and its parents, and keeps
+the untouched branches by reference. Given a proxy, it copies those branches as well.
 
 Values are frozen in development, so Vue skips them and `ref` behaves like `shallowRef` until you
 build for production. A write through Vue's `ref` or Solid's `createStore` then mutates the value
