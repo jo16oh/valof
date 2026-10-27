@@ -24,7 +24,7 @@ The second argument is the shape: the fields every implementing Val holds. It fo
 as a payload, so a shape no Val could ever hold is an error where it is written.
 
 The third declares the functions. They become members of every companion that implements the trait,
-and they take the value first, as an `.impl` member does.
+and they take the value first.
 
 `Self` stands for the implementing Val. A member may take it, and may not return it. What returns a
 `Self` is a constructor, and a trait has no brand to seal with.
@@ -56,14 +56,14 @@ User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 ```
 
 `Trait.companion<Greetable>().build()` creates the trait's companion, even for a trait that
-implements nothing itself. `implTrait` receives it first, and the members the trait leaves open
-second.
+implements nothing itself. `implTrait` takes it as the first argument, and a function returning the
+trait's members as the second.
 
 A trait adds the fields it requires to the payload, so the `User` payload includes `name` without
 listing it. A payload may list one of them again with the same or a narrower type. A conflicting
 type is a type error.
 
-The checker stops at the declaration. `Val<"User", …, Greetable>` typechecks with no `implTrait`
+The checker stops at the declaration. `Val<"User", …, Greetable>` is accepted with no `implTrait`
 anywhere, so the `unimplemented-trait` rule in [valof-lint](linting.md) is what reports the Val that
 declared a trait and never implemented it.
 
@@ -120,9 +120,8 @@ User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 Admin.greet(Admin.seal({ name: "root", level: 9 })); // "Sir root"
 ```
 
-`implTrait` takes the trait's companion as the first argument. The second is a function returning
-the members the trait does not implement, as both Vals return `toWire`, and any default the Val
-replaces, as `Admin` replaced `greet`.
+The function returns the members the trait does not implement, as both Vals return `toWire`, and any
+default the Val replaces, as `Admin` replaces `greet`.
 
 ## Defaults no Val may replace
 
@@ -156,7 +155,9 @@ The trait implements both, so `implTrait` needs no second argument. A Val may st
 from the function to replace it. Returning `shout` is an error.
 
 The trait's companion exposes its `Final` members, but not its defaults. `Greetable.shout(user)` can
-be called, and `Greetable.greet` is a type error.
+be called, and `Greetable.greet` is a type error, because calling a default through the trait would
+run it even for a Val that replaced it. Call a default through the Val's companion, which
+dispatches.
 
 A default calling a `Final` member references the trait and annotates its return type:
 
@@ -181,13 +182,10 @@ const Greetable = Trait.companion<Greetable>()
   .build();
 ```
 
-A member a Val may replace is not on `Greetable`, because reading it off the trait would run the
-default even for a Val that replaced it. Call it through that Val's companion, which dispatches.
-
 ## Implement Traits on an Enum
 
-An [enum](enums.md) implements a trait it declares once, over the union. What differs per variant is
-a `match` inside the implementation:
+An [enum](enums.md) implements a trait it declares in one `implTrait`, over the union. What differs
+per variant is a `match` inside the implementation:
 
 ```ts
 import { Enum, Trait, type Self } from "valof";
@@ -250,9 +248,9 @@ party.map((p) => p.greet()); // ["Hi, alice", "Sir root"]
 party.map((p) => p.name); // ["alice", "root"]: a trait field, read from the box
 ```
 
-A box binds the receiver, so its members take the remaining arguments alone. The trait's fields are
-readable on it, and a function taking `Greetable` accepts one. The Val's own fields are not. `p.id`
-is a type error, because `dyn` drops the concrete type.
+A box already holds the value, so its members take only the arguments after it. The trait's fields
+are readable on it, and a function taking `Greetable` accepts one. The Val's own fields are not.
+`p.id` is a type error, because `dyn` drops the concrete type.
 
 A box is a proxy over its value, not a Val. It has its own identity, and it has no `patch`. A
 payload cannot hold one.
@@ -263,7 +261,7 @@ companion is rejected.
 An enum boxes the same way, through its own companion:
 `Describable.dyn(Cmd, Cmd.Add.create({ id: "c1", n: 2 }))`.
 
-A function over boxes is registered on the trait's companion, through `.implAssoc`. `implTrait` does
+A function over boxes is registered on the trait's companion, with `.implAssoc`. `implTrait` does
 not copy it onto a Val.
 
 ## Several traits on one Val
