@@ -63,9 +63,8 @@ A trait adds the fields it requires to the payload, so the `User` payload includ
 listing it. A payload may list one of them again with the same or a narrower type. A conflicting
 type is a type error.
 
-The checker stops at the declaration. `Val<"User", …, Greetable>` is accepted with no `implTrait`
-anywhere, so the `unimplemented-trait` rule in [valof-lint](linting.md) is what reports the Val that
-declared a trait and never implemented it.
+The `unimplemented-trait` rule in [valof-lint](linting.md) reports a Val that declared a trait and
+never implemented it.
 
 ## A trait is a contract between Vals
 
@@ -120,8 +119,8 @@ User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 Admin.greet(Admin.seal({ name: "root", level: 9 })); // "Sir root"
 ```
 
-The function returns the members the trait does not implement, as both Vals return `toWire`, and any
-default the Val replaces, as `Admin` replaces `greet`.
+The function returns the members the trait does not implement, as both Vals return `toWire`. It may
+also return a default to replace it, as `Admin` replaces `greet`.
 
 ## Defaults no Val may replace
 
@@ -184,8 +183,8 @@ const Greetable = Trait.companion<Greetable>()
 
 ## Implement Traits on an Enum
 
-An [enum](enums.md) implements a trait it declares in one `implTrait`, over the union. What differs
-per variant is a `match` inside the implementation:
+An [enum](enums.md) implements each trait it declares over the union, with one `implTrait` per
+trait. What differs per variant is a `match` inside the implementation:
 
 ```ts
 import { Enum, Trait, type Self } from "valof";
