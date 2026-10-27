@@ -95,12 +95,10 @@ const Note = Val.companion<Note>()
   .implTrait(Summarizable, () => ({ summarize: (n) => n.title }))
   .build();
 
-const status = Status.Todo.create({ due: "10-31" });
-
 const result = Task.seal({
   id: TaskId.seal("t1"),
   title: "Write the README",
-  status,
+  status: Status.Todo.create({ due: "10-31" }),
   tags: ["docs"],
 });
 if ("err" in result) throw new Error(result.err);
@@ -115,9 +113,9 @@ const board: Dyn<Summarizable>[] = [
 ];
 board.map((item) => item.summarize()); // ["Write the README (due 10-31)", "Ideas"]
 
-Task.seal({ id: TaskId.seal("t2"), title: " ", status, tags: [] }); // { err: "empty title" }
+Task.seal({ ...task, title: " " }); // { err: "empty title" }
 // @ts-expect-error not a TaskId
-Task.seal({ id: "t2", title: "Write the book", status, tags: [] });
+Task.seal({ ...task, id: "t2" });
 // @ts-expect-error readonly
 task.tags.push("urgent");
 ```
