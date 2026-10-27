@@ -180,9 +180,9 @@ Yen.parse("¥99999999999999999"); // the seal's error: not a safe integer
 Yen.sum(yens); // Result<Yen>
 ```
 
-The function receives `seal`, `create` and `patch`, like the one passed to `.impl`. `seal` is the
-companion's, so the custom seal checks what `parse` and `sum` build. Write `.implAssoc` after
-`.implSeal` and `.implCreate`, any number of times.
+The function receives what the one passed to `.impl` receives. `seal` is the companion's, so the
+custom seal checks what `parse` and `sum` build. Write `.implAssoc` after `.implSeal` and
+`.implCreate`, any number of times.
 
 Keep an invariant in the seal, and let a member only convert its input into a payload. `parse`
 checks the string's format, and the seal checks the amount. A check written in a member does not run
