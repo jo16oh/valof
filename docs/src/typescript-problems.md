@@ -99,8 +99,8 @@ User.greeting(User.seal({ name: "alice" }));
 
 Valof makes parsing a convention, in two steps. An `.implAssoc` member decodes a wire format into
 the payload, and the seal turns the payload into a Val. A companion has one `seal`, and `create`,
-`patch` and the `.implAssoc` members pass their payloads to it. A custom seal returns a validated,
-normalized Val or its failure, so the result type records that parsing succeeded.
+`patch` and the `.implAssoc` members pass their payloads to it.[^noseal] A custom seal returns a
+validated, normalized Val or its failure, so the result type records that parsing succeeded.
 
 Start with `Val.companion<V>()` and register the checks with `.implSeal`. The resulting `.seal`
 returns the value or the seal's failure; [custom constructors](custom-constructors.md) explains
@@ -264,3 +264,6 @@ const User = Val.companion<User>()
   .implTrait(Describable, () => ({ describe: (user) => user.name }))
   .build();
 ```
+
+[^noseal]:
+    Except a `create` registered with `.implCreate.noseal`, which skips the seal in production.

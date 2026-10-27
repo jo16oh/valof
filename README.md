@@ -39,7 +39,7 @@ It enforces the conventions through types and linting.
 - **Companion object**: Keep a type's constructor and functions together without a class. The first
   Val parameter is inferred.
 
-- **"Parse, don't validate"**: Every creation and derivation goes through one `seal`. Use any
+- **"Parse, don't validate"**: Every creation and derivation goes through one `seal`.[^seal] Use any
   validation library and any Result type.
 
 - **Copy only what changes**: `patch` copies only the paths it changes. Untouched branches keep
@@ -54,6 +54,10 @@ It enforces the conventions through types and linting.
 
 - **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->898 B
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
+
+[^seal]:
+    `Val.of` applies the default seal rather than a companion's. A `create` registered with
+    `.implCreate.noseal` skips the seal in production.
 
 Read [The Valof Book](https://jo16oh.github.io/valof/latest/) for more details.
 
