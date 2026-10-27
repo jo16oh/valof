@@ -53,7 +53,7 @@ or a whole file with one anywhere in it:
 ```
 
 Name the rules it silences, separated by a space or a comma. The comments follow two rules of their
-own, `incomplete-disable` and `unused-disable`, which are left out of a run and given a severity
+own, `incomplete-disable` and `unused-disable`, which can be left out of a run or given a severity
 like any other.
 
 ## Plugin for ESLint and Oxlint
