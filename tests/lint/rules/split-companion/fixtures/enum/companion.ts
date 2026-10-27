@@ -1,4 +1,4 @@
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 
 import type { Shape } from "./type.ts";
 

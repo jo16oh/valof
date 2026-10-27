@@ -1,4 +1,4 @@
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 
 type Variants = { Circle: { r: number }; Square: { side: number } };
 

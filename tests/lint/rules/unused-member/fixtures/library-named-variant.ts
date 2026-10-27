@@ -1,4 +1,4 @@
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 
 export type Cmd = Enum<"Cmd", { impl: { n: number }; seal: { s: string } }>;
 export const Cmd = Enum.companion<Cmd>()

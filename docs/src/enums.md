@@ -1,10 +1,5 @@
 # Enums
 
-<!-- prettier-ignore -->
-> [!WARNING]
-> Enums are experimental. They ship from `valof/experimental` so that an import says so, and the
-> design is still changing.
-
 An enum is a discriminated union declared in one place. Each variant is a Val, and the enum is the
 union of those Vals. The variants form a closed set, so TypeScript can check that every variant is
 handled.
@@ -15,8 +10,7 @@ handled.
 ## Declare the variants
 
 ```ts
-import { equals } from "valof";
-import { Enum } from "valof/experimental";
+import { Enum, equals } from "valof";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
@@ -47,7 +41,7 @@ files of a package that exports the companion.
 ## Match on the tag
 
 ```ts
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>().build();
@@ -68,7 +62,7 @@ rule. `match` returns the union of the handlers' return types.
 those variants:
 
 ```ts
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>().build();
@@ -101,7 +95,7 @@ first argument on a command line is a subcommand, and the subcommand decides how
 remaining arguments:
 
 ```ts
-import { Enum, Tag } from "valof/experimental";
+import { Enum, Tag } from "valof";
 // ---cut---
 type Command = Enum<
   "Command",
@@ -127,7 +121,7 @@ The third type argument of `Enum` is the shape, which lists the fields that ever
 [trait](traits.md) takes the same shape, as its second type argument.
 
 ```ts
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 // ---cut---
 type Task = Enum<"Task", { Todo: { text: string }; Done: { at: number } }, { id: string }>;
 const Task = Enum.companion<Task>().build();
@@ -149,7 +143,7 @@ in `.Circle.impl(…)`. They are the same steps as in `Val.companion`. The enum'
 and `.build()` ends the chain.
 
 ```ts
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 // ---cut---
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
@@ -181,7 +175,7 @@ A variant's `.implSeal` replaces the variant's seal. The tag is a field of the p
 can check it like any other field:
 
 ```ts
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 // ---cut---
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 
@@ -198,7 +192,7 @@ from `JSON.parse`. It runs in `Shape.seal` before the tag selects a variant, so 
 tag that selects no variant:
 
 ```ts
-import { Enum, type SealedPayload } from "valof/experimental";
+import { Enum, type SealedPayload } from "valof";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 // A discriminated union from a schema library, on `_tag`.
@@ -231,7 +225,7 @@ the tag field before the variant's seal receives the payload. A function given t
 `.implCreate` returns a payload with the tag field, and the enum's seal receives it:
 
 ```ts
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 // ---cut---
 type Task = Enum<"Task", { Todo: { text: string }; Done: { at: number } }, { id: string }>;
 
@@ -252,7 +246,7 @@ A trait intersected into one variant's payload applies to that variant alone, an
 implements it:
 
 ```ts
-import { Enum, Trait, type Self } from "valof/experimental";
+import { Enum, Trait, type Self } from "valof";
 // ---cut---
 type Named = Trait<"Named", { label: string }, { named: (self: Self) => string }>;
 const Named = Trait.companion<Named>().build();
@@ -277,7 +271,7 @@ options for one variant:
 
 ```ts
 import type { Unpatchable } from "valof";
-import { Enum, type VariantOptions } from "valof/experimental";
+import { Enum, type VariantOptions } from "valof";
 // ---cut---
 type Order = Enum<
   "Order",
@@ -305,7 +299,7 @@ The tag is real data, not a phantom type like the brand. It is serialized with t
 rename it to the field name that an API already uses:
 
 ```ts
-import { Enum, Tag } from "valof/experimental";
+import { Enum, Tag } from "valof";
 // ---cut---
 type Event = Enum<"Event", { Click: { x: number }; Key: { code: string } }, Tag<"kind">>;
 const Event = Enum.companion<Event>().tag("kind").build();
@@ -326,7 +320,7 @@ discriminator.
 `VariantOf` is the type of one variant. Write it where you need it.
 
 ```ts
-import { Enum, type VariantOf } from "valof/experimental";
+import { Enum, type VariantOf } from "valof";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 // ---cut---
@@ -335,4 +329,4 @@ const area = ({ r }: VariantOf<Shape, "Circle">) => r * r * Math.PI;
 
 [^otherwise]:
     For an enum that has a variant named `_`, write `[Otherwise]` in place of `_` to handle the
-    rest. `Otherwise` is a symbol exported from `valof/experimental`.
+    rest. `Otherwise` is a symbol exported from `valof`.

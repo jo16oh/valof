@@ -2,8 +2,17 @@
 // exhaustiveness, `_` taking the rest, `match` on a tag alone, a variant's own members, a seal on
 // the enum and one on a variant, a trait implemented over the union, `implAssoc` on the union and
 // on a variant, and a variant nested in a Val, where the patch boundary runs.
-import { Val, type Patch, type SeedOf } from "valof";
-import { Enum, Tag, Trait, type Dyn, type Self, type VariantOf } from "valof/experimental";
+import {
+  Enum,
+  Tag,
+  Trait,
+  Val,
+  type Dyn,
+  type Patch,
+  type SeedOf,
+  type Self,
+  type VariantOf,
+} from "valof";
 
 type Shape = Enum<
   "Shape",

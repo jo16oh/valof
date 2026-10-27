@@ -18,3 +18,23 @@ export type {
   SeedOf,
   Unpatchable,
 } from "./val.ts";
+
+export { Enum, Otherwise, Tag } from "./enum.ts";
+
+export type {
+  AnyEnum,
+  EnumBuilder,
+  EnumCompanion,
+  NameOf,
+  VariantOptions,
+  SealedPayload,
+  SeedFor,
+  SharedOf,
+  TagOf,
+  VariantOf,
+  VariantsOf,
+} from "./enum.ts";
+
+export { Trait } from "./trait.ts";
+
+export type { AnyTrait, Dyn, Final, Members, Self, TraitBuilder, TraitCompanion } from "./trait.ts";

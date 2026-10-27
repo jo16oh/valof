@@ -64,8 +64,6 @@ import * as Enum from "./ns/enum.ts";
 /**
  * The key that holds an enum companion's `match` on a tag string, and its `key`:
  * `Command[Tag].match(tag, handlers)`.
- *
- * @experimental
  */
 export const Tag: unique symbol = Symbol();
 
@@ -77,8 +75,6 @@ export const Tag: unique symbol = Symbol();
  * ```ts
  * Shape.match(shape, { Circle: (c) => c.r, [Otherwise]: (rest) => rest.side });
  * ```
- *
- * @experimental
  */
 export const Otherwise: unique symbol = Symbol();
 
@@ -99,8 +95,6 @@ declare class TagPhantom<T extends string> {
  *
  * The tag is real data and crosses the wire, so you can customize the name when an API already has
  * one.
- *
- * @experimental
  */
 export type Tag<T extends string> = TagPhantom<T>;
 
@@ -117,8 +111,6 @@ declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
 /**
  * Every enum, as a constraint. A broken declaration does not satisfy it, so one check covers the
  * companion and `match` alike.
- *
- * @experimental
  */
 export type AnyEnum = AnyVal &
   EnumPhantom<string, Record<string, object>, object, AnyTrait, string, Record<string, AnyTrait>>;
@@ -212,8 +204,6 @@ type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
  * ```ts
  * type Shape = Enum<"Shape", { Circle: { r: number } & Round }, Tag<"kind"> & { id: string }>;
  * ```
- *
- * @experimental
  */
 type Enum<K extends string, D extends object, X extends object = Record<never, never>> = {
   [N in VariantKeys<D>]: Val<
@@ -241,29 +231,21 @@ type Declared<E> =
 
 /**
  * The enum's own name, which every variant's brand is derived from.
- *
- * @experimental
  */
 export type NameOf<E extends AnyEnum> = Declared<E>["name"] & string;
 
 /**
  * The declared variants, as the record they were written in.
- *
- * @experimental
  */
 export type VariantsOf<E extends AnyEnum> = Declared<E>["variants"];
 
 /**
  * The fields every variant holds.
- *
- * @experimental
  */
 export type SharedOf<E extends AnyEnum> = Declared<E>["shared"];
 
 /**
  * The name of the tag field.
- *
- * @experimental
  */
 export type TagOf<E extends AnyEnum> = Declared<E>["tag"] & string;
 
@@ -284,8 +266,6 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
  * Write it where the variant is used, rather than giving it a second name with `type Circle =
  * VariantOf<Shape, "Circle">`. The prefix is what says which enum the variant belongs to, and a
  * variant is built through its companion for the same reason: `Shape.Circle.create({ r: 2 })`.
- *
- * @experimental
  */
 export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
   `${NameOf<E>}.${N & string}`,
@@ -308,8 +288,6 @@ export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
  * Built from the declaration rather than from the variant. `SeedOf<VariantOf<E, N> & AnyVal>`
  * reads `unknown` off the second phantom and collapses to `{}`, which leaves `patch` accepting
  * anything.
- *
- * @experimental
  */
 export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
   VariantsOf<E>[N] & SharedOf<E>,
@@ -323,8 +301,6 @@ type Tagged<E extends AnyEnum, N extends keyof VariantsOf<E>> = SeedFor<E, N> & 
 
 /**
  * A tagged payload of any one variant, which `seal` on the enum reads the variant from.
- *
- * @experimental
  */
 export type SealedPayload<E extends AnyEnum> = {
   [N in keyof VariantsOf<E>]: Tagged<E, N>;
@@ -432,8 +408,6 @@ declare class VariantOptionsPhantom<N extends string, L> {
  *
  * {@link PrivateSeal} goes on the enum alone: `Order.seal` reaches every variant by its tag.
  * {@link PrivateCreate} may go on one variant.
- *
- * @experimental
  */
 export type VariantOptions<N extends string, L extends Options> = VariantOptionsPhantom<N, L>;
 
@@ -654,8 +628,6 @@ type ByTag<E extends AnyEnum> = {
  * An enum's members: one frame per variant, `match`, `seal`, and whatever the steps registered.
  *
  * Inferred, not written: it is exported so your own declarations can name it.
- *
- * @experimental
  */
 export type EnumCompanion<
   E extends AnyEnum,
@@ -866,8 +838,6 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
  * then `implCreate`, and `impl` (once) and `implTrait` after them. The enum's seal hands the payload
  * to the variants' seals, so its type is known once theirs are. The first of the enum's steps
  * takes the variants' off.
- *
- * @experimental
  */
 export type EnumBuilder<
   E extends AnyEnum,
@@ -1173,8 +1143,6 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
  *
  * A list may follow `E`: {@link PrivateSeal}, {@link PrivateCreate}, `Unpatchable`, and
  * {@link VariantOptions} for one variant, as in `Enum.companion<Order, [PrivateSeal, Unpatchable<"id">]>()`.
- *
- * @experimental
  */
 export const companion = <
   E extends AnyEnum,

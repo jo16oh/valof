@@ -1,5 +1,5 @@
-// Type-only, so the entry point constrains against an experimental type and nothing crosses at
-// run time. The phantom stays in enum.ts, beside the declaration that carries it.
+// Type-only, so nothing from enum.ts crosses at run time. The phantom stays in enum.ts, beside
+// the declaration that carries it.
 import type { AnyEnum } from "./enum.ts";
 import type {
   AnyTrait,

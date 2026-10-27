@@ -37,7 +37,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ（§13.6 のビルダーは 2026-10-23 に採った）
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath、2026-10-27 に廃止）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し、`__proto__` も守らない）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）。**2026-10-26 に段の引数を関数に揃えた**（注釈の税は変わらない）
@@ -131,8 +131,8 @@ from external module ".../valof/dist/index" but cannot be named.
 #### 2026-10-26: キーを symbol に戻した
 
 **ライブラリのキーはすべて symbol にした。**文字列キーはエディタの補完に出る。キーは `Tag` を除いて
-`src/keys.ts` に集め、entry からは export しない。`Tag` は `enum.ts` に置き、`valof/experimental` から
-export する。
+`src/keys.ts` に集め、entry からは export しない。`Tag` は `enum.ts` に置き、`valof` から
+export する（2026-10-27 までは `valof/experimental`）。
 
 - 実行時に読む `Tag`、`Traits`、`Shared` は `Symbol()`
 - 型にしか無いキー（`Rec`、`Unsealed`、`CallBuildFirst` が持つもの）と、phantom class のメンバのキーは
@@ -149,7 +149,7 @@ export する。
 - 無名の型に symbol キーを直接書くと、その型は展開されて出力され、TS4023 になる。Variant の枠
   （`Shape.Circle`）で起きたので、`[Traits]` を `TraitHost` に包んだ。ts-compatibility の fixture が検査する
 - 利用者が companion を `Omit` や mapped 型に通すと、展開されて TS4023 になる。`Tag` は型だけの import
-  （`import { type Tag } from "valof/experimental"`）で通る。`Traits` は export していないので、書く手段が
+  （`import { type Tag } from "valof"`）で通る。`Traits` は export していないので、書く手段が
   無い
 - `IsRec` が symbol の index signature を除外するようにした。キーを symbol にすると、symbol の index
   signature はどの `unique symbol` キーも受けるので、`Record<symbol, string>` を `Rec` と誤判定する
@@ -5296,7 +5296,7 @@ production gzip は 852 B のまま。lint のチャンクは測っていない�
 
 2026-09-03 に提起、2026-09-09 に形が決まった。v1 ではなく v2 向け。
 
-**公開は experimental subpath に限る。**Trait とその関連型は root export には加えず、
+**公開は experimental subpath に限る**（2026-10-27 に廃止。下の「experimental を外した」）。Trait とその関連型は root export には加えず、
 `valof/experimental` からだけ export する。利用側は
 `import { Trait, type Dyn, type Final, type Self } from "valof/experimental"` と書く。
 これは 0.x で minor release に破壊的変更がありうるという versioning 方針とは別に、安定 API と
@@ -5330,6 +5330,21 @@ entry を足すときは毎回確認する、とあの節に書いてある。�
 
 **分けるのは `Enum`（§15.2）が来たとき。**そこで初めて barrel がどの実験に乗ったかを言えなくなる。
 名前は型名に揃えて単数（`valof/experimental/trait`）。experimental なので移行は破壊的変更にならない。
+
+#### 2026-10-27: experimental を外した
+
+**`valof/experimental` を廃止し、Enum と Trait を root から export する。**`@experimental` も全部消した。
+互換の再 export は残さない。v0.11 の破壊的変更。
+
+- 理由: Val は experimental ではないのに破壊的変更が入り続けている。Enum と Trait にだけ印があると、Val が
+  安定していると読まれる。pre-1.0 である限り、破壊的変更がありうることはライブラリ全体として強く言えば
+  足りる（ユーザー、2026-10-27）。README と book の pre-1.0 の警告に、更新前にリリースノートを読むよう足した
+- 宣言のコスト: `val.ts` が既に enum / trait の型を import しているので、`import "valof"` は以前から両方の宣言を
+  読んでいた（上の「機能ごとの subpath」と同じ理由）。変更後の `index.d.ts` は 87.88 kB（予算 96 kB）
+- 実行時: `sideEffects: false` で、`Val` だけを import したバンドルは 965 B のまま。`enum.js` と
+  `trait.js` を含まないことをバンドルの中身で確かめた
+- lint は import 元を見ない（`src/lint/scan/bindings.ts` は相対でない指定子をすべて `package:<source>` にする）
+  ので、規則は変えていない
 
 **欠けているもの。** 複数の Val が共有する関連関数・フィールドを宣言する手段がない。companion の関数は
 自分の Val に固定されるので、`SuperUser` が `PayloadOf<User>` から作られていても `User.greet(superUser)`

@@ -1,8 +1,26 @@
 // Exports the book does not show. Each inferred type references a type or key no entry exports, so
 // its `.d.ts` emits only when the package exposes that type by a path a consumer can import, or
 // when the type is written by an exported name.
-import { Val, type PrivateCreate, type PrivateSeal, type Rec, type Unpatchable } from "valof";
-import { Enum, Tag, Trait, type Final, type Self } from "valof/experimental";
+import {
+  Enum,
+  Tag,
+  Trait,
+  Val,
+  type EnumBuilder,
+  type EnumCompanion,
+  type Final,
+  type Members,
+  type PrivateCreate,
+  type PrivateSeal,
+  type Rec,
+  type Self,
+  type SharedOf,
+  type TagOf,
+  type TraitBuilder,
+  type TraitCompanion,
+  type Unpatchable,
+  type VariantsOf,
+} from "valof";
 
 export type Greetable = Trait<
   "Greetable",
@@ -57,3 +75,11 @@ export const Sized = Enum.companion<Shape>()
 export const Greeting = Trait.companion<Greetable>()
   .implAssoc(() => ({ names: (gs: readonly Greetable[]) => gs.map((g) => g.name) }))
   .build();
+
+// Written by name, so each import above fails once the root stops exporting it.
+export const shapeStart: EnumBuilder<Shape> = Enum.companion<Shape>();
+export const Plain: EnumCompanion<Shape> = Enum.companion<Shape>().build();
+export const greetableStart: TraitBuilder<Greetable> = Trait.companion<Greetable>();
+export const Blank: TraitCompanion<Greetable> = Greetable;
+export const members = { greet: (self: Self) => String(self) } satisfies Members;
+export type ShapeParts = [TagOf<Shape>, SharedOf<Shape>, VariantsOf<Shape>];

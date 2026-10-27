@@ -1,6 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import { Val } from "../src/index.ts";
-import { Trait, type AnyTrait, type Dyn, type Final, type Self } from "../src/experimental.ts";
+import { Trait, Val, type AnyTrait, type Dyn, type Final, type Self } from "../src/index.ts";
 // `Wired` is not published from the entry point.
 import type { CallBuildFirst, Wired } from "../src/val.ts";
 import type { BrandsOf } from "../src/trait.ts";

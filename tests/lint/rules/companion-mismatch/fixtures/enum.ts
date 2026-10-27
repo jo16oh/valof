@@ -1,4 +1,4 @@
-import { Enum } from "valof/experimental";
+import { Enum } from "valof";
 
 export type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 export const Shapes = Enum.companion<Shape>().Circle.impl(() => ({ diameter: (c) => c.r * 2 })).build();
