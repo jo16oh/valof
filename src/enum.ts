@@ -178,7 +178,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
 type MemberNames<Tr extends AnyTrait> =
   MembersOf<Tr> extends infer M ? (M extends unknown ? keyof M : never) : never;
 
-// The fault goes in the brand the phantom carries, never at the top level of `Enum`. An alias
+// The fault is placed in the brand the phantom carries, never at the top level of `Enum`. An alias
 // whose top level is a conditional loses its name once it resolves, and a consumer's `.d.ts`
 // then expands the union onto val.ts's private `Phantom`: TS4094 on the one line
 // `export const Shape = Enum.companion<Shape>().build()`.
@@ -406,8 +406,8 @@ declare class VariantOptionsPhantom<N extends string, L> {
  * ]>().build();
  * ```
  *
- * {@link PrivateSeal} goes on the enum alone: `Order.seal` reaches every variant by its tag.
- * {@link PrivateCreate} may go on one variant.
+ * {@link PrivateSeal} is set on the enum alone: `Order.seal` reaches every variant by its tag.
+ * {@link PrivateCreate} may be set on one variant.
  */
 export type VariantOptions<N extends string, L extends Options> = VariantOptionsPhantom<N, L>;
 
