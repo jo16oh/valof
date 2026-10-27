@@ -121,7 +121,8 @@ Admin.greet(Admin.seal({ name: "root", level: 9 })); // "Sir root"
 ```
 
 `implTrait` takes the trait's companion as the first argument. The second is a function returning
-what the trait left open, plus any default the Val replaces, as `Admin` replaced `greet`.
+the members the trait does not implement, as both Vals return `toWire`, and any default the Val
+replaces, as `Admin` replaced `greet`.
 
 ## Defaults no Val may replace
 
@@ -154,8 +155,8 @@ const User = Val.companion<User>().implTrait(Greetable).build();
 The trait implements both, so `implTrait` needs no second argument. A Val may still return `greet`
 from the function to replace it. Returning `shout` is an error.
 
-The trait's companion has no member a Val may replace. `Greetable.shout(user)` is accepted, and
-`Greetable.greet` is a type error.
+Of the members the trait implements, only the `Final` ones are exposed on the trait's companion.
+`Greetable.shout(user)` can be called, and `Greetable.greet` is a type error.
 
 A default calling a `Final` member references the trait and annotates its return type:
 
