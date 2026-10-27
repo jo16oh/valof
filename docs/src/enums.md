@@ -314,8 +314,7 @@ discriminator.
 
 ## Use a variant's type
 
-`VariantOf` is the type of one variant. Write it at each use, rather than naming it with a `type`
-alias.
+`VariantOf` is the type of one variant.
 
 ```ts
 import { Enum, type VariantOf } from "valof";
