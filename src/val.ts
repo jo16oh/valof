@@ -60,9 +60,10 @@ export type AnyVal = Phantom<string, unknown> & Verdict<true>;
  *
  * ```ts
  * type Tree = Val<"app/Tree", { value: number; children: Rec<Tree>[] }>;
+ * const Tree = Val.companion<Tree>().build();
  *
- * const leaf = Tree({ value: 1, children: [] });
- * const root = Tree({ value: 2, children: [leaf] });
+ * const leaf = Tree.seal({ value: 1, children: [] });
+ * const root = Tree.seal({ value: 2, children: [leaf] });
  * root.children[0]; // Tree
  * ```
  *
@@ -562,8 +563,8 @@ declare class UnpatchablePhantom<K extends string> {
  *
  * ```ts
  * const User = Val.companion<User, [PrivateSeal]>()
- *   .implSeal(seal)
- *   .implCreate((name: string) => ({ id: crypto.randomUUID(), name }));
+ *   .implCreate((name: string) => ({ id: crypto.randomUUID(), name }))
+ *   .build();
  * ```
  */
 // This and `PrivateCreate` are classes, not aliases of one. Declaration emit writes an alias
@@ -581,7 +582,7 @@ export declare class PrivateSeal {
  * no invariant: a `create` passes the seal like every other gate.
  *
  * ```ts
- * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate);
+ * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate).build();
  * ```
  */
 export declare class PrivateCreate {
@@ -595,7 +596,7 @@ export declare class PrivateCreate {
  * counter.
  *
  * ```ts
- * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>();
+ * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>().build();
  * ```
  */
 export type Unpatchable<K extends string> = UnpatchablePhantom<K>;
