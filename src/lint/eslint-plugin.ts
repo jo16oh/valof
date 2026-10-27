@@ -132,7 +132,7 @@ export default {
   configs: {
     /**
      * The whole set, at the severity each rule carries: a finding about code that does nothing
-     * warns, and one about code that is wrong errors. See `Rule.warns`.
+     * warns, and one about code that is wrong errors.
      */
     recommended: {
       // `as const` for the severities: an array literal infers as `string[]`, and an index

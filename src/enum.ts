@@ -656,9 +656,6 @@ type EnumSeal<E extends AnyEnum, VM, F> = {
    * Reads the tag, selects that variant, and passes the payload to its seal. With `.implSeal`, the
    * enum's seal runs first, and its return is what this returns. Without one, the return is the
    * variants' seals' returns, as a union.
-   *
-   * A payload may hold only the fields of the variant its tag names.
-   * `Shape.seal({ _tag: "Circle", side: 1 })` is a type error.
    */
   seal: [F] extends [undefined]
     ? (payload: Exclusive<E>) => Dispatched<E, VM>
@@ -769,8 +766,8 @@ type VariantSteps<
       : {
           /**
            * Replaces this variant's seal. It takes the payload with its tag, and the seal it
-           * receives brands the payload and copies it. Its parameter may be wider than the payload, so a schema library can
-           * parse into it, but not so wide that a wire format fits.
+           * receives brands the payload and copies it. Its parameter may be wider than the payload,
+           * up to `object`, so a schema library can validate it.
            */
           implSeal: "create" extends S
             ? (seal: "write `implSeal` before `implCreate`") => After<E, O, VM, M, unknown>
@@ -832,11 +829,11 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * Each variant's steps come first, under its name. Then the enum's, in `Val`'s order: `implSeal`
-// The variants come first because the enum's seal hands the payload to theirs, so its type is
-// known once theirs are.
  * then `implCreate`, and `impl` (once), `implTrait` and `implAssoc` after them. The first of the
  * enum's steps takes the variants' off.
  */
+// The variants come first because the enum's seal hands the payload to theirs, so its type is
+// known once theirs are.
 export type EnumBuilder<
   E extends AnyEnum,
   O extends Options = [],
@@ -956,10 +953,7 @@ export type EnumBuilder<
 type Start<E extends AnyEnum, O extends Options> = [TagOf<E>] extends ["_tag"]
   ? EnumBuilder<E, O>
   : {
-      /**
-       * Names the tag field, which the companion writes at run time. The type argument is not
-       * readable from a value, so the name is given again here.
-       */
+      /** Names the tag field, which the companion writes at run time. */
       tag: (key: TagOf<E>) => EnumBuilder<E, O>;
     };
 

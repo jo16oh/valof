@@ -211,7 +211,7 @@ type Declarable<Shape, M extends Members> = {
  * taking `Greetable` accepts one.
  *
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
- * `equals` and no `patch`, and `Checked` keeps it out of a payload.
+ * `equals` and no `patch`, and a payload cannot hold one.
  */
 export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
 
@@ -249,7 +249,7 @@ export type TraitCompanion<
      * Boxes a value with one Val's implementation. See {@link Dyn}.
      *
      * The two arguments are tied together: the companion has to match the value's own type,
-     * which is what keeps another Val's companion out. Passing one used to type-check and throw.
+     * which is what keeps another Val's companion out.
      */
     readonly dyn: <W extends Tr>(
       companion: TraitHost & Unbound<MembersOf<Tr>, W>,
@@ -302,10 +302,9 @@ export type TraitBuilder<
    * `total: (shapes: readonly Dyn<Sized>[]) => …`. Write it any number of times. The function
    * receives nothing.
    *
-   * They stay on the trait's companion: `implTrait` copies none of them onto a Val. A member
-   * reaching the companion references it and annotates its return type. A member taking more than
-   * one argument can be called with its first argument first, or last. None can have an optional,
-   * a default or a rest parameter.
+   * `implTrait` does not copy them onto a Val. A member reaching the companion references it and
+   * annotates its return type. A member taking more than one argument can be called with its first
+   * argument first, or last. None can have an optional, a default or a rest parameter.
    */
   implAssoc: <M extends TraitAssoc<Tr>>(
     fns: () => Grown<keyof A, M> & LooseArity<M> & ThisType<undefined>,
