@@ -115,6 +115,7 @@ They apply to the enum and every variant. To configure a specific variant's comp
 | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
 | `E.match(value, handlers)`                 | every enum                                                                                                                                                   | matches on a variant's tag field, exhaustively or with `_` for the rest |
 | `E.match(handlers)(value)`                 | every enum                                                                                                                                                   | the same, with the value last                                           |
+| `E.match(value, { [Otherwise]: f })`       | every enum                                                                                                                                                   | the same as `_`, for an enum with a variant named `_`                   |
 | `E[Tag].match(tag, handlers)`              | every enum                                                                                                                                                   | matches on a tag string, the same way                                   |
 | `E[Tag].match(handlers)(tag)`              | every enum                                                                                                                                                   | the same, with the tag last, for every tag                              |
 | `E[Tag].key`                               | every enum                                                                                                                                                   | the tag field's name                                                    |
@@ -131,19 +132,18 @@ They apply to the enum and every variant. To configure a specific variant's comp
 
 ## Enum Types
 
-|                                 |                                                                  |
-| ------------------------------- | ---------------------------------------------------------------- |
-| `Enum<K, D, X>`                 | a closed set of variants, as one union                           |
-| `Tag<T>`                        | names the tag field, intersected into `X`                        |
-| `Otherwise`                     | a `match` handler key for the rest, where a variant is named `_` |
-| `VariantOf<E, N>`               | the type of one variant                                          |
-| `SeedFor<E, N>`                 | what that variant's `create` takes                               |
-| `SealedPayload<E>`              | a tagged payload of one variant                                  |
-| `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields                     |
-| `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name                        |
-| `AnyEnum`                       | a constraint over any enum                                       |
-| `EnumBuilder<E>`                | an enum's builder, with the steps it can still take              |
-| `EnumCompanion<E>`              | the enum's companion `.build()` returns                          |
+|                                 |                                                     |
+| ------------------------------- | --------------------------------------------------- |
+| `Enum<K, D, X>`                 | a closed set of variants, as one union              |
+| `Tag<T>`                        | names the tag field, intersected into `X`           |
+| `VariantOf<E, N>`               | the type of one variant                             |
+| `SeedFor<E, N>`                 | what that variant's `create` takes                  |
+| `SealedPayload<E>`              | a tagged payload of one variant                     |
+| `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields        |
+| `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name           |
+| `AnyEnum`                       | a constraint over any enum                          |
+| `EnumBuilder<E>`                | an enum's builder, with the steps it can still take |
+| `EnumCompanion<E>`              | the enum's companion `.build()` returns             |
 
 ## Trait Companion Builder
 
