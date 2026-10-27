@@ -748,8 +748,8 @@ export interface CallBuildFirst {
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * The first half sets up the gates, in this order: `implSeal`, then `implCreate`.
- * Each comes once. The second half registers members, `impl` once, `implTrait` for each trait and
- * `implAssoc` any number of times, in any order, and its first step ends the first half.
+ * Each comes once. The second half registers members, in any order: `impl` once, `implTrait` for
+ * each trait, and `implAssoc` any number of times. Its first step ends the first half.
  *
  * `implSeal` and `implCreate` are separate steps because a seal must be idempotent. Generating
  * ids, timestamps and the like belongs in `create`, whose payload is then sealed like any other.

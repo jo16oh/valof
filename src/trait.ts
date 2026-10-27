@@ -28,7 +28,7 @@ declare const SelfMark: unique symbol;
  * The implementing Val, standing in for it inside a trait's member signatures.
  *
  * An opaque marker rather than a reference to the trait, which would be circular. `implTrait`
- * substitutes the Val for a parameter typed `Self` alone: in `readonly Self[]`, it stays `Self`. A
+ * substitutes the Val for a parameter typed `Self` alone. In `readonly Self[]`, it stays `Self`. A
  * member may not return `Self`.
  */
 export type Self = { readonly [SelfMark]: true };
@@ -38,10 +38,10 @@ type AnyMember = (self: never, ...args: never[]) => unknown;
 declare const FinalMark: unique symbol;
 
 /**
- * Marks a member the trait implements permanently: `implTrait` may not replace it, and rejects the
+ * Marks a member the trait implements permanently. `implTrait` may not replace it, and rejects the
  * trait until the trait's companion implements it.
  *
- * The mark is phantom, so it costs nothing at run time and reads off the declaration:
+ * The mark exists only in the type, so it costs nothing at run time. The declaration shows it:
  *
  * ```ts
  * type Greetable = Trait<
@@ -227,7 +227,7 @@ export type TraitHost = { readonly [Traits]: Members };
 
 /**
  * What the trait's `.build()` returns: `dyn`, the members declared {@link Final}, and the
- * `.implAssoc` members. A member a Val may replace is not on it: call it through the Val's
+ * `.implAssoc` members. A member a Val may replace is not on it. Call it through the Val's
  * companion or a {@link Dyn}.
  */
 // A trait namespace that could call a default would look like it dispatched, and it cannot: every

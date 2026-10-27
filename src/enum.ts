@@ -402,8 +402,8 @@ declare class VariantOptionsPhantom<N extends string, L> {
  * ]>().build();
  * ```
  *
- * {@link PrivateSeal} is set on the enum alone: `Order.seal` reaches every variant by its tag.
- * {@link PrivateCreate} may be set on one variant.
+ * {@link PrivateSeal} is set on the enum alone, because `Order.seal` builds any variant from its
+ * tag. {@link PrivateCreate} may be set on one variant.
  */
 export type VariantOptions<N extends string, L extends Options> = VariantOptionsPhantom<N, L>;
 
