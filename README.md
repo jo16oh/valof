@@ -116,9 +116,9 @@ board.map((item) => item.summarize()).forEach((s) => console.log(s)); // "Write 
 
 // Errors
 Task.seal({ ...task, title: " " }); // { err: "empty title" }
-// @ts-expect-error not a TaskId
+// @ts-expect-error a plain string has no TaskId brand
 Task.seal({ ...task, id: "t2" });
-// @ts-expect-error readonly
+// @ts-expect-error Vals are deeply readonly
 task.tags.push("urgent");
 ```
 
