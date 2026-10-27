@@ -780,9 +780,9 @@ export type CompanionBuilder<
          * Collects the members the function returns, in one call. Everything the library reserves
          * has its own step.
          *
-         * The function receives `seal`, `create` and `patch`. A member reaching the companion for
-         * anything else (a trait's member or a sibling) references it and annotates its return
-         * type. Referencing a declaration inside its own initializer is a circularity, which
+         * The function receives `seal`, and `create` and `patch` where the companion has them. A
+         * member reaching the companion for anything else (a trait's member or a sibling)
+         * references it and annotates its return type. Referencing a declaration inside its own initializer is a circularity, which
          * TypeScript reports as TS7023.
          *
          * A member can be called with the value first, `User.rename(u, "x")`, or last,
@@ -811,9 +811,9 @@ export type CompanionBuilder<
      * Collects the members the function returns that do not take the Val: `fromRow`, `parse`, a
      * constant. Write it any number of times.
      *
-     * The function receives `seal`, `create` and `patch`. A member reaching the companion for
-     * anything else (a sibling or another step's member) references it and annotates its return
-     * type, as in `.impl`.
+     * The function receives `seal`, and `create` and `patch` where the companion has them. A
+     * member reaching the companion for anything else (a sibling or another step's member)
+     * references it and annotates its return type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
      * `Money.scaled(2)(5)`. A member taking one argument or none has no second form. A member
