@@ -155,8 +155,8 @@ const User = Val.companion<User>().implTrait(Greetable).build();
 The trait implements both, so `implTrait` needs no second argument. A Val may still return `greet`
 from the function to replace it. Returning `shout` is an error.
 
-Of the members the trait implements, only the `Final` ones are exposed on the trait's companion.
-`Greetable.shout(user)` can be called, and `Greetable.greet` is a type error.
+The trait's companion exposes its `Final` members, but not its defaults. `Greetable.shout(user)` can
+be called, and `Greetable.greet` is a type error.
 
 A default calling a `Final` member references the trait and annotates its return type:
 
