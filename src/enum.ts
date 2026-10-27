@@ -741,8 +741,8 @@ type VariantTrait<
  * One variant's steps on the builder, `.Circle.implSeal(…)`: the steps `Val.companion` takes, in
  * its order. Each returns the enum's builder, so the next variant follows with `.Square`.
  *
- * The gates come first, `implSeal` then `implCreate`. `impl` (once) and `implTrait` follow, and
- * the first of them takes the gates off.
+ * The gates come first, `implSeal` then `implCreate`. `impl` (once), `implTrait` and `implAssoc`
+ * follow, and the first of them takes the gates off.
  */
 type VariantSteps<
   E extends AnyEnum,
@@ -832,12 +832,13 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
 /**
  * What `Enum.companion` returns, which its steps add to and `.build()` closes.
  *
+// The variants come first because the enum's seal hands the payload to theirs, so its type is
+// known once theirs are.
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * Each variant's steps come first, under its name. Then the enum's, in `Val`'s order: `implSeal`
- * then `implCreate`, and `impl` (once) and `implTrait` after them. The enum's seal hands the payload
- * to the variants' seals, so its type is known once theirs are. The first of the enum's steps
- * takes the variants' off.
+ * then `implCreate`, and `impl` (once), `implTrait` and `implAssoc` after them. The first of the
+ * enum's steps takes the variants' off.
  */
 export type EnumBuilder<
   E extends AnyEnum,
