@@ -35,8 +35,7 @@ tag alone, see [Build a value](#build-a-value).
 `patch` cannot change the tag, so it cannot turn a value into another variant.
 
 Declare at least two variants. `Enum` rejects a declaration with one variant, because one variant is
-a Val. TypeScript also drops the alias of a union with one member, which breaks the declaration
-files of a package that exports the companion.
+a Val.
 
 ## Match on the tag
 
@@ -139,8 +138,8 @@ The third type argument also declares the [traits](traits.md) that the enum impl
 ## Build the companion
 
 You build the companion in one chain. Each variant's steps come first, after the variant's name, as
-in `.Circle.impl(…)`. They are the same steps as in `Val.companion`. The enum's own steps follow,
-and `.build()` ends the chain.
+in `.Circle.impl(…)`. Only [`.tag`](#custom-tag-key) comes before them. They are the same steps as
+in `Val.companion`. The enum's own steps follow, and `.build()` ends the chain.
 
 ```ts
 import { Enum } from "valof";
