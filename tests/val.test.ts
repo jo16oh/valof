@@ -9,8 +9,7 @@ import type {
   SeedOf,
   Unpatchable,
 } from "../src/index.ts";
-import { equals, Val } from "../src/index.ts";
-import { Trait, type Final, type Self } from "../src/experimental.ts";
+import { equals, Trait, Val, type Final, type Self } from "../src/index.ts";
 import { Traits } from "../src/keys.ts";
 // `BrandOf` is not published from the entry point.
 import type {

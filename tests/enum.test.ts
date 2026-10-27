@@ -7,9 +7,6 @@ import {
   type PrivateSeal,
   type Rec,
   type Unpatchable,
-} from "../src/index.ts";
-import type { CallBuildFirst } from "../src/val.ts";
-import {
   Enum,
   Trait,
   type AnyEnum,
@@ -23,7 +20,8 @@ import {
   Otherwise,
   Tag,
   type VariantOf,
-} from "../src/experimental.ts";
+} from "../src/index.ts";
+import type { CallBuildFirst } from "../src/val.ts";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>()

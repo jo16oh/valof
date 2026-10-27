@@ -1,7 +1,6 @@
 // What `Trait` adds on top of `core.ts`: the same shapes, plus the brand check on `Val`, the
 // `Self` substitution in `implTrait`, a `Dyn` box, and an `implAssoc` member over boxes.
-import { Val } from "valof";
-import { Trait, type Dyn, type Final, type Self } from "valof/experimental";
+import { Trait, Val, type Dyn, type Final, type Self } from "valof";
 
 type Named = Trait<
   "Named",

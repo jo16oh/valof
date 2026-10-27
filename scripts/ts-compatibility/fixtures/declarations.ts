@@ -1,8 +1,18 @@
 // Exports the book does not show. Each inferred type references a type or key no entry exports, so
 // its `.d.ts` emits only when the package exposes that type by a path a consumer can import, or
 // when the type is written by an exported name.
-import { Val, type PrivateCreate, type PrivateSeal, type Rec, type Unpatchable } from "valof";
-import { Enum, Tag, Trait, type Final, type Self } from "valof/experimental";
+import {
+  Enum,
+  Tag,
+  Trait,
+  Val,
+  type Final,
+  type PrivateCreate,
+  type PrivateSeal,
+  type Rec,
+  type Self,
+  type Unpatchable,
+} from "valof";
 
 export type Greetable = Trait<
   "Greetable",

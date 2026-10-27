@@ -19,21 +19,20 @@ const suite = Suite.seal([
   Bundle.seal({
     key: "trait",
     name: "Trait",
-    imports: Imports.seal({ "./dist/experimental.js": ["Trait.companion"] }),
+    imports: Imports.seal({ "./dist/index.js": ["Trait.companion"] }),
     budget: 256,
   }),
   Bundle.seal({
     key: "enum",
     name: "Enum",
-    imports: Imports.seal({ "./dist/experimental.js": ["Enum.companion"] }),
+    imports: Imports.seal({ "./dist/index.js": ["Enum.companion"] }),
     budget: 640,
   }),
   Bundle.seal({
     key: "features",
     name: "Equals + Enum + Trait",
     imports: Imports.seal({
-      "./dist/index.js": ["equals"],
-      "./dist/experimental.js": ["Enum.companion", "Trait.companion"],
+      "./dist/index.js": ["equals", "Enum.companion", "Trait.companion"],
     }),
     budget: 1024,
   }),
@@ -41,8 +40,7 @@ const suite = Suite.seal([
     key: "all",
     name: "All",
     imports: Imports.seal({
-      "./dist/index.js": ["equals", "Val.of", "Val.unwrap"],
-      "./dist/experimental.js": ["Enum.companion", "Trait.companion"],
+      "./dist/index.js": ["equals", "Val.of", "Val.unwrap", "Enum.companion", "Trait.companion"],
     }),
     budget: 1024,
   }),

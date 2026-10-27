@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, test, vi } from "vite-plus/test";
-import type { Enum as EnumOf } from "../src/experimental.ts";
-import type { Val as Value } from "../src/index.ts";
+import type { Enum as EnumOf, Val as Value } from "../src/index.ts";
 
 const previousNodeEnv = vi.hoisted(() => {
   const previous = process.env["NODE_ENV"];
@@ -8,8 +7,7 @@ const previousNodeEnv = vi.hoisted(() => {
   return previous;
 });
 
-import { Enum } from "../src/experimental.ts";
-import { Val } from "../src/index.ts";
+import { Enum, Val } from "../src/index.ts";
 
 afterAll(() => {
   if (previousNodeEnv === undefined) delete process.env["NODE_ENV"];
