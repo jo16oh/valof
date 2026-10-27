@@ -767,7 +767,8 @@ type VariantSteps<
           /**
            * Replaces this variant's seal. It takes the payload with its tag, and the seal it
            * receives brands the payload and copies it. Its parameter may be wider than the payload,
-           * up to `object`, so a schema library can validate it.
+           * so a schema library can validate it. It may not accept a string: decode a wire format
+           * before sealing.
            */
           implSeal: "create" extends S
             ? (seal: "write `implSeal` before `implCreate`") => After<E, O, VM, M, unknown>
@@ -864,8 +865,8 @@ export type EnumBuilder<
              * `seal`, `create` and `patch` do not pass through it.
              *
              * This is the place to check a payload that has not been validated, such as an object
-             * from `JSON.parse`. Its parameter may be wider than the payload, up to `object`, so a
-             * schema library can validate it. It runs before the tag selects a variant, so it can
+             * from `JSON.parse`. Its parameter may be wider than the payload, so a schema library
+             * can validate it, but may not accept a string. It runs before the tag selects a variant, so it can
              * also reject a tag that selects no variant.
              */
             implSeal: "implCreate" extends D
