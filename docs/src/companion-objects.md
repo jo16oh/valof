@@ -31,8 +31,8 @@ companion. `.build()` ends the chain and returns the companion. Every `.impl` me
 first, so Valof infers that parameter as `User`. You only annotate the parameters that follow it,
 and the return type where a member references `User` itself.
 
-The function passed to `.impl` receives `seal`, `create` and `patch`. A member calling them does not
-reference `User`, so its return type needs no annotation.
+The function passed to `.impl` receives `seal`, and `create` and `patch` where the companion has
+them. A member calling them does not reference `User`, so its return type needs no annotation.
 
 A function that does not take the Val as its first argument, such as one that parses it from a
 string or aggregates an array of Vals into one, is registered with `.implAssoc`. See
