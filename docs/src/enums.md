@@ -264,7 +264,7 @@ from the companion passed to it. If both declared the trait, `Named.dyn(Item, bo
 
 ## Companion options
 
-`Enum.companion` accepts the same options as `Val.companion`, in a list after the enum.
+`Enum.companion` takes the same options as `Val.companion`, in its second type argument.
 `Unpatchable<"id">` excludes `id` from `patch` on every variant that has it:
 
 ```ts
