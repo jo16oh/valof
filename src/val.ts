@@ -372,7 +372,7 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
  *
  * - omit the key → leave it unchanged
- * - `{ k: undefined }` → delete it (only optional keys allow this at the type level)
+ * - `{ k: undefined }` → delete it (under `exactOptionalPropertyTypes`, for an optional key only)
  * - `{ k: value }` → set it
  * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required `k` only
  *
