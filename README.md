@@ -108,13 +108,13 @@ function main() {
     tags: ["docs"],
   });
 
-  if ("err" in result) return;
+  if ("err" in result) throw result.err;
   const task = result.ok;
 
   task.status._tag; // "Todo"
 
   const done = Task.complete(task, "10-27");
-  if ("err" in done) return;
+  if ("err" in done) throw done.err;
   done.ok.status._tag; // "Done"
   done.ok.tags === task.tags; // true: structural sharing
 
