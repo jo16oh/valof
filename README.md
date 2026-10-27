@@ -56,8 +56,9 @@ It enforces the conventions through types and linting.
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 [^seal]:
-    `Val.of` applies the default seal rather than a companion's. A `create` registered with
-    `.implCreate.noseal` skips the seal in production.
+    `Val.of` is an escape hatch that applies the default seal rather than a companion's, and the
+    [linter](https://jo16oh.github.io/valof/latest/linting.html#rules) warns on it for a type that
+    has a companion. A `create` registered with `.implCreate.noseal` skips the seal in production.
 
 Read [The Valof Book](https://jo16oh.github.io/valof/latest/) for more details.
 

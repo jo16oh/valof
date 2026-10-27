@@ -54,5 +54,6 @@ It enforces the conventions through types and linting.
 > [TypeScript problems Valof addresses](typescript-problems.md).
 
 [^seal]:
-    `Val.of` applies the default seal rather than a companion's. A `create` registered with
-    `.implCreate.noseal` skips the seal in production.
+    `Val.of` is an escape hatch that applies the default seal rather than a companion's, and the
+    [linter](linting.md#rules) warns on it for a type that has a companion. A `create` registered
+    with `.implCreate.noseal` skips the seal in production.
