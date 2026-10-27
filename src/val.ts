@@ -68,10 +68,10 @@ export type AnyVal = Phantom<string, unknown> & Verdict<true>;
  * ```
  *
  * Write it around the type being declared and nothing else. `Rec<number>` erases to `number`, and
- * `Rec<Other>` to `Other`: neither is a type error, so nothing reports either one. The type
- * parameter is unconstrained because checking a constraint would resolve the type that is still
- * being declared, which is the circularity this breaks.
+ * `Rec<Other>` to `Other`: neither is a type error, so nothing reports either one.
  */
+// The type parameter is unconstrained because checking a constraint would resolve the type that is
+// still being declared, which is the circularity this breaks.
 export interface Rec<V> {
   readonly [RecKey]: V;
 }
@@ -267,9 +267,9 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
  * A branded value type. A declared trait adds the fields it requires to the payload.
  *
  * A payload that breaks the allowed-type rules is a type error, and so is one that contradicts a
- * declared trait: both land in the verdict, which stops the Val satisfying {@link AnyVal}. See
- * {@link Verdicted}.
+ * declared trait.
  */
+// Both land in the verdict, which stops the Val satisfying `AnyVal`. See `Verdicted`.
 type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
   Grounded<Holding<T, Tr>>
 > &
@@ -1387,19 +1387,18 @@ type NotEnum<V> = [V] extends [AnyEnum]
  */
 export const of = /* @__PURE__ */ Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
   /**
-   * Uses a payload without copying it. With an explicit `V`, TypeScript cannot also infer
-   * the argument's precise readonlyness; the caller must ensure it will not change.
+   * Uses a payload without copying it. The caller must ensure it will not change.
    */
+  // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
+  // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
   nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
 });
 
 /**
- * The other direction: a plain, mutable copy of the payload, for code that does not know
- * about `readonly`.
- *
- * It copies because the brand is phantom: a Val is its payload at run time, so returning that
- * object under a mutable type would put the caller's writes into the value.
+ * A plain, mutable copy of the payload, for code that does not know about `readonly`.
  */
+// It copies because the brand is phantom: a Val is its payload at run time, so returning that
+// object under a mutable type would put the caller's writes into the value.
 export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 
 /**
@@ -1407,10 +1406,9 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
  *
  * A list may follow `V`: {@link PrivateSeal}, {@link PrivateCreate}, {@link Unpatchable}, as in
  * `Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()`.
- *
- * Constructors get their own steps rather than sitting in `.impl`, which fixes every
- * function's first parameter to the Val. A constructor does not fit that shape.
  */
+// Constructors get their own steps rather than sitting in `.impl`, which fixes every function's
+// first parameter to the Val. A constructor does not fit that shape.
 export const companion = <
   V extends AnyVal & NotEnum<V>,
   const O extends readonly CompanionOption<V>[] = [],

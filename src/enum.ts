@@ -108,10 +108,8 @@ declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
   protected readonly [EnumTypes]: [K, V, S, Tr, Tg, VT];
 }
 
-/**
- * Every enum, as a constraint. A broken declaration does not satisfy it, so one check covers the
- * companion and `match` alike.
- */
+/** Every enum, as a constraint. A broken declaration does not satisfy it. */
+// One check, so it covers the companion and `match` alike.
 export type AnyEnum = AnyVal &
   EnumPhantom<string, Record<string, object>, object, AnyTrait, string, Record<string, AnyTrait>>;
 
@@ -259,14 +257,13 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
 /**
  * One variant of the union.
  *
- * The top level is an intersection rather than an `Extract`, which is the same type and a
- * different hover: `Extract` resolves and the alias name goes with it, so an error prints the
- * expanded intersection.
- *
  * Write it where the variant is used, rather than giving it a second name with `type Circle =
  * VariantOf<Shape, "Circle">`. The prefix is what says which enum the variant belongs to, and a
  * variant is built through its companion for the same reason: `Shape.Circle.create({ r: 2 })`.
  */
+// The top level is an intersection rather than an `Extract`, which is the same type and a different
+// hover: `Extract` resolves and the alias name goes with it, so an error prints the expanded
+// intersection.
 export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
   `${NameOf<E>}.${N & string}`,
   VariantsOf<E>[N] & SharedOf<E> & { [P in TagOf<E>]: N & string },
@@ -284,11 +281,10 @@ export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
 /**
  * What a variant's `create` takes: its payload and the shared fields, without the tag. Its seal
  * takes this with the tag.
- *
- * Built from the declaration rather than from the variant. `SeedOf<VariantOf<E, N> & AnyVal>`
- * reads `unknown` off the second phantom and collapses to `{}`, which leaves `patch` accepting
- * anything.
  */
+// Built from the declaration rather than from the variant. `SeedOf<VariantOf<E, N> & AnyVal>`
+// reads `unknown` off the second phantom and collapses to `{}`, which leaves `patch` accepting
+// anything.
 export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
   VariantsOf<E>[N] & SharedOf<E>,
   true
@@ -648,10 +644,9 @@ export type EnumCompanion<
      * handler of their own, narrowed to them, and is a type error beside a handler for every
      * variant. {@link Otherwise} does the same, and is the only one that handles the rest where a
      * variant is named `_`.
-     *
-     * The return type is the handlers' union: taking it as a type argument of its own would fix
-     * it to the first handler and reject the rest. For a guard rather than a tag, use ts-pattern.
      */
+    // The return type is the handlers' union: taking it as a type argument of its own would fix
+    // it to the first handler and reject the rest.
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
   } & TraitHost;
@@ -834,11 +829,11 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
 /**
  * What `Enum.companion` returns, which its steps add to and `.build()` closes.
  *
-// The variants come first because the enum's seal hands the payload to theirs, so its type is
-// known once theirs are.
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * Each variant's steps come first, under its name. Then the enum's, in `Val`'s order: `implSeal`
+// The variants come first because the enum's seal hands the payload to theirs, so its type is
+// known once theirs are.
  * then `implCreate`, and `impl` (once), `implTrait` and `implAssoc` after them. The first of the
  * enum's steps takes the variants' off.
  */

@@ -29,17 +29,14 @@ export type Options = {
   overlay?: ReadonlyMap<string, string>;
 };
 
-/**
- * Reports what the type checker cannot. See {@link RULES} for what each rule looks for.
- *
- * Every file is walked once, by {@link scan}, and each rule runs over what it collected. There is
- * no branch per rule here: a rule is the object in `RULES`, and adding one changes nothing in
- * this function.
- *
- * The parser is loaded here rather than imported at the top: it is an optional peer dependency,
- * and a static import would be hoisted above the caller's own error handling once bundled,
- * turning a missing install into a stack trace instead of an instruction.
- */
+/** Reports what the type checker cannot. See {@link RULES} for what each rule looks for. */
+// Every file is walked once, by `scan`, and each rule runs over what it collected. There is no
+// branch per rule here: a rule is the object in `RULES`, and adding one changes nothing in this
+// function.
+//
+// The parser is loaded here rather than imported at the top: it is an optional peer dependency,
+// and a static import would be hoisted above the caller's own error handling once bundled, turning
+// a missing install into a stack trace instead of an instruction.
 export async function lint(
   files: readonly string[],
   { skip, report, overlay }: Options = {},
