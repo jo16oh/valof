@@ -113,6 +113,7 @@ function main() {
   done.ok.status._tag; // "Done"
   done.ok.tags === task.tags; // true: structural sharing
 
+  // Dynamic dispatch, as in Rust's `Box<dyn Trait>`. Each item calls its own type's `summarize`.
   const board: Dyn<Summarizable>[] = [
     Summarizable.dyn(Task, task),
     Summarizable.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
