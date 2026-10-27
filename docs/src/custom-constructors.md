@@ -188,9 +188,9 @@ Keep an invariant in the seal, and let a member only convert its input into a pa
 checks the string's format, and the seal checks the amount. A check written in a member does not run
 when another path builds the value, such as `patch` on an object payload.
 
-A member can be called with its first argument last, as an `.impl` member can with the value. One
-taking no argument is called as it is. A member cannot have an optional, a default or a rest
-parameter, and one referencing the companion annotates its return type.
+A member taking more than one argument can be called with its first argument last, as an `.impl`
+member can with the value. A member cannot have an optional, a default or a rest parameter, and one
+referencing the companion annotates its return type.
 
 ## Restrict the companion with options
 
