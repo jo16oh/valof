@@ -89,9 +89,9 @@ re-export a companion.
 | `.[VariantName].implAssoc(f)`         | adds the members `f` returns, which do not take that variant first |
 | `.build()`                            | ends the chain, and returns the companion                          |
 
-`.tag` comes first where the builder has it. Each variant's steps follow, in the same order as
-`Val.companion`'s. The enum's steps come after them, in that order. The first enum step removes the
-variants' steps from the chain.
+`.tag` comes first if the enum has a custom tag key. Each variant's steps follow, in the same order
+as `Val.companion`'s. The enum's steps come after them, in that order. The first enum step removes
+the variants' steps from the chain.
 
 The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `E.seal`, and
 `E.create` where the enum's `implCreate` registered one. The one passed to a variant's receives that

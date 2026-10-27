@@ -833,9 +833,10 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
  *
  * Inferred, not written: it is exported so your own declarations can name it.
  *
- * Each variant's steps come first, under its name. Then the enum's, in `Val`'s order: `implSeal`
- * then `implCreate`, and `impl` (once), `implTrait` and `implAssoc` after them. The first of the
- * enum's steps takes the variants' off.
+ * `.tag` comes first if the enum has a custom tag key. Each variant's steps come next, under its
+ * name. Then the enum's, in `Val`'s order: `implSeal` then `implCreate`, and `impl` (once),
+ * `implTrait` and `implAssoc` after them. The first of the enum's steps removes the variants' steps
+ * from the chain.
  */
 // The variants come first because the enum's seal hands the payload to theirs, so its type is
 // known once theirs are.
