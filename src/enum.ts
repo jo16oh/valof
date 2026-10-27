@@ -751,8 +751,8 @@ type VariantSteps<
   readonly patch: CallBuildFirst;
   implTrait: VariantTrait<E, O, VM, M, N>;
   /**
-   * Collects this variant's members that do not take it: `fromRadius`, a constant. Write it any
-   * number of times. See `Val`'s `implAssoc`.
+   * Collects this variant's members that do not take it first: `fromRadius`, a constant. Write it
+   * any number of times. See `Val`'s `implAssoc`.
    */
   implAssoc: <G extends AssocMembers>(
     fns: (
@@ -928,8 +928,8 @@ export type EnumBuilder<
         ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl", A>;
       }) & {
     /**
-     * Collects the members that do not take the union: `parse`, `fromArgs`, a constant. Write it
-     * any number of times. See `Val`'s `implAssoc`.
+     * Collects the members that do not take the union first: `parse`, `fromArgs`, a constant.
+     * Write it any number of times. See `Val`'s `implAssoc`.
      *
      * A member building a variant calls the variant's constructor through the companion, and
      * annotates its return type: `parse: (raw: string): Shape => Shape.Circle.create(…)`.

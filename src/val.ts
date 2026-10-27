@@ -808,8 +808,8 @@ export type CompanionBuilder<
         ) => CompanionBuilder<V, N, F, O, M & T, D | "impl", A>;
       }) & {
     /**
-     * Collects the members the function returns that do not take the Val: `fromRow`, `parse`, a
-     * constant. Write it any number of times.
+     * Collects the members the function returns that do not take the Val first: `fromRow`,
+     * `parse`, a constant. Write it any number of times.
      *
      * The function receives `seal`, and `create` and `patch` where the companion has them. A
      * member reaching the companion for anything else (a sibling or another step's member)

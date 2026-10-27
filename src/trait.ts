@@ -298,7 +298,7 @@ export type TraitBuilder<
    */
   build: () => TraitCompanion<Tr, G, A>;
   /**
-   * Collects members that do not take the trait, such as one over boxes:
+   * Collects members that do not take the trait first, such as one over boxes:
    * `total: (shapes: readonly Dyn<Sized>[]) => …`. Write it any number of times. The function
    * receives nothing.
    *
