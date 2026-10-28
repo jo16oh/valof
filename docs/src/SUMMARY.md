@@ -15,4 +15,4 @@
 - [Linting](linting.md)
 - [Patterns](patterns.md)
 - [Caveats](caveats.md)
-- [API](api.md)
+- [API Reference](api.md)
