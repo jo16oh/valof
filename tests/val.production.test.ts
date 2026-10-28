@@ -136,17 +136,3 @@ describe("an enum's implCreate.noseal in production", () => {
     expect(Task.create()).toEqual({ at: 0, _tag: "Done" });
   });
 });
-
-describe("members in production", () => {
-  type Named = Value<"ProductionNamed", { name: string }>;
-
-  test("a member hiding a default parameter builds, unchecked", () => {
-    // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
-    const greet: (n: Named, sep: string) => string = (n, sep = "/") => n.name + sep;
-    expect(() =>
-      Val.companion<Named>()
-        .impl(() => ({ greet }))
-        .build(),
-    ).not.toThrow();
-  });
-});

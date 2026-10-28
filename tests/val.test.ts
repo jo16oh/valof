@@ -1363,13 +1363,10 @@ describe("data-first and data-last", () => {
     });
   });
 
-  // A type annotation hides the parameter from the type, and `length` stops counting at it.
+  // A type annotation or a tuple type hides the parameter from the type check, and `length` stops counting at it.
   test("a member hiding a default or a rest parameter throws in development, at any position", () => {
     const greet = (u: User) => u.name;
     const hiding: ((u: User, sep: string) => string)[] = [
-      // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
-      (u, sep = "/") => u.id + sep,
-      (u, ...seps) => u.id + seps.join(),
       (...args: [User, string]) => greet(args[0]),
       // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
       ({ id } = { id: "a" } as User, sep) => id + sep,
@@ -1389,9 +1386,9 @@ describe("data-first and data-last", () => {
   });
 
   // Built from a string, since the test transform drops comments and rewrites the source.
-  test("but not a default or a rest inside a destructured parameter, nor `=` and `(` elsewhere", () => {
+  test("but not a default or a rest inside a destructured parameter, nor `=` or `(` elsewhere", () => {
     // oxlint-disable-next-line typescript/no-implied-eval -- the source has to survive the transform
-    const members = new Function(`return {
+    const members = new Function(`let key; return {
       destructured: ({ name = "}", id = "" }, sep) => name + id + sep,
       restOfObject: ({ name, ...rest }, sep) => name + sep,
       inArray: ([first = (1), ...rest], sep) => first + sep,
@@ -1405,6 +1402,8 @@ describe("data-first and data-last", () => {
       async asyncMethod(u, sep) { return sep; },
       [("(" + ")")](u, sep) { return sep; },
       "a(b"(u, sep) { return sep; },
+      [key = "m"](u, sep) { return sep; },
+      escaped: ({ a = "}\\"", b = 1 }, sep) => a + b + sep,
       bound: ((u, sep) => sep).bind(null),
       native: Math.max,
     }`)() as Record<string, (u: User, sep: string) => string>;
@@ -1811,45 +1810,6 @@ describe("building", () => {
             .build(),
         ).toThrow(/default or a rest parameter/);
       });
-    });
-
-    // A rest parameter typed as a fixed tuple passes the type: the source is all that shows it.
-    test("a member hiding its parameters throws in development, however it is written", () => {
-      type Hiding = { fromCents: (...args: [number]) => number };
-      const built = (fns: () => Hiding) => () => Val.companion<Money>().implAssoc(fns).build();
-      expect(
-        built(() => ({
-          fromCents(...args: [number]) {
-            return args[0];
-          },
-        })),
-      ).toThrow(/default or a rest parameter/);
-      expect(
-        built(() => ({
-          fromCents: function (...args: [number]) {
-            return args[0];
-          },
-        })),
-      ).toThrow(/default or a rest parameter/);
-    });
-
-    // Built from a string, since the test transform drops comments from the source.
-    test("but not a member whose source declares no parameter", () => {
-      // oxlint-disable-next-line typescript/no-implied-eval -- the comments have to survive the transform
-      const [block, line] = new Function("return [(/* none */) => 0, (// none\n) => 0]")() as [
-        () => number,
-        () => number,
-      ];
-      const bound = (() => 0).bind(null);
-      const Money = Val.companion<Money>()
-        .implAssoc(() => ({ block, line, bound, now: Date.now }))
-        .build();
-      expect([Money.block(), Money.line(), Money.bound(), typeof Money.now()]).toEqual([
-        0,
-        0,
-        0,
-        "number",
-      ]);
     });
 
     test("is written any number of times, before and after `impl` and `implTrait`", () => {

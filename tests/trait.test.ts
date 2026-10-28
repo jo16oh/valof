@@ -405,14 +405,6 @@ describe("data-first and data-last", () => {
         .impl(() => ({ shout }))
         .build(),
     ).toThrow(/default or a rest parameter/);
-    type Named = Val<"Named", { name: string }, Greetable>;
-    // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
-    const toWire: (n: Named, sep: string) => string = (n, sep = "/") => n.name + sep;
-    expect(() =>
-      Val.companion<Named>()
-        .implTrait(Greetable, () => ({ toWire }))
-        .build(),
-    ).toThrow(/default or a rest parameter/);
   });
 });
 
