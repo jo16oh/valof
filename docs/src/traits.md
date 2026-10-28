@@ -109,7 +109,7 @@ Admin.greet(Admin.seal({ name: "root", level: 9 })); // "Sir root"
 The function returns the members the trait does not implement, as both Vals return `toWire`. It may
 also return a default to replace it, as `Admin` replaces `greet`.
 
-## Defaults no Val may replace
+## Forbid replacing a default with `Final`
 
 Mark one `Final`:
 
@@ -272,7 +272,7 @@ implementations, so a variant cannot declare a trait that the enum already decla
 A function over boxes is registered on the trait's companion, with `.implAssoc`. `implTrait` does
 not copy it onto a Val.
 
-## Several traits on one Val
+## Implement several traits
 
 Intersect them in the declaration, and implement each in its own step:
 

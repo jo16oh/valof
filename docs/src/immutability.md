@@ -67,7 +67,7 @@ generic object utilities, such as `Object.assign`, write to a Val without a cast
 Only primitives, arrays and plain objects can live inside a Val. See
 [Allowed types](allowed-types.md).
 
-## Avoiding a copy
+## Avoid a copy with `.nocopy`
 
 `.nocopy` makes the payload the value without copying it. The default copy already skips anything
 inside a Val, so use `.nocopy` only where profiling shows the copy is a bottleneck.

@@ -32,7 +32,7 @@ through it.
 `Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
 payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
 reuses the registered create function and seal. Both carry the caller contract described in
-[Immutability](immutability.md#avoiding-a-copy).
+[Immutability](immutability.md#avoid-a-copy-with-nocopy).
 
 Valof provides no `Result` type. Use one from a library such as
 [byethrow](https://github.com/praha-inc/byethrow), or your own. Valof propagates the seal's return

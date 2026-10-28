@@ -114,7 +114,7 @@ const command = Command[Tag].match(input.tag, {
 As with `match`, every tag in the argument's type needs a handler, or `_` handles the rest. Without
 `_`, adding a variant to the declaration causes a type error here too.
 
-## Common shape for every variant
+## Share fields across variants
 
 The third type argument of `Enum` is the shape, which lists the fields that every variant has. A
 [trait](traits.md) takes the same shape, as its second type argument.
@@ -136,7 +136,7 @@ The third type argument also declares the [traits](traits.md) that the enum impl
 intersected into one variant's payload applies to that variant alone. See
 [Implement Traits on an Enum](traits.md#implement-traits-on-an-enum).
 
-## Custom tag key
+## Rename the tag
 
 The tag is real data, not a phantom type like the brand. It is serialized with the value, so you can
 rename it to the field name that an API already uses:
@@ -160,7 +160,7 @@ discriminator.
 
 ## Build the companion
 
-You build the companion in one chain. [`.tag`](#custom-tag-key) comes first if the enum has a custom
+You build the companion in one chain. [`.tag`](#rename-the-tag) comes first if the enum has a custom
 tag key. Each variant's steps come next, under the variant's name, as in `.Circle.impl(…)`. The
 enum's own steps come after them, and `.build()` ends the chain.
 
@@ -263,7 +263,7 @@ Task.create(Date.now()); // Task
 
 [`.implCreate.noseal`](custom-constructors.md#bypass-the-seal-in-create) also works on the enum.
 
-## Companion options
+## Restrict the companion with options
 
 `Enum.companion` takes the same
 [options](custom-constructors.md#restrict-the-companion-with-options) as `Val.companion`, in its
