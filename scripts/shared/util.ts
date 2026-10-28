@@ -8,7 +8,7 @@ export type JsonValue =
   | readonly JsonValue[]
   | { readonly [key: string]: JsonValue | undefined };
 
-/** A value an error can hold as a field. */
+/** A value an error accepts as a field. */
 export type Field = JsonValue | AnyVal;
 
 export type SerializedError = {
@@ -64,7 +64,7 @@ class DefinedErrorRoot extends Error {
   constructor(message?: string, options?: { cause?: unknown }) {
     if (options?.cause !== undefined && !(options.cause instanceof DefinedErrorRoot)) {
       throw new TypeError(
-        "cause takes only an error made by defineError; wrap others in toDefinedError",
+        "cause must be an error made by defineError; wrap others in toDefinedError",
       );
     }
     super(message, options);
@@ -85,7 +85,7 @@ const classes = new WeakMap<object, typeof DefinedErrorRoot>();
 
 /**
  * Defines an error whose cause is another defined error, and whose fields JSON can carry.
- * Without `init`, it takes the arguments of `Error`.
+ * Without `init`, the factory takes the arguments of `Error`.
  */
 export function defineError<Name extends string, P extends Parent | undefined = undefined>(
   name: Name,
@@ -105,7 +105,7 @@ export function defineError(name: string, a?: unknown, b?: unknown): unknown {
   const init = typeof a === "function" ? (a as (...args: unknown[]) => Init) : undefined;
   const parent = ((init ? b : a) as { extends?: object } | undefined)?.extends;
   const Base = parent ? classes.get(parent) : DefinedErrorRoot;
-  if (!Base) throw new TypeError("extends takes only an error made by defineError");
+  if (!Base) throw new TypeError("extends must be an error made by defineError");
 
   const Class = class extends Base {
     constructor(...args: unknown[]) {

@@ -28,7 +28,7 @@ describe("defineError", () => {
     expect(inspect(error)).toMatch(/^PlainError: outer/);
   });
 
-  test("turns the arguments into a message, a cause and fields with init", () => {
+  test("with init, turns the arguments into a message, a cause and fields", () => {
     const cause = PlainError("inner");
     const error = HttpError(503, "/users/1", cause);
     expectTypeOf(error.status).toEqualTypeOf<number>();
@@ -114,7 +114,7 @@ describe("toDefinedError", () => {
     });
   });
 
-  test("keeps a defined error that a native error holds as its cause", () => {
+  test("keeps a defined error in the cause of a native error", () => {
     const cause = PlainError("inner");
     expect(toDefinedError(new Error("outer", { cause })).cause).toBe(cause);
   });
