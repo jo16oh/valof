@@ -60,7 +60,9 @@ post.tags.push("typescript"); // type error: tags is readonly
 ```
 
 `readonly` exists only in the type system. In development, Valof also freezes values, so a write
-that uses a cast to bypass the type throws where it happens. Production builds skip the freeze.
+that uses a cast to bypass the type throws where it happens. Production builds skip the freeze. Some
+generic object utilities, such as `Object.assign`, write to a Val without a cast. See
+[Caveats](caveats.md#generic-object-utilities-can-bypass-readonly-and-sealing).
 
 Only primitives, arrays and plain objects can live inside a Val. See
 [Allowed types](allowed-types.md).
