@@ -264,9 +264,9 @@ Task.create(Date.now()); // Task
 
 ## Companion options
 
-`Enum.companion` takes the same [options](companion-objects.md#restrict-the-companion-with-options)
-as `Val.companion`, in its second type argument. `Unpatchable<"id">` excludes `id` from `patch` on
-every variant that has it:
+`Enum.companion` takes the same
+[options](custom-constructors.md#restrict-the-companion-with-options) as `Val.companion`, in its
+second type argument. `Unpatchable<"id">` excludes `id` from `patch` on every variant that has it:
 
 ```ts
 import { Enum, type Unpatchable, type VariantOptions } from "valof";
