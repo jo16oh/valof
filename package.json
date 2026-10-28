@@ -60,6 +60,7 @@
     "bump-version": "scripts/bump-version.sh"
   },
   "devDependencies": {
+    "@praha/byethrow": "^0.13.0",
     "@types/node": "^26.5.0",
     "better-result": "^3.0.1",
     "bumpp": "^11.1.0",
