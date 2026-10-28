@@ -34,6 +34,7 @@ and they take the value first.
 A Val declares its traits in the third argument, and its companion implements them:
 
 ```ts
+// @errors: 2322
 import { Trait, Val, type Self } from "valof";
 
 type Greetable = Trait<
@@ -53,6 +54,8 @@ const User = Val.companion<User>()
   .build();
 
 User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
+
+const duck: Greetable = { name: "duck" }; // type error: only a Val declaring Greetable is one
 ```
 
 `Trait.companion<Greetable>().build()` creates the trait's companion, even for a trait that
@@ -65,22 +68,6 @@ type is a type error.
 
 The `unimplemented-trait` rule in [valof-lint](linting.md) reports a Val that declared a trait and
 never implemented it.
-
-## A trait is a contract between Vals
-
-A plain object that happens to hold the fields is not one of them:
-
-```ts
-// @errors: 2322
-import { Trait, type Self } from "valof";
-// ---cut---
-type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
-
-const duck: Greetable = { name: "duck" }; // type error: the brand is missing
-```
-
-A Val declaring the trait carries its brand, and that brand is what the trait type asks for. The
-fields alone do not put it there, so only a Val that declared `Greetable` is assignable to it.
 
 ## Give a default implementation
 
