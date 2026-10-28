@@ -20,8 +20,8 @@ orderId = userId; // allowed: both types are string
 A [brand](val.md) lets TypeScript distinguish them without changing their runtime representation. A
 branded type normally needs a constructor that contains a type assertion. This keeps assertions out
 of callers, but every branded type still needs the same constructor boilerplate, including an `as`
-cast. A companion's `seal` is that constructor. Declare the type and its companion together;
-[branding](val.md#define-branded-types) covers names, construction and the rules that keep the brand
+cast. A companion's `seal` is that constructor. Declare the type and its companion together.
+[Val](val.md#define-branded-types) covers names, construction and the rules that keep the brand
 intact:
 
 ```ts
@@ -42,8 +42,8 @@ but updating one immutably still means rebuilding each object on the path.
 
 Valof makes these conventions the default. `Val` applies `DeepReadonly`, its constructor copies the
 input to remove mutable aliases, `patch` rebuilds only the paths it changes, and `.nocopy` is the
-explicit escape hatch for a payload that already has no mutable aliases;
-[immutability](immutability.md) shows the copy and `.nocopy` contracts:
+explicit escape hatch for a payload that already has no mutable aliases.
+[Immutability](immutability.md) shows the copy and `.nocopy` contracts:
 
 ```ts
 import { Val } from "valof";
@@ -103,8 +103,9 @@ the payload, and the seal turns the payload into a Val. A companion has one `sea
 validated, normalized Val or its failure, so the result type records that parsing succeeded.
 
 Start with `Val.companion<V>()` and register the checks with `.implSeal`. The resulting `.seal`
-returns the value or the seal's failure; [custom constructors](custom-constructors.md) explains
-schemas, normalization, generated fields and `.implAssoc`:
+returns the value or the seal's failure.
+[Custom Constructors and Invariants](custom-constructors.md) explains schemas, normalization,
+generated fields and `.implAssoc`:
 
 ```ts
 import { Val } from "valof";
@@ -171,8 +172,8 @@ missing `break`. `noFallthroughCasesInSwitch` catches the second, and the lint r
 `typescript/switch-exhaustiveness-check` catches the first, once you enable both.
 
 Declare variants in `Enum<...>` and create their companion with `Enum.companion<E>().build()`.
-`companion.match(value, handlers)` requires a handler for every variant, or `_` for the rest;
-[enums](enums.md#declare-the-variants) covers shared fields, custom seals and tags:
+`companion.match(value, handlers)` requires a handler for every variant, or `_` for the rest.
+[Enums](enums.md#declare-the-variants) covers shared fields, custom seals and tags:
 
 ```ts
 import { Enum } from "valof";
@@ -250,7 +251,7 @@ User.greet(admin); // type error: greet belongs to User
 behavior and sharing it are still two different things.
 
 Declare a `Trait`, add it to a Val's third type argument, then register its members with
-`.implTrait`; [traits](traits.md#declare-what-vals-share) covers defaults, enums and `dyn`:
+`.implTrait`. [Traits](traits.md#declare-what-vals-share) covers defaults, enums and `dyn`:
 
 ```ts
 import { Trait, Val, type Self } from "valof";
