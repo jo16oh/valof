@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Redirecting...</title>
+    <meta http-equiv="refresh" content="0; URL=adding-functions.html">
+    <link rel="canonical" href="adding-functions.html">
+  </head>
+  <body>
+      <p>Redirecting to... <a href="adding-functions.html">adding-functions.html</a>.</p>
+
+<script>
+    // This handles redirects that involve fragments.
+    document.addEventListener('DOMContentLoaded', function() {
+        const fragmentMap =
+            {"#collect-related-functions-in-a-companion-object":"adding-functions.html#add-functions-that-take-the-val","#patch-object-values":"default-companion.html#patch-object-values"}
+        ;
+        const fragment = window.location.hash;
+        if (fragment) {
+            let redirectUrl = "adding-functions.html";
+            const target = fragmentMap[fragment];
+            if (target) {
+                let url = new URL(target, window.location.href);
+                redirectUrl = url.href;
+            } else {
+                let url = new URL(redirectUrl, window.location.href);
+                url.hash = window.location.hash;
+                redirectUrl = url.href;
+            }
+            window.location.replace(redirectUrl);
+        }
+        // else redirect handled by http-equiv
+    });
+</script>
+  </body>
+</html>

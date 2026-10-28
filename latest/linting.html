@@ -30,8 +30,7 @@
 
         <!-- Custom theme stylesheets -->
         <link rel="stylesheet" href="tools/mdbook-shiki/shiki-9d24c977.css">
-        <link rel="stylesheet" href="tools/mdbook-sidebar/sidebar-1e8b11ca.css">
-        <link rel="stylesheet" href="theme-24ab3817.css">
+        <link rel="stylesheet" href="theme-a05b7638.css">
 
 
         <!-- Provide site root and default themes to javascript -->
@@ -39,10 +38,10 @@
             const path_to_root = "";
             const default_light_theme = "light";
             const default_dark_theme = "navy";
-            window.path_to_searchindex_js = "searchindex-881b5f55.js";
+            window.path_to_searchindex_js = "searchindex-2352cf54.js";
         </script>
         <!-- Start loading toc.js asap -->
-        <script src="toc-9254062f.js"></script>
+        <script src="toc-f1210d80.js"></script>
     </head>
     <body>
     <div id="mdbook-help-container">
@@ -107,9 +106,7 @@
 
         <nav id="mdbook-sidebar" class="sidebar" aria-label="Table of contents">
             <!-- populated by js -->
-            <mdbook-sidebar-accordion>
-                <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
-            </mdbook-sidebar-accordion>
+            <mdbook-sidebar-scrollbox class="sidebar-scrollbox"></mdbook-sidebar-scrollbox>
             <noscript>
                 <iframe class="sidebar-iframe-outer" src="toc.html"></iframe>
             </noscript>
@@ -206,7 +203,6 @@
 <tr><td><code>unnecessary-alias</code></td><td>a type alias that is a second name for a Val, a Trait or an Enum</td><td>error</td></tr>
 <tr><td><code>unimplemented-trait</code></td><td>a Trait a Val or an Enum declares that its companion does not implement</td><td>error</td></tr>
 <tr><td><code>companion-mismatch</code></td><td>a companion, or a variant, bound to a name other than its own</td><td>error</td></tr>
-<tr><td><code>detached-impl</code></td><td>an <code>impl</code> step written outside the chain that declares its companion</td><td>error</td></tr>
 <tr><td><code>split-companion</code></td><td>a companion for a type that another file declares</td><td>error</td></tr>
 <tr><td><code>bypassed-companion</code></td><td>a <code>Val.of</code> for a type whose companion is how it is built</td><td>warning</td></tr>
 <tr><td><code>unnamed-of</code></td><td>a <code>Val.of</code> that names no type, taking one from its target</td><td>warning</td></tr>
@@ -222,8 +218,8 @@ rule added next year included.</p>
 <p>The severity is what the <a href="linting.html#plugin-for-eslint-and-oxlint">plugin</a> sets, and a project can
 give any rule its own. The <a href="linting.html#cli">command</a> prints every finding the same way and exits 1
 on any of them.</p>
-<p>A member registered with <code>.impl({…})</code> is not tree-shaken, and knip does not report it when it
-becomes unused.</p>
+<p>A member registered with <code>.impl(() =&gt; ({…}))</code> is not tree-shaken, and knip does not report it when
+it becomes unused.</p>
 <h2 id="disable-comments"><a class="header" href="#disable-comments">Disable comments</a></h2>
 <p>Silence one line with a comment above it,</p>
 <pre class="shiki shiki-themes one-light one-dark-pro" style="--shiki-light:#383A42;--shiki-dark:#abb2bf;--shiki-light-bg:#FAFAFA;--shiki-dark-bg:#282c34" tabindex="0"><code><span class="line"><span style="--shiki-light:#A0A1A7;--shiki-light-font-style:italic;--shiki-dark:#7F848E;--shiki-dark-font-style:italic">// valof-lint-disable-next-line unused-member -- public API</span></span>
@@ -234,11 +230,11 @@ becomes unused.</p>
 <span class="line"><span style="--shiki-light:#A0A1A7;--shiki-light-font-style:italic;--shiki-dark:#7F848E;--shiki-dark-font-style:italic">// valof-lint-disable-all-whole-file -- generated, do not lint</span></span></code></pre>
 
 <p>Name the rules it silences, separated by a space or a comma. The comments follow two rules of their
-own, <code>incomplete-disable</code> and <code>unused-disable</code>, which are left out of a run and given a severity
+own, <code>incomplete-disable</code> and <code>unused-disable</code>, which can be left out of a run or given a severity
 like any other.</p>
 <h2 id="plugin-for-eslint-and-oxlint"><a class="header" href="#plugin-for-eslint-and-oxlint">Plugin for ESLint and Oxlint</a></h2>
-<p>The same rules, one per finding kind. Name one to give it its own severity, or turn it off. The
-project to read is one setting for all of them, a path or a list of them, and defaults to
+<p>The same rules, one per finding kind. Each rule can be given its own severity, or turned off, by its
+name. The project to read is one setting for all of them, a path or a list of them, and defaults to
 <code>src/**/*.ts</code>. A path starting with <code>!</code> is excluded from it.</p>
 <p>ESLint needs a parser that reads your TypeScript.</p>
 <pre class="shiki shiki-themes one-light one-dark-pro" style="--shiki-light:#383A42;--shiki-dark:#abb2bf;--shiki-light-bg:#FAFAFA;--shiki-dark-bg:#282c34" tabindex="0"><code><span class="line"><span style="--shiki-light:#A0A1A7;--shiki-light-font-style:italic;--shiki-dark:#7F848E;--shiki-dark-font-style:italic">// eslint.config.js</span></span>
@@ -291,11 +287,11 @@ report, so what a generated tree declares no longer applies to the rest.</p>
 
                     <nav class="nav-wrapper" aria-label="Page navigation">
                         <!-- Mobile navigation buttons -->
-                            <a rel="prev" href="api.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                            <a rel="prev" href="utilities.html" class="mobile-nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                             </a>
 
-                            <a rel="next prefetch" href="caveats.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                            <a rel="next prefetch" href="patterns.html" class="mobile-nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                                 <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                             </a>
 
@@ -305,11 +301,11 @@ report, so what a generated tree declares no longer applies to the rest.</p>
             </div>
 
             <nav class="nav-wide-wrapper" aria-label="Page navigation">
-                    <a rel="prev" href="api.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
+                    <a rel="prev" href="utilities.html" class="nav-chapters previous" title="Previous chapter" aria-label="Previous chapter" aria-keyshortcuts="Left">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M41.4 233.4c-12.5 12.5-12.5 32.8 0 45.3l160 160c12.5 12.5 32.8 12.5 45.3 0s12.5-32.8 0-45.3L109.3 256 246.6 118.6c12.5-12.5 12.5-32.8 0-45.3s-32.8-12.5-45.3 0l-160 160z"/></svg></span>
                     </a>
 
-                    <a rel="next prefetch" href="caveats.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
+                    <a rel="next prefetch" href="patterns.html" class="nav-chapters next" title="Next chapter" aria-label="Next chapter" aria-keyshortcuts="Right">
                         <span class=fa-svg><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 512"><!--! Font Awesome Free 6.2.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2022 Fonticons, Inc. --><path d="M278.6 233.4c12.5 12.5 12.5 32.8 0 45.3l-160 160c-12.5 12.5-32.8 12.5-45.3 0s-12.5-32.8 0-45.3L210.7 256 73.4 118.6c-12.5-12.5-12.5-32.8 0-45.3s32.8-12.5 45.3 0l160 160z"/></svg></span>
                     </a>
             </nav>
@@ -341,8 +337,6 @@ report, so what a generated tree declares no longer applies to the rest.</p>
         <script src="book-609e4cb8.js"></script>
 
         <!-- Custom JS scripts -->
-        <script src=".generated/mdbook-sidebar/headings.js"></script>
-        <script src="tools/mdbook-sidebar/sidebar-04f881af.js"></script>
 
 
 
