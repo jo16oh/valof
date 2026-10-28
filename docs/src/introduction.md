@@ -53,6 +53,79 @@ It enforces the conventions through types and linting.
 > For background on individual features, see
 > [TypeScript problems Valof addresses](typescript-problems.md).
 
+## Examples
+
+```ts
+import { Enum, Trait, Val, type Dyn, type Self } from "valof";
+
+type Result<T> = { ok: T } | { err: string };
+
+type TaskId = Val<"TaskId", string>;
+const TaskId = Val.companion<TaskId>().build();
+
+type Status = Enum<"Status", { Todo: { due: string }; Done: { at: string } }>;
+const Status = Enum.companion<Status>().build();
+
+type Summarizable = Trait<"Summarizable", { title: string }, { summarize: (self: Self) => string }>;
+const Summarizable = Trait.companion<Summarizable>().build();
+
+type Task = Val<"Task", { id: TaskId; status: Status; tags: string[] }, Summarizable>;
+const Task = Val.companion<Task>()
+  .implSeal((task, seal): Result<Task> =>
+    task.title.trim() === "" ? { err: "empty title" } : { ok: seal(task) },
+  )
+  .impl(({ patch }) => ({
+    complete: (task, at: string) => patch(task, { status: Status.Done.create({ at }) }),
+  }))
+  .implTrait(Summarizable, () => ({
+    summarize: (t): string =>
+      Status.match(t.status, {
+        Todo: (s) => `${t.title} (due ${s.due})`,
+        Done: () => `${t.title} (done)`,
+      }),
+  }))
+  .build();
+
+type Note = Val<"Note", { text: string }, Summarizable>;
+const Note = Val.companion<Note>()
+  .implTrait(Summarizable, () => ({ summarize: (n) => n.title }))
+  .build();
+
+function main() {
+  const result = Task.seal({
+    id: TaskId.seal("t1"),
+    title: "Write the README",
+    status: Status.Todo.create({ due: "10-31" }),
+    tags: ["docs"],
+  });
+
+  if ("err" in result) throw result.err;
+  const task = result.ok;
+
+  task.status._tag; // "Todo"
+
+  const done = Task.complete(task, "10-27");
+  if ("err" in done) throw done.err;
+  done.ok.status._tag; // "Done"
+  done.ok.tags === task.tags; // true: structural sharing
+
+  // Dynamic dispatch, as in Rust's `Box<dyn Trait>`. Each item calls its own type's `summarize`.
+  const board: Dyn<Summarizable>[] = [
+    Summarizable.dyn(Task, task),
+    Summarizable.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
+  ];
+  board.map((item) => item.summarize()).forEach((s) => console.log(s)); // "Write the README (due 10-31)", "Ideas"
+}
+
+function errors(task: Task) {
+  Task.seal({ ...task, title: " " }); // { err: "empty title" }
+  // @ts-expect-error a plain string has no TaskId brand
+  Task.seal({ ...task, id: "t2" });
+  // @ts-expect-error Vals are deeply readonly
+  task.tags.push("urgent");
+}
+```
+
 [^seal]:
     `Val.of` is an escape hatch that applies the default seal rather than a companion's, and the
     [linter](linting.md#rules) warns on it for a type that has a companion. A `create` registered
