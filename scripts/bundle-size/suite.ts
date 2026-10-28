@@ -36,7 +36,7 @@ export const Report = Val.companion<Report>().build();
 
 export type Suite = Val<"Suite", Bundle[]>;
 export const Suite = Val.companion<Suite>()
-  .impl({
+  .impl(() => ({
     base: (suite): R<Imports, NoBaseError> => {
       const [first, ...others] = suite
         .filter((bundle) => bundle.base)
@@ -94,5 +94,5 @@ export const Suite = Val.companion<Suite>()
 
         return R.ok(Report.seal({ base, bundles, separateBase }));
       }),
-  })
+  }))
   .build();

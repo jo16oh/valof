@@ -95,10 +95,10 @@ export function measure(
 
 type Code = Val<"Code", string>;
 const Code = Val.companion<Code>()
-  .impl({
-    minify: (code): R<Code, MinifyError> =>
+  .impl(({ seal }) => ({
+    minify: (code) =>
       R.try({
-        try: () => Code.seal(minifySync("bundle.mjs", code).code),
+        try: () => seal(minifySync("bundle.mjs", code).code),
         catch: (cause) => new MinifyError({ cause }),
       }),
     sizes: (code): R<Sizes, MinifyError> =>
@@ -115,26 +115,26 @@ const Code = Val.companion<Code>()
           }).byteLength,
         });
       }),
-  })
+  }))
   .build();
 
 type Module = Val<"Module", string>;
 const Module = Val.companion<Module>()
-  .impl({
+  .impl(() => ({
     /** Whether the module's source reads `NODE_ENV`, before `define` replaces it. */
-    readsNodeEnv: (module, mode: Mode): Promise<R<boolean, CompileError>> =>
+    readsNodeEnv: (module, mode: Mode) =>
       attempt(mode, "reading the library", async () =>
         (await readFile(module, "utf8")).includes("NODE_ENV"),
       ),
-  })
+  }))
   .build();
 
 type Compiled = Val<"Compiled", { code: Code; modules: Module[]; library: number }>;
 const Compiled = Val.companion<Compiled>()
-  .impl({
+  .impl(() => ({
     measure: (compiled): R<Build, MinifyError> =>
       Code.sizes(compiled.code).map((sizes) => Build.seal({ sizes, library: compiled.library })),
-  })
+  }))
   .build();
 
 function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError | CompileError>> {
