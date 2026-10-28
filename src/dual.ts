@@ -69,8 +69,8 @@ export type Omission<F> = F extends (...args: infer P) => unknown
  * is then `undefined`, as in a wrapped member. `loose` marks members that do not take the value.
  * Such a member may take no argument.
  *
- * Development throws on a member whose source shows a default or a rest parameter, which a type
- * annotation hides from {@link Arity}. `length` stops counting at the first one, so a data-last
+ * Development throws on a member whose source shows a default or a rest parameter. A type
+ * annotation can hide one from {@link Arity}, and `length` stops counting at it, so a data-last
  * call would run data-first.
  */
 export function createMembers(
@@ -83,7 +83,7 @@ export function createMembers(
     if (development && typeof f == "function") {
       if (hidesParameter(f)) {
         throw new TypeError(
-          "A member cannot have a default or a rest parameter: the argument count tells data-last from data-first.",
+          "A member cannot have a default or a rest parameter, because the argument count tells data-last from data-first.",
         );
       }
       if (!loose && !f.length) {
@@ -110,8 +110,8 @@ type AnyFn = (...args: unknown[]) => unknown;
 
 /**
  * Whether the parameter list in `f`'s source has `=` or `...` at its top level. One inside a
- * destructured parameter does not shorten `length`, so it passes. The list is the first `(` outside
- * brackets, which skips a computed method key. An arrow reached first means a bare `x =>`. Strings
+ * destructured parameter does not shorten `length`, so it is allowed. The list starts at the first `(`
+ * outside brackets, so a computed method key is skipped. An arrow reached first means a bare `x =>`. Strings
  * and comments are read as whole tokens. A bound or native function's source shows no parameter.
  */
 function hidesParameter(f: object): boolean {
