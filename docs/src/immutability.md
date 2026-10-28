@@ -24,7 +24,9 @@ Keeping a value unchanged requires both deep readonly types and a copy at constr
 
 ## Vals are immutable
 
-Vals are immutable. Their types are deeply readonly, and their constructors deep-copy their inputs:
+Vals are immutable. Their types are deeply readonly, and their constructors deep-copy their inputs.
+The copy skips anything already inside a Val, such as a nested Val or a branch taken from an
+existing Val:
 
 ```ts
 // @errors: 2540
@@ -40,6 +42,9 @@ const profile = Profile.seal(raw);
 profile.address.city = "Tokyo"; // type error: Vals are deeply readonly
 raw.address.city = "Tokyo";
 profile.address.city; // "Osaka"
+
+const renamed = Profile.seal({ ...profile, name: "bob" });
+renamed.address === profile.address; // true: not copied again
 ```
 
 Write the payload without `readonly`. `Val` makes it deeply readonly:

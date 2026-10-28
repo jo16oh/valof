@@ -34,9 +34,9 @@ payload passed to the default `seal` inside the custom seal. Likewise, `create.n
 reuses the registered create function and seal. Both carry the caller contract described in
 [Immutability](immutability.md#avoiding-a-copy).
 
-Valof provides no `Result` type. [neverthrow](https://github.com/supermacro/neverthrow),
-[better-result](https://better-result.dev) and your own type all work. Valof propagates the seal's
-return type without inspecting it.
+Valof provides no `Result` type. Use one from a library such as
+[byethrow](https://github.com/praha-inc/byethrow), or your own. Valof propagates the seal's return
+type without inspecting it.
 
 A schema library can parse a wider input before calling the default seal:
 
@@ -145,8 +145,9 @@ SessionId.seal(input); // SessionId | undefined
 
 `.implCreate.noseal` takes no arguments. A payload that depends on arguments should pass through the
 seal to be normalized. The function passed to `.noseal` must always return a canonical payload. In
-production, `create` skips the custom seal. In development, it runs the seal and throws if the seal
-rejects or normalizes the payload.
+production, `create` skips the custom seal. It still copies the payload, skipping anything already
+inside a Val, as [`seal`](immutability.md#vals-are-immutable) does. In development, it runs the seal
+and throws if the seal rejects or normalizes the payload.
 
 ## Define other constructors with `implAssoc`
 
