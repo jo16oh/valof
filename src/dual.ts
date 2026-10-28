@@ -112,9 +112,10 @@ type AnyFn = (...args: unknown[]) => unknown;
  * Whether the parameter list in `f`'s source has `=` or `...` at its top level. One inside a
  * destructured parameter does not shorten `length`, so it is allowed. The list starts at the first
  * `(` outside brackets, so a computed method key is skipped. An arrow reached first means a bare
- * `x =>`. Strings, templates, regular expressions and comments are skipped whole. A `/` is a
- * regular expression after a punctuator, and a division after a name, a number or a closing
- * bracket. A bound or native function's source shows no parameter.
+ * `x =>`. Strings, regular expressions, comments and a template's literal text are skipped whole.
+ * A template's `${}` is read as code. A `/` is a division after a name, a literal or a closing
+ * bracket, and a regular expression after any other punctuator. A bound or native function's
+ * source shows no parameter.
  */
 function hidesParameter(f: object): boolean {
   const source = Function.prototype.toString.call(f);
