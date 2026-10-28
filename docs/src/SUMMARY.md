@@ -11,7 +11,7 @@
   - [Custom Constructors and Invariants](custom-constructors.md)
 - [Enums](enums.md)
 - [Traits](traits.md)
-- [Utilities](utilities.md)
+- [Other Functions](utilities.md)
 - [Linting](linting.md)
 - [Patterns](patterns.md)
 - [Caveats](caveats.md)
