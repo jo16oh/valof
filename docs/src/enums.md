@@ -1,11 +1,11 @@
 # Enums
 
-An enum is a discriminated union declared in one place. Each variant is a Val, and the enum is the
-union of those Vals. The variants form a closed set, so TypeScript can check that every variant is
-handled.
+An enum is a discriminated union declared in one place. Each variant is a [Val](val.md), and the
+enum is the union of those Vals. The variants form a closed set, so TypeScript can check that every
+variant is handled.
 
 > For the limits of a hand-written discriminated union, see
-> [TypeScript problems Valof addresses](typescript-problems.md#enums).
+> [TypeScript Problems Valof Addresses](typescript-problems.md#enums).
 
 ## Declare the variants
 
@@ -30,7 +30,7 @@ Call a variant through the companion, as in `Shape.Circle.create(…)`.
 
 The default `create` takes every field except the tag. It adds the tag field and passes the payload
 to the variant's seal. The seal takes a payload that includes the tag field. To build a value from a
-tag alone, see [Build a value](#build-a-value).
+tag alone, see [`Shape[Tag].match`](#build-a-value-from-a-payload-or-a-tag).
 
 `patch` cannot change the tag, so it cannot turn a value into another variant.
 
@@ -75,7 +75,7 @@ const size = Shape.match(shape, {
 
 `_` also handles a variant added to the declaration later, with no type error.
 
-## Build a value
+## Build a value from a payload or a tag
 
 An enum value can be built from three kinds of input, and each has its own call:
 
@@ -114,7 +114,7 @@ const command = Command[Tag].match(input.tag, {
 As with `match`, every tag in the argument's type needs a handler, or `_` handles the rest. Without
 `_`, adding a variant to the declaration causes a type error here too.
 
-## Common shape for every variant
+## Share fields across variants
 
 The third type argument of `Enum` is the shape, which lists the fields that every variant has. A
 [trait](traits.md) takes the same shape, as its second type argument.
@@ -133,11 +133,33 @@ Every variant's `create` and seal require those fields. A value of the union typ
 can read them without narrowing it.
 
 The third type argument also declares the [traits](traits.md) that the enum implements. See
-[Implement Traits on an Enum](traits.md#implement-traits-on-an-enum).
+[Implement traits on an enum](traits.md#implement-traits-on-an-enum).
+
+## Rename the tag
+
+The tag is real data, not a phantom type like the brand. It is serialized with the value, so you can
+rename it to the field name that an API already uses:
+
+```ts
+import { Enum, Tag } from "valof";
+// ---cut---
+type Event = Enum<"Event", { Click: { x: number }; Key: { code: string } }, Tag<"kind">>;
+const Event = Enum.companion<Event>().tag("kind").build();
+
+Event.Click.create({ x: 1 }); // { x: 1, kind: "Click" }
+Event[Tag].key; // "kind"
+```
+
+`Tag` is declared in the third type argument, beside the shared fields, because every variant has
+the tag field. `.tag` is required for a renamed tag, and it rejects a misspelled name. With the
+default tag, the builder has no `.tag`.
+
+`Event[Tag].key` returns the tag field's name. Pass it to a schema library that asks for the
+discriminator.
 
 ## Build the companion
 
-You build the companion in one chain. [`.tag`](#custom-tag-key) comes first if the enum has a custom
+You build the companion in one chain. [`.tag`](#rename-the-tag) comes first if the enum has a custom
 tag key. Each variant's steps come next, under the variant's name, as in `.Circle.impl(…)`. The
 enum's own steps come after them, and `.build()` ends the chain.
 
@@ -163,15 +185,15 @@ const Shape = Enum.companion<Shape>()
 Shape.Circle.diameter(Shape.Circle.create({ r: 2 })); // 4
 ```
 
-A variant with no steps keeps the default companion. Write a variant's steps in the same order as in
-`Val.companion`: `implSeal`, then `implCreate`, then `impl` (once), `implTrait` and `implAssoc` in
-any order. Write the enum's steps in the same order too. After the first enum step, the chain no
-longer offers the variants' steps.
+A variant with no steps keeps the default companion. Write a variant's steps, and then the enum's,
+in the [same order as in `Val.companion`](default-companion.md). After the first enum step, the
+chain no longer offers the variants' steps.
 
 ## Check the payload
 
-A variant's `.implSeal` replaces the variant's seal. The tag is a field of the payload, so the seal
-can check it like any other field:
+A variant's `.implSeal` replaces the variant's seal, as
+[on a Val](custom-constructors.md#validate-in-the-seal). The tag is a field of the payload, so the
+seal can check it like any other field:
 
 ```ts
 import { Enum } from "valof";
@@ -216,8 +238,9 @@ variant's own `seal`, `create` and `patch` do not run the enum's `.implSeal`.
 
 ## Create a payload
 
-Each variant has a default `create`, which takes every field except the tag. The enum has no default
-`create`. `.implCreate` replaces a variant's `create`, or adds one to the enum.
+Unlike its variants, the enum has no default `create`.
+[`.implCreate`](custom-constructors.md#generate-fields-with-create) replaces a variant's `create`,
+or adds one to the enum.
 
 A function given to a variant's `.implCreate` returns a payload without the tag field. Valof adds
 the tag field before the variant's seal receives the payload. A function given to the enum's
@@ -237,35 +260,13 @@ Task.Todo.create("write the docs"); // VariantOf<Task, "Todo">
 Task.create(Date.now()); // Task
 ```
 
-`.implCreate.noseal` also works on the enum.
+[`.implCreate.noseal`](custom-constructors.md#bypass-the-seal-in-create) also works on the enum.
 
-## A trait on one variant
+## Restrict the companion with options
 
-A trait intersected into one variant's payload applies to that variant alone, and that variant
-implements it:
-
-```ts
-import { Enum, Trait, type Self } from "valof";
-// ---cut---
-type Named = Trait<"Named", { label: string }, { named: (self: Self) => string }>;
-const Named = Trait.companion<Named>().build();
-
-type Item = Enum<"Item", { Book: { pages: number } & Named; Pen: { ink: string } }>;
-const Item = Enum.companion<Item>()
-  .Book.implTrait(Named, () => ({ named: (b) => `${b.label}, ${b.pages} pages` }))
-  .build();
-
-Named.dyn(Item.Book, Item.Book.create({ label: "Dune", pages: 412 })).named(); // "Dune, 412 pages"
-```
-
-A variant cannot declare a trait that the enum already declares. `dyn` selects the implementation
-from the companion passed to it. If both declared the trait, `Named.dyn(Item, book)` and
-`Named.dyn(Item.Book, book)` would call different implementations.
-
-## Companion options
-
-`Enum.companion` takes the same options as `Val.companion`, in its second type argument.
-`Unpatchable<"id">` excludes `id` from `patch` on every variant that has it:
+`Enum.companion` takes the same
+[options](custom-constructors.md#restrict-the-companion-with-options) as `Val.companion`, in its
+second type argument. `Unpatchable<"id">` excludes `id` from `patch` on every variant that has it:
 
 ```ts
 import { Enum, type Unpatchable, type VariantOptions } from "valof";
@@ -289,28 +290,6 @@ const Order = Enum.companion<
 variant from its tag. `PrivateCreate` removes `create`, whether it is the default one or one
 registered with `.implCreate`. On the enum, it removes `Order.create` and every variant's `create`.
 In `VariantOptions`, it removes that variant's `create`.
-
-## Custom tag key
-
-The tag is real data, not a phantom type like the brand. It is serialized with the value, so you can
-rename it to the field name that an API already uses:
-
-```ts
-import { Enum, Tag } from "valof";
-// ---cut---
-type Event = Enum<"Event", { Click: { x: number }; Key: { code: string } }, Tag<"kind">>;
-const Event = Enum.companion<Event>().tag("kind").build();
-
-Event.Click.create({ x: 1 }); // { x: 1, kind: "Click" }
-Event[Tag].key; // "kind"
-```
-
-`Tag` is declared in the third type argument, beside the shared fields, because every variant has
-the tag field. `.tag` must be the first step. `.tag` is required for a renamed tag, and it rejects a
-misspelled name. With the default tag, the builder has no `.tag`.
-
-`Event[Tag].key` returns the tag's name. Pass it to a schema library that asks for the
-discriminator.
 
 ## Use a variant's type
 

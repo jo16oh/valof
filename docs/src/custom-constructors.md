@@ -1,9 +1,10 @@
-# Custom constructors
-
-## Validate in the seal
+# Custom Constructors and Invariants
 
 Without `.implSeal`, a companion's `seal` accepts every payload allowed by the type. When
-construction has rules of its own, replace it with `.implSeal`.
+construction has rules of its own, replace it with `.implSeal`. Every other constructor passes its
+payload to that seal, so the seal checks every Val the companion builds.
+
+## Validate in the seal
 
 Write the checks directly in the seal:
 
@@ -25,17 +26,16 @@ const Age = Val.companion<Age>()
   .build();
 ```
 
-`.implSeal` replaces the companion's `seal`. Return through the default seal, passed as its second
-argument, to brand and copy the payload.
+The custom seal receives the default seal as its second argument, and brands and copies the payload
+through it.
 
 `Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
-payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
-reuses the registered create function and seal. Both carry the caller contract described in
-[Immutability](immutability.md#avoiding-a-copy).
+payload passed to the default `seal` inside the custom seal. It carries the caller contract
+described in [Immutability](immutability.md#avoid-a-copy-with-nocopy).
 
-Valof provides no `Result` type. [neverthrow](https://github.com/supermacro/neverthrow),
-[better-result](https://better-result.dev) and your own type all work. Valof propagates the seal's
-return type without inspecting it.
+Valof provides no `Result` type. Use one from a library such as
+[byethrow](https://github.com/praha-inc/byethrow), or your own. Valof propagates the seal's return
+type without inspecting it.
 
 A schema library can parse a wider input before calling the default seal:
 
@@ -116,9 +116,12 @@ const User = Val.companion<User>()
 User.create(fields); // Result<User>
 ```
 
-**A seal must be idempotent.** `patch` on an object-shaped Val and any registered `create` pass
-their payloads through your seal. Sealing a value's own payload must return that value. **Generate
-an id or timestamp in `create`, not in `seal`**.
+`create.nocopy(...args)` reuses the registered create function and seal, but does not copy the
+payload. It carries the same caller contract as `seal.nocopy`.
+
+**A seal must be idempotent.** `patch` on a Val that holds an object payload and any registered
+`create` pass their payloads through your seal. Sealing a value's own payload must return that
+value. **Generate an id or timestamp in `create`, not in `seal`**.
 
 ## Bypass the seal in `create`
 
@@ -144,13 +147,14 @@ SessionId.seal(input); // SessionId | undefined
 
 `.implCreate.noseal` takes no arguments. A payload that depends on arguments should pass through the
 seal to be normalized. The function passed to `.noseal` must always return a canonical payload. In
-production, `create` skips the custom seal. In development, it runs the seal and throws if the seal
-rejects or normalizes the payload.
+production, `create` skips the custom seal. It still copies the payload, skipping anything already
+inside a Val, as [`seal`](immutability.md#vals-are-immutable) does. In development, it runs the seal
+and throws if the seal rejects or normalizes the payload.
 
 ## Define other constructors with `implAssoc`
 
-An `.impl` member takes the Val first. A function that builds the Val from something else, such as a
-string or several other values, is registered with `.implAssoc`:
+[`.implAssoc`](adding-functions.md#add-functions-that-do-not-take-the-val) registers a function that
+builds the Val from something else, such as a string or several other values:
 
 ```ts
 import { Val } from "valof";
@@ -180,40 +184,18 @@ Yen.parse("¥99999999999999999"); // Err("must be a non-negative safe integer")
 Yen.sum(yens); // Result<Yen>
 ```
 
-The function receives the same `seal`, `create` and `patch` as the one passed to `.impl`. `seal` is
-the companion's, so the custom seal checks what `parse` and `sum` build. Write `.implAssoc` after
-`.implSeal` and `.implCreate`, any number of times.
-
 Keep an invariant in the seal, and let a member only convert its input into a payload. `parse`
 checks the string's format, and the seal checks the amount. A check written in a member does not run
 when another path builds the value, such as `patch` on an object payload.
 
-A member taking more than one argument can be called with its first argument last. A member cannot
-have an optional, a default or a rest parameter, and one referencing the companion annotates its
-return type.
-
 ## Restrict the companion with options
 
-Options in a list after the type in `Val.companion` restrict what the companion offers callers. Any
-of them can be combined.
-
-### Hide `seal` and `create`
+Options in the second type argument of `Val.companion` restrict what the companion offers callers.
+Any of them can be combined.
 
 `create` can generate an id. `PrivateSeal` removes `seal` from the companion, so a caller cannot
-pass an id of their own.
-
-`PrivateCreate` removes `create` from the companion. Use it when callers should build the type
-through `seal` or other functions, not `create`. It protects no field, because the payload `create`
-returns passes the seal.
-
-The function passed to `impl`, `implTrait` and `implAssoc` still receives `seal` and `create`, so
-the companion's own members can build the type.
-
-### Exclude keys from `patch`
-
-`Unpatchable` excludes keys from `patch`, so an id keeps the value `create` generated.
-
-### Examples
+pass an id of their own. `Unpatchable` excludes keys from `patch`, so an id keeps the value `create`
+generated:
 
 ```ts
 // @errors: 2339 2353
@@ -232,6 +214,13 @@ User.seal({ id: "forged", name: "sue" }); // type error
 User.patch(user, { name: "sue" }); // OK
 User.patch(user, { id: "forged" }); // type error
 ```
+
+`PrivateCreate` removes `create` from the companion. Use it when callers should build the type
+through `seal` or other functions, not `create`. It protects no field, because the payload `create`
+returns passes the seal.
+
+The function passed to `.impl`, [`.implTrait`](traits.md#implement-it-on-a-val) and `.implAssoc`
+still receives `seal` and `create`, so the companion's own members can build the type.
 
 ## Parse, don't validate
 
@@ -291,7 +280,7 @@ Interval.patch(interval, { max: -1 }); // Err("min must not exceed max")
 
 Once a value has been successfully sealed as an `Interval`, its type guarantees that it is validated
 and normalized wherever it is passed, so downstream code does not need to repeat either step. The
-seals in this chapter put
+seals on this page put
 [**“parse, don't validate”**](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
 into practice. They return a validated, canonical Val instead of returning facts about the input.
 Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's

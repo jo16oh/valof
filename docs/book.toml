@@ -8,11 +8,6 @@ title = "The Valof Book"
 command = "node tools/mdbook-version/index.ts"
 renderers = ["html"]
 
-[preprocessor.sidebar]
-command = "node tools/mdbook-sidebar/index.ts"
-renderers = ["html"]
-default-open = false
-
 [preprocessor.shiki]
 command = "node tools/mdbook-shiki/index.ts"
 renderers = ["html"]
@@ -23,8 +18,13 @@ fallback-language = "text"
 
 [output.html]
 git-repository-url = "https://github.com/jo16oh/valof"
-additional-css = ["tools/mdbook-shiki/shiki.css", "tools/mdbook-sidebar/sidebar.css", "theme.css"]
-additional-js = [".generated/mdbook-sidebar/headings.js", "tools/mdbook-sidebar/sidebar.js"]
+additional-css = ["tools/mdbook-shiki/shiki.css", "theme.css"]
 
 [output.linkcheck2]
 follow-web-links = true
+
+[output.html.redirect]
+"/basics.html" = "val.html"
+"/companion-objects.html" = "adding-functions.html"
+"/companion-objects.html#collect-related-functions-in-a-companion-object" = "adding-functions.html#add-functions-that-take-the-val"
+"/companion-objects.html#patch-object-values" = "default-companion.html#patch-object-values"

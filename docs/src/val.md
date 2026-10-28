@@ -1,7 +1,9 @@
-# Branding
+# Val
+
+A Val is a branded, immutable type over plain data.
 
 > For the problem that branding solves, see
-> [TypeScript problems Valof addresses](typescript-problems.md#branding).
+> [TypeScript Problems Valof Addresses](typescript-problems.md#branding).
 
 ## Define branded types
 

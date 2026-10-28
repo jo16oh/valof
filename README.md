@@ -18,7 +18,8 @@
 npm install valof
 ```
 
-The recommended compiler options are `strict` and `exactOptionalPropertyTypes`.
+The recommended compiler options are `strict` (the default since TypeScript 6) and
+`exactOptionalPropertyTypes`.
 
 ## Why Valof?
 
@@ -56,9 +57,9 @@ It enforces the conventions through types and linting.
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 [^seal]:
-    `Val.of` is an escape hatch that applies the default seal rather than a companion's, and the
-    [linter](https://jo16oh.github.io/valof/latest/linting.html#rules) warns on it for a type that
-    has a companion. A `create` registered with `.implCreate.noseal` skips the seal in production.
+    Two paths skip a companion's seal:
+    [`Val.of`](https://jo16oh.github.io/valof/latest/utilities.html#valof) and
+    [`.implCreate.noseal`](https://jo16oh.github.io/valof/latest/custom-constructors.html#bypass-the-seal-in-create).
 
 Read [The Valof Book](https://jo16oh.github.io/valof/latest/) for more details.
 
