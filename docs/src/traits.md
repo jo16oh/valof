@@ -313,17 +313,3 @@ Weighed.dyn(Crate, crate).heavy(); // true
 Write `&`, not `|`.
 
 Each trait boxes on its own. No two traits on one Val may declare the same member name.
-
-## Names a member may not take
-
-A member name is rejected when a Val could not carry it:
-
-- a field's name from the trait's own shape
-- `patch`, `seal` or `create`, which the library defines
-- `dyn`, which the trait itself uses
-
-Each is reported where the trait is declared.
-
-A member may not take the name of a field the implementing Val holds. That includes a field another
-trait on the same Val requires. The colliding name comes from the Val, so this one is reported at
-`implTrait`.
