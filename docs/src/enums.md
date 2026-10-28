@@ -132,8 +132,7 @@ console.log(todo.id); // t1
 Every variant's `create` and seal require those fields. A value of the union type has them, so you
 can read them without narrowing it.
 
-The third type argument also declares the [traits](traits.md) that the enum implements. A trait
-intersected into one variant's payload applies to that variant alone. See
+The third type argument also declares the [traits](traits.md) that the enum implements. See
 [Implement traits on an enum](traits.md#implement-traits-on-an-enum).
 
 ## Rename the tag
@@ -152,8 +151,8 @@ Event[Tag].key; // "kind"
 ```
 
 `Tag` is declared in the third type argument, beside the shared fields, because every variant has
-the tag field. `.tag` must be the first step. `.tag` is required for a renamed tag, and it rejects a
-misspelled name. With the default tag, the builder has no `.tag`.
+the tag field. `.tag` is required for a renamed tag, and it rejects a misspelled name. With the
+default tag, the builder has no `.tag`.
 
 `Event[Tag].key` returns the tag field's name. Pass it to a schema library that asks for the
 discriminator.

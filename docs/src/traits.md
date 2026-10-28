@@ -209,12 +209,10 @@ const Item = Enum.companion<Item>()
 Item.Book.named(Item.Book.create({ label: "Dune", pages: 412 })); // "Dune, 412 pages"
 ```
 
-A variant cannot declare a trait that the enum already declares.
-
 ## Hold values of different types together
 
 `dyn` pairs a value with one Val's implementation, so values of different types share an array. The
-concrete type is gone; the trait is what is left. This is inspired by Rust's `Box<dyn Trait>`:
+concrete type is gone, and only the trait is left. This is inspired by Rust's `Box<dyn Trait>`:
 
 ```ts
 import { Trait, Val, type Dyn, type Self } from "valof";

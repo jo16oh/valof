@@ -47,7 +47,7 @@ const renamed = Profile.seal({ ...profile, name: "bob" });
 renamed.address === profile.address; // true: not copied again
 ```
 
-Write the payload without `readonly`. `Val` makes it deeply readonly:
+`Val` makes the payload deeply readonly:
 
 ```ts
 // @errors: 2339
@@ -69,7 +69,7 @@ Only primitives, arrays and plain objects can live inside a Val. See
 
 ## Avoid a copy with `.nocopy`
 
-`.nocopy` makes the payload the value without copying it. The default copy already skips anything
+`.nocopy` uses the payload as the value, without copying it. The default copy already skips anything
 inside a Val, so use `.nocopy` only where profiling shows the copy is a bottleneck.
 
 <!-- prettier-ignore -->

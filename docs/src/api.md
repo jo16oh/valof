@@ -43,15 +43,15 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 
 `User` stands for the companion that belongs to the `User` type.
 
-| API                             | Description                                                                                   |
-| ------------------------------- | --------------------------------------------------------------------------------------------- |
-| `User.seal(value)`              | applies the seal registered with `.implSeal(f)`, or the default one. Removed by `PrivateSeal` |
-| `User.seal.nocopy(value)`       | the same, without copying the payload                                                         |
-| `User.create(...args)`          | creates a payload with the function `.implCreate(f)` registered, then passes it to the seal   |
-| `User.create.nocopy(...args)`   | the same, without copying the payload                                                         |
-| `User.patch(user, patch)`       | deeply merges the patch, then seals it. Only for an object payload                            |
-| `User.[member](first, ...rest)` | runs a member registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`             |
-| `User.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument            |
+| API                             | Description                                                                                      |
+| ------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `User.seal(value)`              | applies the seal registered with `.implSeal(f)`, or the default one. Removed by `PrivateSeal`    |
+| `User.seal.nocopy(value)`       | the same, without copying the payload                                                            |
+| `User.create(...args)`          | creates a payload with the function registered with `.implCreate(f)`, then passes it to the seal |
+| `User.create.nocopy(...args)`   | the same, without copying the payload                                                            |
+| `User.patch(user, patch)`       | deeply merges the patch, then seals it. Only for an object payload                               |
+| `User.[member](first, ...rest)` | runs a member registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                |
+| `User.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument               |
 
 ## Val Types
 
@@ -67,7 +67,7 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | `Companion<V, M>`     | the companion `.build()` returns                        |
 
 You never write the builder and companion types, here or for an enum or a trait. They are exported
-so that your own `.d.ts` can name them when you re-export a companion.
+so that your own `.d.ts` can reference them when you re-export a companion.
 
 ## Enum Companion Builder
 
@@ -120,12 +120,12 @@ argument. They apply to the enum and every variant. To configure a specific vari
 | `E[Tag].match(handlers)(tag)`              | the same, with the tag last, for every tag                                                                                                   |
 | `E[Tag].key`                               | the tag field's name                                                                                                                         |
 | `E.seal(payload)`                          | builds the variant that the payload's tag selects. Removed by `PrivateSeal`                                                                  |
-| `E.create(...args)`                        | creates a payload with the function `.implCreate(f)` registered, then passes it to `E.seal`                                                  |
+| `E.create(...args)`                        | creates a payload with the function registered with `.implCreate(f)`, then passes it to `E.seal`                                             |
 | `E.[member](first, ...rest)`               | runs a member registered for the union with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                                              |
 | `E.[member](...rest)(first)`               | the same, with the first argument last, for a member taking more than one argument                                                           |
 | `E.[VariantName].seal(payload)`            | builds that variant from a payload including its tag. Removed by `PrivateSeal`                                                               |
 | `E.[VariantName].create(fields)`           | writes the tag and passes the payload to that variant's seal. Removed by `PrivateCreate`                                                     |
-| `E.[VariantName].create(...args)`          | the same, with the arguments of the function `.[VariantName].implCreate(f)` registered                                                       |
+| `E.[VariantName].create(...args)`          | the same, with the arguments of the function registered with `.[VariantName].implCreate(f)`                                                  |
 | `E.[VariantName].patch(value, patch)`      | derives a value of that variant, keeping the tag                                                                                             |
 | `E.[VariantName].[member](first, ...rest)` | runs a member registered for that variant with `.[VariantName].impl(f)`, `.[VariantName].implTrait(Tr, f?)` or `.[VariantName].implAssoc(f)` |
 | `E.[VariantName].[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument                                                           |
@@ -162,7 +162,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
 | `Tr.dyn(companion, value)`    | boxes a value with one Val's implementation                                              |
 | `Tr.[member](first, ...rest)` | runs a `Final` member registered with `.impl(f)`, or one registered with `.implAssoc(f)` |
-| `Tr.[member](...rest)(first)` | the same, with the first argument last, where the member takes more than one argument    |
+| `Tr.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument       |
 
 ## Trait Types
 

@@ -112,4 +112,4 @@ Shop.patch(shop, {}) === shop; // true
 ```
 
 Reference comparisons, such as React dependency arrays, can then skip work when their value did not
-change. Primitive and array Vals have no `patch`, because they have nothing to merge.
+change.

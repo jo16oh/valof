@@ -32,7 +32,7 @@ Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 ## Classes and functions
 
 Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
-all classes; see [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
+all classes. See [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
 TypeScript rejects them, on the first use of the Val rather than on the `type` line.
 
 A class of plain fields is the one TypeScript cannot distinguish from an object, and sealing one
@@ -55,8 +55,8 @@ const root = Tree.seal({ value: 2, children: [leaf] });
 root.children[0]; // Tree
 ```
 
-`Rec` is erased. The value holds a `Tree`, the constructor takes a `Tree`, and `patch` and the
-companion's members work as they do for any other type. It exists for the declaration alone.
+`Rec` is erased. The value holds a `Tree`, and the constructor takes one. It exists for the
+declaration alone.
 
 Without it the declaration compiles and the first use of the type fails.
 

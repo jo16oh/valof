@@ -30,9 +30,8 @@ The custom seal receives the default seal as its second argument, and brands and
 through it.
 
 `Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
-payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
-reuses the registered create function and seal. Both carry the caller contract described in
-[Immutability](immutability.md#avoid-a-copy-with-nocopy).
+payload passed to the default `seal` inside the custom seal. It carries the caller contract
+described in [Immutability](immutability.md#avoid-a-copy-with-nocopy).
 
 Valof provides no `Result` type. Use one from a library such as
 [byethrow](https://github.com/praha-inc/byethrow), or your own. Valof propagates the seal's return
@@ -117,6 +116,9 @@ const User = Val.companion<User>()
 User.create(fields); // Result<User>
 ```
 
+`create.nocopy(...args)` reuses the registered create function and seal, but does not copy the
+payload. It carries the same caller contract as `seal.nocopy`.
+
 **A seal must be idempotent.** `patch` on a Val that holds an object payload and any registered
 `create` pass their payloads through your seal. Sealing a value's own payload must return that
 value. **Generate an id or timestamp in `create`, not in `seal`**.
@@ -181,8 +183,6 @@ Yen.parse("¥120"); // Ok
 Yen.parse("¥99999999999999999"); // Err("must be a non-negative safe integer")
 Yen.sum(yens); // Result<Yen>
 ```
-
-The `seal` passed to `.implAssoc` is the custom seal, so it checks what `parse` and `sum` build.
 
 Keep an invariant in the seal, and let a member only convert its input into a payload. `parse`
 checks the string's format, and the seal checks the amount. A check written in a member does not run

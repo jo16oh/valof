@@ -60,7 +60,7 @@ User.formatLabel(user, ": ");
 
 ## Add functions that do not take the Val
 
-Register a function that does not take the Val as its first argument with `.implAssoc`:
+`.implAssoc` registers a function that does not take the Val as its first argument:
 
 ```ts
 import { Val } from "valof";

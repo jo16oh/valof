@@ -18,7 +18,7 @@
 npm install valof
 ```
 
-The recommended compiler options are `strict` (the default from TypeScript 6 on) and
+The recommended compiler options are `strict` (the default since TypeScript 6) and
 `exactOptionalPropertyTypes`.
 
 ## Why Valof?
