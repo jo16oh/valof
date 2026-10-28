@@ -1312,12 +1312,14 @@ describe("data-first and data-last", () => {
     });
 
     test("a default parameter", () => {
-      Val.companion<User>()
-        .impl(() => ({
-          // @ts-expect-error a parameter that can be left out
-          at: (u: User, n = 0) => u.name.at(n),
-        }))
-        .build();
+      expect(() =>
+        Val.companion<User>()
+          .impl(() => ({
+            // @ts-expect-error a parameter that can be left out
+            at: (u: User, n = 0) => u.name.at(n),
+          }))
+          .build(),
+      ).toThrow(/default or a rest parameter/);
     });
 
     test("a trailing parameter that takes `void`", () => {
@@ -1330,12 +1332,14 @@ describe("data-first and data-last", () => {
     });
 
     test("a rest parameter", () => {
-      Val.companion<User>()
-        .impl(() => ({
-          // @ts-expect-error a parameter that can be left out
-          joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
-        }))
-        .build();
+      expect(() =>
+        Val.companion<User>()
+          .impl(() => ({
+            // @ts-expect-error a parameter that can be left out
+            joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
+          }))
+          .build(),
+      ).toThrow(/default or a rest parameter/);
     });
 
     test("no parameter at all", () => {
@@ -1369,6 +1373,11 @@ describe("data-first and data-last", () => {
       (...args: [User, string]) => greet(args[0]),
       // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
       ({ id } = { id: "a" } as User, sep) => id + sep,
+      {
+        [String("m")](u: User, sep = "/") {
+          return u.id + sep;
+        },
+      }["m"]!,
     ];
     for (const member of hiding) {
       expect(() =>
@@ -1383,15 +1392,15 @@ describe("data-first and data-last", () => {
   test("but not a default or a rest inside a destructured parameter, nor `=` and `(` elsewhere", () => {
     // oxlint-disable-next-line typescript/no-implied-eval -- the source has to survive the transform
     const members = new Function(`return {
-      destructured: ({ name = ")" }, sep) => name + sep,
+      destructured: ({ name = "}", id = "" }, sep) => name + id + sep,
       restOfObject: ({ name, ...rest }, sep) => name + sep,
       inArray: ([first = (1), ...rest], sep) => first + sep,
       commented: (u /* = */, sep // ...
       ) => u.name + sep,
       inBody: (u, sep) => (sep = u.name),
-      bare: u => u.name,
+      bare: u => Math.max(...u.scores),
       async: async (u, sep) => sep,
-      keyword: function (u, sep) { return sep; },
+      keyword: function (u, sep) { sep = u.name; return sep; },
       method(u, sep) { return sep; },
       async asyncMethod(u, sep) { return sep; },
       [("(" + ")")](u, sep) { return sep; },

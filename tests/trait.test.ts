@@ -359,18 +359,22 @@ describe("data-first and data-last", () => {
 
   test("so is an implementation leaving out a parameter the declaration requires", () => {
     type Named = Val<"Named", { id: string; name: string }, Greetable>;
-    Val.companion<Named>()
-      .implTrait(Greetable, () => ({
-        // @ts-expect-error a parameter that can be left out
-        toWire: (n: Named, sep = "/") => n.id + sep,
-      }))
-      .build();
-    Val.companion<Named>()
-      .implTrait(Greetable, () => ({
-        // @ts-expect-error a parameter that can be left out
-        toWire: (n: Named, ...seps: string[]) => n.id + seps.join(),
-      }))
-      .build();
+    expect(() =>
+      Val.companion<Named>()
+        .implTrait(Greetable, () => ({
+          // @ts-expect-error a parameter that can be left out
+          toWire: (n: Named, sep = "/") => n.id + sep,
+        }))
+        .build(),
+    ).toThrow(/default or a rest parameter/);
+    expect(() =>
+      Val.companion<Named>()
+        .implTrait(Greetable, () => ({
+          // @ts-expect-error a parameter that can be left out
+          toWire: (n: Named, ...seps: string[]) => n.id + seps.join(),
+        }))
+        .build(),
+    ).toThrow(/default or a rest parameter/);
   });
 
   test("so is an implementation taking no parameter", () => {
