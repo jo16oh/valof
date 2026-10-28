@@ -82,8 +82,23 @@ const user = User.seal(plain); // sealed, and now it is one
 ```
 
 `PayloadOf<V>` removes the brand from the type, not from the value, so it costs nothing at run time.
-`Val.unwrap` copies and drops `readonly` too, which a request body does not need. Both also remove
-the brand of a nested Val.
+A Val whose payload contains an array cannot be assigned to its `PayloadOf`. The value's array is
+readonly, while `PayloadOf` keeps the mutable array the type declares. Return the copy that
+`Val.unwrap` makes instead:
+
+```ts
+// @errors: 2322
+import { Val, type PayloadOf } from "valof";
+
+declare const post: Post;
+// ---cut---
+type Post = Val<"Post", { title: string; tags: string[] }>;
+
+const body: PayloadOf<Post> = post; // type error: tags is readonly
+const copy: PayloadOf<Post> = Val.unwrap(post);
+```
+
+`PayloadOf` and `Val.unwrap` both remove the brand of a nested Val.
 
 Persistence helpers can create the same hole.
 [Jotai's `atomWithStorage`](https://jotai.org/docs/utilities/storage), for example, parses stored
