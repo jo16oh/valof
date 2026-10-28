@@ -373,7 +373,7 @@ describe("Val", () => {
     test("bigint is rejected, alone or in a union", () => {
       type Bad = Val<"Bad", { n: bigint; m: number | bigint }>;
       type Rejected = {
-        readonly __valError: "bigint does not survive a JSON round trip; use a decimal string";
+        readonly __valError: "JSON.stringify throws on a bigint; use a decimal string";
       };
       expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{ n: Rejected; m: Rejected }>();
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
