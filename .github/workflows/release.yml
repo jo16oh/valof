@@ -1,6 +1,7 @@
 name: Release
 
-# Merging a release PR bumps this file; the run releases whatever version main carries that has no tag yet.
+# Merging a release PR bumps this file; the run finishes whatever of that version's tag, npm package and
+# GitHub release is missing, so a run that failed midway is resumed by running it again.
 on:
   push:
     branches: [main]
@@ -21,43 +22,85 @@ jobs:
       contents: read
       pull-requests: read # the commit's PR is looked up below
     outputs:
-      tag: ${{ steps.tag.outputs.tag }}
-      due: ${{ steps.tag.outputs.due }}
+      tag: ${{ steps.state.outputs.tag }}
+      sha: ${{ steps.state.outputs.sha }}
+      due: ${{ steps.state.outputs.due }}
+      tag_exists: ${{ steps.state.outputs.tag_exists }}
+      npm_published: ${{ steps.state.outputs.npm_published }}
+      release_exists: ${{ steps.state.outputs.release_exists }}
       body: ${{ steps.pr.outputs.body }}
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
           persist-credentials: false
 
-      - name: Resolve tag
-        id: tag
+      # `sha` is the commit being released: the tag's once it exists, so a later push to main cannot
+      # redirect a resumed release.
+      - name: Resolve what is missing
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          tag="v$(node -p "require('./package.json').version")"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          tag="v$version"
+
           # ls-remote exits 2 when the tag is absent; any other failure must not pass for "absent".
           status=0
-          git ls-remote --exit-code --tags origin "refs/tags/$tag" > /dev/null || status=$?
+          line="$(git ls-remote --exit-code --tags origin "refs/tags/$tag")" || status=$?
           case $status in
-            0) echo "::notice::$tag already exists; nothing to release"; echo "due=false" >> "$GITHUB_OUTPUT" ;;
-            2) echo "due=true" >> "$GITHUB_OUTPUT" ;;
+            0) tag_exists=true; sha="${line%%$'\t'*}" ;;
+            2) tag_exists=false; sha="$GITHUB_SHA" ;;
             *) exit "$status" ;;
           esac
+
+          code="$(curl -sS -o /dev/null -w '%{http_code}' "https://registry.npmjs.org/$name/$version")"
+          case $code in
+            200) npm_published=true ;;
+            404) npm_published=false ;;
+            *) echo "::error::the npm registry answered $code for $name@$version"; exit 1 ;;
+          esac
+
+          if out="$(gh release view "$tag" 2>&1)"; then
+            release_exists=true
+          elif [[ $out == *"release not found"* ]]; then
+            release_exists=false
+          else
+            echo "::error::$out"; exit 1
+          fi
+
+          due=true
+          if [[ $tag_exists == true && $npm_published == true && $release_exists == true ]]; then
+            echo "::notice::$tag is fully released; nothing to do"
+            due=false
+          else
+            echo "::notice::$tag: tag=$tag_exists npm=$npm_published release=$release_exists"
+          fi
+          {
+            echo "tag=$tag"
+            echo "sha=$sha"
+            echo "due=$due"
+            echo "tag_exists=$tag_exists"
+            echo "npm_published=$npm_published"
+            echo "release_exists=$release_exists"
+          } >> "$GITHUB_OUTPUT"
 
       # A version bump that did not come through `vp run bump-version` stops here instead of releasing.
       - name: Verify commit is a merged release PR
         id: pr
-        if: steps.tag.outputs.due == 'true'
+        if: steps.state.outputs.due == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.tag.outputs.tag }}
+          TAG: ${{ steps.state.outputs.tag }}
+          SHA: ${{ steps.state.outputs.sha }}
         run: |
-          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" |
+          pr="$(gh api "repos/$GITHUB_REPOSITORY/commits/$SHA/pulls" |
             jq -e --arg tag "$TAG" 'first(.[] | select(
               .merged_at != null
               and .head.repo.full_name == .base.repo.full_name
               and .head.ref == "chore/release-\($tag[1:])"
               and .title == "chore: release \($tag)"))')" ||
-            { echo "::error::$GITHUB_SHA is not a merged chore/release-${TAG#v} PR titled \"chore: release $TAG\""; exit 1; }
+            { echo "::error::$SHA is not a merged chore/release-${TAG#v} PR titled \"chore: release $TAG\""; exit 1; }
           # A random delimiter, so no line of the body can end the output early.
           delimiter="EOF_$(openssl rand -hex 16)"
           { echo "body<<$delimiter"; jq -r '.body // ""' <<< "$pr"; echo "$delimiter"; } >> "$GITHUB_OUTPUT"
@@ -75,6 +118,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ needs.verify.outputs.sha }}
           persist-credentials: false
 
       # No cache in this workflow: a cache another ref wrote must not reach what a release publishes.
@@ -105,6 +149,7 @@ jobs:
       # with the `release` environment's key; the agent holding it ends with this step, and the key
       # never hits disk.
       - name: Create tag
+        if: needs.verify.outputs.tag_exists == 'false'
         run: |
           eval "$(ssh-agent -s)" > /dev/null
           trap 'ssh-agent -k > /dev/null' EXIT
@@ -117,12 +162,15 @@ jobs:
 
       # No token: npm trusts this workflow through OIDC. --no-git-checks: the verify job already
       # checked this commit.
-      - run: pnpm publish --provenance --no-git-checks
+      - name: Publish to npm
+        if: needs.verify.outputs.npm_published == 'false'
+        run: pnpm publish --provenance --no-git-checks
 
       # Last: a release pointing at a version npm rejected would be a lie. The notes open with the
       # release PR's body, followed by the PRs merged since the previous tag, grouped by
       # `.github/release.yml`.
       - name: Create the GitHub release
+        if: needs.verify.outputs.release_exists == 'false'
         run: gh release create "$TAG" --verify-tag --notes "$BODY" --generate-notes
         env:
           GH_TOKEN: ${{ github.token }}
