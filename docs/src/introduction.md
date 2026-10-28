@@ -127,6 +127,5 @@ function errors(task: Task) {
 ```
 
 [^seal]:
-    `Val.of` is an escape hatch that applies the default seal rather than a companion's, and the
-    [linter](linting.md#rules) warns on it for a type that has a companion. A `create` registered
-    with `.implCreate.noseal` skips the seal in production.
+    Two paths skip a companion's seal: [`Val.of`](utilities.md#valof) and
+    [`.implCreate.noseal`](custom-constructors.md#bypass-the-seal-in-create).
