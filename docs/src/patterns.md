@@ -161,3 +161,37 @@ export const UnixEpochMs = Val.companion<UnixEpochMs>()
   }))
   .build();
 ```
+
+## Large integers
+
+Keep an integer outside the safe range of `number` as a decimal string, since `JSON.stringify`
+throws on a `bigint`. Compare and compute through `BigInt()` in members, because `"10" < "9"`.
+
+```ts
+import { Val } from "valof";
+
+// ---cut---
+type BigInteger = Val<"BigInteger", string>;
+
+const BigInteger = Val.companion<BigInteger>()
+  .implSeal((n: string | bigint, seal) => {
+    const s = String(n);
+    // One string per integer, for `equals`.
+    // `BigInt("010")` is 10n, so only the pattern rejects "010".
+    if (!/^(0|-?[1-9]\d*)$/.test(s)) throw new RangeError(`not an integer: ${s}`);
+    return seal(s);
+  })
+  .impl(() => ({
+    add(a, b: BigInteger): BigInteger {
+      return BigInteger.seal(BigInt(a) + BigInt(b));
+    },
+    compare(a, b: BigInteger): -1 | 0 | 1 {
+      const x = BigInt(a);
+      const y = BigInt(b);
+      return x < y ? -1 : x > y ? 1 : 0;
+    },
+  }))
+  .build();
+
+BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
+```

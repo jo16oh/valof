@@ -2498,7 +2498,7 @@ const Order = Val.sealer<Order>().implEquals(
 
 `JSON.stringify(1n)` は TypeError を投げる。§1 が保証する「JSON を対称に往復する」を、許可型の中で唯一破っていた。`structuredClone` は通るので、壊れるのは JSON の境界だけで、そこで初めて例外になる。§7.3 が Date を外したのと同じ理由である。
 
-型エラーは専用の文言にした（`bigint does not survive a JSON round trip; use a decimal string`）。v0.11 までは通っていた型なので、移行する利用者が代わりの形にたどり着けるようにする。union に混ざった場合（`number | bigint`）も同じ文言になる。判定は `ValidateValue` の最後の分岐で行うので、許可される payload の検査には掛からない。symbol など他のプリミティブは従来どおり「not a plain value」。
+型エラーは専用の文言にした（`JSON.stringify throws on a bigint; use a decimal string`）。v0.11 までは通っていた型なので、移行する利用者が代わりの形にたどり着けるようにする。union に混ざった場合（`number | bigint`）も同じ文言になる。判定は `ValidateValue` の最後の分岐で行うので、許可される payload の検査には掛からない。symbol など他のプリミティブは従来どおり「not a plain value」。
 
 実行時の検査は足さない。development の検査はプロトタイプを持つオブジェクトだけを見ており、symbol も関数も見ていない。bigint もそれに揃える。カスタム seal の引数は payload より広くてよい（§6.7）ので、`string | bigint` を受けて文字列にする seal は書ける。
 
