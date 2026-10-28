@@ -117,9 +117,9 @@ const User = Val.companion<User>()
 User.create(fields); // Result<User>
 ```
 
-**A seal must be idempotent.** `patch` on an object-shaped Val and any registered `create` pass
-their payloads through your seal. Sealing a value's own payload must return that value. **Generate
-an id or timestamp in `create`, not in `seal`**.
+**A seal must be idempotent.** `patch` on a Val that holds an object payload and any registered
+`create` pass their payloads through your seal. Sealing a value's own payload must return that
+value. **Generate an id or timestamp in `create`, not in `seal`**.
 
 ## Bypass the seal in `create`
 
