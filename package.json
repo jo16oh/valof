@@ -1,7 +1,7 @@
 {
   "name": "valof",
-  "version": "0.10.0",
-  "description": "Branded, immutable domain types for TypeScript: a constructor and a companion per type, kept as plain data. Starts from 898 B gzipped.",
+  "version": "0.11.0",
+  "description": "Branded, immutable domain types for TypeScript: a constructor and a companion per type, kept as plain data. Starts from 965 B gzipped.",
   "keywords": [
     "branded-types",
     "ddd",
