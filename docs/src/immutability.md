@@ -67,8 +67,8 @@ Only primitives, arrays and plain objects can live inside a Val. See
 
 ## Avoiding a copy
 
-Construction copies by default. Do not start with `.nocopy`; reserve it for a copy bottleneck that
-profiling has confirmed.
+`.nocopy` makes the payload the value without copying it. The default copy already skips anything
+inside a Val, so use `.nocopy` only where profiling shows the copy is a bottleneck.
 
 <!-- prettier-ignore -->
 > [!WARNING]
@@ -77,7 +77,7 @@ profiling has confirmed.
 > in production.
 > Prefer the default copy whenever there is doubt.
 
-Only when you can make that guarantee, use `.nocopy` to make the payload the value without copying:
+Only when you can make that guarantee, use `.nocopy`:
 
 ```ts
 import { Val } from "valof";
