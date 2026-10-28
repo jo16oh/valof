@@ -34,7 +34,7 @@ import { development } from "./env.ts";
 import * as Val from "./ns/val.ts";
 
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
-type Primitive = string | number | boolean | bigint | null;
+type Primitive = string | number | boolean | null;
 
 /** Type-only nominal identity. Private members disappear from `keyof` and object spreads. */
 declare class Phantom<K extends string, T> {
@@ -142,7 +142,9 @@ type ValidateValue<T> = [T] extends [Primitive]
                       : Validate<T[K], false>;
               }
             : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
-        : Invalid<"not a plain value">;
+        : [Extract<T, bigint>] extends [never]
+          ? Invalid<"not a plain value">
+          : Invalid<"bigint does not survive a JSON round trip; use a decimal string">;
 
 /**
  * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
@@ -979,7 +981,7 @@ const owned = new WeakSet<object>();
 const adopted = new WeakSet<object>();
 
 const unsnapshotable = Symbol("unsnapshotable seal input");
-type SealSnapshot = Primitive | undefined | object | typeof unsnapshotable;
+type SealSnapshot = Primitive | bigint | undefined | object | typeof unsnapshotable;
 
 /**
  * Returns a plain, inert view of what a custom seal can observe. This is deliberately best-effort:
@@ -996,7 +998,7 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
     if (!isObject(value)) {
       return typeof value === "function" || typeof value === "symbol"
         ? unsnapshotable
-        : (value as Primitive | undefined);
+        : (value as Primitive | bigint | undefined);
     }
     if (active.has(value)) return unsnapshotable;
 
