@@ -31,7 +31,7 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 
 ## Val Companion Options
 
-`Val.companion` accepts any of these options in a list after the type.
+`Val.companion` accepts any of these options in its second type argument.
 
 | Option           | Description                         |
 | ---------------- | ----------------------------------- |
@@ -99,8 +99,8 @@ The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `
 
 ## Enum Companion Options
 
-`Enum.companion` accepts the [companion options](#val-companion-options) in a list after the enum.
-They apply to the enum and every variant. To configure a specific variant's companion, add
+`Enum.companion` accepts the [companion options](#val-companion-options) in its second type
+argument. They apply to the enum and every variant. To configure a specific variant's companion, add
 `VariantOptions`:
 
 | Option                 | Description                                                            |
