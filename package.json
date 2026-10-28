@@ -62,7 +62,6 @@
   "devDependencies": {
     "@praha/byethrow": "^0.13.0",
     "@types/node": "^26.5.0",
-    "better-result": "^3.0.1",
     "bumpp": "^11.1.0",
     "eslint": "^10.10.0",
     "handlebars": "^4.7.9",
