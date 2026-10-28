@@ -69,11 +69,9 @@ export type Omission<F> = F extends (...args: infer P) => unknown
  * is then `undefined`, as in a wrapped member. `loose` marks members that do not take the value.
  * Such a member may take no argument.
  *
- * A `length` of 0 is also what a rest or default parameter leaves, which would run every
- * data-last call data-first. Development throws on a `length` of 0. For a loose member, it throws
- * only where the source shows such a parameter: an empty parameter list is the only one that
- * declares no parameter. Comments are dropped first, and a source it cannot read, a bound or
- * native function's, reads as empty.
+ * Development throws on a member whose source shows a default or a rest parameter, which a type
+ * annotation hides from {@link Arity}. `length` stops counting at the first one, so a data-last
+ * call would run data-first.
  */
 export function createMembers(
   members: Record<string, unknown>,
@@ -82,20 +80,15 @@ export function createMembers(
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(members)) {
     const f = members[key];
-    if (
-      development &&
-      typeof f == "function" &&
-      !f.length &&
-      (!loose ||
-        /^[^(]*\(\s*[^)\s]/.test(
-          Function.prototype.toString.call(f).replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, ""),
-        ))
-    ) {
-      throw new TypeError(
-        loose
-          ? "A member cannot hide its parameters behind a rest or a default parameter."
-          : "A member must have the value as its first parameter, not inside a rest parameter.",
-      );
+    if (development && typeof f == "function") {
+      if (hidesParameter(f)) {
+        throw new TypeError(
+          "A member cannot have a default or a rest parameter: the argument count tells data-last from data-first.",
+        );
+      }
+      if (!loose && !f.length) {
+        throw new TypeError("A member must have the value as its first parameter.");
+      }
     }
     out[key] = typeof f != "function" ? f : f.length > 1 ? dual(f as AnyFn) : f.bind(undefined);
   }
@@ -114,3 +107,25 @@ export function dual(f: (...args: never[]) => unknown): AnyFn {
 }
 
 type AnyFn = (...args: unknown[]) => unknown;
+
+/**
+ * Whether the parameter list in `f`'s source has `=` or `...` at its top level. One inside a
+ * destructured parameter does not shorten `length`, so it passes. The list is the first `(` outside
+ * brackets, which skips a computed method key. An arrow reached first means a bare `x =>`. Strings
+ * and comments are read as whole tokens. A bound or native function's source shows no parameter.
+ */
+function hidesParameter(f: object): boolean {
+  let depth = 0;
+  let list = false;
+  for (const [token] of Function.prototype.toString
+    .call(f)
+    .matchAll(/\/\/.*|\/\*[\s\S]*?\*\/|(["'`])(?:\\[\s\S]|(?!\1)[^\\])*\1|=>|\.\.\.|\S/g)) {
+    if (list && depth == 1 && (token == "=" || token == "...")) return true;
+    if (token == "(" || token == "[" || token == "{") {
+      if (!depth++ && token == "(") list = true;
+    } else if (token == ")" || token == "]" || token == "}") {
+      if (!--depth && list) return false;
+    } else if (!depth && token == "=>") return false;
+  }
+  return false;
+}
