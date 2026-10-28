@@ -61,6 +61,12 @@ jobs:
             *) echo "::error::the npm registry answered $code for $name@$version"; exit 1 ;;
           esac
 
+          # Provenance names GITHUB_SHA as the source, whatever is checked out.
+          if [[ $npm_published == false && $sha != "$GITHUB_SHA" ]]; then
+            echo "::error::$tag points at $sha, not $GITHUB_SHA; re-run the failed jobs of the run that created the tag"
+            exit 1
+          fi
+
           if out="$(gh release view "$tag" 2>&1)"; then
             release_exists=true
           elif [[ $out == *"release not found"* ]]; then
@@ -190,6 +196,7 @@ jobs:
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
         with:
+          ref: ${{ needs.verify.outputs.sha }}
           persist-credentials: false
 
       - uses: voidzero-dev/setup-vp@1b32467adbe183473499fd9d5d372c3ed9641754 # v1.18.0
