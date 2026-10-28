@@ -1,8 +1,8 @@
 # Enums
 
-An enum is a discriminated union declared in one place. Each variant is a Val, and the enum is the
-union of those Vals. The variants form a closed set, so TypeScript can check that every variant is
-handled.
+An enum is a discriminated union declared in one place. Each variant is a [Val](val.md), and the
+enum is the union of those Vals. The variants form a closed set, so TypeScript can check that every
+variant is handled.
 
 > For the limits of a hand-written discriminated union, see
 > [TypeScript problems Valof addresses](typescript-problems.md#enums).
@@ -187,9 +187,9 @@ Shape.Circle.diameter(Shape.Circle.create({ r: 2 })); // 4
 ```
 
 A variant with no steps keeps the default companion. Write a variant's steps in the same order as in
-`Val.companion`: `implSeal`, then `implCreate`, then `impl` (once), `implTrait` and `implAssoc` in
-any order. Write the enum's steps in the same order too. After the first enum step, the chain no
-longer offers the variants' steps.
+[`Val.companion`](default-companion.md): `implSeal`, then `implCreate`, then `impl` (once),
+`implTrait` and `implAssoc` in any order. Write the enum's steps in the same order too. After the
+first enum step, the chain no longer offers the variants' steps.
 
 ## Check the payload
 

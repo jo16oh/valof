@@ -17,12 +17,12 @@ let orderId: OrderId;
 orderId = userId; // allowed: both types are string
 ```
 
-A [brand](basics.md) lets TypeScript distinguish them without changing their runtime representation.
-A branded type normally needs a constructor that contains a type assertion. This keeps assertions
-out of callers, but every branded type still needs the same constructor boilerplate, including an
-`as` cast. A companion's `seal` is that constructor. Declare the type and its companion together;
-[branding](basics.md#define-branded-types) covers names, construction and the rules that keep the
-brand intact:
+A [brand](val.md) lets TypeScript distinguish them without changing their runtime representation. A
+branded type normally needs a constructor that contains a type assertion. This keeps assertions out
+of callers, but every branded type still needs the same constructor boilerplate, including an `as`
+cast. A companion's `seal` is that constructor. Declare the type and its companion together;
+[branding](val.md#define-branded-types) covers names, construction and the rules that keep the brand
+intact:
 
 ```ts
 import { Val } from "valof";
@@ -79,9 +79,9 @@ A class provides a namespace for its functions, but also turns each value into a
 Keeping its instances immutable requires `readonly` on every field and nested property. Its JSON
 shape depends on property enumerability unless you write and maintain a `toJSON` mapping.
 
-A [companion object](companion-objects.md) collects the constructor and functions under the type's
+A [companion object](default-companion.md) collects the constructor and functions under the type's
 name while values remain plain data. `Val.companion<V>().impl(() => ({ ... })).build()` creates it.
-The result exposes `seal` and the registered members; the chapter also explains `patch`:
+The result exposes `seal` and the registered members:
 
 ```ts
 import { Val } from "valof";

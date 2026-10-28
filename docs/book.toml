@@ -28,3 +28,9 @@ additional-js = [".generated/mdbook-sidebar/headings.js", "tools/mdbook-sidebar/
 
 [output.linkcheck2]
 follow-web-links = true
+
+[output.html.redirect]
+"/basics.html" = "val.html"
+"/companion-objects.html" = "adding-functions.html"
+"/companion-objects.html#collect-related-functions-in-a-companion-object" = "adding-functions.html#add-functions-that-take-the-val"
+"/companion-objects.html#patch-object-values" = "default-companion.html#patch-object-values"

@@ -1,4 +1,4 @@
-# Branding
+# Val
 
 > For the problem that branding solves, see
 > [TypeScript problems Valof addresses](typescript-problems.md#branding).

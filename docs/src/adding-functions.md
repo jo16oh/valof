@@ -1,9 +1,9 @@
-# Companion objects
+# Adding functions to the companion
 
 > For the limits of standalone functions and classes, see
 > [TypeScript problems Valof addresses](typescript-problems.md#companion-objects).
 
-## Collect related functions in a companion object
+## Add functions that take the Val
 
 Valof collects the constructor and functions under a value with the same name as the type:
 
@@ -35,10 +35,6 @@ The function passed to `.impl` receives `seal`, `create` where `.implCreate` reg
 `patch` for a Val that holds an object payload. A member calling them does not reference `User`, so
 its return type needs no annotation.
 
-A function that does not take the Val as its first argument, such as one that parses it from a
-string or aggregates an array of Vals into one, is registered with `.implAssoc`. See
-[Custom constructors](custom-constructors.md#define-other-constructors-with-implassoc).
-
 The result exposes `seal` and the members:
 
 ```ts
@@ -61,6 +57,29 @@ const user = User.seal({ id: "a", name: "bob" });
 User.displayName(user);
 User.formatLabel(user, ": ");
 ```
+
+## Add functions that do not take the Val
+
+Register a function that does not take the Val as its first argument with `.implAssoc`:
+
+```ts
+import { Val } from "valof";
+
+// ---cut---
+type User = Val<"User", { id: string; name: string }>;
+
+const User = Val.companion<User>()
+  .implAssoc(() => ({
+    names: (users: readonly User[]) => users.map((user) => user.name),
+  }))
+  .build();
+
+User.names([User.seal({ id: "a", name: "bob" })]); // ["bob"]
+```
+
+The function passed to `.implAssoc` receives the same `seal`, `create` and `patch` as the one passed
+to `.impl`, so its members can build the Val. Such a member is a constructor. See
+[Define other constructors with `implAssoc`](custom-constructors.md#define-other-constructors-with-implassoc).
 
 ## Call a member with the value last
 
@@ -92,7 +111,8 @@ pipe(user, User.patch({ nickname: "b" }), User.displayName); // "b"
 ```
 
 `patch`, a trait's member taking more than one argument, an enum's `match` and `[Tag].match` can be
-called either way too. Valof ships no `pipe`. Use the one from your favorite library.
+called either way too. An `.implAssoc` member taking more than one argument can be called with its
+first argument last. Valof ships no `pipe`. Use the one from your favorite library.
 
 A member cannot have an optional, a default or a rest parameter. Pass `undefined` explicitly where
 an argument has no value:
@@ -150,105 +170,3 @@ const user = User.seal({ name: "bob", age: 30 });
 pipe(user, User.pick("age")); // string | number
 pipe(user, (u) => User.pick(u, "age")); // number
 ```
-
-## Patch object values
-
-Without Valof, changing a deeply readonly `shop` means rebuilding every object on the path:
-
-```ts
-import { Val } from "valof";
-
-type City = Val<"City", { name: string }>;
-const City = Val.companion<City>().build();
-type Shop = Val<
-  "Shop",
-  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
->;
-const Shop = Val.companion<Shop>().build();
-
-declare const shop: Shop;
-// ---cut---
-const changed = {
-  ...shop,
-  owner: {
-    ...shop.owner,
-    contact: {
-      ...shop.owner.contact,
-      email: "e@example.com",
-    },
-  },
-};
-```
-
-An object-shaped Val gets `patch`. The same update lists only what changes:
-
-```ts
-import { Val } from "valof";
-
-type City = Val<"City", { name: string }>;
-const City = Val.companion<City>().build();
-type Shop = Val<
-  "Shop",
-  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
->;
-const Shop = Val.companion<Shop>().build();
-
-declare const shop: Shop;
-// ---cut---
-const changed = Shop.patch(shop, {
-  owner: { contact: { email: "e@example.com" } },
-});
-```
-
-A patch expresses three operations:
-
-- Omit a key to leave it unchanged.
-- Pass `{ k: undefined }` to delete it.
-- Pass `{ k: value }` to set it.
-
-With `exactOptionalPropertyTypes`, `{ k: undefined }` is accepted only for optional keys. Without
-it, TypeScript also accepts it for required keys, and `patch` deletes them at runtime.
-
-A patch reaches through nested plain objects, but replaces a nested Val, an array or a primitive
-whole:
-
-```ts
-import { Val } from "valof";
-
-type City = Val<"City", { name: string }>;
-const City = Val.companion<City>().build();
-type Shop = Val<
-  "Shop",
-  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
->;
-const Shop = Val.companion<Shop>().build();
-
-declare const shop: Shop;
-// ---cut---
-Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
-```
-
-Derive a nested Val with its own `patch`, so its own seal checks the change.
-
-`patch` copies only the path to what changed. Untouched branches keep their reference identity:
-
-```ts
-import { Val } from "valof";
-
-type City = Val<"City", { name: string }>;
-const City = Val.companion<City>().build();
-type Shop = Val<
-  "Shop",
-  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
->;
-const Shop = Val.companion<Shop>().build();
-
-declare const shop: Shop;
-declare const changed: Shop;
-// ---cut---
-changed.city === shop.city; // true
-Shop.patch(shop, {}) === shop; // true
-```
-
-Reference comparisons, such as React dependency arrays, can then skip work when their value did not
-change. Primitive and array Vals have no `patch`, because they have nothing to merge.

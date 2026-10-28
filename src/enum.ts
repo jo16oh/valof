@@ -799,7 +799,7 @@ type VariantSteps<
          * member taking more than one argument can be called with the value first or last. None can
          * have an optional, a default or a rest parameter.
          *
-         * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+         * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
         impl: <G extends CompanionMembers<VariantOf<E, N>>>(
           fns: (
@@ -917,7 +917,7 @@ export type EnumBuilder<
          * `match`, `[Tag].match` and a member taking more than one argument can be called with the
          * value first or last. A member cannot have an optional, a default or a rest parameter.
          *
-         * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+         * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
         impl: <G extends UnionMembers<E>>(
           fns: (
