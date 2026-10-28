@@ -2,7 +2,7 @@
 
 ## Functions
 
-|                           |                                                     |
+| API                       | Description                                         |
 | ------------------------- | --------------------------------------------------- |
 | `equals(a, b)`            | deeply compares two Vals of the same type           |
 | `Val.of<V>(value)`        | applies the default seal, branding the value as `V` |
@@ -11,7 +11,7 @@
 
 ## Val Companion Builder
 
-|                          |                                                               |
+| Step                     | Description                                                   |
 | ------------------------ | ------------------------------------------------------------- |
 | `Val.companion<V, O?>()` | starts a companion, with the default seal and the options `O` |
 | `.implSeal(f)`           | registers a custom seal                                       |
@@ -33,7 +33,7 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 
 `Val.companion` accepts any of these options in a list after the type.
 
-|                  |                                     |
+| Option           | Description                         |
 | ---------------- | ----------------------------------- |
 | `PrivateSeal`    | removes `seal` from the companion   |
 | `PrivateCreate`  | removes `create` from the companion |
@@ -43,19 +43,19 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 
 `User` stands for the companion that belongs to the `User` type.
 
-|                                 |                                                                                                                    |                                                                     |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------- |
-| `User.seal(value)`              | every companion without `PrivateSeal`                                                                              | applies the seal registered with `.implSeal(f)`, or the default one |
-| `User.seal.nocopy(value)`       | every companion without `PrivateSeal`                                                                              | the same as `User.seal`, without copying the payload                |
-| `User.create(...args)`          | registered with `.implCreate(f)`                                                                                   | creates a payload, then passes it to seal                           |
-| `User.create.nocopy(...args)`   | registered with `.implCreate(f)`                                                                                   | the same as `User.create`, without copying the payload              |
-| `User.patch(user, patch)`       | `User` has an object payload                                                                                       | deeply merges the patch, then seals it                              |
-| `User.[member](first, ...rest)` | registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                                                | runs a member defined for the companion                             |
-| `User.[member](...rest)(first)` | registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`, where the member takes more than one argument | the same, with the first argument last                              |
+| API                             | Description                                                                                   |
+| ------------------------------- | --------------------------------------------------------------------------------------------- |
+| `User.seal(value)`              | applies the seal registered with `.implSeal(f)`, or the default one. Removed by `PrivateSeal` |
+| `User.seal.nocopy(value)`       | the same, without copying the payload                                                         |
+| `User.create(...args)`          | creates a payload with the function `.implCreate(f)` registered, then passes it to the seal   |
+| `User.create.nocopy(...args)`   | the same, without copying the payload                                                         |
+| `User.patch(user, patch)`       | deeply merges the patch, then seals it. Only for an object payload                            |
+| `User.[member](first, ...rest)` | runs a member registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`             |
+| `User.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument            |
 
 ## Val Types
 
-|                       |                                                         |
+| Type                  | Description                                             |
 | --------------------- | ------------------------------------------------------- |
 | `Val<K, T>`           | a branded value type                                    |
 | `AnyVal`              | a constraint over any Val                               |
@@ -71,7 +71,7 @@ so that your own `.d.ts` can name them when you re-export a companion.
 
 ## Enum Companion Builder
 
-|                                       |                                                                    |
+| Step                                  | Description                                                        |
 | ------------------------------------- | ------------------------------------------------------------------ |
 | `Enum.companion<E, O?>()`             | starts an enum's companion, with the options `O`                   |
 | `.tag(key)`                           | names the tag field the companion writes                           |
@@ -103,7 +103,7 @@ The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `
 They apply to the enum and every variant. To configure a specific variant's companion, add
 `VariantOptions`:
 
-|                        |                                                                        |
+| Option                 | Description                                                            |
 | ---------------------- | ---------------------------------------------------------------------- |
 | `VariantOptions<N, O>` | adds options `O` for variant `N`: `PrivateCreate` and `Unpatchable<K>` |
 
@@ -111,28 +111,28 @@ They apply to the enum and every variant. To configure a specific variant's comp
 
 `E` stands for an enum's companion, and `[VariantName]` for the name of one of its variants.
 
-|                                            |                                                                                                                                                              |                                                                         |
-| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------- |
-| `E.match(value, handlers)`                 | every enum                                                                                                                                                   | matches on a variant's tag field, exhaustively or with `_` for the rest |
-| `E.match(handlers)(value)`                 | every enum                                                                                                                                                   | the same, with the value last                                           |
-| `E.match(value, { [Otherwise]: f })`       | every enum                                                                                                                                                   | the same as `_`, for an enum with a variant named `_`                   |
-| `E[Tag].match(tag, handlers)`              | every enum                                                                                                                                                   | matches on a tag string, the same way                                   |
-| `E[Tag].match(handlers)(tag)`              | every enum                                                                                                                                                   | the same, with the tag last, for every tag                              |
-| `E[Tag].key`                               | every enum                                                                                                                                                   | the tag field's name                                                    |
-| `E.seal(payload)`                          | every enum without `PrivateSeal`                                                                                                                             | builds the variant that the payload's tag selects                       |
-| `E.create(...args)`                        | registered with `.implCreate(f)`                                                                                                                             | creates a payload, then passes it to `E.seal`                           |
-| `E.[member](first, ...rest)`               | registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                                                                                          | runs a member defined for the union                                     |
-| `E.[member](...rest)(first)`               | registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`, where the member takes more than one argument                                           | the same, with the first argument last                                  |
-| `E.[VariantName].seal(payload)`            | every enum without `PrivateSeal`                                                                                                                             | builds that variant from a payload including its tag                    |
-| `E.[VariantName].create(fields)`           | every variant without `PrivateCreate`                                                                                                                        | writes the tag and passes the payload to that variant's seal            |
-| `E.[VariantName].create(...args)`          | registered with `.[VariantName].implCreate(f)`                                                                                                               | the same, with the arguments `f` takes                                  |
-| `E.[VariantName].patch(value, patch)`      | every variant                                                                                                                                                | derives a value of that variant, keeping the tag                        |
-| `E.[VariantName].[member](first, ...rest)` | registered with `.[VariantName].impl(f)`, `.[VariantName].implTrait(Tr, f?)` or `.[VariantName].implAssoc(f)`                                                | runs a member defined for that variant                                  |
-| `E.[VariantName].[member](...rest)(first)` | registered with `.[VariantName].impl(f)`, `.[VariantName].implTrait(Tr, f?)` or `.[VariantName].implAssoc(f)`, where the member takes more than one argument | the same, with the first argument last                                  |
+| API                                        | Description                                                                                                                                  |
+| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `E.match(value, handlers)`                 | matches on a variant's tag field, exhaustively or with `_` for the rest                                                                      |
+| `E.match(handlers)(value)`                 | the same, with the value last                                                                                                                |
+| `E.match(value, { [Otherwise]: f })`       | the same as `_`, for an enum with a variant named `_`                                                                                        |
+| `E[Tag].match(tag, handlers)`              | matches on a tag string, the same way                                                                                                        |
+| `E[Tag].match(handlers)(tag)`              | the same, with the tag last, for every tag                                                                                                   |
+| `E[Tag].key`                               | the tag field's name                                                                                                                         |
+| `E.seal(payload)`                          | builds the variant that the payload's tag selects. Removed by `PrivateSeal`                                                                  |
+| `E.create(...args)`                        | creates a payload with the function `.implCreate(f)` registered, then passes it to `E.seal`                                                  |
+| `E.[member](first, ...rest)`               | runs a member registered for the union with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                                              |
+| `E.[member](...rest)(first)`               | the same, with the first argument last, for a member taking more than one argument                                                           |
+| `E.[VariantName].seal(payload)`            | builds that variant from a payload including its tag. Removed by `PrivateSeal`                                                               |
+| `E.[VariantName].create(fields)`           | writes the tag and passes the payload to that variant's seal. Removed by `PrivateCreate`                                                     |
+| `E.[VariantName].create(...args)`          | the same, with the arguments of the function `.[VariantName].implCreate(f)` registered                                                       |
+| `E.[VariantName].patch(value, patch)`      | derives a value of that variant, keeping the tag                                                                                             |
+| `E.[VariantName].[member](first, ...rest)` | runs a member registered for that variant with `.[VariantName].impl(f)`, `.[VariantName].implTrait(Tr, f?)` or `.[VariantName].implAssoc(f)` |
+| `E.[VariantName].[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument                                                           |
 
 ## Enum Types
 
-|                                 |                                                     |
+| Type                            | Description                                         |
 | ------------------------------- | --------------------------------------------------- |
 | `Enum<K, D, X>`                 | a closed set of variants, as one union              |
 | `Tag<T>`                        | names the tag field, intersected into `X`           |
@@ -147,7 +147,7 @@ They apply to the enum and every variant. To configure a specific variant's comp
 
 ## Trait Companion Builder
 
-|                         |                                                                                      |
+| Step                    | Description                                                                          |
 | ----------------------- | ------------------------------------------------------------------------------------ |
 | `Trait.companion<Tr>()` | starts the trait's own implementation                                                |
 | `.impl(f)`              | implements the members `f` returns, once                                             |
@@ -158,7 +158,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 
 ## Trait Companion
 
-|                               |                                                                                          |
+| API                           | Description                                                                              |
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
 | `Tr.dyn(companion, value)`    | boxes a value with one Val's implementation                                              |
 | `Tr.[member](first, ...rest)` | runs a `Final` member registered with `.impl(f)`, or one registered with `.implAssoc(f)` |
@@ -166,7 +166,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 
 ## Trait Types
 
-|                      |                                                     |
+| Type                 | Description                                         |
 | -------------------- | --------------------------------------------------- |
 | `Trait<K, Shape, M>` | a contract Vals share                               |
 | `Self`               | the implementing Val, inside a member's signature   |

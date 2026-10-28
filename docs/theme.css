@@ -15,3 +15,12 @@
 .content table {
   margin-left: 0;
 }
+
+.content table th {
+  text-align: left;
+}
+
+/* A signature split across lines is hard to read. */
+.content table td:first-child:has(> code:only-child) {
+  white-space: nowrap;
+}
