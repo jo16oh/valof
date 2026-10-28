@@ -393,22 +393,22 @@ describe("data-first and data-last", () => {
     ).toThrow(/first parameter/);
   });
 
-  test("an implementation hiding its parameters throws in development", () => {
-    const shout = (g: { name: string }) => g.name;
+  test("an implementation hiding a default or a rest parameter throws in development", () => {
+    // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
+    const shout: (g: { name: string }) => string = (g = { name: "x" }) => g.name;
     expect(() =>
       Trait.companion<Greetable>()
-        .impl(() => ({ shout: (...args: [{ name: string }]) => shout(...args) }))
+        .impl(() => ({ shout }))
         .build(),
-    ).toThrow(/first parameter/);
+    ).toThrow(/default or a rest parameter/);
     type Named = Val<"Named", { name: string }, Greetable>;
-    const toWire = (n: Named, sep: string) => n.name + sep;
+    // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
+    const toWire: (n: Named, sep: string) => string = (n, sep = "/") => n.name + sep;
     expect(() =>
       Val.companion<Named>()
-        .implTrait(Greetable, () => ({
-          toWire: (...args: [Named, string]) => toWire(...args),
-        }))
+        .implTrait(Greetable, () => ({ toWire }))
         .build(),
-    ).toThrow(/first parameter/);
+    ).toThrow(/default or a rest parameter/);
   });
 });
 

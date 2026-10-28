@@ -1359,13 +1359,51 @@ describe("data-first and data-last", () => {
     });
   });
 
-  test("a member hiding its parameters throws in development", () => {
+  // A type annotation hides the parameter from the type, and `length` stops counting at it.
+  test("a member hiding a default or a rest parameter throws in development, at any position", () => {
     const greet = (u: User) => u.name;
+    const hiding: ((u: User, sep: string) => string)[] = [
+      // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
+      (u, sep = "/") => u.id + sep,
+      (u, ...seps) => u.id + seps.join(),
+      (...args: [User, string]) => greet(args[0]),
+      // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
+      ({ id } = { id: "a" } as User, sep) => id + sep,
+    ];
+    for (const member of hiding) {
+      expect(() =>
+        Val.companion<User>()
+          .impl(() => ({ member }))
+          .build(),
+      ).toThrow(/default or a rest parameter/);
+    }
+  });
+
+  // Built from a string, since the test transform drops comments and rewrites the source.
+  test("but not a default or a rest inside a destructured parameter, nor `=` and `(` elsewhere", () => {
+    // oxlint-disable-next-line typescript/no-implied-eval -- the source has to survive the transform
+    const members = new Function(`return {
+      destructured: ({ name = ")" }, sep) => name + sep,
+      restOfObject: ({ name, ...rest }, sep) => name + sep,
+      inArray: ([first = (1), ...rest], sep) => first + sep,
+      commented: (u /* = */, sep // ...
+      ) => u.name + sep,
+      inBody: (u, sep) => (sep = u.name),
+      bare: u => u.name,
+      async: async (u, sep) => sep,
+      keyword: function (u, sep) { return sep; },
+      method(u, sep) { return sep; },
+      async asyncMethod(u, sep) { return sep; },
+      [("(" + ")")](u, sep) { return sep; },
+      "a(b"(u, sep) { return sep; },
+      bound: ((u, sep) => sep).bind(null),
+      native: Math.max,
+    }`)() as Record<string, (u: User, sep: string) => string>;
     expect(() =>
       Val.companion<User>()
-        .impl(() => ({ greet: (...args: [User]) => greet(...args) }))
+        .impl(() => members)
         .build(),
-    ).toThrow(/first parameter/);
+    ).not.toThrow();
   });
 });
 
@@ -1751,7 +1789,7 @@ describe("building", () => {
               fromCents: (cents = 0) => seal({ cents }),
             }))
             .build(),
-        ).toThrow(/hide its parameters/);
+        ).toThrow(/default or a rest parameter/);
       });
 
       test("a rest parameter", () => {
@@ -1762,7 +1800,7 @@ describe("building", () => {
               sum: (...cents: number[]) => seal({ cents: cents.reduce((a, b) => a + b, 0) }),
             }))
             .build(),
-        ).toThrow(/hide its parameters/);
+        ).toThrow(/default or a rest parameter/);
       });
     });
 
@@ -1776,14 +1814,14 @@ describe("building", () => {
             return args[0];
           },
         })),
-      ).toThrow(/hide its parameters/);
+      ).toThrow(/default or a rest parameter/);
       expect(
         built(() => ({
           fromCents: function (...args: [number]) {
             return args[0];
           },
         })),
-      ).toThrow(/hide its parameters/);
+      ).toThrow(/default or a rest parameter/);
     });
 
     // Built from a string, since the test transform drops comments from the source.

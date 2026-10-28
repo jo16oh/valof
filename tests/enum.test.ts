@@ -416,6 +416,21 @@ describe("members", () => {
       .build();
   });
 
+  test("a member hiding a default parameter throws in development, on the union or on a variant", () => {
+    // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
+    const scaled: (s: Shape, by: number) => Shape = (s, by = 2) => (by ? s : s);
+    expect(() =>
+      Enum.companion<Shape>()
+        .impl(() => ({ scaled }))
+        .build(),
+    ).toThrow(/default or a rest parameter/);
+    expect(() =>
+      Enum.companion<Shape>()
+        .Circle.impl(() => ({ scaled }))
+        .build(),
+    ).toThrow(/default or a rest parameter/);
+  });
+
   test("a step's function receives the union's `seal`, and a variant's `seal` and `patch`", () => {
     type Named = Trait<"Named", { id: string }, { label: (self: Self) => string }>;
     const Named = Trait.companion<Named>().build();
