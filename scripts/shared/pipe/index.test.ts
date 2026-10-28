@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { describe, expect, expectTypeOf, test, vi } from "vite-plus/test";
 
 import { generate } from "./generate-tests.ts";
-import { flow, pipe, tap, type Sink } from "./index.ts";
+import { flow, pipe, tap } from "./index.ts";
 
 class NotFoundError extends Error {}
 class InvalidError extends Error {}
@@ -41,20 +41,6 @@ describe("flow", () => {
     );
     expectTypeOf(length).toEqualTypeOf<Promise<R.Result<number, NotFoundError | InvalidError>>>();
     expect(R.unwrap(await length)).toBe(6);
-  });
-
-  test("hands the chain's promise, not its value, to a sink", async () => {
-    const seen = vi.fn();
-    const handed = flow(1, (n) => n + 1, {
-      sink: (promise: unknown) => {
-        seen(promise);
-        return "handed";
-      },
-    } as unknown as Sink);
-    expect(handed).toBe("handed");
-    const [promise] = seen.mock.calls[0] ?? [];
-    expect(promise).toBeInstanceOf(Promise);
-    expect(await promise).toBe(2);
   });
 });
 

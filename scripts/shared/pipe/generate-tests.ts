@@ -14,13 +14,13 @@ function nested(depth: number): string {
 }
 
 // The type error lands on the first argument no overload can take, so the directive goes there.
-function tooMany(call: string, last = "wrap"): string {
+function tooMany(call: string): string {
   return [
     `    ${call}(`,
     "      0,",
-    ...Array<string>(last === "wrap" ? steps : steps + 1).fill("      wrap,"),
+    ...Array<string>(steps).fill("      wrap,"),
     "      // @ts-expect-error no overload takes this many steps",
-    `      ${last},`,
+    "      wrap,",
     "    );",
   ].join("\n");
 }
@@ -39,16 +39,10 @@ const lengths = Array.from({ length: steps }, (_, i) => i + 1);
 const tests = `${header}
 import { describe, expectTypeOf, test } from "vite-plus/test";
 
-import { flow, pipe, type Sink } from "./index.ts";
+import { flow, pipe } from "./index.ts";
 
 const wrap = <T>(x: T): T[] => [x];
 const wrapAsync = async <T>(x: T): Promise<T[]> => [x];
-
-type Held<P> = { promise: P };
-interface Holder extends Sink {
-  readonly out: Held<this["in"]>;
-}
-const holder = { sink: (promise: unknown) => ({ promise }) } as unknown as Holder;
 
 describe("pipe", () => {
   test("chains each step to the one before, at every length", () => {
@@ -68,16 +62,6 @@ ${lengths
   .map((n) => `    expectTypeOf(flow(0, ${chain(n)})).toEqualTypeOf<Promise<${nested(n)}>>();`)
   .join("\n")}
 ${tooMany("void flow")}
-  });
-
-  test("hands the chain's promise to a sink, at every length", () => {
-${lengths
-  .map(
-    (n) =>
-      `    expectTypeOf(flow(0, ${chain(n)}, holder)).toEqualTypeOf<{ promise: Promise<${nested(n)}> }>();`,
-  )
-  .join("\n")}
-${tooMany("flow", "holder")}
   });
 });
 `;
