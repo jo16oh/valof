@@ -1385,45 +1385,62 @@ describe("data-first and data-last", () => {
     }
   });
 
-  // Built from a string, since the test transform drops comments and rewrites the source.
-  test("but not a default or a rest inside a destructured parameter, nor `=` or `(` elsewhere", () => {
-    // oxlint-disable-next-line typescript/no-implied-eval -- the source has to survive the transform
-    const members = new Function(`let key; return {
-      destructured: ({ name = "}", id = "" }, sep) => name + id + sep,
-      restOfObject: ({ name, ...rest }, sep) => name + sep,
-      inArray: ([first = (1), ...rest], sep) => first + sep,
-      commented: (u /* = */, sep // ...
-      ) => u.name + sep,
-      inBody: (u, sep) => (sep = u.name),
-      bare: u => Math.max(...u.scores),
-      async: async (u, sep) => sep,
-      keyword: function (u, sep) { sep = u.name; return sep; },
-      method(u, sep) { return sep; },
-      async asyncMethod(u, sep) { return sep; },
-      [("(" + ")")](u, sep) { return sep; },
-      "a(b"(u, sep) { return sep; },
-      [key = "m"](u, sep) { return sep; },
-      escaped: ({ a = "\\"", b = "}=", c = "" }, sep) => sep,
-      regex: ({ re = /}/, n = 1 }, sep) => sep,
-      slashInClass: ({ re = /[/]/, n = 1 }, sep) => sep,
-      division: ({ a = 4 / 2, b = { c: 4 / 2 }.c, d = 1 }, sep) => sep,
-      bound: ((u, sep) => sep).bind(null),
-      native: Math.max,
-    }`)() as Record<string, (u: User, sep: string) => string>;
-    // oxlint-disable-next-line typescript/no-implied-eval -- a template nested in a template
-    members["template"] = new Function("return ({ a = `${`}`}`, b = 1 }, sep) => sep")() as (
-      u: User,
-      sep: string,
-    ) => string;
-    // oxlint-disable-next-line typescript/no-implied-eval -- an escaped backtick in a template
-    members["escapedTemplate"] = new Function(
-      "return ({ a = `\\`} = `, b = 1 }, sep) => sep",
-    )() as (u: User, sep: string) => string;
-    expect(() =>
+  // Built from strings, since the test transform drops comments and rewrites the source.
+  const throws = (member: unknown) => {
+    const f = (
+      typeof member == "string"
+        ? // oxlint-disable-next-line typescript/no-implied-eval -- the source has to survive the transform
+          new Function(`let key; return ${member}`)()
+        : member
+    ) as (u: User, sep: string) => string;
+    try {
       Val.companion<User>()
-        .impl(() => members)
-        .build(),
-    ).not.toThrow();
+        .impl(() => ({ f }))
+        .build();
+      return false;
+    } catch {
+      return true;
+    }
+  };
+
+  test("but not a default or a rest inside a destructured parameter, nor `=` or `(` elsewhere", () => {
+    const passing = [
+      String.raw`({ name = "}", id = "" }, sep) => name + id + sep`,
+      String.raw`({ name, ...rest }, sep) => name + sep`,
+      String.raw`([first = (1), ...rest], sep) => first + sep`,
+      "(u /* = */, sep // ...\n) => u.name + sep",
+      String.raw`(u, sep) => (sep = u.name)`,
+      String.raw`u => Math.max(...u.scores)`,
+      String.raw`async (u, sep) => sep`,
+      String.raw`function (u, sep) { sep = u.name; return sep; }`,
+      String.raw`({ method(u, sep) { return sep; } }).method`,
+      String.raw`({ async method(u, sep) { return sep; } }).method`,
+      String.raw`({ [("(" + ")")](u, sep) { return sep; } })["()"]`,
+      String.raw`({ "a(b"(u, sep) { return sep; } })["a(b"]`,
+      String.raw`({ [key = "m"](u, sep) { return sep; } }).m`,
+      String.raw`({ a = "\"", b = "}=" }, sep) => sep`,
+      String.raw`({ re = /}/, n = 1 }, sep) => sep`,
+      String.raw`({ re = /[a/]/, n = 1 }, sep) => sep`,
+      String.raw`({ a = [/]/], b = 1 }, sep) => sep`,
+      String.raw`({ a = 4 / 2, b = { c: 4 / 2 }.c, d = 1 }, sep) => sep`,
+      String.raw`({ a = { b: "6" / 2 }.b, c = 1 / 3 }, sep) => sep`,
+      "({ a = { b: `6` / 2 }.b, c = 1 / 3 }, sep) => sep",
+      "({ a = `\\`} = `, b = 1 }, sep) => sep",
+      "({ a = `${x}}=`, b = 1 }, sep) => sep",
+      "({ a = String.raw`${/]}=/.source}`, b = 1 }, sep) => sep",
+      ((u: User, sep: string) => u.id + sep).bind(null),
+      Math.max,
+    ];
+    expect(passing.filter(throws)).toEqual([]);
+  });
+
+  test("nor does a template or a computed key hide one", () => {
+    const hiding = [
+      "({ a = `${`}`}` }, sep = 1) => sep",
+      "({ a = `$` }, sep = 1) => sep",
+      String.raw`({ [(() => "m")()](u, sep = "/") { return sep; } }).m`,
+    ];
+    expect(hiding.filter((source) => !throws(source))).toEqual([]);
   });
 });
 
