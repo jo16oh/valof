@@ -2,11 +2,11 @@
 
 Only three things can be a payload:
 
-|            |                                                             |
-| ---------- | ----------------------------------------------------------- |
-| Primitives | `string` / `number` / `boolean`; `null` below the top level |
-| Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`               |
-| Objects    | `{ k: allowed }`, or `Record<string, allowed>`              |
+|            |                                                                |
+| ---------- | -------------------------------------------------------------- |
+| Primitives | `string` / `number` / `boolean` / `null` (below the top level) |
+| Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                  |
+| Objects    | `{ k: allowed }`, or `Record<string, allowed>`                 |
 
 A Val is itself one of these, so Vals nest. A tuple keeps its positions and its length. One with a
 rest element (`[string, ...number[]]`) reads as an array instead, since a fixed length is what
