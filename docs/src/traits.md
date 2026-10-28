@@ -55,7 +55,7 @@ const User = Val.companion<User>()
 
 User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 
-const duck: Greetable = { name: "duck" }; // type error: only a Val declaring Greetable is one
+const duck: Greetable = { name: "duck" }; // type error: only a Val declaring Greetable is assignable
 ```
 
 `Trait.companion<Greetable>().build()` creates the trait's companion, even for a trait that
