@@ -1,19 +1,18 @@
 import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "../bundle.ts";
-import { defineError } from "../../shared/util.ts";
 
-export const DevCodeKeptError = defineError("DevCodeKeptError", (imports: Imports) => ({
-  message: `production keeps the development branches: import { ${Imports.names(imports).join(", ")} }`,
-  imports,
-}));
-export type DevCodeKeptError = ReturnType<typeof DevCodeKeptError>;
+export class DevCodeKeptError extends ErrorFactory({
+  message: ({ imports }) =>
+    `production keeps the development branches: import { ${Imports.names(imports).join(", ")} }`,
+  fields: ErrorFactory.fields<{ imports: Imports }>(),
+}) {}
 
-export const AddsNothingError = defineError("AddsNothingError", (bundle: Bundle) => ({
-  message: `${bundle.name} adds nothing to the base, which already holds it`,
-  bundle,
-}));
-export type AddsNothingError = ReturnType<typeof AddsNothingError>;
+export class AddsNothingError extends ErrorFactory({
+  message: ({ bundle }) => `${bundle.name} adds nothing to the base, which already holds it`,
+  fields: ErrorFactory.fields<{ bundle: Bundle }>(),
+}) {}
 
 export type Mode = "production" | "development";
 export const modes: readonly Mode[] = ["production", "development"];
@@ -45,7 +44,7 @@ export const BuildResult = Val.companion<BuildResult>()
     check: (build): R.Result<void, DevCodeKeptError> =>
       !build.readsNodeEnv || build.production.sizes.minified !== build.development.sizes.minified
         ? R.succeed()
-        : R.fail(DevCodeKeptError(build.imports)),
+        : R.fail(new DevCodeKeptError({ imports: build.imports })),
   }))
   .build();
 
@@ -70,6 +69,6 @@ export const BundleSize = Val.companion<BundleSize>()
     check: (size, base: BuildResult): R.Result<void, AddsNothingError> =>
       size.bundle.base || size.build.production.library !== base.production.library
         ? R.succeed()
-        : R.fail(AddsNothingError(size.bundle)),
+        : R.fail(new AddsNothingError({ bundle: size.bundle })),
   }))
   .build();

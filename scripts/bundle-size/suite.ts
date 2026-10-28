@@ -1,8 +1,8 @@
 import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "./bundle.ts";
 import { flow } from "../shared/pipe/index.ts";
-import { defineError } from "../shared/util.ts";
 import {
   BuildResult,
   BundleSize,
@@ -18,8 +18,7 @@ import {
   type PackError,
 } from "./measure/toolchain.ts";
 
-export const NoBaseError = defineError("NoBaseError", () => ({ message: "no bundle sets base" }));
-export type NoBaseError = ReturnType<typeof NoBaseError>;
+export class NoBaseError extends ErrorFactory({ message: "no bundle sets base" }) {}
 
 export type Report = Val<
   "Report",
@@ -40,7 +39,7 @@ export const Suite = Val.companion<Suite>()
         .map((bundle) => bundle.imports);
       return first !== undefined
         ? R.succeed(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
-        : R.fail(NoBaseError());
+        : R.fail(new NoBaseError());
     },
     measure: async (
       suite: Suite,

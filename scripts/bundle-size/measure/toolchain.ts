@@ -6,41 +6,32 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
 import { flow, pipe } from "../../shared/pipe/index.ts";
-import { defineError, toDefinedError } from "../../shared/util.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
-export const PackError = defineError("PackError", (output: string) => ({
-  message: `vp run build failed\n${output}`,
-  output,
-}));
-export type PackError = ReturnType<typeof PackError>;
+export class PackError extends ErrorFactory({
+  message: ({ output }) => `vp run build failed\n${output}`,
+  fields: ErrorFactory.fields<{ output: string }>(),
+}) {}
 
-export const NoChunkError = defineError("NoChunkError", (mode: Mode) => ({
-  message: `no chunk emitted for ${mode}`,
-  mode,
-}));
-export type NoChunkError = ReturnType<typeof NoChunkError>;
+export class NoChunkError extends ErrorFactory({
+  message: ({ mode }) => `no chunk emitted for ${mode}`,
+  fields: ErrorFactory.fields<{ mode: Mode }>(),
+}) {}
 
-export const CompileError = defineError(
-  "CompileError",
-  (mode: Mode, step: string, cause: unknown) => ({
-    message: `${step} failed for ${mode}: ${String(cause)}`,
-    cause: toDefinedError(cause),
-    mode,
-    step,
-  }),
-);
-export type CompileError = ReturnType<typeof CompileError>;
+export class CompileError extends ErrorFactory({
+  message: ({ mode, step, detail }) => `${step} failed for ${mode}: ${detail}`,
+  fields: ErrorFactory.fields<{ mode: Mode; step: string; detail: string }>(),
+}) {}
 
-export const MinifyError = defineError("MinifyError", (cause: unknown) => ({
-  message: `minify failed: ${String(cause)}`,
-  cause: toDefinedError(cause),
-}));
-export type MinifyError = ReturnType<typeof MinifyError>;
+export class MinifyError extends ErrorFactory({
+  message: ({ detail }) => `minify failed: ${detail}`,
+  fields: ErrorFactory.fields<{ detail: string }>(),
+}) {}
 
 const root = new URL("../../../", import.meta.url);
 
@@ -57,7 +48,7 @@ export function pack(): R.ResultAsync<void, PackError> {
     },
     catch: (cause) => {
       const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
-      return PackError(`${stdout}${stderr}` || String(cause));
+      return new PackError({ output: `${stdout}${stderr}` || String(cause), cause });
     },
   });
 }
@@ -94,7 +85,7 @@ const Code = Val.companion<Code>()
     minify: (code) =>
       R.try({
         try: () => seal(minifySync("bundle.mjs", code).code),
-        catch: (cause) => MinifyError(cause),
+        catch: (cause) => new MinifyError({ detail: String(cause), cause }),
       }),
     sizes: (code): R.Result<Sizes, MinifyError> =>
       R.map((minified: Code) => {
@@ -194,7 +185,7 @@ async function compileEntry(
     ),
     R.map((result) => result[0]?.output.find((output) => output.type === "chunk")),
     R.andThen((output) =>
-      output?.type === "chunk" ? R.succeed(output) : R.fail(NoChunkError(mode)),
+      output?.type === "chunk" ? R.succeed(output) : R.fail(new NoChunkError({ mode })),
     ),
   );
   if (R.isFailure(found)) return found;
@@ -221,5 +212,8 @@ function attempt<A>(
   step: string,
   run: () => Promise<A>,
 ): R.ResultAsync<A, CompileError> {
-  return R.try({ try: run, catch: (cause) => CompileError(mode, step, cause) });
+  return R.try({
+    try: run,
+    catch: (cause) => new CompileError({ mode, step, detail: String(cause), cause }),
+  });
 }
