@@ -12,9 +12,6 @@ A Val is itself one of these, so Vals nest. A tuple keeps its positions and its 
 rest element (`[string, ...number[]]`) reads as an array instead, since a fixed length is what
 distinguishes the two.
 
-`bigint` is not allowed, since `JSON.stringify` throws on it. See
-[Large integers](patterns.md#large-integers) instead.
-
 ## Write the payload plain
 
 `Val` makes the payload deeply readonly on its own, so `readonly` in the definition changes nothing
