@@ -49,12 +49,12 @@ export type BuildResult = Val<
   }
 >;
 export const BuildResult = Val.companion<BuildResult>()
-  .impl({
-    check: (build): R<void, DevCodeKeptError> =>
+  .impl(() => ({
+    check: (build) =>
       !build.readsNodeEnv || build.production.sizes.minified !== build.development.sizes.minified
         ? R.ok()
         : R.err(new DevCodeKeptError({ imports: build.imports })),
-  })
+  }))
   .build();
 
 export type BundleSize = Val<
@@ -73,11 +73,11 @@ export const BundleSize = Val.companion<BundleSize>()
       ? build.production.sizes.gzip
       : build.production.sizes.gzip - base.production.sizes.gzip,
   }))
-  .impl({
-    over: (size): boolean => size.capped > size.bundle.budget,
-    check: (size, base: BuildResult): R<void, AddsNothingError> =>
+  .impl(() => ({
+    over: (size) => size.capped > size.bundle.budget,
+    check: (size, base: BuildResult) =>
       size.bundle.base || size.build.production.library !== base.production.library
         ? R.ok()
         : R.err(new AddsNothingError({ bundle: size.bundle })),
-  })
+  }))
   .build();
