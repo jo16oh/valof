@@ -1,10 +1,9 @@
-import { Result as R } from "better-result";
+import { Result as R } from "@praha/byethrow";
 import { readFile } from "node:fs/promises";
 import { describe, expect, expectTypeOf, test, vi } from "vite-plus/test";
 
 import { generate } from "./generate-tests.ts";
 import { flow, pipe, tap, type Sink } from "./index.ts";
-import { GenAwait } from "../util.ts";
 
 class NotFoundError extends Error {}
 class InvalidError extends Error {}
@@ -12,12 +11,12 @@ class InvalidError extends Error {}
 describe("pipe", () => {
   test("infers each step's argument from the previous step", () => {
     const length = pipe(
-      R.ok<string, NotFoundError>("abc"),
+      R.succeed("abc") as R.Result<string, NotFoundError>,
       R.map((s) => s.length),
-      R.andThen((n) => (n > 0 ? R.ok(n) : R.err(new InvalidError()))),
+      R.andThen((n) => (n > 0 ? R.succeed(n) : R.fail(new InvalidError()))),
     );
-    expectTypeOf(length).toEqualTypeOf<R<number, NotFoundError | InvalidError>>();
-    expect(length.unwrap()).toBe(3);
+    expectTypeOf(length).toEqualTypeOf<R.Result<number, NotFoundError | InvalidError>>();
+    expect(R.unwrap(length)).toBe(3);
   });
 });
 
@@ -35,13 +34,13 @@ describe("flow", () => {
 
   test("infers each step's argument from the resolved previous step", async () => {
     const length = flow(
-      R.ok<string, NotFoundError>("abc"),
+      R.succeed("abc") as R.Result<string, NotFoundError>,
       R.map((s) => s.length),
-      R.andThenAsync(async (n) => (n > 0 ? R.ok(n) : R.err(new InvalidError()))),
+      R.andThen(async (n) => (n > 0 ? R.succeed(n) : R.fail(new InvalidError()))),
       R.map((n) => n * 2),
     );
-    expectTypeOf(length).toEqualTypeOf<Promise<R<number, NotFoundError | InvalidError>>>();
-    expect((await length).unwrap()).toBe(6);
+    expectTypeOf(length).toEqualTypeOf<Promise<R.Result<number, NotFoundError | InvalidError>>>();
+    expect(R.unwrap(await length)).toBe(6);
   });
 
   test("hands the chain's promise, not its value, to a sink", async () => {
@@ -56,38 +55,6 @@ describe("flow", () => {
     const [promise] = seen.mock.calls[0] ?? [];
     expect(promise).toBeInstanceOf(Promise);
     expect(await promise).toBe(2);
-  });
-});
-
-describe("GenAwait", () => {
-  test("gives a Result generator the Ok value as flow's last step", async () => {
-    const result = await R.gen(async function* () {
-      const n = yield* flow(
-        R.ok<number, NotFoundError>(1),
-        R.map((n) => n + 1),
-        GenAwait,
-      );
-      expectTypeOf(n).toEqualTypeOf<number>();
-      return R.ok(n * 10);
-    });
-    expectTypeOf(result).toEqualTypeOf<R<number, NotFoundError>>();
-    expect(result.unwrap()).toBe(20);
-  });
-
-  test("stops a Result generator at an Err as flow's last step", async () => {
-    const error = new NotFoundError();
-    const after = vi.fn();
-    const result = await R.gen(async function* () {
-      yield* flow(
-        R.err<number, NotFoundError>(error),
-        R.map((n) => n + 1),
-        GenAwait,
-      );
-      after();
-      return R.ok(0);
-    });
-    expect(result.isErr() && result.error).toBe(error);
-    expect(after).not.toHaveBeenCalled();
   });
 });
 
