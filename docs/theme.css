@@ -11,8 +11,9 @@
   justify-self: end;
 }
 
-/* mdBook centers tables. */
+/* mdBook centers tables, and sizes them to their content. */
 .content table {
+  width: 100%;
   margin-left: 0;
 }
 

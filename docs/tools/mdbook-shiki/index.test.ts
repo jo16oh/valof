@@ -67,6 +67,34 @@ describe("mdBook Shiki preprocessor", () => {
     expect(result).not.toContain("~~~");
   });
 
+  test("highlights a call that fills a table row's first cell", () => {
+    const markdown = [
+      "| Step | Description |",
+      "| --- | --- |",
+      "| `.implSeal(f)` | registers a custom seal |",
+      "| `E.create(...args)` | creates a payload |",
+      "| `Val<K, T>` | a branded value type |",
+      "| `PrivateSeal` | removes `seal(x)` from the companion |",
+      "",
+      "Text with `.impl(f)` inline.",
+      "",
+      "```text",
+      "| `.build()` | ends the chain |",
+      "```",
+    ].join("\n");
+
+    const result = markdownHighlighter.transform(markdown);
+
+    expect(result.match(/class="shiki-inline"/g)).toHaveLength(2);
+    // mdBook's smart punctuation would turn a bare `...` into `…`.
+    expect(result).toContain(">&#46;&#46;&#46;<");
+    expect(result).not.toContain("...");
+    expect(result).toMatch(/^\| <code class="shiki-inline">.*implSeal.*<\/code> \| registers/m);
+    expect(result).toContain("| `Val<K, T>` |");
+    expect(result).toContain("removes `seal(x)` from");
+    expect(result).toContain("Text with `.impl(f)` inline.");
+  });
+
   test("warns once and uses text for an unknown language", async () => {
     const onWarning = vi.fn();
     const transformer = await createMarkdownHighlighter({ onWarning });
