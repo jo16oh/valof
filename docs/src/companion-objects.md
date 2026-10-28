@@ -111,9 +111,9 @@ const User = Val.companion<User>()
 User.greet(User.seal({ id: "a", name: "bob" }), undefined); // "Hi, bob"
 ```
 
-Valof checks the parameters that a member's type shows, not the ones in its implementation. A type
-annotation can hide a default or a rest parameter. The member is then accepted, but a call with the
-value last fails:
+The type check sees the parameters in a member's type, not the ones in its implementation. A type
+annotation can hide a default or a rest parameter from it. Development then throws at `.build()`.
+Production accepts the member, and a call with the value last fails:
 
 ```ts
 import { Val } from "valof";
@@ -123,12 +123,10 @@ type User = Val<"User", { id: string; name: string }>;
 const toWire: (user: User, sep: string) => string = (user, sep = "/") => user.id + sep + user.name;
 const User = Val.companion<User>()
   .impl(() => ({ toWire }))
-  .build();
+  .build(); // throws in development
 
-User.toWire("-")(User.seal({ id: "a", name: "bob" })); // throws: `User.toWire("-")` returned a string
+User.toWire("-")(User.seal({ id: "a", name: "bob" })); // throws in production, because `User.toWire("-")` returned a string
 ```
-
-Do not use a default or a rest parameter in the implementation either.
 
 Called with the value last, a generic member loses its type parameters. Each becomes its constraint,
 or `unknown` where none is declared. To keep them, wrap the member in a function that calls it with
