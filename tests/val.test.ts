@@ -287,7 +287,6 @@ describe("Val", () => {
 
     test("Vals, arrays, records and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
-      expectTypeOf<Val<"B", bigint>>().toExtend<AnyVal>();
       expectTypeOf<Val<"C", string[]>>().toExtend<AnyVal>();
       expectTypeOf<Val<"D", Record<string, true>>>().toExtend<AnyVal>();
       expectTypeOf<Val<"E", { at: Val<"A", string>; n: number | null }>>().toExtend<AnyVal>();
@@ -369,6 +368,17 @@ describe("Val", () => {
     test("functions are rejected", () => {
       type Bad = Val<"Bad", { run: () => void }>;
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
+    });
+
+    test("bigint is rejected, alone or in a union", () => {
+      type Bad = Val<"Bad", { n: bigint; m: number | bigint }>;
+      type Rejected = {
+        readonly __valError: "JSON.stringify throws on a bigint; use a decimal string";
+      };
+      expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{ n: Rejected; m: Rejected }>();
+      expectTypeOf<Bad>().not.toExtend<AnyVal>();
+      // @ts-expect-error JSON.stringify throws on a bigint
+      Val.companion<Bad>().build();
     });
 
     test("null is allowed inside a payload, but not at its top level", () => {

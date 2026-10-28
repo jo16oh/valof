@@ -28,8 +28,8 @@ import { Val } from "valof";
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed`（2026-10-22 に型引数の `Unpatchable` へ、§6.12）と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、型注釈が隠す既定値と rest を development でソースから読む（2026-10-28）、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
   - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、`.build()` で鎖を閉じること（§13.6 を覆した）、Proxy を残す判断。Enum の段の順は §15.2
   - **6.13** `implAssoc`: Val を受け取らないメンバ。段を分ける理由、渡すもの、dual にする（§6.11 を覆した）、引数の検査が戻り値の注釈を要る理由、長さ 0 の関数のソースを読む検査（2026-10-28 に §6.11 の検査へ）、`[Shared]` に入れない Trait の関連関数、`build` に `& A` を付けると宣言出力が壊れること、残る穴（`from*` に検査を書く）、却下した案
-- **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
-- **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
+- **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと、bigint（2026-10-28 に外した、却下した「残す」案）
+- **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）、2^53 を超える整数（§8.6、10 進の整数文字列）
 - **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降、npm と同じ形で入れた `dist` を `exports` 越しに検査する）
 - **§11 型エラーをどこで表面化させるか** パラメータ位置（A）と判定位置（B、`Verdict`）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
@@ -291,10 +291,10 @@ Val.of<User>({ id: "a", name: "alice" });
 コンストラクタと `Val.of` が受け取れる型を以下に制限する。
 
 ```ts
-type Primitive = string | number | boolean | bigint;
+type Primitive = string | number | boolean;
 ```
 
-`undefined` は値として許可しない（§3.5）。
+`undefined` は値として許可しない（§3.5）。`bigint` も許可しない（§7.8）。
 `null` はオブジェクト・配列内では許可するが、トップレベルでは許可しない（§9）。ブランドとの交差が
 `never` になり、異なる Val として区別できないため。
 
@@ -2492,6 +2492,32 @@ const Order = Val.sealer<Order>().implEquals(
 
 行き先は同じではない。`equals` は `implEquals` に出た。`patch` は**どこにも出さず、上書きの手段ごと閉じた**（§6.6）。`.impl` から弾く `never` はどちらも残る。**2026-09-15: `implEquals` は撤回した（§5）。**`.impl` は `equals` をもう弾かないので、その名前のメンバは書ける。上書きさせないことと、同名の関数を素通しで生やせることは別で、後者は既定を実行時に踏み潰す。
 
+### 7.8 bigint、2026-10-28
+
+**許可型から外す。** 2^53 未満に収まる整数は `number` で足りる。超えるものは 10 進の整数文字列を Val で包む（§8.6）。
+
+`JSON.stringify(1n)` は TypeError を投げる。§1 が保証する「JSON を対称に往復する」を、許可型の中で唯一破っていた。`structuredClone` は通るので、壊れるのは JSON の境界だけで、そこで初めて例外になる。§7.3 が Date を外したのと同じ理由である。
+
+型エラーは専用の文言にした（`JSON.stringify throws on a bigint; use a decimal string`）。v0.11 までは通っていた型なので、移行する利用者が代わりの形にたどり着けるようにする。union に混ざった場合（`number | bigint`）も同じ文言になる。判定は `ValidateValue` の最後の分岐で行うので、許可される payload の検査には掛からない。symbol など他のプリミティブは従来どおり「not a plain value」。
+
+実行時の検査は足さない。development の検査はプロトタイプを持つオブジェクトだけを見ており、symbol も関数も見ていない。bigint もそれに揃える。カスタム seal の引数は payload より広くてよい（§6.7）ので、`string | bigint` を受けて文字列にする seal は書ける。
+
+**代償。** 文字列で持つので、次を利用者が払う。
+
+- 大小比較は文字列比較では正しくない（`"10" < "9"`）。companion のメンバで `BigInt()` に戻して比べる
+- 正規形（`/^(0|-?[1-9]\d*)$/`）は seal で強制する。`"010"` と `"10"` が別の値として `equals` を通らないようにするため（§5 の正規形で構築する原則）
+- 演算のたびに `BigInt()` への変換が掛かる
+
+#### 却下: 残す
+
+JSON 以外の境界（`structuredClone`、React の state）は通るので、JSON を通さない利用者には害が無い、という案。採らない。
+
+- 「値はプレーンなデータ」の保証から JSON の往復だけを外すと、§1 の保証が「bigint を含まなければ」という条件付きになる。Date を外した理由（§7.3）と食い違う
+- 失敗が遅い。型は通り、例外はシリアライズした時点、多くはサーバー境界や localStorage への保存で初めて出る
+- 包む形が §8.2 の `Val<"IsoDate", string>` と同じで、ライブラリに新しい機構が要らない
+
+top-level の `null` の禁止（§9）はこの変更の対象外。
+
 ---
 
 ## 8. 慣用パターン
@@ -2615,6 +2641,38 @@ User.patch(user, { id: "forged" }); // 型エラー
 **計測時の罠。** Node は `solid-js` の `node` 条件を引くので、素で import すると非リアクティブな SSR
 ビルドを測ってしまう（proxy されず、書き込みも素通りする）。`node --conditions=browser` が要る。
 `--conditions=development` は Solid のビルド選択で、valof の freeze を決める `NODE_ENV` とは別軸。
+
+### 8.6 2^53 を超える整数
+
+§7.8 で bigint を外した代わり。§8.2 と同じく、文字列を包んで seal で形を強制する。
+
+```ts
+export type BigInteger = Val<"BigInteger", string>;
+
+export const BigInteger = Val.companion<BigInteger>()
+  .implSeal((n: string | bigint, seal) => {
+    const s = String(n);
+    if (!/^(0|-?[1-9]\d*)$/.test(s)) throw new RangeError(`not an integer: ${s}`);
+    return seal(s);
+  })
+  .impl(() => ({
+    add(a, b: BigInteger): BigInteger {
+      return BigInteger.seal(BigInt(a) + BigInt(b));
+    },
+    compare(a, b: BigInteger): -1 | 0 | 1 {
+      const x = BigInt(a);
+      const y = BigInt(b);
+      return x < y ? -1 : x > y ? 1 : 0;
+    },
+  }))
+  .build();
+
+BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
+```
+
+- 正規形は正規表現で検査する。`BigInt("010")` は 10 を返すので、`BigInt()` を通るかどうかでは `"010"` を弾けない
+- 比較は `compare` で行う。文字列の `<` は `"10" < "9"` を真にする
+- seal の引数を `string | bigint` に広げると、演算の結果をそのまま seal に渡せる。payload が `string` なので §6.7 の上限には掛からない
 
 ---
 
