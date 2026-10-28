@@ -25,9 +25,9 @@ import { Val } from "valof";
   - **6.1** コンストラクタは出自で決まる / **6.2** `patch`、patch の `undefined`、深さを問わない patch、merge できるのは既にあるノードだけ / **6.3** Result 非依存 / **6.4** `update` を削除する
   - **6.5** `.impl` の第一引数を Val に固定する contextual typing / **6.6** `patch` を上書きさせない
   - **6.7** seal（冪等）と create（生成）の分離、seal は同期で返す / **6.8** seal を唯一の関門にする。経路ごとのコピー回数
-  - **6.9** 名前が `seal` になるまで / **6.10** `fixed`（2026-10-22 に型引数の `Unpatchable` へ、§6.12）と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
+  - **6.9** 名前が `seal` になるまで / **6.10** `fixed`（2026-10-22 に型引数の `Unpatchable` へ、§6.12）と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、型注釈が隠す既定値と rest を development でソースから読む（2026-10-28）、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
   - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、`.build()` で鎖を閉じること（§13.6 を覆した）、Proxy を残す判断。Enum の段の順は §15.2
-  - **6.13** `implAssoc`: Val を受け取らないメンバ。段を分ける理由、渡すもの、dual にする（§6.11 を覆した）、引数の検査が戻り値の注釈を要る理由、長さ 0 の関数のソースを読む検査、`[Shared]` に入れない Trait の関連関数、`build` に `& A` を付けると宣言出力が壊れること、残る穴（`from*` に検査を書く）、却下した案
+  - **6.13** `implAssoc`: Val を受け取らないメンバ。段を分ける理由、渡すもの、dual にする（§6.11 を覆した）、引数の検査が戻り値の注釈を要る理由、長さ 0 の関数のソースを読む検査（2026-10-28 に §6.11 の検査へ）、`[Shared]` に入れない Trait の関連関数、`build` に `& A` を付けると宣言出力が壊れること、残る穴（`from*` に検査を書く）、却下した案
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）
 - **§9 未解決 / 要確認** 次の作業はここ
@@ -1839,11 +1839,11 @@ pipe(shape, Shape.match({ Circle: (c) => …, Square: (s) => … }));
 - **引数の無いメンバ。**self を取らないので、development の検査（下）と型の両方で拒む。それまでは `.impl({ anonymous: () => "x" })` を許していた。置き場所は素の export 関数、のちに `implAssoc`
 - **判定は `.impl` の引数の位置に置く。**`Grown` と同じく、引数の型に `Arity<M>` を交差させる。`CompanionMembers` は単一の関数型のままでないと、第 1 引数の文脈型が消える（§6.5）
 - **Trait の実装も検査する。**宣言は `Declarable` で、`Trait.companion().impl` の実装は `Arity<H>` で拒む。`implTrait(Greetable, { toWire: (u, sep = "/") => … })` の実装は宣言の型に代入できてしまうので、実装を型引数 `I` で受けて `Arity<I>` を掛ける。trait の fixture は約 2,000 instantiations 増えた
-- **残る穴: 宣言の型が実装を隠す形。**型が見るのは推論したメンバの型で、実行時が読むのは実装の `fn.length` である。型注釈が実装のデフォルト引数や rest 引数を隠すと、2 つが食い違う。型は通り、data-last の呼び出しが黙って data-first として走る。引数の無い実装は development の検査が捕まえる
+- **残る穴: 宣言の型が実装を隠す形。**型が見るのは推論したメンバの型で、実行時が読むのは実装の `fn.length` である。型注釈が実装のデフォルト引数や rest 引数を隠すと、2 つが食い違う。型は通り、data-last の呼び出しが黙って data-first として走る。2026-10-28 から development の検査が捕まえる（下の「実行時」）
   - 型注釈つきの変数やオブジェクトを渡す形（`const toWire: (u: User, sep: string) => string = (u, sep = "/") => …` を `.impl({ toWire })`）
   - `implTrait<Sized>({ … })` も同じ形だったので、外した（§15.1「型引数の形をなくす」）
-  - **型では塞げない。**注釈を付けた時点で、デフォルト引数の事実はどの型にも残らない。docs で注意する。lint の規則は §9
-  - **却下: development で `f.toString()` を読み、引数の並びの `=` と `...` を探す。**分割代入のデフォルト、コメント、トランスパイルされたコードで誤検出する。誤検出で投げると正しいコードを壊す。`implAssoc` では長さ 0 の関数に限って、並びが空かどうかだけを読む（§6.13）
+  - **型では塞げない。**注釈を付けた時点で、デフォルト引数の事実はどの型にも残らない。lint の規則は §9
+  - **却下: development で `f.toString()` を読み、引数の並びの `=` と `...` を探す。→ 2026-10-28 に覆した（下の「実行時」）。**分割代入のデフォルト、コメント、トランスパイルされたコードで誤検出する。誤検出で投げると正しいコードを壊す。`implAssoc` では長さ 0 の関数に限って、並びが空かどうかだけを読む（§6.13）
 - **`Declarable` の判定の向きで型が暴走した。**`unknown extends Omission<M[K]> ? … : …` と書くと、再帰する Val（`Rec`）の展開で TS2589 になった。`Omission<M[K]> extends string ? … : …` なら通る
 - **禁じるのは省略で、`undefined` ではない。**`a: T | undefined` は必須引数で、`--strict`、`--exactOptionalPropertyTypes`、`--strictNullChecks false` のどれでも `f(u)` は TS2554 になる。外部の optional な値は `User.f(u, opts.x)` とそのまま渡せる。払うのは、何も渡さない呼び出しを `f(u, undefined)` と書くことだけ
 
@@ -1852,6 +1852,20 @@ pipe(shape, Shape.match({ Circle: (c) => …, Square: (s) => … }));
 `(...args) => fn(...args)` で包んだ関数は `length` が 0 になる。data-last の呼び出しが、黙って data-first として走る。正規のメンバは self を取るので `n >= 1` である。引数の無いメンバは型で拒むので、正規のメンバが検査に掛かることはない。development では `.impl` の時点で投げる。production のビルドでは消える。
 
 関数でないメンバ（`LABEL: "user"`）は包まずに載せる。`dyn` が読む `__valof_traits` と、`implTrait` が読む `__valof_shared` には包む前の関数を残す。
+
+#### 実行時: 隠れた既定値と rest を development で投げる、2026-10-28
+
+型注釈が隠した既定値と rest（上の「残る穴」）を、development がソースから拒む。`(user, sep = "/")` は `length` が 1 なので、引数 1 個のメンバとして載り、`User.toWire("-")` が文字列を返していた。長さ 0 の検査では 2 番目以降を捕まえられない。
+
+- **`Function.prototype.toString` の引数の並びで、最上位の `=` と `...` を探す。**位置は問わない。`.impl`、`.implTrait`、`.implAssoc`、Trait と Enum のメンバはどれも `createMembers` を通る
+- **分割代入の中の既定値と rest は通す。**`length` を縮めないので（`({ a = 1 }, b)` も `[a, ...r]` も `length` 2）、data-last の判別を壊さない。分割代入そのものの既定値（`({ a } = {}, b)`）は最上位の `=` なので拒む
+- **却下した理由だった誤検出は、字句を読んで避ける。**文字列とコメントは 1 トークンにする。括弧の深さを数え、深さ 1 の `=` と `...` だけを見る（既定値の式の括弧、`=>` と `=` の区別）。並びは括弧の外の最初の `(` で、計算されたキー（`[k("x")](a) {}`）を飛ばす。それより先に `=>` が来れば括弧なしのアロー。`function`、`async`、メソッド記法、ジェネレータは同じ規則で読める。テストで規則ごとに変異を入れ、どれも落ちることを確かめた
+- **残る誤検出。**分割代入の既定値に置いた正規表現リテラルが引用符か括弧を含む形（`({ re = /[)]/ }, b)`）と、テンプレートリテラルの `${}` の中のバッククォート。構文を全部は読まないため
+- **見逃しの方向。**bound と native の関数はソースが `() { [native code] }` で、並びが空に見える。ES5 にトランスパイルした既定値と rest は本体に移るので見えない
+- **長さ 0 の検査は `.impl` 側に残す。**並びが空の `() => "x"` は既定値も rest も無い。メッセージは 2 つに分けた（既定値・rest と、値を取らないメンバ）
+- **production では消える。**`hidesParameter` は `development &&` の下からしか呼ばないので、production のバンドルから落ちる。bundle-size で Val の production gzip が 965 B のまま変わらないことを確かめた
+- **却下: 構文解析器（acorn など）で読む。**依存が増え、利用者の development バンドルにも入る。字句の規則で上の形を全部読める
+- **oxlint の `typescript/no-useless-default-assignment` が一部を拾う。**注釈の型が nullish を含まないと、隠れた既定値を「使われない既定値」と警告する。テストでは抑制した。§9 の lint 規則の検討材料になる
 
 #### オーバーロードは data-first を最後に置く
 
@@ -2258,7 +2272,7 @@ const User = Val.companion<User>()
   最小のモデルで確かめた（検査ありで循環、無しで通る）。`infer` を使わない比較なら循環しないが、
   optional な引数を見分けられない。`impl` で companion を参照すると注釈が要るのも、同じ `Arity` が
   原因と見られる。検査を入れる前の試作では、注釈なしで参照できた
-- **development は長さ 0 の関数のソースを読む。**`length` が 0 なのは引数が無いときと、最初の引数が
+- **development は長さ 0 の関数のソースを読む。→ 2026-10-28 に、長さを問わず並びの最上位の `=` と `...` を探す検査へ置き換えた（§6.11「実行時: 隠れた既定値と rest」）。下の残る誤検出（計算されたキー）も解消した。**`length` が 0 なのは引数が無いときと、最初の引数が
   rest かデフォルト付きのとき。後者は data-last の呼び出しを黙って data-first として走らせる
   （`memoize(fn)` が返すラッパーに型注釈を付けた形）。`Function.prototype.toString` からコメントを除き、
   引数の並びが空でなければ投げる
@@ -2702,6 +2716,9 @@ User.patch(user, { id: "forged" }); // 型エラー
 - [ ] **valof-lint の規則: 型注釈が隠す省略できる引数。未着手、2026-10-20、別の PR。**型注釈が実装のデフォルト
       引数や rest 引数を隠すと、型が拒めず data-last の呼び出しが壊れる（§6.11「残る穴」）。lint は構文を読むので、
       注釈の下の実装が見える
+  - **2026-10-28 から development が `build` で投げる**（§6.11「実行時: 隠れた既定値と rest」）。lint に残る価値は、
+    実行する前に書いた場所で見せること。oxlint の `typescript/no-useless-default-assignment` が、注釈の型が nullish を
+    含まない形を拾う
   - **拾う形。**注釈つきの const のオブジェクトを渡す `.impl(fns)` と、注釈つきの関数の変数を渡す
     `.impl({ toWire })`。`implTrait(Tr, …)` の第 2 引数も同じ。const のオブジェクトと spread は `unused-member`
     がすでに辿っている。関数の変数は、同じファイルの宣言まで辿る追跡を足す
