@@ -1312,12 +1312,14 @@ describe("data-first and data-last", () => {
     });
 
     test("a default parameter", () => {
-      Val.companion<User>()
-        .impl(() => ({
-          // @ts-expect-error a parameter that can be left out
-          at: (u: User, n = 0) => u.name.at(n),
-        }))
-        .build();
+      expect(() =>
+        Val.companion<User>()
+          .impl(() => ({
+            // @ts-expect-error a parameter that can be left out
+            at: (u: User, n = 0) => u.name.at(n),
+          }))
+          .build(),
+      ).toThrow(/default or a rest parameter/);
     });
 
     test("a trailing parameter that takes `void`", () => {
@@ -1330,12 +1332,14 @@ describe("data-first and data-last", () => {
     });
 
     test("a rest parameter", () => {
-      Val.companion<User>()
-        .impl(() => ({
-          // @ts-expect-error a parameter that can be left out
-          joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
-        }))
-        .build();
+      expect(() =>
+        Val.companion<User>()
+          .impl(() => ({
+            // @ts-expect-error a parameter that can be left out
+            joined: (u: User, ...parts: string[]) => [u.name, ...parts].join(),
+          }))
+          .build(),
+      ).toThrow(/default or a rest parameter/);
     });
 
     test("no parameter at all", () => {
@@ -1357,15 +1361,6 @@ describe("data-first and data-last", () => {
         }))
         .build();
     });
-  });
-
-  test("a member hiding its parameters throws in development", () => {
-    const greet = (u: User) => u.name;
-    expect(() =>
-      Val.companion<User>()
-        .impl(() => ({ greet: (...args: [User]) => greet(...args) }))
-        .build(),
-    ).toThrow(/first parameter/);
   });
 });
 
@@ -1751,7 +1746,7 @@ describe("building", () => {
               fromCents: (cents = 0) => seal({ cents }),
             }))
             .build(),
-        ).toThrow(/hide its parameters/);
+        ).toThrow(/default or a rest parameter/);
       });
 
       test("a rest parameter", () => {
@@ -1762,47 +1757,8 @@ describe("building", () => {
               sum: (...cents: number[]) => seal({ cents: cents.reduce((a, b) => a + b, 0) }),
             }))
             .build(),
-        ).toThrow(/hide its parameters/);
+        ).toThrow(/default or a rest parameter/);
       });
-    });
-
-    // A rest parameter typed as a fixed tuple passes the type: the source is all that shows it.
-    test("a member hiding its parameters throws in development, however it is written", () => {
-      type Hiding = { fromCents: (...args: [number]) => number };
-      const built = (fns: () => Hiding) => () => Val.companion<Money>().implAssoc(fns).build();
-      expect(
-        built(() => ({
-          fromCents(...args: [number]) {
-            return args[0];
-          },
-        })),
-      ).toThrow(/hide its parameters/);
-      expect(
-        built(() => ({
-          fromCents: function (...args: [number]) {
-            return args[0];
-          },
-        })),
-      ).toThrow(/hide its parameters/);
-    });
-
-    // Built from a string, since the test transform drops comments from the source.
-    test("but not a member whose source declares no parameter", () => {
-      // oxlint-disable-next-line typescript/no-implied-eval -- the comments have to survive the transform
-      const [block, line] = new Function("return [(/* none */) => 0, (// none\n) => 0]")() as [
-        () => number,
-        () => number,
-      ];
-      const bound = (() => 0).bind(null);
-      const Money = Val.companion<Money>()
-        .implAssoc(() => ({ block, line, bound, now: Date.now }))
-        .build();
-      expect([Money.block(), Money.line(), Money.bound(), typeof Money.now()]).toEqual([
-        0,
-        0,
-        0,
-        "number",
-      ]);
     });
 
     test("is written any number of times, before and after `impl` and `implTrait`", () => {

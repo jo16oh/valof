@@ -1,4 +1,5 @@
-import { development } from "./env.ts";
+import { development } from "../env.ts";
+import { hidesParameter } from "./parameters.ts";
 
 /**
  * A member callable two ways: `User.rename(u, "x")`, or `User.rename("x")(u)` with the value
@@ -69,11 +70,9 @@ export type Omission<F> = F extends (...args: infer P) => unknown
  * is then `undefined`, as in a wrapped member. `loose` marks members that do not take the value.
  * Such a member may take no argument.
  *
- * A `length` of 0 is also what a rest or default parameter leaves, which would run every
- * data-last call data-first. Development throws on a `length` of 0. For a loose member, it throws
- * only where the source shows such a parameter: an empty parameter list is the only one that
- * declares no parameter. Comments are dropped first, and a source it cannot read, a bound or
- * native function's, reads as empty.
+ * Development throws on a member whose source shows a default or a rest parameter. A type
+ * annotation can hide one from {@link Arity}, and `length` stops counting at it, so a data-last
+ * call would run data-first.
  */
 export function createMembers(
   members: Record<string, unknown>,
@@ -82,20 +81,15 @@ export function createMembers(
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(members)) {
     const f = members[key];
-    if (
-      development &&
-      typeof f == "function" &&
-      !f.length &&
-      (!loose ||
-        /^[^(]*\(\s*[^)\s]/.test(
-          Function.prototype.toString.call(f).replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, ""),
-        ))
-    ) {
-      throw new TypeError(
-        loose
-          ? "A member cannot hide its parameters behind a rest or a default parameter."
-          : "A member must have the value as its first parameter, not inside a rest parameter.",
-      );
+    if (development && typeof f == "function") {
+      if (hidesParameter(f)) {
+        throw new TypeError(
+          "A member cannot have a default or a rest parameter, because the argument count tells data-last from data-first.",
+        );
+      }
+      if (!loose && !f.length) {
+        throw new TypeError("A member must have the value as its first parameter.");
+      }
     }
     out[key] = typeof f != "function" ? f : f.length > 1 ? dual(f as AnyFn) : f.bind(undefined);
   }

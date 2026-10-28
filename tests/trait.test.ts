@@ -359,18 +359,22 @@ describe("data-first and data-last", () => {
 
   test("so is an implementation leaving out a parameter the declaration requires", () => {
     type Named = Val<"Named", { id: string; name: string }, Greetable>;
-    Val.companion<Named>()
-      .implTrait(Greetable, () => ({
-        // @ts-expect-error a parameter that can be left out
-        toWire: (n: Named, sep = "/") => n.id + sep,
-      }))
-      .build();
-    Val.companion<Named>()
-      .implTrait(Greetable, () => ({
-        // @ts-expect-error a parameter that can be left out
-        toWire: (n: Named, ...seps: string[]) => n.id + seps.join(),
-      }))
-      .build();
+    expect(() =>
+      Val.companion<Named>()
+        .implTrait(Greetable, () => ({
+          // @ts-expect-error a parameter that can be left out
+          toWire: (n: Named, sep = "/") => n.id + sep,
+        }))
+        .build(),
+    ).toThrow(/default or a rest parameter/);
+    expect(() =>
+      Val.companion<Named>()
+        .implTrait(Greetable, () => ({
+          // @ts-expect-error a parameter that can be left out
+          toWire: (n: Named, ...seps: string[]) => n.id + seps.join(),
+        }))
+        .build(),
+    ).toThrow(/default or a rest parameter/);
   });
 
   test("so is an implementation taking no parameter", () => {
@@ -393,22 +397,14 @@ describe("data-first and data-last", () => {
     ).toThrow(/first parameter/);
   });
 
-  test("an implementation hiding its parameters throws in development", () => {
-    const shout = (g: { name: string }) => g.name;
+  test("an implementation hiding a default or a rest parameter throws in development", () => {
+    // oxlint-disable-next-line typescript/no-useless-default-assignment -- the annotation hides it on purpose
+    const shout: (g: { name: string }) => string = (g = { name: "x" }) => g.name;
     expect(() =>
       Trait.companion<Greetable>()
-        .impl(() => ({ shout: (...args: [{ name: string }]) => shout(...args) }))
+        .impl(() => ({ shout }))
         .build(),
-    ).toThrow(/first parameter/);
-    type Named = Val<"Named", { name: string }, Greetable>;
-    const toWire = (n: Named, sep: string) => n.name + sep;
-    expect(() =>
-      Val.companion<Named>()
-        .implTrait(Greetable, () => ({
-          toWire: (...args: [Named, string]) => toWire(...args),
-        }))
-        .build(),
-    ).toThrow(/first parameter/);
+    ).toThrow(/default or a rest parameter/);
   });
 });
 

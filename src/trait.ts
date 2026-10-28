@@ -5,7 +5,7 @@ import {
   type LooseArity,
   type Looses,
   type Omission,
-} from "./dual.ts";
+} from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
 import type { TraitBrands, TraitTypes } from "./keys.ts";
 import {
