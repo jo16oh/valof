@@ -192,8 +192,9 @@ chain no longer offers the variants' steps.
 
 ## Check the payload
 
-A variant's `.implSeal` replaces the variant's seal. The tag is a field of the payload, so the seal
-can check it like any other field:
+A variant's `.implSeal` replaces the variant's seal, as
+[on a Val](custom-constructors.md#validate-in-the-seal). The tag is a field of the payload, so the
+seal can check it like any other field:
 
 ```ts
 import { Enum } from "valof";
@@ -238,8 +239,9 @@ variant's own `seal`, `create` and `patch` do not run the enum's `.implSeal`.
 
 ## Create a payload
 
-Each variant has a default `create`, which takes every field except the tag. The enum has no default
-`create`. `.implCreate` replaces a variant's `create`, or adds one to the enum.
+Unlike its variants, the enum has no default `create`.
+[`.implCreate`](custom-constructors.md#generate-fields-with-create) replaces a variant's `create`,
+or adds one to the enum.
 
 A function given to a variant's `.implCreate` returns a payload without the tag field. Valof adds
 the tag field before the variant's seal receives the payload. A function given to the enum's
@@ -259,7 +261,7 @@ Task.Todo.create("write the docs"); // VariantOf<Task, "Todo">
 Task.create(Date.now()); // Task
 ```
 
-`.implCreate.noseal` also works on the enum.
+[`.implCreate.noseal`](custom-constructors.md#bypass-the-seal-in-create) also works on the enum.
 
 ## Companion options
 
