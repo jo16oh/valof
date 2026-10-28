@@ -1,7 +1,7 @@
-# Adding functions to the companion
+# Adding Functions to the Companion
 
 > For the limits of standalone functions and classes, see
-> [TypeScript problems Valof addresses](typescript-problems.md#companion-objects).
+> [TypeScript Problems Valof Addresses](typescript-problems.md#companion-objects).
 
 ## Add functions that take the Val
 

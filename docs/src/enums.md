@@ -5,7 +5,7 @@ enum is the union of those Vals. The variants form a closed set, so TypeScript c
 variant is handled.
 
 > For the limits of a hand-written discriminated union, see
-> [TypeScript problems Valof addresses](typescript-problems.md#enums).
+> [TypeScript Problems Valof Addresses](typescript-problems.md#enums).
 
 ## Declare the variants
 
@@ -134,7 +134,7 @@ can read them without narrowing it.
 
 The third type argument also declares the [traits](traits.md) that the enum implements. A trait
 intersected into one variant's payload applies to that variant alone. See
-[Implement Traits on an Enum](traits.md#implement-traits-on-an-enum).
+[Implement traits on an enum](traits.md#implement-traits-on-an-enum).
 
 ## Rename the tag
 

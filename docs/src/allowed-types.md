@@ -1,4 +1,4 @@
-# Allowed types
+# Allowed Types
 
 Only three things can be a payload:
 

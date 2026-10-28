@@ -1,4 +1,4 @@
-# The default companion
+# The Default Companion
 
 `Val.companion<V>().build()` returns the default companion: [`seal`](val.md#construct-values), and
 `patch` for a Val that holds an object payload.
@@ -7,8 +7,8 @@ The steps between `Val.companion` and `.build()` replace `seal` or add functions
 Write `.implSeal` first, then `.implCreate`. `.impl`, `.implTrait` and `.implAssoc` come next, in
 any order. `.impl` is written once.
 
-- [Adding functions to the companion](adding-functions.md) covers `.impl` and `.implAssoc`.
-- [Custom constructors and invariants](custom-constructors.md) covers `.implSeal` and `.implCreate`.
+- [Adding Functions to the Companion](adding-functions.md) covers `.impl` and `.implAssoc`.
+- [Custom Constructors and Invariants](custom-constructors.md) covers `.implSeal` and `.implCreate`.
 - [Traits](traits.md) covers `.implTrait`.
 
 ## Patch object values

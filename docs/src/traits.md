@@ -1,7 +1,7 @@
 # Traits
 
 > For the contract that a trait adds, see
-> [TypeScript problems Valof addresses](typescript-problems.md#traits).
+> [TypeScript Problems Valof Addresses](typescript-problems.md#traits).
 
 ## Declare what Vals share
 
@@ -168,7 +168,7 @@ const Greetable = Trait.companion<Greetable>()
   .build();
 ```
 
-## Implement Traits on an Enum
+## Implement traits on an enum
 
 An [enum](enums.md) implements each trait it declares over the union, with one `implTrait` per
 trait. What differs per variant is a `match` inside the implementation:

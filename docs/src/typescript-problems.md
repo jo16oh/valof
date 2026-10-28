@@ -1,4 +1,4 @@
-# TypeScript problems Valof addresses
+# TypeScript Problems Valof Addresses
 
 This chapter explains the TypeScript problems behind individual Valof features. Use the sidebar for
 how to use the library.

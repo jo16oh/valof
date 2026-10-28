@@ -51,7 +51,7 @@ It enforces the conventions through types and linting.
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 > For background on individual features, see
-> [TypeScript problems Valof addresses](typescript-problems.md).
+> [TypeScript Problems Valof Addresses](typescript-problems.md).
 
 ## Examples
 

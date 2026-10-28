@@ -65,7 +65,7 @@ generic object utilities, such as `Object.assign`, write to a Val without a cast
 [Caveats](caveats.md#generic-object-utilities-can-bypass-readonly-and-sealing).
 
 Only primitives, arrays and plain objects can live inside a Val. See
-[Allowed types](allowed-types.md).
+[Allowed Types](allowed-types.md).
 
 ## Avoid a copy with `.nocopy`
 

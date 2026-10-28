@@ -1,4 +1,4 @@
-# Custom constructors and invariants
+# Custom Constructors and Invariants
 
 Without `.implSeal`, a companion's `seal` accepts every payload allowed by the type. When
 construction has rules of its own, replace it with `.implSeal`. Every other constructor passes its

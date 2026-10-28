@@ -9,7 +9,7 @@
 | `Val.of.nocopy<V>(value)` | the same, without copying the payload               |
 | `Val.unwrap(value)`       | returns a mutable copy of the payload               |
 
-## Val Companion Builder
+## Val companion builder
 
 |                          |                                                               |
 | ------------------------ | ------------------------------------------------------------- |
@@ -29,7 +29,7 @@ The function passed to `impl`, `implTrait` and `implAssoc` receives `seal`, `cre
 including the ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `create`
 only where `implCreate` registered one, and `patch` only for a Val that holds an object payload.
 
-## Val Companion Options
+## Val companion options
 
 `Val.companion` accepts any of these options in a list after the type.
 
@@ -39,7 +39,7 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | `PrivateCreate`  | removes `create` from the companion |
 | `Unpatchable<K>` | excludes keys `K` from `patch`      |
 
-## Val Companion
+## Val companion
 
 `User` stands for the companion that belongs to the `User` type.
 
@@ -53,7 +53,7 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | `User.[member](first, ...rest)` | registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                                                | runs a member defined for the companion                             |
 | `User.[member](...rest)(first)` | registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`, where the member takes more than one argument | the same, with the first argument last                              |
 
-## Val Types
+## Val types
 
 |                       |                                                         |
 | --------------------- | ------------------------------------------------------- |
@@ -69,7 +69,7 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 You never write the builder and companion types, here or for an enum or a trait. They are exported
 so that your own `.d.ts` can name them when you re-export a companion.
 
-## Enum Companion Builder
+## Enum companion builder
 
 |                                       |                                                                    |
 | ------------------------------------- | ------------------------------------------------------------------ |
@@ -97,7 +97,7 @@ The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `
 `E.create` where the enum's `implCreate` registered one. The function passed to a variant's `impl`,
 `implTrait` and `implAssoc` receives that variant's `seal`, `create` and `patch`.
 
-## Enum Companion Options
+## Enum companion options
 
 `Enum.companion` accepts the [companion options](#val-companion-options) in a list after the enum.
 They apply to the enum and every variant. To configure a specific variant's companion, add
@@ -107,7 +107,7 @@ They apply to the enum and every variant. To configure a specific variant's comp
 | ---------------------- | ---------------------------------------------------------------------- |
 | `VariantOptions<N, O>` | adds options `O` for variant `N`: `PrivateCreate` and `Unpatchable<K>` |
 
-## Enum Companion
+## Enum companion
 
 `E` stands for an enum's companion, and `[VariantName]` for the name of one of its variants.
 
@@ -130,7 +130,7 @@ They apply to the enum and every variant. To configure a specific variant's comp
 | `E.[VariantName].[member](first, ...rest)` | registered with `.[VariantName].impl(f)`, `.[VariantName].implTrait(Tr, f?)` or `.[VariantName].implAssoc(f)`                                                | runs a member defined for that variant                                  |
 | `E.[VariantName].[member](...rest)(first)` | registered with `.[VariantName].impl(f)`, `.[VariantName].implTrait(Tr, f?)` or `.[VariantName].implAssoc(f)`, where the member takes more than one argument | the same, with the first argument last                                  |
 
-## Enum Types
+## Enum types
 
 |                                 |                                                     |
 | ------------------------------- | --------------------------------------------------- |
@@ -145,7 +145,7 @@ They apply to the enum and every variant. To configure a specific variant's comp
 | `EnumBuilder<E>`                | an enum's builder, with the steps it can still take |
 | `EnumCompanion<E>`              | the enum's companion `.build()` returns             |
 
-## Trait Companion Builder
+## Trait companion builder
 
 |                         |                                                                                      |
 | ----------------------- | ------------------------------------------------------------------------------------ |
@@ -156,7 +156,7 @@ They apply to the enum and every variant. To configure a specific variant's comp
 
 Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 
-## Trait Companion
+## Trait companion
 
 |                               |                                                                                          |
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
@@ -164,7 +164,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | `Tr.[member](first, ...rest)` | runs a `Final` member registered with `.impl(f)`, or one registered with `.implAssoc(f)` |
 | `Tr.[member](...rest)(first)` | the same, with the first argument last, where the member takes more than one argument    |
 
-## Trait Types
+## Trait types
 
 |                      |                                                     |
 | -------------------- | --------------------------------------------------- |
