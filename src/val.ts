@@ -144,7 +144,7 @@ type ValidateValue<T> = [T] extends [Primitive]
             : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
         : [Extract<T, bigint>] extends [never]
           ? Invalid<"not a plain value">
-          : Invalid<"bigint does not survive a JSON round trip; use a decimal string">;
+          : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
 
 /**
  * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
