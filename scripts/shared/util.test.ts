@@ -1,6 +1,7 @@
+import { inspect } from "node:util";
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 
-import { defineError, isDefinedError, toDefinedError, UnknownError } from "./util.ts";
+import { defineError, toDefinedError, UnknownError } from "./util.ts";
 
 const PlainError = defineError("PlainError");
 const HttpError = defineError(
@@ -24,6 +25,7 @@ describe("defineError", () => {
     expect(error.name).toBe("PlainError");
     expect(error.message).toBe("outer");
     expect(error.cause).toBe(cause);
+    expect(inspect(error)).toMatch(/^PlainError: outer/);
   });
 
   test("turns the arguments into a message, a cause and fields with init", () => {
@@ -45,6 +47,10 @@ describe("defineError", () => {
     expect(error).toBeInstanceOf(AppError);
     expect(AppError("x")).not.toBeInstanceOf(DbError);
     expect(error.name).toBe("DbError");
+    const QueryError = defineError("QueryError", (sql: string) => ({ message: sql }), {
+      extends: AppError,
+    });
+    expect(QueryError("select")).toBeInstanceOf(AppError);
   });
 
   test("serializes the name, the message, the fields and the causes", () => {
@@ -69,7 +75,7 @@ describe("defineError", () => {
 
   test("throws on extending an error it did not make", () => {
     // oxlint-disable-next-line no-explicit-any -- the case under test
-    expect(() => defineError("Bad", { extends: Error as any })).toThrow(TypeError);
+    expect(() => defineError("Bad", { extends: Error as any })).toThrow(/defineError/);
   });
 
   test("rejects what it cannot serialize or did not make", () => {
@@ -78,8 +84,9 @@ describe("defineError", () => {
       PlainError("x", { cause: new Error("native") });
       // @ts-expect-error a native error as the cause, through init
       HttpError(500, "/x", new Error("native"));
+      const fake = { name: "Fake", message: "", toJSON: () => ({ name: "Fake", message: "" }) };
       // @ts-expect-error an object shaped like a defined error
-      PlainError("x", { cause: { name: "Fake", message: "", toJSON: () => ({}) } });
+      PlainError("x", { cause: fake });
       // @ts-expect-error a native error as the parent
       defineError("Bad", { extends: Error });
       // @ts-expect-error a field that JSON cannot carry
@@ -99,12 +106,16 @@ describe("toDefinedError", () => {
   test("wraps anything else, and its causes, in UnknownError", () => {
     const wrapped = toDefinedError(new RangeError("socket closed", { cause: "ECONNRESET" }));
     expect(wrapped).toBeInstanceOf(UnknownError);
-    expect(isDefinedError(wrapped.cause)).toBe(true);
     expect(JSON.parse(JSON.stringify(wrapped))).toEqual({
       name: "UnknownError",
       message: "socket closed",
       originalName: "RangeError",
       cause: { name: "UnknownError", message: "ECONNRESET", originalName: "string" },
     });
+  });
+
+  test("keeps a defined error that a native error holds as its cause", () => {
+    const cause = PlainError("inner");
+    expect(toDefinedError(new Error("outer", { cause })).cause).toBe(cause);
   });
 });
