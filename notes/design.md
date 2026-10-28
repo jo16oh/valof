@@ -28,7 +28,7 @@ import { Val } from "valof";
   - **6.9** 名前が `seal` になるまで / **6.10** `fixed`（2026-10-22 に型引数の `Unpatchable` へ、§6.12）と余剰プロパティ検査 / **6.11** メンバを data-first / data-last の dual にする。引数の個数で判別、省略できる引数の禁止、型注釈が隠す既定値と rest を development でソースから読む（2026-10-28）、rest 版のラッパー、`dyn` を包まない理由、data-last で型引数が落ちる理由、却下した `annotate`、却下した名前空間とプレースホルダー
   - **6.12** 入口を `.seal` に統一する。`sealer` の廃止、seal を隠す段を入れなかった理由と、型引数のリスト（`PrivateSeal` と `Unpatchable`、交差ではなくタプルにしたこと）、鎖の前半と後半、`impl` が鎖を閉じないこと、`.build()` で鎖を閉じること（§13.6 を覆した）、Proxy を残す判断。Enum の段の順は §15.2
   - **6.13** `implAssoc`: Val を受け取らないメンバ。段を分ける理由、渡すもの、dual にする（§6.11 を覆した）、引数の検査が戻り値の注釈を要る理由、長さ 0 の関数のソースを読む検査（2026-10-28 に §6.11 の検査へ）、`[Shared]` に入れない Trait の関連関数、`build` に `& A` を付けると宣言出力が壊れること、残る穴（`from*` に検査を書く）、却下した案
-- **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと、bigint（2026-10-28 に外した、却下した「残す」案）
+- **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと、bigint（2026-10-28 に外した、却下した「残す」案、保証しない JSON 往復の穴）
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）、2^53 を超える整数（§8.6、10 進の整数文字列）
 - **§9 未解決 / 要確認** 次の作業はここ
 - **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降、npm と同じ形で入れた `dist` を `exports` 越しに検査する）
@@ -2517,6 +2517,22 @@ JSON 以外の境界（`structuredClone`、React の state）は通るので、J
 - 包む形が §8.2 の `Val<"IsoDate", string>` と同じで、ライブラリに新しい機構が要らない
 
 top-level の `null` の禁止（§9）はこの変更の対象外。
+
+#### 保証しない穴: 有限でない数と疎な配列
+
+bigint を外しても、許可型の中に JSON を対称に往復しない値が 2 つ残る。どちらも例外にならず、`null` に変わる。
+
+```ts
+type N = Val<"N", { a: number; xs: string[] }>;
+const N = Val.companion<N>().build();
+
+JSON.stringify(N.seal({ a: NaN, xs: new Array<string>(1) })); // {"a":null,"xs":[null]}
+```
+
+- `NaN` / `Infinity` / `-Infinity`。型はすべて `number` なので、型では弾けない
+- 疎な配列。`new Array<string>(n)` の型は `string[]` で、穴が `null` で書き出される。リテラルの `[, "x"]` は `(string | undefined)[]` になり、型が弾く
+
+**valof では保証しない。** 型では区別できず、塞ぐなら実行時の検査になる。`Infinity` を上限値などに意図して使う利用者もいるので、bigint のように許可型から外す形にはできない。`-0` が `0` になるのは `equals` が両者を等しいとみなすことで吸収している（§5）。
 
 ---
 
