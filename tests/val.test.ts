@@ -1404,9 +1404,16 @@ describe("data-first and data-last", () => {
       "a(b"(u, sep) { return sep; },
       [key = "m"](u, sep) { return sep; },
       escaped: ({ a = "}\\"", b = 1 }, sep) => a + b + sep,
+      regex: ({ re = /[}]/, n = 1 }, sep) => sep,
+      division: ({ a = 4 / 2, b = { c: 4 / 2 }.c, d = 1 }, sep) => sep,
       bound: ((u, sep) => sep).bind(null),
       native: Math.max,
     }`)() as Record<string, (u: User, sep: string) => string>;
+    // oxlint-disable-next-line typescript/no-implied-eval -- a template nested in a template
+    members["template"] = new Function("return ({ a = `${`}`}`, b = 1 }, sep) => sep")() as (
+      u: User,
+      sep: string,
+    ) => string;
     expect(() =>
       Val.companion<User>()
         .impl(() => members)
