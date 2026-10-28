@@ -324,7 +324,7 @@ export type TraitBuilder<
        * A member taking more than one argument can be called with the value first or last. None can
        * have an optional, a default or a rest parameter.
        *
-       * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+       * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
        */
       impl: <H extends Shared<Tr, H>>(
         fns: () => H & Arity<H> & ThisType<undefined>,

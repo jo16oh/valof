@@ -798,7 +798,7 @@ export type CompanionBuilder<
          * constraint, or `unknown` where none is declared. To keep them, wrap the member in a
          * function that calls it with the value first: `pipe(u, (v) => User.pick(v, "name"))`.
          *
-         * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+         * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
          */
         // A separate step because TypeScript cannot infer type arguments partially. A trait's
         // member is registered, so `.impl` may not register one over it: the type would keep the
@@ -838,7 +838,7 @@ export type CompanionBuilder<
      * A member taking more than one argument can be called with the value first or last. None can
      * have an optional, a default or a rest parameter.
      *
-     * See {@link https://jo16oh.github.io/valof/latest/companion-objects.html#call-a-member-with-the-value-last | Call a member with the value last}.
+     * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
      */
     implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T & A, Complete<Tr, G>>,
