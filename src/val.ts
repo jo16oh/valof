@@ -14,7 +14,7 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
-import { createMembers, dual } from "./dual.ts";
+import { createMembers, dual } from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
   NoSeal,
@@ -29,7 +29,7 @@ import type {
   UnpatchableTypes,
   VerdictKey,
 } from "./keys.ts";
-import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual.ts";
+import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual/index.ts";
 import { development } from "./env.ts";
 import * as Val from "./ns/val.ts";
 

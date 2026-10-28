@@ -6,7 +6,7 @@ import {
   type Duals,
   type LooseArity,
   type Looses,
-} from "./dual.ts";
+} from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
   EnumKey,
