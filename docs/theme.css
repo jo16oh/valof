@@ -10,3 +10,8 @@
 #mdbook-menu-bar .right-buttons {
   justify-self: end;
 }
+
+/* mdBook centers tables. */
+.content table {
+  margin-left: 0;
+}
