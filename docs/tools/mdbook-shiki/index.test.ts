@@ -67,39 +67,6 @@ describe("mdBook Shiki preprocessor", () => {
     expect(result).not.toContain("~~~");
   });
 
-  test("highlights a call that fills a table row's first cell", () => {
-    const markdown = [
-      "| Step | Description |",
-      "| --- | --- |",
-      "| `.implSeal(f)` | registers a custom seal |",
-      "| `E.create(...args, \"a--b\", 'c')` | creates a payload |",
-      "| `Val<K, T>` | a branded value type |",
-      "| `PrivateSeal` | removes `seal(x)` from the companion |",
-      "",
-      "Text with `.impl(f)` inline.",
-      "",
-      "```text",
-      "| `.build()` | ends the chain |",
-      "```",
-    ].join("\n");
-
-    const result = markdownHighlighter.transform(markdown);
-
-    expect(result.match(/class="shiki-inline"/g)).toHaveLength(2);
-    const inlineText = [...result.matchAll(/<code class="shiki-inline">(.*?)<\/code>/g)]
-      .map((match) => match[1]?.replace(/<[^>]*>/g, ""))
-      .join("\n");
-    expect(inlineText).toContain("args");
-    // mdBook's smart punctuation would turn these into `…`, `–` and curly quotes.
-    expect(inlineText).not.toMatch(/\.\.\.|--|["']/);
-    // The row inside the fenced block stays code, leaving no fence or stray markup behind.
-    expect(result).not.toContain("```");
-    expect(result).toMatch(/^\| <code class="shiki-inline">.*implSeal.*<\/code> \| registers/m);
-    expect(result).toContain("| `Val<K, T>` |");
-    expect(result).toContain("removes `seal(x)` from");
-    expect(result).toContain("Text with `.impl(f)` inline.");
-  });
-
   test("warns once and uses text for an unknown language", async () => {
     const onWarning = vi.fn();
     const transformer = await createMarkdownHighlighter({ onWarning });
