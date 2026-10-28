@@ -61,6 +61,7 @@
   },
   "devDependencies": {
     "@praha/byethrow": "^0.13.0",
+    "@praha/error-factory": "^1.4.1",
     "@types/node": "^26.5.0",
     "bumpp": "^11.1.0",
     "eslint": "^10.10.0",
