@@ -79,7 +79,7 @@ A class provides a namespace for its functions, but also turns each value into a
 Keeping its instances immutable requires `readonly` on every field and nested property. Its JSON
 shape depends on property enumerability unless you write and maintain a `toJSON` mapping.
 
-A [companion object](default-companion.md) collects the constructor and functions under the type's
+A [companion object](adding-functions.md) collects the constructor and functions under the type's
 name while values remain plain data. `Val.companion<V>().impl(() => ({ ... })).build()` creates it.
 The result exposes `seal` and the registered members:
 

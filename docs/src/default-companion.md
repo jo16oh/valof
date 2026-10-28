@@ -1,11 +1,11 @@
 # The default companion
 
-`Val.companion<V>().build()` returns the default companion. Its [`seal`](val.md#construct-values)
-brands a payload. A Val that holds an object payload also gets `patch`.
+`Val.companion<V>().build()` returns the default companion: [`seal`](val.md#construct-values), and
+`patch` for a Val that holds an object payload.
 
-The steps between `Val.companion` and `.build()` add to the companion or replace part of it. Write
-`.implSeal` first, then `.implCreate`. `.impl`, `.implTrait` and `.implAssoc` come next, in any
-order:
+The steps between `Val.companion` and `.build()` replace `seal` or add functions to the companion.
+Write `.implSeal` first, then `.implCreate`. `.impl`, `.implTrait` and `.implAssoc` come next, in
+any order. `.impl` is written once.
 
 - [Adding functions to the companion](adding-functions.md) covers `.impl` and `.implAssoc`.
 - [Custom constructors and invariants](custom-constructors.md) covers `.implSeal` and `.implCreate`.
@@ -40,7 +40,7 @@ const changed = {
 };
 ```
 
-An object-shaped Val gets `patch`. The same update lists only what changes:
+With `patch`, the same update lists only what changes:
 
 ```ts
 import { Val } from "valof";

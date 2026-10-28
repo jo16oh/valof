@@ -186,10 +186,9 @@ const Shape = Enum.companion<Shape>()
 Shape.Circle.diameter(Shape.Circle.create({ r: 2 })); // 4
 ```
 
-A variant with no steps keeps the default companion. Write a variant's steps in the same order as in
-[`Val.companion`](default-companion.md): `implSeal`, then `implCreate`, then `impl` (once),
-`implTrait` and `implAssoc` in any order. Write the enum's steps in the same order too. After the
-first enum step, the chain no longer offers the variants' steps.
+A variant with no steps keeps the default companion. Write a variant's steps, and then the enum's,
+in the [same order as in `Val.companion`](default-companion.md). After the first enum step, the
+chain no longer offers the variants' steps.
 
 ## Check the payload
 

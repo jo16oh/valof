@@ -1,9 +1,10 @@
 # Custom constructors and invariants
 
-## Validate in the seal
-
 Without `.implSeal`, a companion's `seal` accepts every payload allowed by the type. When
-construction has rules of its own, replace it with `.implSeal`.
+construction has rules of its own, replace it with `.implSeal`. Every other constructor passes its
+payload to that seal, so the seal checks every Val the companion builds.
+
+## Validate in the seal
 
 Write the checks directly in the seal:
 
@@ -25,8 +26,8 @@ const Age = Val.companion<Age>()
   .build();
 ```
 
-`.implSeal` replaces the companion's `seal`. Return through the default seal, passed as its second
-argument, to brand and copy the payload.
+The custom seal receives the default seal as its second argument, and brands and copies the payload
+through it.
 
 `Age.seal.nocopy(value)` runs exactly the same validation and normalization, but does not copy the
 payload passed to the default `seal` inside the custom seal. Likewise, `create.nocopy(...args)`
@@ -149,8 +150,8 @@ rejects or normalizes the payload.
 
 ## Define other constructors with `implAssoc`
 
-A function that builds the Val from something else, such as a string or several other values, is an
-[`.implAssoc`](adding-functions.md#add-functions-that-do-not-take-the-val) member:
+[`.implAssoc`](adding-functions.md#add-functions-that-do-not-take-the-val) registers a function that
+builds the Val from something else, such as a string or several other values:
 
 ```ts
 import { Val } from "valof";
@@ -180,7 +181,7 @@ Yen.parse("¥99999999999999999"); // Err("must be a non-negative safe integer")
 Yen.sum(yens); // Result<Yen>
 ```
 
-`seal` is the companion's, so the custom seal checks what `parse` and `sum` build.
+The `seal` passed to `.implAssoc` is the custom seal, so it checks what `parse` and `sum` build.
 
 Keep an invariant in the seal, and let a member only convert its input into a payload. `parse`
 checks the string's format, and the seal checks the amount. A check written in a member does not run
@@ -278,7 +279,7 @@ Interval.patch(interval, { max: -1 }); // Err("min must not exceed max")
 
 Once a value has been successfully sealed as an `Interval`, its type guarantees that it is validated
 and normalized wherever it is passed, so downstream code does not need to repeat either step. The
-seals in this chapter put
+seals on this page put
 [**“parse, don't validate”**](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
 into practice. They return a validated, canonical Val instead of returning facts about the input.
 Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's
