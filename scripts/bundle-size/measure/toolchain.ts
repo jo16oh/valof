@@ -88,19 +88,22 @@ const Code = Val.companion<Code>()
         catch: (cause) => new MinifyError({ detail: String(cause), cause }),
       }),
     sizes: (code): R.Result<Sizes, MinifyError> =>
-      R.map((minified: Code) => {
-        const bytes = Buffer.from(minified, "utf8");
-        return Sizes.seal({
-          minified: bytes.byteLength,
-          gzip: gzipSync(bytes, { level: 9 }).byteLength,
-          brotli: brotliCompressSync(bytes, {
-            params: {
-              [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
-              [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
-            },
-          }).byteLength,
-        });
-      })(Code.minify(code)),
+      pipe(
+        Code.minify(code),
+        R.map((minified) => {
+          const bytes = Buffer.from(minified, "utf8");
+          return Sizes.seal({
+            minified: bytes.byteLength,
+            gzip: gzipSync(bytes, { level: 9 }).byteLength,
+            brotli: brotliCompressSync(bytes, {
+              params: {
+                [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
+                [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
+              },
+            }).byteLength,
+          });
+        }),
+      ),
   }))
   .build();
 
