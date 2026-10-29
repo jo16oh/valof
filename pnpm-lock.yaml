@@ -216,12 +216,15 @@ importers:
 
   .:
     devDependencies:
+      '@praha/byethrow':
+        specifier: ^0.13.0
+        version: 0.13.0(typescript@7.0.2)
+      '@praha/error-factory':
+        specifier: ^1.4.1
+        version: 1.4.1
       '@types/node':
         specifier: ^26.5.0
         version: 26.5.0
-      better-result:
-        specifier: ^3.0.1
-        version: 3.0.1
       bumpp:
         specifier: ^11.1.0
         version: 11.1.0
@@ -885,6 +888,14 @@ packages:
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
 
+  '@praha/byethrow@0.13.0':
+    resolution: {integrity: sha512-YbmTlWzvtwiaK1ZhUOzXleJFju6XvBILxkL3AmvHona7zalABaQsPIGwc6YkugirpwG3n4Sc2iKGSwnTEv/hsQ==}
+    peerDependencies:
+      typescript: '>=5.0.0'
+
+  '@praha/error-factory@1.4.1':
+    resolution: {integrity: sha512-HA+y+xwmQIl9EPvZonRk1/hsSAvAlpDjlpruyW8kTAQ++Oq5Fi7hFV0Y84TLHXJ6SciYHlKGqrekrS5wzkD5+Q==}
+
   '@quansync/fs@1.0.0':
     resolution: {integrity: sha512-4TJ3DFtlf1L5LDMaM6CanJ/0lckGNtJcMjQ1NAV6zDmA0tEHKZtxNKin8EgPaVX1YzljbxckyT2tJrpQKAtngQ==}
 
@@ -1403,9 +1414,6 @@ packages:
   balanced-match@4.0.4:
     resolution: {integrity: sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA==}
     engines: {node: 18 || 20 || >=22}
-
-  better-result@3.0.1:
-    resolution: {integrity: sha512-rnCeqEXkKPHmz5MO5ZroPRDyHe4YvlNPyy7qj8cVcWs/GnvSvC3086G74/220W+wWcIWlXgzvcjskFV0A4blUQ==}
 
   brace-expansion@5.0.9:
     resolution: {integrity: sha512-ScQ4IuvIEF1TMlP7Zt+vjJ//9zlPb2SDcxWxM3bk8s6t6GGdJ7KO1dCcTidOPJKePW30LE/2cT7wCyPho9/Wxg==}
@@ -2539,6 +2547,13 @@ snapshots:
 
   '@polka/url@1.0.0-next.29': {}
 
+  '@praha/byethrow@0.13.0(typescript@7.0.2)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      typescript: 7.0.2
+
+  '@praha/error-factory@1.4.1': {}
+
   '@quansync/fs@1.0.0':
     dependencies:
       quansync: 1.0.0
@@ -2915,8 +2930,6 @@ snapshots:
   assertion-error@2.0.1: {}
 
   balanced-match@4.0.4: {}
-
-  better-result@3.0.1: {}
 
   brace-expansion@5.0.9:
     dependencies:

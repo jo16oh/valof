@@ -5,50 +5,38 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Result as R, TaggedError } from "better-result";
+import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
 import { flow, pipe } from "../../shared/pipe/index.ts";
-import { GenAwait } from "../../shared/util.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
-export class PackError extends TaggedError("PackError")<{ output: string; message: string }> {
-  constructor({ output }: { output: string }) {
-    super({ output, message: `vp run build failed\n${output}` });
-  }
-}
+export class PackError extends ErrorFactory({
+  message: ({ output }) => `vp run build failed\n${output}`,
+  fields: ErrorFactory.fields<{ output: string }>(),
+}) {}
 
-export class NoChunkError extends TaggedError("NoChunkError")<{ mode: Mode; message: string }> {
-  constructor({ mode }: { mode: Mode }) {
-    super({ mode, message: `no chunk emitted for ${mode}` });
-  }
-}
+export class NoChunkError extends ErrorFactory({
+  message: ({ mode }) => `no chunk emitted for ${mode}`,
+  fields: ErrorFactory.fields<{ mode: Mode }>(),
+}) {}
 
-export class CompileError extends TaggedError("CompileError")<{
-  mode: Mode;
-  step: string;
-  cause: unknown;
-  message: string;
-}> {
-  constructor({ mode, step, cause }: { mode: Mode; step: string; cause: unknown }) {
-    super({ mode, step, cause, message: `${step} failed for ${mode}: ${String(cause)}` });
-  }
-}
+export class CompileError extends ErrorFactory({
+  message: ({ mode, step, detail }) => `${step} failed for ${mode}: ${detail}`,
+  fields: ErrorFactory.fields<{ mode: Mode; step: string; detail: string }>(),
+}) {}
 
-export class MinifyError extends TaggedError("MinifyError")<{
-  cause: unknown;
-  message: string;
-}> {
-  constructor({ cause }: { cause: unknown }) {
-    super({ cause, message: `minify failed: ${String(cause)}` });
-  }
-}
+export class MinifyError extends ErrorFactory({
+  message: ({ detail }) => `minify failed: ${detail}`,
+  fields: ErrorFactory.fields<{ detail: string }>(),
+}) {}
 
 const root = new URL("../../../", import.meta.url);
 
-export function pack(): Promise<R<void, PackError>> {
-  return R.tryPromise({
+export function pack(): R.ResultAsync<void, PackError> {
+  return R.try({
     try: async () => {
       await promisify(execFile)(
         fileURLToPath(new URL("node_modules/.bin/vp", root)),
@@ -60,37 +48,35 @@ export function pack(): Promise<R<void, PackError>> {
     },
     catch: (cause) => {
       const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
-      return new PackError({ output: `${stdout}${stderr}` || String(cause) });
+      return new PackError({ output: `${stdout}${stderr}` || String(cause), cause });
     },
   });
 }
 
-export function measure(
+export async function measure(
   imports: Imports,
-): Promise<R<BuildResult, NoChunkError | CompileError | MinifyError>> {
-  return R.gen(async function* () {
-    const [production, development] = yield* flow(
-      [compile("production", imports), compile("development", imports)] as const,
-      R.allAsync,
-      GenAwait,
-    );
+): R.ResultAsync<BuildResult, NoChunkError | CompileError | MinifyError> {
+  const compiled = await R.sequence([
+    compile("production", imports),
+    compile("development", imports),
+  ]);
+  if (R.isFailure(compiled)) return compiled;
+  const [production, development] = compiled.value;
 
-    const readsNodeEnv = yield* flow(
-      development.modules.map((module) => Module.readsNodeEnv(module, "development")),
-      R.allAsync,
-      R.map((reads) => reads.some((read) => read)),
-      GenAwait,
-    );
+  const reads = await R.sequence(
+    development.modules.map((module) => Module.readsNodeEnv(module, "development")),
+  );
+  if (R.isFailure(reads)) return reads;
 
-    return R.ok(
-      BuildResult.seal({
-        imports,
-        readsNodeEnv,
-        production: yield* Compiled.measure(production),
-        development: yield* Compiled.measure(development),
-      }),
-    );
+  const builds = R.sequence({
+    production: Compiled.measure(production),
+    development: Compiled.measure(development),
   });
+  if (R.isFailure(builds)) return builds;
+
+  return R.succeed(
+    BuildResult.seal({ imports, readsNodeEnv: reads.value.some((read) => read), ...builds.value }),
+  );
 }
 
 type Code = Val<"Code", string>;
@@ -99,22 +85,25 @@ const Code = Val.companion<Code>()
     minify: (code) =>
       R.try({
         try: () => seal(minifySync("bundle.mjs", code).code),
-        catch: (cause) => new MinifyError({ cause }),
+        catch: (cause) => new MinifyError({ detail: String(cause), cause }),
       }),
-    sizes: (code): R<Sizes, MinifyError> =>
-      Code.minify(code).map((minified) => {
-        const bytes = Buffer.from(minified, "utf8");
-        return Sizes.seal({
-          minified: bytes.byteLength,
-          gzip: gzipSync(bytes, { level: 9 }).byteLength,
-          brotli: brotliCompressSync(bytes, {
-            params: {
-              [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
-              [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
-            },
-          }).byteLength,
-        });
-      }),
+    sizes: (code): R.Result<Sizes, MinifyError> =>
+      pipe(
+        Code.minify(code),
+        R.map((minified) => {
+          const bytes = Buffer.from(minified, "utf8");
+          return Sizes.seal({
+            minified: bytes.byteLength,
+            gzip: gzipSync(bytes, { level: 9 }).byteLength,
+            brotli: brotliCompressSync(bytes, {
+              params: {
+                [constants.BROTLI_PARAM_QUALITY]: constants.BROTLI_MAX_QUALITY,
+                [constants.BROTLI_PARAM_SIZE_HINT]: bytes.byteLength,
+              },
+            }).byteLength,
+          });
+        }),
+      ),
   }))
   .build();
 
@@ -132,87 +121,102 @@ const Module = Val.companion<Module>()
 type Compiled = Val<"Compiled", { code: Code; modules: Module[]; library: number }>;
 const Compiled = Val.companion<Compiled>()
   .impl(() => ({
-    measure: (compiled): R<Build, MinifyError> =>
-      Code.sizes(compiled.code).map((sizes) => Build.seal({ sizes, library: compiled.library })),
+    measure: (compiled): R.Result<Build, MinifyError> =>
+      pipe(
+        Code.sizes(compiled.code),
+        R.map((sizes) => Build.seal({ sizes, library: compiled.library })),
+      ),
   }))
   .build();
 
-function compile(mode: Mode, imports: Imports): Promise<R<Compiled, NoChunkError | CompileError>> {
-  return R.gen(async function* () {
-    const dir = yield* R.await(
-      attempt(mode, "creating the entry directory", () => mkdtemp(join(tmpdir(), "valof-size-"))),
-    );
+async function compile(
+  mode: Mode,
+  imports: Imports,
+): R.ResultAsync<Compiled, NoChunkError | CompileError> {
+  const dir = await attempt(mode, "creating the entry directory", () =>
+    mkdtemp(join(tmpdir(), "valof-size-")),
+  );
+  if (R.isFailure(dir)) return dir;
 
-    const file = join(dir, "entry.mjs");
+  const built = await compileEntry(mode, imports, join(dir.value, "entry.mjs"));
 
-    const built = await R.gen(async function* () {
-      yield* R.await(
-        attempt(mode, "writing the entry", () => {
-          const content = pipe(
-            Object.entries(imports).map(
-              ([module, names]) =>
-                // `Val.companion` imports `Val` and reads one member, leaving the rest to tree-shaking.
-                `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
-            ),
-            (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
-            (lines) => lines.join("\n"),
-          );
-          return writeFile(file, content);
-        }),
-      );
+  // Removed whether or not the build succeeded.
+  const removed = await attempt(mode, "removing the entry directory", () =>
+    rm(dir.value, { recursive: true, force: true }),
+  );
+  if (R.isFailure(removed)) return removed;
 
-      const chunk = yield* flow(
-        attempt(
-          mode,
-          "the build",
-          () =>
-            build({
-              root: fileURLToPath(root),
-              logLevel: "silent",
-              configFile: false,
-              define: { "process.env.NODE_ENV": JSON.stringify(mode) },
-              build: {
-                write: false,
-                minify: false,
-                target: "esnext",
-                lib: { entry: file, formats: ["es"], fileName: "entry" },
-              },
-            }) as Promise<Rolldown.RolldownOutput[]>,
-        ),
-        R.map((result) => result[0]?.output.find((output) => output.type === "chunk")),
-        R.andThen((found) =>
-          found?.type === "chunk" ? R.ok(found) : R.err(new NoChunkError({ mode })),
-        ),
-        GenAwait,
-      );
+  return built;
+}
 
-      const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
-
-      return R.ok(
-        Compiled.seal({
-          code: Code.seal(chunk.code),
-          modules: chunk.moduleIds
-            .filter((id) => id !== chunk.facadeModuleId)
-            .map((id) => Module.seal(id)),
-          // A module's own `renderedLength` counts code that tree-shaking drops, so the library is
-          // what the chunk holds beyond its entry.
-          library: chunk.code.length - (entry?.renderedLength ?? 0),
-        }),
-      );
-    });
-
-    // Removed whether or not the build succeeded.
-    yield* R.await(
-      attempt(mode, "removing the entry directory", () =>
-        rm(dir, { recursive: true, force: true }),
+async function compileEntry(
+  mode: Mode,
+  imports: Imports,
+  file: string,
+): R.ResultAsync<Compiled, NoChunkError | CompileError> {
+  const written = await attempt(mode, "writing the entry", () => {
+    const content = pipe(
+      Object.entries(imports).map(
+        ([module, names]) =>
+          // `Val.companion` imports `Val` and reads one member, leaving the rest to tree-shaking.
+          `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
       ),
+      (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
+      (lines) => lines.join("\n"),
     );
-
-    return built;
+    return writeFile(file, content);
   });
+  if (R.isFailure(written)) return written;
+
+  const found = await flow(
+    attempt(
+      mode,
+      "the build",
+      () =>
+        build({
+          root: fileURLToPath(root),
+          logLevel: "silent",
+          configFile: false,
+          define: { "process.env.NODE_ENV": JSON.stringify(mode) },
+          build: {
+            write: false,
+            minify: false,
+            target: "esnext",
+            lib: { entry: file, formats: ["es"], fileName: "entry" },
+          },
+        }) as Promise<Rolldown.RolldownOutput[]>,
+    ),
+    R.map((result) => result[0]?.output.find((output) => output.type === "chunk")),
+    R.andThen((output) =>
+      output?.type === "chunk" ? R.succeed(output) : R.fail(new NoChunkError({ mode })),
+    ),
+  );
+  if (R.isFailure(found)) return found;
+  const chunk = found.value;
+
+  const entry = chunk.facadeModuleId === null ? undefined : chunk.modules[chunk.facadeModuleId];
+
+  return R.succeed(
+    Compiled.seal({
+      code: Code.seal(chunk.code),
+      modules: chunk.moduleIds
+        .filter((id) => id !== chunk.facadeModuleId)
+        .map((id) => Module.seal(id)),
+      // A module's own `renderedLength` counts code that tree-shaking drops, so the library is
+      // what the chunk holds beyond its entry.
+      library: chunk.code.length - (entry?.renderedLength ?? 0),
+    }),
+  );
 }
 
 /** Runs one step of building a bundle, turning a rejection into a {@link CompileError}. */
-function attempt<A>(mode: Mode, step: string, run: () => Promise<A>): Promise<R<A, CompileError>> {
-  return R.tryPromise({ try: run, catch: (cause) => new CompileError({ mode, step, cause }) });
+function attempt<A>(
+  mode: Mode,
+  step: string,
+  run: () => Promise<A>,
+): R.ResultAsync<A, CompileError> {
+  return R.try({
+    try: run,
+    catch: (cause) => new CompileError({ mode, step, detail: String(cause), cause }),
+  });
 }
