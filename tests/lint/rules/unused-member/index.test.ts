@@ -68,6 +68,13 @@ describe("what the rule finds", () => {
     expect(await lint("unapplied")).toEqual([]);
   });
 
+  test("collects the members of every implAssoc", async () => {
+    expect(await messages("assoc")).toEqual([
+      "Money.zero is never read",
+      "Money.unit is never read",
+    ]);
+  });
+
   test("collects method shorthand and non-function members", async () => {
     expect(await lint("shorthand-and-const")).toEqual([
       { rule: UnusedMember, at: "shorthand-and-const.ts:3:3" },
