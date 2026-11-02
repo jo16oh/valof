@@ -79,6 +79,7 @@ test("names every rule, under the plugin's own name", () => {
   expect(plugin.configs.recommended.rules).toEqual({
     // The members work; what the block costs is state they share out of sight.
     "valof/block-step": "warn",
+    "valof/unreturned-seal": "error",
     "valof/unrelated-assoc": "warn",
     "valof/constructor-name": "warn",
     "valof/split-variant-steps": "warn",

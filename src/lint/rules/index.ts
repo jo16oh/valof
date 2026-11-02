@@ -1,4 +1,5 @@
 import { BlockStep } from "./block-step.ts";
+import { UnreturnedSeal } from "./unreturned-seal.ts";
 import { UnrelatedAssoc } from "./unrelated-assoc.ts";
 import { ConstructorName } from "./constructor-name.ts";
 import { SplitVariantSteps } from "./split-variant-steps.ts";
@@ -33,6 +34,7 @@ export const RULES = [
   box(BypassedCompanion, BypassedCompanion.create()),
   box(UnnamedOf, UnnamedOf.create()),
   box(BlockStep, BlockStep.create()),
+  box(UnreturnedSeal, UnreturnedSeal.create()),
   box(UnrelatedAssoc, UnrelatedAssoc.create()),
   box(ConstructorName, ConstructorName.create()),
   box(SplitVariantSteps, SplitVariantSteps.create()),
@@ -48,6 +50,7 @@ export const RULES = [
  */
 export {
   BlockStep,
+  UnreturnedSeal,
   UnrelatedAssoc,
   ConstructorName,
   SplitVariantSteps,
