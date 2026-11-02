@@ -1,4 +1,6 @@
 import { BlockStep } from "./block-step.ts";
+import { UnrelatedAssoc } from "./unrelated-assoc.ts";
+import { ConstructorName } from "./constructor-name.ts";
 import { SplitVariantSteps } from "./split-variant-steps.ts";
 import { UnqualifiedVariant } from "./unqualified-variant.ts";
 import { IncompleteDisable } from "./incomplete-disable.ts";
@@ -31,6 +33,8 @@ export const RULES = [
   box(BypassedCompanion, BypassedCompanion.create()),
   box(UnnamedOf, UnnamedOf.create()),
   box(BlockStep, BlockStep.create()),
+  box(UnrelatedAssoc, UnrelatedAssoc.create()),
+  box(ConstructorName, ConstructorName.create()),
   box(SplitVariantSteps, SplitVariantSteps.create()),
   box(UnqualifiedVariant, UnqualifiedVariant.create()),
   box(IncompleteDisable, IncompleteDisable.create()),
@@ -44,6 +48,8 @@ export const RULES = [
  */
 export {
   BlockStep,
+  UnrelatedAssoc,
+  ConstructorName,
   SplitVariantSteps,
   UnqualifiedVariant,
   UnnecessaryAlias,
