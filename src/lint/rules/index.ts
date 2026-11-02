@@ -1,4 +1,5 @@
 import { BlockStep } from "./block-step.ts";
+import { PayloadOfProperty } from "./payload-of-property.ts";
 import { UnreturnedSeal } from "./unreturned-seal.ts";
 import { UnrelatedAssoc } from "./unrelated-assoc.ts";
 import { ConstructorName } from "./constructor-name.ts";
@@ -34,6 +35,7 @@ export const RULES = [
   box(BypassedCompanion, BypassedCompanion.create()),
   box(UnnamedOf, UnnamedOf.create()),
   box(BlockStep, BlockStep.create()),
+  box(PayloadOfProperty, PayloadOfProperty.create()),
   box(UnreturnedSeal, UnreturnedSeal.create()),
   box(UnrelatedAssoc, UnrelatedAssoc.create()),
   box(ConstructorName, ConstructorName.create()),
@@ -50,6 +52,7 @@ export const RULES = [
  */
 export {
   BlockStep,
+  PayloadOfProperty,
   UnreturnedSeal,
   UnrelatedAssoc,
   ConstructorName,
