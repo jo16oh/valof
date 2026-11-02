@@ -14,3 +14,7 @@ test("reports PayloadOf inside a payload, and spares it as the payload or its ba
     "Order holds PayloadOf<Money>, which drops Money's brand and its seal; hold Money",
   );
 });
+
+test("follows a Payload alias of PayloadOf one step", async () => {
+  expect(await lint("aliased")).toEqual([{ rule: PayloadOfProperty, at: "aliased.ts:7:47" }]);
+});
