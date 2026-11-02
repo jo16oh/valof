@@ -97,8 +97,8 @@ export function fixtures(url: string): {
 
 type Run = { status: number; stdout: string; stderr: string };
 
-function spawn(node: string[], args: string[]): Run {
-  const result = spawnSync(process.execPath, [...node, "src/lint/cli.ts", ...args], {
+function spawn(node: string[], args: string[], script = "src/lint/cli.ts"): Run {
+  const result = spawnSync(process.execPath, [...node, script, ...args], {
     cwd: root,
     encoding: "utf8",
   });
@@ -116,3 +116,11 @@ export const cliWithoutParser = (...args: string[]): Run =>
 /** The same, with TypeScript out of reach. */
 export const cliWithoutTypeScript = (...args: string[]): Run =>
   spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);
+
+/** Runs a module's default export with the parser out of reach, and prints what it threw. */
+export const withoutParser = (module: string): Run =>
+  spawn(
+    ["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))],
+    [module],
+    fileURLToPath(new URL("no-parser/run.ts", import.meta.url)),
+  );
