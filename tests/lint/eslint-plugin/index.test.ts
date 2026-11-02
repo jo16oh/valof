@@ -77,6 +77,8 @@ test("covers the name it points at, and the line where there is no name", () => 
 test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
   expect(plugin.configs.recommended.rules).toEqual({
+    // The members work; what the block costs is state they share out of sight.
+    "valof/block-step": "warn",
     "valof/unnecessary-alias": "error",
     "valof/unimplemented-trait": "error",
     "valof/brand-mismatch": "error",

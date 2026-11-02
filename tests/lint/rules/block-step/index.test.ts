@@ -1,15 +1,17 @@
 import { expect, test } from "vite-plus/test";
 
-import { BlockStep, fixtures } from "../../support.ts";
+import { BlockStep, CompanionMismatch, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
-test("reports a step function with a block body, and spares a seal and a held function", async () => {
-  expect(await lint("steps")).toEqual([
+test("reports a step function with a block body, and spares a seal, a held function and a step of no companion", async () => {
+  // A held builder is a companion under a second name too, which is not this rule's to report.
+  expect(await lint("steps", { skip: [CompanionMismatch] })).toEqual([
     { rule: BlockStep, at: "steps.ts:5:9" },
-    { rule: BlockStep, at: "steps.ts:16:20" },
+    { rule: BlockStep, at: "steps.ts:16:21" },
     { rule: BlockStep, at: "steps.ts:20:14" },
     { rule: BlockStep, at: "steps.ts:29:16" },
+    { rule: BlockStep, at: "steps.ts:37:23" },
   ]);
 });
 

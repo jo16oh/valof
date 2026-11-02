@@ -32,4 +32,15 @@ const Shape = Enum.companion<Shape>()
   .impl(members)
   .build();
 
-export const read = [User.greet, User.guestName, User.label, Shape.area, Shape.Circle.diameter];
+type Id = Val<"Id", string>;
+const built = Val.companion<Id>();
+const Id = built.impl(function () {
+  return { short: (i) => i.slice(0, 4) };
+}).build();
+
+const other = { impl: (f: () => unknown) => f() };
+other.impl(() => {
+  return 1;
+});
+
+export const read = [Id.short, User.greet, User.guestName, User.label, Shape.area, Shape.Circle.diameter];

@@ -35,6 +35,7 @@ import {
 } from "./bindings.ts";
 import {
   CompanionSite,
+  chainRoot,
   companionSite,
   fromRoot,
   stepOf,
@@ -85,6 +86,10 @@ export const TraitImplementation = Val.companion<TraitImplementation>().build();
 export type EscapedDyn = Val<"EscapedDyn", { trait: SymbolRef; val: SymbolRef }>;
 export const EscapedDyn = Val.companion<EscapedDyn>().build();
 
+/** The function a member step takes, `.impl(() => { … })`, where it has a block body. */
+export type BlockStepFunction = Val<"BlockStepFunction", Where & { step: string }>;
+export const BlockStepFunction = Val.companion<BlockStepFunction>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
 export const DynRead = Val.companion<DynRead>().build();
@@ -128,6 +133,8 @@ export type Scan = {
   traitImplementations: TraitImplementation[];
   dynReads: DynRead[];
   escapedDyns: EscapedDyn[];
+  /** Member steps whose function has a block body. */
+  blockSteps: BlockStepFunction[];
   /** Keys read off a local name. */
   reads: Map<string, Set<string>>;
   /** Keys read through a namespace, already named as the exporting module names them. */
@@ -253,6 +260,7 @@ export function scan(
   const traitImplementations: TraitImplementation[] = [];
   const dynReads: DynRead[] = [];
   const escapedDyns: EscapedDyn[] = [];
+  const blockSteps: BlockStepFunction[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
   const objects = new Map<string, Node>();
@@ -361,6 +369,9 @@ export function scan(
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
+        const block = blockStep(node, bound);
+        if (block)
+          blockSteps.push(BlockStepFunction.seal({ ...at(block.start), step: block.step }));
         const lift = valOf(node, file, bound, at);
         if (lift) lifts.push(lift);
         const implementation = implTrait(node, file, bound, sites, objects, at);
@@ -485,6 +496,7 @@ export function scan(
     traitImplementations,
     dynReads,
     escapedDyns,
+    blockSteps,
     reads,
     namespaceReads,
     exportedAs,
@@ -664,4 +676,25 @@ function implMembers(
     current = receiver;
   }
   return [...found.values()];
+}
+
+/** The steps that take the members, and which argument holds their function. */
+const MEMBER_STEPS: ReadonlyMap<string, number> = new Map([
+  ["impl", 0],
+  ["implTrait", 1],
+  ["implAssoc", 0],
+]);
+
+/** A member step on a companion chain whose function has a block body, where it starts. */
+function blockStep(node: Node, bound: Bindings): { step: string; start: number } | undefined {
+  const callee = child(node, "callee");
+  if (callee?.type !== "MemberExpression") return undefined;
+  const step = stepOf(callee)?.name;
+  const index = step === undefined ? undefined : MEMBER_STEPS.get(step);
+  if (step === undefined || index === undefined || !chainRoot(callee, bound)) return undefined;
+  const fn = children(node, "arguments")[index];
+  const block =
+    fn?.type === "FunctionExpression" ||
+    (fn?.type === "ArrowFunctionExpression" && child(fn, "body")?.type === "BlockStatement");
+  return block ? { step, start: fn["start"] as number } : undefined;
 }

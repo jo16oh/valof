@@ -13,6 +13,22 @@ export const BlockStep = Val.companion<BlockStep>()
   .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
   .build();
 
-function findings(_rule: BlockStep, _scans: readonly Scan[]): Finding[] {
-  return [];
+/**
+ * Reports a member step whose function has a block body: `() => { … }` or `function () { … }`.
+ *
+ * A local in the block is state every member shares and no reader of a member sees. `implSeal`
+ * and `implCreate` are left alone, since a check or a generator is written as statements.
+ */
+function findings({ kind }: BlockStep, scans: readonly Scan[]): Finding[] {
+  return scans.flatMap(({ file, blockSteps }) =>
+    blockSteps.map(({ step, line, column }) =>
+      Finding.seal({
+        kind,
+        file,
+        line,
+        column,
+        message: `the function passed to .${step} has a block body; return the object itself: () => ({ … })`,
+      }),
+    ),
+  );
 }

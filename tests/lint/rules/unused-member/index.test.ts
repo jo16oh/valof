@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, UnusedMember, fixtures } from "../../support.ts";
+import { BlockStep, CompanionMismatch, UnusedMember, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
@@ -118,7 +118,7 @@ describe("what name resolution cannot reach", () => {
   });
 
   test("reads a function held in a const, and not one with a block body", async () => {
-    expect(await lint("step-functions")).toEqual([
+    expect(await lint("step-functions", { skip: [BlockStep] })).toEqual([
       { rule: UnusedMember, at: "step-functions.ts:2:26" },
     ]);
   });
