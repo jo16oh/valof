@@ -1,5 +1,5 @@
 import { Val } from "valof";
-const members = () => ({ quiet: (b) => b.name });
+const members = () => ({ quiet: (b: B) => b.length });
 const B = Val.companion<B>().impl(members).build();
 
 const C = Val.companion<C>()

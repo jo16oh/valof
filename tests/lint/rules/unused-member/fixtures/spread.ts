@@ -1,5 +1,5 @@
 import { Val } from "valof";
-const base = { greet: (u) => u.name };
+const base = { greet: (u: User) => u.toUpperCase() };
 
 export const User = Val.companion<User>().impl(() => ({ ...base })).build();
 

@@ -1,3 +1,5 @@
 import { Friendly as Renamed, User as Person } from "./declaration.ts";
 
-Renamed.dyn(Person, {}).greet;
+Renamed.dyn(Person, person).greet;
+
+declare const person: Person;

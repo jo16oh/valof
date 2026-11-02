@@ -1,24 +1,26 @@
-import { Trait, Val } from "valof";
+import { Trait, Val, type Self } from "valof";
 type Greetable = Trait<
   "Greetable",
   { name: string },
   {
-    greet: (self: unknown) => string;
-    wave: (self: unknown) => string;
-    nod: (self: unknown) => string;
+    greet: (self: Self) => string;
+    wave: (self: Self) => string;
+    nod: (self: Self) => string;
   }
 >;
 
 const Greetable = Trait.companion<Greetable>().impl(() => ({
-  greet: () => "hello",
-  wave: () => "wave",
-  nod: () => "nod",
+  greet: (g) => g.name,
+  wave: (g) => g.name,
+  nod: (g) => g.name,
 })).build();
 
 type User = Val<"User", { name: string }, Greetable>;
-const User = Val.companion<User>().implTrait(Greetable, () => ({ greet: () => "hi" })).build();
+const User = Val.companion<User>().implTrait(Greetable, () => ({ greet: (u) => u.name })).build();
 
-Greetable.dyn(User, {}).greet;
-const boxed = Greetable.dyn(User, {});
+Greetable.dyn(User, user).greet;
+const boxed = Greetable.dyn(User, user);
 boxed.wave;
-const { nod } = Greetable.dyn(User, {});
+const { nod } = Greetable.dyn(User, user);
+
+declare const user: User;
