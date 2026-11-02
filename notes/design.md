@@ -8086,6 +8086,25 @@ Val は 13 B 増えた。Enum も Trait も使わない利用者が払う分で�
 
 ---
 
+### 16.4 dist の検査を 1 コマンドに、2026-11-03
+
+`bundle-size`・`replace-bundle-size-claims`・`type-perf`・`ts-compatibility` を `vp run check-dist` にまとめた。
+上の分け方（測るものと予算の性質）はチェックごとのモジュール（`scripts/check-dist/{size,types,compat}`）と
+予算にそのまま残す。まとめたのは入口と pack だけ。
+
+- **pack は入口で 1 回。**今までは 3 本がそれぞれ `vp run build` を呼び、claims は bundle-size を子プロセスで
+  もう一度走らせていた。claims は size の計測値を直接受け取る
+- **フラグ。**`--size` / `--types` / `--compat` で選び、無ければ全部。`--release` は claim の対象に `README.md` と
+  `package.json` を足し、scripts の pin の一致を必須にする。`--write` は claim を書き換える。size を選ばない
+  `--write` と未知のフラグはエラー（`parseArgs` の `strict`）
+- **1 つ落ちても最後まで回し、合否の一覧を出す。**CI のステップを 1 つにしても、どれが落ちたかが分かる
+- **CI の release 判定は 1 か所。**`RELEASE` の環境変数で `--release` を付けるかだけを切り替える
+- **release workflow も `--release`。**pin の一致を必須にした（以前は付けていなかった）。release PR の CI で
+  一致を要求しているので、squash merge 後も一致する前提
+- **却下: `--json`。**唯一の利用者だった claims が内部の呼び出しになったので消した。`Bundle.key` も一緒に消えた
+- **名前。**3 つとも、ビルドした `dist` を利用者の立場で検査する。`bundlecheck` はサイズだけに見え、
+  `budget` / `measure` は合否の compat に合わない。`dist:verify` のコロンは `docs:*` だけが使う
+
 ## 17. Effect v4 調査、2026-09-10
 
 v4 は 2026-08-12 から RC、コードは `Effect-TS/effect-smol`。valof の判断と重なる部分だけ。
