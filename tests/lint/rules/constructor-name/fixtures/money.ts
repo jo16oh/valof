@@ -5,7 +5,7 @@ const Money = Val.companion<Money>()
   .implCreate(() => ({ cents: 0 }))
   .implAssoc(({ seal, create: make }) => ({
     fromCents: (n: number): Money => seal({ cents: n }),
-    parse: (text: string): Money => seal({ cents: Number(text) }),
+    read: (text: string): Money => seal({ cents: Number(text) }),
     random: (): Money => make(),
     cents: (n: number): Money => Money.fromCents(n),
     sum: (all: readonly Money[]): Money => Money.seal({ cents: all.length }),
@@ -18,5 +18,5 @@ const Money = Val.companion<Money>()
   }))
   .build();
 
-export const read = [Money.fromCents, Money.parse, Money.random, Money.cents, Money.sum, Money.zero];
+export const read = [Money.fromCents, Money.read, Money.random, Money.cents, Money.sum, Money.zero];
 export const more = [Money.fromage, Money.createdAt, Money.fromYears];

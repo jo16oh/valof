@@ -96,6 +96,28 @@ export const BlockStepFunction = Val.companion<BlockStepFunction>().build();
 export type SplitVariant = Val<"SplitVariant", Where & { companion: string; variant: string }>;
 export const SplitVariant = Val.companion<SplitVariant>().build();
 
+/**
+ * A member `.impl` or `.implAssoc` registered, with what its body says about the type it is on.
+ * Only a member written inline in the step's object is read.
+ */
+export type StepMember = Val<
+  "StepMember",
+  Where & {
+    companion: string;
+    /** The type the companion is for, as the chain's type argument names it. */
+    type: string;
+    member: string;
+    step: "impl" | "implAssoc";
+    /** Whether the member is a function, rather than a value such as `zero: seal(…)`. */
+    function: boolean;
+    /** Whether it calls the step's `seal` or `create`, or the companion's own. */
+    constructs: boolean;
+    /** Whether it names the type (the companion too) or a `seal` / `create` anywhere. */
+    related: boolean;
+  }
+>;
+export const StepMember = Val.companion<StepMember>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
 export const DynRead = Val.companion<DynRead>().build();
@@ -140,6 +162,8 @@ export type Scan = {
   dynReads: DynRead[];
   escapedDyns: EscapedDyn[];
   splitVariants: SplitVariant[];
+  /** The members `.impl` and `.implAssoc` registered inline, with what their bodies name. */
+  stepMembers: StepMember[];
   /** Member steps whose function has a block body. */
   blockSteps: BlockStepFunction[];
   /** Keys read off a local name. */
@@ -269,6 +293,7 @@ export function scan(
   const escapedDyns: EscapedDyn[] = [];
   const blockSteps: BlockStepFunction[] = [];
   const splitVariants: SplitVariant[] = [];
+  const memberBodies: StepMember[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
   const objects = new Map<string, Node>();
@@ -372,6 +397,8 @@ export function scan(
         }
         members.push(...implMembers(init, id["name"] as string, bound, objects, at));
         splitVariants.push(...split(init, id["name"] as string, bound, at));
+        if (site)
+          memberBodies.push(...bodies(init, id["name"] as string, site.typeName, bound, at));
         break;
       }
       case "CallExpression": {
@@ -507,6 +534,7 @@ export function scan(
     escapedDyns,
     blockSteps,
     splitVariants,
+    stepMembers: memberBodies,
     reads,
     namespaceReads,
     exportedAs,
@@ -751,4 +779,104 @@ function split(
     seen.add(variant);
   });
   return found;
+}
+
+/** The names a step's function took `seal` and `create` under: `({ seal, create: make })`. */
+function constructors(fn: Node): Set<string> {
+  const names = new Set<string>();
+  const [first] = children(fn, "params");
+  if (first?.type !== "ObjectPattern") return names;
+  for (const property of children(first, "properties")) {
+    const key = child(property, "key");
+    const value = child(property, "value");
+    const name = key && keyName(key, property["computed"] === true);
+    if ((name === "seal" || name === "create") && value?.type === "Identifier")
+      names.add(value["name"] as string);
+  }
+  return names;
+}
+
+/** Every node under `node`, itself included. */
+function* descendants(node: Node): Generator<Node> {
+  yield node;
+  for (const [key, value] of Object.entries(node)) {
+    if (key === "parent") continue;
+    if (Array.isArray(value)) {
+      for (const element of value) if (isNode(element)) yield* descendants(element);
+    } else if (isNode(value)) yield* descendants(value);
+  }
+}
+
+/** What the members written inline in each `.impl` and `.implAssoc` of a chain say. */
+function bodies(
+  node: Node,
+  companion: string,
+  type: string,
+  bound: Bindings,
+  at: (offset: number) => Where,
+): StepMember[] {
+  const found: StepMember[] = [];
+  let current: Node = node;
+  while (current.type === "CallExpression") {
+    const callee = child(current, "callee");
+    const step = callee?.type === "MemberExpression" ? stepOf(callee) : undefined;
+    if (!step) break;
+    const receiver = variantOf(step.receiver)?.builder ?? step.receiver;
+    const [fn] = children(current, "arguments");
+    const body =
+      fn?.type === "ArrowFunctionExpression" ? unparenthesized(child(fn, "body")) : undefined;
+    if (
+      (step.name === "impl" || step.name === "implAssoc") &&
+      fn &&
+      body?.type === "ObjectExpression"
+    ) {
+      const local = constructors(fn);
+      for (const entry of children(body, "properties")) {
+        const key = child(entry, "key");
+        const value = child(entry, "value");
+        const member = key && keyName(key, entry["computed"] === true);
+        if (entry.type !== "Property" || !member || !value) continue;
+        let constructs = false;
+        let related = false;
+        for (const inner of descendants(value)) {
+          if (inner.type === "Identifier") {
+            const name = inner["name"] as string;
+            // The companion shares the type's name, which companion-mismatch holds it to.
+            if (name === type || local.has(name)) related = true;
+          }
+          if (inner.type !== "CallExpression") continue;
+          const called = child(inner, "callee");
+          if (called?.type === "Identifier" && local.has(called["name"] as string))
+            constructs = true;
+          if (called?.type === "MemberExpression") {
+            const object = child(called, "object");
+            const property = child(called, "property");
+            const name = property && keyName(property, called["computed"] === true);
+            if (
+              object?.type === "Identifier" &&
+              object["name"] === companion &&
+              (name === "seal" || name === "create")
+            )
+              constructs = true;
+          }
+        }
+        found.push(
+          StepMember.seal({
+            ...at(entry["start"] as number),
+            companion,
+            type,
+            member,
+            step: step.name,
+            function:
+              value.type === "ArrowFunctionExpression" || value.type === "FunctionExpression",
+            constructs,
+            related,
+          }),
+        );
+      }
+    }
+    if (receiver.type !== "CallExpression" && !fromRoot(receiver, bound)) break;
+    current = receiver;
+  }
+  return found.reverse();
 }

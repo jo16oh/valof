@@ -3,6 +3,7 @@ import { describe, expect, test } from "vite-plus/test";
 import {
   BlockStep,
   CompanionMismatch,
+  UnrelatedAssoc,
   UnqualifiedVariant,
   UnusedMember,
   fixtures,
@@ -69,7 +70,7 @@ describe("what the rule finds", () => {
   });
 
   test("collects the members of every implAssoc", async () => {
-    expect(await messages("assoc")).toEqual([
+    expect(await messages("assoc", { skip: [UnrelatedAssoc] })).toEqual([
       "Money.zero is never read",
       "Money.unit is never read",
     ]);

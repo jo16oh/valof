@@ -1,6 +1,12 @@
 import { expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, UnimplementedTrait, UnusedMember, fixtures } from "../../support.ts";
+import {
+  CompanionMismatch,
+  UnimplementedTrait,
+  UnrelatedAssoc,
+  UnusedMember,
+  fixtures,
+} from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
@@ -68,10 +74,10 @@ test("says nothing about a shared field, a tag, or a Trait the enum implements",
 });
 
 test("reports a Trait a variant declares and its companion leaves out", async () => {
-  expect(await lint("variant", { skip: [UnusedMember] })).toEqual([
+  expect(await lint("variant", { skip: [UnusedMember, UnrelatedAssoc] })).toEqual([
     { rule: UnimplementedTrait, at: "variant.ts:6:91" },
   ]);
-  expect(await messages("variant", { skip: [UnusedMember] })).toEqual([
+  expect(await messages("variant", { skip: [UnusedMember, UnrelatedAssoc] })).toEqual([
     "Item.Pen declares Named, but its companion does not implement it",
   ]);
 });

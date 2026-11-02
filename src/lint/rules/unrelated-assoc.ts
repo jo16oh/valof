@@ -2,6 +2,11 @@ import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
+/**
+ * An `.implAssoc` member that names neither the type, nor its companion, nor a `seal` or `create`:
+ * a helper parked on the companion. Only the member's own syntax is read, so one defined elsewhere
+ * and passed in is left alone.
+ */
 export type UnrelatedAssoc = Val<"UnrelatedAssoc", { kind: "unrelated-assoc" }, Rule>;
 export const UnrelatedAssoc = Val.companion<UnrelatedAssoc>()
   .implCreate(() => ({
@@ -12,6 +17,18 @@ export const UnrelatedAssoc = Val.companion<UnrelatedAssoc>()
   .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
   .build();
 
-function findings(_rule: UnrelatedAssoc, _scans: readonly Scan[]): Finding[] {
-  return [];
+function findings({ kind }: UnrelatedAssoc, scans: readonly Scan[]): Finding[] {
+  return scans.flatMap(({ file, stepMembers }) =>
+    stepMembers
+      .filter(({ step, related }) => step === "implAssoc" && !related)
+      .map(({ companion, type, member, line, column }) =>
+        Finding.seal({
+          kind,
+          file,
+          line,
+          column,
+          message: `${companion}.${member} neither takes nor makes a ${type}; move it out of the companion`,
+        }),
+      ),
+  );
 }

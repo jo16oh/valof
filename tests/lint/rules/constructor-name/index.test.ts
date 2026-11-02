@@ -15,7 +15,7 @@ test("reports a constructor named otherwise, and a member of .impl named as one"
 
 test("says which name to give, and where a member that takes the value goes", async () => {
   expect(await messages("money")).toEqual([
-    "Money.parse makes a Money; name it from*, parse* or create*",
+    "Money.read makes a Money; name it from*, parse* or create*",
     "Money.random makes a Money; name it from*, parse* or create*",
     "Money.sum makes a Money; name it from*, parse* or create*",
     "Money.fromYears is named like a constructor, and takes a Money; move it to .implAssoc, or rename it",
