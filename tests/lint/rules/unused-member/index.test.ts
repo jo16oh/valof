@@ -139,6 +139,15 @@ describe("Trait members", () => {
     ]);
   });
 
+  test("counts a member read anywhere for a box that leaves where it was made", async () => {
+    // A box passed through a helper or held in an array is read off a name the walk does not
+    // follow. `explain` is read nowhere, so it stays dead.
+    expect(await messages("escaped-dyn")).toEqual([
+      "Dead.explain is never read",
+      "Unused.explain is never read",
+    ]);
+  });
+
   test("resolves const objects and recursive spreads", async () => {
     expect(await lint("resolved-overrides")).toEqual([
       { rule: UnusedMember, at: "resolved-overrides.ts:2:62" },
