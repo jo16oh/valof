@@ -31,8 +31,9 @@ jobs:
 
       - run: vp test
 
-      # Merging a release PR releases it, so the claims it ships are checked before then, and the
-      # scripts catch up with the API before a release, not after it.
+      # Merging a release PR releases it, so --release runs here first. It checks the claims the
+      # release ships, and fails until the scripts are updated to the current API, so they are
+      # updated before a release, not after it.
       - run: vp run check-dist ${RELEASE:+"$RELEASE"}
         env:
           RELEASE: ${{ startsWith(github.head_ref, 'chore/release-') && '--release' || '' }}

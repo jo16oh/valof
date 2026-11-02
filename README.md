@@ -143,7 +143,7 @@ vp install              # install dependencies
 vp test                 # run the tests
 vp check                # format, lint, type check
 vp run build            # build
-vp run check-dist      # check dist: bundle size, type cost, and every TypeScript line
+vp run check-dist       # bundle size, type cost, and a typecheck on every TypeScript line
 ```
 
 ## License

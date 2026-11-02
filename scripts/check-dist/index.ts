@@ -28,8 +28,8 @@ const checks: Check[] = [
   ...(compat ? [{ name: "compat", run: () => checkCompat({ release }) }] : []),
 ];
 
-// In order, and every one to the end, so the summary says which failed. Types and compat each
-// start `tsc` many times over.
+// One at a time, because types and compat each start `tsc` many times. Every check runs even after
+// one fails, so the summary says which failed.
 const results: { name: string; failure: Error | undefined }[] = [];
 for (const { name, run } of checks) {
   console.log(`\n# ${name}\n`);

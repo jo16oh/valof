@@ -9,21 +9,23 @@ wrapper types, the linter, or new API. §9 lists the open questions. New deliber
 ## Bundle Size and Type Cost
 
 Run `vp run check-dist` after changing runtime code or a type. It builds `dist` once and checks it
-as a user receives it. `--size`, `--types` and `--compat` pick checks; with none, all three run.
+as a user receives it. `--size`, `--types` and `--compat` select the checks to run. With none, all
+three run.
 
-- `--size` measures what a user ships against its budgets, and the bundle-size claims.
+- `--size` measures what a user ships against its budgets, and checks the bundle-size claims.
 - `--types` compiles the fixtures in `scripts/check-dist/types/` against the published declarations,
   and budgets the instantiation count and the size of the declarations that `import "valof"` loads.
-- `--compat` typechecks the book's blocks, the fixtures and the scripts on every TypeScript line.
+- `--compat` typechecks the book's blocks, the fixtures in `scripts/check-dist/compat/fixtures/` and
+  the scripts against `dist` on every TypeScript line.
 
 The bundle-size claim in `docs/src/introduction.md` follows the current branch. Update it with
 `vp run check-dist --size --write`; regular CI checks it. The claims in `README.md` and the
-`package.json` description describe the latest release instead. `--release` adds them, and requires
-the scripts' pin to build the same `dist`. `vp run bump-version` updates them in the release commit,
-and CI checks them on the release PR. After the merge, the release workflow checks all three again
-before it creates the tag.
+`package.json` description describe the latest release instead. `--release` checks them too, and
+fails unless the commit the scripts' `#valof` points at builds the same `dist` as the branch.
+`vp run bump-version` updates them in the release commit, and CI checks them on the release PR.
+After the merge, the release workflow checks all three claims again before it creates the tag.
 
-Neither `vp check` nor `vp test` covers it.
+Neither `vp check` nor `vp test` runs `check-dist`.
 
 ## Testing
 

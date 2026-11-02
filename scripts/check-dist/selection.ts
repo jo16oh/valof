@@ -19,8 +19,8 @@ export const Selection = Val.companion<Selection>()
   .implAssoc(({ seal }) => ({
     /**
      * Reads the command line. With no check named, every one runs. `--write` rewrites the claims,
-     * which the size check measures, so it needs that check. An unknown flag is an error, so a typo
-     * such as `--ts` does not run everything instead.
+     * so it requires the size check. An unknown flag is an error, so a typo such as `--ts` does
+     * not run everything instead.
      */
     fromArgv: (argv: readonly string[]): R.Result<Selection, UsageError> => {
       const parsed = R.try({
@@ -45,7 +45,7 @@ export const Selection = Val.companion<Selection>()
       if (write && !size && !all)
         return R.fail(
           new UsageError({
-            problem: "--write rewrites the bundle-size claims, which only --size measures",
+            problem: "--write rewrites the bundle-size claims, which only --size checks",
           }),
         );
       return R.succeed(
@@ -55,7 +55,7 @@ export const Selection = Val.companion<Selection>()
   }))
   .build();
 
-/** What `parseArgs` objected to, without the advice it adds about `--`. */
+/** What `parseArgs` rejected, without the advice it adds about `--`. */
 function problem(error: unknown): string {
   const { code, message } = error as { code?: string; message: string };
   const flag = /'(-[^']*)'/.exec(message)?.[1];

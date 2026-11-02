@@ -141,7 +141,7 @@ export class OverBudgetError extends ErrorFactory({
   fields: ErrorFactory.fields<{ over: string[] }>(),
 }) {}
 
-/** Measures the fixtures and the declarations against their budgets. `dist` is built already. */
+/** Measures the fixtures and the declarations against their budgets. Expects `dist` to be built. */
 export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudgetError> {
   try {
     const declarations = await declarationBytes(new URL("../../../dist/index.d.ts", here));

@@ -52,7 +52,7 @@ export class OverBudgetError extends ErrorFactory({
 
 /**
  * Measures every bundle against its budget, then the claims against the base bundle's size.
- * `dist` is built already.
+ * Expects `dist` to be built.
  */
 export async function checkSize(options: { release: boolean; write: boolean }) {
   const measured = await Suite.measure(suite);
@@ -60,7 +60,8 @@ export async function checkSize(options: { release: boolean; write: boolean }) {
   console.log(render(measured.value));
 
   const overs = measured.value.bundles.filter(BundleSize.over).map(over);
-  // The claims are read either way, so a stale one shows beside an over budget.
+  // The claims are read even when a bundle is over budget, so a stale claim shows together
+  // with the over-budget error.
   console.log();
   const base = measured.value.bundles.find(({ bundle }) => bundle.base);
   const claimed = await claims(base?.build.production.sizes.gzip ?? Number.NaN, options);

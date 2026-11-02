@@ -12,7 +12,7 @@ export class PackError extends ErrorFactory({
   fields: ErrorFactory.fields<{ output: string }>(),
 }) {}
 
-/** Builds `dist`, which every check reads: the consumer's entry, not `src`. Once per run. */
+/** Builds `dist`, which every check reads: the consumer's entry, not `src`. Called once per run. */
 export function pack(): R.ResultAsync<void, PackError> {
   return R.try({
     try: async () => {

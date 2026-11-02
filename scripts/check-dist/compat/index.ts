@@ -37,7 +37,8 @@ export class IncompatibleError extends ErrorFactory({
 
 /**
  * Typechecks the book's blocks, the fixtures and the scripts against `dist` on every TypeScript
- * line. `dist` is built already. A release requires the scripts' pin to build the same `dist`.
+ * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin builds this
+ * same `dist`.
  */
 export async function checkCompat({
   release,
@@ -128,7 +129,7 @@ export async function checkCompat({
 
   /**
    * The scripts, which are written against the pinned commit, as code a user wrote. They read
-   * against this `dist` only when the pin builds the same one; `--require-pin` fails otherwise,
+   * against this `dist` only when the pin builds the same one; `release` fails otherwise,
    * which a release PR passes so the scripts catch up before a release.
    *
    * Copied, with a `package.json` that sends `#valof` to the installed package. The copy sits

@@ -28,7 +28,7 @@ describe("Selection.fromArgv", () => {
     expect(parsed(...argv)).toEqual({ ...checks, release: false, write: false });
   });
 
-  test("takes --release and --write beside size, named or implied", () => {
+  test("accepts --release and --write with the size check, named or implied", () => {
     expect(parsed("--release", "--write")).toMatchObject({
       size: true,
       release: true,
@@ -37,13 +37,13 @@ describe("Selection.fromArgv", () => {
     expect(parsed("--size", "--write")).toMatchObject({ size: true, write: true });
   });
 
-  test("refuses --write without the size check, which is what it rewrites", () => {
+  test("refuses --write without the size check", () => {
     expect(parsed("--types", "--write")).toBe(
-      "check-dist: --write rewrites the bundle-size claims, which only --size measures",
+      "check-dist: --write rewrites the bundle-size claims, which only --size checks",
     );
   });
 
-  test("refuses a flag it does not know, and a path", () => {
+  test("refuses an unknown flag, and a path", () => {
     expect(parsed("--ts")).toBe("check-dist: unknown option --ts");
     expect(parsed("README.md")).toBe("check-dist: unexpected argument README.md");
   });
