@@ -1,4 +1,5 @@
 import { BlockStep } from "./block-step.ts";
+import { ModelOnlyInValof } from "./model-only-in-valof.ts";
 import { HiddenOptional } from "./hidden-optional.ts";
 import { PayloadOfProperty } from "./payload-of-property.ts";
 import { UnreturnedSeal } from "./unreturned-seal.ts";
@@ -36,6 +37,7 @@ export const RULES = [
   box(BypassedCompanion, BypassedCompanion.create()),
   box(UnnamedOf, UnnamedOf.create()),
   box(BlockStep, BlockStep.create()),
+  box(ModelOnlyInValof, ModelOnlyInValof.create()),
   box(HiddenOptional, HiddenOptional.create()),
   box(PayloadOfProperty, PayloadOfProperty.create()),
   box(UnreturnedSeal, UnreturnedSeal.create()),
@@ -54,6 +56,7 @@ export const RULES = [
  */
 export {
   BlockStep,
+  ModelOnlyInValof,
   HiddenOptional,
   PayloadOfProperty,
   UnreturnedSeal,

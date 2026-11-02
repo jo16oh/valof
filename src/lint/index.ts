@@ -5,7 +5,19 @@ import { run } from "./run.ts";
 
 export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
 export { MissingParserError, MissingTypeScriptError } from "./errors.ts";
+/** How `model-only-in-valof` reads, past what it always reports. Each defaults to `false`. */
+export type ModelSettings = {
+  /** Report a class, declared or as an expression. */
+  classes?: boolean;
+  /** Report a data shape in a type parameter's constraint: `<T extends { id: string }>`. */
+  constraints?: boolean;
+  /** Report a type taken out of a value: `typeof`, `ReturnType`, `Awaited` and the like. */
+  extraction?: boolean;
+};
+
 export type Options = {
+  /** The rules that are off unless named here, with their settings. */
+  enable?: { "model-only-in-valof"?: ModelSettings };
   /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
   skip?: ReadonlySet<Kind>;
   /**

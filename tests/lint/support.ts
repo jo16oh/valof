@@ -22,6 +22,7 @@ const registered = (companion: { create: () => { kind: string } }): Registered =
 // Named rather than spelled as a kind: a test that names a rule reads the same object the
 // registry does, so renaming a kind is one edit and no test string follows it.
 export const BlockStep = registered(Rules.BlockStep);
+export const ModelOnlyInValof = registered(Rules.ModelOnlyInValof);
 export const HiddenOptional = registered(Rules.HiddenOptional);
 export const PayloadOfProperty = registered(Rules.PayloadOfProperty);
 export const UnreturnedSeal = registered(Rules.UnreturnedSeal);
@@ -71,6 +72,7 @@ export const root = fileURLToPath(new URL("../../", import.meta.url));
 type Options = {
   skip?: readonly Registered[];
   overlay?: Map<string, string>;
+  enable?: NonNullable<Parameters<typeof run>[1]>["enable"];
 };
 
 export function fixtures(url: string): {
@@ -84,9 +86,10 @@ export function fixtures(url: string): {
   const files = (fixture: string): string[] =>
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
-  const found = async (fixture: string, { skip = [], overlay }: Options = {}) =>
+  const found = async (fixture: string, { skip = [], overlay, enable }: Options = {}) =>
     await run(files(fixture), {
       ...(overlay ? { overlay } : {}),
+      ...(enable ? { enable } : {}),
       skip: new Set(skip.map(({ kind }) => kind)),
     });
 
