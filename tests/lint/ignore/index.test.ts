@@ -35,7 +35,7 @@ test("leaves a finding of another kind alone", async () => {
   ]);
 });
 
-test("silences what every directive in a block names", async () => {
+test("silences what every directive in a block lists, in either order", async () => {
   expect(await lint("two-in-a-block")).toEqual([
     { rule: UnusedDisable, at: "two-in-a-block.ts:4:3" },
   ]);

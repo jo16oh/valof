@@ -148,6 +148,18 @@ describe("Trait members", () => {
     ]);
   });
 
+  test("credits an escaped box to the Val it names, and to no other", async () => {
+    expect(await messages("escaped-named")).toEqual([
+      "A.explain is never read",
+      "B.run is never read",
+      "B.explain is never read",
+    ]);
+  });
+
+  test("follows a box read where it is made, so a key read elsewhere does not count", async () => {
+    expect(await messages("followed-dyn")).toEqual(["A.explain is never read"]);
+  });
+
   test("resolves const objects and recursive spreads", async () => {
     expect(await lint("resolved-overrides")).toEqual([
       { rule: UnusedMember, at: "resolved-overrides.ts:3:62" },
