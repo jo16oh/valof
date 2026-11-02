@@ -90,6 +90,10 @@ export const EscapedDyn = Val.companion<EscapedDyn>().build();
 export type BlockStepFunction = Val<"BlockStepFunction", Where & { step: string }>;
 export const BlockStepFunction = Val.companion<BlockStepFunction>().build();
 
+/** A variant's step written after another variant's, where an earlier step was its own. */
+export type SplitVariant = Val<"SplitVariant", Where & { companion: string; variant: string }>;
+export const SplitVariant = Val.companion<SplitVariant>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
 export const DynRead = Val.companion<DynRead>().build();
@@ -133,6 +137,7 @@ export type Scan = {
   traitImplementations: TraitImplementation[];
   dynReads: DynRead[];
   escapedDyns: EscapedDyn[];
+  splitVariants: SplitVariant[];
   /** Member steps whose function has a block body. */
   blockSteps: BlockStepFunction[];
   /** Keys read off a local name. */
@@ -261,6 +266,7 @@ export function scan(
   const dynReads: DynRead[] = [];
   const escapedDyns: EscapedDyn[] = [];
   const blockSteps: BlockStepFunction[] = [];
+  const splitVariants: SplitVariant[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
   const objects = new Map<string, Node>();
@@ -363,6 +369,7 @@ export function scan(
             took(id["name"] as string, at(id["start"] as number), from["name"] as string, taken);
         }
         members.push(...implMembers(init, id["name"] as string, bound, objects, at));
+        splitVariants.push(...split(init, id["name"] as string, bound, at));
         break;
       }
       case "CallExpression": {
@@ -497,6 +504,7 @@ export function scan(
     dynReads,
     escapedDyns,
     blockSteps,
+    splitVariants,
     reads,
     namespaceReads,
     exportedAs,
@@ -697,4 +705,43 @@ function blockStep(node: Node, bound: Bindings): { step: string; start: number }
     fn?.type === "FunctionExpression" ||
     (fn?.type === "ArrowFunctionExpression" && child(fn, "body")?.type === "BlockStatement");
   return block ? { step, start: fn["start"] as number } : undefined;
+}
+
+/**
+ * The variant steps in a chain that resume a variant after another variant's step: in
+ * `.Circle.implSeal(f).Square.impl(g).Circle.impl(h)`, the second `.Circle`.
+ */
+function split(
+  node: Node,
+  companion: string,
+  bound: Bindings,
+  at: (offset: number) => Where,
+): SplitVariant[] {
+  /** Each step from the root outwards, with the variant it is on, if any. */
+  const steps: { variant: string | undefined; start: number }[] = [];
+  let current: Node = node;
+  while (current.type === "CallExpression") {
+    const callee = child(current, "callee");
+    const step = callee?.type === "MemberExpression" ? stepOf(callee) : undefined;
+    if (!step) break;
+    const variant = variantOf(step.receiver);
+    // The root call, `Enum.companion<X>()`, is no step.
+    if (!variant && step.receiver.type !== "CallExpression") break;
+    const property = variant && child(step.receiver, "property");
+    steps.unshift({
+      variant: variant?.variant,
+      start: (property ?? step.property)["start"] as number,
+    });
+    current = variant?.builder ?? step.receiver;
+  }
+  if (!fromRoot(current, bound)) return [];
+  const found: SplitVariant[] = [];
+  const seen = new Set<string>();
+  steps.forEach(({ variant, start }, index) => {
+    if (variant === undefined) return;
+    if (seen.has(variant) && steps[index - 1]?.variant !== variant)
+      found.push(SplitVariant.seal({ ...at(start), companion, variant }));
+    seen.add(variant);
+  });
+  return found;
 }
