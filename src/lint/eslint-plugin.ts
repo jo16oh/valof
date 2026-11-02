@@ -8,8 +8,11 @@ import {
   type MessagePort,
 } from "node:worker_threads";
 
+import { Result as R } from "@praha/byethrow";
+
 import { expand } from "./files.ts";
-import { lint, RULES, type Finding, type Kind } from "./index.ts";
+import { RULES, type Finding, type Kind } from "./index.ts";
+import { run } from "./run.ts";
 
 /**
  * The slice of the rule API this uses. Written out rather than imported: neither ESLint nor
@@ -201,14 +204,6 @@ function ask(what: Ask): readonly Finding[] {
   return reply.findings;
 }
 
-/** The mistakes the command explains, in the terms a plugin's reader is in, and one of its own. */
-function explain(error: unknown): string {
-  const { code } = error as { code?: string };
-  if (code === "ERR_MODULE_NOT_FOUND")
-    return "valof-lint needs oxc-parser, which valof does not install for you.\n  pnpm add -D oxc-parser";
-  return `valof-lint: ${String(error)}`;
-}
-
 // The worker is this file again, so no path has to be guessed for it: the source tree runs as
 // `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
 if (!isMainThread && parentPort) {
@@ -216,14 +211,14 @@ if (!isMainThread && parentPort) {
     void (async () => {
       let reply: Reply;
       try {
-        reply = {
-          findings: await lint(files, {
-            report: new Set([file]),
-            overlay: new Map([[file, text]]),
-          }),
-        };
+        const found = await run(files, {
+          report: new Set([file]),
+          overlay: new Map([[file, text]]),
+        });
+        // The command's message, so a plugin's reader gets the same instruction.
+        reply = R.isSuccess(found) ? { findings: found.value } : { failed: found.error.message };
       } catch (error) {
-        reply = { failed: explain(error) };
+        reply = { failed: `valof-lint: ${String(error)}` };
       }
       // Whatever happened, the thread waiting on this has to receive it.
       try {
