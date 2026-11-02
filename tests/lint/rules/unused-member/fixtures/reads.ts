@@ -1,3 +1,4 @@
+import { Val } from "valof";
 const User = Val.companion<User>().impl(() => ({
   bracket: (u) => u.name,
   destructured: (u) => u.name,

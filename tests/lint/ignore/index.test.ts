@@ -15,9 +15,9 @@ test("silences every kind when the directive lists none", async () => {
   expect(await lint("whole-line")).toEqual([
     {
       rule: IncompleteDisable,
-      at: "whole-line.ts:2:3",
+      at: "whole-line.ts:3:3",
     },
-    { rule: UnusedMember, at: "whole-line.ts:4:3" },
+    { rule: UnusedMember, at: "whole-line.ts:5:3" },
   ]);
 });
 
@@ -29,15 +29,15 @@ test("leaves a finding of another kind alone", async () => {
   expect(await lint("wrong-kind")).toEqual([
     {
       rule: UnusedDisable,
-      at: "wrong-kind.ts:2:3",
+      at: "wrong-kind.ts:3:3",
     },
-    { rule: UnusedMember, at: "wrong-kind.ts:3:3" },
+    { rule: UnusedMember, at: "wrong-kind.ts:4:3" },
   ]);
 });
 
 test("silences what every directive in a block names", async () => {
   expect(await lint("two-in-a-block")).toEqual([
-    { rule: UnusedDisable, at: "two-in-a-block.ts:3:3" },
+    { rule: UnusedDisable, at: "two-in-a-block.ts:4:3" },
   ]);
 });
 
@@ -45,11 +45,11 @@ test("takes more than one kind on a line, separated by a space or a comma", asyn
   expect(await lint("two-kinds")).toEqual([
     {
       rule: BrandMismatch,
-      at: "two-kinds.ts:7:13",
+      at: "two-kinds.ts:8:13",
     },
     {
       rule: DuplicateBrand,
-      at: "two-kinds.ts:7:13",
+      at: "two-kinds.ts:8:13",
     },
   ]);
 });
@@ -60,10 +60,10 @@ test("reads the whole comment block, not only the comment touching the line", as
 
 test("lets a directive for every kind swallow one naming a kind in the same block, in either order", async () => {
   expect(await lint("every-widens")).toEqual([
-    { rule: UnusedDisable, at: "every-widens.ts:2:3" },
-    { rule: IncompleteDisable, at: "every-widens.ts:3:3" },
-    { rule: IncompleteDisable, at: "every-widens.ts:5:3" },
-    { rule: UnusedDisable, at: "every-widens.ts:6:3" },
+    { rule: UnusedDisable, at: "every-widens.ts:3:3" },
+    { rule: IncompleteDisable, at: "every-widens.ts:4:3" },
+    { rule: IncompleteDisable, at: "every-widens.ts:6:3" },
+    { rule: UnusedDisable, at: "every-widens.ts:7:3" },
   ]);
 });
 
@@ -71,7 +71,7 @@ test("silences a duplicate brand, and only at the alias that asked", async () =>
   expect(await lint("duplicate-brand")).toEqual([
     {
       rule: DuplicateBrand,
-      at: "duplicate-brand/orders.ts:1:13",
+      at: "duplicate-brand/orders.ts:2:13",
     },
   ]);
 });
@@ -84,9 +84,9 @@ test("silences nothing when the directive names no scope, and says which to writ
   expect(await lint("no-scope")).toEqual([
     {
       rule: IncompleteDisable,
-      at: "no-scope.ts:1:1",
+      at: "no-scope.ts:2:1",
     },
-    { rule: UnusedMember, at: "no-scope.ts:4:3" },
+    { rule: UnusedMember, at: "no-scope.ts:5:3" },
   ]);
 });
 
@@ -94,33 +94,33 @@ test("silences the whole file for the kind it names, and leaves the others repor
   expect(await lint("whole-file-kind")).toEqual([
     {
       rule: BrandMismatch,
-      at: "whole-file-kind.ts:3:13",
+      at: "whole-file-kind.ts:4:13",
     },
   ]);
 });
 
 test("takes neither spelling when something follows it, which is a typo and not a directive", async () => {
-  expect(await lint("misspelled")).toEqual([{ rule: UnusedMember, at: "misspelled.ts:3:3" }]);
+  expect(await lint("misspelled")).toEqual([{ rule: UnusedMember, at: "misspelled.ts:4:3" }]);
 });
 
 test("stops at a blank line, which starts a block of its own", async () => {
   expect(await lint("not-a-block")).toEqual([
     {
       rule: IncompleteDisable,
-      at: "not-a-block.ts:2:3",
+      at: "not-a-block.ts:3:3",
     },
-    { rule: UnusedMember, at: "not-a-block.ts:5:3" },
+    { rule: UnusedMember, at: "not-a-block.ts:6:3" },
   ]);
 });
 
 test("stops a comment block when code follows a comment", async () => {
   expect(await lint("code-breaks-block")).toEqual([
-    { rule: IncompleteDisable, at: "code-breaks-block.ts:2:3" },
-    { rule: UnusedMember, at: "code-breaks-block.ts:2:38" },
-    { rule: UnusedMember, at: "code-breaks-block.ts:4:3" },
+    { rule: IncompleteDisable, at: "code-breaks-block.ts:3:3" },
+    { rule: UnusedMember, at: "code-breaks-block.ts:3:38" },
+    { rule: UnusedMember, at: "code-breaks-block.ts:5:3" },
   ]);
 });
 
 test("ignores a directive trailing code, which belongs to no block", async () => {
-  expect(await lint("after-code")).toEqual([{ rule: UnusedMember, at: "after-code.ts:2:3" }]);
+  expect(await lint("after-code")).toEqual([{ rule: UnusedMember, at: "after-code.ts:3:3" }]);
 });

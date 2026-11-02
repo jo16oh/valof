@@ -1,3 +1,4 @@
+import { Val } from "valof";
 // valof-lint-disable unused-member
 
 const User = Val.companion<User>().impl(() => ({

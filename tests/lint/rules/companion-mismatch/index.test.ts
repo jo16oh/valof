@@ -42,7 +42,7 @@ test("says nothing about a chain bound to no plain name", async () => {
 });
 
 test("applies the same naming rule to Trait companions", async () => {
-  expect(await lint("trait")).toEqual([{ rule: CompanionMismatch, at: "trait.ts:3:14" }]);
+  expect(await lint("trait")).toEqual([{ rule: CompanionMismatch, at: "trait.ts:4:14" }]);
   expect(await messages("trait")).toEqual([
     "Friendly is the companion for Greetable, and should be named Greetable",
   ]);
@@ -50,8 +50,8 @@ test("applies the same naming rule to Trait companions", async () => {
 
 test("looks through parentheses around companion type arguments", async () => {
   expect(await lint("parenthesized")).toEqual([
-    { rule: CompanionMismatch, at: "parenthesized.ts:4:14" },
     { rule: CompanionMismatch, at: "parenthesized.ts:5:14" },
+    { rule: CompanionMismatch, at: "parenthesized.ts:6:14" },
   ]);
 });
 

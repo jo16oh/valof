@@ -1,3 +1,4 @@
+import { Unpatchable, Val } from "valof";
 const Doc = Val.companion<Doc, [Unpatchable<"id">]>()
   .implSeal((d, seal) => seal(d))
   .impl(() => ({

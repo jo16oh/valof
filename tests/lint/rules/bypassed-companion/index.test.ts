@@ -62,7 +62,7 @@ test("follows a renamed re-export to the companion", async () => {
 
 test("looks through parentheses in the declaration, companion, and Val.of", async () => {
   expect(await lint("parenthesized")).toEqual([
-    { rule: BypassedCompanion, at: "parenthesized.ts:4:30" },
+    { rule: BypassedCompanion, at: "parenthesized.ts:5:30" },
   ]);
 });
 

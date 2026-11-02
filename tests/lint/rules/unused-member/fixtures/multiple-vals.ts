@@ -1,3 +1,4 @@
+import { Trait, Val } from "valof";
 type Greetable = Trait<"Greetable", { name: string }, { greet: () => string }>;
 const Greetable = Trait.companion<Greetable>().impl(() => ({ greet: () => "default" })).build();
 

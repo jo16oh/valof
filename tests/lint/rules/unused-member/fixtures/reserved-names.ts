@@ -1,4 +1,4 @@
-import { Enum, Trait } from "valof";
+import { Enum, Trait, Val } from "valof";
 
 const Id = Val.companion<Id>().impl(() => ({
   equals: (a, b) => a === b,

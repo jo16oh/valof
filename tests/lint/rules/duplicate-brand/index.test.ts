@@ -8,15 +8,15 @@ test("reports every alias when three claim the same brand", async () => {
   expect(await lint("duplicate")).toEqual([
     {
       rule: DuplicateBrand,
-      at: "duplicate/billing.ts:1:13",
+      at: "duplicate/billing.ts:2:13",
     },
     {
       rule: DuplicateBrand,
-      at: "duplicate/inventory.ts:1:13",
+      at: "duplicate/inventory.ts:2:13",
     },
     {
       rule: DuplicateBrand,
-      at: "duplicate/orders.ts:1:13",
+      at: "duplicate/orders.ts:2:13",
     },
   ]);
 });
@@ -25,11 +25,11 @@ test("reports colliding aliases in the same file", async () => {
   expect(await lint("same-file", { skip: [BrandMismatch] })).toEqual([
     {
       rule: DuplicateBrand,
-      at: "same-file.ts:1:13",
+      at: "same-file.ts:2:13",
     },
     {
       rule: DuplicateBrand,
-      at: "same-file.ts:2:13",
+      at: "same-file.ts:3:13",
     },
   ]);
 });

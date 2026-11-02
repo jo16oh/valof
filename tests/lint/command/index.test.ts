@@ -7,7 +7,7 @@ const under = (fixture: string): string => `tests/lint/command/fixtures/${fixtur
 test("prints a finding's location and kind, and exits 1 with a summary", () => {
   const { status, stdout, stderr } = cli(under("*.ts"), under("finding.ts"));
   expect(stdout).toMatch(
-    new RegExp(`^tests/lint/command/fixtures/finding\\.ts:3:3  ${UnusedMember.kind}  `),
+    new RegExp(`^tests/lint/command/fixtures/finding\\.ts:4:3  ${UnusedMember.kind}  `),
   );
   expect(status).toBe(1);
   expect(stderr).toBe("valof-lint: 1 finding(s) in 1 file(s)");

@@ -6,9 +6,9 @@ const { lint, messages } = fixtures(import.meta.url);
 
 test("reports each Trait a Val declares but does not implement", async () => {
   expect(await lint("missing")).toEqual([
-    { rule: UnimplementedTrait, at: "missing.ts:4:50" },
-    { rule: UnimplementedTrait, at: "missing.ts:7:64" },
-    { rule: UnimplementedTrait, at: "missing.ts:10:52" },
+    { rule: UnimplementedTrait, at: "missing.ts:5:50" },
+    { rule: UnimplementedTrait, at: "missing.ts:8:64" },
+    { rule: UnimplementedTrait, at: "missing.ts:11:52" },
   ]);
   expect(await messages("missing")).toEqual([
     "User declares Greetable, but its companion does not implement it",
@@ -27,8 +27,8 @@ test("looks through parentheses around the Val the companion is for", async () =
 
 test("looks through parentheses in a Trait intersection and its alias", async () => {
   expect(await lint("parenthesized")).toEqual([
-    { rule: UnimplementedTrait, at: "parenthesized.ts:4:63" },
-    { rule: UnimplementedTrait, at: "parenthesized.ts:8:52" },
+    { rule: UnimplementedTrait, at: "parenthesized.ts:5:63" },
+    { rule: UnimplementedTrait, at: "parenthesized.ts:9:52" },
   ]);
   expect(await messages("parenthesized")).toEqual([
     "User declares Named, but its companion does not implement it",
@@ -42,9 +42,9 @@ test("matches renamed and namespace imports", async () => {
 
 test("keeps same-named Traits from different modules distinct", async () => {
   expect(await lint("identity")).toEqual([
-    { rule: UnimplementedTrait, at: "identity/barrels.ts:4:45" },
-    { rule: UnimplementedTrait, at: "identity/namespace.ts:4:60" },
-    { rule: UnimplementedTrait, at: "identity/renamed.ts:4:47" },
+    { rule: UnimplementedTrait, at: "identity/barrels.ts:5:45" },
+    { rule: UnimplementedTrait, at: "identity/namespace.ts:5:60" },
+    { rule: UnimplementedTrait, at: "identity/renamed.ts:5:47" },
   ]);
 });
 

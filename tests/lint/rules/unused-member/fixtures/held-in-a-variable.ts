@@ -1,3 +1,4 @@
+import { Val } from "valof";
 const seal = Val.companion<User>();
 
 export const User = seal.impl(() => ({

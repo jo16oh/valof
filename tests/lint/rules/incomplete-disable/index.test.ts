@@ -8,7 +8,7 @@ test("reports a directive that names no rule, and lets it go on silencing", asyn
   expect(await lint("bare")).toEqual([
     {
       rule: IncompleteDisable,
-      at: "bare.ts:2:3",
+      at: "bare.ts:3:3",
     },
   ]);
   expect(await messages("bare")).toEqual([
@@ -20,11 +20,11 @@ test("asks a whole-file directive for its rules, or for the spelling that means 
   expect(await lint("whole-file")).toEqual([
     {
       rule: IncompleteDisable,
-      at: "whole-file.ts:1:1",
+      at: "whole-file.ts:2:1",
     },
     {
       rule: BrandMismatch,
-      at: "whole-file.ts:3:13",
+      at: "whole-file.ts:4:13",
     },
   ]);
   expect(await messages("whole-file")).toEqual([

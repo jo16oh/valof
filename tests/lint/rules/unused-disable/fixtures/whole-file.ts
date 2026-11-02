@@ -1,3 +1,4 @@
+import { Val } from "valof";
 // valof-lint-disable-whole-file duplicate-brand
 
 const User = Val.companion<User>().impl(() => ({

@@ -1,0 +1,6 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": { "noUnusedLocals": false, "paths": { "valof": ["../../src/index.ts"] } },
+  "include": ["**/fixtures/**/*.ts"],
+  "exclude": []
+}

@@ -12,7 +12,7 @@ test("reports the directive when the rule it names finds nothing there", async (
   expect(await lint("unused")).toEqual([
     {
       rule: UnusedDisable,
-      at: "unused.ts:2:3",
+      at: "unused.ts:3:3",
     },
   ]);
   expect(await messages("unused")).toEqual([
@@ -24,7 +24,7 @@ test("names the one that silenced nothing, not the whole directive", async () =>
   expect(await lint("partly-used")).toEqual([
     {
       rule: UnusedDisable,
-      at: "partly-used.ts:2:3",
+      at: "partly-used.ts:3:3",
     },
   ]);
   expect(await messages("partly-used")).toEqual([
@@ -36,7 +36,7 @@ test("says a whole-file directive reports nothing in the file, not here", async 
   expect(await lint("whole-file")).toEqual([
     {
       rule: UnusedDisable,
-      at: "whole-file.ts:1:1",
+      at: "whole-file.ts:2:1",
     },
   ]);
 });

@@ -51,11 +51,11 @@ test("leaves out a rule about the disable comments, like any other", async () =>
   expect(await lint("guarded")).toEqual([
     {
       rule: IncompleteDisable,
-      at: "guarded.ts:1:1",
+      at: "guarded.ts:2:1",
     },
     {
       rule: UnusedDisable,
-      at: "guarded.ts:3:1",
+      at: "guarded.ts:4:1",
     },
   ]);
   expect(await lint("guarded", { skip: [IncompleteDisable, UnusedDisable] })).toEqual([]);

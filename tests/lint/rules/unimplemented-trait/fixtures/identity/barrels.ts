@@ -1,3 +1,4 @@
+import { Val } from "valof";
 import { Shared as A } from "./barrel-a";
 import { Shared as B } from "./barrel-b";
 

@@ -1,3 +1,4 @@
+import { Val } from "valof";
 const members = () => ({ quiet: (b) => b.name });
 const B = Val.companion<B>().impl(members).build();
 

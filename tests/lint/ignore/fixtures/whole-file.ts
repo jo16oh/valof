@@ -1,3 +1,4 @@
+import { Val } from "valof";
 // valof-lint-disable-all-whole-file
 
 const User = Val.companion<User>().impl(() => ({

@@ -1,3 +1,4 @@
+import { Trait, Val } from "valof";
 type Rule = Trait<
   "Rule",
   { kind: string },

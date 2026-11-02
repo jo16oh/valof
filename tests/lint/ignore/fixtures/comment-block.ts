@@ -1,3 +1,4 @@
+import { Val } from "valof";
 const User = Val.companion<User>().impl(() => ({
   /** Shouts the name. */
   // valof-lint-disable-next-line unused-member
