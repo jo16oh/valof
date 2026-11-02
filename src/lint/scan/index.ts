@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
 import { Val } from "../../index.ts";
+import type { AnyVal, CompanionBuilder } from "../../val.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
 import type { Reserved } from "../../val.ts";
@@ -118,6 +119,10 @@ export type StepMember = Val<
 >;
 export const StepMember = Val.companion<StepMember>().build();
 
+/** A call of the default seal, inside a custom one, that no `return` holds. */
+export type HeldSeal = Val<"HeldSeal", Where & { companion: string; noseal: boolean }>;
+export const HeldSeal = Val.companion<HeldSeal>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
 export const DynRead = Val.companion<DynRead>().build();
@@ -162,6 +167,8 @@ export type Scan = {
   dynReads: DynRead[];
   escapedDyns: EscapedDyn[];
   splitVariants: SplitVariant[];
+  /** Calls of the default seal that a custom seal holds outside its `return`. */
+  heldSeals: HeldSeal[];
   /** The members `.impl` and `.implAssoc` registered inline, with what their bodies name. */
   stepMembers: StepMember[];
   /** Member steps whose function has a block body. */
@@ -294,6 +301,7 @@ export function scan(
   const blockSteps: BlockStepFunction[] = [];
   const splitVariants: SplitVariant[] = [];
   const memberBodies: StepMember[] = [];
+  const heldSeals: HeldSeal[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
   const objects = new Map<string, Node>();
@@ -397,6 +405,7 @@ export function scan(
         }
         members.push(...implMembers(init, id["name"] as string, bound, objects, at));
         splitVariants.push(...split(init, id["name"] as string, bound, at));
+        heldSeals.push(...held(init, id["name"] as string, at));
         if (site)
           memberBodies.push(...bodies(init, id["name"] as string, site.typeName, bound, at));
         break;
@@ -535,6 +544,7 @@ export function scan(
     blockSteps,
     splitVariants,
     stepMembers: memberBodies,
+    heldSeals,
     reads,
     namespaceReads,
     exportedAs,
@@ -879,4 +889,42 @@ function bodies(
     current = receiver;
   }
   return found.reverse();
+}
+
+/**
+ * The default seal's calls that a chain's inline `implSeal` makes outside what it returns, and
+ * whether the chain's create is `.implCreate.noseal`. An arrow with an expression body returns
+ * that expression, so every call in it is held by the return.
+ */
+function held(node: Node, companion: string, at: (offset: number) => Where): HeldSeal[] {
+  let noseal = false;
+  let fn: Node | undefined;
+  let current: Node | undefined = node;
+  while (current?.type === "CallExpression") {
+    const callee = child(current, "callee");
+    if (callee?.type !== "MemberExpression") break;
+    const property = child(callee, "property");
+    const name = property && keyName(property, callee["computed"] === true);
+    if (name === ("noseal" satisfies keyof CompanionBuilder<AnyVal>["implCreate"])) noseal = true;
+    const step = stepOf(callee);
+    if (step?.name === "implSeal") fn = children(current, "arguments")[0];
+    current = step && (variantOf(step.receiver)?.builder ?? step.receiver);
+  }
+  if (fn?.type !== "ArrowFunctionExpression" && fn?.type !== "FunctionExpression") return [];
+  const body = child(fn, "body");
+  const seal = children(fn, "params")[1];
+  if (body?.type !== "BlockStatement" || seal?.type !== "Identifier") return [];
+  const returned = new Set<Node>();
+  for (const inner of descendants(body))
+    if (inner.type === "ReturnStatement") {
+      const argument = child(inner, "argument");
+      if (argument) for (const one of descendants(argument)) returned.add(one);
+    }
+  return [...descendants(body)]
+    .filter((inner) => {
+      if (inner.type !== "CallExpression" || returned.has(inner)) return false;
+      const callee = child(inner, "callee");
+      return callee?.type === "Identifier" && callee["name"] === seal["name"];
+    })
+    .map((call) => HeldSeal.seal({ ...at(call["start"] as number), companion, noseal }));
 }
