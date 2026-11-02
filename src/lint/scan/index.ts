@@ -79,8 +79,8 @@ export const TraitImplementation = Val.companion<TraitImplementation>().build();
 
 /**
  * A `Trait.dyn(Val, value)` box that leaves the expression it was made in: passed to a function,
- * held in an array, returned. What is read off it is not followed. `val` is whatever the first
- * argument names, a companion or not.
+ * held in an array, returned. The scan does not follow what is read off it. `val` is whatever the
+ * first argument references, a companion or not.
  */
 export type EscapedDyn = Val<"EscapedDyn", { trait: SymbolRef; val: SymbolRef }>;
 export const EscapedDyn = Val.companion<EscapedDyn>().build();
@@ -358,7 +358,7 @@ export function scan(
         break;
       }
       case "CallExpression": {
-        // Visited after whatever holds it, so a box read where it is made is already followed.
+        // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
         const lift = valOf(node, file, bound, at);

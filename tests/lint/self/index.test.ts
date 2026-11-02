@@ -5,7 +5,7 @@ import { expect, test } from "vite-plus/test";
 import { lint } from "../../../src/lint/index.ts";
 import { root } from "../support.ts";
 
-// The linter and the scripts are written with the library, so they are held to its rules.
+// The linter and the scripts use the library, so the linter's rules apply to them too.
 test("finds nothing in valof's own source and scripts", async () => {
   const files = globSync(["src/**/*.ts", "scripts/**/*.ts"], {
     cwd: root,

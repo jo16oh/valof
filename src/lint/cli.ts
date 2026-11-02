@@ -54,15 +54,15 @@ type Files = { scanned: string[]; asked: string[]; reported: string[] };
 
 /** The files read and the files reported on, with every exclusion applied to both. */
 function files({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> {
-  // Resolved, since a path reaches this from a glob the caller wrote and from one it excluded, and
-  // the two spellings need not match.
+  // Resolved, because the same file can come from a glob the caller wrote and from one it
+  // excluded, spelled differently.
   const dropped = new Set(excluded.flatMap(expand).map((file) => resolve(file)));
   const kept = (found: string[]): string[] => found.filter((file) => !dropped.has(resolve(file)));
 
   const read = kept((projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand));
   const asked = kept(targets.flatMap(expand));
-  // Scanned together: a file to report on that the project glob does not cover is still read,
-  // rather than passed over and called clean.
+  // Scanned together, so a file to report on that the project glob does not cover is still read,
+  // rather than skipped and called clean.
   const scanned = [...new Set([...read, ...asked])];
   const reported = targets.length > 0 ? asked : scanned;
   return reported.length === 0
@@ -70,7 +70,7 @@ function files({ projects, targets, excluded }: Arguments): R.Result<Files, NoFi
     : R.succeed({ scanned, asked, reported });
 }
 
-/** Runs what the arguments ask for, and gives the status to exit with. */
+/** Runs what the arguments ask for, and returns the status to exit with. */
 async function command(argv: readonly string[]): Promise<R.Result<number, UsageError>> {
   const parsed = Arguments.fromArgv(argv);
   if (R.isFailure(parsed)) return parsed;
@@ -116,7 +116,6 @@ function print(findings: readonly Finding[], reported: number): void {
   );
 }
 
-// Every usage error exits 2: the run never started.
 const status = await command(process.argv.slice(2));
 if (R.isFailure(status)) console.error(status.error.message);
 process.exit(R.isFailure(status) ? 2 : status.value);

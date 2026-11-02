@@ -215,7 +215,7 @@ if (!isMainThread && parentPort) {
           report: new Set([file]),
           overlay: new Map([[file, text]]),
         });
-        // The command's message, so a plugin's reader gets the same instruction.
+        // The message the command prints, so a user of the plugin gets the same instruction.
         reply = R.isSuccess(found) ? { findings: found.value } : { failed: found.error.message };
       } catch (error) {
         reply = { failed: `valof-lint: ${String(error)}` };

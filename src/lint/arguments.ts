@@ -16,7 +16,7 @@ export type Arguments = Val<
     projects: string[];
     /** What the run reports on. Empty means the whole project. */
     targets: string[];
-    /** Paths written with a leading `!`: out of the run and the report alike. */
+    /** Paths written with a leading `!`, removed from the run and the report alike. */
     excluded: string[];
     /** Kinds left out with `--no-<kind>`. */
     skip: Kind[];
@@ -29,9 +29,9 @@ export const Arguments = Val.companion<Arguments>()
     /**
      * Reads the command line.
      *
-     * A path goes where it was written, unless it starts with `!`. An exclusion belongs to
-     * neither list: it is removed from the run and the report alike, so a generated tree named
-     * once is out of the findings however it was reached.
+     * A path joins the list it was written for, unless it starts with `!`. An exclusion joins
+     * neither list. It is removed from the run and the report alike, so a generated tree written
+     * once leaves no findings, however it was reached.
      */
     fromArgv: (
       argv: readonly string[],
@@ -73,7 +73,7 @@ export const Arguments = Val.companion<Arguments>()
       if (help) return R.succeed(seal({ projects, targets, excluded, skip, help }));
       if (pending) return R.fail(new MissingPathError({ flag: pending }));
 
-      // The first loose path is the project, unless one was named.
+      // The first loose path is the project, unless `--project` gave one.
       if (projects.length === 0 && loose.length > 0) {
         const first = loose.shift() as string;
         if (!GLOB.test(first) && !isDirectory(first))

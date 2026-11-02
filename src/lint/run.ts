@@ -57,9 +57,9 @@ export async function run(
 }
 
 /**
- * The parser, loaded here rather than imported at the top: it is an optional peer dependency, and
- * a static import would be hoisted above the caller's own error handling once bundled, turning a
- * missing install into a stack trace instead of an instruction.
+ * The parser, loaded here rather than imported at the top, because a static import would be
+ * hoisted above the caller's own error handling once bundled, turning a missing install into a
+ * stack trace instead of an instruction. See {@link MissingParserError}.
  */
 const loadParser = (): Promise<R.Result<Parser, MissingParserError>> =>
   R.try({

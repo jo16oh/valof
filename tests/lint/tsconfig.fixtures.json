@@ -1,7 +1,8 @@
 {
   "extends": "../../tsconfig.json",
   "compilerOptions": {
-    // A fixture's companion is the subject of a rule, not something read, and nothing emits.
+    // A fixture's companion is the subject of a rule, not something the fixture reads, and nothing is
+    // emitted.
     "noUnusedLocals": false,
     "declaration": false,
     "paths": { "valof": ["../../src/index.ts"] }

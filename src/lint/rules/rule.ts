@@ -5,12 +5,12 @@ import type { Scan } from "../scan/index.ts";
  * What every rule reports: what it is, where to look, and what to say.
  *
  * The wording belongs to the rule, next to the `description` that names it. The command prints
- * `message` as it stands, so nothing outside a rule needs to know what else the rule read.
+ * `message` unchanged, so nothing outside a rule needs to know what else the rule read.
  */
 export type Finding = Val<
   "Finding",
   {
-    /** The rule that reported it. See {@link Kind}. */
+    /** The rule that reported it, one of the `Kind` union. */
     kind: string;
     file: string;
     /** 1-based, as an editor counts. */
@@ -27,7 +27,7 @@ export type Context = {
   /**
    * What the rules before this one reported, silenced or not.
    *
-   * Rules run in the order {@link RULES} lists them, so a rule reading this must sit last. Only
+   * Rules run in the order `RULES` lists them, so a rule reading this must sit last. Only
    * a rule about the run itself needs it; a rule about the code reads the scans.
    */
   reported: readonly Finding[];
@@ -40,9 +40,9 @@ export type Context = {
 /**
  * One rule, whole: what it reports, how it reads in `--help`, and how it runs.
  *
- * Each rule is a Val implementing this trait, and its companion's `create` gives the rule as it
- * runs. Adding one is writing that Val and naming it in {@link RULES}; the runner has no branch
- * per rule.
+ * Each rule is a Val implementing this trait, and its companion's `create` returns the value that
+ * runs. Adding one is writing that Val and listing it in `RULES`; the runner has no branch per
+ * rule.
  */
 export type Rule = Trait<
   "Rule",
@@ -72,9 +72,8 @@ export const Rule = Trait.companion<Rule>().build();
 /**
  * A rule in a box, with its kind kept.
  *
- * {@link Dyn} forgets the Val, its literal `kind` with it, and {@link Kind} is read back off the
- * boxes. Keeping it is what makes a rule missing from {@link RULES} a type error at
- * `--no-<kind>` and at each disable comment the tests spell.
+ * {@link Dyn} drops the Val, and its literal `kind` with it. Keeping the kind makes `Kind` the
+ * union of the kinds in `RULES`, so a misspelled kind in `Options.skip` is a type error.
  */
 export const box = <W extends Rule>(
   companion: Parameters<typeof Rule.dyn<W>>[0],

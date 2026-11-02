@@ -94,8 +94,8 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
     }
 
   // A box that escaped is read off names the walk does not follow, so a key read anywhere may be
-  // read off it. It holds the Val its first argument names, or any Val implementing the trait
-  // when that names none.
+  // read off it. It holds the Val its first argument references, or any Val implementing the
+  // trait when that references none.
   const anywhere = new Set<string>();
   for (const scan of scans)
     for (const keys of [...scan.reads.values(), ...scan.namespaceReads.values()])

@@ -3,13 +3,13 @@ import { ErrorFactory } from "@praha/error-factory";
 /** The install line every message about the missing parser ends with. */
 const INSTALL = "  pnpm add -D oxc-parser";
 
-/** The parser is an optional peer dependency, so a run can start without it. */
+/** oxc-parser is an optional peer dependency, so a run can start without it. */
 export class MissingParserError extends ErrorFactory({
   name: "MissingParserError",
   message: `valof-lint needs oxc-parser, which valof does not install for you.\n${INSTALL}`,
 }) {}
 
-/** `--no-<kind>` naming no rule. */
+/** `--no-<kind>` with a kind no rule has. */
 export class UnknownRuleError extends ErrorFactory({
   name: "UnknownRuleError",
   message: ({ kind, known }) =>
@@ -25,8 +25,8 @@ export class MissingPathError extends ErrorFactory({
 }) {}
 
 /**
- * A file where the project goes. It would narrow the run rather than the report, which is the
- * whole point of the two.
+ * A file given as the project. It would narrow the run rather than the report, and keeping those
+ * apart is why both exist.
  */
 export class NotAProjectError extends ErrorFactory({
   name: "NotAProjectError",
@@ -41,7 +41,7 @@ export class NoFilesMatchedError extends ErrorFactory({
   message: "valof-lint: no files matched",
 }) {}
 
-/** What the command reports and exits 2 on: the run never started. */
+/** What the command reports before exiting 2, because the run never started. */
 export type UsageError =
   | MissingParserError
   | UnknownRuleError

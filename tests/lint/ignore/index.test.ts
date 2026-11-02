@@ -59,7 +59,7 @@ test("reads the whole comment block, not only the comment touching the line", as
   expect(await lint("comment-block")).toEqual([]);
 });
 
-test("lets a directive for every kind swallow one naming a kind in the same block, in either order", async () => {
+test("lets a directive for every kind cover one naming a kind in the same block, in either order", async () => {
   expect(await lint("every-widens")).toEqual([
     { rule: UnusedDisable, at: "every-widens.ts:3:3" },
     { rule: IncompleteDisable, at: "every-widens.ts:4:3" },

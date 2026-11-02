@@ -33,8 +33,8 @@ export type EnumAlias = Val<
     /** Traits declared in the enum's third argument. */
     traits: DeclaredTrait[];
     /**
-     * The variant names, absent where the syntax does not settle them. Every rule reading them
-     * stays silent then rather than guessing at a mapped type or an import.
+     * The variant names, absent where the syntax does not determine them. Every rule reading
+     * them reports nothing there rather than guessing at a mapped type or an import.
      */
     variants?: string[];
   }
