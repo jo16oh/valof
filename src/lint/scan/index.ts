@@ -662,7 +662,7 @@ function objectMembers(
 }
 
 /**
- * Every `.impl` in a builder chain of any root, including repeated Trait `.impl` calls. A
+ * Every `.impl` and `.implAssoc` in a builder chain of any root, including repeated calls. A
  * variant's, `.Circle.impl(() => ({…}))`, registers under `` `${enum}.${variant}` ``.
  */
 function implMembers(
@@ -682,7 +682,7 @@ function implMembers(
     const receiver = variant?.builder ?? step.receiver;
     const root = fromRoot(receiver, bound);
     const [object] = children(current, "arguments");
-    if (step.name === "impl" && root !== undefined && object) {
+    if ((step.name === "impl" || step.name === "implAssoc") && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
       for (const member of stepMembers(object, owner, objects, at))
         if (!rejected(member.member, variant ? undefined : root))
