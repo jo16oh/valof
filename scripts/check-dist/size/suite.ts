@@ -2,7 +2,7 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "./bundle.ts";
-import { flow } from "../shared/pipe/index.ts";
+import { flow } from "../../shared/pipe/index.ts";
 import {
   BuildResult,
   BundleSize,

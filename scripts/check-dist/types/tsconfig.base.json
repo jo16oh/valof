@@ -11,7 +11,7 @@
     "skipLibCheck": true,
     "types": [],
     "paths": {
-      "valof": ["../../dist/index.d.ts"]
+      "valof": ["../../../dist/index.d.ts"]
     }
   }
 }

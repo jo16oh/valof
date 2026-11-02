@@ -3,7 +3,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
-const root = new URL("../", import.meta.url);
+const root = new URL("../../../", import.meta.url);
 const marker = "valof-minimal-bundle-size";
 
 function marked(): RegExp {
@@ -41,7 +41,7 @@ let stdout: string;
 try {
   ({ stdout } = await promisify(execFile)(
     process.execPath,
-    [fileURLToPath(new URL("bundle-size/index.ts", import.meta.url)), "--json"],
+    [fileURLToPath(new URL("index.ts", import.meta.url)), "--json"],
     { cwd: fileURLToPath(root) },
   ));
 } catch (error) {

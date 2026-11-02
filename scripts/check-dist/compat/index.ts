@@ -1,9 +1,9 @@
 import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { docBlocks } from "../../docs/tools/twoslash/index.ts";
-import { matches, pinned } from "../pin-valof/index.ts";
-import { aliases, pack, root, tsc, version, type Tsc } from "../shared/typescript-lines.ts";
+import { docBlocks } from "../../../docs/tools/twoslash/index.ts";
+import { matches, pinned } from "../../pin-valof/index.ts";
+import { aliases, pack, root, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
 import { roundTrip, type RoundTrip } from "./round-trip.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
@@ -57,7 +57,7 @@ for (const block of blocks) {
 }
 
 // Exports the book does not show, kept beside this script.
-const extras = join(root, "scripts/ts-compatibility/fixtures");
+const extras = join(root, "scripts/check-dist/compat/fixtures");
 const files = await readdir(extras);
 for (const file of files) {
   await copyFile(join(extras, file), join(directory, `fixture-${file}`));

@@ -10,7 +10,7 @@ import { ErrorFactory } from "@praha/error-factory";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
-import { flow, pipe } from "../../shared/pipe/index.ts";
+import { flow, pipe } from "../../../shared/pipe/index.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class PackError extends ErrorFactory({
@@ -33,7 +33,7 @@ export class MinifyError extends ErrorFactory({
   fields: ErrorFactory.fields<{ detail: string }>(),
 }) {}
 
-const root = new URL("../../../", import.meta.url);
+const root = new URL("../../../../", import.meta.url);
 
 export function pack(): R.ResultAsync<void, PackError> {
   return R.try({
