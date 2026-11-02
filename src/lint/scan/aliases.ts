@@ -175,7 +175,8 @@ export function valAliases(
       ref: symbolRef(file, bound, id["name"] as string),
     };
     const nested = (payload: Node | undefined): void => {
-      if (payload) nestedPayloadOfs.push(...payloadOfs(payload, id["name"] as string, bound, at));
+      if (payload)
+        nestedPayloadOfs.push(...payloadOfs(payload, id["name"] as string, bound, locals, at));
     };
     if (kind === "Val") nested(children(args, "params")[1]);
     if (kind === "Enum") {
@@ -375,8 +376,29 @@ function payloadOfs(
   payload: Node,
   alias: string,
   bound: Bindings,
+  aliases: ReadonlyMap<string, Node>,
   at: (offset: number) => Where,
 ): NestedPayloadOf[] {
+  /** What a local `type M = Payload<PayloadOf<X>>` wraps: `X`, read one step and no further. */
+  /** The reference's name, resolved against the imports, and its first type argument. */
+  const referenced = (
+    node: Node | undefined,
+  ): { name: string; first: Node | undefined } | undefined => {
+    const inside = unparenthesized(node);
+    const written = inside?.type === "TSTypeReference" ? child(inside, "typeName") : undefined;
+    const named = written && valName(written, bound.namespaces);
+    if (!inside || !named) return undefined;
+    const [first] = children(child(inside, "typeArguments") ?? inside, "params");
+    return { name: original(bound, named), first };
+  };
+  /** What a local `type M = Payload<PayloadOf<X>>` wraps: `X`, read one step and no further. */
+  const wrapping = (name: string): string | undefined => {
+    const outer = referenced(aliases.get(name));
+    const inner = outer?.name === "Payload" ? referenced(outer.first) : undefined;
+    if (inner?.name !== "PayloadOf") return undefined;
+    const wrapped = inner.first && child(inner.first, "typeName");
+    return wrapped?.type === "Identifier" ? (wrapped["name"] as string) : "it";
+  };
   const found: NestedPayloadOf[] = [];
   const visit = (node: Node, top: boolean): void => {
     const inside = unparenthesized(node);
@@ -400,6 +422,11 @@ function payloadOfs(
           }),
         );
       }
+      const through = named && !top ? wrapping(named) : undefined;
+      if (through)
+        found.push(
+          NestedPayloadOf.seal({ ...at(inside["start"] as number), alias, wrapped: through }),
+        );
       for (const arg of args) visit(arg, false);
       return;
     }
