@@ -35,6 +35,12 @@ test("leaves a finding of another kind alone", async () => {
   ]);
 });
 
+test("silences what every directive in a block names", async () => {
+  expect(await lint("two-in-a-block")).toEqual([
+    { rule: UnusedDisable, at: "two-in-a-block.ts:3:3" },
+  ]);
+});
+
 test("takes more than one kind on a line, separated by a space or a comma", async () => {
   expect(await lint("two-kinds")).toEqual([
     {
@@ -52,10 +58,12 @@ test("reads the whole comment block, not only the comment touching the line", as
   expect(await lint("comment-block")).toEqual([]);
 });
 
-test("lets a directive for every kind swallow one naming a kind in the same block", async () => {
+test("lets a directive for every kind swallow one naming a kind in the same block, in either order", async () => {
   expect(await lint("every-widens")).toEqual([
     { rule: UnusedDisable, at: "every-widens.ts:2:3" },
     { rule: IncompleteDisable, at: "every-widens.ts:3:3" },
+    { rule: IncompleteDisable, at: "every-widens.ts:5:3" },
+    { rule: UnusedDisable, at: "every-widens.ts:6:3" },
   ]);
 });
 
