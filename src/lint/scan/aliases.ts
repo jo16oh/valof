@@ -1,5 +1,13 @@
 import { Val } from "../../index.ts";
-import { child, children, keyName, unparenthesized, type Node, type Where } from "../ast.ts";
+import {
+  child,
+  children,
+  isNode,
+  keyName,
+  unparenthesized,
+  type Node,
+  type Where,
+} from "../ast.ts";
 import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
@@ -73,6 +81,10 @@ export type BrandClaim = Val<
 >;
 export const BrandClaim = Val.companion<BrandClaim>().build();
 
+/** A `PayloadOf<X>` written inside a payload rather than as it, or as its intersected base. */
+export type NestedPayloadOf = Val<"NestedPayloadOf", Where & { alias: string; wrapped: string }>;
+export const NestedPayloadOf = Val.companion<NestedPayloadOf>().build();
+
 /**
  * The name a type reference is written under, or `undefined` when it is not a plain one.
  *
@@ -111,12 +123,14 @@ export function valAliases(
   enumAliases: EnumAlias[];
   brands: BrandClaim[];
   reAliases: ReAlias[];
+  nestedPayloadOfs: NestedPayloadOf[];
 } {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
   const enumAliases: EnumAlias[] = [];
   const brands: BrandClaim[] = [];
   const reAliases: ReAlias[] = [];
+  const nestedPayloadOfs: NestedPayloadOf[] = [];
   const locals = localAliases(program);
 
   for (const statement of children(program, "body")) {
@@ -160,6 +174,17 @@ export function valAliases(
       alias: id["name"] as string,
       ref: symbolRef(file, bound, id["name"] as string),
     };
+    const nested = (payload: Node | undefined): void => {
+      if (payload) nestedPayloadOfs.push(...payloadOfs(payload, id["name"] as string, bound, at));
+    };
+    if (kind === "Val") nested(children(args, "params")[1]);
+    if (kind === "Enum") {
+      // Each variant's payload is a top level of its own.
+      const record = unparenthesized(children(args, "params")[1]);
+      if (record?.type === "TSTypeLiteral")
+        for (const member of children(record, "members"))
+          nested(child(child(member, "typeAnnotation") ?? member, "typeAnnotation"));
+    }
     if (kind === "Val") {
       aliases.push(
         Alias.seal({
@@ -198,7 +223,7 @@ export function valAliases(
     );
   }
 
-  return { aliases, traitAliases, enumAliases, brands, reAliases };
+  return { aliases, traitAliases, enumAliases, brands, reAliases, nestedPayloadOfs };
 }
 
 /** Every top-level `type X = …` in the file, which the two syntax-only walks below expand. */
@@ -339,4 +364,50 @@ function variantTraits(
     const traits = traitNames(payload, file, bound, aliases, at);
     return traits.length > 0 ? [{ variant, traits }] : [];
   });
+}
+
+/**
+ * The `PayloadOf<X>` references in a payload below its top. At the top, or intersected there,
+ * it builds the payload on `X`'s, which is its purpose. Below, `total: PayloadOf<Money>` holds
+ * `Money`'s payload with neither its brand nor its seal.
+ */
+function payloadOfs(
+  payload: Node,
+  alias: string,
+  bound: Bindings,
+  at: (offset: number) => Where,
+): NestedPayloadOf[] {
+  const found: NestedPayloadOf[] = [];
+  const visit = (node: Node, top: boolean): void => {
+    const inside = unparenthesized(node);
+    if (!inside) return;
+    if (inside.type === "TSIntersectionType") {
+      for (const part of children(inside, "types")) visit(part, top);
+      return;
+    }
+    if (inside.type === "TSTypeReference") {
+      const name = child(inside, "typeName");
+      const named = name && valName(name, bound.namespaces);
+      const args = children(child(inside, "typeArguments") ?? inside, "params");
+      if (named && original(bound, named) === "PayloadOf" && !top) {
+        const [wrapped] = args;
+        const written = wrapped && child(wrapped, "typeName");
+        found.push(
+          NestedPayloadOf.seal({
+            ...at(inside["start"] as number),
+            alias,
+            wrapped: written?.type === "Identifier" ? (written["name"] as string) : "it",
+          }),
+        );
+      }
+      for (const arg of args) visit(arg, false);
+      return;
+    }
+    for (const [key, value] of Object.entries(inside)) {
+      if (key === "parent") continue;
+      for (const one of Array.isArray(value) ? value : [value]) if (isNode(one)) visit(one, false);
+    }
+  };
+  visit(payload, true);
+  return found;
 }
