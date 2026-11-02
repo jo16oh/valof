@@ -35,7 +35,8 @@ const message = (result: R.Result<void, Error>): string | undefined =>
   R.isFailure(result) ? result.error.message : undefined;
 
 describe("claims", () => {
-  test("passes when the introduction states the measured size", async () => {
+  test("reads a claim the formatter wrapped across lines", async () => {
+    await writeFile(join(directory, "docs/src/introduction.md"), intro("965 B\n  gzipped"));
     expect(message(await claims(965, { release: false, write: false }, root))).toBeUndefined();
   });
 
@@ -64,9 +65,14 @@ describe("claims", () => {
   });
 
   test("fails on a file that does not state the size exactly once", async () => {
-    await writeFile(join(directory, "docs/src/introduction.md"), "no claim\n");
-    expect(message(await claims(965, { release: false, write: false }, root))).toBe(
-      "docs/src/introduction.md: expected one bundle-size claim, found 0",
-    );
+    for (const [text, found] of [
+      ["no claim\n", 0],
+      [intro("965 B gzipped").repeat(2), 2],
+    ] as const) {
+      await writeFile(join(directory, "docs/src/introduction.md"), text);
+      expect(message(await claims(965, { release: false, write: false }, root))).toBe(
+        `docs/src/introduction.md: expected one bundle-size claim, found ${found}`,
+      );
+    }
   });
 });
