@@ -5,7 +5,7 @@ import { Selection } from "./selection.ts";
 
 const parsed = (...argv: string[]) => {
   const result = Selection.fromArgv(argv);
-  return R.isSuccess(result) ? { ...result.value } : result.error.message;
+  return R.isSuccess(result) ? result.value : result.error.message;
 };
 
 describe("Selection.fromArgv", () => {
