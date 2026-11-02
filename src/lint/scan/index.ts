@@ -77,6 +77,14 @@ export type TraitImplementation = Val<
 >;
 export const TraitImplementation = Val.companion<TraitImplementation>().build();
 
+/**
+ * A `Trait.dyn(Val, value)` box that leaves the expression it was made in: passed to a function,
+ * held in an array, returned. What is read off it is not followed. `val` is whatever the first
+ * argument names, a companion or not.
+ */
+export type EscapedDyn = Val<"EscapedDyn", { trait: SymbolRef; val: SymbolRef }>;
+export const EscapedDyn = Val.companion<EscapedDyn>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
 export const DynRead = Val.companion<DynRead>().build();
@@ -119,6 +127,7 @@ export type Scan = {
   /** Trait implementations, including the keys which replace a default implementation. */
   traitImplementations: TraitImplementation[];
   dynReads: DynRead[];
+  escapedDyns: EscapedDyn[];
   /** Keys read off a local name. */
   reads: Map<string, Set<string>>;
   /** Keys read through a namespace, already named as the exporting module names them. */
@@ -243,6 +252,9 @@ export function scan(
   const members: Member[] = [];
   const traitImplementations: TraitImplementation[] = [];
   const dynReads: DynRead[] = [];
+  const escapedDyns: EscapedDyn[] = [];
+  /** The boxes a read is followed from, which therefore do not escape. */
+  const followed = new Set<Node>();
   const objects = new Map<string, Node>();
   const dynBindings = new Map<string, { trait: SymbolRef; val: SymbolRef }>();
   const reads = new Map<string, Set<string>>();
@@ -277,7 +289,10 @@ export function scan(
           if (id?.type !== "Identifier" || !init) continue;
           objects.set(id["name"] as string, init);
           const dyn = dynBox(init, file, bound);
-          if (dyn) dynBindings.set(id["name"] as string, dyn);
+          if (dyn) {
+            dynBindings.set(id["name"] as string, dyn);
+            followed.add(init);
+          }
         }
         break;
       }
@@ -319,6 +334,7 @@ export function scan(
         // Destructuring a dyn box is a direct read of its trait member.
         if (id.type === "ObjectPattern") {
           const dyn = dynBox(init, file, bound);
+          if (dyn) followed.add(init);
           if (dyn)
             for (const property of children(id, "properties")) {
               if (property.type !== "Property") continue;
@@ -342,6 +358,9 @@ export function scan(
         break;
       }
       case "CallExpression": {
+        // Visited after whatever holds it, so a box read where it is made is already followed.
+        const box = followed.has(node) ? undefined : dynBox(node, file, bound);
+        if (box) escapedDyns.push(EscapedDyn.seal(box));
         const lift = valOf(node, file, bound, at);
         if (lift) lifts.push(lift);
         const implementation = implTrait(node, file, bound, sites, objects, at);
@@ -371,6 +390,7 @@ export function scan(
         }
         const dyn = dynBox(object, file, bound);
         if (dyn) {
+          followed.add(object);
           dynReads.push(DynRead.seal({ ...dyn, member: name }));
           break;
         }
@@ -464,6 +484,7 @@ export function scan(
     members,
     traitImplementations,
     dynReads,
+    escapedDyns,
     reads,
     namespaceReads,
     exportedAs,

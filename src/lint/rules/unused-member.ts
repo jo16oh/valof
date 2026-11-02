@@ -93,6 +93,26 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
       note(overridden ? val.name : trait.name, member);
     }
 
+  // A box that escaped is read off names the walk does not follow, so a key read anywhere may be
+  // read off it. It holds the Val its first argument names, or any Val implementing the trait
+  // when that names none.
+  const anywhere = new Set<string>();
+  for (const scan of scans)
+    for (const keys of [...scan.reads.values(), ...scan.namespaceReads.values()])
+      for (const key of keys) anywhere.add(key);
+  for (const scan of scans)
+    for (const { trait, val } of scan.escapedDyns) {
+      const implementing = [...implementations.values()].filter(
+        (one) => identity(one.trait) === identity(trait),
+      );
+      const named = implementing.filter((one) => identity(one.val) === identity(val));
+      for (const implementation of named.length > 0 ? named : implementing)
+        for (const key of anywhere) {
+          const overridden = implementation.overrides.some((one) => one.member === key);
+          note(overridden ? implementation.val.name : trait.name, key);
+        }
+    }
+
   // A Val reads a trait's default unless that Val supplied the same key to implTrait.  Unknown
   // object expressions are intentionally conservative: they might override any key, so they
   // keep every default alive rather than issuing a false positive.
