@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
+import { Val } from "../../index.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
 import type { Reserved } from "../../val.ts";
@@ -33,13 +34,13 @@ import {
   type Root,
 } from "./bindings.ts";
 import {
+  CompanionSite,
   companionSite,
   fromRoot,
   stepOf,
   variantOf,
   typeReference,
   valOf,
-  type CompanionSite,
   type Lift,
 } from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
@@ -61,16 +62,24 @@ export type { Directive, Spelling } from "./directives.ts";
 export { silences } from "./directives.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
-export type Member = Where & { companion: string; member: string };
+export type Member = Val<"Member", Where & { companion: string; member: string }>;
+export const Member = Val.companion<Member>().build();
+
 /** One implementation attached to a Val companion chain. */
-export type TraitImplementation = {
-  val: SymbolRef;
-  trait: SymbolRef;
-  /** Statically known override keys, at their declaration sites. */
-  overrides: Member[];
-};
+export type TraitImplementation = Val<
+  "TraitImplementation",
+  {
+    val: SymbolRef;
+    trait: SymbolRef;
+    /** Statically known override keys, at their declaration sites. */
+    overrides: Member[];
+  }
+>;
+export const TraitImplementation = Val.companion<TraitImplementation>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
-export type DynRead = { trait: SymbolRef; val: SymbolRef; member: string };
+export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
+export const DynRead = Val.companion<DynRead>().build();
 
 /**
  * A key taken off a companion and held under a local name: `const { Circle } = Shape` and `const
@@ -79,15 +88,19 @@ export type DynRead = { trait: SymbolRef; val: SymbolRef; member: string };
  * Whether the companion is an enum's, and whether the key is a variant of it, is left to the
  * rule. Answering either needs the declarations of every file, and this walk reads one.
  */
-export type CompanionBinding = Where & {
-  /** The local name it was bound to. */
-  name: string;
-  /** The companion it was taken from, as this file names it. */
-  companion: string;
-  companionRef: SymbolRef;
-  /** The key read off it. */
-  key: string;
-};
+export type CompanionBinding = Val<
+  "CompanionBinding",
+  Where & {
+    /** The local name it was bound to. */
+    name: string;
+    /** The companion it was taken from, as this file names it. */
+    companion: string;
+    companionRef: SymbolRef;
+    /** The key read off it. */
+    key: string;
+  }
+>;
+export const CompanionBinding = Val.companion<CompanionBinding>().build();
 
 /**
  * What one file says about itself.
@@ -242,13 +255,15 @@ export function scan(
   const dotted = new Map<string, string>();
   /** Records one, so that a read off the local name counts for the companion's key as well. */
   const took = (name: string, where: Where, companion: string, key: string): void => {
-    companionBindings.push({
-      ...where,
-      name,
-      companion,
-      companionRef: symbolRef(file, bound, companion),
-      key,
-    });
+    companionBindings.push(
+      CompanionBinding.seal({
+        ...where,
+        name,
+        companion,
+        companionRef: symbolRef(file, bound, companion),
+        key,
+      }),
+    );
     dotted.set(name, `${original(bound, companion)}.${key}`);
   };
 
@@ -274,7 +289,11 @@ export function scan(
         if (site)
           sites.push(
             id.type === "Identifier"
-              ? { ...site, name: id["name"] as string, nameAt: at(id["start"] as number) }
+              ? CompanionSite.seal({
+                  ...site,
+                  name: id["name"] as string,
+                  nameAt: at(id["start"] as number),
+                })
               : site,
           );
         // `const { a, b: c } = X` reads `a` and `b` off `X`.
@@ -287,7 +306,7 @@ export function scan(
             if (!key) continue;
             const name = keyName(key, property["computed"] === true);
             if (name) {
-              if (dyn) dynReads.push({ ...dyn, member: name });
+              if (dyn) dynReads.push(DynRead.seal({ ...dyn, member: name }));
               else {
                 collect(reads, from, name);
                 const local = child(property, "value");
@@ -306,7 +325,7 @@ export function scan(
               if (property.type !== "Property") continue;
               const key = child(property, "key");
               const name = key && keyName(key, property["computed"] === true);
-              if (name) dynReads.push({ ...dyn, member: name });
+              if (name) dynReads.push(DynRead.seal({ ...dyn, member: name }));
             }
         }
         if (id.type !== "Identifier") break;
@@ -342,7 +361,7 @@ export function scan(
         if (object.type === "Identifier") {
           const dyn = dynBindings.get(object["name"] as string);
           if (dyn) {
-            dynReads.push({ ...dyn, member: name });
+            dynReads.push(DynRead.seal({ ...dyn, member: name }));
             break;
           }
           collect(reads, object["name"] as string, name);
@@ -353,7 +372,7 @@ export function scan(
         }
         const dyn = dynBox(object, file, bound);
         if (dyn) {
-          dynReads.push({ ...dyn, member: name });
+          dynReads.push(DynRead.seal({ ...dyn, member: name }));
           break;
         }
         // `ns.User.greet`: the companion is the middle name, and it is the exporting module's
@@ -538,7 +557,7 @@ function implTrait(
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
   const resolved = object ? stepMembers(object, val.name, objects, at) : [];
-  return { val, trait, overrides: resolved };
+  return TraitImplementation.seal({ val, trait, overrides: resolved });
 }
 
 /**
@@ -590,7 +609,7 @@ function objectMembers(
     if (!name) {
       continue;
     }
-    byName.set(name, { ...at(entry["start"] as number), companion, member: name });
+    byName.set(name, Member.seal({ ...at(entry["start"] as number), companion, member: name }));
   }
   return [...byName.values()];
 }

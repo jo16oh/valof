@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { symbolIdentity, type Alias, type Scan } from "../scan/index.ts";
+import { symbolIdentity, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 export type UnimplementedTrait = Val<"UnimplementedTrait", { kind: "unimplemented-trait" }, Rule>;
@@ -28,8 +28,8 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
   );
   for (const scan of scans)
     for (const { alias, ref, traits: declared, onlyDeclared } of [
-      ...scan.aliases.map((one: Alias) => ({ ...one, onlyDeclared: false })),
-      ...scan.enumAliases.map((one: Alias) => ({ ...one, onlyDeclared: true })),
+      ...scan.aliases.map((one) => ({ ...one, onlyDeclared: false })),
+      ...scan.enumAliases.map((one) => ({ ...one, onlyDeclared: true })),
     ]) {
       const implemented = new Set(
         scan.traitImplementations

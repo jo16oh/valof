@@ -9,7 +9,8 @@ import {
 } from "../ast.ts";
 import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
-import type { AnyVal, CompanionBuilder, Val } from "../../val.ts";
+import type { AnyVal, CompanionBuilder } from "../../val.ts";
+import { Val } from "../../index.ts";
 import { original, symbolRef, type Bindings, type Root, type SymbolRef } from "./bindings.ts";
 
 /** `K`, which must be a key of every member of `T`. */
@@ -26,30 +27,34 @@ const ENTRY_POINTS: ReadonlySet<string> = new Set([
 ]);
 
 /** A `Val` / `Trait` / `Enum` companion chain, whatever else it registered. */
-export type CompanionSite = Where & {
-  file: string;
-  /** Which entry point the chain grew from. */
-  of: Root;
-  /** The name the chain was bound to, or `undefined` when it was not bound to a plain one. */
-  name: string | undefined;
-  /** Where that name is written. The chain's own position stands in when there is no name. */
-  nameAt: Where;
-  /**
-   * The type argument, resolved to an alias after the walk.
-   *
-   * Named as the declaring module names it, so a namespace qualifier is stepped past: `ns.User`
-   * gives `User`, which is also what a read through a namespace is keyed on.
-   */
-  typeName: string;
-  typeRef: SymbolRef;
-  typeOffset: number;
-  /** Where the type argument is written. */
-  typeAt: Where;
-  /** The namespace it was reached through, for `Val.companion<ns.User>()`. */
-  qualifier: string | undefined;
-  /** Whether the chain registered a seal of its own, with `.implSeal`. */
-  seals: boolean;
-};
+export type CompanionSite = Val<
+  "CompanionSite",
+  Where & {
+    file: string;
+    /** Which entry point the chain grew from. */
+    of: Root;
+    /** The name the chain was bound to, or `undefined` when it was not bound to a plain one. */
+    name?: string;
+    /** Where that name is written. The chain's own position stands in when there is no name. */
+    nameAt: Where;
+    /**
+     * The type argument, resolved to an alias after the walk.
+     *
+     * Named as the declaring module names it, so a namespace qualifier is stepped past: `ns.User`
+     * gives `User`, which is also what a read through a namespace is keyed on.
+     */
+    typeName: string;
+    typeRef: SymbolRef;
+    typeOffset: number;
+    /** Where the type argument is written. */
+    typeAt: Where;
+    /** The namespace it was reached through, for `Val.companion<ns.User>()`. */
+    qualifier?: string;
+    /** Whether the chain registered a seal of its own, with `.implSeal`. */
+    seals: boolean;
+  }
+>;
+export const CompanionSite = Val.companion<CompanionSite>().build();
 
 type Called = { name: string | undefined; property: Node; receiver: Node };
 
@@ -103,16 +108,20 @@ export function fromRoot(node: Node, bound: Bindings): Root | undefined {
  * `typeName` is absent where the call named no type and took one from its target. It sits at the
  * type argument when there is one, and at `of` when there is not.
  */
-export type Lift = Where & {
-  typeName: string | undefined;
-  typeRef: SymbolRef | undefined;
-  qualifier: string | undefined;
-  /**
-   * The variant a `VariantOf<E, "N">` argument named, where the lift named one. `typeName` and
-   * `typeRef` are then the enum's, which is what holds that variant's frame.
-   */
-  variant: string | undefined;
-};
+export type Lift = Val<
+  "Lift",
+  Where & {
+    typeName?: string;
+    typeRef?: SymbolRef;
+    qualifier?: string;
+    /**
+     * The variant a `VariantOf<E, "N">` argument named, where the lift named one. `typeName` and
+     * `typeRef` are then the enum's, which is what holds that variant's frame.
+     */
+    variant?: string;
+  }
+>;
+export const Lift = Val.companion<Lift>().build();
 
 /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
 export function valOf(
@@ -135,13 +144,7 @@ export function valOf(
   if (!param) {
     const property = child(callee, "property");
     if (!property) return undefined;
-    return {
-      ...at(property["start"] as number),
-      typeName: undefined,
-      typeRef: undefined,
-      qualifier: undefined,
-      variant: undefined,
-    };
+    return Lift.seal(at(property["start"] as number));
   }
   // A type argument that is not a plain reference, `Val.of<{ … }>`, names no Val to key it by.
   if (param.type !== "TSTypeReference") return undefined;
@@ -150,13 +153,13 @@ export function valOf(
   if (!named) return undefined;
   const of = variantArgument(param, named, bound);
   const reached = of ?? named;
-  return {
+  return Lift.seal({
     ...at(reached.node["start"] as number),
     typeName: reached.node["name"] as string,
     typeRef: symbolRef(file, bound, reached.node["name"] as string, reached.qualifier),
-    qualifier: reached.qualifier,
-    variant: of?.variant,
-  };
+    ...(reached.qualifier === undefined ? {} : { qualifier: reached.qualifier }),
+    ...(of === undefined ? {} : { variant: of.variant }),
+  });
 }
 
 /** The enum and variant a `VariantOf<E, "N">` argument names, which stand in for the reference. */
@@ -261,17 +264,16 @@ export function companionSite(
   if (!written) return undefined;
   const named = typeReference(written, bound.namespaces);
   if (!named) return undefined;
-  return {
+  return CompanionSite.seal({
     ...where,
     file,
     of,
-    name: undefined,
     nameAt: where,
     typeName: named.node["name"] as string,
     typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
     typeOffset: named.node["start"] as number,
     typeAt: at(named.node["start"] as number),
-    qualifier: named.qualifier,
+    ...(named.qualifier === undefined ? {} : { qualifier: named.qualifier }),
     seals: steps.has("implSeal"),
-  };
+  });
 }

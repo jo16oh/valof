@@ -25,7 +25,7 @@ function missing({ spelling, kinds }: Directive): string | undefined {
     return "names no scope; write valof-lint-disable-next-line or valof-lint-disable-whole-file";
   // The `-all` arm cannot be observed: that directive silences its own file, this finding with
   // it. It stands so the rule says what it means, rather than leaning on being silenced.
-  if (spelling === "valof-lint-disable-all-whole-file" || kinds.size > 0) return undefined;
+  if (spelling === "valof-lint-disable-all-whole-file" || kinds.length > 0) return undefined;
   const every =
     spelling === "valof-lint-disable-whole-file"
       ? ", or valof-lint-disable-all-whole-file for every one"

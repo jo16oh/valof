@@ -1,3 +1,4 @@
+import { Val } from "../../index.ts";
 import type { Where } from "../ast.ts";
 
 /**
@@ -15,13 +16,17 @@ export type Spelling =
   | "valof-lint-disable";
 
 /** One disable comment, whole. */
-export type Directive = Where & {
-  /** The 1-based line it silences, the one after the block it sits in, or the whole file. */
-  covers: number | "file";
-  /** The kinds it named, empty when it named none. */
-  kinds: ReadonlySet<string>;
-  spelling: Spelling;
-};
+export type Directive = Val<
+  "Directive",
+  Where & {
+    /** The 1-based line it silences, the one after the block it sits in, or the whole file. */
+    covers: number | "file";
+    /** The kinds it named, in order and without repeats, empty when it named none. */
+    kinds: string[];
+    spelling: Spelling;
+  }
+>;
+export const Directive = Val.companion<Directive>().build();
 
 /** What a set of directives silences: the kinds they named, or every kind there is. */
 type Silenced = ReadonlySet<string> | "every";
@@ -37,7 +42,7 @@ type Silenced = ReadonlySet<string> | "every";
 const effect = ({ spelling, kinds }: Directive): Silenced => {
   if (spelling === "valof-lint-disable-all-whole-file") return "every";
   if (spelling === "valof-lint-disable") return new Set();
-  if (kinds.size > 0) return kinds;
+  if (kinds.length > 0) return new Set(kinds);
   return spelling === "valof-lint-disable-next-line" ? "every" : new Set();
 };
 
@@ -48,7 +53,7 @@ const effect = ({ spelling, kinds }: Directive): Silenced => {
  * writing a list will reach for either. Nothing but a space may follow a spelling, so a
  * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
  */
-function directive(text: string): { spelling: Spelling; kinds: Set<string> } | undefined {
+function directive(text: string): { spelling: Spelling; kinds: string[] } | undefined {
   const match =
     /(?:^|\s)valof-lint-disable(-next-line|-all-whole-file|-whole-file)?(?![-\w])(?:[^\S\n]+([^\n]*))?/.exec(
       text,
@@ -58,7 +63,7 @@ function directive(text: string): { spelling: Spelling; kinds: Set<string> } | u
   const listed = (match[2] ?? "").split("--")[0] ?? "";
   return {
     spelling: `valof-lint-disable${match[1] ?? ""}` as Spelling,
-    kinds: new Set(listed.split(/[\s,]+/).filter(Boolean)),
+    kinds: [...new Set(listed.split(/[\s,]+/).filter(Boolean))],
   };
 }
 
@@ -96,14 +101,14 @@ export function directives(
   const lineOf = (offset: number): number => at(offset).line;
   const found: Directive[] = [];
   /** The line directives of the block being read, held until its last line is known. */
-  let block: Omit<Directive, "covers">[] = [];
+  let block: (Where & { spelling: Spelling; kinds: string[] })[] = [];
   /** The last line of that block, or -1 when the previous comment closed one. */
   let blockEnd = -1;
   /** Where that comment ended, so code written after it on its own line breaks the block. */
   let blockEndOffset = 0;
 
   const close = (): void => {
-    for (const carried of block) found.push({ ...carried, covers: blockEnd + 1 });
+    for (const carried of block) found.push(Directive.seal({ ...carried, covers: blockEnd + 1 }));
     block = [];
   };
 
@@ -122,7 +127,7 @@ export function directives(
     if (carried) {
       const written = { ...at(comment.start), ...carried };
       if (carried.spelling === "valof-lint-disable-next-line") block.push(written);
-      else found.push({ ...written, covers: "file" });
+      else found.push(Directive.seal({ ...written, covers: "file" }));
     }
     blockEnd = lineOf(comment.end);
     blockEndOffset = comment.end;

@@ -1,32 +1,45 @@
+import { Val } from "../../index.ts";
 import { child, children, keyName, unparenthesized, type Node, type Where } from "../ast.ts";
 import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
+/** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
+export type DeclaredTrait = Val<"DeclaredTrait", Where & { name: string; ref: SymbolRef }>;
+export const DeclaredTrait = Val.companion<DeclaredTrait>().build();
+
 /** A top-level `type X = Val<"brand", payload>`. */
-export type Alias = {
-  file: string;
-  alias: string;
-  ref: SymbolRef;
-  /** Traits declared in Val's third argument. */
-  traits: DeclaredTrait[];
-};
+export type Alias = Val<
+  "Alias",
+  {
+    file: string;
+    alias: string;
+    ref: SymbolRef;
+    /** Traits declared in Val's third argument. */
+    traits: DeclaredTrait[];
+  }
+>;
+export const Alias = Val.companion<Alias>().build();
 
 /** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their own rules. */
-export type TraitAlias = { file: string; alias: string; ref: SymbolRef };
+export type TraitAlias = Val<"TraitAlias", { file: string; alias: string; ref: SymbolRef }>;
+export const TraitAlias = Val.companion<TraitAlias>().build();
 
 /** A top-level `type X = Enum<…>`, whose variants each derive a Val of their own. */
-export type EnumAlias = Alias & {
-  /**
-   * The variant names, or `undefined` where the syntax does not settle them. Every rule reading
-   * them stays silent on `undefined` rather than guessing at a mapped type or an import.
-   */
-  variants: readonly string[] | undefined;
-};
-
-/** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
-export type DeclaredTrait = Where & {
-  name: string;
-  ref: SymbolRef;
-};
+export type EnumAlias = Val<
+  "EnumAlias",
+  {
+    file: string;
+    alias: string;
+    ref: SymbolRef;
+    /** Traits declared in the enum's third argument. */
+    traits: DeclaredTrait[];
+    /**
+     * The variant names, absent where the syntax does not settle them. Every rule reading them
+     * stays silent then rather than guessing at a mapped type or an import.
+     */
+    variants?: string[];
+  }
+>;
+export const EnumAlias = Val.companion<EnumAlias>().build();
 
 /**
  * A top-level `type A = B`, where `B` is a bare reference and nothing more.
@@ -34,21 +47,29 @@ export type DeclaredTrait = Where & {
  * `A` is a second name for whatever `B` is. Whether that is a Val is not known here: it takes
  * the other file's aliases, which the rule has and this walk does not.
  */
-export type ReAlias = Where & {
-  alias: string;
-  ref: SymbolRef;
-  /** The name on the right, as the declaring module names it when it was qualified. */
-  target: string;
-  targetRef: SymbolRef;
-};
+export type ReAlias = Val<
+  "ReAlias",
+  Where & {
+    alias: string;
+    ref: SymbolRef;
+    /** The name on the right, as the declaring module names it when it was qualified. */
+    target: string;
+    targetRef: SymbolRef;
+  }
+>;
+export const ReAlias = Val.companion<ReAlias>().build();
 
 /** The brand one alias claims, before anything is known about who else claims it. */
-export type BrandClaim = Where & {
-  /** The name `Val` was written under here, resolved against the file's imports by the rule. */
-  typeName: string;
-  brand: string;
-  alias: string;
-};
+export type BrandClaim = Val<
+  "BrandClaim",
+  Where & {
+    /** The name `Val` was written under here, resolved against the file's imports by the rule. */
+    typeName: string;
+    brand: string;
+    alias: string;
+  }
+>;
+export const BrandClaim = Val.companion<BrandClaim>().build();
 
 /**
  * The name a type reference is written under, or `undefined` when it is not a plain one.
@@ -112,20 +133,22 @@ export function valAliases(
     if (!args) {
       // `type Wrap<T> = T` describes no particular type, and its right side is a parameter.
       if (child(node, "typeParameters")) continue;
-      reAliases.push({
-        ...at((id["start"] ?? node["start"]) as number),
-        alias: id["name"] as string,
-        ref: symbolRef(file, bound, id["name"] as string),
-        target: named,
-        targetRef: symbolRef(
-          file,
-          bound,
-          named,
-          typeName.type === "TSQualifiedName"
-            ? (child(typeName, "left")?.["name"] as string)
-            : undefined,
-        ),
-      });
+      reAliases.push(
+        ReAlias.seal({
+          ...at((id["start"] ?? node["start"]) as number),
+          alias: id["name"] as string,
+          ref: symbolRef(file, bound, id["name"] as string),
+          target: named,
+          targetRef: symbolRef(
+            file,
+            bound,
+            named,
+            typeName.type === "TSQualifiedName"
+              ? (child(typeName, "left")?.["name"] as string)
+              : undefined,
+          ),
+        }),
+      );
       continue;
     }
 
@@ -136,20 +159,25 @@ export function valAliases(
       ref: symbolRef(file, bound, id["name"] as string),
     };
     if (kind === "Val") {
-      aliases.push({
-        ...declared,
-        traits: traitNames(children(args, "params")[2], file, bound, locals, at),
-      });
+      aliases.push(
+        Alias.seal({
+          ...declared,
+          traits: traitNames(children(args, "params")[2], file, bound, locals, at),
+        }),
+      );
     } else if (kind === "Trait") {
-      traitAliases.push(declared);
+      traitAliases.push(TraitAlias.seal(declared));
     } else if (kind === "Enum") {
-      enumAliases.push({
-        ...declared,
-        // The same position as a Val's: an enum's third argument carries the traits, the shared
-        // fields and the tag's name, all intersected.
-        traits: traitNames(children(args, "params")[2], file, bound, locals, at),
-        variants: variantNames(children(args, "params")[1], bound, locals),
-      });
+      const variants = variantNames(children(args, "params")[1], bound, locals);
+      enumAliases.push(
+        EnumAlias.seal({
+          ...declared,
+          // The same position as a Val's: an enum's third argument carries the traits, the shared
+          // fields and the tag's name, all intersected.
+          traits: traitNames(children(args, "params")[2], file, bound, locals, at),
+          ...(variants === undefined ? {} : { variants }),
+        }),
+      );
     }
 
     const first = unparenthesized(children(args, "params")[0]);
@@ -157,12 +185,14 @@ export function valAliases(
     const literal = child(first, "literal");
     // A generic brand, `Val<K, T>` inside a helper, names nothing to collide over.
     if (!literal || typeof literal["value"] !== "string") continue;
-    brands.push({
-      ...at((id["start"] ?? node["start"]) as number),
-      typeName: named,
-      brand: literal["value"],
-      alias: id["name"] as string,
-    });
+    brands.push(
+      BrandClaim.seal({
+        ...at((id["start"] ?? node["start"]) as number),
+        typeName: named,
+        brand: literal["value"],
+        alias: id["name"] as string,
+      }),
+    );
   }
 
   return { aliases, traitAliases, enumAliases, brands, reAliases };
@@ -192,8 +222,8 @@ function variantNames(
   node: Node | undefined,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-): readonly string[] | undefined {
-  let found: readonly string[] | undefined;
+): string[] | undefined {
+  let found: string[] | undefined;
   const visit = (one: Node, seen: ReadonlySet<string>): boolean => {
     const inside = unparenthesized(one);
     if (!inside) return false;
@@ -275,11 +305,14 @@ function traitNames(
       occurrenceName.type === "TSQualifiedName"
         ? (child(occurrenceName, "right") ?? occurrenceName)
         : occurrenceName;
-    out.set(ref.key, {
-      ...at(written["start"] as number),
-      name: named,
-      ref,
-    });
+    out.set(
+      ref.key,
+      DeclaredTrait.seal({
+        ...at(written["start"] as number),
+        name: named,
+        ref,
+      }),
+    );
   };
   visit(node);
   return [...out.values()];

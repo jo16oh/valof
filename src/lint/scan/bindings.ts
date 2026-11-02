@@ -1,17 +1,23 @@
 import { dirname, extname, normalize, resolve } from "node:path";
 
+import { Val } from "../../index.ts";
+
 export type ImportBinding = { name: string; module: string };
 
 /** The entry point a builder chain grows from. */
 export type Root = "Val" | "Trait" | "Enum";
 
 /** A Val or Trait name together with its comparison identity. */
-export type SymbolRef = {
-  /** The declaration or export name used in diagnostics. */
-  name: string;
-  /** Opaque identity of the declaring module and its name there. */
-  key: string;
-};
+export type SymbolRef = Val<
+  "SymbolRef",
+  {
+    /** The declaration or export name used in diagnostics. */
+    name: string;
+    /** Opaque identity of the declaring module and its name there. */
+    key: string;
+  }
+>;
+export const SymbolRef = Val.companion<SymbolRef>().build();
 
 /**
  * How one file bound the names it uses.
@@ -44,10 +50,8 @@ export const original = ({ imported }: Bindings, local: string): string =>
 const key = (module: string, name: string): string => `${module}\0${name}`;
 
 /** A name exported by a known module. */
-export const moduleRef = (module: string, name: string): SymbolRef => ({
-  name,
-  key: key(module, name),
-});
+export const moduleRef = (module: string, name: string): SymbolRef =>
+  SymbolRef.seal({ name, key: key(module, name) });
 
 /** A local declaration, named import, or namespace member as one comparable reference. */
 export function symbolRef(
