@@ -1,3 +1,4 @@
+import { BlockStep } from "./block-step.ts";
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
 import { UnnecessaryAlias } from "./unnecessary-alias.ts";
@@ -27,6 +28,7 @@ export const RULES = [
   box(SplitCompanion, SplitCompanion.create()),
   box(BypassedCompanion, BypassedCompanion.create()),
   box(UnnamedOf, UnnamedOf.create()),
+  box(BlockStep, BlockStep.create()),
   box(IncompleteDisable, IncompleteDisable.create()),
   box(UnusedDisable, UnusedDisable.create()),
 ] as const;
@@ -37,6 +39,7 @@ export const RULES = [
  * {@link RULES} is what the runner reads. This is for naming a single one.
  */
 export {
+  BlockStep,
   UnnecessaryAlias,
   BrandMismatch,
   BypassedCompanion,

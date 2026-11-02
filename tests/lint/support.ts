@@ -21,6 +21,7 @@ const registered = (companion: { create: () => { kind: string } }): Registered =
 
 // Named rather than spelled as a kind: a test that names a rule reads the same object the
 // registry does, so renaming a kind is one edit and no test string follows it.
+export const BlockStep = registered(Rules.BlockStep);
 export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
 export const UnimplementedTrait = registered(Rules.UnimplementedTrait);
 export const BrandMismatch = registered(Rules.BrandMismatch);
