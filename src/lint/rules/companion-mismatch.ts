@@ -1,26 +1,20 @@
-import type { Where } from "../ast.ts";
+import { Val } from "../../index.ts";
 import { symbolIdentity, type Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Finding, Rule } from "./rule.ts";
 
 /**
  * A companion bound to a name other than the type it is for. `const Account =
  * Val.companion<User>()` compiles, and every call site then reads `Account.greet(user)`.
  */
-export type CompanionMismatch = Where & {
-  kind: "companion-mismatch";
-  file: string;
-  /** The name it was bound to, as written. */
-  name: string;
-  /** The type argument, as written, or the variant the name was taken from. */
-  typeName: string;
-  message: string;
-};
-
-export const CompanionMismatch: Rule<CompanionMismatch> = {
-  kind: "companion-mismatch",
-  description: "a companion bound to a name other than the type it is for",
-  run: findings,
-};
+export type CompanionMismatch = Val<"CompanionMismatch", { kind: "companion-mismatch" }, Rule>;
+export const CompanionMismatch = Val.companion<CompanionMismatch>()
+  .implCreate(() => ({
+    kind: "companion-mismatch",
+    description: "a companion bound to a name other than the type it is for",
+    warns: false,
+  }))
+  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .build();
 
 /**
  * Reports every companion chain bound to a name other than its type argument, and every variant
@@ -43,7 +37,7 @@ export const CompanionMismatch: Rule<CompanionMismatch> = {
  * reader of `Round.create({ r: 2 })` cannot tell which enum declared it. Anything else taken off a
  * companion, `const x = config.value`, is no variant and is left alone.
  */
-function findings(scans: readonly Scan[]): CompanionMismatch[] {
+function findings({ kind }: CompanionMismatch, scans: readonly Scan[]): Finding[] {
   const identity = symbolIdentity(scans);
   /** Every enum whose variants the declaration settled, by the identity its companion shares. */
   const variants = new Map<string, ReadonlySet<string>>();
@@ -51,32 +45,32 @@ function findings(scans: readonly Scan[]): CompanionMismatch[] {
     for (const { ref, variants: declared } of enumAliases)
       if (declared) variants.set(identity(ref), new Set(declared));
 
-  const found: CompanionMismatch[] = [];
+  const found: Finding[] = [];
   for (const { file, sites, companionBindings } of scans) {
     for (const { name, nameAt, typeName } of sites) {
       if (name === undefined || name === typeName) continue;
-      found.push({
-        kind: "companion-mismatch",
-        file,
-        ...nameAt,
-        name,
-        typeName,
-        message: `${name} is the companion for ${typeName}, and should be named ${typeName}`,
-      });
+      found.push(
+        Finding.seal({
+          kind,
+          file,
+          ...nameAt,
+          message: `${name} is the companion for ${typeName}, and should be named ${typeName}`,
+        }),
+      );
     }
     for (const { name, companion, companionRef, key, line, column } of companionBindings) {
       if (name === key) continue;
       // Keyed by the enum's declaration, so anything else taken off anything else misses here.
       if (variants.get(identity(companionRef))?.has(key) !== true) continue;
-      found.push({
-        kind: "companion-mismatch",
-        file,
-        line,
-        column,
-        name,
-        typeName: key,
-        message: `${name} is ${companion}.${key} under another name; call ${companion}.${key}, or bind it to ${key}`,
-      });
+      found.push(
+        Finding.seal({
+          kind,
+          file,
+          line,
+          column,
+          message: `${name} is ${companion}.${key} under another name; call ${companion}.${key}, or bind it to ${key}`,
+        }),
+      );
     }
   }
   return found;

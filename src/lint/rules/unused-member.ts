@@ -1,25 +1,18 @@
-import type { Where } from "../ast.ts";
+import { Val } from "../../index.ts";
 import { original, symbolIdentity, type Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Finding, Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
-export type UnusedMember = Where & {
-  kind: "unused-member";
-  file: string;
-  /** The companion's declared name, as written at its declaration site. */
-  companion: string;
-  /** The member's key. */
-  member: string;
-  message: string;
-};
-
-export const UnusedMember: Rule<UnusedMember> = {
-  kind: "unused-member",
-  description: "members registered with `.impl` or `.implTrait` that nothing reads",
-  // A member nothing reads is dead weight, and the code around it works.
-  warns: true,
-  run: findings,
-};
+export type UnusedMember = Val<"UnusedMember", { kind: "unused-member" }, Rule>;
+export const UnusedMember = Val.companion<UnusedMember>()
+  .implCreate(() => ({
+    kind: "unused-member",
+    description: "members registered with `.impl` or `.implTrait` that nothing reads",
+    // A member nothing reads is dead weight, and the code around it works.
+    warns: true,
+  }))
+  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .build();
 
 /**
  * Reports a member registered with `.impl` or `.implTrait` that nothing reads.
@@ -42,7 +35,7 @@ export const UnusedMember: Rule<UnusedMember> = {
  * is used. A spread whose value is not a local const object contributes no keys, so those members
  * are never reported however dead they are.
  */
-function findings(scans: readonly Scan[]): UnusedMember[] {
+function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   const identity = symbolIdentity(scans);
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
@@ -133,14 +126,14 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
     return members
       .filter(({ companion, member }) => !taken.get(companion)?.has(member))
       .filter(({ companion, member }) => !read.get(companion)?.has(member))
-      .map(({ companion, member, line, column }) => ({
-        kind: "unused-member" as const,
-        file,
-        line,
-        column,
-        companion,
-        member,
-        message: `${companion}.${member} is never read`,
-      }));
+      .map(({ companion, member, line, column }) =>
+        Finding.seal({
+          kind,
+          file,
+          line,
+          column,
+          message: `${companion}.${member} is never read`,
+        }),
+      );
   });
 }

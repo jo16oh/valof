@@ -1,20 +1,16 @@
-import type { Where } from "../ast.ts";
+import { Val } from "../../index.ts";
 import { symbolIdentity, type Alias, type Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Finding, Rule } from "./rule.ts";
 
-export type UnimplementedTrait = Where & {
-  kind: "unimplemented-trait";
-  file: string;
-  val: string;
-  trait: string;
-  message: string;
-};
-export const UnimplementedTrait: Rule<UnimplementedTrait> = {
-  kind: "unimplemented-trait",
-  description: "a Trait declared by a Val or an Enum that its companion does not implement",
-  run: findings,
-};
-
+export type UnimplementedTrait = Val<"UnimplementedTrait", { kind: "unimplemented-trait" }, Rule>;
+export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
+  .implCreate(() => ({
+    kind: "unimplemented-trait",
+    description: "a Trait declared by a Val or an Enum that its companion does not implement",
+    warns: false,
+  }))
+  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .build();
 /**
  * Reports a declared trait that no `implTrait` answers for.
  *
@@ -24,8 +20,8 @@ export const UnimplementedTrait: Rule<UnimplementedTrait> = {
  * reference resolves to a `Trait` declaration in the scanned files, which keeps a shared field
  * silent at the cost of missing a trait declared in a file nobody linted.
  */
-function findings(scans: readonly Scan[]): UnimplementedTrait[] {
-  const found: UnimplementedTrait[] = [];
+function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding[] {
+  const found: Finding[] = [];
   const identity = symbolIdentity(scans);
   const traits = new Set(
     scans.flatMap(({ traitAliases }) => traitAliases.map(({ ref }) => identity(ref))),
@@ -44,15 +40,15 @@ function findings(scans: readonly Scan[]): UnimplementedTrait[] {
         if (!implemented.has(identity(trait.ref))) {
           if (onlyDeclared && !traits.has(identity(trait.ref))) continue;
           // The declaration's position is deliberate: it points to the promise that is missing.
-          found.push({
-            kind: "unimplemented-trait",
-            file: scan.file,
-            line: trait.line,
-            column: trait.column,
-            val: alias,
-            trait: trait.name,
-            message: `${alias} declares ${trait.name}, but its companion does not implement it`,
-          });
+          found.push(
+            Finding.seal({
+              kind,
+              file: scan.file,
+              line: trait.line,
+              column: trait.column,
+              message: `${alias} declares ${trait.name}, but its companion does not implement it`,
+            }),
+          );
         }
     }
   return found;

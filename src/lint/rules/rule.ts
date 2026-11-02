@@ -1,12 +1,26 @@
+import { Trait, Val, type Dyn, type Self } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
 
 /**
- * The least every finding carries: what it is, where to look, and what to say.
+ * What every rule reports: what it is, where to look, and what to say.
  *
  * The wording belongs to the rule, next to the `description` that names it. The command prints
- * `message` as it stands, so nothing outside a rule needs to know what its finding holds.
+ * `message` as it stands, so nothing outside a rule needs to know what else the rule read.
  */
-export type Located = { kind: string; file: string; line: number; column: number; message: string };
+export type Finding = Val<
+  "Finding",
+  {
+    /** The rule that reported it. See {@link Kind}. */
+    kind: string;
+    file: string;
+    /** 1-based, as an editor counts. */
+    line: number;
+    /** 1-based, as an editor counts. */
+    column: number;
+    message: string;
+  }
+>;
+export const Finding = Val.companion<Finding>().build();
 
 /** What a rule gets beyond the scans. */
 export type Context = {
@@ -16,7 +30,7 @@ export type Context = {
    * Rules run in the order {@link RULES} lists them, so a rule reading this must sit last. Only
    * a rule about the run itself needs it; a rule about the code reads the scans.
    */
-  reported: readonly Located[];
+  reported: readonly Finding[];
   /**
    * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
    */
@@ -26,24 +40,43 @@ export type Context = {
 /**
  * One rule, whole: what it reports, how it reads in `--help`, and how it runs.
  *
- * Kept together so nothing about a rule lives at the call site. Adding one is writing this
- * object and naming it in {@link RULES}; the runner has no branch per rule.
+ * Each rule is a Val implementing this trait, and its companion's `create` gives the rule as it
+ * runs. Adding one is writing that Val and naming it in {@link RULES}; the runner has no branch
+ * per rule.
  */
-export type Rule<F extends Located> = {
-  /** The name that names it everywhere: `--no-<kind>`, the disable comment, and `--help`. */
-  kind: F["kind"];
-  /** The line `--help` prints, after the kind. */
-  description: string;
-  /**
-   * Set on a rule whose finding is about code that does nothing, not code that is wrong.
-   *
-   * A host with severities takes this as a warning and the rest as errors. Nothing here reads it:
-   * the command reports every finding the same way and exits 1 on any of them.
-   */
-  warns?: true;
-  /**
-   * Every finding, over every scanned file. Rules see all of them rather than one, which is what
-   * lets a read in one module answer for a declaration in another.
-   */
-  run: (scans: readonly Scan[], context: Context) => F[] | Promise<F[]>;
-};
+export type Rule = Trait<
+  "Rule",
+  {
+    /** The name that names it everywhere: `--no-<kind>`, the disable comment, and `--help`. */
+    kind: string;
+    /** The line `--help` prints, after the kind. */
+    description: string;
+    /**
+     * Set on a rule whose finding is about code that does nothing, not code that is wrong.
+     *
+     * A host with severities takes this as a warning and the rest as errors. The command reports
+     * every finding the same way and exits 1 on any of them.
+     */
+    warns: boolean;
+  },
+  {
+    /**
+     * Every finding, over every scanned file. Rules see all of them rather than one, which is what
+     * lets a read in one module answer for a declaration in another.
+     */
+    run: (rule: Self, scans: readonly Scan[], context: Context) => Finding[];
+  }
+>;
+export const Rule = Trait.companion<Rule>().build();
+
+/**
+ * A rule in a box, with its kind kept.
+ *
+ * {@link Dyn} forgets the Val, its literal `kind` with it, and {@link Kind} is read back off the
+ * boxes. Keeping it is what makes a rule missing from {@link RULES} a type error at
+ * `--no-<kind>` and at each disable comment the tests spell.
+ */
+export const box = <W extends Rule>(
+  companion: Parameters<typeof Rule.dyn<W>>[0],
+  value: W,
+): Dyn<Rule> & Pick<W, "kind"> => Rule.dyn(companion, value);

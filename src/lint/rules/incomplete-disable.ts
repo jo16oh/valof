@@ -1,6 +1,6 @@
-import type { Where } from "../ast.ts";
+import { Val } from "../../index.ts";
 import type { Directive, Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Finding, Rule } from "./rule.ts";
 
 /**
  * A directive that leaves out what it needs: the rules it silences, or the scope it applies to.
@@ -9,17 +9,15 @@ import type { Rule } from "./rule.ts";
  * hides grows without anyone deciding to. Over a whole file it silences nothing at all, since a
  * whole file is turned off by saying so: `valof-lint-disable-all-whole-file`.
  */
-export type IncompleteDisable = Where & {
-  kind: "incomplete-disable";
-  file: string;
-  message: string;
-};
-
-export const IncompleteDisable: Rule<IncompleteDisable> = {
-  kind: "incomplete-disable",
-  description: "a disable comment leaving out the rules it silences, or its scope",
-  run: findings,
-};
+export type IncompleteDisable = Val<"IncompleteDisable", { kind: "incomplete-disable" }, Rule>;
+export const IncompleteDisable = Val.companion<IncompleteDisable>()
+  .implCreate(() => ({
+    kind: "incomplete-disable",
+    description: "a disable comment leaving out the rules it silences, or its scope",
+    warns: false,
+  }))
+  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .build();
 
 /** What the directive left out, or `undefined` when it left out nothing. */
 function missing({ spelling, kinds }: Directive): string | undefined {
@@ -42,19 +40,19 @@ function missing({ spelling, kinds }: Directive): string | undefined {
  * below is already written the way its author wanted, and turning the directive off here would
  * bury the finding under the ones it was holding back.
  */
-function findings(scans: readonly Scan[]): IncompleteDisable[] {
+function findings({ kind }: IncompleteDisable, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, directives }) =>
     directives.flatMap((written) => {
       const left = missing(written);
       if (!left) return [];
       return [
-        {
-          kind: "incomplete-disable" as const,
+        Finding.seal({
+          kind,
           file,
           line: written.line,
           column: written.column,
           message: `${written.spelling} ${left}`,
-        },
+        }),
       ];
     }),
   );

@@ -6,24 +6,32 @@ import { RULES, lint as run } from "../../src/lint/index.ts";
 
 export { RULES };
 
-// Named rather than spelled as a kind: a test that names a rule reads the same object the
-// registry does, so renaming a kind is one edit and no test string follows it.
-export {
-  UnnecessaryAlias,
-  UnimplementedTrait,
-  BrandMismatch,
-  BypassedCompanion,
-  CompanionMismatch,
-  DuplicateBrand,
-  IncompleteDisable,
-  SplitCompanion,
-  UnnamedOf,
-  UnusedDisable,
-  UnusedMember,
-} from "../../src/lint/rules/index.ts";
+import * as Rules from "../../src/lint/rules/index.ts";
 
 /** One of the rules in the registry. */
 type Registered = (typeof RULES)[number];
+
+/** The rule in the registry that a companion creates. */
+const registered = (companion: { create: () => { kind: string } }): Registered => {
+  const { kind } = companion.create();
+  const rule = RULES.find((one) => one.kind === kind);
+  if (!rule) throw new Error(`no rule reports ${kind}`);
+  return rule;
+};
+
+// Named rather than spelled as a kind: a test that names a rule reads the same object the
+// registry does, so renaming a kind is one edit and no test string follows it.
+export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
+export const UnimplementedTrait = registered(Rules.UnimplementedTrait);
+export const BrandMismatch = registered(Rules.BrandMismatch);
+export const BypassedCompanion = registered(Rules.BypassedCompanion);
+export const CompanionMismatch = registered(Rules.CompanionMismatch);
+export const DuplicateBrand = registered(Rules.DuplicateBrand);
+export const IncompleteDisable = registered(Rules.IncompleteDisable);
+export const SplitCompanion = registered(Rules.SplitCompanion);
+export const UnnamedOf = registered(Rules.UnnamedOf);
+export const UnusedDisable = registered(Rules.UnusedDisable);
+export const UnusedMember = registered(Rules.UnusedMember);
 
 /**
  * A finding as a test names it: which rule reported it, and where.

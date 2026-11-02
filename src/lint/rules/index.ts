@@ -4,7 +4,7 @@ import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
-import type { Rule } from "./rule.ts";
+import { box } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
 import { UnnamedOf } from "./unnamed-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
@@ -15,20 +15,20 @@ import { UnimplementedTrait } from "./unimplemented-trait.ts";
  * Every rule, in the order they run and `--help` lists them.
  *
  * The only enumeration. A rule carries its own kind, so listing it here says nothing twice, and
- * {@link Kind} and {@link Finding} are read back off this array rather than written again.
+ * {@link Kind} is read back off this array rather than written again.
  */
 export const RULES = [
-  UnusedMember,
-  DuplicateBrand,
-  BrandMismatch,
-  UnnecessaryAlias,
-  UnimplementedTrait,
-  CompanionMismatch,
-  SplitCompanion,
-  BypassedCompanion,
-  UnnamedOf,
-  IncompleteDisable,
-  UnusedDisable,
+  box(UnusedMember, UnusedMember.create()),
+  box(DuplicateBrand, DuplicateBrand.create()),
+  box(BrandMismatch, BrandMismatch.create()),
+  box(UnnecessaryAlias, UnnecessaryAlias.create()),
+  box(UnimplementedTrait, UnimplementedTrait.create()),
+  box(CompanionMismatch, CompanionMismatch.create()),
+  box(SplitCompanion, SplitCompanion.create()),
+  box(BypassedCompanion, BypassedCompanion.create()),
+  box(UnnamedOf, UnnamedOf.create()),
+  box(IncompleteDisable, IncompleteDisable.create()),
+  box(UnusedDisable, UnusedDisable.create()),
 ] as const;
 
 /**
@@ -50,14 +50,11 @@ export {
   UnimplementedTrait,
 };
 
-/** The payload a rule reports, recovered from the rule itself. */
-type ReportedBy<R> = R extends Rule<infer F> ? F : never;
-
-export type Finding = ReportedBy<(typeof RULES)[number]>;
-
 /** What a finding is called, in a `--no-<kind>` flag and in a disable comment alike. */
-export type Kind = Finding["kind"];
+export type Kind = (typeof RULES)[number]["kind"];
 
 export const kinds: readonly Kind[] = RULES.map(({ kind }) => kind);
 
 export const isKind = (name: string): name is Kind => kinds.includes(name as Kind);
+
+export { Finding, Rule, type Context } from "./rule.ts";

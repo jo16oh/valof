@@ -1,27 +1,22 @@
-import type { Where } from "../ast.ts";
+import { Val } from "../../index.ts";
 import { original } from "../scan/index.ts";
 import type { Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Finding, Rule } from "./rule.ts";
 
 /**
  * A brand string that more than one type alias claims. Two Vals with the same brand and the same
  * payload are silently assignable to each other, which is the whole failure the brand exists to
  * prevent.
  */
-export type DuplicateBrand = Where & {
-  kind: "duplicate-brand";
-  file: string;
-  brand: string;
-  /** The alias that claims it, as written. */
-  alias: string;
-  message: string;
-};
-
-export const DuplicateBrand: Rule<DuplicateBrand> = {
-  kind: "duplicate-brand",
-  description: "a brand string claimed by more than one type alias",
-  run: findings,
-};
+export type DuplicateBrand = Val<"DuplicateBrand", { kind: "duplicate-brand" }, Rule>;
+export const DuplicateBrand = Val.companion<DuplicateBrand>()
+  .implCreate(() => ({
+    kind: "duplicate-brand",
+    description: "a brand string claimed by more than one type alias",
+    warns: false,
+  }))
+  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .build();
 
 /**
  * Reports every alias claiming a brand another alias also claims.
@@ -34,8 +29,8 @@ export const DuplicateBrand: Rule<DuplicateBrand> = {
  * The alias must spell `Val<…>` itself. A user's helper around it, `type Branded<K, T> =
  * Val<K, T>`, is invisible here.
  */
-function findings(scans: readonly Scan[]): DuplicateBrand[] {
-  const claims = new Map<string, DuplicateBrand[]>();
+function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
+  const claims = new Map<string, Finding[]>();
   for (const { file, brands, bound, enumAliases } of scans) {
     /** The variants each enum in this file declared, for the brands they derive. */
     const declared = new Map(enumAliases.map(({ alias, variants }) => [alias, variants]));
@@ -45,15 +40,15 @@ function findings(scans: readonly Scan[]): DuplicateBrand[] {
       const claim = (name: string, claimed: string, how: string): void => {
         // A Val, a Trait and an Enum intentionally use separate phantom-brand fields.
         const together = claims.get(name) ?? [];
-        together.push({
-          kind: "duplicate-brand",
-          file,
-          line,
-          column,
-          brand: claimed,
-          alias,
-          message: `${alias} ${how} the brand "${claimed}", and so does another type`,
-        });
+        together.push(
+          Finding.seal({
+            kind,
+            file,
+            line,
+            column,
+            message: `${alias} ${how} the brand "${claimed}", and so does another type`,
+          }),
+        );
         claims.set(name, together);
       };
       claim(`${owner}:${brand}`, brand, "claims");

@@ -53,7 +53,7 @@ export async function lint(
   const notRun = new Set(skip ?? []);
   for (const rule of RULES) {
     if (notRun.has(rule.kind)) continue;
-    findings.push(...(await rule.run(scans, { reported: findings, notRun })));
+    findings.push(...rule.run(scans, { reported: findings, notRun }));
   }
 
   /**

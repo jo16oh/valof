@@ -1,23 +1,18 @@
-import type { Where } from "../ast.ts";
+import { Val } from "../../index.ts";
 import { symbolIdentity, type CompanionSite, type Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Finding, Rule } from "./rule.ts";
 
 /** A `Val.of<X>(…)` for a type that has a companion of its own. */
-export type BypassedCompanion = Where & {
-  kind: "bypassed-companion";
-  file: string;
-  /** The type argument, as written. */
-  typeName: string;
-  message: string;
-};
-
-export const BypassedCompanion: Rule<BypassedCompanion> = {
-  kind: "bypassed-companion",
-  description: "a `Val.of` for a type whose companion is how it is built",
-  // The value that comes out is a well-formed Val. What it went around is the type's own way in.
-  warns: true,
-  run: findings,
-};
+export type BypassedCompanion = Val<"BypassedCompanion", { kind: "bypassed-companion" }, Rule>;
+export const BypassedCompanion = Val.companion<BypassedCompanion>()
+  .implCreate(() => ({
+    kind: "bypassed-companion",
+    description: "a `Val.of` for a type whose companion is how it is built",
+    // The value that comes out is a well-formed Val. What it went around is the type's own way in.
+    warns: true,
+  }))
+  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .build();
 
 /** What the companion offers instead, or what it does not. */
 function instead(site: CompanionSite, type: string, variant: string | undefined): string {
@@ -38,14 +33,14 @@ function instead(site: CompanionSite, type: string, variant: string | undefined)
  * `Val.of` spelling no type argument is left to the unnamed-of rule. That form takes the type
  * from the target it is assigned to, and there is no name here to key it by.
  */
-function findings(scans: readonly Scan[]): BypassedCompanion[] {
+function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[] {
   const identity = symbolIdentity(scans);
   const companions = new Map<string, CompanionSite>();
   for (const { sites } of scans)
     for (const site of sites)
       if (!companions.has(identity(site.typeRef))) companions.set(identity(site.typeRef), site);
 
-  const found: BypassedCompanion[] = [];
+  const found: Finding[] = [];
   for (const { file, lifts } of scans) {
     for (const { typeName, typeRef, variant, line, column } of lifts) {
       // A lift naming no type is the unnamed-of rule's finding. Which companion it goes around,
@@ -55,14 +50,15 @@ function findings(scans: readonly Scan[]): BypassedCompanion[] {
       const site = companions.get(identity(typeRef));
       if (!site) continue;
       const written = variant === undefined ? typeName : `VariantOf<${typeName}, "${variant}">`;
-      found.push({
-        kind: "bypassed-companion",
-        file,
-        line,
-        column,
-        typeName,
-        message: `Val.of<${written}> ${instead(site, site.typeRef.name, variant)}`,
-      });
+      found.push(
+        Finding.seal({
+          kind,
+          file,
+          line,
+          column,
+          message: `Val.of<${written}> ${instead(site, site.typeRef.name, variant)}`,
+        }),
+      );
     }
   }
   return found;
