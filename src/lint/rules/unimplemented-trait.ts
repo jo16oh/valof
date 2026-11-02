@@ -27,23 +27,29 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
     scans.flatMap(({ traitAliases }) => traitAliases.map(({ ref }) => identity(ref))),
   );
   for (const scan of scans)
-    for (const { alias, ref, traits: declared, onlyDeclared } of [
+    for (const { alias, ref, variant, traits: declared, onlyDeclared } of [
       ...scan.aliases.map(({ alias, ref, traits }) => ({
         alias,
         ref,
+        variant: undefined,
         traits,
         onlyDeclared: false,
       })),
-      ...scan.enumAliases.map(({ alias, ref, traits }) => ({
-        alias,
-        ref,
-        traits,
-        onlyDeclared: true,
-      })),
+      ...scan.enumAliases.flatMap(({ alias, ref, traits, variantTraits }) => [
+        { alias, ref, variant: undefined, traits, onlyDeclared: true },
+        // A variant's payload names its fields as well, so it is read like an enum's.
+        ...variantTraits.map(({ variant, traits: own }) => ({
+          alias: `${alias}.${variant}`,
+          ref,
+          variant,
+          traits: own,
+          onlyDeclared: true,
+        })),
+      ]),
     ]) {
       const implemented = new Set(
         scan.traitImplementations
-          .filter((one) => identity(one.val) === identity(ref))
+          .filter((one) => identity(one.val) === identity(ref) && one.variant === variant)
           .map((one) => identity(one.trait)),
       );
       for (const trait of declared)

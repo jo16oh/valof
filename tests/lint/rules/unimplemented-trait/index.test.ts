@@ -69,7 +69,7 @@ test("says nothing about a shared field, a tag, or a Trait the enum implements",
 
 test("reports a Trait a variant declares and its companion leaves out", async () => {
   expect(await lint("variant", { skip: [UnusedMember] })).toEqual([
-    { rule: UnimplementedTrait, at: "variant.ts:6:97" },
+    { rule: UnimplementedTrait, at: "variant.ts:6:91" },
   ]);
   expect(await messages("variant", { skip: [UnusedMember] })).toEqual([
     "Item.Pen declares Named, but its companion does not implement it",

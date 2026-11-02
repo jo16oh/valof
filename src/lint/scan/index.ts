@@ -74,6 +74,8 @@ export type TraitImplementation = Val<
     trait: SymbolRef;
     /** Statically known override keys, at their declaration sites. */
     overrides: Member[];
+    /** The variant it was written for, where it was written for one. */
+    variant?: string;
   }
 >;
 export const TraitImplementation = Val.companion<TraitImplementation>().build();
@@ -565,39 +567,44 @@ function implTrait(
   if (!callee || callee.type !== "MemberExpression") return undefined;
   const property = child(callee, "property");
   if (!property || keyName(property, callee["computed"] === true) !== "implTrait") return undefined;
-  let current = child(callee, "object");
+  // `….Book.implTrait(T, f)` implements the trait for that variant alone.
+  const head = child(callee, "object");
+  const variant = head ? variantOf(head) : undefined;
+  let current = variant?.builder ?? head;
   while (current?.type === "CallExpression") {
     const inner = child(current, "callee");
     if (!inner || inner.type !== "MemberExpression") break;
     const receiver = stepOf(inner)?.receiver;
-    if (!receiver || receiver.type !== "CallExpression") break;
-    current = receiver;
+    const next = receiver && (variantOf(receiver)?.builder ?? receiver);
+    if (!next || next.type !== "CallExpression") break;
+    current = next;
   }
   if (!current) return undefined;
-  const rootCall = current.type === "CallExpression" ? current : node;
-  const root = current.type === "CallExpression" ? child(current, "callee") : callee;
-  if (!root || root.type !== "MemberExpression") return undefined;
   let val: SymbolRef | undefined;
-  if (fromRoot(root, bound)) {
-    const rootArgs = child(rootCall, "typeArguments");
+  const root = current.type === "CallExpression" ? child(current, "callee") : undefined;
+  if (root?.type === "MemberExpression" && fromRoot(root, bound)) {
+    const rootArgs = child(current, "typeArguments");
     const valNode = unparenthesized(rootArgs ? children(rootArgs, "params")[0] : undefined);
     const valRef = valNode?.type === "TSTypeReference" ? child(valNode, "typeName") : undefined;
     const valNamed = valRef && typeReference(valRef, bound.namespaces);
     val = valNamed
       ? symbolRef(file, bound, valNamed.node["name"] as string, valNamed.qualifier)
       : undefined;
-  } else {
-    const receiver = child(root, "object");
-    const builder = receiver?.type === "Identifier" ? (receiver["name"] as string) : undefined;
-    const site = builder ? sites.find((one) => one.name === builder) : undefined;
-    if (site) val = site.typeRef;
+  } else if (current.type === "Identifier") {
+    const builder = current["name"] as string;
+    val = sites.find((one) => one.name === builder)?.typeRef;
   }
   if (!val) return undefined;
   const [traitRef, object] = children(node, "arguments");
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
   const resolved = object ? stepMembers(object, val.name, objects, at) : [];
-  return TraitImplementation.seal({ val, trait, overrides: resolved });
+  return TraitImplementation.seal({
+    val,
+    trait,
+    overrides: resolved,
+    ...(variant ? { variant: variant.variant } : {}),
+  });
 }
 
 /**

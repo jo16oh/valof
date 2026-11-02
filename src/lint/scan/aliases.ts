@@ -37,6 +37,8 @@ export type EnumAlias = Val<
      * them reports nothing there rather than guessing at a mapped type or an import.
      */
     variants?: string[];
+    /** The traits each variant declares in its payload, `{ Book: { pages: number } & Named }`. */
+    variantTraits: { variant: string; traits: DeclaredTrait[] }[];
   }
 >;
 export const EnumAlias = Val.companion<EnumAlias>().build();
@@ -176,6 +178,7 @@ export function valAliases(
           // fields and the tag's name, all intersected.
           traits: traitNames(children(args, "params")[2], file, bound, locals, at),
           ...(variants === undefined ? {} : { variants }),
+          variantTraits: variantTraits(children(args, "params")[1], file, bound, locals, at),
         }),
       );
     }
@@ -316,4 +319,24 @@ function traitNames(
   };
   visit(node);
   return [...out.values()];
+}
+
+/** The traits each variant of a literal variant record names in its payload. */
+function variantTraits(
+  node: Node | undefined,
+  file: string,
+  bound: Bindings,
+  aliases: ReadonlyMap<string, Node>,
+  at: (offset: number) => Where,
+): { variant: string; traits: DeclaredTrait[] }[] {
+  const record = unparenthesized(node);
+  if (record?.type !== "TSTypeLiteral") return [];
+  return children(record, "members").flatMap((member) => {
+    const key = child(member, "key");
+    const variant = key && keyName(key, member["computed"] === true);
+    const payload = child(child(member, "typeAnnotation") ?? member, "typeAnnotation");
+    if (member.type !== "TSPropertySignature" || !variant || !payload) return [];
+    const traits = traitNames(payload, file, bound, aliases, at);
+    return traits.length > 0 ? [{ variant, traits }] : [];
+  });
 }
