@@ -2791,9 +2791,13 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       `pipe(u, User.rename("x"))` と書くため。引数の個数で判別し、省略できる引数を型で禁じる。ジェネリックな
       メンバの data-last は型引数を失うので、アロー関数で data-first として呼ぶ。範囲と却下案は §6.11
 
-- [ ] **valof-lint の規則: 型注釈が隠す省略できる引数。やる（ユーザー、2026-10-28）、未着手、別の PR。**型注釈が実装のデフォルト
-      引数や rest 引数を隠すと、型が拒めず data-last の呼び出しが壊れる（§6.11「残る穴」）。lint は構文を読むので、
-      注釈の下の実装が見える
+- [x] ~~**valof-lint の規則: 型注釈が隠す省略できる引数。**~~ → `hidden-optional` を入れた、2026-11-03。注釈の引数の数は
+      TypeScript 7.1 の `typescript/sync` で数える（別名も import も辿る）。候補が無い実行は TypeScript を読まない。
+      拾う形は、注釈つきの top-level の const（関数、または関数を持つオブジェクト）を、段の関数が返すオブジェクトの値か、
+      段の関数が返す名前として使うもの。報告の位置は既定値か rest の引数。以下は当時の記録
+- 型注釈が実装のデフォルト
+  引数や rest 引数を隠すと、型が拒めず data-last の呼び出しが壊れる（§6.11「残る穴」）。lint は構文を読むので、
+  注釈の下の実装が見える
   - **2026-10-28 から development が `build` で投げる**（§6.11「実行時: 隠れた既定値と rest」）。lint に残る価値は、
     実行する前に書いた場所で見せること。oxlint の `typescript/no-useless-default-assignment` が、注釈の型が nullish を
     含まない形を拾う
@@ -2808,9 +2812,11 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     追跡が要る。`unused-member` の名前の解決（import、改名、名前空間）を使えるかを確かめる
   - `implTrait<Tr>({ … })` は 2026-10-20 に外した（§15.1）。この形が穴の主な入口だった
 
-- [ ] **noseal の development の検査が見逃す seal。lint 規則の案、未着手、2026-10-14。**既定の seal を
-      呼んだあと、その結果を捨てて失敗を返す seal は、「呼ばれた、値も等しい」ので検査を通る。production
-      では seal を飛ばすので、拒むはずの値ができる。`Result` に限らず `undefined` を返す seal でも同じ
+- [x] ~~**noseal の development の検査が見逃す seal。**~~ → `unreturned-seal` を入れた、2026-11-03。下の案のとおり。
+      `return` の引数の外にある第 2 引数の呼び出しをすべて報告する。以下は当時の記録
+- 既定の seal を
+  呼んだあと、その結果を捨てて失敗を返す seal は、「呼ばれた、値も等しい」ので検査を通る。production
+  では seal を飛ばすので、拒むはずの値ができる。`Result` に限らず `undefined` を返す seal でも同じ
 
   ```ts
   .implCreate.noseal(() => randomId())
@@ -2839,7 +2845,9 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 - [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
       独立した規則 `unnecessary-alias`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
-- [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
+- [x] ~~valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。~~ → `payload-of-property`、
+      2026-11-03。Val の payload と variant ごとの payload のトップ（交差型の成分を含む）は通し、その下を報告する。
+      ローカルの `type M = Payload<PayloadOf<X>>` は 1 段だけ辿る。既定は error。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
 - [x] ~~valof-lint の規則 `foreign-rec`。自己参照でない `Rec` を報告する~~ → 入れない（§14.26）。
       `Rec<Other>` は `Other` に開くので型が同じで、実害も動機も無い
 - [x] ~~**`Enum`（sum 型）を実装する。**~~ → 実装した。`src/enum.ts`、`valof/experimental` から Trait の
@@ -2870,6 +2878,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       ファントムを増やすより軽い
     - 代償は、TS が制約を展開してメッセージに出すこと。`Invalid` のキー（`__valError`）が missing と
       2 行目に出るので、内部の名前が 1 つ見える
+  - **2026-11-03: 同じ名前の再束縛も警告にした（`unqualified-variant`、warn）。**分割代入と `const Circle = Shape.Circle` の
+    どちらも、読む人から enum を隠す（§15.2「prefix を保つ」）。改名は今までどおり `companion-mismatch`。以下は当時の記録
   - **Variant の再束縛を禁じる規則。**`const { Circle } = Shape` と `const Circle = Shape.Circle` は
     合法。見るのは名前の一致だけなので、`companion-mismatch` の拡張で足りる
 - [x] ~~**§15.4 のコールバック形は val.ts にまだ無い。**~~ → 入れて、2026-09-18 に外した。`.impl` は
@@ -2909,6 +2919,16 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
+- [ ] **TypeScript 7.1 beta で、利用者の宣言出力が TS7056 で落ちる。**valof-lint のルール追加で見つけた、2026-11-03。
+      `vp run ts-compatibility` を 7.1.0-beta で回すと、`export const greetableBuilder = Trait.companion<Greetable>().impl(…)`
+      が「The inferred type of this node exceeds the maximum length the compiler will serialize」。5.9 / 6.0 / 7.0 は通る。
+      安定版（2026-11-24）までに見る。devDependency の typescript は 7.0 のまま、lint のテストだけ `typescript-7.1` の
+      別名を resolve フックで `typescript/sync` に当てる
+- [ ] **lint の残り（2026-11-03 の追加から）。**
+  - `block-step`、`split-variant-steps`、`unqualified-variant` は追加済み（`__memo__/tasks-to-design.md` の 3 件）
+  - `model-only-in-valof` は追加済み（`__memo__/lint-model-only-in-valof.md`）。オプションは `Options.enable` に渡し、
+    runner が既定のルールと合わせて走らせる箱を組み立てる（css-var-kit の `compile`）。「Valof が値として許さない
+    組み込み型」の別規則は入れていない
 - [ ] **Trait のメンバが `Promise` を返すと宣言が TS2615 で落ちる。**valof-lint の書き直しで見つけた、2026-11-03。
       `run: (rule: Self) => Promise<Finding[]>` で「Type of property 'then' circularly references itself」。
       `HasSelf` がオブジェクトのキーを再帰で辿り、`Promise` の `then` / `catch` / `finally` で循環する。
@@ -2959,10 +2979,14 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     - レコード: `implSeal({ Circle: fn })`。全体を指すものが名前に出ないので弱い
   - §15.2「却下: enum に seal を 1 本書く」の理由のうち、「書く量が変わらない」「`match` で TS7022」は
     弱い（`switch (p._tag)` で書ける）。残るのは戻り型が Variant ごとに分かれないこと
-- [ ] **`unimplemented-trait` が variant で宣言した trait を見ない（§15.2「1 本の鎖で作る」）。**誤検出は無いが、
+- [x] ~~**`unimplemented-trait` が variant で宣言した trait を見ない（§15.2「1 本の鎖で作る」）。**~~ → 見る、2026-11-03。
+      `TraitImplementation.variant` が `.Book.implTrait` の variant を持ち、variant の payload の trait はその variant の実装
+      だけが満たす。以下は当時の記録。誤検出は無いが、
       実装の書き忘れを警告しない。scan が `{ Book: … & Named }` の trait と `.Book.implTrait` を読む必要がある。
       valof-lint の書き直しのときに入れる
-- [ ] **`implAssoc` のメンバを見る lint（§6.13）。**valof-lint の書き直しの後に入れる
+- [x] ~~**`implAssoc` のメンバを見る lint（§6.13）。**~~ → 入れた、2026-11-03。命名は `constructor-name`、参照は
+      `unrelated-assoc`、どちらも warn。`unused-member` も `implAssoc` のメンバを数える。参照は型の名前（companion は同じ
+      名前なので兼ねる）と、段の関数が受け取った `seal` / `create` の名前で見る。以下は当時の記録
   - 命名: `seal` / `create` を呼ぶ `implAssoc` のメンバは `from*` / `parse*` / `create*`（単語の境界で見る）。
     `impl` の側でこの接頭辞を使ったら警告。接頭辞は `/^(?:from|parse|create)(?:$|[A-Z0-9_])/` で見る。
     却下: `of`（`Val.of` は seal を通らず、`Money.of` は通る）、`with*`（JS では派生を指す）、`decode*` /
