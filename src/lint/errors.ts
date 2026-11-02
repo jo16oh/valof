@@ -28,6 +28,14 @@ export class UnknownRuleError extends ErrorFactory({
   fields: ErrorFactory.fields<{ kind: string; known: readonly string[] }>(),
 }) {}
 
+/** A setting after `--model-only-in-valof=` that the rule does not take. */
+export class UnknownSettingError extends ErrorFactory({
+  name: "UnknownSettingError",
+  message: ({ setting, known }) =>
+    `valof-lint: no setting called ${JSON.stringify(setting)}\n  known settings: ${known.join(", ")}`,
+  fields: ErrorFactory.fields<{ setting: string; known: readonly string[] }>(),
+}) {}
+
 /** `--project` or `--report-on` as the last argument. */
 export class MissingPathError extends ErrorFactory({
   name: "MissingPathError",
@@ -57,6 +65,7 @@ export type UsageError =
   | MissingParserError
   | MissingTypeScriptError
   | UnknownRuleError
+  | UnknownSettingError
   | MissingPathError
   | NotAProjectError
   | NoFilesMatchedError;

@@ -66,6 +66,8 @@ export type Rule = Trait<
      * every finding the same way and exits 1 on any of them.
      */
     warns: boolean;
+    /** Set on a rule that runs only where `Options.enable` names it. */
+    optIn?: boolean;
   },
   {
     /**

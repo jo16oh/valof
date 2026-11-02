@@ -13,6 +13,7 @@ import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
+import type { Options } from "../index.ts";
 import { box } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
 import { UnnamedOf } from "./unnamed-of.ts";
@@ -37,7 +38,7 @@ export const RULES = [
   box(BypassedCompanion, BypassedCompanion.create()),
   box(UnnamedOf, UnnamedOf.create()),
   box(BlockStep, BlockStep.create()),
-  box(ModelOnlyInValof, ModelOnlyInValof.create()),
+  box(ModelOnlyInValof, ModelOnlyInValof.create({})),
   box(HiddenOptional, HiddenOptional.create()),
   box(PayloadOfProperty, PayloadOfProperty.create()),
   box(UnreturnedSeal, UnreturnedSeal.create()),
@@ -85,3 +86,18 @@ export const kinds: readonly Kind[] = RULES.map(({ kind }) => kind);
 export const isKind = (name: string): name is Kind => kinds.includes(name as Kind);
 
 export { Finding, Rule, type Context } from "./rule.ts";
+
+/**
+ * The rules a run uses: every rule on by default, and each opt-in rule `enable` names, with its
+ * settings. css-var-kit's `compile`, in effect.
+ */
+export const compile = (enable: Options["enable"] = {}): readonly (typeof RULES)[number][] => {
+  const model = enable["model-only-in-valof"];
+  return RULES.flatMap((rule) =>
+    rule.optIn !== true
+      ? [rule]
+      : rule.kind === "model-only-in-valof" && model
+        ? [box(ModelOnlyInValof, ModelOnlyInValof.create(model))]
+        : [],
+  );
+};

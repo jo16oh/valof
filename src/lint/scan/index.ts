@@ -47,6 +47,7 @@ import {
   type Lift,
 } from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
+import { models, type Models } from "./models.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
@@ -62,6 +63,7 @@ export type {
 } from "./aliases.ts";
 export type { CompanionSite, Lift } from "./chains.ts";
 export type { Directive, Spelling } from "./directives.ts";
+export type { Model, Models, Shape, TypeUse } from "./models.ts";
 export { silences } from "./directives.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
@@ -224,6 +226,8 @@ export type Scan = {
   companionBindings: CompanionBinding[];
   /** `Val.of<X>(…)` calls. */
   lifts: Lift[];
+  /** What `model-only-in-valof` reads. */
+  models: Models;
   /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
   directives: Directive[];
 };
@@ -589,6 +593,7 @@ export function scan(
     sites,
     companionBindings,
     lifts,
+    models: models(file, program, bound, at),
     directives: directives(parsed.comments, source, at),
   };
 }

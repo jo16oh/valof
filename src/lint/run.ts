@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { Result as R } from "@praha/byethrow";
 
 import { MissingParserError, MissingTypeScriptError } from "./errors.ts";
-import { RULES, type Finding } from "./rules/index.ts";
+import { compile, type Finding } from "./rules/index.ts";
 import { scan, silences, type Parser } from "./scan/index.ts";
 import { moduleResolver } from "./scan/bindings.ts";
 import { arities, type Arity } from "./types.ts";
@@ -15,7 +15,7 @@ import type { Options } from "./index.ts";
 // function.
 export async function run(
   files: readonly string[],
-  { skip, report, overlay }: Options = {},
+  { skip, report, overlay, enable }: Options = {},
 ): Promise<R.Result<Finding[], MissingParserError | MissingTypeScriptError>> {
   const loaded = await loadParser();
   if (R.isFailure(loaded)) return loaded;
@@ -34,7 +34,7 @@ export async function run(
   let program: ReturnType<typeof arities> | undefined;
   const types = (): Arity => (program ??= arities(walk.map((file) => resolve(file)))).arity;
   try {
-    for (const rule of RULES) {
+    for (const rule of compile(enable)) {
       if (notRun.has(rule.kind)) continue;
       findings.push(...rule.run(scans, { reported: findings, notRun, types }));
     }

@@ -61,3 +61,14 @@ test("is enabled on the command line, with its settings after an equals sign", (
     "domain.ts:29:8  model-only-in-valof",
   );
 });
+
+test("refuses a setting it does not take", () => {
+  const { status, stderr } = cli(
+    "tests/lint/rules/model-only-in-valof/fixtures",
+    "--model-only-in-valof=typo",
+  );
+  expect(status).toBe(2);
+  expect(stderr).toBe(
+    'valof-lint: no setting called "typo"\n  known settings: classes, constraints, extraction',
+  );
+});

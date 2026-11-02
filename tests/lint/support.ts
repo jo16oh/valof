@@ -12,8 +12,9 @@ import * as Rules from "../../src/lint/rules/index.ts";
 type Registered = (typeof RULES)[number];
 
 /** The rule in the registry that a companion creates. */
-const registered = (companion: { create: () => { kind: string } }): Registered => {
-  const { kind } = companion.create();
+const registered = (companion: { create: (settings: never) => { kind: string } }): Registered => {
+  // An opt-in rule's create takes its settings, and none of them changes the kind.
+  const { kind } = companion.create({} as never);
   const rule = RULES.find((one) => one.kind === kind);
   if (!rule) throw new Error(`no rule reports ${kind}`);
   return rule;
