@@ -6,3 +6,4 @@ const User = Val.companion<User>().impl(() => ({
 })).build();
 
 type User = Val<"User", string>;
+declare const marker: number;

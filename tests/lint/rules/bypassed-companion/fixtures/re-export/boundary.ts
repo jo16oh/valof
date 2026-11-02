@@ -1,1 +1,1 @@
-export { User as Public } from "./user";
+export { User as Public } from "./user.ts";

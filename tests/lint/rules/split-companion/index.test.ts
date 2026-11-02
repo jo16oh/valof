@@ -40,5 +40,5 @@ test("reports a Trait companion split from its declaration", async () => {
 });
 
 test("reports an Enum companion written beside an imported declaration", async () => {
-  expect(await lint("enum")).toEqual([{ rule: SplitCompanion, at: "enum/companion.ts:5:37" }]);
+  expect(await lint("enum")).toEqual([{ rule: SplitCompanion, at: "enum/companion.ts:7:37" }]);
 });
