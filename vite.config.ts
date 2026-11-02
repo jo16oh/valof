@@ -2,6 +2,12 @@ import { defineConfig } from "vite-plus";
 
 import lint from "./oxlint.config.ts";
 
+// tsdown finds the compiler of TypeScript 7.0 alone, and looks for `@typescript/native-preview`
+// otherwise, so the installed one is passed by path.
+const { default: tsgo } = (await import(
+  new URL("lib/getExePath.js", import.meta.resolve("typescript/package.json")).href
+)) as { default: () => string };
+
 export default defineConfig({
   staged: {
     "*": "vp check --fix",
@@ -17,7 +23,7 @@ export default defineConfig({
       "lint-cli": "src/lint/cli.ts",
     },
     dts: {
-      tsgo: true,
+      tsgo: { path: tsgo() },
     },
     // The linter's own dependencies, inlined so that installing valof installs nothing more.
     deps: { onlyBundle: ["@praha/byethrow", "@praha/error-factory"] },

@@ -78,4 +78,7 @@ export const Rule = Trait.companion<Rule>().build();
 export const box = <W extends Rule>(
   companion: Parameters<typeof Rule.dyn<W>>[0],
   value: W,
-): Dyn<Rule> & Pick<W, "kind"> => Rule.dyn(companion, value);
+): Boxed<W> => Rule.dyn(companion, value);
+
+/** What {@link box} returns: the rule behind {@link Dyn}, and its kind. */
+export type Boxed<W extends Rule> = Dyn<Rule> & Pick<W, "kind">;
