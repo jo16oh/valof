@@ -2889,9 +2889,19 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - 2026-09-16: 翻した（#39）。`docs/tools/twoslash` が README の ts ブロックを 1 つずつ型検査する。README では cut を使わず、前置きも見せるブロックとして書く。外部パッケージの import は `docs/tools/twoslash/stubs/` の宣言に `paths` で向ける（今は `remeda`）
 - [ ] `Temporal` の各ランタイムでの対応状況（外す方針なので優先度は低いが、README で触れるなら要確認）
 - [ ] Records & Tuples 提案の現状。2025 年春に champion が取り下げて Composites を模索していたはずだが、要確認。**言語側の解決を待つ戦略は取らない**
-- [ ] valof-lint のテストの穴を塞ぐ（§14.10）。2 巡目まで完了。残りは `declaredName` の連鎖、`directives.ts` の `widen` と `joins`
-- [ ] **fixture を型検査するか（§14.10）。開け直した、2026-10-14。**型が要る規則は無いままだが、理由が別にある。
-      fixture は型検査されないので、本体の API の名前を変えても lint のテストは緑のままである（§14.27）
+- [x] ~~valof-lint のテストの穴を塞ぐ（§14.10）。~~ → 3 巡目で閉じた、2026-11-03。`declaredName` の連鎖と
+      `joins` は変異が既に落ちた。`widen` は 1 ブロックに 2 つのディレクティブを置く fixture で塞いだ（和集合と、
+      どちらの順でも全 kind が勝つこと）
+- [x] ~~**fixture を型検査するか（§14.10）。開け直した、2026-10-14。**~~ → 型検査する、2026-11-03。
+      `tests/lint/fixtures.test.ts` が `tests/lint/tsconfig.fixtures.json` で `tsc` を走らせる（0.1 秒）
+  - **宣言はファイルの末尾に足した。**型の別名は巻き上がるので、テストが期待する位置が動かない。動いたのは
+    先頭の `import` と `@ts-expect-error` の行だけで、期待値は行の対応から書き換えた
+  - **tsconfig は 2 つだけ緩める。**`noUnusedLocals`（誰も読まない companion が規則の被写体）と
+    `declaration`（export した変数の宣言出力は検査の対象ではない）
+  - **2 つのファイルが同じブランドを持つ fixture は名前空間を付けた**（`billing/User`）。宣言を足したら
+    `duplicate-brand` が出た
+  - 以下は当時の記録
+    fixture は型検査されないので、本体の API の名前を変えても lint のテストは緑のままである（§14.27）
   - 一時的な tsconfig で数えた。186 ファイル中 122 ファイル、329 件。大半は省略で、意図した不正ではない。
     `Val` を import していない（TS2304 / TS2552 で 162 件）、引数に型が無い（TS7006、77 件）、型を
     宣言していない（TS2749、41 件）
@@ -2899,6 +2909,16 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
+- [ ] **Trait のメンバが `Promise` を返すと宣言が TS2615 で落ちる。**valof-lint の書き直しで見つけた、2026-11-03。
+      `run: (rule: Self) => Promise<Finding[]>` で「Type of property 'then' circularly references itself」。
+      `HasSelf` がオブジェクトのキーを再帰で辿り、`Promise` の `then` / `catch` / `finally` で循環する。
+      直すなら `HasSelfBranch` で `PromiseLike<infer R>` を先に剥がす（未検証）。lint は `run` を同期にした
+- [ ] **型検査つきの lint が Val の spread を警告する。**valof-lint の書き直しで見つけた、2026-11-03。oxlint の
+      `typescript/no-misused-spread` が `{ ...site, name }` を「class instances will lose their class prototype」と
+      言う。`Phantom` が `declare class` なので、インスタンスに見える。値はプレーンなデータなので誤検出。lint は
+      `patch` とフィールドを名指しする形に書き換えた。docs で触れるか、`Phantom` を class にしない形を探す
+- [ ] **`Dyn` に具体的な Val を残す第 2 型引数。**`lint-in-valof.md` で probe した案（`Dyn<Tr, W extends Tr = Tr>`）。
+      valof-lint は lint 側の `box` で `Kind` を残した（§14.8「2026-11-03」）。2 つ目の利用者が出たら入れる
 - [x] ~~Trait のメンバが、ライブラリが companion に置く名前を上書きする。~~ → 型で拒む、2026-10-14。
       それまでは型を通り、実行時だけがメンバに替わっていた
   - **Enum の Variant 名と `match`。**`Shape.Square({ side: 1 })` が Trait のメンバの戻り値を返し、
@@ -3766,6 +3786,36 @@ src/lint/
 `Scan` はルール固有のフィールドを持たない。**構文的事実であって、どのルールが読むかは型に書かない。** `aliases` と `brands` は同じ 1 パスが同じ宣言から作り、2 つの規則が 1 つずつ取る。所有関係を書くと、次にルールを足す人が「自分用のフィールドを足す」と読む。
 
 公開する名前は絞る。`src/lint/index.ts` はパッケージの `exports` に無く CLI 専用なので、`lint` 以外に出すものは無い。各ルールが出すのは finding 型と `rule` オブジェクトの 2 つだけ。
+
+#### 2026-11-03: ルールを Trait にした
+
+valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait と `Vec<Box<dyn Rule>>` に倣う。
+
+- **`Rule` は Trait。**フィールドは `kind`、`description`、`warns`、メンバは `run`。ルールはそれぞれ
+  `Val<"UnusedMember", { kind: "unused-member" }, Rule>` で、companion の `implCreate` がルールの値を作る。
+  `kind` 以外のフィールドは Trait の shape から来る
+- **`RULES` は `dyn` で包んだ値の配列。**`Dyn` は具体的な Val を消すので、そのままでは `Kind` が `string` になる。
+  lint 側の `box` が `Dyn<Rule> & Pick<W, "kind">` を返して `kind` を残す。ルールを `RULES` に載せ忘れると、
+  上と同じく `Kind` から落ちる
+- **`Finding` は共通の Val 1 つ、`kind` は `string`。**ルール固有のフィールド（`brand`、`alias` など）は
+  誰も読んでいなかった。`kind` を `Kind` にすると、`Kind` が `RULES` から、`RULES` が `run` の戻り型から
+  決まるので循環する。上の `ReportedBy` は消えた
+- **`run` は同期。**Trait のメンバが `Promise` を返すと宣言が落ちる（§9）。非同期のルールは無かった
+- **エラーは byethrow の Result と error-factory のクラス。**引数の解析は `Arguments.fromArgv`、パーサの読み込みは
+  `run` が Result で返す。公開の `lint()` は境界で投げる。Result を公開の型に出すと、バンドルした byethrow の
+  宣言まで `lint.d.mts` に入る
+- **scan の事実も Val。**`Scan` と `Bindings` は Map / Set を持つのでプレーンのまま（§7）。`Where` は他の
+  事実に spread で混ざるのでプレーン。`Directive.kinds` は Set から配列にした
+- **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
+  かけたら `unused-member` が全ルールの `run` を報告した。`box` を通った `dyn` は追えていなかった。
+  作った式の外へ出た `dyn`（関数に渡す、配列に入れる）は、どこかで読まれたキーをすべて、第 1 引数の Val
+  （名指していなければ trait を実装するすべての Val）の読み取りとして数える
+- **所要時間。**fixture を 10 倍に複製した 1,810 ファイルで、95 ms → 101 ms（development の freeze の分）
+- **`lint.d.mts` が valof の宣言を内包する（17 kB → 73 kB）。**tsdown が `../../index.ts` を取り込む。
+  内包した `unique symbol` は `valof` 本体のものと別なので、lint の `Finding` を `valof` の関数に渡すと型が
+  合わない。実害は小さいので残した
+- byethrow と error-factory は devDependencies のまま `deps.onlyBundle` で dist に入れる。valof を入れても
+  依存は増えない
 
 ### 14.9 エディタ統合、2026-09-08 調査。overlay まで実装
 
