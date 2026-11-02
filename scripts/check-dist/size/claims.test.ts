@@ -55,8 +55,8 @@ describe("claims", () => {
   test("reads the README and the package description only for a release", async () => {
     await writeFile(join(directory, "package.json"), manifest("9 B gzipped"));
     expect(message(await claims(965, { release: false, write: false }, root))).toBeUndefined();
-    expect(message(await claims(965, { release: true, write: false }, root))).toContain(
-      "package.json says 9 B gzipped",
+    expect(message(await claims(965, { release: true, write: false }, root))).toBe(
+      "stale claim: package.json says 9 B gzipped, measured 965 B gzipped. Rerun with --write --release.",
     );
     await claims(1100, { release: true, write: true }, root);
     expect(await read("package.json")).toBe(manifest("1.07 kB gzipped"));

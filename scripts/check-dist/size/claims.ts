@@ -19,14 +19,19 @@ export class ClaimCountError extends ErrorFactory({
 }) {}
 
 export class StaleClaimError extends ErrorFactory({
-  message: ({ stale, size }) =>
+  message: ({ stale, size, rerun }) =>
     stale
       .map(
         ({ file, found }) =>
-          `stale claim: ${file} says ${found}, measured ${size}. Rerun with --write.`,
+          `stale claim: ${file} says ${found}, measured ${size}. Rerun with ${rerun}.`,
       )
       .join("\n"),
-  fields: ErrorFactory.fields<{ stale: { file: string; found: string }[]; size: string }>(),
+  fields: ErrorFactory.fields<{
+    stale: { file: string; found: string }[];
+    size: string;
+    /** The flags that rewrite these claims. */
+    rerun: string;
+  }>(),
 }) {}
 
 function marked(): RegExp {
@@ -96,6 +101,7 @@ export async function claims(
         new StaleClaimError({
           stale: stale.map(({ file, found: said }) => ({ file, found: said })),
           size,
+          rerun: release ? "--write --release" : "--write",
         }),
       );
 }
