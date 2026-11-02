@@ -293,6 +293,15 @@ type Declared<V> = V extends Phantom<string, infer T> ? T : never;
  */
 export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
+/**
+ * A type written to be a payload, named: `type Fields = Payload<{ id: string }>`. It is `T`
+ * unchanged. valof-lint's `model-only-in-valof` allows it where a payload goes, and reports any
+ * other named data type.
+ *
+ * Not {@link PayloadOf}, which takes a Val's payload out of it.
+ */
+export type Payload<T> = T;
+
 // Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
 // the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker
 // is the declaration's, so no type derived from the payload may carry it.

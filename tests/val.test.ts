@@ -2,6 +2,7 @@ import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import type {
   AnyVal,
   Patch,
+  Payload,
   PayloadOf,
   PrivateCreate,
   PrivateSeal,
@@ -493,6 +494,11 @@ describe("Val", () => {
       expectTypeOf<BrandOf<User>>().toEqualTypeOf<"app/User">();
       expectTypeOf<PayloadOf<ArticleId>>().toEqualTypeOf<string>();
       expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
+    });
+
+    test("Payload names a payload type without changing it", () => {
+      type Fields = Payload<{ id: string; name: string }>;
+      expectTypeOf<Fields>().toEqualTypeOf<{ id: string; name: string }>();
     });
 
     test("does not exist at runtime", () => {
