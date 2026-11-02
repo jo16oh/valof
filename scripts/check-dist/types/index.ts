@@ -1,11 +1,13 @@
-// Type-inference cost, measured against the published declarations the way a consumer sees them,
-// on every TypeScript line `vp run ts-compatibility` supports.
+// Type-inference cost, measured against the published declarations the way a consumer sees them.
 //
 // `Instantiations` and `Types` are deterministic for a given compiler, so they carry the budget;
 // the times are printed and never checked.
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { floor, pack, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
+import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
+
+import { floor, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
 
 const here = new URL("./", import.meta.url);
 
@@ -83,8 +85,7 @@ async function measure(tsc: Tsc, name: string): Promise<Counts> {
       "--project",
       fileURLToPath(config),
     ]).catch((error: { stdout?: string }) => {
-      console.error(error.stdout ?? "");
-      process.exit(1);
+      throw new FixtureError({ fixture: name, output: error.stdout ?? "" });
     });
     const read = (label: string): number =>
       Number(stdout.match(new RegExp(`^${label}\\s+([\\d.]+)`, "m"))?.[1] ?? Number.NaN);
@@ -130,83 +131,100 @@ function table(heads: string[], rows: string[][]): string {
   return [line(heads), ...rows.map(line)].join("\n");
 }
 
-await pack();
+export class FixtureError extends ErrorFactory({
+  message: ({ fixture, output }) => `the ${fixture} fixture does not compile\n${output}`,
+  fields: ErrorFactory.fields<{ fixture: string; output: string }>(),
+}) {}
 
-const declarations = await declarationBytes(new URL("../../../dist/index.d.ts", here));
+export class OverBudgetError extends ErrorFactory({
+  message: ({ over }) => `over budget: ${over.join(", ")}`,
+  fields: ErrorFactory.fields<{ over: string[] }>(),
+}) {}
 
-const json = process.argv.includes("--json");
+/** Measures the fixtures and the declarations against their budgets. `dist` is built already. */
+export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudgetError> {
+  try {
+    const declarations = await declarationBytes(new URL("../../../dist/index.d.ts", here));
 
-/**
- * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the fixtures
- * differed by 5 instantiations in 1,677, the checkers' own noise. `vp run ts-compatibility` still
- * typechecks every line.
- */
-const compile = tsc(floor);
-const baseline = await measure(compile, "baseline");
-const counts = Object.fromEntries(
-  await Promise.all(fixtures.map(async (name) => [name, await measure(compile, name)])),
-) as Record<Fixture, Counts>;
+    /**
+     * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the fixtures
+     * differed by 5 instantiations in 1,677, the checkers' own noise. `vp run ts-compatibility` still
+     * typechecks every line.
+     */
+    const compile = tsc(floor);
+    const baseline = await measure(compile, "baseline");
+    const counts = Object.fromEntries(
+      await Promise.all(fixtures.map(async (name) => [name, await measure(compile, name)])),
+    ) as Record<Fixture, Counts>;
 
-// Reported over the baseline, which is a constant each checker materialises at startup: 86
-// types on 5.9, 341 on tsgo, whatever the lib. Subtracting it leaves what the library costs.
-const measured = Object.fromEntries(
-  fixtures.map((name) => [
-    name,
-    {
-      types: counts[name].types - baseline.types,
-      instantiations: counts[name].instantiations - baseline.instantiations,
-      check: counts[name].check,
-      total: counts[name].total,
-    },
-  ]),
-) as Record<Fixture, Counts>;
-
-if (!json) {
-  console.log(`typescript@${version(floor)}, over a baseline of ${num(baseline.types)} types\n`);
-  console.log(
-    table(
-      ["", "instantiations", "types", "check (s)", "total (s)"],
+    // Reported over the baseline, which is a constant each checker materialises at startup: 86
+    // types on 5.9, 341 on tsgo, whatever the lib. Subtracting it leaves what the library costs.
+    const measured = Object.fromEntries(
       fixtures.map((name) => [
         name,
-        num(measured[name].instantiations),
-        num(measured[name].types),
-        secs(measured[name].check),
-        secs(measured[name].total),
+        {
+          types: counts[name].types - baseline.types,
+          instantiations: counts[name].instantiations - baseline.instantiations,
+          check: counts[name].check,
+          total: counts[name].total,
+        },
       ]),
-    ),
-  );
+    ) as Record<Fixture, Counts>;
+
+    {
+      console.log(
+        `typescript@${version(floor)}, over a baseline of ${num(baseline.types)} types\n`,
+      );
+      console.log(
+        table(
+          ["", "instantiations", "types", "check (s)", "total (s)"],
+          fixtures.map((name) => [
+            name,
+            num(measured[name].instantiations),
+            num(measured[name].types),
+            secs(measured[name].check),
+            secs(measured[name].total),
+          ]),
+        ),
+      );
+    }
+
+    const checks = [
+      ...fixtures.map((name) => [name, measured[name].instantiations, budget[name], num] as const),
+      ["index.d.ts", declarations, declarationsBudget, bytes] as const,
+    ];
+
+    {
+      const left = ([, size, max, fmt]: (typeof checks)[number]): string =>
+        size > max
+          ? `${fmt(size - max)} over`
+          : `${fmt(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
+      console.log("\nbudget  (the fixtures are instantiations)");
+      console.log(
+        table(
+          ["", "used / budget", ""],
+          checks.map((check) => [
+            check[0],
+            `${check[3](check[1])} / ${check[3](check[2])}`,
+            left(check),
+          ]),
+        ),
+      );
+    }
+
+    {
+      // A reader meets this table years after the last person who chose what to put in it.
+      console.log(
+        "\ninstantiations: type arguments applied, where a conditional running away shows.",
+      );
+      console.log("types: distinct types the checker made. printed only, and it tracks the first.");
+      console.log("index.d.ts: the published declarations, in bytes. what every consumer parses.");
+    }
+
+    const over = checks.filter(([, size, max]) => size > max).map(([name]) => name);
+    return over.length === 0 ? R.succeed() : R.fail(new OverBudgetError({ over }));
+  } catch (error) {
+    if (error instanceof FixtureError) return R.fail(error);
+    throw error;
+  }
 }
-
-if (json) console.log(JSON.stringify({ ...measured, declarations }, null, 2));
-
-const checks = [
-  ...fixtures.map((name) => [name, measured[name].instantiations, budget[name], num] as const),
-  ["index.d.ts", declarations, declarationsBudget, bytes] as const,
-];
-
-if (!json) {
-  const left = ([, size, max, fmt]: (typeof checks)[number]): string =>
-    size > max
-      ? `${fmt(size - max)} over`
-      : `${fmt(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
-  console.log("\nbudget  (the fixtures are instantiations)");
-  console.log(
-    table(
-      ["", "used / budget", ""],
-      checks.map((check) => [
-        check[0],
-        `${check[3](check[1])} / ${check[3](check[2])}`,
-        left(check),
-      ]),
-    ),
-  );
-}
-
-if (!json) {
-  // A reader meets this table years after the last person who chose what to put in it.
-  console.log("\ninstantiations: type arguments applied, where a conditional running away shows.");
-  console.log("types: distinct types the checker made. printed only, and it tracks the first.");
-  console.log("index.d.ts: the published declarations, in bytes. what every consumer parses.");
-}
-
-if (checks.some(([, size, max]) => size > max)) process.exit(1);

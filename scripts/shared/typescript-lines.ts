@@ -1,4 +1,4 @@
-// Shared by `vp run ts-compatibility` and `vp run type-perf`: which TypeScript releases to run,
+// Shared by the types and compat checks of `vp run check-dist`: which TypeScript releases to run,
 // and how to get a `tsc` for each one.
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -19,7 +19,7 @@ export const root = fileURLToPath(new URL("../../", import.meta.url));
  */
 export const aliases = ["typescript-5", "typescript-6", "typescript"];
 
-/** The floor, which is the alias `vp run type-perf` measures on. */
+/** The floor, which is the alias the types check measures on. */
 export const floor = aliases[0]!;
 
 export function version(alias: string): string {
@@ -33,8 +33,3 @@ export const tsc =
   (alias: string): Tsc =>
   (args, cwd = root) =>
     run(join(root, "node_modules", alias, "bin/tsc"), args, { cwd });
-
-/** Builds `dist`, which is what both scripts measure: the consumer's entry, not `src`. */
-export async function pack(): Promise<void> {
-  await run(join(root, "node_modules/.bin/vp"), ["run", "build"], { cwd: root });
-}

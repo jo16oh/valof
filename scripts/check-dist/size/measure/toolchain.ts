@@ -1,5 +1,3 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { gzipSync, brotliCompressSync, constants } from "node:zlib";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -12,11 +10,6 @@ import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
 import { flow, pipe } from "../../../shared/pipe/index.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
-
-export class PackError extends ErrorFactory({
-  message: ({ output }) => `vp run build failed\n${output}`,
-  fields: ErrorFactory.fields<{ output: string }>(),
-}) {}
 
 export class NoChunkError extends ErrorFactory({
   message: ({ mode }) => `no chunk emitted for ${mode}`,
@@ -34,24 +27,6 @@ export class MinifyError extends ErrorFactory({
 }) {}
 
 const root = new URL("../../../../", import.meta.url);
-
-export function pack(): R.ResultAsync<void, PackError> {
-  return R.try({
-    try: async () => {
-      await promisify(execFile)(
-        fileURLToPath(new URL("node_modules/.bin/vp", root)),
-        ["run", "build"],
-        {
-          cwd: fileURLToPath(root),
-        },
-      );
-    },
-    catch: (cause) => {
-      const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
-      return new PackError({ output: `${stdout}${stderr}` || String(cause), cause });
-    },
-  });
-}
 
 export async function measure(
   imports: Imports,

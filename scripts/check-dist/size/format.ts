@@ -7,15 +7,11 @@ export function over(size: BundleSize): string {
   return `over budget: ${label(size)} is ${amount(size, size.capped)}, budget ${amount(size, size.bundle.budget)}`;
 }
 
-export function render({ bundles, separateBase }: Report, asJson: boolean): string {
-  return asJson
-    ? json(bundles)
-    : [
-        ...[...separateBase, ...bundles.map(({ build }) => build)].map(
-          (each) => `${sizes(each)}\n`,
-        ),
-        budgets(bundles),
-      ].join("\n");
+export function render({ bundles, separateBase }: Report): string {
+  return [
+    ...[...separateBase, ...bundles.map(({ build }) => build)].map((each) => `${sizes(each)}\n`),
+    budgets(bundles),
+  ].join("\n");
 }
 
 function format(bytes: number): string {
@@ -69,16 +65,5 @@ function budgets(bundles: readonly BundleSize[]): string {
       rows.map(([name, used, limit, left]) => `  ${name}  ${used} / ${limit}  ${left}`.trimEnd()),
     (lines) => ["budget (production gzip)", ...lines],
     (lines) => lines.join("\n"),
-  );
-}
-
-function json(bundles: readonly BundleSize[]): string {
-  return pipe(
-    bundles.map(({ bundle, build }) => [
-      bundle.key,
-      Object.fromEntries(modes.map((mode) => [mode, build[mode].sizes])),
-    ]),
-    (entries) => Object.fromEntries(entries),
-    (keyed) => JSON.stringify(keyed, null, 2),
   );
 }

@@ -11,11 +11,9 @@ import {
 } from "./measure/index.ts";
 import {
   measure,
-  pack,
   type CompileError,
   type MinifyError,
   type NoChunkError,
-  type PackError,
 } from "./measure/toolchain.ts";
 
 export class NoBaseError extends ErrorFactory({ message: "no bundle sets base" }) {}
@@ -45,17 +43,8 @@ export const Suite = Val.companion<Suite>()
       suite: Suite,
     ): R.ResultAsync<
       Report,
-      | PackError
-      | NoBaseError
-      | NoChunkError
-      | CompileError
-      | MinifyError
-      | DevCodeKeptError
-      | AddsNothingError
+      NoBaseError | NoChunkError | CompileError | MinifyError | DevCodeKeptError | AddsNothingError
     > => {
-      const packed = await pack();
-      if (R.isFailure(packed)) return packed;
-
       const baseImports = Suite.base(suite);
       if (R.isFailure(baseImports)) return baseImports;
 

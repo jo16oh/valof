@@ -1,8 +1,13 @@
+import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
+
+import { claims } from "./claims.ts";
+import { over, render } from "./format.ts";
+import { BundleSize } from "./measure/index.ts";
 import { Bundle, Imports } from "./bundle.ts";
-import { Cli } from "./cli.ts";
 import { Suite } from "./suite.ts";
 
-const suite = Suite.seal([
+export const suite = Suite.seal([
   Bundle.seal({
     key: "val",
     name: "Val",
@@ -46,4 +51,25 @@ const suite = Suite.seal([
   }),
 ]);
 
-await Cli.run(suite);
+export class OverBudgetError extends ErrorFactory({
+  message: ({ lines }) => lines.join("\n"),
+  fields: ErrorFactory.fields<{ lines: string[] }>(),
+}) {}
+
+/**
+ * Measures every bundle against its budget, then the claims against the base bundle's size.
+ * `dist` is built already.
+ */
+export async function checkSize(options: { release: boolean; write: boolean }) {
+  const measured = await Suite.measure(suite);
+  if (R.isFailure(measured)) return measured;
+  console.log(render(measured.value));
+
+  const overs = measured.value.bundles.filter(BundleSize.over).map(over);
+  // The claims are read either way, so a stale one shows beside an over budget.
+  console.log();
+  const base = measured.value.bundles.find(({ bundle }) => bundle.base);
+  const claimed = await claims(base?.build.production.sizes.gzip ?? Number.NaN, options);
+  if (overs.length > 0) return R.fail(new OverBudgetError({ lines: overs }));
+  return claimed;
+}
