@@ -124,6 +124,26 @@ export const StepMember = Val.companion<StepMember>().build();
 export type HeldSeal = Val<"HeldSeal", Where & { companion: string; noseal: boolean }>;
 export const HeldSeal = Val.companion<HeldSeal>().build();
 
+/**
+ * A top-level const whose type annotation may hide a default or a rest parameter of the function
+ * it holds: `const toWire: ToWire = (u, sep = ",") => …`, or a property of an annotated object.
+ */
+export type HiddenParameter = Val<
+  "HiddenParameter",
+  Where & {
+    name: string;
+    ref: SymbolRef;
+    /** Where the const's name starts, which is what TypeScript is asked about. */
+    offset: number;
+    /** The property holding the function, where the const holds an object. */
+    property?: string;
+    /** The index of the first default or rest parameter. */
+    parameter: number;
+    rest: boolean;
+  }
+>;
+export const HiddenParameter = Val.companion<HiddenParameter>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
 export const DynRead = Val.companion<DynRead>().build();
@@ -168,6 +188,10 @@ export type Scan = {
   dynReads: DynRead[];
   escapedDyns: EscapedDyn[];
   splitVariants: SplitVariant[];
+  /** Annotated top-level consts holding a function with a default or a rest parameter. */
+  hiddenParameters: HiddenParameter[];
+  /** The names a member step takes its members from: `() => fns`, or `() => ({ toWire })`. */
+  memberSources: SymbolRef[];
   /** Calls of the default seal that a custom seal holds outside its `return`. */
   heldSeals: HeldSeal[];
   /** The members `.impl` and `.implAssoc` registered inline, with what their bodies name. */
@@ -305,6 +329,7 @@ export function scan(
   const splitVariants: SplitVariant[] = [];
   const memberBodies: StepMember[] = [];
   const heldSeals: HeldSeal[] = [];
+  const memberSources: SymbolRef[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
   const objects = new Map<string, Node>();
@@ -417,6 +442,7 @@ export function scan(
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
+        memberSources.push(...sources(node, file, bound));
         const block = blockStep(node, bound);
         if (block)
           blockSteps.push(BlockStepFunction.seal({ ...at(block.start), step: block.step }));
@@ -548,6 +574,8 @@ export function scan(
     splitVariants,
     stepMembers: memberBodies,
     heldSeals,
+    hiddenParameters: hidden(program, file, bound, at),
+    memberSources,
     reads,
     namespaceReads,
     exportedAs,
@@ -931,4 +959,85 @@ function held(node: Node, companion: string, at: (offset: number) => Where): Hel
       return callee?.type === "Identifier" && callee["name"] === seal["name"];
     })
     .map((call) => HeldSeal.seal({ ...at(call["start"] as number), companion, noseal }));
+}
+
+/** The index of a function's first default or rest parameter, and which it is. */
+function optional(
+  fn: Node | undefined,
+): { parameter: number; rest: boolean; start: number } | undefined {
+  if (fn?.type !== "ArrowFunctionExpression" && fn?.type !== "FunctionExpression") return undefined;
+  const params = children(fn, "params");
+  const parameter = params.findIndex(
+    (one) => one.type === "AssignmentPattern" || one.type === "RestElement",
+  );
+  const found = params[parameter];
+  return found
+    ? { parameter, rest: found.type === "RestElement", start: found["start"] as number }
+    : undefined;
+}
+
+/** Every annotated top-level const holding a function, or an object of them, with one. */
+function hidden(
+  program: Node,
+  file: string,
+  bound: Bindings,
+  at: (offset: number) => Where,
+): HiddenParameter[] {
+  const found: HiddenParameter[] = [];
+  for (const statement of children(program, "body")) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? child(statement, "declaration") : statement;
+    if (declaration?.type !== "VariableDeclaration" || declaration["kind"] !== "const") continue;
+    for (const declarator of children(declaration, "declarations")) {
+      const id = child(declarator, "id");
+      const init = unparenthesized(child(declarator, "init"));
+      if (id?.type !== "Identifier" || !child(id, "typeAnnotation") || !init) continue;
+      const name = id["name"] as string;
+      const base = { name, ref: symbolRef(file, bound, name), offset: id["start"] as number };
+      const own = optional(init);
+      if (own)
+        found.push(
+          HiddenParameter.seal({
+            ...base,
+            ...at(own.start),
+            parameter: own.parameter,
+            rest: own.rest,
+          }),
+        );
+      if (init.type !== "ObjectExpression") continue;
+      for (const entry of children(init, "properties")) {
+        const key = child(entry, "key");
+        const property = key && keyName(key, entry["computed"] === true);
+        const held = optional(child(entry, "value"));
+        if (property && held)
+          found.push(
+            HiddenParameter.seal({
+              ...base,
+              ...at(held.start),
+              property,
+              parameter: held.parameter,
+              rest: held.rest,
+            }),
+          );
+      }
+    }
+  }
+  return found;
+}
+
+/** The names a member step's function returns, or the object it returns takes its members from. */
+function sources(node: Node, file: string, bound: Bindings): SymbolRef[] {
+  const callee = child(node, "callee");
+  if (callee?.type !== "MemberExpression") return [];
+  const step = stepOf(callee)?.name;
+  const index = step === undefined ? undefined : MEMBER_STEPS.get(step);
+  if (index === undefined || !chainRoot(callee, bound)) return [];
+  const fn = children(node, "arguments")[index];
+  const body =
+    fn?.type === "ArrowFunctionExpression" ? unparenthesized(child(fn, "body")) : undefined;
+  const named = (one: Node | undefined): SymbolRef[] =>
+    one?.type === "Identifier" ? [symbolRef(file, bound, one["name"] as string)] : [];
+  if (body?.type === "Identifier") return named(body);
+  if (body?.type !== "ObjectExpression") return [];
+  return children(body, "properties").flatMap((entry) => named(child(entry, "value")));
 }

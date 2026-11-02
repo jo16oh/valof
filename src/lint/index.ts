@@ -4,7 +4,7 @@ import type { Finding, Kind } from "./rules/index.ts";
 import { run } from "./run.ts";
 
 export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
-export { MissingParserError } from "./errors.ts";
+export { MissingParserError, MissingTypeScriptError } from "./errors.ts";
 export type Options = {
   /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
   skip?: ReadonlySet<Kind>;
@@ -31,7 +31,8 @@ export type Options = {
 /**
  * Reports what the type checker cannot. See {@link RULES} for what each rule looks for.
  *
- * Throws {@link MissingParserError} when oxc-parser is not installed.
+ * Throws {@link MissingParserError} when oxc-parser is not installed, and
+ * {@link MissingTypeScriptError} when a rule needs TypeScript and it is not installed.
  */
 export const lint = async (files: readonly string[], options: Options = {}): Promise<Finding[]> =>
   R.unwrap(await run(files, options));

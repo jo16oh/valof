@@ -115,11 +115,16 @@ function spawn(node: string[], args: string[], script = "src/lint/cli.ts"): Run 
 }
 
 /** The command, for what only the command does. */
-export const cli = (...args: string[]): Run => spawn([], args);
+const typescript = ["--import", fileURLToPath(new URL("typescript-7.1.ts", import.meta.url))];
+
+export const cli = (...args: string[]): Run => spawn(typescript, args);
 
 /** The same, with the parser out of reach, as it is before anyone installs it. */
 export const cliWithoutParser = (...args: string[]): Run =>
-  spawn(["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))], args);
+  spawn(
+    [...typescript, "--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))],
+    args,
+  );
 
 /** The same, with TypeScript out of reach. */
 export const cliWithoutTypeScript = (...args: string[]): Run =>

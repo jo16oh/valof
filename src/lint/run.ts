@@ -2,10 +2,11 @@ import { resolve } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 
-import { MissingParserError } from "./errors.ts";
+import { MissingParserError, MissingTypeScriptError } from "./errors.ts";
 import { RULES, type Finding } from "./rules/index.ts";
 import { scan, silences, type Parser } from "./scan/index.ts";
 import { moduleResolver } from "./scan/bindings.ts";
+import { arities, type Arity } from "./types.ts";
 import type { Options } from "./index.ts";
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
@@ -15,7 +16,7 @@ import type { Options } from "./index.ts";
 export async function run(
   files: readonly string[],
   { skip, report, overlay }: Options = {},
-): Promise<R.Result<Finding[], MissingParserError>> {
+): Promise<R.Result<Finding[], MissingParserError | MissingTypeScriptError>> {
   const loaded = await loadParser();
   if (R.isFailure(loaded)) return loaded;
   const parser = loaded.value;
@@ -29,9 +30,19 @@ export async function run(
 
   const findings: Finding[] = [];
   const notRun = new Set(skip ?? []);
-  for (const rule of RULES) {
-    if (notRun.has(rule.kind)) continue;
-    findings.push(...rule.run(scans, { reported: findings, notRun }));
+  // Started by the first rule that asks, and by none when no rule does.
+  let program: ReturnType<typeof arities> | undefined;
+  const types = (): Arity => (program ??= arities(walk.map((file) => resolve(file)))).arity;
+  try {
+    for (const rule of RULES) {
+      if (notRun.has(rule.kind)) continue;
+      findings.push(...rule.run(scans, { reported: findings, notRun, types }));
+    }
+  } catch (error) {
+    if (error instanceof MissingTypeScriptError) return R.fail(error);
+    throw error;
+  } finally {
+    program?.close();
   }
 
   /**

@@ -1,5 +1,6 @@
 import { Trait, Val, type Dyn, type Self } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
+import type { Arity } from "../types.ts";
 
 /**
  * What every rule reports: what it is, where to look, and what to say.
@@ -35,6 +36,13 @@ export type Context = {
    * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
    */
   notRun: ReadonlySet<string>;
+  /**
+   * The declared parameter count of an annotated const, from TypeScript. The program starts on the
+   * first call, so a rule calls it only once it has something to ask.
+   *
+   * @throws {MissingTypeScriptError} when TypeScript 7.1 or later is not installed
+   */
+  types: () => Arity;
 };
 
 /**

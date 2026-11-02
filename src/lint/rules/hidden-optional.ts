@@ -1,7 +1,18 @@
 import { Val } from "../../index.ts";
-import type { Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { resolve } from "node:path";
 
+import { symbolIdentity, type Scan } from "../scan/index.ts";
+import { Finding, Rule, type Context } from "./rule.ts";
+
+/**
+ * A member whose type annotation declares a parameter the implementation gives a default or a
+ * rest: `const toWire: ToWire = (u, sep = ",") => …` passed as `.impl(() => ({ toWire }))`. The
+ * annotation is all the type sees, so it cannot reject the member. The value-last call counts the
+ * parameters at run time, where a default and a rest do not count, and picks the wrong form.
+ *
+ * TypeScript counts the annotation's parameters, through an alias or an import. A default after
+ * the parameters the annotation declares is not reported: the type does not offer it.
+ */
 export type HiddenOptional = Val<"HiddenOptional", { kind: "hidden-optional" }, Rule>;
 export const HiddenOptional = Val.companion<HiddenOptional>()
   .implCreate(() => ({
@@ -9,9 +20,31 @@ export const HiddenOptional = Val.companion<HiddenOptional>()
     description: "a default or rest parameter that the type annotation on a member hides",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: (rule, scans, context) => findings(rule, scans, context) }))
   .build();
 
-function findings(_rule: HiddenOptional, _scans: readonly Scan[]): Finding[] {
-  return [];
+function findings({ kind }: HiddenOptional, scans: readonly Scan[], { types }: Context): Finding[] {
+  const identity = symbolIdentity(scans);
+  const used = new Set(scans.flatMap(({ memberSources }) => memberSources.map(identity)));
+  const candidates = scans.flatMap(({ file, hiddenParameters }) =>
+    hiddenParameters.filter(({ ref }) => used.has(identity(ref))).map((one) => ({ file, one })),
+  );
+  if (candidates.length === 0) return [];
+  const arity = types();
+  return candidates.flatMap(
+    ({ file, one: { name, offset, property, parameter, rest, line, column } }) => {
+      const declared = arity(resolve(file), offset, property);
+      if (declared === undefined || declared <= parameter) return [];
+      const what = rest ? "rest parameter" : "default";
+      return [
+        Finding.seal({
+          kind,
+          file,
+          line,
+          column,
+          message: `the annotation on ${property === undefined ? name : `${name}.${property}`} declares the parameter this ${what} makes optional, so a call with the value last finds the wrong arity; drop the ${what}, or write the member inline`,
+        }),
+      ];
+    },
+  );
 }
