@@ -19,14 +19,13 @@ describe("Selection.fromArgv", () => {
     });
   });
 
-  test("runs the checks named, and only those", () => {
-    expect(parsed("--types", "--compat")).toEqual({
-      size: false,
-      types: true,
-      compat: true,
-      release: false,
-      write: false,
-    });
+  test.each([
+    [["--size"], { size: true, types: false, compat: false }],
+    [["--types"], { size: false, types: true, compat: false }],
+    [["--compat"], { size: false, types: false, compat: true }],
+    [["--types", "--compat"], { size: false, types: true, compat: true }],
+  ])("runs the checks named, and only those: %j", (argv, checks) => {
+    expect(parsed(...argv)).toEqual({ ...checks, release: false, write: false });
   });
 
   test("takes --release and --write beside size, named or implied", () => {

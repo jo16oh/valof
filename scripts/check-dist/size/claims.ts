@@ -3,7 +3,8 @@ import { readFile, writeFile } from "node:fs/promises";
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 
-const root = new URL("../../../", import.meta.url);
+/** The repository, which the claimed files are relative to. */
+const repository = new URL("../../../", import.meta.url);
 const marker = "valof-minimal-bundle-size";
 
 /** The files that state the bundle size. A release adds the ones that describe the release. */
@@ -56,6 +57,7 @@ type Claim = {
 export async function claims(
   gzip: number,
   { release, write }: { release: boolean; write: boolean },
+  root: URL = repository,
 ): R.ResultAsync<void, ClaimCountError | StaleClaimError> {
   const size = `${format(gzip)} gzipped`;
   const found: Claim[] = [];
