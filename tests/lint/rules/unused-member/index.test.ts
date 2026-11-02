@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { BlockStep, CompanionMismatch, UnusedMember, fixtures } from "../../support.ts";
+import {
+  BlockStep,
+  CompanionMismatch,
+  UnqualifiedVariant,
+  UnusedMember,
+  fixtures,
+} from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
@@ -179,13 +185,13 @@ describe("Trait members", () => {
 });
 
 test("credits a variant's member through the enum and through a binding of its own", async () => {
-  expect(await lint("enum")).toEqual([
+  expect(await lint("enum", { skip: [UnqualifiedVariant] })).toEqual([
     { rule: UnusedMember, at: "enum.ts:5:51" },
     { rule: UnusedMember, at: "enum.ts:6:55" },
     { rule: UnusedMember, at: "enum.ts:7:18" },
   ]);
   // One name on two variants and on the union is three members.
-  expect(await messages("enum")).toEqual([
+  expect(await messages("enum", { skip: [UnqualifiedVariant] })).toEqual([
     "Shape.Circle.area is never read",
     "Shape.Square.area is never read",
     "Shape.area is never read",
