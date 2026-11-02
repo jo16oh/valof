@@ -7,3 +7,6 @@ const Doc = Val.companion<Doc, [Unpatchable<"id">]>()
   })).build();
 
 Doc.title(doc);
+
+type Doc = Val<"Doc", string>;
+declare const doc: Doc;

@@ -4,3 +4,5 @@ const User = Val.companion<User>().impl(() => ({
   shout: (u) => u.toUpperCase(),
   whisper: (u) => u.toLowerCase(),
 })).build();
+
+type User = Val<"User", string>;

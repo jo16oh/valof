@@ -7,3 +7,6 @@ const C = Val.companion<C>()
     return { hidden: (c) => c.name };
   })
   .build();
+
+type B = Val<"B", string>;
+type C = Val<"C", string>;

@@ -27,3 +27,5 @@ const Named = Trait.companion<Named>().impl(() => ({
   dyn: () => 0,
   then: () => 0,
 })).build();
+
+type Id = Val<"Id", string>;

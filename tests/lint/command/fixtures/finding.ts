@@ -5,3 +5,6 @@ const Id = Val.companion<Id>().impl(() => ({
 })).build();
 
 Id.short(id);
+
+type Id = Val<"Id", string>;
+declare const id: Id;

@@ -8,3 +8,6 @@ const User = Val.companion<User>().impl(() => ({
 User["bracket"](user);
 const { destructured } = User;
 const { renamed: aliased } = User;
+
+type User = Val<"User", string>;
+declare const user: User;

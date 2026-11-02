@@ -5,3 +5,5 @@ const User = Val.companion<User>().impl(() => ({
 })).build();
 
 User.shout;
+
+type User = Val<"User", string>;

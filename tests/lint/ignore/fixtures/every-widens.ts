@@ -7,3 +7,5 @@ const User = Val.companion<User>().impl(() => ({
   // valof-lint-disable-next-line brand-mismatch
   whisper: (u) => u.toLowerCase(),
 })).build();
+
+type User = Val<"User", string>;

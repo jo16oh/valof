@@ -4,3 +4,5 @@ const User = Val.companion<User>().impl(() => ({
   // another linter's note
   shout: (u) => u.toUpperCase(),
 })).build();
+
+type User = Val<"User", string>;

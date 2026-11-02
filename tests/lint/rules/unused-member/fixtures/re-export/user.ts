@@ -5,3 +5,5 @@ const User = Val.companion<User>().impl(() => ({
 })).build();
 
 export { User as Public };
+
+type User = Val<"User", string>;

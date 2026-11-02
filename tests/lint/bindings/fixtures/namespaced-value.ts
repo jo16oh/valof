@@ -6,3 +6,6 @@ const User = valof.Val.companion<User>().impl(() => ({
 })).build();
 
 User.greet(user);
+
+type User = Val<"User", string>;
+declare const user: User;
