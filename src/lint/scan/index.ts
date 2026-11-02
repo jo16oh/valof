@@ -289,8 +289,7 @@ export function scan(
         if (site)
           sites.push(
             id.type === "Identifier"
-              ? CompanionSite.seal({
-                  ...site,
+              ? CompanionSite.patch(site, {
                   name: id["name"] as string,
                   nameAt: at(id["start"] as number),
                 })

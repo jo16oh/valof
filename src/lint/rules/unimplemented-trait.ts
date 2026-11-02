@@ -28,8 +28,18 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
   );
   for (const scan of scans)
     for (const { alias, ref, traits: declared, onlyDeclared } of [
-      ...scan.aliases.map((one) => ({ ...one, onlyDeclared: false })),
-      ...scan.enumAliases.map((one) => ({ ...one, onlyDeclared: true })),
+      ...scan.aliases.map(({ alias, ref, traits }) => ({
+        alias,
+        ref,
+        traits,
+        onlyDeclared: false,
+      })),
+      ...scan.enumAliases.map(({ alias, ref, traits }) => ({
+        alias,
+        ref,
+        traits,
+        onlyDeclared: true,
+      })),
     ]) {
       const implemented = new Set(
         scan.traitImplementations
