@@ -1,4 +1,5 @@
 import { BlockStep } from "./block-step.ts";
+import { UnqualifiedVariant } from "./unqualified-variant.ts";
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
 import { UnnecessaryAlias } from "./unnecessary-alias.ts";
@@ -29,6 +30,7 @@ export const RULES = [
   box(BypassedCompanion, BypassedCompanion.create()),
   box(UnnamedOf, UnnamedOf.create()),
   box(BlockStep, BlockStep.create()),
+  box(UnqualifiedVariant, UnqualifiedVariant.create()),
   box(IncompleteDisable, IncompleteDisable.create()),
   box(UnusedDisable, UnusedDisable.create()),
 ] as const;
@@ -40,6 +42,7 @@ export const RULES = [
  */
 export {
   BlockStep,
+  UnqualifiedVariant,
   UnnecessaryAlias,
   BrandMismatch,
   BypassedCompanion,
