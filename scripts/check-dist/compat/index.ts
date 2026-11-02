@@ -47,8 +47,8 @@ export async function checkCompat({
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });
 
-  // Installed the way npm installs it, so `exports` decides what a declaration may reference. A path
-  // to `dist` would let it reach a module the package does not export.
+  // Installed the way npm installs it, so `exports` decides what a declaration may reference. A
+  // path to `dist` would let it reach a module the package does not export.
   const installed = join(directory, "node_modules/valof");
   await cp(join(root, "dist"), join(installed, "dist"), { recursive: true });
   await copyFile(join(root, "package.json"), join(installed, "package.json"));
@@ -131,8 +131,8 @@ export async function checkCompat({
    * against this `dist` only when the pin builds the same one; `--require-pin` fails otherwise,
    * which a release PR passes so the scripts catch up before a release.
    *
-   * Copied, with a `package.json` that sends `#valof` to the installed package. The copy sits inside
-   * the repository, so every other import still reaches its `node_modules`.
+   * Copied, with a `package.json` that sends `#valof` to the installed package. The copy sits
+   * inside the repository, so every other import still reaches its `node_modules`.
    */
   const scripts = join(directory, "scripts");
   const pin = await pinned();

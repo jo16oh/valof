@@ -53,7 +53,7 @@ const budget: Record<Fixture, number> = { core: 10_000, trait: 22_000, enum: 90_
  *
  * The entry plus every file it imports, which is what a consumer downloads for `import "valof"`.
  *
- * Here rather than in `bundle-size` because it is a type cost. It never reaches a user's bundle;
+ * Here rather than in the size check because it is a type cost. It never reaches a user's bundle;
  * what it costs is the download and every parse of it, and a run away shows as a type graph the
  * declarations drag in whole. `Finding` derived from `RULES` took `lint`'s declarations to
  * 14.9 kB that way, which is the size of the accident this catches. Creep is a few hundred bytes
@@ -147,9 +147,9 @@ export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudge
     const declarations = await declarationBytes(new URL("../../../dist/index.d.ts", here));
 
     /**
-     * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the fixtures
-     * differed by 5 instantiations in 1,677, the checkers' own noise. `vp run ts-compatibility` still
-     * typechecks every line.
+     * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
+     * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
+     * --compat` still typechecks every line.
      */
     const compile = tsc(floor);
     const baseline = await measure(compile, "baseline");
