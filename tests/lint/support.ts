@@ -117,10 +117,16 @@ export const cliWithoutParser = (...args: string[]): Run =>
 export const cliWithoutTypeScript = (...args: string[]): Run =>
   spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);
 
-/** Runs a module's default export with the parser out of reach, and prints what it threw. */
-export const withoutParser = (module: string): Run =>
+/**
+ * Runs a module's default export with the parser out of reach, and prints what it threw. `broken`
+ * makes the parser fail to load for another reason than a missing install.
+ */
+export const withoutParser = (module: string, broken = false): Run =>
   spawn(
-    ["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))],
+    [
+      "--import",
+      fileURLToPath(new URL(broken ? "broken-oxc-parser.ts" : "no-oxc-parser.ts", import.meta.url)),
+    ],
     [module],
     fileURLToPath(new URL("no-parser/run.ts", import.meta.url)),
   );

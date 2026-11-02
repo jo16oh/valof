@@ -16,3 +16,9 @@ test("lint() rejects with MissingParserError, carrying the install line", () => 
 test("the plugin throws the command's instruction", () => {
   expect(withoutParser(module("plugin.ts")).stdout).toContain("pnpm add -D oxc-parser");
 });
+
+test("lint() lets any other failure to load the parser through as it is", () => {
+  expect(withoutParser(module("lint.ts"), true).stdout).toBe(
+    "Error the parser's binding failed to load\n",
+  );
+});
