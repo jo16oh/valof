@@ -7,5 +7,5 @@ const User = V.companion<User>().impl(() => ({
 
 User.greet(user);
 
-type User = Val<"User", string>;
+type User = V<"User", { id: string; name: string }>;
 declare const user: User;

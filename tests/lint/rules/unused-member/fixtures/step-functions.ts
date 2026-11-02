@@ -9,4 +9,4 @@ const C = Val.companion<C>()
   .build();
 
 type B = Val<"B", string>;
-type C = Val<"C", string>;
+type C = Val<"C", { id: string; name: string; title: string }>;

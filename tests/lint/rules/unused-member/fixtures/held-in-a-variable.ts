@@ -8,5 +8,5 @@ export const User = seal.impl(() => ({
 
 User.greet(user);
 
-type User = Val<"User", string>;
+type User = Val<"User", { id: string; name: string; title: string }>;
 declare const user: User;

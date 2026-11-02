@@ -8,5 +8,5 @@ const Doc = Val.companion<Doc, [Unpatchable<"id">]>()
 
 Doc.title(doc);
 
-type Doc = Val<"Doc", string>;
+type Doc = Val<"Doc", { id: string; name: string; title: string }>;
 declare const doc: Doc;

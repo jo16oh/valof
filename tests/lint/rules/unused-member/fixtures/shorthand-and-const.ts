@@ -6,4 +6,4 @@ const User = Val.companion<User>().impl(() => ({
   MAX: 10,
 })).build();
 
-type User = Val<"User", string>;
+type User = Val<"User", { id: string; name: string; title: string }>;

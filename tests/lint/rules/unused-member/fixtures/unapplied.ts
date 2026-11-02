@@ -5,6 +5,6 @@ const User = Val.companion<User>().impl(() => ({
 
 pipe(user, User.greet);
 
-type User = Val<"User", string>;
+type User = Val<"User", { id: string; name: string; title: string }>;
 declare const pipe: unknown;
 declare const user: User;

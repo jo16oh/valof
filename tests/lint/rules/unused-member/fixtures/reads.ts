@@ -9,5 +9,5 @@ User["bracket"](user);
 const { destructured } = User;
 const { renamed: aliased } = User;
 
-type User = Val<"User", string>;
+type User = Val<"User", { id: string; name: string; title: string }>;
 declare const user: User;
