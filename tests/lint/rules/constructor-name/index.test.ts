@@ -11,9 +11,6 @@ test("reports a constructor named otherwise, and a member of .impl named as one"
     { rule: ConstructorName, at: "money.ts:11:5" },
     { rule: ConstructorName, at: "money.ts:17:5" },
   ]);
-});
-
-test("says which name to give, and where a member that takes the value goes", async () => {
   expect(await messages("money")).toEqual([
     "Money.read makes a Money; name it from*, parse* or create*",
     "Money.random makes a Money; name it from*, parse* or create*",

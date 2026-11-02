@@ -81,3 +81,9 @@ test("reports a Trait a variant declares and its companion leaves out", async ()
     "Item.Pen declares Named, but its companion does not implement it",
   ]);
 });
+
+test("does not let a variant's implementation answer for the enum's Trait", async () => {
+  expect(await messages("variant-only", { skip: [UnusedMember, UnrelatedAssoc] })).toEqual([
+    "Item declares Named, but its companion does not implement it",
+  ]);
+});

@@ -4,8 +4,8 @@ import { BlockStep, CompanionMismatch, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
-test("reports a step function with a block body, and spares a seal, a held function and a step of no companion", async () => {
-  // A held builder is a companion under a second name too, which is not this rule's to report.
+test("reports a step function with a block body, and spares a seal, a held function and a step on a chain that is not a companion", async () => {
+  // A held builder is a companion under a second name too, which this rule does not report.
   expect(await lint("steps", { skip: [CompanionMismatch] })).toEqual([
     { rule: BlockStep, at: "steps.ts:5:9" },
     { rule: BlockStep, at: "steps.ts:16:21" },
@@ -13,10 +13,7 @@ test("reports a step function with a block body, and spares a seal, a held funct
     { rule: BlockStep, at: "steps.ts:29:16" },
     { rule: BlockStep, at: "steps.ts:37:23" },
   ]);
-});
-
-test("says what to write instead", async () => {
-  expect((await messages("steps"))[0]).toBe(
+  expect((await messages("steps", { skip: [CompanionMismatch] }))[0]).toBe(
     "the function passed to .impl has a block body; return the object itself: () => ({ … })",
   );
 });

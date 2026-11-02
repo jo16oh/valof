@@ -130,6 +130,9 @@ export const cliWithoutParser = (...args: string[]): Run =>
     args,
   );
 
+/** The same, with the TypeScript the package builds with, 7.0, which has no `typescript/sync`. */
+export const cliWithTypeScript70 = (...args: string[]): Run => spawn([], args);
+
 /** The same, with TypeScript out of reach. */
 export const cliWithoutTypeScript = (...args: string[]): Run =>
   spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);

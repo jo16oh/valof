@@ -1,72 +1,72 @@
 import { expect, test } from "vite-plus/test";
 
-import { lint } from "../../../../src/lint/index.ts";
+import { lint, type ModelSettings } from "../../../../src/lint/index.ts";
 import { ModelOnlyInValof, cli, fixtures } from "../../support.ts";
 
-const { files, lint: run, messages } = fixtures(import.meta.url);
+const { files, lint: run } = fixtures(import.meta.url);
 
-const reported = async (enable: Parameters<typeof lint>[1]): Promise<string[]> =>
-  (await lint(files("domain"), enable))
+const reported = async (settings: ModelSettings, file = "domain"): Promise<string[]> =>
+  (await lint(files(file), { enable: { "model-only-in-valof": settings } }))
     .filter(({ kind }) => kind === ModelOnlyInValof.kind)
-    .map(({ line, column }) => `${line}:${column}`);
+    .map(({ line, column, message }) => `${line}:${column} ${message}`);
+
+const data = (name: string): string =>
+  `${name} declares a data type outside Valof; model it as a Val, an Enum or a Trait`;
+const primitive = (name: string): string =>
+  `${name} names a primitive type outside Valof; make it a Val, or Payload<…> for a payload`;
 
 test("runs only when enabled", async () => {
   expect((await run("domain")).filter(({ rule }) => rule === ModelOnlyInValof)).toEqual([]);
 });
 
 test("reports a named data type outside Valof, and spares Valof types, unions and functions", async () => {
-  expect(await reported({ enable: { "model-only-in-valof": {} } })).toEqual([
-    "9:13",
-    "10:18",
-    "13:13",
-    "14:13",
-    "15:13",
-    "16:13",
-    "17:27",
-    "21:13",
-    "22:43",
-    "24:29",
+  expect(await reported({})).toEqual([
+    `9:13 ${data("Row")}`,
+    `10:18 ${data("Props")}`,
+    `13:13 ${primitive("UserId")}`,
+    `14:13 ${primitive("Status")}`,
+    `15:13 ${data("Ids")}`,
+    `16:13 ${data("Partialed")}`,
+    `17:27 ${data("OnRow")}`,
+    "21:13 Wrong wraps the Val User in Payload; write PayloadOf<User>",
+    "22:43 Order nests an object that is not a Val; nest a Val instead",
+    "24:29 Name is a payload type; use it in a Valof type, or in the function passed to implSeal or implCreate",
   ]);
 });
 
-test("reports classes, constraints and types taken out of values, each when asked", async () => {
-  const all = await reported({
-    enable: { "model-only-in-valof": { classes: true, constraints: true, extraction: true } },
-  });
-  expect(all.filter((at) => ["29:8", "30:32", "31:13"].includes(at))).toEqual([
-    "29:8",
-    "30:32",
-    "31:13",
+test("reports classes, constraints and types taken out of values, each only when asked", async () => {
+  const added = async (settings: ModelSettings): Promise<string[]> => {
+    const always = new Set(await reported({}));
+    return (await reported(settings)).filter((one) => !always.has(one));
+  };
+  expect(await added({ classes: true })).toEqual([
+    "29:8 a class declares data outside Valof; model it as a Val",
+  ]);
+  expect(await added({ constraints: true })).toEqual([
+    "30:32 this constraint declares a data shape; write a Trait or an Enum",
+  ]);
+  expect(await added({ extraction: true })).toEqual([
+    "31:13 Made takes its type out of a value; declare a Val instead",
   ]);
 });
 
-test("says what to write instead", async () => {
-  const said = await messages("domain", { enable: { "model-only-in-valof": {} } });
-  expect(said).toContain(
-    "Row declares a data type outside Valof; model it as a Val, an Enum or a Trait",
-  );
-  expect(said).toContain("Wrong wraps the Val User in Payload; write PayloadOf<User>");
-  expect(said).toContain(
-    "Name is a payload type; use it in a Valof type, or in the function passed to implSeal or implCreate",
-  );
+test("leaves a declaration file alone", async () => {
+  expect(await reported({}, "declared.d")).toEqual([]);
 });
+
+const under = "tests/lint/rules/model-only-in-valof/fixtures";
 
 test("is enabled on the command line, with its settings after an equals sign", () => {
-  const under = "tests/lint/rules/model-only-in-valof/fixtures";
-  expect(cli(under).stdout).not.toContain("model-only-in-valof");
   expect(cli(under, "--model-only-in-valof").stdout).toContain(
     "domain.ts:9:13  model-only-in-valof",
   );
-  expect(cli(under, "--model-only-in-valof=classes").stdout).toContain(
-    "domain.ts:29:8  model-only-in-valof",
-  );
+  const classes = cli(under, "--model-only-in-valof=classes").stdout;
+  expect(classes).toContain("domain.ts:29:8  model-only-in-valof");
+  expect(classes).not.toContain("domain.ts:30:32");
 });
 
 test("refuses a setting it does not take", () => {
-  const { status, stderr } = cli(
-    "tests/lint/rules/model-only-in-valof/fixtures",
-    "--model-only-in-valof=typo",
-  );
+  const { status, stderr } = cli(under, "--model-only-in-valof=typo");
   expect(status).toBe(2);
   expect(stderr).toBe(
     'valof-lint: no setting called "typo"\n  known settings: classes, constraints, extraction',
