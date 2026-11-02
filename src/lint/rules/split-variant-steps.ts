@@ -3,14 +3,15 @@ import type { Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /**
- * A variant whose steps another variant's split: `.Circle.implSeal(f).Square.impl(g).Circle.impl(h)`.
- * The type accepts the order, and a reader of one variant has to find its steps across the chain.
+ * A variant whose steps are split by another variant's steps:
+ * `.Circle.implSeal(f).Square.impl(g).Circle.impl(h)`. The type accepts the order, and a reader of
+ * one variant has to find its steps across the chain.
  */
 export type SplitVariantSteps = Val<"SplitVariantSteps", { kind: "split-variant-steps" }, Rule>;
 export const SplitVariantSteps = Val.companion<SplitVariantSteps>()
   .implCreate(() => ({
     kind: "split-variant-steps",
-    description: "a variant whose steps are split by another's in the chain",
+    description: "a variant whose steps are split by another variant's steps in the chain",
     warns: true,
   }))
   .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))

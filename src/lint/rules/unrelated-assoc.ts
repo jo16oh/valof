@@ -4,14 +4,14 @@ import { Finding, Rule } from "./rule.ts";
 
 /**
  * An `.implAssoc` member that names neither the type, nor its companion, nor a `seal` or `create`:
- * a helper parked on the companion. Only the member's own syntax is read, so one defined elsewhere
- * and passed in is left alone.
+ * a helper placed on the companion. Only the member's own syntax is read, so one defined elsewhere
+ * and passed in is not reported.
  */
 export type UnrelatedAssoc = Val<"UnrelatedAssoc", { kind: "unrelated-assoc" }, Rule>;
 export const UnrelatedAssoc = Val.companion<UnrelatedAssoc>()
   .implCreate(() => ({
     kind: "unrelated-assoc",
-    description: "an `.implAssoc` member that neither takes nor makes the type",
+    description: "an `.implAssoc` member that names neither its type nor a `seal` or `create`",
     warns: true,
   }))
   .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
@@ -27,7 +27,7 @@ function findings({ kind }: UnrelatedAssoc, scans: readonly Scan[]): Finding[] {
           file,
           line,
           column,
-          message: `${companion}.${member} neither takes nor makes a ${type}; move it out of the companion`,
+          message: `${companion}.${member} names neither ${type} nor a seal or create; move it out of the companion`,
         }),
       ),
   );

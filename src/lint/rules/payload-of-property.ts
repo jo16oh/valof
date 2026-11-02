@@ -3,9 +3,9 @@ import type { Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /**
- * `PayloadOf<X>` inside a payload: `total: PayloadOf<Money>` type-checks and holds `Money`'s payload
- * without its brand, so nothing stops a value `Money.seal` would reject. As the payload, or as the
- * base intersected at its top, it is what `PayloadOf` is for.
+ * `PayloadOf<X>` inside a payload: `total: PayloadOf<Money>` is accepted and holds `Money`'s
+ * payload without its brand, so nothing stops a value `Money.seal` would reject. As the payload, or
+ * as the base intersected at its top, it is what `PayloadOf` is for.
  */
 export type PayloadOfProperty = Val<"PayloadOfProperty", { kind: "payload-of-property" }, Rule>;
 export const PayloadOfProperty = Val.companion<PayloadOfProperty>()

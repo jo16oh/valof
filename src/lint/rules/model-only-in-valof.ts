@@ -8,7 +8,7 @@ import { Finding, Rule } from "./rule.ts";
  * or an interface, declared with `type` or `interface`. `Payload<…>` names a type for a payload,
  * which may then appear in a Valof type and in the function passed to `implSeal` or `implCreate`.
  *
- * Off unless enabled: it enforces a way of modelling, and reports nothing broken.
+ * Off unless enabled, because it enforces a way of modelling and reports nothing broken.
  */
 export type ModelOnlyInValof = Val<
   "ModelOnlyInValof",
@@ -24,7 +24,7 @@ export type ModelOnlyInValof = Val<
 export const ModelOnlyInValof = Val.companion<ModelOnlyInValof>()
   .implCreate(({ classes = false, constraints = false, extraction = false }: ModelSettings) => ({
     kind: "model-only-in-valof",
-    description: "a data type declared outside Valof, off unless --model-only-in-valof",
+    description: "a data type declared outside Valof, off by default",
     warns: false,
     optIn: true,
     classes,

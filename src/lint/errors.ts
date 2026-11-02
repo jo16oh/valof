@@ -11,13 +11,13 @@ export class MissingParserError extends ErrorFactory({
 
 /**
  * TypeScript 7.1 or later is an optional peer dependency. Only a rule that reads a type needs it,
- * and only where the code gives that rule something to ask.
+ * and only where the code has something for that rule to check.
  */
 export class MissingTypeScriptError extends ErrorFactory({
   name: "MissingTypeScriptError",
   message:
-    "valof-lint needs TypeScript 7.1 or later to read the annotations here, which valof does not" +
-    " install for you.\n  pnpm add -D typescript",
+    "valof-lint needs TypeScript 7.1 or later to read the annotations here. valof does not" +
+    " install it for you.\n  pnpm add -D typescript",
 }) {}
 
 /** `--no-<kind>` with a kind no rule has. */

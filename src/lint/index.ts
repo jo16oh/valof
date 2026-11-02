@@ -5,7 +5,7 @@ import { run } from "./run.ts";
 
 export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
 export { MissingParserError, MissingTypeScriptError } from "./errors.ts";
-/** How `model-only-in-valof` reads, past what it always reports. Each defaults to `false`. */
+/** What `model-only-in-valof` reports beyond what it always reports. Each defaults to `false`. */
 export type ModelSettings = {
   /** Report a class, declared or as an expression. */
   classes?: boolean;

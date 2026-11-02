@@ -89,7 +89,7 @@ export { Finding, Rule, type Context } from "./rule.ts";
 
 /**
  * The rules a run uses: every rule on by default, and each opt-in rule `enable` names, with its
- * settings. css-var-kit's `compile`, in effect.
+ * settings.
  */
 export const compile = (enable: Options["enable"] = {}): readonly (typeof RULES)[number][] => {
   const model = enable["model-only-in-valof"];

@@ -807,7 +807,7 @@ function split(
     const step = callee?.type === "MemberExpression" ? stepOf(callee) : undefined;
     if (!step) break;
     const variant = variantOf(step.receiver);
-    // The root call, `Enum.companion<X>()`, is no step.
+    // The root call, `Enum.companion<X>()`, is not a step.
     if (!variant && step.receiver.type !== "CallExpression") break;
     const property = variant && child(step.receiver, "property");
     steps.unshift({
@@ -888,7 +888,7 @@ function bodies(
         for (const inner of descendants(value)) {
           if (inner.type === "Identifier") {
             const name = inner["name"] as string;
-            // The companion shares the type's name, which companion-mismatch holds it to.
+            // The companion shares the type's name, which companion-mismatch enforces.
             if (name === type || local.has(name)) related = true;
           }
           if (inner.type !== "CallExpression") continue;

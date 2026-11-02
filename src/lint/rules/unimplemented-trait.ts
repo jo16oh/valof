@@ -37,7 +37,8 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
       })),
       ...scan.enumAliases.flatMap(({ alias, ref, traits, variantTraits }) => [
         { alias, ref, variant: undefined, traits, onlyDeclared: true },
-        // A variant's payload names its fields as well, so it is read like an enum's.
+        // A variant's payload intersects its fields with its traits, so, as for an enum, only a
+        // reference to a declared Trait counts.
         ...variantTraits.map(({ variant, traits: own }) => ({
           alias: `${alias}.${variant}`,
           ref,

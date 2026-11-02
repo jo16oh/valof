@@ -7,17 +7,17 @@ import { Finding, Rule, type Context } from "./rule.ts";
 /**
  * A member whose type annotation declares a parameter the implementation gives a default or a
  * rest: `const toWire: ToWire = (u, sep = ",") => …` passed as `.impl(() => ({ toWire }))`. The
- * annotation is all the type sees, so it cannot reject the member. The value-last call counts the
+ * checker sees only the annotation, so it cannot reject the member. The value-last call counts the
  * parameters at run time, where a default and a rest do not count, and picks the wrong form.
  *
  * TypeScript counts the annotation's parameters, through an alias or an import. A default after
- * the parameters the annotation declares is not reported: the type does not offer it.
+ * the parameters the annotation declares is not reported, because the type does not offer it.
  */
 export type HiddenOptional = Val<"HiddenOptional", { kind: "hidden-optional" }, Rule>;
 export const HiddenOptional = Val.companion<HiddenOptional>()
   .implCreate(() => ({
     kind: "hidden-optional",
-    description: "a default or rest parameter that the type annotation on a member hides",
+    description: "a default or rest parameter that a member's type annotation hides",
     warns: false,
   }))
   .implTrait(Rule, () => ({ run: (rule, scans, context) => findings(rule, scans, context) }))

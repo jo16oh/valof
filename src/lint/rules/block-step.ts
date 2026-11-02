@@ -17,7 +17,8 @@ export const BlockStep = Val.companion<BlockStep>()
  * Reports a member step whose function has a block body: `() => { … }` or `function () { … }`.
  *
  * A local in the block is state every member shares and no reader of a member sees. `implSeal`
- * and `implCreate` are left alone, since a check or a generator is written as statements.
+ * and `implCreate` are not reported, since a check or the code that builds a payload is written as
+ * statements.
  */
 function findings({ kind }: BlockStep, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, blockSteps }) =>

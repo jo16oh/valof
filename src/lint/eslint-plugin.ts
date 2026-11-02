@@ -35,8 +35,8 @@ type Ask = {
   file: string;
   text: string;
   /**
-   * The settings of `model-only-in-valof`. It always runs here: the host reports it only where the
-   * project turned it on.
+   * The settings of `model-only-in-valof`. It always runs here, because the host reports it only
+   * where the project turned it on.
    */
   model: ModelSettings;
 };

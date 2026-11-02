@@ -32,7 +32,7 @@ export type Models = {
   outside: TypeUse[];
 };
 
-/** The types whose arguments are Valof's to check. */
+/** The types whose arguments Valof checks. */
 const VALOF = new Set(["Val", "Enum", "Trait", "Payload"]);
 
 /** Built-in types that declare data. */
@@ -72,16 +72,16 @@ const nameOf = (node: Node, bound: Bindings): string | undefined => {
   return name?.type === "Identifier" ? original(bound, name["name"] as string) : undefined;
 };
 
-/** The node itself, past parentheses and `readonly`, which add no shape of their own. */
+/** The node itself, with parentheses and `readonly` unwrapped, which add no shape of their own. */
 const bare = (node: Node | undefined): Node | undefined => {
   const inside = unparenthesized(node);
   return inside?.type === "TSTypeOperator" ? bare(child(inside, "typeAnnotation")) : inside;
 };
 
 /**
- * Reads one file for `model-only-in-valof`. Syntax alone: a name is matched to a Val by spelling,
- * the way the other rules match one. A `.d.ts` and the body of `declare global` / `declare module`
- * describe someone else's code, and are skipped.
+ * Reads one file for `model-only-in-valof`. It reads syntax alone. A name is matched to a Val by
+ * spelling, the way the other rules match one. A `.d.ts` and the body of `declare global` /
+ * `declare module` describe someone else's code, and are skipped.
  */
 export function models(
   file: string,
@@ -94,7 +94,7 @@ export function models(
   const report = (shape: Shape, name: string, node: Node): void =>
     void found.models.push(Model.seal({ ...at(node["start"] as number), shape, name }));
 
-  /** The first node under `node` that declares data, past every Valof type's arguments. */
+  /** The first node under `node` that declares data, skipping every Valof type's arguments. */
   const data = (node: Node): Node | undefined => {
     const inside = unparenthesized(node);
     if (!inside) return undefined;

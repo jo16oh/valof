@@ -294,9 +294,9 @@ type Declared<V> = V extends Phantom<string, infer T> ? T : never;
 export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
 /**
- * A type written to be a payload, named: `type Fields = Payload<{ id: string }>`. It is `T`
- * unchanged. valof-lint's `model-only-in-valof` allows it where a payload goes, and reports any
- * other named data type.
+ * Names a type meant for a payload: `type Fields = Payload<{ id: string }>`. It is `T` unchanged.
+ * valof-lint's `model-only-in-valof` allows it inside a Valof type and in the function passed to
+ * `implSeal` or `implCreate`, and reports any other named data type.
  *
  * Not {@link PayloadOf}, which takes a Val's payload out of it.
  */

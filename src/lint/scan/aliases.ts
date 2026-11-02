@@ -379,7 +379,6 @@ function payloadOfs(
   aliases: ReadonlyMap<string, Node>,
   at: (offset: number) => Where,
 ): NestedPayloadOf[] {
-  /** What a local `type M = Payload<PayloadOf<X>>` wraps: `X`, read one step and no further. */
   /** The reference's name, resolved against the imports, and its first type argument. */
   const referenced = (
     node: Node | undefined,
