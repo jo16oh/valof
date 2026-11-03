@@ -3016,10 +3016,21 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **却下: `Phantom` を class でなくす（文字列キー `__valof_brand_…`）。**spread でブランドが残って seal を
     迂回できる、ブランドを手書きで偽造できる、`keyof` に出る、`__valof_` の予約が戻る。§2.1「2026-10-26: キーを
     symbol に戻した」が symbol キー版を却下したのと同じ理由
-  - この repo の `oxlint.config.ts` には入れない。規則自体を有効にしておらず、`src` に Val の spread も無い
-- [ ] **`Dyn` の spread が型を偽る。**`{ ...Greetable.dyn(User, user) }` の型は `{ name: string; greet: () => string }`
-      だが、実行時は `{ id, name }` で `greet` が無い。今は `no-misused-spread` の警告だけが止める。型で塞ぐか、
-      docs に書くかは未決
+  - **却下: enum 全体にも `Phantom` を交差させる。**TS が `(A | B) & P` を `(A & P) | (B & P)` に分配するので、
+    型は union のままで、oxlint の警告も残る（probe 済み）
+  - **この repo でも有効にした。**`src/val.ts` の `Phantom`（テストが `src` から import する）と、docs と同じ
+    package 指定（`#valof` の名前は `valof`）の 2 つを許す。`tests/no-misused-spread.ts` が、警告が消える形と残る
+    形を 1 行ずつ固定する。使われない disable コメントがエラーになるので、規則の挙動がどちらに変わっても落ちる。
+    テストにあった、Val の spread を黙らせる disable コメント 3 件は不要になった
+- [x] ~~**`Dyn` の spread が型を偽る。**~~ → 誤用として扱い、`no-misused-spread` の警告に任せる、2026-11-03。
+      `{ ...Greetable.dyn(User, user) }` の型は `{ name: string; greet: () => string }` だが、実行時は
+      `{ id, name }` で `greet` が無い。box を spread する使い道はほぼ無い（フィールドは読めば足り、結果は Val
+      でも box でもない）ので、docs にも書かない
+  - **却下: 型で塞ぐ。**TS が spread の型から落とすのは、class にメソッドとして宣言したメンバだけ。`Bound` は
+    mapped type で、`Pick` でクラスから写しても落ちない（probe 済み）
+  - **却下: box をクラスのインスタンスにする。**Proxy の target にクラスの prototype を持たせれば `instanceof` も
+    通るが、spread は target の own key を読むので結果は変わらない。メンバは今も実行時に落ちている。trait の
+    shape は型にしかないので、`id` だけ落とすこともできない
 
 ---
 
