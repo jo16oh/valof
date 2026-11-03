@@ -27,9 +27,10 @@ declare const SelfMark: unique symbol;
 /**
  * The implementing Val, standing in for it inside a trait's member signatures.
  *
- * An opaque marker rather than a reference to the trait, which would be circular. `implTrait`
- * substitutes the Val for a parameter typed exactly `Self`. In `readonly Self[]`, it stays `Self`.
- * A member may not return `Self`.
+ * An opaque marker rather than a reference to the trait, which would be circular. It is a member's
+ * first parameter, and `implTrait` substitutes the Val for it. No other parameter and no return type
+ * may hold it: a {@link Dyn} would let another Val in. Type another parameter that reads the fields
+ * with `Payload`: `(self: Self, other: Payload<{ name: string }>) => boolean`.
  */
 export type Self = { readonly [SelfMark]: true };
 
@@ -139,28 +140,23 @@ export type FinalsOf<Tr extends AnyTrait> = {
   [K in keyof MembersOf<Tr>]: MembersOf<Tr>[K] extends { readonly [FinalMark]: true } ? K : never;
 }[keyof MembersOf<Tr>];
 
-// Only parameters are walked: a member returning `Self` is rejected by `Declarable`.
-type SubstArgs<A extends readonly unknown[], S> = {
-  [I in keyof A]: [A[I]] extends [Self] ? S : A[I];
-};
-
 /** A trait's members as a Val implements them: the receiver first, as in every companion. */
 export type Unbound<M extends Members, S> = {
   [K in keyof M]: M[K] extends (self: Self, ...args: infer A) => infer R
-    ? (self: S, ...args: SubstArgs<A, S>) => R
+    ? (self: S, ...args: A) => R
     : never;
 };
 
 /** The same members on a {@link Dyn}, where the receiver is already bound. */
-export type Bound<M extends Members, S> = {
+export type Bound<M extends Members> = {
   [K in keyof M]: M[K] extends (self: Self, ...args: infer A) => infer R
-    ? (...args: SubstArgs<A, S>) => R
+    ? (...args: A) => R
     : never;
 };
 
-// The search stops at five levels, the return type itself being the first. Without the bound, a
-// type that refers to itself, such as `Promise` or a linked list, makes it fail with TS2615. Self
-// inside more than four nested types is missed.
+// The search stops at five levels, the parameter or return type itself being the first. Without the
+// bound, a type that refers to itself, such as `Promise` or a linked list, makes it fail with TS2615.
+// Self inside more than four nested types is missed.
 type HasSelf<T, Depth extends unknown[] = []> = Depth["length"] extends 5
   ? false
   : true extends (T extends unknown ? HasSelfBranch<T, [...Depth, unknown]> : never)
@@ -188,8 +184,8 @@ type HasSelfBranch<T, Depth extends unknown[]> = [T] extends [Self]
             : false;
 
 /**
- * Rejects a member a Val could not carry: one returning `Self`, and one named after something the
- * library reserves, the trait's own `dyn` included.
+ * Rejects a member a Val could not carry: one taking `Self` after its first parameter, one returning
+ * `Self`, and one named after something the library reserves, the trait's own `dyn` included.
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
@@ -204,12 +200,14 @@ type Declarable<Shape, M extends Members> = {
       ? Invalid<"a trait member cannot take the name the trait itself uses">
       : K extends Reserved
         ? Invalid<"a trait member cannot take a name the library reserves">
-        : M[K] extends (...args: never[]) => infer R
-          ? HasSelf<R> extends true
-            ? Invalid<"a trait member cannot return Self">
-            : Omission<M[K]> extends string
-              ? Invalid<Omission<M[K]> & string>
-              : M[K]
+        : M[K] extends (self: never, ...args: infer A) => infer R
+          ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
+            ? Invalid<"Self can only be a member's first parameter; type another one with Payload">
+            : HasSelf<R> extends true
+              ? Invalid<"a trait member cannot return Self">
+              : Omission<M[K]> extends string
+                ? Invalid<Omission<M[K]> & string>
+                : M[K]
           : M[K];
 };
 
@@ -224,7 +222,7 @@ type Declarable<Shape, M extends Members> = {
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>, Tr>;
+export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>>;
 
 /**
  * Where a companion records every member `implTrait` registered. Read by
