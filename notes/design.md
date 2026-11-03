@@ -43,7 +43,7 @@ import { Val } from "valof";
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）。**2026-10-26 に段の引数を関数に揃えた**（注釈の税は変わらない）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる、16.3 Enum の production gzip を削る（段の共有、却下した予算 +512 B）
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
-- **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify。18.4 利用者の宣言出力が参照する `internal/*`（却下した entry からの export、クラスにした `PrivateSeal` / `PrivateCreate`）
+- **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify。18.4 利用者の宣言出力が参照する `internal/*`（却下した entry からの export、クラスにした `PrivateSeal` / `PrivateCreate`）、18.5 宣言出力で型を `any` に切らせない（名前で印字させるビルダー、`/*elided*/` の検査、7.1 を線に入れない判断）
 - **§19 scripts が使う valof を固定する** `#valof` をコミットのビルドに向ける。一致の判定、リリース PR だけ一致を必須にすること、ts-compatibility が scripts をコピーして読むこと、ハッシュを `package.json` に書く理由（`optimisticRepeatInstall`）、却下した git 依存・pkg.pr.new・その場で読む案。追従で見つかった dual メンバーと lint
 
 ---
@@ -8202,6 +8202,56 @@ export されていないクラスを書けないので、private メンバを�
 入ったので、同じく直した。
 
 検査の方法も変えた（§10.1）。
+
+### 18.5 利用者の宣言出力で型を `any` に切らせない、2026-11-03
+
+**TypeScript 7.1 で `Trait.companion<…>().impl(…)` を export すると TS7056 で落ちた。**7.1 は、印字する型の
+入れ子が深さ 10 を超えたとき、黙って `/*elided*/ any` を書いていたのをエラーにした（microsoft/TypeScript#64461、
+意図した変更）。5.9 / 6.0 / 7.0 の利用者の `.d.ts` は、そこが `any` になっていた。
+
+**起きるのは、`.build()` していないビルダーを推論のまま export したときだけ。**`.build()` した companion は
+修正前から名前で出る。ビルダーを別の名前で持つと `companion-mismatch` が報告するので、lint を通るコードで
+当たるのは、型と同じ名前で `.build()` を書き忘れた export である。使う側は `CallBuildFirst` の案内付きの型
+エラーになるが、export するだけのファイルでは、案内より先に定義の行に TS7056 が出ていた。
+
+- **Trait**: `TraitBuilder` は `{…} & (Open extends true ? { impl } : unknown)` だった。`impl` の後は交差が
+  1 要素に潰れて alias 名が落ち、構造で印字される。`implAssoc` が自分を返すので、段ごとに入れ子になる
+- **Enum**: variant の段（`Shape.Circle`、`.Circle.implSeal(…)` の後など）は 5.9 から TS7056 で落ちていた。
+  段の戻り値を export しない alias `After` に包んでいて、利用者の `.d.ts` は `After` を書けず、展開して
+  入れ子になる。fixture が variant の段を enum の段で閉じた形しか export していなかったので見えなかった
+
+**直し方。名前で印字させる。**
+
+- `TraitBuilder` は `Open` で 2 つの interface に分ける条件型にした。`TraitSteps`（どの状態にもある段）と、
+  それを継承して `impl` を足す `TraitImplStep`。利用者の宣言には `import("valof/internal/trait").TraitSteps<…>`
+  と出る（§18.4）
+- `After` を消して、段は `EnumBuilder<…>` を直接返す。`VariantSteps` は export した（`valof/internal/enum`）
+- 型コストは変わらない（trait +5、enum −12 instantiations、`index.d.ts` +0.19 kB）。ts-compatibility の
+  `declarations.ts` の宣言は 16.9 kB から 8.2 kB になった
+
+**却下: `TraitImplStep` を `implAssoc` ごと上書きする `extends`。**戻り値だけ違う generic な `implAssoc` を
+継承先で書き直すと TS2430 になる。基底を `Open` で受けて、`implAssoc` が `TraitBuilder<Tr, G, Open, …>` を
+返す形にした。
+
+**失ったもの。**`impl` の前のビルダーは、ホバーやエラーに `TraitBuilder<…>` ではなく `TraitImplStep<…>` と
+出る。`impl` を 2 回書いたエラーは、残りの段を並べた構造ではなく `TraitSteps<…>` と名前だけを出す。
+`TraitBuilderBeforeImpl` への改名も考えたが、出る名前をそのまま `TraitImplStep` とするほうが分かりやすい
+（ユーザー）。
+
+**却下: fixture のビルダーの export をやめて済ませる。**`.build()` を忘れたときの TS7056 が残り、深さの打ち切りを
+見張る検査も持てなくなる。
+
+**却下: 閉じた状態に `impl?: never` を置いて交差を潰さない。**補完に `impl` が出て、呼んだときのエラーも
+「存在しない」から変わる。
+
+**残る展開。**variant の段をすべて閉じた後の `Shape.Circle`（`.impl` 済みなど）は、`VariantSteps` の交差が
+1 要素に潰れて構造で印字される。中の段は `EnumBuilder<…>` と名前で出るので入れ子にならず、通る。
+
+**検査。**ts-compatibility の fixture `builders.ts` が、各ビルダーの各状態を推論のまま export する。宣言出力に
+`/*elided*/` があれば、エラーが無くてもその線を落とす。
+
+**7.1 は ts-compatibility の線に入れない。**beta で、安定版が出れば最終版として `aliases` に足す（§10.1）。
+7.1 が TS7056 にする箇所は、それより前の線では `/*elided*/` として出るので、上の検査で捕まる。
 
 ## 19. scripts が使う valof を固定する、2026-10-25
 

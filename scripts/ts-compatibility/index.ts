@@ -157,8 +157,22 @@ for (const alias of aliases) {
 
   try {
     await tsc(alias)(["-p", directory]);
+    await rm(join(directory, "dts"), { recursive: true, force: true });
     await tsc(alias)(["-p", join(directory, "tsconfig.declaration.json")]);
-    if (current) await tsc(alias)(["-p", scripts]);
+    if (current) {
+      await rm(join(scripts, "dts"), { recursive: true, force: true });
+      await tsc(alias)(["-p", scripts]);
+    }
+    const cut = [
+      ...(await elided(join(directory, "dts"))),
+      ...(current ? await elided(join(scripts, "dts")) : []),
+    ];
+    if (cut.length > 0) {
+      failed.push(released);
+      console.log(`  typescript@${released}  fail`);
+      console.log(`    /*elided*/ in ${cut.join(", ")}`);
+      continue;
+    }
     console.log(`  typescript@${released}  pass`);
   } catch (error) {
     failed.push(released);
@@ -170,8 +184,22 @@ for (const alias of aliases) {
 console.log();
 
 if (failed.length > 0) {
-  console.error(`the declarations do not typecheck on ${failed.join(", ")}`);
+  console.error(
+    `tsc reports errors in the declarations, or truncates a type, on ${failed.join(", ")}`,
+  );
   process.exit(1);
+}
+
+// The declaration files in which TypeScript truncated a type to `/*elided*/ any`. Up to 7.0, it
+// truncates a type nested beyond the printer's depth limit and reports no error. 7.1 reports
+// TS7056 instead (microsoft/TypeScript#64461).
+async function elided(directory: string): Promise<string[]> {
+  const files = await readdir(directory, { recursive: true });
+  const cut: string[] = [];
+  for (const file of files.filter((file) => file.endsWith(".d.ts"))) {
+    if ((await readFile(join(directory, file), "utf8")).includes("/*elided*/")) cut.push(file);
+  }
+  return cut.sort();
 }
 
 async function valofImporters(): Promise<string[]> {

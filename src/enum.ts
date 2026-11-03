@@ -687,9 +687,6 @@ type VariantNames<VM, N extends string> =
   | keyof At<VM, N, "members", Record<never, never>>
   | keyof At<VM, N, "assoc", Record<never, never>>;
 
-/** The builder after one variant's step, with `S` added. */
-type After<E extends AnyEnum, O extends Options, VM, M, S> = EnumBuilder<E, O, VM & S, M>;
-
 /** What `seal` on the enum hands back once it selects a variant: that variant's seal's return. */
 type Dispatched<E extends AnyEnum, VM> = {
   [N in keyof VariantsOf<E>]: Sealed<E, N, At<VM, N & string, "seal">>;
@@ -719,14 +716,13 @@ type VariantTrait<
     Complete<Tr, G>
   >,
   ...impl: Passes<Tr, G, I, VariantSupplied<E, O, VM, N>>
-) => After<
+) => EnumBuilder<
   E,
   O,
-  VM,
-  M,
-  { [K in `${N}:trait`]: true } & {
+  VM & { [K in `${N}:trait`]: true } & {
     [K in `${N}:members`]: Unbound<MembersOf<Tr>, VariantOf<E, N>>;
-  }
+  },
+  M
 >;
 
 /**
@@ -736,7 +732,7 @@ type VariantTrait<
  * The gates come first, `implSeal` then `implCreate`. `impl` (once), `implTrait` and `implAssoc`
  * follow, and the first of them removes the gates from the chain.
  */
-type VariantSteps<
+export type VariantSteps<
   E extends AnyEnum,
   O extends Options,
   VM,
@@ -757,7 +753,7 @@ type VariantSteps<
       // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
       supplied: NoInfer<VariantSupplied<E, O, VM, N>>,
     ) => Grown<VariantNames<VM, N>, Unclaimed<E, G>> & LooseArity<G> & ThisType<undefined>,
-  ) => After<E, O, VM, M, { [K in `${N}:assoc`]: G }>;
+  ) => EnumBuilder<E, O, VM & { [K in `${N}:assoc`]: G }, M>;
 } & ([Extract<S, "impl" | "trait" | "assoc">] extends [never]
   ? ("seal" extends S
       ? unknown
@@ -769,10 +765,10 @@ type VariantSteps<
            * before sealing.
            */
           implSeal: "create" extends S
-            ? (seal: "write `implSeal` before `implCreate`") => After<E, O, VM, M, unknown>
+            ? (seal: "write `implSeal` before `implCreate`") => EnumBuilder<E, O, VM, M>
             : <G extends VariantSealImpl<E, N>>(
                 seal: CheckedSeal<G>,
-              ) => After<E, O, VM, M, { [K in `${N}:seal`]: G }>;
+              ) => EnumBuilder<E, O, VM & { [K in `${N}:seal`]: G }, M>;
         }) &
       ("create" extends S
         ? unknown
@@ -780,14 +776,14 @@ type VariantSteps<
             /** Registers a function that creates this variant's payload, as `create`. */
             implCreate: (<G extends (...args: never[]) => SeedFor<E, N>>(
               create: G,
-            ) => After<E, O, VM, M, { [K in `${N}:create`]: G }>) & {
+            ) => EnumBuilder<E, O, VM & { [K in `${N}:create`]: G }, M>) & {
               /**
                * A `create` that bypasses the seal and returns the variant. See `Val`'s
                * `implCreate.noseal`.
                */
               noseal: <G extends AnyFn>(
                 create: Argumentless<SeedFor<E, N>, G>,
-              ) => After<E, O, VM, M, { [K in `${N}:create`]: Unsealed }>;
+              ) => EnumBuilder<E, O, VM & { [K in `${N}:create`]: Unsealed }, M>;
             };
           })
   : unknown) &
@@ -806,7 +802,7 @@ type VariantSteps<
             // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
             supplied: NoInfer<VariantSupplied<E, O, VM, N>>,
           ) => Grown<VariantNames<VM, N>, Unclaimed<E, G>> & Arity<G> & ThisType<undefined>,
-        ) => After<E, O, VM, M, { [K in `${N}:impl`]: true } & { [K in `${N}:members`]: G }>;
+        ) => EnumBuilder<E, O, VM & { [K in `${N}:impl`]: true } & { [K in `${N}:members`]: G }, M>;
       });
 
 /**
