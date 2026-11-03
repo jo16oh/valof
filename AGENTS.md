@@ -16,7 +16,8 @@ three run.
 - `--types` compiles the fixtures in `scripts/check-dist/types/` against the published declarations,
   and budgets the instantiation count and the size of the declarations that `import "valof"` loads.
 - `--compat` typechecks the book's blocks, the fixtures in `scripts/check-dist/compat/fixtures/` and
-  the scripts against `dist` on every TypeScript line.
+  the scripts against `dist` on every TypeScript line. It also fails where a declaration changes the
+  type of an export in the blocks or the fixtures.
 
 The bundle-size claim in `docs/src/introduction.md` follows the current branch. Update it with
 `vp run check-dist --size --write`; regular CI checks it. The claims in `README.md` and the

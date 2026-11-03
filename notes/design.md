@@ -8097,6 +8097,8 @@ Val は 13 B 増えた。Enum も Trait も使わない利用者が払う分で�
 - **フラグ。**`--size` / `--types` / `--compat` で選び、無ければ全部。`--release` は claim の対象に `README.md` と
   `package.json` を足し、scripts の pin の一致を必須にする。`--write` は claim を書き換える。size を選ばない
   `--write` と未知のフラグはエラー（`parseArgs` の `strict`）
+- **宣言の往復（#118）と `/*elided*/` の検索（#116）は compat に移した。**#114 の rebase で、
+  `scripts/ts-compatibility/` から `scripts/check-dist/compat/` へ。TypeScript の線を並行に回す形も残した
 - **1 つ落ちても最後まで回し、合否の一覧を出す。**CI のステップを 1 つにしても、どれが落ちたかが分かる
 - **CI の release 判定は 1 か所。**`RELEASE` の環境変数で `--release` を付けるかだけを切り替える
 - **release workflow も `--release`。**pin の一致を必須にした（以前は付けていなかった）。release PR の CI で
