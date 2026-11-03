@@ -501,7 +501,8 @@ export type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
 先に存在するので、木も連結リストも変異なしには循環を作れない。`copy` も `equals` もネストした Val で
 止まる。壁は型エイリアスの解決順だけで、interface への参照は解決を要求しないので、`Rec` がそこを切る。
 
-`Rec` を書かないと、**宣言は通って最初の使用で落ちる**。配列なら TS2589、optional キーなら TS2615。
+`Rec` を書かないと、**宣言は通って最初の使用で落ちる**。TS2615 で、循環するプロパティを名指しする。
+配列は TS2589 だったが、`Validate` が配列を mapped type で歩くようになって TS2615 に揃った（2026-11-03、§9）。
 エイリアスの解決そのものは verdict（§11.2）のぶん軽くなったので、かつての TS2456 は出ない。
 
 `DeepReadonly` が `Rec<V>` を `V` に開くので（§4.3）、**`Rec` が見えるのは宣言の 1 行だけ**である。値にも
@@ -3047,9 +3048,28 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **他の引数は `Payload<T>` で型付けする。**共通フィールドを使う判定・比較は、相手の shape だけを読む。
     trait は自分の宣言の中で自分を参照できない（`other: Same` は `Declarable` で TS2615）ので、
     `Payload<{ n: number }>` と書く。素のオブジェクトも通るが、共通フィールドを読むだけなら困らない
-  - **`Payload` に payload の規則の検査を足す。**今は恒等（`T` のまま）。宣言の位置で報告できるかは未確認。
-    `Checked` は検査に通らない型を拒否の型に変えるだけで、`type X = …<{ f: () => void }>` の位置では
-    何も言わない。恒等でなくなるぶん、instantiations を type-perf で測る
+  - [x] **`Payload` に payload の規則の検査を足す。**→ 入れた、2026-11-03。`Payload<T> = Validate<T>`
+    - **`Validate` は出会った `Invalid<M>` を `Refused<M>` に写す。**`Invalid` 自体は正しい payload なので、
+      写さないと `Val<"U", Payload<{ f: () => void }>>` は `{ f: Invalid<…> }` を payload に取って companion を通り、
+      最初の seal まで黙る。写せば素の payload と同じく companion で TS2344 になり、最後の行が文言を運ぶ。
+      写す条件は非分配にする。`T extends Invalid<infer M>` は object の union を分配し、union の規則を消した
+    - **正しい payload では `Validate<T>` を `T` と同じ型にした。**配列を `ReadonlyArray` に作り直すと
+      `Val.unwrap` が readonly を返し（§3「payload に `readonly` は書かない」）、optional キーに `| undefined` を
+      足すと EOPT 下で seed が値としての `undefined` を受ける。配列は homomorphic な mapped type で写し、
+      optional キーは書いた `undefined` だけを残す（`| Extract<T[K], undefined>`）。hover は展開した object になる
+    - **報告の位置。**`type X = Payload<…>` の行では何も言わない。Val の payload なら companion。trait の
+      メンバ引数（`other: Payload<{ f: () => void }>`）は trait の companion でも `implTrait` でも黙り、
+      呼び出しの引数で `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になる。
+      trait の側で報告するにはメンバの引数を深く辿る検査が要るので、入れていない
+    - **`__valError` に文字列リテラルを持つ object は payload に書けなくなった。**`Invalid` を手で書いたのと
+      区別できない。`Invalid` は export していないので、hover から写したときに限る
+    - **コスト。**fixture は `Payload` を使わないので、instantiations は trait +4、enum +39 だけ（TypeScript 5.9.3）。
+      `Payload` で包んだ Val 1 つあたり約 +320（probe、20 個で 60,719 → 67,072）。`index.d.ts` は +0.55 kB
+    - **訂正: 「入れられない」とした記録。**`feat/self-first-parameter` は probe から「検査できない」と結論し、
+      恒等のまま残すと記録した。観察は正しかった。`Payload<T extends Checked<T>>` は TS2313、`Payload = Checked<T>`
+      は自己参照する payload で TS2456 / TS2615、写さない `Validate` では companion が黙る。誤りは結論だけで、
+      循環するのは `Checked` の外側の比較（`[T] extends [Validate<T>]`）であって、`Validate<T>` だけなら循環しない。
+      黙る件は写せば消える。その記録が main に入るなら、この項目に合わせて直す
   - **`HasSelf` は残る。**第 1 引数以外の引数と戻り値を辿る。深さの上限（§15.1「探索の深さに上限を
     置く」）も同じ理由で要る
   - **却下: 第 1 引数をレシーバとして例外扱いする。**Valof はメソッド記法を排して pipe でつなぐ。
