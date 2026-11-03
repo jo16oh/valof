@@ -3034,6 +3034,33 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **却下: box をクラスのインスタンスにする。**Proxy の target にクラスの prototype を持たせれば `instanceof` も
     通るが、spread は target の own key を読むので結果は変わらない。メンバは今も実行時に落ちている。trait の
     shape は型にしかないので、`id` だけ落とすこともできない
+- [ ] **`Self` を第 1 引数に限る。他の引数は `Payload<T>` で書く、2026-11-03。**方針は決めた。破壊的変更で、
+      `feat/lint-rules` の `Payload` を前提にするので、それが main に入ってから進める
+  - **穴。**`dyn` の箱は、第 1 引数以外の `Self` を trait の型に置き換える。別の Val を渡せて、
+    包んだ Val の実装がそれを受け取る。companion は具体型なので拒む。Rust も、`Self` を第 1 引数以外に
+    置くメソッドを `dyn` から呼べなくしている
+    ```ts
+    type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Self) => boolean }>;
+    Same.dyn(A, a).same(b); // 通る。A の実装が B を受け取る
+    A.same(a, b); // 型エラー
+    ```
+  - **他の引数は `Payload<T>` で型付けする。**共通フィールドを使う判定・比較は、相手の shape だけを読む。
+    trait は自分の宣言の中で自分を参照できない（`other: Same` は `Declarable` で TS2615）ので、
+    `Payload<{ n: number }>` と書く。素のオブジェクトも通るが、共通フィールドを読むだけなら困らない
+  - **`Payload` に payload の規則の検査を足す。**今は恒等（`T` のまま）。宣言の位置で報告できるかは未確認。
+    `Checked` は検査に通らない型を拒否の型に変えるだけで、`type X = …<{ f: () => void }>` の位置では
+    何も言わない。恒等でなくなるぶん、instantiations を type-perf で測る
+  - **`HasSelf` は残る。**第 1 引数以外の引数と戻り値を辿る。深さの上限（§15.1「探索の深さに上限を
+    置く」）も同じ理由で要る
+  - **却下: 第 1 引数をレシーバとして例外扱いする。**Valof はメソッド記法を排して pipe でつなぐ。
+    第 1 引数が特別なのは dual のデータ（§6.11）だからで、そこに OO の語彙を持ち込まない
+  - **却下: どの companion から呼ぶかで置き換え先を決める**（`User.same` は `User`、`Greetable.same` は
+    `Greetable`）。位置による例外は消えるが、箱では第 1 引数以外に `Self` を含むメンバを外すしかない。
+    宣言が通るのに箱から呼べないメンバが生まれる
+  - **却下: `Payload` を `Shape` に改名する。**Valof の shape は trait のフィールド（`ShapeOf<Tr>`）を指す。
+    `Payload` / `PayloadOf` の区別は `-Of` の規約で付いている
+  - **却下: Val に限る型（`AnyVal & DeepReadonly<Checked<T>>`）を足す。**probe では素のオブジェクトを
+    拒み、箱からも呼べた。必要になってから足す。後から足しても破壊的変更にならない
 
 ---
 
@@ -5938,6 +5965,30 @@ trait に足せばよい。
 
 検査は型で書ける。`HasSelf<R>` が真なら文字列リテラルに落とす形で、`(self: Self) => Self` と
 `(self: Self) => readonly [Self, number]` の両方が捕まる。
+
+##### 探索の深さに上限を置く、2026-11-03
+
+戻り型が自分と同じ型を返すメンバを持つと（`Promise.then`、`type Chain = { next: () => Chain }`）、
+`HasSelf` の再帰が自分に戻って TS2615 になっていた。async のメンバを持つ trait が宣言できなかった。
+
+**深さを数え、5 段で打ち切る。**戻り型そのものを 1 段目とするので、入れ子 4 つまでの `Self` を捕まえる。
+`Promise<{ items: Array<{ owner: Self }> }>` まで届く。それより深い `Self` は見逃す（テスト
+「the search for Self stops after four nested types」）。
+
+上限は測って決めた。1 段ごとの増分は、メンバの多い型ほど大きい（基準 34,289 からの instantiations、
+TypeScript 7.0.2）。
+
+| 戻り型                | 上限 3 | 上限 4 | 上限 5 | 上限 6 | 上限 8  |
+| --------------------- | ------ | ------ | ------ | ------ | ------- |
+| `Promise<string>`     | +463   | +638   | +768   | +880   | +1,126  |
+| `Map<string, number>` | +1,135 | +3,846 | +5,667 | +8,168 | +12,147 |
+| `Chain`               | +112   | +138   | +179   | +203   | +272    |
+
+検査は trait の宣言ごとに 1 回なので、`Map` で 1 段あたり約 2,000 は払える。上限 4 では上の `Promise`
+の例に届かない。trait fixture は +19（17,639 → 17,658）、`index.d.ts` は +0.18 kB。
+
+**`PromiseLike` は中身を開いて辿る（1 段と数える）。**`Promise<Self>` の `Self` は `then` の引数にしか
+現れず、引数は辿らないので、上限だけでは素通りする。それまでは TS2615 で偶然拒まれていた。
 
 #### 却下: WeakMap による動的ディスパッチ
 
