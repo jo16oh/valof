@@ -61,7 +61,7 @@ declaration alone.
 Without it the declaration compiles and the first use of the type fails.
 
 ```ts
-// @errors: 2589
+// @errors: 2615
 import { Val } from "valof";
 
 // ---cut---
