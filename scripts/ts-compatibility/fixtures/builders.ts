@@ -45,6 +45,7 @@ export const variantImpl = variantCreate.Circle.impl(() => ({ d: (c) => c.r * 2 
 export const variantAssoc = variantImpl.Circle.implAssoc(() => ({ unit: () => 1 }))
   .Rect.implAssoc(() => ({ a: () => 1 }))
   .Rect.implAssoc(() => ({ b: () => 1 }));
+export const variantDone = variantAssoc.Circle;
 export const enumSeal = variantAssoc.implSeal((s, seal) => seal(s));
 export const enumCreate = enumSeal.implCreate(() => ({ _tag: "Rect" as const, w: 1, name: "r" }));
 export const enumImpl = enumCreate.impl(() => ({ tag: (s) => s._tag }));
