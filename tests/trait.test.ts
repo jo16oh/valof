@@ -138,7 +138,7 @@ describe("Trait", () => {
         .build();
 
       type Sink = Trait<"Sink", { n: number }, { sink: (self: Self) => (other: Self) => void }>;
-      // @ts-expect-error nor can a returned function's parameter
+      // @ts-expect-error a returned function's parameter cannot hide Self
       Trait.companion<Sink>()
         .impl(() => ({}))
         .build();
@@ -202,7 +202,7 @@ describe("Trait", () => {
           load: (self: Self) => Promise<string>;
           chain: (self: Self) => Chain;
           thunk: Final<(self: Self) => Thunk>;
-          // `forEach` takes `thisArg?: any`, and `any` is not Self
+          // `thisArg` of `Map`'s `forEach` is `any`, and `any` is not Self
           index: Final<(self: Self) => Map<string, number>>;
         }
       >;

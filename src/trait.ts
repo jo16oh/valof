@@ -164,11 +164,12 @@ type HasSelf<T, Depth extends unknown[] = []> = Depth["length"] extends 5
     ? true
     : false;
 
-// A `PromiseLike` is unwrapped rather than searched. Its `T` sits in the parameter of `then`'s
-// callback, two levels deeper than the unwrapped `T`, so the depth bound would miss it sooner.
+// A `PromiseLike` is unwrapped rather than searched. Searched through `then`, its `T` appears at the
+// callback's parameter, two levels deeper than the unwrapped `T`, so the depth bound reaches two
+// fewer levels inside it.
 //
-// `any` is not `Self`. Without the check, a member returning `Map` is rejected over the
-// `thisArg?: any` of `forEach`.
+// `any` is not `Self`. Without the check, a member returning `Map` is rejected because of
+// the `thisArg?: any` parameter of `forEach`.
 type HasSelfBranch<T, Depth extends unknown[]> = 0 extends 1 & T
   ? false
   : [T] extends [Self]
