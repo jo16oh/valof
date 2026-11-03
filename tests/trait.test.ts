@@ -80,7 +80,7 @@ describe("Trait", () => {
         .build();
 
       type Tuple = Trait<"Tuple", { n: number }, { grow: (self: Self) => readonly [Self, number] }>;
-      // @ts-expect-error an array cannot hide Self
+      // @ts-expect-error a tuple cannot hide Self
       Trait.companion<Tuple>()
         .impl(() => ({}))
         .build();
@@ -122,6 +122,7 @@ describe("Trait", () => {
         { n: number },
         { grow: (self: Self) => Promise<{ a: [{ b: { c: Self } }] }> }
       >;
+      // Self inside five nested types is missed
       Trait.companion<Five>()
         .impl(() => ({}))
         .build();

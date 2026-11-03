@@ -158,15 +158,17 @@ export type Bound<M extends Members, S> = {
     : never;
 };
 
-// The depth bound stops a type that returns itself, such as `Promise` or a linked list, from
-// recursing into TS2615. Self inside more than four nested types goes unseen.
+// The search stops at five levels, the return type itself being the first. Without the bound, a
+// type that refers to itself, such as `Promise` or a linked list, makes it fail with TS2615. Self
+// inside more than four nested types is missed.
 type HasSelf<T, Depth extends unknown[] = []> = Depth["length"] extends 5
   ? false
   : true extends (T extends unknown ? HasSelfBranch<T, [...Depth, unknown]> : never)
     ? true
     : false;
 
-// A promise is opened rather than walked: its `T` appears only in `then`'s parameters.
+// A `PromiseLike` is unwrapped rather than searched, because its `T` appears only in the parameters
+// of `then`, which the search does not visit.
 type HasSelfBranch<T, Depth extends unknown[]> = [T] extends [Self]
   ? true
   : T extends AnyVal
