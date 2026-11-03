@@ -1,7 +1,7 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import { Trait, Val, type AnyTrait, type Dyn, type Final, type Self } from "../src/index.ts";
 // `Wired` is not published from the entry point.
-import type { CallBuildFirst, Wired } from "../src/val.ts";
+import type { CallBuildFirst, Invalid, Wired } from "../src/val.ts";
 import type { BrandsOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
@@ -513,7 +513,7 @@ describe("building", () => {
     test("a broken declaration is caught at every gate", () => {
       type Wiring = Trait<"Wiring", { id: string }, { patch: (self: Self) => boolean }>;
       expectTypeOf<BrandsOf<Wiring>>().toEqualTypeOf<{
-        patch: { readonly __valError: "a trait member cannot take a name the library reserves" };
+        patch: Invalid<"a trait member cannot take a name the library reserves">;
       }>();
       expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
       // Naming `Wiring` is the error, so each directive is the assertion. The type resolves to
