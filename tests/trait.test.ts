@@ -90,6 +90,16 @@ describe("Trait", () => {
       Trait.companion<Among>()
         .impl(() => ({}))
         .build();
+
+      type Visit = Trait<
+        "Visit",
+        { n: number },
+        { visit: (self: Self, f: (others: readonly Self[]) => void) => void }
+      >;
+      // @ts-expect-error a callback's parameter cannot hide Self
+      Trait.companion<Visit>()
+        .impl(() => ({}))
+        .build();
     });
 
     test("another parameter reads the fields through Payload", () => {
@@ -124,6 +134,12 @@ describe("Trait", () => {
       type Closure = Trait<"Closure", { n: number }, { grow: (self: Self) => () => Self }>;
       // @ts-expect-error a returned function cannot hide Self
       Trait.companion<Closure>()
+        .impl(() => ({}))
+        .build();
+
+      type Sink = Trait<"Sink", { n: number }, { sink: (self: Self) => (other: Self) => void }>;
+      // @ts-expect-error nor can a returned function's parameter
+      Trait.companion<Sink>()
         .impl(() => ({}))
         .build();
 
@@ -186,6 +202,8 @@ describe("Trait", () => {
           load: (self: Self) => Promise<string>;
           chain: (self: Self) => Chain;
           thunk: Final<(self: Self) => Thunk>;
+          // `forEach` takes `thisArg?: any`, and `any` is not Self
+          index: Final<(self: Self) => Map<string, number>>;
         }
       >;
       const Async = Trait.companion<Async>()
@@ -195,6 +213,7 @@ describe("Trait", () => {
             const thunk: Thunk = () => thunk;
             return thunk;
           },
+          index: (s) => new Map([["n", s.n]]),
         }))
         .build();
       type Counter = Val<"Counter", { n: number }, Async>;
