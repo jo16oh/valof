@@ -6,7 +6,8 @@ import { join } from "node:path";
 
 import { docBlocks } from "../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../pin-valof/index.ts";
-import { aliases, root, tsc, version } from "../../shared/typescript-lines.ts";
+import { aliases, root, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
+import { roundTrip, type RoundTrip } from "./round-trip.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
 
@@ -31,7 +32,8 @@ export class StalePinError extends ErrorFactory({
 }) {}
 
 export class IncompatibleError extends ErrorFactory({
-  message: ({ failed }) => `the declarations do not typecheck on ${failed.join(", ")}`,
+  message: ({ failed }) =>
+    `the declarations do not typecheck, or change a type, on ${failed.join(", ")}`,
   fields: ErrorFactory.fields<{ failed: string[] }>(),
 }) {}
 
@@ -71,15 +73,20 @@ export async function checkCompat({
     code.replace(/^(const|type|function) /gm, "export $1 ");
 
   const blocks = fixtures();
+  const modules: string[] = [];
   for (const block of blocks) {
     const file = join(directory, `${block.name.replace(/\.md:/, "-")}.ts`);
     await writeFile(file, exported(isolated(block.code)));
+    modules.push(file);
   }
 
   // Exports the book does not show, kept beside this script.
   const extras = join(root, "scripts/check-dist/compat/fixtures");
   const files = await readdir(extras);
-  for (const file of files) await copyFile(join(extras, file), join(directory, `fixture-${file}`));
+  for (const file of files) {
+    await copyFile(join(extras, file), join(directory, `fixture-${file}`));
+    modules.push(join(directory, `fixture-${file}`));
+  }
 
   await writeFile(
     join(directory, "tsconfig.json"),
@@ -163,6 +170,18 @@ export async function checkCompat({
     );
   }
 
+  /**
+   * Each export of the book's blocks and the fixtures, compared with the type its declaration
+   * gives a consumer. A declaration can lose a type without an error. Up to 7.0, TypeScript
+   * truncates a type nested beyond the printer's depth limit to `/*elided*\/ any` (7.1 reports
+   * TS7056 instead, microsoft/TypeScript#64461).
+   *
+   * The scripts are only searched for `/*elided*\/`. TypeScript expands the aliases of other
+   * packages in their declarations, such as the base class of `ErrorFactory`, and the comparison
+   * counts that as a change.
+   */
+  const trip = roundTrip(directory, modules);
+
   console.log(`  ${blocks.length} blocks from the book, ${files.length} fixtures`);
   if (current) {
     console.log(`  ${importers.length} scripts on valof ${pin.slice(0, 7)}`);
@@ -172,26 +191,65 @@ export async function checkCompat({
     console.log(`  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`);
   }
 
-  const failed: string[] = [];
-
-  for (const alias of aliases) {
-    const released = version(alias);
-
-    try {
-      await tsc(alias)(["-p", directory]);
-      await tsc(alias)(["-p", join(directory, "tsconfig.declaration.json")]);
-      if (current) await tsc(alias)(["-p", scripts]);
-      console.log(`  typescript@${released}  pass`);
-    } catch (error) {
-      failed.push(released);
-      console.log(`  typescript@${released}  fail`);
-      console.log(`${(error as { stdout?: string }).stdout ?? String(error)}`);
-    }
+  // The TypeScript lines run concurrently, each emitting to directories of its own, and report in
+  // the order of `aliases`.
+  const reports = await Promise.all(aliases.map(check));
+  for (const [i, alias] of aliases.entries()) {
+    const report = reports[i]!;
+    console.log(`  typescript@${version(alias)}  ${report.length === 0 ? "pass" : "fail"}`);
+    for (const line of report) console.log(line);
   }
+  const failed = aliases.filter((_, i) => reports[i]!.length > 0).map(version);
 
   console.log();
 
   return failed.length === 0 ? R.succeed() : R.fail(new IncompatibleError({ failed }));
+
+  // The failure messages of one TypeScript line, empty where it passes.
+  async function check(alias: string): Promise<string[]> {
+    const run = tsc(alias);
+    const dts = join(directory, "dts", alias);
+    const own = join(scripts, "dts", alias);
+    try {
+      await run(["-p", directory]);
+      await run(["-p", join(directory, "tsconfig.declaration.json"), "--outDir", dts]);
+      if (current) await run(["-p", scripts, "--outDir", own]);
+      const changed = await differs(run, await trip(dts, join(directory, "round-trip", alias)));
+      const cut = current ? await elided(own) : [];
+      return [
+        ...changed.map((name) => `    the declaration changes ${name}`),
+        ...(cut.length > 0 ? [`    /*elided*/ in ${cut.join(", ")}`] : []),
+      ];
+    } catch (error) {
+      return [`${(error as { stdout?: string }).stdout ?? String(error)}`];
+    }
+  }
+}
+
+// The exports whose declaration changes their type. It throws on an error outside the
+// comparisons, such as a declaration that does not parse.
+async function differs(tsc: Tsc, { project, exports }: RoundTrip): Promise<string[]> {
+  try {
+    await tsc(["-p", project]);
+    return [];
+  } catch (error) {
+    const output = (error as { stdout?: string }).stdout ?? "";
+    const lines = [...output.matchAll(/round-trip\/[^/]+\/index\.ts\((\d+),\d+\)/g)].map(
+      ([, line]) => exports.get(Number(line)),
+    );
+    if (lines.length === 0 || lines.includes(undefined)) throw error;
+    return [...new Set(lines as string[])];
+  }
+}
+
+// The declaration files in which TypeScript truncated a type to `/*elided*/ any`.
+async function elided(directory: string): Promise<string[]> {
+  const files = await readdir(directory, { recursive: true });
+  const cut: string[] = [];
+  for (const file of files.filter((file) => file.endsWith(".d.ts"))) {
+    if ((await readFile(join(directory, file), "utf8")).includes("/*elided*/")) cut.push(file);
+  }
+  return cut.sort();
 }
 
 async function valofImporters(): Promise<string[]> {
