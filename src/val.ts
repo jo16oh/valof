@@ -293,6 +293,14 @@ type Declared<V> = V extends Phantom<string, infer T> ? T : never;
  */
 export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
+/**
+ * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. It is `T`
+ * unchanged.
+ *
+ * Not {@link PayloadOf}, which extracts the payload from a Val.
+ */
+export type Payload<T> = T;
+
 // Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
 // the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker
 // is the declaration's, so no type derived from the payload may carry it.
