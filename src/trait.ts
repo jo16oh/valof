@@ -285,12 +285,18 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
 /**
  * What `Trait.companion` returns, which `impl` adds to and `.build()` closes.
  */
+// Interfaces rather than one object type with `impl` behind a conditional. Once `impl` is taken,
+// that intersection reduces to its other member and loses the alias name, so a declaration that
+// infers the builder prints it in full, nested once per `implAssoc`.
 export type TraitBuilder<
   Tr extends AnyTrait,
   G = Record<never, never>,
   Open = true,
   A = Record<never, never>,
-> = {
+> = Open extends true ? TraitImplStep<Tr, G, A> : TraitSteps<Tr, G, A, Open>;
+
+/** The steps a {@link TraitBuilder} has in every state. */
+export interface TraitSteps<Tr extends AnyTrait, G, A, Open> {
   readonly dyn: CallBuildFirst;
   /**
    * Closes the chain and returns the companion. The builder holds the steps alone: `dyn` and the
@@ -309,28 +315,29 @@ export type TraitBuilder<
   implAssoc: <M extends TraitAssoc<Tr>>(
     fns: () => Grown<keyof A, M> & LooseArity<M> & ThisType<undefined>,
   ) => TraitBuilder<Tr, G, Open, A & M>;
-} & (Open extends true
-  ? {
-      /**
-       * Implements over the trait the members the function returns. The declaration says which
-       * side of the contract implements a member: a Val may replace an ordinary member through
-       * `implTrait`, and may not replace one declared {@link Final}.
-       *
-       * It takes one call. A member calling a {@link Final} sibling references the companion and
-       * annotates its return type: referencing it inside its own initializer is a circularity
-       * TypeScript reports as TS7023, and the annotation cuts it. A member a Val may replace is
-       * not on the companion; see {@link TraitCompanion}.
-       *
-       * A member taking more than one argument can be called with the value first or last. None can
-       * have an optional, a default or a rest parameter.
-       *
-       * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
-       */
-      impl: <H extends Shared<Tr, H>>(
-        fns: () => H & Arity<H> & ThisType<undefined>,
-      ) => TraitBuilder<Tr, G & H, false, A>;
-    }
-  : unknown);
+}
+
+/** A {@link TraitBuilder} before `impl`. */
+export interface TraitImplStep<Tr extends AnyTrait, G, A> extends TraitSteps<Tr, G, A, true> {
+  /**
+   * Implements over the trait the members the function returns. The declaration says which
+   * side of the contract implements a member: a Val may replace an ordinary member through
+   * `implTrait`, and may not replace one declared {@link Final}.
+   *
+   * It takes one call. A member calling a {@link Final} sibling references the companion and
+   * annotates its return type: referencing it inside its own initializer is a circularity
+   * TypeScript reports as TS7023, and the annotation cuts it. A member a Val may replace is
+   * not on the companion; see {@link TraitCompanion}.
+   *
+   * A member taking more than one argument can be called with the value first or last. None can
+   * have an optional, a default or a rest parameter.
+   *
+   * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
+   */
+  impl: <H extends Shared<Tr, H>>(
+    fns: () => H & Arity<H> & ThisType<undefined>,
+  ) => TraitBuilder<Tr, G & H, false, A>;
+}
 
 /** What `.implAssoc` accepts: anything but a member's name, `dyn` and a name the library reserves. */
 type TraitAssoc<Tr extends AnyTrait> = AssocMembers &
