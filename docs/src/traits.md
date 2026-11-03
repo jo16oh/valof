@@ -26,8 +26,21 @@ as a payload, so a shape no Val could ever hold is an error where it is written.
 The third declares the functions. They become members of every companion that implements the trait,
 and they take the value first.
 
-`Self` stands for the implementing Val. A member may take it, and may not return it. What returns a
-`Self` is a constructor, and a trait has no brand to seal with.
+`Self` stands for the implementing Val. It may appear only as a member's first parameter. A member
+may not return it. What returns a `Self` is a constructor, and a trait has no brand to seal with. No
+other parameter may use it either, because a box from
+[`dyn`](#hold-values-of-different-types-together) would pass another Val there. Where a later
+parameter reads fields, type it with `Payload`:
+
+```ts
+import { Trait, type Payload, type Self } from "valof";
+
+type Ranked = Trait<
+  "Ranked",
+  { rank: number },
+  { outranks: (self: Self, other: Payload<{ rank: number }>) => boolean }
+>;
+```
 
 ## Implement it on a Val
 
