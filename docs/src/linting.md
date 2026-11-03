@@ -133,8 +133,9 @@ export default [
 ];
 ```
 
-Oxlint accepts the same option under `typescript/no-misused-spread`. It still reports a value typed
-as a whole enum, such as `Shape`. Allow that type by the file that declares it:
-`{ from: "file", path: "src/shape.ts", name: "Shape" }`.
+Oxlint accepts the same option under `typescript/no-misused-spread`.
 
-Both linters still report a value typed as a trait. Disable that report with a comment.
+Oxlint still reports a value typed as a whole enum, such as `Shape`, and both linters report a value
+typed as a trait. The fields of such a value are not all known, so avoid spreading it. Spread the
+variant that [`Shape.match`](enums.md#match-on-the-tag) passes to a handler, and read the fields a
+trait declares by name.
