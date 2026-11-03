@@ -164,25 +164,32 @@ type HasSelf<T, Depth extends unknown[] = []> = Depth["length"] extends 5
     ? true
     : false;
 
-// A `PromiseLike` is unwrapped rather than searched, because its `T` appears only in the parameters
-// of `then`, which the search does not visit.
-type HasSelfBranch<T, Depth extends unknown[]> = [T] extends [Self]
-  ? true
-  : T extends AnyVal
-    ? false
-    : T extends PromiseLike<infer U>
-      ? HasSelf<U, Depth>
-      : T extends (...args: never[]) => infer R
-        ? HasSelf<R, Depth>
-        : T extends readonly unknown[]
-          ? true extends { [I in keyof T]: HasSelf<T[I], Depth> }[number]
+// A `PromiseLike` is unwrapped rather than searched. Its `T` sits in the parameter of `then`'s
+// callback, two levels deeper than the unwrapped `T`, so the depth bound would miss it sooner.
+//
+// `any` is not `Self`. Without the check, a member returning `Map` is rejected over the
+// `thisArg?: any` of `forEach`.
+type HasSelfBranch<T, Depth extends unknown[]> = 0 extends 1 & T
+  ? false
+  : [T] extends [Self]
+    ? true
+    : T extends AnyVal
+      ? false
+      : T extends PromiseLike<infer U>
+        ? HasSelf<U, Depth>
+        : T extends (...args: infer A) => infer R
+          ? true extends HasSelf<R, Depth> | { [I in keyof A]: HasSelf<A[I], Depth> }[number]
             ? true
             : false
-          : T extends object
-            ? true extends { [K in keyof T]: HasSelf<T[K], Depth> }[keyof T]
+          : T extends readonly unknown[]
+            ? true extends { [I in keyof T]: HasSelf<T[I], Depth> }[number]
               ? true
               : false
-            : false;
+            : T extends object
+              ? true extends { [K in keyof T]: HasSelf<T[K], Depth> }[keyof T]
+                ? true
+                : false
+              : false;
 
 /**
  * Rejects a member a Val could not carry: one with `Self` in a parameter after the first, one
