@@ -80,8 +80,8 @@ export interface Rec<V> {
 export type Invalid<Msg extends string> = { readonly __valError: Msg };
 
 /**
- * An {@link Invalid} met inside a payload, which {@link Payload} leaves there. `Invalid` alone is a
- * plain value, so it would pass.
+ * An {@link Invalid} found in a payload. {@link Payload} leaves an `Invalid` in place of each part
+ * that breaks a rule, and `Invalid` alone is a plain value, so a Val holding it would pass.
  */
 type Refused<Msg extends string> = { readonly __valError: Msg; readonly __rejected: true };
 
@@ -105,7 +105,7 @@ type IsRec<T> = string extends keyof T
       ? true
       : false;
 
-/** An allowed payload comes out as `T` itself, which {@link Payload} relies on. */
+/** Resolves an allowed payload to `T` itself, which {@link Payload} relies on. */
 type Validate<T, Root extends boolean = true> =
   IsRec<T> extends true
     ? T
@@ -304,8 +304,8 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
 /**
  * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. An allowed payload
- * is `T` unchanged. A value breaking the rules a Val's payload follows does not fit, and a Val
- * declared with it is rejected as one declared with `T` is.
+ * is `T` unchanged. A value that breaks the allowed-type rules does not fit. A Val declared with a
+ * rejected `Payload` is rejected like one declared with `T`.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
