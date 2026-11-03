@@ -112,3 +112,30 @@ seen.
 
 A `!path` is excluded wherever it is written, and is removed from the run rather than only from the
 report, so what a generated tree declares no longer applies to the rest.
+
+## Spreading a Val under `no-misused-spread`
+
+`no-misused-spread`, a type-aware rule in typescript-eslint and in Oxlint, reports
+`{ ...user, extra: 1 }` as spreading a class instance. A Val is a plain object at run time, so the
+spread loses nothing. Allow Valof's brand class, `Phantom`:
+
+```js
+// eslint.config.js
+export default [
+  {
+    rules: {
+      "@typescript-eslint/no-misused-spread": [
+        "error",
+        { allow: [{ from: "package", package: "valof", name: "Phantom" }] },
+      ],
+    },
+  },
+];
+```
+
+Oxlint accepts the same option under `typescript/no-misused-spread`.
+
+Oxlint still reports a value typed as a whole enum, such as `Shape`, and both linters report a value
+typed as a trait. The fields of such a value are not all known, so avoid spreading it. Spread the
+variant that [`Shape.match`](enums.md#match-on-the-tag) passes to a handler, and read the fields a
+trait declares by name.

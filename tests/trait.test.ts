@@ -322,7 +322,6 @@ describe("Trait", () => {
 
   test("the brand stays out of `keyof` and of a spread", () => {
     expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name">();
-    // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
     expectTypeOf({ ...user }).toEqualTypeOf<{ id: string; name: string }>();
   });
 });
