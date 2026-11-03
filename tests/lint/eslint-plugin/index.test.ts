@@ -60,9 +60,9 @@ test("takes the buffer over the file, so a fix lands before the save", () => {
 test("carries one kind each, so a project turns a rule off by leaving it out", () => {
   const reports: string[] = [];
   const one = context("money.ts", undefined, reports);
-  plugin.rules["unused-member"].create(one).Program();
+  plugin.rules["unused-member"]!.create(one).Program();
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
-  plugin.rules["duplicate-brand"].create(one).Program();
+  plugin.rules["duplicate-brand"]!.create(one).Program();
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
 });
 

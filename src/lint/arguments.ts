@@ -3,7 +3,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "../index.ts";
 import { isDirectory } from "./files.ts";
 import { MissingPathError, NotAProjectError, UnknownRuleError } from "./errors.ts";
-import { isKind, kinds, type Kind } from "./rules/index.ts";
+import { isKind, kinds } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
@@ -19,7 +19,7 @@ export type Arguments = Val<
     /** Paths written with a leading `!`, removed from the run and the report alike. */
     excluded: string[];
     /** Kinds left out with `--no-<kind>`. */
-    skip: Kind[];
+    skip: string[];
     help: boolean;
   }
 >;
@@ -40,7 +40,7 @@ export const Arguments = Val.companion<Arguments>()
       const targets: string[] = [];
       const excluded: string[] = [];
       const loose: string[] = [];
-      const skip: Kind[] = [];
+      const skip: string[] = [];
       let help = false;
       let pending: "project" | "report-on" | undefined;
 

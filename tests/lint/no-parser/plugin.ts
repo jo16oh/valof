@@ -3,11 +3,9 @@ import plugin from "../../../src/lint/eslint-plugin.ts";
 const file = "tests/lint/command/fixtures/clean.ts";
 
 export default () =>
-  plugin.rules["unused-member"]
-    .create({
-      filename: file,
-      settings: { valof: { project: file } },
-      sourceCode: { text: "" },
-      report: () => {},
-    })
-    .Program();
+  plugin.rules["unused-member"]!.create({
+    filename: file,
+    settings: { valof: { project: file } },
+    sourceCode: { text: "" },
+    report: () => {},
+  }).Program();

@@ -4,7 +4,7 @@ import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
-import { box } from "./rule.ts";
+import { Rule } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
 import { UnnamedOf } from "./unnamed-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
@@ -15,21 +15,21 @@ import { UnimplementedTrait } from "./unimplemented-trait.ts";
  * Every rule, in the order they run and `--help` lists them.
  *
  * The only enumeration. A rule carries its own kind, so listing it here says nothing twice, and
- * {@link Kind} is read back off this array rather than written again.
+ * {@link kinds} is read back off this array rather than written again.
  */
 export const RULES = [
-  box(UnusedMember, UnusedMember.create()),
-  box(DuplicateBrand, DuplicateBrand.create()),
-  box(BrandMismatch, BrandMismatch.create()),
-  box(UnnecessaryAlias, UnnecessaryAlias.create()),
-  box(UnimplementedTrait, UnimplementedTrait.create()),
-  box(CompanionMismatch, CompanionMismatch.create()),
-  box(SplitCompanion, SplitCompanion.create()),
-  box(BypassedCompanion, BypassedCompanion.create()),
-  box(UnnamedOf, UnnamedOf.create()),
-  box(IncompleteDisable, IncompleteDisable.create()),
-  box(UnusedDisable, UnusedDisable.create()),
-] as const;
+  Rule.dyn(UnusedMember, UnusedMember.create()),
+  Rule.dyn(DuplicateBrand, DuplicateBrand.create()),
+  Rule.dyn(BrandMismatch, BrandMismatch.create()),
+  Rule.dyn(UnnecessaryAlias, UnnecessaryAlias.create()),
+  Rule.dyn(UnimplementedTrait, UnimplementedTrait.create()),
+  Rule.dyn(CompanionMismatch, CompanionMismatch.create()),
+  Rule.dyn(SplitCompanion, SplitCompanion.create()),
+  Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
+  Rule.dyn(UnnamedOf, UnnamedOf.create()),
+  Rule.dyn(IncompleteDisable, IncompleteDisable.create()),
+  Rule.dyn(UnusedDisable, UnusedDisable.create()),
+];
 
 /**
  * Each rule under its own name, so a caller can name one without spelling its kind.
@@ -50,11 +50,9 @@ export {
   UnimplementedTrait,
 };
 
-/** What a finding is called, in a `--no-<kind>` flag and in a disable comment alike. */
-export type Kind = (typeof RULES)[number]["kind"];
+/** What each rule is called, in a `--no-<kind>` flag and in a disable comment alike. */
+export const kinds: readonly string[] = RULES.map(({ kind }) => kind);
 
-export const kinds: readonly Kind[] = RULES.map(({ kind }) => kind);
-
-export const isKind = (name: string): name is Kind => kinds.includes(name as Kind);
+export const isKind = (name: string): boolean => kinds.includes(name);
 
 export { Finding, Rule, type Context } from "./rule.ts";

@@ -1,13 +1,13 @@
 import { Result as R } from "@praha/byethrow";
 
-import type { Finding, Kind } from "./rules/index.ts";
+import type { Finding } from "./rules/index.ts";
 import { run } from "./run.ts";
 
-export { RULES, kinds, isKind, type Finding, type Kind } from "./rules/index.ts";
+export { RULES, kinds, isKind, type Finding } from "./rules/index.ts";
 export { MissingParserError } from "./errors.ts";
 export type Options = {
   /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
-  skip?: ReadonlySet<Kind>;
+  skip?: ReadonlySet<string>;
   /**
    * Files to report on, as paths resolved against the same root. Everything else in `files` is
    * still scanned.
