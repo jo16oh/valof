@@ -158,23 +158,32 @@ export type Bound<M extends Members, S> = {
     : never;
 };
 
-type HasSelf<T> = true extends (T extends unknown ? HasSelfBranch<T> : never) ? true : false;
+// The depth bound stops a type that returns itself, such as `Promise` or a linked list, from
+// recursing into TS2615. Self inside more than four nested types goes unseen.
+type HasSelf<T, Depth extends unknown[] = []> = Depth["length"] extends 5
+  ? false
+  : true extends (T extends unknown ? HasSelfBranch<T, [...Depth, unknown]> : never)
+    ? true
+    : false;
 
-type HasSelfBranch<T> = [T] extends [Self]
+// A promise is opened rather than walked: its `T` appears only in `then`'s parameters.
+type HasSelfBranch<T, Depth extends unknown[]> = [T] extends [Self]
   ? true
   : T extends AnyVal
     ? false
-    : T extends (...args: never[]) => infer R
-      ? HasSelf<R>
-      : T extends readonly unknown[]
-        ? true extends { [I in keyof T]: HasSelf<T[I]> }[number]
-          ? true
-          : false
-        : T extends object
-          ? true extends { [K in keyof T]: HasSelf<T[K]> }[keyof T]
+    : T extends PromiseLike<infer U>
+      ? HasSelf<U, Depth>
+      : T extends (...args: never[]) => infer R
+        ? HasSelf<R, Depth>
+        : T extends readonly unknown[]
+          ? true extends { [I in keyof T]: HasSelf<T[I], Depth> }[number]
             ? true
             : false
-          : false;
+          : T extends object
+            ? true extends { [K in keyof T]: HasSelf<T[K], Depth> }[keyof T]
+              ? true
+              : false
+            : false;
 
 /**
  * Rejects a member a Val could not carry: one returning `Self`, and one named after something the
