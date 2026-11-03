@@ -11,7 +11,7 @@ import {
 import { Result as R } from "@praha/byethrow";
 
 import { expand } from "./files.ts";
-import { RULES, type Finding, type Kind, type ModelSettings } from "./index.ts";
+import { RULES, type Finding, type ModelSettings } from "./index.ts";
 import { run } from "./run.ts";
 
 /**
@@ -103,10 +103,7 @@ function over(text: string, { line, column }: Finding): { start: Where; end: Whe
 
 type Where = { line: number; column: number };
 
-const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)])) as Record<
-  Kind,
-  ReturnType<typeof rule>
->;
+const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)]));
 
 /**
  * One run per file, however many of the rules are on.

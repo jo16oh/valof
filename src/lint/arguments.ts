@@ -9,7 +9,7 @@ import {
   UnknownSettingError,
 } from "./errors.ts";
 import type { ModelSettings } from "./index.ts";
-import { isKind, kinds, type Kind } from "./rules/index.ts";
+import { isKind, kinds } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
@@ -37,7 +37,7 @@ export type Arguments = Val<
     /** Paths written with a leading `!`, removed from the run and the report alike. */
     excluded: string[];
     /** Kinds left out with `--no-<kind>`. */
-    skip: Kind[];
+    skip: string[];
     /** Rules off by default that `--<kind>` turned on, with the settings after `=`. */
     enable: { "model-only-in-valof"?: ModelSettings };
     help: boolean;
@@ -63,7 +63,7 @@ export const Arguments = Val.companion<Arguments>()
       const targets: string[] = [];
       const excluded: string[] = [];
       const loose: string[] = [];
-      const skip: Kind[] = [];
+      const skip: string[] = [];
       const enable: { "model-only-in-valof"?: ModelSettings } = {};
       let help = false;
       let pending: "project" | "report-on" | undefined;

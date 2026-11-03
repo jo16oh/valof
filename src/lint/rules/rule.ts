@@ -1,4 +1,4 @@
-import { Trait, Val, type Dyn, type Self } from "../../index.ts";
+import { Trait, Val, type Self } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
 import type { Arity } from "../types.ts";
 
@@ -11,7 +11,7 @@ import type { Arity } from "../types.ts";
 export type Finding = Val<
   "Finding",
   {
-    /** The rule that reported it, one of the `Kind` union. */
+    /** The `kind` of the rule that reported it. */
     kind: string;
     file: string;
     /** 1-based, as an editor counts. */
@@ -78,17 +78,3 @@ export type Rule = Trait<
   }
 >;
 export const Rule = Trait.companion<Rule>().build();
-
-/**
- * A rule in a box, with its kind kept.
- *
- * {@link Dyn} drops the Val, and its literal `kind` with it. Keeping the kind makes `Kind` the
- * union of the kinds in `RULES`, so a misspelled kind in `Options.skip` is a type error.
- */
-export const box = <W extends Rule>(
-  companion: Parameters<typeof Rule.dyn<W>>[0],
-  value: W,
-): Boxed<W> => Rule.dyn(companion, value);
-
-/** What {@link box} returns: the rule behind {@link Dyn}, and its kind. */
-export type Boxed<W extends Rule> = Dyn<Rule> & Pick<W, "kind">;

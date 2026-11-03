@@ -60,9 +60,9 @@ test("takes the buffer over the file, so a fix lands before the save", () => {
 test("carries one kind each, so a project turns a rule off by leaving it out", () => {
   const reports: string[] = [];
   const one = context("money.ts", undefined, reports);
-  plugin.rules["unused-member"].create(one).Program();
+  plugin.rules["unused-member"]!.create(one).Program();
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
-  plugin.rules["duplicate-brand"].create(one).Program();
+  plugin.rules["duplicate-brand"]!.create(one).Program();
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
 });
 
@@ -108,14 +108,12 @@ test("runs model-only-in-valof with the settings under its name, and not from an
   const text = readFileSync(file, "utf8");
   const reported = (model?: { classes: boolean }): string[] => {
     const reports: string[] = [];
-    plugin.rules["model-only-in-valof"]
-      .create({
-        filename: file,
-        settings: { valof: { project: file, ...(model ? { "model-only-in-valof": model } : {}) } },
-        sourceCode: { text },
-        report: ({ loc, message }) => void reports.push(`${loc.start.line}:${message}`),
-      })
-      .Program();
+    plugin.rules["model-only-in-valof"]!.create({
+      filename: file,
+      settings: { valof: { project: file, ...(model ? { "model-only-in-valof": model } : {}) } },
+      sourceCode: { text },
+      report: ({ loc, message }) => void reports.push(`${loc.start.line}:${message}`),
+    }).Program();
     return reports;
   };
   const row = "1:Row declares a data type outside Valof; model it as a Val, an Enum or a Trait";

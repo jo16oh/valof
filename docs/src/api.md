@@ -61,6 +61,7 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | `AnyVal`              | a constraint over any Val                               |
 | `SeedOf<V>`           | the payload accepted by seals                           |
 | `PayloadOf<V>`        | the payload, with the brand removed at every depth      |
+| `Payload<T>`          | marks a type as meant for a payload, `T` unchanged      |
 | `Patch<T>`            | the patch accepted for a payload                        |
 | `Rec<V>`              | a Val's reference to itself, in its own payload         |
 | `CompanionBuilder<V>` | a companion's builder, with the steps it can still take |

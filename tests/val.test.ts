@@ -463,7 +463,6 @@ describe("Val", () => {
 
     test("object spread drops the brand until the payload is sealed again", () => {
       const user = User.seal({ id: "a", name: "bob" });
-      // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
       const changed = { ...user, name: "sue" };
 
       expectTypeOf(changed).not.toExtend<User>();
@@ -1229,7 +1228,6 @@ describe("patch", () => {
         u2: { role: "waiter" },
         u3: { role: "host" },
       });
-      // oxlint-disable-next-line typescript/no-misused-spread -- a Val is plain data at runtime
       expect(Shop.seal({ ...before, staff }).staff).toEqual(staff);
     });
 
