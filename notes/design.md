@@ -8124,6 +8124,11 @@ export されていないクラスを書けないので、private メンバを�
 入れ子が深さ 10 を超えたとき、黙って `/*elided*/ any` を書いていたのをエラーにした（microsoft/TypeScript#64461、
 意図した変更）。5.9 / 6.0 / 7.0 の利用者の `.d.ts` は、そこが `any` になっていた。
 
+**起きるのは、`.build()` していないビルダーを推論のまま export したときだけ。**`.build()` した companion は
+修正前から名前で出る。ビルダーを別の名前で持つと `companion-mismatch` が報告するので、lint を通るコードで
+当たるのは、型と同じ名前で `.build()` を書き忘れた export である。使う側は `CallBuildFirst` の案内付きの型
+エラーになるが、export するだけのファイルでは、案内より先に定義の行に TS7056 が出ていた。
+
 - **Trait**: `TraitBuilder` は `{…} & (Open extends true ? { impl } : unknown)` だった。`impl` の後は交差が
   1 要素に潰れて alias 名が落ち、構造で印字される。`implAssoc` が自分を返すので、段ごとに入れ子になる
 - **Enum**: variant の段（`Shape.Circle`、`.Circle.implSeal(…)` の後など）は 5.9 から TS7056 で落ちていた。
@@ -8142,6 +8147,14 @@ export されていないクラスを書けないので、private メンバを�
 **却下: `TraitImplStep` を `implAssoc` ごと上書きする `extends`。**戻り値だけ違う generic な `implAssoc` を
 継承先で書き直すと TS2430 になる。基底を `Open` で受けて、`implAssoc` が `TraitBuilder<Tr, G, Open, …>` を
 返す形にした。
+
+**失ったもの。**`impl` の前のビルダーは、ホバーやエラーに `TraitBuilder<…>` ではなく `TraitImplStep<…>` と
+出る。`impl` を 2 回書いたエラーは、残りの段を並べた構造ではなく `TraitSteps<…>` と名前だけを出す。
+`TraitBuilderBeforeImpl` への改名も考えたが、出る名前をそのまま `TraitImplStep` とするほうが分かりやすい
+（ユーザー）。
+
+**却下: fixture のビルダーの export をやめて済ませる。**`.build()` を忘れたときの TS7056 が残り、深さの打ち切りを
+見張る検査も持てなくなる。
 
 **却下: 閉じた状態に `impl?: never` を置いて交差を潰さない。**補完に `impl` が出て、呼んだときのエラーも
 「存在しない」から変わる。
