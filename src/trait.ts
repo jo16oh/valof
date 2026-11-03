@@ -27,10 +27,11 @@ declare const SelfMark: unique symbol;
 /**
  * The implementing Val, standing in for it inside a trait's member signatures.
  *
- * An opaque marker rather than a reference to the trait, which would be circular. It is a member's
- * first parameter, and `implTrait` substitutes the Val for it. No other parameter and no return type
- * may hold it: a {@link Dyn} would let another Val in. Type another parameter that reads the fields
- * with `Payload`: `(self: Self, other: Payload<{ name: string }>) => boolean`.
+ * An opaque marker rather than a reference to the trait, which would be circular. It may appear only
+ * as a member's first parameter, and `implTrait` substitutes the Val for it. No other parameter may
+ * use it, because a {@link Dyn} would pass another Val there. The return type may not use it either.
+ * Where another parameter reads fields, type it with `Payload`:
+ * `(self: Self, other: Payload<{ name: string }>) => boolean`.
  */
 export type Self = { readonly [SelfMark]: true };
 
@@ -184,8 +185,8 @@ type HasSelfBranch<T, Depth extends unknown[]> = [T] extends [Self]
             : false;
 
 /**
- * Rejects a member a Val could not carry: one taking `Self` after its first parameter, one returning
- * `Self`, and one named after something the library reserves, the trait's own `dyn` included.
+ * Rejects a member a Val could not carry: one with `Self` in a parameter after the first, one
+ * returning `Self`, and one named after something the library reserves, the trait's own `dyn` included.
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.
@@ -202,7 +203,7 @@ type Declarable<Shape, M extends Members> = {
         ? Invalid<"a trait member cannot take a name the library reserves">
         : M[K] extends (self: never, ...args: infer A) => infer R
           ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-            ? Invalid<"Self can only be a member's first parameter; type another one with Payload">
+            ? Invalid<"Self can only be a member's first parameter; type a later parameter with Payload">
             : HasSelf<R> extends true
               ? Invalid<"a trait member cannot return Self">
               : Omission<M[K]> extends string
