@@ -137,6 +137,4 @@ Oxlint accepts the same option under `typescript/no-misused-spread`. It still re
 as a whole enum, such as `Shape`. Allow that type by the file that declares it:
 `{ from: "file", path: "src/shape.ts", name: "Shape" }`.
 
-Both linters still report a value typed as a trait or as `Dyn`. Spreading a `Dyn` box loses its
-members, so the report on a box is correct. On a value typed as a trait, disable the report with a
-comment.
+Both linters still report a value typed as a trait. Disable that report with a comment.
