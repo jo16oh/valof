@@ -305,7 +305,8 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 /**
  * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. An allowed payload
  * is `T` unchanged. A value that breaks the allowed-type rules does not fit. A Val declared with a
- * rejected `Payload` is rejected like one declared with `T`.
+ * rejected `Payload` is rejected like one declared with `T`, and so is a trait with one in a member's
+ * parameter or return type.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */

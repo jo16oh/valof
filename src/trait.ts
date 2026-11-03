@@ -155,8 +155,8 @@ export type Bound<M extends Members> = {
     : never;
 };
 
-// What a member's signature hides: `Self`, and the `Invalid` a {@link Payload} leaves where a part
-// breaks a payload rule. One search finds both.
+// What a member's signature contains: `Self`, and the `Invalid` that `Payload` puts in place of a
+// part breaking the allowed-type rules. One search finds both.
 //
 // The search stops at five levels, the parameter or return type itself being the first. Without the
 // bound, a type that refers to itself, such as `Promise` or a linked list, makes it fail with TS2615.
@@ -193,7 +193,8 @@ type FoundBranch<T, Depth extends unknown[]> = 0 extends 1 & T
 
 /**
  * Rejects a member a Val could not carry: one with `Self` in a parameter after the first, one
- * returning `Self`, and one named after something the library reserves, the trait's own `dyn` included.
+ * returning `Self`, one with a `Payload` that breaks the allowed-type rules in a parameter or the
+ * return type, and one named after something the library reserves, the trait's own `dyn` included.
  *
  * What wants to return a `Self` is a constructor, and a trait has no brand to seal with. Take
  * the field out through a member instead.

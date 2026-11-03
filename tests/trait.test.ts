@@ -124,7 +124,7 @@ describe("Trait", () => {
       ]).toEqual([true, false, true]);
     });
 
-    test("a Payload that breaks the payload rules is reported at the trait", () => {
+    test("a Payload that breaks the allowed-type rules is reported at the trait", () => {
       type Same = Trait<
         "Same",
         { n: number },
@@ -136,12 +136,12 @@ describe("Trait", () => {
         .build();
 
       type Ret = Trait<"Ret", { n: number }, { get: (self: Self) => Payload<{ f: () => void }> }>;
-      // @ts-expect-error nor in the return type
+      // @ts-expect-error functions are not allowed in the return type either
       Trait.companion<Ret>()
         .impl(() => ({}))
         .build();
 
-      // Without Payload, the parameter is not a payload, and a function is fine
+      // Without Payload, the parameter is not a payload, and a function is allowed
       type Run = Trait<"Run", { n: number }, { run: (self: Self, job: { f: () => void }) => void }>;
       Trait.companion<Run>()
         .impl(() => ({ run: (_self, job) => job.f() }))
@@ -226,7 +226,7 @@ describe("Trait", () => {
           load: (self: Self) => Promise<string>;
           chain: (self: Self) => Chain;
           thunk: Final<(self: Self) => Thunk>;
-          // `thisArg` of `Map`'s `forEach` is optional and `any`, and `any` is not Self
+          // `thisArg` of `Map`'s `forEach` is an optional `any`, and `any` is not Self
           index: Final<(self: Self) => Map<string, number>>;
         }
       >;
