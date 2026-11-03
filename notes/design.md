@@ -5905,6 +5905,30 @@ trait に足せばよい。
 検査は型で書ける。`HasSelf<R>` が真なら文字列リテラルに落とす形で、`(self: Self) => Self` と
 `(self: Self) => readonly [Self, number]` の両方が捕まる。
 
+##### 探索の深さに上限を置く、2026-11-03
+
+戻り型が自分と同じ型を返すメンバを持つと（`Promise.then`、`type Chain = { next: () => Chain }`）、
+`HasSelf` の再帰が自分に戻って TS2615 になっていた。async のメンバを持つ trait が宣言できなかった。
+
+**深さを数え、5 段で打ち切る。**戻り型そのものを 1 段目とするので、入れ子 4 つまでの `Self` を捕まえる。
+`Promise<{ items: Array<{ owner: Self }> }>` まで届く。それより深い `Self` は見逃す（テスト
+「the search for Self stops after four nested types」）。
+
+上限は測って決めた。1 段ごとの増分は、メンバの多い型ほど大きい（基準 34,289 からの instantiations、
+TypeScript 7.0.2）。
+
+| 戻り型                | 上限 3 | 上限 4 | 上限 5 | 上限 6 | 上限 8  |
+| --------------------- | ------ | ------ | ------ | ------ | ------- |
+| `Promise<string>`     | +463   | +638   | +768   | +880   | +1,126  |
+| `Map<string, number>` | +1,135 | +3,846 | +5,667 | +8,168 | +12,147 |
+| `Chain`               | +112   | +138   | +179   | +203   | +272    |
+
+検査は trait の宣言ごとに 1 回なので、`Map` で 1 段あたり約 2,000 は払える。上限 4 では上の `Promise`
+の例に届かない。trait fixture は +19（17,639 → 17,658）、`index.d.ts` は +0.18 kB。
+
+**`PromiseLike` は中身を開いて辿る（1 段と数える）。**`Promise<Self>` の `Self` は `then` の引数にしか
+現れず、引数は辿らないので、上限だけでは素通りする。それまでは TS2615 で偶然拒まれていた。
+
 #### 却下: WeakMap による動的ディスパッチ
 
 `Greetable.greet(p)` を値から引くために、§4.1 の `owned` を `WeakSet` から
