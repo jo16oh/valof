@@ -124,6 +124,30 @@ describe("Trait", () => {
       ]).toEqual([true, false, true]);
     });
 
+    test("a Payload that breaks the payload rules is reported at the trait", () => {
+      type Same = Trait<
+        "Same",
+        { n: number },
+        { same: (self: Self, other: Payload<{ n: number; f: () => void }>) => boolean }
+      >;
+      // @ts-expect-error functions are not allowed
+      Trait.companion<Same>()
+        .impl(() => ({}))
+        .build();
+
+      type Ret = Trait<"Ret", { n: number }, { get: (self: Self) => Payload<{ f: () => void }> }>;
+      // @ts-expect-error nor in the return type
+      Trait.companion<Ret>()
+        .impl(() => ({}))
+        .build();
+
+      // Without Payload, the parameter is not a payload, and a function is fine
+      type Run = Trait<"Run", { n: number }, { run: (self: Self, job: { f: () => void }) => void }>;
+      Trait.companion<Run>()
+        .impl(() => ({ run: (_self, job) => job.f() }))
+        .build();
+    });
+
     test("Self cannot hide inside a member's return type", () => {
       type Union = Trait<"Union", { n: number }, { grow: (self: Self) => Self | null }>;
       // @ts-expect-error a union member cannot hide Self
@@ -202,7 +226,7 @@ describe("Trait", () => {
           load: (self: Self) => Promise<string>;
           chain: (self: Self) => Chain;
           thunk: Final<(self: Self) => Thunk>;
-          // `thisArg` of `Map`'s `forEach` is `any`, and `any` is not Self
+          // `thisArg` of `Map`'s `forEach` is optional and `any`, and `any` is not Self
           index: Final<(self: Self) => Map<string, number>>;
         }
       >;
