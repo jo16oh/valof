@@ -3010,7 +3010,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     普通の class は残る（ESLint 10 + typescript-eslint 8.72.1、oxlint 1.82.0 と 1.90.0 で probe）
   - **oxlint は enum の union を残す。**tsgolint の `TypeMatchesSomeSpecifier` が union を分解しない。
     typescript-eslint は全メンバの一致で通す。union の alias は利用者の `Shape` で、`Enum` では一致しない。
-    `{ from: "file", path, name: "Shape" }` を足せば消える
+    `{ from: "file", path, name: "Shape" }` を足せば消えるが、docs では勧めない（次の項目）
+  - **フィールドがすべて判明していない値の spread は勧めない、2026-11-03。**enum 全体、Trait 型、`Dyn` の値が
+    そう。警告は正しいものとして扱い、docs は回避策を書かずに「enum は match してから、trait のフィールドは名前で
+    読む」とだけ書く。`from: "file"` で `Shape` を許す例と、Trait 型の値を disable コメントで消す案内を外した
   - **却下: `TraitPhantom` も許す。**Trait 型の値は消えるが、`Dyn` の spread も消える。`Dyn` の spread は
     メンバを落とすので、その警告は正しい（下の項目）
   - **却下: `Phantom` を class でなくす（文字列キー `__valof_brand_…`）。**spread でブランドが残って seal を
