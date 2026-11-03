@@ -1,5 +1,13 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import { Trait, Val, type AnyTrait, type Dyn, type Final, type Self } from "../src/index.ts";
+import {
+  Trait,
+  Val,
+  type AnyTrait,
+  type Dyn,
+  type Final,
+  type Payload,
+  type Self,
+} from "../src/index.ts";
 // `Wired` is not published from the entry point.
 import type { CallBuildFirst, Wired } from "../src/val.ts";
 import type { BrandsOf } from "../src/trait.ts";
@@ -64,6 +72,46 @@ describe("Trait", () => {
       Trait.companion<Unsafe>()
         .impl(() => ({}))
         .build();
+    });
+
+    test("Self is a member's first parameter alone", () => {
+      type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Self) => boolean }>;
+      // @ts-expect-error a box would let `other` be another Val
+      Trait.companion<Same>()
+        .impl(() => ({}))
+        .build();
+
+      type Among = Trait<
+        "Among",
+        { n: number },
+        { among: (self: Self, others: readonly Self[]) => boolean }
+      >;
+      // @ts-expect-error an array cannot hide Self
+      Trait.companion<Among>()
+        .impl(() => ({}))
+        .build();
+    });
+
+    test("another parameter reads the fields through Payload", () => {
+      type Same = Trait<
+        "Same",
+        { n: number },
+        { same: (self: Self, other: Payload<{ n: number }>) => boolean }
+      >;
+      const Same = Trait.companion<Same>()
+        .impl(() => ({ same: (s, other) => s.n === other.n }))
+        .build();
+      type Meter = Val<"Meter", { n: number }, Same>;
+      const Meter = Val.companion<Meter>().implTrait(Same).build();
+      type Gauge = Val<"Gauge", { n: number; unit: string }, Same>;
+      const Gauge = Val.companion<Gauge>().implTrait(Same).build();
+      const meter = Val.of<Meter>({ n: 1 });
+      const gauge = Val.of<Gauge>({ n: 1, unit: "kg" });
+      expect([
+        Meter.same(meter, gauge),
+        Meter.same(meter, { n: 2 }),
+        Same.dyn(Gauge, gauge).same(meter),
+      ]).toEqual([true, false, true]);
     });
 
     test("Self cannot hide inside a member's return type", () => {
