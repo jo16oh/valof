@@ -17,6 +17,7 @@ import type {
 import { createMembers, dual } from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
+  InvalidKey,
   NoSeal,
   PhantomBrand,
   PhantomPayload,
@@ -76,14 +77,19 @@ export interface Rec<V> {
   readonly [RecKey]: V;
 }
 
-/** Marker surfaced in the type when a declaration violates the allowed-type rules. */
-export type Invalid<Msg extends string> = { readonly __valError: Msg };
+/**
+ * Marker surfaced in the type when a declaration violates the allowed-type rules. The symbol key
+ * tells it apart from a payload field of the same shape, which a user may write.
+ */
+// The string key stays: a trait's gate rejects an `Invalid` in a member's place because the
+// message is not a function, and a symbol key alone fits `Record<string, …>`.
+export type Invalid<Msg extends string> = { readonly __valError: Msg; readonly [InvalidKey]: true };
 
 /**
  * An {@link Invalid} found in a payload. {@link Payload} leaves an `Invalid` in place of each part
  * that breaks a rule, and `Invalid` alone is a plain value, so a Val holding it would pass.
  */
-type Refused<Msg extends string> = { readonly __valError: Msg; readonly __rejected: true };
+export type Refused<Msg extends string> = { readonly __valError: Msg; readonly __rejected: true };
 
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
 type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
