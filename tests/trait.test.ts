@@ -79,6 +79,24 @@ describe("Trait", () => {
         .impl(() => ({}))
         .build();
 
+      type Tuple = Trait<"Tuple", { n: number }, { grow: (self: Self) => readonly [Self, number] }>;
+      // @ts-expect-error an array cannot hide Self
+      Trait.companion<Tuple>()
+        .impl(() => ({}))
+        .build();
+
+      type Wrapped = Trait<"Wrapped", { n: number }, { grow: (self: Self) => { next: Self } }>;
+      // @ts-expect-error an object cannot hide Self
+      Trait.companion<Wrapped>()
+        .impl(() => ({}))
+        .build();
+
+      type Later = Trait<"Later", { n: number }, { grow: (self: Self) => Promise<Self> }>;
+      // @ts-expect-error a promise cannot hide Self
+      Trait.companion<Later>()
+        .impl(() => ({}))
+        .build();
+
       type Safe = Trait<"Safe", { n: number }, { read: (self: Self) => (() => string) | null }>;
       const Safe = Trait.companion<Safe>()
         .impl(() => ({ read: (s) => () => String(s.n) }))
@@ -86,6 +104,62 @@ describe("Trait", () => {
       type Meter = Val<"Meter", { n: number }, Safe>;
       const Meter = Val.companion<Meter>().implTrait(Safe).build();
       expect(Meter.read(Val.of<Meter>({ n: 1 }))?.()).toBe("1");
+    });
+
+    test("the search for Self stops after four nested types", () => {
+      type Four = Trait<
+        "Four",
+        { n: number },
+        { grow: (self: Self) => Promise<{ a: [{ b: Self }] }> }
+      >;
+      // @ts-expect-error Self inside four nested types is still caught
+      Trait.companion<Four>()
+        .impl(() => ({}))
+        .build();
+
+      type Five = Trait<
+        "Five",
+        { n: number },
+        { grow: (self: Self) => Promise<{ a: [{ b: { c: Self } }] }> }
+      >;
+      Trait.companion<Five>()
+        .impl(() => ({}))
+        .build();
+    });
+
+    test("a member may return a type that refers to itself", async () => {
+      type Chain = { readonly value: number; next: () => Chain };
+      type Thunk = () => Thunk;
+      type Async = Trait<
+        "Async",
+        { n: number },
+        {
+          load: (self: Self) => Promise<string>;
+          chain: (self: Self) => Chain;
+          thunk: Final<(self: Self) => Thunk>;
+        }
+      >;
+      const Async = Trait.companion<Async>()
+        .impl(() => ({
+          load: async (s) => String(s.n),
+          thunk: (_self) => {
+            const thunk: Thunk = () => thunk;
+            return thunk;
+          },
+        }))
+        .build();
+      type Counter = Val<"Counter", { n: number }, Async>;
+      const Counter = Val.companion<Counter>()
+        .implTrait(Async, () => ({
+          chain: (c) => {
+            const from = (value: number): Chain => ({ value, next: () => from(value + 1) });
+            return from(c.n);
+          },
+        }))
+        .build();
+      const counter = Val.of<Counter>({ n: 1 });
+      expect(await Counter.load(counter)).toBe("1");
+      expect(Counter.chain(counter).next().value).toBe(2);
     });
   });
 
