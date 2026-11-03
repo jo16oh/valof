@@ -15,7 +15,7 @@ export const traitStart = Trait.companion<Greetable>();
 export const traitImpl = traitStart.impl(() => ({ shout: (g) => g.name }));
 export const traitImplAssoc = traitImpl.implAssoc(() => ({ a: () => 1 }));
 export const traitAssoc = traitStart.implAssoc(() => ({ a: () => 1 }));
-export const traitAssocImpl = traitAssoc
+const traitAssocImpl = traitAssoc
   .impl(() => ({ shout: (g) => g.name }))
   .implAssoc(() => ({ b: () => 1 }));
 export const Greetable = traitAssocImpl.build();
@@ -48,6 +48,11 @@ export const variantAssoc = variantImpl.Circle.implAssoc(() => ({ unit: () => 1 
 export const variantDone = variantAssoc.Circle;
 export const enumSeal = variantAssoc.implSeal((s, seal) => seal(s));
 export const enumCreate = enumSeal.implCreate(() => ({ _tag: "Rect" as const, w: 1, name: "r" }));
+export const enumNoseal = enumSeal.implCreate.noseal(() => ({
+  _tag: "Rect" as const,
+  w: 1,
+  name: "r",
+}));
 export const enumImpl = enumCreate.impl(() => ({ tag: (s) => s._tag }));
 export const enumTrait = enumImpl.implTrait(Greetable, () => ({ greet: (s) => s.name }));
 export const enumAssoc = enumTrait
