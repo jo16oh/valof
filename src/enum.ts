@@ -521,7 +521,7 @@ type VariantPatch<E extends AnyEnum, N extends keyof VariantsOf<E>, R, U> = {
 };
 
 /** What a variant's step's function receives: its `seal`, `create` and `patch`, private or not. */
-type VariantSupplied<
+export type VariantSupplied<
   E extends AnyEnum,
   O extends Options,
   VM,
@@ -531,7 +531,7 @@ type VariantSupplied<
   VariantSeal<E, N, R> &
   VariantPatch<E, N, R, Unpatched<O, N>>;
 
-type Frame<
+export type Frame<
   E extends AnyEnum,
   O extends Options,
   VM,
@@ -587,7 +587,7 @@ type Exclusive<E extends AnyEnum> = {
 }[keyof VariantsOf<E>];
 
 /** What an enum dispatches on a tag alone, under {@link Tag}. */
-type ByTag<E extends AnyEnum> = {
+export type ByTag<E extends AnyEnum> = {
   /**
    * Dispatches on a tag that arrives without its payload. Every tag the argument's type allows needs
    * a handler, or `_` or {@link Otherwise} covers the rest. A handler takes no argument.

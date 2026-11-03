@@ -31,11 +31,11 @@ import { Val } from "valof";
 - **§7 見送ったもの** freeze（dev のみ採用）、Map/Set、Date/Temporal、TaggedEnum、Result、equals のディスパッチ、配線対象を `.impl` に置くこと、bigint（2026-10-28 に外した、却下した「残す」案、保証しない JSON 往復の穴）
 - **§8 慣用パターン** Record での Set/Map、日付、スキーマライブラリ併用、更新経路から外すフィールド、フレームワークの状態コンテナ（§8.5、dev では再現しない）、2^53 を超える整数（§8.6、10 進の整数文字列）
 - **§9 未解決 / 要確認** 次の作業はここ
-- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降、npm と同じ形で入れた `dist` を `exports` 越しに検査する）
+- **§10 v1 のスコープ** 10.1 サポートする TypeScript（各ラインの最終版以降、npm と同じ形で入れた `dist` を `exports` 越しに検査する、宣言の往復）
 - **§11 型エラーをどこで表面化させるか** パラメータ位置（A）と判定位置（B、`Verdict`）。型引数だけを読む検査は B、呼び出し側の状態を読む検査は A。どちらでもない場所に置いた 3 件のバグ
 - **§12 命名** パッケージ名 `valof`、型名 `Val`、商標調査
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ（§13.6 のビルダーは 2026-10-23 に採った）
-- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
+- **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本、足さない `no-unsafe-*`（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
   - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath、2026-10-27 に廃止）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し、`__proto__` も守らない）
@@ -43,7 +43,7 @@ import { Val } from "valof";
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）。**2026-10-26 に段の引数を関数に揃えた**（注釈の税は変わらない）
 - **§16 予算の責務** バンドルと型を別のスクリプトに割る。宣言のバイト数を type-perf へ、予算を 64 kB に上げた理由、16.1 バンドルの増分を実測の core から測る、16.2 production の検査はサイズを比べる、16.3 Enum の production gzip を削る（段の共有、却下した予算 +512 B）
 - **§17 Effect v4 調査** 落ちた typeclass と HKT の層（§15.3 の根拠）、値の中に等価性を置く形、クラスの構造比較に開く穴、向こうにあってこちらに無いもの
-- **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify。18.4 利用者の宣言出力が参照する `internal/*`（却下した entry からの export、クラスにした `PrivateSeal` / `PrivateCreate`）、18.5 宣言出力で型を `any` に切らせない（名前で印字させるビルダー、`/*elided*/` の検査、7.1 を線に入れない判断）
+- **§18 配布物の形** `Val` / `Enum` / `Trait` を namespace にして、使わないメンバをツリーシェイクで落とす。型と同じ名前で export する書き方、ランタイムの entry を tsc でファイルごとに出す理由（Rolldown の `__exportAll` と `.d.ts` の型名）、bundle-size の base、宣言の予算を 96 kB に。却下した `.ts` 配布と `.d.ts` の minify。18.4 利用者の宣言出力が参照する `internal/*`（却下した entry からの export、クラスにした `PrivateSeal` / `PrivateCreate`）、18.5 宣言出力で型を `any` に切らせない（名前で印字させるビルダー、7.1 を線に入れない判断）
 - **§19 scripts が使う valof を固定する** `#valof` をコミットのビルドに向ける。一致の判定、リリース PR だけ一致を必須にすること、ts-compatibility が scripts をコピーして読むこと、ハッシュを `package.json` に書く理由（`optimisticRepeatInstall`）、却下した git 依存・pkg.pr.new・その場で読む案。追従で見つかった dual メンバーと lint
 
 ---
@@ -3155,6 +3155,48 @@ scripts も fixture として読む。固定先が今の `dist` と同じもの�
 | `PrivateCreate` を alias に戻す          | fixture の `PrivateCreate`（TS4094）       |
 | 作業ディレクトリの `package.json` を消す | 5.9 だけ（TS2209、自己参照で root が曖昧） |
 
+#### 宣言の往復、2026-11-03
+
+**本のブロックと fixture の export ごとに、ソースの型と、出力した `.d.ts` から読んだ型が同一であることを型で確かめる。**
+宣言出力はエラー無しに型を失うことがある。7.0 までは、深い型を `/*elided*/ any` に切る（§18.5）。
+
+```ts
+import type * as S0 from "../fixture-builders.js";
+import type * as D0 from "../dts/fixture-builders.js";
+export type _0 = Expect<Equal<typeof S0.traitImpl, typeof D0.traitImpl>>;
+```
+
+- `Equal` は `(<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2`。`any` を他の型と区別する。
+  ソースと `.d.ts` で別々に宣言された `type Greetable = Trait<…>` は同一とみなす（5.9 / 6.0 / 7.0 で probe）
+- 値は `typeof`、型はそのまま比べる。generic な型は `<T0>() => S.Result<T0>` と包む。制約付きの型引数は包めないので、
+  来たら列挙の時点で投げる（今は無い）
+- export の列挙は `typescript-5` の checker（`getExportsOfModule`）。`export *` も辿る
+- 修正前の `dist`（`3bf3e34`）で、`/*elided*/` を含む `greetableBuilder` が 3 線とも落ちることを確かめた。
+  `/*elided*/ any` は export の型を変えるので、文字列の検査は往復に置き換えた
+
+**同一性で比べるので、意味が同じでも印字が違えば落ちる。**入れた時点で `byTag`、`circle`、`variantDone` が落ちた。
+`.d.ts` は export されない alias（`ByTag`、`Frame`、`VariantSupplied`）を展開して印字する。展開すると
+`keyof VariantsOf<Shape>` が `"Circle" | "Rect"` に解決され、`{…} & {}` の `& {}` が落ちる。3 つを export して
+名前で印字させた（`valof/internal/enum`、§18.4）。fixture の宣言は 36.8 kB から 33.8 kB になり、`index.d.ts` は
++0.02 kB。
+
+**却下: 往復しない export を除外リストに載せる。**その export の型が `any` に潰れても見えなくなる。valof の型なら、
+export して名前で出せば直る。
+
+**scripts は往復せず、`/*elided*/` を文字列で探す。**`ErrorFactory(…)` を継承したクラスと、それを参照する型が落ちる
+（34 件中 20 件）。基底の型は条件型の alias（`ErrorInstance<…>`）で、`.d.ts` は解決した形で印字する。他パッケージの
+alias は名前で出させられない。
+
+**往復しないもの。**enum、`unique symbol`、private メンバを持つクラスは、`.d.ts` が宣言し直すと同一にならない
+（5.9 / 7.0 で probe）。今の本と fixture には無い。来たら比べ方を足す。
+
+**コスト。**ts-compatibility は 4.4 秒から 9.1 秒になった（手元）。往復の tsc は 1 線あたり 5.9 で 2.4 秒、7.0 で
+1.1 秒。大半は enum ビルダーの比較で、`variantStart` だけで 62 万 instantiations。
+
+**線は並列に回す。**線ごとに `dts/<alias>` と `round-trip/<alias>` へ出力し、報告は `aliases` の順に出す。9.1 秒が
+5.2 秒になった。各線が自分の出力を読んでいることは検査できていない。今ある壊し方はどれも 3 線を同時に落とすので、
+別の線の `.d.ts` を読んでも通ってしまう。
+
 ---
 
 ## 11. 型エラーをどこで表面化させるか
@@ -4269,6 +4311,17 @@ dist/index.d.mts     差分なし。公開宣言は変わらない
 **19 個の `as` は 1 つも消していない。フラグを入れて全部必要になった。**
 
 足さなかったものと理由。`no-useless-concat`（100 桁に収める意図的な分割）、`no-array-sort`（`filter().sort()` は既に新しい配列で、`toSorted` は 2 度コピーする）、`consistent-function-scoping`、`no-undefined` / `no-non-null-assertion` / `no-async-await`（このコードベースの選択そのもの）、`prefer-readonly-parameter-types`（174 件）、`no-shadow`（2 件のうち 1 件はテストの命名慣習）。
+
+#### 足さない: `no-unsafe-*`、2026-11-03
+
+`no-unsafe-assignment` / `-return` / `-call` / `-member-access` / `-argument` を `tests/` と本のブロックに効かせると
+23 件、15 行だった。**valof の型が `any` を返す箇所は 0 件。**
+
+- `@ts-expect-error` の行で、エラーの結果が `any` になるもの 15 件。disable コメントは `@ts-expect-error` と同じ
+  次の行を取り合う
+- `JSON.parse` を seal に渡す 5 件。`new Function`、`expect.objectContaining`、`Reflect.get` が各 1 件
+
+disable コメントが 15 行に要り、見つけるものが無い。fixture は 0 件だが、`ignorePatterns` から外せない（§10.1）。
 
 #### 重大度: 壊れているか、何もしていないか、2026-09-09
 
@@ -8247,8 +8300,9 @@ export されていないクラスを書けないので、private メンバを�
 **残る展開。**variant の段をすべて閉じた後の `Shape.Circle`（`.impl` 済みなど）は、`VariantSteps` の交差が
 1 要素に潰れて構造で印字される。中の段は `EnumBuilder<…>` と名前で出るので入れ子にならず、通る。
 
-**検査。**ts-compatibility の fixture `builders.ts` が、各ビルダーの各状態を推論のまま export する。宣言出力に
-`/*elided*/` があれば、エラーが無くてもその線を落とす。
+**検査。**ts-compatibility の fixture `builders.ts` が、各ビルダーの各状態を推論のまま export する。宣言出力が
+export の型を変えれば、エラーが無くてもその線を落とす（§10.1「宣言の往復」）。最初は `.d.ts` の `/*elided*/` を
+文字列で探していた。
 
 **7.1 は ts-compatibility の線に入れない。**beta で、安定版が出れば最終版として `aliases` に足す（§10.1）。
 7.1 が TS7056 にする箇所は、それより前の線では `/*elided*/` として出るので、上の検査で捕まる。
