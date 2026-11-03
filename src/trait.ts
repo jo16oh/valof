@@ -155,14 +155,17 @@ export type Bound<M extends Members> = {
     : never;
 };
 
+// What a member's signature hides: `Self`, and the `Invalid` a {@link Payload} leaves where a part
+// breaks a payload rule. One search finds both.
+//
 // The search stops at five levels, the parameter or return type itself being the first. Without the
 // bound, a type that refers to itself, such as `Promise` or a linked list, makes it fail with TS2615.
-// Self inside more than four nested types is missed.
-type HasSelf<T, Depth extends unknown[] = []> = Depth["length"] extends 5
-  ? false
-  : true extends (T extends unknown ? HasSelfBranch<T, [...Depth, unknown]> : never)
-    ? true
-    : false;
+// Anything inside more than four nested types is missed.
+type Found<T, Depth extends unknown[] = []> = Depth["length"] extends 5
+  ? never
+  : T extends unknown
+    ? FoundBranch<T, [...Depth, unknown]>
+    : never;
 
 // A `PromiseLike` is unwrapped rather than searched. Searched through `then`, its `T` appears at the
 // callback's parameter, two levels deeper than the unwrapped `T`, so the depth bound reaches two
@@ -170,27 +173,23 @@ type HasSelf<T, Depth extends unknown[] = []> = Depth["length"] extends 5
 //
 // `any` is not `Self`. Without the check, a member returning `Map` is rejected because of
 // the `thisArg?: any` parameter of `forEach`.
-type HasSelfBranch<T, Depth extends unknown[]> = 0 extends 1 & T
-  ? false
+type FoundBranch<T, Depth extends unknown[]> = 0 extends 1 & T
+  ? never
   : [T] extends [Self]
-    ? true
-    : T extends AnyVal
-      ? false
-      : T extends PromiseLike<infer U>
-        ? HasSelf<U, Depth>
-        : T extends (...args: infer A) => infer R
-          ? true extends HasSelf<R, Depth> | { [I in keyof A]: HasSelf<A[I], Depth> }[number]
-            ? true
-            : false
-          : T extends readonly unknown[]
-            ? true extends { [I in keyof T]: HasSelf<T[I], Depth> }[number]
-              ? true
-              : false
-            : T extends object
-              ? true extends { [K in keyof T]: HasSelf<T[K], Depth> }[keyof T]
-                ? true
-                : false
-              : false;
+    ? Self
+    : [T] extends [Invalid<infer M>]
+      ? Invalid<M>
+      : T extends AnyVal
+        ? never
+        : T extends PromiseLike<infer U>
+          ? Found<U, Depth>
+          : T extends (...args: infer A) => infer R
+            ? Found<R, Depth> | { [I in keyof A]-?: Found<A[I], Depth> }[number]
+            : T extends readonly unknown[]
+              ? { [I in keyof T]-?: Found<T[I], Depth> }[number]
+              : T extends object
+                ? { [K in keyof T]-?: Found<T[K], Depth> }[keyof T]
+                : never;
 
 /**
  * Rejects a member a Val could not carry: one with `Self` in a parameter after the first, one
@@ -210,15 +209,19 @@ type Declarable<Shape, M extends Members> = {
       : K extends Reserved
         ? Invalid<"a trait member cannot take a name the library reserves">
         : M[K] extends (self: never, ...args: infer A) => infer R
-          ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-            ? Invalid<"Self can only be a member's first parameter; type a later parameter with Payload">
-            : HasSelf<R> extends true
-              ? Invalid<"a trait member cannot return Self">
-              : Omission<M[K]> extends string
-                ? Invalid<Omission<M[K]> & string>
-                : M[K]
+          ? Faulted<M[K], { [I in keyof A]-?: Found<A[I]> }[number], Found<R>>
           : M[K];
 };
+
+type Faulted<F, InArgs, InReturn> = Self extends InArgs
+  ? Invalid<"Self can only be a member's first parameter; type a later parameter with Payload">
+  : Self extends InReturn
+    ? Invalid<"a trait member cannot return Self">
+    : [InArgs | InReturn] extends [never]
+      ? Omission<F> extends string
+        ? Invalid<Omission<F> & string>
+        : F
+      : Exclude<InArgs | InReturn, Self>;
 
 /**
  * A value paired with one Val's implementation of a trait: Rust's `Box<dyn Trait>`, with the
