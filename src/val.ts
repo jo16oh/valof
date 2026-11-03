@@ -79,10 +79,10 @@ export interface Rec<V> {
 
 /**
  * Marker surfaced in the type when a declaration violates the allowed-type rules. The symbol key
- * tells it apart from a payload field of the same shape, which a user may write.
+ * distinguishes it from a payload field of the same shape, which a user may write.
  */
-// The string key stays: a trait's gate rejects an `Invalid` in a member's place because the
-// message is not a function, and a symbol key alone fits `Record<string, …>`.
+// The string key stays. `AnyTrait` rejects an `Invalid` in a member's place because the message is
+// not a function, and a symbol key alone fits `Record<string, …>`.
 export type Invalid<Msg extends string> = { readonly __valError: Msg; readonly [InvalidKey]: true };
 
 /**
