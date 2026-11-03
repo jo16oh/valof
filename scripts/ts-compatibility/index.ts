@@ -184,12 +184,15 @@ for (const alias of aliases) {
 console.log();
 
 if (failed.length > 0) {
-  console.error(`the declarations do not typecheck, or cut a type, on ${failed.join(", ")}`);
+  console.error(
+    `tsc reports errors in the declarations, or truncates a type, on ${failed.join(", ")}`,
+  );
   process.exit(1);
 }
 
-// The declarations that cut a type to an elided `any`. Up to 7.0, TypeScript cuts a type nested
-// deeper than it prints without an error. 7.1 reports TS7056 there (microsoft/TypeScript#64461).
+// The declaration files in which TypeScript truncated a type to `/*elided*/ any`. Up to 7.0, it
+// truncates a type nested beyond the printer's depth limit and reports no error. 7.1 reports
+// TS7056 instead (microsoft/TypeScript#64461).
 async function elided(directory: string): Promise<string[]> {
   const files = await readdir(directory, { recursive: true });
   const cut: string[] = [];

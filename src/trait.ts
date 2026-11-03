@@ -285,9 +285,9 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
 /**
  * What `Trait.companion` returns, which `impl` adds to and `.build()` closes.
  */
-// Interfaces rather than one object type with `impl` behind a conditional. Once `impl` is taken,
-// that intersection reduces to its other member and loses the alias name, so a declaration that
-// infers the builder prints it in full, nested once per `implAssoc`.
+// Interfaces rather than `{ … } & (Open extends true ? { impl } : unknown)`. After `impl` is
+// called, that intersection reduces to its first member and loses the alias name, so the emitted
+// declaration of an inferred builder repeats the builder in full, nested once per `implAssoc`.
 export type TraitBuilder<
   Tr extends AnyTrait,
   G = Record<never, never>,

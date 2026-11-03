@@ -1,7 +1,7 @@
-// Every state of every builder, each exported with its type inferred. A builder whose type loses
-// its name prints its own steps inside each step, and the nesting either exceeds what the compiler
-// serializes (TS7056) or is cut to `/*elided*/ any`, which the scan of the emitted declarations
-// rejects.
+// Every state of every builder, each exported with its type inferred. Where a builder's type loses
+// its name, the compiler prints the builder's steps again inside each step. The nesting either
+// exceeds what the compiler serializes (TS7056) or is truncated to `/*elided*/ any`, which
+// `elided()` in `index.ts` rejects.
 import { Enum, Tag, Trait, Val, type Final, type Self } from "valof";
 
 export type Greetable = Trait<
