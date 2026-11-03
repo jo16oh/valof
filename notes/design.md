@@ -3000,6 +3000,26 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       持つが、`dist` に `val.ts` は無い。`rewriteRelativeImportExtensions` が書き換えるのは JS だけ。tsc は
       `.d.ts` に解決するので 5.9 / 7.0 で通り、`skipLibCheck` の有無も関係ない。パスを文字どおり読むツールで
       壊れる例が出てから考える
+- [x] ~~**型検査つきの lint が Val の spread を警告する。**~~ → 設定で解いた、2026-11-03。typescript-eslint と
+      oxlint の `no-misused-spread` が `{ ...user }` を「class のインスタンスの spread」と報告する。`Phantom` が
+      `declare class` なので、規則は Val を class のインスタンスと見る。Val は実行時にはプレーンなオブジェクトで、
+      失うものは無い。docs の Linting の章に設定を書いた
+  - **設定は `allow: [{ from: "package", package: "valof", name: "Phantom" }]`。**`Phantom` は entry から
+    export していないが、`dist/val.d.ts` が宣言するので package 指定で一致する。名前だけの `"Phantom"` も
+    効くが、利用者の同名の型も除外する。Val、variant、Trait を宣言した Val、ESLint では enum の union も消え、
+    普通の class は残る（ESLint 10 + typescript-eslint 8.72.1、oxlint 1.82.0 と 1.90.0 で probe）
+  - **oxlint は enum の union を残す。**tsgolint の `TypeMatchesSomeSpecifier` が union を分解しない。
+    typescript-eslint は全メンバの一致で通す。union の alias は利用者の `Shape` で、`Enum` では一致しない。
+    `{ from: "file", path, name: "Shape" }` を足せば消える
+  - **却下: `TraitPhantom` も許す。**Trait 型の値は消えるが、`Dyn` の spread も消える。`Dyn` の spread は
+    メンバを落とすので、その警告は正しい（下の項目）
+  - **却下: `Phantom` を class でなくす（文字列キー `__valof_brand_…`）。**spread でブランドが残って seal を
+    迂回できる、ブランドを手書きで偽造できる、`keyof` に出る、`__valof_` の予約が戻る。§2.1「2026-10-26: キーを
+    symbol に戻した」が symbol キー版を却下したのと同じ理由
+  - この repo の `oxlint.config.ts` には入れない。規則自体を有効にしておらず、`src` に Val の spread も無い
+- [ ] **`Dyn` の spread が型を偽る。**`{ ...Greetable.dyn(User, user) }` の型は `{ name: string; greet: () => string }`
+      だが、実行時は `{ id, name }` で `greet` が無い。今は `no-misused-spread` の警告だけが止める。型で塞ぐか、
+      docs に書くかは未決
 
 ---
 
