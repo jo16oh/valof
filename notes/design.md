@@ -6007,10 +6007,25 @@ Same.dyn(A, a).same(b); // 通っていた。A の実装が B を受け取る
   同じく、trait を使う位置（`Trait.companion<Same>()` など）に出る
 - **`SubstArgs` を消した。**置き換える引数が無くなった。`Bound` は型引数 `S` を使わなくなったので外した
 - **他の引数は `Payload<{ n: number }>` で書く。**素のオブジェクトも、shape を持つ別の Val も通る
-- **`HasSelf` は関数の引数を辿らない。**`(self: Self, f: (x: Self) => void) => void` は宣言を通る。実装は
-  `f(u)` で型エラーになる（Val は `Self` に代入できない）ので、穴ではなく書けないメンバになる
-- **コスト。**instantiations は trait fixture 17,658 → 16,775、enum 35,703 → 34,919（TypeScript 5.9.3）。
-  `SubstArgs` の mapped type が消えたぶん減った。`index.d.ts` は +0.22 kB
+- **`HasSelf` は関数の引数も辿る。**`(self: Self, f: (others: readonly Self[]) => void) => void` も、戻り値の
+  `(self: Self) => (other: Self) => void` も拒む。前は宣言を通り、実装が `f(u)` で型エラーになる（Val は
+  `Self` に代入できない）ので、書けないメンバになっていた
+- **`any` は `Self` ではない。**引数を辿ると `Map.forEach` の `thisArg?: any` で `[any] extends [Self]` が真に
+  なり、`Map` を返すメンバが拒まれた。`HasSelfBranch` の先頭で `any` を外す。`any` を返すメンバは、前は
+  偶然「cannot return Self」で拒まれていたが、通るようになった
+- **`PromiseLike` を開く処理は残す。**`then` のコールバックの引数を辿れば `T` に届くが、開いた `T` より
+  2 段深い。開かないと `Promise<{ a: [{ b: Self }] }>` が上限に掛かって素通りする（probe 済み）
+- **コスト。**instantiations は trait fixture 17,658 → 16,777、enum 35,703 → 34,918（TypeScript 5.9.3）。
+  `SubstArgs` の mapped type が消えたぶん減った。`index.d.ts` は +0.39 kB。関数の引数を辿るぶんは、
+  メソッドの多い型を返すメンバで効く。戻り値 `string` の trait を基準にした増分（TypeScript 7.0.2）:
+
+  | 戻り型                | 引数を辿らない | 辿る   |
+  | --------------------- | -------------- | ------ |
+  | `string`              | 0              | +17    |
+  | `Promise<string>`     | +322           | +324   |
+  | `Map<string, number>` | +5,301         | +9,502 |
+
+  検査は trait の宣言ごとに 1 回なので払える
 
 ##### `Payload` は検査しない
 
