@@ -155,7 +155,7 @@ if (current) {
  * The scripts are only searched for `/*elided*\/`. Their declarations print the aliases of other
  * packages expanded, as `ErrorFactory`'s base class, which the comparison counts as a change.
  */
-const trip = await roundTrip(directory, modules, join(directory, "dts"));
+const trip = roundTrip(directory, modules);
 
 console.log(`  ${blocks.length} blocks from the book, ${files.length} fixtures`);
 if (current) {
@@ -167,35 +167,15 @@ if (current) {
   console.log(`  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`);
 }
 
-const failed: string[] = [];
-
-for (const alias of aliases) {
-  const released = version(alias);
-
-  try {
-    await tsc(alias)(["-p", directory]);
-    await rm(join(directory, "dts"), { recursive: true, force: true });
-    await tsc(alias)(["-p", join(directory, "tsconfig.declaration.json")]);
-    if (current) {
-      await rm(join(scripts, "dts"), { recursive: true, force: true });
-      await tsc(alias)(["-p", scripts]);
-    }
-    const changed = await differs(tsc(alias), trip);
-    const cut = current ? await elided(join(scripts, "dts")) : [];
-    if (changed.length > 0 || cut.length > 0) {
-      failed.push(released);
-      console.log(`  typescript@${released}  fail`);
-      for (const name of changed) console.log(`    the declaration changes ${name}`);
-      if (cut.length > 0) console.log(`    /*elided*/ in ${cut.join(", ")}`);
-      continue;
-    }
-    console.log(`  typescript@${released}  pass`);
-  } catch (error) {
-    failed.push(released);
-    console.log(`  typescript@${released}  fail`);
-    console.log(`${(error as { stdout?: string }).stdout ?? String(error)}`);
-  }
+// The TypeScript lines run concurrently, each emitting to directories of its own, and report in
+// the order of `aliases`.
+const reports = await Promise.all(aliases.map(check));
+for (const [i, alias] of aliases.entries()) {
+  const report = reports[i]!;
+  console.log(`  typescript@${version(alias)}  ${report.length === 0 ? "pass" : "fail"}`);
+  for (const line of report) console.log(line);
 }
+const failed = aliases.filter((_, i) => reports[i]!.length > 0).map(version);
 
 console.log();
 
@@ -206,6 +186,28 @@ if (failed.length > 0) {
   process.exit(1);
 }
 
+// The failure messages of one TypeScript line, empty where it passes.
+async function check(alias: string): Promise<string[]> {
+  const run = tsc(alias);
+  const dts = join(directory, "dts", alias);
+  const own = join(scripts, "dts", alias);
+  try {
+    await run(["-p", directory]);
+    await run(["-p", join(directory, "tsconfig.declaration.json"), "--outDir", dts]);
+    if (current) {
+      await run(["-p", scripts, "--outDir", own]);
+    }
+    const changed = await differs(run, await trip(dts, join(directory, "round-trip", alias)));
+    const cut = current ? await elided(own) : [];
+    return [
+      ...changed.map((name) => `    the declaration changes ${name}`),
+      ...(cut.length > 0 ? [`    /*elided*/ in ${cut.join(", ")}`] : []),
+    ];
+  } catch (error) {
+    return [`${(error as { stdout?: string }).stdout ?? String(error)}`];
+  }
+}
+
 // The exports whose declarations give them another type. It throws on an error outside the
 // comparisons, such as a declaration that does not parse.
 async function differs(tsc: Tsc, { project, exports }: RoundTrip): Promise<string[]> {
@@ -214,8 +216,8 @@ async function differs(tsc: Tsc, { project, exports }: RoundTrip): Promise<strin
     return [];
   } catch (error) {
     const output = (error as { stdout?: string }).stdout ?? "";
-    const lines = [...output.matchAll(/round-trip\/index\.ts\((\d+),\d+\)/g)].map(([, line]) =>
-      exports.get(Number(line)),
+    const lines = [...output.matchAll(/round-trip\/[^/]+\/index\.ts\((\d+),\d+\)/g)].map(
+      ([, line]) => exports.get(Number(line)),
     );
     if (lines.length === 0 || lines.includes(undefined)) throw error;
     return [...new Set(lines as string[])];

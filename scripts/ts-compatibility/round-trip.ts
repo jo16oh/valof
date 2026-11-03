@@ -11,28 +11,38 @@ export interface RoundTrip {
 }
 
 /**
- * Writes the program to `round-trip/` under `directory`, whose `tsconfig.json` it extends. `files`
- * are the modules, and `dts` the directory their declarations were emitted to, at the same paths.
+ * Reads the exports of `files`, modules under `directory`. The function returned writes the
+ * program to `project`, for the declarations emitted to `dts` at the same paths as the modules.
+ * The program's `tsconfig.json` extends the one in `directory`.
  *
  * `Equal` distinguishes `any` from every other type, so an export fails where TypeScript truncated a
  * type in its declaration to `/*elided*\/ any`, and where the declaration no longer exports it. A
  * type alias or an interface the module declares compares equal to the one its declaration
  * declares again. An enum, a `unique symbol`, or a class with a private member does not.
  */
-export async function roundTrip(
+export function roundTrip(
   directory: string,
   files: readonly string[],
+): (dts: string, project: string) => Promise<RoundTrip> {
+  const modules = exportsOf(directory, files);
+  return (dts, project) => write(directory, modules, dts, project);
+}
+
+async function write(
+  directory: string,
+  modules: { file: string; symbols: Export[] }[],
   dts: string,
+  project: string,
 ): Promise<RoundTrip> {
   const imports: string[] = [];
   const comparisons: { name: string; source: string; declaration: string }[] = [];
 
-  for (const [index, { file, symbols }] of exportsOf(directory, files).entries()) {
+  for (const [index, { file, symbols }] of modules.entries()) {
     const path = relative(directory, file);
     const module = path.replace(/\.ts$/, ".js");
     imports.push(
-      `import type * as S${index} from "../${module}";`,
-      `import type * as D${index} from "../${relative(directory, join(dts, module))}";`,
+      `import type * as S${index} from "${relative(project, join(directory, module))}";`,
+      `import type * as D${index} from "${relative(project, join(dts, module))}";`,
     );
     for (const { name, value, parameters } of symbols) {
       if (value) {
@@ -66,14 +76,13 @@ export async function roundTrip(
     ({ source, declaration }, i) => `export type _${i} = Expect<Equal<${source}, ${declaration}>>;`,
   );
 
-  const project = join(directory, "round-trip");
   await mkdir(project, { recursive: true });
   await writeFile(join(project, "index.ts"), `${[...head, ...lines].join("\n")}\n`);
   await writeFile(
     join(project, "tsconfig.json"),
     `${JSON.stringify(
       {
-        extends: "../tsconfig.json",
+        extends: relative(project, join(directory, "tsconfig.json")),
         files: ["index.ts"],
       },
       undefined,
