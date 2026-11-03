@@ -294,9 +294,10 @@ type Declared<V> = V extends Phantom<string, infer T> ? T : never;
 export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
 /**
- * Names a type meant for a payload: `type Fields = Payload<{ id: string }>`. It is `T` unchanged.
+ * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. It is `T`
+ * unchanged.
  *
- * Not {@link PayloadOf}, which takes a Val's payload out of it.
+ * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
 export type Payload<T> = T;
 
