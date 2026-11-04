@@ -6293,7 +6293,28 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
       文言の「Val の第 3 引数」は trait には当たらない
     - コスト: trait 20,999 → 21,003、enum 35,752 → 35,785、`index.d.ts` 91.97 → 92.25 kB
   - `{ a: Impl<A> | null }` は拒まれたまま。`{ a: U | null }` も「not a plain value」で拒まれる、以前からの規則
-  - 以前からある穴（Val の payload に交差した trait、名前の union、メンバ集合の union）は別 PR。`__memo__/trait-holes.md`
+  - 以前からある穴（Val の payload に交差した trait、名前の union、メンバ集合の union）は下の「trait の宣言の穴」
+- **trait の宣言の穴、2026-11-04。**#125 の調査で見つかった、以前からある穴を塞いだ
+  - **名前は文字列リテラル 1 つ。**`Trait<"A" | "B", …>` は `Val` の第 3 引数にも `Impl` にも通り、
+    `Trait.companion` だけが `Lone` の的外れな文言（「take one trait」）で拒んでいた。`Trait<string, …>` は
+    `Trait.companion` も通った（`implTrait` では実装できない）。verdict を丸ごと「a trait's name must be one
+    string literal」にする。判定は `IsUnion<K>` と、`{}` が `Record<K, unknown>` に代入できるか（`string` と
+    template literal はインデックスシグネチャになり、`{}` が入る）
+  - **メンバの集合は union にできない。**`{ f } | { g }` で `Declarable` が分配して通り、空の `implTrait` が
+    通って companion に `f` も `g` も生えなかった。verdict を「a trait's members are one object type, not a
+    union」にする
+  - **payload に交差した trait は第 3 引数へ案内する。**`Val<"V", { a: string } & A>` は #125 で「a trait is only a
+    declaration; type a value implementing it with `Impl<Trait>`」で拒まれるようになったが、文言は field 向け
+    だった。enum の variant は payload に交差して trait を宣言するので、同じ書き方をする人が出る。`Validate` の
+    根では「a payload cannot declare a trait; pass it as Val's third type argument」にする。根より下は field の
+    文言のまま
+    - trait の shape が trait のときは verdict で「a trait's shape cannot be a trait; write its fields」。根の
+      文言の「Val の第 3 引数」は trait には当たらない（`Impl` の shape と同じ理由）
+  - **variant の trait の shape がタグ名を取れた。**`{ A: { x } & Trait<"M", { _tag: number }> }` が宣言を通り、
+    `create` が `_tag: number` を求めた。`Fault` が `keyof D[N]` を見ていて、trait の shape のキーは見えなかった。
+    `keyof FieldsIn<D[N]>` にする。enum の第 3 引数の trait は `SharedIn` 経由で以前から拒まれていた
+  - **コスト。**trait 21,003 → 21,101、enum 35,785 → 35,874、`index.d.ts` 92.23 → 92.69 kB（TypeScript 5.9.3）。
+    大半は文言
 - **名前は `Impl` のまま。**builder の `.impl()` と近いが、Rust も実装の `impl` と型の `impl Trait` に同じ
   キーワードを使う（ユーザー、2026-11-04）
 
