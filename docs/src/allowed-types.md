@@ -70,20 +70,3 @@ type Tree = Val<"Tree", { value: number; children: Tree[] }>;
 
 const Tree = Val.companion<Tree>().build();
 ```
-
-## A generic payload
-
-A payload that contains a type parameter is rejected, in `Val` and in `Payload` alike, since the
-rules cannot check a type that is not known yet. Write the generic shape as a plain type, and pass
-it to `Val` or `Payload` once it is concrete.
-
-```ts
-// @errors: 2344
-import { Val } from "valof";
-
-// ---cut---
-type Page<T> = Val<"Page", { items: T[] }>; // ✗
-
-type Items<T> = { items: T[] };
-type Names = Val<"Names", Items<string>>; // ✓
-```

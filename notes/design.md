@@ -3081,9 +3081,11 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
         二重に持つので入れていない
       - **型パラメーターを含む `Payload` は書けない。**`type G<T> = Payload<T>` も `Payload<{ left: T }>` も TS2344
         （`T extends string` でも同じ）。制約の `ValidateFields` は export していない
-        - **決めた: ジェネリックな `Payload` と Val は書かない、2026-11-04。**具体化した型を包む（`Payload<Pair<string>>`）。
-          Val も同じ制約で型定義の行から拒む（§3「2026-11-04: 型定義の行でも報告する」）。`model-only-in-valof` は
-          ジェネリックなデータ型を既に報告するので、型と lint の両方で「データの定義は具体型」に揃う
+        - **決めた: ジェネリックな `Payload` と Val は書かない、2026-11-04。**具体型ごとに Val を書く。ジェネリックな素の型
+          （`type Items<T> = { items: T[] }`）を切り出して包む形も勧めない。`model-only-in-valof` がそれを報告する。
+          docs には書かない。禁じるだけで代わりの書き方は無いので、`Val` と `Payload` の JSDoc（hover）に置く。
+          Val も同じ制約で型定義の行から拒む（§3「2026-11-04: 型定義の行でも報告する」）。型と lint の両方で
+          「データの定義は具体型」に揃う
       - **コスト。**fixture は `Payload` を使わず、instantiations は core −51、trait −46、enum −114、
         `index.d.ts` は +0.51 kB（TypeScript 5.9.3）。`Payload` で包んだ Val 20 個の probe は 36,968 → 30,195
         （TypeScript 7.0.2）。減った理由は確かめていない
