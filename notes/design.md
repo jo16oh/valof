@@ -3057,10 +3057,25 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       `Val.unwrap` が readonly を返し（§3「payload に `readonly` は書かない」）、optional キーに `| undefined` を
       足すと EOPT 下で seed が値としての `undefined` を受ける。配列は homomorphic な mapped type で写し、
       optional キーは書いた `undefined` だけを残す（`| Extract<T[K], undefined>`）。hover は展開した object になる
-    - **報告の位置。**`type X = Payload<…>` の行では何も言わない。Val の payload なら companion。trait の
-      メンバ引数（`other: Payload<{ f: () => void }>`）は trait の companion でも `implTrait` でも黙り、
-      呼び出しの引数で `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になる。
-      trait の側で報告するにはメンバの引数を深く辿る検査が要るので、入れていない
+    - **報告の位置。**~~`type X = Payload<…>` の行では何も言わない。~~ → 型引数で報告する、2026-11-04。
+      使う側でも今までどおり報告する。Val の payload なら companion。trait のメンバ引数
+      （`other: Payload<{ f: () => void }>`）は trait の companion でも `implTrait` でも黙り、呼び出しの引数で
+      `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になる。trait の側の検査は
+      メンバの引数を深く辿る必要があるので入れていない。型引数で報告するので、もう要らない
+      - **`Payload<T extends ValidateFields<T>>`。**`ValidateFields` は `ValidateValue` の object 分岐を切り出した
+        mapped type で、`Validate` と共有する。`Payload<{ a: { f: () => void } }>` は型引数で TS2344。
+        `Validate<T>` を含む制約（`Validate<T>`、`ValidateFields<T> & Validate<T>`）は TS2313 のまま。
+        mapped type だけなら循環しない。TypeScript 5.9.3 / 6.0.3 / 7.0.2 で同じ
+      - **型引数で捕まらない root。**`bigint`、`undefined`、`symbol`、関数、数値キー（ネストしていれば捕まる）、
+        正しい object 同士の union、`string | null`。mapped type は primitive をそのまま返し、関数を `{}` に写し、
+        キーの種類を見ないため。使う側で報告される。`Date` はメソッドが関数として拒まれ、型引数で捕まる。
+        root だけを見る条件型を `& Root<T>` で足しても循環しない（probe）が、`Validate` の root の規則を
+        二重に持つので入れていない
+      - **型パラメーターを含む `Payload` は書けない。**`type G<T> = Payload<T>` も `Payload<{ left: T }>` も TS2344
+        （`T extends string` でも同じ）。制約の `ValidateFields` は export していない
+      - **コスト。**fixture は `Payload` を使わず、instantiations は core −51、trait −46、enum −114、
+        `index.d.ts` は +0.51 kB（TypeScript 5.9.3）。`Payload` で包んだ Val 20 個の probe は 36,968 → 30,195
+        （TypeScript 7.0.2）。減った理由は確かめていない
     - **`Invalid` と `Refused` は symbol キーだけで表す、2026-11-04。**`__valError` を予約しないため。
       どちらのキーも export しない `unique symbol` で、利用者の payload はこの形にならない
       - **文字列キーだったときの穴。**`__valError` に文字列リテラルを持つ payload のフィールドが `Invalid` と
@@ -3078,7 +3093,9 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     - **訂正: 「入れられない」とした記録。**`feat/self-first-parameter` は probe から「検査できない」と結論し、
       恒等のまま残すと記録した。観察は正しかった。`Payload<T extends Checked<T>>` は TS2313、`Payload = Checked<T>`
       は自己参照する payload で TS2456 / TS2615、写さない `Validate` では companion が黙る。誤りは結論だけで、
-      循環するのは `Checked` の外側の比較（`[T] extends [Validate<T>]`）であって、`Validate<T>` だけなら循環しない。
+      ~~循環するのは `Checked` の外側の比較（`[T] extends [Validate<T>]`）であって、`Validate<T>` だけなら循環しない。~~
+      → 誤り、2026-11-04。制約に置けば `Validate<T>` だけでも TS2313（probe）。循環しないのは
+      `Payload = Validate<T>` と本体に書いたとき。型引数での報告は、上の `ValidateFields` で入れた。
       黙る件は写せば消える。その記録が main に入るなら、この項目に合わせて直す
   - **`HasSelf` は残る。**第 1 引数以外の引数と戻り値を辿る。深さの上限（§15.1「探索の深さに上限を
     置く」）も同じ理由で要る
