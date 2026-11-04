@@ -2708,6 +2708,20 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 
 ## 9. 未解決 / 要確認
 
+- [x] ~~**Enum の宣言の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`hunt-findings.md` の 9、`and-or-holes.md` の 2〜5。
+      どれも `Fault`（型引数だけを読む）に足した
+  - **variant の名前は文字列。**`{ A; B; 404 }` の `404` は `VariantKeys`（`Extract<keyof D, string>`）が黙って落とし、
+    `match` が `404` 無しで網羅扱いになった。全部が数値なら enum が `never` になり、companion も通った。
+    `VariantKeys` に `number` を含め、`Fault` が「a variant's name must be a string; a JSON key is one」で拒む
+  - **名前、タグ名、共有フィールドは union にできない。**`Enum<"E" | "F", …>` の値は `Val<"E.A", …>` に代入できない。
+    `Tag<"k" | "t">` は `.tag("k")` で通った（`Tag<"k"> & Tag<"t">` は以前から拒まれる）。共有フィールドの
+    `{ id } | { key }` は `SharedIn` の `Pick` が共通のキーだけを残し、`create({ n: 1 })` が `id` も `key` も無しで
+    通った。共有フィールドは `SharedIn` で潰れる前の第 3 引数（`X`）を見る
+  - **`Enum.companion` は enum を 1 つだけ取る。**`Enum.companion<F | G>()` が通り、variant が生えなかった。enum は
+    variant の union なので、union かどうかは名前で見る。制約 `OneEnum<E>` はキーが文言の mapped type（`Single` と同じ形）
+  - 名前が `string` の enum は拒まない。brand の `string` は hunt 4 で「対応しない」。文言は「cannot be a union」にして、`string` を約束しない
+  - **コスト。**enum 39,583 → 39,786、`index.d.ts` 95.55 → 96.09 kB。宣言の予算を 96 → 100 kB に上げた。増分の大半は文言
+
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
       `and-or-holes.md` の 7
   - **field は `null` かプリミティブを、他の 1 種類と並べて持てる。**`string[] | null`、`Rec<Node> | null`（連結リスト）、
