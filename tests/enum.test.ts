@@ -317,7 +317,7 @@ describe("the tag", () => {
     // @ts-expect-error another variant's field, through a variable
     Circle.patch(circle, both);
     const retagged = { _tag: "Square" as const, r: 3 };
-    // @ts-expect-error same, through a variable
+    // @ts-expect-error a patch cannot switch variants, through a variable
     Circle.patch(circle, retagged);
   });
 
