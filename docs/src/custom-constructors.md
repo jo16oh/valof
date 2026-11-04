@@ -198,7 +198,7 @@ pass an id of their own. `Unpatchable` excludes keys from `patch`, so an id keep
 generated:
 
 ```ts
-// @errors: 2339 2353
+// @errors: 2339 2322
 import { Val, type PrivateSeal, type Unpatchable } from "valof";
 
 declare const user: User;
