@@ -62,8 +62,11 @@ const budget: Record<Fixture, number> = { core: 10_000, trait: 25_000, enum: 90_
  *
  * `tsc` indents with four spaces where tsdown wrote a tab, which took the same types from 64.1 to
  * 64.7 kB.
+ *
+ * It went from 96 to 100 kB with the type errors for a broken declaration, whose messages are
+ * most of what they add.
  */
-const declarationsBudget = 96 * 1024;
+const declarationsBudget = 100 * 1024;
 
 type Counts = { types: number; instantiations: number; check: number; total: number };
 
