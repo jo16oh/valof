@@ -335,6 +335,15 @@ describe("Val", () => {
   });
 
   describe("rejected payloads", () => {
+    test("a Val fits as the whole payload, of a Val or a Payload", () => {
+      type Id = Val<"Id", string>;
+      type Grid = Val<"Grid", number[][]>;
+      expectTypeOf<Val<"UserId", Id>>().toExtend<AnyVal>();
+      expectTypeOf<Val<"Board", Grid>>().toExtend<AnyVal>();
+      expectTypeOf<Payload<Id>>().toEqualTypeOf<Id>();
+      expectTypeOf<Payload<Grid>>().toEqualTypeOf<Grid>();
+    });
+
     test("a payload type parameter does not fit, but a brand type parameter does", () => {
       // @ts-expect-error the rules cannot check a type parameter
       type Page<T> = Val<"Page", { items: T[] }>;
@@ -351,6 +360,7 @@ describe("Val", () => {
         run: Invalid<"functions are not allowed">;
       }>();
 
+      // @ts-expect-error not a plain value
       type BadSymbol = Val<"Bad", symbol>;
       expectTypeOf<VerdictOf<BadSymbol>>().toEqualTypeOf<Invalid<"not a plain value">>();
     });
@@ -393,7 +403,9 @@ describe("Val", () => {
       type Nested = Val<"Nested", { value: string | null }>;
       expectTypeOf<Nested>().toExtend<AnyVal>();
 
+      // @ts-expect-error a top-level payload cannot include null
       type Null = Val<"Null", null>;
+      // @ts-expect-error a top-level payload cannot include null
       type Maybe = Val<"Maybe", string | null>;
       expectTypeOf<VerdictOf<Null>>().toEqualTypeOf<
         Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
@@ -407,6 +419,7 @@ describe("Val", () => {
     });
 
     test("an object union is rejected, however it is spelled", () => {
+      // @ts-expect-error an object payload cannot be a union
       type Bad = Val<"Bad", { kind: "a"; a: number } | { kind: "b"; b: string }>;
       expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<
         Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
@@ -416,6 +429,7 @@ describe("Val", () => {
       Val.companion<Bad>().build();
 
       type State = { kind: "a"; a: number } | { kind: "b"; b: string };
+      // @ts-expect-error an object payload cannot be a union
       type ViaAlias = Val<"ViaAlias", State>;
       expectTypeOf<ViaAlias>().not.toExtend<AnyVal>();
 
@@ -448,9 +462,15 @@ describe("Val", () => {
     });
 
     test("number and symbol keys are rejected", () => {
-      expectTypeOf<Val<"Bad", Record<number, true>>>().not.toExtend<AnyVal>();
-      expectTypeOf<Val<"Bad", Record<symbol, string>>>().not.toExtend<AnyVal>();
-      expectTypeOf<Val<"Bad", { 1: string }>>().not.toExtend<AnyVal>();
+      // @ts-expect-error keys must be strings
+      type NumberKeys = Val<"Bad", Record<number, true>>;
+      // @ts-expect-error keys must be strings
+      type SymbolKeys = Val<"Bad", Record<symbol, string>>;
+      // @ts-expect-error keys must be strings
+      type NumberKey = Val<"Bad", { 1: string }>;
+      expectTypeOf<NumberKeys>().not.toExtend<AnyVal>();
+      expectTypeOf<SymbolKeys>().not.toExtend<AnyVal>();
+      expectTypeOf<NumberKey>().not.toExtend<AnyVal>();
     });
 
     test("an index signature's entry may not be undefined", () => {
@@ -502,7 +522,9 @@ describe("Val", () => {
       expectTypeOf<VerdictOf<Job>>().toEqualTypeOf<{
         run: Refused<"functions are not allowed">;
       }>();
-      expectTypeOf<Val<"P", Payload<string | null>>>().not.toExtend<AnyVal>();
+      // @ts-expect-error a top-level payload cannot include null
+      type Maybe = Payload<string | null>;
+      expectTypeOf<Val<"P", Maybe>>().not.toExtend<AnyVal>();
     });
 
     test("a type parameter does not fit", () => {
