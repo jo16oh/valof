@@ -117,7 +117,7 @@ declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
 export type AnyEnum = AnyVal &
   EnumPhantom<string, Record<string, object>, object, AnyTrait, string, Record<string, AnyTrait>>;
 
-/** The declaration's own keys, which are the variants and nothing else. A number is rejected. */
+/** The declaration's own keys, which are the variants and nothing else. A numeric key is rejected, by {@link Fault}. */
 type VariantKeys<D> = Extract<keyof D, string | number>;
 
 /** A variant's fields, with the ones its traits require. */
@@ -156,14 +156,14 @@ type Single<N, All = N> = N extends unknown ? ([All] extends [N] ? true : false)
  */
 type Fault<K, D, X, S, Tr extends AnyTrait, Tg extends string> =
   | (IsUnion<K> extends true ? "an enum's name cannot be a union" : never)
-  | (IsUnion<X> extends true ? "the shared fields must be one object type, not a union" : never)
+  | (IsUnion<X> extends true ? "the shared fields cannot be a union" : never)
   | (IsUnion<Tg> extends true ? "the tag's name cannot be a union" : never)
   | (Single<VariantKeys<D>> extends true
       ? "an enum needs at least two variants; one is a Val"
       : never)
   | {
       [N in VariantKeys<D>]: N extends number
-        ? "a variant's name must be a string; a JSON key is one"
+        ? "a variant's name must be a string"
         : [D[N]] extends [object]
           ? [D[N]] extends [ReadonlyArray<unknown>]
             ? "a variant's payload must be a record of fields"
