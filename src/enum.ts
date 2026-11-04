@@ -212,7 +212,8 @@ type Enum<K extends string, D extends object, X extends object = Record<never, n
   [N in VariantKeys<D>]: UncheckedVal<
     `${K}.${N}`,
     FieldsIn<D[N]> & SharedIn<X> & { [P in TagIn<X>]: N },
-    Joined<TraitsIn<X>, TraitsIn<D[N]>>
+    Joined<TraitsIn<X>, TraitsIn<D[N]>>,
+    true
   > &
     EnumPhantom<
       Named<K, D, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
@@ -266,7 +267,8 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
 export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = UncheckedVal<
   `${NameOf<E>}.${N & string}`,
   VariantsOf<E>[N] & SharedOf<E> & { [P in TagOf<E>]: N & string },
-  Joined<DeclaredTraits<E>, OwnTraits<E, N>>
+  Joined<DeclaredTraits<E>, OwnTraits<E, N>>,
+  true
 > &
   EnumPhantom<
     NameOf<E>,
