@@ -6267,6 +6267,18 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
     `Impl<A> & Impl<B>` と同じ型なので害が無い。union だけを外に出させるのも、Rust に union が無いのと合う
   - `implTrait` と builder の段、`Complete` も `LoneTrait` を取る。`TraitCompanion<Tr>` を受け渡すため
   - **コスト。**trait 20,426 → 20,659、enum 34,916 → 35,094、`index.d.ts` 91.07 → 91.54 kB
+- **payload のフィールドの trait と `Impl`、2026-11-04。**trait を宣言だけの型にしたことで入った後退を 2 つ塞いだ
+  - **trait で型付けしたフィールドは何でも通っていた。**`Val<"V", { g: Greetable }>` の `seal({ g: {} })` が通った。
+    宣言の型はキーが protected だけなので、payload の規則からは空の object に見える。変更前は `Greetable` が値の型
+    で、brand を持たない値は拒まれていた。`Validate` が `AnyTrait` を「a trait is only a declaration; type a value
+    implementing it with `Impl<Trait>`」で拒む。`Val` と `Payload` の型引数、trait の shape、Enum の variant
+    （companion で報告）で効く
+  - **`Impl` で型付けしたフィールドに box と素の object が入っていた。**`DeepReadonly` が `Impl` をキーで写し直し、
+    brand を落としていた。読み戻した値も `{ readonly name: string }` で、`Greetable.shout(d.owner)` が通らなかった。
+    `DeepReadonlyValue` が `Impl` を `Impl<…> & AnyVal` に写す。box は Val の印を持たないので入らない（「payload は
+    box を持てない」）
+  - **コスト。**core 7,473 → 7,640、trait 20,659 → 20,923、enum 35,094 → 35,574、`index.d.ts` 91.54 → 91.88 kB
+  - 以前からある穴（Val の payload に交差した trait、名前の union、メンバ集合の union）は別 PR。`__memo__/trait-holes.md`
 - **名前は `Impl` のまま。**builder の `.impl()` と近いが、Rust も実装の `impl` と型の `impl Trait` に同じ
   キーワードを使う（ユーザー、2026-11-04）
 
