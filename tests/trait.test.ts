@@ -460,6 +460,14 @@ describe("Trait", () => {
       expectTypeOf<Impl<Greetable> & Impl<Weighed>>().toExtend<Impl<Greetable & Weighed>>();
       expectTypeOf<User>().not.toExtend<Impl<Greetable & Weighed>>();
     });
+
+    test("takes no union: one is written as a union of Impl", () => {
+      type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+      // @ts-expect-error write `Impl<A> | Impl<B>` for either trait
+      const either: Impl<Greetable | Weighed> = user;
+      const written: Impl<Greetable> | Impl<Weighed> = user;
+      expect([either, written]).toEqual([user, user]);
+    });
   });
 
   test("the brand stays out of `keyof` and of a spread", () => {
