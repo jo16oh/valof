@@ -297,9 +297,10 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
  * is used, and so is a payload that contradicts a declared trait.
  *
  * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` inside a generic type
- * fails. A type parameter for the brand alone fits.
+ * is a type error. A type parameter for the brand alone fits.
  */
-// Every broken rule lands in the verdict, which stops the Val satisfying `AnyVal`. See `Verdicted`.
+// Every broken rule is recorded in the verdict, which stops the Val satisfying `AnyVal`. See
+// `Verdicted`.
 type Val<K extends string, T extends ValidateFields<T>, Tr extends AnyTrait = never> = UncheckedVal<
   K,
   T,
@@ -308,7 +309,7 @@ type Val<K extends string, T extends ValidateFields<T>, Tr extends AnyTrait = ne
 
 /**
  * {@link Val} with no constraint on the payload, for a Val the library builds from a generic
- * declaration: an Enum's variant. The verdict still checks it.
+ * declaration: an Enum's variant. Its verdict still records every broken rule.
  */
 export type UncheckedVal<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
   Grounded<Holding<T, Tr>>
@@ -337,7 +338,7 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
  * rule broken by the root itself, such as `Payload<string | null>`, is reported where it is used. A
  * Val declared with a rejected `Payload` is rejected like one declared with `T`.
  *
- * The rules cannot check a type parameter, so `Payload<{ left: T }>` inside a generic type fails.
+ * The rules cannot check a type parameter, so `Payload<{ left: T }>` inside a generic type is a type error.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
