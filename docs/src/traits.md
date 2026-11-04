@@ -308,6 +308,7 @@ Greetable.dyn(Crate, crate).greet(); // "Hi, box"
 Weighed.dyn(Crate, crate).heavy(); // true
 ```
 
-Write `&`, not `|`. `Impl<Greetable & Weighed>` accepts a value implementing both.
+Write `&`, not `|`. `Impl<Greetable & Weighed>` accepts a value implementing both, and
+`Impl<Greetable> | Impl<Weighed>` a value implementing either.
 
 Each trait boxes on its own. No two traits on one Val may declare the same member name.
