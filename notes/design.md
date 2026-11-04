@@ -6278,6 +6278,12 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
     `DeepReadonlyValue` が `Impl` を `Impl<…> & AnyVal` に写す。box は Val の印を持たないので入らない（「payload は
     box を持てない」）
   - **コスト。**core 7,473 → 7,640、trait 20,659 → 20,923、enum 35,094 → 35,574、`index.d.ts` 91.54 → 91.88 kB
+  - **`Impl` の union をフィールドに書ける。**`{ item: Impl<A> | Impl<B> }` は object の union の規則で拒まれていた。
+    Val の union（`{ a: U | W }`）は通り、`Impl` のエラー文も `Impl<A> | Impl<B>` を案内している。`Validate` が
+    `AnyImpl` で止まり、union の各要素のフィールドだけを検査する。`AnyImpl` 全体で止めると `Dyn` のフィールドまで
+    通る（`Dyn` は `Impl` を含む）。フィールドを検査すれば、box はメンバが関数なので「functions are not allowed」で
+    拒まれる。core 7,640 → 7,713、trait 20,923 → 20,999、enum 35,574 → 35,752
+  - `{ a: Impl<A> | null }` は拒まれたまま。`{ a: U | null }` も「not a plain value」で拒まれる、以前からの規則
   - 以前からある穴（Val の payload に交差した trait、名前の union、メンバ集合の union）は別 PR。`__memo__/trait-holes.md`
 - **名前は `Impl` のまま。**builder の `.impl()` と近いが、Rust も実装の `impl` と型の `impl Trait` に同じ
   キーワードを使う（ユーザー、2026-11-04）
