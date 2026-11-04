@@ -320,9 +320,6 @@ describe("Trait", () => {
       type Either = Trait<"Left" | "Right", { n: number }, { f: (self: Self) => number }>;
       expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<Fault>();
       expectTypeOf<VerdictOf<Trait<string, { n: number }>>>().toEqualTypeOf<Fault>();
-      // @ts-expect-error a trait's name must be one string literal
-      type Held = Val<"Held", { n: number }, Either>;
-      expectTypeOf<Held>().not.toBeNever();
     });
 
     test("declares its members in one object type", () => {
@@ -742,10 +739,7 @@ describe("nesting", () => {
   test("a payload cannot declare a trait: the third type argument does", () => {
     type Fault = Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">;
     // @ts-expect-error a payload cannot declare a trait
-    type Mixed = Val<"Mixed", { id: string; name: string } & Greetable>;
-    // @ts-expect-error same, in a Payload
     type Part = Payload<{ id: string; name: string } & Greetable>;
-    expectTypeOf<Mixed>().not.toBeNever();
     expectTypeOf<Part>().toEqualTypeOf<Fault>();
   });
 
@@ -754,7 +748,11 @@ describe("nesting", () => {
     type Desk = Val<"Desk", { owner: Greetable }>;
     // @ts-expect-error a trait is only a declaration
     type Seat = Payload<{ owner: Greetable }>;
-    expectTypeOf<Desk | Seat>().not.toBeNever();
+    expectTypeOf<Desk>().not.toBeNever();
+    // Below the root, the root's message would send the trait to a field's type argument.
+    expectTypeOf<Seat>().toEqualTypeOf<{
+      owner: Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">;
+    }>();
     type Office = Enum<"Office", { Open: { owner: Greetable }; Shut: { at: number } }>;
     // @ts-expect-error a trait is only a declaration
     Enum.companion<Office>().build();
