@@ -8,9 +8,10 @@ Only three things can be a payload:
 | Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                  |
 | Objects    | `{ k: allowed }`, or `Record<string, allowed>`                 |
 
-A Val is itself one of these, so Vals nest. A tuple keeps its positions and its length. One with a
-rest element (`[string, ...number[]]`) reads as an array instead, since a fixed length is what
-distinguishes the two.
+A Val is itself one of these, so Vals nest. A field may hold `null` or a primitive beside one other
+kind, as `string[] | null` or `User | null`. A union of objects is rejected. A tuple keeps its
+positions and its length. One with a rest element (`[string, ...number[]]`) reads as an array
+instead, since a fixed length is what distinguishes the two.
 
 A payload cannot contain a type parameter.
 
