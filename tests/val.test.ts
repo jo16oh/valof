@@ -1589,6 +1589,8 @@ describe("building", () => {
       Val.companion<Left | Right>();
       // @ts-expect-error `Val.of` builds one Val
       Val.of<Left | Right>({});
+      // @ts-expect-error same, without the copy
+      Val.of.nocopy<Left | Right>({});
       type Flag = Val<"Flag", boolean>;
       expect([Val.companion<Flag>().build().seal(true), Val.of<Flag>(false)]).toEqual([
         true,
