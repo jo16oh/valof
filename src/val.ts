@@ -153,11 +153,12 @@ type ValidateValue<T> = [T] extends [Primitive]
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
 
 /**
- * The object entries {@link Validate} checks. {@link Payload} constrains its type argument with
- * them: a constraint that reads `Validate<T>` is circular (TS2313), and a mapped type is not.
+ * The check {@link Validate} applies to each entry of an object. {@link Payload} constrains its
+ * type argument with it, because a constraint that references `Validate<T>` is circular (TS2313)
+ * and a mapped type is not.
  */
 type ValidateFields<T> = {
-  // An index signature answers `Record<never, never> extends Pick<T, K>`, so `OptionalKeys`
+  // An index signature satisfies `Record<never, never> extends Pick<T, K>`, so `OptionalKeys`
   // counts it as optional. Its entries are not optional: reading one is unchecked, and widening
   // it with `undefined` breaks `Object.values`.
   [K in keyof T]: string extends K
@@ -319,8 +320,10 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 /**
  * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. An allowed payload
  * is `T` unchanged. One that breaks the allowed-type rules is reported at the type argument. A
- * rule broken by the root itself, such as `Payload<string | null>`, is reported where it is used,
- * as is any `Payload` that slips past: a Val declared with it is rejected like one declared with `T`.
+ * rule broken by the root itself, such as `Payload<string | null>`, is reported where it is used. A
+ * Val declared with a rejected `Payload` is rejected like one declared with `T`.
+ *
+ * The rules cannot check a type parameter, so `Payload<{ left: T }>` inside a generic type fails.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */

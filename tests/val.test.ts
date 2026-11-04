@@ -491,7 +491,7 @@ describe("Val", () => {
     });
 
     test("a type parameter does not fit", () => {
-      // @ts-expect-error the rules cannot read an unresolved type
+      // @ts-expect-error the rules cannot check a type parameter
       type Pair<T> = Payload<{ left: T; right: T }>;
       expectTypeOf<Pair<string>>().toEqualTypeOf<{ left: string; right: string }>();
     });
