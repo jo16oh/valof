@@ -120,17 +120,24 @@ type Validate<T, Root extends boolean = true> =
     ? T
     : [T] extends [AnyVal]
       ? T
-      : [T] extends [AnyTrait]
-        ? Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
-        : [T] extends [Invalid<infer M>]
-          ? Refused<M>
-          : [T] extends [Refused<infer M>]
-            ? Invalid<M>
-            : Root extends true
-              ? null extends T
-                ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-                : ValidateValue<T>
-              : ValidateValue<T>;
+      : // A union of `Impl`, like a union of Vals, is a union of values rather than of objects to
+        // merge. Each one's fields are still checked. That rejects a `Dyn` box, because its trait
+        // members are functions.
+        [T] extends [AnyImpl]
+        ? T extends unknown
+          ? ValidateFields<T>
+          : never
+        : [T] extends [AnyTrait]
+          ? Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+          : [T] extends [Invalid<infer M>]
+            ? Refused<M>
+            : [T] extends [Refused<infer M>]
+              ? Invalid<M>
+              : Root extends true
+                ? null extends T
+                  ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+                  : ValidateValue<T>
+                : ValidateValue<T>;
 
 type ValidateValue<T> = [T] extends [Primitive]
   ? T
