@@ -169,7 +169,7 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
               : Fitting<T, ValidateFields<T>>
             : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
         : [Extract<T, bigint>] extends [never]
-          ? // Below the root, `null` or a primitive may sit beside one other kind. `patch`
+          ? // Below the root, a field may hold `null` or a primitive beside one other kind. `patch`
             // replaces such a field whole, see `PatchValue`.
             [Root, Extract<T, Primitive>, Exclude<T, Primitive | undefined>] extends
               | [true, unknown, unknown]
@@ -179,16 +179,17 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
             : Extract<T, Primitive> | Validate<Exclude<T, Primitive>, false>
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
 
-/** A required key typed `never`. An optional one is only absent, an index signature only empty. */
+/** A required key typed `never`. An optional one is always absent, an index signature always empty. */
 type Unfit<T> = Exclude<
   { [K in keyof T]: string extends K ? never : [T[K]] extends [never] ? K : never }[keyof T],
   undefined
 >;
 
 /**
- * `Then`, or the message naming a field no value fits. `never` satisfies what `ValidateFields`
- * maps it to. At the root only {@link Allowed} and a variant's verdict read it: {@link Payload}
- * resolves to `Validate`, and a field may reference the Val being declared.
+ * `Then`, or the message naming a field no value fits. A `never` field satisfies whatever
+ * `ValidateFields` maps it to. At the root only {@link Allowed} and a variant's verdict read it.
+ * {@link Payload} resolves to `Validate`, where reading a field resolves a {@link Rec} to the Val
+ * still being declared.
  */
 type Fitting<T, Then> = [Unfit<T>] extends [never]
   ? Then
@@ -256,7 +257,7 @@ type DeepReadonlyValue<
       ? T
       : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
         // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
-        // still being declared. An array is the only payload with a numeric key, besides a string.
+        // still being declared. Only an array or a string payload has a numeric key.
         number extends keyof T
         ? [T] extends [object]
           ? number extends Extract<T, readonly unknown[]>["length"]
@@ -282,7 +283,7 @@ type DeepReadonlyValue<
 
 /**
  * `null` or a primitive beside one other kind, which only a field can hold. The rest is not split
- * again: compared over a type parameter, that recursion never ends (TS2321).
+ * again, because comparing it over a type parameter never ends (TS2321).
  */
 type Mixed<T, Arg extends Position, Split> = Split extends true
   ?
@@ -555,8 +556,8 @@ export type Patch<T> = T extends object
   : never;
 
 /**
- * A nested plain object is patched in turn. Everything else is replaced whole, a field that may be
- * `null` or a primitive included: there may be no object to merge into.
+ * A nested plain object is patched in turn. Everything else is replaced whole, including a field
+ * that may be `null` or a primitive, since there may be no object to merge into.
  *
  * The stop at a Val is what keeps {@link Companion.seal} the only gate: a patch reaching into a
  * nested value would build a payload its own seal never saw, and the outer `patch` seals the

@@ -38,8 +38,8 @@ type Fixture = (typeof fixtures)[number];
  * is now `Implement<…> | ((self) => Implement<…>)`, and the union is related twice at every call
  * the fixture makes. An alarm, not a ratchet.
  *
- * It went from 22,000 to 25,000 when a field could hold `null` or a primitive beside another kind:
- * every node of `DeepReadonly` checks for it, and a payload checks for a field no value fits.
+ * It went from 22,000 to 25,000 when a field could hold `null` or a primitive beside another kind.
+ * Every node of `DeepReadonly` checks for such a field, and every payload for a field no value fits.
  *
  * Each fixture has a step whose function takes what the step passes, as `impl(({ seal }) => …)`. A
  * function that takes nothing skips the cost `NoInfer` removes (`Supplied` in `src/val.ts`). With
