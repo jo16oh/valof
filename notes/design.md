@@ -6301,8 +6301,8 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
     string literal」にする。判定は `IsUnion<K>` と、`{}` が `Record<K, unknown>` に代入できるか（`string` と
     template literal はインデックスシグネチャになり、`{}` が入る）
   - **メンバの集合は union にできない。**`{ f } | { g }` で `Declarable` が分配して通り、空の `implTrait` が
-    通って companion に `f` も `g` も生えなかった。verdict を「a trait's members are one object type, not a
-    union」にする
+    通って companion に `f` も `g` も生えなかった。verdict を「a trait's members must be one object type, not
+    a union」にする
   - **payload に交差した trait は第 3 引数へ案内する。**`Val<"V", { a: string } & A>` は #125 で「a trait is only a
     declaration; type a value implementing it with `Impl<Trait>`」で拒まれるようになったが、文言は field 向け
     だった。enum の variant は payload に交差して trait を宣言するので、同じ書き方をする人が出る。`Validate` の
