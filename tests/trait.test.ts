@@ -681,6 +681,18 @@ describe("nesting", () => {
     Desk.seal({ owner: { name: "duck" } });
   });
 
+  test("a field holds a Val implementing either trait through a union of Impl", () => {
+    type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+    type Shelf = Val<"Shelf", { item: Impl<Greetable> | Impl<Weighed> }>;
+    const Shelf = Val.companion<Shelf>().build();
+    type Scale = Val<"Scale", { kg: number }, Weighed>;
+    const items = [Shelf.seal({ item: user }), Shelf.seal({ item: Val.of<Scale>({ kg: 2 }) })];
+    expect(items.map((s) => s.item)).toEqual([user, { kg: 2 }]);
+    // @ts-expect-error a payload cannot hold a box
+    type Boxed = Val<"Boxed", { item: Dyn<Greetable> | Impl<Weighed> }>;
+    expectTypeOf<Boxed>().not.toBeNever();
+  });
+
   test("a field cannot be typed with the trait itself", () => {
     // @ts-expect-error a trait is only a declaration
     type Desk = Val<"Desk", { owner: Greetable }>;
