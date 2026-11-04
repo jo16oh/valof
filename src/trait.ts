@@ -110,9 +110,6 @@ type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never
  *
  * A trait is only a declaration. The type of a value implementing it is {@link Impl}.
  */
-// An interface rather than an alias, so that nothing is resolved on the declaring line and a member
-// can take `Impl` of the trait being declared. The checks resolve where the trait is used.
-//
 // A broken declaration puts the annotated version in the verdict, the way an invalid payload lands
 // in a Val's brand. `Members` admits functions alone, so an `Invalid` there stops the trait
 // satisfying `AnyTrait`, and every gate requires an `AnyTrait`. So the companion, `Val`, `Dyn`
