@@ -3090,6 +3090,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
           shape の交差、`BrandsOf` は両方の名前を持つ。`Impl<Greetable> & Impl<Weighed>` とは互いに代入できる。
           docs は Val の第 3 引数と同じ `&` の形で書く
         - **`Same` を値の型に書くと、宣言のキーが無いという型エラーになる。**`const s: Same = meter`
+        - 2026-11-04 の見直し（ユーザーの指示）: interface を型エイリアスにし、キーを文言 1 つにまとめ、
+          `Impl<A | B>` を型引数で拒む。§15.1「`Impl`」
   - [x] **`Payload` に payload の規則の検査を足す。**→ 入れた、2026-11-03。`Payload<T> = Validate<T>`
     - **`Validate` は出会った `Invalid<M>` を `Refused<M>` に写す。**`Invalid` 自体は正しい payload なので、
       写さないと `Val<"U", Payload<{ f: () => void }>>` は `{ f: Invalid<…> }` を payload に取って companion を通り、
@@ -6210,13 +6212,30 @@ type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Impl<Same>)
 const s: Impl<Same> = meter; // Same を宣言した Val、または Same の Dyn
 ```
 
-- **`interface Trait<K, S, M> extends TraitDeclaration<B, S, V>`。**`TraitDeclaration` は protected のキー
-  3 つのクラス。B は名前からメンバへの record（素のメンバ）、S は shape、V は名前から検査済みのメンバへの
-  record（verdict）。検査は trait を使う位置で走る。型エイリアス（`type Trait<…> = TraitDeclaration<…>`）でも
-  循環しなかった（probe）が、模型のとおり interface にした
-- **検査は V に置く。**中身は前の brand の位置の式。`AnyTrait` が V に `Members & Unrejected` の record を
-  求めるので、報告の位置は変わらない。B を素のメンバにしたのは、`Impl<Same>` が B を読んでも検査が走らない
-  ようにするため
+- **`type Trait<K, S, M> = TraitDeclaration<{ brands; shape; verdict }>`。**`TraitDeclaration` は protected の
+  キー 1 つのクラス。`brands` は名前からメンバへの record（素のメンバ）、`shape` は shape、`verdict` は名前から
+  検査済みのメンバへの record。検査は trait を使う位置で走る
+  - ~~interface にする~~ → 型エイリアスにした（ユーザーの指示、2026-11-04）。エイリアスでも循環せず、hover と
+    エラーは `Trait<"Same", …>` と名前で出る（probe）。interface にする理由が無かった
+- **検査は `verdict` に置く。**中身は前の brand の位置の式。`AnyTrait` が `verdict` に `Members & Unrejected` の
+  record を求めるので、報告の位置は変わらない。`brands` を素のメンバにしたのは、`Impl<Same>` が `brands` を
+  読んでも検査が走らないようにするため
+- **キーの名前を文言にする。**`Same` を値の型に書くと「Property '"a trait is only a declaration; type a value
+  implementing it with `Impl<Trait>`"' is missing」になる。キーが 3 つの symbol だったときは
+  `[DeclaredBrands], [DeclaredShape], [DeclaredVerdict]` と並ぶだけで、`Impl` を案内しなかった。protected なので
+  `keyof` と spread には出ない
+- **union は型引数で拒む、2026-11-04（ユーザーの指示）。**`Impl<Tr extends OneTrait<Tr>>`、
+  `OneTrait<Tr> = AnyTrait & Single<Tr>`。`Single` は union のときだけキーを 1 つ持つ mapped type で、キーの名前が
+  文言（「a union of traits is not a trait; write `Impl<A> | Impl<B>` for a value implementing either」）。
+  どちらかを実装した値は `Impl<A> | Impl<B>` と書く。検査しないと、`A` だけを宣言した Val が `Impl<A | B>` に
+  代入できた
+  - **`Impl` を受け渡す型引数にも同じ制約を付ける。**`Dyn`、`TraitCompanion`、`Shared`、`TraitBuilder` の段、
+    `Trait.companion`、Val と Enum の `implTrait`、`Complete`。`Tr extends AnyTrait` のままでは `Impl<Tr>` が
+    制約を満たさない。検査しない別名（`Implementing`）を内部で使うと、`dyn` と `.impl()` のコールバックの hover に
+    export していない名前が出た
+  - `Single` を条件型（`… ? unknown : { … }`）にしても、汎用の `Tr` は満たさない（probe）
+  - 制約が交差になると `MembersOf<Tr>` の制約が読めず、`Unbound` / `Bound` の `M extends Members` を満たさない。
+    どちらも条件型で読むだけなので、制約を外した
 - **`Impl<Tr> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>`。**Val が持つ brand と同じクラス。目印ではなく
   値の型なので、`Unbound` / `Bound` は何も置き換えない。配列、コールバック、戻り値、別の trait の中でも
   そのまま効く。`.impl()` のコールバックでも `other` は `Impl<Same>` に見える
@@ -6231,13 +6250,15 @@ const s: Impl<Same> = meter; // Same を宣言した Val、または Same の Dy
     18,812 / 39,910、`FieldsOf` を使って 18,568 / 35,237、Enum の `Writable` も外して enum 34,454
   - trait fixture に `Impl<Named>` を取る Final メンバと呼び出し 2 つを足して 19,387。core 7,488 → 7,496
   - `index.d.ts` 89.54 → 90.80 kB
+  - union の検査とキーの統合で trait 19,387 → 20,426、enum 34,454 → 34,916、core 7,496 → 7,473、
+    `index.d.ts` 90.80 → 91.07 kB。`implTrait` ごとに `Single` を評価する
 - **却下: `Impl` を目印の interface にし、`Unbound` / `Bound` が trait に置き換える。**メンバの引数では
   循環しないが、`let s: Impl<Same>` が目印のまま残り、`Same` と同じ型にならない
   （`interface Impl<Tr> extends Tr` は TS2312）
 - **却下: `other: Same` と直接書く。**メンバを interface に出しても、`Rec<Same>` で包んでも、`Declarable` で
   TS2615。宣言中の `Same` を条件型にかけた時点で解決を要求する
-- **未決。**`Impl<A | B>` は型エラーにならず、`A` だけを宣言した Val も代入できる。`Val` は `|` を報告する。
-  `Same` を値の型に書いたエラーは `[DeclaredBrands]` などのキーが無いと言うだけで、`Impl` を案内しない
+- **名前は `Impl` のまま。**builder の `.impl()` と近いが、Rust も実装の `impl` と型の `impl Trait` に同じ
+  キーワードを使う（ユーザー、2026-11-04）
 
 #### 却下: WeakMap による動的ディスパッチ
 
