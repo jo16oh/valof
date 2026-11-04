@@ -154,7 +154,7 @@ type ValidateValue<T> = [T] extends [Primitive]
 
 /**
  * The check {@link Validate} applies to each entry of an object. {@link Allowed} uses it, so the
- * message names the field that breaks a rule.
+ * type error names the field that breaks a rule.
  */
 type ValidateFields<T> = {
   // An index signature satisfies `Record<never, never> extends Pick<T, K>`, so `OptionalKeys`
@@ -173,15 +173,17 @@ type ValidateFields<T> = {
  * What {@link Val} and {@link Payload} constrain the payload with. A constraint that is
  * `Validate<T>` itself is circular (TS2313). One that reads its result in a conditional is not.
  */
-type Allowed<T, Owner extends string> =
-  IsRec<T> extends true
-    ? unknown
-    : [T] extends [AnyVal]
-      ? // In a Val, the two brands collide and the type is `never`.
-        Invalid<`a Val cannot be used as ${Owner} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`>
-      : [Validate<T>] extends [Invalid<infer M>]
-        ? Invalid<M>
-        : ValidateFields<T>;
+type Allowed<T, Owner extends string> = [T] extends [AnyVal]
+  ? // As a Val's payload, a Val's brand collides with the outer one, so the type resolves to
+    // `never`.
+    Invalid<`a Val cannot be used as ${Owner} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`>
+  : [Validate<T>] extends [Invalid<infer M>]
+    ? Invalid<M>
+    : // A rejected `Payload` at the top level is an `Invalid`, which an `Invalid` constraint
+      // accepts.
+      [Validate<T>] extends [Refused<infer M>]
+      ? Refused<M>
+      : ValidateFields<T>;
 
 /**
  * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
@@ -353,7 +355,7 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
-export type Payload<T extends Allowed<T, "Payload's">> = Validate<T>;
+export type Payload<T extends Allowed<T, "a Payload's">> = Validate<T>;
 
 // Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
 // the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker
