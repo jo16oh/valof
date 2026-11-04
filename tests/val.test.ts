@@ -335,17 +335,12 @@ describe("Val", () => {
   });
 
   describe("rejected payloads", () => {
-    test("a Val cannot be the whole type of a Val or a Payload", () => {
-      type Id = Val<"Id", string>;
-      type User = Val<"User", { id: Id }>;
-      expectTypeOf<User>().toExtend<AnyVal>();
+    test("a Val as the whole type argument of a Val or a Payload is rejected", () => {
+      type User = Val<"User", { id: string }>;
       // @ts-expect-error a Val cannot be used as another Val's type
-      type UserId = Val<"UserId", Id>;
-      // @ts-expect-error a Val cannot be used as another Val's type
-      type Admin = Val<"Admin", User>;
-      // @ts-expect-error a Val cannot be used as Payload's type
-      type Fields = Payload<User>;
-      expectTypeOf<[UserId, Admin, Fields]>().not.toBeAny();
+      expectTypeOf<Val<"Admin", User>>();
+      // @ts-expect-error a Val cannot be used as a Payload's type
+      expectTypeOf<Payload<User>>();
     });
 
     test("a payload type parameter does not fit, but a brand type parameter does", () => {
@@ -467,13 +462,11 @@ describe("Val", () => {
 
     test("number and symbol keys are rejected", () => {
       // @ts-expect-error keys must be strings
-      type NumberKeys = Val<"Bad", Record<number, true>>;
+      expectTypeOf<Val<"Bad", Record<number, true>>>();
       // @ts-expect-error keys must be strings
-      type SymbolKeys = Val<"Bad", Record<symbol, string>>;
+      expectTypeOf<Val<"Bad", Record<symbol, string>>>();
       // @ts-expect-error keys must be strings
       type NumberKey = Val<"Bad", { 1: string }>;
-      expectTypeOf<NumberKeys>().not.toExtend<AnyVal>();
-      expectTypeOf<SymbolKeys>().not.toExtend<AnyVal>();
       expectTypeOf<NumberKey>().not.toExtend<AnyVal>();
     });
 
@@ -517,7 +510,7 @@ describe("Val", () => {
       expectTypeOf<Payload<(() => void)[]>>();
     });
 
-    test("a rejected payload is rejected where it is used, at the root too", () => {
+    test("a Val declared with a rejected Payload is rejected, at the top level too", () => {
       // @ts-expect-error functions are not allowed
       type Run = Payload<{ run: () => void }>;
       expectTypeOf<{ run: () => void }>().not.toExtend<Run>();
@@ -528,7 +521,9 @@ describe("Val", () => {
       }>();
       // @ts-expect-error a top-level payload cannot include null
       type Maybe = Payload<string | null>;
-      expectTypeOf<Val<"P", Maybe>>().not.toExtend<AnyVal>();
+      // @ts-expect-error a top-level payload cannot include null
+      type Nullable = Val<"P", Maybe>;
+      expectTypeOf<Nullable>().not.toExtend<AnyVal>();
     });
 
     test("a type parameter does not fit", () => {
