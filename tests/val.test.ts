@@ -2682,7 +2682,7 @@ describe("building", () => {
       const created = held()
         .implCreate.noseal(() => ({ id: "h1", owner: "bob" }))
         .build();
-      expectTypeOf<Patched>().toEqualTypeOf<[Held, Patch<{ owner: string }>]>();
+      expectTypeOf<Patched>().toEqualTypeOf<[Held, Patch<{ owner: string }, "id">]>();
       expectTypeOf<Parameters<typeof members.patch>>().toEqualTypeOf<Patched>();
       expectTypeOf<Parameters<typeof traits.patch>>().toEqualTypeOf<Patched>();
       expectTypeOf<Parameters<typeof created.patch>>().toEqualTypeOf<Patched>();
