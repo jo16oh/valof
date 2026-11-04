@@ -170,7 +170,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | Type                 | Description                                         |
 | -------------------- | --------------------------------------------------- |
 | `Trait<K, Shape, M>` | a contract Vals share                               |
-| `Self`               | the implementing Val, inside a member's signature   |
+| `Self`               | the implementing Val, as a member's first parameter |
 | `Final<F>`           | marks a member no Val may replace                   |
 | `Dyn<Tr>`            | a boxed value, with the concrete type gone          |
 | `AnyTrait`           | a constraint over any trait                         |

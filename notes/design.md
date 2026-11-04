@@ -37,7 +37,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ（§13.6 のビルダーは 2026-10-23 に採った）
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本、足さない `no-unsafe-*`（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath、2026-10-27 に廃止）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`Self` は第 1 引数だけ（2026-11-03、外した「メンバの引数の `Payload` を trait で報告する」）、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath、2026-10-27 に廃止）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し、`__proto__` も守らない）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）。**2026-10-26 に段の引数を関数に揃えた**（注釈の税は変わらない）
@@ -3048,8 +3048,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **却下: box をクラスのインスタンスにする。**Proxy の target にクラスの prototype を持たせれば `instanceof` も
     通るが、spread は target の own key を読むので結果は変わらない。メンバは今も実行時に落ちている。trait の
     shape は型にしかないので、`id` だけ落とすこともできない
-- [ ] **`Self` を第 1 引数に限る。他の引数は `Payload<T>` で書く、2026-11-03。**方針は決めた。破壊的変更で、
-      `feat/lint-rules` の `Payload` を前提にするので、それが main に入ってから進める
+- [x] ~~**`Self` を第 1 引数に限る。他の引数は `Payload<T>` で書く、2026-11-03。**~~ → 入れた、2026-11-03。
+      §15.1「`Self` は第 1 引数だけ」
   - **穴。**`dyn` の箱は、第 1 引数以外の `Self` を trait の型に置き換える。別の Val を渡せて、
     包んだ Val の実装がそれを受け取る。companion は具体型なので拒む。Rust も、`Self` を第 1 引数以外に
     置くメソッドを `dyn` から呼べなくしている
@@ -3060,7 +3060,17 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     ```
   - **他の引数は `Payload<T>` で型付けする。**共通フィールドを使う判定・比較は、相手の shape だけを読む。
     trait は自分の宣言の中で自分を参照できない（`other: Same` は `Declarable` で TS2615）ので、
-    `Payload<{ n: number }>` と書く。素のオブジェクトも通るが、共通フィールドを読むだけなら困らない
+    `Payload<{ n: number }>` と書く。素のオブジェクトも通る。~~共通フィールドを読むだけなら困らない~~
+    → 困る、2026-11-04。shape が同じなら brand のない値も受けてしまう
+    - [ ] **`Impl<Same>` で trait を実装した Val だけを受ける。**`other: Impl<Same>`。別 PR、breaking
+      - **`Impl` を interface の目印にすれば、メンバの引数では循環しない（probe）。**`Self` の探索はキーだけで
+        見分けて止まり（`Rec` と同じ手）、`Unbound` / `Bound` が `Impl<X>` を `X` に置き換える。ただし
+        `let s: Impl<Same>` は目印のままで、`Same` と同じ型にならない（`interface Impl<Tr> extends Tr` は TS2312）
+      - **方針: trait を宣言専用の型にし、値の型をどこでも `Impl<Same>` と書く。**`Trait<K, S, M>` は型引数を
+        持つだけの interface にして、メンバの検査は使う位置（companion、Val の宣言）に移す。模型では循環せず、
+        brand のない値を拒んだ。`Same` を値の型注釈に使えなくなる
+      - 未決: 複数の trait の組み合わせ、`Dyn` と `MembersOf` などの作り直し、置き換えの深さ、`.impl()` と
+        名前が近いこと、コスト
   - [x] **`Payload` に payload の規則の検査を足す。**→ 入れた、2026-11-03。`Payload<T> = Validate<T>`
     - **`Validate` は出会った `Invalid<M>` を `Refused<M>` に写す。**`Invalid` 自体は正しい payload なので、
       写さないと `Val<"U", Payload<{ f: () => void }>>` は `{ f: Invalid<…> }` を payload に取って companion を通り、
@@ -3114,7 +3124,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       ~~循環するのは `Checked` の外側の比較（`[T] extends [Validate<T>]`）であって、`Validate<T>` だけなら循環しない。~~
       → 誤り、2026-11-04。制約に置けば `Validate<T>` だけでも TS2313（probe）。循環しないのは
       `Payload = Validate<T>` と本体に書いたとき。型引数での報告は、上の `ValidateFields` で入れた。
-      黙る件は写せば消える。その記録が main に入るなら、この項目に合わせて直す
+      黙る件は写せば消える。§15.1 の記録はこの項目に合わせて直した
   - **`HasSelf` は残る。**第 1 引数以外の引数と戻り値を辿る。深さの上限（§15.1「探索の深さに上限を
     置く」）も同じ理由で要る
   - **却下: 第 1 引数をレシーバとして例外扱いする。**Valof はメソッド記法を排して pipe でつなぐ。
@@ -6107,6 +6117,68 @@ TypeScript 7.0.2）。
 
 **`PromiseLike` は中身を開いて辿る（1 段と数える）。**`Promise<Self>` の `Self` は `then` の引数にしか
 現れず、引数は辿らないので、上限だけでは素通りする。それまでは TS2615 で偶然拒まれていた。
+
+#### `Self` は第 1 引数だけ、2026-11-03
+
+第 1 引数以外の引数に `Self` を置けなくした。それまでは `SubstArgs` が `Self` ちょうどの引数を Val に
+置き換え、`dyn` の箱ではそれが trait の型になっていた。別の Val を渡せて、包んだ Val の実装がそれを
+受け取っていた（§9 の項）。
+
+```ts
+type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Self) => boolean }>;
+Same.dyn(A, a).same(b); // 通っていた。A の実装が B を受け取る
+```
+
+- **検査は `Declarable` に置く。**第 1 引数より後ろの引数それぞれを `HasSelf` で辿る。配列やオブジェクトの
+  中の `Self` も拒む（`readonly Self[]` は前から `Self` のまま残り、渡せる値が無かった）。報告は戻り値と
+  同じく、trait を使う位置（`Trait.companion<Same>()` など）に出る
+- **`SubstArgs` を消した。**置き換える引数が無くなった。`Bound` は型引数 `S` を使わなくなったので外した
+- **他の引数は `Payload<{ n: number }>` で書く。**素のオブジェクトも、shape を持つ別の Val も通る
+- **`HasSelf` は関数の引数も辿る。**`(self: Self, f: (others: readonly Self[]) => void) => void` も、戻り値の
+  `(self: Self) => (other: Self) => void` も拒む。前は宣言を通り、実装が `f(u)` で型エラーになる（Val は
+  `Self` に代入できない）ので、書けないメンバになっていた
+- **`any` は `Self` ではない。**引数を辿ると `Map.forEach` の `thisArg?: any` で `[any] extends [Self]` が真に
+  なり、`Map` を返すメンバが拒まれた。`HasSelfBranch` の先頭で `any` を外す。`any` を返すメンバは、前は
+  偶然「cannot return Self」で拒まれていたが、通るようになった
+- **`PromiseLike` を開く処理は残す。**`then` のコールバックの引数を辿れば `T` に届くが、開いた `T` より
+  2 段深い。開かないと `Promise<{ a: [{ b: Self }] }>` が上限に掛かって素通りする（probe 済み）
+- **コスト。**instantiations は trait fixture 17,658 → 16,777、enum 35,703 → 34,918（TypeScript 5.9.3）。
+  `SubstArgs` の mapped type が消えたぶん減った。`index.d.ts` は +0.39 kB。関数の引数を辿るぶんは、
+  メソッドの多い型を返すメンバで効く。戻り値 `string` の trait を基準にした増分（TypeScript 7.0.2）:
+
+  | 戻り型                | 引数を辿らない | 辿る   |
+  | --------------------- | -------------- | ------ |
+  | `string`              | 0              | +17    |
+  | `Promise<string>`     | +322           | +324   |
+  | `Map<string, number>` | +5,301         | +9,502 |
+
+  検査は trait の宣言ごとに 1 回なので払える
+
+##### ~~メンバの引数の `Payload` を trait で報告する、2026-11-04~~ → 外した、2026-11-04
+
+- **外した理由。**`Payload` が型引数で報告するようになった（§9「報告の位置」、#123）。規則に反する
+  `Payload<…>` は、trait のメンバに書いてもその行で TS2344 になる。trait に `Invalid` が届くのは、その
+  エラーを `@ts-ignore` で握りつぶしたときだけで、テストでも確かめられない。`Found` を `HasSelf` に戻した。
+  instantiations は trait fixture 17,964 → 17,083、enum 36,018 → 35,233（main 比、TypeScript 5.9.3）
+
+以下は入れていたときの記録。
+
+`Payload` は payload の規則で検査する（§9「`Payload` に payload の規則の検査を足す」）。規則に反する部分は
+`Invalid<M>` になる。trait のメンバ引数に書くと、それだけでは trait の companion も `implTrait` も通り、
+呼び出しの引数で `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になっていた。
+
+- **`Self` の探索に相乗りする。**`HasSelf` を `Found` に置き換えた。真偽ではなく、見つけたもの（`Self` か
+  `Invalid<M>`）の union を返す。`Declarable` は引数に `Self` があればその文言、戻り値に `Self` があれば
+  その文言、どちらもなく `Invalid<M>` があればそれを返す。報告は `Trait.companion<Same>()` と、trait を
+  宣言する Val に出る。最後の行は `Property 'same' is incompatible…` の下の
+  `Type 'Invalid<"functions are not allowed">' …` で、規則の文言が読める
+- **見るのは `Payload` が残した `Invalid` だけ。**規則では検査しない。`job: { f: () => void }` のような素の
+  引数は payload ではないので正当
+- **mapped type に `-?` を付けた。**真偽なら `true extends …` で `undefined` は効かなかったが、union を返すと
+  optional な引数（`Map.forEach` の `thisArg?`）が `undefined` を混ぜ、`Map` を返すメンバが拒まれた
+- **検出は `Invalid<infer M>` で書く。**キーを直接書かない。#122 で `Invalid` のキーが symbol に変わっても、そのまま効いた
+- **コスト。**trait fixture 16,786 → 16,819、enum 34,945 → 34,959（TypeScript 5.9.3）。probe（7.0.2）では
+  戻り値 `string` のメンバ +48、`Map` を返すメンバ +991、`Payload<{ n; tags: string[]; at: { x } }>` の引数 +100
 
 #### 却下: WeakMap による動的ディスパッチ
 

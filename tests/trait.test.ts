@@ -74,6 +74,56 @@ describe("Trait", () => {
         .build();
     });
 
+    test("Self is a member's first parameter alone", () => {
+      type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Self) => boolean }>;
+      // @ts-expect-error a box would let `other` be another Val
+      Trait.companion<Same>()
+        .impl(() => ({}))
+        .build();
+
+      type Among = Trait<
+        "Among",
+        { n: number },
+        { among: (self: Self, others: readonly Self[]) => boolean }
+      >;
+      // @ts-expect-error an array cannot hide Self
+      Trait.companion<Among>()
+        .impl(() => ({}))
+        .build();
+
+      type Visit = Trait<
+        "Visit",
+        { n: number },
+        { visit: (self: Self, f: (others: readonly Self[]) => void) => void }
+      >;
+      // @ts-expect-error a callback's parameter cannot hide Self
+      Trait.companion<Visit>()
+        .impl(() => ({}))
+        .build();
+    });
+
+    test("another parameter reads the fields through Payload", () => {
+      type Same = Trait<
+        "Same",
+        { n: number },
+        { same: (self: Self, other: Payload<{ n: number }>) => boolean }
+      >;
+      const Same = Trait.companion<Same>()
+        .impl(() => ({ same: (s, other) => s.n === other.n }))
+        .build();
+      type Meter = Val<"Meter", { n: number }, Same>;
+      const Meter = Val.companion<Meter>().implTrait(Same).build();
+      type Gauge = Val<"Gauge", { n: number; unit: string }, Same>;
+      const Gauge = Val.companion<Gauge>().implTrait(Same).build();
+      const meter = Val.of<Meter>({ n: 1 });
+      const gauge = Val.of<Gauge>({ n: 1, unit: "kg" });
+      expect([
+        Meter.same(meter, gauge),
+        Meter.same(meter, { n: 2 }),
+        Same.dyn(Gauge, gauge).same(meter),
+      ]).toEqual([true, false, true]);
+    });
+
     test("Self cannot hide inside a member's return type", () => {
       type Union = Trait<"Union", { n: number }, { grow: (self: Self) => Self | null }>;
       // @ts-expect-error a union member cannot hide Self
@@ -84,6 +134,12 @@ describe("Trait", () => {
       type Closure = Trait<"Closure", { n: number }, { grow: (self: Self) => () => Self }>;
       // @ts-expect-error a returned function cannot hide Self
       Trait.companion<Closure>()
+        .impl(() => ({}))
+        .build();
+
+      type Sink = Trait<"Sink", { n: number }, { sink: (self: Self) => (other: Self) => void }>;
+      // @ts-expect-error a returned function's parameter cannot hide Self
+      Trait.companion<Sink>()
         .impl(() => ({}))
         .build();
 
@@ -146,6 +202,8 @@ describe("Trait", () => {
           load: (self: Self) => Promise<string>;
           chain: (self: Self) => Chain;
           thunk: Final<(self: Self) => Thunk>;
+          // `thisArg` of `Map`'s `forEach` is an optional `any`, and `any` is not Self
+          index: Final<(self: Self) => Map<string, number>>;
         }
       >;
       const Async = Trait.companion<Async>()
@@ -155,6 +213,7 @@ describe("Trait", () => {
             const thunk: Thunk = () => thunk;
             return thunk;
           },
+          index: (s) => new Map([["n", s.n]]),
         }))
         .build();
       type Counter = Val<"Counter", { n: number }, Async>;
