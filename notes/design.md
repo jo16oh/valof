@@ -420,14 +420,15 @@ but required in type 'AnyVal'.
 **2026-11-04: 型定義の行でも報告する。**`Val<K, T extends ValidateFields<T>, Tr>`。`ValidateFields` は `ValidateValue` の object 分岐を切り出した mapped type で、`Payload` と同じ制約（§9「`Payload` に payload の規則の検査を足す」）。mapped type なら TS2313 にならない。`Rec` で自分を参照する Val も循環しない（TypeScript 5.9.3 / 7.0.2）。上の条件型（verdict）は残る。
 
 - **型定義の行で捕まらないもの。**~~root の `null`、`bigint`、`symbol`、関数、数値キー、正しい object 同士の union。~~ → top level も型定義の行で報告する（下の `Allowed`）。残るのは trait との矛盾だけ。制約は `T` しか読まない
-- **`Allowed<T, Owner>`、2026-11-04。**`Val` と `Payload` の制約。`Rec` は通す。Val を丸ごと型引数にしたら専用の `Invalid` を返す。`Validate<T>` が top level で `Invalid` を返したらそれを返す。残りは `ValidateFields<T>` でフィールドごとに見る（メッセージがフィールドを名指しする）
+- **`Allowed<T, Owner>`、2026-11-04。**`Val` と `Payload` の制約。Val を丸ごと型引数にしたら専用の `Invalid` を返す。`Validate<T>` が top level で `Invalid` を返したらそれを返す。`Refused` を返したら（top level が拒まれた `Payload`、つまり `Invalid` そのもの）`Refused` を返す。`Invalid` を制約にすると、`Invalid` の引数がそれを満たしてしまう。残りは `ValidateFields<T>` でフィールドごとに見る（メッセージがフィールドを名指しする）
   - **`Validate<T>` を条件型の中で読む形は循環しない。**`T extends Validate<T>` は TS2313 だが、`[Validate<T>] extends [Invalid<infer M>] ? … : …` の結果を制約にしても循環しない（TypeScript 5.9.3 / 7.0.2）。§9 で「root の規則を二重に持つので入れない」とした件は、`Validate` をそのまま読むので二重にならない
-  - **Val を丸ごと型引数にしたら拒む。**`Val<"UserId", Id>` は main でも 2 つの brand がぶつかって `never` だった。`Payload<User>` は `PayloadOf<User>` で形を取り出す使い方だが、依存の向きが Val ← Payload になる。共通の形は `Payload<T>` で先に定義して Val が使う（Payload ← Val）。文言はユーザーの書いたもの：`a Val cannot be used as {another Val's | Payload's} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`
+  - **Val を丸ごと型引数にしたら拒む。**`Val<"UserId", Id>` は main でも 2 つの brand がぶつかって `never` だった。`Payload<User>` は `PayloadOf<User>` で形を取り出す使い方だが、依存の向きが Val ← Payload になる。共通の形は `Payload<T>` で先に定義して Val が使う（Payload ← Val）。文言はユーザーの書いたもの（`Payload` の側の主語は `a Payload's` にした）：`a Val cannot be used as {another Val's | a Payload's} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`
+  - **`Rec` の分岐は置かない。**`Val<"Top", Rec<Other>>` は分岐が無くても通る（test-audit の変異で確認）。自分を参照する `Val<"Self", Rec<Self>>` は分岐の有無にかかわらず TS2456
   - **`ValidateFields` だけの制約だったときの漏れ。**プリミティブや配列の Val を丸ごと渡すと、`ValidateFields` が Val の型そのものを写して分かりにくい TS2344 になった。object の Val は素通りして `never` になった
 - **payload に型パラメーターを含む Val は書けない。**`type Page<T> = Val<"Page", { items: T[] }>` は TS2344。brand だけを型パラメーターにする `Val<K, string>` は通る。`Page<User>` と `Page<Post>` が同じ brand を持つのは名目的な型付けに反するので、拒んでよい。`type Branded<K, T> = Val<K, T>`（§14.7）も書けなくなる
 - **Enum の Variant は制約しない。**`Enum` と `VariantOf` は Variant の Val をジェネリックに組み立てるので、制約の無い `UncheckedVal` を使う。hover とエラーの印字は `Val<…>` / `VariantOf<…>` のまま。Variant の payload を Enum の宣言の行で報告するかは未着手
 - **破壊的変更。**payload に型パラメーターを含む Val と、規則に反する payload を宣言だけして使わないコード
-- **コスト。**instantiations は core +173、trait +154、enum +97、`index.d.ts` は +0.88 kB（大半は JSDoc。TypeScript 5.9.3、#123 比）。うち `Allowed` の分は core +118、trait +102、enum +54、+0.23 kB
+- **コスト。**instantiations は core +249、trait +223、enum +145、`index.d.ts` は +0.91 kB（大半は JSDoc。TypeScript 5.9.3、#123 比）。うち `Allowed` の分は core +194、trait +171、enum +102、+0.26 kB
 
 #### `exactOptionalPropertyTypes` の壁
 
