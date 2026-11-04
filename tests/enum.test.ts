@@ -1171,6 +1171,12 @@ describe("a broken declaration", () => {
     expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<Fault & string>();
   });
 
+  test("a variant field that contradicts a shared one is rejected", () => {
+    type Keyed = Enum<"Keyed", { One: { id: number }; Two: { n: number } }, { id: string }>;
+    // @ts-expect-error no value fits `id`
+    Enum.companion<Keyed>().build();
+  });
+
   test("the tag may not take a name a payload or a shared field holds", () => {
     type Clash = Enum<"Clash", { One: { _tag: string }; Two: { n: number } }>;
     // @ts-expect-error the tag cannot take the name of a field the payload holds

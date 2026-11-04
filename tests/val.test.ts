@@ -288,11 +288,59 @@ describe("Val", () => {
       expectTypeOf<[string, number]>().not.toExtend<SeedOf<Pair>>();
     });
 
+    // Production stores what it is given, so a nested instance would keep its class.
+    test("an empty object nested in a payload rejects a class instance", () => {
+      class Point {
+        x = 1;
+      }
+      class Blank {}
+      type Meta = Val<"Meta", { meta: {}; any: object; list: object[] }>;
+      const Meta = Val.companion<Meta>().build();
+      const m = Meta.seal({ meta: {}, any: {}, list: [{}] });
+      expectTypeOf({ meta: m.meta, any: m.any, list: m.list }).toExtend<SeedOf<Meta>>();
+      expectTypeOf<{ meta: Point; any: {}; list: [] }>().not.toExtend<SeedOf<Meta>>();
+      expectTypeOf<{ meta: {}; any: Blank; list: [] }>().not.toExtend<SeedOf<Meta>>();
+      expectTypeOf<{ meta: {}; any: {}; list: Map<string, number>[] }>().not.toExtend<
+        SeedOf<Meta>
+      >();
+    });
+
     test("Vals, arrays, records and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
       expectTypeOf<Val<"C", string[]>>().toExtend<AnyVal>();
       expectTypeOf<Val<"D", Record<string, true>>>().toExtend<AnyVal>();
       expectTypeOf<Val<"E", { at: Val<"A", string>; n: number | null }>>().toExtend<AnyVal>();
+    });
+
+    test("a field may hold null or a primitive beside an array, a tuple, a record or a Val", () => {
+      type Node = Val<"Node", { value: number; next: Rec<Node> | null }>;
+      const Node = Val.companion<Node>().build();
+      const list = Node.seal({ value: 1, next: Node.seal({ value: 2, next: null }) });
+      expectTypeOf(list.next).toEqualTypeOf<Node | null>();
+      expectTypeOf(Val.unwrap(list).next).toEqualTypeOf<PayloadOf<Node> | null>();
+      expect(Val.unwrap(list)).toEqual({ value: 1, next: { value: 2, next: null } });
+
+      type Loose = Val<
+        "Loose",
+        {
+          tags: string[] | null;
+          at: [number, number] | null;
+          rows: Record<string, number> | null;
+          names: string | string[];
+        }
+      >;
+      expectTypeOf<SeedOf<Loose>>().toEqualTypeOf<{
+        readonly tags: readonly string[] | null;
+        readonly at: readonly [number, number] | null;
+        readonly rows: { readonly [x: string]: number } | null;
+        readonly names: string | readonly string[];
+      }>();
+    });
+
+    test("an explicit string index signature is a record", () => {
+      type Rows = Val<"Rows", { [key: string]: number }>;
+      type Nested = Val<"Nested", { rows: { [key: string]: number } }>;
+      expectTypeOf<Rows | Nested>().toExtend<AnyVal>();
     });
 
     test("a tuple keeps its positions, its length and its labels", () => {
@@ -447,6 +495,25 @@ describe("Val", () => {
       // @ts-expect-error an object payload cannot be a union
       type InTuple = Val<"InTuple", [State, number]>;
       expectTypeOf<InTuple>().not.toExtend<AnyVal>();
+    });
+
+    test("a field no value fits is rejected", () => {
+      type U = Val<"U", { u: number }>;
+      type W = Val<"W", { w: number }>;
+      // @ts-expect-error no value fits `a`
+      type Never = Val<"Never", { a: never }>;
+      // @ts-expect-error no value fits `a`
+      type Clash = Val<"Clash", { a: string } & { a: number }>;
+      // @ts-expect-error no value fits `a`
+      type Both = Val<"Both", { a: U & W }>;
+      // @ts-expect-error no value fits `b`
+      type Deep = Val<"Deep", { m: { b: never } }>;
+      expectTypeOf<VerdictOf<Never | Clash | Both>>().toEqualTypeOf<Invalid<"no value fits `a`">>();
+      expectTypeOf<VerdictOf<Deep>>().toEqualTypeOf<{ m: Invalid<"no value fits `b`"> }>();
+
+      // An optional key typed `never` is only ever absent, and an empty record never has an entry.
+      type Absent = Val<"Absent", { a?: never; rows: Record<string, never> }>;
+      expectTypeOf<Absent>().toExtend<AnyVal>();
     });
 
     test("a field named like the rejection marker is plain data", () => {
@@ -1207,6 +1274,21 @@ describe("patch", () => {
         tags: ["a"],
         staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
       });
+
+    // Where the field is null there is nothing to merge into.
+    test("a field that may be null or a primitive takes the whole value", () => {
+      type Pin = Val<
+        "Pin",
+        { at: { x: number; y: number } | null; label: string | { text: string } }
+      >;
+      const Pin = Val.companion<Pin>().build();
+      const pin = Pin.seal({ at: null, label: "a" });
+      expect(Pin.patch(pin, { at: { x: 1, y: 2 } })).toEqual({ at: { x: 1, y: 2 }, label: "a" });
+      // @ts-expect-error a merge into null would leave `y` out
+      Pin.patch(pin, { at: { x: 1 } });
+      // @ts-expect-error a merge into a string would leave `text` out
+      Pin.patch(pin, { label: {} });
+    });
 
     test("patches a nested object at any depth, leaving its other keys alone", () => {
       expect(Shop.patch(shop(), { owner: { contact: { email: "c@example.com" } } })).toEqual({
@@ -2824,6 +2906,14 @@ describe("building", () => {
           // @ts-expect-error nor can a box reach one
           Weighed.dyn(Half, crate).heavy();
         }).toThrow(TypeError);
+      });
+
+      test("two traits may not declare a member of the same name", () => {
+        type Counted = Trait<"Counted", { kg: number }, { heavy: (self: Self) => number }>;
+        type Both = Val<"Both", { kg: number }, Weighed & Counted>;
+        expectTypeOf<VerdictOf<Both>>().toEqualTypeOf<
+          Invalid<"two traits declare a member named `heavy`">
+        >();
       });
 
       test("but the same trait cannot be implemented twice", () => {
