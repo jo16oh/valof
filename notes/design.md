@@ -417,6 +417,14 @@ but required in type 'AnyVal'.
 
 **エラー位置は型定義時ではなく最初の使用時に後退する。** メッセージは意図どおり出る。検査は `Val<K, T>` から一度だけ適用されるので、推論コストの利点は保たれる。
 
+**2026-11-04: 型定義の行でも報告する。**`Val<K, T extends ValidateFields<T>, Tr>`。`ValidateFields` は `ValidateValue` の object 分岐を切り出した mapped type で、`Payload` と同じ制約（§9「`Payload` に payload の規則の検査を足す」）。mapped type なら TS2313 にならない。`Rec` で自分を参照する Val も循環しない（TypeScript 5.9.3 / 7.0.2）。上の条件型（verdict）は残る。
+
+- **型定義の行で捕まらないもの。**root の `null`、`bigint`、`symbol`、関数、数値キー、正しい object 同士の union。使う側で今までどおり報告される。trait との矛盾も同じ
+- **payload に型パラメーターを含む Val は書けない。**`type Page<T> = Val<"Page", { items: T[] }>` は TS2344。brand だけを型パラメーターにする `Val<K, string>` は通る。`Page<User>` と `Page<Post>` が同じ brand を持つのは名目的な型付けに反するので、拒んでよい。`type Branded<K, T> = Val<K, T>`（§14.7）も書けなくなる
+- **Enum の Variant は制約しない。**`Enum` と `VariantOf` は Variant の Val をジェネリックに組み立てるので、制約の無い `UncheckedVal` を使う。hover とエラーの印字は `Val<…>` / `VariantOf<…>` のまま。Variant の payload を Enum の宣言の行で報告するかは未着手
+- **破壊的変更。**payload に型パラメーターを含む Val と、規則に反する payload を宣言だけして使わないコード
+- **コスト。**instantiations は core +55、trait +52、enum +43、`index.d.ts` は +0.61 kB（大半は JSDoc。TypeScript 5.9.3、#123 比）
+
 #### `exactOptionalPropertyTypes` の壁
 
 EOPT が **off**（TS のデフォルト）のとき、`{ a?: string }` と `{ a?: string | undefined }` は文字通り同じ型で、区別する手段が言語に存在しない。したがって以下は検出できない。
@@ -3073,6 +3081,9 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
         二重に持つので入れていない
       - **型パラメーターを含む `Payload` は書けない。**`type G<T> = Payload<T>` も `Payload<{ left: T }>` も TS2344
         （`T extends string` でも同じ）。制約の `ValidateFields` は export していない
+        - **決めた: ジェネリックな `Payload` と Val は書かない、2026-11-04。**具体化した型を包む（`Payload<Pair<string>>`）。
+          Val も同じ制約で型定義の行から拒む（§3「2026-11-04: 型定義の行でも報告する」）。`model-only-in-valof` は
+          ジェネリックなデータ型を既に報告するので、型と lint の両方で「データの定義は具体型」に揃う
       - **コスト。**fixture は `Payload` を使わず、instantiations は core −51、trait −46、enum −114、
         `index.d.ts` は +0.51 kB（TypeScript 5.9.3）。`Payload` で包んだ Val 20 個の probe は 36,968 → 30,195
         （TypeScript 7.0.2）。減った理由は確かめていない
