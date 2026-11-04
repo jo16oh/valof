@@ -35,10 +35,11 @@ parameter reads fields, type it with `Payload`:
 ```ts
 import { Trait, type Payload, type Self } from "valof";
 
+type RankedShape = Payload<{ rank: number }>;
 type Ranked = Trait<
   "Ranked",
-  { rank: number },
-  { outranks: (self: Self, other: Payload<{ rank: number }>) => boolean }
+  RankedShape,
+  { outranks: (self: Self, other: RankedShape) => boolean }
 >;
 ```
 
