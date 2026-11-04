@@ -693,6 +693,26 @@ describe("nesting", () => {
     expectTypeOf<Boxed>().not.toBeNever();
   });
 
+  test("nor can a payload be an Impl", () => {
+    // @ts-expect-error a payload cannot be an Impl
+    type Whole = Val<"Whole", Impl<Greetable>>;
+    // @ts-expect-error a payload cannot be an Impl
+    type Mixed = Val<"Mixed", { id: string } & Impl<Greetable>>;
+    // @ts-expect-error a payload cannot be an Impl
+    type Part = Payload<Impl<Greetable>>;
+    // @ts-expect-error a payload cannot be a box either
+    type Boxed = Val<"Boxed", Dyn<Greetable>>;
+    expectTypeOf<Whole | Mixed | Part | Boxed>().not.toBeNever();
+    type Shared = Enum<"Shared", { A: { n: number }; B: { m: number } }, Impl<Greetable>>;
+    // @ts-expect-error a payload cannot be an Impl
+    Enum.companion<Shared>().build();
+    type Variant = Enum<"Variant", { A: { n: number } & Impl<Greetable>; B: { m: number } }>;
+    // @ts-expect-error a payload cannot be an Impl
+    Enum.companion<Variant>().build();
+    type Shaped = Trait<"Shaped", Impl<Greetable>>;
+    expectTypeOf<Shaped>().not.toExtend<AnyTrait>();
+  });
+
   test("a field cannot be typed with the trait itself", () => {
     // @ts-expect-error a trait is only a declaration
     type Desk = Val<"Desk", { owner: Greetable }>;
