@@ -140,6 +140,20 @@ type Single<Tr> = {
 type UnionMessage =
   "a union of traits is not a trait; write `Impl<A> | Impl<B>` for a value implementing either";
 
+/** One trait, not several intersected, as {@link Dyn} and {@link companion} take it. */
+export type LoneTrait<Tr> = OneTrait<Tr> & Lone<Tr>;
+
+// The key is the error message. For an intersection, the checker reports the key as missing from it.
+type Lone<Tr> = {
+  readonly [K in LoneMessage as [BrandNames<Tr>] extends [UnionToIntersection<BrandNames<Tr>>]
+    ? never
+    : K]: never;
+};
+
+type BrandNames<Tr> = keyof BrandsOf<Tr>;
+
+type LoneMessage = "`Dyn` and `Trait.companion` take one trait; write one for each trait";
+
 /** The fields a trait requires, read-only. */
 export type ShapeOf<Tr extends AnyTrait> = DeepReadonly<FieldsOf<Tr>>;
 
@@ -276,7 +290,7 @@ type Declarable<Shape, M extends Members> = {
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends OneTrait<Tr>> = Impl<Tr> & Bound<MembersOf<Tr>>;
+export type Dyn<Tr extends LoneTrait<Tr>> = Impl<Tr> & Bound<MembersOf<Tr>>;
 
 /**
  * Where a companion records every member `implTrait` registered. Read by
@@ -301,7 +315,7 @@ export type TraitHost = { readonly [Traits]: Members };
 // What it publishes takes the trait, not the shape the implementation was written over. A trait is
 // a contract between Vals, and an object that merely holds the fields is not one of them.
 export type TraitCompanion<
-  Tr extends OneTrait<Tr>,
+  Tr extends LoneTrait<Tr>,
   G = Record<never, never>,
   A = Record<never, never>,
 > = Duals<Unbound<Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>, Impl<Tr>>, Impl<Tr>> &
@@ -327,7 +341,7 @@ export type TraitCompanion<
  * sibling through the companion, which publishes one taking `Impl<Tr>`. Contravariance keeps the
  * implementation assignable where `implTrait` binds it to the Val.
  */
-export type Shared<Tr extends OneTrait<Tr>, G> = {
+export type Shared<Tr extends LoneTrait<Tr>, G> = {
   readonly [K in keyof G]: K extends keyof MembersOf<Tr>
     ? Unbound<MembersOf<Tr>, Impl<Tr>>[K]
     : "a trait's own implementation must be one of its members";
@@ -352,14 +366,14 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
 // called, that intersection reduces to its first member and loses the alias name, so the emitted
 // declaration of an inferred builder repeats the builder in full, nested once per `implAssoc`.
 export type TraitBuilder<
-  Tr extends OneTrait<Tr>,
+  Tr extends LoneTrait<Tr>,
   G = Record<never, never>,
   Open = true,
   A = Record<never, never>,
 > = Open extends true ? TraitImplStep<Tr, G, A> : TraitSteps<Tr, G, A, Open>;
 
 /** The steps a {@link TraitBuilder} has in every state. */
-export interface TraitSteps<Tr extends OneTrait<Tr>, G, A, Open> {
+export interface TraitSteps<Tr extends LoneTrait<Tr>, G, A, Open> {
   readonly dyn: CallBuildFirst;
   /**
    * Closes the chain and returns the companion. The builder holds the steps alone: `dyn` and the
@@ -381,7 +395,7 @@ export interface TraitSteps<Tr extends OneTrait<Tr>, G, A, Open> {
 }
 
 /** A {@link TraitBuilder} before `impl`. */
-export interface TraitImplStep<Tr extends OneTrait<Tr>, G, A> extends TraitSteps<Tr, G, A, true> {
+export interface TraitImplStep<Tr extends LoneTrait<Tr>, G, A> extends TraitSteps<Tr, G, A, true> {
   /**
    * Implements over the trait the members the function returns. The declaration says which
    * side of the contract implements a member: a Val may replace an ordinary member through
@@ -433,7 +447,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
 /**
  * Declares a trait's runtime side: what every Val implementing it shares.
  */
-export const companion = <Tr extends OneTrait<Tr>>(): TraitBuilder<Tr> => builder() as never;
+export const companion = <Tr extends LoneTrait<Tr>>(): TraitBuilder<Tr> => builder() as never;
 
 type Step = () => Record<string, unknown>;
 
