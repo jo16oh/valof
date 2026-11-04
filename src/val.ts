@@ -8,6 +8,7 @@ import type {
   Implement,
   MembersOf,
   NamesOf,
+  OneTrait,
   ShapeOf,
   TraitBrand,
   TraitCompanion,
@@ -288,7 +289,7 @@ type Code<S extends string> = `${"`"}${S}${"`"}`;
 
 // Distributes over the union to collect one parameter position per member, which infers as their
 // intersection. A single trait is its own intersection, and so is `never`.
-type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
+export type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
   k: infer I,
 ) => void
   ? I
@@ -766,7 +767,7 @@ export type Takes<V, Tr extends AnyTrait, T, Ok> =
       : "the type does not declare this trait";
 
 /** What the companion form takes once the trait itself has answered for every {@link Final}. */
-export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
+export type Complete<Tr extends OneTrait<Tr>, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
   ? TraitCompanion<Tr, G>
   : "this trait's companion has not implemented every member declared Final";
 
@@ -903,7 +904,7 @@ export type CompanionBuilder<
      *
      * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
      */
-    implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
+    implTrait: <Tr extends OneTrait<Tr>, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T & A, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I, Supplied<V, N, F, O>>
     ) => CompanionBuilder<V, N, F, O, T & Unbound<MembersOf<Tr>, V>, D | "implTrait", A>;

@@ -21,6 +21,7 @@ import type {
   Implement,
   MembersOf,
   NamesOf,
+  OneTrait,
   FieldsOf,
   TraitHost,
   TraitsOf,
@@ -709,7 +710,7 @@ type VariantTrait<
   VM,
   M,
   N extends keyof VariantsOf<E> & string,
-> = <Tr extends AnyTrait, G, I extends Implement<Tr, G, VariantOf<E, N>>>(
+> = <Tr extends OneTrait<Tr>, G, I extends Implement<Tr, G, VariantOf<E, N>>>(
   trait: Takes<
     VariantOf<E, N>,
     Tr,
@@ -940,7 +941,7 @@ export type EnumBuilder<
      * Implements a trait the enum declares. The implementation takes the union, so a member that
      * differs per variant is a `match` inside it.
      */
-    implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
+    implTrait: <Tr extends OneTrait<Tr>, G, I extends Implement<Tr, G, E>>(
       trait: UnionTakes<E, Tr, M & A, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I, EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>
     ) => EnumBuilder<E, O, VM, M & Unbound<MembersOf<Tr>, E>, F, C, D | "implTrait", A>;

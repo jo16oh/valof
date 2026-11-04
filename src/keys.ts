@@ -27,6 +27,3 @@ export declare const VariantOptionsKey: unique symbol;
 export declare const VariantOptionsTypes: unique symbol;
 export declare const TraitBrands: unique symbol;
 export declare const TraitTypes: unique symbol;
-export declare const DeclaredBrands: unique symbol;
-export declare const DeclaredShape: unique symbol;
-export declare const DeclaredVerdict: unique symbol;

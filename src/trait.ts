@@ -7,15 +7,7 @@ import {
   type Omission,
 } from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
-import type {
-  DeclaredBrands,
-  DeclaredShape,
-  DeclaredVerdict,
-  InvalidKey,
-  RefusedKey,
-  TraitBrands,
-  TraitTypes,
-} from "./keys.ts";
+import type { InvalidKey, RefusedKey, TraitBrands, TraitTypes } from "./keys.ts";
 import {
   associated,
   isObject,
@@ -27,6 +19,7 @@ import {
   type Grown,
   type Invalid,
   type Reserved,
+  type UnionToIntersection,
 } from "./val.ts";
 import * as Trait from "./ns/trait.ts";
 
@@ -79,25 +72,25 @@ declare class TraitPhantom<B> {
 }
 
 /**
- * What a trait declares, read where the trait is used. `B` maps the trait's name to its members,
- * `S` is the shape, and `V`, the verdict, maps the name to the members as {@link Declarable}
+ * What a trait declares, read where the trait is used. `brands` maps the trait's name to its
+ * members, `shape` is the shape, and `verdict` maps the name to the members as {@link Declarable}
  * checked them. Several traits intersect into one. Their records intersect by name, and their
  * shapes intersect.
  */
-declare class TraitDeclaration<B, S, V> {
-  protected readonly [DeclaredBrands]: B;
-  protected readonly [DeclaredShape]: S;
-  protected readonly [DeclaredVerdict]: V;
+// The key is the error message. When a value's type is a trait, the checker reports the key as
+// missing from the value.
+declare class TraitDeclaration<D> {
+  protected readonly "a trait is only a declaration; type a value implementing it with `Impl<Trait>`": D;
 }
 
 /**
  * Every trait, as a constraint.
  */
-export type AnyTrait = TraitDeclaration<
-  Readonly<Record<string, Members>>,
-  unknown,
-  Readonly<Record<string, Members & Unrejected>> & Unrejected
->;
+export type AnyTrait = TraitDeclaration<{
+  readonly brands: Readonly<Record<string, Members>>;
+  readonly shape: unknown;
+  readonly verdict: Readonly<Record<string, Members & Unrejected>> & Unrejected;
+}>;
 
 // A broken declaration leaves an `Invalid` or a `Refused` in place of a trait's members. Both have
 // only a symbol key, which `Record<string, …>` does not check.
@@ -114,21 +107,17 @@ type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never
 // in a Val's brand. `Members` admits functions alone, so an `Invalid` there stops the trait
 // satisfying `AnyTrait`, and every gate requires an `AnyTrait`. So the companion, `Val`, `Dyn`
 // and `implTrait` all report it without a check of their own.
-interface Trait<
-  K extends string,
-  Shape,
-  M extends Members = Record<never, never>,
-> extends TraitDeclaration<
-  { readonly [P in K]: M },
-  Shape,
-  {
+type Trait<K extends string, Shape, M extends Members = Record<never, never>> = TraitDeclaration<{
+  readonly brands: { readonly [P in K]: M };
+  readonly shape: Shape;
+  readonly verdict: {
     readonly [P in K]: [Shape] extends [Checked<Shape>]
       ? [M] extends [Declarable<Shape, M>]
         ? M
         : Declarable<Shape, M>
       : Checked<Shape>;
-  }
-> {}
+  };
+}>;
 
 export { Trait };
 
@@ -137,23 +126,35 @@ export { Trait };
  * one intersection, `Impl<Greetable & Serializable>`, as in a Val's declaration. A trait's member
  * may take one after {@link Self}.
  */
-export type Impl<Tr extends AnyTrait> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>;
+export type Impl<Tr extends OneTrait<Tr>> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>;
+
+/** A trait, or several intersected, but not a union of them. */
+export type OneTrait<Tr> = AnyTrait & Single<Tr>;
+
+// The key is the error message. For a union, the checker reports the key as missing from each trait
+// in it.
+type Single<Tr> = {
+  readonly [K in UnionMessage as [Tr] extends [UnionToIntersection<Tr>] ? never : K]: never;
+};
+
+type UnionMessage =
+  "a union of traits is not a trait; write `Impl<A> | Impl<B>` for a value implementing either";
 
 /** The fields a trait requires, read-only. */
 export type ShapeOf<Tr extends AnyTrait> = DeepReadonly<FieldsOf<Tr>>;
 
 /** The fields a trait requires, as the declaration wrote them. */
-export type FieldsOf<Tr> = Tr extends TraitDeclaration<unknown, infer S, unknown> ? S : never;
+export type FieldsOf<Tr> = Tr extends TraitDeclaration<{ readonly shape: infer S }> ? S : never;
 
 /** The trait's name mapped to its members, as declared. */
-export type BrandsOf<Tr> = Tr extends TraitDeclaration<infer B, unknown, unknown> ? B : never;
+export type BrandsOf<Tr> = Tr extends TraitDeclaration<{ readonly brands: infer B }> ? B : never;
 
 /**
  * The trait's name mapped to its members, with an `Invalid` in place of each one {@link Declarable}
  * rejects. Unconstrained, so that a broken declaration, which does not satisfy {@link AnyTrait}, can
  * be read out.
  */
-export type VerdictOf<Tr> = Tr extends TraitDeclaration<unknown, unknown, infer V> ? V : never;
+export type VerdictOf<Tr> = Tr extends TraitDeclaration<{ readonly verdict: infer V }> ? V : never;
 
 /**
  * The trait brands a Val carries, or nothing when it declares none.
@@ -186,14 +187,14 @@ export type FinalsOf<Tr extends AnyTrait> = {
 }[keyof MembersOf<Tr>];
 
 /** A trait's members as a Val implements them: the receiver first, as in every companion. */
-export type Unbound<M extends Members, S> = {
+export type Unbound<M, S> = {
   [K in keyof M]: M[K] extends (self: Self, ...args: infer A) => infer R
     ? (self: S, ...args: A) => R
     : never;
 };
 
 /** The same members on a {@link Dyn}, where the receiver is already bound. */
-export type Bound<M extends Members> = {
+export type Bound<M> = {
   [K in keyof M]: M[K] extends (self: Self, ...args: infer A) => infer R
     ? (...args: A) => R
     : never;
@@ -275,7 +276,7 @@ type Declarable<Shape, M extends Members> = {
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends AnyTrait> = Impl<Tr> & Bound<MembersOf<Tr>>;
+export type Dyn<Tr extends OneTrait<Tr>> = Impl<Tr> & Bound<MembersOf<Tr>>;
 
 /**
  * Where a companion records every member `implTrait` registered. Read by
@@ -300,7 +301,7 @@ export type TraitHost = { readonly [Traits]: Members };
 // What it publishes takes the trait, not the shape the implementation was written over. A trait is
 // a contract between Vals, and an object that merely holds the fields is not one of them.
 export type TraitCompanion<
-  Tr extends AnyTrait,
+  Tr extends OneTrait<Tr>,
   G = Record<never, never>,
   A = Record<never, never>,
 > = Duals<Unbound<Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>, Impl<Tr>>, Impl<Tr>> &
@@ -326,7 +327,7 @@ export type TraitCompanion<
  * sibling through the companion, which publishes one taking `Impl<Tr>`. Contravariance keeps the
  * implementation assignable where `implTrait` binds it to the Val.
  */
-export type Shared<Tr extends AnyTrait, G> = {
+export type Shared<Tr extends OneTrait<Tr>, G> = {
   readonly [K in keyof G]: K extends keyof MembersOf<Tr>
     ? Unbound<MembersOf<Tr>, Impl<Tr>>[K]
     : "a trait's own implementation must be one of its members";
@@ -351,14 +352,14 @@ export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, k
 // called, that intersection reduces to its first member and loses the alias name, so the emitted
 // declaration of an inferred builder repeats the builder in full, nested once per `implAssoc`.
 export type TraitBuilder<
-  Tr extends AnyTrait,
+  Tr extends OneTrait<Tr>,
   G = Record<never, never>,
   Open = true,
   A = Record<never, never>,
 > = Open extends true ? TraitImplStep<Tr, G, A> : TraitSteps<Tr, G, A, Open>;
 
 /** The steps a {@link TraitBuilder} has in every state. */
-export interface TraitSteps<Tr extends AnyTrait, G, A, Open> {
+export interface TraitSteps<Tr extends OneTrait<Tr>, G, A, Open> {
   readonly dyn: CallBuildFirst;
   /**
    * Closes the chain and returns the companion. The builder holds the steps alone: `dyn` and the
@@ -380,7 +381,7 @@ export interface TraitSteps<Tr extends AnyTrait, G, A, Open> {
 }
 
 /** A {@link TraitBuilder} before `impl`. */
-export interface TraitImplStep<Tr extends AnyTrait, G, A> extends TraitSteps<Tr, G, A, true> {
+export interface TraitImplStep<Tr extends OneTrait<Tr>, G, A> extends TraitSteps<Tr, G, A, true> {
   /**
    * Implements over the trait the members the function returns. The declaration says which
    * side of the contract implements a member: a Val may replace an ordinary member through
@@ -432,7 +433,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
 /**
  * Declares a trait's runtime side: what every Val implementing it shares.
  */
-export const companion = <Tr extends AnyTrait>(): TraitBuilder<Tr> => builder() as never;
+export const companion = <Tr extends OneTrait<Tr>>(): TraitBuilder<Tr> => builder() as never;
 
 type Step = () => Record<string, unknown>;
 
