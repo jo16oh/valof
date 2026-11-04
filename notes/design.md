@@ -3071,10 +3071,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
         キーの種類を見ないため。使う側で報告される。`Date` はメソッドが関数として拒まれ、型引数で捕まる。
         root だけを見る条件型を `& Root<T>` で足しても循環しない（probe）が、`Validate` の root の規則を
         二重に持つので入れていない
-      - **ジェネリックな別名は書けない。**`type G<T> = Payload<T>` は TS2344。制約の `ValidateFields` は
-        export していない
+      - **型パラメーターを含む `Payload` は書けない。**`type G<T> = Payload<T>` も `Payload<{ left: T }>` も TS2344
+        （`T extends string` でも同じ）。制約の `ValidateFields` は export していない
       - **コスト。**fixture は `Payload` を使わず、instantiations は core −51、trait −46、enum −114、
-        `index.d.ts` は +0.40 kB（TypeScript 5.9.3）。`Payload` で包んだ Val 20 個の probe は 36,968 → 30,195
+        `index.d.ts` は +0.51 kB（TypeScript 5.9.3）。`Payload` で包んだ Val 20 個の probe は 36,968 → 30,195
         （TypeScript 7.0.2）。減った理由は確かめていない
     - **`Invalid` と `Refused` は symbol キーだけで表す、2026-11-04。**`__valError` を予約しないため。
       どちらのキーも export しない `unique symbol` で、利用者の payload はこの形にならない
