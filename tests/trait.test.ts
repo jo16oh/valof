@@ -530,6 +530,15 @@ describe("dyn", () => {
     ]);
   });
 
+  test("takes one trait", () => {
+    type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+    // @ts-expect-error a box takes one trait
+    const both = null as unknown as Dyn<Greetable & Weighed>;
+    // @ts-expect-error a union of traits is not a trait
+    const either = null as unknown as Dyn<Greetable | Weighed>;
+    expect([both, either]).toEqual([null, null]);
+  });
+
   describe("a primitive payload", () => {
     type Marker = Trait<"Marker", Record<never, never>, { wire: (self: Self) => string }>;
     const Marker = Trait.companion<Marker>()
@@ -678,6 +687,14 @@ describe("building", () => {
       // @ts-expect-error same, at a box
       const box = null as unknown as Dyn<Wiring>;
       expect([cell, box]).toHaveLength(2);
+    });
+
+    test("implements one trait", () => {
+      type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+      // @ts-expect-error a companion implements one trait
+      Trait.companion<Greetable & Weighed>();
+      // @ts-expect-error a union of traits is not a trait
+      Trait.companion<Greetable | Weighed>();
     });
 
     test("a shape written with a rejected Payload is caught", () => {
