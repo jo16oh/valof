@@ -313,9 +313,9 @@ describe("Trait", () => {
     });
   });
 
-  // Read through `VerdictOf`, since a directive at the gate passes on any error.
+  // Read through `VerdictOf`, since `@ts-expect-error` at the gate passes on any error.
   describe("the declaration", () => {
-    test("takes one name: a union or `string` is rejected", () => {
+    test("needs one name, and rejects a union or `string`", () => {
       type Fault = Invalid<"a trait's name must be one string literal">;
       type Either = Trait<"Left" | "Right", { n: number }, { f: (self: Self) => number }>;
       expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<Fault>();
@@ -329,7 +329,7 @@ describe("Trait", () => {
         { f: (self: Self) => number } | { g: (self: Self) => string }
       >;
       expectTypeOf<VerdictOf<Split>>().toEqualTypeOf<
-        Invalid<"a trait's members are one object type, not a union">
+        Invalid<"a trait's members must be one object type, not a union">
       >();
     });
   });
@@ -736,7 +736,7 @@ describe("nesting", () => {
     expectTypeOf<Shaped>().not.toExtend<AnyTrait>();
   });
 
-  test("a payload cannot declare a trait: the third type argument does", () => {
+  test("a payload cannot declare a trait, only the third type argument can", () => {
     type Fault = Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">;
     // @ts-expect-error a payload cannot declare a trait
     type Part = Payload<{ id: string; name: string } & Greetable>;
@@ -749,7 +749,7 @@ describe("nesting", () => {
     // @ts-expect-error a trait is only a declaration
     type Seat = Payload<{ owner: Greetable }>;
     expectTypeOf<Desk>().not.toBeNever();
-    // Below the root, the root's message would send the trait to a field's type argument.
+    // Below the root, the root's message would suggest Val's third type argument for a field's trait.
     expectTypeOf<Seat>().toEqualTypeOf<{
       owner: Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">;
     }>();
