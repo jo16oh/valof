@@ -174,13 +174,13 @@ type ValidateFields<T> = {
  * `Validate<T>` itself is circular (TS2313). One that reads its result in a conditional is not.
  */
 type Allowed<T, Owner extends string> = [T] extends [AnyVal]
-  ? // As a Val's payload, a Val's brand collides with the outer one, so the type resolves to
-    // `never`.
+  ? // Passed whole to `Val`, a Val's brand collides with the outer one, so the outer Val resolves
+    // to `never`.
     Invalid<`a Val cannot be used as ${Owner} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`>
   : [Validate<T>] extends [Invalid<infer M>]
     ? Invalid<M>
-    : // A rejected `Payload` at the top level is an `Invalid`, which an `Invalid` constraint
-      // accepts.
+    : // A `Payload` rejected at its top level resolves to an `Invalid`, which an `Invalid`
+      // constraint accepts.
       [Validate<T>] extends [Refused<infer M>]
       ? Refused<M>
       : ValidateFields<T>;

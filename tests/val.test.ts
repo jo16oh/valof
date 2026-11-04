@@ -510,7 +510,7 @@ describe("Val", () => {
       expectTypeOf<Payload<(() => void)[]>>();
     });
 
-    test("a Val declared with a rejected Payload is rejected, at the top level too", () => {
+    test("a Val declared with a rejected Payload is rejected, including a Payload rejected at its top level", () => {
       // @ts-expect-error functions are not allowed
       type Run = Payload<{ run: () => void }>;
       expectTypeOf<{ run: () => void }>().not.toExtend<Run>();
