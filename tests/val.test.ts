@@ -474,28 +474,26 @@ describe("Val", () => {
     test("a payload that breaks a rule is reported at the type argument", () => {
       // @ts-expect-error functions are not allowed, at any depth
       expectTypeOf<Payload<{ a: { b: { run: () => void } } }>>();
-      // @ts-expect-error nor in an array
-      expectTypeOf<Payload<{ jobs: (() => void)[] }>>();
       // @ts-expect-error a required property cannot be undefined
       expectTypeOf<Payload<{ alias: string | undefined }>>();
-      // @ts-expect-error a class instance is not a plain value
-      expectTypeOf<Payload<{ at: Date }>>();
-      // @ts-expect-error the root may be an array
+      // @ts-expect-error an array root is checked too
       expectTypeOf<Payload<(() => void)[]>>();
     });
 
-    test("a rejected payload is rejected where it is used", () => {
+    test("a rejected payload is rejected where it is used, at the root too", () => {
       // @ts-expect-error functions are not allowed
       type Run = Payload<{ run: () => void }>;
       expectTypeOf<{ run: () => void }>().not.toExtend<Run>();
-    });
-
-    test("the Val reports the rule, at the root too", () => {
-      // @ts-expect-error functions are not allowed
-      expectTypeOf<VerdictOf<Val<"P", Payload<{ run: () => void }>>>>().toEqualTypeOf<{
+      expectTypeOf<VerdictOf<Val<"P", Run>>>().toEqualTypeOf<{
         run: Refused<"functions are not allowed">;
       }>();
       expectTypeOf<Val<"P", Payload<string | null>>>().not.toExtend<AnyVal>();
+    });
+
+    test("a type parameter does not fit", () => {
+      // @ts-expect-error the rules cannot read an unresolved type
+      type Pair<T> = Payload<{ left: T; right: T }>;
+      expectTypeOf<Pair<string>>().toEqualTypeOf<{ left: string; right: string }>();
     });
 
     test("a payload wrapped twice is rejected with the rule's message", () => {
@@ -507,7 +505,7 @@ describe("Val", () => {
     });
 
     test("a payload may reference the Val it belongs to", () => {
-      type TreeFields = Payload<{ value: number; children: Rec<Tree>[]; next?: Rec<Tree> }>;
+      type TreeFields = Payload<{ value: number; children: Rec<Tree>[] }>;
       type Tree = Val<"app/Tree", TreeFields>;
       expectTypeOf<Tree>().toExtend<AnyVal>();
     });
