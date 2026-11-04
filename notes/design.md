@@ -3061,8 +3061,18 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       メンバ引数（`other: Payload<{ f: () => void }>`）は trait の companion でも `implTrait` でも黙り、
       呼び出しの引数で `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になる。
       → trait の側で報告するようにした、2026-11-04（§15.1「メンバの引数の `Payload` を trait で報告する」）
-    - **`__valError` に文字列リテラルを持つ object は payload に書けなくなった。**`Invalid` を手で書いたのと
-      区別できない。`Invalid` は export していないので、hover から写したときに限る
+    - **`Invalid` と `Refused` は symbol キーだけで表す、2026-11-04。**`__valError` を予約しないため。
+      どちらのキーも export しない `unique symbol` で、利用者の payload はこの形にならない
+      - **文字列キーだったときの穴。**`__valError` に文字列リテラルを持つ payload のフィールドが `Invalid` と
+        区別できず拒まれた。`Payload<Payload<{ f: () => void }>>` は、外側が `Invalid` を `Refused` に写し、
+        文字列キーだけの `Refused` を Val がただの値として通した
+      - **`Validate` は `Invalid` を `Refused` に、`Refused` を `Invalid` に写す。**写さなくても symbol キーの
+        規則で拒まれるが、文言が「keys must be strings」に変わる。写せば何重に包んでも元の規則の文言が残る
+      - **`AnyTrait` は両方の印を拒む（`Unrejected`）。**壊れた宣言は brand map やメンバ集合の位置に印を置く。
+        文字列キーの印はメッセージが関数でないことで拒まれていたが、symbol キーだけの印は `Record<string, …>`
+        に収まる。brand map の位置とメンバ集合の位置の両方に `[InvalidKey]?: never` / `[RefusedKey]?: never` を置いた
+      - **コスト。**main（#121）と比べて instantiations は core +107、trait +120、enum +257、`index.d.ts` は
+        +0.52 kB（TypeScript 5.9.3）
     - **コスト。**fixture は `Payload` を使わないので、instantiations は trait +4、enum +39 だけ（TypeScript 5.9.3）。
       `Payload` で包んだ Val 1 つあたり約 +320（probe、20 個で 60,719 → 67,072）。`index.d.ts` は +0.55 kB
     - **訂正: 「入れられない」とした記録。**`feat/self-first-parameter` は probe から「検査できない」と結論し、
@@ -6114,7 +6124,7 @@ Same.dyn(A, a).same(b); // 通っていた。A の実装が B を受け取る
   引数は payload ではないので正当
 - **mapped type に `-?` を付けた。**真偽なら `true extends …` で `undefined` は効かなかったが、union を返すと
   optional な引数（`Map.forEach` の `thisArg?`）が `undefined` を混ぜ、`Map` を返すメンバが拒まれた
-- **検出は `Invalid<infer M>` で書く。**キー名（`__valError`）を直接書かない。`Invalid` の表し方を変えても追従する
+- **検出は `Invalid<infer M>` で書く。**キーを直接書かない。#122 で `Invalid` のキーが symbol に変わっても、そのまま効いた
 - **コスト。**trait fixture 16,786 → 16,819、enum 34,945 → 34,959（TypeScript 5.9.3）。probe（7.0.2）では
   戻り値 `string` のメンバ +48、`Map` を返すメンバ +991、`Payload<{ n; tags: string[]; at: { x } }>` の引数 +100
 

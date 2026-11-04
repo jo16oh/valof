@@ -21,7 +21,7 @@ import {
   Tag,
   type VariantOf,
 } from "../src/index.ts";
-import type { CallBuildFirst } from "../src/val.ts";
+import type { CallBuildFirst, Invalid } from "../src/val.ts";
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>()
@@ -1143,16 +1143,16 @@ describe("a broken declaration", () => {
   test("a variant's payload must be a record of fields", () => {
     // `@ts-expect-error` alone would stay green, since `AnyEnum` rejects any fault. Intersecting
     // with it reads the fault back out of the name.
-    const fault = { __valError: "a variant's payload must be a record of fields" } as const;
+    type Fault = Invalid<"a variant's payload must be a record of fields">;
     type Primitive = Enum<"Primitive", { One: number; Two: { n: number } }>;
     // @ts-expect-error a variant's payload must be a record of fields
     Enum.companion<Primitive>().build();
-    expectTypeOf<NameOf<Primitive & AnyEnum>>().toEqualTypeOf<typeof fault & string>();
+    expectTypeOf<NameOf<Primitive & AnyEnum>>().toEqualTypeOf<Fault & string>();
 
     type Listed = Enum<"Listed", { Many: readonly string[]; Other: { n: number } }>;
     // @ts-expect-error same, for an array
     Enum.companion<Listed>().build();
-    expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<typeof fault & string>();
+    expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<Fault & string>();
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {
