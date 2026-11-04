@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import {
+  Enum,
   Trait,
   Val,
   type AnyTrait,
@@ -302,6 +303,11 @@ describe("Trait", () => {
       expectTypeOf<BadKey>().not.toExtend<AnyTrait>();
       // @ts-expect-error keys must be strings
       Trait.companion<BadKey>().build();
+    });
+
+    test("cannot be a trait", () => {
+      type Nested = Trait<"Nested", Greetable>;
+      expectTypeOf<Nested>().not.toExtend<AnyTrait>();
     });
   });
 
@@ -662,6 +668,28 @@ describe("nesting", () => {
   test("the nested one boxes on its own", () => {
     expect(Greetable.dyn(User, team.lead).greet()).toBe("Hi, alice");
     expect(Greetable.dyn(Team, team).greet()).toBe("Team core");
+  });
+
+  test("a field holds any Val implementing a trait through Impl, but no box", () => {
+    type Desk = Val<"Desk", { owner: Impl<Greetable> }>;
+    const Desk = Val.companion<Desk>().build();
+    const desks = [Desk.seal({ owner: user }), Desk.seal({ owner: admin })];
+    expect(desks.map((d) => Greetable.shout(d.owner))).toEqual(["ALICE", "ROOT"]);
+    // @ts-expect-error a payload cannot hold a box
+    Desk.seal({ owner: Greetable.dyn(User, user) });
+    // @ts-expect-error an object that merely holds the fields
+    Desk.seal({ owner: { name: "duck" } });
+  });
+
+  test("a field cannot be typed with the trait itself", () => {
+    // @ts-expect-error a trait is only a declaration
+    type Desk = Val<"Desk", { owner: Greetable }>;
+    // @ts-expect-error a trait is only a declaration
+    type Seat = Payload<{ owner: Greetable }>;
+    expectTypeOf<Desk | Seat>().not.toBeNever();
+    type Office = Enum<"Office", { Open: { owner: Greetable }; Shut: { at: number } }>;
+    // @ts-expect-error a trait is only a declaration
+    Enum.companion<Office>().build();
   });
 });
 
