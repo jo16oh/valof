@@ -2,6 +2,7 @@
 // the declaration that carries it.
 import type { AnyEnum } from "./enum.ts";
 import type {
+  AnyImpl,
   AnyTrait,
   FieldsOf,
   FinalsOf,
@@ -119,15 +120,17 @@ type Validate<T, Root extends boolean = true> =
     ? T
     : [T] extends [AnyVal]
       ? T
-      : [T] extends [Invalid<infer M>]
-        ? Refused<M>
-        : [T] extends [Refused<infer M>]
-          ? Invalid<M>
-          : Root extends true
-            ? null extends T
-              ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-              : ValidateValue<T>
-            : ValidateValue<T>;
+      : [T] extends [AnyTrait]
+        ? Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+        : [T] extends [Invalid<infer M>]
+          ? Refused<M>
+          : [T] extends [Refused<infer M>]
+            ? Invalid<M>
+            : Root extends true
+              ? null extends T
+                ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+                : ValidateValue<T>
+              : ValidateValue<T>;
 
 type ValidateValue<T> = [T] extends [Primitive]
   ? T
@@ -194,28 +197,33 @@ type Allowed<T, Owner extends string> = [T] extends [AnyVal]
 export type DeepReadonly<T, Arg extends boolean = false> =
   IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T, Arg>;
 
-/** Recursion stops at a nested Val: it is already deep-readonly. */
+/**
+ * Recursion stops at a nested Val, because it is already deep-readonly. A field typed with `Impl`
+ * holds a Val, so a `Dyn` box does not fit.
+ */
 type DeepReadonlyValue<T, Arg extends boolean> = [T] extends [AnyVal]
   ? T
-  : [T] extends [Primitive]
-    ? T
-    : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
-      // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
-      // still being declared. An array is the only payload with a numeric key.
-      number extends keyof T
-      ? number extends Extract<T, readonly unknown[]>["length"]
-        ? ReadonlyArray<DeepReadonly<T[number], Arg>>
-        : { readonly [I in keyof T]: DeepReadonly<T[I], Arg> }
-      : [T] extends [object]
-        ? [Arg, keyof T] extends [true, never]
-          ? EmptySeed
-          : {
-              // An optional key carries `undefined` in its type, and a union stops the walk one
-              // level short: a `Rec` inside it would never open. The value never holds the
-              // `undefined` either way, since an optional key is absent or set.
-              readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Arg>;
-            }
-        : T;
+  : [T] extends [AnyImpl]
+    ? T & AnyVal
+    : [T] extends [Primitive]
+      ? T
+      : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
+        // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
+        // still being declared. An array is the only payload with a numeric key.
+        number extends keyof T
+        ? number extends Extract<T, readonly unknown[]>["length"]
+          ? ReadonlyArray<DeepReadonly<T[number], Arg>>
+          : { readonly [I in keyof T]: DeepReadonly<T[I], Arg> }
+        : [T] extends [object]
+          ? [Arg, keyof T] extends [true, never]
+            ? EmptySeed
+            : {
+                // An optional key carries `undefined` in its type, and a union stops the walk one
+                // level short: a `Rec` inside it would never open. The value never holds the
+                // `undefined` either way, since an optional key is absent or set.
+                readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Arg>;
+              }
+          : T;
 
 /**
  * An empty object as an argument: neither an array, a function nor a promise. `{}` takes every

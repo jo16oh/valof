@@ -154,6 +154,9 @@ type BrandNames<Tr> = keyof BrandsOf<Tr>;
 
 type LoneMessage = "`Dyn` and `Trait.companion` take one trait; write one for each trait";
 
+/** Any value implementing a trait, as a constraint. */
+export type AnyImpl = TraitPhantom<unknown>;
+
 /** The fields a trait requires, read-only. */
 export type ShapeOf<Tr extends AnyTrait> = DeepReadonly<FieldsOf<Tr>>;
 
