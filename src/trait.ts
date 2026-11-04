@@ -111,11 +111,13 @@ type Trait<K extends string, Shape, M extends Members = Record<never, never>> = 
   readonly brands: { readonly [P in K]: M };
   readonly shape: Shape;
   readonly verdict: {
-    readonly [P in K]: [Shape] extends [Checked<Shape>]
-      ? [M] extends [Declarable<Shape, M>]
-        ? M
-        : Declarable<Shape, M>
-      : Checked<Shape>;
+    readonly [P in K]: [Shape] extends [AnyImpl]
+      ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
+      : [Shape] extends [Checked<Shape>]
+        ? [M] extends [Declarable<Shape, M>]
+          ? M
+          : Declarable<Shape, M>
+        : Checked<Shape>;
   };
 }>;
 

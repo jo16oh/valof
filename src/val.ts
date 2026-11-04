@@ -120,13 +120,15 @@ type Validate<T, Root extends boolean = true> =
     ? T
     : [T] extends [AnyVal]
       ? T
-      : // A union of `Impl`, like a union of Vals, is a union of values rather than of objects to
-        // merge. Each one's fields are still checked. That rejects a `Dyn` box, because its trait
-        // members are functions.
+      : // Below the root, a union of `Impl`, like a union of Vals, is a union of values rather than
+        // of objects to merge. Each one's fields are still checked. That rejects a `Dyn` box,
+        // because its trait members are functions.
         [T] extends [AnyImpl]
-        ? T extends unknown
-          ? ValidateFields<T>
-          : never
+        ? Root extends true
+          ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
+          : T extends unknown
+            ? ValidateFields<T>
+            : never
         : [T] extends [AnyTrait]
           ? Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
           : [T] extends [Invalid<infer M>]
@@ -211,7 +213,7 @@ export type DeepReadonly<T, Arg extends boolean = false> =
 type DeepReadonlyValue<T, Arg extends boolean> = [T] extends [AnyVal]
   ? T
   : [T] extends [AnyImpl]
-    ? T & AnyVal
+    ? T & Phantom<string, unknown>
     : [T] extends [Primitive]
       ? T
       : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named

@@ -17,6 +17,7 @@ import type {
   VariantOptionsTypes,
 } from "./keys.ts";
 import type {
+  AnyImpl,
   AnyTrait,
   Implement,
   MembersOf,
@@ -128,7 +129,8 @@ type VariantTraitsIn<D> = { [N in VariantKeys<D>]: TraitsIn<D[N]> };
 type TagIn<X> = [X] extends [TagPhantom<infer T>] ? T : "_tag";
 
 /** The fields every variant holds, with the ones the enum's traits require. */
-type SharedIn<X> = Pick<X, keyof X> &
+// An `Impl` stays whole, so that the payload rules see it and reject it.
+type SharedIn<X> = ([X] extends [AnyImpl] ? X : Pick<X, keyof X>) &
   ([TraitsIn<X>] extends [never] ? unknown : FieldsOf<TraitsIn<X>>);
 
 type TraitsIn<X> = Extract<X, AnyTrait>;
