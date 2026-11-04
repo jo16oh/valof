@@ -1218,11 +1218,11 @@ describe("a broken declaration", () => {
     expectTypeOf<OnlyNumbers>().not.toBeNever();
     type Either = Enum<"Left" | "Right", { A: { n: number }; B: { m: number } }>;
     expectTypeOf<NameOf<Either & AnyEnum>>().toEqualTypeOf<
-      Fault<"an enum's name must be one string literal">
+      Fault<"an enum's name cannot be a union">
     >();
     type Tags = Enum<"Tags", { A: { n: number }; B: { m: number } }, Tag<"k" | "t">>;
     expectTypeOf<NameOf<Tags & AnyEnum>>().toEqualTypeOf<
-      Fault<"the tag's name must be one string literal">
+      Fault<"the tag's name cannot be a union">
     >();
   });
 
