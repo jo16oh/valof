@@ -3061,14 +3061,18 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       メンバ引数（`other: Payload<{ f: () => void }>`）は trait の companion でも `implTrait` でも黙り、
       呼び出しの引数で `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になる。
       trait の側で報告するにはメンバの引数を深く辿る検査が要るので、入れていない
-    - **`Invalid` は symbol キーで見分ける、2026-11-04。**文字列キーだけだと、`__valError` に文字列リテラルを
-      持つ payload のフィールドが `Invalid` と区別できず、拒まれていた。export しない `unique symbol` のキー
-      （`InvalidKey`）を足し、利用者が書けない印にした
-      - **文字列キーは残す。**trait のゲート（`AnyTrait` の `Record<string, Members>`）は、メンバの位置の
-        `Invalid` を「関数でない値」として拒む。symbol キーだけの `Invalid` は `Record<string, …>` に収まり、
-        壊れた trait が通った（trait のテストの `@ts-expect-error` 17 件が効かなくなった）
-      - **`Refused` は symbol にしない。**何も `Refused` を判定しないので、データと区別する必要がない
-      - **コスト。**instantiations は変わらない。`index.d.ts` は +0.26 kB（TypeScript 5.9.3）
+    - **`Invalid` と `Refused` は symbol キーだけで表す、2026-11-04。**`__valError` を予約しないため。
+      どちらのキーも export しない `unique symbol` で、利用者の payload はこの形にならない
+      - **文字列キーだったときの穴。**`__valError` に文字列リテラルを持つ payload のフィールドが `Invalid` と
+        区別できず拒まれた。`Payload<Payload<{ f: () => void }>>` は、外側が `Invalid` を `Refused` に写し、
+        文字列キーだけの `Refused` を Val がただの値として通した
+      - **`Validate` は `Invalid` を `Refused` に、`Refused` を `Invalid` に写す。**写さなくても symbol キーの
+        規則で拒まれるが、文言が「keys must be strings」に変わる。写せば何重に包んでも元の規則の文言が残る
+      - **`AnyTrait` は両方の印を拒む（`Unrejected`）。**壊れた宣言は brand map やメンバ集合の位置に印を置く。
+        文字列キーの印はメッセージが関数でないことで拒まれていたが、symbol キーだけの印は `Record<string, …>`
+        に収まる。brand map の位置とメンバ集合の位置の両方に `[InvalidKey]?: never` / `[RefusedKey]?: never` を置いた
+      - **コスト。**main（#121）と比べて instantiations は core +107、trait +120、enum +257、`index.d.ts` は
+        +0.52 kB（TypeScript 5.9.3）
     - **コスト。**fixture は `Payload` を使わないので、instantiations は trait +4、enum +39 だけ（TypeScript 5.9.3）。
       `Payload` で包んだ Val 1 つあたり約 +320（probe、20 個で 60,719 → 67,072）。`index.d.ts` は +0.55 kB
     - **訂正: 「入れられない」とした記録。**`feat/self-first-parameter` は probe から「検査できない」と結論し、
