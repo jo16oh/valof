@@ -1207,6 +1207,43 @@ describe("a broken declaration", () => {
     >();
   });
 
+  // Each reads the fault back out of the name, since `@ts-expect-error` passes on any error.
+  test("a name, a variant's name and the tag's name are each one string literal", () => {
+    type Fault<M extends string> = Invalid<M> & string;
+    type Numbered = Enum<"Numbered", { Ok: { n: number }; 404: { path: string } }>;
+    expectTypeOf<NameOf<Numbered & AnyEnum>>().toEqualTypeOf<
+      Fault<"a variant's name must be a string; a JSON key is one">
+    >();
+    type OnlyNumbers = Enum<"OnlyNumbers", { 200: { n: number }; 404: { path: string } }>;
+    expectTypeOf<OnlyNumbers>().not.toBeNever();
+    type Either = Enum<"Left" | "Right", { A: { n: number }; B: { m: number } }>;
+    expectTypeOf<NameOf<Either & AnyEnum>>().toEqualTypeOf<
+      Fault<"an enum's name must be one string literal">
+    >();
+    type Tags = Enum<"Tags", { A: { n: number }; B: { m: number } }, Tag<"k" | "t">>;
+    expectTypeOf<NameOf<Tags & AnyEnum>>().toEqualTypeOf<
+      Fault<"the tag's name must be one string literal">
+    >();
+  });
+
+  test("the shared fields are one object type, not a union", () => {
+    type Keyed = Enum<
+      "Keyed",
+      { A: { n: number }; B: { m: number } },
+      { id: string } | { key: string }
+    >;
+    expectTypeOf<NameOf<Keyed & AnyEnum>>().toEqualTypeOf<
+      Invalid<"the shared fields must be one object type, not a union"> & string
+    >();
+  });
+
+  test("a companion takes one enum, not a union of them", () => {
+    type Left = Enum<"Left", { A: { n: number }; B: { m: number } }>;
+    type Right = Enum<"Right", { C: { n: number }; D: { m: number } }>;
+    // @ts-expect-error a companion builds one enum
+    Enum.companion<Left | Right>().build();
+  });
+
   test("a variant takes no companion of its own, and neither does the union", () => {
     // @ts-expect-error a variant is built by its enum's companion
     Val.companion<VariantOf<Shape, "Circle">>().build();
