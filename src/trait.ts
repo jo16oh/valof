@@ -74,7 +74,7 @@ declare class TraitPhantom<B> {
 export type AnyTrait = TraitPhantom<Readonly<Record<string, Members & Unrejected>> & Unrejected>;
 
 // A broken declaration leaves an `Invalid` or a `Refused` in place of the brand map or of a trait's
-// members. Both carry a symbol key alone, which `Record<string, …>` does not read.
+// members. Both have only a symbol key, which `Record<string, …>` does not check.
 type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never };
 
 /**
