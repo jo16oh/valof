@@ -337,7 +337,7 @@ describe("Val", () => {
       }>();
     });
 
-    test("but not at the root, nor beside a symbol or an object union", () => {
+    test("a mixed field is rejected at the root, beside a symbol, or in an object union", () => {
       // @ts-expect-error not a plain value
       type Root = Val<"Root", string | string[]>;
       // @ts-expect-error not a plain value
@@ -1294,7 +1294,7 @@ describe("patch", () => {
       });
 
     // Where the field is null there is nothing to merge into.
-    test("a field that may be null or a primitive takes the whole value", () => {
+    test("patch replaces a field that may be null or a primitive whole", () => {
       type Pin = Val<
         "Pin",
         { at: { x: number; y: number } | null; label: string | { text: string } }
@@ -1302,7 +1302,7 @@ describe("patch", () => {
       const Pin = Val.companion<Pin>().build();
       const pin = Pin.seal({ at: null, label: "a" });
       expect(Pin.patch(pin, { at: { x: 1, y: 2 } })).toEqual({ at: { x: 1, y: 2 }, label: "a" });
-      // @ts-expect-error a merge into null would leave `y` out
+      // @ts-expect-error a merge into null would omit `y`
       Pin.patch(pin, { at: { x: 1 } });
       // @ts-expect-error a merge into a string would leave `text` out
       Pin.patch(pin, { label: {} });
