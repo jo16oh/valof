@@ -6283,6 +6283,15 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
     `AnyImpl` で止まり、union の各要素のフィールドだけを検査する。`AnyImpl` 全体で止めると `Dyn` のフィールドまで
     通る（`Dyn` は `Impl` を含む）。フィールドを検査すれば、box はメンバが関数なので「functions are not allowed」で
     拒まれる。core 7,640 → 7,713、trait 20,923 → 20,999、enum 35,574 → 35,752
+  - **payload の根の `Impl` を拒む。**`Val<"V", Impl<A>>`（seal が別の Val を受けた）、`{ id } & Impl<A>`、
+    `Payload<Impl<A>>`、Enum の共有フィールドと variant の payload。`Validate` が根の `AnyImpl` を
+    「a payload cannot be an `Impl`; write its fields, and declare the trait instead」にする
+    - **`DeepReadonly` は `Impl` に `Phantom` だけを足す。**`AnyVal`（`Verdict<true>` を含む）を足すと、根では値の型の
+      verdict が `true` と交差して打ち消され、variant の payload の `Impl` が companion を通った
+    - **Enum の `SharedIn` は `Impl` を丸ごと残す。**`Pick` が brand を落とし、payload の規則が `Impl` を見なかった
+    - **trait の shape は verdict で別の文言にする。**「a trait's shape cannot be an `Impl`; write its fields」。payload の
+      文言の「Val の第 3 引数」は trait には当たらない
+    - コスト: trait 20,999 → 21,003、enum 35,752 → 35,785、`index.d.ts` 91.97 → 92.25 kB
   - `{ a: Impl<A> | null }` は拒まれたまま。`{ a: U | null }` も「not a plain value」で拒まれる、以前からの規則
   - 以前からある穴（Val の payload に交差した trait、名前の union、メンバ集合の union）は別 PR。`__memo__/trait-holes.md`
 - **名前は `Impl` のまま。**builder の `.impl()` と近いが、Rust も実装の `impl` と型の `impl Trait` に同じ
