@@ -86,8 +86,8 @@ export type Invalid<Msg extends string> = { readonly [InvalidKey]: Msg };
 
 /**
  * An {@link Invalid} found in a payload. {@link Payload} leaves an `Invalid` in place of each part
- * that breaks a rule, and `Validate` turns it into this, and this back into an `Invalid`. Neither
- * is assignable to the other, so a payload wrapped in `Payload` any number of times still fails.
+ * that breaks a rule, and `Validate` turns it into this, and this back into an `Invalid`. A payload
+ * wrapped in `Payload` any number of times keeps the rule's message.
  */
 export type Refused<Msg extends string> = { readonly [RefusedKey]: Msg };
 
