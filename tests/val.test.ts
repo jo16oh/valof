@@ -633,7 +633,7 @@ describe("Val", () => {
   });
 
   describe("the brand", () => {
-    test("is not a union", () => {
+    test("cannot be a union", () => {
       type Either = Val<"Left" | "Right", { n: number }>;
       expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<Invalid<"a Val's brand cannot be a union">>();
     });
@@ -1581,8 +1581,7 @@ describe("building", () => {
       expect(typeof Age).not.toBe("function");
     });
 
-    // A boolean payload makes a union of two values with one brand, so the brand is what counts.
-    test("builds one Val, and so does `Val.of`: a union of Vals is rejected", () => {
+    test("rejects a union of Vals, as `Val.of` does", () => {
       type Left = Val<"Left", { n: number }>;
       type Right = Val<"Right", { m: number }>;
       // @ts-expect-error a companion builds one Val
@@ -1598,8 +1597,8 @@ describe("building", () => {
       ]);
     });
 
-    test("takes its options as one list, not a union of lists", () => {
-      // @ts-expect-error the options are one list
+    test("accepts its options as one list, not a union of lists", () => {
+      // @ts-expect-error the options cannot be a union of lists
       Val.companion<User, [PrivateSeal] | [Unpatchable<"id">]>();
     });
 

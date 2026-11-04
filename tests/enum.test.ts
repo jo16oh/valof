@@ -1237,8 +1237,8 @@ describe("a broken declaration", () => {
     >();
   });
 
-  test("a companion takes its options as one list, not a union of lists", () => {
-    // @ts-expect-error the options are one list
+  test("a companion accepts its options as one list, not a union of lists", () => {
+    // @ts-expect-error the options cannot be a union of lists
     Enum.companion<Shape, [PrivateSeal] | [PrivateCreate]>();
   });
 
