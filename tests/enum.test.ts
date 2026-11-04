@@ -1207,12 +1207,12 @@ describe("a broken declaration", () => {
     >();
   });
 
-  // Each reads the fault back out of the name, since `@ts-expect-error` passes on any error.
-  test("a name, a variant's name and the tag's name are each one string literal", () => {
+  // Each reads the fault from the name, since `@ts-expect-error` passes on any error.
+  test("an enum's name and the tag's name cannot be a union, and a variant's name is a string", () => {
     type Fault<M extends string> = Invalid<M> & string;
     type Numbered = Enum<"Numbered", { Ok: { n: number }; 404: { path: string } }>;
     expectTypeOf<NameOf<Numbered & AnyEnum>>().toEqualTypeOf<
-      Fault<"a variant's name must be a string; a JSON key is one">
+      Fault<"a variant's name must be a string">
     >();
     type OnlyNumbers = Enum<"OnlyNumbers", { 200: { n: number }; 404: { path: string } }>;
     expectTypeOf<OnlyNumbers>().not.toBeNever();
@@ -1233,7 +1233,7 @@ describe("a broken declaration", () => {
       { id: string } | { key: string }
     >;
     expectTypeOf<NameOf<Keyed & AnyEnum>>().toEqualTypeOf<
-      Invalid<"the shared fields must be one object type, not a union"> & string
+      Invalid<"the shared fields cannot be a union"> & string
     >();
   });
 
