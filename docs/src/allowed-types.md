@@ -12,6 +12,8 @@ A Val is itself one of these, so Vals nest. A tuple keeps its positions and its 
 rest element (`[string, ...number[]]`) reads as an array instead, since a fixed length is what
 distinguishes the two.
 
+A payload cannot contain a type parameter.
+
 ## Write the payload plain
 
 `Val` makes the payload deeply readonly on its own, so `readonly` in the definition changes nothing
@@ -33,7 +35,6 @@ Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 
 Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
 all classes. See [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
-TypeScript rejects them, on the first use of the Val rather than on the `type` line.
 
 A class of plain fields is the one TypeScript cannot distinguish from an object, and sealing one
 throws in development.

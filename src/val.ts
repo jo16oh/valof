@@ -153,9 +153,8 @@ type ValidateValue<T> = [T] extends [Primitive]
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
 
 /**
- * The check {@link Validate} applies to each entry of an object. {@link Payload} constrains its
- * type argument with it, because a constraint that references `Validate<T>` is circular (TS2313)
- * and a mapped type is not.
+ * The check {@link Validate} applies to each entry of an object. {@link Allowed} uses it, so the
+ * type error names the field that breaks a rule.
  */
 type ValidateFields<T> = {
   // An index signature satisfies `Record<never, never> extends Pick<T, K>`, so `OptionalKeys`
@@ -169,6 +168,22 @@ type ValidateFields<T> = {
         ? Invalid<"required property cannot be undefined; use null or make it optional">
         : Validate<T[K], false>;
 };
+
+/**
+ * What {@link Val} and {@link Payload} constrain the payload with. A constraint that is
+ * `Validate<T>` itself is circular (TS2313). One that reads its result in a conditional is not.
+ */
+type Allowed<T, Owner extends string> = [T] extends [AnyVal]
+  ? // Passed whole to `Val`, a Val's brand collides with the outer one, so the outer Val resolves
+    // to `never`.
+    Invalid<`a Val cannot be used as ${Owner} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`>
+  : [Validate<T>] extends [Invalid<infer M>]
+    ? Invalid<M>
+    : // A `Payload` rejected at its top level resolves to an `Invalid`, which an `Invalid`
+      // constraint accepts.
+      [Validate<T>] extends [Refused<infer M>]
+      ? Refused<M>
+      : ValidateFields<T>;
 
 /**
  * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
@@ -292,11 +307,25 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
 /**
  * A branded value type. A declared trait adds the fields it requires to the payload.
  *
- * A payload that breaks the allowed-type rules is a type error, and so is one that contradicts a
- * declared trait.
+ * A payload that breaks the allowed-type rules is a type error, reported at the type argument. One
+ * that contradicts a declared trait is reported where the Val is used.
+ *
+ * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` inside a generic type
+ * is a type error. A type parameter for the brand alone fits.
  */
-// Both land in the verdict, which stops the Val satisfying `AnyVal`. See `Verdicted`.
-type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
+// Every broken rule is recorded in the verdict, which stops the Val satisfying `AnyVal`. See
+// `Verdicted`.
+type Val<
+  K extends string,
+  T extends Allowed<T, "another Val's">,
+  Tr extends AnyTrait = never,
+> = UncheckedVal<K, T, Tr>;
+
+/**
+ * {@link Val} with no constraint on the payload, for a Val the library builds from a generic
+ * declaration: an Enum's variant. Its verdict still records every broken rule.
+ */
+export type UncheckedVal<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
   Grounded<Holding<T, Tr>>
 > &
   Phantom<K, Holding<T, Tr>> &
@@ -319,15 +348,14 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
 /**
  * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. An allowed payload
- * is `T` unchanged. One that breaks the allowed-type rules is reported at the type argument. A
- * rule broken by the root itself, such as `Payload<string | null>`, is reported where it is used. A
- * Val declared with a rejected `Payload` is rejected like one declared with `T`.
+ * is `T` unchanged. One that breaks the allowed-type rules is reported at the type argument. A Val
+ * declared with a rejected `Payload` is rejected like one declared with `T`.
  *
- * The rules cannot check a type parameter, so `Payload<{ left: T }>` inside a generic type fails.
+ * The rules cannot check a type parameter, so `Payload<{ left: T }>` inside a generic type is a type error.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
-export type Payload<T extends ValidateFields<T>> = Validate<T>;
+export type Payload<T extends Allowed<T, "a Payload's">> = Validate<T>;
 
 // Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
 // the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker

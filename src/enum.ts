@@ -34,7 +34,7 @@ import {
   notFixedPoint,
   of,
   steps,
-  Val,
+  type UncheckedVal,
   type AnyFn,
   type AnyVal,
   type Argumentless,
@@ -205,7 +205,7 @@ type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
  * ```
  */
 type Enum<K extends string, D extends object, X extends object = Record<never, never>> = {
-  [N in VariantKeys<D>]: Val<
+  [N in VariantKeys<D>]: UncheckedVal<
     `${K}.${N}`,
     FieldsIn<D[N]> & SharedIn<X> & { [P in TagIn<X>]: N },
     Joined<TraitsIn<X>, TraitsIn<D[N]>>
@@ -259,7 +259,7 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
 // The top level is an intersection rather than an `Extract`, which is the same type and a different
 // hover: `Extract` resolves and the alias name goes with it, so an error prints the expanded
 // intersection.
-export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = Val<
+export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = UncheckedVal<
   `${NameOf<E>}.${N & string}`,
   VariantsOf<E>[N] & SharedOf<E> & { [P in TagOf<E>]: N & string },
   Joined<DeclaredTraits<E>, OwnTraits<E, N>>

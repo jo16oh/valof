@@ -820,6 +820,12 @@ describe("traits", () => {
     }>();
   });
 
+  test("a variant field that breaks the allowed-type rules is rejected", () => {
+    type Bad = Enum<"Bad", { A: { run: () => void }; B: { n: number } }>;
+    // @ts-expect-error functions are not allowed
+    Enum.companion<Bad>().build();
+  });
+
   test("a shared field that contradicts the trait is rejected", () => {
     type Bad = Enum<"Bad", { A: { n: number }; B: { s: string } }, { id: number } & Describable>;
     // @ts-expect-error no value fits every declaration of `id`
