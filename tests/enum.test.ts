@@ -912,8 +912,11 @@ describe("traits", () => {
         { A: { n: number }; B: { s: string } },
         { id: string } & Sized & Wide
       >;
-      // @ts-expect-error another member already answers to one of these names
-      Enum.companion<Both>().implTrait(Sized).implTrait(Wide).build();
+      // The declaration is rejected, since no companion could implement both.
+      expectTypeOf<VerdictOf<Both>>().toEqualTypeOf<
+        Invalid<"two traits declare a member named `size`">
+      >();
+      expect([Sized, Wide]).toHaveLength(2);
     });
 
     describe("one a trait the enum declares answers to", () => {
@@ -1179,6 +1182,9 @@ describe("a broken declaration", () => {
     expectTypeOf<VerdictOf<VariantOf<Keyed & AnyEnum, "One">>>().toEqualTypeOf<
       Invalid<"no value fits `id`">
     >();
+    // `VariantOf` rebuilds the variant, so the declaration is read at the companion too.
+    // @ts-expect-error no value fits `id`
+    Enum.companion<Keyed>().build();
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {

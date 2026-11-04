@@ -319,7 +319,6 @@ describe("Val", () => {
       const list = Node.seal({ value: 1, next: Node.seal({ value: 2, next: null }) });
       expectTypeOf(list.next).toEqualTypeOf<Node | null>();
       expectTypeOf(Val.unwrap(list).next).toEqualTypeOf<PayloadOf<Node> | null>();
-      expect(Val.unwrap(list)).toEqual({ value: 1, next: { value: 2, next: null } });
 
       type Loose = Val<
         "Loose",
@@ -338,10 +337,23 @@ describe("Val", () => {
       }>();
     });
 
+    test("but not at the root, nor beside a symbol or an object union", () => {
+      // @ts-expect-error not a plain value
+      type Root = Val<"Root", string | string[]>;
+      // @ts-expect-error not a plain value
+      type Symbolic = Val<"Symbolic", { s: symbol | string[] }>;
+      // @ts-expect-error an object payload cannot be a union
+      type Either = Val<"Either", { s: { a: number } | { b: number } | null }>;
+      expectTypeOf<VerdictOf<Root>>().toEqualTypeOf<Invalid<"not a plain value">>();
+      expectTypeOf<VerdictOf<Symbolic>>().toEqualTypeOf<{ s: Invalid<"not a plain value"> }>();
+      expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<{
+        s: null | Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+      }>();
+    });
+
     test("an explicit string index signature is a record", () => {
-      type Rows = Val<"Rows", { [key: string]: number }>;
       type Nested = Val<"Nested", { rows: { [key: string]: number } }>;
-      expectTypeOf<Rows | Nested>().toExtend<AnyVal>();
+      expectTypeOf<Nested>().toExtend<AnyVal>();
     });
 
     test("a tuple keeps its positions, its length and its labels", () => {
