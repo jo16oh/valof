@@ -22,7 +22,10 @@ import {
   Tag,
   type VariantOf,
 } from "../src/index.ts";
-import type { CallBuildFirst, Invalid } from "../src/val.ts";
+import type { CallBuildFirst, Invalid, Verdict } from "../src/val.ts";
+
+// The verdict is a private field, so it is read through the class rather than by a key.
+type VerdictOf<V> = V extends Verdict<infer X> ? X : never;
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>()
@@ -1173,8 +1176,9 @@ describe("a broken declaration", () => {
 
   test("a variant field that contradicts a shared one is rejected", () => {
     type Keyed = Enum<"Keyed", { One: { id: number }; Two: { n: number } }, { id: string }>;
-    // @ts-expect-error no value fits `id`
-    Enum.companion<Keyed>().build();
+    expectTypeOf<VerdictOf<VariantOf<Keyed & AnyEnum, "One">>>().toEqualTypeOf<
+      Invalid<"no value fits `id`">
+    >();
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {

@@ -14,6 +14,7 @@ import { equals, Trait, Val, type Final, type Impl, type Self } from "../src/ind
 import { Traits } from "../src/keys.ts";
 // `BrandOf` is not published from the entry point.
 import type {
+  Allowed,
   BrandOf,
   CallBuildFirst,
   CompanionMembers,
@@ -508,7 +509,12 @@ describe("Val", () => {
       type Both = Val<"Both", { a: U & W }>;
       // @ts-expect-error no value fits `b`
       type Deep = Val<"Deep", { m: { b: never } }>;
-      expectTypeOf<VerdictOf<Never | Clash | Both>>().toEqualTypeOf<Invalid<"no value fits `a`">>();
+      // Reported at the type argument alone, so the constraint is read rather than the verdict.
+      type Message<T> = Allowed<T, "">;
+      expectTypeOf<Message<{ a: never } | { a: string & number }>>().toEqualTypeOf<
+        Invalid<"no value fits `a`">
+      >();
+      expectTypeOf<Never | Clash | Both>().not.toBeNever();
       expectTypeOf<VerdictOf<Deep>>().toEqualTypeOf<{ m: Invalid<"no value fits `b`"> }>();
 
       // An optional key typed `never` is only ever absent, and an empty record never has an entry.
@@ -2908,14 +2914,6 @@ describe("building", () => {
         }).toThrow(TypeError);
       });
 
-      test("two traits may not declare a member of the same name", () => {
-        type Counted = Trait<"Counted", { kg: number }, { heavy: (self: Self) => number }>;
-        type Both = Val<"Both", { kg: number }, Weighed & Counted>;
-        expectTypeOf<VerdictOf<Both>>().toEqualTypeOf<
-          Invalid<"two traits declare a member named `heavy`">
-        >();
-      });
-
       test("but the same trait cannot be implemented twice", () => {
         Val.companion<Crate>()
           .implTrait(Greetable, () => ({ toWire: (c, sep) => `${c.id}${sep}` }))
@@ -2930,15 +2928,11 @@ describe("building", () => {
           { name: string },
           { toWire: (self: Self, sep: string) => number }
         >;
-        const Other = Trait.companion<Other>()
-          .impl(() => ({}))
-          .build();
+        // The declaration is rejected, since no companion could implement both.
         type Twice = Val<"Twice", { id: string; name: string }, Greetable & Other>;
-        Val.companion<Twice>()
-          .implTrait(Greetable, () => ({ toWire: (t, sep) => `${t.id}${sep}` }))
-          // @ts-expect-error another member already answers to one of these names
-          .implTrait(Other, () => ({ toWire: (t, sep) => t.id.length + sep.length }))
-          .build();
+        expectTypeOf<VerdictOf<Twice>>().toEqualTypeOf<
+          Invalid<"two traits declare a member named `toWire`">
+        >();
       });
 
       test("nor may a member take a name another trait requires as a field", () => {
@@ -2964,15 +2958,10 @@ describe("building", () => {
 
       test("nor to the same final", () => {
         type Yelling = Trait<"Yelling", { name: string }, { shout: Final<(self: Self) => string> }>;
-        const Yelling = Trait.companion<Yelling>()
-          .impl(() => ({ shout: (y) => y.name }))
-          .build();
         type Crier = Val<"Crier", { id: string; name: string }, Greetable & Yelling>;
-        Val.companion<Crier>()
-          .implTrait(Greetable, () => ({ toWire: (c, sep) => `${c.id}${sep}` }))
-          // @ts-expect-error another member already answers to one of these names
-          .implTrait(Yelling)
-          .build();
+        expectTypeOf<VerdictOf<Crier>>().toEqualTypeOf<
+          Invalid<"two traits declare a member named `shout`">
+        >();
       });
 
       test("but they may require the same field", () => {
