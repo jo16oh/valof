@@ -37,7 +37,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ（§13.6 のビルダーは 2026-10-23 に採った）
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本、足さない `no-unsafe-*`（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`Self` は第 1 引数だけ（2026-11-03、外した「メンバの引数の `Payload` を trait で報告する」）、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath、2026-10-27 に廃止）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`Self` は第 1 引数だけ（2026-11-03、外した「メンバの引数の `Payload` を trait で報告する」）、`Impl`（2026-11-04、宣言と値の型を分ける、却下した目印の interface）、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath、2026-10-27 に廃止）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し、`__proto__` も守らない）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）。**2026-10-26 に段の引数を関数に揃えた**（注釈の税は変わらない）
@@ -3062,7 +3062,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     trait は自分の宣言の中で自分を参照できない（`other: Same` は `Declarable` で TS2615）ので、
     `Payload<{ n: number }>` と書く。素のオブジェクトも通る。~~共通フィールドを読むだけなら困らない~~
     → 困る、2026-11-04。shape が同じなら brand のない値も受けてしまう
-    - [ ] **`Impl<Same>` で trait を実装した Val だけを受ける。**`other: Impl<Same>`。別 PR、breaking
+    - [x] ~~**`Impl<Same>` で trait を実装した Val だけを受ける。**~~ → 入れた、2026-11-04。§15.1「`Impl`」。
+          `other: Impl<Same>`。breaking
       - **`Impl` を interface の目印にすれば、メンバの引数では循環しない（probe）。**`Self` の探索はキーだけで
         見分けて止まり（`Rec` と同じ手）、`Unbound` / `Bound` が `Impl<X>` を `X` に置き換える。ただし
         `let s: Impl<Same>` は目印のままで、`Same` と同じ型にならない（`interface Impl<Tr> extends Tr` は TS2312）
@@ -3083,7 +3084,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
           なので、trait を宣言した Val がそのまま代入できる。目印ではなく値の型なので、`Unbound` / `Bound` は
           何も置き換えない。配列、コールバック、戻り値の中の `Impl<Same>` もそのまま効き、置き換えの深さの
           問題は無くなる。`.impl()` のコールバックの中でも `other` は `Impl<Same>` に見える
-        - **`HasSelf` は `TraitPhantom` で止める。**`Impl<X>` の中は辿らない（`AnyVal` と同じ扱い）
+        - ~~**`HasSelf` は `TraitPhantom` で止める。**~~ → 入れなかった。brand は private なので、止めなくても
+          `Impl<X>` の中で `Self` は見つからない。外しても何も変わらなかった（test-audit）
         - **組み合わせは `Impl<Greetable & Weighed>`。**trait の交差は名前ごとの record の交差になり、`ShapeOf` は
           shape の交差、`BrandsOf` は両方の名前を持つ。`Impl<Greetable> & Impl<Weighed>` とは互いに代入できる。
           docs は Val の第 3 引数と同じ `&` の形で書く
@@ -6197,6 +6199,46 @@ Same.dyn(A, a).same(b); // 通っていた。A の実装が B を受け取る
 - **コスト。**trait fixture 16,786 → 16,819、enum 34,945 → 34,959（TypeScript 5.9.3）。probe（7.0.2）では
   戻り値 `string` のメンバ +48、`Map` を返すメンバ +991、`Payload<{ n; tags: string[]; at: { x } }>` の引数 +100
 
+#### `Impl`: trait を実装した値の型、2026-11-04
+
+trait の宣言と値の型を分けた。`Trait<K, S, M>` は宣言だけを持ち、値の型は `Impl<Tr>` と書く。メンバの
+後ろの引数に `Impl<Same>` を置けば、trait を宣言した Val と `Dyn` だけを受ける。それまでの `Payload` は
+shape が同じ素の値も通した（§9 の項）。breaking。`Same` を値の型に書くと型エラーになる。
+
+```ts
+type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Impl<Same>) => boolean }>;
+const s: Impl<Same> = meter; // Same を宣言した Val、または Same の Dyn
+```
+
+- **`interface Trait<K, S, M> extends TraitDeclaration<B, S, V>`。**`TraitDeclaration` は protected のキー
+  3 つのクラス。B は名前からメンバへの record（素のメンバ）、S は shape、V は名前から検査済みのメンバへの
+  record（verdict）。検査は trait を使う位置で走る。型エイリアス（`type Trait<…> = TraitDeclaration<…>`）でも
+  循環しなかった（probe）が、模型のとおり interface にした
+- **検査は V に置く。**中身は前の brand の位置の式。`AnyTrait` が V に `Members & Unrejected` の record を
+  求めるので、報告の位置は変わらない。B を素のメンバにしたのは、`Impl<Same>` が B を読んでも検査が走らない
+  ようにするため
+- **`Impl<Tr> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>`。**Val が持つ brand と同じクラス。目印ではなく
+  値の型なので、`Unbound` / `Bound` は何も置き換えない。配列、コールバック、戻り値、別の trait の中でも
+  そのまま効く。`.impl()` のコールバックでも `other` は `Impl<Same>` に見える
+- **組み合わせは `Impl<A & B>`。**交差した trait は名前ごとの record の交差になる。`Impl<A> & Impl<B>` と
+  互いに代入できる。docs は Val の第 3 引数と同じ `&` で書く
+- **shape は宣言どおりに渡す。**`FieldsOf` が S をそのまま読む。Val の `Holding` と Enum の `FieldsIn` /
+  `SharedIn` は、`Writable<ShapeOf<…>>` で readonly を外す代わりにこれを交差する。`Writable` は消した。
+  `ShapeOf`（`Impl` と `Fits` が使う）は `DeepReadonly<FieldsOf<Tr>>` で、`Checked` はかけない。shape の
+  規則は V が検査済み
+- **コスト**（TypeScript 5.9.3、変更前と比べて）
+  - 素直に書いた版は trait 17,083 → 20,771、enum 35,233 → 46,908。`ShapeOf` の `Checked` を外して
+    18,812 / 39,910、`FieldsOf` を使って 18,568 / 35,237、Enum の `Writable` も外して enum 34,454
+  - trait fixture に `Impl<Named>` を取る Final メンバと呼び出し 2 つを足して 19,387。core 7,488 → 7,496
+  - `index.d.ts` 89.54 → 90.80 kB
+- **却下: `Impl` を目印の interface にし、`Unbound` / `Bound` が trait に置き換える。**メンバの引数では
+  循環しないが、`let s: Impl<Same>` が目印のまま残り、`Same` と同じ型にならない
+  （`interface Impl<Tr> extends Tr` は TS2312）
+- **却下: `other: Same` と直接書く。**メンバを interface に出しても、`Rec<Same>` で包んでも、`Declarable` で
+  TS2615。宣言中の `Same` を条件型にかけた時点で解決を要求する
+- **未決。**`Impl<A | B>` は型エラーにならず、`A` だけを宣言した Val も代入できる。`Val` は `|` を報告する。
+  `Same` を値の型に書いたエラーは `[DeclaredBrands]` などのキーが無いと言うだけで、`Impl` を案内しない
+
 #### 却下: WeakMap による動的ディスパッチ
 
 `Greetable.greet(p)` を値から引くために、§4.1 の `owned` を `WeakSet` から
@@ -6400,7 +6442,8 @@ TS2344 で落ち、Val だけが shape のフィールドを payload にもう�
   配列の payload にだけ残る。前者は当初「the payload declares \`name\` with a type the trait does not
   accept」だった。trait が受け付けるかどうかを判定するように読め、フィールドの被り自体がエラーに見える。
   被りは同じ型か狭めた型なら通るので、食い違いを言う形に変えた（2026-10-20）
-- **`readonly` を外す。**trait は shape を `DeepReadonly` で持つので、そのまま交差すると
+- **`readonly` を外す。**（2026-11-04 に不要になった。§15.1「`Impl`」。trait は宣言どおりの shape を
+  `FieldsOf` で渡し、`Writable` は消した）trait は shape を `DeepReadonly` で持つので、そのまま交差すると
   `PayloadOf` に `readonly name` が出て、`Val.unwrap` が readonly を返す。§3「payload に `readonly` は
   書かない」と食い違う。`Writable` で深く外し、Val で止める。止めないと Val のフィールドがブランドを
   失い、生のレコードが通る。交差では書ける側が勝つので、Enum の `SharedIn` にも同じ `Writable` をかける。
