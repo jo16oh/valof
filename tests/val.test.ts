@@ -335,13 +335,17 @@ describe("Val", () => {
   });
 
   describe("rejected payloads", () => {
-    test("a Val fits as the whole payload, of a Val or a Payload", () => {
+    test("a Val cannot be the whole type of a Val or a Payload", () => {
       type Id = Val<"Id", string>;
-      type Grid = Val<"Grid", number[][]>;
-      expectTypeOf<Val<"UserId", Id>>().toExtend<AnyVal>();
-      expectTypeOf<Val<"Board", Grid>>().toExtend<AnyVal>();
-      expectTypeOf<Payload<Id>>().toEqualTypeOf<Id>();
-      expectTypeOf<Payload<Grid>>().toEqualTypeOf<Grid>();
+      type User = Val<"User", { id: Id }>;
+      expectTypeOf<User>().toExtend<AnyVal>();
+      // @ts-expect-error a Val cannot be used as another Val's type
+      type UserId = Val<"UserId", Id>;
+      // @ts-expect-error a Val cannot be used as another Val's type
+      type Admin = Val<"Admin", User>;
+      // @ts-expect-error a Val cannot be used as Payload's type
+      type Fields = Payload<User>;
+      expectTypeOf<[UserId, Admin, Fields]>().not.toBeAny();
     });
 
     test("a payload type parameter does not fit, but a brand type parameter does", () => {
