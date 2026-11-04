@@ -6257,6 +6257,16 @@ const s: Impl<Same> = meter; // Same を宣言した Val、または Same の Dy
   （`interface Impl<Tr> extends Tr` は TS2312）
 - **却下: `other: Same` と直接書く。**メンバを interface に出しても、`Rec<Same>` で包んでも、`Declarable` で
   TS2615。宣言中の `Same` を条件型にかけた時点で解決を要求する
+- **`Dyn` と `Trait.companion` は trait 1 つだけを取る、2026-11-04（ユーザーと合意）。**`LoneTrait<Tr> =
+OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキーを 1 つ持つ mapped type で、キーの名前が文言
+  （「`Dyn` and `Trait.companion` take one trait; write one for each trait」）。`Impl` は `OneTrait` のままで、
+  `Impl<A & B>` を書ける
+  - **`Dyn<A & B>` は壊れていた。**メンバの集合が union になり、`greet` も `heavy` も「プロパティが無い」に
+    なった（probe）。フィールドは読めた。`Trait.companion<A & B>()` は 1 つの trait の実装なので意味を持たない
+  - **`Impl<A & B>` は残す。**Val の第 3 引数と同じ書き方で、Rust の `impl A + B` に当たる。
+    `Impl<A> & Impl<B>` と同じ型なので害が無い。union だけを外に出させるのも、Rust に union が無いのと合う
+  - `implTrait` と builder の段、`Complete` も `LoneTrait` を取る。`TraitCompanion<Tr>` を受け渡すため
+  - **コスト。**trait 20,426 → 20,659、enum 34,916 → 35,094、`index.d.ts` 91.07 → 91.54 kB
 - **名前は `Impl` のまま。**builder の `.impl()` と近いが、Rust も実装の `impl` と型の `impl Trait` に同じ
   キーワードを使う（ユーザー、2026-11-04）
 
