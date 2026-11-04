@@ -633,6 +633,11 @@ describe("Val", () => {
   });
 
   describe("the brand", () => {
+    test("is not a union", () => {
+      type Either = Val<"Left" | "Right", { n: number }>;
+      expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<Invalid<"a Val's brand cannot be a union">>();
+    });
+
     test("different brands are not assignable", () => {
       type A = Val<"A", string>;
       type B = Val<"B", string>;
@@ -1574,6 +1579,26 @@ describe("building", () => {
     test("a companion has no constructor: the seal is the only way in", () => {
       expectTypeOf(Age).not.toBeFunction();
       expect(typeof Age).not.toBe("function");
+    });
+
+    // A boolean payload makes a union of two values with one brand, so the brand is what counts.
+    test("builds one Val, and so does `Val.of`: a union of Vals is rejected", () => {
+      type Left = Val<"Left", { n: number }>;
+      type Right = Val<"Right", { m: number }>;
+      // @ts-expect-error a companion builds one Val
+      Val.companion<Left | Right>();
+      // @ts-expect-error `Val.of` builds one Val
+      Val.of<Left | Right>({});
+      type Flag = Val<"Flag", boolean>;
+      expect([Val.companion<Flag>().build().seal(true), Val.of<Flag>(false)]).toEqual([
+        true,
+        false,
+      ]);
+    });
+
+    test("takes its options as one list, not a union of lists", () => {
+      // @ts-expect-error the options are one list
+      Val.companion<User, [PrivateSeal] | [Unpatchable<"id">]>();
     });
 
     test("a step does not change the builder it was taken on", () => {
