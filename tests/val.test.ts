@@ -462,14 +462,36 @@ describe("Val", () => {
         alias?: string | undefined;
       };
       expectTypeOf<Payload<Fields>>().toEqualTypeOf<Fields>();
+
+      interface Profile {
+        name: string;
+        age?: number;
+      }
+      expectTypeOf<Payload<Profile>>().toEqualTypeOf<Profile>();
+      expectTypeOf<Payload<Record<string, number>>>().toEqualTypeOf<Record<string, number>>();
     });
 
-    test("a payload the rules reject is rejected where it is used", () => {
+    test("a payload that breaks a rule is reported at the type argument", () => {
+      // @ts-expect-error functions are not allowed, at any depth
+      expectTypeOf<Payload<{ a: { b: { run: () => void } } }>>();
+      // @ts-expect-error nor in an array
+      expectTypeOf<Payload<{ jobs: (() => void)[] }>>();
+      // @ts-expect-error a required property cannot be undefined
+      expectTypeOf<Payload<{ alias: string | undefined }>>();
+      // @ts-expect-error a class instance is not a plain value
+      expectTypeOf<Payload<{ at: Date }>>();
+      // @ts-expect-error the root may be an array
+      expectTypeOf<Payload<(() => void)[]>>();
+    });
+
+    test("a rejected payload is rejected where it is used", () => {
+      // @ts-expect-error functions are not allowed
       type Run = Payload<{ run: () => void }>;
       expectTypeOf<{ run: () => void }>().not.toExtend<Run>();
     });
 
     test("the Val reports the rule, at the root too", () => {
+      // @ts-expect-error functions are not allowed
       expectTypeOf<VerdictOf<Val<"P", Payload<{ run: () => void }>>>>().toEqualTypeOf<{
         run: Refused<"functions are not allowed">;
       }>();
@@ -477,6 +499,7 @@ describe("Val", () => {
     });
 
     test("a payload wrapped twice is rejected with the rule's message", () => {
+      // @ts-expect-error functions are not allowed
       type Twice = Val<"P", Payload<Payload<{ run: () => void }>>>;
       expectTypeOf<VerdictOf<Twice>>().toEqualTypeOf<{
         run: Invalid<"functions are not allowed">;
@@ -484,7 +507,7 @@ describe("Val", () => {
     });
 
     test("a payload may reference the Val it belongs to", () => {
-      type TreeFields = Payload<{ value: number; children: Rec<Tree>[] }>;
+      type TreeFields = Payload<{ value: number; children: Rec<Tree>[]; next?: Rec<Tree> }>;
       type Tree = Val<"app/Tree", TreeFields>;
       expectTypeOf<Tree>().toExtend<AnyVal>();
     });
