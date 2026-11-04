@@ -95,7 +95,7 @@ export type Invalid<Msg extends string> = { readonly [InvalidKey]: Msg };
 export type Refused<Msg extends string> = { readonly [RefusedKey]: Msg };
 
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
-type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+export type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
 
 type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
@@ -130,7 +130,9 @@ type Validate<T, Root extends boolean = true> =
             ? ValidateFields<T>
             : never
         : [T] extends [AnyTrait]
-          ? Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+          ? Root extends true
+            ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+            : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
           : [T] extends [Invalid<infer M>]
             ? Refused<M>
             : [T] extends [Refused<infer M>]

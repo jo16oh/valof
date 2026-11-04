@@ -18,6 +18,7 @@ import {
   type DeepReadonly,
   type Grown,
   type Invalid,
+  type IsUnion,
   type Reserved,
   type UnionToIntersection,
 } from "./val.ts";
@@ -110,15 +111,24 @@ type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never
 type Trait<K extends string, Shape, M extends Members = Record<never, never>> = TraitDeclaration<{
   readonly brands: { readonly [P in K]: M };
   readonly shape: Shape;
-  readonly verdict: {
-    readonly [P in K]: [Shape] extends [AnyImpl]
-      ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
-      : [Shape] extends [Checked<Shape>]
-        ? [M] extends [Declarable<Shape, M>]
-          ? M
-          : Declarable<Shape, M>
-        : Checked<Shape>;
-  };
+  // `{}` fits a record keyed by `string` or a template, and none keyed by a literal.
+  readonly verdict: true extends
+    | IsUnion<K>
+    | (Record<never, never> extends Record<K, unknown> ? true : never)
+    ? Invalid<"a trait's name must be one string literal">
+    : IsUnion<M> extends false
+      ? {
+          readonly [P in K]: [Shape] extends [AnyImpl]
+            ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
+            : [Shape] extends [AnyTrait]
+              ? Invalid<"a trait's shape cannot be a trait; write its fields">
+              : [Shape] extends [Checked<Shape>]
+                ? [M] extends [Declarable<Shape, M>]
+                  ? M
+                  : Declarable<Shape, M>
+                : Checked<Shape>;
+        }
+      : Invalid<"a trait's members are one object type, not a union">;
 }>;
 
 export { Trait };
