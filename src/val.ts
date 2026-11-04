@@ -146,22 +146,28 @@ type ValidateValue<T> = [T] extends [Primitive]
         ? IsUnion<T> extends true
           ? Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
           : [Exclude<keyof T, string>] extends [never]
-            ? {
-                // An index signature answers `Record<never, never> extends Pick<T, K>`, so
-                // `OptionalKeys` counts it as optional. Its entries are not optional: reading one
-                // is unchecked, and widening it with `undefined` breaks `Object.values`.
-                [K in keyof T]: string extends K
-                  ? Validate<T[K], false>
-                  : K extends OptionalKeys<T>
-                    ? Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>
-                    : undefined extends T[K]
-                      ? Invalid<"required property cannot be undefined; use null or make it optional">
-                      : Validate<T[K], false>;
-              }
+            ? ValidateFields<T>
             : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
         : [Extract<T, bigint>] extends [never]
           ? Invalid<"not a plain value">
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
+
+/**
+ * The object entries {@link Validate} checks. {@link Payload} constrains its type argument with
+ * them: a constraint that reads `Validate<T>` is circular (TS2313), and a mapped type is not.
+ */
+type ValidateFields<T> = {
+  // An index signature answers `Record<never, never> extends Pick<T, K>`, so `OptionalKeys`
+  // counts it as optional. Its entries are not optional: reading one is unchecked, and widening
+  // it with `undefined` breaks `Object.values`.
+  [K in keyof T]: string extends K
+    ? Validate<T[K], false>
+    : K extends OptionalKeys<T>
+      ? Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>
+      : undefined extends T[K]
+        ? Invalid<"required property cannot be undefined; use null or make it optional">
+        : Validate<T[K], false>;
+};
 
 /**
  * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
@@ -312,12 +318,13 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
 /**
  * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. An allowed payload
- * is `T` unchanged. A value that breaks the allowed-type rules does not fit. A Val declared with a
- * rejected `Payload` is rejected like one declared with `T`.
+ * is `T` unchanged. One that breaks the allowed-type rules is reported at the type argument. A
+ * rule broken by the root itself, such as `Payload<string | null>`, is reported where it is used,
+ * as is any `Payload` that slips past: a Val declared with it is rejected like one declared with `T`.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
-export type Payload<T> = Validate<T>;
+export type Payload<T extends ValidateFields<T>> = Validate<T>;
 
 // Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
 // the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker
