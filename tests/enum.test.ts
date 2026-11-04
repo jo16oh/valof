@@ -1183,6 +1183,12 @@ describe("a broken declaration", () => {
     >;
     // @ts-expect-error the tag cannot take the name of a shared field
     Enum.companion<SharedClash>().build();
+
+    type Tagged = Trait<"Tagged", { _tag: number }>;
+    type TraitClash = Enum<"TraitClash", { One: { n: number } & Tagged; Two: { n: number } }>;
+    expectTypeOf<NameOf<TraitClash & AnyEnum>>().toEqualTypeOf<
+      Invalid<"the tag cannot take the name of a field the payload holds"> & string
+    >();
   });
 
   test("a variant takes no companion of its own, and neither does the union", () => {

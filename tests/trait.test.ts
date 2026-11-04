@@ -307,7 +307,33 @@ describe("Trait", () => {
 
     test("cannot be a trait", () => {
       type Nested = Trait<"Nested", Greetable>;
-      expectTypeOf<Nested>().not.toExtend<AnyTrait>();
+      expectTypeOf<VerdictOf<Nested>>().toEqualTypeOf<{
+        readonly Nested: Invalid<"a trait's shape cannot be a trait; write its fields">;
+      }>();
+    });
+  });
+
+  // Read through `VerdictOf`, since a directive at the gate passes on any error.
+  describe("the declaration", () => {
+    test("takes one name: a union or `string` is rejected", () => {
+      type Fault = Invalid<"a trait's name must be one string literal">;
+      type Either = Trait<"Left" | "Right", { n: number }, { f: (self: Self) => number }>;
+      expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<Fault>();
+      expectTypeOf<VerdictOf<Trait<string, { n: number }>>>().toEqualTypeOf<Fault>();
+      // @ts-expect-error a trait's name must be one string literal
+      type Held = Val<"Held", { n: number }, Either>;
+      expectTypeOf<Held>().not.toBeNever();
+    });
+
+    test("declares its members in one object type", () => {
+      type Split = Trait<
+        "Split",
+        { n: number },
+        { f: (self: Self) => number } | { g: (self: Self) => string }
+      >;
+      expectTypeOf<VerdictOf<Split>>().toEqualTypeOf<
+        Invalid<"a trait's members are one object type, not a union">
+      >();
     });
   });
 
@@ -711,6 +737,16 @@ describe("nesting", () => {
     Enum.companion<Variant>().build();
     type Shaped = Trait<"Shaped", Impl<Greetable>>;
     expectTypeOf<Shaped>().not.toExtend<AnyTrait>();
+  });
+
+  test("a payload cannot declare a trait: the third type argument does", () => {
+    type Fault = Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">;
+    // @ts-expect-error a payload cannot declare a trait
+    type Mixed = Val<"Mixed", { id: string; name: string } & Greetable>;
+    // @ts-expect-error same, in a Payload
+    type Part = Payload<{ id: string; name: string } & Greetable>;
+    expectTypeOf<Mixed>().not.toBeNever();
+    expectTypeOf<Part>().toEqualTypeOf<Fault>();
   });
 
   test("a field cannot be typed with the trait itself", () => {
