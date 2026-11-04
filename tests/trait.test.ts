@@ -1,5 +1,13 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
-import { Trait, Val, type AnyTrait, type Dyn, type Final, type Self } from "../src/index.ts";
+import {
+  Trait,
+  Val,
+  type AnyTrait,
+  type Dyn,
+  type Final,
+  type Payload,
+  type Self,
+} from "../src/index.ts";
 // `Wired` is not published from the entry point.
 import type { CallBuildFirst, Invalid, Wired } from "../src/val.ts";
 import type { BrandsOf } from "../src/trait.ts";
@@ -526,6 +534,11 @@ describe("building", () => {
       // @ts-expect-error same, at a box
       const box = null as unknown as Dyn<Wiring>;
       expect([cell, box]).toHaveLength(2);
+    });
+
+    test("a shape written with a rejected Payload is caught", () => {
+      type Broken = Trait<"Broken", Payload<{ run: () => void }>>;
+      expectTypeOf<Broken>().not.toExtend<AnyTrait>();
     });
   });
 

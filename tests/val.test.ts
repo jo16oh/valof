@@ -476,6 +476,10 @@ describe("Val", () => {
       expectTypeOf<Val<"P", Payload<string | null>>>().not.toExtend<AnyVal>();
     });
 
+    test("a payload wrapped twice is still rejected", () => {
+      expectTypeOf<Val<"P", Payload<Payload<{ run: () => void }>>>>().not.toExtend<AnyVal>();
+    });
+
     test("a payload may reference the Val it belongs to", () => {
       type TreeFields = Payload<{ value: number; children: Rec<Tree>[] }>;
       type Tree = Val<"app/Tree", TreeFields>;
