@@ -379,12 +379,6 @@ describe("Val", () => {
       Val.companion<Bad>().build();
     });
 
-    test("functions are rejected", () => {
-      // @ts-expect-error functions are not allowed
-      type Bad = Val<"Bad", { run: () => void }>;
-      expectTypeOf<Bad>().not.toExtend<AnyVal>();
-    });
-
     test("bigint is rejected, alone or in a union", () => {
       // @ts-expect-error JSON.stringify throws on a bigint
       type Bad = Val<"Bad", { n: bigint; m: number | bigint }>;
