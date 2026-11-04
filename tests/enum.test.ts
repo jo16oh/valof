@@ -313,9 +313,9 @@ describe("the tag", () => {
     // @ts-expect-error a patch cannot switch variants
     Circle.patch(circle, { _tag: "Square" });
     // A variable gets no excess property check.
-    const square = Shape.Square.create({ side: 1 });
-    // @ts-expect-error same, with another variant's value
-    Circle.patch(circle, square);
+    const both = { r: 2, side: 1 };
+    // @ts-expect-error another variant's field, through a variable
+    Circle.patch(circle, both);
     const retagged = { _tag: "Square" as const, r: 3 };
     // @ts-expect-error same, through a variable
     Circle.patch(circle, retagged);
@@ -1669,6 +1669,9 @@ describe("the companion's options", () => {
     Order.Pending.patch(Order.Pending.create({ id: "o", note: "n" }), { id: "x" });
     // @ts-expect-error same, for a key one variant holds
     Order.Shipped.patch(shipped, { shippedAt: 2 });
+    const forged = { id: "x", note: "m" };
+    // @ts-expect-error same, through a variable
+    Order.Shipped.patch(shipped, forged);
     expect(Order.Shipped.patch(shipped, { note: "m" })).toEqual({
       id: "o",
       note: "m",
