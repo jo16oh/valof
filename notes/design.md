@@ -3071,6 +3071,23 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
         brand のない値を拒んだ。`Same` を値の型注釈に使えなくなる
       - 未決: 複数の trait の組み合わせ、`Dyn` と `MembersOf` などの作り直し、置き換えの深さ、`.impl()` と
         名前が近いこと、コスト
+      - **実装の方針（模型で確認、TypeScript 7.0.2）、2026-11-04**
+        - **`interface Trait<K, S, M> extends TraitDeclaration<B, S, V>`。**`TraitDeclaration` は protected の
+          キー 3 つだけを持つクラス。B は名前からメンバへの record（素のメンバ）、S は shape、V は名前から
+          検査結果への record。interface の基底は使う位置で初めて解決されるので、宣言の行では何も評価しない。
+          protected なので `keyof` と spread に出ない
+        - **検査は V に置く。**中身は今の brand の位置の式（shape の規則と `Declarable`）。`AnyTrait` が V に
+          `Members & Unrejected` の record を求めるので、ゲート（companion、`Val`、`Dyn`、`implTrait`）は今と同じ
+          位置で報告する。B を素のメンバにするのは、`Impl<Same>` が B を読んでも検査を走らせないため
+        - **`Impl<Tr> = DeepReadonly<ShapeOf<Tr>> & TraitPhantom<BrandsOf<Tr>>`。**Val が持つ brand と同じクラス
+          なので、trait を宣言した Val がそのまま代入できる。目印ではなく値の型なので、`Unbound` / `Bound` は
+          何も置き換えない。配列、コールバック、戻り値の中の `Impl<Same>` もそのまま効き、置き換えの深さの
+          問題は無くなる。`.impl()` のコールバックの中でも `other` は `Impl<Same>` に見える
+        - **`HasSelf` は `TraitPhantom` で止める。**`Impl<X>` の中は辿らない（`AnyVal` と同じ扱い）
+        - **組み合わせは `Impl<Greetable & Weighed>`。**trait の交差は名前ごとの record の交差になり、`ShapeOf` は
+          shape の交差、`BrandsOf` は両方の名前を持つ。`Impl<Greetable> & Impl<Weighed>` とは互いに代入できる。
+          docs は Val の第 3 引数と同じ `&` の形で書く
+        - **`Same` を値の型に書くと、宣言のキーが無いという型エラーになる。**`const s: Same = meter`
   - [x] **`Payload` に payload の規則の検査を足す。**→ 入れた、2026-11-03。`Payload<T> = Validate<T>`
     - **`Validate` は出会った `Invalid<M>` を `Refused<M>` に写す。**`Invalid` 自体は正しい payload なので、
       写さないと `Val<"U", Payload<{ f: () => void }>>` は `{ f: Invalid<…> }` を payload に取って companion を通り、
