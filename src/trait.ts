@@ -128,7 +128,7 @@ type Trait<K extends string, Shape, M extends Members = Record<never, never>> = 
                   : Declarable<Shape, M>
                 : Checked<Shape>;
         }
-      : Invalid<"a trait's members are one object type, not a union">;
+      : Invalid<"a trait's members must be one object type, not a union">;
 }>;
 
 export { Trait };
