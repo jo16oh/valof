@@ -25,6 +25,7 @@ import type {
   PrivateCreateKey,
   PrivateSealKey,
   RecKey,
+  RefusedKey,
   Unbuilt,
   UnpatchableKey,
   UnpatchableTypes,
@@ -78,18 +79,17 @@ export interface Rec<V> {
 }
 
 /**
- * Marker surfaced in the type when a declaration violates the allowed-type rules. The symbol key
- * distinguishes it from a payload field of the same shape, which a user may write.
+ * Marker surfaced in the type when a declaration violates the allowed-type rules. Its key is a
+ * symbol the package does not export, so no payload a user writes has this shape.
  */
-// The string key stays. `AnyTrait` rejects an `Invalid` in a member's place because the message is
-// not a function, and a symbol key alone fits `Record<string, …>`.
-export type Invalid<Msg extends string> = { readonly __valError: Msg; readonly [InvalidKey]: true };
+export type Invalid<Msg extends string> = { readonly [InvalidKey]: Msg };
 
 /**
  * An {@link Invalid} found in a payload. {@link Payload} leaves an `Invalid` in place of each part
- * that breaks a rule, and `Invalid` alone is a plain value, so a Val holding it would pass.
+ * that breaks a rule, and `Validate` turns it into this, and this back into an `Invalid`. Neither
+ * is assignable to the other, so a payload wrapped in `Payload` any number of times still fails.
  */
-export type Refused<Msg extends string> = { readonly __valError: Msg; readonly __rejected: true };
+export type Refused<Msg extends string> = { readonly [RefusedKey]: Msg };
 
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
 type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
@@ -119,11 +119,13 @@ type Validate<T, Root extends boolean = true> =
       ? T
       : [T] extends [Invalid<infer M>]
         ? Refused<M>
-        : Root extends true
-          ? null extends T
-            ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-            : ValidateValue<T>
-          : ValidateValue<T>;
+        : [T] extends [Refused<infer M>]
+          ? Invalid<M>
+          : Root extends true
+            ? null extends T
+              ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+              : ValidateValue<T>
+            : ValidateValue<T>;
 
 type ValidateValue<T> = [T] extends [Primitive]
   ? T

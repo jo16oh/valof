@@ -7,7 +7,7 @@ import {
   type Omission,
 } from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
-import type { TraitBrands, TraitTypes } from "./keys.ts";
+import type { InvalidKey, RefusedKey, TraitBrands, TraitTypes } from "./keys.ts";
 import {
   associated,
   isObject,
@@ -71,7 +71,11 @@ declare class TraitPhantom<B> {
 /**
  * Every trait, as a constraint.
  */
-export type AnyTrait = TraitPhantom<Readonly<Record<string, Members>>>;
+export type AnyTrait = TraitPhantom<Readonly<Record<string, Members & Unrejected>> & Unrejected>;
+
+// A broken declaration leaves an `Invalid` or a `Refused` in place of the brand map or of a trait's
+// members. Both carry a symbol key alone, which `Record<string, …>` does not read.
+type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never };
 
 /**
  * A structural contract shared by several Vals: the fields they hold, plus the members they share.
