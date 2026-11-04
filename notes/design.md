@@ -2708,6 +2708,20 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 
 ## 9. 未解決 / 要確認
 
+- [x] ~~**Val の宣言と companion の union（#125 の調査）。**~~ → 塞いだ、2026-11-05。`and-or-holes.md` の 1、3、6
+  - **brand は union にできない。**`Val<"A" | "B", P>` の値は `Val<"A", P>` に代入できない。`UncheckedVal` の verdict が
+    「a Val's brand cannot be a union」になる。`string` は拒まない（hunt 4）
+  - **`Val.companion` と `Val.of` は Val を 1 つだけ取る。**`Val.of<U | W>({})` と `Val.companion<U | W>().build().seal({})`
+    が通り、seed が `EmptySeed` に潰れていた。union かどうかは brand で見る。boolean の payload の Val は brand が 1 つの
+    値の union なので、値で見ると巻き添えになる。制約 `OneVal` はキーが文言の mapped type（「a companion builds one Val」
+    「\`Val.of\` builds one Val」）
+    - `BrandOf<V & AnyVal>` で読むと core が 8,318 → 12,960 になった。`V extends Phantom<infer B, unknown>` で直接読む
+  - **option のリストは union にできない。**`Val.companion<U, [PrivateSeal] | [Unpatchable<"id">]>()` が通り、`seal` が
+    消えた。`Enum.companion` も同じ。`const O extends readonly …[] & OneList<O>`、`OneList` は union のときだけ `Invalid`
+    の条件型
+    - 却下: キーが文言の mapped type。`const` の推論が交差の mapped type を歩き、core が +1,050 だった
+  - **コスト。**core 8,318 → 8,504、trait 23,635 → 23,756、enum 39,786 → 39,853、宣言 96.09 → 96.66 kB
+
 - [x] ~~**Enum の宣言の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`hunt-findings.md` の 9、`and-or-holes.md` の 2〜5。
       どれも `Fault`（型引数だけを読む）に足した
   - **variant の名前は文字列。**`{ A; B; 404 }` の `404` は `VariantKeys`（`Extract<keyof D, string>`）が黙って落とし、
