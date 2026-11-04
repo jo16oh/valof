@@ -12,6 +12,8 @@ A Val is itself one of these, so Vals nest. A tuple keeps its positions and its 
 rest element (`[string, ...number[]]`) reads as an array instead, since a fixed length is what
 distinguishes the two.
 
+A payload cannot contain a type parameter, in a `Val` or in a [`Payload`](api.md#val-types).
+
 ## Write the payload plain
 
 `Val` makes the payload deeply readonly on its own, so `readonly` in the definition changes nothing

@@ -3083,7 +3083,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
         （`T extends string` でも同じ）。制約の `ValidateFields` は export していない
         - **決めた: ジェネリックな `Payload` と Val は書かない、2026-11-04。**具体型ごとに Val を書く。ジェネリックな素の型
           （`type Items<T> = { items: T[] }`）を切り出して包む形も勧めない。`model-only-in-valof` がそれを報告する。
-          docs には書かない。禁じるだけで代わりの書き方は無いので、`Val` と `Payload` の JSDoc（hover）に置く。
+          docs には事実を 1 文だけ書く（allowed-types.md）。禁じるだけで代わりの書き方は無いので、節も例も要らない。
           Val も同じ制約で型定義の行から拒む（§3「2026-11-04: 型定義の行でも報告する」）。型と lint の両方で
           「データの定義は具体型」に揃う
       - **コスト。**fixture は `Payload` を使わず、instantiations は core −51、trait −46、enum −114、
