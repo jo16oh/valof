@@ -423,7 +423,7 @@ but required in type 'AnyVal'.
 - **payload に型パラメーターを含む Val は書けない。**`type Page<T> = Val<"Page", { items: T[] }>` は TS2344。brand だけを型パラメーターにする `Val<K, string>` は通る。`Page<User>` と `Page<Post>` が同じ brand を持つのは名目的な型付けに反するので、拒んでよい。`type Branded<K, T> = Val<K, T>`（§14.7）も書けなくなる
 - **Enum の Variant は制約しない。**`Enum` と `VariantOf` は Variant の Val をジェネリックに組み立てるので、制約の無い `UncheckedVal` を使う。hover とエラーの印字は `Val<…>` / `VariantOf<…>` のまま。Variant の payload を Enum の宣言の行で報告するかは未着手
 - **破壊的変更。**payload に型パラメーターを含む Val と、規則に反する payload を宣言だけして使わないコード
-- **コスト。**instantiations は core +55、trait +52、enum +43、`index.d.ts` は +0.61 kB（大半は JSDoc。TypeScript 5.9.3、#123 比）
+- **コスト。**instantiations は core +55、trait +52、enum +43、`index.d.ts` は +0.65 kB（大半は JSDoc。TypeScript 5.9.3、#123 比）
 
 #### `exactOptionalPropertyTypes` の壁
 

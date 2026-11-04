@@ -31,9 +31,10 @@ Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 
 ## Classes and functions
 
-Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
-all classes. See [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
-TypeScript rejects them, on the first use of the Val rather than on the `type` line.
+Neither a class instance nor a function can be a payload. TypeScript rejects one on the `type` line,
+except a function that is the whole payload, which it rejects where the Val is first used. `Date`,
+`Temporal`, `Map` and `Set` are all classes. See [Dates](patterns.md#dates) and
+[Map / Set](patterns.md#map--set) instead.
 
 A class of plain fields is the one TypeScript cannot distinguish from an object, and sealing one
 throws in development.
@@ -68,4 +69,21 @@ import { Val } from "valof";
 type Tree = Val<"Tree", { value: number; children: Tree[] }>;
 
 const Tree = Val.companion<Tree>().build();
+```
+
+## A generic payload
+
+A payload that contains a type parameter is rejected, in `Val` and in `Payload` alike, since the
+rules cannot check a type that is not known yet. Write the generic shape as a plain type, and pass
+it to `Val` or `Payload` once it is concrete.
+
+```ts
+// @errors: 2344
+import { Val } from "valof";
+
+// ---cut---
+type Page<T> = Val<"Page", { items: T[] }>; // ✗
+
+type Items<T> = { items: T[] };
+type Names = Val<"Names", Items<string>>; // ✓
 ```
