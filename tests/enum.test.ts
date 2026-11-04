@@ -12,6 +12,7 @@ import {
   type AnyEnum,
   type Dyn,
   type Final,
+  type Impl,
   type NameOf,
   type VariantOptions,
   type SeedFor,
@@ -800,6 +801,10 @@ describe("traits", () => {
     expect(party.map((p) => p.describe())).toEqual(["add 2", "user u1"]);
   });
 
+  test("every variant is an Impl of the union's trait", () => {
+    expectTypeOf<Cmd>().toExtend<Impl<Describable>>();
+  });
+
   test("a trait that implements everything itself takes no second argument", () => {
     type Labelled = Trait<"Labelled", { id: string }, { label: (self: Self) => string }>;
     const Labelled = Trait.companion<Labelled>()
@@ -977,6 +982,11 @@ describe("traits", () => {
     test("is implemented on the variant, and boxes through its frame", () => {
       expect(Item.Book.named(book)).toBe("Dune, 412 pages");
       expect(Named.dyn(Item.Book, book).named()).toBe("Dune, 412 pages");
+    });
+
+    test("makes that variant alone an Impl of it", () => {
+      expectTypeOf<VariantOf<Item, "Book">>().toExtend<Impl<Named>>();
+      expectTypeOf<VariantOf<Item, "Pen">>().not.toExtend<Impl<Named>>();
     });
 
     test("is not the union's", () => {
