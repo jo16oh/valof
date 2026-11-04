@@ -476,8 +476,11 @@ describe("Val", () => {
       expectTypeOf<Val<"P", Payload<string | null>>>().not.toExtend<AnyVal>();
     });
 
-    test("a payload wrapped twice is still rejected", () => {
-      expectTypeOf<Val<"P", Payload<Payload<{ run: () => void }>>>>().not.toExtend<AnyVal>();
+    test("a payload wrapped twice is rejected with the rule's message", () => {
+      type Twice = Val<"P", Payload<Payload<{ run: () => void }>>>;
+      expectTypeOf<VerdictOf<Twice>>().toEqualTypeOf<{
+        run: Invalid<"functions are not allowed">;
+      }>();
     });
 
     test("a payload may reference the Val it belongs to", () => {
