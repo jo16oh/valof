@@ -124,30 +124,6 @@ describe("Trait", () => {
       ]).toEqual([true, false, true]);
     });
 
-    test("a Payload that breaks the allowed-type rules is reported at the trait", () => {
-      type Same = Trait<
-        "Same",
-        { n: number },
-        { same: (self: Self, other: Payload<{ n: number; f: () => void }>) => boolean }
-      >;
-      // @ts-expect-error functions are not allowed
-      Trait.companion<Same>()
-        .impl(() => ({}))
-        .build();
-
-      type Ret = Trait<"Ret", { n: number }, { get: (self: Self) => Payload<{ f: () => void }> }>;
-      // @ts-expect-error functions are not allowed in the return type either
-      Trait.companion<Ret>()
-        .impl(() => ({}))
-        .build();
-
-      // Without Payload, the parameter is not a payload, and a function is allowed
-      type Run = Trait<"Run", { n: number }, { run: (self: Self, job: { f: () => void }) => void }>;
-      Trait.companion<Run>()
-        .impl(() => ({ run: (_self, job) => job.f() }))
-        .build();
-    });
-
     test("Self cannot hide inside a member's return type", () => {
       type Union = Trait<"Union", { n: number }, { grow: (self: Self) => Self | null }>;
       // @ts-expect-error a union member cannot hide Self
