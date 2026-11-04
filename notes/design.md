@@ -2711,7 +2711,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 - [x] ~~**変数で渡す patch の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`hunt-findings.md` の 1〜3。リテラルでない
       引数は余剰プロパティ検査を受けず、patch の型が交差（`{…} & {…}`）なので weak type の検査も受けなかった
   - **`Patch` を 1 つの mapped type にする。**キーを共有しない変数（`{ foo: 1 }`）を weak type の検査が拒む。
-    `Unpatchable` が無いときは以前から拒まれていた。`Omit` を挟むと交差が残り、検査が外れていた
+    交差でも weak type の検査は掛かるが、片側にキーが無いと外れる。optional キーの無い payload（`Unpatchable` の
+    例の `{ id; owner; note }`）がそうだった
   - **拒むキーを `?: never` で書く。**`Patch<T, X>` の `X`
     - `Unpatchable` のキー。`const both = { id: "forged", name: "y" }; U.patch(u, both)` が通っていた
     - variant の patch は、タグと他の variant のフィールド。`S.C.patch(c, q)`（q は `Q` の値）が通り、`match` が `Q` の
