@@ -1553,8 +1553,8 @@ type NotEnum<V> = [V] extends [AnyEnum]
   ? Invalid<"a variant is built by its enum's companion">
   : unknown;
 
-// The key is the error message. For a union, the checker reports the key as missing. A boolean
-// payload is a union of values with one brand, so the brand is what counts.
+// The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
+// with a boolean payload is a union of two types with one brand, so the check compares brands.
 type OneVal<V, M extends string> = {
   readonly [K in M as IsUnion<V extends Phantom<infer B, unknown> ? B : never> extends true
     ? K
@@ -1562,7 +1562,8 @@ type OneVal<V, M extends string> = {
 };
 
 /** Nothing, or the reason a union of option lists is rejected. */
-export type OneList<O> = IsUnion<O> extends true ? Invalid<"the options are one list"> : unknown;
+export type OneList<O> =
+  IsUnion<O> extends true ? Invalid<"the options cannot be a union of lists"> : unknown;
 
 /**
  * The default seal, with the type named explicitly: brand the payload and copy it. `seal` on a
