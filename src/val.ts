@@ -79,6 +79,12 @@ export interface Rec<V> {
 /** Marker surfaced in the type when a declaration violates the allowed-type rules. */
 export type Invalid<Msg extends string> = { readonly __valError: Msg };
 
+/**
+ * An {@link Invalid} found in a payload. {@link Payload} leaves an `Invalid` in place of each part
+ * that breaks a rule, and `Invalid` alone is a plain value, so a Val holding it would pass.
+ */
+type Refused<Msg extends string> = { readonly __valError: Msg; readonly __rejected: true };
+
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
 type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
 
@@ -99,22 +105,25 @@ type IsRec<T> = string extends keyof T
       ? true
       : false;
 
+/** Resolves an allowed payload to `T` itself, which {@link Payload} relies on. */
 type Validate<T, Root extends boolean = true> =
   IsRec<T> extends true
     ? T
     : [T] extends [AnyVal]
       ? T
-      : Root extends true
-        ? null extends T
-          ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-          : ValidateValue<T>
-        : ValidateValue<T>;
+      : [T] extends [Invalid<infer M>]
+        ? Refused<M>
+        : Root extends true
+          ? null extends T
+            ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+            : ValidateValue<T>
+          : ValidateValue<T>;
 
 type ValidateValue<T> = [T] extends [Primitive]
   ? T
-  : [T] extends [ReadonlyArray<infer E>]
+  : [T] extends [ReadonlyArray<unknown>]
     ? number extends T["length"]
-      ? ReadonlyArray<Validate<E, false>>
+      ? { [I in keyof T]: Validate<T[I], false> }
       : {
           // An optional element is the tuple's form of an optional key: absent, it round trips.
           // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
@@ -136,7 +145,7 @@ type ValidateValue<T> = [T] extends [Primitive]
                 [K in keyof T]: string extends K
                   ? Validate<T[K], false>
                   : K extends OptionalKeys<T>
-                    ? Validate<Exclude<T[K], undefined>, false> | undefined
+                    ? Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>
                     : undefined extends T[K]
                       ? Invalid<"required property cannot be undefined; use null or make it optional">
                       : Validate<T[K], false>;
@@ -294,12 +303,13 @@ type Declared<V> = V extends Phantom<string, infer T> ? T : never;
 export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
 /**
- * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. It is `T`
- * unchanged.
+ * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. An allowed payload
+ * is `T` unchanged. A value that breaks the allowed-type rules does not fit. A Val declared with a
+ * rejected `Payload` is rejected like one declared with `T`.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
-export type Payload<T> = T;
+export type Payload<T> = Validate<T>;
 
 // Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
 // the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker

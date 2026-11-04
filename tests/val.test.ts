@@ -452,6 +452,36 @@ describe("Val", () => {
     });
   });
 
+  describe("Payload", () => {
+    test("an allowed payload is unchanged", () => {
+      type Fields = {
+        tags: string[];
+        frozen: readonly number[];
+        nickname?: string;
+        alias?: string | undefined;
+      };
+      expectTypeOf<Payload<Fields>>().toEqualTypeOf<Fields>();
+    });
+
+    test("a payload the rules reject is rejected where it is used", () => {
+      type Run = Payload<{ run: () => void }>;
+      expectTypeOf<{ run: () => void }>().not.toExtend<Run>();
+    });
+
+    test("the Val reports the rule, at the root too", () => {
+      expectTypeOf<VerdictOf<Val<"P", Payload<{ run: () => void }>>>>().toEqualTypeOf<{
+        run: { readonly __valError: "functions are not allowed"; readonly __rejected: true };
+      }>();
+      expectTypeOf<Val<"P", Payload<string | null>>>().not.toExtend<AnyVal>();
+    });
+
+    test("a payload may reference the Val it belongs to", () => {
+      type TreeFields = Payload<{ value: number; children: Rec<Tree>[] }>;
+      type Tree = Val<"app/Tree", TreeFields>;
+      expectTypeOf<Tree>().toExtend<AnyVal>();
+    });
+  });
+
   describe("the brand", () => {
     test("different brands are not assignable", () => {
       type A = Val<"A", string>;
@@ -493,11 +523,6 @@ describe("Val", () => {
       expectTypeOf<BrandOf<User>>().toEqualTypeOf<"app/User">();
       expectTypeOf<PayloadOf<ArticleId>>().toEqualTypeOf<string>();
       expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
-    });
-
-    test("Payload names a payload type without changing it", () => {
-      type Fields = Payload<{ id: string; name: string }>;
-      expectTypeOf<Fields>().toEqualTypeOf<{ id: string; name: string }>();
     });
 
     test("does not exist at runtime", () => {
