@@ -48,6 +48,7 @@ import {
   type DeepReadonly,
   type Grown,
   type Invalid,
+  type IsUnion,
   type Options,
   type Passes,
   type Patch,
@@ -116,8 +117,8 @@ declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
 export type AnyEnum = AnyVal &
   EnumPhantom<string, Record<string, object>, object, AnyTrait, string, Record<string, AnyTrait>>;
 
-/** The declaration's own keys, which are the variants and nothing else. */
-type VariantKeys<D> = Extract<keyof D, string>;
+/** The declaration's own keys, which are the variants and nothing else. A number is rejected. */
+type VariantKeys<D> = Extract<keyof D, string | number>;
 
 /** A variant's fields, with the ones its traits require. */
 type FieldsIn<P> = [P] extends [AnyTrait] ? Pick<P, keyof P> & FieldsOf<P> : P;
@@ -153,22 +154,27 @@ type Single<N, All = N> = N extends unknown ? ([All] extends [N] ? true : false)
  * `Invalid` message says that rather than naming the emit. No variant at all needs no message: the
  * indexed access is `never`, and there is no value to build.
  */
-type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
+type Fault<K, D, X, S, Tr extends AnyTrait, Tg extends string> =
+  | (IsUnion<K> extends true ? "an enum's name must be one string literal" : never)
+  | (IsUnion<X> extends true ? "the shared fields must be one object type, not a union" : never)
+  | (IsUnion<Tg> extends true ? "the tag's name must be one string literal" : never)
   | (Single<VariantKeys<D>> extends true
       ? "an enum needs at least two variants; one is a Val"
       : never)
   | {
-      [N in VariantKeys<D>]: [D[N]] extends [object]
-        ? [D[N]] extends [ReadonlyArray<unknown>]
-          ? "a variant's payload must be a record of fields"
-          : Tg extends keyof FieldsIn<D[N]>
-            ? "the tag cannot take the name of a field the payload holds"
-            : // `dyn` picks the implementation by the companion it is passed, so the enum's
-              // and the variant's would answer the same call differently.
-              [TraitNames<Tr> & TraitNames<TraitsIn<D[N]>>] extends [never]
-              ? never
-              : "a variant cannot declare a trait the enum declares"
-        : "a variant's payload must be a record of fields";
+      [N in VariantKeys<D>]: N extends number
+        ? "a variant's name must be a string; a JSON key is one"
+        : [D[N]] extends [object]
+          ? [D[N]] extends [ReadonlyArray<unknown>]
+            ? "a variant's payload must be a record of fields"
+            : Tg extends keyof FieldsIn<D[N]>
+              ? "the tag cannot take the name of a field the payload holds"
+              : // `dyn` picks the implementation by the companion it is passed, so the enum's
+                // and the variant's would answer the same call differently.
+                [TraitNames<Tr> & TraitNames<TraitsIn<D[N]>>] extends [never]
+                ? never
+                : "a variant cannot declare a trait the enum declares"
+          : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
   | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never)
   // The companion reads a member first, so the type would show the library's and run the member.
@@ -185,11 +191,11 @@ type MemberNames<Tr extends AnyTrait> =
 // whose top level is a conditional loses its name once it resolves, and a consumer's `.d.ts`
 // then expands the union onto val.ts's private `Phantom`: TS4094 on the one line
 // `export const Shape = Enum.companion<Shape>().build()`.
-type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
-  Fault<D, S, Tr, Tg>,
+type Named<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> = [
+  Fault<K, D, X, S, Tr, Tg>,
 ] extends [never]
   ? K
-  : Invalid<Fault<D, S, Tr, Tg>>;
+  : Invalid<Fault<K, D, X, S, Tr, Tg>>;
 
 /**
  * A closed set of variants, declared as one record and derived into their union. Each variant is
@@ -216,7 +222,7 @@ type Enum<K extends string, D extends object, X extends object = Record<never, n
     true
   > &
     EnumPhantom<
-      Named<K, D, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
+      Named<K, D, X, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
       VariantsIn<D>,
       SharedIn<X>,
       TraitsIn<X>,
@@ -1132,6 +1138,13 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
   );
 };
 
+// The key is the error message. For a union of enums, the checker reports the key as missing.
+type OneEnum<E> = {
+  readonly [M in "a companion builds one enum" as IsUnion<Declared<E>["name"]> extends true
+    ? M
+    : never]: never;
+};
+
 /**
  * Bundles an enum's `seal`, its variants and its members. `.build()` closes the chain.
  *
@@ -1139,6 +1152,6 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
  * {@link VariantOptions} for one variant, as in `Enum.companion<Order, [PrivateSeal, Unpatchable<"id">]>()`.
  */
 export const companion = <
-  E extends AnyEnum,
+  E extends AnyEnum & OneEnum<E>,
   const O extends readonly EnumOption<E>[] = [],
 >(): Start<E, O> => builder("_tag", {}, {}) as Start<E, O>;
