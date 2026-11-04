@@ -292,11 +292,25 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
 /**
  * A branded value type. A declared trait adds the fields it requires to the payload.
  *
- * A payload that breaks the allowed-type rules is a type error, and so is one that contradicts a
- * declared trait.
+ * A payload that breaks the allowed-type rules is a type error, reported at the type argument. A
+ * rule broken by the root itself, such as `Val<"Name", string | null>`, is reported where the Val
+ * is used, and so is a payload that contradicts a declared trait.
+ *
+ * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` inside a generic type
+ * fails. A type parameter for the brand alone fits.
  */
-// Both land in the verdict, which stops the Val satisfying `AnyVal`. See `Verdicted`.
-type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
+// Every broken rule lands in the verdict, which stops the Val satisfying `AnyVal`. See `Verdicted`.
+type Val<K extends string, T extends ValidateFields<T>, Tr extends AnyTrait = never> = UncheckedVal<
+  K,
+  T,
+  Tr
+>;
+
+/**
+ * {@link Val} with no constraint on the payload, for a Val the library builds from a generic
+ * declaration: an Enum's variant. The verdict still checks it.
+ */
+export type UncheckedVal<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
   Grounded<Holding<T, Tr>>
 > &
   Phantom<K, Holding<T, Tr>> &
