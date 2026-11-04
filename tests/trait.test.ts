@@ -620,6 +620,7 @@ describe("building", () => {
     });
 
     test("a shape written with a rejected Payload is caught", () => {
+      // @ts-expect-error functions are not allowed
       type Broken = Trait<"Broken", Payload<{ run: () => void }>>;
       expectTypeOf<Broken>().not.toExtend<AnyTrait>();
     });

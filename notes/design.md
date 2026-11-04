@@ -417,6 +417,19 @@ but required in type 'AnyVal'.
 
 **エラー位置は型定義時ではなく最初の使用時に後退する。** メッセージは意図どおり出る。検査は `Val<K, T>` から一度だけ適用されるので、推論コストの利点は保たれる。
 
+**2026-11-04: 型定義の行でも報告する。**`Val<K, T extends ValidateFields<T>, Tr>`。`ValidateFields` は `ValidateValue` の object 分岐を切り出した mapped type で、`Payload` と同じ制約（§9「`Payload` に payload の規則の検査を足す」）。mapped type なら TS2313 にならない。`Rec` で自分を参照する Val も循環しない（TypeScript 5.9.3 / 7.0.2）。上の条件型（verdict）は残る。
+
+- **型定義の行で捕まらないもの。**~~root の `null`、`bigint`、`symbol`、関数、数値キー、正しい object 同士の union。~~ → top level も型定義の行で報告する（下の `Allowed`）。残るのは trait との矛盾だけ。制約は `T` しか読まない
+- **`Allowed<T, Owner>`、2026-11-04。**`Val` と `Payload` の制約。Val を丸ごと型引数にしたら専用の `Invalid` を返す。`Validate<T>` が top level で `Invalid` を返したらそれを返す。`Refused` を返したら（top level が拒まれた `Payload`、つまり `Invalid` そのもの）`Refused` を返す。`Invalid` を制約にすると、`Invalid` の引数がそれを満たしてしまう。残りは `ValidateFields<T>` でフィールドごとに見る（メッセージがフィールドを名指しする）
+  - **`Validate<T>` を条件型の中で読む形は循環しない。**`T extends Validate<T>` は TS2313 だが、`[Validate<T>] extends [Invalid<infer M>] ? … : …` の結果を制約にしても循環しない（TypeScript 5.9.3 / 7.0.2）。§9 で「root の規則を二重に持つので入れない」とした件は、`Validate` をそのまま読むので二重にならない
+  - **Val を丸ごと型引数にしたら拒む。**`Val<"UserId", Id>` は main でも 2 つの brand がぶつかって `never` だった。`Payload<User>` は `PayloadOf<User>` で形を取り出す使い方だが、依存の向きが Val ← Payload になる。共通の形は `Payload<T>` で先に定義して Val が使う（Payload ← Val）。文言はユーザーの書いたもの（`Payload` の側の主語は `a Payload's` にした）：`a Val cannot be used as {another Val's | a Payload's} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`
+  - **`Rec` の分岐は置かない。**`Val<"Top", Rec<Other>>` は分岐が無くても通る（test-audit の変異で確認）。自分を参照する `Val<"Self", Rec<Self>>` は分岐の有無にかかわらず TS2456
+  - **`ValidateFields` だけの制約だったときの漏れ。**プリミティブや配列の Val を丸ごと渡すと、`ValidateFields` が Val の型そのものを写して分かりにくい TS2344 になった。object の Val は素通りして `never` になった
+- **payload に型パラメーターを含む Val は書けない。**`type Page<T> = Val<"Page", { items: T[] }>` は TS2344。brand だけを型パラメーターにする `Val<K, string>` は通る。`Page<User>` と `Page<Post>` が同じ brand を持つのは名目的な型付けに反するので、拒んでよい。`type Branded<K, T> = Val<K, T>`（§14.7）も書けなくなる
+- **Enum の Variant は制約しない。**`Enum` と `VariantOf` は Variant の Val をジェネリックに組み立てるので、制約の無い `UncheckedVal` を使う。hover とエラーの印字は `Val<…>` / `VariantOf<…>` のまま。Variant の payload を Enum の宣言の行で報告するかは未着手
+- **破壊的変更。**payload に型パラメーターを含む Val と、規則に反する payload を宣言だけして使わないコード
+- **コスト。**instantiations は core +249、trait +223、enum +145、`index.d.ts` は +0.91 kB（大半は JSDoc。TypeScript 5.9.3、#123 比）。うち `Allowed` の分は core +194、trait +171、enum +102、+0.26 kB
+
 #### `exactOptionalPropertyTypes` の壁
 
 EOPT が **off**（TS のデフォルト）のとき、`{ a?: string }` と `{ a?: string | undefined }` は文字通り同じ型で、区別する手段が言語に存在しない。したがって以下は検出できない。
@@ -3057,10 +3070,30 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       `Val.unwrap` が readonly を返し（§3「payload に `readonly` は書かない」）、optional キーに `| undefined` を
       足すと EOPT 下で seed が値としての `undefined` を受ける。配列は homomorphic な mapped type で写し、
       optional キーは書いた `undefined` だけを残す（`| Extract<T[K], undefined>`）。hover は展開した object になる
-    - **報告の位置。**`type X = Payload<…>` の行では何も言わない。Val の payload なら companion。trait の
-      メンバ引数（`other: Payload<{ f: () => void }>`）は trait の companion でも `implTrait` でも黙り、
-      呼び出しの引数で `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になる。
-      → trait の側で報告するようにした、2026-11-04（§15.1「メンバの引数の `Payload` を trait で報告する」）
+    - **報告の位置。**~~`type X = Payload<…>` の行では何も言わない。~~ → 型引数で報告する、2026-11-04。
+      使う側でも今までどおり報告する。Val の payload なら companion。trait のメンバ引数
+      （`other: Payload<{ f: () => void }>`）は trait の companion でも `implTrait` でも黙り、呼び出しの引数で
+      `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になる。trait の側の検査は
+      メンバの引数を深く辿る必要があるので入れていない。型引数で報告するので、もう要らない
+      - **`Payload<T extends ValidateFields<T>>`。**`ValidateFields` は `ValidateValue` の object 分岐を切り出した
+        mapped type で、`Validate` と共有する。`Payload<{ a: { f: () => void } }>` は型引数で TS2344。
+        `Validate<T>` を含む制約（`Validate<T>`、`ValidateFields<T> & Validate<T>`）は TS2313 のまま。
+        mapped type だけなら循環しない。TypeScript 5.9.3 / 6.0.3 / 7.0.2 で同じ
+      - **型引数で捕まらない root。**`bigint`、`undefined`、`symbol`、関数、数値キー（ネストしていれば捕まる）、
+        正しい object 同士の union、`string | null`。mapped type は primitive をそのまま返し、関数を `{}` に写し、
+        キーの種類を見ないため。使う側で報告される。`Date` はメソッドが関数として拒まれ、型引数で捕まる。
+        root だけを見る条件型を `& Root<T>` で足しても循環しない（probe）が、`Validate` の root の規則を
+        二重に持つので入れていない → 入れた、2026-11-04（§3 の `Allowed`）。`Validate<T>` の結果を条件型で読むので二重にならない
+      - **型パラメーターを含む `Payload` は書けない。**`type G<T> = Payload<T>` も `Payload<{ left: T }>` も TS2344
+        （`T extends string` でも同じ）。制約の `ValidateFields` は export していない
+        - **決めた: ジェネリックな `Payload` と Val は書かない、2026-11-04。**具体型ごとに Val を書く。ジェネリックな素の型
+          （`type Items<T> = { items: T[] }`）を切り出して包む形も勧めない。`model-only-in-valof` がそれを報告する。
+          docs には事実を 1 文だけ書く（allowed-types.md）。禁じるだけで代わりの書き方は無いので、節も例も要らない。
+          Val も同じ制約で型定義の行から拒む（§3「2026-11-04: 型定義の行でも報告する」）。型と lint の両方で
+          「データの定義は具体型」に揃う
+      - **コスト。**fixture は `Payload` を使わず、instantiations は core −51、trait −46、enum −114、
+        `index.d.ts` は +0.51 kB（TypeScript 5.9.3）。`Payload` で包んだ Val 20 個の probe は 36,968 → 30,195
+        （TypeScript 7.0.2）。減った理由は確かめていない
     - **`Invalid` と `Refused` は symbol キーだけで表す、2026-11-04。**`__valError` を予約しないため。
       どちらのキーも export しない `unique symbol` で、利用者の payload はこの形にならない
       - **文字列キーだったときの穴。**`__valError` に文字列リテラルを持つ payload のフィールドが `Invalid` と
@@ -3078,8 +3111,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     - **訂正: 「入れられない」とした記録。**`feat/self-first-parameter` は probe から「検査できない」と結論し、
       恒等のまま残すと記録した。観察は正しかった。`Payload<T extends Checked<T>>` は TS2313、`Payload = Checked<T>`
       は自己参照する payload で TS2456 / TS2615、写さない `Validate` では companion が黙る。誤りは結論だけで、
-      循環するのは `Checked` の外側の比較（`[T] extends [Validate<T>]`）であって、`Validate<T>` だけなら循環しない。
-      黙る件は写せば消える。§15.1 の記録はこの項目に合わせて直した
+      ~~循環するのは `Checked` の外側の比較（`[T] extends [Validate<T>]`）であって、`Validate<T>` だけなら循環しない。~~
+      → 誤り、2026-11-04。制約に置けば `Validate<T>` だけでも TS2313（probe）。循環しないのは
+      `Payload = Validate<T>` と本体に書いたとき。型引数での報告は、上の `ValidateFields` で入れた。
+      黙る件は写せば消える。その記録が main に入るなら、この項目に合わせて直す
   - **`HasSelf` は残る。**第 1 引数以外の引数と戻り値を辿る。深さの上限（§15.1「探索の深さに上限を
     置く」）も同じ理由で要る
   - **却下: 第 1 引数をレシーバとして例外扱いする。**Valof はメソッド記法を排して pipe でつなぐ。
