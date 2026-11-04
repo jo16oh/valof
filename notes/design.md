@@ -2712,7 +2712,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       どれも `Fault`（型引数だけを読む）に足した
   - **variant の名前は文字列。**`{ A; B; 404 }` の `404` は `VariantKeys`（`Extract<keyof D, string>`）が黙って落とし、
     `match` が `404` 無しで網羅扱いになった。全部が数値なら enum が `never` になり、companion も通った。
-    `VariantKeys` に `number` を含め、`Fault` が「a variant's name must be a string; a JSON key is one」で拒む
+    `VariantKeys` に `number` を含め、`Fault` が「a variant's name must be a string」で拒む
   - **名前、タグ名、共有フィールドは union にできない。**`Enum<"E" | "F", …>` の値は `Val<"E.A", …>` に代入できない。
     `Tag<"k" | "t">` は `.tag("k")` で通った（`Tag<"k"> & Tag<"t">` は以前から拒まれる）。共有フィールドの
     `{ id } | { key }` は `SharedIn` の `Pick` が共通のキーだけを残し、`create({ n: 1 })` が `id` も `key` も無しで
