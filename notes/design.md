@@ -3060,7 +3060,17 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     ```
   - **他の引数は `Payload<T>` で型付けする。**共通フィールドを使う判定・比較は、相手の shape だけを読む。
     trait は自分の宣言の中で自分を参照できない（`other: Same` は `Declarable` で TS2615）ので、
-    `Payload<{ n: number }>` と書く。素のオブジェクトも通るが、共通フィールドを読むだけなら困らない
+    `Payload<{ n: number }>` と書く。素のオブジェクトも通る。~~共通フィールドを読むだけなら困らない~~
+    → 困る、2026-11-04。shape が同じなら brand のない値も受けてしまう
+    - [ ] **`Impl<Same>` で trait を実装した Val だけを受ける。**`other: Impl<Same>`。別 PR、breaking
+      - **`Impl` を interface の目印にすれば、メンバの引数では循環しない（probe）。**`Self` の探索はキーだけで
+        見分けて止まり（`Rec` と同じ手）、`Unbound` / `Bound` が `Impl<X>` を `X` に置き換える。ただし
+        `let s: Impl<Same>` は目印のままで、`Same` と同じ型にならない（`interface Impl<Tr> extends Tr` は TS2312）
+      - **方針: trait を宣言専用の型にし、値の型をどこでも `Impl<Same>` と書く。**`Trait<K, S, M>` は型引数を
+        持つだけの interface にして、メンバの検査は使う位置（companion、Val の宣言）に移す。模型では循環せず、
+        brand のない値を拒んだ。`Same` を値の型注釈に使えなくなる
+      - 未決: 複数の trait の組み合わせ、`Dyn` と `MembersOf` などの作り直し、置き換えの深さ、`.impl()` と
+        名前が近いこと、コスト
   - [x] **`Payload` に payload の規則の検査を足す。**→ 入れた、2026-11-03。`Payload<T> = Validate<T>`
     - **`Validate` は出会った `Invalid<M>` を `Refused<M>` に写す。**`Invalid` 自体は正しい payload なので、
       写さないと `Val<"U", Payload<{ f: () => void }>>` は `{ f: Invalid<…> }` を payload に取って companion を通り、
