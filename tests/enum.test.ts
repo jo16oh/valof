@@ -312,6 +312,13 @@ describe("the tag", () => {
   test("and `patch` cannot reach it", () => {
     // @ts-expect-error a patch cannot switch variants
     Circle.patch(circle, { _tag: "Square" });
+    // A variable gets no excess property check.
+    const square = Shape.Square.create({ side: 1 });
+    // @ts-expect-error same, with another variant's value
+    Circle.patch(circle, square);
+    const retagged = { _tag: "Square" as const, r: 3 };
+    // @ts-expect-error same, through a variable
+    Circle.patch(circle, retagged);
   });
 
   describe("a name of your own", () => {

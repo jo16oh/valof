@@ -1209,6 +1209,15 @@ describe("equals", () => {
 });
 
 describe("patch", () => {
+  test("a nested plain object cannot be replaced by a Val", () => {
+    type Pin = Val<"Pin", { at: { x: number } }>;
+    const Pin = Val.companion<Pin>().build();
+    type Spot = Val<"Spot", { x: number; label: string }>;
+    const spot = Val.of<Spot>({ x: 1, label: "s" });
+    // @ts-expect-error a Val is not a patch of a plain object
+    Pin.patch(Pin.seal({ at: { x: 0 } }), { at: spot });
+  });
+
   test("omitting a key leaves it unchanged", () => {
     const u = User.seal({ id: "a", name: "bob", nickname: "bo" });
     expect(User.patch(u, { name: "sue" })).toEqual({
@@ -2574,9 +2583,18 @@ describe("building", () => {
     test("the id is not reachable through the patch path", () => {
       const Account = account();
       const a = Account.create({ owner: "bob", note: "" });
-      expectTypeOf<Parameters<typeof Account.patch>>().toEqualTypeOf<[Account, Patch<Fields>]>();
+      expectTypeOf<Parameters<typeof Account.patch>>().toEqualTypeOf<
+        [Account, Patch<Fields, "id">]
+      >();
       // @ts-expect-error id is not patchable
       Account.patch(a, { id: "forged" });
+      // A variable gets no excess property check.
+      const forged = { id: "forged", owner: "eve" };
+      // @ts-expect-error same, through a variable
+      Account.patch(a, forged);
+      const stray = { title: "x" };
+      // @ts-expect-error no key in common with the payload
+      Account.patch(a, stray);
     });
 
     test("keys must exist on the payload", () => {
@@ -2588,7 +2606,7 @@ describe("building", () => {
     test("the keys of every `Unpatchable` in the list are taken out", () => {
       const Account = Val.companion<Account, [Unpatchable<"id">, Unpatchable<"owner">]>().build();
       expectTypeOf<Parameters<typeof Account.patch>>().toEqualTypeOf<
-        [Account, Patch<Pick<SeedOf<Account>, "note">>]
+        [Account, Patch<Pick<SeedOf<Account>, "note">, "id" | "owner">]
       >();
     });
 
