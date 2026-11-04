@@ -3,6 +3,7 @@
 import type { AnyEnum } from "./enum.ts";
 import type {
   AnyTrait,
+  FieldsOf,
   FinalsOf,
   Implement,
   MembersOf,
@@ -248,11 +249,8 @@ type Verdicted<T, Tr extends AnyTrait> = [T] extends [Validate<T>]
 type Holding<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? T
   : IsRecord<T> extends true
-    ? T & Writable<ShapeOf<Tr>>
+    ? T & FieldsOf<Tr>
     : T;
-
-/** Undoes the {@link DeepReadonly} a trait holds its shape in: a payload is written without it. */
-export type Writable<T> = [T] extends [AnyVal] ? T : { -readonly [K in keyof T]: Writable<T[K]> };
 
 /** Reads the keys alone: a field may reference the Val being declared, see {@link Rec}. */
 type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? false : true;
@@ -260,8 +258,7 @@ type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? fa
 /**
  * Whether the declared payload agrees with its traits, or the sentence saying why not.
  *
- * `ShapeOf<A | B>` keeps only the keys the two share, so a union asks the payload for nothing.
- * Caught here, before the fields are read.
+ * A union of traits is caught here, before its shape is read.
  */
 type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true

@@ -1,6 +1,7 @@
 // What `Trait` adds on top of `core.ts`: the same shapes, plus the brand check on `Val`, the
-// `Self` substitution in `implTrait`, a `Dyn` box, and an `implAssoc` member over boxes.
-import { Trait, Val, type Dyn, type Final, type Self } from "valof";
+// `Self` substitution in `implTrait`, a member with an `Impl<Named>` parameter, a `Dyn` box, and an
+// `implAssoc` member over boxes.
+import { Trait, Val, type Dyn, type Final, type Impl, type Self } from "valof";
 
 type Named = Trait<
   "Named",
@@ -9,12 +10,14 @@ type Named = Trait<
     label: (self: Self, sep: string) => string;
     greet: (self: Self) => string;
     shout: Final<(self: Self) => string>;
+    same: Final<(self: Self, other: Impl<Named>) => boolean>;
   }
 >;
 const Named = Trait.companion<Named>()
   .impl(() => ({
     greet: (n) => `Hi, ${n.name}`,
     shout: (n) => n.name.toUpperCase(),
+    same: (n, other) => n.name === other.name,
   }))
   .implAssoc(() => ({
     labelled: (sep: string, boxes: readonly Dyn<Named>[]) => boxes.map((b) => b.label(sep)),
@@ -84,6 +87,7 @@ export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()} ${Named.sho
 export const labelled = [Named.labelled(":", boxed), Named.labelled(boxed)(":")];
 // A final reaches every path a member does, and the trait namespace besides.
 export const shouted = [Room.shout(room), Named.shout(tag), Named.dyn(Tag, tag).shout()];
+export const same = [Room.same(room, tag), Named.dyn(Tag, tag).same(floor)];
 export const point = Point.seal({ name: "o", size: { w: 1, h: 2 } });
 export const nested = [
   Floor.label(floor, "/"),

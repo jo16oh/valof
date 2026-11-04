@@ -9,6 +9,7 @@ import {
   type EnumBuilder,
   type EnumCompanion,
   type Final,
+  type Impl,
   type Members,
   type PrivateCreate,
   type PrivateSeal,
@@ -73,7 +74,7 @@ export const Sized = Enum.companion<Shape>()
   .implTrait(Greetable, () => ({ greet: (s) => s._tag }))
   .build();
 export const Greeting = Trait.companion<Greetable>()
-  .implAssoc(() => ({ names: (gs: readonly Greetable[]) => gs.map((g) => g.name) }))
+  .implAssoc(() => ({ names: (gs: readonly Impl<Greetable>[]) => gs.map((g) => g.name) }))
   .build();
 
 // Written by name, so each import above fails once the root stops exporting it.

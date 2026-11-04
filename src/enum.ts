@@ -21,6 +21,7 @@ import type {
   Implement,
   MembersOf,
   NamesOf,
+  FieldsOf,
   TraitHost,
   TraitsOf,
   Unbound,
@@ -57,7 +58,6 @@ import {
   type UnpatchableKeys,
   type Unsealed,
   type Wired,
-  type Writable,
 } from "./val.ts";
 import * as Enum from "./ns/enum.ts";
 
@@ -117,8 +117,8 @@ export type AnyEnum = AnyVal &
 /** The declaration's own keys, which are the variants and nothing else. */
 type VariantKeys<D> = Extract<keyof D, string>;
 
-/** A variant's fields. A trait it declares carries its own, so both arrive in one argument. */
-type FieldsIn<P> = [P] extends [AnyTrait] ? Writable<Pick<P, keyof P>> : P;
+/** A variant's fields, with the ones its traits require. */
+type FieldsIn<P> = [P] extends [AnyTrait] ? Pick<P, keyof P> & FieldsOf<P> : P;
 
 type VariantsIn<D> = { [N in VariantKeys<D>]: FieldsIn<D[N]> };
 
@@ -126,8 +126,9 @@ type VariantTraitsIn<D> = { [N in VariantKeys<D>]: TraitsIn<D[N]> };
 
 type TagIn<X> = [X] extends [TagPhantom<infer T>] ? T : "_tag";
 
-/** The fields every variant holds. A trait carries its own, so both arrive in one argument. */
-type SharedIn<X> = Writable<Pick<X, keyof X>>;
+/** The fields every variant holds, with the ones the enum's traits require. */
+type SharedIn<X> = Pick<X, keyof X> &
+  ([TraitsIn<X>] extends [never] ? unknown : FieldsOf<TraitsIn<X>>);
 
 type TraitsIn<X> = Extract<X, AnyTrait>;
 

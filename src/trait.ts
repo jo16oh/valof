@@ -7,7 +7,15 @@ import {
   type Omission,
 } from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
-import type { InvalidKey, RefusedKey, TraitBrands, TraitTypes } from "./keys.ts";
+import type {
+  DeclaredBrands,
+  DeclaredShape,
+  DeclaredVerdict,
+  InvalidKey,
+  RefusedKey,
+  TraitBrands,
+  TraitTypes,
+} from "./keys.ts";
 import {
   associated,
   isObject,
@@ -30,8 +38,8 @@ declare const SelfMark: unique symbol;
  * An opaque marker rather than a reference to the trait, which would be circular. It may appear only
  * as a member's first parameter, and `implTrait` substitutes the Val for it. No other parameter may
  * use it, because a {@link Dyn} would pass another Val there. The return type may not use it either.
- * Where another parameter reads fields, type it with `Payload`:
- * `(self: Self, other: Payload<{ name: string }>) => boolean`.
+ * Where another parameter is a value implementing the trait, type it with {@link Impl}:
+ * `(self: Self, other: Impl<Same>) => boolean`.
  */
 export type Self = { readonly [SelfMark]: true };
 
@@ -61,8 +69,8 @@ export type Final<F extends AnyMember> = F & { readonly [FinalMark]: true };
 export type Members = Readonly<Record<string, AnyMember>>;
 
 /**
- * Type-only nominal identity, carried by a trait and by every Val declaring it. Private members
- * disappear from `keyof` and object spreads, so the brand stays out of `{ ...value }`.
+ * Type-only nominal identity, carried by every Val declaring a trait and by {@link Impl}. Private
+ * members disappear from `keyof` and object spreads, so the brand stays out of `{ ...value }`.
  */
 declare class TraitPhantom<B> {
   private readonly [TraitBrands]: B;
@@ -71,12 +79,28 @@ declare class TraitPhantom<B> {
 }
 
 /**
+ * What a trait declares, read where the trait is used. `B` maps the trait's name to its members,
+ * `S` is the shape, and `V`, the verdict, maps the name to the members as {@link Declarable}
+ * checked them. Several traits intersect into one. Their records intersect by name, and their
+ * shapes intersect.
+ */
+declare class TraitDeclaration<B, S, V> {
+  protected readonly [DeclaredBrands]: B;
+  protected readonly [DeclaredShape]: S;
+  protected readonly [DeclaredVerdict]: V;
+}
+
+/**
  * Every trait, as a constraint.
  */
-export type AnyTrait = TraitPhantom<Readonly<Record<string, Members & Unrejected>> & Unrejected>;
+export type AnyTrait = TraitDeclaration<
+  Readonly<Record<string, Members>>,
+  unknown,
+  Readonly<Record<string, Members & Unrejected>> & Unrejected
+>;
 
-// A broken declaration leaves an `Invalid` or a `Refused` in place of the brand map or of a trait's
-// members. Both have only a symbol key, which `Record<string, …>` does not check.
+// A broken declaration leaves an `Invalid` or a `Refused` in place of a trait's members. Both have
+// only a symbol key, which `Record<string, …>` does not check.
 type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never };
 
 /**
@@ -84,43 +108,62 @@ type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never
  * `M` declares every function, and the declaration says which side implements one: {@link Final}
  * reserves a member for the trait, and every other one a Val may replace through `implTrait`.
  *
- * The type is also the value type: a Val declaring the trait is assignable to it.
+ * A trait is only a declaration. The type of a value implementing it is {@link Impl}.
  */
-type Trait<K extends string, Shape, M extends Members = Record<never, never>> = DeepReadonly<
-  Checked<Shape>
-> &
-  // The members live in the brand map rather than a key of their own, so a Val can carry the
-  // brand without carrying a phantom key per trait. Several traits compose by intersection.
-  //
-  // A broken declaration puts the annotated version here instead, the way an invalid payload
-  // lands in a Val's brand. `Members` admits functions alone, so an `Invalid` in this position
-  // stops the trait satisfying `AnyTrait`, and every gate takes an `AnyTrait`: the companion,
-  // `Val`, `Dyn` and `implTrait` all report it without a check of their own.
-  TraitPhantom<
-    [Shape] extends [Checked<Shape>]
+// An interface rather than an alias, so that nothing is resolved on the declaring line and a member
+// can take `Impl` of the trait being declared. The checks resolve where the trait is used.
+//
+// A broken declaration puts the annotated version in the verdict, the way an invalid payload lands
+// in a Val's brand. `Members` admits functions alone, so an `Invalid` there stops the trait
+// satisfying `AnyTrait`, and every gate requires an `AnyTrait`. So the companion, `Val`, `Dyn`
+// and `implTrait` all report it without a check of their own.
+interface Trait<
+  K extends string,
+  Shape,
+  M extends Members = Record<never, never>,
+> extends TraitDeclaration<
+  { readonly [P in K]: M },
+  Shape,
+  {
+    readonly [P in K]: [Shape] extends [Checked<Shape>]
       ? [M] extends [Declarable<Shape, M>]
-        ? { readonly [P in K]: M }
+        ? M
         : Declarable<Shape, M>
-      : Checked<Shape>
-  >;
+      : Checked<Shape>;
+  }
+> {}
 
 export { Trait };
 
-/** The fields a trait requires. */
-export type ShapeOf<Tr extends AnyTrait> = Pick<Tr, keyof Tr>;
+/**
+ * A value implementing the trait: any Val declaring it, or a {@link Dyn}. Write several traits as
+ * one intersection, `Impl<Greetable & Serializable>`, as in a Val's declaration. A trait's member
+ * may take one after {@link Self}.
+ */
+export type Impl<Tr extends AnyTrait> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>;
+
+/** The fields a trait requires, read-only. */
+export type ShapeOf<Tr extends AnyTrait> = DeepReadonly<FieldsOf<Tr>>;
+
+/** The fields a trait requires, as the declaration wrote them. */
+export type FieldsOf<Tr> = Tr extends TraitDeclaration<unknown, infer S, unknown> ? S : never;
+
+/** The trait's name mapped to its members, as declared. */
+export type BrandsOf<Tr> = Tr extends TraitDeclaration<infer B, unknown, unknown> ? B : never;
 
 /**
- * Read through the class, since a private key is unreachable by an index. Unconstrained, so a
- * broken declaration can be read out: it does not satisfy {@link AnyTrait}.
+ * The trait's name mapped to its members, with an `Invalid` in place of each one {@link Declarable}
+ * rejects. Unconstrained, so that a broken declaration, which does not satisfy {@link AnyTrait}, can
+ * be read out.
  */
-export type BrandsOf<Tr> = Tr extends TraitPhantom<infer B> ? B : never;
+export type VerdictOf<Tr> = Tr extends TraitDeclaration<unknown, unknown, infer V> ? V : never;
 
 /**
  * The trait brands a Val carries, or nothing when it declares none.
  *
- * The same class the trait carries, which is what keeps a Val assignable to its traits. Several
- * traits are one intersection: `Val<"User", P, Greetable & Serializable>`. Their brand maps
- * intersect too, so the Val stays assignable to each of them.
+ * The same class {@link Impl} carries, which is what keeps a Val assignable to it. Several traits
+ * are one intersection: `Val<"User", P, Greetable & Serializable>`. Their brand maps intersect too,
+ * so the Val stays assignable to each of them.
  */
 export type TraitBrand<Tr extends AnyTrait> = [Tr] extends [never]
   ? unknown
@@ -129,8 +172,8 @@ export type TraitBrand<Tr extends AnyTrait> = [Tr] extends [never]
 /**
  * The traits a Val declares, or `never` when it declares none.
  *
- * Read through a conditional rather than an index: intersecting a plain Val with {@link AnyTrait}
- * to reach the key would return `string`, and every trait would look declared.
+ * Read through a conditional rather than an index: intersecting a plain Val with
+ * {@link TraitPhantom} to reach the key would return `string`, and every trait would look declared.
  */
 export type TraitsOf<V> = V extends TraitPhantom<infer B> ? keyof B : never;
 
@@ -204,7 +247,7 @@ type HasSelfBranch<T, Depth extends unknown[]> = 0 extends 1 & T
  * the field out through a member instead.
  *
  * Taken over the shape rather than the trait, so {@link Trait} can read it while defining
- * itself. Every check here reads the declaration alone, which is what lets it live in the brand.
+ * itself. Every check here reads the declaration alone, which is what lets it live in the verdict.
  */
 type Declarable<Shape, M extends Members> = {
   [K in keyof M]: K extends keyof DeepReadonly<Checked<Shape>>
@@ -215,7 +258,7 @@ type Declarable<Shape, M extends Members> = {
         ? Invalid<"a trait member cannot take a name the library reserves">
         : M[K] extends (self: never, ...args: infer A) => infer R
           ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-            ? Invalid<"Self can only be a member's first parameter; type a later parameter with Payload">
+            ? Invalid<"Self can only be a member's first parameter; type a later parameter with Impl">
             : HasSelf<R> extends true
               ? Invalid<"a trait member cannot return Self">
               : Omission<M[K]> extends string
@@ -230,12 +273,12 @@ type Declarable<Shape, M extends Members> = {
  * different types share an array.
  *
  * The trait's fields read straight off it, so a box goes anywhere the trait does: a function
- * taking `Greetable` accepts one.
+ * taking `Impl<Greetable>` accepts one.
  *
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends AnyTrait> = Tr & Bound<MembersOf<Tr>>;
+export type Dyn<Tr extends AnyTrait> = Impl<Tr> & Bound<MembersOf<Tr>>;
 
 /**
  * Where a companion records every member `implTrait` registered. Read by
@@ -263,7 +306,7 @@ export type TraitCompanion<
   Tr extends AnyTrait,
   G = Record<never, never>,
   A = Record<never, never>,
-> = Duals<Unbound<Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>, Tr>, Tr> &
+> = Duals<Unbound<Pick<MembersOf<Tr>, FinalsOf<Tr> & keyof G>, Impl<Tr>>, Impl<Tr>> &
   Looses<A> & {
     /** Everything the trait implemented, which `implTrait` copies onto the Val. */
     readonly [Shared]: G;
@@ -273,7 +316,7 @@ export type TraitCompanion<
      * The two arguments are tied together: the companion has to match the value's own type,
      * which is what keeps another Val's companion out.
      */
-    readonly dyn: <W extends Tr>(
+    readonly dyn: <W extends Impl<Tr>>(
       companion: TraitHost & Unbound<MembersOf<Tr>, W>,
       value: W,
     ) => Dyn<Tr>;
@@ -282,13 +325,13 @@ export type TraitCompanion<
 /**
  * What the trait implements itself: its own members, over the trait.
  *
- * The receiver is `Tr` rather than `ShapeOf<Tr>` so that a member can call a {@link Final}
- * sibling through the companion, which publishes one taking `Tr`. Contravariance keeps the
+ * The receiver is `Impl<Tr>` rather than `ShapeOf<Tr>` so that a member can call a {@link Final}
+ * sibling through the companion, which publishes one taking `Impl<Tr>`. Contravariance keeps the
  * implementation assignable where `implTrait` binds it to the Val.
  */
 export type Shared<Tr extends AnyTrait, G> = {
   readonly [K in keyof G]: K extends keyof MembersOf<Tr>
-    ? Unbound<MembersOf<Tr>, Tr>[K]
+    ? Unbound<MembersOf<Tr>, Impl<Tr>>[K]
     : "a trait's own implementation must be one of its members";
 };
 
