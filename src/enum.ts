@@ -49,6 +49,7 @@ import {
   type Grown,
   type Invalid,
   type IsOneLiteral,
+  type OneLiteral,
   type IsUnion,
   type OneList,
   type Options,
@@ -101,7 +102,8 @@ declare class TagPhantom<T extends string> {
  * The tag is real data and crosses the wire, so you can customize the name when an API already has
  * one.
  */
-export type Tag<T extends string> = TagPhantom<T>;
+export type Tag<T extends OneLiteral<T, "the tag's name must be one string literal">> =
+  TagPhantom<T>;
 
 /**
  * Type-only nominal identity carrying the whole declaration, so a companion can read the
@@ -216,7 +218,11 @@ type Named<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> = 
  * type Shape = Enum<"Shape", { Circle: { r: number } & Round }, Tag<"kind"> & { id: string }>;
  * ```
  */
-type Enum<K extends string, D extends object, X extends object = Record<never, never>> = {
+type Enum<
+  K extends OneLiteral<K, "an enum's name must be one string literal">,
+  D extends object,
+  X extends object = Record<never, never>,
+> = {
   [N in VariantKeys<D>]: UncheckedVal<
     `${K}.${N}`,
     FieldsIn<D[N]> & SharedIn<X> & { [P in TagIn<X>]: N },

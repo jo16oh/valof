@@ -107,6 +107,17 @@ export type IsOneLiteral<K extends string> = true extends
   ? false
   : true;
 
+/**
+ * `string` for one string literal, and `Msg` otherwise. As a name's constraint, it reports the name
+ * where the type is declared. `any` and `never` satisfy every constraint, so the verdict reports them.
+ */
+// Read through `infer`: a constraint that passes `K` itself to a conditional is circular (TS2313).
+export type OneLiteral<K, Msg extends string> = [K] extends [infer X extends string]
+  ? IsOneLiteral<X> extends true
+    ? string
+    : Msg
+  : Msg;
+
 type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
 }[keyof T];
