@@ -791,7 +791,9 @@ describe("nesting", () => {
     Enum.companion<Variant>().build();
     // @ts-expect-error a trait's shape cannot be an `Impl`
     type Shaped = Trait<"Shaped", Impl<Greetable>>;
-    expectTypeOf<Shaped>().not.toExtend<AnyTrait>();
+    expectTypeOf<VerdictOf<Shaped>>().toEqualTypeOf<{
+      readonly Shaped: Invalid<"a trait's shape cannot be an `Impl`; write its fields">;
+    }>();
   });
 
   test("a payload cannot declare a trait, and a Val points to its third type argument", () => {
