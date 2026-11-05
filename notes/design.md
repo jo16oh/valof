@@ -6363,6 +6363,10 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
       - 宣言の検査はすべて宣言の行に移す（ユーザー、2026-11-05）。shape は `DeclarableShape`（`Impl`、trait、
         payload の規則）、メンバは `Members & OneMembers<M, Shape>`（union、`Declarable`）を制約にする。メンバに型
         パラメーターを含む alias（`Record<K, …>`）も書けなくなる
+      - **方針: 型パラメーターで宣言を共通化する書き方は、基本的にできないようにする**（ユーザー、2026-11-05）。
+        宣言の検査を制約に置くと、型パラメーターを含む alias は条件型が遅延して制約を満たせない。それを代償として
+        受け入れる。共通の shape は `Payload` で共有する。Val の trait（#127）と enum の名前・共有フィールド（#128）
+        も同じ扱い
       - shape が `any` か `never` の trait は verdict だけが拒む。以前は `Impl` の文言で拒んでいたので、「a trait's
         shape cannot be `any` or `never`; write its fields」を足した
   - **メンバの集合は union にできない。**`{ f } | { g }` で `Declarable` が分配して通り、空の `implTrait` が
