@@ -2824,9 +2824,10 @@ describe("building", () => {
     test("a payload that is not a record cannot hold the fields", () => {
       type Rejected = Invalid<"the payload does not hold what the trait requires">;
       // @ts-expect-error the payload does not hold what the trait requires
-      expectTypeOf<VerdictOf<Val<"Bad", string, Greetable>>>().toEqualTypeOf<Rejected>();
+      type Str = Val<"Str", string, Greetable>;
       // @ts-expect-error the payload does not hold what the trait requires
-      expectTypeOf<VerdictOf<Val<"Bad", string[], Greetable>>>().toEqualTypeOf<Rejected>();
+      type Strs = Val<"Strs", string[], Greetable>;
+      expectTypeOf<VerdictOf<Str | Strs>>().toEqualTypeOf<Rejected>();
     });
 
     // Left to `implTrait`, the mistake answered "the type does not declare this trait" about a
