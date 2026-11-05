@@ -379,7 +379,7 @@ type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? fa
  *
  * A union of traits is caught here, before its shape is read.
  */
-type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
+export type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true
   : [Tr] extends [UnionToIntersection<Tr>]
     ? [Overlap<BrandsOf<Tr>>] extends [never]

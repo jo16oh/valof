@@ -45,6 +45,8 @@ import {
   type CallBuildFirst,
   type CompanionMembers,
   type Complete,
+  type Checked,
+  type Fits,
   type DeepReadonly,
   type Grown,
   type Invalid,
@@ -197,17 +199,36 @@ type VariantFault<D, Tr extends AnyTrait, Tg extends string> =
 // The faults as constraints, so the type argument reports them. The brand repeats them for `any`
 // and `never`, which satisfy every constraint. Each reads its argument through `infer`, as
 // `OneLiteral` does: passing it to a conditional in its own constraint is circular (TS2313).
+// The payload rules apply to each variant's fields and to the shared fields, as `Val`'s constraint
+// applies them to a payload.
 type DeclarableVariants<D, X> = [D] extends [infer V]
   ? [X] extends [infer Y]
-    ? Faulted<VariantFault<V, TraitsIn<Y>, TagIn<Y>>>
+    ? Faulted<VariantFault<V, TraitsIn<Y>, TagIn<Y>> | Disagreeing<V, Y>> & {
+        [N in VariantKeys<V>]: Checked<Written<V[N]>>;
+      }
     : object
   : object;
 
 type DeclarableShared<X> = [X] extends [infer Y]
-  ? Faulted<SharedFault<Y, SharedIn<Y>, TraitsIn<Y>, TagIn<Y>>>
+  ? Faulted<SharedFault<Y, SharedIn<Y>, TraitsIn<Y>, TagIn<Y>>> & Checked<Written<Y>>
   : object;
 
 type Faulted<F> = [F] extends [never] ? object : Invalid<F & string>;
+
+/** Where a variant's fields, with the shared ones, disagree with the traits the variant holds. */
+type Disagreeing<D, X> = {
+  [N in VariantKeys<D>]: Fits<
+    FieldsIn<D[N]> & SharedIn<X>,
+    Joined<TraitsIn<X>, TraitsIn<D[N]>>
+  > extends infer F
+    ? F extends string
+      ? F
+      : never
+    : never;
+}[VariantKeys<D>];
+
+/** The fields a declaration writes, without the ones its traits add. An `Impl` stays whole, so the rules reject it. */
+type Written<P> = [P] extends [AnyImpl] ? P : [P] extends [AnyTrait] ? Pick<P, keyof P> : P;
 
 /** Every trait's member names. `keyof` over their union would keep only the shared ones. */
 type MemberNames<Tr extends AnyTrait> =
