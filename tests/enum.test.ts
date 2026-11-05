@@ -1199,6 +1199,14 @@ describe("a broken declaration", () => {
     expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<Fault & string>();
   });
 
+  test("a variant field no value fits is rejected at the declaration", () => {
+    // @ts-expect-error no value fits `a`
+    type Own = Enum<"Own", { A: { a: never }; B: { n: number } }>;
+    // @ts-expect-error no value fits `a`
+    type Both = Enum<"Both", { A: { a: string } & { a: number }; B: { n: number } }>;
+    expectTypeOf<Own | Both>().not.toBeNever();
+  });
+
   test("a variant field that contradicts a shared one is rejected", () => {
     // @ts-expect-error no value fits `id`
     type Keyed = Enum<"Keyed", { One: { id: number }; Two: { n: number } }, { id: string }>;
