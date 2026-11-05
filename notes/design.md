@@ -6301,6 +6301,8 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
     string literal」にする。判定は `IsUnion<K>` と、`{}` が `Record<K, unknown>` に代入できるか（`string` と
     template literal はインデックスシグネチャになり、`{}` が入る）。`never` も `any` も同じ判定で拒まれる。
     `never` だけを見る検査はない（ユーザーの問い、2026-11-05）
+    - 値の型は `never` にする。`unknown` だと `{}` が見かけ上持つ `toString` などに当たり、`Trait<"toString", …>` が
+      拒まれた。空文字列 `""` の名前は許す（ユーザー、2026-11-05）
   - **メンバの集合は union にできない。**`{ f } | { g }` で `Declarable` が分配して通り、空の `implTrait` が
     通って companion に `f` も `g` も生えなかった。verdict を「a trait's members must be one object type, not
     a union」にする
