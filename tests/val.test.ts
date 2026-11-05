@@ -413,6 +413,14 @@ describe("Val", () => {
       expectTypeOf<Named<"Name">>().toExtend<AnyVal>();
     });
 
+    // `any` and `never` satisfy every constraint, so the verdict alone reports them.
+    test("cannot be `any` or `never`", () => {
+      type Fault = Invalid<"a payload cannot be `any` or `never`">;
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<VerdictOf<Val<"Loose", any>>>().toEqualTypeOf<Fault>();
+      expectTypeOf<VerdictOf<Val<"Nothing", never>>>().toEqualTypeOf<Fault>();
+    });
+
     test("the rule that rejected a payload is carried in the verdict", () => {
       // @ts-expect-error functions are not allowed
       type BadFn = Val<"Bad", { run: () => void }>;
@@ -801,6 +809,7 @@ describe("Val", () => {
         readonly value: number;
       }>();
 
+      // @ts-expect-error the payload and the trait declare `value` with conflicting types
       type Clashing = Val<"app/Clashing", { value: string; next?: Rec<Clashing> }, Sized>;
       expectTypeOf<Clashing>().not.toExtend<AnyVal>();
     });
@@ -2771,6 +2780,7 @@ describe("building", () => {
     test("the payload may narrow a field the trait requires, but not contradict it", () => {
       expectTypeOf<Val<"Root", { name: "root" }, Greetable>>().toExtend<AnyVal>();
 
+      // @ts-expect-error the payload and the trait declare `name` with conflicting types
       type Bad = Val<"Bad", { name: number }, Greetable>;
       expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<
         Invalid<"the payload and the trait declare `name` with conflicting types">
@@ -2779,7 +2789,9 @@ describe("building", () => {
 
     test("a payload that is not a record cannot hold the fields", () => {
       type Rejected = Invalid<"the payload does not hold what the trait requires">;
+      // @ts-expect-error the payload does not hold what the trait requires
       expectTypeOf<VerdictOf<Val<"Bad", string, Greetable>>>().toEqualTypeOf<Rejected>();
+      // @ts-expect-error the payload does not hold what the trait requires
       expectTypeOf<VerdictOf<Val<"Bad", string[], Greetable>>>().toEqualTypeOf<Rejected>();
     });
 
@@ -2787,6 +2799,7 @@ describe("building", () => {
     // trait the declaration names, and a payload holding neither shape had passed on the way.
     test("several traits are one intersection, and a union is rejected", () => {
       type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+      // @ts-expect-error declare several traits with `&`, not `|`
       type Either = Val<"Either", { id: string }, Greetable | Weighed>;
       expectTypeOf<Either>().not.toExtend<AnyVal>();
       // @ts-expect-error declare several traits with `&`, not `|`
@@ -2941,6 +2954,7 @@ describe("building", () => {
           { toWire: (self: Self, sep: string) => number }
         >;
         // The declaration is rejected, since no companion could implement both.
+        // @ts-expect-error two traits declare a member named `toWire`
         type Twice = Val<"Twice", { id: string; name: string }, Greetable & Other>;
         expectTypeOf<VerdictOf<Twice>>().toEqualTypeOf<
           Invalid<"two traits declare a member named `toWire`">
@@ -2970,6 +2984,7 @@ describe("building", () => {
 
       test("nor to the same final", () => {
         type Yelling = Trait<"Yelling", { name: string }, { shout: Final<(self: Self) => string> }>;
+        // @ts-expect-error two traits declare a member named `shout`
         type Crier = Val<"Crier", { id: string; name: string }, Greetable & Yelling>;
         expectTypeOf<VerdictOf<Crier>>().toEqualTypeOf<
           Invalid<"two traits declare a member named `shout`">
@@ -2992,6 +3007,7 @@ describe("building", () => {
 
       test("unless no payload satisfies both", () => {
         type Sized = Trait<"Sized", { name: number }, { half: (self: Self) => number }>;
+        // @ts-expect-error no value fits every declaration of `name`
         type Both = Val<"Both", { id: string }, Greetable & Sized>;
         expectTypeOf<VerdictOf<Both>>().toEqualTypeOf<
           Invalid<"no value fits every declaration of `name`">
