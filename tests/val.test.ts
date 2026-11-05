@@ -522,7 +522,7 @@ describe("Val", () => {
       // @ts-expect-error no value fits `b`
       type Deep = Val<"Deep", { m: { b: never } }>;
       // Reported at the type argument alone, so the constraint is read rather than the verdict.
-      type Message<T> = Allowed<T, "">;
+      type Message<T> = Allowed<T, "Val">;
       expectTypeOf<Message<{ a: never } | { a: string & number }>>().toEqualTypeOf<
         Invalid<"no value fits `a`">
       >();
