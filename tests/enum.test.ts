@@ -1200,6 +1200,7 @@ describe("a broken declaration", () => {
   });
 
   test("a variant field that contradicts a shared one is rejected", () => {
+    // @ts-expect-error no value fits `id`
     type Keyed = Enum<"Keyed", { One: { id: number }; Two: { n: number } }, { id: string }>;
     expectTypeOf<VerdictOf<VariantOf<Keyed & AnyEnum, "One">>>().toEqualTypeOf<
       Invalid<"no value fits `id`">
