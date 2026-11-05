@@ -315,11 +315,14 @@ describe("Trait", () => {
 
   // Read through `VerdictOf`, since `@ts-expect-error` at the gate passes on any error.
   describe("the declaration", () => {
-    test("needs one name, and rejects a union or `string`", () => {
+    test("needs one string literal as its name", () => {
       type Fault = Invalid<"a trait's name must be one string literal">;
       type Either = Trait<"Left" | "Right", { n: number }, { f: (self: Self) => number }>;
       expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<Fault>();
       expectTypeOf<VerdictOf<Trait<string, { n: number }>>>().toEqualTypeOf<Fault>();
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<VerdictOf<Trait<any, { n: number }>>>().toEqualTypeOf<Fault>();
+      expectTypeOf<VerdictOf<Trait<never, { n: number }>>>().toEqualTypeOf<Fault>();
     });
 
     test("declares its members in one object type", () => {
