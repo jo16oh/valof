@@ -1216,22 +1216,19 @@ describe("a broken declaration", () => {
     >();
     type OnlyNumbers = Enum<"OnlyNumbers", { 200: { n: number }; 404: { path: string } }>;
     expectTypeOf<OnlyNumbers>().not.toBeNever();
-    type Named<K extends string> = NameOf<
-      Enum<K, { A: { n: number }; B: { m: number } }> & AnyEnum
-    >;
-    expectTypeOf<Named<"Left" | "Right">>().toEqualTypeOf<
+    type Variants = { A: { n: number }; B: { m: number } };
+    // @ts-expect-error an enum's name must be one string literal
+    type Either = Enum<"Left" | "Right", Variants>;
+    // @ts-expect-error an enum's name must be one string literal
+    type Any = Enum<string, Variants>;
+    expectTypeOf<NameOf<(Either | Any) & AnyEnum>>().toEqualTypeOf<
       Fault<"an enum's name must be one string literal">
     >();
-    expectTypeOf<Named<string>>().toEqualTypeOf<
-      Fault<"an enum's name must be one string literal">
-    >();
-    type Tagged<K extends string> = NameOf<
-      Enum<"Tagged", { A: { n: number }; B: { m: number } }, Tag<K>> & AnyEnum
-    >;
-    expectTypeOf<Tagged<"k" | "t">>().toEqualTypeOf<
-      Fault<"the tag's name must be one string literal">
-    >();
-    expectTypeOf<Tagged<string>>().toEqualTypeOf<
+    // @ts-expect-error the tag's name must be one string literal
+    type Tags = Enum<"Tags", Variants, Tag<"k" | "t">>;
+    // @ts-expect-error the tag's name must be one string literal
+    type Keys = Enum<"Keys", Variants, Tag<string>>;
+    expectTypeOf<NameOf<(Tags | Keys) & AnyEnum>>().toEqualTypeOf<
       Fault<"the tag's name must be one string literal">
     >();
   });
