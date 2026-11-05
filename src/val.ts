@@ -349,7 +349,14 @@ export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
  * `T extends Validate<T>` is the natural spelling. On a type alias that is TS2313 "circular
  * constraint", hence the conditional.
  */
-type Verdicted<T, Tr extends AnyTrait, Fit extends boolean> = [T] extends [Validate<T>]
+// `any` and `never` satisfy every constraint and every branch below, so they are read first.
+type Verdicted<T, Tr extends AnyTrait, Fit extends boolean> = 0 extends 1 & T
+  ? Invalid<"a payload cannot be `any` or `never`">
+  : [T] extends [never]
+    ? Invalid<"a payload cannot be `any` or `never`">
+    : Checks<T, Tr, Fit>;
+
+type Checks<T, Tr extends AnyTrait, Fit extends boolean> = [T] extends [Validate<T>]
   ? Fits<T, Tr> extends true
     ? Fit extends true
       ? Fitting<T, true>
@@ -379,6 +386,14 @@ type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
       ? Agrees<T, Tr>
       : `two traits declare a member named ${Code<Overlap<BrandsOf<Tr>> & string>}`
     : "declare several traits with `&`, not `|`";
+
+// As a constraint, so the type argument reports it. Read through `infer`, as a name's constraint is:
+// passing `Tr` itself to a conditional in its own constraint is circular (TS2313).
+type DeclarableTraits<Tr, T> = [Tr] extends [infer R extends AnyTrait]
+  ? Fits<T, R> extends true
+    ? unknown
+    : Invalid<Extract<Fits<T, R>, string>>
+  : unknown;
 
 /** Whether the payload holds what the traits' shape requires. */
 type Agrees<T, Tr extends AnyTrait> =
@@ -420,9 +435,16 @@ export type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never
 /**
  * The payload, or an empty object where the brand has nothing to attach to. `null & Phantom` is
  * `never`, and `never` satisfies every gate, so a payload the rules reject here would pass as a
- * value. The rule that rejected it is in the verdict either way.
+ * value. `any` would swallow the brand the same way. The rule that rejected it is in the verdict
+ * either way.
  */
-type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
+type Grounded<T> = 0 extends 1 & T
+  ? Record<never, never>
+  : [T] extends [never]
+    ? Record<never, never>
+    : [T] extends [{}]
+      ? T
+      : Record<never, never>;
 
 /**
  * A branded value type. A declared trait adds the fields it requires to the payload.
@@ -438,7 +460,7 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
 type Val<
   K extends OneLiteral<K, "a Val's brand must be one string literal">,
   T extends Allowed<T, "Val">,
-  Tr extends AnyTrait = never,
+  Tr extends AnyTrait & DeclarableTraits<Tr, T> = never,
 > = UncheckedVal<K, T, Tr>;
 
 /**
