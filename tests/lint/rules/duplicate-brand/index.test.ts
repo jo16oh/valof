@@ -42,7 +42,7 @@ test("ignores an alias that is not at the top level, which nothing can import", 
   expect(await lint("block-scoped")).toEqual([]);
 });
 
-test("ignores a generic brand, which names nothing to collide over", async () => {
+test("ignores a brand that is not a string literal, which the type check rejects", async () => {
   expect(await lint("generic")).toEqual([]);
 });
 

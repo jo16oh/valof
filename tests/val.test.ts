@@ -404,11 +404,12 @@ describe("Val", () => {
       expectTypeOf<Payload<User>>();
     });
 
-    test("a payload type parameter does not fit, but a brand type parameter does", () => {
+    test("a type parameter fits neither the payload nor the brand", () => {
       // @ts-expect-error the rules cannot check a type parameter
       type Page<T> = Val<"Page", { items: T[] }>;
       expectTypeOf<Page<string>>().toExtend<AnyVal>();
 
+      // @ts-expect-error a Val's brand must be one string literal
       type Named<K extends string> = Val<K, string>;
       expectTypeOf<Named<"Name">>().toExtend<AnyVal>();
     });
@@ -635,8 +636,14 @@ describe("Val", () => {
   describe("the brand", () => {
     test("is one string literal", () => {
       type Fault = Invalid<"a Val's brand must be one string literal">;
-      expectTypeOf<VerdictOf<Val<"Left" | "Right", { n: number }>>>().toEqualTypeOf<Fault>();
-      expectTypeOf<VerdictOf<Val<string, { n: number }>>>().toEqualTypeOf<Fault>();
+      // @ts-expect-error a Val's brand must be one string literal
+      type Either = Val<"Left" | "Right", { n: number }>;
+      // @ts-expect-error a Val's brand must be one string literal
+      type Any = Val<string, { n: number }>;
+      expectTypeOf<VerdictOf<Either | Any>>().toEqualTypeOf<Fault>();
+      // `any` satisfies every constraint, so the verdict alone reports it.
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<VerdictOf<Val<any, { n: number }>>>().toEqualTypeOf<Fault>();
     });
 
     test("different brands are not assignable", () => {
