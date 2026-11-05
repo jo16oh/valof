@@ -1221,14 +1221,17 @@ describe("a broken declaration", () => {
     type Either = Enum<"Left" | "Right", Variants>;
     // @ts-expect-error an enum's name must be one string literal
     type Any = Enum<string, Variants>;
-    expectTypeOf<NameOf<(Either | Any) & AnyEnum>>().toEqualTypeOf<
-      Fault<"an enum's name must be one string literal">
-    >();
     // @ts-expect-error the tag's name must be one string literal
     type Tags = Enum<"Tags", Variants, Tag<"k" | "t">>;
     // @ts-expect-error the tag's name must be one string literal
     type Keys = Enum<"Keys", Variants, Tag<string>>;
-    expectTypeOf<NameOf<(Tags | Keys) & AnyEnum>>().toEqualTypeOf<
+    expectTypeOf<Either | Any | Tags | Keys>().not.toBeNever();
+    // `any` and `never` satisfy every constraint, so the verdict alone reports them.
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    expectTypeOf<NameOf<Enum<any, Variants> & AnyEnum>>().toEqualTypeOf<
+      Fault<"an enum's name must be one string literal">
+    >();
+    expectTypeOf<NameOf<Enum<"Loose", Variants, Tag<never>> & AnyEnum>>().toEqualTypeOf<
       Fault<"the tag's name must be one string literal">
     >();
   });
