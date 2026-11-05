@@ -2733,7 +2733,11 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     通った。共有フィールドは `SharedIn` で潰れる前の第 3 引数（`X`）を見る
   - **`Enum.companion` は enum を 1 つだけ取る。**`Enum.companion<F | G>()` が通り、variant が生えなかった。enum は
     variant の union なので、union かどうかは名前で見る。制約 `OneEnum<E>` はキーが文言の mapped type（`Single` と同じ形）
-  - 名前が `string` の enum は拒まない。brand の `string` は hunt 4 で「対応しない」。文言は「cannot be a union」にして、`string` を約束しない
+  - **名前とタグ名は文字列リテラル 1 つ。**trait の名前と同じ `IsOneLiteral` で、`string`、template、`any`、`never` も
+    拒む。hunt 4 は brand の `string` を「対応しない」としていたが、Val、Enum、Trait で扱いを揃える（ユーザー、
+    2026-11-05）。`Tag<string>` は `.tag(key: string)` を求めるだけで通っていた
+    - 大文字で始まる名前（または `…/` + 大文字）に限る案は却下。型レベルで書けるが、`` `X${string}` ``、union、
+      `any`、`never` を通すのでリテラルの検査は残る。命名を揃えたいなら lint の領分（ユーザーと合意、2026-11-05）
   - **コスト。**enum 39,583 → 39,786、`index.d.ts` 95.55 → 96.09 kB。宣言の予算を 96 → 100 kB に上げた。増分の大半は文言
 
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
