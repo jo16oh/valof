@@ -2729,6 +2729,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     `X` と `D` の制約にする。brand の `Named` は `any` と `never` のために残す
     - variant が無い `Enum<"E", {}>` も「an enum needs at least two variants」で拒むようになった。以前は indexed
       access が `never` になるだけで、エラーは出なかった。`Tag<never>` も `X` の制約で拒まれる
+    - variant の payload と共有フィールドにも payload の規則を当てる（`Checked<Written<…>>`）。`Written` は trait が
+      足す field を除いた、宣言が書いた field。variant の field と共有フィールドの交差で値の無い field（`Unfit`）と、
+      trait との食い違い（Val の `Fits`）も `D` の制約で報告する。それまでは `Enum.companion` でだけ報告していた。
+      variant に型パラメーターを含む alias もこれで書けなくなる（方針どおり）。enum 41,290 → 44,111
   - **コスト。**enum 39,583 → 39,786、`index.d.ts` 95.55 → 96.09 kB。増分の大半は文言。宣言の予算は #127 で上げた
 
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
