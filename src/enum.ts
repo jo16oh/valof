@@ -46,7 +46,9 @@ import {
   type CompanionMembers,
   type Complete,
   type Checked,
+  type Code,
   type Fits,
+  type Unfit,
   type DeepReadonly,
   type Grown,
   type Invalid,
@@ -215,17 +217,24 @@ type DeclarableShared<X> = [X] extends [infer Y]
 
 type Faulted<F> = [F] extends [never] ? object : Invalid<F & string>;
 
-/** Where a variant's fields, with the shared ones, disagree with the traits the variant holds. */
+/**
+ * Where a variant's fields, with the shared ones, leave a field no value fits, or disagree with the
+ * traits the variant holds.
+ */
 type Disagreeing<D, X> = {
-  [N in VariantKeys<D>]: Fits<
+  [N in VariantKeys<D>]: Disagreement<
     FieldsIn<D[N]> & SharedIn<X>,
     Joined<TraitsIn<X>, TraitsIn<D[N]>>
-  > extends infer F
+  >;
+}[VariantKeys<D>];
+
+type Disagreement<T, Tr extends AnyTrait> = [Unfit<T>] extends [never]
+  ? Fits<T, Tr> extends infer F
     ? F extends string
       ? F
       : never
-    : never;
-}[VariantKeys<D>];
+    : never
+  : `no value fits ${Code<Unfit<T> & string>}`;
 
 /** The fields a declaration writes, without the ones its traits add. An `Impl` stays whole, so the rules reject it. */
 type Written<P> = [P] extends [AnyImpl] ? P : [P] extends [AnyTrait] ? Pick<P, keyof P> : P;
