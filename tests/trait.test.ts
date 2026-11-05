@@ -783,9 +783,11 @@ describe("nesting", () => {
     // @ts-expect-error a payload cannot be a box either
     type Boxed = Val<"Boxed", Dyn<Greetable>>;
     expectTypeOf<Whole | Mixed | Part | Boxed>().not.toBeNever();
+    // @ts-expect-error a payload cannot be an `Impl`
     type Shared = Enum<"Shared", { A: { n: number }; B: { m: number } }, Impl<Greetable>>;
     // @ts-expect-error a payload cannot be an Impl
     Enum.companion<Shared>().build();
+    // @ts-expect-error a payload cannot be an `Impl`
     type Variant = Enum<"Variant", { A: { n: number } & Impl<Greetable>; B: { m: number } }>;
     // @ts-expect-error a payload cannot be an Impl
     Enum.companion<Variant>().build();
@@ -821,6 +823,7 @@ describe("nesting", () => {
     expectTypeOf<Seat>().toEqualTypeOf<{
       owner: Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">;
     }>();
+    // @ts-expect-error a trait is only a declaration
     type Office = Enum<"Office", { Open: { owner: Greetable }; Shut: { at: number } }>;
     // @ts-expect-error a trait is only a declaration
     Enum.companion<Office>().build();
