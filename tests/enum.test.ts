@@ -72,6 +72,8 @@ describe("the declaration", () => {
     const Signal = Enum.companion<Signal>().build();
     expectTypeOf(Signal.Stop.create({})).toExtend<SeedFor<Signal, "Stop">>();
     expectTypeOf<string>().not.toExtend<SeedFor<Signal, "Stop">>();
+    expectTypeOf<Map<string, number>>().not.toExtend<SeedFor<Signal, "Stop">>();
+    expectTypeOf<{ readonly _tag: "Stop" }>().toExtend<SealedPayload<Signal>>();
     // Through a cast, the seal throws rather than spread the string into its characters.
     expect(() => Signal.Stop.seal("text" as never)).toThrow(/variant's payload/);
     expect(() => Signal.Stop.seal([1] as never)).toThrow(/variant's payload/);
