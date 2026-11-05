@@ -3866,7 +3866,7 @@ type OrderB = Val<"OrderB", { total: PayloadOf<Money> }>;
 
 塞がるのは**子への到達経路**である。リネームした import、re-export、`interface`、エイリアス 1 ホップ、交差、`Money | null`。どれも参照を宣言まで辿るので構文で追う必要が無い。
 
-塞がらないのは**エイリアスが Val だと認める側**。`type Branded<K, T> = Val<K, T>` を経由した `type Money = Branded<"Money", X>` は、収集が「`Val<…>` が直接書かれている」ことを名前で見ているため候補集合に入らず、子として認識されない。**duplicate-brand が持つ穴と同じもので、リンタ全体がこの前提に立っている。** 塞ぐなら `Val` 自身も go-to-definition で同定することになる。見逃し側なので急がない。
+塞がらないのは**エイリアスが Val だと認める側**。`type Branded<K, T> = Val<K, T>` を経由した `type Money = Branded<"Money", X>` は、収集が「`Val<…>` が直接書かれている」ことを名前で見ているため候補集合に入らず、子として認識されない。**duplicate-brand が持つ穴と同じもので、リンタ全体がこの前提に立っている。** 塞ぐなら `Val` 自身も go-to-definition で同定することになる。見逃し側なので急がない。2026-11-05: brand を型パラメーターにする helper は型エラーになり、この経路は無くなった（§9「trait の宣言の穴」）。
 
 #### N×M を恐れなくてよい理由
 
@@ -6293,7 +6293,52 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
       文言の「Val の第 3 引数」は trait には当たらない
     - コスト: trait 20,999 → 21,003、enum 35,752 → 35,785、`index.d.ts` 91.97 → 92.25 kB
   - `{ a: Impl<A> | null }` は拒まれたまま。`{ a: U | null }` も「not a plain value」で拒まれる、以前からの規則
-  - 以前からある穴（Val の payload に交差した trait、名前の union、メンバ集合の union）は別 PR。`__memo__/trait-holes.md`
+  - 以前からある穴（Val の payload に交差した trait、名前の union、メンバ集合の union）は下の「trait の宣言の穴」
+- **trait の宣言の穴、2026-11-04。**#125 の調査で見つかった、以前からある穴を塞いだ
+  - **名前は文字列リテラル 1 つ。**`Trait<"A" | "B", …>` は `Val` の第 3 引数にも `Impl` にも通り、
+    `Trait.companion` だけが `Lone` の的外れな文言（「take one trait」）で拒んでいた。`Trait<string, …>` は
+    `Trait.companion` も通った（`implTrait` では実装できない）。verdict を丸ごと「a trait's name must be one
+    string literal」にする。判定は `IsUnion<K>` と、`{}` が `Record<K, unknown>` に代入できるか（`string` と
+    template literal はインデックスシグネチャになり、`{}` が入る）。`never` も `any` も同じ判定で拒まれる。
+    `never` だけを見る検査はない（ユーザーの問い、2026-11-05）
+    - 値の型は `never` にする。`unknown` だと `{}` が見かけ上持つ `toString` などに当たり、`Trait<"toString", …>` が
+      拒まれた。空文字列 `""` の名前は許す（ユーザー、2026-11-05）
+    - 判定は `IsOneLiteral`（`src/val.ts`）にまとめ、Val の brand、enum の名前、タグ名も使う
+    - **宣言の行でも報告する。**名前の型パラメーターの制約を `OneLiteral<K, Msg>` にする。一つの文字列リテラルなら
+      `string`、それ以外なら `Msg` になるので、`Trait<"A" | "B", …>` の行に「does not satisfy the constraint
+      '"a trait's name must be one string literal"'」が出る。`K` をそのまま条件型に渡すと制約が循環する（TS2313）
+      ので、`[K] extends [infer X extends string]` で読む。`any` と `never` はどの制約も満たすので、verdict の検査は
+      残す
+      - 代償として、名前を型パラメーターにした `type Named<K extends string> = Val<K, string>` が書けなくなる。条件型が
+        遅延したままで、`K` が制約を満たすと示せないため。同じ shape で別の brand の Val は `Payload` で shape を
+        共有すれば足りる（ユーザー、2026-11-05）。lint の duplicate-brand が `type Branded<K, T> = Val<K, T>` 経由の
+        brand を見られない穴（§14.7「届かない範囲」）も、この helper が書けなくなって塞がる
+      - 宣言の検査はすべて宣言の行に移す（ユーザー、2026-11-05）。shape は `DeclarableShape`（`Impl`、trait、
+        payload の規則）、メンバは `Members & OneMembers<M, Shape>`（union、`Declarable`）を制約にする。メンバに型
+        パラメーターを含む alias（`Record<K, …>`）も書けなくなる
+      - **方針: 型パラメーターで宣言を共通化する書き方は、基本的にできないようにする**（ユーザー、2026-11-05）。
+        宣言の検査を制約に置くと、型パラメーターを含む alias は条件型が遅延して制約を満たせない。それを代償として
+        受け入れる。共通の shape は `Payload` で共有する。Val の trait（#127）と enum の名前・共有フィールド（#128）
+        も同じ扱い
+      - shape が `any` か `never` の trait は verdict だけが拒む。以前は `Impl` の文言で拒んでいたので、「a trait's
+        shape cannot be `any` or `never`; write its fields」を足した
+  - **メンバの集合は union にできない。**`{ f } | { g }` で `Declarable` が分配して通り、空の `implTrait` が
+    通って companion に `f` も `g` も生えなかった。verdict を「a trait's members must be one object type, not
+    a union」にする
+  - **payload に交差した trait は第 3 引数へ案内する。**`Val<"V", { a: string } & A>` は #125 で「a trait is only a
+    declaration; type a value implementing it with `Impl<Trait>`」で拒まれるようになったが、文言は field 向け
+    だった。enum の variant は payload に交差して trait を宣言するので、同じ書き方をする人が出る。`Validate` の
+    根では「a payload cannot declare a trait; pass it as Val's third type argument」にする。根より下は field の
+    文言のまま
+    - `Payload` の根では案内を付けず「a payload cannot declare a trait」だけにする（ユーザー、2026-11-05）。
+      `Validate` と `Allowed` が、payload を宣言する側（`"Val" | "Payload"`）を受け取る
+    - trait の shape が trait のときは verdict で「a trait's shape cannot be a trait; write its fields」。根の
+      文言の「Val の第 3 引数」は trait には当たらない（`Impl` の shape と同じ理由）
+  - **variant の trait の shape がタグ名を取れた。**`{ A: { x } & Trait<"M", { _tag: number }> }` が宣言を通り、
+    `create` が `_tag: number` を求めた。`Fault` が `keyof D[N]` を見ていて、trait の shape のキーは見えなかった。
+    `keyof FieldsIn<D[N]>` にする。enum の第 3 引数の trait は `SharedIn` 経由で以前から拒まれていた
+  - **コスト。**trait 21,003 → 21,125、enum 35,785 → 35,888、core 7,713 → 7,743、`index.d.ts` 92.23 → 92.93 kB
+    （TypeScript 5.9.3）。大半は文言
 - **名前は `Impl` のまま。**builder の `.impl()` と近いが、Rust も実装の `impl` と型の `impl Trait` に同じ
   キーワードを使う（ユーザー、2026-11-04）
 

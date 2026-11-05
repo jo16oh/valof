@@ -161,7 +161,7 @@ type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
       [N in VariantKeys<D>]: [D[N]] extends [object]
         ? [D[N]] extends [ReadonlyArray<unknown>]
           ? "a variant's payload must be a record of fields"
-          : Tg extends keyof D[N]
+          : Tg extends keyof FieldsIn<D[N]>
             ? "the tag cannot take the name of a field the payload holds"
             : // `dyn` picks the implementation by the companion it is passed, so the enum's
               // and the variant's would answer the same call differently.
