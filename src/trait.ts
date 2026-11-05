@@ -113,7 +113,7 @@ type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never
 type Trait<
   K extends OneLiteral<K, "a trait's name must be one string literal">,
   Shape,
-  M extends Members = Record<never, never>,
+  M extends OneMembers<M> = Record<never, never>,
 > = TraitDeclaration<{
   readonly brands: { readonly [P in K]: M };
   readonly shape: Shape;
@@ -135,6 +135,14 @@ type Trait<
 }>;
 
 export { Trait };
+
+// Read through `infer`, as `OneLiteral` is: passing `M` itself to a conditional in its own constraint
+// is circular (TS2313).
+type OneMembers<M> = [M] extends [infer X]
+  ? IsUnion<X> extends true
+    ? Invalid<"a trait's members must be one object type, not a union">
+    : Members
+  : Members;
 
 /**
  * A value implementing the trait: any Val declaring it, or a {@link Dyn}. Write several traits as
