@@ -2781,6 +2781,14 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     - 宣言の予算も 96 → 100 kB に上げた。#126 のレビューで文言と名前の検査が増え、この PR で 96.45 kB になった
       （2026-11-05、CI で発覚。初めは #128 で上げていた）
     - 却下: 分割の残りを専用の葉（`Rec` / Val / `Impl` / 配列 / object）で書く形。trait 23,766、宣言 +0.3 kB で重い
+  - **trait との突き合わせも宣言の行で報告する**（ユーザー、2026-11-05）。Val の第 3 引数の制約を
+    `AnyTrait & DeclarableTraits<Tr, T>` にし、`Fits`（trait の union、同名メンバ、payload と shape の食い違い）を
+    型引数に出す。payload を読むが、`Rec` で自分を参照する payload でも循環しなかった。verdict の `Fits` は残す
+  - **payload の `any` と `never` を拒む。**`Val<"V", any>` は型が丸ごと `any`、`Val<"V", never>` は `never` になり、
+    どの関門も通った。`Grounded` が `any` と `never` を空の object にして型を潰さず、verdict が「a payload cannot be
+    `any` or `never`」で拒む。どちらも制約は満たすので、宣言の行には出ない
+    - コスト: core 8,348 → 8,707、trait 23,998 → 24,284、`index.d.ts` 97.14 → 97.66 kB。一番上の branch で宣言は
+      99.95 kB になり、予算の残りは 51 B
 
 - [x] ~~**空の payload にプリミティブと配列が通る。**~~ → 塞いだ、2026-10-19。引数の型が `{}` で、
       `null` と `undefined` 以外のすべてが代入できた。`Val<"E", {}>` の `E("text")` が型を通り、Variant の
