@@ -155,7 +155,6 @@ export function valAliases(
     const first = unparenthesized(children(args, "params")[0]);
     if (!first || first.type !== "TSLiteralType") continue;
     const literal = child(first, "literal");
-    // A generic brand, `Val<K, T>` inside a helper, names nothing to collide over.
     if (!literal || typeof literal["value"] !== "string") continue;
     brands.push({
       ...at((id["start"] ?? node["start"]) as number),

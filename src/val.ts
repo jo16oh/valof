@@ -430,16 +430,16 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
  * A payload that breaks the allowed-type rules is a type error, reported at the type argument. One
  * that contradicts a declared trait is reported where the Val is used.
  *
- * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` inside a generic type
- * is a type error. A type parameter for the brand alone fits.
+ * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` and `Val<K, string>`
+ * inside a generic type are type errors. Share the fields with {@link Payload} instead.
  */
 // Every broken rule is recorded in the verdict, which stops the Val satisfying `AnyVal`. See
 // `Verdicted`.
-type Val<K extends string, T extends Allowed<T, "Val">, Tr extends AnyTrait = never> = UncheckedVal<
-  K,
-  T,
-  Tr
->;
+type Val<
+  K extends OneLiteral<K, "a Val's brand must be one string literal">,
+  T extends Allowed<T, "Val">,
+  Tr extends AnyTrait = never,
+> = UncheckedVal<K, T, Tr>;
 
 /**
  * {@link Val} with no constraint on the payload, for a Val the library builds from a generic
