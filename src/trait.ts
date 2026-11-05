@@ -121,15 +121,20 @@ type Trait<
     ? Invalid<"a trait's name must be one string literal">
     : IsUnion<M> extends false
       ? {
-          readonly [P in K]: [Shape] extends [AnyImpl]
-            ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
-            : [Shape] extends [AnyTrait]
-              ? Invalid<"a trait's shape cannot be a trait; write its fields">
-              : [Shape] extends [Checked<Shape>]
-                ? [M] extends [Declarable<Shape, M>]
-                  ? M
-                  : Declarable<Shape, M>
-                : Checked<Shape>;
+          // `any` and `never` extend every branch below, so they are read first.
+          readonly [P in K]: 0 extends 1 & Shape
+            ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
+            : [Shape] extends [never]
+              ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
+              : [Shape] extends [AnyImpl]
+                ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
+                : [Shape] extends [AnyTrait]
+                  ? Invalid<"a trait's shape cannot be a trait; write its fields">
+                  : [Shape] extends [Checked<Shape>]
+                    ? [M] extends [Declarable<Shape, M>]
+                      ? M
+                      : Declarable<Shape, M>
+                    : Checked<Shape>;
         }
       : Invalid<"a trait's members must be one object type, not a union">;
 }>;
