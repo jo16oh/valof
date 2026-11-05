@@ -343,10 +343,10 @@ describe("Trait", () => {
     });
 
     test("declares its members in one object type", () => {
-      // @ts-expect-error a trait's members must be one object type, not a union
       type Split = Trait<
         "Split",
         { n: number },
+        // @ts-expect-error a trait's members must be one object type, not a union
         { f: (self: Self) => number } | { g: (self: Self) => string }
       >;
       expectTypeOf<VerdictOf<Split>>().toEqualTypeOf<
@@ -450,6 +450,7 @@ describe("Trait", () => {
       type Named<K extends string> = Trait<
         "Named",
         { id: string },
+        // @ts-expect-error members holding a type parameter do not fit; each instance is still checked
         Record<K, (self: Self) => string>
       >;
       type Accepted<K> = K extends string ? (Named<K> extends AnyTrait ? K : never) : never;
