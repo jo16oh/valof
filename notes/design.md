@@ -3933,7 +3933,7 @@ type OrderB = Val<"OrderB", { total: PayloadOf<Money> }>;
 
 塞がるのは**子への到達経路**である。リネームした import、re-export、`interface`、エイリアス 1 ホップ、交差、`Money | null`。どれも参照を宣言まで辿るので構文で追う必要が無い。
 
-塞がらないのは**エイリアスが Val だと認める側**。`type Branded<K, T> = Val<K, T>` を経由した `type Money = Branded<"Money", X>` は、収集が「`Val<…>` が直接書かれている」ことを名前で見ているため候補集合に入らず、子として認識されない。**duplicate-brand が持つ穴と同じもので、リンタ全体がこの前提に立っている。** 塞ぐなら `Val` 自身も go-to-definition で同定することになる。見逃し側なので急がない。
+塞がらないのは**エイリアスが Val だと認める側**。`type Branded<K, T> = Val<K, T>` を経由した `type Money = Branded<"Money", X>` は、収集が「`Val<…>` が直接書かれている」ことを名前で見ているため候補集合に入らず、子として認識されない。**duplicate-brand が持つ穴と同じもので、リンタ全体がこの前提に立っている。** 塞ぐなら `Val` 自身も go-to-definition で同定することになる。見逃し側なので急がない。2026-11-05: brand を型パラメーターにする helper は型エラーになり、この経路は無くなった（§9「trait の宣言の穴」）。
 
 #### N×M を恐れなくてよい理由
 
@@ -6370,6 +6370,16 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
     `never` だけを見る検査はない（ユーザーの問い、2026-11-05）
     - 値の型は `never` にする。`unknown` だと `{}` が見かけ上持つ `toString` などに当たり、`Trait<"toString", …>` が
       拒まれた。空文字列 `""` の名前は許す（ユーザー、2026-11-05）
+    - 判定は `IsOneLiteral`（`src/val.ts`）にまとめ、Val の brand、enum の名前、タグ名も使う
+    - **宣言の行でも報告する。**名前の型パラメーターの制約を `OneLiteral<K, Msg>` にする。一つの文字列リテラルなら
+      `string`、それ以外なら `Msg` になるので、`Trait<"A" | "B", …>` の行に「does not satisfy the constraint
+      '"a trait's name must be one string literal"'」が出る。`K` をそのまま条件型に渡すと制約が循環する（TS2313）
+      ので、`[K] extends [infer X extends string]` で読む。`any` と `never` はどの制約も満たすので、verdict の検査は
+      残す
+      - 代償として、名前を型パラメーターにした `type Named<K extends string> = Val<K, string>` が書けなくなる。条件型が
+        遅延したままで、`K` が制約を満たすと示せないため。同じ shape で別の brand の Val は `Payload` で shape を
+        共有すれば足りる（ユーザー、2026-11-05）。lint の duplicate-brand が `type Branded<K, T> = Val<K, T>` 経由の
+        brand を見られない穴（§14.7「届かない範囲」）も、この helper が書けなくなって塞がる
   - **メンバの集合は union にできない。**`{ f } | { g }` で `Declarable` が分配して通り、空の `implTrait` が
     通って companion に `f` も `g` も生えなかった。verdict を「a trait's members must be one object type, not
     a union」にする
