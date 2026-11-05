@@ -633,9 +633,10 @@ describe("Val", () => {
   });
 
   describe("the brand", () => {
-    test("cannot be a union", () => {
-      type Either = Val<"Left" | "Right", { n: number }>;
-      expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<Invalid<"a Val's brand cannot be a union">>();
+    test("is one string literal", () => {
+      type Fault = Invalid<"a Val's brand must be one string literal">;
+      expectTypeOf<VerdictOf<Val<"Left" | "Right", { n: number }>>>().toEqualTypeOf<Fault>();
+      expectTypeOf<VerdictOf<Val<string, { n: number }>>>().toEqualTypeOf<Fault>();
     });
 
     test("different brands are not assignable", () => {
