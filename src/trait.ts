@@ -18,6 +18,7 @@ import {
   type DeepReadonly,
   type Grown,
   type Invalid,
+  type IsOneLiteral,
   type IsUnion,
   type Reserved,
   type UnionToIntersection,
@@ -111,11 +112,7 @@ type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never
 type Trait<K extends string, Shape, M extends Members = Record<never, never>> = TraitDeclaration<{
   readonly brands: { readonly [P in K]: M };
   readonly shape: Shape;
-  // `{}` fits a record keyed by `string` or a template, and none keyed by a literal. The values are
-  // `never` because `{}` has the methods every object has, as `toString`.
-  readonly verdict: true extends
-    | IsUnion<K>
-    | (Record<never, never> extends Record<K, never> ? true : never)
+  readonly verdict: IsOneLiteral<K> extends false
     ? Invalid<"a trait's name must be one string literal">
     : IsUnion<M> extends false
       ? {
