@@ -2709,8 +2709,9 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 ## 9. 未解決 / 要確認
 
 - [x] ~~**Val の宣言と companion の union（#125 の調査）。**~~ → 塞いだ、2026-11-05。`and-or-holes.md` の 1、3、6
-  - **brand は union にできない。**`Val<"A" | "B", P>` の値は `Val<"A", P>` に代入できない。`UncheckedVal` の verdict が
-    「a Val's brand cannot be a union」になる。`string` は拒まない（hunt 4）
+  - **brand は文字列リテラル 1 つ。**`Val<"A" | "B", P>` の値は `Val<"A", P>` に代入できない。`UncheckedVal` の verdict が
+    「a Val's brand must be one string literal」になる。`string` も enum と同じく拒む（ユーザー、2026-11-05）。
+    Val の宣言ごとに検査が走り、core が約 130 増えた
   - **`Val.companion` と `Val.of` は Val を 1 つだけ取る。**`Val.of<U | W>({})` と `Val.companion<U | W>().build().seal({})`
     が通り、seed が `EmptySeed` に潰れていた。union かどうかは brand で見る。boolean の payload の Val は brand が 1 つの
     値の union なので、値で見ると巻き添えになる。制約 `OneVal` はキーが文言の mapped type（「a companion builds one Val」
