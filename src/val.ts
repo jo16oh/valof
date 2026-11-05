@@ -205,7 +205,7 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
 
 /** A required key typed `never`. An optional one is always absent, an index signature always empty. */
-type Unfit<T> = Exclude<
+export type Unfit<T> = Exclude<
   { [K in keyof T]: string extends K ? never : [T[K]] extends [never] ? K : never }[keyof T],
   undefined
 >;
@@ -422,7 +422,7 @@ type Disagreement<T, S, R = DeepReadonly<Checked<T>>> = {
 }[keyof S & string];
 
 // Spelled without an escaped backtick, which the declaration bundler drops the whole file over.
-type Code<S extends string> = `${"`"}${S}${"`"}`;
+export type Code<S extends string> = `${"`"}${S}${"`"}`;
 
 // Distributes over the union to collect one parameter position per member, which infers as their
 // intersection. A single trait is its own intersection, and so is `never`.
