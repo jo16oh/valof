@@ -155,13 +155,23 @@ type Single<N, All = N> = N extends unknown ? ([All] extends [N] ? true : false)
  * One variant is rejected for the declaration emit, not for the shape: an indexed access over a
  * single key returns the variant itself, and the alias is lost with the union. A consumer's `.d.ts`
  * then expands onto the private phantoms and fails with TS4094. One variant is a Val anyway, so the
- * `Invalid` message says that rather than naming the emit. No variant at all needs no message: the
- * indexed access is `never`, and there is no value to build.
+ * `Invalid` message says that rather than naming the emit. No variant at all gets the same message
+ * at the declaration. The indexed access is `never`, so there is no brand to carry it.
  */
 type Fault<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> =
   | (IsOneLiteral<K> extends false ? "an enum's name must be one string literal" : never)
+  | SharedFault<X, S, Tr, Tg>
+  | VariantFault<D, Tr, Tg>;
+
+/** The faults the third type argument alone carries. */
+type SharedFault<X, S, Tr extends AnyTrait, Tg extends string> =
   | (IsUnion<X> extends true ? "the shared fields cannot be a union" : never)
   | (IsOneLiteral<Tg> extends false ? "the tag's name must be one string literal" : never)
+  | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never)
+  | ("match" extends MemberNames<Tr> ? "a trait member cannot take the name `match`" : never);
+
+/** The faults of the variants, read against what the third type argument declares. */
+type VariantFault<D, Tr extends AnyTrait, Tg extends string> =
   | (Single<VariantKeys<D>> extends true
       ? "an enum needs at least two variants; one is a Val"
       : never)
@@ -180,12 +190,25 @@ type Fault<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> =
                 : "a variant cannot declare a trait the enum declares"
           : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
-  | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never)
   // The companion reads a member first, so the type would show the library's and run the member.
   | ([MemberNames<Tr> & VariantKeys<D>] extends [never]
       ? never
-      : "a trait member cannot take a variant's name")
-  | ("match" extends MemberNames<Tr> ? "a trait member cannot take the name `match`" : never);
+      : "a trait member cannot take a variant's name");
+
+// The faults as constraints, so the type argument reports them. The brand repeats them for `any`
+// and `never`, which satisfy every constraint. Each reads its argument through `infer`, as
+// `OneLiteral` does: passing it to a conditional in its own constraint is circular (TS2313).
+type DeclarableVariants<D, X> = [D] extends [infer V]
+  ? [X] extends [infer Y]
+    ? Faulted<VariantFault<V, TraitsIn<Y>, TagIn<Y>>>
+    : object
+  : object;
+
+type DeclarableShared<X> = [X] extends [infer Y]
+  ? Faulted<SharedFault<Y, SharedIn<Y>, TraitsIn<Y>, TagIn<Y>>>
+  : object;
+
+type Faulted<F> = [F] extends [never] ? object : Invalid<F & string>;
 
 /** Every trait's member names. `keyof` over their union would keep only the shared ones. */
 type MemberNames<Tr extends AnyTrait> =
@@ -220,8 +243,8 @@ type Named<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> = 
  */
 type Enum<
   K extends OneLiteral<K, "an enum's name must be one string literal">,
-  D extends object,
-  X extends object = Record<never, never>,
+  D extends object & DeclarableVariants<D, X>,
+  X extends object & DeclarableShared<X> = Record<never, never>,
 > = {
   [N in VariantKeys<D>]: UncheckedVal<
     `${K}.${N}`,
