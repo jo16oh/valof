@@ -212,7 +212,8 @@ type Enum<K extends string, D extends object, X extends object = Record<never, n
   [N in VariantKeys<D>]: UncheckedVal<
     `${K}.${N}`,
     FieldsIn<D[N]> & SharedIn<X> & { [P in TagIn<X>]: N },
-    Joined<TraitsIn<X>, TraitsIn<D[N]>>
+    Joined<TraitsIn<X>, TraitsIn<D[N]>>,
+    true
   > &
     EnumPhantom<
       Named<K, D, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
@@ -266,7 +267,8 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
 export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = UncheckedVal<
   `${NameOf<E>}.${N & string}`,
   VariantsOf<E>[N] & SharedOf<E> & { [P in TagOf<E>]: N & string },
-  Joined<DeclaredTraits<E>, OwnTraits<E, N>>
+  Joined<DeclaredTraits<E>, OwnTraits<E, N>>,
+  true
 > &
   EnumPhantom<
     NameOf<E>,
@@ -290,9 +292,11 @@ export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepRead
 >;
 
 /** One variant's payload with its tag. */
-type Tagged<E extends AnyEnum, N extends keyof VariantsOf<E>> = SeedFor<E, N> & {
-  readonly [P in TagOf<E>]: N & string;
-};
+// The tag goes in before the payload is read, so a variant with no fields is not an empty object.
+type Tagged<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
+  VariantsOf<E>[N] & SharedOf<E> & { readonly [P in TagOf<E>]: N & string },
+  true
+>;
 
 /**
  * A tagged payload of any one variant, which `seal` on the enum reads the variant from.

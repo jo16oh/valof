@@ -2708,6 +2708,55 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 
 ## 9. 未解決 / 要確認
 
+- [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
+      `and-or-holes.md` の 7
+  - **field は `null` かプリミティブを、他の 1 種類と並べて持てる。**`string[] | null`、`Rec<Node> | null`（連結リスト）、
+    `User | null`、`Impl<A> | null`、`string | string[]`。今までは「not a plain value」で落ちていた（`string[] | number[]`
+    は配列の分岐で通っていた）。`Validate` の最後の分岐（object でも配列でもない）でプリミティブを分け、残りを
+    `Validate` に渡す。object の union は今までどおり拒む。根では分けない（`string | {…}` の Val に `patch` が生える）
+    - **`patch` はそういう field を丸ごと置き換える。**`PatchValue` が `[T] extends [object]` でなければ `T`。`{ x; y } | null`
+      の field に `{ x: 1 }` を merge すると、`null` の上では `y` の無い値ができた。optional キーを丸ごと取るのと同じ理由
+    - **`DeepReadonly` と `Opened` も分ける。**分けないと `Rec` が開かず、配列が readonly にならなかった。`string | string[]`
+      は数値キーを持つので配列の分岐にも入る。`DeepReadonly` は残りを分けずに 1 回だけ処理する（`Mixed`）。もう一度
+      分けると、型パラメーター越しの比較で再帰が止まらない（TS2321。`vp check` は通り、ts-compatibility の宣言の往復で出た）
+  - **明示的な string のインデックスシグネチャを通す。**`{ [k: string]: number }` の `keyof` は `string | number` で、
+    「keys must be strings」で落ちていた。`Record<string, number>` は `string` だけ
+  - **どの値も合わない field を拒む。**必須のキーが `never`（`{ a: string } & { a: number }`、2 つの Val の交差
+    `{ a: U & W }`、Enum の共有フィールドと variant の衝突）。「no value fits \`a\`」。optional の `never` と
+    `Record<string, never>` は通す（いつも無い、いつも空）
+    - **`ValidateFields` では書けない。**`never` は field を何に写しても満たす。object の単位で `Unfit` を見る
+    - **根では `Allowed`（型定義の行）と variant の verdict だけが見る。**`Validate` の根で見ると、`Payload` は `Validate`
+      に解決するので、`Rec` で自分を参照する `Payload` が TS2456 になった。Enum の `Fault` も型引数だけを読む位置で、
+      再帰する Enum が循環した。variant は `UncheckedVal` の第 4 引数 `Fit` で verdict に入れる
+    - trait の shape の `never` は拒まない。shape 同士の衝突は以前から `Disagreement` が拒む
+  - **2 つの trait が同じ名前のメンバを宣言したら Val の宣言で拒む。**「two traits declare a member named \`x\`」。
+    今までは 2 つ目の `implTrait` が「another member already answers」で拒み、宣言は通った。同じ名前は 1 つの Val に
+    1 度しか登録できない（`TraitHost`）ので、どちらの型でも実装できない
+  - **空の object の field はクラスのインスタンスを拒む。**`{ meta: {}; any: object }` の seed で、根より下の空の object を
+    `{ readonly [key: string]: never }` にする。クラスのインスタンスは暗黙のインデックスシグネチャを持たないので、
+    フィールドの無いクラスも落ちる。production は渡されたものを保存していた。`DeepReadonly` の `Arg` に `"field"` を足す
+    - **根もインデックスシグネチャにする**（2026-11-06）。初めは `EmptySeed` のままにしていた。根でインデックス
+      シグネチャにすると既存の値とタグ付きの payload を拒む（上の 2026-10-19 の項）ため。根を `EmptyField | AnyVal`
+      にすると既存の値は通る。タグ付きの payload は `Tagged` がタグを足してから seed の型を作ると、空の object に
+      ならない。`EmptySeed` は消した。enum 40,190 → 40,781
+  - **コスト（TypeScript 5.9.3）。**core 7,713 → 8,318、trait 21,101 → 23,635、enum 35,874 → 39,583、`index.d.ts`
+    92.69 → 95.55 kB。trait の予算を 22,000 → 25,000 に上げた。大きいのは `DeepReadonly` の分割（trait 約 +1,400）と
+    `Unfit`（約 +350）
+    - 宣言の予算も 96 → 104 kB に上げた。#126 のレビューで文言と名前の検査が増え、この PR で 96.45 kB になった
+      （2026-11-05、CI で発覚。初めは #128 で上げていた）。宣言の検査を宣言の行に移すと、一番上の branch で
+      99.95 kB になり、100 kB から 104 kB に上げた。stack 全体の増分 7.9 kB は型のコード 4.2、JSDoc 2.0、文言
+      1.7 kB。文言を literal の alias で共有すると約 0.4 kB 減るが、alias の名前の分だけ読む量が増えるので見送った
+      （ユーザー、2026-11-05）
+    - 却下: 分割の残りを専用の葉（`Rec` / Val / `Impl` / 配列 / object）で書く形。trait 23,766、宣言 +0.3 kB で重い
+  - **trait との突き合わせも宣言の行で報告する**（ユーザー、2026-11-05）。Val の第 3 引数の制約を
+    `AnyTrait & DeclarableTraits<Tr, T>` にし、`Fits`（trait の union、同名メンバ、payload と shape の食い違い）を
+    型引数に出す。payload を読むが、`Rec` で自分を参照する payload でも循環しなかった。verdict の `Fits` は残す
+  - **payload の `any` と `never` を拒む。**`Val<"V", any>` は型が丸ごと `any`、`Val<"V", never>` は `never` になり、
+    どの関門も通った。`Grounded` が `any` と `never` を空の object にして型を潰さず、verdict が「a payload cannot be
+    `any` or `never`」で拒む。どちらも制約は満たすので、宣言の行には出ない
+    - コスト: core 8,348 → 8,707、trait 23,998 → 24,284、`index.d.ts` 97.14 → 97.66 kB。一番上の branch で宣言は
+      99.95 kB になり、予算の残りは 51 B
+
 - [x] ~~**空の payload にプリミティブと配列が通る。**~~ → 塞いだ、2026-10-19。引数の型が `{}` で、
       `null` と `undefined` 以外のすべてが代入できた。`Val<"E", {}>` の `E("text")` が型を通り、Variant の
       `E.A("text")` は `{ 0: "t", …, _tag: "A" }` を作った

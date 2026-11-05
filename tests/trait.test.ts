@@ -765,6 +765,14 @@ describe("nesting", () => {
     expectTypeOf<Boxed>().not.toBeNever();
   });
 
+  test("a field holds a Val implementing a trait, or null", () => {
+    type Desk = Val<"Desk", { owner: Impl<Greetable> | null }>;
+    const Desk = Val.companion<Desk>().build();
+    Desk.seal({ owner: null });
+    // @ts-expect-error a payload cannot hold a box
+    Desk.seal({ owner: Greetable.dyn(User, user) });
+  });
+
   test("nor can a payload be an Impl", () => {
     // @ts-expect-error a payload cannot be an Impl
     type Whole = Val<"Whole", Impl<Greetable>>;

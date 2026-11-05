@@ -14,6 +14,7 @@ import { equals, Trait, Val, type Final, type Impl, type Self } from "../src/ind
 import { Traits } from "../src/keys.ts";
 // `BrandOf` is not published from the entry point.
 import type {
+  Allowed,
   BrandOf,
   CallBuildFirst,
   CompanionMembers,
@@ -278,6 +279,10 @@ describe("Val", () => {
       expectTypeOf<string>().not.toExtend<SeedOf<Marker>>();
       expectTypeOf<number[]>().not.toExtend<SeedOf<Marker>>();
       expectTypeOf<Promise<void>>().not.toExtend<SeedOf<Marker>>();
+      // A class instance has no implicit index signature, even one with no fields.
+      class Empty {}
+      expectTypeOf<Map<string, number>>().not.toExtend<SeedOf<Marker>>();
+      expectTypeOf<Empty>().not.toExtend<SeedOf<Marker>>();
     });
 
     test("so does an empty object nested in a payload", () => {
@@ -288,11 +293,71 @@ describe("Val", () => {
       expectTypeOf<[string, number]>().not.toExtend<SeedOf<Pair>>();
     });
 
+    // Production stores what it is given, so a nested instance would keep its class.
+    test("an empty object nested in a payload rejects a class instance", () => {
+      class Point {
+        x = 1;
+      }
+      class Blank {}
+      type Meta = Val<"Meta", { meta: {}; any: object; list: object[] }>;
+      const Meta = Val.companion<Meta>().build();
+      const m = Meta.seal({ meta: {}, any: {}, list: [{}] });
+      expectTypeOf({ meta: m.meta, any: m.any, list: m.list }).toExtend<SeedOf<Meta>>();
+      expectTypeOf<{ meta: Point; any: {}; list: [] }>().not.toExtend<SeedOf<Meta>>();
+      expectTypeOf<{ meta: {}; any: Blank; list: [] }>().not.toExtend<SeedOf<Meta>>();
+      expectTypeOf<{ meta: {}; any: {}; list: Map<string, number>[] }>().not.toExtend<
+        SeedOf<Meta>
+      >();
+    });
+
     test("Vals, arrays, records and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
       expectTypeOf<Val<"C", string[]>>().toExtend<AnyVal>();
       expectTypeOf<Val<"D", Record<string, true>>>().toExtend<AnyVal>();
       expectTypeOf<Val<"E", { at: Val<"A", string>; n: number | null }>>().toExtend<AnyVal>();
+    });
+
+    test("a field may hold null or a primitive beside an array, a tuple, a record or a Val", () => {
+      type Node = Val<"Node", { value: number; next: Rec<Node> | null }>;
+      const Node = Val.companion<Node>().build();
+      const list = Node.seal({ value: 1, next: Node.seal({ value: 2, next: null }) });
+      expectTypeOf(list.next).toEqualTypeOf<Node | null>();
+      expectTypeOf(Val.unwrap(list).next).toEqualTypeOf<PayloadOf<Node> | null>();
+
+      type Loose = Val<
+        "Loose",
+        {
+          tags: string[] | null;
+          at: [number, number] | null;
+          rows: Record<string, number> | null;
+          names: string | string[];
+        }
+      >;
+      expectTypeOf<SeedOf<Loose>>().toEqualTypeOf<{
+        readonly tags: readonly string[] | null;
+        readonly at: readonly [number, number] | null;
+        readonly rows: { readonly [x: string]: number } | null;
+        readonly names: string | readonly string[];
+      }>();
+    });
+
+    test("a mixed field is rejected at the root, beside a symbol, or in an object union", () => {
+      // @ts-expect-error not a plain value
+      type Root = Val<"Root", string | string[]>;
+      // @ts-expect-error not a plain value
+      type Symbolic = Val<"Symbolic", { s: symbol | string[] }>;
+      // @ts-expect-error an object payload cannot be a union
+      type Either = Val<"Either", { s: { a: number } | { b: number } | null }>;
+      expectTypeOf<VerdictOf<Root>>().toEqualTypeOf<Invalid<"not a plain value">>();
+      expectTypeOf<VerdictOf<Symbolic>>().toEqualTypeOf<{ s: Invalid<"not a plain value"> }>();
+      expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<{
+        s: null | Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+      }>();
+    });
+
+    test("an explicit string index signature is a record", () => {
+      type Nested = Val<"Nested", { rows: { [key: string]: number } }>;
+      expectTypeOf<Nested>().toExtend<AnyVal>();
     });
 
     test("a tuple keeps its positions, its length and its labels", () => {
@@ -350,6 +415,14 @@ describe("Val", () => {
 
       type Named<K extends string> = Val<K, string>;
       expectTypeOf<Named<"Name">>().toExtend<AnyVal>();
+    });
+
+    // `any` and `never` satisfy every constraint, so the verdict alone reports them.
+    test("cannot be `any` or `never`", () => {
+      type Fault = Invalid<"a payload cannot be `any` or `never`">;
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<VerdictOf<Val<"Loose", any>>>().toEqualTypeOf<Fault>();
+      expectTypeOf<VerdictOf<Val<"Nothing", never>>>().toEqualTypeOf<Fault>();
     });
 
     test("the rule that rejected a payload is carried in the verdict", () => {
@@ -447,6 +520,30 @@ describe("Val", () => {
       // @ts-expect-error an object payload cannot be a union
       type InTuple = Val<"InTuple", [State, number]>;
       expectTypeOf<InTuple>().not.toExtend<AnyVal>();
+    });
+
+    test("a field no value fits is rejected", () => {
+      type U = Val<"U", { u: number }>;
+      type W = Val<"W", { w: number }>;
+      // @ts-expect-error no value fits `a`
+      type Never = Val<"Never", { a: never }>;
+      // @ts-expect-error no value fits `a`
+      type Clash = Val<"Clash", { a: string } & { a: number }>;
+      // @ts-expect-error no value fits `a`
+      type Both = Val<"Both", { a: U & W }>;
+      // @ts-expect-error no value fits `b`
+      type Deep = Val<"Deep", { m: { b: never } }>;
+      // Reported at the type argument alone, so the constraint is read rather than the verdict.
+      type Message<T> = Allowed<T, "Val">;
+      expectTypeOf<Message<{ a: never } | { a: string & number }>>().toEqualTypeOf<
+        Invalid<"no value fits `a`">
+      >();
+      expectTypeOf<Never | Clash | Both>().not.toBeNever();
+      expectTypeOf<VerdictOf<Deep>>().toEqualTypeOf<{ m: Invalid<"no value fits `b`"> }>();
+
+      // An optional key typed `never` is only ever absent, and an empty record never has an entry.
+      type Absent = Val<"Absent", { a?: never; rows: Record<string, never> }>;
+      expectTypeOf<Absent>().toExtend<AnyVal>();
     });
 
     test("a field named like the rejection marker is plain data", () => {
@@ -716,6 +813,7 @@ describe("Val", () => {
         readonly value: number;
       }>();
 
+      // @ts-expect-error the payload and the trait declare `value` with conflicting types
       type Clashing = Val<"app/Clashing", { value: string; next?: Rec<Clashing> }, Sized>;
       expectTypeOf<Clashing>().not.toExtend<AnyVal>();
     });
@@ -1207,6 +1305,21 @@ describe("patch", () => {
         tags: ["a"],
         staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
       });
+
+    // Where the field is null there is nothing to merge into.
+    test("patch replaces a field that may be null or a primitive whole", () => {
+      type Pin = Val<
+        "Pin",
+        { at: { x: number; y: number } | null; label: string | { text: string } }
+      >;
+      const Pin = Val.companion<Pin>().build();
+      const pin = Pin.seal({ at: null, label: "a" });
+      expect(Pin.patch(pin, { at: { x: 1, y: 2 } })).toEqual({ at: { x: 1, y: 2 }, label: "a" });
+      // @ts-expect-error a merge into null would omit `y`
+      Pin.patch(pin, { at: { x: 1 } });
+      // @ts-expect-error a merge into a string would leave `text` out
+      Pin.patch(pin, { label: {} });
+    });
 
     test("patches a nested object at any depth, leaving its other keys alone", () => {
       expect(Shop.patch(shop(), { owner: { contact: { email: "c@example.com" } } })).toEqual({
@@ -2671,6 +2784,7 @@ describe("building", () => {
     test("the payload may narrow a field the trait requires, but not contradict it", () => {
       expectTypeOf<Val<"Root", { name: "root" }, Greetable>>().toExtend<AnyVal>();
 
+      // @ts-expect-error the payload and the trait declare `name` with conflicting types
       type Bad = Val<"Bad", { name: number }, Greetable>;
       expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<
         Invalid<"the payload and the trait declare `name` with conflicting types">
@@ -2679,14 +2793,18 @@ describe("building", () => {
 
     test("a payload that is not a record cannot hold the fields", () => {
       type Rejected = Invalid<"the payload does not hold what the trait requires">;
-      expectTypeOf<VerdictOf<Val<"Bad", string, Greetable>>>().toEqualTypeOf<Rejected>();
-      expectTypeOf<VerdictOf<Val<"Bad", string[], Greetable>>>().toEqualTypeOf<Rejected>();
+      // @ts-expect-error the payload does not hold what the trait requires
+      type Str = Val<"Str", string, Greetable>;
+      // @ts-expect-error the payload does not hold what the trait requires
+      type Strs = Val<"Strs", string[], Greetable>;
+      expectTypeOf<VerdictOf<Str | Strs>>().toEqualTypeOf<Rejected>();
     });
 
     // Left to `implTrait`, the mistake answered "the type does not declare this trait" about a
     // trait the declaration names, and a payload holding neither shape had passed on the way.
     test("several traits are one intersection, and a union is rejected", () => {
       type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+      // @ts-expect-error declare several traits with `&`, not `|`
       type Either = Val<"Either", { id: string }, Greetable | Weighed>;
       expectTypeOf<Either>().not.toExtend<AnyVal>();
       // @ts-expect-error declare several traits with `&`, not `|`
@@ -2840,15 +2958,12 @@ describe("building", () => {
           { name: string },
           { toWire: (self: Self, sep: string) => number }
         >;
-        const Other = Trait.companion<Other>()
-          .impl(() => ({}))
-          .build();
+        // The declaration is rejected, since no companion could implement both.
+        // @ts-expect-error two traits declare a member named `toWire`
         type Twice = Val<"Twice", { id: string; name: string }, Greetable & Other>;
-        Val.companion<Twice>()
-          .implTrait(Greetable, () => ({ toWire: (t, sep) => `${t.id}${sep}` }))
-          // @ts-expect-error another member already answers to one of these names
-          .implTrait(Other, () => ({ toWire: (t, sep) => t.id.length + sep.length }))
-          .build();
+        expectTypeOf<VerdictOf<Twice>>().toEqualTypeOf<
+          Invalid<"two traits declare a member named `toWire`">
+        >();
       });
 
       test("nor may a member take a name another trait requires as a field", () => {
@@ -2874,15 +2989,11 @@ describe("building", () => {
 
       test("nor to the same final", () => {
         type Yelling = Trait<"Yelling", { name: string }, { shout: Final<(self: Self) => string> }>;
-        const Yelling = Trait.companion<Yelling>()
-          .impl(() => ({ shout: (y) => y.name }))
-          .build();
+        // @ts-expect-error two traits declare a member named `shout`
         type Crier = Val<"Crier", { id: string; name: string }, Greetable & Yelling>;
-        Val.companion<Crier>()
-          .implTrait(Greetable, () => ({ toWire: (c, sep) => `${c.id}${sep}` }))
-          // @ts-expect-error another member already answers to one of these names
-          .implTrait(Yelling)
-          .build();
+        expectTypeOf<VerdictOf<Crier>>().toEqualTypeOf<
+          Invalid<"two traits declare a member named `shout`">
+        >();
       });
 
       test("but they may require the same field", () => {
@@ -2901,6 +3012,7 @@ describe("building", () => {
 
       test("unless no payload satisfies both", () => {
         type Sized = Trait<"Sized", { name: number }, { half: (self: Self) => number }>;
+        // @ts-expect-error no value fits every declaration of `name`
         type Both = Val<"Both", { id: string }, Greetable & Sized>;
         expectTypeOf<VerdictOf<Both>>().toEqualTypeOf<
           Invalid<"no value fits every declaration of `name`">

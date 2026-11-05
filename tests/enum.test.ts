@@ -22,7 +22,10 @@ import {
   Tag,
   type VariantOf,
 } from "../src/index.ts";
-import type { CallBuildFirst, Invalid } from "../src/val.ts";
+import type { CallBuildFirst, Invalid, Verdict } from "../src/val.ts";
+
+// The verdict is a private field, so it is read through the class rather than by a key.
+type VerdictOf<V> = V extends Verdict<infer X> ? X : never;
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 const Shape = Enum.companion<Shape>()
@@ -69,6 +72,8 @@ describe("the declaration", () => {
     const Signal = Enum.companion<Signal>().build();
     expectTypeOf(Signal.Stop.create({})).toExtend<SeedFor<Signal, "Stop">>();
     expectTypeOf<string>().not.toExtend<SeedFor<Signal, "Stop">>();
+    expectTypeOf<Map<string, number>>().not.toExtend<SeedFor<Signal, "Stop">>();
+    expectTypeOf<{ readonly _tag: "Stop" }>().toExtend<SealedPayload<Signal>>();
     // Through a cast, the seal throws rather than spread the string into its characters.
     expect(() => Signal.Stop.seal("text" as never)).toThrow(/variant's payload/);
     expect(() => Signal.Stop.seal([1] as never)).toThrow(/variant's payload/);
@@ -909,8 +914,11 @@ describe("traits", () => {
         { A: { n: number }; B: { s: string } },
         { id: string } & Sized & Wide
       >;
-      // @ts-expect-error another member already answers to one of these names
-      Enum.companion<Both>().implTrait(Sized).implTrait(Wide).build();
+      // The declaration is rejected, since no companion could implement both.
+      expectTypeOf<VerdictOf<Both>>().toEqualTypeOf<
+        Invalid<"two traits declare a member named `size`">
+      >();
+      expect([Sized, Wide]).toHaveLength(2);
     });
 
     describe("one a trait the enum declares answers to", () => {
@@ -1169,6 +1177,16 @@ describe("a broken declaration", () => {
     // @ts-expect-error same, for an array
     Enum.companion<Listed>().build();
     expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<Fault & string>();
+  });
+
+  test("a variant field that contradicts a shared one is rejected", () => {
+    type Keyed = Enum<"Keyed", { One: { id: number }; Two: { n: number } }, { id: string }>;
+    expectTypeOf<VerdictOf<VariantOf<Keyed & AnyEnum, "One">>>().toEqualTypeOf<
+      Invalid<"no value fits `id`">
+    >();
+    // `VariantOf` rebuilds the variant, so the declaration is read at the companion too.
+    // @ts-expect-error no value fits `id`
+    Enum.companion<Keyed>().build();
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {
