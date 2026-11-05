@@ -11,7 +11,7 @@ import {
   type Self,
 } from "../src/index.ts";
 // `Wired` is not published from the entry point.
-import type { CallBuildFirst, Invalid, Wired } from "../src/val.ts";
+import type { CallBuildFirst, Invalid, Verdict, Wired } from "../src/val.ts";
 import type { VerdictOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
@@ -736,11 +736,15 @@ describe("nesting", () => {
     expectTypeOf<Shaped>().not.toExtend<AnyTrait>();
   });
 
-  test("a payload cannot declare a trait, only the third type argument can", () => {
-    type Fault = Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">;
+  test("a payload cannot declare a trait, and a Val points to its third type argument", () => {
     // @ts-expect-error a payload cannot declare a trait
     type Part = Payload<{ id: string; name: string } & Greetable>;
-    expectTypeOf<Part>().toEqualTypeOf<Fault>();
+    expectTypeOf<Part>().toEqualTypeOf<Invalid<"a payload cannot declare a trait">>();
+    // @ts-expect-error a payload cannot declare a trait
+    type Card = Val<"Card", { id: string; name: string } & Greetable>;
+    expectTypeOf<Card extends Verdict<infer X> ? X : never>().toEqualTypeOf<
+      Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+    >();
   });
 
   test("a field cannot be typed with the trait itself", () => {
