@@ -275,7 +275,7 @@ type Declarable<Shape, M extends Members> = {
         ? Invalid<"a trait member cannot take a name the library reserves">
         : M[K] extends (self: never, ...args: infer A) => infer R
           ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-            ? Invalid<"Self can only be a member's first parameter; type a later parameter with Impl">
+            ? Invalid<"Self can only be a member's first parameter">
             : HasSelf<R> extends true
               ? Invalid<"a trait member cannot return Self">
               : Omission<M[K]> extends string
