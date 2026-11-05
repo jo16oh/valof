@@ -112,8 +112,8 @@ type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never
 // and `implTrait` all report it without a check of their own.
 type Trait<
   K extends OneLiteral<K, "a trait's name must be one string literal">,
-  Shape,
-  M extends OneMembers<M> = Record<never, never>,
+  Shape extends DeclarableShape<Shape>,
+  M extends Members & OneMembers<M, Shape> = Record<never, never>,
 > = TraitDeclaration<{
   readonly brands: { readonly [P in K]: M };
   readonly shape: Shape;
@@ -136,12 +136,22 @@ type Trait<
 
 export { Trait };
 
-// Read through `infer`, as `OneLiteral` is: passing `M` itself to a conditional in its own constraint
-// is circular (TS2313).
-type OneMembers<M> = [M] extends [infer X]
+// The declaration's checks as constraints, so the type argument reports them. The verdict repeats
+// them for `any` and `never`, which satisfy every constraint. Each reads its argument through
+// `infer`, as `OneLiteral` does: passing it to a conditional in its own constraint is circular
+// (TS2313).
+type DeclarableShape<Shape> = [Shape] extends [infer S]
+  ? [S] extends [AnyImpl]
+    ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
+    : [S] extends [AnyTrait]
+      ? Invalid<"a trait's shape cannot be a trait; write its fields">
+      : Checked<S>
+  : unknown;
+
+type OneMembers<M, Shape> = [M] extends [infer X extends Members]
   ? IsUnion<X> extends true
     ? Invalid<"a trait's members must be one object type, not a union">
-    : Members
+    : Declarable<Shape, X>
   : Members;
 
 /**
