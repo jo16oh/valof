@@ -194,7 +194,7 @@ type ValidateFields<T> = {
  * What {@link Val} and {@link Payload} constrain the payload with. A constraint that is
  * `Validate<T>` itself is circular (TS2313). One that reads its result in a conditional is not.
  */
-type Allowed<T, Owner extends "Val" | "Payload"> = [T] extends [AnyVal]
+export type Allowed<T, Owner extends "Val" | "Payload"> = [T] extends [AnyVal]
   ? // Passed whole to `Val`, a Val's brand collides with the outer one, so the outer Val resolves
     // to `never`.
     Invalid<`a Val cannot be used as ${Owner extends "Val" ? "another Val's" : "a Payload's"} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`>

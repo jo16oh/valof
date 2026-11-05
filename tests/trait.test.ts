@@ -11,7 +11,7 @@ import {
   type Self,
 } from "../src/index.ts";
 // `Wired` is not published from the entry point.
-import type { CallBuildFirst, Invalid, Verdict, Wired } from "../src/val.ts";
+import type { Allowed, CallBuildFirst, Invalid, Verdict, Wired } from "../src/val.ts";
 import type { VerdictOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
@@ -320,6 +320,7 @@ describe("Trait", () => {
       type Either = Trait<"Left" | "Right", { n: number }, { f: (self: Self) => number }>;
       expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<Fault>();
       expectTypeOf<VerdictOf<Trait<string, { n: number }>>>().toEqualTypeOf<Fault>();
+      expectTypeOf<VerdictOf<Trait<`x${string}`, { n: number }>>>().toEqualTypeOf<Fault>();
       // oxlint-disable-next-line no-explicit-any -- the case under test
       expectTypeOf<VerdictOf<Trait<any, { n: number }>>>().toEqualTypeOf<Fault>();
       expectTypeOf<VerdictOf<Trait<never, { n: number }>>>().toEqualTypeOf<Fault>();
@@ -743,6 +744,10 @@ describe("nesting", () => {
     // @ts-expect-error a payload cannot declare a trait
     type Part = Payload<{ id: string; name: string } & Greetable>;
     expectTypeOf<Part>().toEqualTypeOf<Invalid<"a payload cannot declare a trait">>();
+    // The constraint carries the message the type argument reports.
+    expectTypeOf<Allowed<{ id: string; name: string } & Greetable, "Payload">>().toEqualTypeOf<
+      Invalid<"a payload cannot declare a trait">
+    >();
     // @ts-expect-error a payload cannot declare a trait
     type Card = Val<"Card", { id: string; name: string } & Greetable>;
     expectTypeOf<Card extends Verdict<infer X> ? X : never>().toEqualTypeOf<
