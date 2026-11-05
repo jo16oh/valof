@@ -114,8 +114,11 @@ type IsRec<T> = string extends keyof T
       ? true
       : false;
 
-/** Resolves an allowed payload to `T` itself, which {@link Payload} relies on. */
-type Validate<T, Root extends boolean = true> =
+/**
+ * Resolves an allowed payload to `T` itself, which {@link Payload} relies on. `Owner` is what the
+ * payload is declared for, read at the root alone.
+ */
+type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = "Val"> =
   IsRec<T> extends true
     ? T
     : [T] extends [AnyVal]
@@ -131,7 +134,9 @@ type Validate<T, Root extends boolean = true> =
             : never
         : [T] extends [AnyTrait]
           ? Root extends true
-            ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+            ? Owner extends "Val"
+              ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+              : Invalid<"a payload cannot declare a trait">
             : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
           : [T] extends [Invalid<infer M>]
             ? Refused<M>
@@ -189,15 +194,15 @@ type ValidateFields<T> = {
  * What {@link Val} and {@link Payload} constrain the payload with. A constraint that is
  * `Validate<T>` itself is circular (TS2313). One that reads its result in a conditional is not.
  */
-type Allowed<T, Owner extends string> = [T] extends [AnyVal]
+type Allowed<T, Owner extends "Val" | "Payload"> = [T] extends [AnyVal]
   ? // Passed whole to `Val`, a Val's brand collides with the outer one, so the outer Val resolves
     // to `never`.
-    Invalid<`a Val cannot be used as ${Owner} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`>
-  : [Validate<T>] extends [Invalid<infer M>]
+    Invalid<`a Val cannot be used as ${Owner extends "Val" ? "another Val's" : "a Payload's"} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`>
+  : [Validate<T, true, Owner>] extends [Invalid<infer M>]
     ? Invalid<M>
     : // A `Payload` rejected at its top level resolves to an `Invalid`, which an `Invalid`
       // constraint accepts.
-      [Validate<T>] extends [Refused<infer M>]
+      [Validate<T, true, Owner>] extends [Refused<infer M>]
       ? Refused<M>
       : ValidateFields<T>;
 
@@ -332,11 +337,11 @@ type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
  */
 // Every broken rule is recorded in the verdict, which stops the Val satisfying `AnyVal`. See
 // `Verdicted`.
-type Val<
-  K extends string,
-  T extends Allowed<T, "another Val's">,
-  Tr extends AnyTrait = never,
-> = UncheckedVal<K, T, Tr>;
+type Val<K extends string, T extends Allowed<T, "Val">, Tr extends AnyTrait = never> = UncheckedVal<
+  K,
+  T,
+  Tr
+>;
 
 /**
  * {@link Val} with no constraint on the payload, for a Val the library builds from a generic
@@ -372,7 +377,7 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
-export type Payload<T extends Allowed<T, "a Payload's">> = Validate<T>;
+export type Payload<T extends Allowed<T, "Payload">> = Validate<T, true, "Payload">;
 
 // Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
 // the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker
