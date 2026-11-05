@@ -829,12 +829,26 @@ describe("traits", () => {
   });
 
   test("a variant field that breaks the allowed-type rules is rejected", () => {
+    // @ts-expect-error functions are not allowed
     type Bad = Enum<"Bad", { A: { run: () => void }; B: { n: number } }>;
     // @ts-expect-error functions are not allowed
     Enum.companion<Bad>().build();
   });
 
+  test("a shared field that breaks the allowed-type rules is rejected at the declaration", () => {
+    // @ts-expect-error functions are not allowed
+    type Shared = Enum<"Shared", { A: { n: number }; B: { m: number } }, { run: () => void }>;
+    expectTypeOf<Shared>().not.toBeNever();
+  });
+
+  test("a variant holding a type parameter is rejected at the declaration", () => {
+    // @ts-expect-error the rules cannot check a type parameter
+    type Generic<T> = Enum<"Generic", { A: { x: T }; B: { m: number } }>;
+    expectTypeOf<Generic<string>>().not.toBeNever();
+  });
+
   test("a shared field that contradicts the trait is rejected", () => {
+    // @ts-expect-error no value fits every declaration of `id`
     type Bad = Enum<"Bad", { A: { n: number }; B: { s: string } }, { id: number } & Describable>;
     // @ts-expect-error no value fits every declaration of `id`
     Enum.companion<Bad>().build();
@@ -909,6 +923,7 @@ describe("traits", () => {
         .build();
       type Both = Enum<
         "Both",
+        // @ts-expect-error two traits declare a member named `size`
         { A: { n: number }; B: { s: string } },
         { id: string } & Sized & Wide
       >;

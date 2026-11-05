@@ -379,7 +379,7 @@ type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? fa
  *
  * A union of traits is caught here, before its shape is read.
  */
-type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
+export type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true
   : [Tr] extends [UnionToIntersection<Tr>]
     ? [Overlap<BrandsOf<Tr>>] extends [never]
@@ -449,8 +449,8 @@ type Grounded<T> = 0 extends 1 & T
 /**
  * A branded value type. A declared trait adds the fields it requires to the payload.
  *
- * A payload that breaks the allowed-type rules is a type error, reported at the type argument. One
- * that contradicts a declared trait is reported where the Val is used.
+ * A payload that breaks the allowed-type rules, or contradicts a declared trait, is a type error
+ * reported at the type argument.
  *
  * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` and `Val<K, string>`
  * inside a generic type are type errors. Share the fields with {@link Payload} instead.
