@@ -26,20 +26,7 @@ as a payload, so a shape no Val could ever hold is an error where it is written.
 The third declares the functions. They become members of every companion that implements the trait,
 and they take the value first.
 
-`Self` stands for the implementing Val, and may appear only as a member's first parameter. Type a
-later parameter with `Impl` to accept any value implementing the trait:
-
-```ts
-import { Trait, type Impl, type Self } from "valof";
-
-type Ranked = Trait<
-  "Ranked",
-  { rank: number },
-  { outranks: (self: Self, other: Impl<Ranked>) => boolean }
->;
-```
-
-Writing `Ranked` itself as a value's type is a type error.
+`Self` stands for the implementing Val, and may appear only as a member's first parameter.
 
 ## Implement it on a Val
 
@@ -70,6 +57,8 @@ User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 const greeter: Impl<Greetable> = User.seal({ id: "a", name: "alice" });
 const duck: Impl<Greetable> = { name: "duck" }; // type error: only a Val declaring Greetable is assignable
 ```
+
+Writing `Greetable` itself as a value's type is a type error.
 
 `Trait.companion<Greetable>().build()` creates the trait's companion, even for a trait that
 implements nothing itself. `implTrait` takes it as the first argument, and a function returning the
