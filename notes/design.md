@@ -2777,8 +2777,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **空の object の field はクラスのインスタンスを拒む。**`{ meta: {}; any: object }` の seed で、根より下の空の object を
     `{ readonly [key: string]: never }` にする。クラスのインスタンスは暗黙のインデックスシグネチャを持たないので、
     フィールドの無いクラスも落ちる。production は渡されたものを保存していた。`DeepReadonly` の `Arg` に `"field"` を足す
-    - **根は `EmptySeed` のまま。**根でインデックスシグネチャにすると既存の値とタグ付きの payload を拒む（上の
-      2026-10-19 の項）。`Val<"V", {}>` の根のクラスのインスタンスは残る
+    - **根もインデックスシグネチャにする**（2026-11-06）。初めは `EmptySeed` のままにしていた。根でインデックス
+      シグネチャにすると既存の値とタグ付きの payload を拒む（上の 2026-10-19 の項）ため。根を `EmptyField | AnyVal`
+      にすると既存の値は通る。タグ付きの payload は `Tagged` がタグを足してから seed の型を作ると、空の object に
+      ならない。`EmptySeed` は消した。enum 40,190 → 40,781
   - **コスト（TypeScript 5.9.3）。**core 7,713 → 8,318、trait 21,101 → 23,635、enum 35,874 → 39,583、`index.d.ts`
     92.69 → 95.55 kB。trait の予算を 22,000 → 25,000 に上げた。大きいのは `DeepReadonly` の分割（trait 約 +1,400）と
     `Unfit`（約 +350）
