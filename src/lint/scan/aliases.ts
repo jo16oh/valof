@@ -73,9 +73,6 @@ function valName(typeName: Node, namespaces: ReadonlyMap<string, string>): strin
  *
  * Only a top-level alias can be imported and assigned somewhere else, which is the collision the
  * brand rule reports. A `type Point` inside a `describe` block collides with nothing.
- *
- * The alias must spell `Val<…>` itself. A user's helper around it, `type Branded<K, T> =
- * Val<K, T>`, is invisible to these facts.
  */
 export function valAliases(
   program: Node,
