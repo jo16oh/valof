@@ -6349,6 +6349,11 @@ OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキー�
         遅延したままで、`K` が制約を満たすと示せないため。同じ shape で別の brand の Val は `Payload` で shape を
         共有すれば足りる（ユーザー、2026-11-05）。lint の duplicate-brand が `type Branded<K, T> = Val<K, T>` 経由の
         brand を見られない穴（§14.7「届かない範囲」）も、この helper が書けなくなって塞がる
+      - 宣言の検査はすべて宣言の行に移す（ユーザー、2026-11-05）。shape は `DeclarableShape`（`Impl`、trait、
+        payload の規則）、メンバは `Members & OneMembers<M, Shape>`（union、`Declarable`）を制約にする。メンバに型
+        パラメーターを含む alias（`Record<K, …>`）も書けなくなる
+      - shape が `any` か `never` の trait は verdict だけが拒む。以前は `Impl` の文言で拒んでいたので、「a trait's
+        shape cannot be `any` or `never`; write its fields」を足した
   - **メンバの集合は union にできない。**`{ f } | { g }` で `Declarable` が分配して通り、空の `implTrait` が
     通って companion に `f` も `g` も生えなかった。verdict を「a trait's members must be one object type, not
     a union」にする
