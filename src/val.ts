@@ -449,8 +449,8 @@ type Grounded<T> = 0 extends 1 & T
 /**
  * A branded value type. A declared trait adds the fields it requires to the payload.
  *
- * A payload that breaks the allowed-type rules is a type error, reported at the type argument. One
- * that contradicts a declared trait is reported where the Val is used.
+ * A payload that breaks the allowed-type rules, or contradicts a declared trait, is a type error
+ * reported at the type argument.
  *
  * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` inside a generic type
  * is a type error. A type parameter for the brand alone fits.
