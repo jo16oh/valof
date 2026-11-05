@@ -343,6 +343,7 @@ describe("Trait", () => {
     });
 
     test("declares its members in one object type", () => {
+      // @ts-expect-error a trait's members must be one object type, not a union
       type Split = Trait<
         "Split",
         { n: number },
