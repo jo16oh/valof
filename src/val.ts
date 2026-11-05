@@ -442,7 +442,9 @@ export type UncheckedVal<
 > = DeepReadonly<Grounded<Holding<T, Tr>>> &
   Phantom<K, Holding<T, Tr>> &
   Verdict<
-    IsUnion<K> extends true ? Invalid<"a Val's brand cannot be a union"> : Verdicted<T, Tr, Fit>
+    IsOneLiteral<K> extends false
+      ? Invalid<"a Val's brand must be one string literal">
+      : Verdicted<T, Tr, Fit>
   > &
   TraitBrand<Tr>;
 
