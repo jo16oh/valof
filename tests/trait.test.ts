@@ -326,6 +326,17 @@ describe("Trait", () => {
       expectTypeOf<VerdictOf<Trait<never, { n: number }>>>().toEqualTypeOf<Fault>();
     });
 
+    test("takes a name an object's method has, and the empty string", () => {
+      type Named<K extends string> = VerdictOf<Trait<K, { n: number }>>;
+      expectTypeOf<Named<"toString">>().toEqualTypeOf<{
+        readonly toString: Record<never, never>;
+      }>();
+      expectTypeOf<Named<"constructor">>().toEqualTypeOf<{
+        readonly constructor: Record<never, never>;
+      }>();
+      expectTypeOf<Named<"">>().toEqualTypeOf<{ readonly "": Record<never, never> }>();
+    });
+
     test("declares its members in one object type", () => {
       type Split = Trait<
         "Split",
