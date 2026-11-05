@@ -326,6 +326,14 @@ describe("Trait", () => {
         readonly Nested: Invalid<"a trait's shape cannot be a trait; write its fields">;
       }>();
     });
+
+    // `any` and `never` satisfy every constraint, so the verdict alone reports them.
+    test("cannot be `any` or `never`", () => {
+      type Fault = Invalid<"a trait's shape cannot be `any` or `never`; write its fields">;
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<VerdictOf<Trait<"Loose", any>>>().toEqualTypeOf<{ readonly Loose: Fault }>();
+      expectTypeOf<VerdictOf<Trait<"Empty", never>>>().toEqualTypeOf<{ readonly Empty: Fault }>();
+    });
   });
 
   // Read through `VerdictOf`, since `@ts-expect-error` at the gate passes on any error.
