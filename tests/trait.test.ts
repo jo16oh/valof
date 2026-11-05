@@ -69,6 +69,7 @@ describe("Trait", () => {
     });
 
     test("a member cannot return Self", () => {
+      // @ts-expect-error a trait member cannot return Self
       type Unsafe = Trait<"Unsafe", { n: number }, { grow: (self: Self) => Self }>;
       // @ts-expect-error a trait member cannot return Self
       Trait.companion<Unsafe>()
@@ -77,6 +78,7 @@ describe("Trait", () => {
     });
 
     test("Self is a member's first parameter alone", () => {
+      // @ts-expect-error Self can only be a member's first parameter
       type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Self) => boolean }>;
       // @ts-expect-error a box would let `other` be another Val
       Trait.companion<Same>()
@@ -86,6 +88,7 @@ describe("Trait", () => {
       type Among = Trait<
         "Among",
         { n: number },
+        // @ts-expect-error Self can only be a member's first parameter
         { among: (self: Self, others: readonly Self[]) => boolean }
       >;
       // @ts-expect-error an array cannot hide Self
@@ -96,6 +99,7 @@ describe("Trait", () => {
       type Visit = Trait<
         "Visit",
         { n: number },
+        // @ts-expect-error Self can only be a member's first parameter
         { visit: (self: Self, f: (others: readonly Self[]) => void) => void }
       >;
       // @ts-expect-error a callback's parameter cannot hide Self
@@ -179,36 +183,42 @@ describe("Trait", () => {
     });
 
     test("Self cannot hide inside a member's return type", () => {
+      // @ts-expect-error a trait member cannot return Self
       type Union = Trait<"Union", { n: number }, { grow: (self: Self) => Self | null }>;
       // @ts-expect-error a union member cannot hide Self
       Trait.companion<Union>()
         .impl(() => ({}))
         .build();
 
+      // @ts-expect-error a trait member cannot return Self
       type Closure = Trait<"Closure", { n: number }, { grow: (self: Self) => () => Self }>;
       // @ts-expect-error a returned function cannot hide Self
       Trait.companion<Closure>()
         .impl(() => ({}))
         .build();
 
+      // @ts-expect-error a trait member cannot return Self
       type Sink = Trait<"Sink", { n: number }, { sink: (self: Self) => (other: Self) => void }>;
       // @ts-expect-error a returned function's parameter cannot hide Self
       Trait.companion<Sink>()
         .impl(() => ({}))
         .build();
 
+      // @ts-expect-error a trait member cannot return Self
       type Tuple = Trait<"Tuple", { n: number }, { grow: (self: Self) => readonly [Self, number] }>;
       // @ts-expect-error a tuple cannot hide Self
       Trait.companion<Tuple>()
         .impl(() => ({}))
         .build();
 
+      // @ts-expect-error a trait member cannot return Self
       type Wrapped = Trait<"Wrapped", { n: number }, { grow: (self: Self) => { next: Self } }>;
       // @ts-expect-error an object cannot hide Self
       Trait.companion<Wrapped>()
         .impl(() => ({}))
         .build();
 
+      // @ts-expect-error a trait member cannot return Self
       type Later = Trait<"Later", { n: number }, { grow: (self: Self) => Promise<Self> }>;
       // @ts-expect-error a promise cannot hide Self
       Trait.companion<Later>()
@@ -228,6 +238,7 @@ describe("Trait", () => {
       type Four = Trait<
         "Four",
         { n: number },
+        // @ts-expect-error a trait member cannot return Self
         { grow: (self: Self) => Promise<{ a: [{ b: Self }] }> }
       >;
       // @ts-expect-error Self inside four nested types is still caught
@@ -289,16 +300,19 @@ describe("Trait", () => {
   // where it is written rather than at the first Val that tries to implement it.
   describe("the shape", () => {
     test("must be a payload a Val could hold", () => {
+      // @ts-expect-error functions are not allowed
       type BadFn = Trait<"BadFn", { run: () => void }>;
       expectTypeOf<BadFn>().not.toExtend<AnyTrait>();
       // @ts-expect-error functions are not allowed
       Trait.companion<BadFn>().build();
 
+      // @ts-expect-error required property cannot be undefined
       type BadUndefined = Trait<"BadUndefined", { nickname: string | undefined }>;
       expectTypeOf<BadUndefined>().not.toExtend<AnyTrait>();
       // @ts-expect-error required property cannot be undefined
       Trait.companion<BadUndefined>().build();
 
+      // @ts-expect-error keys must be strings
       type BadKey = Trait<"BadKey", Readonly<Record<symbol, string>>>;
       expectTypeOf<BadKey>().not.toExtend<AnyTrait>();
       // @ts-expect-error keys must be strings
@@ -306,6 +320,7 @@ describe("Trait", () => {
     });
 
     test("cannot be a trait", () => {
+      // @ts-expect-error a trait's shape cannot be a trait
       type Nested = Trait<"Nested", Greetable>;
       expectTypeOf<VerdictOf<Nested>>().toEqualTypeOf<{
         readonly Nested: Invalid<"a trait's shape cannot be a trait; write its fields">;
@@ -387,6 +402,7 @@ describe("Trait", () => {
 
   describe("rejected names", () => {
     test("a member may not take a field's name from its own shape", () => {
+      // @ts-expect-error a trait member cannot take a field's name
       type SelfClash = Trait<"SelfClash", { size: number }, { size: (self: Self) => number }>;
       // @ts-expect-error a trait member cannot take a field's name
       Trait.companion<SelfClash>().build();
@@ -429,6 +445,7 @@ describe("Trait", () => {
     });
 
     test("nor the name the trait itself uses", () => {
+      // @ts-expect-error a trait member cannot take the name the trait itself uses
       type Boxed = Trait<"Boxed", { name: string }, { dyn: Final<(self: Self) => string> }>;
       // @ts-expect-error a trait member cannot take the name the trait itself uses
       Trait.companion<Boxed>()
@@ -628,12 +645,14 @@ describe("data-first and data-last", () => {
   });
 
   test("a member declared with arguments that can be left out is rejected", () => {
+    // @ts-expect-error a member cannot have an optional or default parameter
     type Optional = Trait<"Optional", { n: number }, { at: (self: Self, i?: number) => number }>;
     // @ts-expect-error a parameter that can be left out
     Trait.companion<Optional>()
       .impl(() => ({}))
       .build();
 
+    // @ts-expect-error a member cannot have a rest parameter, because the argument count tells data-last from data-first
     type Rest = Trait<"Rest", { n: number }, { sum: (self: Self, ...ns: number[]) => number }>;
     // @ts-expect-error a parameter that can be left out
     Trait.companion<Rest>()
@@ -754,6 +773,7 @@ describe("nesting", () => {
     type Variant = Enum<"Variant", { A: { n: number } & Impl<Greetable>; B: { m: number } }>;
     // @ts-expect-error a payload cannot be an Impl
     Enum.companion<Variant>().build();
+    // @ts-expect-error a trait's shape cannot be an `Impl`
     type Shaped = Trait<"Shaped", Impl<Greetable>>;
     expectTypeOf<Shaped>().not.toExtend<AnyTrait>();
   });
@@ -794,6 +814,7 @@ describe("building", () => {
     // Every gate takes an `AnyTrait`, so one check covers the companion, a Val declaring the
     // trait and a box. None of them carries a check of its own.
     test("a broken declaration is caught at every gate", () => {
+      // @ts-expect-error a trait member cannot take a name the library reserves
       type Wiring = Trait<"Wiring", { id: string }, { patch: (self: Self) => boolean }>;
       expectTypeOf<VerdictOf<Wiring>>().toEqualTypeOf<{
         readonly Wiring: {
