@@ -98,6 +98,15 @@ export type Refused<Msg extends string> = { readonly [RefusedKey]: Msg };
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
 export type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
 
+/** `true` for one string literal, and `false` for a union, `string`, a template, `any` or `never`. */
+// `{}` fits a record keyed by `string` or a template, and none keyed by a literal. The values are
+// `never` because `{}` has the methods every object has, as `toString`.
+export type IsOneLiteral<K extends string> = true extends
+  | IsUnion<K>
+  | (Record<never, never> extends Record<K, never> ? true : never)
+  ? false
+  : true;
+
 type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
 }[keyof T];

@@ -48,6 +48,7 @@ import {
   type DeepReadonly,
   type Grown,
   type Invalid,
+  type IsOneLiteral,
   type IsUnion,
   type OneList,
   type Options,
@@ -155,10 +156,10 @@ type Single<N, All = N> = N extends unknown ? ([All] extends [N] ? true : false)
  * `Invalid` message says that rather than naming the emit. No variant at all needs no message: the
  * indexed access is `never`, and there is no value to build.
  */
-type Fault<K, D, X, S, Tr extends AnyTrait, Tg extends string> =
-  | (IsUnion<K> extends true ? "an enum's name cannot be a union" : never)
+type Fault<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> =
+  | (IsOneLiteral<K> extends false ? "an enum's name must be one string literal" : never)
   | (IsUnion<X> extends true ? "the shared fields cannot be a union" : never)
-  | (IsUnion<Tg> extends true ? "the tag's name cannot be a union" : never)
+  | (IsOneLiteral<Tg> extends false ? "the tag's name must be one string literal" : never)
   | (Single<VariantKeys<D>> extends true
       ? "an enum needs at least two variants; one is a Val"
       : never)

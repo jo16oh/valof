@@ -1208,7 +1208,7 @@ describe("a broken declaration", () => {
   });
 
   // Each reads the fault from the name, since `@ts-expect-error` passes on any error.
-  test("an enum's name and the tag's name cannot be a union, and a variant's name is a string", () => {
+  test("an enum's name and the tag's name are one string literal, and a variant's name is a string", () => {
     type Fault<M extends string> = Invalid<M> & string;
     type Numbered = Enum<"Numbered", { Ok: { n: number }; 404: { path: string } }>;
     expectTypeOf<NameOf<Numbered & AnyEnum>>().toEqualTypeOf<
@@ -1216,13 +1216,23 @@ describe("a broken declaration", () => {
     >();
     type OnlyNumbers = Enum<"OnlyNumbers", { 200: { n: number }; 404: { path: string } }>;
     expectTypeOf<OnlyNumbers>().not.toBeNever();
-    type Either = Enum<"Left" | "Right", { A: { n: number }; B: { m: number } }>;
-    expectTypeOf<NameOf<Either & AnyEnum>>().toEqualTypeOf<
-      Fault<"an enum's name cannot be a union">
+    type Named<K extends string> = NameOf<
+      Enum<K, { A: { n: number }; B: { m: number } }> & AnyEnum
+    >;
+    expectTypeOf<Named<"Left" | "Right">>().toEqualTypeOf<
+      Fault<"an enum's name must be one string literal">
     >();
-    type Tags = Enum<"Tags", { A: { n: number }; B: { m: number } }, Tag<"k" | "t">>;
-    expectTypeOf<NameOf<Tags & AnyEnum>>().toEqualTypeOf<
-      Fault<"the tag's name cannot be a union">
+    expectTypeOf<Named<string>>().toEqualTypeOf<
+      Fault<"an enum's name must be one string literal">
+    >();
+    type Tagged<K extends string> = NameOf<
+      Enum<"Tagged", { A: { n: number }; B: { m: number } }, Tag<K>> & AnyEnum
+    >;
+    expectTypeOf<Tagged<"k" | "t">>().toEqualTypeOf<
+      Fault<"the tag's name must be one string literal">
+    >();
+    expectTypeOf<Tagged<string>>().toEqualTypeOf<
+      Fault<"the tag's name must be one string literal">
     >();
   });
 
