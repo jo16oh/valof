@@ -19,6 +19,7 @@ import {
   type Grown,
   type Invalid,
   type IsOneLiteral,
+  type OneLiteral,
   type IsUnion,
   type Reserved,
   type UnionToIntersection,
@@ -109,7 +110,11 @@ type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never
 // in a Val's brand. `Members` admits functions alone, so an `Invalid` there stops the trait
 // satisfying `AnyTrait`, and every gate requires an `AnyTrait`. So the companion, `Val`, `Dyn`
 // and `implTrait` all report it without a check of their own.
-type Trait<K extends string, Shape, M extends Members = Record<never, never>> = TraitDeclaration<{
+type Trait<
+  K extends OneLiteral<K, "a trait's name must be one string literal">,
+  Shape,
+  M extends Members = Record<never, never>,
+> = TraitDeclaration<{
   readonly brands: { readonly [P in K]: M };
   readonly shape: Shape;
   readonly verdict: IsOneLiteral<K> extends false
