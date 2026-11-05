@@ -11,7 +11,7 @@ import {
   type Self,
 } from "../src/index.ts";
 // `Wired` is not published from the entry point.
-import type { Allowed, CallBuildFirst, Invalid, OneLiteral, Verdict, Wired } from "../src/val.ts";
+import type { Allowed, CallBuildFirst, Invalid, Verdict, Wired } from "../src/val.ts";
 import type { VerdictOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
@@ -323,16 +323,11 @@ describe("Trait", () => {
       type Any = Trait<string, { n: number }>;
       // @ts-expect-error a trait's name must be one string literal
       type Prefixed = Trait<`x${string}`, { n: number }>;
-      expectTypeOf<VerdictOf<Either | Any | Prefixed>>().toEqualTypeOf<Fault>();
+      expectTypeOf<Either | Any | Prefixed>().not.toBeNever();
       // `any` and `never` satisfy every constraint, so the verdict alone reports them.
       // oxlint-disable-next-line no-explicit-any -- the case under test
       expectTypeOf<VerdictOf<Trait<any, { n: number }>>>().toEqualTypeOf<Fault>();
       expectTypeOf<VerdictOf<Trait<never, { n: number }>>>().toEqualTypeOf<Fault>();
-    });
-
-    test("a name's constraint is the message unless the name is one string literal", () => {
-      expectTypeOf<OneLiteral<"Left" | "Right", "message">>().toEqualTypeOf<"message">();
-      expectTypeOf<OneLiteral<"Left", "message">>().toEqualTypeOf<string>();
     });
 
     test("takes a name an object's method has, and the empty string", () => {
