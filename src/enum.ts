@@ -17,10 +17,13 @@ import type {
   VariantOptionsTypes,
 } from "./keys.ts";
 import type {
+  AnyImpl,
   AnyTrait,
   Implement,
   MembersOf,
   NamesOf,
+  LoneTrait,
+  FieldsOf,
   TraitHost,
   TraitsOf,
   Unbound,
@@ -57,7 +60,6 @@ import {
   type UnpatchableKeys,
   type Unsealed,
   type Wired,
-  type Writable,
 } from "./val.ts";
 import * as Enum from "./ns/enum.ts";
 
@@ -117,8 +119,8 @@ export type AnyEnum = AnyVal &
 /** The declaration's own keys, which are the variants and nothing else. */
 type VariantKeys<D> = Extract<keyof D, string>;
 
-/** A variant's fields. A trait it declares carries its own, so both arrive in one argument. */
-type FieldsIn<P> = [P] extends [AnyTrait] ? Writable<Pick<P, keyof P>> : P;
+/** A variant's fields, with the ones its traits require. */
+type FieldsIn<P> = [P] extends [AnyTrait] ? Pick<P, keyof P> & FieldsOf<P> : P;
 
 type VariantsIn<D> = { [N in VariantKeys<D>]: FieldsIn<D[N]> };
 
@@ -126,8 +128,10 @@ type VariantTraitsIn<D> = { [N in VariantKeys<D>]: TraitsIn<D[N]> };
 
 type TagIn<X> = [X] extends [TagPhantom<infer T>] ? T : "_tag";
 
-/** The fields every variant holds. A trait carries its own, so both arrive in one argument. */
-type SharedIn<X> = Writable<Pick<X, keyof X>>;
+/** The fields every variant holds, with the ones the enum's traits require. */
+// An `Impl` stays whole, so that the payload rules see it and reject it.
+type SharedIn<X> = ([X] extends [AnyImpl] ? X : Pick<X, keyof X>) &
+  ([TraitsIn<X>] extends [never] ? unknown : FieldsOf<TraitsIn<X>>);
 
 type TraitsIn<X> = Extract<X, AnyTrait>;
 
@@ -708,7 +712,7 @@ type VariantTrait<
   VM,
   M,
   N extends keyof VariantsOf<E> & string,
-> = <Tr extends AnyTrait, G, I extends Implement<Tr, G, VariantOf<E, N>>>(
+> = <Tr extends LoneTrait<Tr>, G, I extends Implement<Tr, G, VariantOf<E, N>>>(
   trait: Takes<
     VariantOf<E, N>,
     Tr,
@@ -939,7 +943,7 @@ export type EnumBuilder<
      * Implements a trait the enum declares. The implementation takes the union, so a member that
      * differs per variant is a `match` inside it.
      */
-    implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, E>>(
+    implTrait: <Tr extends LoneTrait<Tr>, G, I extends Implement<Tr, G, E>>(
       trait: UnionTakes<E, Tr, M & A, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I, EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>
     ) => EnumBuilder<E, O, VM, M & Unbound<MembersOf<Tr>, E>, F, C, D | "implTrait", A>;

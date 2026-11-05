@@ -2,11 +2,14 @@
 // the declaration that carries it.
 import type { AnyEnum } from "./enum.ts";
 import type {
+  AnyImpl,
   AnyTrait,
+  FieldsOf,
   FinalsOf,
   Implement,
   MembersOf,
   NamesOf,
+  LoneTrait,
   ShapeOf,
   TraitBrand,
   TraitCompanion,
@@ -117,15 +120,26 @@ type Validate<T, Root extends boolean = true> =
     ? T
     : [T] extends [AnyVal]
       ? T
-      : [T] extends [Invalid<infer M>]
-        ? Refused<M>
-        : [T] extends [Refused<infer M>]
-          ? Invalid<M>
-          : Root extends true
-            ? null extends T
-              ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-              : ValidateValue<T>
-            : ValidateValue<T>;
+      : // Below the root, a union of `Impl`, like a union of Vals, is a union of values rather than
+        // of objects to merge. Each one's fields are still checked. That rejects a `Dyn` box,
+        // because its trait members are functions.
+        [T] extends [AnyImpl]
+        ? Root extends true
+          ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
+          : T extends unknown
+            ? ValidateFields<T>
+            : never
+        : [T] extends [AnyTrait]
+          ? Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+          : [T] extends [Invalid<infer M>]
+            ? Refused<M>
+            : [T] extends [Refused<infer M>]
+              ? Invalid<M>
+              : Root extends true
+                ? null extends T
+                  ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+                  : ValidateValue<T>
+                : ValidateValue<T>;
 
 type ValidateValue<T> = [T] extends [Primitive]
   ? T
@@ -192,28 +206,33 @@ type Allowed<T, Owner extends string> = [T] extends [AnyVal]
 export type DeepReadonly<T, Arg extends boolean = false> =
   IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T, Arg>;
 
-/** Recursion stops at a nested Val: it is already deep-readonly. */
+/**
+ * Recursion stops at a nested Val, because it is already deep-readonly. A field typed with `Impl`
+ * holds a Val, so a `Dyn` box does not fit.
+ */
 type DeepReadonlyValue<T, Arg extends boolean> = [T] extends [AnyVal]
   ? T
-  : [T] extends [Primitive]
-    ? T
-    : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
-      // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
-      // still being declared. An array is the only payload with a numeric key.
-      number extends keyof T
-      ? number extends Extract<T, readonly unknown[]>["length"]
-        ? ReadonlyArray<DeepReadonly<T[number], Arg>>
-        : { readonly [I in keyof T]: DeepReadonly<T[I], Arg> }
-      : [T] extends [object]
-        ? [Arg, keyof T] extends [true, never]
-          ? EmptySeed
-          : {
-              // An optional key carries `undefined` in its type, and a union stops the walk one
-              // level short: a `Rec` inside it would never open. The value never holds the
-              // `undefined` either way, since an optional key is absent or set.
-              readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Arg>;
-            }
-        : T;
+  : [T] extends [AnyImpl]
+    ? T & Phantom<string, unknown>
+    : [T] extends [Primitive]
+      ? T
+      : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
+        // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
+        // still being declared. An array is the only payload with a numeric key.
+        number extends keyof T
+        ? number extends Extract<T, readonly unknown[]>["length"]
+          ? ReadonlyArray<DeepReadonly<T[number], Arg>>
+          : { readonly [I in keyof T]: DeepReadonly<T[I], Arg> }
+        : [T] extends [object]
+          ? [Arg, keyof T] extends [true, never]
+            ? EmptySeed
+            : {
+                // An optional key carries `undefined` in its type, and a union stops the walk one
+                // level short: a `Rec` inside it would never open. The value never holds the
+                // `undefined` either way, since an optional key is absent or set.
+                readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Arg>;
+              }
+          : T;
 
 /**
  * An empty object as an argument: neither an array, a function nor a promise. `{}` takes every
@@ -248,11 +267,8 @@ type Verdicted<T, Tr extends AnyTrait> = [T] extends [Validate<T>]
 type Holding<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? T
   : IsRecord<T> extends true
-    ? T & Writable<ShapeOf<Tr>>
+    ? T & FieldsOf<Tr>
     : T;
-
-/** Undoes the {@link DeepReadonly} a trait holds its shape in: a payload is written without it. */
-export type Writable<T> = [T] extends [AnyVal] ? T : { -readonly [K in keyof T]: Writable<T[K]> };
 
 /** Reads the keys alone: a field may reference the Val being declared, see {@link Rec}. */
 type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? false : true;
@@ -260,8 +276,7 @@ type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? fa
 /**
  * Whether the declared payload agrees with its traits, or the sentence saying why not.
  *
- * `ShapeOf<A | B>` keeps only the keys the two share, so a union asks the payload for nothing.
- * Caught here, before the fields are read.
+ * A union of traits is caught here, before its shape is read.
  */
 type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true
@@ -291,7 +306,7 @@ type Code<S extends string> = `${"`"}${S}${"`"}`;
 
 // Distributes over the union to collect one parameter position per member, which infers as their
 // intersection. A single trait is its own intersection, and so is `never`.
-type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
+export type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
   k: infer I,
 ) => void
   ? I
@@ -769,7 +784,7 @@ export type Takes<V, Tr extends AnyTrait, T, Ok> =
       : "the type does not declare this trait";
 
 /** What the companion form takes once the trait itself has answered for every {@link Final}. */
-export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
+export type Complete<Tr extends LoneTrait<Tr>, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
   ? TraitCompanion<Tr, G>
   : "this trait's companion has not implemented every member declared Final";
 
@@ -906,7 +921,7 @@ export type CompanionBuilder<
      *
      * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
      */
-    implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
+    implTrait: <Tr extends LoneTrait<Tr>, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T & A, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I, Supplied<V, N, F, O>>
     ) => CompanionBuilder<V, N, F, O, T & Unbound<MembersOf<Tr>, V>, D | "implTrait", A>;

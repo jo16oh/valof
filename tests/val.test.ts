@@ -10,7 +10,7 @@ import type {
   SeedOf,
   Unpatchable,
 } from "../src/index.ts";
-import { equals, Trait, Val, type Final, type Self } from "../src/index.ts";
+import { equals, Trait, Val, type Final, type Impl, type Self } from "../src/index.ts";
 import { Traits } from "../src/keys.ts";
 // `BrandOf` is not published from the entry point.
 import type {
@@ -2648,7 +2648,7 @@ describe("building", () => {
       expect(Badge.greet(Badge.seal({ id: "b", name: "bob" }))).toBe("Hi, bob");
 
       type Bare = Val<"Bare", Record<never, never>, Greetable>;
-      expectTypeOf<Bare>().toExtend<Greetable>();
+      expectTypeOf<Bare>().toExtend<Impl<Greetable>>();
     });
 
     // A trait holds its shape deep-readonly, and `Val.unwrap` hands back a mutable copy.

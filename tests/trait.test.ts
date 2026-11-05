@@ -1,16 +1,18 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import {
+  Enum,
   Trait,
   Val,
   type AnyTrait,
   type Dyn,
   type Final,
+  type Impl,
   type Payload,
   type Self,
 } from "../src/index.ts";
 // `Wired` is not published from the entry point.
 import type { CallBuildFirst, Invalid, Wired } from "../src/val.ts";
-import type { BrandsOf } from "../src/trait.ts";
+import type { VerdictOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
 type Greetable = Trait<
@@ -122,6 +124,58 @@ describe("Trait", () => {
         Meter.same(meter, { n: 2 }),
         Same.dyn(Gauge, gauge).same(meter),
       ]).toEqual([true, false, true]);
+    });
+
+    test("a later parameter takes a Val implementing the trait through Impl", () => {
+      type Same = Trait<
+        "Same",
+        { n: number },
+        { same: (self: Self, other: Impl<Same>) => boolean }
+      >;
+      const Same = Trait.companion<Same>()
+        .impl(() => ({ same: (s, other) => s.n === other.n }))
+        .build();
+      type Meter = Val<"Meter", { n: number }, Same>;
+      const Meter = Val.companion<Meter>().implTrait(Same).build();
+      type Gauge = Val<"Gauge", { n: number; unit: string }, Same>;
+      const Gauge = Val.companion<Gauge>().implTrait(Same).build();
+      const meter = Val.of<Meter>({ n: 1 });
+      const gauge = Val.of<Gauge>({ n: 1, unit: "kg" });
+      expectTypeOf<Parameters<typeof Meter.same>>().toEqualTypeOf<
+        [self: Meter, other: Impl<Same>]
+      >();
+      expect([
+        Meter.same(meter, gauge),
+        Meter.same(meter, Same.dyn(Gauge, gauge)),
+        Same.dyn(Gauge, gauge).same(meter),
+      ]).toEqual([true, true, true]);
+
+      type Plain = Val<"Plain", { n: number }>;
+      // @ts-expect-error an object that merely holds the fields
+      Meter.same(meter, { n: 1 });
+      // @ts-expect-error a Val that does not declare the trait
+      Meter.same(meter, Val.of<Plain>({ n: 1 }));
+      // @ts-expect-error same through a box
+      Same.dyn(Gauge, gauge).same({ n: 1 });
+    });
+
+    test("Impl may appear anywhere in a member, and name another trait", () => {
+      type Ping = Trait<
+        "Ping",
+        { n: number },
+        { ping: (self: Self, all: readonly Impl<Ping>[], f: (p: Impl<Pong>) => void) => Impl<Ping> }
+      >;
+      type Pong = Trait<"Pong", { n: number }, { pong: (self: Self, p: Impl<Ping>) => Impl<Pong> }>;
+      const Ping = Trait.companion<Ping>()
+        .impl(() => ({ ping: (_p, all) => all[0]! }))
+        .build();
+      const Pong = Trait.companion<Pong>()
+        .impl(() => ({ pong: (p) => p }))
+        .build();
+      type Ball = Val<"Ball", { n: number }, Ping & Pong>;
+      const Ball = Val.companion<Ball>().implTrait(Ping).implTrait(Pong).build();
+      const ball = Val.of<Ball>({ n: 1 });
+      expect([Ball.ping(ball, [ball], () => {}), Ball.pong(ball, ball)]).toEqual([ball, ball]);
     });
 
     test("Self cannot hide inside a member's return type", () => {
@@ -249,6 +303,11 @@ describe("Trait", () => {
       expectTypeOf<BadKey>().not.toExtend<AnyTrait>();
       // @ts-expect-error keys must be strings
       Trait.companion<BadKey>().build();
+    });
+
+    test("cannot be a trait", () => {
+      type Nested = Trait<"Nested", Greetable>;
+      expectTypeOf<Nested>().not.toExtend<AnyTrait>();
     });
   });
 
@@ -387,6 +446,36 @@ describe("Trait", () => {
     });
   });
 
+  describe("Impl", () => {
+    test("is the type of any value implementing the trait", () => {
+      const greeters: Impl<Greetable>[] = [user, admin, Greetable.dyn(User, user)];
+      expect(greeters.map((g) => g.name)).toEqual(["alice", "root", "alice"]);
+    });
+
+    test("the trait itself only declares, and is no value's type", () => {
+      // @ts-expect-error write `Impl<Greetable>`
+      const greeter: Greetable = user;
+      expect(greeter).toBe(user);
+    });
+
+    test("takes several traits as one intersection", () => {
+      type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+      type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;
+      expectTypeOf<Crate>().toExtend<Impl<Greetable & Weighed>>();
+      expectTypeOf<Impl<Greetable & Weighed>>().toExtend<Impl<Greetable> & Impl<Weighed>>();
+      expectTypeOf<Impl<Greetable> & Impl<Weighed>>().toExtend<Impl<Greetable & Weighed>>();
+      expectTypeOf<User>().not.toExtend<Impl<Greetable & Weighed>>();
+    });
+
+    test("takes no union: one is written as a union of Impl", () => {
+      type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+      // @ts-expect-error write `Impl<A> | Impl<B>` for either trait
+      const either: Impl<Greetable | Weighed> = user;
+      const written: Impl<Greetable> | Impl<Weighed> = user;
+      expect([either, written]).toEqual([user, user]);
+    });
+  });
+
   test("the brand stays out of `keyof` and of a spread", () => {
     expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name">();
     expectTypeOf({ ...user }).toEqualTypeOf<{ id: string; name: string }>();
@@ -447,6 +536,15 @@ describe("dyn", () => {
     ]);
   });
 
+  test("takes one trait", () => {
+    type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+    // @ts-expect-error a box takes one trait
+    const both = null as unknown as Dyn<Greetable & Weighed>;
+    // @ts-expect-error a union of traits is not a trait
+    const either = null as unknown as Dyn<Greetable | Weighed>;
+    expect([both, either]).toEqual([null, null]);
+  });
+
   describe("a primitive payload", () => {
     type Marker = Trait<"Marker", Record<never, never>, { wire: (self: Self) => string }>;
     const Marker = Trait.companion<Marker>()
@@ -480,7 +578,7 @@ describe("data-first and data-last", () => {
   });
 
   test("nor does a Final member on the trait's own companion", () => {
-    expectTypeOf(Greetable.shout).toEqualTypeOf<(self: Greetable) => string>();
+    expectTypeOf(Greetable.shout).toEqualTypeOf<(self: Impl<Greetable>) => string>();
     expect(pipe(admin, Greetable.shout)).toBe("ROOT");
   });
 
@@ -571,6 +669,60 @@ describe("nesting", () => {
     expect(Greetable.dyn(User, team.lead).greet()).toBe("Hi, alice");
     expect(Greetable.dyn(Team, team).greet()).toBe("Team core");
   });
+
+  test("a field holds any Val implementing a trait through Impl, but no box", () => {
+    type Desk = Val<"Desk", { owner: Impl<Greetable> }>;
+    const Desk = Val.companion<Desk>().build();
+    const desks = [Desk.seal({ owner: user }), Desk.seal({ owner: admin })];
+    expect(desks.map((d) => Greetable.shout(d.owner))).toEqual(["ALICE", "ROOT"]);
+    // @ts-expect-error a payload cannot hold a box
+    Desk.seal({ owner: Greetable.dyn(User, user) });
+    // @ts-expect-error an object that merely holds the fields
+    Desk.seal({ owner: { name: "duck" } });
+  });
+
+  test("a field holds a Val implementing either trait through a union of Impl", () => {
+    type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+    type Shelf = Val<"Shelf", { item: Impl<Greetable> | Impl<Weighed> }>;
+    const Shelf = Val.companion<Shelf>().build();
+    type Scale = Val<"Scale", { kg: number }, Weighed>;
+    const items = [Shelf.seal({ item: user }), Shelf.seal({ item: Val.of<Scale>({ kg: 2 }) })];
+    expect(items.map((s) => s.item)).toEqual([user, { kg: 2 }]);
+    // @ts-expect-error a payload cannot hold a box
+    type Boxed = Val<"Boxed", { item: Dyn<Greetable> | Impl<Weighed> }>;
+    expectTypeOf<Boxed>().not.toBeNever();
+  });
+
+  test("nor can a payload be an Impl", () => {
+    // @ts-expect-error a payload cannot be an Impl
+    type Whole = Val<"Whole", Impl<Greetable>>;
+    // @ts-expect-error a payload cannot be an Impl
+    type Mixed = Val<"Mixed", { id: string } & Impl<Greetable>>;
+    // @ts-expect-error a payload cannot be an Impl
+    type Part = Payload<Impl<Greetable>>;
+    // @ts-expect-error a payload cannot be a box either
+    type Boxed = Val<"Boxed", Dyn<Greetable>>;
+    expectTypeOf<Whole | Mixed | Part | Boxed>().not.toBeNever();
+    type Shared = Enum<"Shared", { A: { n: number }; B: { m: number } }, Impl<Greetable>>;
+    // @ts-expect-error a payload cannot be an Impl
+    Enum.companion<Shared>().build();
+    type Variant = Enum<"Variant", { A: { n: number } & Impl<Greetable>; B: { m: number } }>;
+    // @ts-expect-error a payload cannot be an Impl
+    Enum.companion<Variant>().build();
+    type Shaped = Trait<"Shaped", Impl<Greetable>>;
+    expectTypeOf<Shaped>().not.toExtend<AnyTrait>();
+  });
+
+  test("a field cannot be typed with the trait itself", () => {
+    // @ts-expect-error a trait is only a declaration
+    type Desk = Val<"Desk", { owner: Greetable }>;
+    // @ts-expect-error a trait is only a declaration
+    type Seat = Payload<{ owner: Greetable }>;
+    expectTypeOf<Desk | Seat>().not.toBeNever();
+    type Office = Enum<"Office", { Open: { owner: Greetable }; Shut: { at: number } }>;
+    // @ts-expect-error a trait is only a declaration
+    Enum.companion<Office>().build();
+  });
 });
 
 describe("building", () => {
@@ -579,8 +731,10 @@ describe("building", () => {
     // trait and a box. None of them carries a check of its own.
     test("a broken declaration is caught at every gate", () => {
       type Wiring = Trait<"Wiring", { id: string }, { patch: (self: Self) => boolean }>;
-      expectTypeOf<BrandsOf<Wiring>>().toEqualTypeOf<{
-        patch: Invalid<"a trait member cannot take a name the library reserves">;
+      expectTypeOf<VerdictOf<Wiring>>().toEqualTypeOf<{
+        readonly Wiring: {
+          patch: Invalid<"a trait member cannot take a name the library reserves">;
+        };
       }>();
       expectTypeOf<Wiring>().not.toExtend<AnyTrait>();
       // Naming `Wiring` is the error, so each directive is the assertion. The type resolves to
@@ -593,6 +747,14 @@ describe("building", () => {
       // @ts-expect-error same, at a box
       const box = null as unknown as Dyn<Wiring>;
       expect([cell, box]).toHaveLength(2);
+    });
+
+    test("implements one trait", () => {
+      type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+      // @ts-expect-error a companion implements one trait
+      Trait.companion<Greetable & Weighed>();
+      // @ts-expect-error a union of traits is not a trait
+      Trait.companion<Greetable | Weighed>();
     });
 
     test("a shape written with a rejected Payload is caught", () => {
@@ -697,7 +859,7 @@ describe("building", () => {
         .impl(() => ({ shout: (g) => g.name.toUpperCase() }))
         // A member reaching the companion names it and annotates its return type, as in `impl`.
         .implAssoc(() => ({
-          shoutAll: (gs: readonly Greetable[]): string[] => gs.map((g) => Greeting.shout(g)),
+          shoutAll: (gs: readonly Impl<Greetable>[]): string[] => gs.map((g) => Greeting.shout(g)),
         }))
         .build();
       expectTypeOf(Greeting.PREFIX).toEqualTypeOf<string>();
@@ -721,7 +883,7 @@ describe("building", () => {
     test("a member whose arguments can be left out is rejected", () => {
       Trait.companion<Greetable>().implAssoc(() => ({
         // @ts-expect-error a parameter that can be left out
-        names: (gs: readonly Greetable[], sep?: string) => gs.map((g) => g.name).join(sep),
+        names: (gs: readonly Impl<Greetable>[], sep?: string) => gs.map((g) => g.name).join(sep),
       }));
     });
   });

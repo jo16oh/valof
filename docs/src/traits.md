@@ -26,19 +26,7 @@ as a payload, so a shape no Val could ever hold is an error where it is written.
 The third declares the functions. They become members of every companion that implements the trait,
 and they take the value first.
 
-`Self` stands for the implementing Val, and may appear only as a member's first parameter. Type
-another parameter with `Payload` where the member reads its fields:
-
-```ts
-import { Trait, type Payload, type Self } from "valof";
-
-type RankedShape = Payload<{ rank: number }>;
-type Ranked = Trait<
-  "Ranked",
-  RankedShape,
-  { outranks: (self: Self, other: RankedShape) => boolean }
->;
-```
+`Self` stands for the implementing Val, and may appear only as a member's first parameter.
 
 ## Implement it on a Val
 
@@ -46,7 +34,7 @@ A Val declares its traits in the third argument, and its companion implements th
 
 ```ts
 // @errors: 2322
-import { Trait, Val, type Self } from "valof";
+import { Trait, Val, type Impl, type Self } from "valof";
 
 type Greetable = Trait<
   "Greetable",
@@ -66,8 +54,11 @@ const User = Val.companion<User>()
 
 User.greet(User.seal({ id: "a", name: "alice" })); // "Hi, alice"
 
-const duck: Greetable = { name: "duck" }; // type error: only a Val declaring Greetable is assignable
+const greeter: Impl<Greetable> = User.seal({ id: "a", name: "alice" });
+const duck: Impl<Greetable> = { name: "duck" }; // type error: only a Val declaring Greetable is assignable
 ```
+
+Writing `Greetable` itself as a value's type is a type error.
 
 `Trait.companion<Greetable>().build()` creates the trait's companion, even for a trait that
 implements nothing itself. `implTrait` takes it as the first argument, and a function returning the
@@ -262,8 +253,8 @@ party.map((p) => p.name); // ["alice", "root"]: a trait field, read from the box
 ```
 
 A box already holds the value, so its members take only the arguments after it. The trait's fields
-are readable on it, and a function taking `Greetable` accepts one. The Val's own fields are not.
-`p.id` is a type error, because `dyn` drops the concrete type.
+are readable on it, and a parameter typed `Impl<Greetable>` accepts one. The Val's own fields are
+not. `p.id` is a type error, because `dyn` drops the concrete type.
 
 A box is a proxy over its value, not a Val. It has its own identity, and it has no `patch`. A
 payload cannot hold one.
@@ -306,6 +297,7 @@ Greetable.dyn(Crate, crate).greet(); // "Hi, box"
 Weighed.dyn(Crate, crate).heavy(); // true
 ```
 
-Write `&`, not `|`.
+Write `&`, not `|`, inside `Impl`. `Impl<Greetable & Weighed>` accepts a value implementing both.
+`Impl<Greetable> | Impl<Weighed>` accepts a value implementing either.
 
 Each trait boxes on its own. No two traits on one Val may declare the same member name.
