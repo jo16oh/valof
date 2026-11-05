@@ -279,6 +279,10 @@ describe("Val", () => {
       expectTypeOf<string>().not.toExtend<SeedOf<Marker>>();
       expectTypeOf<number[]>().not.toExtend<SeedOf<Marker>>();
       expectTypeOf<Promise<void>>().not.toExtend<SeedOf<Marker>>();
+      // A class instance has no implicit index signature, even one with no fields.
+      class Empty {}
+      expectTypeOf<Map<string, number>>().not.toExtend<SeedOf<Marker>>();
+      expectTypeOf<Empty>().not.toExtend<SeedOf<Marker>>();
     });
 
     test("so does an empty object nested in a payload", () => {

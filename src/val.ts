@@ -257,7 +257,7 @@ export type Allowed<T, Owner extends "Val" | "Payload"> = [T] extends [AnyVal]
 
 /**
  * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
- * object is narrowed to {@link EmptySeed}.
+ * object is narrowed to {@link EmptyField}.
  */
 export type DeepReadonly<T, Arg extends Position = false> =
   IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T, Arg>;
@@ -292,7 +292,7 @@ type DeepReadonlyValue<
         : [T] extends [object]
           ? [keyof T] extends [never]
             ? Arg extends true
-              ? EmptySeed
+              ? EmptyField | AnyVal
               : Arg extends "field"
                 ? EmptyField
                 : Record<never, never>
@@ -321,15 +321,10 @@ type Mixed<T, Arg extends Position, Split> = Split extends true
   : T;
 
 /**
- * An empty object as an argument: neither an array, a function nor a promise. `{}` takes every
- * value but `null` and `undefined`. An index signature would also reject an existing value and a
- * tagged payload.
- */
-type EmptySeed = object & { readonly length?: never; readonly then?: never };
-
-/**
- * An empty object below an argument's root. It rejects every class instance, which has no implicit
- * index signature. At the root it would reject an existing value, see {@link EmptySeed}.
+ * An empty object as an argument. `{}` takes every value but `null` and `undefined`. This rejects
+ * a primitive, an array, a function, a promise and every class instance, which has no implicit
+ * index signature. At the root an existing value is a class instance too, so the root also takes
+ * any Val.
  */
 type EmptyField = { readonly [key: string]: never };
 

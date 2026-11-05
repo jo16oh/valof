@@ -359,9 +359,11 @@ export type SeedFor<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepRead
 >;
 
 /** One variant's payload with its tag. */
-type Tagged<E extends AnyEnum, N extends keyof VariantsOf<E>> = SeedFor<E, N> & {
-  readonly [P in TagOf<E>]: N & string;
-};
+// The tag goes in before the payload is read, so a variant with no fields is not an empty object.
+type Tagged<E extends AnyEnum, N extends keyof VariantsOf<E>> = DeepReadonly<
+  VariantsOf<E>[N] & SharedOf<E> & { readonly [P in TagOf<E>]: N & string },
+  true
+>;
 
 /**
  * A tagged payload of any one variant, which `seal` on the enum reads the variant from.
