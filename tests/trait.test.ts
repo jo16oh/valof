@@ -668,14 +668,15 @@ describe("dyn", () => {
       expectTypeOf<VerdictOf<Trait<"Empty", { x: string }, never>>>().toEqualTypeOf<Fault>();
     });
 
+    // `any` satisfies the members' constraint, so the verdict alone reports it.
     test("a member cannot be `any`", () => {
-      // @ts-expect-error a trait member cannot be `any`
+      type Fault = Invalid<"a trait member cannot be `any`; write its signature">;
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = Trait<"Loose", { x: string }, { f: any }>;
-      // @ts-expect-error a trait member cannot be `any`
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Sealed = Trait<"Sealed", { x: string }, { f: Final<any> }>;
-      expectTypeOf<Loose | Sealed>().not.toBeNever();
+      expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
+      expectTypeOf<VerdictOf<Sealed>>().toEqualTypeOf<{ readonly Sealed: Fault }>();
     });
   });
 
