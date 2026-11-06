@@ -34,9 +34,6 @@ tag alone, see [`Shape[Tag].match`](#build-a-value-from-a-payload-or-a-tag).
 
 `patch` cannot change the tag, so it cannot turn a value into another variant.
 
-Declare at least two variants. `Enum` rejects a declaration with one variant, because one variant is
-a Val.
-
 ## Match on the tag
 
 ```ts

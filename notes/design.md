@@ -2759,13 +2759,23 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **宣言の検査は宣言の行で報告する**（ユーザー、2026-11-05）。名前は `OneLiteral`、タグ名は `Tag` の制約。`Fault` を
     `SharedFault`（第 3 引数だけで決まるもの）と `VariantFault`（variant を第 3 引数と照らすもの）に分け、それぞれ
     `X` と `D` の制約にする。brand の `Named` は `any` と `never` のために残す
-    - variant が無い `Enum<"E", {}>` も「an enum needs at least two variants」で拒むようになった。以前は indexed
-      access が `never` になるだけで、エラーは出なかった。`Tag<never>` も `X` の制約で拒まれる
+    - variant が無い `Enum<"E", {}>` も宣言の行で拒むようになった。以前は indexed access が `never` になるだけで、
+      エラーは出なかった。文言は「an enum needs a variant」（下の 1 variant の項）。`Tag<never>` も `X` の制約で拒まれる
     - variant の payload と共有フィールドにも payload の規則を当てる（`Checked<Written<…>>`）。`Written` は trait が
       足す field を除いた、宣言が書いた field。variant の field と共有フィールドの交差で値の無い field（`Unfit`）と、
       trait との食い違い（Val の `Fits`）も `D` の制約で報告する。それまでは `Enum.companion` でだけ報告していた。
       variant に型パラメーターを含む alias もこれで書けなくなる（方針どおり）。enum 41,290 → 44,111
   - **コスト。**enum 39,583 → 39,786、`index.d.ts` 95.55 → 96.09 kB。増分の大半は文言。宣言の予算は #127 で上げた
+
+- [x] ~~**variant が 1 つの enum を拒む。**~~ → 許した、2026-11-06（ユーザー）。モデリングの途中で 1 つになることがある
+  - 拒んでいたのは利用者の `.d.ts` のため。variant が 1 つだとインデックスアクセスが alias の無いメンバの型を返し、
+    `.d.ts` に private な phantom が展開されて TS4094 / TS4023 になる。文言は「one is a Val」と言っていた
+  - `EnumPhantom` をインデックスアクセスの外に出し、`{…}[VariantKeys<D>] & EnumPhantom<…>` にした。交差が alias
+    自身の型になり、`.d.ts` に `Lonely` と `VariantOf<Lonely, "Only">` の名前が残る。2 つ以上では
+    `(A & P) | (B & P)` と同じ型。ts-compatibility の fixture（`Lonely`）が TS 5.9 / 6.0 / 7.0 で確かめる
+  - variant が無い enum は拒んだまま（「an enum needs a variant」）。型が `never` になり、field の型に使うと離れた行で
+    「no value fits」になり、どの型にも黙って代入できる。文言はテストで読めない（`never` に brand が無い）
+  - **コスト。**enum 45,236 → 45,146、`index.d.ts` 100.60 → 99.92 kB
 
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
       `and-or-holes.md` の 7
@@ -2979,7 +2989,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       `Circle.diameter` の両方をそのキーで数える。`scan` は `sites` を 3 つの起点で 1 本にし、
       `Bindings.builders` も 1 つの Map にした。**入れないと決めた規則が 3 つある**
   - **Variant 2 個未満の規則。**型が落とす。`src/enum.ts` の `Fault` が
-    `"an enum needs at least two variants; one is a Val"` を出し、`E extends AnyEnum` が
+    `"an enum needs at least two variants; one is a Val"` を出し（2026-11-06 から 1 つは許し、0 個だけ
+    `"an enum needs a variant"`）、`E extends AnyEnum` が
     `Enum.sealer` / `Enum.companion` / `match` / `VariantOf` のどこでも落とす。黙るのは companion も
     使用も書かない宣言だけで、それは害が無い。`tag-mismatch` を落としたのと同じ判断
   - **Variant に別の companion を立てる規則。**型で弾いた。`Val.sealer` / `Val.companion` の型引数を
