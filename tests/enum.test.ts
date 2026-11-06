@@ -1294,6 +1294,43 @@ describe("a broken declaration", () => {
     >();
   });
 
+  test("a variant's payload cannot be a Val", () => {
+    type Inner = Val<"Inner", { a: number }>;
+    // @ts-expect-error a variant's payload cannot be a Val
+    type Wrapped = Enum<"Wrapped", { X: Inner; Y: { b: number } }>;
+    expectTypeOf<Wrapped>().not.toBeNever();
+  });
+
+  test("the variants are keys, not an index signature", () => {
+    // @ts-expect-error a variant's name must be one string literal
+    type Open = Enum<"Open", Record<string, { a: number }>>;
+    // @ts-expect-error a variant's name must be one string literal
+    type Prefixed = Enum<"Prefixed", { [k: `V${string}`]: { a: number } }>;
+    expectTypeOf<Open | Prefixed>().not.toBeNever();
+  });
+
+  // Two different `Tag`s intersect to `never`, which no constraint rejects.
+  test("the third type argument cannot be `any` or `never`", () => {
+    type Fault =
+      Invalid<"the third type argument cannot be `any` or `never`; two `Tag`s intersect to `never`"> &
+        string;
+    type Variants = { A: { n: number }; B: { m: number } };
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    expectTypeOf<NameOf<Enum<"Loose", Variants, any> & AnyEnum>>().toEqualTypeOf<Fault>();
+    type Tags = Enum<"Tags", Variants, Tag<"k"> & Tag<"j">>;
+    expectTypeOf<NameOf<Tags & AnyEnum>>().toEqualTypeOf<Fault>();
+    expectTypeOf<VerdictOf<Tags>>().toEqualTypeOf<true>();
+    // The variants are still read against the default tag.
+    type Clash = Enum<
+      "Clash",
+      // @ts-expect-error the tag cannot take the name of a field the payload holds
+      { A: { _tag: string }; B: { k: number } },
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      any
+    >;
+    expectTypeOf<Clash>().not.toBeNever();
+  });
+
   test("the variants cannot be `any` or `never`", () => {
     type Fault = Invalid<"an enum's variants cannot be `any` or `never`"> & string;
     // oxlint-disable-next-line no-explicit-any -- the case under test

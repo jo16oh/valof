@@ -86,7 +86,7 @@ Read every changed file whole. A sentence reads differently beside the paragraph
 
 ## 2. The mechanical pass
 
-These are lexical, so grep beats rereading:
+These are lexical, so grep works better than rereading:
 
 ```sh
 git diff -U0 HEAD -- '*.md' | grep -nE 'is yours|are yours|yours to|hands? back|hands it|comes off|comes back|answers to|answer for|goes dead|opening with|keeps .* off|may not be called|the same rule as|on the way in|names the|name the'

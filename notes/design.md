@@ -2796,6 +2796,40 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     確かめられない
   - **コスト。**trait 24,331 → 24,460、enum 45,146 → 45,511、`index.d.ts` 99.92 → 101.67 kB
 
+- [x] ~~**通ってしまう宣言。**~~ → 拒んだ、2026-11-06。valof 全体の型を監査した結果
+  - Val を variant の payload にする（`{ X: Val<"Q", …> }`）: enum が黙って壊れていた。「a variant's payload cannot be
+    a Val; write its fields」
+  - variant をインデックスシグネチャで書く（`Record<string, …>`、template のキー）: #133 で brand を仮の名前に
+    したので黙って通っていた。「a variant's name must be one string literal」
+  - Enum の第 3 引数の `any`、`never`、`Tag<"k"> & Tag<"j">`（`never` になる）: 1 つの文言。variant は
+    `SharedArg` で空の object から組み、variant の検査は通る
+  - trait のメンバの集合が `any` / `never`、メンバが `any`（`Final<any>` も）: `any` はメンバの制約も満たすので
+    verdict で見る（`AnyMembers`）
+  - trait の shape の field が `string & number`: `DeclarableShape` で `Unfit` を見る（object だけ）。前は実装する
+    Val で報告していた
+  - record の payload と、shape がプリミティブの trait: `Agrees` が field の食い違いしか見ていなかった
+  - tuple の要素が `never`: 要素は何に写しても満たすので、tuple ごと「no value fits a tuple element」
+  - **対応しないもの。**plain object の field に `seal` で Val を渡す: Val は plain object でもあるので、意味の上で
+    問題ない（ユーザー、2026-11-06）。field の `any`、`Impl<any>`、companion の option の `any` は 2026-11-04 の方針どおり対応しない
+  - 型の予算（`index.d.ts` は残り 975 B、trait は残り 332）は今は上げず、次に超えたときに上げる（ユーザー、
+    2026-11-06）
+
+- [x] ~~**`patch` で plain object の field に Val を渡せない。**~~ → field のキーをすべて持つ Val なら通す、2026-11-06
+  - #130 では `PhantomBrand` を `?: never` にして Val を一律に拒んでいた。拒む理由は、`patch` の field の型が
+    部分的なのに、実行時は `owned` のノード（Val、既にある値）を merge せず丸ごと置き換えること。キーの欠けた Val
+    を通すと、field がキーを失ったまま型はそのキーを持つと言う
+  - Val は plain object でもある（ユーザー）。置き換える値に完全な形を求めれば、置き換えても merge しても結果が
+    同じになり、`structuredClone` で `owned` の記録が失われても壊れない。`PatchValue<T>` を
+    `Patch<T, typeof PhantomBrand> | (T & AnyVal)` にした。2 つ目は brand を持つ値にしか当たらないので、変数で渡す
+    plain object の扱い（weak type 検査、`?: never` のキー）は変わらない。variant も同じ規則で通る
+  - **Val は plain object でもある。余分なキーがあってもよい**（ユーザー、2026-11-06）。plain object が宣言された
+    場所（`seal` の引数、patch の field）には、そのキーをすべて持つ Val が当てはまり、余分なキーを持つ Val も通る。
+    JSON の往復のために余分なキーを落としたいなら、それは custom seal の役目（`custom-constructors.md` の
+    「an undeclared key survives unless the seal removes it」と同じ）
+  - **コスト。**core 8,865 → 8,893、`index.d.ts` 103.05 → 103.16 kB
+  - **コスト。**core 8,845 → 8,865、trait 24,460 → 24,668、enum 45,511 → 45,759、`index.d.ts` 101.67 →
+    103.05 kB（予算 104 kB の残り 975 B、trait は 332）
+
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
       `and-or-holes.md` の 7
   - **field は `null` かプリミティブを、他の 1 種類と並べて持てる。**`string[] | null`、`Rec<Node> | null`（連結リスト）、
