@@ -1,3 +1,5 @@
+import type { Payload } from "../index.ts";
+
 /** The ESTree subset the linter walks. Narrow by `type` before reading anything past `type`. */
 export type Node = { type: string; [key: string]: unknown };
 
@@ -59,7 +61,7 @@ export function rootPath(node: Node): string[] | undefined {
 }
 
 /** Where something sits, 1-based on both axes, the way an editor and every linter count. */
-export type Where = { line: number; column: number };
+export type Where = Payload<{ line: number; column: number }>;
 
 /** Byte offset -> {@link Where}, from a prefix scan done once per file. */
 export function positions(source: string): (offset: number) => Where {
