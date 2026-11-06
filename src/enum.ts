@@ -146,6 +146,9 @@ type Loose<T> = 0 extends 1 & T ? true : [T] extends [never] ? true : false;
 /** The variants to build, with a placeholder for `any` and `never`, so the brand reports them alone. */
 type Built<D> = Loose<D> extends true ? { "?": Record<never, never> } : D;
 
+/** The third type argument, with nothing in place of `any` and `never`, for the same reason. */
+type SharedArg<X> = Loose<X> extends true ? Record<never, never> : X;
+
 /** The fields every variant holds, with the ones the enum's traits require. */
 // An `Impl` stays whole, so that the payload rules see it and reject it.
 type SharedIn<X> = ([X] extends [AnyImpl] ? X : Pick<X, keyof X>) &
@@ -169,6 +172,11 @@ type Fault<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> =
 
 /** The faults the third type argument alone carries. */
 type SharedFault<X, S, Tr extends AnyTrait, Tg extends string> =
+  Loose<X> extends true
+    ? "the third type argument cannot be `any` or `never`; two `Tag`s intersect to `never`"
+    : SharedFaults<X, S, Tr, Tg>;
+
+type SharedFaults<X, S, Tr extends AnyTrait, Tg extends string> =
   | (IsUnion<X> extends true ? "the shared fields cannot be a union" : never)
   | (IsOneLiteral<Tg> extends false ? "the tag's name must be one string literal" : never)
   | (IsOneLiteral<Tg> extends true
@@ -187,17 +195,21 @@ type VariantFault<D, Tr extends AnyTrait, Tg extends string> =
 type VariantsFault<D, Tr extends AnyTrait, Tg extends string> =
   | ([VariantKeys<D>] extends [never] ? "an enum needs a variant" : never)
   | {
-      [N in VariantKeys<D>]: N extends number
-        ? "a variant's name must be a string"
-        : [D[N]] extends [object]
-          ? [D[N]] extends [ReadonlyArray<unknown>]
-            ? "a variant's payload must be a record of fields"
-            : IsOneLiteral<Tg> extends true
-              ? Tg extends keyof FieldsIn<D[N]>
-                ? "the tag cannot take the name of a field the payload holds"
-                : VariantTraitFault<D[N], Tr>
-              : VariantTraitFault<D[N], Tr>
-          : "a variant's payload must be a record of fields";
+      [N in VariantKeys<D>]: IsOneLiteral<`${N}`> extends false
+        ? "a variant's name must be one string literal"
+        : N extends number
+          ? "a variant's name must be a string"
+          : [D[N]] extends [AnyVal]
+            ? "a variant's payload cannot be a Val; write its fields"
+            : [D[N]] extends [object]
+              ? [D[N]] extends [ReadonlyArray<unknown>]
+                ? "a variant's payload must be a record of fields"
+                : IsOneLiteral<Tg> extends true
+                  ? Tg extends keyof FieldsIn<D[N]>
+                    ? "the tag cannot take the name of a field the payload holds"
+                    : VariantTraitFault<D[N], Tr>
+                  : VariantTraitFault<D[N], Tr>
+              : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
   // The companion reads a member first, so the type would show the library's and run the member.
   | ([MemberNames<Tr> & VariantKeys<D>] extends [never]
@@ -218,7 +230,7 @@ type VariantTraitFault<P, Tr extends AnyTrait> = [
 // The payload rules apply to each variant's fields and to the shared fields, as `Val`'s constraint
 // applies them to a payload.
 type DeclarableVariants<D, X> = [D] extends [infer V]
-  ? [X] extends [infer Y]
+  ? [SharedArg<X>] extends [infer Y]
     ? Faulted<VariantFault<V, TraitsIn<Y>, TagIn<Y>> | Disagreeing<V, Y>> & {
         [N in VariantKeys<V>]: Checked<Written<V[N]>>;
       }
@@ -291,8 +303,8 @@ type Enum<
 > = {
   [N in VariantKeys<Built<D>>]: UncheckedVal<
     Literal<`${K}.${N}`>,
-    FieldsIn<Built<D>[N]> & SharedIn<X> & { [P in Literal<TagIn<X>>]: N },
-    Joined<TraitsIn<X>, TraitsIn<Built<D>[N]>>,
+    FieldsIn<Built<D>[N]> & SharedIn<SharedArg<X>> & { [P in Literal<TagIn<SharedArg<X>>>]: N },
+    Joined<TraitsIn<SharedArg<X>>, TraitsIn<Built<D>[N]>>,
     true
   >;
   // Outside the indexed access, so the intersection is the alias's own. One variant indexes out a
@@ -300,11 +312,11 @@ type Enum<
   // phantoms (TS4094).
 }[VariantKeys<Built<D>>] &
   EnumPhantom<
-    Named<K, D, X, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
+    Named<K, D, X, SharedIn<SharedArg<X>>, TraitsIn<SharedArg<X>>, TagIn<SharedArg<X>>>,
     VariantsIn<D>,
-    SharedIn<X>,
-    TraitsIn<X>,
-    TagIn<X>,
+    SharedIn<SharedArg<X>>,
+    TraitsIn<SharedArg<X>>,
+    TagIn<SharedArg<X>>,
     VariantTraitsIn<D>
   >;
 
