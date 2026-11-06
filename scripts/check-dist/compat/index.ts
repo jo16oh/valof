@@ -27,7 +27,7 @@ function fixtures() {
 
 export class StalePinError extends ErrorFactory({
   message: ({ pin }) =>
-    `valof ${pin.slice(0, 7)} builds a different dist; run \`vp run pin-valof HEAD\``,
+    `valof ${pin.slice(0, 7)} builds a different dist; run \`vp run pin-valof origin/main\``,
   fields: ErrorFactory.fields<{ pin: string }>(),
 }) {}
 
