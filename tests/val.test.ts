@@ -10,7 +10,7 @@ import type {
   SeedOf,
   Unpatchable,
 } from "../src/index.ts";
-import { equals, Trait, Val, type Final, type Impl, type Self } from "../src/index.ts";
+import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "../src/index.ts";
 import { Traits } from "../src/keys.ts";
 // `BrandOf` is not published from the entry point.
 import type {
@@ -1252,6 +1252,13 @@ describe("patch", () => {
     expect(moved.at).toBe(spot);
     // @ts-expect-error a Val missing `y` would leave the field without it
     Pin.patch(pin, { at: Val.of<Edge>({ x: 1 }) });
+    // A variant is a Val, and the same rule holds.
+    type Point = Enum<"Point", { Full: { x: number; y: number }; Half: { x: number } }>;
+    const Point = Enum.companion<Point>().build();
+    const full = Point.Full.create({ x: 1, y: 2 });
+    expect(Pin.patch(pin, { at: full }).at).toBe(full);
+    // @ts-expect-error a variant missing `y` would leave the field without it
+    Pin.patch(pin, { at: Point.Half.create({ x: 1 }) });
   });
 
   test("omitting a key leaves it unchanged", () => {
