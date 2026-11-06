@@ -163,11 +163,13 @@ type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = 
             ? Refused<M>
             : [T] extends [Refused<infer M>]
               ? Invalid<M>
-              : Root extends true
-                ? null extends T
-                  ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-                  : ValidateValue<T, true>
-                : ValidateValue<T>;
+              : unknown extends T
+                ? Invalid<"`unknown` is not a plain value; write the type">
+                : Root extends true
+                  ? null extends T
+                    ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+                    : ValidateValue<T, true>
+                  : ValidateValue<T>;
 
 type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
   ? T
@@ -192,7 +194,10 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
             ? Root extends true
               ? ValidateFields<T>
               : Fitting<T, ValidateFields<T>>
-            : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
+            : // A `Date` or a `Map` has symbol keys too, and its methods say more about it.
+              [MethodKeys<T>] extends [never]
+              ? Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
+              : Invalid<"not a plain value">
         : [Extract<T, bigint>] extends [never]
           ? // Below the root, a field may hold `null` or a primitive beside one other kind. `patch`
             // replaces such a field whole, see `PatchValue`.
@@ -203,6 +208,9 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
             ? Invalid<"not a plain value">
             : Extract<T, Primitive> | Validate<Exclude<T, Primitive>, false>
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
+
+// oxlint-disable-next-line no-unsafe-function-type
+type MethodKeys<T> = { [K in keyof T]-?: T[K] extends Function ? K : never }[keyof T];
 
 /** A required key typed `never`. An optional one is always absent, an index signature always empty. */
 export type Unfit<T> = Exclude<
@@ -233,7 +241,9 @@ type ValidateFields<T> = {
     : K extends OptionalKeys<T>
       ? Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>
       : undefined extends T[K]
-        ? Invalid<"required property cannot be undefined; use null or make it optional">
+        ? unknown extends T[K]
+          ? Validate<T[K], false>
+          : Invalid<"required property cannot be undefined; use null or make it optional">
         : Validate<T[K], false>;
 };
 
