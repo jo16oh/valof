@@ -47,6 +47,10 @@ export async function checkCompat({
 }: {
   release: boolean;
 }): R.ResultAsync<void, StalePinError | IncompatibleError> {
+  const pin = await pinned();
+  const current = await matches(pin);
+  if (!current && release) return R.fail(new StalePinError({ pin }));
+
   await rm(directory, { recursive: true, force: true });
   await mkdir(directory, { recursive: true });
 
@@ -143,8 +147,6 @@ export async function checkCompat({
    * inside the repository, so every other import still reaches its `node_modules`.
    */
   const scripts = join(directory, "scripts");
-  const pin = await pinned();
-  const current = await matches(pin);
   const importers = current ? await valofImporters() : [];
   if (current) {
     // Without the tests, which `vp test` would otherwise pick up here too.
@@ -183,13 +185,11 @@ export async function checkCompat({
   const trip = roundTrip(directory, modules);
 
   console.log(`  ${blocks.length} blocks from the book, ${files.length} fixtures`);
-  if (current) {
-    console.log(`  ${importers.length} scripts on valof ${pin.slice(0, 7)}`);
-  } else if (release) {
-    return R.fail(new StalePinError({ pin }));
-  } else {
-    console.log(`  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`);
-  }
+  console.log(
+    current
+      ? `  ${importers.length} scripts on valof ${pin.slice(0, 7)}`
+      : `  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`,
+  );
 
   // The TypeScript lines run concurrently, each emitting to directories of its own, and report in
   // the order of `aliases`.
