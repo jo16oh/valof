@@ -42,6 +42,19 @@ describe("the declaration", () => {
     expectTypeOf<VariantOf<Shape, "Circle"> | VariantOf<Shape, "Square">>().toEqualTypeOf<Shape>();
   });
 
+  // An enum often starts with one variant and gains the rest later.
+  test("one variant is an enum too", () => {
+    type Lonely = Enum<"Lonely", { Only: { n: number } }>;
+    const Lonely = Enum.companion<Lonely>()
+      .Only.impl(() => ({ double: (o) => o.n * 2 }))
+      .build();
+    const only = Lonely.Only.create({ n: 2 });
+    expectTypeOf(only).toEqualTypeOf<VariantOf<Lonely, "Only">>();
+    expectTypeOf<VariantOf<Lonely, "Only">>().toEqualTypeOf<Lonely>();
+    expect(Lonely.Only.double(only)).toBe(4);
+    expect(Lonely.match(only, { Only: (o) => o.n })).toBe(2);
+  });
+
   test("`create` takes the fields, and the value carries the tag it writes", () => {
     expectTypeOf<SeedFor<Shape, "Circle">>().toEqualTypeOf<{ readonly r: number }>();
     expectTypeOf(Circle.create).parameter(0).toEqualTypeOf<SeedFor<Shape, "Circle">>();
@@ -1178,16 +1191,8 @@ describe("a broken declaration", () => {
     Enum.companion<Coin>().build();
   });
 
-  // An indexed access over a single key hands back the variant itself, and the alias goes with
-  // the union: a consumer's `.d.ts` then expands onto the private phantoms and fails with TS4094.
-  test("an enum needs at least two variants", () => {
-    // @ts-expect-error an enum needs at least two variants
-    type Lonely = Enum<"Lonely", { Only: { n: number } }>;
-    // @ts-expect-error an enum needs at least two variants; one is a Val
-    Enum.companion<Lonely>().build();
-
-    // With no variants at all the declaration is rejected too, and the indexed access is `never`.
-    // @ts-expect-error an enum needs at least two variants
+  test("an enum needs a variant", () => {
+    // @ts-expect-error an enum needs a variant
     expectTypeOf<Enum<"Empty", Record<never, never>>>().toEqualTypeOf<never>();
   });
 
