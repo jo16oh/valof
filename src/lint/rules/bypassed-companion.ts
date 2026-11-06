@@ -11,7 +11,7 @@ export const BypassedCompanion = Val.companion<BypassedCompanion>()
     // The value that comes out is a well-formed Val. What it went around is the type's own way in.
     warns: true,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /** What the companion offers instead, or what it does not. */

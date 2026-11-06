@@ -11,7 +11,7 @@ export const UnusedMember = Val.companion<UnusedMember>()
     // A member nothing reads is dead weight, and the code around it works.
     warns: true,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /**

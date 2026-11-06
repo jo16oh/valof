@@ -15,7 +15,7 @@ export const DuplicateBrand = Val.companion<DuplicateBrand>()
     description: "a brand string claimed by more than one type alias",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /**

@@ -11,7 +11,7 @@ export const UnnamedOf = Val.companion<UnnamedOf>()
     // The lift itself is sound. What it costs is the name that makes the lift greppable.
     warns: true,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /**

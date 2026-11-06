@@ -10,7 +10,7 @@ export const SplitCompanion = Val.companion<SplitCompanion>()
     description: "a companion for a type that another file declares",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /**

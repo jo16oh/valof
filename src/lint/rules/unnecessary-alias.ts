@@ -10,7 +10,7 @@ export const UnnecessaryAlias = Val.companion<UnnecessaryAlias>()
     description: "a type alias that is a second name for a Val, a Trait or an Enum",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 function findings({ kind }: UnnecessaryAlias, scans: readonly Scan[]): Finding[] {

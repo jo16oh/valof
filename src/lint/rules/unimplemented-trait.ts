@@ -9,7 +9,7 @@ export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
     description: "a Trait declared by a Val or an Enum that its companion does not implement",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 /**
  * Reports a declared trait that no `implTrait` answers for.

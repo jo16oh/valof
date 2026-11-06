@@ -15,7 +15,7 @@ export const UnusedDisable = Val.companion<UnusedDisable>()
     // A directive that silences nothing changes nothing about the code.
     warns: true,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans, context) => findings(rule, scans, context) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /** What a finding answers for: its own line, and its file as a whole. */
