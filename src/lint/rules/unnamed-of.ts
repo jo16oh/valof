@@ -29,7 +29,7 @@ export const UnnamedOf = Val.companion<UnnamedOf>()
 function findings({ kind }: UnnamedOf, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, lifts }) =>
     lifts
-      .filter(({ typeName }) => typeName === undefined)
+      .filter(({ typeName }) => typeName === null)
       .map(({ line, column }) =>
         Finding.seal({
           kind,

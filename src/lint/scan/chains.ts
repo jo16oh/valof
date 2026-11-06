@@ -33,8 +33,8 @@ export type CompanionSite = Val<
     file: string;
     /** Which entry point the chain grew from. */
     of: Root;
-    /** The name the chain was bound to, or `undefined` when it was not bound to a plain one. */
-    name?: string;
+    /** The name the chain was bound to, or `null` when it was not bound to a plain one. */
+    name: string | null;
     /** Where that name is written. The chain's own position stands in when there is no name. */
     nameAt: Where;
     /**
@@ -49,7 +49,7 @@ export type CompanionSite = Val<
     /** Where the type argument is written. */
     typeAt: Where;
     /** The namespace it was reached through, for `Val.companion<ns.User>()`. */
-    qualifier?: string;
+    qualifier: string | null;
     /** Whether the chain registered a seal of its own, with `.implSeal`. */
     seals: boolean;
   }
@@ -105,20 +105,20 @@ export function fromRoot(node: Node, bound: Bindings): Root | undefined {
 /**
  * A `Val.of(…)` call, which brands a payload with the default seal.
  *
- * `typeName` is absent where the call named no type and took one from its target. It sits at the
+ * `typeName` is `null` where the call named no type and took one from its target. It sits at the
  * type argument when there is one, and at `of` when there is not.
  */
 export type Lift = Val<
   "Lift",
   Where & {
-    typeName?: string;
-    typeRef?: SymbolRef;
-    qualifier?: string;
+    typeName: string | null;
+    typeRef: SymbolRef | null;
+    qualifier: string | null;
     /**
      * The variant a `VariantOf<E, "N">` argument named, where the lift named one. `typeName` and
      * `typeRef` are then the enum's, which is what holds that variant's frame.
      */
-    variant?: string;
+    variant: string | null;
   }
 >;
 export const Lift = Val.companion<Lift>().build();
@@ -144,7 +144,13 @@ export function valOf(
   if (!param) {
     const property = child(callee, "property");
     if (!property) return undefined;
-    return Lift.seal(at(property["start"] as number));
+    return Lift.seal({
+      ...at(property["start"] as number),
+      typeName: null,
+      typeRef: null,
+      qualifier: null,
+      variant: null,
+    });
   }
   // A type argument that is not a plain reference, `Val.of<{ … }>`, names no Val to key it by.
   if (param.type !== "TSTypeReference") return undefined;
@@ -157,8 +163,8 @@ export function valOf(
     ...at(reached.node["start"] as number),
     typeName: reached.node["name"] as string,
     typeRef: symbolRef(file, bound, reached.node["name"] as string, reached.qualifier),
-    ...(reached.qualifier === undefined ? {} : { qualifier: reached.qualifier }),
-    ...(of === undefined ? {} : { variant: of.variant }),
+    qualifier: reached.qualifier ?? null,
+    variant: of?.variant ?? null,
   });
 }
 
@@ -273,7 +279,8 @@ export function companionSite(
     typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
     typeOffset: named.node["start"] as number,
     typeAt: at(named.node["start"] as number),
-    ...(named.qualifier === undefined ? {} : { qualifier: named.qualifier }),
+    name: null,
+    qualifier: named.qualifier ?? null,
     seals: steps.has("implSeal"),
   });
 }

@@ -33,10 +33,10 @@ export type EnumAlias = Val<
     /** Traits declared in the enum's third argument. */
     traits: DeclaredTrait[];
     /**
-     * The variant names, absent where the syntax does not determine them. Every rule reading
+     * The variant names, `null` where the syntax does not determine them. Every rule reading
      * them reports nothing there rather than guessing at a mapped type or an import.
      */
-    variants?: string[];
+    variants: string[] | null;
   }
 >;
 export const EnumAlias = Val.companion<EnumAlias>().build();
@@ -172,7 +172,7 @@ export function valAliases(
           // The same position as a Val's: an enum's third argument carries the traits, the shared
           // fields and the tag's name, all intersected.
           traits: traitNames(children(args, "params")[2], file, bound, locals, at),
-          ...(variants === undefined ? {} : { variants }),
+          variants: variants ?? null,
         }),
       );
     }

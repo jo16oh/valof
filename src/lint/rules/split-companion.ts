@@ -32,7 +32,7 @@ function findings({ kind }: SplitCompanion, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
   for (const { file, sites, bound } of scans) {
     for (const { typeName, typeAt, qualifier } of sites) {
-      if (qualifier === undefined && !bound.imported.has(typeName)) continue;
+      if (qualifier === null && !bound.imported.has(typeName)) continue;
       found.push(
         Finding.seal({
           kind,

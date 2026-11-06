@@ -15,7 +15,7 @@ export const BypassedCompanion = Val.companion<BypassedCompanion>()
   .build();
 
 /** What the companion offers instead, or what it does not. */
-function instead(site: CompanionSite, type: string, variant: string | undefined): string {
+function instead(site: CompanionSite, type: string, variant: string | null): string {
   // An enum's companion holds one frame per variant.
   if (site.of === "Enum") return `bypasses ${type}.${variant}.seal, the constructor for it`;
   if (site.seals) return `bypasses ${type}.seal, which checks the payload`;
@@ -43,13 +43,12 @@ function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[
     for (const { typeName, typeRef, variant, line, column } of lifts) {
       // A lift naming no type is the unnamed-of rule's finding. Which companion it goes around,
       // if any, is not written anywhere here.
-      if (typeName === undefined) continue;
-      if (!typeRef) continue;
+      if (typeName === null || typeRef === null) continue;
       const site = companions.get(identity(typeRef));
       if (!site) continue;
       // `Val.of` builds one Val, and the enum's union is not one: the type error says so.
-      if (site.of === "Enum" && variant === undefined) continue;
-      const written = variant === undefined ? typeName : `VariantOf<${typeName}, "${variant}">`;
+      if (site.of === "Enum" && variant === null) continue;
+      const written = variant === null ? typeName : `VariantOf<${typeName}, "${variant}">`;
       found.push(
         Finding.seal({
           kind,

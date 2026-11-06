@@ -48,7 +48,7 @@ function findings({ kind }: CompanionMismatch, scans: readonly Scan[]): Finding[
   const found: Finding[] = [];
   for (const { file, sites, companionBindings } of scans) {
     for (const { name, nameAt, typeName } of sites) {
-      if (name === undefined || name === typeName) continue;
+      if (name === null || name === typeName) continue;
       found.push(
         Finding.seal({
           kind,

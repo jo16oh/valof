@@ -141,7 +141,7 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
     const taken = new Map<string, ReadonlySet<string>>();
     for (const site of sites) {
       const declared = variants.get(identity(site.typeRef));
-      if (site.name !== undefined && declared) taken.set(site.name, declared);
+      if (site.name !== null && declared) taken.set(site.name, declared);
     }
     return members
       .filter(({ companion, member }) => !taken.get(companion)?.has(member))
