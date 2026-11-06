@@ -2809,9 +2809,11 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     Val で報告していた
   - record の payload と、shape がプリミティブの trait: `Agrees` が field の食い違いしか見ていなかった
   - tuple の要素が `never`: 要素は何に写しても満たすので、tuple ごと「no value fits a tuple element」
-  - **対応しないもの。**plain object の field に `seal` で Val を渡す: `seal` は深くコピーして plain object にする
-    ので、`patch`（plain object は merge、Val は置き換え）と違って害が無い。field の `any`、`Impl<any>`、
-    companion の option の `any` は 2026-11-04 の方針どおり対応しない
+  - **対応しないもの。**plain object の field に `seal` で Val を渡す: Val は plain object でもあるので、意味の上で
+    問題ない（ユーザー、2026-11-06）。`patch` で拒むのは、plain object は merge し Val は置き換えるという扱いの違い
+    のため。field の `any`、`Impl<any>`、companion の option の `any` は 2026-11-04 の方針どおり対応しない
+  - 型の予算（`index.d.ts` は残り 975 B、trait は残り 332）は今は上げず、次に超えたときに上げる（ユーザー、
+    2026-11-06）
   - **コスト。**core 8,845 → 8,865、trait 24,460 → 24,668、enum 45,511 → 45,759、`index.d.ts` 101.67 →
     103.05 kB（予算 104 kB の残り 975 B、trait は 332）
 
