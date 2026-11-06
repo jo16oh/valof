@@ -95,6 +95,8 @@ is a gap. Report it with the input and the expected result, not with a test name
 Check the error paths too: the throw, the `Err` branch, the lint diagnostic. They go untested more
 often than the success path.
 
+Where the diff changes a public type, `skills/type-hunt/SKILL.md` lists the inputs to try.
+
 ## Pass 3: liars
 
 A test that passes whatever the source does. Break the source it covers, run it, and confirm it goes
