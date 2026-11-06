@@ -12,6 +12,12 @@ describe("version index", () => {
     ]);
   });
 
+  test("orders prereleases by semver precedence, a number by its value", () => {
+    expect(
+      versions(["v1.0.0-beta.2", "v1.0.0-beta.10", "v1.0.0-alpha.1", "v1.0.0-rc.1", "v1.0.0-beta"]),
+    ).toEqual(["v1.0.0-rc.1", "v1.0.0-beta.10", "v1.0.0-beta.2", "v1.0.0-beta", "v1.0.0-alpha.1"]);
+  });
+
   test("names the release `latest/` holds", () => {
     expect(render(["v0.8.0", "v0.9.0-rc.1"])).toContain(`<a href="latest/">latest (v0.8.0)</a>`);
   });
