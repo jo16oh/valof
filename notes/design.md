@@ -2796,6 +2796,25 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     確かめられない
   - **コスト。**trait 24,331 → 24,460、enum 45,146 → 45,511、`index.d.ts` 99.92 → 101.67 kB
 
+- [x] ~~**type-hunt で見つけた、通ってしまう宣言。**~~ → 拒んだ、2026-11-06。valof 全体に type-hunt を当てた結果
+  - Val を variant の payload にする（`{ X: Val<"Q", …> }`）: enum が黙って壊れていた。「a variant's payload cannot be
+    a Val; write its fields」
+  - variant をインデックスシグネチャで書く（`Record<string, …>`、template のキー）: #133 で brand を仮の名前に
+    したので黙って通っていた。「a variant's name must be one string literal」
+  - Enum の第 3 引数の `any`、`never`、`Tag<"k"> & Tag<"j">`（`never` になる）: 1 つの文言。variant は
+    `SharedArg` で空の object から組み、variant の検査は通る
+  - trait のメンバの集合が `any` / `never`、メンバが `any`（`Final<any>` も）: `any` はメンバの制約も満たすので
+    verdict で見る（`AnyMembers`）
+  - trait の shape の field が `string & number`: `DeclarableShape` で `Unfit` を見る（object だけ）。前は実装する
+    Val で報告していた
+  - record の payload と、shape がプリミティブの trait: `Agrees` が field の食い違いしか見ていなかった
+  - tuple の要素が `never`: 要素は何に写しても満たすので、tuple ごと「no value fits a tuple element」
+  - **対応しないもの。**plain object の field に `seal` で Val を渡す: `seal` は深くコピーして plain object にする
+    ので、`patch`（plain object は merge、Val は置き換え）と違って害が無い。field の `any`、`Impl<any>`、
+    companion の option の `any` は 2026-11-04 の方針どおり対応しない
+  - **コスト。**core 8,845 → 8,865、trait 24,460 → 24,668、enum 45,511 → 45,759、`index.d.ts` 101.67 →
+    103.05 kB（予算 104 kB の残り 975 B、trait は 332）
+
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
       `and-or-holes.md` の 7
   - **field は `null` かプリミティブを、他の 1 種類と並べて持てる。**`string[] | null`、`Rec<Node> | null`（連結リスト）、
