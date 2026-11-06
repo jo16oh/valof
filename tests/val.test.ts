@@ -341,6 +341,12 @@ describe("Val", () => {
       }>();
     });
 
+    test("a tuple element no value fits is rejected", () => {
+      // @ts-expect-error no value fits a tuple element
+      type Clash = Val<"Clash", { pair: [string & number, string] }>;
+      expectTypeOf<Clash>().not.toBeNever();
+    });
+
     test("a mixed field is rejected at the root, beside a symbol, or in an object union", () => {
       // @ts-expect-error not a plain value
       type Root = Val<"Root", string | string[]>;

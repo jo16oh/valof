@@ -345,6 +345,12 @@ describe("Trait", () => {
       expectTypeOf<Loose>().not.toBeNever();
     });
 
+    test("leaves no field without a value", () => {
+      // @ts-expect-error no value fits `x`
+      type Clash = Trait<"Clash", { x: string & number }>;
+      expectTypeOf<Clash>().not.toBeNever();
+    });
+
     test("cannot be `unknown`", () => {
       // @ts-expect-error `unknown` is not a plain value
       type Unknown = Trait<"Unknown", unknown>;
@@ -654,6 +660,25 @@ describe("dyn", () => {
     >();
   });
 
+  describe("the members", () => {
+    test("cannot be `any` or `never`", () => {
+      type Fault = Invalid<"a trait's members cannot be `any` or `never`; write them">;
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<VerdictOf<Trait<"Loose", { x: string }, any>>>().toEqualTypeOf<Fault>();
+      expectTypeOf<VerdictOf<Trait<"Empty", { x: string }, never>>>().toEqualTypeOf<Fault>();
+    });
+
+    test("a member cannot be `any`", () => {
+      // @ts-expect-error a trait member cannot be `any`
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = Trait<"Loose", { x: string }, { f: any }>;
+      // @ts-expect-error a trait member cannot be `any`
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Sealed = Trait<"Sealed", { x: string }, { f: Final<any> }>;
+      expectTypeOf<Loose | Sealed>().not.toBeNever();
+    });
+  });
+
   describe("a primitive payload", () => {
     type Marker = Trait<"Marker", Record<never, never>, { wire: (self: Self) => string }>;
     const Marker = Trait.companion<Marker>()
@@ -665,6 +690,13 @@ describe("dyn", () => {
     test("gets an empty target to stand behind", () => {
       const mail = Email.seal("a@example.com");
       expect([Email.wire(mail), Marker.dyn(Email, mail).wire()]).toEqual(["marked", "marked"]);
+    });
+
+    test("a primitive shape needs a primitive payload", () => {
+      type Wire = Trait<"Wire", string>;
+      // @ts-expect-error the payload does not hold what the trait requires
+      type Boxed = Val<"Boxed", { a: string }, Wire>;
+      expectTypeOf<Boxed>().not.toBeNever();
     });
 
     test("is the one box that does not stand in for its value", () => {
