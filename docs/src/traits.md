@@ -20,8 +20,8 @@ type Greetable = Trait<
 >;
 ```
 
-The second argument is the shape: the fields every implementing Val holds. It follows the same rules
-as a payload, so a shape no Val could ever hold is an error where it is written.
+The second type argument is the shape: the fields every implementing Val holds. It follows the same
+rules as a payload, so a shape no Val could ever hold is an error where it is written.
 
 The third declares the functions. They become members of every companion that implements the trait,
 and they take the value first.
@@ -30,7 +30,7 @@ and they take the value first.
 
 ## Implement it on a Val
 
-A Val declares its traits in the third argument, and its companion implements them:
+A Val declares its traits in the third type argument, and its companion implements them:
 
 ```ts
 // @errors: 2322
@@ -113,7 +113,7 @@ also return a default to replace it, as `Admin` replaces `greet`.
 
 ## Forbid replacing a default with `Final`
 
-Mark one `Final`:
+Mark a member `Final`:
 
 ```ts
 import { Trait, Val, type Final, type Self } from "valof";
@@ -300,4 +300,5 @@ Weighed.dyn(Crate, crate).heavy(); // true
 Write `&`, not `|`, inside `Impl`. `Impl<Greetable & Weighed>` accepts a value implementing both.
 `Impl<Greetable> | Impl<Weighed>` accepts a value implementing either.
 
-Each trait boxes on its own. No two traits on one Val may declare the same member name.
+`dyn` boxes a value for one trait at a time. No two traits on one Val may declare the same member
+name.

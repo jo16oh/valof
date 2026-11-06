@@ -176,13 +176,16 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
   : [T] extends [ReadonlyArray<unknown>]
     ? number extends T["length"]
       ? { [I in keyof T]: Validate<T[I], false> }
-      : {
-          // An optional element is the tuple's form of an optional key: absent, it round trips.
-          // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
-          [I in keyof T]: undefined extends Required<T>[I]
-            ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
-            : Validate<Exclude<T[I], undefined>, false>;
-        }
+      : // A `never` element satisfies whatever it is mapped to, so the tuple is rejected whole.
+        true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
+        ? Invalid<"no value fits a tuple element">
+        : {
+            // An optional element is the tuple's form of an optional key: absent, it round trips.
+            // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+            [I in keyof T]: undefined extends Required<T>[I]
+              ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+              : Validate<Exclude<T[I], undefined>, false>;
+          }
     : // oxlint-disable-next-line no-unsafe-function-type
       [T] extends [Function]
       ? Invalid<"functions are not allowed">
@@ -406,9 +409,12 @@ type Agrees<T, Tr extends AnyTrait> =
     ? DeepReadonly<Checked<T>> extends ShapeOf<Tr>
       ? true
       : "the payload does not hold what the trait requires"
-    : [Disagreement<T, ShapeOf<Tr>>] extends [never]
-      ? true
-      : Disagreement<T, ShapeOf<Tr>>;
+    : // A primitive shape has no field for a record to disagree with.
+      [ShapeOf<Tr>] extends [object]
+      ? [Disagreement<T, ShapeOf<Tr>>] extends [never]
+        ? true
+        : Disagreement<T, ShapeOf<Tr>>
+      : "the payload does not hold what the trait requires";
 
 /** A member name two of the traits declare. A Val registers each name once. */
 type Overlap<B> = {
@@ -626,12 +632,15 @@ export type Patch<T, X extends PropertyKey = never> = T extends object
  * The stop at a Val is what keeps {@link Companion.seal} the only gate: a patch reaching into a
  * nested value would build a payload its own seal never saw, and the outer `patch` seals the
  * outer value alone. Replace it with one built by its constructor.
+ *
+ * A Val in place of a nested plain object replaces it whole too, so it has to hold every key.
  */
-// A Val declares the brand key private, and the public optional key added here rejects it.
+// A Val declares the brand key private, and the public optional key added here rejects it from
+// the patch. Only the second member takes a Val, so a plain object still meets the first alone.
 type PatchValue<T> = [T] extends [object]
   ? [Patch<T>] extends [never]
     ? T
-    : Patch<T, typeof PhantomBrand>
+    : Patch<T, typeof PhantomBrand> | (T & AnyVal)
   : T;
 
 export type AnyFn = (...args: never[]) => unknown;

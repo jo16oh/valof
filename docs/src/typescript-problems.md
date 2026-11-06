@@ -1,7 +1,7 @@
 # TypeScript Problems Valof Addresses
 
-This chapter explains the TypeScript problems behind individual Valof features. Use the sidebar for
-how to use the library.
+This chapter explains the TypeScript problems behind individual Valof features. The other chapters
+show how to use the library.
 
 ## Branding
 
@@ -247,8 +247,8 @@ const admin = Admin.seal({ name: "root", level: 9 });
 User.greet(admin); // type error: greet belongs to User
 ```
 
-`Admin` holds the `name` that `greet` reads, and `User.greet` rejects it all the same. Collecting
-behavior and sharing it are still two different things.
+`Admin` holds the `name` that `greet` reads, and `User.greet` rejects it anyway. Collecting behavior
+and sharing it are still two different things.
 
 Declare a `Trait`, add it to a Val's third type argument, then register its members with
 `.implTrait`. [Traits](traits.md#declare-what-vals-share) covers defaults, enums and `dyn`:
