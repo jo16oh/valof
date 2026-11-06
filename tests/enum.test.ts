@@ -1285,6 +1285,20 @@ describe("a broken declaration", () => {
     expectTypeOf<NameOf<Enum<"Loose", Variants, Tag<never>> & AnyEnum>>().toEqualTypeOf<
       Fault<"the tag's name must be one string literal">
     >();
+    // `Tag<any>` passes the tag's own constraint, and must not be reported as a field the payload holds.
+    // @ts-expect-error the tag's name must be one string literal
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    type Untagged = Enum<"Untagged", Variants, Tag<any>>;
+    expectTypeOf<NameOf<Untagged & AnyEnum>>().toEqualTypeOf<
+      Fault<"the tag's name must be one string literal">
+    >();
+  });
+
+  test("the variants cannot be `any` or `never`", () => {
+    type Fault = Invalid<"an enum's variants cannot be `any` or `never`"> & string;
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    expectTypeOf<NameOf<Enum<"Loose", any> & AnyEnum>>().toEqualTypeOf<Fault>();
+    expectTypeOf<NameOf<Enum<"Empty", never> & AnyEnum>>().toEqualTypeOf<Fault>();
   });
 
   test("the shared fields are one object type, not a union", () => {
@@ -1309,6 +1323,12 @@ describe("a broken declaration", () => {
     type Right = Enum<"Right", { C: { n: number }; D: { m: number } }>;
     // @ts-expect-error a companion builds one enum
     Enum.companion<Left | Right>().build();
+  });
+
+  test("a companion takes an enum, not a Val", () => {
+    type Plain = Val<"Plain", { n: number }>;
+    // @ts-expect-error a Val is built by `Val.companion`
+    Enum.companion<Plain>();
   });
 
   test("a variant takes no companion of its own, and neither does the union", () => {

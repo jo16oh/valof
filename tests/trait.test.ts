@@ -333,6 +333,16 @@ describe("Trait", () => {
       // oxlint-disable-next-line no-explicit-any -- the case under test
       expectTypeOf<VerdictOf<Trait<"Loose", any>>>().toEqualTypeOf<{ readonly Loose: Fault }>();
       expectTypeOf<VerdictOf<Trait<"Empty", never>>>().toEqualTypeOf<{ readonly Empty: Fault }>();
+      // The members' constraint reads the shape, so it reports it where the trait is declared, and
+      // must not report a member taking a field's name.
+      type Loose = Trait<
+        "Loose",
+        // oxlint-disable-next-line no-explicit-any -- the case under test
+        any,
+        // @ts-expect-error a trait's shape cannot be `any` or `never`
+        { f: (self: Self) => number }
+      >;
+      expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
     });
   });
 
@@ -610,9 +620,20 @@ describe("dyn", () => {
     type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
     // @ts-expect-error a box takes one trait
     const both = null as unknown as Dyn<Greetable & Weighed>;
-    // @ts-expect-error a union of traits is not a trait
+    // @ts-expect-error a box takes one trait
     const either = null as unknown as Dyn<Greetable | Weighed>;
     expect([both, either]).toEqual([null, null]);
+  });
+
+  test("takes a trait, not a Val", () => {
+    type Plain = Val<"Plain", { n: number }>;
+    // @ts-expect-error not a trait
+    const box = null as unknown as Dyn<Plain>;
+    // @ts-expect-error not a trait
+    const value = null as unknown as Impl<Plain>;
+    // @ts-expect-error not a trait
+    Trait.companion<Plain>();
+    expect([box, value]).toEqual([null, null]);
   });
 
   describe("a primitive payload", () => {
@@ -859,7 +880,7 @@ describe("building", () => {
       type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
       // @ts-expect-error a companion implements one trait
       Trait.companion<Greetable & Weighed>();
-      // @ts-expect-error a union of traits is not a trait
+      // @ts-expect-error a companion implements one trait
       Trait.companion<Greetable | Weighed>();
     });
 
