@@ -12,7 +12,7 @@ import {
 } from "../src/index.ts";
 // `Wired` is not published from the entry point.
 import type { Allowed, CallBuildFirst, Invalid, Verdict, Wired } from "../src/val.ts";
-import type { VerdictOf } from "../src/trait.ts";
+import type { LoneTrait, OneTrait, VerdictOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
 type Greetable = Trait<
@@ -333,6 +333,24 @@ describe("Trait", () => {
       // oxlint-disable-next-line no-explicit-any -- the case under test
       expectTypeOf<VerdictOf<Trait<"Loose", any>>>().toEqualTypeOf<{ readonly Loose: Fault }>();
       expectTypeOf<VerdictOf<Trait<"Empty", never>>>().toEqualTypeOf<{ readonly Empty: Fault }>();
+      // The members' constraint reads the shape, so it reports it where the trait is declared, and
+      // must not report a member taking a field's name.
+      type Loose = Trait<
+        "Loose",
+        // oxlint-disable-next-line no-explicit-any -- the case under test
+        any,
+        // @ts-expect-error a trait's shape cannot be `any` or `never`
+        { f: (self: Self) => number }
+      >;
+      expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
+    });
+
+    test("cannot be `unknown`", () => {
+      // @ts-expect-error `unknown` is not a plain value
+      type Unknown = Trait<"Unknown", unknown>;
+      expectTypeOf<VerdictOf<Unknown>>().toEqualTypeOf<{
+        readonly Unknown: Invalid<"`unknown` is not a plain value; write the type">;
+      }>();
     });
   });
 
@@ -610,9 +628,30 @@ describe("dyn", () => {
     type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
     // @ts-expect-error a box takes one trait
     const both = null as unknown as Dyn<Greetable & Weighed>;
-    // @ts-expect-error a union of traits is not a trait
+    // @ts-expect-error a box takes one trait
     const either = null as unknown as Dyn<Greetable | Weighed>;
     expect([both, either]).toEqual([null, null]);
+  });
+
+  test("takes a trait, not a Val", () => {
+    type Plain = Val<"Plain", { n: number }>;
+    // @ts-expect-error not a trait
+    const box = null as unknown as Dyn<Plain>;
+    // @ts-expect-error not a trait
+    const value = null as unknown as Impl<Plain>;
+    // @ts-expect-error not a trait
+    Trait.companion<Plain>();
+    expect([box, value]).toEqual([null, null]);
+    // The key is the message, so `@ts-expect-error` alone would pass on any other.
+    expectTypeOf<"not a trait">().toExtend<keyof OneTrait<Plain>>();
+    expectTypeOf<"not a trait">().toExtend<keyof LoneTrait<Plain>>();
+  });
+
+  test("a box and a companion take one trait, not a union", () => {
+    type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+    expectTypeOf<"`Dyn` and `Trait.companion` take one trait; write one for each trait">().toExtend<
+      keyof LoneTrait<Greetable | Weighed>
+    >();
   });
 
   describe("a primitive payload", () => {
@@ -859,7 +898,7 @@ describe("building", () => {
       type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
       // @ts-expect-error a companion implements one trait
       Trait.companion<Greetable & Weighed>();
-      // @ts-expect-error a union of traits is not a trait
+      // @ts-expect-error a companion implements one trait
       Trait.companion<Greetable | Weighed>();
     });
 

@@ -167,7 +167,13 @@ type OneMembers<M, Shape> = [M] extends [infer X extends Members]
 export type Impl<Tr extends OneTrait<Tr>> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>;
 
 /** A trait, or several intersected, but not a union of them. */
-export type OneTrait<Tr> = AnyTrait & Single<Tr>;
+export type OneTrait<Tr> = Kind<Tr> & AnyTrait & Single<Tr>;
+
+// The key is the error message. Without it, the checker reports the key of `AnyTrait`, which is
+// written for a trait used as a value's type.
+type Kind<Tr> = {
+  readonly [K in "not a trait" as [Tr] extends [AnyTrait] ? never : K]: never;
+};
 
 // The key is the error message. For a union, the checker reports the key as missing from each trait
 // in it.
@@ -179,12 +185,14 @@ type UnionMessage =
   "a union of traits is not a trait; write `Impl<A> | Impl<B>` for a value implementing either";
 
 /** One trait, not several intersected, as {@link Dyn} and {@link companion} take it. */
-export type LoneTrait<Tr> = OneTrait<Tr> & Lone<Tr>;
+export type LoneTrait<Tr> = Kind<Tr> & AnyTrait & Lone<Tr> & Single<Tr>;
 
 // The key is the error message. For an intersection, the checker reports the key as missing from it.
 type Lone<Tr> = {
-  readonly [K in LoneMessage as [BrandNames<Tr>] extends [UnionToIntersection<BrandNames<Tr>>]
-    ? never
+  readonly [K in LoneMessage as [Tr] extends [UnionToIntersection<Tr>]
+    ? [BrandNames<Tr>] extends [UnionToIntersection<BrandNames<Tr>>]
+      ? never
+      : K
     : K]: never;
 };
 
@@ -303,21 +311,26 @@ type HasSelfBranch<T, Depth extends unknown[]> = 0 extends 1 & T
  * itself. Every check here reads the declaration alone, which is what lets it live in the verdict.
  */
 type Declarable<Shape, M extends Members> = {
-  [K in keyof M]: K extends keyof DeepReadonly<Checked<Shape>>
-    ? Invalid<"a trait member cannot take a field's name">
-    : K extends "dyn"
-      ? Invalid<"a trait member cannot take the name the trait itself uses">
-      : K extends Reserved
-        ? Invalid<"a trait member cannot take a name the library reserves">
-        : M[K] extends (self: never, ...args: infer A) => infer R
-          ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-            ? Invalid<"Self can only be a member's first parameter">
-            : HasSelf<R> extends true
-              ? Invalid<"a trait member cannot return Self">
-              : Omission<M[K]> extends string
-                ? Invalid<Omission<M[K]> & string>
-                : M[K]
-          : M[K];
+  // `any` and `never` satisfy the shape's own constraint, so the members report them.
+  [K in keyof M]: 0 extends 1 & Shape
+    ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
+    : [Shape] extends [never]
+      ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
+      : K extends keyof DeepReadonly<Checked<Shape>>
+        ? Invalid<"a trait member cannot take a field's name">
+        : K extends "dyn"
+          ? Invalid<"a trait member cannot take the name the trait itself uses">
+          : K extends Reserved
+            ? Invalid<"a trait member cannot take a name the library reserves">
+            : M[K] extends (self: never, ...args: infer A) => infer R
+              ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
+                ? Invalid<"Self can only be a member's first parameter">
+                : HasSelf<R> extends true
+                  ? Invalid<"a trait member cannot return Self">
+                  : Omission<M[K]> extends string
+                    ? Invalid<Omission<M[K]> & string>
+                    : M[K]
+              : M[K];
 };
 
 /**
