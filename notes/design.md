@@ -2796,7 +2796,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     確かめられない
   - **コスト。**trait 24,331 → 24,460、enum 45,146 → 45,511、`index.d.ts` 99.92 → 101.67 kB
 
-- [x] ~~**type-hunt で見つけた、通ってしまう宣言。**~~ → 拒んだ、2026-11-06。valof 全体に type-hunt を当てた結果
+- [x] ~~**通ってしまう宣言。**~~ → 拒んだ、2026-11-06。valof 全体の型を監査した結果
   - Val を variant の payload にする（`{ X: Val<"Q", …> }`）: enum が黙って壊れていた。「a variant's payload cannot be
     a Val; write its fields」
   - variant をインデックスシグネチャで書く（`Record<string, …>`、template のキー）: #133 で brand を仮の名前に
