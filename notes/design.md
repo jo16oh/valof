@@ -2810,10 +2810,20 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - record の payload と、shape がプリミティブの trait: `Agrees` が field の食い違いしか見ていなかった
   - tuple の要素が `never`: 要素は何に写しても満たすので、tuple ごと「no value fits a tuple element」
   - **対応しないもの。**plain object の field に `seal` で Val を渡す: Val は plain object でもあるので、意味の上で
-    問題ない（ユーザー、2026-11-06）。`patch` で拒むのは、plain object は merge し Val は置き換えるという扱いの違い
-    のため。field の `any`、`Impl<any>`、companion の option の `any` は 2026-11-04 の方針どおり対応しない
+    問題ない（ユーザー、2026-11-06）。field の `any`、`Impl<any>`、companion の option の `any` は 2026-11-04 の方針どおり対応しない
   - 型の予算（`index.d.ts` は残り 975 B、trait は残り 332）は今は上げず、次に超えたときに上げる（ユーザー、
     2026-11-06）
+
+- [x] ~~**`patch` で plain object の field に Val を渡せない。**~~ → field のキーをすべて持つ Val なら通す、2026-11-06
+  - #130 では `PhantomBrand` を `?: never` にして Val を一律に拒んでいた。拒む理由は、`patch` の field の型が
+    部分的なのに、実行時は `owned` のノード（Val、既にある値）を merge せず丸ごと置き換えること。キーの欠けた Val
+    を通すと、field がキーを失ったまま型はそのキーを持つと言う
+  - Val は plain object でもある（ユーザー）。置き換える値に完全な形を求めれば、置き換えても merge しても結果が
+    同じになり、`structuredClone` で `owned` の記録が失われても壊れない。`PatchValue<T>` を
+    `Patch<T, typeof PhantomBrand> | (T & AnyVal)` にした。2 つ目は brand を持つ値にしか当たらないので、変数で渡す
+    plain object の扱い（weak type 検査、`?: never` のキー）は変わらない。variant も同じ規則で通る
+  - 余分なキーを持つ Val も通る。`seal` に余分なキーを持つ値を渡したときと同じ
+  - **コスト。**core 8,865 → 8,893、`index.d.ts` 103.05 → 103.16 kB
   - **コスト。**core 8,845 → 8,865、trait 24,460 → 24,668、enum 45,511 → 45,759、`index.d.ts` 101.67 →
     103.05 kB（予算 104 kB の残り 975 B、trait は 332）
 
