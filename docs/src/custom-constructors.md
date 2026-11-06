@@ -146,12 +146,11 @@ SessionId.create(); // SessionId
 SessionId.seal(input); // SessionId | undefined
 ```
 
-The function passed to `.implCreate.noseal` takes no arguments, and neither does the `create` it
-registers. A payload that depends on arguments should pass through the seal to be normalized. The
-function passed to `.noseal` must always return a canonical payload. In production, `create` skips
-the custom seal. It still copies the payload, skipping anything already inside a Val, as
-[`seal`](immutability.md#vals-are-immutable) does. In development, it runs the seal and throws if
-the seal rejects or normalizes the payload.
+`.implCreate.noseal` takes no arguments. A payload that depends on arguments should pass through the
+seal to be normalized. The function passed to `.noseal` must always return a canonical payload. In
+production, `create` skips the custom seal. It still copies the payload, skipping anything already
+inside a Val, as [`seal`](immutability.md#vals-are-immutable) does. In development, it runs the seal
+and throws if the seal rejects or normalizes the payload.
 
 ## Define other constructors with `implAssoc`
 
