@@ -36,6 +36,13 @@ describe("version index", () => {
   });
 
   // The release workflow runs it after the tag, so this is the only check before then.
+  test("asks for the site root when none is given", () => {
+    const script = fileURLToPath(new URL("index.ts", import.meta.url));
+    const run = spawnSync(process.execPath, [script], { encoding: "utf8" });
+    expect(run.status).not.toBe(0);
+    expect(run.stderr).toContain("usage: node index.ts <site-root>");
+  });
+
   test("writes the index of the site's version directories", () => {
     const site = mkdtempSync(join(tmpdir(), "version-index-"));
     try {
