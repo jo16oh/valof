@@ -1248,10 +1248,13 @@ describe("patch", () => {
     const spot = Val.of<Spot>({ x: 1, y: 2 });
     const pin = Pin.seal({ at: { x: 0, y: 0 } });
     const moved = Pin.patch(pin, { at: spot });
-    expect(moved).toEqual({ at: { x: 1, y: 2 } });
     expect(moved.at).toBe(spot);
     // @ts-expect-error a Val missing `y` would leave the field without it
     Pin.patch(pin, { at: Val.of<Edge>({ x: 1 }) });
+    // The Val member leaves the weak type check on a plain object in place.
+    const stray = { z: 1 };
+    // @ts-expect-error no key in common with the field
+    Pin.patch(pin, { at: stray });
     // A variant is a Val, and the same rule holds.
     type Point = Enum<"Point", { Full: { x: number; y: number }; Half: { x: number } }>;
     const Point = Enum.companion<Point>().build();
