@@ -23,19 +23,24 @@ export type Finding = Val<
 export const Finding = Val.companion<Finding>().build();
 
 /** What a rule gets beyond the scans. */
-export type Context = {
-  /**
-   * What the rules before this one reported, silenced or not.
-   *
-   * Rules run in the order `RULES` lists them, so a rule reading this must sit last. Only
-   * a rule about the run itself needs it; a rule about the code reads the scans.
-   */
-  reported: readonly Finding[];
-  /**
-   * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
-   */
-  notRun: ReadonlySet<string>;
-};
+export type Context = Val<
+  "Context",
+  {
+    /**
+     * What the rules before this one reported, silenced or not.
+     *
+     * Rules run in the order `RULES` lists them, so a rule reading this must sit last. Only
+     * a rule about the run itself needs it; a rule about the code reads the scans.
+     */
+    reported: readonly Finding[];
+    /**
+     * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
+     * A set: test it with `Object.hasOwn`.
+     */
+    notRun: Record<string, true>;
+  }
+>;
+export const Context = Val.companion<Context>().build();
 
 /**
  * One rule, whole: what it reports, how it reads in `--help`, and how it runs.

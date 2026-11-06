@@ -48,7 +48,9 @@ function findings(
       spelling === "valof-lint-disable"
         ? []
         : [...kinds]
-            .filter((named) => !notRun.has(named) && !used.has(`${file}\0${covers}\0${named}`))
+            .filter(
+              (named) => !Object.hasOwn(notRun, named) && !used.has(`${file}\0${covers}\0${named}`),
+            )
             .map((named) =>
               Finding.seal({
                 kind,

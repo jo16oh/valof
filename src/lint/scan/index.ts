@@ -30,6 +30,7 @@ import {
   original,
   symbolRef,
   type Bindings,
+  type ImportBinding,
   type SymbolRef,
   type Root,
 } from "./bindings.ts";
@@ -47,8 +48,8 @@ import { directives, type Directive } from "./directives.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
-export { original, symbolRef } from "./bindings.ts";
-export type { Bindings, Root, SymbolRef } from "./bindings.ts";
+export { symbolRef } from "./bindings.ts";
+export type { ImportBinding, Root, SymbolRef } from "./bindings.ts";
 export type {
   Alias,
   BrandClaim,
@@ -118,50 +119,62 @@ export const CompanionBinding = Val.companion<CompanionBinding>().build();
  * declarations, and two rules take one each. A new rule needing something new is a reason to add
  * a fact here; it is not a reason for a fact to belong to it.
  */
-export type Scan = {
-  file: string;
-  /** How the file bound the names it uses. */
-  bound: Bindings;
-  /** What `.impl(() => ({…}))` registered here. */
-  members: Member[];
-  /** Trait implementations, including the keys which replace a default implementation. */
-  traitImplementations: TraitImplementation[];
-  dynReads: DynRead[];
-  escapedDyns: EscapedDyn[];
-  /** Keys read off a local name. */
-  reads: Map<string, Set<string>>;
-  /** Keys read through a namespace, already named as the exporting module names them. */
-  namespaceReads: Map<string, Set<string>>;
-  /** `export { A as B }`: the name outside -> the name at the declaration. */
-  exportedAs: Map<string, string>;
-  /** Export name -> the local or source-module symbol it exposes. */
-  exportedRefs: Map<string, SymbolRef>;
-  /** Top-level `type X = Val<…>`. */
-  aliases: Alias[];
-  /** Top-level `type X = Trait<…>` declarations. */
-  traitAliases: TraitAlias[];
-  /** Top-level `type X = Enum<…>` declarations, and the variants each spells. */
-  enumAliases: EnumAlias[];
-  /** The brand each of those claims, where it spelled one as a literal. */
-  brands: BrandClaim[];
-  /** Top-level `type A = B`, which gives `B` a second name. */
-  reAliases: ReAlias[];
-  /** Companion chains of all three roots, and what each registered. */
-  sites: CompanionSite[];
-  /** Keys taken off a companion and bound to a local name. */
-  companionBindings: CompanionBinding[];
-  /** `Val.of<X>(…)` calls. */
-  lifts: Lift[];
-  /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
-  directives: Directive[];
-};
+export type Scan = Val<
+  "Scan",
+  {
+    file: string;
+    /** local name -> the exporting module and the name it exports. Read it with {@link importedName}. */
+    imported: Record<string, ImportBinding>;
+    /** What `.impl(() => ({…}))` registered here. */
+    members: Member[];
+    /** Trait implementations, including the keys which replace a default implementation. */
+    traitImplementations: TraitImplementation[];
+    dynReads: DynRead[];
+    escapedDyns: EscapedDyn[];
+    /** Keys read off a local name, each a set. */
+    reads: Record<string, Record<string, true>>;
+    /** Keys read through a namespace, already named as the exporting module names them. */
+    namespaceReads: Record<string, Record<string, true>>;
+    /** `export { A as B }`: the name outside -> the name at the declaration. */
+    exportedAs: Record<string, string>;
+    /** Export name -> the local or source-module symbol it exposes. */
+    exportedRefs: Record<string, SymbolRef>;
+    /** Top-level `type X = Val<…>`. */
+    aliases: Alias[];
+    /** Top-level `type X = Trait<…>` declarations. */
+    traitAliases: TraitAlias[];
+    /** Top-level `type X = Enum<…>` declarations, and the variants each spells. */
+    enumAliases: EnumAlias[];
+    /** The brand each of those claims, where it spelled one as a literal. */
+    brands: BrandClaim[];
+    /** Top-level `type A = B`, which gives `B` a second name. */
+    reAliases: ReAlias[];
+    /** Companion chains of all three roots, and what each registered. */
+    sites: CompanionSite[];
+    /** Keys taken off a companion and bound to a local name. */
+    companionBindings: CompanionBinding[];
+    /** `Val.of<X>(…)` calls. */
+    lifts: Lift[];
+    /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
+    directives: Directive[];
+  }
+>;
+export const Scan = Val.companion<Scan>().build();
+
+/**
+ * The name the exporting module uses, or the local one when the file did not import it.
+ *
+ * Looked up as an own key, since a local name can be `constructor` or `toString`.
+ */
+export const importedName = (imported: Scan["imported"], local: string): string =>
+  (Object.hasOwn(imported, local) ? imported[local]?.name : undefined) ?? local;
 
 /** Resolves local exports and re-export chains to the symbol they expose. */
 export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => string {
   const exports = new Map<string, SymbolRef>();
   for (const scan of scans) {
     const module = normalize(resolve(scan.file));
-    for (const [name, target] of scan.exportedRefs)
+    for (const [name, target] of Object.entries(scan.exportedRefs))
       exports.set(moduleRef(module, name).key, target);
   }
   return (ref) => {
@@ -478,17 +491,17 @@ export function scan(
     at,
   );
 
-  return {
+  return Scan.seal({
     file,
-    bound,
+    imported: Object.fromEntries(bound.imported),
     members,
     traitImplementations,
     dynReads,
     escapedDyns,
-    reads,
-    namespaceReads,
-    exportedAs,
-    exportedRefs,
+    reads: sets(reads),
+    namespaceReads: sets(namespaceReads),
+    exportedAs: Object.fromEntries(exportedAs),
+    exportedRefs: Object.fromEntries(exportedRefs),
     aliases,
     traitAliases,
     enumAliases,
@@ -498,7 +511,7 @@ export function scan(
     companionBindings,
     lifts,
     directives: directives(parsed.comments, source, at),
-  };
+  });
 }
 
 /** The uncomplicated `Trait.dyn(Val, value)` form.  Escaping the box is deliberately not traced. */
@@ -664,4 +677,14 @@ function implMembers(
     current = receiver;
   }
   return [...found.values()];
+}
+
+/** Each set as an object with the member as key, the way a payload holds one. */
+function sets(map: ReadonlyMap<string, ReadonlySet<string>>): Record<string, Record<string, true>> {
+  return Object.fromEntries(
+    [...map].map(([key, members]) => [
+      key,
+      Object.fromEntries([...members].map((one) => [one, true])),
+    ]),
+  );
 }

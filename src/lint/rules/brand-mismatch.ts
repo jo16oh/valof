@@ -1,6 +1,5 @@
 import { Val } from "../../index.ts";
-import { original } from "../scan/index.ts";
-import type { Scan } from "../scan/index.ts";
+import { importedName, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /**
@@ -31,9 +30,9 @@ export const BrandMismatch = Val.companion<BrandMismatch>()
  */
 function findings({ kind }: BrandMismatch, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
-  for (const { file, brands, bound } of scans) {
+  for (const { file, brands, imported } of scans) {
     for (const { typeName, brand, alias, line, column } of brands) {
-      const owner = original(bound, typeName);
+      const owner = importedName(imported, typeName);
       if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
       const namespace = brand.slice(0, brand.lastIndexOf("/") + 1);
       if (brand === `${namespace}${alias}`) continue;

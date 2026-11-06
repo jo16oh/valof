@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { original, symbolIdentity, type Scan } from "../scan/index.ts";
+import { importedName, symbolIdentity, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
@@ -40,7 +40,7 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
   for (const scan of scans)
-    for (const [outside, inside] of scan.exportedAs) {
+    for (const [outside, inside] of Object.entries(scan.exportedAs)) {
       exportedAs.set(outside, inside);
     }
 
@@ -69,12 +69,13 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
     keys.add(key);
   };
   for (const scan of scans) {
-    for (const [local, keys] of scan.reads) {
-      const name = original(scan.bound, local);
-      for (const key of keys) note(name, key);
+    for (const [local, keys] of Object.entries(scan.reads)) {
+      const name = importedName(scan.imported, local);
+      for (const key of Object.keys(keys)) note(name, key);
     }
     // Already named as the exporting module names them, so this file's aliases do not apply.
-    for (const [name, keys] of scan.namespaceReads) for (const key of keys) note(name, key);
+    for (const [name, keys] of Object.entries(scan.namespaceReads))
+      for (const key of Object.keys(keys)) note(name, key);
   }
 
   const implementations = new Map<string, Scan["traitImplementations"][number]>();
@@ -98,8 +99,8 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   // trait when that references none.
   const anywhere = new Set<string>();
   for (const scan of scans)
-    for (const keys of [...scan.reads.values(), ...scan.namespaceReads.values()])
-      for (const key of keys) anywhere.add(key);
+    for (const keys of [...Object.values(scan.reads), ...Object.values(scan.namespaceReads)])
+      for (const key of Object.keys(keys)) anywhere.add(key);
   for (const scan of scans)
     for (const { trait, val } of scan.escapedDyns) {
       const implementing = [...implementations.values()].filter(

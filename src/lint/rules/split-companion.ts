@@ -30,9 +30,9 @@ export const SplitCompanion = Val.companion<SplitCompanion>()
  */
 function findings({ kind }: SplitCompanion, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
-  for (const { file, sites, bound } of scans) {
+  for (const { file, sites, imported } of scans) {
     for (const { typeName, typeAt, qualifier } of sites) {
-      if (qualifier === null && !bound.imported.has(typeName)) continue;
+      if (qualifier === null && !Object.hasOwn(imported, typeName)) continue;
       found.push(
         Finding.seal({
           kind,
