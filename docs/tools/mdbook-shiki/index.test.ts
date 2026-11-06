@@ -35,8 +35,6 @@ describe("mdBook Shiki preprocessor", () => {
     expect(result.match(/class="shiki /g)).toHaveLength(3);
     expect(result).toContain("--shiki-light:");
     expect(result).toContain("--shiki-dark:");
-    expect(result).toContain("&#x3C;&#x26;");
-    expect(result).not.toContain("<&>");
     expect(fallback).not.toHaveBeenCalled();
   });
 

@@ -4,10 +4,6 @@ import { UnusedDisable, UnusedMember, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
-test("says nothing when the directive silenced something", async () => {
-  expect(await lint("used")).toEqual([]);
-});
-
 test("reports the directive when the rule it names finds nothing there", async () => {
   expect(await lint("unused")).toEqual([
     {

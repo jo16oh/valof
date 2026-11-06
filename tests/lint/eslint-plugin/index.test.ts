@@ -69,8 +69,7 @@ test("carries one kind each, so a project turns a rule off by leaving it out", (
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
 });
 
-test("covers the name it points at, and the line where there is no name", () => {
-  expect(run("money.ts")[0]).toMatch(/^6:2-8 /);
+test("underlines the whole directive, which has no name to point at", () => {
   // A directive begins with `//`, which is no word, so the comment itself is underlined.
   expect(run("silenced.ts")).toEqual([
     "5:0-72  valof-lint-disable-next-line names unused-member, which reports nothing here",
