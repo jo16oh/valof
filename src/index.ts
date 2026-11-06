@@ -11,6 +11,7 @@ export type {
   Companion,
   CompanionBuilder,
   Patch,
+  Payload,
   PayloadOf,
   PrivateCreate,
   PrivateSeal,
@@ -37,4 +38,13 @@ export type {
 
 export { Trait } from "./trait.ts";
 
-export type { AnyTrait, Dyn, Final, Members, Self, TraitBuilder, TraitCompanion } from "./trait.ts";
+export type {
+  AnyTrait,
+  Dyn,
+  Final,
+  Impl,
+  Members,
+  Self,
+  TraitBuilder,
+  TraitCompanion,
+} from "./trait.ts";

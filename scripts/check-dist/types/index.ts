@@ -40,12 +40,15 @@ type Fixture = (typeof fixtures)[number];
  * is now `Implement<…> | ((self) => Implement<…>)`, and the union is related twice at every call
  * the fixture makes. An alarm, not a ratchet.
  *
+ * It went from 22,000 to 25,000 when a field could hold `null` or a primitive beside another kind.
+ * Every node of `DeepReadonly` checks for such a field, and every payload for a field no value fits.
+ *
  * Each fixture has a step whose function takes what the step passes, as `impl(({ seal }) => …)`. A
  * function that takes nothing skips the cost `NoInfer` removes (`Supplied` in `src/val.ts`). With
  * the wrapper removed, `core` and `trait` exceed their budgets. `enum` stays within its own, so the
  * comments at its steps are the only record.
  */
-const budget: Record<Fixture, number> = { core: 10_000, trait: 22_000, enum: 90_000 };
+const budget: Record<Fixture, number> = { core: 10_000, trait: 25_000, enum: 90_000 };
 
 /**
  * The published declarations, in bytes. Deterministic like the counts above, and budgeted the
@@ -61,8 +64,11 @@ const budget: Record<Fixture, number> = { core: 10_000, trait: 22_000, enum: 90_
  *
  * `tsc` indents with four spaces where tsdown wrote a tab, which took the same types from 64.1 to
  * 64.7 kB.
+ *
+ * The budget went from 96 to 104 kB for the checks on a broken declaration: their messages, and
+ * the constraints that report them where the type is declared.
  */
-const declarationsBudget = 96 * 1024;
+const declarationsBudget = 104 * 1024;
 
 type Counts = { types: number; instantiations: number; check: number; total: number };
 

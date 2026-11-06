@@ -35,6 +35,8 @@ describe("checkBlock", () => {
   });
 
   test("throws when a declared error does not happen", () => {
-    expect(() => checkBlock("// @errors: 2322\nconst right: number = 1;")).toThrow();
+    expect(() => checkBlock("// @errors: 2322\nconst right: number = 1;")).toThrow(
+      "declared as errors, but nothing went wrong: 2322",
+    );
   });
 });

@@ -55,16 +55,17 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 
 ## Val Types
 
-| Type                  | Description                                             |
-| --------------------- | ------------------------------------------------------- |
-| `Val<K, T>`           | a branded value type                                    |
-| `AnyVal`              | a constraint over any Val                               |
-| `SeedOf<V>`           | the payload accepted by seals                           |
-| `PayloadOf<V>`        | the payload, with the brand removed at every depth      |
-| `Patch<T>`            | the patch accepted for a payload                        |
-| `Rec<V>`              | a Val's reference to itself, in its own payload         |
-| `CompanionBuilder<V>` | a companion's builder, with the steps it can still take |
-| `Companion<V, M>`     | the companion `.build()` returns                        |
+| Type                  | Description                                                                       |
+| --------------------- | --------------------------------------------------------------------------------- |
+| `Val<K, T>`           | a branded value type                                                              |
+| `AnyVal`              | a constraint over any Val                                                         |
+| `SeedOf<V>`           | the payload accepted by seals                                                     |
+| `PayloadOf<V>`        | the payload, with the brand removed at every depth                                |
+| `Payload<T>`          | marks a type as meant for a payload, and checks it against the allowed-type rules |
+| `Patch<T>`            | the patch accepted for a payload                                                  |
+| `Rec<V>`              | a Val's reference to itself, in its own payload                                   |
+| `CompanionBuilder<V>` | a companion's builder, with the steps it can still take                           |
+| `Companion<V, M>`     | the companion `.build()` returns                                                  |
 
 You never write the builder and companion types, here or for an enum or a trait. They are exported
 so that your own `.d.ts` can reference them when you re-export a companion.
@@ -169,7 +170,8 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | Type                 | Description                                         |
 | -------------------- | --------------------------------------------------- |
 | `Trait<K, Shape, M>` | a contract Vals share                               |
-| `Self`               | the implementing Val, inside a member's signature   |
+| `Impl<Tr>`           | a value implementing the trait                      |
+| `Self`               | the implementing Val, as a member's first parameter |
 | `Final<F>`           | marks a member no Val may replace                   |
 | `Dyn<Tr>`            | a boxed value, with the concrete type gone          |
 | `AnyTrait`           | a constraint over any trait                         |

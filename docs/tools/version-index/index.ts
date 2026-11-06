@@ -17,11 +17,11 @@ function compare(a: string, b: string): number {
     const other = right.numbers[i] ?? 0;
     if (number !== other) return number - other;
   }
-  // A release outranks its own prereleases; between two prereleases, order by name.
+  // A release outranks its own prereleases.
   if (left.pre === right.pre) return 0;
   if (left.pre === undefined) return 1;
   if (right.pre === undefined) return -1;
-  return left.pre < right.pre ? -1 : 1;
+  return comparePrerelease(left.pre, right.pre);
 }
 
 /** Tag directories, newest first. Anything else on the site is left out. */
@@ -53,4 +53,21 @@ function main(): void {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   main();
+}
+
+/** Semver precedence: numbers by value and below words, and a shorter list below a longer one. */
+function comparePrerelease(a: string, b: string): number {
+  const left = a.split(".");
+  const right = b.split(".");
+  for (const [i, x] of left.entries()) {
+    const y = right[i];
+    if (y === undefined) return 1;
+    if (x === y) continue;
+    const xNumber = /^\d+$/.test(x);
+    const yNumber = /^\d+$/.test(y);
+    if (xNumber && yNumber) return Number(x) - Number(y);
+    if (xNumber !== yNumber) return xNumber ? -1 : 1;
+    return x < y ? -1 : 1;
+  }
+  return left.length - right.length;
 }

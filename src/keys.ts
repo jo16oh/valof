@@ -7,6 +7,8 @@ export const Shared: unique symbol = Symbol();
 export declare const RecKey: unique symbol;
 export declare const NoSeal: unique symbol;
 export declare const Unbuilt: unique symbol;
+export declare const InvalidKey: unique symbol;
+export declare const RefusedKey: unique symbol;
 
 // Phantom keys: type-only, and private or protected in their class.
 export declare const PhantomBrand: unique symbol;
