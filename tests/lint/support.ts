@@ -89,9 +89,9 @@ export function fixtures(url: string): {
 
 type Run = { status: number; stdout: string; stderr: string };
 
-function spawn(node: string[], args: string[]): Run {
-  const result = spawnSync(process.execPath, [...node, "src/lint/cli.ts", ...args], {
-    cwd: root,
+function spawn(node: string[], args: string[], cwd = root): Run {
+  const result = spawnSync(process.execPath, [...node, `${root}src/lint/cli.ts`, ...args], {
+    cwd,
     encoding: "utf8",
   });
   if (result.error) throw result.error;
@@ -100,6 +100,13 @@ function spawn(node: string[], args: string[]): Run {
 
 /** The command, for what only the command does. */
 export const cli = (...args: string[]): Run => spawn([], args);
+
+/** The same, run from another directory. */
+export const cliIn = (cwd: string, ...args: string[]): Run => spawn([], args, cwd);
+
+/** The same, with a parser that fails to load for another reason. */
+export const cliWithBrokenParser = (...args: string[]): Run =>
+  spawn(["--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))], args);
 
 /** The same, with the parser out of reach, as it is before anyone installs it. */
 export const cliWithoutParser = (...args: string[]): Run =>
