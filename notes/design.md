@@ -2794,7 +2794,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     に Val:「a Val is built by `Val.companion`」
   - 文言を型から読めるもの（verdict、`NameOf`）はテストで読む。`@ts-expect-error` のコメントだけのものは文言を
     確かめられない
-  - **コスト。**trait 24,331 → 24,460、enum 45,146 → 45,508、`index.d.ts` 99.92 → 101.60 kB
+  - **コスト。**trait 24,331 → 24,460、enum 45,146 → 45,511、`index.d.ts` 99.92 → 101.67 kB
 
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
       `and-or-holes.md` の 7
