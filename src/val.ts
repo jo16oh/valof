@@ -632,12 +632,15 @@ export type Patch<T, X extends PropertyKey = never> = T extends object
  * The stop at a Val is what keeps {@link Companion.seal} the only gate: a patch reaching into a
  * nested value would build a payload its own seal never saw, and the outer `patch` seals the
  * outer value alone. Replace it with one built by its constructor.
+ *
+ * A Val in place of a nested plain object replaces it whole too, so it has to hold every key.
  */
-// A Val declares the brand key private, and the public optional key added here rejects it.
+// A Val declares the brand key private, and the public optional key added here rejects it from
+// the patch. Only the second member takes a Val, so a plain object still meets the first alone.
 type PatchValue<T> = [T] extends [object]
   ? [Patch<T>] extends [never]
     ? T
-    : Patch<T, typeof PhantomBrand>
+    : Patch<T, typeof PhantomBrand> | (T & AnyVal)
   : T;
 
 export type AnyFn = (...args: never[]) => unknown;
