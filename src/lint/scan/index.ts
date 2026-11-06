@@ -186,7 +186,7 @@ export type Parser = {
 type Comment = { value: string; start: number; end: number };
 
 /** An enum to read keys from. `AnyEnum` widens them to `string`. */
-type Sample = Enum<"Sample", { A: { a: 1 }; B: { b: 1 } }>;
+type Sample = Enum<"Sample", { A: { a: 1 } }>;
 
 /** The {@link Reserved} names with no pattern. */
 type Unlisted<N extends string> = Reserved extends infer R
