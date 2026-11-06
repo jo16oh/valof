@@ -1207,6 +1207,12 @@ describe("equals", () => {
     ).toBe(true);
   });
 
+  test("tells an own `__proto__` key from a different key", () => {
+    const Tags = Val.companion<Tags>().build();
+    const proto = Tags.seal(JSON.parse('{"__proto__":{}}'));
+    expect(equals(proto, Tags.seal({ a: true }))).toBe(false);
+  });
+
   test("treats NaN as equal to NaN, and -0 as equal to 0", () => {
     type NumberValue = Val<"NumberValue", number>;
     const NumberValue = Val.companion<NumberValue>().build();
@@ -1329,6 +1335,10 @@ describe("patch", () => {
       patch: (...args: unknown[]) => unknown;
     };
     expect(() => ArticleId.patch("a1b2c3", {})).toThrow(/object-shaped/);
+    const Grid = Val.companion<Grid>().build() as unknown as {
+      patch: (...args: unknown[]) => unknown;
+    };
+    expect(() => Grid.patch([[1]], {})).toThrow(/object-shaped/);
   });
 
   test("with routes through the seal, whatever the seal returns", () => {
@@ -2200,6 +2210,14 @@ describe("building", () => {
       const b = Box.seal(raw);
       raw.tags.push("b");
       expect(b.tags).toEqual(["a"]);
+    });
+
+    test("keeps a `__proto__` key an own property", () => {
+      const Tags = Val.companion<Tags>()
+        .implSeal((t, seal) => seal(t))
+        .build();
+      const tags = Tags.seal(JSON.parse('{"a":true,"__proto__":{"x":true}}'));
+      expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
     });
 
     const changed = new TypeError("The payload changed while the custom seal was running.");
