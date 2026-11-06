@@ -90,9 +90,6 @@ Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
 
 Derive a nested Val with its own `patch`, so its own seal checks the change.
 
-A Val passed for a nested plain-object field replaces the field whole too, so the Val must hold
-every key of the field.
-
 Like [`seal`](immutability.md#vals-are-immutable), `patch` reuses what is already inside the Val. It
 copies only the path to what changed, and untouched branches keep their reference identity:
 
