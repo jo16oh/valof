@@ -447,13 +447,13 @@ type Grounded<T> = 0 extends 1 & T
  * A payload that breaks the allowed-type rules, or contradicts a declared trait, is a type error
  * reported at the type argument.
  *
- * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` inside a generic type
- * is a type error. A type parameter for the brand alone fits.
+ * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` and `Val<K, string>`
+ * inside a generic type are type errors. Share the fields with {@link Payload} instead.
  */
 // Every broken rule is recorded in the verdict, which stops the Val satisfying `AnyVal`. See
 // `Verdicted`.
 type Val<
-  K extends string,
+  K extends OneLiteral<K, "a Val's brand must be one string literal">,
   T extends Allowed<T, "Val">,
   Tr extends AnyTrait & DeclarableTraits<Tr, T> = never,
 > = UncheckedVal<K, T, Tr>;
@@ -469,7 +469,11 @@ export type UncheckedVal<
   Fit extends boolean = false,
 > = DeepReadonly<Grounded<Holding<T, Tr>>> &
   Phantom<K, Holding<T, Tr>> &
-  Verdict<Verdicted<T, Tr, Fit>> &
+  Verdict<
+    IsOneLiteral<K> extends false
+      ? Invalid<"a Val's brand must be one string literal">
+      : Verdicted<T, Tr, Fit>
+  > &
   TraitBrand<Tr>;
 
 export { Val };
@@ -1593,19 +1597,36 @@ type NotEnum<V> = [V] extends [AnyEnum]
   ? Invalid<"a variant is built by its enum's companion">
   : unknown;
 
+// The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
+// with a boolean payload is a union of two types with one brand, so the check compares brands.
+type OneVal<V, M extends string> = {
+  readonly [K in M as IsUnion<V extends Phantom<infer B, unknown> ? B : never> extends true
+    ? K
+    : never]: never;
+};
+
+/** Nothing, or the reason a union of option lists is rejected. */
+export type OneList<O> =
+  IsUnion<O> extends true ? Invalid<"the options cannot be a union of lists"> : unknown;
+
 /**
  * The default seal, with the type named explicitly: brand the payload and copy it. `seal` on a
  * companion without `.implSeal`, and the seal passed to a custom one, do the same thing; only the
  * type differs.
  */
-export const of = /* @__PURE__ */ Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
-  /**
-   * Uses a payload without copying it. The caller must ensure it will not change.
-   */
-  // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
-  // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
-  nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
-});
+export const of = /* @__PURE__ */ Object.assign(
+  own as <V extends AnyVal & OneVal<V, "`Val.of` builds one Val">>(value: SeedOf<V>) => V,
+  {
+    /**
+     * Uses a payload without copying it. The caller must ensure it will not change.
+     */
+    // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
+    // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
+    nocopy: adopt as <V extends AnyVal & OneVal<V, "`Val.of` builds one Val">>(
+      value: SeedOf<V>,
+    ) => V,
+  },
+);
 
 /**
  * A plain, mutable copy of the payload, for code that does not know about `readonly`.
@@ -1623,7 +1644,7 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 // Constructors get their own steps rather than sitting in `.impl`, which fixes every function's
 // first parameter to the Val. A constructor does not fit that shape.
 export const companion = <
-  V extends AnyVal & NotEnum<V>,
-  const O extends readonly CompanionOption<V>[] = [],
+  V extends AnyVal & NotEnum<V> & OneVal<V, "a companion builds one Val">,
+  const O extends readonly CompanionOption<V>[] & OneList<O> = [],
 >(): CompanionBuilder<V, undefined, undefined, O> =>
   builder({}) as CompanionBuilder<V, undefined, undefined, O>;

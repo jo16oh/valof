@@ -408,13 +408,14 @@ describe("Val", () => {
       expectTypeOf<Payload<User>>();
     });
 
-    test("a payload type parameter does not fit, but a brand type parameter does", () => {
+    test("a type parameter fits neither the payload nor the brand", () => {
       // @ts-expect-error the rules cannot check a type parameter
       type Page<T> = Val<"Page", { items: T[] }>;
       expectTypeOf<Page<string>>().toExtend<AnyVal>();
 
+      // @ts-expect-error a Val's brand must be one string literal
       type Named<K extends string> = Val<K, string>;
-      expectTypeOf<Named<"Name">>().toExtend<AnyVal>();
+      expectTypeOf<Named<"Name">>().not.toBeNever();
     });
 
     // `any` and `never` satisfy every constraint, so the verdict alone reports them.
@@ -645,6 +646,18 @@ describe("Val", () => {
   });
 
   describe("the brand", () => {
+    test("is one string literal", () => {
+      type Fault = Invalid<"a Val's brand must be one string literal">;
+      // @ts-expect-error a Val's brand must be one string literal
+      type Either = Val<"Left" | "Right", { n: number }>;
+      // @ts-expect-error a Val's brand must be one string literal
+      type Any = Val<string, { n: number }>;
+      expectTypeOf<Either | Any>().not.toBeNever();
+      // `any` satisfies every constraint, so the verdict alone reports it.
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<VerdictOf<Val<any, { n: number }>>>().toEqualTypeOf<Fault>();
+    });
+
     test("different brands are not assignable", () => {
       type A = Val<"A", string>;
       type B = Val<"B", string>;
@@ -1587,6 +1600,27 @@ describe("building", () => {
     test("a companion has no constructor: the seal is the only way in", () => {
       expectTypeOf(Age).not.toBeFunction();
       expect(typeof Age).not.toBe("function");
+    });
+
+    test("rejects a union of Vals, as `Val.of` does", () => {
+      type Left = Val<"Left", { n: number }>;
+      type Right = Val<"Right", { m: number }>;
+      // @ts-expect-error a companion builds one Val
+      Val.companion<Left | Right>();
+      // @ts-expect-error `Val.of` builds one Val
+      Val.of<Left | Right>({});
+      // @ts-expect-error same, without the copy
+      Val.of.nocopy<Left | Right>({});
+      type Flag = Val<"Flag", boolean>;
+      expect([Val.companion<Flag>().build().seal(true), Val.of<Flag>(false)]).toEqual([
+        true,
+        false,
+      ]);
+    });
+
+    test("accepts its options as one list, not a union of lists", () => {
+      // @ts-expect-error the options cannot be a union of lists
+      Val.companion<User, [PrivateSeal] | [Unpatchable<"id">]>();
     });
 
     test("a step does not change the builder it was taken on", () => {

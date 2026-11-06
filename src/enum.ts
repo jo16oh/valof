@@ -55,6 +55,7 @@ import {
   type IsOneLiteral,
   type OneLiteral,
   type IsUnion,
+  type OneList,
   type Options,
   type Passes,
   type Patch,
@@ -1215,5 +1216,5 @@ type OneEnum<E> = {
  */
 export const companion = <
   E extends AnyEnum & OneEnum<E>,
-  const O extends readonly EnumOption<E>[] = [],
+  const O extends readonly EnumOption<E>[] & OneList<O> = [],
 >(): Start<E, O> => builder("_tag", {}, {}) as Start<E, O>;

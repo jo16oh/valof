@@ -13,7 +13,16 @@ kind, as `string[] | null` or `User | null`. A union of objects is rejected. A t
 positions and its length. One with a rest element (`[string, ...number[]]`) reads as an array
 instead, since a fixed length is what distinguishes the two.
 
-A payload cannot contain a type parameter.
+A payload cannot contain a type parameter, and a Val's brand cannot be one. To declare several Vals
+with the same payload, share it with `Payload`:
+
+```ts
+import { Val, type Payload } from "valof";
+
+type Contact = Payload<{ name: string; email: string }>;
+type Customer = Val<"Customer", Contact>;
+type Supplier = Val<"Supplier", Contact>;
+```
 
 ## Write the payload plain
 
