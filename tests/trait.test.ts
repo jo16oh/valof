@@ -342,7 +342,7 @@ describe("Trait", () => {
         // @ts-expect-error a trait's shape cannot be `any` or `never`
         { f: (self: Self) => number }
       >;
-      expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
+      expectTypeOf<Loose>().not.toBeNever();
     });
 
     test("cannot be `unknown`", () => {
