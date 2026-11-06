@@ -3095,9 +3095,9 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
-- [ ] **`<W extends Rule>` の誤りに `Impl` への案内が無い。**同じ merge で見つけた、2026-11-07。`Rule` が trait の
-      宣言になった（#125）ので、`Rule.dyn<W>` が TS2344 で `TraitDeclaration<…>` を全文出す。言われるのは
-      「Property 'kind' is missing」だけ。直していない
+- [x] ~~**`<W extends Rule>` の誤りに `Impl` への案内が無い。**~~ → 直さない、2026-11-07。リリースノートで足りる。
+      案内を出す検査は型コストになる（ユーザー）。`Rule` が trait の宣言になった（#125）ので、`Rule.dyn<W>` が
+      TS2344 で `TraitDeclaration<…>` を全文出し、言われるのは「Property 'kind' is missing」だけ
 - [x] ~~Trait のメンバが `Promise` を返すと宣言が TS2615 で落ちる。~~ → `HasSelf` の探索に深さの上限を置いた、
       2026-11-03（§15.1「探索の深さに上限を置く」）。valof-lint の書き直しで見つけた
 - [x] ~~`Dyn` に具体的な Val を残す第 2 型引数（`Dyn<Tr, W extends Tr = Tr>`）。~~ → 入れない、2026-11-04。
