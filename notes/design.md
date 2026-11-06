@@ -8574,7 +8574,8 @@ Val は 13 B 増えた。Enum も Trait も使わない利用者が払う分で�
 - **1 つ落ちても最後まで回し、合否の一覧を出す。**CI のステップを 1 つにしても、どれが落ちたかが分かる
 - **CI の release 判定は 1 か所。**`RELEASE` の環境変数で `--release` を付けるかだけを切り替える
 - **release workflow も `--release`。**pin の一致を必須にした（以前は付けていなかった）。release PR の CI で
-  一致を要求しているので、squash merge 後も一致する前提
+  一致を要求し、`main-ci` の ruleset が main に追いついていない PR の merge を止める（strict な必須チェック）。
+  squash merge の tree は CI が検査した tree と同じなので、merge 後も一致する（2026-11-07 に確認）
 - **却下: `--json`。**唯一の利用者だった claims が内部の呼び出しになったので消した。`Bundle.key` も一緒に消えた
 - **名前。**3 つとも、ビルドした `dist` を利用者の立場で検査する。`bundlecheck` はサイズだけに見え、
   `budget` / `measure` は合否の compat に合わない。`dist:verify` のコロンは `docs:*` だけが使う
