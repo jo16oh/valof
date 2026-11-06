@@ -426,6 +426,26 @@ describe("Val", () => {
       expectTypeOf<VerdictOf<Val<"Nothing", never>>>().toEqualTypeOf<Fault>();
     });
 
+    test("`unknown` is not a plain value", () => {
+      type Fault = Invalid<"`unknown` is not a plain value; write the type">;
+      // @ts-expect-error `unknown` is not a plain value
+      type Root = Val<"Root", unknown>;
+      // @ts-expect-error `unknown` is not a plain value
+      type Field = Val<"Field", { a: unknown }>;
+      expectTypeOf<VerdictOf<Root>>().toEqualTypeOf<Fault>();
+      expectTypeOf<VerdictOf<Field>>().toEqualTypeOf<{ a: Fault }>();
+    });
+
+    // Their symbol keys would report the key rule.
+    test("a `Date` or a `Map` is not a plain value", () => {
+      // @ts-expect-error not a plain value
+      type Dated = Val<"Dated", { at: Date; index: Map<string, number> }>;
+      expectTypeOf<VerdictOf<Dated>>().toEqualTypeOf<{
+        at: Invalid<"not a plain value">;
+        index: Invalid<"not a plain value">;
+      }>();
+    });
+
     test("the rule that rejected a payload is carried in the verdict", () => {
       // @ts-expect-error functions are not allowed
       type BadFn = Val<"Bad", { run: () => void }>;
@@ -562,7 +582,11 @@ describe("Val", () => {
       // @ts-expect-error keys must be strings
       expectTypeOf<Val<"Bad", Record<number, true>>>();
       // @ts-expect-error keys must be strings
-      expectTypeOf<Val<"Bad", Record<symbol, string>>>();
+      type SymbolKey = Val<"Bad", Record<symbol, string>>;
+      // A symbol key with no method is not a `Date` or a `Map`.
+      expectTypeOf<VerdictOf<SymbolKey>>().toEqualTypeOf<
+        Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
+      >();
       // @ts-expect-error keys must be strings
       type NumberKey = Val<"Bad", { 1: string }>;
       expectTypeOf<NumberKey>().not.toExtend<AnyVal>();
