@@ -3095,9 +3095,6 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
-- [ ] **第 1 引数が `Self` でないメンバを、trait の宣言が通す。**valof-lint に main を merge して見つけた、2026-11-07。
-      `run: (scans: number[]) => number` を宣言しても宣言の行は黙り、`implTrait` で「`never` に代入できない」と出る。
-      `Unbound` と `Bound` が `(self: Self, ...)` に合わないメンバを `never` にする。直していない
 - [ ] **`<W extends Rule>` の誤りに `Impl` への案内が無い。**同じ merge で見つけた、2026-11-07。`Rule` が trait の
       宣言になった（#125）ので、`Rule.dyn<W>` が TS2344 で `TraitDeclaration<…>` を全文出す。言われるのは
       「Property 'kind' is missing」だけ。直していない
