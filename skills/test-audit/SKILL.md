@@ -21,7 +21,7 @@ whole suite.
 ## Run it in a separate agent
 
 The agent that wrote the tests is the worst judge of them, so another agent runs the audit. It runs
-on the same model as the session that launches it: every finding is a judgment call, so pass no
+on the same model as the session that launches it. Every finding is a judgment call, so pass no
 model override and never a cheaper model.
 
 Give it the three passes below, the scope, and the diff. It reads the tests and the source they
@@ -95,6 +95,8 @@ is a gap. Report it with the input and the expected result, not with a test name
 Check the error paths too: the throw, the `Err` branch, the lint diagnostic. They go untested more
 often than the success path.
 
+Where the diff changes a public type, `skills/type-hunt/SKILL.md` lists the inputs to try.
+
 ## Pass 3: liars
 
 A test that passes whatever the source does. Break the source it covers, run it, and confirm it goes
@@ -107,8 +109,8 @@ vp test tests/val.test.ts
 What to look for first:
 
 - An assertion on a value the call under test produced, compared against itself.
-- `toBeDefined`, `toBeTruthy`, or `toThrow()` with no matcher: any throw passes, including the wrong
-  one.
+- `toBeDefined`, `toBeTruthy`, or `toThrow()` with no matcher, which accepts any throw, including
+  the wrong one.
 - A promise not awaited, so the assertion runs after the test ends.
 - `try`/`catch` that swallows the failure.
 - `.skip`, `.only` or `.todo` still in the file.

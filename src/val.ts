@@ -2,11 +2,15 @@
 // the declaration that carries it.
 import type { AnyEnum } from "./enum.ts";
 import type {
+  AnyImpl,
   AnyTrait,
+  BrandsOf,
+  FieldsOf,
   FinalsOf,
   Implement,
   MembersOf,
   NamesOf,
+  LoneTrait,
   ShapeOf,
   TraitBrand,
   TraitCompanion,
@@ -17,6 +21,7 @@ import type {
 import { createMembers, dual } from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
+  InvalidKey,
   NoSeal,
   PhantomBrand,
   PhantomPayload,
@@ -24,6 +29,7 @@ import type {
   PrivateCreateKey,
   PrivateSealKey,
   RecKey,
+  RefusedKey,
   Unbuilt,
   UnpatchableKey,
   UnpatchableTypes,
@@ -76,11 +82,41 @@ export interface Rec<V> {
   readonly [RecKey]: V;
 }
 
-/** Marker surfaced in the type when a declaration violates the allowed-type rules. */
-export type Invalid<Msg extends string> = { readonly __valError: Msg };
+/**
+ * Marker surfaced in the type when a declaration violates the allowed-type rules. Its key is a
+ * symbol the package does not export, so no payload a user writes has this shape.
+ */
+export type Invalid<Msg extends string> = { readonly [InvalidKey]: Msg };
+
+/**
+ * An {@link Invalid} found in a payload. {@link Payload} leaves an `Invalid` in place of each part
+ * that breaks a rule. `Validate` maps an `Invalid` to a `Refused` and a `Refused` back to an
+ * `Invalid`, so a payload wrapped in `Payload` any number of times fails with the rule's message.
+ */
+export type Refused<Msg extends string> = { readonly [RefusedKey]: Msg };
 
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
-type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+export type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+
+/** `true` for one string literal, and `false` for a union, `string`, a template, `any` or `never`. */
+// `{}` fits a record keyed by `string` or a template, and none keyed by a literal. The values are
+// `never` because `{}` has the methods every object has, as `toString`.
+export type IsOneLiteral<K extends string> = true extends
+  | IsUnion<K>
+  | (Record<never, never> extends Record<K, never> ? true : never)
+  ? false
+  : true;
+
+/**
+ * `string` for one string literal, and `Msg` otherwise. As a name's constraint, it reports the name
+ * where the type is declared. `any` and `never` satisfy every constraint, so the verdict reports them.
+ */
+// Read through `infer`: a constraint that passes `K` itself to a conditional is circular (TS2313).
+export type OneLiteral<K, Msg extends string> = [K] extends [infer X extends string]
+  ? IsOneLiteral<X> extends true
+    ? string
+    : Msg
+  : Msg;
 
 type OptionalKeys<T> = {
   [K in keyof T]-?: Record<never, never> extends Pick<T, K> ? K : never;
@@ -99,89 +135,211 @@ type IsRec<T> = string extends keyof T
       ? true
       : false;
 
-type Validate<T, Root extends boolean = true> =
+/**
+ * Resolves an allowed payload to `T` itself, which {@link Payload} relies on. `Owner` is what the
+ * payload is declared for, read at the root alone.
+ */
+type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = "Val"> =
   IsRec<T> extends true
     ? T
     : [T] extends [AnyVal]
       ? T
-      : Root extends true
-        ? null extends T
-          ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-          : ValidateValue<T>
-        : ValidateValue<T>;
+      : // Below the root, a union of `Impl`, like a union of Vals, is a union of values rather than
+        // of objects to merge. Each one's fields are still checked. That rejects a `Dyn` box,
+        // because its trait members are functions.
+        [T] extends [AnyImpl]
+        ? Root extends true
+          ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
+          : T extends unknown
+            ? ValidateFields<T>
+            : never
+        : [T] extends [AnyTrait]
+          ? Root extends true
+            ? Owner extends "Val"
+              ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+              : Invalid<"a payload cannot declare a trait">
+            : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+          : [T] extends [Invalid<infer M>]
+            ? Refused<M>
+            : [T] extends [Refused<infer M>]
+              ? Invalid<M>
+              : unknown extends T
+                ? Invalid<"`unknown` is not a plain value; write the type">
+                : Root extends true
+                  ? null extends T
+                    ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+                    : ValidateValue<T, true>
+                  : ValidateValue<T>;
 
-type ValidateValue<T> = [T] extends [Primitive]
+type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
   ? T
-  : [T] extends [ReadonlyArray<infer E>]
+  : [T] extends [ReadonlyArray<unknown>]
     ? number extends T["length"]
-      ? ReadonlyArray<Validate<E, false>>
-      : {
-          // An optional element is the tuple's form of an optional key: absent, it round trips.
-          // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
-          [I in keyof T]: undefined extends Required<T>[I]
-            ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
-            : Validate<Exclude<T[I], undefined>, false>;
-        }
+      ? { [I in keyof T]: Validate<T[I], false> }
+      : // A `never` element satisfies whatever it is mapped to, so the tuple is rejected whole.
+        true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
+        ? Invalid<"no value fits a tuple element">
+        : {
+            // An optional element is the tuple's form of an optional key: absent, it round trips.
+            // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+            [I in keyof T]: undefined extends Required<T>[I]
+              ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+              : Validate<Exclude<T[I], undefined>, false>;
+          }
     : // oxlint-disable-next-line no-unsafe-function-type
       [T] extends [Function]
       ? Invalid<"functions are not allowed">
       : [T] extends [object]
         ? IsUnion<T> extends true
           ? Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
-          : [Exclude<keyof T, string>] extends [never]
-            ? {
-                // An index signature answers `Record<never, never> extends Pick<T, K>`, so
-                // `OptionalKeys` counts it as optional. Its entries are not optional: reading one
-                // is unchecked, and widening it with `undefined` breaks `Object.values`.
-                [K in keyof T]: string extends K
-                  ? Validate<T[K], false>
-                  : K extends OptionalKeys<T>
-                    ? Validate<Exclude<T[K], undefined>, false> | undefined
-                    : undefined extends T[K]
-                      ? Invalid<"required property cannot be undefined; use null or make it optional">
-                      : Validate<T[K], false>;
-              }
-            : Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
+          : // `keyof` a string index signature is `string | number`.
+            [Exclude<keyof T, string | (string extends keyof T ? number : never)>] extends [never]
+            ? Root extends true
+              ? ValidateFields<T>
+              : Fitting<T, ValidateFields<T>>
+            : // A `Date` or a `Map` has symbol keys too, and its methods say more about it.
+              [MethodKeys<T>] extends [never]
+              ? Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
+              : Invalid<"not a plain value">
         : [Extract<T, bigint>] extends [never]
-          ? Invalid<"not a plain value">
+          ? // Below the root, a field may hold `null` or a primitive beside one other kind. `patch`
+            // replaces such a field whole, see `PatchValue`.
+            [Root, Extract<T, Primitive>, Exclude<T, Primitive | undefined>] extends
+              | [true, unknown, unknown]
+              | [boolean, never, unknown]
+              | [boolean, unknown, never]
+            ? Invalid<"not a plain value">
+            : Extract<T, Primitive> | Validate<Exclude<T, Primitive>, false>
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
+
+// oxlint-disable-next-line no-unsafe-function-type
+type MethodKeys<T> = { [K in keyof T]-?: T[K] extends Function ? K : never }[keyof T];
+
+/** A required key typed `never`. An optional one is always absent, an index signature always empty. */
+export type Unfit<T> = Exclude<
+  { [K in keyof T]: string extends K ? never : [T[K]] extends [never] ? K : never }[keyof T],
+  undefined
+>;
+
+/**
+ * `Then`, or the message naming a field no value fits. A `never` field satisfies whatever
+ * `ValidateFields` maps it to. At the root only {@link Allowed} and a variant's verdict read it.
+ * {@link Payload} resolves to `Validate`, where reading a field resolves a {@link Rec} to the Val
+ * still being declared.
+ */
+type Fitting<T, Then> = [Unfit<T>] extends [never]
+  ? Then
+  : Invalid<`no value fits ${Code<Unfit<T> & string>}`>;
+
+/**
+ * The check {@link Validate} applies to each entry of an object. {@link Allowed} uses it, so the
+ * type error names the field that breaks a rule.
+ */
+type ValidateFields<T> = {
+  // An index signature satisfies `Record<never, never> extends Pick<T, K>`, so `OptionalKeys`
+  // counts it as optional. Its entries are not optional: reading one is unchecked, and widening
+  // it with `undefined` breaks `Object.values`.
+  [K in keyof T]: string extends K
+    ? Validate<T[K], false>
+    : K extends OptionalKeys<T>
+      ? Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>
+      : undefined extends T[K]
+        ? unknown extends T[K]
+          ? Validate<T[K], false>
+          : Invalid<"required property cannot be undefined; use null or make it optional">
+        : Validate<T[K], false>;
+};
+
+/**
+ * What {@link Val} and {@link Payload} constrain the payload with. A constraint that is
+ * `Validate<T>` itself is circular (TS2313). One that reads its result in a conditional is not.
+ */
+export type Allowed<T, Owner extends "Val" | "Payload"> = [T] extends [AnyVal]
+  ? // Passed whole to `Val`, a Val's brand collides with the outer one, so the outer Val resolves
+    // to `never`.
+    Invalid<`a Val cannot be used as ${Owner extends "Val" ? "another Val's" : "a Payload's"} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`>
+  : [Validate<T, true, Owner>] extends [Invalid<infer M>]
+    ? Invalid<M>
+    : // A `Payload` rejected at its top level resolves to an `Invalid`, which an `Invalid`
+      // constraint accepts.
+      [Validate<T, true, Owner>] extends [Refused<infer M>]
+      ? Refused<M>
+      : IsRecord<T> extends true
+        ? Fitting<T, ValidateFields<T>>
+        : ValidateFields<T>;
 
 /**
  * A {@link Rec} opens to the Val it references. `Arg` marks an argument position, where an empty
- * object is narrowed to {@link EmptySeed}.
+ * object is narrowed to {@link EmptyField}.
  */
-export type DeepReadonly<T, Arg extends boolean = false> =
+export type DeepReadonly<T, Arg extends Position = false> =
   IsRec<T> extends true ? (T extends Rec<infer V> ? V : T) : DeepReadonlyValue<T, Arg>;
 
-/** Recursion stops at a nested Val: it is already deep-readonly. */
-type DeepReadonlyValue<T, Arg extends boolean> = [T] extends [AnyVal]
-  ? T
-  : [T] extends [Primitive]
-    ? T
-    : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
-      // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
-      // still being declared. An array is the only payload with a numeric key.
-      number extends keyof T
-      ? number extends Extract<T, readonly unknown[]>["length"]
-        ? ReadonlyArray<DeepReadonly<T[number], Arg>>
-        : { readonly [I in keyof T]: DeepReadonly<T[I], Arg> }
-      : [T] extends [object]
-        ? [Arg, keyof T] extends [true, never]
-          ? EmptySeed
-          : {
-              // An optional key carries `undefined` in its type, and a union stops the walk one
-              // level short: a `Rec` inside it would never open. The value never holds the
-              // `undefined` either way, since an optional key is absent or set.
-              readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Arg>;
-            }
-        : T;
+/** Not an argument, the payload an argument takes, or a part of that payload. */
+type Position = boolean | "field";
 
 /**
- * An empty object as an argument: neither an array, a function nor a promise. `{}` takes every
- * value but `null` and `undefined`. An index signature would also reject an existing value and a
- * tagged payload.
+ * Recursion stops at a nested Val, because it is already deep-readonly. A field typed with `Impl`
+ * holds a Val, so a `Dyn` box does not fit.
  */
-type EmptySeed = object & { readonly length?: never; readonly then?: never };
+type DeepReadonlyValue<
+  T,
+  Arg extends Position,
+  Split = true,
+  Inner extends Position = Arg extends false ? false : "field",
+> = [T] extends [AnyVal]
+  ? T
+  : [T] extends [AnyImpl]
+    ? T & Phantom<string, unknown>
+    : [T] extends [Primitive]
+      ? T
+      : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
+        // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
+        // still being declared. Only an array or a string payload has a numeric key.
+        number extends keyof T
+        ? [T] extends [object]
+          ? number extends Extract<T, readonly unknown[]>["length"]
+            ? ReadonlyArray<DeepReadonly<T[number], Inner>>
+            : { readonly [I in keyof T]: DeepReadonly<T[I], Inner> }
+          : Mixed<T, Arg, Split>
+        : [T] extends [object]
+          ? [keyof T] extends [never]
+            ? Arg extends true
+              ? EmptyField | AnyVal
+              : Arg extends "field"
+                ? EmptyField
+                : Record<never, never>
+            : {
+                // An optional key carries `undefined` in its type, and a union stops the walk one
+                // level short: a `Rec` inside it would never open. The value never holds the
+                // `undefined` either way, since an optional key is absent or set.
+                readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Inner>;
+              }
+          : [Extract<T, Primitive>] extends [never]
+            ? T
+            : Mixed<T, Arg, Split>;
+
+/**
+ * `null` or a primitive beside one other kind, which only a field can hold. The rest is not split
+ * again, because comparing it over a type parameter never ends (TS2321).
+ */
+type Mixed<T, Arg extends Position, Split> = Split extends true
+  ?
+      | Extract<T, Primitive>
+      | (IsRec<Exclude<T, Primitive>> extends true
+          ? Exclude<T, Primitive> extends Rec<infer V>
+            ? V
+            : never
+          : DeepReadonlyValue<Exclude<T, Primitive>, Arg, false>)
+  : T;
+
+/**
+ * An empty object as an argument. `{}` takes every value but `null` and `undefined`. This rejects
+ * a primitive, an array, a function, a promise and every class instance, which has no implicit
+ * index signature. At the root an existing value is a class instance too, so the root also takes
+ * any Val.
+ */
+type EmptyField = { readonly [key: string]: never };
 
 /** The payload, or the annotated version of it when it breaks the allowed-type rules. */
 export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
@@ -199,9 +357,18 @@ export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
  * `T extends Validate<T>` is the natural spelling. On a type alias that is TS2313 "circular
  * constraint", hence the conditional.
  */
-type Verdicted<T, Tr extends AnyTrait> = [T] extends [Validate<T>]
+// `any` and `never` satisfy every constraint and every branch below, so they are read first.
+type Verdicted<T, Tr extends AnyTrait, Fit extends boolean> = 0 extends 1 & T
+  ? Invalid<"a payload cannot be `any` or `never`">
+  : [T] extends [never]
+    ? Invalid<"a payload cannot be `any` or `never`">
+    : Checks<T, Tr, Fit>;
+
+type Checks<T, Tr extends AnyTrait, Fit extends boolean> = [T] extends [Validate<T>]
   ? Fits<T, Tr> extends true
-    ? true
+    ? Fit extends true
+      ? Fitting<T, true>
+      : true
     : Invalid<Extract<Fits<T, Tr>, string>>
   : Validate<T>;
 
@@ -209,11 +376,8 @@ type Verdicted<T, Tr extends AnyTrait> = [T] extends [Validate<T>]
 type Holding<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? T
   : IsRecord<T> extends true
-    ? T & Writable<ShapeOf<Tr>>
+    ? T & FieldsOf<Tr>
     : T;
-
-/** Undoes the {@link DeepReadonly} a trait holds its shape in: a payload is written without it. */
-export type Writable<T> = [T] extends [AnyVal] ? T : { -readonly [K in keyof T]: Writable<T[K]> };
 
 /** Reads the keys alone: a field may reference the Val being declared, see {@link Rec}. */
 type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? false : true;
@@ -221,20 +385,41 @@ type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? fa
 /**
  * Whether the declared payload agrees with its traits, or the sentence saying why not.
  *
- * `ShapeOf<A | B>` keeps only the keys the two share, so a union asks the payload for nothing.
- * Caught here, before the fields are read.
+ * A union of traits is caught here, before its shape is read.
  */
-type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
+export type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true
   : [Tr] extends [UnionToIntersection<Tr>]
-    ? IsRecord<T> extends false
-      ? DeepReadonly<Checked<T>> extends ShapeOf<Tr>
-        ? true
-        : "the payload does not hold what the trait requires"
-      : [Disagreement<T, ShapeOf<Tr>>] extends [never]
+    ? [Overlap<BrandsOf<Tr>>] extends [never]
+      ? Agrees<T, Tr>
+      : `two traits declare a member named ${Code<Overlap<BrandsOf<Tr>> & string>}`
+    : "declare several traits with `&`, not `|`";
+
+// As a constraint, so the type argument reports it. Read through `infer`, as a name's constraint is:
+// passing `Tr` itself to a conditional in its own constraint is circular (TS2313).
+type DeclarableTraits<Tr, T> = [Tr] extends [infer R extends AnyTrait]
+  ? Fits<T, R> extends true
+    ? unknown
+    : Invalid<Extract<Fits<T, R>, string>>
+  : unknown;
+
+/** Whether the payload holds what the traits' shape requires. */
+type Agrees<T, Tr extends AnyTrait> =
+  IsRecord<T> extends false
+    ? DeepReadonly<Checked<T>> extends ShapeOf<Tr>
+      ? true
+      : "the payload does not hold what the trait requires"
+    : // A primitive shape has no field for a record to disagree with.
+      [ShapeOf<Tr>] extends [object]
+      ? [Disagreement<T, ShapeOf<Tr>>] extends [never]
         ? true
         : Disagreement<T, ShapeOf<Tr>>
-    : "declare several traits with `&`, not `|`";
+      : "the payload does not hold what the trait requires";
+
+/** A member name two of the traits declare. A Val registers each name once. */
+type Overlap<B> = {
+  [N in keyof B]: keyof B[N] & { [O in Exclude<keyof B, N>]: keyof B[O] }[Exclude<keyof B, N>];
+}[keyof B];
 
 /** A field the payload declares as a type the shape rejects, or one that no value satisfies. */
 type Disagreement<T, S, R = DeepReadonly<Checked<T>>> = {
@@ -248,11 +433,11 @@ type Disagreement<T, S, R = DeepReadonly<Checked<T>>> = {
 }[keyof S & string];
 
 // Spelled without an escaped backtick, which the declaration bundler drops the whole file over.
-type Code<S extends string> = `${"`"}${S}${"`"}`;
+export type Code<S extends string> = `${"`"}${S}${"`"}`;
 
 // Distributes over the union to collect one parameter position per member, which infers as their
 // intersection. A single trait is its own intersection, and so is `never`.
-type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
+export type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) extends (
   k: infer I,
 ) => void
   ? I
@@ -261,22 +446,50 @@ type UnionToIntersection<U> = (U extends unknown ? (k: U) => void : never) exten
 /**
  * The payload, or an empty object where the brand has nothing to attach to. `null & Phantom` is
  * `never`, and `never` satisfies every gate, so a payload the rules reject here would pass as a
- * value. The rule that rejected it is in the verdict either way.
+ * value. `any` would swallow the brand the same way. The rule that rejected it is in the verdict
+ * either way.
  */
-type Grounded<T> = [T] extends [{}] ? T : Record<never, never>;
+type Grounded<T> = 0 extends 1 & T
+  ? Record<never, never>
+  : [T] extends [never]
+    ? Record<never, never>
+    : [T] extends [{}]
+      ? T
+      : Record<never, never>;
 
 /**
  * A branded value type. A declared trait adds the fields it requires to the payload.
  *
- * A payload that breaks the allowed-type rules is a type error, and so is one that contradicts a
- * declared trait.
+ * A payload that breaks the allowed-type rules, or contradicts a declared trait, is a type error
+ * reported at the type argument.
+ *
+ * The rules cannot check a type parameter, so `Val<"Page", { items: T[] }>` and `Val<K, string>`
+ * inside a generic type are type errors. Share the fields with {@link Payload} instead.
  */
-// Both land in the verdict, which stops the Val satisfying `AnyVal`. See `Verdicted`.
-type Val<K extends string, T, Tr extends AnyTrait = never> = DeepReadonly<
-  Grounded<Holding<T, Tr>>
-> &
+// Every broken rule is recorded in the verdict, which stops the Val satisfying `AnyVal`. See
+// `Verdicted`.
+type Val<
+  K extends OneLiteral<K, "a Val's brand must be one string literal">,
+  T extends Allowed<T, "Val">,
+  Tr extends AnyTrait & DeclarableTraits<Tr, T> = never,
+> = UncheckedVal<K, T, Tr>;
+
+/**
+ * {@link Val} with no constraint on the payload, for a Val the library builds from a generic
+ * declaration: an Enum's variant. Its verdict still records every broken rule.
+ */
+export type UncheckedVal<
+  K extends string,
+  T,
+  Tr extends AnyTrait = never,
+  Fit extends boolean = false,
+> = DeepReadonly<Grounded<Holding<T, Tr>>> &
   Phantom<K, Holding<T, Tr>> &
-  Verdict<Verdicted<T, Tr>> &
+  Verdict<
+    IsOneLiteral<K> extends false
+      ? Invalid<"a Val's brand must be one string literal">
+      : Verdicted<T, Tr, Fit>
+  > &
   TraitBrand<Tr>;
 
 export { Val };
@@ -294,12 +507,15 @@ type Declared<V> = V extends Phantom<string, infer T> ? T : never;
 export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
 
 /**
- * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. It is `T`
- * unchanged.
+ * Marks a type as meant for a payload: `type Fields = Payload<{ id: string }>`. An allowed payload
+ * is `T` unchanged. One that breaks the allowed-type rules is reported at the type argument. A Val
+ * declared with a rejected `Payload` is rejected like one declared with `T`.
+ *
+ * The rules cannot check a type parameter, so `Payload<{ left: T }>` inside a generic type is a type error.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
-export type Payload<T> = T;
+export type Payload<T extends Allowed<T, "Payload">> = Validate<T, true, "Payload">;
 
 // Every nested Val and {@link Rec} opened to its payload, and nothing else changed: the `readonly`
 // the declaration wrote stays, and so does the mutability {@link Val.unwrap} hands back. The marker
@@ -321,7 +537,9 @@ type Opened<T> =
           ? { [I in keyof T]: Opened<T[I]> }
           : [T] extends [object]
             ? { [K in keyof T]: Opened<Exclude<T[K], undefined>> }
-            : T;
+            : [Extract<T, Primitive>] extends [never]
+              ? T
+              : Extract<T, Primitive> | Opened<Exclude<T, Primitive>>;
 
 /**
  * The payload as constructors, `Val.of` and a custom seal accept it.
@@ -386,27 +604,44 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * - `{ k: value }` → set it
  * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required `k` only
  *
+ * `X` lists keys the patch rejects, as `Patch<Fields, "id">` for an `Unpatchable` id.
+ *
  * An optional key and a `Record` entry take the whole value. There may be nothing there to merge
  * with, and the type cannot tell: `{ at: { x: 1 } }` onto an absent `at` would leave a value
  * missing `y` that the type still calls a `Point`. Spread the current value to keep the rest:
  * `{ at: { ...point, x: 1 } }`.
  */
-export type Patch<T> = T extends object
+// One mapped type rather than an intersection, because TypeScript rejects a variable sharing no
+// key with a weak type, and skips that check on an intersection where one side has no keys.
+export type Patch<T, X extends PropertyKey = never> = T extends object
   ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
-    : { [K in Exclude<keyof T, OptionalKeys<T>>]?: PatchValue<T[K]> } & {
-        [K in OptionalKeys<T>]?: T[K] | undefined;
+    : {
+        [K in keyof T | X]?: K extends keyof T
+          ? K extends OptionalKeys<T>
+            ? T[K] | undefined
+            : PatchValue<T[K]>
+          : never;
       }
   : never;
 
 /**
- * A nested plain object is patched in turn. Everything else is replaced whole.
+ * A nested plain object is patched in turn. Everything else is replaced whole, including a field
+ * that may be `null` or a primitive, since there may be no object to merge into.
  *
  * The stop at a Val is what keeps {@link Companion.seal} the only gate: a patch reaching into a
  * nested value would build a payload its own seal never saw, and the outer `patch` seals the
  * outer value alone. Replace it with one built by its constructor.
+ *
+ * A Val in place of a nested plain object replaces it whole too, so it has to hold every key.
  */
-type PatchValue<T> = [Patch<T>] extends [never] ? T : Patch<T>;
+// A Val declares the brand key private, and the public optional key added here rejects it from
+// the patch. Only the second member takes a Val, so a plain object still meets the first alone.
+type PatchValue<T> = [T] extends [object]
+  ? [Patch<T>] extends [never]
+    ? T
+    : Patch<T, typeof PhantomBrand> | (T & AnyVal)
+  : T;
 
 export type AnyFn = (...args: never[]) => unknown;
 
@@ -649,7 +884,7 @@ type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<Derivable<V, O
        * replace it outright, build the whole payload again through the constructor or `seal`.
        * See {@link Patch}.
        */
-      patch: Derive<V, F, Patch<Derivable<V, O>>>;
+      patch: Derive<V, F, Patch<Derivable<V, O>, UnpatchableKeys<O>>>;
     };
 
 /**
@@ -713,7 +948,7 @@ export type Takes<V, Tr extends AnyTrait, T, Ok> =
       : "the type does not declare this trait";
 
 /** What the companion form takes once the trait itself has answered for every {@link Final}. */
-export type Complete<Tr extends AnyTrait, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
+export type Complete<Tr extends LoneTrait<Tr>, G> = [Exclude<FinalsOf<Tr>, keyof G>] extends [never]
   ? TraitCompanion<Tr, G>
   : "this trait's companion has not implemented every member declared Final";
 
@@ -850,7 +1085,7 @@ export type CompanionBuilder<
      *
      * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
      */
-    implTrait: <Tr extends AnyTrait, G, I extends Implement<Tr, G, V>>(
+    implTrait: <Tr extends LoneTrait<Tr>, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T & A, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I, Supplied<V, N, F, O>>
     ) => CompanionBuilder<V, N, F, O, T & Unbound<MembersOf<Tr>, V>, D | "implTrait", A>;
@@ -1394,19 +1629,36 @@ type NotEnum<V> = [V] extends [AnyEnum]
   ? Invalid<"a variant is built by its enum's companion">
   : unknown;
 
+// The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
+// with a boolean payload is a union of two types with one brand, so the check compares brands.
+type OneVal<V, M extends string> = {
+  readonly [K in M as IsUnion<V extends Phantom<infer B, unknown> ? B : never> extends true
+    ? K
+    : never]: never;
+};
+
+/** Nothing, or the reason a union of option lists is rejected. */
+export type OneList<O> =
+  IsUnion<O> extends true ? Invalid<"the options cannot be a union of lists"> : unknown;
+
 /**
  * The default seal, with the type named explicitly: brand the payload and copy it. `seal` on a
  * companion without `.implSeal`, and the seal passed to a custom one, do the same thing; only the
  * type differs.
  */
-export const of = /* @__PURE__ */ Object.assign(own as <V extends AnyVal>(value: SeedOf<V>) => V, {
-  /**
-   * Uses a payload without copying it. The caller must ensure it will not change.
-   */
-  // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
-  // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
-  nocopy: adopt as <V extends AnyVal>(value: SeedOf<V>) => V,
-});
+export const of = /* @__PURE__ */ Object.assign(
+  own as <V extends AnyVal & OneVal<V, "`Val.of` builds one Val">>(value: SeedOf<V>) => V,
+  {
+    /**
+     * Uses a payload without copying it. The caller must ensure it will not change.
+     */
+    // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
+    // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
+    nocopy: adopt as <V extends AnyVal & OneVal<V, "`Val.of` builds one Val">>(
+      value: SeedOf<V>,
+    ) => V,
+  },
+);
 
 /**
  * A plain, mutable copy of the payload, for code that does not know about `readonly`.
@@ -1424,7 +1676,7 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 // Constructors get their own steps rather than sitting in `.impl`, which fixes every function's
 // first parameter to the Val. A constructor does not fit that shape.
 export const companion = <
-  V extends AnyVal & NotEnum<V>,
-  const O extends readonly CompanionOption<V>[] = [],
+  V extends AnyVal & NotEnum<V> & OneVal<V, "a companion builds one Val">,
+  const O extends readonly CompanionOption<V>[] & OneList<O> = [],
 >(): CompanionBuilder<V, undefined, undefined, O> =>
   builder({}) as CompanionBuilder<V, undefined, undefined, O>;

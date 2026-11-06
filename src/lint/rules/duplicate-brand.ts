@@ -25,9 +25,6 @@ export const DuplicateBrand = Val.companion<DuplicateBrand>()
  * elsewhere. `Val` is recognized however it was bound: renamed, imported for its type alone,
  * reached through a namespace, or re-exported from a barrel. Something else bound to the name
  * `Val` is left alone.
- *
- * The alias must spell `Val<…>` itself. A user's helper around it, `type Branded<K, T> =
- * Val<K, T>`, is invisible here.
  */
 function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
   const claims = new Map<string, Finding[]>();

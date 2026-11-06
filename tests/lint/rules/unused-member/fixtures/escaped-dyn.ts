@@ -1,4 +1,4 @@
-import { Trait, Val, type Self } from "valof";
+import { Trait, Val, type Impl, type Self } from "valof";
 type Rule = Trait<
   "Rule",
   { kind: string },
@@ -16,7 +16,7 @@ const Unused = Val.companion<Unused>()
   .implTrait(Rule, () => ({ run: (u) => u.kind, explain: (u) => u.kind }))
   .build();
 
-const box = <W extends Rule>(companion: Parameters<typeof Rule.dyn<W>>[0], value: W) =>
+const box = <W extends Impl<Rule>>(companion: Parameters<typeof Rule.dyn<W>>[0], value: W) =>
   Rule.dyn(companion, value);
 const RULES = [box(Dead, Dead.seal({ kind: "dead" })), Rule.dyn(Unused, Unused.seal({ kind: "unused" }))];
 for (const rule of RULES) rule.run();

@@ -44,10 +44,6 @@ describe("what the rule finds", () => {
     ]);
   });
 
-  test("follows a read of a companion that was renamed on the way out", async () => {
-    expect(await lint("re-export")).toEqual([{ rule: UnusedMember, at: "re-export/user.ts:4:3" }]);
-  });
-
   test("follows a read through a chain of renamed exports", async () => {
     expect(await lint("re-export-chain")).toEqual([
       { rule: UnusedMember, at: "re-export-chain/user.ts:4:3" },

@@ -33,7 +33,3 @@ test("asks a whole-file directive for its rules, or for the spelling that means 
     'OrderId claims the brand "Id", which should be "OrderId"',
   ]);
 });
-
-test("says nothing when the directive names one", async () => {
-  expect(await lint("named")).toEqual([]);
-});

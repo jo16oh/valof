@@ -64,8 +64,7 @@ that uses a cast to bypass the type throws where it happens. Production builds s
 generic object utilities, such as `Object.assign`, write to a Val without a cast. See
 [Caveats](caveats.md#generic-object-utilities-can-bypass-readonly-and-sealing).
 
-Only primitives, arrays and plain objects can live inside a Val. See
-[Allowed Types](allowed-types.md).
+Only primitives, arrays and plain objects can be in a Val. See [Allowed Types](allowed-types.md).
 
 ## Avoid a copy with `.nocopy`
 
@@ -111,5 +110,5 @@ mutable.address.city = "Tokyo";
 
 `readonly` is only a guardrail. Mutable views, casts, accessors and proxies can still break this
 contract. The default seal's `nocopy` requires deeply readonly input. `Val.of.nocopy<V>` and custom
-seals leave the responsibility to their callers and implementations. Development validates and
-freezes the payload, and production trusts the contract. `patch` still copies.
+seals leave the responsibility to their callers and implementations. In development, Valof validates
+and freezes the payload. In production, it trusts the contract. `patch` still copies.
