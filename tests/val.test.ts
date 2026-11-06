@@ -2186,6 +2186,8 @@ describe("building", () => {
       expect(b.tags).toEqual(["a"]);
     });
 
+    const changed = new TypeError("The payload changed while the custom seal was running.");
+
     test("detects a getter that changes between validation and copying", () => {
       type Reading = Val<"Reading", { n: number }>;
       const Reading = Val.companion<Reading>()
@@ -2201,9 +2203,7 @@ describe("building", () => {
         },
       };
 
-      expect(() => Reading.seal(input)).toThrow(
-        new TypeError("The payload changed while the custom seal was running."),
-      );
+      expect(() => Reading.seal(input)).toThrow(changed);
     });
 
     test("detects a non-idempotent get trap", () => {
@@ -2221,7 +2221,7 @@ describe("building", () => {
         .implSeal((_r, seal) => seal(candidate))
         .build();
 
-      expect(() => Reading.seal({ n: 0 })).toThrow(TypeError);
+      expect(() => Reading.seal({ n: 0 })).toThrow(changed);
     });
 
     test("detects mutation of the original input inside the custom seal", () => {
@@ -2233,7 +2233,7 @@ describe("building", () => {
         })
         .build();
 
-      expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
+      expect(() => Reading.seal({ n: 1 })).toThrow(changed);
     });
 
     test("allows a stable reactive Proxy and detaches the result", () => {
@@ -2275,7 +2275,7 @@ describe("building", () => {
         })
         .build();
 
-      expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
+      expect(() => Reading.seal({ n: 1 })).toThrow(changed);
     });
 
     test("does no comparison when a rejected result never calls the default seal", () => {
