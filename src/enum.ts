@@ -1223,7 +1223,10 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
 // The key is the error message. For a union of enums, the checker reports the key as missing.
 // The key is the error message. Without it, a Val reports the enum's private phantom as missing.
 type NotVal<E> = {
-  readonly [M in "a Val is built by `Val.companion`" as [E] extends [AnyEnum]
+  // Any enum's phantom, whatever its name: a broken enum fails `AnyEnum` and reports its own fault.
+  readonly [M in "a Val is built by `Val.companion`" as [E] extends [
+    EnumPhantom<unknown, unknown, unknown, unknown, unknown, unknown>,
+  ]
     ? never
     : [E] extends [AnyVal]
       ? M
