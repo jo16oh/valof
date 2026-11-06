@@ -2708,6 +2708,33 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 
 ## 9. 未解決 / 要確認
 
+- [x] ~~**Enum の宣言の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`hunt-findings.md` の 9、`and-or-holes.md` の 2〜5。
+      どれも `Fault`（型引数だけを読む）に足した
+  - **variant の名前は文字列。**`{ A; B; 404 }` の `404` は `VariantKeys`（`Extract<keyof D, string>`）が黙って落とし、
+    `match` が `404` 無しで網羅扱いになった。全部が数値なら enum が `never` になり、companion も通った。
+    `VariantKeys` に `number` を含め、`Fault` が「a variant's name must be a string」で拒む
+  - **名前、タグ名、共有フィールドは union にできない。**`Enum<"E" | "F", …>` の値は `Val<"E.A", …>` に代入できない。
+    `Tag<"k" | "t">` は `.tag("k")` で通った（`Tag<"k"> & Tag<"t">` は以前から拒まれる）。共有フィールドの
+    `{ id } | { key }` は `SharedIn` の `Pick` が共通のキーだけを残し、`create({ n: 1 })` が `id` も `key` も無しで
+    通った。共有フィールドは `SharedIn` で潰れる前の第 3 引数（`X`）を見る
+  - **`Enum.companion` は enum を 1 つだけ取る。**`Enum.companion<F | G>()` が通り、variant が生えなかった。enum は
+    variant の union なので、union かどうかは名前で見る。制約 `OneEnum<E>` はキーが文言の mapped type（`Single` と同じ形）
+  - **名前とタグ名は文字列リテラル 1 つ。**trait の名前と同じ `IsOneLiteral` で、`string`、template、`any`、`never` も
+    拒む。hunt 4 は brand の `string` を「対応しない」としていたが、Val、Enum、Trait で扱いを揃える（ユーザー、
+    2026-11-05）。`Tag<string>` は `.tag(key: string)` を求めるだけで通っていた
+    - 大文字で始まる名前（または `…/` + 大文字）に限る案は却下。型レベルで書けるが、`` `X${string}` ``、union、
+      `any`、`never` を通すのでリテラルの検査は残る。命名を揃えたいなら lint の領分（ユーザーと合意、2026-11-05）
+  - **宣言の検査は宣言の行で報告する**（ユーザー、2026-11-05）。名前は `OneLiteral`、タグ名は `Tag` の制約。`Fault` を
+    `SharedFault`（第 3 引数だけで決まるもの）と `VariantFault`（variant を第 3 引数と照らすもの）に分け、それぞれ
+    `X` と `D` の制約にする。brand の `Named` は `any` と `never` のために残す
+    - variant が無い `Enum<"E", {}>` も「an enum needs at least two variants」で拒むようになった。以前は indexed
+      access が `never` になるだけで、エラーは出なかった。`Tag<never>` も `X` の制約で拒まれる
+    - variant の payload と共有フィールドにも payload の規則を当てる（`Checked<Written<…>>`）。`Written` は trait が
+      足す field を除いた、宣言が書いた field。variant の field と共有フィールドの交差で値の無い field（`Unfit`）と、
+      trait との食い違い（Val の `Fits`）も `D` の制約で報告する。それまでは `Enum.companion` でだけ報告していた。
+      variant に型パラメーターを含む alias もこれで書けなくなる（方針どおり）。enum 41,290 → 44,111
+  - **コスト。**enum 39,583 → 39,786、`index.d.ts` 95.55 → 96.09 kB。増分の大半は文言。宣言の予算は #127 で上げた
+
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
       `and-or-holes.md` の 7
   - **field は `null` かプリミティブを、他の 1 種類と並べて持てる。**`string[] | null`、`Rec<Node> | null`（連結リスト）、

@@ -831,12 +831,26 @@ describe("traits", () => {
   });
 
   test("a variant field that breaks the allowed-type rules is rejected", () => {
+    // @ts-expect-error functions are not allowed
     type Bad = Enum<"Bad", { A: { run: () => void }; B: { n: number } }>;
     // @ts-expect-error functions are not allowed
     Enum.companion<Bad>().build();
   });
 
+  test("a shared field that breaks the allowed-type rules is rejected at the declaration", () => {
+    // @ts-expect-error functions are not allowed
+    type Shared = Enum<"Shared", { A: { n: number }; B: { m: number } }, { run: () => void }>;
+    expectTypeOf<Shared>().not.toBeNever();
+  });
+
+  test("a variant holding a type parameter is rejected at the declaration", () => {
+    // @ts-expect-error the rules cannot check a type parameter
+    type Generic<T> = Enum<"Generic", { A: { x: T }; B: { m: number } }>;
+    expectTypeOf<Generic<string>>().not.toBeNever();
+  });
+
   test("a shared field that contradicts the trait is rejected", () => {
+    // @ts-expect-error no value fits every declaration of `id`
     type Bad = Enum<"Bad", { A: { n: number }; B: { s: string } }, { id: number } & Describable>;
     // @ts-expect-error no value fits every declaration of `id`
     Enum.companion<Bad>().build();
@@ -911,6 +925,7 @@ describe("traits", () => {
         .build();
       type Both = Enum<
         "Both",
+        // @ts-expect-error two traits declare a member named `size`
         { A: { n: number }; B: { s: string } },
         { id: string } & Sized & Wide
       >;
@@ -1037,6 +1052,7 @@ describe("traits", () => {
     // Both would hold their own implementation, and `dyn` picks one by the companion it is passed,
     // so `Named.dyn(Shape, c)` and `Named.dyn(Shape.Circle, c)` would disagree.
     test("a trait the enum declares cannot be declared again on a variant", () => {
+      // @ts-expect-error a variant cannot declare a trait the enum declares
       type Twice = Enum<"Twice", { A: { n: number } & Named; B: { s: string } }, Named>;
       // @ts-expect-error a variant cannot declare a trait the enum declares
       Enum.companion<Twice>().build();
@@ -1143,11 +1159,13 @@ describe("a broken declaration", () => {
   test("a trait member may not take a variant's name, nor `match`", () => {
     type Sq = Trait<"Sq", Record<never, never>, { Square: (self: Self) => string }>;
     type Sized = Trait<"Sized", Record<never, never>, { size: (self: Self) => number }>;
+    // @ts-expect-error a trait member cannot take a variant's name
     type Boxy = Enum<"Boxy", { Circle: { r: number }; Square: { side: number } }, Sq & Sized>;
     // @ts-expect-error a trait member cannot take a variant's name
     Enum.companion<Boxy>().build();
 
     type Matcher = Trait<"Matcher", Record<never, never>, { match: (self: Self) => string }>;
+    // @ts-expect-error a trait member cannot take the name `match`
     type Coin = Enum<"Coin", { Heads: { n: number }; Tails: { n: number } }, Matcher>;
     // @ts-expect-error a trait member cannot take the name `match`
     Enum.companion<Coin>().build();
@@ -1156,11 +1174,13 @@ describe("a broken declaration", () => {
   // An indexed access over a single key hands back the variant itself, and the alias goes with
   // the union: a consumer's `.d.ts` then expands onto the private phantoms and fails with TS4094.
   test("an enum needs at least two variants", () => {
+    // @ts-expect-error an enum needs at least two variants
     type Lonely = Enum<"Lonely", { Only: { n: number } }>;
     // @ts-expect-error an enum needs at least two variants; one is a Val
     Enum.companion<Lonely>().build();
 
-    // With no variants at all the indexed access is `never`, and there is no value to build.
+    // With no variants at all the declaration is rejected too, and the indexed access is `never`.
+    // @ts-expect-error an enum needs at least two variants
     expectTypeOf<Enum<"Empty", Record<never, never>>>().toEqualTypeOf<never>();
   });
 
@@ -1168,18 +1188,29 @@ describe("a broken declaration", () => {
     // `@ts-expect-error` alone would stay green, since `AnyEnum` rejects any fault. Intersecting
     // with it reads the fault back out of the name.
     type Fault = Invalid<"a variant's payload must be a record of fields">;
+    // @ts-expect-error a variant's payload must be a record of fields
     type Primitive = Enum<"Primitive", { One: number; Two: { n: number } }>;
     // @ts-expect-error a variant's payload must be a record of fields
     Enum.companion<Primitive>().build();
     expectTypeOf<NameOf<Primitive & AnyEnum>>().toEqualTypeOf<Fault & string>();
 
+    // @ts-expect-error a variant's payload must be a record of fields
     type Listed = Enum<"Listed", { Many: readonly string[]; Other: { n: number } }>;
     // @ts-expect-error same, for an array
     Enum.companion<Listed>().build();
     expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<Fault & string>();
   });
 
+  test("a variant field no value fits is rejected at the declaration", () => {
+    // @ts-expect-error no value fits `a`
+    type Own = Enum<"Own", { A: { a: never }; B: { n: number } }>;
+    // @ts-expect-error no value fits `a`
+    type Both = Enum<"Both", { A: { a: string } & { a: number }; B: { n: number } }>;
+    expectTypeOf<Own | Both>().not.toBeNever();
+  });
+
   test("a variant field that contradicts a shared one is rejected", () => {
+    // @ts-expect-error no value fits `id`
     type Keyed = Enum<"Keyed", { One: { id: number }; Two: { n: number } }, { id: string }>;
     expectTypeOf<VerdictOf<VariantOf<Keyed & AnyEnum, "One">>>().toEqualTypeOf<
       Invalid<"no value fits `id`">
@@ -1190,6 +1221,7 @@ describe("a broken declaration", () => {
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {
+    // @ts-expect-error the tag cannot take the name of a field the payload holds
     type Clash = Enum<"Clash", { One: { _tag: string }; Two: { n: number } }>;
     // @ts-expect-error the tag cannot take the name of a field the payload holds
     Enum.companion<Clash>().build();
@@ -1197,16 +1229,69 @@ describe("a broken declaration", () => {
     type SharedClash = Enum<
       "SharedClash",
       { One: { n: number }; Two: { n: number } },
+      // @ts-expect-error the tag cannot take the name of a shared field
       { _tag: string }
     >;
     // @ts-expect-error the tag cannot take the name of a shared field
     Enum.companion<SharedClash>().build();
 
     type Tagged = Trait<"Tagged", { _tag: number }>;
+    // @ts-expect-error the tag cannot take the name of a field the payload holds
     type TraitClash = Enum<"TraitClash", { One: { n: number } & Tagged; Two: { n: number } }>;
     expectTypeOf<NameOf<TraitClash & AnyEnum>>().toEqualTypeOf<
       Invalid<"the tag cannot take the name of a field the payload holds"> & string
     >();
+  });
+
+  // Each reads the fault from the name, since `@ts-expect-error` passes on any error.
+  test("an enum's name and the tag's name are one string literal, and a variant's name is a string", () => {
+    type Fault<M extends string> = Invalid<M> & string;
+    // @ts-expect-error a variant's name must be a string
+    type Numbered = Enum<"Numbered", { Ok: { n: number }; 404: { path: string } }>;
+    expectTypeOf<NameOf<Numbered & AnyEnum>>().toEqualTypeOf<
+      Fault<"a variant's name must be a string">
+    >();
+    // @ts-expect-error a variant's name must be a string
+    type OnlyNumbers = Enum<"OnlyNumbers", { 200: { n: number }; 404: { path: string } }>;
+    expectTypeOf<OnlyNumbers>().not.toBeNever();
+    type Variants = { A: { n: number }; B: { m: number } };
+    // @ts-expect-error an enum's name must be one string literal
+    type Either = Enum<"Left" | "Right", Variants>;
+    // @ts-expect-error an enum's name must be one string literal
+    type Any = Enum<string, Variants>;
+    // @ts-expect-error the tag's name must be one string literal
+    type Tags = Enum<"Tags", Variants, Tag<"k" | "t">>;
+    // @ts-expect-error the tag's name must be one string literal
+    type Keys = Enum<"Keys", Variants, Tag<string>>;
+    expectTypeOf<Either | Any | Tags | Keys>().not.toBeNever();
+    // `any` and `never` satisfy every constraint, so the verdict alone reports them.
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    expectTypeOf<NameOf<Enum<any, Variants> & AnyEnum>>().toEqualTypeOf<
+      Fault<"an enum's name must be one string literal">
+    >();
+    // @ts-expect-error the tag's name must be one string literal
+    expectTypeOf<NameOf<Enum<"Loose", Variants, Tag<never>> & AnyEnum>>().toEqualTypeOf<
+      Fault<"the tag's name must be one string literal">
+    >();
+  });
+
+  test("the shared fields are one object type, not a union", () => {
+    type Keyed = Enum<
+      "Keyed",
+      { A: { n: number }; B: { m: number } },
+      // @ts-expect-error the shared fields cannot be a union
+      { id: string } | { key: string }
+    >;
+    expectTypeOf<NameOf<Keyed & AnyEnum>>().toEqualTypeOf<
+      Invalid<"the shared fields cannot be a union"> & string
+    >();
+  });
+
+  test("a companion takes one enum, not a union of them", () => {
+    type Left = Enum<"Left", { A: { n: number }; B: { m: number } }>;
+    type Right = Enum<"Right", { C: { n: number }; D: { m: number } }>;
+    // @ts-expect-error a companion builds one enum
+    Enum.companion<Left | Right>().build();
   });
 
   test("a variant takes no companion of its own, and neither does the union", () => {

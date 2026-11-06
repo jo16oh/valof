@@ -45,9 +45,16 @@ import {
   type CallBuildFirst,
   type CompanionMembers,
   type Complete,
+  type Checked,
+  type Code,
+  type Fits,
+  type Unfit,
   type DeepReadonly,
   type Grown,
   type Invalid,
+  type IsOneLiteral,
+  type OneLiteral,
+  type IsUnion,
   type Options,
   type Passes,
   type Patch,
@@ -98,7 +105,8 @@ declare class TagPhantom<T extends string> {
  * The tag is real data and crosses the wire, so you can customize the name when an API already has
  * one.
  */
-export type Tag<T extends string> = TagPhantom<T>;
+export type Tag<T extends OneLiteral<T, "the tag's name must be one string literal">> =
+  TagPhantom<T>;
 
 /**
  * Type-only nominal identity carrying the whole declaration, so a companion can read the
@@ -116,8 +124,8 @@ declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
 export type AnyEnum = AnyVal &
   EnumPhantom<string, Record<string, object>, object, AnyTrait, string, Record<string, AnyTrait>>;
 
-/** The declaration's own keys, which are the variants and nothing else. */
-type VariantKeys<D> = Extract<keyof D, string>;
+/** The declaration's own keys, which are the variants and nothing else. A numeric key is rejected, by {@link Fault}. */
+type VariantKeys<D> = Extract<keyof D, string | number>;
 
 /** A variant's fields, with the ones its traits require. */
 type FieldsIn<P> = [P] extends [AnyTrait] ? Pick<P, keyof P> & FieldsOf<P> : P;
@@ -150,32 +158,86 @@ type Single<N, All = N> = N extends unknown ? ([All] extends [N] ? true : false)
  * One variant is rejected for the declaration emit, not for the shape: an indexed access over a
  * single key returns the variant itself, and the alias is lost with the union. A consumer's `.d.ts`
  * then expands onto the private phantoms and fails with TS4094. One variant is a Val anyway, so the
- * `Invalid` message says that rather than naming the emit. No variant at all needs no message: the
- * indexed access is `never`, and there is no value to build.
+ * `Invalid` message says that rather than naming the emit. No variant at all gets the same message
+ * at the declaration. The indexed access is `never`, so there is no brand to carry it.
  */
-type Fault<D, S, Tr extends AnyTrait, Tg extends string> =
+type Fault<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> =
+  | (IsOneLiteral<K> extends false ? "an enum's name must be one string literal" : never)
+  | SharedFault<X, S, Tr, Tg>
+  | VariantFault<D, Tr, Tg>;
+
+/** The faults the third type argument alone carries. */
+type SharedFault<X, S, Tr extends AnyTrait, Tg extends string> =
+  | (IsUnion<X> extends true ? "the shared fields cannot be a union" : never)
+  | (IsOneLiteral<Tg> extends false ? "the tag's name must be one string literal" : never)
+  | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never)
+  | ("match" extends MemberNames<Tr> ? "a trait member cannot take the name `match`" : never);
+
+/** The faults of the variants, read against what the third type argument declares. */
+type VariantFault<D, Tr extends AnyTrait, Tg extends string> =
   | (Single<VariantKeys<D>> extends true
       ? "an enum needs at least two variants; one is a Val"
       : never)
   | {
-      [N in VariantKeys<D>]: [D[N]] extends [object]
-        ? [D[N]] extends [ReadonlyArray<unknown>]
-          ? "a variant's payload must be a record of fields"
-          : Tg extends keyof FieldsIn<D[N]>
-            ? "the tag cannot take the name of a field the payload holds"
-            : // `dyn` picks the implementation by the companion it is passed, so the enum's
-              // and the variant's would answer the same call differently.
-              [TraitNames<Tr> & TraitNames<TraitsIn<D[N]>>] extends [never]
-              ? never
-              : "a variant cannot declare a trait the enum declares"
-        : "a variant's payload must be a record of fields";
+      [N in VariantKeys<D>]: N extends number
+        ? "a variant's name must be a string"
+        : [D[N]] extends [object]
+          ? [D[N]] extends [ReadonlyArray<unknown>]
+            ? "a variant's payload must be a record of fields"
+            : Tg extends keyof FieldsIn<D[N]>
+              ? "the tag cannot take the name of a field the payload holds"
+              : // `dyn` picks the implementation by the companion it is passed, so the enum's
+                // and the variant's would answer the same call differently.
+                [TraitNames<Tr> & TraitNames<TraitsIn<D[N]>>] extends [never]
+                ? never
+                : "a variant cannot declare a trait the enum declares"
+          : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
-  | (Tg extends keyof S ? "the tag cannot take the name of a shared field" : never)
   // The companion reads a member first, so the type would show the library's and run the member.
   | ([MemberNames<Tr> & VariantKeys<D>] extends [never]
       ? never
-      : "a trait member cannot take a variant's name")
-  | ("match" extends MemberNames<Tr> ? "a trait member cannot take the name `match`" : never);
+      : "a trait member cannot take a variant's name");
+
+// The faults as constraints, so the type argument reports them. The brand repeats them for `any`
+// and `never`, which satisfy every constraint. Each reads its argument through `infer`, as
+// `OneLiteral` does: passing it to a conditional in its own constraint is circular (TS2313).
+// The payload rules apply to each variant's fields and to the shared fields, as `Val`'s constraint
+// applies them to a payload.
+type DeclarableVariants<D, X> = [D] extends [infer V]
+  ? [X] extends [infer Y]
+    ? Faulted<VariantFault<V, TraitsIn<Y>, TagIn<Y>> | Disagreeing<V, Y>> & {
+        [N in VariantKeys<V>]: Checked<Written<V[N]>>;
+      }
+    : object
+  : object;
+
+type DeclarableShared<X> = [X] extends [infer Y]
+  ? Faulted<SharedFault<Y, SharedIn<Y>, TraitsIn<Y>, TagIn<Y>>> & Checked<Written<Y>>
+  : object;
+
+type Faulted<F> = [F] extends [never] ? object : Invalid<F & string>;
+
+/**
+ * Where a variant's fields, with the shared ones, leave a field no value fits, or disagree with the
+ * traits the variant holds.
+ */
+type Disagreeing<D, X> = {
+  [N in VariantKeys<D>]: Disagreement<
+    FieldsIn<D[N]> & SharedIn<X>,
+    Joined<TraitsIn<X>, TraitsIn<D[N]>>
+  >;
+}[VariantKeys<D>];
+
+type Disagreement<T, Tr extends AnyTrait> = [Unfit<T>] extends [never]
+  ? Fits<T, Tr> extends infer F
+    ? F extends string
+      ? F
+      : never
+    : never
+  : `no value fits ${Code<Unfit<T> & string>}`;
+
+/** The fields a declaration writes, without the ones its traits add. An `Impl` stays whole, so the rules reject it. */
+type Written<P> = [P] extends [AnyImpl] ? P : [P] extends [AnyTrait] ? Pick<P, keyof P> : P;
 
 /** Every trait's member names. `keyof` over their union would keep only the shared ones. */
 type MemberNames<Tr extends AnyTrait> =
@@ -185,11 +247,11 @@ type MemberNames<Tr extends AnyTrait> =
 // whose top level is a conditional loses its name once it resolves, and a consumer's `.d.ts`
 // then expands the union onto val.ts's private `Phantom`: TS4094 on the one line
 // `export const Shape = Enum.companion<Shape>().build()`.
-type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
-  Fault<D, S, Tr, Tg>,
+type Named<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> = [
+  Fault<K, D, X, S, Tr, Tg>,
 ] extends [never]
   ? K
-  : Invalid<Fault<D, S, Tr, Tg>>;
+  : Invalid<Fault<K, D, X, S, Tr, Tg>>;
 
 /**
  * A closed set of variants, declared as one record and derived into their union. Each variant is
@@ -208,7 +270,11 @@ type Named<K extends string, D, S, Tr extends AnyTrait, Tg extends string> = [
  * type Shape = Enum<"Shape", { Circle: { r: number } & Round }, Tag<"kind"> & { id: string }>;
  * ```
  */
-type Enum<K extends string, D extends object, X extends object = Record<never, never>> = {
+type Enum<
+  K extends OneLiteral<K, "an enum's name must be one string literal">,
+  D extends object & DeclarableVariants<D, X>,
+  X extends object & DeclarableShared<X> = Record<never, never>,
+> = {
   [N in VariantKeys<D>]: UncheckedVal<
     `${K}.${N}`,
     FieldsIn<D[N]> & SharedIn<X> & { [P in TagIn<X>]: N },
@@ -216,7 +282,7 @@ type Enum<K extends string, D extends object, X extends object = Record<never, n
     true
   > &
     EnumPhantom<
-      Named<K, D, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
+      Named<K, D, X, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
       VariantsIn<D>,
       SharedIn<X>,
       TraitsIn<X>,
@@ -1134,6 +1200,13 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
   );
 };
 
+// The key is the error message. For a union of enums, the checker reports the key as missing.
+type OneEnum<E> = {
+  readonly [M in "a companion builds one enum" as IsUnion<Declared<E>["name"]> extends true
+    ? M
+    : never]: never;
+};
+
 /**
  * Bundles an enum's `seal`, its variants and its members. `.build()` closes the chain.
  *
@@ -1141,6 +1214,6 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
  * {@link VariantOptions} for one variant, as in `Enum.companion<Order, [PrivateSeal, Unpatchable<"id">]>()`.
  */
 export const companion = <
-  E extends AnyEnum,
+  E extends AnyEnum & OneEnum<E>,
   const O extends readonly EnumOption<E>[] = [],
 >(): Start<E, O> => builder("_tag", {}, {}) as Start<E, O>;
