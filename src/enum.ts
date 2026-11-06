@@ -149,18 +149,9 @@ type Joined<A, B> = [A] extends [never] ? B : [B] extends [never] ? A : A & B;
 
 type TraitNames<Tr> = [Tr] extends [never] ? never : Tr extends AnyTrait ? NamesOf<Tr> : never;
 
-/** Distributes, so each key is compared against the whole: they differ only in a union. */
-type Single<N, All = N> = N extends unknown ? ([All] extends [N] ? true : false) : false;
-
 /**
  * Why this declaration cannot stand, or `never`. Read from the type arguments alone, so it lives in
  * the brand position (notes §11.2).
- *
- * One variant is rejected for the declaration emit, not for the shape: an indexed access over a
- * single key returns the variant itself, and the alias is lost with the union. A consumer's `.d.ts`
- * then expands onto the private phantoms and fails with TS4094. One variant is a Val anyway, so the
- * `Invalid` message says that rather than naming the emit. No variant at all gets the same message
- * at the declaration. The indexed access is `never`, so there is no brand to carry it.
  */
 type Fault<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> =
   | (IsOneLiteral<K> extends false ? "an enum's name must be one string literal" : never)
@@ -176,9 +167,7 @@ type SharedFault<X, S, Tr extends AnyTrait, Tg extends string> =
 
 /** The faults of the variants, read against what the third type argument declares. */
 type VariantFault<D, Tr extends AnyTrait, Tg extends string> =
-  | (Single<VariantKeys<D>> extends true
-      ? "an enum needs at least two variants; one is a Val"
-      : never)
+  | ([VariantKeys<D>] extends [never] ? "an enum needs a variant" : never)
   | {
       [N in VariantKeys<D>]: N extends number
         ? "a variant's name must be a string"
@@ -281,16 +270,19 @@ type Enum<
     FieldsIn<D[N]> & SharedIn<X> & { [P in TagIn<X>]: N },
     Joined<TraitsIn<X>, TraitsIn<D[N]>>,
     true
-  > &
-    EnumPhantom<
-      Named<K, D, X, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
-      VariantsIn<D>,
-      SharedIn<X>,
-      TraitsIn<X>,
-      TagIn<X>,
-      VariantTraitsIn<D>
-    >;
-}[VariantKeys<D>];
+  >;
+  // Outside the indexed access, so the intersection is the alias's own. One variant indexes out a
+  // member type, which has no alias, and a consumer's `.d.ts` would expand it onto the private
+  // phantoms (TS4094).
+}[VariantKeys<D>] &
+  EnumPhantom<
+    Named<K, D, X, SharedIn<X>, TraitsIn<X>, TagIn<X>>,
+    VariantsIn<D>,
+    SharedIn<X>,
+    TraitsIn<X>,
+    TagIn<X>,
+    VariantTraitsIn<D>
+  >;
 
 export { Enum };
 
