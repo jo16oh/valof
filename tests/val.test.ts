@@ -2186,6 +2186,8 @@ describe("building", () => {
       expect(b.tags).toEqual(["a"]);
     });
 
+    const changed = new TypeError("The payload changed while the custom seal was running.");
+
     test("detects a getter that changes between validation and copying", () => {
       type Reading = Val<"Reading", { n: number }>;
       const Reading = Val.companion<Reading>()
@@ -2201,12 +2203,8 @@ describe("building", () => {
         },
       };
 
-      expect(() => Reading.seal(input)).toThrow(
-        new TypeError("The payload changed while the custom seal was running."),
-      );
+      expect(() => Reading.seal(input)).toThrow(changed);
     });
-
-    const changed = new TypeError("The payload changed while the custom seal was running.");
 
     test("detects a non-idempotent get trap", () => {
       type Reading = Val<"Reading", { n: number }>;
