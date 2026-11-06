@@ -582,7 +582,11 @@ describe("Val", () => {
       // @ts-expect-error keys must be strings
       expectTypeOf<Val<"Bad", Record<number, true>>>();
       // @ts-expect-error keys must be strings
-      expectTypeOf<Val<"Bad", Record<symbol, string>>>();
+      type SymbolKey = Val<"Bad", Record<symbol, string>>;
+      // A symbol key with no method is not a `Date` or a `Map`.
+      expectTypeOf<VerdictOf<SymbolKey>>().toEqualTypeOf<
+        Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
+      >();
       // @ts-expect-error keys must be strings
       type NumberKey = Val<"Bad", { 1: string }>;
       expectTypeOf<NumberKey>().not.toExtend<AnyVal>();

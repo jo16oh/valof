@@ -1301,6 +1301,26 @@ describe("a broken declaration", () => {
     expectTypeOf<NameOf<Enum<"Empty", never> & AnyEnum>>().toEqualTypeOf<Fault>();
   });
 
+  // A broken name, tag or set of variants is the enum's fault alone, not each variant's.
+  test("a broken enum leaves its variants valid", () => {
+    type Variants = { A: { n: number }; B: { m: number } };
+    // @ts-expect-error the tag's name must be one string literal
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    type Untagged = Enum<"Untagged", Variants, Tag<any>>;
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    expectTypeOf<VerdictOf<Enum<any, Variants>>>().toEqualTypeOf<true>();
+    expectTypeOf<VerdictOf<Untagged>>().toEqualTypeOf<true>();
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    expectTypeOf<VerdictOf<Enum<"Loose", any>>>().toEqualTypeOf<true>();
+    expectTypeOf<VerdictOf<Enum<"Empty", never>>>().toEqualTypeOf<true>();
+  });
+
+  test("the shared fields cannot be `unknown`", () => {
+    // @ts-expect-error `unknown` is not a plain value
+    type Unknown = Enum<"Unknown", { A: { n: number }; B: { m: number } }, unknown>;
+    expectTypeOf<Unknown>().not.toBeNever();
+  });
+
   test("the shared fields are one object type, not a union", () => {
     type Keyed = Enum<
       "Keyed",

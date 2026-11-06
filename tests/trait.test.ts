@@ -12,7 +12,7 @@ import {
 } from "../src/index.ts";
 // `Wired` is not published from the entry point.
 import type { Allowed, CallBuildFirst, Invalid, Verdict, Wired } from "../src/val.ts";
-import type { VerdictOf } from "../src/trait.ts";
+import type { LoneTrait, OneTrait, VerdictOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
 type Greetable = Trait<
@@ -344,6 +344,14 @@ describe("Trait", () => {
       >;
       expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
     });
+
+    test("cannot be `unknown`", () => {
+      // @ts-expect-error `unknown` is not a plain value
+      type Unknown = Trait<"Unknown", unknown>;
+      expectTypeOf<VerdictOf<Unknown>>().toEqualTypeOf<{
+        readonly Unknown: Invalid<"`unknown` is not a plain value; write the type">;
+      }>();
+    });
   });
 
   // Read through `VerdictOf`, since `@ts-expect-error` at the gate passes on any error.
@@ -634,6 +642,16 @@ describe("dyn", () => {
     // @ts-expect-error not a trait
     Trait.companion<Plain>();
     expect([box, value]).toEqual([null, null]);
+    // The key is the message, so `@ts-expect-error` alone would pass on any other.
+    expectTypeOf<"not a trait">().toExtend<keyof OneTrait<Plain>>();
+    expectTypeOf<"not a trait">().toExtend<keyof LoneTrait<Plain>>();
+  });
+
+  test("a box and a companion take one trait, not a union", () => {
+    type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+    expectTypeOf<"`Dyn` and `Trait.companion` take one trait; write one for each trait">().toExtend<
+      keyof LoneTrait<Greetable | Weighed>
+    >();
   });
 
   describe("a primitive payload", () => {
