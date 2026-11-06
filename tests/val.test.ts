@@ -1239,13 +1239,19 @@ describe("equals", () => {
 });
 
 describe("patch", () => {
-  test("a nested plain object cannot be replaced by a Val", () => {
-    type Pin = Val<"Pin", { at: { x: number } }>;
+  // A Val replaces the field whole, so it has to hold every key, unlike a patch written in place.
+  test("a nested plain object is replaced by a Val that holds every key", () => {
+    type Pin = Val<"Pin", { at: { x: number; y: number } }>;
     const Pin = Val.companion<Pin>().build();
-    type Spot = Val<"Spot", { x: number; label: string }>;
-    const spot = Val.of<Spot>({ x: 1, label: "s" });
-    // @ts-expect-error a Val is not a patch of a plain object
-    Pin.patch(Pin.seal({ at: { x: 0 } }), { at: spot });
+    type Spot = Val<"Spot", { x: number; y: number }>;
+    type Edge = Val<"Edge", { x: number }>;
+    const spot = Val.of<Spot>({ x: 1, y: 2 });
+    const pin = Pin.seal({ at: { x: 0, y: 0 } });
+    const moved = Pin.patch(pin, { at: spot });
+    expect(moved).toEqual({ at: { x: 1, y: 2 } });
+    expect(moved.at).toBe(spot);
+    // @ts-expect-error a Val missing `y` would leave the field without it
+    Pin.patch(pin, { at: Val.of<Edge>({ x: 1 }) });
   });
 
   test("omitting a key leaves it unchanged", () => {
