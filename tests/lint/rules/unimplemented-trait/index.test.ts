@@ -17,6 +17,12 @@ test("reports each Trait a Val declares but does not implement", async () => {
   ]);
 });
 
+test("reports a Trait a Val declares even when no linted file declares the Trait", async () => {
+  expect(await messages("unlinted-trait")).toEqual([
+    "User declares Greetable, but its companion does not implement it",
+  ]);
+});
+
 test("accepts implTrait at every step in a chain, `.implCreate.noseal` included", async () => {
   expect(await lint("implemented")).toEqual([]);
 });
