@@ -4,9 +4,11 @@ import { createMarkdownHighlighter, preprocess } from "../mdbook-shiki/index.ts"
 
 describe("mdBook Shiki preprocessor", () => {
   let markdownHighlighter: Awaited<ReturnType<typeof createMarkdownHighlighter>>;
+  // A language missing from the list falls back to text, which only the warning tells apart.
+  const fallback = vi.fn();
 
   beforeAll(async () => {
-    markdownHighlighter = await createMarkdownHighlighter();
+    markdownHighlighter = await createMarkdownHighlighter({ onWarning: fallback });
   });
 
   afterAll(() => {
@@ -35,6 +37,7 @@ describe("mdBook Shiki preprocessor", () => {
     expect(result).toContain("--shiki-dark:");
     expect(result).toContain("&#x3C;&#x26;");
     expect(result).not.toContain("<&>");
+    expect(fallback).not.toHaveBeenCalled();
   });
 
   test("removes the Twoslash notations the check reads", () => {
@@ -74,6 +77,7 @@ describe("mdBook Shiki preprocessor", () => {
     try {
       const result = transformer.transform("```unknown\nconst x = 1;\n```");
 
+      expect(onWarning).toHaveBeenCalledOnce();
       expect(onWarning).toHaveBeenCalledWith('Shiki: unknown language "unknown", using "text"');
       expect(result).toContain("const x = 1;");
       expect(result).not.toContain('style="--shiki-light:#D73A49');
@@ -88,8 +92,8 @@ describe("mdBook Shiki preprocessor", () => {
         config: {
           preprocessor: {
             shiki: {
-              "light-theme": "github-light",
-              "dark-theme": "github-dark",
+              "light-theme": "min-light",
+              "dark-theme": "min-dark",
               "fallback-language": "text",
             },
           },
@@ -121,7 +125,8 @@ describe("mdBook Shiki preprocessor", () => {
       throw new Error("fixture chapters are missing");
     }
 
-    expect(top.content).toContain('class="shiki ');
-    expect(nested.content).toContain('class="shiki ');
+    // Not the defaults, so the setting is what picks them.
+    expect(top.content).toContain('class="shiki shiki-themes min-light min-dark"');
+    expect(nested.content).toContain('class="shiki shiki-themes min-light min-dark"');
   });
 });

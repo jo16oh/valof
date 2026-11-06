@@ -41,8 +41,11 @@ test("reports on the file it was called for, having read the whole project", () 
 
 test("takes a list for the project, and leaves out what one entry excludes", () => {
   const finding = "6:2-8  Money.format is never read";
-  expect(run("money.ts", undefined, [project])).toEqual([finding]);
-  expect(run("money.ts", undefined, [project, `!${at("order.ts")}`])).toEqual([finding]);
+  // `reader/show.ts` reads the member, so the finding goes only when the list keeps that file.
+  expect(run("money.ts", undefined, [project, at("reader/*.ts")])).toEqual([]);
+  expect(
+    run("money.ts", undefined, [project, at("reader/*.ts"), `!${at("reader/show.ts")}`]),
+  ).toEqual([finding]);
 });
 
 test("says nothing about a file that holds no finding of its own", () => {
