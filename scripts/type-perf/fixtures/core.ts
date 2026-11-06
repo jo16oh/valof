@@ -51,7 +51,7 @@ const Order = Val.companion<Order, [Unpatchable<"id">]>()
   .build();
 
 declare const order: Order;
-declare const patch: Patch<SeedOf<Order>>;
+declare const patch: Patch<Omit<SeedOf<Order>, "id">>;
 
 export const derived = [
   // The patch stops at a nested Val, so the deep one runs inside `Address`.

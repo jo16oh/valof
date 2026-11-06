@@ -587,8 +587,11 @@ type VariantPatch<E extends AnyEnum, N extends keyof VariantsOf<E>, R, U> = {
   patch: Dual<
     (
       value: VariantOf<E, N>,
+      // The tag and the other variants' fields are listed as keys only to be rejected, so a variable holding
+      // another variant fails as a literal would.
       patch: Patch<
-        [U] extends [never] ? SeedFor<E, N> : Omit<SeedFor<E, N>, U & keyof SeedFor<E, N>>
+        [U] extends [never] ? SeedFor<E, N> : Omit<SeedFor<E, N>, U & keyof SeedFor<E, N>>,
+        (U | Exclude<VariantFields<E> | TagOf<E>, keyof SeedFor<E, N>>) & PropertyKey
       >,
     ) => R,
     VariantOf<E, N>

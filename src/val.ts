@@ -588,16 +588,24 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * - `{ k: value }` → set it
  * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required `k` only
  *
+ * `X` lists keys the patch rejects, as `Patch<Fields, "id">` for an `Unpatchable` id.
+ *
  * An optional key and a `Record` entry take the whole value. There may be nothing there to merge
  * with, and the type cannot tell: `{ at: { x: 1 } }` onto an absent `at` would leave a value
  * missing `y` that the type still calls a `Point`. Spread the current value to keep the rest:
  * `{ at: { ...point, x: 1 } }`.
  */
-export type Patch<T> = T extends object
+// One mapped type rather than an intersection, because TypeScript rejects a variable sharing no
+// key with a weak type, and skips that check on an intersection where one side has no keys.
+export type Patch<T, X extends PropertyKey = never> = T extends object
   ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
-    : { [K in Exclude<keyof T, OptionalKeys<T>>]?: PatchValue<T[K]> } & {
-        [K in OptionalKeys<T>]?: T[K] | undefined;
+    : {
+        [K in keyof T | X]?: K extends keyof T
+          ? K extends OptionalKeys<T>
+            ? T[K] | undefined
+            : PatchValue<T[K]>
+          : never;
       }
   : never;
 
@@ -609,7 +617,12 @@ export type Patch<T> = T extends object
  * nested value would build a payload its own seal never saw, and the outer `patch` seals the
  * outer value alone. Replace it with one built by its constructor.
  */
-type PatchValue<T> = [T] extends [object] ? ([Patch<T>] extends [never] ? T : Patch<T>) : T;
+// A Val declares the brand key private, and the public optional key added here rejects it.
+type PatchValue<T> = [T] extends [object]
+  ? [Patch<T>] extends [never]
+    ? T
+    : Patch<T, typeof PhantomBrand>
+  : T;
 
 export type AnyFn = (...args: never[]) => unknown;
 
@@ -852,7 +865,7 @@ type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<Derivable<V, O
        * replace it outright, build the whole payload again through the constructor or `seal`.
        * See {@link Patch}.
        */
-      patch: Derive<V, F, Patch<Derivable<V, O>>>;
+      patch: Derive<V, F, Patch<Derivable<V, O>, UnpatchableKeys<O>>>;
     };
 
 /**

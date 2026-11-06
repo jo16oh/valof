@@ -2708,6 +2708,23 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 
 ## 9. 未解決 / 要確認
 
+- [x] ~~**変数で渡す patch の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`hunt-findings.md` の 1〜3。リテラルでない
+      引数は余剰プロパティ検査を受けず、patch の型が交差（`{…} & {…}`）なので weak type の検査も受けなかった
+  - **`Patch` を 1 つの mapped type にする。**キーを共有しない変数（`{ foo: 1 }`）を weak type の検査が拒む。
+    交差でも weak type の検査は掛かるが、片側にキーが無いと外れる。optional キーの無い payload（`Unpatchable` の
+    例の `{ id; owner; note }`）がそうだった
+  - **拒むキーを `?: never` で書く。**`Patch<T, X>` の `X`
+    - `Unpatchable` のキー。`const both = { id: "forged", name: "y" }; U.patch(u, both)` が通っていた
+    - variant の patch は、タグと他の variant のフィールド。`S.C.patch(c, q)`（q は `Q` の値）が通り、`match` が `Q` の
+      分岐に入っていた
+    - ネストした plain object の patch は `typeof PhantomBrand`。Val はこのキーを private で持つので、public の
+      `?: never` に代入できない。`U.patch(u, { meta: someOtherVal })` が通り、owned なので merge せず置き換わっていた
+  - **破壊的変更。**`Unpatchable` のある companion に `Patch<SeedOf<V>>` を渡すコード（type-perf の core fixture が
+    そうだった）。`Patch<Omit<SeedOf<V>, "id">>` にする。`Unpatchable` のキーを含む patch のリテラルのエラーは
+    TS2353 から TS2322 になる
+  - **コスト。**fixture を直したので core は比べられない（8,504 → 8,217）。trait 23,756 → 23,576、enum 39,853 → 40,057、
+    宣言 96.66 → 96.79 kB
+
 - [x] ~~**Val の宣言と companion の union（#125 の調査）。**~~ → 塞いだ、2026-11-05。`and-or-holes.md` の 1、3、6
   - **brand は文字列リテラル 1 つ。**`Val<"A" | "B", P>` の値は `Val<"A", P>` に代入できない。`UncheckedVal` の verdict が
     「a Val's brand must be one string literal」になる。`string` も enum と同じく拒む（ユーザー、2026-11-05）。
