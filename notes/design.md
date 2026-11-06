@@ -3095,6 +3095,12 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
+- [ ] **第 1 引数が `Self` でないメンバを、trait の宣言が通す。**valof-lint に main を merge して見つけた、2026-11-07。
+      `run: (scans: number[]) => number` を宣言しても宣言の行は黙り、`implTrait` で「`never` に代入できない」と出る。
+      `Unbound` と `Bound` が `(self: Self, ...)` に合わないメンバを `never` にする。直していない
+- [ ] **`<W extends Rule>` の誤りに `Impl` への案内が無い。**同じ merge で見つけた、2026-11-07。`Rule` が trait の
+      宣言になった（#125）ので、`Rule.dyn<W>` が TS2344 で `TraitDeclaration<…>` を全文出す。言われるのは
+      「Property 'kind' is missing」だけ。直していない
 - [x] ~~Trait のメンバが `Promise` を返すと宣言が TS2615 で落ちる。~~ → `HasSelf` の探索に深さの上限を置いた、
       2026-11-03（§15.1「探索の深さに上限を置く」）。valof-lint の書き直しで見つけた
 - [x] ~~`Dyn` に具体的な Val を残す第 2 型引数（`Dyn<Tr, W extends Tr = Tr>`）。~~ → 入れない、2026-11-04。
@@ -4172,12 +4178,13 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
 - **`Finding` は共通の Val 1 つ、`kind` は `string`。**ルール固有のフィールド（`brand`、`alias` など）は
   誰も読んでいなかった。`kind` を `Kind` にすると、`Kind` が `RULES` から、`RULES` が `run` の戻り型から
   決まるので循環する。上の `ReportedBy` は消えた
-- **`run` は同期。**書き直した時点では、Trait のメンバが `Promise` を返すと宣言が落ちた（§15.1）。非同期のルールは無かった
+- **`run` は同期。**書き直した時点では、Trait のメンバが `Promise` を返すと宣言が落ちた（§15.1）。今は書けるが、
+  非同期のルールが無いので同期のまま（2026-11-07）
 - **エラーは byethrow の Result と error-factory のクラス。**引数の解析は `Arguments.fromArgv`、パーサの読み込みは
   `run` が Result で返す。公開の `lint()` は境界で投げる。Result を公開の型に出すと、バンドルした byethrow の
   宣言まで `lint.d.mts` に入る
 - **scan の事実も Val。**`Scan` と `Bindings` は Map / Set を持つのでプレーンのまま（§7）。`Where` は他の
-  事実に spread で混ざるのでプレーン。`Directive.kinds` は Set から配列にした
+  事実に交差で混ぜる形なので、Val ではなく `Payload`（2026-11-07）。`Directive.kinds` は Set から配列にした
 - **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
   かけたら `unused-member` が全ルールの `run` を報告した。`box` を通った `dyn` は追えていなかった。
   作った式の外へ出た `dyn`（関数に渡す、配列に入れる）は、どこかで読まれたキーをすべて、第 1 引数の Val
