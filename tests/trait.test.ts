@@ -677,6 +677,11 @@ describe("dyn", () => {
       type Sealed = Trait<"Sealed", { x: string }, { f: Final<any> }>;
       expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
       expectTypeOf<VerdictOf<Sealed>>().toEqualTypeOf<{ readonly Sealed: Fault }>();
+      // An optional member carries `undefined`, which is not `any`.
+      type Optional = Trait<"Optional", { x: string }, { f?: (self: Self) => string }>;
+      expectTypeOf<VerdictOf<Optional>>().toEqualTypeOf<{
+        readonly Optional: { f?: (self: Self) => string };
+      }>();
     });
   });
 
