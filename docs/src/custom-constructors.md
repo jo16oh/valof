@@ -126,8 +126,7 @@ value. **Generate an id or timestamp in `create`, not in `seal`**.
 ## Bypass the seal in `create`
 
 A `create` whose payload the seal always accepts never fails, but it still returns what the seal
-returns, such as a `Result` or `T | undefined`. `.implCreate.noseal` bypasses the seal and returns
-the Val:
+returns. `.implCreate.noseal` bypasses the seal and returns the Val:
 
 ```ts
 import { Val } from "valof";
