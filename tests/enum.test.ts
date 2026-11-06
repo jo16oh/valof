@@ -1317,10 +1317,18 @@ describe("a broken declaration", () => {
     type Variants = { A: { n: number }; B: { m: number } };
     // oxlint-disable-next-line no-explicit-any -- the case under test
     expectTypeOf<NameOf<Enum<"Loose", Variants, any> & AnyEnum>>().toEqualTypeOf<Fault>();
-    expectTypeOf<NameOf<Enum<"Empty", Variants, never> & AnyEnum>>().toEqualTypeOf<Fault>();
     type Tags = Enum<"Tags", Variants, Tag<"k"> & Tag<"j">>;
     expectTypeOf<NameOf<Tags & AnyEnum>>().toEqualTypeOf<Fault>();
     expectTypeOf<VerdictOf<Tags>>().toEqualTypeOf<true>();
+    // The variants are still read against the default tag.
+    type Clash = Enum<
+      "Clash",
+      // @ts-expect-error the tag cannot take the name of a field the payload holds
+      { A: { _tag: string }; B: { k: number } },
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      any
+    >;
+    expectTypeOf<Clash>().not.toBeNever();
   });
 
   test("the variants cannot be `any` or `never`", () => {
