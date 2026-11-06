@@ -69,8 +69,8 @@ A patch expresses three operations:
 With `exactOptionalPropertyTypes`, `{ k: undefined }` is accepted only for optional keys. Without
 it, TypeScript also accepts it for required keys, and `patch` deletes them at runtime.
 
-A patch reaches through nested plain objects, but replaces whole a nested Val, an array, a
-primitive, or a field that may be `null` or a primitive:
+A patch reaches through nested plain objects, but replaces the whole value of a nested Val, an
+array, a primitive, or a field that may be `null` or a primitive:
 
 ```ts
 import { Val } from "valof";

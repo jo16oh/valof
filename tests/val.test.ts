@@ -10,7 +10,7 @@ import type {
   SeedOf,
   Unpatchable,
 } from "../src/index.ts";
-import { equals, Trait, Val, type Final, type Impl, type Self } from "../src/index.ts";
+import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "../src/index.ts";
 import { Traits } from "../src/keys.ts";
 // `BrandOf` is not published from the entry point.
 import type {
@@ -339,6 +339,12 @@ describe("Val", () => {
         readonly rows: { readonly [x: string]: number } | null;
         readonly names: string | readonly string[];
       }>();
+    });
+
+    test("a tuple element no value fits is rejected", () => {
+      // @ts-expect-error no value fits a tuple element
+      type Clash = Val<"Clash", { pair: [string & number, string] }>;
+      expectTypeOf<Clash>().not.toBeNever();
     });
 
     test("a mixed field is rejected at the root, beside a symbol, or in an object union", () => {
@@ -1233,13 +1239,29 @@ describe("equals", () => {
 });
 
 describe("patch", () => {
-  test("a nested plain object cannot be replaced by a Val", () => {
-    type Pin = Val<"Pin", { at: { x: number } }>;
+  // A Val replaces the field whole, so it has to hold every key, unlike a patch written in place.
+  test("a nested plain object is replaced by a Val that holds every key", () => {
+    type Pin = Val<"Pin", { at: { x: number; y: number } }>;
     const Pin = Val.companion<Pin>().build();
-    type Spot = Val<"Spot", { x: number; label: string }>;
-    const spot = Val.of<Spot>({ x: 1, label: "s" });
-    // @ts-expect-error a Val is not a patch of a plain object
-    Pin.patch(Pin.seal({ at: { x: 0 } }), { at: spot });
+    type Spot = Val<"Spot", { x: number; y: number }>;
+    type Edge = Val<"Edge", { x: number }>;
+    const spot = Val.of<Spot>({ x: 1, y: 2 });
+    const pin = Pin.seal({ at: { x: 0, y: 0 } });
+    const moved = Pin.patch(pin, { at: spot });
+    expect(moved.at).toBe(spot);
+    // @ts-expect-error a Val missing `y` would leave the field without it
+    Pin.patch(pin, { at: Val.of<Edge>({ x: 1 }) });
+    // The Val member leaves the weak type check on a plain object in place.
+    const stray = { z: 1 };
+    // @ts-expect-error no key in common with the field
+    Pin.patch(pin, { at: stray });
+    // A variant is a Val, and the same rule holds.
+    type Point = Enum<"Point", { Full: { x: number; y: number }; Half: { x: number } }>;
+    const Point = Enum.companion<Point>().build();
+    const full = Point.Full.create({ x: 1, y: 2 });
+    expect(Pin.patch(pin, { at: full }).at).toBe(full);
+    // @ts-expect-error a variant missing `y` would leave the field without it
+    Pin.patch(pin, { at: Point.Half.create({ x: 1 }) });
   });
 
   test("omitting a key leaves it unchanged", () => {
@@ -2180,6 +2202,8 @@ describe("building", () => {
       expect(b.tags).toEqual(["a"]);
     });
 
+    const changed = new TypeError("The payload changed while the custom seal was running.");
+
     test("detects a getter that changes between validation and copying", () => {
       type Reading = Val<"Reading", { n: number }>;
       const Reading = Val.companion<Reading>()
@@ -2195,9 +2219,7 @@ describe("building", () => {
         },
       };
 
-      expect(() => Reading.seal(input)).toThrow(
-        new TypeError("The payload changed while the custom seal was running."),
-      );
+      expect(() => Reading.seal(input)).toThrow(changed);
     });
 
     test("detects a non-idempotent get trap", () => {
@@ -2215,7 +2237,7 @@ describe("building", () => {
         .implSeal((_r, seal) => seal(candidate))
         .build();
 
-      expect(() => Reading.seal({ n: 0 })).toThrow(TypeError);
+      expect(() => Reading.seal({ n: 0 })).toThrow(changed);
     });
 
     test("detects mutation of the original input inside the custom seal", () => {
@@ -2227,7 +2249,7 @@ describe("building", () => {
         })
         .build();
 
-      expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
+      expect(() => Reading.seal({ n: 1 })).toThrow(changed);
     });
 
     test("allows a stable reactive Proxy and detaches the result", () => {
@@ -2269,7 +2291,7 @@ describe("building", () => {
         })
         .build();
 
-      expect(() => Reading.seal({ n: 1 })).toThrow(TypeError);
+      expect(() => Reading.seal({ n: 1 })).toThrow(changed);
     });
 
     test("does no comparison when a rejected result never calls the default seal", () => {
