@@ -125,8 +125,9 @@ value. **Generate an id or timestamp in `create`, not in `seal`**.
 
 ## Bypass the seal in `create`
 
-A `create` whose payload the seal always accepts never fails, but it still returns the seal's
-`Result` or `| undefined`. `.implCreate.noseal` bypasses the seal and returns the Val:
+A `create` whose payload the seal always accepts never fails, but it still returns what the seal
+returns, such as a `Result` or `T | undefined`. `.implCreate.noseal` bypasses the seal and returns
+the Val:
 
 ```ts
 import { Val } from "valof";
@@ -280,11 +281,10 @@ Interval.patch(interval, { max: -1 }); // Err("min must not exceed max")
 
 Once a value has been successfully sealed as an `Interval`, its type guarantees that it is validated
 and normalized wherever it is passed, so downstream code does not need to repeat either step. The
-seals on this page put
-[**“parse, don't validate”**](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/)
-into practice. They return a validated, canonical Val instead of returning facts about the input.
-Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's
-words,
-[parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101):
-the `Interval` type can now represent only valid intervals. `create` and `patch` reuse the same
+seals on this page apply
+[**“parse, don't validate”**](https://lexi-lambda.github.io/blog/2019/11/05/parse-don-t-validate/).
+They return a validated, canonical Val instead of returning facts about the input. Parsing includes
+validation, but preserves its result in a more precise type. In Takuto Wada's words,
+[parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101).
+The `Interval` type can now represent only valid intervals. `create` and `patch` reuse the same
 parser.

@@ -2,8 +2,8 @@
 
 ## Framework state
 
-A value is a plain object, so a state container holds it as it stands. Replace it whole. The
-untouched subtrees keep their identity, so a dependency array detects no change.
+A value is a plain object, so a state container holds it as is. Replace it whole. The untouched
+subtrees keep their identity, so a dependency array detects no change.
 
 ```ts
 import { Val } from "valof";
@@ -25,7 +25,7 @@ setShop(Shop.patch(shop, { owner: { email: "e@example.com" } }));
 useEffect(() => showMap(shop.city), [shop.city]); // the patch did not touch `city`: no re-run
 ```
 
-Solid reads the same with `createSignal`, and takes the comparison directly:
+Solid works the same way with `createSignal`, and takes the comparison directly:
 `createSignal(user, { equals })`.
 
 **Svelte and Vue are deeply reactive by default, so ask for a shallow container.** A deep one gives
