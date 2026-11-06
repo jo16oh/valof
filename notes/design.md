@@ -2822,7 +2822,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     同じになり、`structuredClone` で `owned` の記録が失われても壊れない。`PatchValue<T>` を
     `Patch<T, typeof PhantomBrand> | (T & AnyVal)` にした。2 つ目は brand を持つ値にしか当たらないので、変数で渡す
     plain object の扱い（weak type 検査、`?: never` のキー）は変わらない。variant も同じ規則で通る
-  - 余分なキーを持つ Val も通る。`seal` に余分なキーを持つ値を渡したときと同じ
+  - **Val は plain object でもある。余分なキーがあってもよい**（ユーザー、2026-11-06）。plain object が宣言された
+    場所（`seal` の引数、patch の field）には、そのキーをすべて持つ Val が当てはまり、余分なキーを持つ Val も通る。
+    JSON の往復のために余分なキーを落としたいなら、それは custom seal の役目（`custom-constructors.md` の
+    「an undeclared key survives unless the seal removes it」と同じ）
   - **コスト。**core 8,865 → 8,893、`index.d.ts` 103.05 → 103.16 kB
   - **コスト。**core 8,845 → 8,865、trait 24,460 → 24,668、enum 45,511 → 45,759、`index.d.ts` 101.67 →
     103.05 kB（予算 104 kB の残り 975 B、trait は 332）
