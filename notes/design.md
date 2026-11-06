@@ -2777,6 +2777,25 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     「no value fits」になり、どの型にも黙って代入できる。文言はテストで読めない（`never` に brand が無い）
   - **コスト。**enum 45,236 → 45,146、`index.d.ts` 100.60 → 99.92 kB
 
+- [x] ~~**的外れな文言。**~~ → 直した、2026-11-06。`any`、`never`、`unknown`、別の種類の型を渡すと、別の検査の文言が出ていた。
+      どれも条件型が `any` で両方の分岐を取るか、別の検査が先に落ちるのが原因
+  - `Enum<…, Tag<any>>`: 「the tag cannot take the name of a field the payload holds」→ タグ名の文言。タグとの衝突の
+    検査は `IsOneLiteral<Tg>` のときだけ見る。第 3 引数の位置で報告されるようになった
+  - `Enum<"E", any>` と `Enum<"E", never>`: 「a Val's brand must be one string literal」→「an enum's variants cannot be
+    `any` or `never`」。variant を組むときは仮の variant（`Built`）に置き換え、variant の brand は `Literal` で、
+    リテラルでなければ `"?"` にする。`Enum<any, …>` も使う場所で Val の brand の文言が混ざらなくなった
+  - `Trait<"T", any | never, M>`: `M` の位置で「a trait member cannot take a field's name」→ shape の文言
+  - `unknown` の payload、field、trait の shape、共有フィールド: null や undefined の規則の文言 →「`unknown` is not
+    a plain value; write the type」
+  - `Date` や `Map` の field: symbol のキーで「keys must be strings」→「not a plain value」。メソッドを持つ object は
+    キーの規則より先にこちらを出す
+  - `Impl`、`Dyn`、`Trait.companion` に Val: 「a trait is only a declaration」→「not a trait」。`Dyn` と
+    `Trait.companion` に trait の union: `Impl<A> | Impl<B>` の案内 → 1 つの trait を求める文言。`Enum.companion`
+    に Val:「a Val is built by `Val.companion`」
+  - 文言を型から読めるもの（verdict、`NameOf`）はテストで読む。`@ts-expect-error` のコメントだけのものは文言を
+    確かめられない
+  - **コスト。**trait 24,331 → 24,460、enum 45,146 → 45,508、`index.d.ts` 99.92 → 101.60 kB
+
 - [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
       `and-or-holes.md` の 7
   - **field は `null` かプリミティブを、他の 1 種類と並べて持てる。**`string[] | null`、`Rec<Node> | null`（連結リスト）、
