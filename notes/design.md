@@ -3095,6 +3095,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - 意図した不正は `@ts-expect-error` で通す。valof-lint は構文しか読まないので結果は変わらない。
     **不正なプロパティは 1 行に分ける。**directive はその行のエラーをすべて隠すので、
     `.impl({ patch: … })` を 1 行で書くと `impl` の改名を見逃す
+- [ ] **the book の Map / Set が、継承したキーで存在判定を誤る。**valof-lint の Scan を Record にして見つけた、
+      2026-11-07。`docs/src/patterns.md` は「`if (tags[key])` is the membership test」と書くが、`tags["constructor"]`
+      も `tags["toString"]` も真になる（probe 済み）。§8.1 の「`Object.hasOwn` で判定する」注意が book に無い。
+      `__proto__` は `Object.fromEntries` と `seal` を通しても自分のキーのまま残る。直していない
 - [x] ~~**`<W extends Rule>` の誤りに `Impl` への案内が無い。**~~ → 直さない、2026-11-07。リリースノートで足りる。
       案内を出す検査は型コストになる（ユーザー）。`Rule` が trait の宣言になった（#125）ので、`Rule.dyn<W>` が
       TS2344 で `TraitDeclaration<…>` を全文出し、言われるのは「Property 'kind' is missing」だけ
@@ -4180,7 +4184,9 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
 - **エラーは byethrow の Result と error-factory のクラス。**引数の解析は `Arguments.fromArgv`、パーサの読み込みは
   `run` が Result で返す。公開の `lint()` は境界で投げる。Result を公開の型に出すと、バンドルした byethrow の
   宣言まで `lint.d.mts` に入る
-- **scan の事実も Val。**`Scan` と `Bindings` は Map / Set を持つのでプレーンのまま（§7）。`Where` は他の
+- **scan の事実も Val。**`Scan` と `Context` も Val で、Map / Set は §8.1 の Record で持つ（2026-11-07）。歩く間の
+  状態（`Bindings` など）は Map のまま、`Scan` を作るときに Record へ移す。キーはソースの名前なので `constructor`
+  にもなり、引くのは `Object.hasOwn`。2,190 ファイルで 305 ms → 319 ms。`Where` は他の
   事実に交差で混ぜる形なので、Val ではなく `Payload`（2026-11-07）。`Directive.kinds` は Set から配列にした
 - **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
   かけたら `unused-member` が全ルールの `run` を報告した。`box` を通った `dyn` は追えていなかった。
