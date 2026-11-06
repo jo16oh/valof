@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { UnnamedOf, fixtures } from "../../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 test("reports a lift that takes its type from what it is assigned to", async () => {
   expect(await lint("unnamed")).toEqual([
@@ -10,6 +10,9 @@ test("reports a lift that takes its type from what it is assigned to", async () 
       rule: UnnamedOf,
       at: "unnamed.ts:5:31",
     },
+  ]);
+  expect(await messages("unnamed")).toEqual([
+    "Val.of names no type here, and takes one from its target",
   ]);
 });
 
