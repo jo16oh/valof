@@ -16,6 +16,9 @@ describe("version index", () => {
     expect(
       versions(["v1.0.0-beta.2", "v1.0.0-beta.10", "v1.0.0-alpha.1", "v1.0.0-rc.1", "v1.0.0-beta"]),
     ).toEqual(["v1.0.0-rc.1", "v1.0.0-beta.10", "v1.0.0-beta.2", "v1.0.0-beta", "v1.0.0-alpha.1"]);
+    // The shorter list first, and a number beside a word.
+    expect(versions(["v1.0.0-beta", "v1.0.0-beta.2"])).toEqual(["v1.0.0-beta.2", "v1.0.0-beta"]);
+    expect(versions(["v1.0.0-1", "v1.0.0-alpha"])).toEqual(["v1.0.0-alpha", "v1.0.0-1"]);
   });
 
   test("names the release `latest/` holds", () => {
