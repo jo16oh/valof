@@ -15,6 +15,7 @@ import {
   type AssocMembers,
   type CallBuildFirst,
   type Checked,
+  type Code,
   type DeepReadonly,
   type Grown,
   type Invalid,
@@ -22,6 +23,7 @@ import {
   type OneLiteral,
   type IsUnion,
   type Reserved,
+  type Unfit,
   type UnionToIntersection,
 } from "./val.ts";
 import * as Trait from "./ns/trait.ts";
@@ -119,24 +121,32 @@ type Trait<
   readonly shape: Shape;
   readonly verdict: IsOneLiteral<K> extends false
     ? Invalid<"a trait's name must be one string literal">
-    : IsUnion<M> extends false
-      ? {
-          // `any` and `never` extend every branch below, so they are read first.
-          readonly [P in K]: 0 extends 1 & Shape
-            ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
-            : [Shape] extends [never]
-              ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
-              : [Shape] extends [AnyImpl]
-                ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
-                : [Shape] extends [AnyTrait]
-                  ? Invalid<"a trait's shape cannot be a trait; write its fields">
-                  : [Shape] extends [Checked<Shape>]
-                    ? [M] extends [Declarable<Shape, M>]
-                      ? M
-                      : Declarable<Shape, M>
-                    : Checked<Shape>;
-        }
-      : Invalid<"a trait's members must be one object type, not a union">;
+    : // `any` and `never` satisfy the members' constraint, so only the verdict reports them.
+      0 extends 1 & M
+      ? Invalid<"a trait's members cannot be `any` or `never`; write them">
+      : [M] extends [never]
+        ? Invalid<"a trait's members cannot be `any` or `never`; write them">
+        : IsUnion<M> extends false
+          ? {
+              // `any` and `never` extend every branch below, so they are read first.
+              readonly [P in K]: 0 extends 1 & Shape
+                ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
+                : [Shape] extends [never]
+                  ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
+                  : [Shape] extends [AnyImpl]
+                    ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
+                    : [Shape] extends [AnyTrait]
+                      ? Invalid<"a trait's shape cannot be a trait; write its fields">
+                      : [Shape] extends [Checked<Shape>]
+                        ? // An `any` member satisfies the check below too.
+                          [AnyMembers<M>] extends [never]
+                          ? [M] extends [Declarable<Shape, M>]
+                            ? M
+                            : Declarable<Shape, M>
+                          : Invalid<"a trait member cannot be `any`; write its signature">
+                        : Checked<Shape>;
+            }
+          : Invalid<"a trait's members must be one object type, not a union">;
 }>;
 
 export { Trait };
@@ -150,8 +160,14 @@ type DeclarableShape<Shape> = [Shape] extends [infer S]
     ? Invalid<"a trait's shape cannot be an `Impl`; write its fields">
     : [S] extends [AnyTrait]
       ? Invalid<"a trait's shape cannot be a trait; write its fields">
-      : Checked<S>
+      : [S] extends [object]
+        ? [Unfit<S>] extends [never]
+          ? Checked<S>
+          : Invalid<`no value fits ${Code<Unfit<S> & string>}`>
+        : Checked<S>
   : unknown;
+
+type AnyMembers<M> = { [K in keyof M]-?: 0 extends 1 & M[K] ? K : never }[keyof M];
 
 type OneMembers<M, Shape> = [M] extends [infer X extends Members]
   ? IsUnion<X> extends true
