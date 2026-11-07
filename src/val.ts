@@ -1243,6 +1243,8 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
         ? unsnapshotable
         : (value as Primitive | bigint | undefined);
     }
+    // Sealed already, so frozen, and the same node before and after.
+    if (owned.has(value)) return value;
     if (active.has(value)) return unsnapshotable;
 
     const array = Array.isArray(value);
