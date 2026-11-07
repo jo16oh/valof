@@ -1,10 +1,14 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
-import { expect, test } from "vite-plus/test";
+import type { Linter } from "eslint";
+import type { OxlintConfig } from "oxlint";
+import { expect, expectTypeOf, test } from "vite-plus/test";
 
-// The rule API is not a contract valof can typecheck against, since neither host is a dependency.
-// So both are run for real, over a fixture holding one finding each.
+import valof from "../../../src/lint/eslint-plugin.ts";
+
+// What a host does with the plugin is beyond what a type can check, so both are run for real, over
+// a fixture holding one finding each.
 
 const cwd = fileURLToPath(new URL("fixtures/", import.meta.url));
 
@@ -61,4 +65,10 @@ test("eslint runs the same plugin", () => {
       column: 3,
     }),
   ]);
+});
+
+// The fixture configs are JavaScript, so the hosts never see the plugin's type.
+test("a config file in TypeScript takes the plugin", () => {
+  expectTypeOf({ plugins: { valof }, ...valof.configs.recommended }).toExtend<Linter.Config>();
+  expectTypeOf({ extends: [valof.configs.recommended] }).toExtend<OxlintConfig>();
 });
