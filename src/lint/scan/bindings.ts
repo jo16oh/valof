@@ -21,9 +21,6 @@ export const ImportMap = Val.companion<ImportMap>()
   }))
   .build();
 
-/** The entry point a builder chain grows from. */
-export type Root = "Val" | "Trait" | "Enum";
-
 /** A Val or Trait name together with its comparison identity. */
 export type SymbolRef = Val<
   "SymbolRef",
@@ -52,7 +49,7 @@ export type Bindings = Val<
      * Locals holding a builder, under the root it grew from, so `const built =
      * Val.companion<X>(); built.impl(() => ({…}))` is seen.
      */
-    builders: Record<string, Root>;
+    builders: Record<string, string>;
   }
 >;
 export const Bindings = Val.companion<Bindings>()
