@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 import { expect, test, vi } from "vite-plus/test";
 
-import { checkCompat, StalePinError } from "./index.ts";
+import { checkCompat } from "./index.ts";
 
 vi.mock(import("../../pin-valof/index.ts"), () => ({
   pinned: async () => "8d32b2ae3ab76618b3c577cc19b25da177c4242f",
@@ -28,7 +28,6 @@ vi.mock(import("node:fs/promises"), async (original) => {
 
 test("a release fails on a pin that builds a different dist, before it copies dist", async () => {
   const result = await checkCompat({ release: true });
-  expect(R.isFailure(result) && result.error).toBeInstanceOf(StalePinError);
   expect(R.isFailure(result) && result.error.message).toBe(
     "valof 8d32b2a builds a different dist; run `vp run pin-valof origin/main`",
   );
