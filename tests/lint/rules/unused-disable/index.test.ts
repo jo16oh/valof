@@ -40,3 +40,9 @@ test("says a whole-file directive reports nothing in the file, not here", async 
 test("blames no rule that was left out of the run", async () => {
   expect(await lint("unused", { skip: [UnusedMember] })).toEqual([]);
 });
+
+test("reports a name that is an Object.prototype key, which no rule has", async () => {
+  expect(await lint("prototype-key")).toEqual([
+    { rule: UnusedDisable, at: "prototype-key.ts:2:1" },
+  ]);
+});

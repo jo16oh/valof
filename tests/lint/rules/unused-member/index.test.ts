@@ -197,3 +197,7 @@ test("registers a variant built through a builder held in a variable", async () 
     { rule: UnusedMember, at: "held-enum-builder.ts:6:51" },
   ]);
 });
+
+test("counts a read off a companion named like an Object.prototype key", async () => {
+  expect(await lint("prototype-key")).toEqual([]);
+});
