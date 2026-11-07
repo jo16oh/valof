@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { RULES, lint as run } from "../../src/lint/index.ts";
+import { Options as LintOptions, RULES, lint as run } from "../../src/lint/index.ts";
 
 export { RULES };
 
@@ -77,10 +77,10 @@ export function fixtures(url: string): {
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
   const found = async (fixture: string, { skip = [], overlay }: Options = {}) =>
-    await run(files(fixture), {
-      ...(overlay ? { overlay } : {}),
-      skip: new Set(skip.map(({ kind }) => kind)),
-    });
+    await run(
+      files(fixture),
+      LintOptions.create({ overlay: overlay ?? [], skip: skip.map(({ kind }) => kind) }),
+    );
 
   return {
     all: () => globSync(`${directory}**/*.ts`),

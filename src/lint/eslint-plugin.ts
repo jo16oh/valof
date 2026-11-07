@@ -13,11 +13,13 @@ import { Result as R } from "@praha/byethrow";
 import { Enum, Val } from "../index.ts";
 import { expand } from "./files.ts";
 import { RULES, type Finding } from "./index.ts";
+import { Options } from "./options.ts";
 import { run } from "./run.ts";
 
 /**
  * The slice of the rule API this uses. Written out rather than imported: neither ESLint nor
- * oxlint is a dependency of valof, and both call a rule with the same shape.
+ * oxlint is a dependency of valof, both call a rule with the same shape, and an import would land
+ * in the published declarations, where a project without that host cannot resolve it.
  */
 type Context = {
   filename: string;
@@ -218,10 +220,10 @@ if (!isMainThread && parentPort) {
     void (async () => {
       let reply: Reply;
       try {
-        const found = await run(project, {
-          report: new Set([file]),
-          overlay: new Map([[file, text]]),
-        });
+        const found = await run(
+          project,
+          Options.create({ report: [file], overlay: [[file, text]] }),
+        );
         // The message the command prints, so a user of the plugin gets the same instruction.
         reply = R.isSuccess(found)
           ? Reply.Found.create({ findings: found.value })
