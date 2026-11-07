@@ -18,6 +18,9 @@ export default defineConfig({
     },
     dts: {
       tsgo: true,
+      // A config file in TypeScript reads the plugin's type. The linter's API is the CLI and the
+      // plugin alone, so its other entries ship no declarations.
+      entry: "src/lint/eslint-plugin.ts",
     },
     // The linter's own dependencies, inlined so that installing valof installs nothing more.
     deps: { onlyBundle: ["@praha/byethrow", "@praha/error-factory"] },
