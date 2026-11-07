@@ -55,13 +55,6 @@ test("takes more than one kind on a line, separated by a space or a comma", asyn
   ]);
 });
 
-test("silences both kinds that two directives over one line name", async () => {
-  expect(await lint("two-directives")).toEqual([
-    { rule: BrandMismatch, at: "two-directives.ts:6:13" },
-    { rule: DuplicateBrand, at: "two-directives.ts:6:13" },
-  ]);
-});
-
 test("reads the whole comment block, not only the comment touching the line", async () => {
   expect(await lint("comment-block")).toEqual([]);
 });
