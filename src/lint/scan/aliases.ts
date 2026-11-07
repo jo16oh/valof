@@ -97,18 +97,25 @@ function valName(typeName: Node, bound: Bindings): string | undefined {
  * Only a top-level alias can be imported and assigned somewhere else, which is the collision the
  * brand rule reports. A `type Point` inside a `describe` block collides with nothing.
  */
+/** The Valof aliases one file declares, and the brands they claim. */
+export type Aliases = Val<
+  "Aliases",
+  {
+    aliases: Alias[];
+    traitAliases: TraitAlias[];
+    enumAliases: EnumAlias[];
+    brands: BrandClaim[];
+    reAliases: ReAlias[];
+  }
+>;
+export const Aliases = Val.companion<Aliases>().build();
+
 export function valAliases(
   program: Node,
   file: string,
   bound: Bindings,
   position: (offset: number) => Position,
-): {
-  aliases: Alias[];
-  traitAliases: TraitAlias[];
-  enumAliases: EnumAlias[];
-  brands: BrandClaim[];
-  reAliases: ReAlias[];
-} {
+): Aliases {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
   const enumAliases: EnumAlias[] = [];
@@ -193,7 +200,7 @@ export function valAliases(
     );
   }
 
-  return { aliases, traitAliases, enumAliases, brands, reAliases };
+  return Aliases.seal({ aliases, traitAliases, enumAliases, brands, reAliases });
 }
 
 /** Every top-level `type X = …` in the file, which the two syntax-only walks below expand. */

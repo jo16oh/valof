@@ -40,7 +40,7 @@ export const Options = Val.companion<Options>()
       report?: Iterable<string>;
       overlay?: Iterable<readonly [string, string]>;
     } = {}) => ({
-      skip: KindSet.seal(Object.fromEntries([...skip].map((kind) => [kind, true as const]))),
+      skip: KindSet.create(skip),
       report: report
         ? Object.fromEntries([...report].map((file) => [resolve(file), true as const]))
         : null,

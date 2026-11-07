@@ -1,5 +1,6 @@
-import { Val } from "../../index.ts";
+import { Enum, Val } from "../../index.ts";
 import type { Position } from "../ast.ts";
+import { KindSet } from "../rules/rule.ts";
 
 /** One disable comment, whole. */
 export type Directive = Val<
@@ -25,7 +26,19 @@ export type Directive = Val<
 export const Directive = Val.companion<Directive>().build();
 
 /** What a set of directives silences: the kinds they named, or every kind there is. */
-type Silenced = ReadonlySet<string> | "every";
+type Silenced = Enum<"Silenced", { Every: {}; Named: { kinds: KindSet } }>;
+const Silenced = Enum.companion<Silenced>()
+  .impl(() => ({
+    /** Two directives over the same lines silence the union, and every kind swallows any list. */
+    widen: (left, right: Silenced): Silenced =>
+      left._tag === "Every"
+        ? left
+        : right._tag === "Every"
+          ? right
+          : named([...Object.keys(left.kinds), ...Object.keys(right.kinds)]),
+    has: (silenced, kind: string) => silenced._tag === "Every" || KindSet.has(silenced.kinds, kind),
+  }))
+  .build();
 
 /**
  * What one directive silences, which is not always what it named.
@@ -36,10 +49,10 @@ type Silenced = ReadonlySet<string> | "every";
  * `valof-lint-disable-all-whole-file` is how a file is turned off, and it says so.
  */
 const effect = ({ spelling, kinds }: Directive): Silenced => {
-  if (spelling === "valof-lint-disable-all-whole-file") return "every";
-  if (spelling === "valof-lint-disable") return new Set();
-  if (kinds.length > 0) return new Set(kinds);
-  return spelling === "valof-lint-disable-next-line" ? "every" : new Set();
+  if (spelling === "valof-lint-disable-all-whole-file") return Silenced.Every.create({});
+  if (spelling === "valof-lint-disable") return named([]);
+  if (kinds.length > 0) return named(kinds);
+  return spelling === "valof-lint-disable-next-line" ? Silenced.Every.create({}) : named([]);
 };
 
 /**
@@ -72,10 +85,6 @@ function ownLine(source: string, start: number): boolean {
   }
   return true;
 }
-
-/** Two directives over the same lines silence the union, and every kind swallows any list. */
-const widen = (left: Silenced, right: Silenced): Silenced =>
-  left === "every" || right === "every" ? "every" : new Set([...left, ...right]);
 
 /**
  * Every directive in one file, at its own comment rather than the line it covers.
@@ -145,13 +154,17 @@ export function silences(found: readonly Directive[]): (line: number, kind: stri
   for (const written of found) {
     const silenced = effect(written);
     if (written.covers === "file") {
-      whole = whole ? widen(whole, silenced) : silenced;
+      whole = whole ? Silenced.widen(whole, silenced) : silenced;
       continue;
     }
     const already = byLine.get(written.covers);
-    byLine.set(written.covers, already ? widen(already, silenced) : silenced);
+    byLine.set(written.covers, already ? Silenced.widen(already, silenced) : silenced);
   }
   const reaches = (silenced: Silenced | undefined, kind: string): boolean =>
-    silenced === "every" || silenced?.has(kind) === true;
+    silenced !== undefined && Silenced.has(silenced, kind);
   return (line, kind) => reaches(whole, kind) || reaches(byLine.get(line), kind);
+}
+
+function named(kinds: Iterable<string>): Silenced {
+  return Silenced.Named.create({ kinds: KindSet.create(kinds) });
 }
