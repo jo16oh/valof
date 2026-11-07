@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { importedName, type Scan } from "../scan/index.ts";
+import { ImportMap, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /**
@@ -32,7 +32,7 @@ function findings({ kind }: BrandMismatch, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
   for (const { file, brands, imported } of scans) {
     for (const { typeName, brand, alias, at } of brands) {
-      const owner = importedName(imported, typeName);
+      const owner = ImportMap.nameOf(imported, typeName);
       if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
       const namespace = brand.slice(0, brand.lastIndexOf("/") + 1);
       if (brand === `${namespace}${alias}`) continue;

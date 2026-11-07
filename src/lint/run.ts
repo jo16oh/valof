@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { Result as R } from "@praha/byethrow";
 
 import type { MissingParserError } from "./errors.ts";
-import { Context, RULES, type Finding } from "./rules/index.ts";
+import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
 import { loadParser } from "./parser.ts";
 import { scan, silences } from "./scan/index.ts";
 import { moduleResolver } from "./scan/bindings.ts";
@@ -29,9 +29,11 @@ export async function run(
   const scans = walk.map((file) => scan(file, parser, sources.get(resolve(file)), resolveModule));
 
   const findings: Finding[] = [];
-  const notRun = Object.fromEntries([...(skip ?? [])].map((kind) => [kind, true as const]));
+  const notRun = KindSet.seal(
+    Object.fromEntries([...(skip ?? [])].map((kind) => [kind, true as const])),
+  );
   for (const rule of RULES) {
-    if (Object.hasOwn(notRun, rule.kind)) continue;
+    if (KindSet.has(notRun, rule.kind)) continue;
     findings.push(...rule.run(scans, Context.seal({ reported: findings, notRun })));
   }
 

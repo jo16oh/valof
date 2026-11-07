@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { importedName, symbolIdentity, type Scan } from "../scan/index.ts";
+import { ImportMap, symbolIdentity, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
@@ -70,7 +70,7 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   };
   for (const scan of scans) {
     for (const [local, keys] of Object.entries(scan.reads)) {
-      const name = importedName(scan.imported, local);
+      const name = ImportMap.nameOf(scan.imported, local);
       for (const key of Object.keys(keys)) note(name, key);
     }
     // Already named as the exporting module names them, so this file's aliases do not apply.

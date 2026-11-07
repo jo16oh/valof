@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import type { Scan } from "../scan/index.ts";
+import { ImportMap, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /** A companion written in one file for a type declared in another. */
@@ -32,7 +32,7 @@ function findings({ kind }: SplitCompanion, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
   for (const { file, sites, imported } of scans) {
     for (const { typeName, typeAt, qualifier } of sites) {
-      if (qualifier === null && !Object.hasOwn(imported, typeName)) continue;
+      if (qualifier === null && !ImportMap.has(imported, typeName)) continue;
       found.push(
         Finding.seal({
           kind,

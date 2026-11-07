@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { importedName, type Scan } from "../scan/index.ts";
+import { ImportMap, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /**
@@ -31,7 +31,7 @@ function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
     /** The variants each enum in this file declared, for the brands they derive. */
     const declared = new Map(enumAliases.map(({ alias, variants }) => [alias, variants]));
     for (const { typeName, brand, alias, at } of brands) {
-      const owner = importedName(imported, typeName);
+      const owner = ImportMap.nameOf(imported, typeName);
       if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
       const claim = (name: string, claimed: string, how: string): void => {
         // A Val, a Trait and an Enum intentionally use separate phantom-brand fields.

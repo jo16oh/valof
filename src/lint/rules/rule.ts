@@ -20,6 +20,12 @@ export type Finding = Val<
 >;
 export const Finding = Val.companion<Finding>().build();
 
+/** Rule kinds, as a set. */
+export type KindSet = Val<"KindSet", Record<string, true>>;
+export const KindSet = Val.companion<KindSet>()
+  .impl(() => ({ has: (kinds, kind: string) => Object.hasOwn(kinds, kind) }))
+  .build();
+
 /** What a rule gets beyond the scans. */
 export type Context = Val<
   "Context",
@@ -33,9 +39,8 @@ export type Context = Val<
     reported: readonly Finding[];
     /**
      * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
-     * A set: test it with `Object.hasOwn`.
      */
-    notRun: Record<string, true>;
+    notRun: KindSet;
   }
 >;
 export const Context = Val.companion<Context>().build();

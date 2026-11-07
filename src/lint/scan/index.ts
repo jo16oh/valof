@@ -32,6 +32,7 @@ import {
   symbolRef,
   type Bindings,
   ImportBinding,
+  ImportMap,
   type SymbolRef,
   type Root,
 } from "./bindings.ts";
@@ -50,6 +51,7 @@ import { directives, type Directive } from "./directives.ts";
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
 export { symbolRef } from "./bindings.ts";
+export { ImportMap } from "./bindings.ts";
 export type { ImportBinding, Root, SymbolRef } from "./bindings.ts";
 export type {
   Alias,
@@ -125,8 +127,7 @@ export type Scan = Val<
   "Scan",
   {
     file: string;
-    /** local name -> the exporting module and the name it exports. Read it with {@link importedName}. */
-    imported: Record<string, ImportBinding>;
+    imported: ImportMap;
     /** What `.impl(() => ({…}))` registered here. */
     members: Member[];
     /** Trait implementations, including the keys which replace a default implementation. */
@@ -162,14 +163,6 @@ export type Scan = Val<
   }
 >;
 export const Scan = Val.companion<Scan>().build();
-
-/**
- * The name the exporting module uses, or the local one when the file did not import it.
- *
- * Looked up as an own key, since a local name can be `constructor` or `toString`.
- */
-export const importedName = (imported: Scan["imported"], local: string): string =>
-  (Object.hasOwn(imported, local) ? imported[local]?.name : undefined) ?? local;
 
 /** Resolves local exports and re-export chains to the symbol they expose. */
 export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => string {
@@ -493,7 +486,7 @@ export function scan(
 
   return Scan.seal({
     file,
-    imported: Object.fromEntries(bound.imported),
+    imported: ImportMap.seal(Object.fromEntries(bound.imported)),
     members,
     traitImplementations,
     dynReads,

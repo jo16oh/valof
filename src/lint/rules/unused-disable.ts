@@ -1,6 +1,6 @@
 import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import { Finding, Rule, type Context } from "./rule.ts";
+import { Finding, KindSet, Rule, type Context } from "./rule.ts";
 
 /**
  * A `valof-lint-disable-next-line` naming a rule that reports nothing on the line below. The
@@ -49,7 +49,7 @@ function findings(
         ? []
         : [...kinds]
             .filter(
-              (named) => !Object.hasOwn(notRun, named) && !used.has(`${file}\0${covers}\0${named}`),
+              (named) => !KindSet.has(notRun, named) && !used.has(`${file}\0${covers}\0${named}`),
             )
             .map((named) =>
               Finding.seal({

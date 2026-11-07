@@ -6,6 +6,21 @@ import { Val } from "../../index.ts";
 export type ImportBinding = Val<"ImportBinding", { name: string; module: string }>;
 export const ImportBinding = Val.companion<ImportBinding>().build();
 
+/**
+ * What a file imported: local name -> {@link ImportBinding}.
+ *
+ * Looked up by own key, since a local name can be `constructor` or `toString`.
+ */
+export type ImportMap = Val<"ImportMap", Record<string, ImportBinding>>;
+export const ImportMap = Val.companion<ImportMap>()
+  .impl(() => ({
+    has: (imports, local: string) => Object.hasOwn(imports, local),
+    /** The name the exporting module uses, or the local one when the file did not import it. */
+    nameOf: (imports, local: string) =>
+      (Object.hasOwn(imports, local) ? imports[local]?.name : undefined) ?? local,
+  }))
+  .build();
+
 /** The entry point a builder chain grows from. */
 export type Root = "Val" | "Trait" | "Enum";
 

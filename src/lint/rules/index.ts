@@ -55,4 +55,4 @@ export const kinds: readonly string[] = RULES.map(({ kind }) => kind);
 
 export const isKind = (name: string): boolean => kinds.includes(name);
 
-export { Context, Finding, Rule } from "./rule.ts";
+export { Context, Finding, KindSet, Rule } from "./rule.ts";
