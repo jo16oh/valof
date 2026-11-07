@@ -125,8 +125,8 @@ value. **Generate an id or timestamp in `create`, not in `seal`**.
 
 ## Bypass the seal in `create`
 
-A `create` whose payload the seal always accepts never fails, but it still returns the seal's
-`Result` or `| undefined`. `.implCreate.noseal` bypasses the seal and returns the Val:
+A `create` whose payload the seal always accepts never fails, but it still returns what the seal
+returns. `.implCreate.noseal` bypasses the seal and returns the Val:
 
 ```ts
 import { Val } from "valof";
@@ -198,7 +198,7 @@ pass an id of their own. `Unpatchable` excludes keys from `patch`, so an id keep
 generated:
 
 ```ts
-// @errors: 2339 2353
+// @errors: 2339 2322
 import { Val, type PrivateSeal, type Unpatchable } from "valof";
 
 declare const user: User;
@@ -285,6 +285,6 @@ seals on this page put
 into practice. They return a validated, canonical Val instead of returning facts about the input.
 Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's
 words,
-[parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101):
-the `Interval` type can now represent only valid intervals. `create` and `patch` reuse the same
+[parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101).
+The `Interval` type can now represent only valid intervals. `create` and `patch` reuse the same
 parser.

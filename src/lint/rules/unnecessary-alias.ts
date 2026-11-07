@@ -10,7 +10,7 @@ export const UnnecessaryAlias = Val.companion<UnnecessaryAlias>()
     description: "a type alias that is a second name for a Val, a Trait or an Enum",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 function findings({ kind }: UnnecessaryAlias, scans: readonly Scan[]): Finding[] {
@@ -37,15 +37,14 @@ function findings({ kind }: UnnecessaryAlias, scans: readonly Scan[]): Finding[]
     return undefined;
   };
   return scans.flatMap(({ file, reAliases }) =>
-    reAliases.flatMap(({ alias, targetRef, line, column }) => {
+    reAliases.flatMap(({ alias, targetRef, at }) => {
       const declaration = endsAt({ name: targetRef.name, key: identity(targetRef) });
       return declaration
         ? [
             Finding.seal({
               kind,
               file,
-              line,
-              column,
+              at,
               message: `${alias} is a second name for ${declaration}; use ${declaration}`,
             }),
           ]

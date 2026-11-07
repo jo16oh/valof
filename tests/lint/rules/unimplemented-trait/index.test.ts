@@ -23,6 +23,12 @@ test("reports each Trait a Val declares but does not implement", async () => {
   ]);
 });
 
+test("reports a Trait a Val declares even when no linted file declares the Trait", async () => {
+  expect(await messages("unlinted-trait")).toEqual([
+    "User declares Greetable, but its companion does not implement it",
+  ]);
+});
+
 test("accepts implTrait at every step in a chain, `.implCreate.noseal` included", async () => {
   expect(await lint("implemented")).toEqual([]);
 });
@@ -44,6 +50,10 @@ test("looks through parentheses in a Trait intersection and its alias", async ()
 
 test("matches renamed and namespace imports", async () => {
   expect(await lint("imports")).toEqual([]);
+});
+
+test("matches a module through a `.js` specifier and a directory import", async () => {
+  expect(await lint("specifiers")).toEqual([]);
 });
 
 test("keeps same-named Traits from different modules distinct", async () => {

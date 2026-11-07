@@ -4,10 +4,12 @@ import { styleText, type InspectColor } from "node:util";
 
 import { Result as R } from "@praha/byethrow";
 
+import { Val } from "../index.ts";
 import { Arguments } from "./arguments.ts";
 import { NoFilesMatchedError, type UsageError } from "./errors.ts";
 import { expand } from "./files.ts";
 import { RULES, type Finding } from "./rules/index.ts";
+import { Options } from "./options.ts";
 import { run } from "./run.ts";
 
 /** What `--help` prints. */
@@ -53,7 +55,8 @@ function usage(): string {
   ].join("\n");
 }
 
-type Files = { scanned: string[]; asked: string[]; reported: string[] };
+type Files = Val<"Files", { scanned: string[]; asked: string[]; reported: string[] }>;
+const Files = Val.companion<Files>().build();
 
 /** The files read and the files reported on, with every exclusion applied to both. */
 function files({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> {
@@ -70,7 +73,7 @@ function files({ projects, targets, excluded }: Arguments): R.Result<Files, NoFi
   const reported = targets.length > 0 ? asked : scanned;
   return reported.length === 0
     ? R.fail(new NoFilesMatchedError())
-    : R.succeed({ scanned, asked, reported });
+    : R.succeed(Files.seal({ scanned, asked, reported }));
 }
 
 /** Runs what the arguments ask for, and returns the status to exit with. */
@@ -85,11 +88,14 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
   const chosen = files(args);
   if (R.isFailure(chosen)) return chosen;
   const { scanned, asked, reported } = chosen.value;
-  const found = await run(scanned, {
-    skip: new Set(args.skip),
-    enable: args.enable,
-    ...(args.targets.length > 0 ? { report: new Set(asked.map((file) => resolve(file))) } : {}),
-  });
+  const found = await run(
+    scanned,
+    Options.create({
+      skip: args.skip,
+      enable: args.enable,
+      ...(args.targets.length > 0 ? { report: asked } : {}),
+    }),
+  );
   if (R.isFailure(found)) return found;
   print(found.value, reported.length);
   return R.succeed(found.value.length === 0 ? 0 : 1);
@@ -110,7 +116,12 @@ const paint =
 function print(findings: readonly Finding[], reported: number): void {
   const out = paint(process.stdout);
   const err = paint(process.stderr);
-  for (const { file, line, column, kind, message } of findings) {
+  for (const {
+    file,
+    at: { line, column },
+    kind,
+    message,
+  } of findings) {
     console.log(`${out("cyan", `${file}:${line}:${column}`)}  ${out("yellow", kind)}  ${message}`);
   }
   console.error(

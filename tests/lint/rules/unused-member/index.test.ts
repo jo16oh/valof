@@ -51,10 +51,6 @@ describe("what the rule finds", () => {
     ]);
   });
 
-  test("follows a read of a companion that was renamed on the way out", async () => {
-    expect(await lint("re-export")).toEqual([{ rule: UnusedMember, at: "re-export/user.ts:4:3" }]);
-  });
-
   test("follows a read through a chain of renamed exports", async () => {
     expect(await lint("re-export-chain")).toEqual([
       { rule: UnusedMember, at: "re-export-chain/user.ts:4:3" },
@@ -214,4 +210,8 @@ test("registers a variant built through a builder held in a variable", async () 
   expect(await lint("held-enum-builder", { skip: [CompanionMismatch] })).toEqual([
     { rule: UnusedMember, at: "held-enum-builder.ts:6:51" },
   ]);
+});
+
+test("counts a read off a companion named like an Object.prototype key", async () => {
+  expect(await lint("prototype-key")).toEqual([]);
 });

@@ -21,12 +21,11 @@ function findings({ kind }: UnrelatedAssoc, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, stepMembers }) =>
     stepMembers
       .filter(({ step, related }) => step === "implAssoc" && !related)
-      .map(({ companion, type, member, line, column }) =>
+      .map(({ companion, type, member, at }) =>
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: `${companion}.${member} names neither ${type} nor a seal or create; move it out of the companion`,
         }),
       ),

@@ -8,9 +8,21 @@ Only three things can be a payload:
 | Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                  |
 | Objects    | `{ k: allowed }`, or `Record<string, allowed>`                 |
 
-A Val is itself one of these, so Vals nest. A tuple keeps its positions and its length. One with a
-rest element (`[string, ...number[]]`) reads as an array instead, since a fixed length is what
-distinguishes the two.
+A Val is itself one of these, so Vals nest. A field may hold `null` or a primitive beside one other
+kind, as `string[] | null` or `User | null`. A union of objects is rejected. A tuple keeps its
+positions and its length. Valof treats one with a rest element (`[string, ...number[]]`) as an array
+instead, since a fixed length is what distinguishes the two.
+
+A payload cannot contain a type parameter, and a Val's brand cannot be one. To declare several Vals
+with the same payload, share it with `Payload`:
+
+```ts
+import { Val, type Payload } from "valof";
+
+type Contact = Payload<{ name: string; email: string }>;
+type Customer = Val<"Customer", Contact>;
+type Supplier = Val<"Supplier", Contact>;
+```
 
 ## Write the payload plain
 
@@ -33,7 +45,6 @@ Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 
 Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
 all classes. See [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
-TypeScript rejects them, on the first use of the Val rather than on the `type` line.
 
 A class of plain fields is the one TypeScript cannot distinguish from an object, and sealing one
 throws in development.
@@ -61,7 +72,7 @@ declaration alone.
 Without it the declaration compiles and the first use of the type fails.
 
 ```ts
-// @errors: 2589
+// @errors: 2615
 import { Val } from "valof";
 
 // ---cut---

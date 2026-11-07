@@ -19,12 +19,11 @@ export const PayloadOfProperty = Val.companion<PayloadOfProperty>()
 
 function findings({ kind }: PayloadOfProperty, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, nestedPayloadOfs }) =>
-    nestedPayloadOfs.map(({ alias, wrapped, line, column }) =>
+    nestedPayloadOfs.map(({ alias, wrapped, at }) =>
       Finding.seal({
         kind,
         file,
-        line,
-        column,
+        at,
         message: `${alias} holds PayloadOf<${wrapped}>, which drops ${wrapped}'s brand and its seal; hold ${wrapped}`,
       }),
     ),

@@ -16,7 +16,7 @@ export const IncompleteDisable = Val.companion<IncompleteDisable>()
     description: "a disable comment leaving out the rules it silences, or its scope",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /** What the directive left out, or `undefined` when it left out nothing. */
@@ -49,8 +49,7 @@ function findings({ kind }: IncompleteDisable, scans: readonly Scan[]): Finding[
         Finding.seal({
           kind,
           file,
-          line: written.line,
-          column: written.column,
+          at: written.at,
           message: `${written.spelling} ${left}`,
         }),
       ];

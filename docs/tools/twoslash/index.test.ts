@@ -30,11 +30,18 @@ describe("checkBlock", () => {
     expect(() => checkBlock('const wrong: number = "1";')).toThrow("2322");
   });
 
+  test("checks with the strictness of the root tsconfig.json", () => {
+    expect(() => checkBlock("const optional: { a?: number } = { a: undefined };")).toThrow("2375");
+    expect(() => checkBlock("const first: number = [1][0];")).toThrow("2322");
+  });
+
   test("accepts an error the block declares", () => {
     expect(() => checkBlock('// @errors: 2322\nconst wrong: number = "1";')).not.toThrow();
   });
 
   test("throws when a declared error does not happen", () => {
-    expect(() => checkBlock("// @errors: 2322\nconst right: number = 1;")).toThrow();
+    expect(() => checkBlock("// @errors: 2322\nconst right: number = 1;")).toThrow(
+      "declared as errors, but nothing went wrong: 2322",
+    );
   });
 });

@@ -1,6 +1,10 @@
 import { Val } from "valof";
+// valof-lint-disable-whole-file brand-mismatch
+// valof-lint-disable-whole-file unused-member
+
+export type OrderId = Val<"Id", string>;
+
 const User = Val.companion<User>().impl(() => ({
-  // valof-lint-disable-next-line unused-member
   shout: (u) => u.toUpperCase(),
 })).build();
 

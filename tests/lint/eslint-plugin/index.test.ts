@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -35,14 +36,33 @@ const run = (name: string, text?: string, read?: string | string[]): string[] =>
   return reports;
 };
 
+/** The same in a host process of its own, started in `cwd`. */
+const host = (cwd: string, name: string) => {
+  const script = fileURLToPath(new URL("host.ts", import.meta.url));
+  const { status, stdout, stderr } = spawnSync(process.execPath, [script, name], {
+    cwd,
+    encoding: "utf8",
+  });
+  return { status, stdout, stderr };
+};
+
 test("reports on the file it was called for, having read the whole project", () => {
   expect(run("money.ts")).toEqual(["6:2-8  Money.format is never read"]);
 });
 
 test("takes a list for the project, and leaves out what one entry excludes", () => {
   const finding = "6:2-8  Money.format is never read";
-  expect(run("money.ts", undefined, [project])).toEqual([finding]);
-  expect(run("money.ts", undefined, [project, `!${at("order.ts")}`])).toEqual([finding]);
+  // `reader/show.ts` reads the member, so the finding goes only when the list keeps that file.
+  expect(run("money.ts", undefined, [project, at("reader/*.ts")])).toEqual([]);
+  expect(
+    run("money.ts", undefined, [project, at("reader/*.ts"), `!${at("reader/show.ts")}`]),
+  ).toEqual([finding]);
+});
+
+test("reads src/**/*.ts when no project is set", () => {
+  expect(host(at("default"), "src/orders.ts").stdout).toBe(
+    'Ref claims the brand "Ref", and so does another type\n',
+  );
 });
 
 test("says nothing about a file that holds no finding of its own", () => {
@@ -66,8 +86,7 @@ test("carries one kind each, so a project turns a rule off by leaving it out", (
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
 });
 
-test("covers the name it points at, and the line where there is no name", () => {
-  expect(run("money.ts")[0]).toMatch(/^6:2-8 /);
+test("underlines the whole directive, which has no name to point at", () => {
   // A directive begins with `//`, which is no word, so the comment itself is underlined.
   expect(run("silenced.ts")).toEqual([
     "5:0-72  valof-lint-disable-next-line names unused-member, which reports nothing here",

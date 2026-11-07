@@ -63,6 +63,17 @@ describe("Val nocopy in production", () => {
   });
 });
 
+describe("patch in production", () => {
+  // Without the guard, the spread seals an object: a string becomes a character map.
+  test("throws on a Val that is not object-shaped", () => {
+    type ProductionId = Value<"ProductionId", string>;
+    const ProductionId = Val.companion<ProductionId>().build() as unknown as {
+      patch: (...args: unknown[]) => unknown;
+    };
+    expect(() => ProductionId.patch("a1b2c3", {})).toThrow(TypeError);
+  });
+});
+
 describe("implCreate.noseal in production", () => {
   test("skips the custom seal", () => {
     type SectionId = Value<"ProductionSectionId", string>;

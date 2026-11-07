@@ -1,6 +1,5 @@
 import { Val } from "../../index.ts";
-import { original } from "../scan/index.ts";
-import type { Scan } from "../scan/index.ts";
+import { ImportMap, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /**
@@ -15,7 +14,7 @@ export const BrandMismatch = Val.companion<BrandMismatch>()
     description: "a brand whose last segment is not the name of the type it brands",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /**
@@ -31,9 +30,9 @@ export const BrandMismatch = Val.companion<BrandMismatch>()
  */
 function findings({ kind }: BrandMismatch, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
-  for (const { file, brands, bound } of scans) {
-    for (const { typeName, brand, alias, line, column } of brands) {
-      const owner = original(bound, typeName);
+  for (const { file, brands, imported } of scans) {
+    for (const { typeName, brand, alias, at } of brands) {
+      const owner = ImportMap.nameOf(imported, typeName);
       if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
       const namespace = brand.slice(0, brand.lastIndexOf("/") + 1);
       if (brand === `${namespace}${alias}`) continue;
@@ -41,8 +40,7 @@ function findings({ kind }: BrandMismatch, scans: readonly Scan[]): Finding[] {
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: `${alias} claims the brand "${brand}", which should be "${namespace}${alias}"`,
         }),
       );

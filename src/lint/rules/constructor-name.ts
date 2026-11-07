@@ -30,7 +30,7 @@ export const ConstructorName = Val.companion<ConstructorName>()
 function findings({ kind }: ConstructorName, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, stepMembers }) =>
     stepMembers.flatMap(
-      ({ companion, type, member, step, function: isFunction, constructs, line, column }) => {
+      ({ companion, type, member, step, function: isFunction, constructs, at }) => {
         const named = CONSTRUCTOR.test(member);
         const message =
           step === "implAssoc" && isFunction && constructs && !named
@@ -38,7 +38,7 @@ function findings({ kind }: ConstructorName, scans: readonly Scan[]): Finding[] 
             : step === "impl" && named
               ? `${companion}.${member} is named like a constructor, and takes a ${type}; move it to .implAssoc, or rename it`
               : undefined;
-        return message ? [Finding.seal({ kind, file, line, column, message })] : [];
+        return message ? [Finding.seal({ kind, file, at, message })] : [];
       },
     ),
   );

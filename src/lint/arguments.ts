@@ -8,7 +8,7 @@ import {
   UnknownRuleError,
   UnknownSettingError,
 } from "./errors.ts";
-import type { ModelSettings } from "./index.ts";
+import { ModelSettings } from "./options.ts";
 import { isKind, kinds } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
@@ -86,7 +86,7 @@ export const Arguments = Val.companion<Arguments>()
         } else if (argument.startsWith("--report-on=")) {
           take(targets, argument.slice("--report-on=".length));
         } else if (argument === MODEL || argument.startsWith(`${MODEL}=`)) {
-          const settings: ModelSettings = {};
+          const settings: { -readonly [K in (typeof SETTINGS)[number]]?: boolean } = {};
           for (const setting of argument
             .slice(MODEL.length + 1)
             .split(",")
@@ -95,7 +95,7 @@ export const Arguments = Val.companion<Arguments>()
               return R.fail(new UnknownSettingError({ setting, known: SETTINGS }));
             settings[setting] = true;
           }
-          enable["model-only-in-valof"] = settings;
+          enable["model-only-in-valof"] = ModelSettings.create(settings);
         } else if (argument.startsWith("--no-")) {
           const kind = argument.slice("--no-".length);
           if (!isKind(kind)) return R.fail(new UnknownRuleError({ kind, known: kinds }));

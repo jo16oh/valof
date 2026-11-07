@@ -37,7 +37,7 @@ import { Val } from "valof";
 - **§13 API 形状の決定** 2 段カリー化に至るまでの却下案 6 つ（§13.6 のビルダーは 2026-10-23 に採った）
 - **§14 valof-lint** companion のメンバが静的解析から見えない問題。パーサ選定、同梱の判断、却下した ts-morph（§14.5）、カスタム equals を持つ子の規則（§14.7、撤回）、ルールの表現と構成（§14.8）、エディタ統合（§14.9、overlay まで実装）、テストの穴（§14.10）、テストの置き場所（§14.11）、型名と一致しないブランド（§14.12）、Val / Trait の 2 つ目の名前（§14.25）、却下した自己参照でない `Rec` の規則（§14.26）、`unused-member` と型が拒む名前（§14.27、型で結んだ lint の名前、やめた `impl` の前方一致）、型名と一致しない companion（§14.21）、型と別ファイルの companion（§14.22）、companion を持つ型の `Val.of`（§14.23）、型引数を書かない `Val.of`（§14.24）、`Val` の綴り（§14.13）、欠けている disable コメント（§14.14）、効いていない disable コメント（§14.15）、ファイル全体の disable（§14.16）、`--no-` を受けない規則（§14.17）、指示についての規則の見せ方（§14.18）、oxlint の版と設定の正本、足さない `no-unsafe-*`（§14.19）、LSP でのホスト統合テスト（§14.20、撤回）、Trait の宣言・実装・`dyn` の構文追跡（§15.1）
 - **§15 v2 候補**
-  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath、2026-10-27 に廃止）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
+  - **15.1 `Trait`** `Final<F>` マーカーと 1 段の `impl`、交差する trait ブランドと型引数だけで落とす `|`（却下したタプル）、`Self` マーカーと戻り値禁止、`Self` は第 1 引数だけ（2026-11-03、外した「メンバの引数の `Payload` を trait で報告する」）、`Impl`（2026-11-04、宣言と値の型を分ける、却下した目印の interface）、`dyn`（`Box<dyn Trait>` 相当）、却下した WeakMap ディスパッチ、需要と `dyn` を落とせる形の却下、experimental subpath（却下した機能ごとの subpath、2026-10-27 に廃止）、`impl` のコールバック形（引数は実装済みの final だけ、却下した実装側 companion）、型引数で Trait を渡す形をなくしたこと、Val も shape を持ち込む（矛盾の検査、`readonly` を外す、宣言のバンドラと backtick）
   - **15.2 `Enum`** §7.4 の見直し。Variant をレコードに宣言して union を導出、ブランドの導出、タグ名のカスタムと `tag-mismatch`、companion に置く `match`、ts-pattern との線引き、型を確かめた記録（共通フィールド、`match` の型引数、`VariantOf` の表示、却下した戻り値の型引数・自由関数の `match`・Val のレコード、Trait の実装、タグ名を `Tag<…>` で渡すこと、トップレベルの条件型が宣言出力を壊すこと）、実装して分かったこと（Fault の置き場所、Variant 1 個の禁止、`then` を 3 箇所で落とす、宣言出力の CI、variance 測定と型コスト）、Variant ごとの seal と union の `seal`（入口を 2 つに分ける（2026-10-21 に 1 つへ、§6.12）、builder を callback で渡す、`impl` で鎖を閉じる、却下した値の形）、`seal` の引数を排他的にしたこと、タグだけで分ける `[Tag].match` と `[Tag].key`（キーを文字列にする理由（2026-10-26 に symbol へ、§2.1）、却下した名前）、`implVariant` を Variant ごとの鎖にしたこと、steps を枠そのものにしたこと、タグ名の渡し方を変える 4 案の却下、companion を渡さない形（val.ts の門を共有する、`PayloadKeys` の分配、入口 2 つぶんのテスト）、`.impl` が Trait のメンバの名前を取れないこと（却下した Variant ごとの上書き）、`match` の `_`（union ではなく条件型にしたこと、却下したキー名 `default`・第 3 引数・オーバーロード）、1 本の鎖で作ること（2026-10-24、`implVariant` と seal の層の廃止、`Shape.seal` の入口としての enum の `implSeal` と `implCreate`、enum の段を後に置く理由、タグを実行時に検査しない理由、variant ごとの trait、型引数の `VariantOptions`、`.tag` の段、予約名）、予約名を外すこと（2026-10-26、呼べる枠、`Otherwise`、`match` の置き場所の見直し、`__proto__` も守らない）
   - **15.3 `path`** seal をまたぐ patch の合成。`abort` を合成側に置く判断、ハンドラが最終段である理由（HKT）、`glue` の `open` / `close`、`each` / `where`、却下した `deepPatch`
   - **15.4 `.impl` のコールバック形** 自分の companion を参照すると推論が回らない（TS7022）。contextual typing がコールバック越しでも効くことの実測、`implTrait` も callback、予算、却下したメンバのカリー化と、下流の `.impl` を型で塞ぐ案。**鎖は 2026-09-18 に閉じた**（2026-10-21 に `impl` は閉じなくなった、§6.12）（1 回だけ、兄弟は注釈で呼ぶ、Trait の実装の受け手を `Tr` に、却下した型レベルの案内と lint 規則）。**2026-10-26 に段の引数を関数に揃えた**（注釈の税は変わらない）
@@ -417,6 +417,19 @@ but required in type 'AnyVal'.
 
 **エラー位置は型定義時ではなく最初の使用時に後退する。** メッセージは意図どおり出る。検査は `Val<K, T>` から一度だけ適用されるので、推論コストの利点は保たれる。
 
+**2026-11-04: 型定義の行でも報告する。**`Val<K, T extends ValidateFields<T>, Tr>`。`ValidateFields` は `ValidateValue` の object 分岐を切り出した mapped type で、`Payload` と同じ制約（§9「`Payload` に payload の規則の検査を足す」）。mapped type なら TS2313 にならない。`Rec` で自分を参照する Val も循環しない（TypeScript 5.9.3 / 7.0.2）。上の条件型（verdict）は残る。
+
+- **型定義の行で捕まらないもの。**~~root の `null`、`bigint`、`symbol`、関数、数値キー、正しい object 同士の union。~~ → top level も型定義の行で報告する（下の `Allowed`）。残るのは trait との矛盾だけ。制約は `T` しか読まない
+- **`Allowed<T, Owner>`、2026-11-04。**`Val` と `Payload` の制約。Val を丸ごと型引数にしたら専用の `Invalid` を返す。`Validate<T>` が top level で `Invalid` を返したらそれを返す。`Refused` を返したら（top level が拒まれた `Payload`、つまり `Invalid` そのもの）`Refused` を返す。`Invalid` を制約にすると、`Invalid` の引数がそれを満たしてしまう。残りは `ValidateFields<T>` でフィールドごとに見る（メッセージがフィールドを名指しする）
+  - **`Validate<T>` を条件型の中で読む形は循環しない。**`T extends Validate<T>` は TS2313 だが、`[Validate<T>] extends [Invalid<infer M>] ? … : …` の結果を制約にしても循環しない（TypeScript 5.9.3 / 7.0.2）。§9 で「root の規則を二重に持つので入れない」とした件は、`Validate` をそのまま読むので二重にならない
+  - **Val を丸ごと型引数にしたら拒む。**`Val<"UserId", Id>` は main でも 2 つの brand がぶつかって `never` だった。`Payload<User>` は `PayloadOf<User>` で形を取り出す使い方だが、依存の向きが Val ← Payload になる。共通の形は `Payload<T>` で先に定義して Val が使う（Payload ← Val）。文言はユーザーの書いたもの（`Payload` の側の主語は `a Payload's` にした）：`a Val cannot be used as {another Val's | a Payload's} type. Define common shape using \`Payload<T>\`, and use it in Val's declaration.`
+  - **`Rec` の分岐は置かない。**`Val<"Top", Rec<Other>>` は分岐が無くても通る（test-audit の変異で確認）。自分を参照する `Val<"Self", Rec<Self>>` は分岐の有無にかかわらず TS2456
+  - **`ValidateFields` だけの制約だったときの漏れ。**プリミティブや配列の Val を丸ごと渡すと、`ValidateFields` が Val の型そのものを写して分かりにくい TS2344 になった。object の Val は素通りして `never` になった
+- **payload に型パラメーターを含む Val は書けない。**`type Page<T> = Val<"Page", { items: T[] }>` は TS2344。brand だけを型パラメーターにする `Val<K, string>` は通る。`Page<User>` と `Page<Post>` が同じ brand を持つのは名目的な型付けに反するので、拒んでよい。`type Branded<K, T> = Val<K, T>`（§14.7）も書けなくなる
+- **Enum の Variant は制約しない。**`Enum` と `VariantOf` は Variant の Val をジェネリックに組み立てるので、制約の無い `UncheckedVal` を使う。hover とエラーの印字は `Val<…>` / `VariantOf<…>` のまま。Variant の payload を Enum の宣言の行で報告するかは未着手
+- **破壊的変更。**payload に型パラメーターを含む Val と、規則に反する payload を宣言だけして使わないコード
+- **コスト。**instantiations は core +249、trait +223、enum +145、`index.d.ts` は +0.91 kB（大半は JSDoc。TypeScript 5.9.3、#123 比）。うち `Allowed` の分は core +194、trait +171、enum +102、+0.26 kB
+
 #### `exactOptionalPropertyTypes` の壁
 
 EOPT が **off**（TS のデフォルト）のとき、`{ a?: string }` と `{ a?: string | undefined }` は文字通り同じ型で、区別する手段が言語に存在しない。したがって以下は検出できない。
@@ -501,7 +514,8 @@ export type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
 先に存在するので、木も連結リストも変異なしには循環を作れない。`copy` も `equals` もネストした Val で
 止まる。壁は型エイリアスの解決順だけで、interface への参照は解決を要求しないので、`Rec` がそこを切る。
 
-`Rec` を書かないと、**宣言は通って最初の使用で落ちる**。配列なら TS2589、optional キーなら TS2615。
+`Rec` を書かないと、**宣言は通って最初の使用で落ちる**。TS2615 で、循環するプロパティを名指しする。
+配列は TS2589 だったが、`Validate` が配列を mapped type で歩くようになって TS2615 に揃った（2026-11-03、§9）。
 エイリアスの解決そのものは verdict（§11.2）のぶん軽くなったので、かつての TS2456 は出ない。
 
 `DeepReadonly` が `Rec<V>` を `V` に開くので（§4.3）、**`Rec` が見えるのは宣言の 1 行だけ**である。値にも
@@ -2694,6 +2708,177 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 
 ## 9. 未解決 / 要確認
 
+- [x] ~~**変数で渡す patch の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`hunt-findings.md` の 1〜3。リテラルでない
+      引数は余剰プロパティ検査を受けず、patch の型が交差（`{…} & {…}`）なので weak type の検査も受けなかった
+  - **`Patch` を 1 つの mapped type にする。**キーを共有しない変数（`{ foo: 1 }`）を weak type の検査が拒む。
+    交差でも weak type の検査は掛かるが、片側にキーが無いと外れる。optional キーの無い payload（`Unpatchable` の
+    例の `{ id; owner; note }`）がそうだった
+  - **拒むキーを `?: never` で書く。**`Patch<T, X>` の `X`
+    - `Unpatchable` のキー。`const both = { id: "forged", name: "y" }; U.patch(u, both)` が通っていた
+    - variant の patch は、タグと他の variant のフィールド。`S.C.patch(c, q)`（q は `Q` の値）が通り、`match` が `Q` の
+      分岐に入っていた
+    - ネストした plain object の patch は `typeof PhantomBrand`。Val はこのキーを private で持つので、public の
+      `?: never` に代入できない。`U.patch(u, { meta: someOtherVal })` が通り、owned なので merge せず置き換わっていた
+  - **破壊的変更。**`Unpatchable` のある companion に `Patch<SeedOf<V>>` を渡すコード（type-perf の core fixture が
+    そうだった）。`Patch<Omit<SeedOf<V>, "id">>` にする。`Unpatchable` のキーを含む patch のリテラルのエラーは
+    TS2353 から TS2322 になる
+  - **コスト。**fixture を直したので core は比べられない（8,504 → 8,217）。trait 23,756 → 23,576、enum 39,853 → 40,057、
+    宣言 96.66 → 96.79 kB
+
+- [x] ~~**Val の宣言と companion の union（#125 の調査）。**~~ → 塞いだ、2026-11-05。`and-or-holes.md` の 1、3、6
+  - **brand は文字列リテラル 1 つ。**`Val<"A" | "B", P>` の値は `Val<"A", P>` に代入できない。`UncheckedVal` の verdict が
+    「a Val's brand must be one string literal」になる。`string` も enum と同じく拒む（ユーザー、2026-11-05）。
+    Val の宣言ごとに検査が走り、core が約 130 増えた
+  - **`Val.companion` と `Val.of` は Val を 1 つだけ取る。**`Val.of<U | W>({})` と `Val.companion<U | W>().build().seal({})`
+    が通り、seed が `EmptySeed` に潰れていた。union かどうかは brand で見る。boolean の payload の Val は brand が 1 つの
+    値の union なので、値で見ると巻き添えになる。制約 `OneVal` はキーが文言の mapped type（「a companion builds one Val」
+    「\`Val.of\` builds one Val」）
+    - `BrandOf<V & AnyVal>` で読むと core が 8,318 → 12,960 になった。`V extends Phantom<infer B, unknown>` で直接読む
+  - **option のリストは union にできない。**`Val.companion<U, [PrivateSeal] | [Unpatchable<"id">]>()` が通り、`seal` が
+    消えた。`Enum.companion` も同じ。`const O extends readonly …[] & OneList<O>`、`OneList` は union のときだけ `Invalid`
+    の条件型
+    - 却下: キーが文言の mapped type。`const` の推論が交差の mapped type を歩き、core が +1,050 だった
+  - **コスト。**core 8,318 → 8,504、trait 23,635 → 23,756、enum 39,786 → 39,853、宣言 96.09 → 96.66 kB
+
+- [x] ~~**Enum の宣言の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`hunt-findings.md` の 9、`and-or-holes.md` の 2〜5。
+      どれも `Fault`（型引数だけを読む）に足した
+  - **variant の名前は文字列。**`{ A; B; 404 }` の `404` は `VariantKeys`（`Extract<keyof D, string>`）が黙って落とし、
+    `match` が `404` 無しで網羅扱いになった。全部が数値なら enum が `never` になり、companion も通った。
+    `VariantKeys` に `number` を含め、`Fault` が「a variant's name must be a string」で拒む
+  - **名前、タグ名、共有フィールドは union にできない。**`Enum<"E" | "F", …>` の値は `Val<"E.A", …>` に代入できない。
+    `Tag<"k" | "t">` は `.tag("k")` で通った（`Tag<"k"> & Tag<"t">` は以前から拒まれる）。共有フィールドの
+    `{ id } | { key }` は `SharedIn` の `Pick` が共通のキーだけを残し、`create({ n: 1 })` が `id` も `key` も無しで
+    通った。共有フィールドは `SharedIn` で潰れる前の第 3 引数（`X`）を見る
+  - **`Enum.companion` は enum を 1 つだけ取る。**`Enum.companion<F | G>()` が通り、variant が生えなかった。enum は
+    variant の union なので、union かどうかは名前で見る。制約 `OneEnum<E>` はキーが文言の mapped type（`Single` と同じ形）
+  - **名前とタグ名は文字列リテラル 1 つ。**trait の名前と同じ `IsOneLiteral` で、`string`、template、`any`、`never` も
+    拒む。hunt 4 は brand の `string` を「対応しない」としていたが、Val、Enum、Trait で扱いを揃える（ユーザー、
+    2026-11-05）。`Tag<string>` は `.tag(key: string)` を求めるだけで通っていた
+    - 大文字で始まる名前（または `…/` + 大文字）に限る案は却下。型レベルで書けるが、`` `X${string}` ``、union、
+      `any`、`never` を通すのでリテラルの検査は残る。命名を揃えたいなら lint の領分（ユーザーと合意、2026-11-05）
+  - **宣言の検査は宣言の行で報告する**（ユーザー、2026-11-05）。名前は `OneLiteral`、タグ名は `Tag` の制約。`Fault` を
+    `SharedFault`（第 3 引数だけで決まるもの）と `VariantFault`（variant を第 3 引数と照らすもの）に分け、それぞれ
+    `X` と `D` の制約にする。brand の `Named` は `any` と `never` のために残す
+    - variant が無い `Enum<"E", {}>` も宣言の行で拒むようになった。以前は indexed access が `never` になるだけで、
+      エラーは出なかった。文言は「an enum needs a variant」（下の 1 variant の項）。`Tag<never>` も `X` の制約で拒まれる
+    - variant の payload と共有フィールドにも payload の規則を当てる（`Checked<Written<…>>`）。`Written` は trait が
+      足す field を除いた、宣言が書いた field。variant の field と共有フィールドの交差で値の無い field（`Unfit`）と、
+      trait との食い違い（Val の `Fits`）も `D` の制約で報告する。それまでは `Enum.companion` でだけ報告していた。
+      variant に型パラメーターを含む alias もこれで書けなくなる（方針どおり）。enum 41,290 → 44,111
+  - **コスト。**enum 39,583 → 39,786、`index.d.ts` 95.55 → 96.09 kB。増分の大半は文言。宣言の予算は #127 で上げた
+
+- [x] ~~**variant が 1 つの enum を拒む。**~~ → 許した、2026-11-06（ユーザー）。モデリングの途中で 1 つになることがある
+  - 拒んでいたのは利用者の `.d.ts` のため。variant が 1 つだとインデックスアクセスが alias の無いメンバの型を返し、
+    `.d.ts` に private な phantom が展開されて TS4094 / TS4023 になる。文言は「one is a Val」と言っていた
+  - `EnumPhantom` をインデックスアクセスの外に出し、`{…}[VariantKeys<D>] & EnumPhantom<…>` にした。交差が alias
+    自身の型になり、`.d.ts` に `Lonely` と `VariantOf<Lonely, "Only">` の名前が残る。2 つ以上では
+    `(A & P) | (B & P)` と同じ型。ts-compatibility の fixture（`Lonely`）が TS 5.9 / 6.0 / 7.0 で確かめる
+  - variant が無い enum は拒んだまま（「an enum needs a variant」）。型が `never` になり、field の型に使うと離れた行で
+    「no value fits」になり、どの型にも黙って代入できる。文言はテストで読めない（`never` に brand が無い）
+  - **コスト。**enum 45,236 → 45,146、`index.d.ts` 100.60 → 99.92 kB
+
+- [x] ~~**的外れな文言。**~~ → 直した、2026-11-06。`any`、`never`、`unknown`、別の種類の型を渡すと、別の検査の文言が出ていた。
+      どれも条件型が `any` で両方の分岐を取るか、別の検査が先に落ちるのが原因
+  - `Enum<…, Tag<any>>`: 「the tag cannot take the name of a field the payload holds」→ タグ名の文言。タグとの衝突の
+    検査は `IsOneLiteral<Tg>` のときだけ見る。第 3 引数の位置で報告されるようになった
+  - `Enum<"E", any>` と `Enum<"E", never>`: 「a Val's brand must be one string literal」→「an enum's variants cannot be
+    `any` or `never`」。variant を組むときは仮の variant（`Built`）に置き換え、variant の brand は `Literal` で、
+    リテラルでなければ `"?"` にする。`Enum<any, …>` も使う場所で Val の brand の文言が混ざらなくなった
+  - `Trait<"T", any | never, M>`: `M` の位置で「a trait member cannot take a field's name」→ shape の文言
+  - `unknown` の payload、field、trait の shape、共有フィールド: null や undefined の規則の文言 →「`unknown` is not
+    a plain value; write the type」
+  - `Date` や `Map` の field: symbol のキーで「keys must be strings」→「not a plain value」。メソッドを持つ object は
+    キーの規則より先にこちらを出す
+  - `Impl`、`Dyn`、`Trait.companion` に Val: 「a trait is only a declaration」→「not a trait」。`Dyn` と
+    `Trait.companion` に trait の union: `Impl<A> | Impl<B>` の案内 → 1 つの trait を求める文言。`Enum.companion`
+    に Val:「a Val is built by `Val.companion`」
+  - 文言を型から読めるもの（verdict、`NameOf`）はテストで読む。`@ts-expect-error` のコメントだけのものは文言を
+    確かめられない
+  - **コスト。**trait 24,331 → 24,460、enum 45,146 → 45,511、`index.d.ts` 99.92 → 101.67 kB
+
+- [x] ~~**通ってしまう宣言。**~~ → 拒んだ、2026-11-06。valof 全体の型を監査した結果
+  - Val を variant の payload にする（`{ X: Val<"Q", …> }`）: enum が黙って壊れていた。「a variant's payload cannot be
+    a Val; write its fields」
+  - variant をインデックスシグネチャで書く（`Record<string, …>`、template のキー）: #133 で brand を仮の名前に
+    したので黙って通っていた。「a variant's name must be one string literal」
+  - Enum の第 3 引数の `any`、`never`、`Tag<"k"> & Tag<"j">`（`never` になる）: 1 つの文言。variant は
+    `SharedArg` で空の object から組み、variant の検査は通る
+  - trait のメンバの集合が `any` / `never`、メンバが `any`（`Final<any>` も）: `any` はメンバの制約も満たすので
+    verdict で見る（`AnyMembers`）
+  - trait の shape の field が `string & number`: `DeclarableShape` で `Unfit` を見る（object だけ）。前は実装する
+    Val で報告していた
+  - record の payload と、shape がプリミティブの trait: `Agrees` が field の食い違いしか見ていなかった
+  - tuple の要素が `never`: 要素は何に写しても満たすので、tuple ごと「no value fits a tuple element」
+  - **対応しないもの。**plain object の field に `seal` で Val を渡す: Val は plain object でもあるので、意味の上で
+    問題ない（ユーザー、2026-11-06）。field の `any`、`Impl<any>`、companion の option の `any` は 2026-11-04 の方針どおり対応しない
+  - 型の予算（`index.d.ts` は残り 975 B、trait は残り 332）は今は上げず、次に超えたときに上げる（ユーザー、
+    2026-11-06）
+
+- [x] ~~**`patch` で plain object の field に Val を渡せない。**~~ → field のキーをすべて持つ Val なら通す、2026-11-06
+  - #130 では `PhantomBrand` を `?: never` にして Val を一律に拒んでいた。拒む理由は、`patch` の field の型が
+    部分的なのに、実行時は `owned` のノード（Val、既にある値）を merge せず丸ごと置き換えること。キーの欠けた Val
+    を通すと、field がキーを失ったまま型はそのキーを持つと言う
+  - Val は plain object でもある（ユーザー）。置き換える値に完全な形を求めれば、置き換えても merge しても結果が
+    同じになり、`structuredClone` で `owned` の記録が失われても壊れない。`PatchValue<T>` を
+    `Patch<T, typeof PhantomBrand> | (T & AnyVal)` にした。2 つ目は brand を持つ値にしか当たらないので、変数で渡す
+    plain object の扱い（weak type 検査、`?: never` のキー）は変わらない。variant も同じ規則で通る
+  - **Val は plain object でもある。余分なキーがあってもよい**（ユーザー、2026-11-06）。plain object が宣言された
+    場所（`seal` の引数、patch の field）には、そのキーをすべて持つ Val が当てはまり、余分なキーを持つ Val も通る。
+    JSON の往復のために余分なキーを落としたいなら、それは custom seal の役目（`custom-constructors.md` の
+    「an undeclared key survives unless the seal removes it」と同じ）
+  - **コスト。**core 8,865 → 8,893、`index.d.ts` 103.05 → 103.16 kB
+  - **コスト。**core 8,845 → 8,865、trait 24,460 → 24,668、enum 45,511 → 45,759、`index.d.ts` 101.67 →
+    103.05 kB（予算 104 kB の残り 975 B、trait は 332）
+
+- [x] ~~**payload の規則の穴（#125 の調査）。**~~ → 塞いだ、2026-11-05。`__memo__/hunt-findings.md` の 6、11、A、B と
+      `and-or-holes.md` の 7
+  - **field は `null` かプリミティブを、他の 1 種類と並べて持てる。**`string[] | null`、`Rec<Node> | null`（連結リスト）、
+    `User | null`、`Impl<A> | null`、`string | string[]`。今までは「not a plain value」で落ちていた（`string[] | number[]`
+    は配列の分岐で通っていた）。`Validate` の最後の分岐（object でも配列でもない）でプリミティブを分け、残りを
+    `Validate` に渡す。object の union は今までどおり拒む。根では分けない（`string | {…}` の Val に `patch` が生える）
+    - **`patch` はそういう field を丸ごと置き換える。**`PatchValue` が `[T] extends [object]` でなければ `T`。`{ x; y } | null`
+      の field に `{ x: 1 }` を merge すると、`null` の上では `y` の無い値ができた。optional キーを丸ごと取るのと同じ理由
+    - **`DeepReadonly` と `Opened` も分ける。**分けないと `Rec` が開かず、配列が readonly にならなかった。`string | string[]`
+      は数値キーを持つので配列の分岐にも入る。`DeepReadonly` は残りを分けずに 1 回だけ処理する（`Mixed`）。もう一度
+      分けると、型パラメーター越しの比較で再帰が止まらない（TS2321。`vp check` は通り、ts-compatibility の宣言の往復で出た）
+  - **明示的な string のインデックスシグネチャを通す。**`{ [k: string]: number }` の `keyof` は `string | number` で、
+    「keys must be strings」で落ちていた。`Record<string, number>` は `string` だけ
+  - **どの値も合わない field を拒む。**必須のキーが `never`（`{ a: string } & { a: number }`、2 つの Val の交差
+    `{ a: U & W }`、Enum の共有フィールドと variant の衝突）。「no value fits \`a\`」。optional の `never` と
+    `Record<string, never>` は通す（いつも無い、いつも空）
+    - **`ValidateFields` では書けない。**`never` は field を何に写しても満たす。object の単位で `Unfit` を見る
+    - **根では `Allowed`（型定義の行）と variant の verdict だけが見る。**`Validate` の根で見ると、`Payload` は `Validate`
+      に解決するので、`Rec` で自分を参照する `Payload` が TS2456 になった。Enum の `Fault` も型引数だけを読む位置で、
+      再帰する Enum が循環した。variant は `UncheckedVal` の第 4 引数 `Fit` で verdict に入れる
+    - trait の shape の `never` は拒まない。shape 同士の衝突は以前から `Disagreement` が拒む
+  - **2 つの trait が同じ名前のメンバを宣言したら Val の宣言で拒む。**「two traits declare a member named \`x\`」。
+    今までは 2 つ目の `implTrait` が「another member already answers」で拒み、宣言は通った。同じ名前は 1 つの Val に
+    1 度しか登録できない（`TraitHost`）ので、どちらの型でも実装できない
+  - **空の object の field はクラスのインスタンスを拒む。**`{ meta: {}; any: object }` の seed で、根より下の空の object を
+    `{ readonly [key: string]: never }` にする。クラスのインスタンスは暗黙のインデックスシグネチャを持たないので、
+    フィールドの無いクラスも落ちる。production は渡されたものを保存していた。`DeepReadonly` の `Arg` に `"field"` を足す
+    - **根もインデックスシグネチャにする**（2026-11-06）。初めは `EmptySeed` のままにしていた。根でインデックス
+      シグネチャにすると既存の値とタグ付きの payload を拒む（上の 2026-10-19 の項）ため。根を `EmptyField | AnyVal`
+      にすると既存の値は通る。タグ付きの payload は `Tagged` がタグを足してから seed の型を作ると、空の object に
+      ならない。`EmptySeed` は消した。enum 40,190 → 40,781
+  - **コスト（TypeScript 5.9.3）。**core 7,713 → 8,318、trait 21,101 → 23,635、enum 35,874 → 39,583、`index.d.ts`
+    92.69 → 95.55 kB。trait の予算を 22,000 → 25,000 に上げた。大きいのは `DeepReadonly` の分割（trait 約 +1,400）と
+    `Unfit`（約 +350）
+    - 宣言の予算も 96 → 104 kB に上げた。#126 のレビューで文言と名前の検査が増え、この PR で 96.45 kB になった
+      （2026-11-05、CI で発覚。初めは #128 で上げていた）。宣言の検査を宣言の行に移すと、一番上の branch で
+      99.95 kB になり、100 kB から 104 kB に上げた。stack 全体の増分 7.9 kB は型のコード 4.2、JSDoc 2.0、文言
+      1.7 kB。文言を literal の alias で共有すると約 0.4 kB 減るが、alias の名前の分だけ読む量が増えるので見送った
+      （ユーザー、2026-11-05）
+    - 却下: 分割の残りを専用の葉（`Rec` / Val / `Impl` / 配列 / object）で書く形。trait 23,766、宣言 +0.3 kB で重い
+  - **trait との突き合わせも宣言の行で報告する**（ユーザー、2026-11-05）。Val の第 3 引数の制約を
+    `AnyTrait & DeclarableTraits<Tr, T>` にし、`Fits`（trait の union、同名メンバ、payload と shape の食い違い）を
+    型引数に出す。payload を読むが、`Rec` で自分を参照する payload でも循環しなかった。verdict の `Fits` は残す
+  - **payload の `any` と `never` を拒む。**`Val<"V", any>` は型が丸ごと `any`、`Val<"V", never>` は `never` になり、
+    どの関門も通った。`Grounded` が `any` と `never` を空の object にして型を潰さず、verdict が「a payload cannot be
+    `any` or `never`」で拒む。どちらも制約は満たすので、宣言の行には出ない
+    - コスト: core 8,348 → 8,707、trait 23,998 → 24,284、`index.d.ts` 97.14 → 97.66 kB。一番上の branch で宣言は
+      99.95 kB になり、予算の残りは 51 B
+
 - [x] ~~**空の payload にプリミティブと配列が通る。**~~ → 塞いだ、2026-10-19。引数の型が `{}` で、
       `null` と `undefined` 以外のすべてが代入できた。`Val<"E", {}>` の `E("text")` が型を通り、Variant の
       `E.A("text")` は `{ 0: "t", …, _tag: "A" }` を作った
@@ -2865,7 +3050,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       `Circle.diameter` の両方をそのキーで数える。`scan` は `sites` を 3 つの起点で 1 本にし、
       `Bindings.builders` も 1 つの Map にした。**入れないと決めた規則が 3 つある**
   - **Variant 2 個未満の規則。**型が落とす。`src/enum.ts` の `Fault` が
-    `"an enum needs at least two variants; one is a Val"` を出し、`E extends AnyEnum` が
+    `"an enum needs at least two variants; one is a Val"` を出し（2026-11-06 から 1 つは許し、0 個だけ
+    `"an enum needs a variant"`）、`E extends AnyEnum` が
     `Enum.sealer` / `Enum.companion` / `match` / `VariantOf` のどこでも落とす。黙るのは companion も
     使用も書かない宣言だけで、それは害が無い。`tag-mismatch` を落としたのと同じ判断
   - **Variant に別の companion を立てる規則。**型で弾いた。`Val.sealer` / `Val.companion` の型引数を
@@ -2927,6 +3113,13 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - `model-only-in-valof` は追加済み（`__memo__/lint-model-only-in-valof.md`）。オプションは `Options.enable` に渡し、
     runner が既定のルールと合わせて走らせる箱を組み立てる（css-var-kit の `compile`）。「Valof が値として許さない
     組み込み型」の別規則は入れていない
+- [ ] **the book の Map / Set が、継承したキーで存在判定を誤る。**valof-lint の Scan を Record にして見つけた、
+      2026-11-07。`docs/src/patterns.md` は「`if (tags[key])` is the membership test」と書くが、`tags["constructor"]`
+      も `tags["toString"]` も真になる（probe 済み）。§8.1 の「`Object.hasOwn` で判定する」注意が book に無い。
+      `__proto__` は `Object.fromEntries` と `seal` を通しても自分のキーのまま残る。直していない
+- [x] ~~**`<W extends Rule>` の誤りに `Impl` への案内が無い。**~~ → 直さない、2026-11-07。リリースノートで足りる。
+      案内を出す検査は型コストになる（ユーザー）。`Rule` が trait の宣言になった（#125）ので、`Rule.dyn<W>` が
+      TS2344 で `TraitDeclaration<…>` を全文出し、言われるのは「Property 'kind' is missing」だけ
 - [x] ~~Trait のメンバが `Promise` を返すと宣言が TS2615 で落ちる。~~ → `HasSelf` の探索に深さの上限を置いた、
       2026-11-03（§15.1「探索の深さに上限を置く」）。valof-lint の書き直しで見つけた
 - [x] ~~`Dyn` に具体的な Val を残す第 2 型引数（`Dyn<Tr, W extends Tr = Tr>`）。~~ → 入れない、2026-11-04。
@@ -3075,8 +3268,8 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **却下: box をクラスのインスタンスにする。**Proxy の target にクラスの prototype を持たせれば `instanceof` も
     通るが、spread は target の own key を読むので結果は変わらない。メンバは今も実行時に落ちている。trait の
     shape は型にしかないので、`id` だけ落とすこともできない
-- [ ] **`Self` を第 1 引数に限る。他の引数は `Payload<T>` で書く、2026-11-03。**方針は決めた。破壊的変更で、
-      `feat/lint-rules` の `Payload` を前提にするので、それが main に入ってから進める
+- [x] ~~**`Self` を第 1 引数に限る。他の引数は `Payload<T>` で書く、2026-11-03。**~~ → 入れた、2026-11-03。
+      §15.1「`Self` は第 1 引数だけ」
   - **穴。**`dyn` の箱は、第 1 引数以外の `Self` を trait の型に置き換える。別の Val を渡せて、
     包んだ Val の実装がそれを受け取る。companion は具体型なので拒む。Rust も、`Self` を第 1 引数以外に
     置くメソッドを `dyn` から呼べなくしている
@@ -3087,10 +3280,92 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     ```
   - **他の引数は `Payload<T>` で型付けする。**共通フィールドを使う判定・比較は、相手の shape だけを読む。
     trait は自分の宣言の中で自分を参照できない（`other: Same` は `Declarable` で TS2615）ので、
-    `Payload<{ n: number }>` と書く。素のオブジェクトも通るが、共通フィールドを読むだけなら困らない
-  - **`Payload` に payload の規則の検査を足す。**今は恒等（`T` のまま）。宣言の位置で報告できるかは未確認。
-    `Checked` は検査に通らない型を拒否の型に変えるだけで、`type X = …<{ f: () => void }>` の位置では
-    何も言わない。恒等でなくなるぶん、instantiations を type-perf で測る
+    `Payload<{ n: number }>` と書く。素のオブジェクトも通る。~~共通フィールドを読むだけなら困らない~~
+    → 困る、2026-11-04。shape が同じなら brand のない値も受けてしまう
+    - [x] ~~**`Impl<Same>` で trait を実装した Val だけを受ける。**~~ → 入れた、2026-11-04。§15.1「`Impl`」。
+          `other: Impl<Same>`。breaking
+      - **`Impl` を interface の目印にすれば、メンバの引数では循環しない（probe）。**`Self` の探索はキーだけで
+        見分けて止まり（`Rec` と同じ手）、`Unbound` / `Bound` が `Impl<X>` を `X` に置き換える。ただし
+        `let s: Impl<Same>` は目印のままで、`Same` と同じ型にならない（`interface Impl<Tr> extends Tr` は TS2312）
+      - **方針: trait を宣言専用の型にし、値の型をどこでも `Impl<Same>` と書く。**`Trait<K, S, M>` は型引数を
+        持つだけの interface にして、メンバの検査は使う位置（companion、Val の宣言）に移す。模型では循環せず、
+        brand のない値を拒んだ。`Same` を値の型注釈に使えなくなる
+      - 未決: 複数の trait の組み合わせ、`Dyn` と `MembersOf` などの作り直し、置き換えの深さ、`.impl()` と
+        名前が近いこと、コスト
+      - **実装の方針（模型で確認、TypeScript 7.0.2）、2026-11-04**
+        - **`interface Trait<K, S, M> extends TraitDeclaration<B, S, V>`。**`TraitDeclaration` は protected の
+          キー 3 つだけを持つクラス。B は名前からメンバへの record（素のメンバ）、S は shape、V は名前から
+          検査結果への record。interface の基底は使う位置で初めて解決されるので、宣言の行では何も評価しない。
+          protected なので `keyof` と spread に出ない
+        - **検査は V に置く。**中身は今の brand の位置の式（shape の規則と `Declarable`）。`AnyTrait` が V に
+          `Members & Unrejected` の record を求めるので、ゲート（companion、`Val`、`Dyn`、`implTrait`）は今と同じ
+          位置で報告する。B を素のメンバにするのは、`Impl<Same>` が B を読んでも検査を走らせないため
+        - **`Impl<Tr> = DeepReadonly<ShapeOf<Tr>> & TraitPhantom<BrandsOf<Tr>>`。**Val が持つ brand と同じクラス
+          なので、trait を宣言した Val がそのまま代入できる。目印ではなく値の型なので、`Unbound` / `Bound` は
+          何も置き換えない。配列、コールバック、戻り値の中の `Impl<Same>` もそのまま効き、置き換えの深さの
+          問題は無くなる。`.impl()` のコールバックの中でも `other` は `Impl<Same>` に見える
+        - ~~**`HasSelf` は `TraitPhantom` で止める。**~~ → 入れなかった。brand は private なので、止めなくても
+          `Impl<X>` の中で `Self` は見つからない。外しても何も変わらなかった（test-audit）
+        - **組み合わせは `Impl<Greetable & Weighed>`。**trait の交差は名前ごとの record の交差になり、`ShapeOf` は
+          shape の交差、`BrandsOf` は両方の名前を持つ。`Impl<Greetable> & Impl<Weighed>` とは互いに代入できる。
+          docs は Val の第 3 引数と同じ `&` の形で書く
+        - **`Same` を値の型に書くと、宣言のキーが無いという型エラーになる。**`const s: Same = meter`
+        - 2026-11-04 の見直し（ユーザーの指示）: interface を型エイリアスにし、キーを文言 1 つにまとめ、
+          `Impl<A | B>` を型引数で拒む。§15.1「`Impl`」
+  - [x] **`Payload` に payload の規則の検査を足す。**→ 入れた、2026-11-03。`Payload<T> = Validate<T>`
+    - **`Validate` は出会った `Invalid<M>` を `Refused<M>` に写す。**`Invalid` 自体は正しい payload なので、
+      写さないと `Val<"U", Payload<{ f: () => void }>>` は `{ f: Invalid<…> }` を payload に取って companion を通り、
+      最初の seal まで黙る。写せば素の payload と同じく companion で TS2344 になり、最後の行が文言を運ぶ。
+      写す条件は非分配にする。`T extends Invalid<infer M>` は object の union を分配し、union の規則を消した
+    - **正しい payload では `Validate<T>` を `T` と同じ型にした。**配列を `ReadonlyArray` に作り直すと
+      `Val.unwrap` が readonly を返し（§3「payload に `readonly` は書かない」）、optional キーに `| undefined` を
+      足すと EOPT 下で seed が値としての `undefined` を受ける。配列は homomorphic な mapped type で写し、
+      optional キーは書いた `undefined` だけを残す（`| Extract<T[K], undefined>`）。hover は展開した object になる
+    - **報告の位置。**~~`type X = Payload<…>` の行では何も言わない。~~ → 型引数で報告する、2026-11-04。
+      使う側でも今までどおり報告する。Val の payload なら companion。trait のメンバ引数
+      （`other: Payload<{ f: () => void }>`）は trait の companion でも `implTrait` でも黙り、呼び出しの引数で
+      `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になる。trait の側の検査は
+      メンバの引数を深く辿る必要があるので入れていない。型引数で報告するので、もう要らない
+      - **`Payload<T extends ValidateFields<T>>`。**`ValidateFields` は `ValidateValue` の object 分岐を切り出した
+        mapped type で、`Validate` と共有する。`Payload<{ a: { f: () => void } }>` は型引数で TS2344。
+        `Validate<T>` を含む制約（`Validate<T>`、`ValidateFields<T> & Validate<T>`）は TS2313 のまま。
+        mapped type だけなら循環しない。TypeScript 5.9.3 / 6.0.3 / 7.0.2 で同じ
+      - **型引数で捕まらない root。**`bigint`、`undefined`、`symbol`、関数、数値キー（ネストしていれば捕まる）、
+        正しい object 同士の union、`string | null`。mapped type は primitive をそのまま返し、関数を `{}` に写し、
+        キーの種類を見ないため。使う側で報告される。`Date` はメソッドが関数として拒まれ、型引数で捕まる。
+        root だけを見る条件型を `& Root<T>` で足しても循環しない（probe）が、`Validate` の root の規則を
+        二重に持つので入れていない → 入れた、2026-11-04（§3 の `Allowed`）。`Validate<T>` の結果を条件型で読むので二重にならない
+      - **型パラメーターを含む `Payload` は書けない。**`type G<T> = Payload<T>` も `Payload<{ left: T }>` も TS2344
+        （`T extends string` でも同じ）。制約の `ValidateFields` は export していない
+        - **決めた: ジェネリックな `Payload` と Val は書かない、2026-11-04。**具体型ごとに Val を書く。ジェネリックな素の型
+          （`type Items<T> = { items: T[] }`）を切り出して包む形も勧めない。`model-only-in-valof` がそれを報告する。
+          docs には事実を 1 文だけ書く（allowed-types.md）。禁じるだけで代わりの書き方は無いので、節も例も要らない。
+          Val も同じ制約で型定義の行から拒む（§3「2026-11-04: 型定義の行でも報告する」）。型と lint の両方で
+          「データの定義は具体型」に揃う
+      - **コスト。**fixture は `Payload` を使わず、instantiations は core −51、trait −46、enum −114、
+        `index.d.ts` は +0.51 kB（TypeScript 5.9.3）。`Payload` で包んだ Val 20 個の probe は 36,968 → 30,195
+        （TypeScript 7.0.2）。減った理由は確かめていない
+    - **`Invalid` と `Refused` は symbol キーだけで表す、2026-11-04。**`__valError` を予約しないため。
+      どちらのキーも export しない `unique symbol` で、利用者の payload はこの形にならない
+      - **文字列キーだったときの穴。**`__valError` に文字列リテラルを持つ payload のフィールドが `Invalid` と
+        区別できず拒まれた。`Payload<Payload<{ f: () => void }>>` は、外側が `Invalid` を `Refused` に写し、
+        文字列キーだけの `Refused` を Val がただの値として通した
+      - **`Validate` は `Invalid` を `Refused` に、`Refused` を `Invalid` に写す。**写さなくても symbol キーの
+        規則で拒まれるが、文言が「keys must be strings」に変わる。写せば何重に包んでも元の規則の文言が残る
+      - **`AnyTrait` は両方の印を拒む（`Unrejected`）。**壊れた宣言は brand map やメンバ集合の位置に印を置く。
+        文字列キーの印はメッセージが関数でないことで拒まれていたが、symbol キーだけの印は `Record<string, …>`
+        に収まる。brand map の位置とメンバ集合の位置の両方に `[InvalidKey]?: never` / `[RefusedKey]?: never` を置いた
+      - **コスト。**main（#121）と比べて instantiations は core +107、trait +120、enum +257、`index.d.ts` は
+        +0.52 kB（TypeScript 5.9.3）
+    - **コスト。**fixture は `Payload` を使わないので、instantiations は trait +4、enum +39 だけ（TypeScript 5.9.3）。
+      `Payload` で包んだ Val 1 つあたり約 +320（probe、20 個で 60,719 → 67,072）。`index.d.ts` は +0.55 kB
+    - **訂正: 「入れられない」とした記録。**`feat/self-first-parameter` は probe から「検査できない」と結論し、
+      恒等のまま残すと記録した。観察は正しかった。`Payload<T extends Checked<T>>` は TS2313、`Payload = Checked<T>`
+      は自己参照する payload で TS2456 / TS2615、写さない `Validate` では companion が黙る。誤りは結論だけで、
+      ~~循環するのは `Checked` の外側の比較（`[T] extends [Validate<T>]`）であって、`Validate<T>` だけなら循環しない。~~
+      → 誤り、2026-11-04。制約に置けば `Validate<T>` だけでも TS2313（probe）。循環しないのは
+      `Payload = Validate<T>` と本体に書いたとき。型引数での報告は、上の `ValidateFields` で入れた。
+      黙る件は写せば消える。§15.1 の記録はこの項目に合わせて直した
   - **`HasSelf` は残る。**第 1 引数以外の引数と戻り値を辿る。深さの上限（§15.1「探索の深さに上限を
     置く」）も同じ理由で要る
   - **却下: 第 1 引数をレシーバとして例外扱いする。**Valof はメソッド記法を排して pipe でつなぐ。
@@ -3811,7 +4086,7 @@ type OrderB = Val<"OrderB", { total: PayloadOf<Money> }>;
 
 塞がるのは**子への到達経路**である。リネームした import、re-export、`interface`、エイリアス 1 ホップ、交差、`Money | null`。どれも参照を宣言まで辿るので構文で追う必要が無い。
 
-塞がらないのは**エイリアスが Val だと認める側**。`type Branded<K, T> = Val<K, T>` を経由した `type Money = Branded<"Money", X>` は、収集が「`Val<…>` が直接書かれている」ことを名前で見ているため候補集合に入らず、子として認識されない。**duplicate-brand が持つ穴と同じもので、リンタ全体がこの前提に立っている。** 塞ぐなら `Val` 自身も go-to-definition で同定することになる。見逃し側なので急がない。
+塞がらないのは**エイリアスが Val だと認める側**。`type Branded<K, T> = Val<K, T>` を経由した `type Money = Branded<"Money", X>` は、収集が「`Val<…>` が直接書かれている」ことを名前で見ているため候補集合に入らず、子として認識されない。**duplicate-brand が持つ穴と同じもので、リンタ全体がこの前提に立っている。** 塞ぐなら `Val` 自身も go-to-definition で同定することになる。見逃し側なので急がない。2026-11-05: brand を型パラメーターにする helper は型エラーになり、この経路は無くなった（§9「trait の宣言の穴」）。
 
 #### N×M を恐れなくてよい理由
 
@@ -3926,12 +4201,15 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
 - **`Finding` は共通の Val 1 つ、`kind` は `string`。**ルール固有のフィールド（`brand`、`alias` など）は
   誰も読んでいなかった。`kind` を `Kind` にすると、`Kind` が `RULES` から、`RULES` が `run` の戻り型から
   決まるので循環する。上の `ReportedBy` は消えた
-- **`run` は同期。**書き直した時点では、Trait のメンバが `Promise` を返すと宣言が落ちた（§15.1）。非同期のルールは無かった
+- **`run` は同期。**書き直した時点では、Trait のメンバが `Promise` を返すと宣言が落ちた（§15.1）。今は書けるが、
+  非同期のルールが無いので同期のまま（2026-11-07）
 - **エラーは byethrow の Result と error-factory のクラス。**引数の解析は `Arguments.fromArgv`、パーサの読み込みは
   `run` が Result で返す。公開の `lint()` は境界で投げる。Result を公開の型に出すと、バンドルした byethrow の
   宣言まで `lint.d.mts` に入る
-- **scan の事実も Val。**`Scan` と `Bindings` は Map / Set を持つのでプレーンのまま（§7）。`Where` は他の
-  事実に spread で混ざるのでプレーン。`Directive.kinds` は Set から配列にした
+- **scan の事実も Val。**`Scan` と `Context` も Val で、Map / Set は §8.1 の Record で持つ（2026-11-07）。歩く間の
+  状態（`Bindings` など）は Map のまま、`Scan` を作るときに Record へ移す。キーはソースの名前なので `constructor`
+  にもなり、引くのは `Object.hasOwn`。2,190 ファイルで 305 ms → 319 ms。`Where` は他の
+  事実に交差で混ぜる形なので、Val ではなく `Payload`（2026-11-07）。`Directive.kinds` は Set から配列にした
 - **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
   かけたら `unused-member` が全ルールの `run` を報告した。`box` を通った `dyn` は追えていなかった。
   作った式の外へ出た `dyn`（関数に渡す、配列に入れる）は、どこかで読まれたキーをすべて、第 1 引数の Val
@@ -6116,6 +6394,209 @@ TypeScript 7.0.2）。
 **`PromiseLike` は中身を開いて辿る（1 段と数える）。**`Promise<Self>` の `Self` は `then` の引数にしか
 現れず、引数は辿らないので、上限だけでは素通りする。それまでは TS2615 で偶然拒まれていた。
 
+#### `Self` は第 1 引数だけ、2026-11-03
+
+第 1 引数以外の引数に `Self` を置けなくした。それまでは `SubstArgs` が `Self` ちょうどの引数を Val に
+置き換え、`dyn` の箱ではそれが trait の型になっていた。別の Val を渡せて、包んだ Val の実装がそれを
+受け取っていた（§9 の項）。
+
+```ts
+type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Self) => boolean }>;
+Same.dyn(A, a).same(b); // 通っていた。A の実装が B を受け取る
+```
+
+- **検査は `Declarable` に置く。**第 1 引数より後ろの引数それぞれを `HasSelf` で辿る。配列やオブジェクトの
+  中の `Self` も拒む（`readonly Self[]` は前から `Self` のまま残り、渡せる値が無かった）。報告は戻り値と
+  同じく、trait を使う位置（`Trait.companion<Same>()` など）に出る
+- **`SubstArgs` を消した。**置き換える引数が無くなった。`Bound` は型引数 `S` を使わなくなったので外した
+- **他の引数は `Payload<{ n: number }>` で書く。**素のオブジェクトも、shape を持つ別の Val も通る
+- **`HasSelf` は関数の引数も辿る。**`(self: Self, f: (others: readonly Self[]) => void) => void` も、戻り値の
+  `(self: Self) => (other: Self) => void` も拒む。前は宣言を通り、実装が `f(u)` で型エラーになる（Val は
+  `Self` に代入できない）ので、書けないメンバになっていた
+- **`any` は `Self` ではない。**引数を辿ると `Map.forEach` の `thisArg?: any` で `[any] extends [Self]` が真に
+  なり、`Map` を返すメンバが拒まれた。`HasSelfBranch` の先頭で `any` を外す。`any` を返すメンバは、前は
+  偶然「cannot return Self」で拒まれていたが、通るようになった
+- **`PromiseLike` を開く処理は残す。**`then` のコールバックの引数を辿れば `T` に届くが、開いた `T` より
+  2 段深い。開かないと `Promise<{ a: [{ b: Self }] }>` が上限に掛かって素通りする（probe 済み）
+- **コスト。**instantiations は trait fixture 17,658 → 16,777、enum 35,703 → 34,918（TypeScript 5.9.3）。
+  `SubstArgs` の mapped type が消えたぶん減った。`index.d.ts` は +0.39 kB。関数の引数を辿るぶんは、
+  メソッドの多い型を返すメンバで効く。戻り値 `string` の trait を基準にした増分（TypeScript 7.0.2）:
+
+  | 戻り型                | 引数を辿らない | 辿る   |
+  | --------------------- | -------------- | ------ |
+  | `string`              | 0              | +17    |
+  | `Promise<string>`     | +322           | +324   |
+  | `Map<string, number>` | +5,301         | +9,502 |
+
+  検査は trait の宣言ごとに 1 回なので払える
+
+##### ~~メンバの引数の `Payload` を trait で報告する、2026-11-04~~ → 外した、2026-11-04
+
+- **外した理由。**`Payload` が型引数で報告するようになった（§9「報告の位置」、#123）。規則に反する
+  `Payload<…>` は、trait のメンバに書いてもその行で TS2344 になる。trait に `Invalid` が届くのは、その
+  エラーを `@ts-ignore` で握りつぶしたときだけで、テストでも確かめられない。`Found` を `HasSelf` に戻した。
+  instantiations は trait fixture 17,964 → 17,083、enum 36,018 → 35,233（main 比、TypeScript 5.9.3）
+
+以下は入れていたときの記録。
+
+`Payload` は payload の規則で検査する（§9「`Payload` に payload の規則の検査を足す」）。規則に反する部分は
+`Invalid<M>` になる。trait のメンバ引数に書くと、それだけでは trait の companion も `implTrait` も通り、
+呼び出しの引数で `'() => void' is not assignable to type 'Invalid<"functions are not allowed">'` になっていた。
+
+- **`Self` の探索に相乗りする。**`HasSelf` を `Found` に置き換えた。真偽ではなく、見つけたもの（`Self` か
+  `Invalid<M>`）の union を返す。`Declarable` は引数に `Self` があればその文言、戻り値に `Self` があれば
+  その文言、どちらもなく `Invalid<M>` があればそれを返す。報告は `Trait.companion<Same>()` と、trait を
+  宣言する Val に出る。最後の行は `Property 'same' is incompatible…` の下の
+  `Type 'Invalid<"functions are not allowed">' …` で、規則の文言が読める
+- **見るのは `Payload` が残した `Invalid` だけ。**規則では検査しない。`job: { f: () => void }` のような素の
+  引数は payload ではないので正当
+- **mapped type に `-?` を付けた。**真偽なら `true extends …` で `undefined` は効かなかったが、union を返すと
+  optional な引数（`Map.forEach` の `thisArg?`）が `undefined` を混ぜ、`Map` を返すメンバが拒まれた
+- **検出は `Invalid<infer M>` で書く。**キーを直接書かない。#122 で `Invalid` のキーが symbol に変わっても、そのまま効いた
+- **コスト。**trait fixture 16,786 → 16,819、enum 34,945 → 34,959（TypeScript 5.9.3）。probe（7.0.2）では
+  戻り値 `string` のメンバ +48、`Map` を返すメンバ +991、`Payload<{ n; tags: string[]; at: { x } }>` の引数 +100
+
+#### `Impl`: trait を実装した値の型、2026-11-04
+
+trait の宣言と値の型を分けた。`Trait<K, S, M>` は宣言だけを持ち、値の型は `Impl<Tr>` と書く。メンバの
+後ろの引数に `Impl<Same>` を置けば、trait を宣言した Val と `Dyn` だけを受ける。それまでの `Payload` は
+shape が同じ素の値も通した（§9 の項）。breaking。`Same` を値の型に書くと型エラーになる。
+
+```ts
+type Same = Trait<"Same", { n: number }, { same: (self: Self, other: Impl<Same>) => boolean }>;
+const s: Impl<Same> = meter; // Same を宣言した Val、または Same の Dyn
+```
+
+- **`type Trait<K, S, M> = TraitDeclaration<{ brands; shape; verdict }>`。**`TraitDeclaration` は protected の
+  キー 1 つのクラス。`brands` は名前からメンバへの record（素のメンバ）、`shape` は shape、`verdict` は名前から
+  検査済みのメンバへの record。検査は trait を使う位置で走る
+  - ~~interface にする~~ → 型エイリアスにした（ユーザーの指示、2026-11-04）。エイリアスでも循環せず、hover と
+    エラーは `Trait<"Same", …>` と名前で出る（probe）。interface にする理由が無かった
+- **検査は `verdict` に置く。**中身は前の brand の位置の式。`AnyTrait` が `verdict` に `Members & Unrejected` の
+  record を求めるので、報告の位置は変わらない。`brands` を素のメンバにしたのは、`Impl<Same>` が `brands` を
+  読んでも検査が走らないようにするため
+- **キーの名前を文言にする。**`Same` を値の型に書くと「Property '"a trait is only a declaration; type a value
+  implementing it with `Impl<Trait>`"' is missing」になる。キーが 3 つの symbol だったときは
+  `[DeclaredBrands], [DeclaredShape], [DeclaredVerdict]` と並ぶだけで、`Impl` を案内しなかった。protected なので
+  `keyof` と spread には出ない
+- **union は型引数で拒む、2026-11-04（ユーザーの指示）。**`Impl<Tr extends OneTrait<Tr>>`、
+  `OneTrait<Tr> = AnyTrait & Single<Tr>`。`Single` は union のときだけキーを 1 つ持つ mapped type で、キーの名前が
+  文言（「a union of traits is not a trait; write `Impl<A> | Impl<B>` for a value implementing either」）。
+  どちらかを実装した値は `Impl<A> | Impl<B>` と書く。検査しないと、`A` だけを宣言した Val が `Impl<A | B>` に
+  代入できた
+  - **`Impl` を受け渡す型引数にも同じ制約を付ける。**`Dyn`、`TraitCompanion`、`Shared`、`TraitBuilder` の段、
+    `Trait.companion`、Val と Enum の `implTrait`、`Complete`。`Tr extends AnyTrait` のままでは `Impl<Tr>` が
+    制約を満たさない。検査しない別名（`Implementing`）を内部で使うと、`dyn` と `.impl()` のコールバックの hover に
+    export していない名前が出た
+  - `Single` を条件型（`… ? unknown : { … }`）にしても、汎用の `Tr` は満たさない（probe）
+  - 制約が交差になると `MembersOf<Tr>` の制約が読めず、`Unbound` / `Bound` の `M extends Members` を満たさない。
+    どちらも条件型で読むだけなので、制約を外した
+- **`Impl<Tr> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>`。**Val が持つ brand と同じクラス。目印ではなく
+  値の型なので、`Unbound` / `Bound` は何も置き換えない。配列、コールバック、戻り値、別の trait の中でも
+  そのまま効く。`.impl()` のコールバックでも `other` は `Impl<Same>` に見える
+- **組み合わせは `Impl<A & B>`。**交差した trait は名前ごとの record の交差になる。`Impl<A> & Impl<B>` と
+  互いに代入できる。docs は Val の第 3 引数と同じ `&` で書く
+- **shape は宣言どおりに渡す。**`FieldsOf` が S をそのまま読む。Val の `Holding` と Enum の `FieldsIn` /
+  `SharedIn` は、`Writable<ShapeOf<…>>` で readonly を外す代わりにこれを交差する。`Writable` は消した。
+  `ShapeOf`（`Impl` と `Fits` が使う）は `DeepReadonly<FieldsOf<Tr>>` で、`Checked` はかけない。shape の
+  規則は V が検査済み
+- **コスト**（TypeScript 5.9.3、変更前と比べて）
+  - 素直に書いた版は trait 17,083 → 20,771、enum 35,233 → 46,908。`ShapeOf` の `Checked` を外して
+    18,812 / 39,910、`FieldsOf` を使って 18,568 / 35,237、Enum の `Writable` も外して enum 34,454
+  - trait fixture に `Impl<Named>` を取る Final メンバと呼び出し 2 つを足して 19,387。core 7,488 → 7,496
+  - `index.d.ts` 89.54 → 90.80 kB
+  - union の検査とキーの統合で trait 19,387 → 20,426、enum 34,454 → 34,916、core 7,496 → 7,473、
+    `index.d.ts` 90.80 → 91.07 kB。`implTrait` ごとに `Single` を評価する
+- **却下: `Impl` を目印の interface にし、`Unbound` / `Bound` が trait に置き換える。**メンバの引数では
+  循環しないが、`let s: Impl<Same>` が目印のまま残り、`Same` と同じ型にならない
+  （`interface Impl<Tr> extends Tr` は TS2312）
+- **却下: `other: Same` と直接書く。**メンバを interface に出しても、`Rec<Same>` で包んでも、`Declarable` で
+  TS2615。宣言中の `Same` を条件型にかけた時点で解決を要求する
+- **`Dyn` と `Trait.companion` は trait 1 つだけを取る、2026-11-04（ユーザーと合意）。**`LoneTrait<Tr> =
+OneTrait<Tr> & Lone<Tr>`。`Lone` は名前が 1 つでないときだけキーを 1 つ持つ mapped type で、キーの名前が文言
+  （「`Dyn` and `Trait.companion` take one trait; write one for each trait」）。`Impl` は `OneTrait` のままで、
+  `Impl<A & B>` を書ける
+  - **`Dyn<A & B>` は壊れていた。**メンバの集合が union になり、`greet` も `heavy` も「プロパティが無い」に
+    なった（probe）。フィールドは読めた。`Trait.companion<A & B>()` は 1 つの trait の実装なので意味を持たない
+  - **`Impl<A & B>` は残す。**Val の第 3 引数と同じ書き方で、Rust の `impl A + B` に当たる。
+    `Impl<A> & Impl<B>` と同じ型なので害が無い。union だけを外に出させるのも、Rust に union が無いのと合う
+  - `implTrait` と builder の段、`Complete` も `LoneTrait` を取る。`TraitCompanion<Tr>` を受け渡すため
+  - **コスト。**trait 20,426 → 20,659、enum 34,916 → 35,094、`index.d.ts` 91.07 → 91.54 kB
+- **payload のフィールドの trait と `Impl`、2026-11-04。**trait を宣言だけの型にしたことで入った後退を 2 つ塞いだ
+  - **trait で型付けしたフィールドは何でも通っていた。**`Val<"V", { g: Greetable }>` の `seal({ g: {} })` が通った。
+    宣言の型はキーが protected だけなので、payload の規則からは空の object に見える。変更前は `Greetable` が値の型
+    で、brand を持たない値は拒まれていた。`Validate` が `AnyTrait` を「a trait is only a declaration; type a value
+    implementing it with `Impl<Trait>`」で拒む。`Val` と `Payload` の型引数、trait の shape、Enum の variant
+    （companion で報告）で効く
+  - **`Impl` で型付けしたフィールドに box と素の object が入っていた。**`DeepReadonly` が `Impl` をキーで写し直し、
+    brand を落としていた。読み戻した値も `{ readonly name: string }` で、`Greetable.shout(d.owner)` が通らなかった。
+    `DeepReadonlyValue` が `Impl` を `Impl<…> & AnyVal` に写す。box は Val の印を持たないので入らない（「payload は
+    box を持てない」）
+  - **コスト。**core 7,473 → 7,640、trait 20,659 → 20,923、enum 35,094 → 35,574、`index.d.ts` 91.54 → 91.88 kB
+  - **`Impl` の union をフィールドに書ける。**`{ item: Impl<A> | Impl<B> }` は object の union の規則で拒まれていた。
+    Val の union（`{ a: U | W }`）は通り、`Impl` のエラー文も `Impl<A> | Impl<B>` を案内している。`Validate` が
+    `AnyImpl` で止まり、union の各要素のフィールドだけを検査する。`AnyImpl` 全体で止めると `Dyn` のフィールドまで
+    通る（`Dyn` は `Impl` を含む）。フィールドを検査すれば、box はメンバが関数なので「functions are not allowed」で
+    拒まれる。core 7,640 → 7,713、trait 20,923 → 20,999、enum 35,574 → 35,752
+  - **payload の根の `Impl` を拒む。**`Val<"V", Impl<A>>`（seal が別の Val を受けた）、`{ id } & Impl<A>`、
+    `Payload<Impl<A>>`、Enum の共有フィールドと variant の payload。`Validate` が根の `AnyImpl` を
+    「a payload cannot be an `Impl`; write its fields, and declare the trait instead」にする
+    - **`DeepReadonly` は `Impl` に `Phantom` だけを足す。**`AnyVal`（`Verdict<true>` を含む）を足すと、根では値の型の
+      verdict が `true` と交差して打ち消され、variant の payload の `Impl` が companion を通った
+    - **Enum の `SharedIn` は `Impl` を丸ごと残す。**`Pick` が brand を落とし、payload の規則が `Impl` を見なかった
+    - **trait の shape は verdict で別の文言にする。**「a trait's shape cannot be an `Impl`; write its fields」。payload の
+      文言の「Val の第 3 引数」は trait には当たらない
+    - コスト: trait 20,999 → 21,003、enum 35,752 → 35,785、`index.d.ts` 91.97 → 92.25 kB
+  - `{ a: Impl<A> | null }` は拒まれたまま。`{ a: U | null }` も「not a plain value」で拒まれる、以前からの規則
+  - 以前からある穴（Val の payload に交差した trait、名前の union、メンバ集合の union）は下の「trait の宣言の穴」
+- **trait の宣言の穴、2026-11-04。**#125 の調査で見つかった、以前からある穴を塞いだ
+  - **名前は文字列リテラル 1 つ。**`Trait<"A" | "B", …>` は `Val` の第 3 引数にも `Impl` にも通り、
+    `Trait.companion` だけが `Lone` の的外れな文言（「take one trait」）で拒んでいた。`Trait<string, …>` は
+    `Trait.companion` も通った（`implTrait` では実装できない）。verdict を丸ごと「a trait's name must be one
+    string literal」にする。判定は `IsUnion<K>` と、`{}` が `Record<K, unknown>` に代入できるか（`string` と
+    template literal はインデックスシグネチャになり、`{}` が入る）。`never` も `any` も同じ判定で拒まれる。
+    `never` だけを見る検査はない（ユーザーの問い、2026-11-05）
+    - 値の型は `never` にする。`unknown` だと `{}` が見かけ上持つ `toString` などに当たり、`Trait<"toString", …>` が
+      拒まれた。空文字列 `""` の名前は許す（ユーザー、2026-11-05）
+    - 判定は `IsOneLiteral`（`src/val.ts`）にまとめ、Val の brand、enum の名前、タグ名も使う
+    - **宣言の行でも報告する。**名前の型パラメーターの制約を `OneLiteral<K, Msg>` にする。一つの文字列リテラルなら
+      `string`、それ以外なら `Msg` になるので、`Trait<"A" | "B", …>` の行に「does not satisfy the constraint
+      '"a trait's name must be one string literal"'」が出る。`K` をそのまま条件型に渡すと制約が循環する（TS2313）
+      ので、`[K] extends [infer X extends string]` で読む。`any` と `never` はどの制約も満たすので、verdict の検査は
+      残す
+      - 代償として、名前を型パラメーターにした `type Named<K extends string> = Val<K, string>` が書けなくなる。条件型が
+        遅延したままで、`K` が制約を満たすと示せないため。同じ shape で別の brand の Val は `Payload` で shape を
+        共有すれば足りる（ユーザー、2026-11-05）。lint の duplicate-brand が `type Branded<K, T> = Val<K, T>` 経由の
+        brand を見られない穴（§14.7「届かない範囲」）も、この helper が書けなくなって塞がる
+      - 宣言の検査はすべて宣言の行に移す（ユーザー、2026-11-05）。shape は `DeclarableShape`（`Impl`、trait、
+        payload の規則）、メンバは `Members & OneMembers<M, Shape>`（union、`Declarable`）を制約にする。メンバに型
+        パラメーターを含む alias（`Record<K, …>`）も書けなくなる
+      - **方針: 型パラメーターで宣言を共通化する書き方は、基本的にできないようにする**（ユーザー、2026-11-05）。
+        宣言の検査を制約に置くと、型パラメーターを含む alias は条件型が遅延して制約を満たせない。それを代償として
+        受け入れる。共通の shape は `Payload` で共有する。Val の trait（#127）と enum の名前・共有フィールド（#128）
+        も同じ扱い
+      - shape が `any` か `never` の trait は verdict だけが拒む。以前は `Impl` の文言で拒んでいたので、「a trait's
+        shape cannot be `any` or `never`; write its fields」を足した
+  - **メンバの集合は union にできない。**`{ f } | { g }` で `Declarable` が分配して通り、空の `implTrait` が
+    通って companion に `f` も `g` も生えなかった。verdict を「a trait's members must be one object type, not
+    a union」にする
+  - **payload に交差した trait は第 3 引数へ案内する。**`Val<"V", { a: string } & A>` は #125 で「a trait is only a
+    declaration; type a value implementing it with `Impl<Trait>`」で拒まれるようになったが、文言は field 向け
+    だった。enum の variant は payload に交差して trait を宣言するので、同じ書き方をする人が出る。`Validate` の
+    根では「a payload cannot declare a trait; pass it as Val's third type argument」にする。根より下は field の
+    文言のまま
+    - `Payload` の根では案内を付けず「a payload cannot declare a trait」だけにする（ユーザー、2026-11-05）。
+      `Validate` と `Allowed` が、payload を宣言する側（`"Val" | "Payload"`）を受け取る
+    - trait の shape が trait のときは verdict で「a trait's shape cannot be a trait; write its fields」。根の
+      文言の「Val の第 3 引数」は trait には当たらない（`Impl` の shape と同じ理由）
+  - **variant の trait の shape がタグ名を取れた。**`{ A: { x } & Trait<"M", { _tag: number }> }` が宣言を通り、
+    `create` が `_tag: number` を求めた。`Fault` が `keyof D[N]` を見ていて、trait の shape のキーは見えなかった。
+    `keyof FieldsIn<D[N]>` にする。enum の第 3 引数の trait は `SharedIn` 経由で以前から拒まれていた
+  - **コスト。**trait 21,003 → 21,125、enum 35,785 → 35,888、core 7,713 → 7,743、`index.d.ts` 92.23 → 92.93 kB
+    （TypeScript 5.9.3）。大半は文言
+- **名前は `Impl` のまま。**builder の `.impl()` と近いが、Rust も実装の `impl` と型の `impl Trait` に同じ
+  キーワードを使う（ユーザー、2026-11-04）
+
 #### 却下: WeakMap による動的ディスパッチ
 
 `Greetable.greet(p)` を値から引くために、§4.1 の `owned` を `WeakSet` から
@@ -6319,7 +6800,8 @@ TS2344 で落ち、Val だけが shape のフィールドを payload にもう�
   配列の payload にだけ残る。前者は当初「the payload declares \`name\` with a type the trait does not
   accept」だった。trait が受け付けるかどうかを判定するように読め、フィールドの被り自体がエラーに見える。
   被りは同じ型か狭めた型なら通るので、食い違いを言う形に変えた（2026-10-20）
-- **`readonly` を外す。**trait は shape を `DeepReadonly` で持つので、そのまま交差すると
+- **`readonly` を外す。**（2026-11-04 に不要になった。§15.1「`Impl`」。trait は宣言どおりの shape を
+  `FieldsOf` で渡し、`Writable` は消した）trait は shape を `DeepReadonly` で持つので、そのまま交差すると
   `PayloadOf` に `readonly name` が出て、`Val.unwrap` が readonly を返す。§3「payload に `readonly` は
   書かない」と食い違う。`Writable` で深く外し、Val で止める。止めないと Val のフィールドがブランドを
   失い、生のレコードが通る。交差では書ける側が勝つので、Enum の `SharedIn` にも同じ `Writable` をかける。

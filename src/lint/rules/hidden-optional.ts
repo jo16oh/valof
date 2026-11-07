@@ -2,7 +2,8 @@ import { Val } from "../../index.ts";
 import { resolve } from "node:path";
 
 import { symbolIdentity, type Scan } from "../scan/index.ts";
-import { Finding, Rule, type Context } from "./rule.ts";
+import type { Arity } from "../types.ts";
+import { Finding, Rule } from "./rule.ts";
 
 /**
  * A member whose type annotation declares a parameter the implementation gives a default or a
@@ -20,10 +21,10 @@ export const HiddenOptional = Val.companion<HiddenOptional>()
     description: "a default or rest parameter that a member's type annotation hides",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans, context) => findings(rule, scans, context) }))
+  .implTrait(Rule, () => ({ run: (rule, scans, _context, types) => findings(rule, scans, types) }))
   .build();
 
-function findings({ kind }: HiddenOptional, scans: readonly Scan[], { types }: Context): Finding[] {
+function findings({ kind }: HiddenOptional, scans: readonly Scan[], types: () => Arity): Finding[] {
   const identity = symbolIdentity(scans);
   const used = new Set(scans.flatMap(({ memberSources }) => memberSources.map(identity)));
   const candidates = scans.flatMap(({ file, hiddenParameters }) =>
@@ -31,20 +32,17 @@ function findings({ kind }: HiddenOptional, scans: readonly Scan[], { types }: C
   );
   if (candidates.length === 0) return [];
   const arity = types();
-  return candidates.flatMap(
-    ({ file, one: { name, offset, property, parameter, rest, line, column } }) => {
-      const declared = arity(resolve(file), offset, property);
-      if (declared === undefined || declared <= parameter) return [];
-      const what = rest ? "rest parameter" : "default";
-      return [
-        Finding.seal({
-          kind,
-          file,
-          line,
-          column,
-          message: `the annotation on ${property === undefined ? name : `${name}.${property}`} declares the parameter this ${what} makes optional, so a call with the value last finds the wrong arity; drop the ${what}, or write the member inline`,
-        }),
-      ];
-    },
-  );
+  return candidates.flatMap(({ file, one: { name, offset, property, parameter, rest, at } }) => {
+    const declared = arity(resolve(file), offset, property ?? undefined);
+    if (declared === undefined || declared <= parameter) return [];
+    const what = rest ? "rest parameter" : "default";
+    return [
+      Finding.seal({
+        kind,
+        file,
+        at,
+        message: `the annotation on ${property === null ? name : `${name}.${property}`} declares the parameter this ${what} makes optional, so a call with the value last finds the wrong arity; drop the ${what}, or write the member inline`,
+      }),
+    ];
+  });
 }

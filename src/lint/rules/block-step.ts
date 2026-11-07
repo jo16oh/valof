@@ -22,12 +22,11 @@ export const BlockStep = Val.companion<BlockStep>()
  */
 function findings({ kind }: BlockStep, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, blockSteps }) =>
-    blockSteps.map(({ step, line, column }) =>
+    blockSteps.map(({ step, at }) =>
       Finding.seal({
         kind,
         file,
-        line,
-        column,
+        at,
         message: `the function passed to .${step} has a block body; return the object itself: () => ({ … })`,
       }),
     ),

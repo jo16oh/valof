@@ -11,7 +11,7 @@ export const UnnamedOf = Val.companion<UnnamedOf>()
     // The lift itself is sound. What it costs is the name that makes the lift greppable.
     warns: true,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /**
@@ -29,13 +29,12 @@ export const UnnamedOf = Val.companion<UnnamedOf>()
 function findings({ kind }: UnnamedOf, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, lifts }) =>
     lifts
-      .filter(({ typeName }) => typeName === undefined)
-      .map(({ line, column }) =>
+      .filter(({ typeName }) => typeName === null)
+      .map(({ at }) =>
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: "Val.of names no type here, and takes one from its target",
         }),
       ),

@@ -29,12 +29,11 @@ function findings({ kind }: UnqualifiedVariant, scans: readonly Scan[]): Finding
         ({ name, key, companionRef }) =>
           name === key && variants.get(identity(companionRef))?.has(key) === true,
       )
-      .map(({ companion, key, line, column }) =>
+      .map(({ companion, key, at }) =>
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: `${key} is ${companion}.${key} without the enum it comes from; call ${companion}.${key}`,
         }),
       ),

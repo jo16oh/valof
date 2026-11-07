@@ -30,6 +30,8 @@ describe("mdBook version", () => {
   test("leaves content without the placeholder untouched", () => {
     const book = { items: [{ Chapter: { content: "No version here.", sub_items: [] } }] };
 
-    expect(preprocess([{}, book], "0.7.0")).toBe(book);
+    expect(preprocess([{}, book], "0.7.0")).toEqual({
+      items: [{ Chapter: { content: "No version here.", sub_items: [] } }],
+    });
   });
 });

@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { RULES, lint as run } from "../../src/lint/index.ts";
+import { Options as LintOptions, RULES, lint as run } from "../../src/lint/index.ts";
 
 export { RULES };
 
@@ -73,7 +73,7 @@ export const root = fileURLToPath(new URL("../../", import.meta.url));
 type Options = {
   skip?: readonly Registered[];
   overlay?: Map<string, string>;
-  enable?: NonNullable<Parameters<typeof run>[1]>["enable"];
+  enable?: NonNullable<Parameters<typeof LintOptions.create>[0]>["enable"];
 };
 
 export function fixtures(url: string): {
@@ -88,17 +88,20 @@ export function fixtures(url: string): {
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
   const found = async (fixture: string, { skip = [], overlay, enable }: Options = {}) =>
-    await run(files(fixture), {
-      ...(overlay ? { overlay } : {}),
-      ...(enable ? { enable } : {}),
-      skip: new Set(skip.map(({ kind }) => kind)),
-    });
+    await run(
+      files(fixture),
+      LintOptions.create({
+        overlay: overlay ?? [],
+        skip: skip.map(({ kind }) => kind),
+        ...(enable ? { enable } : {}),
+      }),
+    );
 
   return {
     all: () => globSync(`${directory}**/*.ts`),
     files,
     lint: async (fixture, options) =>
-      (await found(fixture, options)).map(({ file, line, column, kind }) => ({
+      (await found(fixture, options)).map(({ file, at: { line, column }, kind }) => ({
         rule: reporting(kind),
         at: `${file.replace(directory, "")}:${line}:${column}`,
       })),
@@ -109,9 +112,9 @@ export function fixtures(url: string): {
 
 type Run = { status: number; stdout: string; stderr: string };
 
-function spawn(node: string[], args: string[], script = "src/lint/cli.ts"): Run {
+function spawn(node: string[], args: string[], script = `${root}src/lint/cli.ts`, cwd = root): Run {
   const result = spawnSync(process.execPath, [...node, script, ...args], {
-    cwd: root,
+    cwd,
     encoding: "utf8",
   });
   if (result.error) throw result.error;
@@ -122,6 +125,17 @@ function spawn(node: string[], args: string[], script = "src/lint/cli.ts"): Run 
 const typescript = ["--import", fileURLToPath(new URL("typescript-7.1.ts", import.meta.url))];
 
 export const cli = (...args: string[]): Run => spawn(typescript, args);
+
+/** The same, run from another directory. */
+export const cliIn = (cwd: string, ...args: string[]): Run =>
+  spawn(typescript, args, undefined, cwd);
+
+/** The same, with a parser that fails to load for another reason. */
+export const cliWithBrokenParser = (...args: string[]): Run =>
+  spawn(
+    [...typescript, "--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))],
+    args,
+  );
 
 /** The same, with the parser out of reach, as it is before anyone installs it. */
 export const cliWithoutParser = (...args: string[]): Run =>

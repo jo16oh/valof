@@ -9,6 +9,7 @@ import {
   type EnumBuilder,
   type EnumCompanion,
   type Final,
+  type Impl,
   type Members,
   type PrivateCreate,
   type PrivateSeal,
@@ -63,6 +64,15 @@ export const Shape = shapeBuilder.build();
 export const byTag = Shape[Tag];
 export const circle = Shape.Circle;
 
+// One variant is a member type, not a union, so the alias reaches the `.d.ts` only where the enum's
+// phantom sits outside the indexed access.
+export type Lonely = Enum<"Lonely", { Only: { n: number } }>;
+export const Lonely = Enum.companion<Lonely>()
+  .Only.impl(() => ({ double: (o) => o.n * 2 }))
+  .build();
+export const only = Lonely.Only.create({ n: 1 });
+export const unwrap = (lonely: Lonely) => Lonely.match(lonely, { Only: (o) => o });
+
 export type Money = Val<"Money", { cents: number }>;
 export const Money = Val.companion<Money>()
   .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
@@ -73,7 +83,7 @@ export const Sized = Enum.companion<Shape>()
   .implTrait(Greetable, () => ({ greet: (s) => s._tag }))
   .build();
 export const Greeting = Trait.companion<Greetable>()
-  .implAssoc(() => ({ names: (gs: readonly Greetable[]) => gs.map((g) => g.name) }))
+  .implAssoc(() => ({ names: (gs: readonly Impl<Greetable>[]) => gs.map((g) => g.name) }))
   .build();
 
 // Written by name, so each import above fails once the root stops exporting it.

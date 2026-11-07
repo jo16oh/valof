@@ -1,17 +1,17 @@
 import {
-  child,
-  children,
   keyName,
   rootPath,
+  typeParams,
   unparenthesized,
+  type Identifier,
   type Node,
-  type Where,
+  type Position,
 } from "../ast.ts";
 import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
 import type { AnyVal, CompanionBuilder } from "../../val.ts";
-import { Val } from "../../index.ts";
-import { original, symbolRef, type Bindings, type Root, type SymbolRef } from "./bindings.ts";
+import { Val, type VariantOf } from "../../index.ts";
+import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 
 /** `K`, which must be a key of every member of `T`. */
 type On<T, K extends keyof T> = K;
@@ -29,14 +29,15 @@ const ENTRY_POINTS: ReadonlySet<string> = new Set([
 /** A `Val` / `Trait` / `Enum` companion chain, whatever else it registered. */
 export type CompanionSite = Val<
   "CompanionSite",
-  Where & {
+  {
+    at: Position;
     file: string;
-    /** Which entry point the chain grew from. */
-    of: Root;
-    /** The name the chain was bound to, or `undefined` when it was not bound to a plain one. */
-    name?: string;
+    /** Which entry point the chain grew from: `Val`, `Trait` or `Enum`. */
+    of: string;
+    /** The name the chain was bound to, or `null` when it was not bound to a plain one. */
+    name: string | null;
     /** Where that name is written. The chain's own position stands in when there is no name. */
-    nameAt: Where;
+    nameAt: Position;
     /**
      * The type argument, resolved to an alias after the walk.
      *
@@ -47,31 +48,31 @@ export type CompanionSite = Val<
     typeRef: SymbolRef;
     typeOffset: number;
     /** Where the type argument is written. */
-    typeAt: Where;
+    typeAt: Position;
     /** The namespace it was reached through, for `Val.companion<ns.User>()`. */
-    qualifier?: string;
+    qualifier: string | null;
     /** Whether the chain registered a seal of its own, with `.implSeal`. */
     seals: boolean;
   }
 >;
 export const CompanionSite = Val.companion<CompanionSite>().build();
 
-type Called = { name: string | undefined; property: Node; receiver: Node };
+/** One step of a builder chain: the name it was called by, and what it was called on. */
+type Step = Val<"Step", { name: string | null; property: Node; receiver: Node }>;
+const Step = Val.companion<Step>().build();
 
 /** Reads `.implCreate.noseal(f)` as the `implCreate` step. */
-export function stepOf(callee: Node): Called | undefined {
-  const receiver = child(callee, "object");
-  const property = child(callee, "property");
-  if (!receiver || !property) return undefined;
-  const name = keyName(property, callee["computed"] === true);
+export function stepOf(callee: VariantOf<Node, "MemberExpression">): Step {
+  const { object: receiver, property } = callee;
+  const name = keyName(property, callee.computed) ?? null;
   if (
     name === ("noseal" satisfies keyof CompanionBuilder<AnyVal>["implCreate"]) &&
     receiver.type === "MemberExpression"
   ) {
     const outer = stepOf(receiver);
-    if (outer?.name === "implCreate") return outer;
+    if (outer.name === "implCreate") return outer;
   }
-  return { name, property, receiver };
+  return Step.seal({ name, property, receiver });
 }
 
 /**
@@ -80,23 +81,21 @@ export function stepOf(callee: Node): Called | undefined {
  */
 export function variantOf(receiver: Node): { variant: string; builder: Node } | undefined {
   if (receiver.type !== "MemberExpression") return undefined;
-  const builder = child(receiver, "object");
-  const property = child(receiver, "property");
-  if (!builder || !property) return undefined;
+  const builder = receiver.object;
   if (builder.type !== "CallExpression" && builder.type !== "Identifier") return undefined;
-  const variant = keyName(property, receiver["computed"] === true);
+  const variant = keyName(receiver.property, receiver.computed);
   return variant ? { variant, builder } : undefined;
 }
 
 /** Which entry point a chain grows from, however the name was bound. */
-export function fromRoot(node: Node, bound: Bindings): Root | undefined {
+export function fromRoot(node: Node, bound: Bindings): string | undefined {
   const path = rootPath(node);
   if (!path || path.length === 0) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  if (path.length === 1) return bound.builders.get(first);
+  if (path.length === 1) return Bindings.builder(bound, first);
   // `valof.Val.companion`: step past the namespace, which only says where the name came from.
-  const qualified = bound.namespaces.has(first);
-  const name = qualified ? second : original(bound, first);
+  const qualified = Bindings.isNamespace(bound, first);
+  const name = qualified ? second : Bindings.original(bound, first);
   const step = qualified ? third : second;
   if (step === undefined || !ENTRY_POINTS.has(step)) return undefined;
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
@@ -105,20 +104,21 @@ export function fromRoot(node: Node, bound: Bindings): Root | undefined {
 /**
  * A `Val.of(…)` call, which brands a payload with the default seal.
  *
- * `typeName` is absent where the call named no type and took one from its target. It sits at the
+ * `typeName` is `null` where the call named no type and took one from its target. It sits at the
  * type argument when there is one, and at `of` when there is not.
  */
 export type Lift = Val<
   "Lift",
-  Where & {
-    typeName?: string;
-    typeRef?: SymbolRef;
-    qualifier?: string;
+  {
+    at: Position;
+    typeName: string | null;
+    typeRef: SymbolRef | null;
+    qualifier: string | null;
     /**
      * The variant a `VariantOf<E, "N">` argument named, where the lift named one. `typeName` and
      * `typeRef` are then the enum's, which is what holds that variant's frame.
      */
-    variant?: string;
+    variant: string | null;
   }
 >;
 export const Lift = Val.companion<Lift>().build();
@@ -128,69 +128,75 @@ export function valOf(
   node: Node,
   file: string,
   bound: Bindings,
-  at: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): Lift | undefined {
-  const callee = child(node, "callee");
-  if (!callee || callee.type !== "MemberExpression") return undefined;
+  if (node.type !== "CallExpression") return undefined;
+  const { callee } = node;
+  if (callee.type !== "MemberExpression") return undefined;
   const path = rootPath(callee);
   if (!path || path.length < 2) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  const qualified = bound.namespaces.has(first);
-  const name = qualified ? second : original(bound, first);
+  const qualified = Bindings.isNamespace(bound, first);
+  const name = qualified ? second : Bindings.original(bound, first);
   const step = qualified ? third : second;
   if (name !== "Val" || step !== ("of" satisfies keyof typeof Val)) return undefined;
-  const args = child(node, "typeArguments");
-  const param = unparenthesized(args ? children(args, "params")[0] : undefined);
+  const param = unparenthesized(typeParams(node.typeArguments)[0]);
   if (!param) {
-    const property = child(callee, "property");
-    if (!property) return undefined;
-    return Lift.seal(at(property["start"] as number));
+    return Lift.seal({
+      at: position(callee.property.start),
+      typeName: null,
+      typeRef: null,
+      qualifier: null,
+      variant: null,
+    });
   }
   // A type argument that is not a plain reference, `Val.of<{ … }>`, names no Val to key it by.
   if (param.type !== "TSTypeReference") return undefined;
-  const written = child(param, "typeName");
-  const named = written && typeReference(written, bound.namespaces);
+  const named = typeReference(param.typeName, bound);
   if (!named) return undefined;
   const of = variantArgument(param, named, bound);
   const reached = of ?? named;
   return Lift.seal({
-    ...at(reached.node["start"] as number),
-    typeName: reached.node["name"] as string,
-    typeRef: symbolRef(file, bound, reached.node["name"] as string, reached.qualifier),
-    ...(reached.qualifier === undefined ? {} : { qualifier: reached.qualifier }),
-    ...(of === undefined ? {} : { variant: of.variant }),
+    at: position(reached.node.start),
+    typeName: reached.node.name,
+    typeRef: symbolRef(file, bound, reached.node.name, reached.qualifier),
+    qualifier: reached.qualifier ?? null,
+    variant: of?.variant ?? null,
   });
 }
 
 /** The enum and variant a `VariantOf<E, "N">` argument names, which stand in for the reference. */
 function variantArgument(
-  param: Node,
-  named: { node: Node; qualifier: string | undefined },
+  param: VariantOf<Node, "TSTypeReference">,
+  named: { node: Identifier; qualifier: string | undefined },
   bound: Bindings,
-): { node: Node; qualifier: string | undefined; variant: string } | undefined {
-  const written = named.node["name"] as string;
+): { node: Identifier; qualifier: string | undefined; variant: string } | undefined {
+  const written = named.node.name;
   // A name reached through a namespace is already the exporting module's own.
-  if ((named.qualifier === undefined ? original(bound, written) : written) !== "VariantOf")
+  if ((named.qualifier === undefined ? Bindings.original(bound, written) : written) !== "VariantOf")
     return undefined;
-  const args = child(param, "typeArguments");
-  const [enumType, variantType] = args ? children(args, "params").map(unparenthesized) : [];
-  if (enumType?.type !== "TSTypeReference" || !variantType) return undefined;
-  const literal = child(variantType, "literal");
-  const enumName = child(enumType, "typeName");
-  const held = enumName && typeReference(enumName, bound.namespaces);
-  if (!held || typeof literal?.["value"] !== "string") return undefined;
-  return { ...held, variant: literal["value"] };
+  const [enumType, variantType] = typeParams(param.typeArguments).map(unparenthesized);
+  if (enumType?.type !== "TSTypeReference" || variantType?.type !== "TSLiteralType")
+    return undefined;
+  const { literal } = variantType;
+  const held = typeReference(enumType.typeName, bound);
+  if (!held || literal.type !== "Literal" || literal.value === null) return undefined;
+  return { ...held, variant: literal.value };
 }
 
 /** What a chain called, and the type argument at its root. */
-type Chain = {
-  /** The steps called with an argument, by name. */
-  steps: Set<string>;
-  /** The root call's type arguments, or `undefined` when the chain has no root of ours. */
-  typeArguments: Node | undefined;
-  /** Which entry point the chain grew from, once it is known to have one. */
-  of: Root | undefined;
-};
+type Chain = Val<
+  "Chain",
+  {
+    /** The steps called with an argument, by name. */
+    steps: string[];
+    /** The root call's type arguments, or `null` when the chain has no root of ours. */
+    typeArguments: Node | null;
+    /** Which entry point the chain grew from, once it is known to have one. */
+    of: string | null;
+  }
+>;
+const Chain = Val.companion<Chain>().build();
 
 /**
  * Reads a builder chain from the outside in.
@@ -202,27 +208,24 @@ type Chain = {
  */
 function readChain(node: Node, bound: Bindings): Chain {
   const steps = new Set<string>();
-  let of: Root | undefined;
+  let of: string | undefined;
 
-  const walk = (current: Node): Node | undefined => {
-    if (current.type !== "CallExpression") return undefined;
-    const callee = child(current, "callee");
-    if (!callee || callee.type !== "MemberExpression") return undefined;
-    const step = stepOf(callee);
-    if (!step) return undefined;
-    const { name } = step;
-    const receiver = variantOf(step.receiver)?.builder ?? step.receiver;
+  const walk = (current: Node): Node | null => {
+    if (current.type !== "CallExpression") return null;
+    const { callee } = current;
+    if (callee.type !== "MemberExpression") return null;
+    const { name, receiver: stepReceiver } = stepOf(callee);
+    const receiver = variantOf(stepReceiver)?.builder ?? stepReceiver;
     if (receiver.type !== "CallExpression") {
       of = fromRoot(callee, bound);
-      return of ? child(current, "typeArguments") : undefined;
+      return of ? current.typeArguments : null;
     }
-    const [argument] = children(current, "arguments");
-    if (name && argument) steps.add(name);
+    if (name !== null && current.arguments.length > 0) steps.add(name);
     return walk(receiver);
   };
 
   const typeArguments = walk(node);
-  return { steps, typeArguments, of };
+  return Chain.seal({ steps: [...steps], typeArguments, of: of ?? null });
 }
 
 /**
@@ -233,48 +236,45 @@ function readChain(node: Node, bound: Bindings): Chain {
  */
 export function typeReference(
   written: Node,
-  namespaces: ReadonlyMap<string, string>,
-): { node: Node; qualifier: string | undefined } | undefined {
+  bound: Bindings,
+): { node: Identifier; qualifier: string | undefined } | undefined {
   if (written.type === "Identifier") return { node: written, qualifier: undefined };
   if (written.type !== "TSQualifiedName") return undefined;
-  const left = child(written, "left");
-  const right = child(written, "right");
-  if (!left || !right || left.type !== "Identifier" || right.type !== "Identifier")
-    return undefined;
-  const qualifier = left["name"] as string;
-  return namespaces.has(qualifier) ? { node: right, qualifier } : undefined;
+  const { left, right } = written;
+  if (left.type !== "Identifier" || right.type !== "Identifier") return undefined;
+  const qualifier = left.name;
+  return Bindings.isNamespace(bound, qualifier) ? { node: right, qualifier } : undefined;
 }
 
 /** The chain as a companion site, or `undefined` when it names no type to key it by. */
 export function companionSite(
   node: Node,
   file: string,
-  where: Where,
+  at: Position,
   bound: Bindings,
-  at: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): CompanionSite | undefined {
   const { steps, typeArguments, of } = readChain(node, bound);
-  const first = unparenthesized(typeArguments ? children(typeArguments, "params")[0] : undefined);
-  if (!first || first.type !== "TSTypeReference" || !of) return undefined;
+  const first = unparenthesized(typeParams(typeArguments)[0]);
+  if (first?.type !== "TSTypeReference" || of === null) return undefined;
   // A type argument taking type arguments of its own, `Val.companion<VariantOf<Shape, "Circle">>()`,
   // names no declaration this walk knows. The type rejects that one, and reporting `VariantOf` as
   // the type the companion is for would name something the user never declared.
-  if (child(first, "typeArguments")) return undefined;
-  const written = child(first, "typeName");
-  if (!written) return undefined;
-  const named = typeReference(written, bound.namespaces);
+  if (first.typeArguments) return undefined;
+  const named = typeReference(first.typeName, bound);
   if (!named) return undefined;
   return CompanionSite.seal({
-    ...where,
+    at,
     file,
     of,
-    nameAt: where,
-    typeName: named.node["name"] as string,
-    typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
-    typeOffset: named.node["start"] as number,
-    typeAt: at(named.node["start"] as number),
-    ...(named.qualifier === undefined ? {} : { qualifier: named.qualifier }),
-    seals: steps.has("implSeal"),
+    nameAt: at,
+    typeName: named.node.name,
+    typeRef: symbolRef(file, bound, named.node.name, named.qualifier),
+    typeOffset: named.node.start,
+    typeAt: position(named.node.start),
+    name: null,
+    qualifier: named.qualifier ?? null,
+    seals: steps.includes("implSeal"),
   });
 }
 
@@ -282,17 +282,18 @@ export function companionSite(
  * The entry point of the chain a step is called on, through variants and a builder held in a
  * variable: `Val.companion<X>().implSeal(f).impl` and `built.Circle.impl` alike.
  */
-export function chainRoot(callee: Node, bound: Bindings): Root | undefined {
-  let receiver = stepOf(callee)?.receiver;
-  while (receiver) {
+export function chainRoot(
+  callee: VariantOf<Node, "MemberExpression">,
+  bound: Bindings,
+): string | undefined {
+  let { receiver } = stepOf(callee);
+  for (;;) {
     const inner = variantOf(receiver)?.builder ?? receiver;
-    if (inner.type === "Identifier") return bound.builders.get(inner["name"] as string);
-    if (inner.type !== "CallExpression") return undefined;
-    const called = child(inner, "callee");
-    if (called?.type !== "MemberExpression") return undefined;
-    const root = fromRoot(called, bound);
+    if (inner.type === "Identifier") return Bindings.builder(bound, inner.name);
+    if (inner.type !== "CallExpression" || inner.callee.type !== "MemberExpression")
+      return undefined;
+    const root = fromRoot(inner.callee, bound);
     if (root) return root;
-    receiver = stepOf(called)?.receiver;
+    receiver = stepOf(inner.callee).receiver;
   }
-  return undefined;
 }

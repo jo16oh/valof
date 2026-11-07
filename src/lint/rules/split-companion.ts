@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import type { Scan } from "../scan/index.ts";
+import { ImportMap, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /** A companion written in one file for a type declared in another. */
@@ -10,7 +10,7 @@ export const SplitCompanion = Val.companion<SplitCompanion>()
     description: "a companion for a type that another file declares",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /**
@@ -30,14 +30,14 @@ export const SplitCompanion = Val.companion<SplitCompanion>()
  */
 function findings({ kind }: SplitCompanion, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
-  for (const { file, sites, bound } of scans) {
+  for (const { file, sites, imported } of scans) {
     for (const { typeName, typeAt, qualifier } of sites) {
-      if (qualifier === undefined && !bound.imported.has(typeName)) continue;
+      if (qualifier === null && !ImportMap.has(imported, typeName)) continue;
       found.push(
         Finding.seal({
           kind,
           file,
-          ...typeAt,
+          at: typeAt,
           message: `${typeName} is declared in another file, where its companion belongs`,
         }),
       );

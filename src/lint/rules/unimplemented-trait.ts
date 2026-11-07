@@ -9,7 +9,7 @@ export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
     description: "a Trait declared by a Val or an Enum that its companion does not implement",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 /**
  * Reports a declared trait that no `implTrait` answers for.
@@ -31,12 +31,12 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
       ...scan.aliases.map(({ alias, ref, traits }) => ({
         alias,
         ref,
-        variant: undefined,
+        variant: null,
         traits,
         onlyDeclared: false,
       })),
       ...scan.enumAliases.flatMap(({ alias, ref, traits, variantTraits }) => [
-        { alias, ref, variant: undefined, traits, onlyDeclared: true },
+        { alias, ref, variant: null, traits, onlyDeclared: true },
         // A variant's payload intersects its fields with its traits, so, as for an enum, only a
         // reference to a declared Trait counts.
         ...variantTraits.map(({ variant, traits: own }) => ({
@@ -61,8 +61,7 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
             Finding.seal({
               kind,
               file: scan.file,
-              line: trait.line,
-              column: trait.column,
+              at: trait.at,
               message: `${alias} declares ${trait.name}, but its companion does not implement it`,
             }),
           );

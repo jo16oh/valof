@@ -1,5 +1,6 @@
 import { Val } from "../../index.ts";
-import type { ModelSettings } from "../index.ts";
+import type { Position } from "../ast.ts";
+import type { ModelSettings } from "../options.ts";
 import type { Scan, Shape } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
@@ -22,7 +23,7 @@ export type ModelOnlyInValof = Val<
   Rule
 >;
 export const ModelOnlyInValof = Val.companion<ModelOnlyInValof>()
-  .implCreate(({ classes = false, constraints = false, extraction = false }: ModelSettings) => ({
+  .implCreate(({ classes, constraints, extraction }: ModelSettings) => ({
     kind: "model-only-in-valof",
     description: "a data type declared outside Valof, off by default",
     warns: false,
@@ -76,11 +77,8 @@ function findings(rule: ModelOnlyInValof, scans: readonly Scan[]): Finding[] {
     ),
   );
   const payloads = new Set(scans.flatMap(({ models }) => models.payloadAliases));
-  const at = (
-    file: string,
-    { line, column }: { line: number; column: number },
-    message: string,
-  ): Finding => Finding.seal({ kind, file, line, column, message });
+  const at = (file: string, { at }: { at: Position }, message: string): Finding =>
+    Finding.seal({ kind, file, at, message });
   return scans.flatMap(({ file, models }) => [
     ...models.models
       .filter(({ shape }) => {

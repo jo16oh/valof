@@ -14,13 +14,13 @@ import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Dyn } from "../../index.ts";
-import type { Options } from "../index.ts";
 import { Rule } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
 import { UnnamedOf } from "./unnamed-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
 import { UnimplementedTrait } from "./unimplemented-trait.ts";
+import { ModelSettings, type Options } from "../options.ts";
 
 /**
  * Every rule, in the order they run and `--help` lists them.
@@ -39,7 +39,7 @@ export const RULES = [
   Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
   Rule.dyn(UnnamedOf, UnnamedOf.create()),
   Rule.dyn(BlockStep, BlockStep.create()),
-  Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create({})),
+  Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create(ModelSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
   Rule.dyn(PayloadOfProperty, PayloadOfProperty.create()),
   Rule.dyn(UnreturnedSeal, UnreturnedSeal.create()),
@@ -84,7 +84,7 @@ export const kinds: readonly string[] = RULES.map(({ kind }) => kind);
 
 export const isKind = (name: string): boolean => kinds.includes(name);
 
-export { Finding, Rule, type Context } from "./rule.ts";
+export { Context, Finding, KindSet, Rule } from "./rule.ts";
 
 /**
  * The rules a run uses: every rule on by default, and each opt-in rule `enable` names, with its

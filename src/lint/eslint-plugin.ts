@@ -10,40 +10,49 @@ import {
 
 import { Result as R } from "@praha/byethrow";
 
+import { Enum, Val } from "../index.ts";
 import { expand } from "./files.ts";
-import { RULES, type Finding, type ModelSettings } from "./index.ts";
+import { RULES, type Finding } from "./index.ts";
+import { ModelSettings, Options } from "./options.ts";
 import { run } from "./run.ts";
 
 /**
  * The slice of the rule API this uses. Written out rather than imported: neither ESLint nor
- * oxlint is a dependency of valof, and both call a rule with the same shape.
+ * oxlint is a dependency of valof, both call a rule with the same shape, and an import would land
+ * in the published declarations, where a project without that host cannot resolve it.
  */
 type Context = {
   filename: string;
   settings?: {
-    valof?: { project?: string | readonly string[]; "model-only-in-valof"?: ModelSettings };
+    valof?: {
+      project?: string | readonly string[];
+      "model-only-in-valof"?: { classes?: boolean; constraints?: boolean; extraction?: boolean };
+    };
   };
   sourceCode: { text: string };
-  report: (report: { loc: { start: Where; end: Where }; message: string }) => void;
+  report: (report: { loc: Loc; message: string }) => void;
 };
 
-type Ask = {
-  /** The files the run reads, absolute. The one being linted is among them. */
-  files: readonly string[];
-  /** The project files scanned together. */
-  project: readonly string[];
-  file: string;
-  text: string;
-  /**
-   * The settings of `model-only-in-valof`. It always runs here, because the host reports it only
-   * where the project turned it on.
-   */
-  model: ModelSettings;
-};
+type Ask = Val<
+  "Ask",
+  {
+    /** The project files scanned together, absolute. The file being linted joins them, as `text`. */
+    project: readonly string[];
+    file: string;
+    text: string;
+    /**
+     * The settings of `model-only-in-valof`. It always runs here, because the host reports it only
+     * where the project turned it on.
+     */
+    model: ModelSettings;
+  }
+>;
+const Ask = Val.companion<Ask>().build();
 
-type Reply = { findings: Finding[] } | { failed: string };
+type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
+const Reply = Enum.companion<Reply>().build();
 
-type Message = Ask & { port: MessagePort; signal: Int32Array };
+type Message = { ask: Ask; port: MessagePort; signal: Int32Array };
 
 /** Long enough that no run reaches it, short enough that a wedged worker still says so. */
 const PATIENCE = 60_000;
@@ -94,14 +103,15 @@ const WORD = /^[\p{L}\p{N}_$]+/u;
  *
  * Columns count from 1 in a finding, as an editor shows them, and from 0 in a report.
  */
-function over(text: string, { line, column }: Finding): { start: Where; end: Where } {
+function over(text: string, { at: { line, column } }: Finding): Loc {
   const rest = (text.split("\n")[line - 1] ?? "").slice(column - 1);
   const width = WORD.exec(rest)?.[0].length ?? rest.trimEnd().length;
   const start = { line, column: column - 1 };
   return { start, end: { line, column: start.column + Math.max(width, 1) } };
 }
 
-type Where = { line: number; column: number };
+/** A span as ESLint and oxlint take it, with columns from 0. */
+type Loc = Record<"start" | "end", { line: number; column: number }>;
 
 const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)]));
 
@@ -119,17 +129,18 @@ const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)]));
 let last: { key: string; findings: readonly Finding[] } | undefined;
 function found(file: string, text: string, settings: Context["settings"]): readonly Finding[] {
   const project = read(settings?.valof?.project ?? "src/**/*.ts");
-  const model = settings?.valof?.["model-only-in-valof"] ?? {};
+  const model = ModelSettings.create(settings?.valof?.["model-only-in-valof"]);
   const key = `${file}\n${text}\n${project.join("\n")}\n${JSON.stringify(model)}`;
   if (last?.key === key) return last.findings;
 
-  const findings = ask({
-    files: project.includes(file) ? project : [...project, file],
-    project,
-    file,
-    text,
-    model,
-  });
+  const findings = ask(
+    Ask.seal({
+      project,
+      file,
+      text,
+      model,
+    }),
+  );
   last = { key, findings };
   queueMicrotask(() => (last = undefined));
   return findings;
@@ -202,38 +213,47 @@ function ask(what: Ask): readonly Finding[] {
 
   const { port1, port2 } = new MessageChannel();
   const signal = new Int32Array(new SharedArrayBuffer(4));
-  worker.postMessage({ ...what, port: port2, signal } satisfies Message, [port2]);
+  worker.postMessage({ ask: what, port: port2, signal } satisfies Message, [port2]);
   if (Atomics.wait(signal, 0, 0, PATIENCE) === "timed-out")
     throw new Error(`valof-lint: no answer in ${PATIENCE / 1000}s`);
 
   const reply = receiveMessageOnPort(port1)?.message as Reply | undefined;
   if (!reply) throw new Error("valof-lint: the worker answered nothing");
-  if ("failed" in reply) throw new Error(reply.failed);
-  return reply.findings;
+  return Reply.match(reply, {
+    Found: ({ findings }) => findings,
+    Failed: ({ message }) => {
+      throw new Error(message);
+    },
+  });
 }
 
 // The worker is this file again, so no path has to be guessed for it: the source tree runs as
 // `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
 if (!isMainThread && parentPort) {
-  parentPort.on("message", ({ port, signal, files, file, text, model }: Message) => {
+  parentPort.on("message", ({ ask: { project, file, text, model }, port, signal }: Message) => {
     void (async () => {
       let reply: Reply;
       try {
-        const found = await run(files, {
-          report: new Set([file]),
-          overlay: new Map([[file, text]]),
-          enable: { "model-only-in-valof": model },
-        });
+        const found = await run(
+          project,
+          Options.create({
+            report: [file],
+            overlay: [[file, text]],
+            enable: { "model-only-in-valof": model },
+          }),
+        );
         // The message the command prints, so a user of the plugin gets the same instruction.
-        reply = R.isSuccess(found) ? { findings: found.value } : { failed: found.error.message };
+        reply = R.isSuccess(found)
+          ? Reply.Found.create({ findings: found.value })
+          : Reply.Failed.create({ message: found.error.message });
       } catch (error) {
-        reply = { failed: `valof-lint: ${String(error)}` };
+        reply = Reply.Failed.create({ message: `valof-lint: ${String(error)}` });
       }
       // Whatever happened, the thread waiting on this has to receive it.
       try {
         port.postMessage(reply);
       } catch (error) {
-        port.postMessage({ failed: `valof-lint: ${String(error)}` } satisfies Reply);
+        port.postMessage(Reply.Failed.create({ message: `valof-lint: ${String(error)}` }));
       }
       Atomics.store(signal, 0, 1);
       Atomics.notify(signal, 0);

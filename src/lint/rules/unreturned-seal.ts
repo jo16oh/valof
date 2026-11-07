@@ -28,12 +28,11 @@ function findings({ kind }: UnreturnedSeal, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, heldSeals }) =>
     heldSeals
       .filter(({ noseal }) => noseal)
-      .map(({ companion, line, column }) =>
+      .map(({ companion, at }) =>
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: `${companion}'s seal keeps the default seal's result outside its return, so a value it rejects can still be created; return seal(…) itself`,
         }),
       ),

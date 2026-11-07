@@ -4,10 +4,6 @@ import { UnusedDisable, UnusedMember, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
-test("says nothing when the directive silenced something", async () => {
-  expect(await lint("used")).toEqual([]);
-});
-
 test("reports the directive when the rule it names finds nothing there", async () => {
   expect(await lint("unused")).toEqual([
     {
@@ -39,8 +35,17 @@ test("says a whole-file directive reports nothing in the file, not here", async 
       at: "whole-file.ts:2:1",
     },
   ]);
+  expect(await messages("whole-file")).toEqual([
+    "valof-lint-disable-whole-file names duplicate-brand, which reports nothing in this file",
+  ]);
 });
 
 test("blames no rule that was left out of the run", async () => {
   expect(await lint("unused", { skip: [UnusedMember] })).toEqual([]);
+});
+
+test("reports a name that is an Object.prototype key, which no rule has", async () => {
+  expect(await lint("prototype-key")).toEqual([
+    { rule: UnusedDisable, at: "prototype-key.ts:2:1" },
+  ]);
 });

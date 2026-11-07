@@ -2,10 +2,24 @@ import { dirname, extname, normalize, resolve } from "node:path";
 
 import { Val } from "../../index.ts";
 
-export type ImportBinding = { name: string; module: string };
+/** What an import binds a local name to: the exporting module and the name it exports. */
+export type ImportBinding = Val<"ImportBinding", { name: string; module: string }>;
+export const ImportBinding = Val.companion<ImportBinding>().build();
 
-/** The entry point a builder chain grows from. */
-export type Root = "Val" | "Trait" | "Enum";
+/**
+ * What a file imported: local name -> {@link ImportBinding}.
+ *
+ * Looked up by own key, since a local name can be `constructor` or `toString`.
+ */
+export type ImportMap = Val<"ImportMap", Record<string, ImportBinding>>;
+export const ImportMap = Val.companion<ImportMap>()
+  .impl(() => ({
+    has: (imports, local: string) => Object.hasOwn(imports, local),
+    get: (imports, local: string) => own(imports, local),
+    /** The name the exporting module uses, or the local one when the file did not import it. */
+    nameOf: (imports, local: string) => own(imports, local)?.name ?? local,
+  }))
+  .build();
 
 /** A Val or Trait name together with its comparison identity. */
 export type SymbolRef = Val<
@@ -25,27 +39,30 @@ export const SymbolRef = Val.companion<SymbolRef>().build();
  * File-local, all of them: a name imported here says nothing about the same name elsewhere. The
  * walk fills these in as it goes, so anything reading them must run inside or after it.
  */
-export type Bindings = {
-  /** local name -> the exporting module and the name it exports. */
-  imported: Map<string, ImportBinding>;
-  /** `import * as ns`: local namespace name -> exporting module. */
-  namespaces: Map<string, string>;
-  /**
-   * Locals holding a builder, under the root it grew from, so `const built =
-   * Val.companion<X>(); built.impl(() => ({…}))` is seen.
-   */
-  builders: Map<string, Root>;
-};
-
-export const bindings = (): Bindings => ({
-  imported: new Map(),
-  namespaces: new Map(),
-  builders: new Map(),
-});
-
-/** The name the exporting module uses, or the local one when it was not imported. */
-export const original = ({ imported }: Bindings, local: string): string =>
-  imported.get(local)?.name ?? local;
+export type Bindings = Val<
+  "Bindings",
+  {
+    imported: ImportMap;
+    /** `import * as ns`: local namespace name -> exporting module. */
+    namespaces: Record<string, string>;
+    /**
+     * Locals holding a builder, under the root it grew from, so `const built =
+     * Val.companion<X>(); built.impl(() => ({…}))` is seen.
+     */
+    builders: Record<string, string>;
+  }
+>;
+export const Bindings = Val.companion<Bindings>()
+  .implCreate(() => ({ imported: ImportMap.seal({}), namespaces: {}, builders: {} }))
+  .impl(() => ({
+    /** The module `import * as ns` bound `ns` to, or `undefined` when `ns` is not a namespace. */
+    namespace: (bound, local: string) => own(bound.namespaces, local),
+    isNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
+    builder: (bound, local: string) => own(bound.builders, local),
+    /** The name the exporting module uses, or the local one when it was not imported. */
+    original: (bound, local: string) => ImportMap.nameOf(bound.imported, local),
+  }))
+  .build();
 
 const key = (module: string, name: string): string => `${module}\0${name}`;
 
@@ -62,10 +79,10 @@ export function symbolRef(
 ): SymbolRef {
   const module = normalize(resolve(file));
   if (qualifier !== undefined) {
-    const importedModule = bound.namespaces.get(qualifier);
+    const importedModule = Bindings.namespace(bound, qualifier);
     return moduleRef(importedModule ?? `${module}\0namespace:${qualifier}`, local);
   }
-  const imported = bound.imported.get(local);
+  const imported = ImportMap.get(bound.imported, local);
   return imported ? moduleRef(imported.module, imported.name) : moduleRef(module, local);
 }
 
@@ -92,4 +109,9 @@ export function moduleResolver(files: readonly string[]): (file: string, source:
         ];
     return candidates.find((candidate) => known.has(candidate)) ?? base;
   };
+}
+
+/** An own entry of a record, never one inherited from `Object.prototype`. */
+function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
+  return Object.hasOwn(record, key) ? record[key] : undefined;
 }

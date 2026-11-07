@@ -1,4 +1,5 @@
 import { Trait, Val, type Self } from "../../index.ts";
+import type { Position } from "../ast.ts";
 import type { Scan } from "../scan/index.ts";
 import type { Arity } from "../types.ts";
 
@@ -14,36 +15,36 @@ export type Finding = Val<
     /** The `kind` of the rule that reported it. */
     kind: string;
     file: string;
-    /** 1-based, as an editor counts. */
-    line: number;
-    /** 1-based, as an editor counts. */
-    column: number;
+    at: Position;
     message: string;
   }
 >;
 export const Finding = Val.companion<Finding>().build();
 
+/** Rule kinds, as a set. */
+export type KindSet = Val<"KindSet", Record<string, true>>;
+export const KindSet = Val.companion<KindSet>()
+  .impl(() => ({ has: (kinds, kind: string) => Object.hasOwn(kinds, kind) }))
+  .build();
+
 /** What a rule gets beyond the scans. */
-export type Context = {
-  /**
-   * What the rules before this one reported, silenced or not.
-   *
-   * Rules run in the order `RULES` lists them, so a rule reading this must sit last. Only
-   * a rule about the run itself needs it; a rule about the code reads the scans.
-   */
-  reported: readonly Finding[];
-  /**
-   * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
-   */
-  notRun: ReadonlySet<string>;
-  /**
-   * The declared parameter count of an annotated const, from TypeScript. The program starts on the
-   * first call, so a rule calls it only once it has something to ask.
-   *
-   * @throws {MissingTypeScriptError} when TypeScript 7.1 or later is not installed
-   */
-  types: () => Arity;
-};
+export type Context = Val<
+  "Context",
+  {
+    /**
+     * What the rules before this one reported, silenced or not.
+     *
+     * Rules run in the order `RULES` lists them, so a rule reading this must sit last. Only
+     * a rule about the run itself needs it; a rule about the code reads the scans.
+     */
+    reported: readonly Finding[];
+    /**
+     * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
+     */
+    notRun: KindSet;
+  }
+>;
+export const Context = Val.companion<Context>().build();
 
 /**
  * One rule, whole: what it reports, how it reads in `--help`, and how it runs.
@@ -73,8 +74,12 @@ export type Rule = Trait<
     /**
      * Every finding, over every scanned file. Rules see all of them rather than one, which is what
      * lets a read in one module answer for a declaration in another.
+     *
+     * `types` gives the declared parameter count of an annotated const, from TypeScript. The
+     * program starts on the first call, so a rule calls it only once it has something to ask. It
+     * throws {@link MissingTypeScriptError} when TypeScript 7.1 or later is not installed.
      */
-    run: (rule: Self, scans: readonly Scan[], context: Context) => Finding[];
+    run: (rule: Self, scans: readonly Scan[], context: Context, types: () => Arity) => Finding[];
   }
 >;
 export const Rule = Trait.companion<Rule>().build();

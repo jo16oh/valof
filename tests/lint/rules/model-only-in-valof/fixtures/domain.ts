@@ -18,6 +18,7 @@ export type OnRow = (row: { id: string }) => void;
 
 export type Fields = Payload<Omit<PayloadOf<User>, "id">>;
 export type Name = Payload<string>;
+// @ts-expect-error -- the type rejects a Val in Payload, and the rule names the fix
 export type Wrong = Payload<User>;
 export type Order = Val<"Order", { total: { amount: number }; name: Name }>;
 

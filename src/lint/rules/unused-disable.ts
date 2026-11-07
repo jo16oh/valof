@@ -1,6 +1,6 @@
 import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import { Finding, Rule, type Context } from "./rule.ts";
+import { Finding, KindSet, Rule, type Context } from "./rule.ts";
 
 /**
  * A `valof-lint-disable-next-line` naming a rule that reports nothing on the line below. The
@@ -15,11 +15,11 @@ export const UnusedDisable = Val.companion<UnusedDisable>()
     // A directive that silences nothing changes nothing about the code.
     warns: true,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans, context) => findings(rule, scans, context) }))
+  .implTrait(Rule, () => ({ run: findings }))
   .build();
 
 /** What a finding answers for: its own line, and its file as a whole. */
-const answers = ({ file, line, kind }: { file: string; line: number; kind: string }): string[] => [
+const answers = ({ file, at: { line }, kind }: Finding): string[] => [
   `${file}\0${line}\0${kind}`,
   `${file}\0file\0${kind}`,
 ];
@@ -43,18 +43,19 @@ function findings(
 ): Finding[] {
   const used = new Set(reported.flatMap(answers));
   return scans.flatMap(({ file, directives }) =>
-    directives.flatMap(({ line, column, covers, kinds, spelling }) =>
+    directives.flatMap(({ at, covers, kinds, spelling }) =>
       // One naming no scope silences nothing whatever it lists, which is incomplete-disable's to say.
       spelling === "valof-lint-disable"
         ? []
         : [...kinds]
-            .filter((named) => !notRun.has(named) && !used.has(`${file}\0${covers}\0${named}`))
+            .filter(
+              (named) => !KindSet.has(notRun, named) && !used.has(`${file}\0${covers}\0${named}`),
+            )
             .map((named) =>
               Finding.seal({
                 kind,
                 file,
-                line,
-                column,
+                at,
                 message: `${spelling} names ${named}, which reports nothing ${
                   covers === "file" ? "in this file" : "here"
                 }`,

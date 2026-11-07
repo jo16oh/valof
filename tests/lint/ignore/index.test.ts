@@ -9,7 +9,7 @@ import {
   fixtures,
 } from "../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 test("silences every kind when the directive lists none", async () => {
   expect(await lint("whole-line")).toEqual([
@@ -89,6 +89,10 @@ test("silences nothing when the directive names no scope, and says which to writ
     },
     { rule: UnusedMember, at: "no-scope.ts:5:3" },
   ]);
+  expect((await messages("no-scope"))[0]).toBe(
+    "valof-lint-disable names no scope; write valof-lint-disable-next-line or " +
+      "valof-lint-disable-whole-file",
+  );
 });
 
 test("silences the whole file for the kind it names, and leaves the others reporting", async () => {
@@ -100,8 +104,15 @@ test("silences the whole file for the kind it names, and leaves the others repor
   ]);
 });
 
-test("takes neither spelling when something follows it, which is a typo and not a directive", async () => {
-  expect(await lint("misspelled")).toEqual([{ rule: UnusedMember, at: "misspelled.ts:4:3" }]);
+test("silences every kind that two whole-file directives name", async () => {
+  expect(await lint("two-whole-file")).toEqual([]);
+});
+
+test("takes no spelling that something touches, which is a typo and not a directive", async () => {
+  expect(await lint("misspelled")).toEqual([
+    { rule: UnusedMember, at: "misspelled.ts:4:3" },
+    { rule: UnusedMember, at: "misspelled.ts:6:3" },
+  ]);
 });
 
 test("stops at a blank line, which starts a block of its own", async () => {

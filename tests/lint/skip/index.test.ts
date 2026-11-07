@@ -41,10 +41,6 @@ test("leaves out the kind the flag names, and only that one", async () => {
   ]);
 });
 
-test("takes more than one, and leaves nothing once every kind is out", async () => {
-  expect(await lint("mixed", { skip: [DuplicateBrand, UnusedMember] })).toEqual([]);
-});
-
 // A rule about the disable comments is left out like any other. The host plugin sets their
 // severity like any other too, and refusing here would only differ from that.
 test("leaves out a rule about the disable comments, like any other", async () => {

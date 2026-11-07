@@ -19,12 +19,11 @@ export const SplitVariantSteps = Val.companion<SplitVariantSteps>()
 
 function findings({ kind }: SplitVariantSteps, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, splitVariants }) =>
-    splitVariants.map(({ companion, variant, line, column }) =>
+    splitVariants.map(({ companion, variant, at }) =>
       Finding.seal({
         kind,
         file,
-        line,
-        column,
+        at,
         message: `${companion}.${variant}'s steps are split by another variant's; write this one beside them`,
       }),
     ),
