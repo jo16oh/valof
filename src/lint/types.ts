@@ -8,29 +8,8 @@ import { MissingTypeScriptError } from "./errors.ts";
  */
 export type Arity = (file: string, offset: number, property?: string) => number | undefined;
 
-/** The part of `typescript/sync` read here. */
-type Sync = {
-  API: new (options: { cwd: string }) => {
-    createProgram: (
-      files: readonly string[],
-      options: Record<string, unknown>,
-    ) => {
-      getProject: () => { checker: Checker };
-    };
-    close: () => void;
-  };
-  SignatureKind: { Call: number };
-  ModuleKind: { NodeNext: number };
-  ModuleResolutionKind: { NodeNext: number };
-};
-
-type Type = object;
-type Checker = {
-  getTypeAtPosition: (file: string, offset: number) => Type | undefined;
-  getPropertyOfType: (type: Type, name: string) => object | undefined;
-  getTypeOfSymbol: (symbol: object) => Type;
-  getSignaturesOfType: (type: Type, kind: number) => readonly { parameters: readonly unknown[] }[];
-};
+// Typed from 7.1, installed under another name until it is what `typescript` resolves to.
+type Sync = typeof import("typescript-7.1/sync");
 
 /**
  * Starts a TypeScript program over the files, and answers {@link Arity} from it.
