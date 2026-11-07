@@ -73,7 +73,7 @@ export const Options = Val.companion<Options>()
       enable: enable["model-only-in-valof"]
         ? { "model-only-in-valof": ModelSettings.create(enable["model-only-in-valof"]) }
         : {},
-      skip: KindSet.seal(Object.fromEntries([...skip].map((kind) => [kind, true as const]))),
+      skip: KindSet.create(skip),
       report: report
         ? Object.fromEntries([...report].map((file) => [resolve(file), true as const]))
         : null,

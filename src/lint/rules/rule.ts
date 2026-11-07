@@ -24,6 +24,9 @@ export const Finding = Val.companion<Finding>().build();
 /** Rule kinds, as a set. */
 export type KindSet = Val<"KindSet", Record<string, true>>;
 export const KindSet = Val.companion<KindSet>()
+  .implCreate((kinds: Iterable<string>) =>
+    Object.fromEntries([...kinds].map((kind) => [kind, true as const])),
+  )
   .impl(() => ({ has: (kinds, kind: string) => Object.hasOwn(kinds, kind) }))
   .build();
 
