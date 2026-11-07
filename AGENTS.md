@@ -8,20 +8,25 @@ wrapper types, the linter, or new API. §9 lists the open questions. New deliber
 
 ## Bundle Size and Type Cost
 
-Run `vp run bundle-size` after changing runtime code. It measures what a user ships. It also checks
-the production bundle against its budgets. It does not update release documentation.
+Run `vp run check-dist` after changing runtime code or a type. It builds `dist` once and checks it
+as a user receives it. `--size`, `--types` and `--compat` select the checks to run. With none, all
+three run.
+
+- `--size` measures what a user ships against its budgets, and checks the bundle-size claims.
+- `--types` compiles the fixtures in `scripts/check-dist/types/` against the published declarations,
+  and budgets the instantiation count and the size of the declarations that `import "valof"` loads.
+- `--compat` typechecks the book's blocks, the fixtures in `scripts/check-dist/compat/fixtures/` and
+  the scripts against `dist` on every TypeScript line. It also fails where a declaration changes the
+  type of an export in the blocks or the fixtures.
 
 The bundle-size claim in `docs/src/introduction.md` follows the current branch. Update it with
-`vp run replace-bundle-size-claims --write docs/src/introduction.md`; regular CI checks it. The
-claims in `README.md` and the `package.json` description describe the latest release instead.
+`vp run check-dist --size --write`; regular CI checks it. The claims in `README.md` and the
+`package.json` description describe the latest release instead. `--release` checks them too, and
+fails unless the commit the scripts' `#valof` points at builds the same `dist` as the branch.
 `vp run bump-version` updates them in the release commit, and CI checks them on the release PR.
-After the merge, the release workflow checks all three again before it creates the tag.
+After the merge, the release workflow checks all three claims again before it creates the tag.
 
-Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
-against the published declarations, and budgets the instantiation count and the size of the
-declarations that `import "valof"` loads. Both are type costs, so both live here.
-
-Neither `vp check` nor `vp test` covers either one.
+Neither `vp check` nor `vp test` runs `check-dist`.
 
 ## Testing
 
@@ -49,7 +54,7 @@ title and body as a draft and stop there.
    they need a note or emphasis, write it for users in a file outside the repo. Step 3 makes it the
    PR body.
 2. In a PR of its own, run `vp run pin-valof origin/main`, which points the scripts' `#valof` at
-   that commit, and fix the scripts where `vp check` or `vp run bundle-size` fails. Report what
+   that commit, and fix the scripts where `vp check` or `vp run check-dist` fails. Report what
    breaks, and where the new API is awkward to use in the scripts. A user encounters both when
    upgrading. If a problem is serious, stop the release and rework the design. CI fails the release
    PR while the pinned commit builds a different `dist` from the release.

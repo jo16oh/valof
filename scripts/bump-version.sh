@@ -32,7 +32,7 @@ git pull --ff-only
 # bumpp only picks the version; the branch is named after it, so it is cut afterwards.
 bumpp --no-commit --no-tag --no-push "$@"
 version="$(node -p "require('./package.json').version")"
-vp run replace-bundle-size-claims --write README.md package.json
+vp run check-dist --size --release --write
 
 git switch -c "chore/release-$version"
 title="chore: release v$version"

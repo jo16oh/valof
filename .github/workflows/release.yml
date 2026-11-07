@@ -144,11 +144,7 @@ jobs:
 
       - run: vp test
 
-      - run: vp run replace-bundle-size-claims README.md docs/src/introduction.md package.json
-
-      - run: vp run type-perf
-
-      - run: vp run ts-compatibility
+      - run: vp run check-dist --release
 
       # Tags are immutable, so tagging only after the checks pass keeps a broken commit from burning
       # its version. Only deploy keys may create tags (the `tags` ruleset), so the push goes over SSH

@@ -2,7 +2,7 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "./bundle.ts";
-import { flow } from "../shared/pipe/index.ts";
+import { flow } from "../../shared/pipe/index.ts";
 import {
   BuildResult,
   BundleSize,
@@ -11,11 +11,9 @@ import {
 } from "./measure/index.ts";
 import {
   measure,
-  pack,
   type CompileError,
   type MinifyError,
   type NoChunkError,
-  type PackError,
 } from "./measure/toolchain.ts";
 
 export class NoBaseError extends ErrorFactory({ message: "no bundle sets base" }) {}
@@ -45,17 +43,8 @@ export const Suite = Val.companion<Suite>()
       suite: Suite,
     ): R.ResultAsync<
       Report,
-      | PackError
-      | NoBaseError
-      | NoChunkError
-      | CompileError
-      | MinifyError
-      | DevCodeKeptError
-      | AddsNothingError
+      NoBaseError | NoChunkError | CompileError | MinifyError | DevCodeKeptError | AddsNothingError
     > => {
-      const packed = await pack();
-      if (R.isFailure(packed)) return packed;
-
       const baseImports = Suite.base(suite);
       if (R.isFailure(baseImports)) return baseImports;
 

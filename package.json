@@ -50,10 +50,7 @@
     "docs:serve": "mdbook serve docs",
     "test": "vp test",
     "check": "vp check",
-    "bundle-size": "node scripts/bundle-size/index.ts",
-    "replace-bundle-size-claims": "node scripts/replace-bundle-size-claims.ts",
-    "ts-compatibility": "node scripts/ts-compatibility/index.ts",
-    "type-perf": "node scripts/type-perf/index.ts",
+    "check-dist": "node scripts/check-dist/index.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config && vp fmt AGENTS.md && node scripts/pin-valof/index.ts",
     "pin-valof": "node scripts/pin-valof/index.ts",
@@ -93,5 +90,5 @@
       "onFail": "download"
     }
   },
-  "valof-pinned-for-scripts-commit": "8d32b2ae3ab76618b3c577cc19b25da177c4242f"
+  "valof-pinned-for-scripts-commit": "8560432d25e3cd72e436b4dfcbfc0a06aa8694ba"
 }

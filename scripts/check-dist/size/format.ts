@@ -1,21 +1,17 @@
 import { Imports } from "./bundle.ts";
 import { modes, type BuildResult, type BundleSize } from "./measure/index.ts";
 import type { Report } from "./suite.ts";
-import { pipe } from "../shared/pipe/index.ts";
+import { pipe } from "../../shared/pipe/index.ts";
 
 export function over(size: BundleSize): string {
   return `over budget: ${label(size)} is ${amount(size, size.capped)}, budget ${amount(size, size.bundle.budget)}`;
 }
 
-export function render({ bundles, separateBase }: Report, asJson: boolean): string {
-  return asJson
-    ? json(bundles)
-    : [
-        ...[...separateBase, ...bundles.map(({ build }) => build)].map(
-          (each) => `${sizes(each)}\n`,
-        ),
-        budgets(bundles),
-      ].join("\n");
+export function render({ bundles, separateBase }: Report): string {
+  return [
+    ...[...separateBase, ...bundles.map(({ build }) => build)].map((each) => `${sizes(each)}\n`),
+    budgets(bundles),
+  ].join("\n");
 }
 
 function format(bytes: number): string {
@@ -44,7 +40,10 @@ function sizes(build: BuildResult): string {
   return pipe(
     [
       ["", ...heads],
-      ...modes.map((mode) => [mode, ...heads.map((head) => format(build[mode].sizes[head]))]),
+      ...modes.map(({ _tag: mode }) => [
+        mode,
+        ...heads.map((head) => format(build[mode].sizes[head])),
+      ]),
     ],
     (rows) => align(rows, ["left", "right", "right", "right"]),
     (rows) => rows.map((cells) => `  ${cells.join("  ")}`),
@@ -69,16 +68,5 @@ function budgets(bundles: readonly BundleSize[]): string {
       rows.map(([name, used, limit, left]) => `  ${name}  ${used} / ${limit}  ${left}`.trimEnd()),
     (lines) => ["budget (production gzip)", ...lines],
     (lines) => lines.join("\n"),
-  );
-}
-
-function json(bundles: readonly BundleSize[]): string {
-  return pipe(
-    bundles.map(({ bundle, build }) => [
-      bundle.key,
-      Object.fromEntries(modes.map((mode) => [mode, build[mode].sizes])),
-    ]),
-    (entries) => Object.fromEntries(entries),
-    (keyed) => JSON.stringify(keyed, null, 2),
   );
 }

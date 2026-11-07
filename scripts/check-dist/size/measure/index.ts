@@ -1,6 +1,6 @@
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
-import { Val } from "#valof";
+import { Enum, Val } from "#valof";
 import { Imports, type Bundle } from "../bundle.ts";
 
 export class DevCodeKeptError extends ErrorFactory({
@@ -14,8 +14,12 @@ export class AddsNothingError extends ErrorFactory({
   fields: ErrorFactory.fields<{ bundle: Bundle }>(),
 }) {}
 
-export type Mode = "production" | "development";
-export const modes: readonly Mode[] = ["production", "development"];
+export type Mode = Enum<
+  "Mode",
+  { production: Record<never, never>; development: Record<never, never> }
+>;
+export const Mode = Enum.companion<Mode>().build();
+export const modes: readonly Mode[] = [Mode.production.create({}), Mode.development.create({})];
 
 export type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;
 export const Sizes = Val.companion<Sizes>().build();

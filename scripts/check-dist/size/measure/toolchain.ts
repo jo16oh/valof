@@ -1,5 +1,3 @@
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { gzipSync, brotliCompressSync, constants } from "node:zlib";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,21 +8,16 @@ import { ErrorFactory } from "@praha/error-factory";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
-import { flow, pipe } from "../../shared/pipe/index.ts";
-import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
-
-export class PackError extends ErrorFactory({
-  message: ({ output }) => `vp run build failed\n${output}`,
-  fields: ErrorFactory.fields<{ output: string }>(),
-}) {}
+import { flow, pipe } from "../../../shared/pipe/index.ts";
+import { Build, BuildResult, Mode, Sizes } from "./index.ts";
 
 export class NoChunkError extends ErrorFactory({
-  message: ({ mode }) => `no chunk emitted for ${mode}`,
+  message: ({ mode }) => `no chunk emitted for ${mode._tag}`,
   fields: ErrorFactory.fields<{ mode: Mode }>(),
 }) {}
 
 export class CompileError extends ErrorFactory({
-  message: ({ mode, step, detail }) => `${step} failed for ${mode}: ${detail}`,
+  message: ({ mode, step, detail }) => `${step} failed for ${mode._tag}: ${detail}`,
   fields: ErrorFactory.fields<{ mode: Mode; step: string; detail: string }>(),
 }) {}
 
@@ -33,38 +26,20 @@ export class MinifyError extends ErrorFactory({
   fields: ErrorFactory.fields<{ detail: string }>(),
 }) {}
 
-const root = new URL("../../../", import.meta.url);
-
-export function pack(): R.ResultAsync<void, PackError> {
-  return R.try({
-    try: async () => {
-      await promisify(execFile)(
-        fileURLToPath(new URL("node_modules/.bin/vp", root)),
-        ["run", "build"],
-        {
-          cwd: fileURLToPath(root),
-        },
-      );
-    },
-    catch: (cause) => {
-      const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
-      return new PackError({ output: `${stdout}${stderr}` || String(cause), cause });
-    },
-  });
-}
+const root = new URL("../../../../", import.meta.url);
 
 export async function measure(
   imports: Imports,
 ): R.ResultAsync<BuildResult, NoChunkError | CompileError | MinifyError> {
   const compiled = await R.sequence([
-    compile("production", imports),
-    compile("development", imports),
+    compile(Mode.production.create({}), imports),
+    compile(Mode.development.create({}), imports),
   ]);
   if (R.isFailure(compiled)) return compiled;
   const [production, development] = compiled.value;
 
   const reads = await R.sequence(
-    development.modules.map((module) => Module.readsNodeEnv(module, "development")),
+    development.modules.map((module) => Module.readsNodeEnv(module, Mode.development.create({}))),
   );
   if (R.isFailure(reads)) return reads;
 
@@ -177,7 +152,7 @@ async function compileEntry(
           root: fileURLToPath(root),
           logLevel: "silent",
           configFile: false,
-          define: { "process.env.NODE_ENV": JSON.stringify(mode) },
+          define: { "process.env.NODE_ENV": JSON.stringify(mode._tag) },
           build: {
             write: false,
             minify: false,

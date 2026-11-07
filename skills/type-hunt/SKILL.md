@@ -149,8 +149,8 @@ declaration, such as an enum with one variant. A mapped type indexed by its only
 that property's type, which has no alias, so the `.d.ts` writes the type out in full, private
 members included.
 
-To check against the installed package, copy the probe into `scripts/ts-compatibility/fixtures/` and
-run `vp run ts-compatibility`.
+To check against the installed package, copy the probe into `scripts/check-dist/compat/fixtures/`
+and run `vp run check-dist --compat`.
 
 ### 9. Another check's message
 
@@ -175,7 +175,7 @@ field of the enum type.
 
 **What breaks.** The check reads the type it is part of, and `tsc` reports it as circular (TS2456,
 TS2313). A comparison too deep for `tsc` (TS2321) appears only when the emitted `.d.ts` is compiled
-again, with `vp run ts-compatibility` from pattern 8.
+again, with `vp run check-dist --compat` from pattern 8.
 
 **Fix.** Read the argument through `infer`, as in pattern 4. Where that is still circular, the check
 cannot reach the declaration. Move it to the private field that every use reads.
@@ -191,13 +191,13 @@ recommend it. Report what changes without it, and mark what the docs already des
 
 ### 12. The cost of the fix
 
-Measure each proposed fix with `vp run type-perf`.
+Measure each proposed fix with `vp run check-dist --types`.
 
 **What breaks.** A check adds instantiations to each declaration it runs on, and bytes to the
-`.d.ts` that every user loads. A fix over budget fails `vp run type-perf`.
+`.d.ts` that every user loads. A fix over budget fails `vp run check-dist --types`.
 
 ## Report
 
 One line per finding: the probe, what `tsc` does, what it should do, the pattern, and its fix. Mark
 the ones `main` already has, and give each fix's instantiation and `.d.ts` size change from
-`vp run type-perf`. End with the totals: probes run, findings per pattern.
+`vp run check-dist --types`. End with the totals: probes run, findings per pattern.
