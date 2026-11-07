@@ -7,8 +7,8 @@ import { expect, test } from "vite-plus/test";
 import plugin from "../../../src/lint/eslint-plugin.ts";
 import { kinds } from "../../../src/lint/index.ts";
 
-// The host is not a dependency, so the rules are called the way ESLint and oxlint both call them.
-// That the two really do call them this way is checked by hand, not here.
+// The rules are called here with a context holding only what they read. `tests/lint/hosts` runs
+// them in ESLint and oxlint.
 
 type Where = { line: number; column: number };
 
