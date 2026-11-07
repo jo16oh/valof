@@ -4184,10 +4184,17 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
 - **エラーは byethrow の Result と error-factory のクラス。**引数の解析は `Arguments.fromArgv`、パーサの読み込みは
   `run` が Result で返す。公開の `lint()` は境界で投げる。Result を公開の型に出すと、バンドルした byethrow の
   宣言まで `lint.d.mts` に入る。lint の宣言を出さなくなったので、この理由は無くなった（2026-11-07、下）
-- **scan の事実も Val。**`Scan` と `Context` も Val で、Map / Set は §8.1 の Record で持つ（2026-11-07）。歩く間の
-  状態（`Bindings` など）は Map のまま、`Scan` を作るときに Record へ移す。キーはソースの名前なので `constructor`
-  にもなり、引くのは `Object.hasOwn`。2,190 ファイルで 305 ms → 319 ms。`Where` は他の
-  事実に交差で混ぜる形なので、Val ではなく `Payload`（2026-11-07）。`Directive.kinds` は Set から配列にした
+- **scan の事実も Val。**`Scan` と `Context` も Val で、Map / Set は §8.1 の Record で持つ（2026-11-07）。
+  キーはソースの名前なので `constructor` にもなる。そのため引くのは `Object.hasOwn` で、Record を持つ Val の `has` メンバに隠す。
+  2,190 ファイルで 305 ms → 319 ms。`Directive.kinds` は Set から配列にした
+- **歩く間の状態も Val（2026-11-07）。**`Bindings` は歩きながら `patch` する。`patch` は構造を共有するので、
+  全体はコピーしない。位置は `Position`（`{ line, column }` の Val）で、各事実の `at` が持つ。一度は `Where` を
+  他の事実に交差で混ぜる `Payload` にしたが、Val のフィールドにすれば足りた
+- **実行と plugin の値も Valof の型（2026-11-07）。**`lint()` は `Options` を受け取る。plugin は worker に
+  `Ask` を送り、`Reply`（`Found` / `Failed` の Enum）を受け取る。disable コメントが黙らせるものは
+  `Silenced`（`Every` / `Named` の Enum）。oxc-parser はモジュールの変数に置き、`Parser` の Val のメンバが使う
+- **Val にしないもの（2026-11-07）。**worker に送る `{ ask, port, signal }`。`MessagePort` と `Int32Array` は
+  payload に入らない。port と signal を起動時に一度だけ渡しても、型は起動時に渡すデータへ移るだけで、消えない
 - **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
   かけたら `unused-member` が全ルールの `run` を報告した。`box` を通った `dyn` は追えていなかった。
   作った式の外へ出た `dyn`（関数に渡す、配列に入れる）は、どこかで読まれたキーをすべて、第 1 引数の Val
