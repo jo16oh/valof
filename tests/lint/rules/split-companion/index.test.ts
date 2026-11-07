@@ -8,6 +8,10 @@ test("says nothing when the companion sits beside the type it is for", async () 
   expect(await lint("beside")).toEqual([]);
 });
 
+test("says nothing for a type named like an Object.prototype key, which no file imported", async () => {
+  expect(await lint("prototype-key")).toEqual([]);
+});
+
 test("reports a companion for a type another file declares", async () => {
   expect(await lint("imported")).toEqual([
     {
