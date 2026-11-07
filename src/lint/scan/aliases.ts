@@ -1,5 +1,5 @@
-import { Val } from "../../index.ts";
-import { child, children, keyName, unparenthesized, type Node, type Position } from "../ast.ts";
+import { Val, type VariantOf } from "../../index.ts";
+import { keyName, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
 import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
@@ -81,14 +81,12 @@ export const BrandClaim = Val.companion<BrandClaim>().build();
  * file's import aliases, which is what tells `Val` apart from something else bound to that name.
  */
 function valName(typeName: Node, bound: Bindings): string | undefined {
-  if (typeName.type === "Identifier") return typeName["name"] as string;
+  if (typeName.type === "Identifier") return typeName.name;
   if (typeName.type !== "TSQualifiedName") return undefined;
-  const left = child(typeName, "left");
-  const right = child(typeName, "right");
-  if (!left || !right || left.type !== "Identifier") return undefined;
-  if (!Bindings.isNamespace(bound, left["name"] as string)) return undefined;
+  const { left, right } = typeName;
+  if (left.type !== "Identifier" || !Bindings.isNamespace(bound, left.name)) return undefined;
   // Qualified by a namespace import, so the name is already the exporting module's own.
-  return right.type === "Identifier" ? (right["name"] as string) : undefined;
+  return right.type === "Identifier" ? right.name : undefined;
 }
 
 /**
@@ -116,79 +114,64 @@ export function valAliases(
   const reAliases: ReAlias[] = [];
   const locals = localAliases(program);
 
-  for (const statement of children(program, "body")) {
-    const node =
-      statement.type === "ExportNamedDeclaration" ? child(statement, "declaration") : statement;
-    if (!node || node.type !== "TSTypeAliasDeclaration") continue;
-    const id = child(node, "id");
-    const annotation = unparenthesized(child(node, "typeAnnotation"));
-    if (!id || !annotation || annotation.type !== "TSTypeReference") continue;
-    const typeName = child(annotation, "typeName");
-    const args = child(annotation, "typeArguments");
-    if (!typeName) continue;
+  for (const node of topLevelAliases(program)) {
+    const { id } = node;
+    const annotation = unparenthesized(node.typeAnnotation);
+    if (id.type !== "Identifier" || annotation?.type !== "TSTypeReference") continue;
+    const { typeName } = annotation;
     const named = valName(typeName, bound);
     if (named === undefined) continue;
+    const params = typeParams(annotation.typeArguments);
 
-    if (!args) {
+    if (!annotation.typeArguments) {
       // `type Wrap<T> = T` describes no particular type, and its right side is a parameter.
-      if (child(node, "typeParameters")) continue;
+      if (node.generic) continue;
       reAliases.push(
         ReAlias.seal({
-          at: position((id["start"] ?? node["start"]) as number),
-          alias: id["name"] as string,
-          ref: symbolRef(file, bound, id["name"] as string),
+          at: position(id.start),
+          alias: id.name,
+          ref: symbolRef(file, bound, id.name),
           target: named,
-          targetRef: symbolRef(
-            file,
-            bound,
-            named,
-            typeName.type === "TSQualifiedName"
-              ? (child(typeName, "left")?.["name"] as string)
-              : undefined,
-          ),
+          targetRef: symbolRef(file, bound, named, qualifierOf(typeName)),
         }),
       );
       continue;
     }
 
     const kind = Bindings.original(bound, named);
-    const declared = {
-      file,
-      alias: id["name"] as string,
-      ref: symbolRef(file, bound, id["name"] as string),
-    };
+    const declared = { file, alias: id.name, ref: symbolRef(file, bound, id.name) };
     if (kind === "Val") {
       aliases.push(
         Alias.seal({
           ...declared,
-          traits: traitNames(children(args, "params")[2], file, bound, locals, position),
+          traits: traitNames(params[2], file, bound, locals, position),
         }),
       );
     } else if (kind === "Trait") {
       traitAliases.push(TraitAlias.seal(declared));
     } else if (kind === "Enum") {
-      const variants = variantNames(children(args, "params")[1], bound, locals);
+      const variants = variantNames(params[1], bound, locals);
       enumAliases.push(
         EnumAlias.seal({
           ...declared,
           // The same position as a Val's: an enum's third argument carries the traits, the shared
           // fields and the tag's name, all intersected.
-          traits: traitNames(children(args, "params")[2], file, bound, locals, position),
+          traits: traitNames(params[2], file, bound, locals, position),
           variants: variants ?? null,
         }),
       );
     }
 
-    const first = unparenthesized(children(args, "params")[0]);
-    if (!first || first.type !== "TSLiteralType") continue;
-    const literal = child(first, "literal");
-    if (!literal || typeof literal["value"] !== "string") continue;
+    const first = unparenthesized(params[0]);
+    if (first?.type !== "TSLiteralType") continue;
+    const { literal } = first;
+    if (literal.type !== "Literal" || literal.value === null) continue;
     brands.push(
       BrandClaim.seal({
-        at: position((id["start"] ?? node["start"]) as number),
+        at: position(id.start),
         typeName: named,
-        brand: literal["value"],
-        alias: id["name"] as string,
+        brand: literal.value,
+        alias: id.name,
       }),
     );
   }
@@ -199,16 +182,23 @@ export function valAliases(
 /** Every top-level `type X = …` in the file, which the two syntax-only walks below expand. */
 function localAliases(program: Node): Map<string, Node> {
   const aliases = new Map<string, Node>();
-  for (const statement of children(program, "body")) {
-    const declaration =
-      statement.type === "ExportNamedDeclaration" ? child(statement, "declaration") : statement;
-    if (declaration?.type !== "TSTypeAliasDeclaration") continue;
-    const id = child(declaration, "id");
-    const annotation = child(declaration, "typeAnnotation");
-    if (id?.type === "Identifier" && annotation) aliases.set(id["name"] as string, annotation);
-  }
+  for (const { id, typeAnnotation } of topLevelAliases(program))
+    if (id.type === "Identifier") aliases.set(id.name, typeAnnotation);
   return aliases;
 }
+
+/** Every top-level `type X = …`, exported or not. */
+function topLevelAliases(program: Node): VariantOf<Node, "TSTypeAliasDeclaration">[] {
+  if (program.type !== "Program") return [];
+  return program.body.flatMap((statement) => {
+    const node = statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    return node?.type === "TSTypeAliasDeclaration" ? [node] : [];
+  });
+}
+
+/** The namespace a `ns.Name` reference was reached through. */
+const qualifierOf = (name: Node): string | undefined =>
+  name.type === "TSQualifiedName" && name.left.type === "Identifier" ? name.left.name : undefined;
 
 /**
  * The variants an Enum declaration spells, or `undefined` where the syntax does not settle them.
@@ -226,10 +216,9 @@ function variantNames(
     const inside = unparenthesized(one);
     if (!inside) return false;
     if (inside.type === "TSIntersectionType")
-      return children(inside, "types").every((part) => visit(part, seen));
+      return inside.types.every((part) => visit(part, seen));
     if (inside.type === "TSTypeReference") {
-      const name = child(inside, "typeName");
-      const named = name && valName(name, bound);
+      const named = valName(inside.typeName, bound);
       if (!named) return false;
       // The tag's name arrives as a marker, which declares no variant of its own.
       if (Bindings.original(bound, named) === "Tag") return true;
@@ -239,10 +228,9 @@ function variantNames(
     }
     if (inside.type !== "TSTypeLiteral" || found) return false;
     const names: string[] = [];
-    for (const member of children(inside, "members")) {
+    for (const member of inside.members) {
       if (member.type !== "TSPropertySignature") return false;
-      const key = child(member, "key");
-      const name = key && keyName(key, member["computed"] === true);
+      const name = keyName(member.key, member.computed);
       if (!name) return false;
       names.push(name);
     }
@@ -268,19 +256,15 @@ function traitNames(
     if (!inside) return;
     if (inside !== one) return visit(inside, occurrence === one ? inside : occurrence);
     if (one.type === "TSIntersectionType") {
-      for (const part of children(one, "types"))
-        visit(part, occurrence === one ? part : occurrence);
+      for (const part of one.types) visit(part, occurrence === one ? part : occurrence);
       return;
     }
     if (one.type !== "TSTypeReference") return;
-    const name = child(one, "typeName");
-    const named = name && valName(name, bound);
+    const named = valName(one.typeName, bound);
     if (!named) return;
     // An enum's tag arrives in the same argument, and the marker carrying it names no trait.
     if (Bindings.original(bound, named) === "Tag") return;
-    const qualifier =
-      name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
-    const ref = symbolRef(file, bound, named, qualifier);
+    const ref = symbolRef(file, bound, named, qualifierOf(one.typeName));
     if (seen.has(ref.key)) return;
     seen.add(ref.key);
     const alias = unparenthesized(aliases.get(named));
@@ -291,22 +275,19 @@ function traitNames(
     // A local `type Greetable = Trait<…>` names Greetable, not the `Trait` constructor inside it.
     // A bare alias chain is expanded too; unnecessary-alias reports that spelling separately.
     if (alias?.type === "TSTypeReference") {
-      const targetName = child(alias, "typeName");
-      const target = targetName && valName(targetName, bound);
+      const target = valName(alias.typeName, bound);
       if (target && Bindings.original(bound, target) !== "Trait") {
         visit(alias, occurrence);
         return;
       }
     }
-    const occurrenceName = child(occurrence, "typeName") ?? occurrence;
+    const occurrenceName = occurrence.type === "TSTypeReference" ? occurrence.typeName : occurrence;
     const written =
-      occurrenceName.type === "TSQualifiedName"
-        ? (child(occurrenceName, "right") ?? occurrenceName)
-        : occurrenceName;
+      occurrenceName.type === "TSQualifiedName" ? occurrenceName.right : occurrenceName;
     out.set(
       ref.key,
       DeclaredTrait.seal({
-        at: position(written["start"] as number),
+        at: position(written.start),
         name: named,
         ref,
       }),
