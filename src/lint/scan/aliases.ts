@@ -1,5 +1,12 @@
 import { Val, type VariantOf } from "../../index.ts";
-import { keyName, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
+import {
+  annotationOf,
+  keyName,
+  typeParams,
+  unparenthesized,
+  type Node,
+  type Position,
+} from "../ast.ts";
 import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
@@ -321,13 +328,6 @@ function traitNames(
   };
   visit(node);
   return [...out.values()];
-}
-
-/** The type a property signature annotates, `{ k: T }` gives `T`. */
-function annotationOf(member: Node): Node | null {
-  if (member.type !== "TSPropertySignature") return null;
-  const annotation = member.typeAnnotation;
-  return annotation?.type === "TSTypeAnnotation" ? annotation.typeAnnotation : annotation;
 }
 
 /** The traits each variant of a literal variant record names in its payload. */

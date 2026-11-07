@@ -1,5 +1,5 @@
 import { Val, type VariantOf } from "../../index.ts";
-import { typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
+import { annotationOf, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
 import { Bindings } from "./bindings.ts";
 import { stepOf } from "./chains.ts";
 
@@ -17,8 +17,8 @@ export type Shape =
 export type Model = Val<"Model", { at: Position; shape: Shape; name: string }>;
 export const Model = Val.companion<Model>().build();
 
-/** A use of a name in a type, `wrapped` in `Payload<…>` or outside every place a payload goes. */
-export type TypeUse = Val<"TypeUse", { at: Position; name: string; alias: string }>;
+/** A use of a name in a type, outside every place a payload goes. */
+export type TypeUse = Val<"TypeUse", { at: Position; name: string }>;
 export const TypeUse = Val.companion<TypeUse>().build();
 
 /** What one file says about modelling outside Valof. */
@@ -28,8 +28,6 @@ export type Models = Val<
     models: Model[];
     /** Names declared `type X = Payload<…>`. */
     payloadAliases: string[];
-    /** `type X = Payload<Y>` with a bare `Y`, which is `PayloadOf<Y>` mistyped where `Y` is a Val. */
-    payloadWraps: TypeUse[];
     /** Type references outside a Valof type and outside a seal's or a create's function. */
     outside: TypeUse[];
   }
@@ -81,13 +79,6 @@ const bare = (node: Node | null | undefined): Node | undefined => {
   return inside?.type === "TSTypeOperator" ? bare(inside.typeAnnotation) : inside;
 };
 
-/** The type a property signature annotates, `{ k: T }` gives `T`. */
-const annotationOf = (member: Node): Node | null => {
-  if (member.type !== "TSPropertySignature") return null;
-  const annotation = member.typeAnnotation;
-  return annotation?.type === "TSTypeAnnotation" ? annotation.typeAnnotation : annotation;
-};
-
 /**
  * Reads one file for `model-only-in-valof`. It reads syntax alone. A name is matched to a Val by
  * spelling, the way the other rules match one. A `.d.ts` and the body of `declare global` /
@@ -101,9 +92,8 @@ export function models(
 ): Models {
   const found: Model[] = [];
   const payloadAliases: string[] = [];
-  const payloadWraps: TypeUse[] = [];
   const outside: TypeUse[] = [];
-  const done = (): Models => Models.seal({ models: found, payloadAliases, payloadWraps, outside });
+  const done = (): Models => Models.seal({ models: found, payloadAliases, outside });
   if (/\.d\.[cm]?ts$/.test(file)) return done();
   const report = (shape: Shape, name: string, node: Node): void =>
     void found.push(Model.seal({ at: position(node.start), shape, name }));
@@ -171,15 +161,6 @@ export function models(
     const args = top?.type === "TSTypeReference" ? typeParams(top.typeArguments) : [];
     if (valof === "Payload") {
       payloadAliases.push(name);
-      const wrapped = unparenthesized(args[0]);
-      if (
-        wrapped?.type === "TSTypeReference" &&
-        !wrapped.typeArguments &&
-        wrapped.typeName.type === "Identifier"
-      )
-        payloadWraps.push(
-          TypeUse.seal({ at: position(id.start), name: wrapped.typeName.name, alias: name }),
-        );
       return;
     }
     if (valof === "Val") return nested(args[1], name);
@@ -221,9 +202,7 @@ export function models(
         if (name && VALOF.has(name)) return;
         const written = node.typeName;
         if (!allowed && written.type === "Identifier")
-          outside.push(
-            TypeUse.seal({ at: position(written.start), name: written.name, alias: "" }),
-          );
+          outside.push(TypeUse.seal({ at: position(written.start), name: written.name }));
         break;
       }
       case "CallExpression": {

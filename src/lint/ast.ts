@@ -73,6 +73,13 @@ export const Node = Enum.companion<Node>().tag("type").build();
 
 export type Identifier = VariantOf<Node, "Identifier">;
 
+/** The type a property signature annotates: `{ k: T }` gives `T`. */
+export function annotationOf(member: Node): Node | null {
+  if (member.type !== "TSPropertySignature") return null;
+  const annotation = member.typeAnnotation;
+  return annotation?.type === "TSTypeAnnotation" ? annotation.typeAnnotation : annotation;
+}
+
 /** The type arguments a `<…>` holds, none when it is absent. */
 export const typeParams = (args: Node | null): readonly Node[] =>
   args?.type === "TSTypeParameterInstantiation" ? args.params : [];

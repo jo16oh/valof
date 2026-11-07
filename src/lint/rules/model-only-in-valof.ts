@@ -71,11 +71,6 @@ const SAID: Record<
 
 function findings(rule: ModelOnlyInValof, scans: readonly Scan[]): Finding[] {
   const { kind } = rule;
-  const vals = new Set(
-    scans.flatMap(({ aliases, enumAliases }) =>
-      [...aliases, ...enumAliases].map(({ alias }) => alias),
-    ),
-  );
   const payloads = new Set(scans.flatMap(({ models }) => models.payloadAliases));
   const at = (file: string, { at }: { at: Position }, message: string): Finding =>
     Finding.seal({ kind, file, at, message });
@@ -86,15 +81,6 @@ function findings(rule: ModelOnlyInValof, scans: readonly Scan[]): Finding[] {
         return setting === undefined || rule[setting];
       })
       .map((one) => at(file, one, SAID[one.shape].say(one.name))),
-    ...models.payloadWraps
-      .filter(({ name }) => vals.has(name))
-      .map((one) =>
-        at(
-          file,
-          one,
-          `${one.alias} wraps the Val ${one.name} in Payload; write PayloadOf<${one.name}>`,
-        ),
-      ),
     ...models.outside
       .filter(({ name }) => payloads.has(name))
       .map((one) =>
