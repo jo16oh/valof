@@ -22,3 +22,9 @@ test("lint() lets any other failure to load the parser through as it is", () => 
     "Error the parser's binding failed to load\n",
   );
 });
+
+test("the plugin throws any other failure to load the parser, rather than reporting nothing", () => {
+  expect(withoutParser(module("plugin.ts"), true).stdout).toContain(
+    "the parser's binding failed to load",
+  );
+});

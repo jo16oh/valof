@@ -48,6 +48,10 @@ test("takes a list for the project, and leaves out what one entry excludes", () 
   ).toEqual([finding]);
 });
 
+test("reports on a file the project setting does not cover, reading it with the project", () => {
+  expect(run("money.ts", undefined, at("order.ts"))).toEqual(["6:2-8  Money.format is never read"]);
+});
+
 test("says nothing about a file that holds no finding of its own", () => {
   expect(run("order.ts")).toEqual([]);
 });

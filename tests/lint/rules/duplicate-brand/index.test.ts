@@ -34,6 +34,13 @@ test("reports colliding aliases in the same file", async () => {
   ]);
 });
 
+test("reports both aliases when they share a line", async () => {
+  expect(await lint("same-line", { skip: [BrandMismatch] })).toEqual([
+    { rule: DuplicateBrand, at: "same-line.ts:2:13" },
+    { rule: DuplicateBrand, at: "same-line.ts:2:54" },
+  ]);
+});
+
 test("says nothing when each brand is claimed once", async () => {
   expect(await lint("namespaced")).toEqual([]);
 });
