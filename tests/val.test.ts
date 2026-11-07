@@ -2267,6 +2267,20 @@ describe("building", () => {
       expect(performance.now() - started).toBeLessThan(100);
     });
 
+    test("still detects a change beside a value already sealed", () => {
+      type Leaf = Val<"Leaf", { n: number }>;
+      const Leaf = Val.companion<Leaf>().build();
+      type Pair = Val<"Pair", { leaf: Leaf; n: number }>;
+      const Pair = Val.companion<Pair>()
+        .implSeal((p: { leaf: Leaf; n: number }, seal) => {
+          p.n += 1;
+          return seal(p);
+        })
+        .build();
+
+      expect(() => Pair.seal({ leaf: Leaf.seal({ n: 1 }), n: 1 })).toThrow(changed);
+    });
+
     test("reuses the starting snapshot for every default seal call", () => {
       type Reading = Val<"Reading", { n: number }>;
       const Reading = Val.companion<Reading>()
