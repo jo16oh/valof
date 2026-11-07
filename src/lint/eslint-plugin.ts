@@ -29,9 +29,7 @@ type Context = {
 type Ask = Val<
   "Ask",
   {
-    /** The files the run reads, absolute. The one being linted is among them. */
-    files: readonly string[];
-    /** The project files scanned together. */
+    /** The project files scanned together, absolute. The file being linted joins them, as `text`. */
     project: readonly string[];
     file: string;
     text: string;
@@ -124,7 +122,6 @@ function found(file: string, text: string, settings: Context["settings"]): reado
 
   const findings = ask(
     Ask.seal({
-      files: project.includes(file) ? project : [...project, file],
       project,
       file,
       text,
@@ -217,11 +214,11 @@ function ask(what: Ask): readonly Finding[] {
 // The worker is this file again, so no path has to be guessed for it: the source tree runs as
 // `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
 if (!isMainThread && parentPort) {
-  parentPort.on("message", ({ ask: { files, file, text }, port, signal }: Message) => {
+  parentPort.on("message", ({ ask: { project, file, text }, port, signal }: Message) => {
     void (async () => {
       let reply: Reply;
       try {
-        const found = await run(files, {
+        const found = await run(project, {
           report: new Set([file]),
           overlay: new Map([[file, text]]),
         });
