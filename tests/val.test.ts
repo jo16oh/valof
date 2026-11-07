@@ -2255,6 +2255,32 @@ describe("building", () => {
       expect(box.nested.n).toBe(1);
     });
 
+    test("stops at a value already sealed, however often the payload holds it", () => {
+      type Tree = Val<"Tree", { kids: Rec<Tree>[] }>;
+      const Tree = Val.companion<Tree>()
+        .implSeal((t, seal) => seal(t))
+        .build();
+      let tree = Tree.seal({ kids: [] });
+      const started = performance.now();
+      // Each level holds the one below twice, so walking into it doubles the work per level.
+      for (let depth = 0; depth < 20; depth++) tree = Tree.seal({ kids: [tree, tree] });
+      expect(performance.now() - started).toBeLessThan(100);
+    });
+
+    test("still detects a change beside a value already sealed", () => {
+      type Leaf = Val<"Leaf", { n: number }>;
+      const Leaf = Val.companion<Leaf>().build();
+      type Pair = Val<"Pair", { leaf: Leaf; n: number }>;
+      const Pair = Val.companion<Pair>()
+        .implSeal((p: { leaf: Leaf; n: number }, seal) => {
+          p.n += 1;
+          return seal(p);
+        })
+        .build();
+
+      expect(() => Pair.seal({ leaf: Leaf.seal({ n: 1 }), n: 1 })).toThrow(changed);
+    });
+
     test("reuses the starting snapshot for every default seal call", () => {
       type Reading = Val<"Reading", { n: number }>;
       const Reading = Val.companion<Reading>()
