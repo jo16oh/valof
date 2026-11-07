@@ -11,7 +11,7 @@ import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
 import type { AnyVal, CompanionBuilder } from "../../val.ts";
 import { Val, type VariantOf } from "../../index.ts";
-import { Bindings, symbolRef, type Root, type SymbolRef } from "./bindings.ts";
+import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 
 /** `K`, which must be a key of every member of `T`. */
 type On<T, K extends keyof T> = K;
@@ -32,8 +32,8 @@ export type CompanionSite = Val<
   {
     at: Position;
     file: string;
-    /** Which entry point the chain grew from. */
-    of: Root;
+    /** Which entry point the chain grew from: `Val`, `Trait` or `Enum`. */
+    of: string;
     /** The name the chain was bound to, or `null` when it was not bound to a plain one. */
     name: string | null;
     /** Where that name is written. The chain's own position stands in when there is no name. */
@@ -88,7 +88,7 @@ export function variantOf(receiver: Node): { variant: string; builder: Node } | 
 }
 
 /** Which entry point a chain grows from, however the name was bound. */
-export function fromRoot(node: Node, bound: Bindings): Root | undefined {
+export function fromRoot(node: Node, bound: Bindings): string | undefined {
   const path = rootPath(node);
   if (!path || path.length === 0) return undefined;
   const [first, second, third] = path as [string, string?, string?];
@@ -193,7 +193,7 @@ type Chain = Val<
     /** The root call's type arguments, or `null` when the chain has no root of ours. */
     typeArguments: Node | null;
     /** Which entry point the chain grew from, once it is known to have one. */
-    of: Root | null;
+    of: string | null;
   }
 >;
 const Chain = Val.companion<Chain>().build();
@@ -208,7 +208,7 @@ const Chain = Val.companion<Chain>().build();
  */
 function readChain(node: Node, bound: Bindings): Chain {
   const steps = new Set<string>();
-  let of: Root | undefined;
+  let of: string | undefined;
 
   const walk = (current: Node): Node | null => {
     if (current.type !== "CallExpression") return null;

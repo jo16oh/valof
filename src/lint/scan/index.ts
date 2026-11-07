@@ -30,7 +30,6 @@ import {
   ImportBinding,
   ImportMap,
   type SymbolRef,
-  type Root,
 } from "./bindings.ts";
 import {
   CompanionSite,
@@ -48,7 +47,7 @@ import { directives, type Directive } from "./directives.ts";
 // it into the walk that produced them.
 export { symbolRef } from "./bindings.ts";
 export { ImportMap } from "./bindings.ts";
-export type { ImportBinding, Root, SymbolRef } from "./bindings.ts";
+export type { ImportBinding, SymbolRef } from "./bindings.ts";
 export type {
   Alias,
   BrandClaim,
@@ -58,7 +57,7 @@ export type {
   TraitAlias,
 } from "./aliases.ts";
 export type { CompanionSite, Lift } from "./chains.ts";
-export type { Directive, Spelling } from "./directives.ts";
+export type { Directive } from "./directives.ts";
 export { silences } from "./directives.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
@@ -211,7 +210,7 @@ const RESERVED = reserved(["patch", "seal", "create"]);
  * An enum's `.impl` rejects `match` as well, and a trait's rejects `dyn`. An enum's variant names
  * are left to the rule, which reads every file.
  */
-const rejected = (member: string, root?: Root): boolean =>
+const rejected = (member: string, root?: string): boolean =>
   RESERVED.test(member) ||
   (root === "Enum" && member === ("match" satisfies keyof EnumCompanion<Sample>)) ||
   (root === "Trait" && member === ("dyn" satisfies keyof TraitCompanion<AnyTrait>));
