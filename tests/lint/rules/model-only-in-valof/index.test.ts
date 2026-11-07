@@ -31,9 +31,8 @@ test("reports a named data type outside Valof, and spares Valof types, unions an
     `15:13 ${data("Ids")}`,
     `16:13 ${data("Partialed")}`,
     `17:27 ${data("OnRow")}`,
-    "22:13 Wrong wraps the Val User in Payload; write PayloadOf<User>",
-    "23:43 Order nests an object that is not a Val; nest a Val instead",
-    "25:29 Name is a payload type; use it in a Valof type, or in the function passed to implSeal or implCreate",
+    "21:43 Order nests an object that is not a Val; nest a Val instead",
+    "23:29 Name is a payload type; use it in a Valof type, or in the function passed to implSeal or implCreate",
   ]);
 });
 
@@ -43,13 +42,13 @@ test("reports classes, constraints and types taken out of values, each only when
     return (await reported(settings)).filter((one) => !always.has(one));
   };
   expect(await added({ classes: true })).toEqual([
-    "30:8 a class declares data outside Valof; model it as a Val",
+    "28:8 a class declares data outside Valof; model it as a Val",
   ]);
   expect(await added({ constraints: true })).toEqual([
-    "31:32 this constraint declares a data shape; write a Trait or an Enum",
+    "29:32 this constraint declares a data shape; write a Trait or an Enum",
   ]);
   expect(await added({ extraction: true })).toEqual([
-    "32:13 Made takes its type out of a value; declare a Val instead",
+    "30:13 Made takes its type out of a value; declare a Val instead",
   ]);
 });
 
@@ -64,8 +63,8 @@ test("is enabled on the command line, with its settings after an equals sign", (
     "domain.ts:9:13  model-only-in-valof",
   );
   const classes = cli(under, "--model-only-in-valof=classes").stdout;
-  expect(classes).toContain("domain.ts:30:8  model-only-in-valof");
-  expect(classes).not.toContain("domain.ts:31:32");
+  expect(classes).toContain("domain.ts:28:8  model-only-in-valof");
+  expect(classes).not.toContain("domain.ts:29:32");
 });
 
 test("refuses a setting it does not take", () => {
