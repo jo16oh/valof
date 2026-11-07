@@ -9,6 +9,7 @@ import { Arguments } from "./arguments.ts";
 import { NoFilesMatchedError, type UsageError } from "./errors.ts";
 import { expand } from "./files.ts";
 import { RULES, type Finding } from "./rules/index.ts";
+import { Options } from "./options.ts";
 import { run } from "./run.ts";
 
 /** What `--help` prints. */
@@ -84,10 +85,10 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
   const chosen = files(args);
   if (R.isFailure(chosen)) return chosen;
   const { scanned, asked, reported } = chosen.value;
-  const found = await run(scanned, {
-    skip: new Set(args.skip),
-    ...(args.targets.length > 0 ? { report: new Set(asked.map((file) => resolve(file))) } : {}),
-  });
+  const found = await run(
+    scanned,
+    Options.create({ skip: args.skip, ...(args.targets.length > 0 ? { report: asked } : {}) }),
+  );
   if (R.isFailure(found)) return found;
   print(found.value, reported.length);
   return R.succeed(found.value.length === 0 ? 0 : 1);

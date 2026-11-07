@@ -7,7 +7,7 @@ import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
 import { loadParser } from "./parser.ts";
 import { scan, silences } from "./scan/index.ts";
 import { moduleResolver } from "./scan/bindings.ts";
-import type { Options } from "./index.ts";
+import { Options } from "./options.ts";
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
 // Every file is walked once, by `scan`, and each rule runs over what it collected. There is no
@@ -15,23 +15,22 @@ import type { Options } from "./index.ts";
 // function.
 export async function run(
   files: readonly string[],
-  { skip, report, overlay }: Options = {},
+  options: Options = Options.create(),
 ): Promise<R.Result<Finding[], MissingParserError>> {
   const loaded = await loadParser();
   if (R.isFailure(loaded)) return loaded;
   const parser = loaded.value;
-  const sources = new Map([...(overlay ?? [])].map(([file, text]) => [resolve(file), text]));
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
   const listed = new Set(files.map((file) => resolve(file)));
-  const walk = [...files, ...[...sources.keys()].filter((file) => !listed.has(file))];
+  const walk = [...files, ...Object.keys(options.overlay).filter((file) => !listed.has(file))];
   const resolveModule = moduleResolver(walk);
-  const scans = walk.map((file) => scan(file, parser, sources.get(resolve(file)), resolveModule));
+  const scans = walk.map((file) =>
+    scan(file, parser, Options.sourceOf(options, file), resolveModule),
+  );
 
   const findings: Finding[] = [];
-  const notRun = KindSet.seal(
-    Object.fromEntries([...(skip ?? [])].map((kind) => [kind, true as const])),
-  );
+  const notRun = options.skip;
   for (const rule of RULES) {
     if (KindSet.has(notRun, rule.kind)) continue;
     findings.push(...rule.run(scans, Context.seal({ reported: findings, notRun })));
@@ -44,7 +43,7 @@ export async function run(
   const disabled = new Map(scans.map(({ file, directives }) => [file, silences(directives)]));
   const silenced = ({ file, at: { line }, kind }: Finding): boolean =>
     disabled.get(file)?.(line, kind) === true;
-  const asked = ({ file }: Finding): boolean => report === undefined || report.has(resolve(file));
+  const asked = ({ file }: Finding): boolean => Options.reports(options, file);
 
   return R.succeed(
     findings
