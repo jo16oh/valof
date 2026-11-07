@@ -23,7 +23,7 @@ type Context = {
   filename: string;
   settings?: { valof?: { project?: string | readonly string[] } };
   sourceCode: { text: string };
-  report: (report: { loc: { start: Where; end: Where }; message: string }) => void;
+  report: (report: { loc: Loc; message: string }) => void;
 };
 
 type Ask = Val<
@@ -93,14 +93,15 @@ const WORD = /^[\p{L}\p{N}_$]+/u;
  *
  * Columns count from 1 in a finding, as an editor shows them, and from 0 in a report.
  */
-function over(text: string, { at: { line, column } }: Finding): { start: Where; end: Where } {
+function over(text: string, { at: { line, column } }: Finding): Loc {
   const rest = (text.split("\n")[line - 1] ?? "").slice(column - 1);
   const width = WORD.exec(rest)?.[0].length ?? rest.trimEnd().length;
   const start = { line, column: column - 1 };
   return { start, end: { line, column: start.column + Math.max(width, 1) } };
 }
 
-type Where = { line: number; column: number };
+/** A span as ESLint and oxlint take it, with columns from 0. */
+type Loc = Record<"start" | "end", { line: number; column: number }>;
 
 const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)]));
 

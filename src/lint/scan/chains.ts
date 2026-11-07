@@ -5,7 +5,7 @@ import {
   rootPath,
   unparenthesized,
   type Node,
-  type Where,
+  type Position,
 } from "../ast.ts";
 import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
@@ -30,14 +30,14 @@ const ENTRY_POINTS: ReadonlySet<string> = new Set([
 export type CompanionSite = Val<
   "CompanionSite",
   {
-    at: Where;
+    at: Position;
     file: string;
     /** Which entry point the chain grew from. */
     of: Root;
     /** The name the chain was bound to, or `null` when it was not bound to a plain one. */
     name: string | null;
     /** Where that name is written. The chain's own position stands in when there is no name. */
-    nameAt: Where;
+    nameAt: Position;
     /**
      * The type argument, resolved to an alias after the walk.
      *
@@ -48,7 +48,7 @@ export type CompanionSite = Val<
     typeRef: SymbolRef;
     typeOffset: number;
     /** Where the type argument is written. */
-    typeAt: Where;
+    typeAt: Position;
     /** The namespace it was reached through, for `Val.companion<ns.User>()`. */
     qualifier: string | null;
     /** Whether the chain registered a seal of its own, with `.implSeal`. */
@@ -112,7 +112,7 @@ export function fromRoot(node: Node, bound: Bindings): Root | undefined {
 export type Lift = Val<
   "Lift",
   {
-    at: Where;
+    at: Position;
     typeName: string | null;
     typeRef: SymbolRef | null;
     qualifier: string | null;
@@ -130,7 +130,7 @@ export function valOf(
   node: Node,
   file: string,
   bound: Bindings,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): Lift | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
@@ -257,9 +257,9 @@ export function typeReference(
 export function companionSite(
   node: Node,
   file: string,
-  where: Where,
+  at: Position,
   bound: Bindings,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): CompanionSite | undefined {
   const { steps, typeArguments, of } = readChain(node, bound);
   const first = unparenthesized(typeArguments ? children(typeArguments, "params")[0] : undefined);
@@ -273,10 +273,10 @@ export function companionSite(
   const named = typeReference(written, bound.namespaces);
   if (!named) return undefined;
   return CompanionSite.seal({
-    at: where,
+    at,
     file,
     of,
-    nameAt: where,
+    nameAt: at,
     typeName: named.node["name"] as string,
     typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
     typeOffset: named.node["start"] as number,

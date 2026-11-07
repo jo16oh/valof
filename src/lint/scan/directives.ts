@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import type { Where } from "../ast.ts";
+import type { Position } from "../ast.ts";
 
 /**
  * How a directive is written.
@@ -19,7 +19,7 @@ export type Spelling =
 export type Directive = Val<
   "Directive",
   {
-    at: Where;
+    at: Position;
     /** The 1-based line it silences, the one after the block it sits in, or the whole file. */
     covers: number | "file";
     /** The kinds it named, in order and without repeats, empty when it named none. */
@@ -97,12 +97,12 @@ const widen = (left: Silenced, right: Silenced): Silenced =>
 export function directives(
   comments: readonly { value: string; start: number; end: number }[],
   source: string,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): Directive[] {
   const lineOf = (offset: number): number => position(offset).line;
   const found: Directive[] = [];
   /** The line directives of the block being read, held until its last line is known. */
-  let block: { at: Where; spelling: Spelling; kinds: string[] }[] = [];
+  let block: { at: Position; spelling: Spelling; kinds: string[] }[] = [];
   /** The last line of that block, or -1 when the previous comment closed one. */
   let blockEnd = -1;
   /** Where that comment ended, so code written after it on its own line breaks the block. */

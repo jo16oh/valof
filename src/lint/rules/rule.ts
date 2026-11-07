@@ -1,5 +1,5 @@
 import { Trait, Val, type Self } from "../../index.ts";
-import type { Where } from "../ast.ts";
+import type { Position } from "../ast.ts";
 import type { Scan } from "../scan/index.ts";
 
 /**
@@ -14,7 +14,7 @@ export type Finding = Val<
     /** The `kind` of the rule that reported it. */
     kind: string;
     file: string;
-    at: Where;
+    at: Position;
     message: string;
   }
 >;

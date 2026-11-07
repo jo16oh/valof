@@ -14,7 +14,7 @@ import {
   positions,
   unparenthesized,
   type Node,
-  type Where,
+  type Position,
 } from "../ast.ts";
 import { Parser } from "../parser.ts";
 import {
@@ -64,7 +64,7 @@ export type { Directive, Spelling } from "./directives.ts";
 export { silences } from "./directives.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
-export type Member = Val<"Member", { at: Where; companion: string; member: string }>;
+export type Member = Val<"Member", { at: Position; companion: string; member: string }>;
 export const Member = Val.companion<Member>().build();
 
 /** One implementation attached to a Val companion chain. */
@@ -101,7 +101,7 @@ export const DynRead = Val.companion<DynRead>().build();
 export type CompanionBinding = Val<
   "CompanionBinding",
   {
-    at: Where;
+    at: Position;
     /** The local name it was bound to. */
     name: string;
     /** The companion it was taken from, as this file names it. */
@@ -273,10 +273,10 @@ export function scan(
   /** local name -> the dotted key a read off it counts under, `Shape.Circle`. */
   const dotted = new Map<string, string>();
   /** Records one, so that a read off the local name counts for the companion's key as well. */
-  const took = (name: string, where: Where, companion: string, key: string): void => {
+  const took = (name: string, at: Position, companion: string, key: string): void => {
     companionBindings.push(
       CompanionBinding.seal({
-        at: where,
+        at,
         name,
         companion,
         companionRef: symbolRef(file, bound, companion),
@@ -552,7 +552,7 @@ function implTrait(
   bound: Bindings,
   sites: readonly CompanionSite[],
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): TraitImplementation | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
@@ -601,7 +601,7 @@ function stepMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): Member[] {
   const fn = node.type === "Identifier" ? objects.get(node["name"] as string) : node;
   const body =
@@ -614,7 +614,7 @@ function objectMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
   seen: Set<string>,
 ): Member[] {
   if (node.type === "Identifier") {
@@ -659,7 +659,7 @@ function implMembers(
   companion: string,
   bound: Bindings,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): Member[] {
   const found = new Map<string, Member>();
   let current: Node = node;

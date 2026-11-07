@@ -61,11 +61,11 @@ export function rootPath(node: Node): string[] | undefined {
 }
 
 /** Where something sits, 1-based on both axes, the way an editor and every linter count. */
-export type Where = Val<"Where", { line: number; column: number }>;
-export const Where = Val.companion<Where>().build();
+export type Position = Val<"Position", { line: number; column: number }>;
+export const Position = Val.companion<Position>().build();
 
-/** Byte offset -> {@link Where}, from a prefix scan done once per file. */
-export function positions(source: string): (offset: number) => Where {
+/** Byte offset -> {@link Position}, from a prefix scan done once per file. */
+export function positions(source: string): (offset: number) => Position {
   const starts = [0];
   for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1)) starts.push(i + 1);
   return (offset) => {
@@ -76,6 +76,6 @@ export function positions(source: string): (offset: number) => Where {
       if ((starts[mid] as number) <= offset) low = mid;
       else high = mid - 1;
     }
-    return Where.seal({ line: low + 1, column: offset - (starts[low] as number) + 1 });
+    return Position.seal({ line: low + 1, column: offset - (starts[low] as number) + 1 });
   };
 }

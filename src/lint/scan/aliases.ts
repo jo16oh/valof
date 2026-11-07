@@ -1,9 +1,9 @@
 import { Val } from "../../index.ts";
-import { child, children, keyName, unparenthesized, type Node, type Where } from "../ast.ts";
+import { child, children, keyName, unparenthesized, type Node, type Position } from "../ast.ts";
 import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
-export type DeclaredTrait = Val<"DeclaredTrait", { at: Where; name: string; ref: SymbolRef }>;
+export type DeclaredTrait = Val<"DeclaredTrait", { at: Position; name: string; ref: SymbolRef }>;
 export const DeclaredTrait = Val.companion<DeclaredTrait>().build();
 
 /** A top-level `type X = Val<"brand", payload>`. */
@@ -50,7 +50,7 @@ export const EnumAlias = Val.companion<EnumAlias>().build();
 export type ReAlias = Val<
   "ReAlias",
   {
-    at: Where;
+    at: Position;
     alias: string;
     ref: SymbolRef;
     /** The name on the right, as the declaring module names it when it was qualified. */
@@ -64,7 +64,7 @@ export const ReAlias = Val.companion<ReAlias>().build();
 export type BrandClaim = Val<
   "BrandClaim",
   {
-    at: Where;
+    at: Position;
     /** The name `Val` was written under here, resolved against the file's imports by the rule. */
     typeName: string;
     brand: string;
@@ -101,7 +101,7 @@ export function valAliases(
   program: Node,
   file: string,
   bound: Bindings,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): {
   aliases: Alias[];
   traitAliases: TraitAlias[];
@@ -258,7 +258,7 @@ function traitNames(
   file: string,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-  position: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): DeclaredTrait[] {
   if (!node) return [];
   const seen = new Set<string>();
