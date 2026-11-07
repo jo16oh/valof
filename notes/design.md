@@ -4215,6 +4215,19 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   手書きの型で 525 B。`vp run type-perf` の予算は 2 kB。ESLint の型が宣言に入ると、
   予算より先にビルド（`deps.onlyBundle`）が止める
 
+#### 2026-11-07: 構文木を Enum にした
+
+- **`Node` は Enum。**歩く node の種類ごとに variant を置き、読むフィールドだけを持つ。残りの種類は `Other`
+  （`nodeType` だけ）。`child` / `children` と `node[key]` のキャストは、型のある読み取りに替わった。Enum の
+  使用例も兼ねる
+- **oxc-parser の木は `Parser.parse` で一度だけ変換する。**読まないフィールドは落とす。`Literal` の `value` は文字列だけを残し、ほかは `null` にする。`RegExp` や `bigint` のように payload に入らない値は残らない
+- **再帰する Enum の seal が 2^depth かかった。**development の seal は入力を前後で snapshot し、seal 済みの
+  子にも入っていた。valof の不具合なので #144 で直した。snapshot は seal 済みの値で止まる
+- **lint のビルドは `NODE_ENV` を production にする。**lint の中には、development の検査が守るユーザーのコードが無い。
+  コマンドは `NODE_ENV` 無しで走る。変換した node は `create.nocopy` で作る
+- **費用。**230 ファイルで、出荷するコマンドは 0.14 s → 0.21 s。development のままでは、置き換えの費用が
+  約 300 ms だった
+
 ### 14.9 エディタ統合、2026-09-08 調査。overlay まで実装
 
 **結論を先に。** oxlint の `jsPlugins` から、Worker 越しに `lint()` を**直接呼ぶ**。valof が出すのは `lint` と `Options.overlay` だけで、`--server` もプロトコルも要らない。**このブランチではやらない。**
