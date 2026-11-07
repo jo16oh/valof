@@ -4205,7 +4205,7 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   非同期のルールが無いので同期のまま（2026-11-07）
 - **エラーは byethrow の Result と error-factory のクラス。**引数の解析は `Arguments.fromArgv`、パーサの読み込みは
   `run` が Result で返す。公開の `lint()` は境界で投げる。Result を公開の型に出すと、バンドルした byethrow の
-  宣言まで `lint.d.mts` に入る
+  宣言まで `lint.d.mts` に入る。lint の宣言を出さなくなったので、この理由は無くなった（2026-11-07、下）
 - **scan の事実も Val。**`Scan` と `Context` も Val で、Map / Set は §8.1 の Record で持つ（2026-11-07）。歩く間の
   状態（`Bindings` など）は Map のまま、`Scan` を作るときに Record へ移す。キーはソースの名前なので `constructor`
   にもなり、引くのは `Object.hasOwn`。2,190 ファイルで 305 ms → 319 ms。`Where` は他の
@@ -4217,9 +4217,18 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
 - **所要時間。**fixture を 10 倍に複製した 1,810 ファイルで、95 ms → 101 ms（development の freeze の分）
 - **`lint.d.mts` が valof の宣言を内包する（17 kB → 73 kB）。**tsdown が `../../index.ts` を取り込む。
   内包した `unique symbol` は `valof` 本体のものと別なので、lint の `Finding` を `valof` の関数に渡すと型が
-  合わない。実害は小さいので残した
+  合わない。実害は小さいので残した。今は出さない（2026-11-07、下）
 - byethrow と error-factory は devDependencies のまま `deps.onlyBundle` で dist に入れる。valof を入れても
   依存は増えない
+- **宣言は plugin の分だけ出す（2026-11-07）。**valof-lint が提供するのは CLI と plugin だけで、ライブラリとしては提供しない。
+  `dts.entry` で `eslint-plugin.ts` に絞り、`lint.d.mts` と `lint-cli.d.mts` は出さない。plugin の宣言は
+  `eslint.config.ts` が読むので残す
+- **plugin の export は手で書いた最小の型（2026-11-07）。**推論に任せた型は `meta.type` が `string` で、
+  `create` の引数も ESLint の型より狭く、`eslint.config.ts` で `plugins: { valof }` と書くと型エラーになった
+  （v0.12.0 にもある）。実装は ESLint の型（`Rule.RuleContext`）で書き、
+  export には設定ファイルが読む形だけを書く。推論のままだと ESLint の型が宣言に入り 93.7 kB になる。
+  手書きの型で 525 B。`vp run type-perf` の予算は 2 kB。ESLint の型が宣言に入ると、
+  予算より先にビルド（`deps.onlyBundle`）が止める
 
 ### 14.9 エディタ統合、2026-09-08 調査。overlay まで実装
 
@@ -5821,7 +5830,8 @@ lint が直接書いていた本体の名前を、同じ PR で型に結んだ�
 - **Enum は具体的な型で読む。**`AnyEnum` だとキーが `string` に潰れる。lint 側に `Sample` を 1 つ置いた
 - **export する型に本体の型を使わない。**`CompanionSite.root` に使ったら、`dist/lint.d.mts` が本体の
   60 kB のチャンクを import した。照合は export しない定数の `satisfies` に置き、export する型は
-  `"sealer" | "companion"` と直に書く。JS は元から本体を import しない
+  `"sealer" | "companion"` と直に書く。JS は元から本体を import しない。lint の宣言を出さなくなったので、
+  この制約は無くなった（2026-11-07、§14.8）
 - **入口の検査は名前があることだけを見る。**改名は型エラーになる。lint のリストから名前を落とすのは
   テストが捕まえる
 
