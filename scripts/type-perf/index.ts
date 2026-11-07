@@ -68,6 +68,12 @@ const budget: Record<Fixture, number> = { core: 10_000, trait: 25_000, enum: 90_
  */
 const declarationsBudget = 104 * 1024;
 
+/**
+ * The plugin's declarations, which a config file in TypeScript loads. Its export is annotated by
+ * hand: inferred, it carries ESLint's types, which took it to 93.7 kB.
+ */
+const pluginBudget = 2 * 1024;
+
 type Counts = { types: number; instantiations: number; check: number; total: number };
 
 const fields = [
@@ -139,6 +145,10 @@ function table(heads: string[], rows: string[][]): string {
 await pack();
 
 const declarations = await declarationBytes(new URL("../../dist/index.d.ts", here));
+const plugin = Buffer.byteLength(
+  await readFile(new URL("../../dist/eslint-plugin.d.mts", here), "utf8"),
+  "utf8",
+);
 
 const json = process.argv.includes("--json");
 
@@ -183,11 +193,12 @@ if (!json) {
   );
 }
 
-if (json) console.log(JSON.stringify({ ...measured, declarations }, null, 2));
+if (json) console.log(JSON.stringify({ ...measured, declarations, plugin }, null, 2));
 
 const checks = [
   ...fixtures.map((name) => [name, measured[name].instantiations, budget[name], num] as const),
   ["index.d.ts", declarations, declarationsBudget, bytes] as const,
+  ["eslint-plugin.d.mts", plugin, pluginBudget, bytes] as const,
 ];
 
 if (!json) {
@@ -213,6 +224,7 @@ if (!json) {
   console.log("\ninstantiations: type arguments applied, where a conditional running away shows.");
   console.log("types: distinct types the checker made. printed only, and it tracks the first.");
   console.log("index.d.ts: the published declarations, in bytes. what every consumer parses.");
+  console.log("eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.");
 }
 
 if (checks.some(([, size, max]) => size > max)) process.exit(1);

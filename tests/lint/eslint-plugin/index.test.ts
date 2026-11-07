@@ -7,8 +7,8 @@ import { expect, test } from "vite-plus/test";
 import plugin from "../../../src/lint/eslint-plugin.ts";
 import { kinds } from "../../../src/lint/index.ts";
 
-// The host is not a dependency, so the rules are called the way ESLint and oxlint both call them.
-// That the two really do call them this way is checked by hand, not here.
+// The rules are called here with a context holding only what they read. `tests/lint/hosts` runs
+// them in ESLint and oxlint.
 
 type Where = { line: number; column: number };
 
@@ -90,9 +90,9 @@ test("takes the buffer over the file, so a fix lands before the save", () => {
 test("carries one kind each, so a project turns a rule off by leaving it out", () => {
   const reports: string[] = [];
   const one = context("money.ts", undefined, reports);
-  plugin.rules["unused-member"].create(one).Program();
+  plugin.rules["unused-member"]!.create(one).Program();
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
-  plugin.rules["duplicate-brand"].create(one).Program();
+  plugin.rules["duplicate-brand"]!.create(one).Program();
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
 });
 
