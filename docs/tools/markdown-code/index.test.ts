@@ -12,6 +12,12 @@ describe("codeBlocks", () => {
     expect(ignored).toMatchObject({ language: "ts", attributes: ["ignore"], line: 5 });
   });
 
+  test("drops an empty attribute between commas", () => {
+    expect(codeBlocks("```ts,,ignore,\nconst a = 1;\n```")).toMatchObject([
+      { language: "ts", attributes: ["ignore"] },
+    ]);
+  });
+
   test("reports an unlabeled fence as an empty language", () => {
     expect(codeBlocks("```\nplain\n```")).toMatchObject([{ language: "", attributes: [] }]);
   });

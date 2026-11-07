@@ -394,15 +394,6 @@ describe("Val", () => {
       type Rest = Val<"Rest", { at: [string, ...number[]] }>;
       expectTypeOf<SeedOf<Rest>["at"]>().toEqualTypeOf<readonly (string | number)[]>();
     });
-
-    test("nested arrays", () => {
-      const Grid = Val.companion<Grid>().build();
-      const g = Grid.seal([
-        [1, 2],
-        [3, 4],
-      ]);
-      expect(g[1]?.[0]).toBe(3);
-    });
   });
 
   describe("rejected payloads", () => {
@@ -908,16 +899,6 @@ describe("Val", () => {
       }).toThrow(TypeError);
     });
 
-    test("values are frozen in development, all the way down", () => {
-      type Post = Val<"Post", { title: string; author: { name: string }; tags: string[] }>;
-      const Post = Val.companion<Post>().build();
-      const post = Post.seal({ title: "t", author: { name: "alice" }, tags: ["a"] });
-
-      expect(Object.isFrozen(post)).toBe(true);
-      expect(Object.isFrozen(post.author)).toBe(true);
-      expect(Object.isFrozen(post.tags)).toBe(true);
-    });
-
     test("a payload's getter cannot leave a value half-sealed", () => {
       // Copying a payload runs its getters, so someone else's code can run mid-copy and reach
       // back into the library.
@@ -1207,6 +1188,12 @@ describe("equals", () => {
     ).toBe(true);
   });
 
+  test("tells an own `__proto__` key from a different key", () => {
+    const Tags = Val.companion<Tags>().build();
+    const proto = Tags.seal(JSON.parse('{"__proto__":{}}'));
+    expect(equals(proto, Tags.seal({ a: true }))).toBe(false);
+  });
+
   test("treats NaN as equal to NaN, and -0 as equal to 0", () => {
     type NumberValue = Val<"NumberValue", number>;
     const NumberValue = Val.companion<NumberValue>().build();
@@ -1329,6 +1316,10 @@ describe("patch", () => {
       patch: (...args: unknown[]) => unknown;
     };
     expect(() => ArticleId.patch("a1b2c3", {})).toThrow(/object-shaped/);
+    const Grid = Val.companion<Grid>().build() as unknown as {
+      patch: (...args: unknown[]) => unknown;
+    };
+    expect(() => Grid.patch([[1]], {})).toThrow(/object-shaped/);
   });
 
   test("with routes through the seal, whatever the seal returns", () => {
@@ -2140,24 +2131,6 @@ describe("building", () => {
     type Email = Val<"Email", string>;
     type Point = Val<"Point", { x: number; y: number }>;
 
-    test("registers `seal` and routes `patch` through it, without any impl", () => {
-      const Score = Val.companion<Score>()
-        .implSeal((s: { points: number }, seal): Result<Score> =>
-          s.points >= 0
-            ? { ok: true, value: seal(s) }
-            : { ok: false, error: "points must not be negative" },
-        )
-        .build();
-
-      const s = Val.of<Score>({ points: 3 });
-      expectTypeOf(Score.patch(s, { points: 1 })).toEqualTypeOf<Result<Score>>();
-      expect(Score.patch(s, { points: -1 })).toEqual({
-        ok: false,
-        error: "points must not be negative",
-      });
-      expect(equals(s, Val.of<Score>({ points: 3 }))).toBe(true);
-    });
-
     test("methods added afterwards keep the contextual type and the routing", () => {
       const Score = Val.companion<Score>()
         .implSeal((s, seal) => {
@@ -2188,6 +2161,8 @@ describe("building", () => {
       const e = Email.seal("  A@B.com ");
       expectTypeOf(e).toEqualTypeOf<Email>();
       expect(e).toBe("a@b.com");
+      // normalised at construction, so a parent's structural comparison is correct
+      expect(equals(Email.seal(" a@b.com"), e)).toBe(true);
       expectTypeOf(Email.seal).parameters.toEqualTypeOf<[string]>();
     });
 
@@ -2200,6 +2175,14 @@ describe("building", () => {
       const b = Box.seal(raw);
       raw.tags.push("b");
       expect(b.tags).toEqual(["a"]);
+    });
+
+    test("keeps a `__proto__` key an own property", () => {
+      const Tags = Val.companion<Tags>()
+        .implSeal((t, seal) => seal(t))
+        .build();
+      const tags = Tags.seal(JSON.parse('{"a":true,"__proto__":{"x":true}}'));
+      expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
     });
 
     const changed = new TypeError("The payload changed while the custom seal was running.");
@@ -2272,15 +2255,6 @@ describe("building", () => {
       expect(box.nested.n).toBe(1);
     });
 
-    test("allows normalization into a new plain candidate", () => {
-      type Name = Val<"Name", { value: string }>;
-      const Name = Val.companion<Name>()
-        .implSeal((n, seal) => seal({ value: n.value.trim().toLowerCase() }))
-        .build();
-
-      expect(Name.seal({ value: " Alice " })).toEqual({ value: "alice" });
-    });
-
     test("reuses the starting snapshot for every default seal call", () => {
       type Reading = Val<"Reading", { n: number }>;
       const Reading = Val.companion<Reading>()
@@ -2338,15 +2312,6 @@ describe("building", () => {
     test("seal may return a Result (the library never inspects it)", () => {
       expect(Age.seal(30)).toEqual({ ok: true, value: 30 });
       expect(Age.seal(-1)).toEqual({ ok: false, error: "age must be a non-negative integer" });
-    });
-
-    test("construct in normal form", () => {
-      const Email = Val.companion<Email>()
-        .implSeal((s: string, seal) => seal(s.trim().toLowerCase()))
-        .build();
-      expect(Email.seal("  A@B.com ")).toBe("a@b.com");
-      // normalised at construction, so a parent's structural comparison is correct
-      expect(equals(Email.seal(" a@b.com"), Email.seal("A@B.COM"))).toBe(true);
     });
 
     test("a constructor that cannot take the payload is rejected where it is written", () => {

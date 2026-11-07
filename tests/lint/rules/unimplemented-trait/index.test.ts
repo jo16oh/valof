@@ -46,6 +46,10 @@ test("matches renamed and namespace imports", async () => {
   expect(await lint("imports")).toEqual([]);
 });
 
+test("matches a module through a `.js` specifier and a directory import", async () => {
+  expect(await lint("specifiers")).toEqual([]);
+});
+
 test("keeps same-named Traits from different modules distinct", async () => {
   expect(await lint("identity")).toEqual([
     { rule: UnimplementedTrait, at: "identity/barrels.ts:5:45" },

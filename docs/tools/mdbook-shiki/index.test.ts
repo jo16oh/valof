@@ -84,6 +84,12 @@ describe("mdBook Shiki preprocessor", () => {
     }
   });
 
+  test("refuses a fallback language it did not load", async () => {
+    await expect(createMarkdownHighlighter({ fallbackLanguage: "python" })).rejects.toThrow(
+      "Shiki fallback language is not loaded: python",
+    );
+  });
+
   test("transforms nested chapters with configured themes", async () => {
     const input: Parameters<typeof preprocess>[0] = [
       {
