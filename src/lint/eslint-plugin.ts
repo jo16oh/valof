@@ -8,19 +8,10 @@ import {
   type MessagePort,
 } from "node:worker_threads";
 
-import { expand } from "./files.ts";
-import { lint, RULES, type Finding, type Kind } from "./index.ts";
+import type { AST, Rule } from "eslint";
 
-/**
- * The slice of the rule API this uses. Written out rather than imported: neither ESLint nor
- * oxlint is a dependency of valof, and both call a rule with the same shape.
- */
-type Context = {
-  filename: string;
-  settings?: { valof?: { project?: string | readonly string[] } };
-  sourceCode: { text: string };
-  report: (report: { loc: { start: Where; end: Where }; message: string }) => void;
-};
+import { expand } from "./files.ts";
+import { lint, RULES, type Finding } from "./index.ts";
 
 type Ask = {
   /** The files the run reads, absolute. The one being linted is among them. */
@@ -47,13 +38,13 @@ const PATIENCE = 60_000;
  */
 const rule = ({ kind, description }: (typeof RULES)[number]) => ({
   meta: {
-    type: "problem",
+    type: "problem" as const,
     docs: { description },
     // The project to read is one setting for all of them, since repeating it per rule lets the
     // copies disagree. See {@link project}.
     schema: [],
   },
-  create(context: Context) {
+  create(context: Rule.RuleContext) {
     return {
       Program(): void {
         const file = resolve(context.filename);
@@ -84,19 +75,14 @@ const WORD = /^[\p{L}\p{N}_$]+/u;
  *
  * Columns count from 1 in a finding, as an editor shows them, and from 0 in a report.
  */
-function over(text: string, { line, column }: Finding): { start: Where; end: Where } {
+function over(text: string, { line, column }: Finding): AST.SourceLocation {
   const rest = (text.split("\n")[line - 1] ?? "").slice(column - 1);
   const width = WORD.exec(rest)?.[0].length ?? rest.trimEnd().length;
   const start = { line, column: column - 1 };
   return { start, end: { line, column: start.column + Math.max(width, 1) } };
 }
 
-type Where = { line: number; column: number };
-
-const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)])) as Record<
-  Kind,
-  ReturnType<typeof rule>
->;
+const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)]));
 
 /**
  * One run per file, however many of the rules are on.
@@ -110,7 +96,12 @@ const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)])) as R
  * file's findings are while its own text is unchanged.
  */
 let last: { key: string; findings: readonly Finding[] } | undefined;
-function found(file: string, text: string, settings: Context["settings"]): readonly Finding[] {
+function found(
+  file: string,
+  text: string,
+  // A host may leave the settings out.
+  settings: { valof?: { project?: string | readonly string[] } } | undefined,
+): readonly Finding[] {
   const project = read(settings?.valof?.project ?? "src/**/*.ts");
   const key = `${file}\n${text}\n${project.join("\n")}`;
   if (last?.key === key) return last.findings;
@@ -126,7 +117,18 @@ function found(file: string, text: string, settings: Context["settings"]): reado
   return findings;
 }
 
-export default {
+/** What a config file needs of the plugin, written out so ESLint's types stay out of the declaration. */
+const plugin: {
+  meta: { name: string };
+  rules: Record<
+    string,
+    {
+      meta: { type: "problem"; docs: { description: string } };
+      create(context: unknown): { Program(): void };
+    }
+  >;
+  configs: { recommended: { rules: Record<string, "error" | "warn"> } };
+} = {
   meta: { name: "valof" },
   rules,
   configs: {
@@ -144,6 +146,7 @@ export default {
     },
   },
 };
+export default plugin;
 
 /**
  * The project, globbed once however many files are linted.
