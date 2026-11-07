@@ -16,12 +16,7 @@ import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 /** `K`, which must be a key of every member of `T`. */
 type On<T, K extends keyof T> = K;
 
-/**
- * The entry points a chain grows from. A rename in the library is a type error here.
- *
- * Checked here and spelled out on {@link CompanionSite}, which is exported: naming a library type
- * there makes the published lint declarations import the library's.
- */
+/** The entry points a chain grows from. A rename in the library is a type error here. */
 const ENTRY_POINTS: ReadonlySet<string> = new Set([
   "companion" satisfies On<typeof Val | typeof Enum | typeof Trait, "companion">,
 ]);
