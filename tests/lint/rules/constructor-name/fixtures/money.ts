@@ -1,4 +1,4 @@
-import { Val } from "valof";
+import { Enum, Val } from "valof";
 
 type Money = Val<"Money", { cents: number }>;
 const Money = Val.companion<Money>()
@@ -20,3 +20,22 @@ const Money = Val.companion<Money>()
 
 export const read = [Money.fromCents, Money.read, Money.random, Money.cents, Money.sum, Money.zero];
 export const more = [Money.fromage, Money.createdAt, Money.fromYears];
+
+type Rate = Val<"Rate", { per: number }>;
+const Rate = Val.companion<Rate>()
+  .implAssoc(({ seal }) => ({
+    load: function (n: number) {
+      return seal({ per: n });
+    },
+  }))
+  .build();
+
+export const rates = [Rate.load];
+
+type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
+const Shape = Enum.companion<Shape>()
+  .Square.impl(() => ({ fromSide: (s) => s.side }))
+  .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+  .build();
+
+export const shapes = [Shape.Square.fromSide, Shape.Circle.diameter];

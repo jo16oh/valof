@@ -22,3 +22,18 @@ export const Tag = Val.companion<Tag>()
   .build();
 
 export const read = [User.toWire, User.tags, User.short, User.yell, Tag.label, Tag.plain];
+
+export type Item = Val<"Item", { name: string }>;
+// No annotation, so nothing hides the default.
+const plain = (i: Item, sep = ",") => i.name + sep;
+type Glue = (i: Item, sep: string) => string;
+const glue: Glue = function (i, sep = ",") {
+  return i.name + sep;
+};
+
+export const Item = Val.companion<Item>()
+  // @ts-expect-error -- the type rejects plain's default, which leaves the linter nothing to add
+  .impl(() => ({ plain, glue }))
+  .build();
+
+export const readItem = [Item.plain, Item.glue];

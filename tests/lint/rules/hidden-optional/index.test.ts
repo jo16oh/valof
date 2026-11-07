@@ -11,12 +11,13 @@ const { lint, messages } = fixtures(import.meta.url);
 
 const under = "tests/lint/rules/hidden-optional/fixtures";
 
-test("reports a default or a rest parameter the annotation declares, in this file or another", async () => {
+test("reports a default or a rest parameter the annotation declares, in this file or another, and none without an annotation", async () => {
   expect(await lint("members")).toEqual([
     { rule: HiddenOptional, at: "members/helpers.ts:3:61" },
     { rule: HiddenOptional, at: "members/user.ts:8:28" },
     { rule: HiddenOptional, at: "members/user.ts:9:52" },
     { rule: HiddenOptional, at: "members/user.ts:18:37" },
+    { rule: HiddenOptional, at: "members/user.ts:30:33" },
   ]);
   const hides = (name: string, what: string): string =>
     `the annotation on ${name} declares the parameter this ${what} makes optional, so a call with the value last finds the wrong arity; drop the ${what}, or write the member inline`;
@@ -25,6 +26,7 @@ test("reports a default or a rest parameter the annotation declares, in this fil
     hides("toWire", "default"),
     hides("tags", "rest parameter"),
     hides("labels.label", "default"),
+    hides("glue", "default"),
   ]);
 });
 

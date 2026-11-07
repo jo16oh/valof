@@ -52,6 +52,33 @@ test("reports classes, constraints and types taken out of values, each only when
   ]);
 });
 
+test("reads a nested object in a variant, beside an intersected base, in an array and in a mapped type", async () => {
+  const nests = (name: string): string =>
+    `${name} nests an object that is not a Val; nest a Val instead`;
+  expect(await reported({}, "more")).toEqual([
+    `4:49 ${nests("Choice")}`,
+    `5:52 ${nests("Joined")}`,
+    `6:45 ${nests("Listed")}`,
+    `7:41 ${nests("Mapped")}`,
+    `11:13 ${data("Wrapped")}`,
+    "17:41 Name is a payload type; use it in a Valof type, or in the function passed to implSeal or implCreate",
+    `23:13 ${primitive("Flag")}`,
+    `24:13 ${primitive("Code")}`,
+  ]);
+});
+
+test("takes a type out of a value below the top too, and reports a class expression, when asked", async () => {
+  const always = new Set(await reported({}, "more"));
+  const added = (await reported({ classes: true, extraction: true }, "more")).filter(
+    (one) => !always.has(one),
+  );
+  expect(added).toEqual([
+    "10:13 Labeler takes its type out of a value; declare a Val instead",
+    "11:13 Wrapped takes its type out of a value; declare a Val instead",
+    "22:21 a class declares data outside Valof; model it as a Val",
+  ]);
+});
+
 test("leaves a declaration file alone", async () => {
   expect(await reported({}, "declared.d")).toEqual([]);
 });

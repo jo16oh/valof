@@ -1,4 +1,4 @@
-import { Val } from "valof";
+import { Enum, Val } from "valof";
 
 const reserved = (id: string): boolean => id === "admin";
 
@@ -36,3 +36,14 @@ const Name = Val.companion<Name>()
   .build();
 
 export const all = [Id.create(), Code.create(), Key.create(), Name.create()];
+
+type Tone = Enum<"Tone", { Loud: { level: number }; Quiet: { level: number } }>;
+const Tone = Enum.companion<Tone>()
+  .Loud.implSeal(function (tone, seal) {
+    seal(tone);
+    return seal({ ...tone, level: Math.min(tone.level, 10) });
+  })
+  .Loud.implCreate.noseal(() => ({ level: 1 }))
+  .build();
+
+export const tones = [Tone.Loud.create()];
