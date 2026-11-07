@@ -35,6 +35,9 @@ test("says a whole-file directive reports nothing in the file, not here", async 
       at: "whole-file.ts:2:1",
     },
   ]);
+  expect(await messages("whole-file")).toEqual([
+    "valof-lint-disable-whole-file names duplicate-brand, which reports nothing in this file",
+  ]);
 });
 
 test("blames no rule that was left out of the run", async () => {

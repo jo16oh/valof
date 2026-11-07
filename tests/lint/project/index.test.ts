@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { cli } from "../support.ts";
+import { cli, cliIn, root } from "../support.ts";
 
 // What the run covers, against what it reports on. Three rules need a second file to say
 // anything, so a run narrowed to one file loses their findings and calls the directives holding
@@ -24,6 +24,15 @@ test("still reports the file it was asked about", () => {
 test("takes the glob joined by an equals sign too", () => {
   const { stdout } = cli(`--project=${under}/*.ts`, `${under}/billing.ts`);
   expect(stdout).toBe("");
+  // `billing.ts` holds no finding, unlike the project, so the value is read as the file to report on.
+  expect(cli(`--project=${under}/*.ts`, `--report-on=${under}/billing.ts`).stdout).toBe("");
+});
+
+test("reads src/**/*.ts when no project is named", () => {
+  const { stdout } = cliIn(`${root}${under}/default`, "--report-on", "src/orders.ts");
+  expect(stdout).toBe(
+    'src/orders.ts:2:13  duplicate-brand  Ref claims the brand "Ref", and so does another type\n',
+  );
 });
 
 test("calls a live directive unused where the project is narrowed with it", () => {
