@@ -10,7 +10,8 @@ export type Node = Enum<
   "Node",
   {
     Program: { body: Rec<Node>[] };
-    Identifier: { name: string };
+    /** `annotated` says whether a type annotation follows the name, `x: T`. */
+    Identifier: { name: string; annotated: boolean };
     /** `value` is the string the literal spells, `null` for a literal of any other kind. */
     Literal: { value: string | null };
     MemberExpression: { object: Rec<Node>; property: Rec<Node>; computed: boolean };
@@ -28,7 +29,19 @@ export type Node = Enum<
     /** `generic` says whether the alias takes type parameters. */
     TSTypeAliasDeclaration: { id: Rec<Node>; typeAnnotation: Rec<Node>; generic: boolean };
     TSTypeLiteral: { members: Rec<Node>[] };
-    TSPropertySignature: { key: Rec<Node>; computed: boolean };
+    TSPropertySignature: { key: Rec<Node>; computed: boolean; typeAnnotation: Rec<Node> | null };
+    TSTypeAnnotation: { typeAnnotation: Rec<Node> };
+    TSUnionType: { types: Rec<Node>[] };
+    TSArrayType: { elementType: Rec<Node> };
+    TSTypeOperator: { typeAnnotation: Rec<Node> };
+    TSTypeParameter: { constraint: Rec<Node> | null };
+    TSInterfaceDeclaration: { id: Rec<Node> };
+    TSMappedType: {};
+    TSTupleType: {};
+    TSTypeQuery: {};
+    TSModuleDeclaration: {};
+    ClassDeclaration: {};
+    ClassExpression: {};
     TSLiteralType: { literal: Rec<Node> };
     ExportNamedDeclaration: {
       declaration: Rec<Node> | null;
@@ -45,14 +58,27 @@ export type Node = Enum<
     ObjectExpression: { properties: Rec<Node>[] };
     Property: { key: Rec<Node>; value: Rec<Node>; computed: boolean };
     SpreadElement: { argument: Rec<Node> };
-    ArrowFunctionExpression: { body: Rec<Node> };
-    Other: {};
+    ArrowFunctionExpression: { params: Rec<Node>[]; body: Rec<Node> };
+    FunctionExpression: { params: Rec<Node>[]; body: Rec<Node> | null };
+    BlockStatement: {};
+    ReturnStatement: { argument: Rec<Node> | null };
+    AssignmentPattern: {};
+    RestElement: {};
+    /** Any node the linter reads nothing of, under its ESTree `type`. */
+    Other: { nodeType: string };
   },
   Tag<"type"> & { start: number; children: Rec<Node>[] }
 >;
 export const Node = Enum.companion<Node>().tag("type").build();
 
 export type Identifier = VariantOf<Node, "Identifier">;
+
+/** The type a property signature annotates: `{ k: T }` gives `T`. */
+export function annotationOf(member: Node): Node | null {
+  if (member.type !== "TSPropertySignature") return null;
+  const annotation = member.typeAnnotation;
+  return annotation?.type === "TSTypeAnnotation" ? annotation.typeAnnotation : annotation;
+}
 
 /** The type arguments a `<…>` holds, none when it is absent. */
 export const typeParams = (args: Node | null): readonly Node[] =>
@@ -92,7 +118,11 @@ function build(
     case "Program":
       return Node.Program.create.nocopy({ ...shared, body: raw.body.map(at) });
     case "Identifier":
-      return Node.Identifier.create.nocopy({ ...shared, name: raw.name });
+      return Node.Identifier.create.nocopy({
+        ...shared,
+        name: raw.name,
+        annotated: "typeAnnotation" in raw && raw.typeAnnotation != null,
+      });
     case "Literal":
       return Node.Literal.create.nocopy({
         ...shared,
@@ -155,7 +185,52 @@ function build(
         ...shared,
         key: at(raw.key),
         computed: raw.computed,
+        typeAnnotation: maybe(raw.typeAnnotation),
       });
+    case "TSTypeAnnotation":
+      return Node.TSTypeAnnotation.create.nocopy({
+        ...shared,
+        typeAnnotation: at(raw.typeAnnotation),
+      });
+    case "TSUnionType":
+      return Node.TSUnionType.create.nocopy({ ...shared, types: raw.types.map(at) });
+    case "TSArrayType":
+      return Node.TSArrayType.create.nocopy({ ...shared, elementType: at(raw.elementType) });
+    case "TSTypeOperator":
+      return Node.TSTypeOperator.create.nocopy({
+        ...shared,
+        typeAnnotation: at(raw.typeAnnotation),
+      });
+    case "TSTypeParameter":
+      return Node.TSTypeParameter.create.nocopy({ ...shared, constraint: maybe(raw.constraint) });
+    case "TSInterfaceDeclaration":
+      return Node.TSInterfaceDeclaration.create.nocopy({ ...shared, id: at(raw.id) });
+    case "TSMappedType":
+      return Node.TSMappedType.create.nocopy(shared);
+    case "TSTupleType":
+      return Node.TSTupleType.create.nocopy(shared);
+    case "TSTypeQuery":
+      return Node.TSTypeQuery.create.nocopy(shared);
+    case "TSModuleDeclaration":
+      return Node.TSModuleDeclaration.create.nocopy(shared);
+    case "ClassDeclaration":
+      return Node.ClassDeclaration.create.nocopy(shared);
+    case "ClassExpression":
+      return Node.ClassExpression.create.nocopy(shared);
+    case "FunctionExpression":
+      return Node.FunctionExpression.create.nocopy({
+        ...shared,
+        params: raw.params.map(at),
+        body: maybe(raw.body),
+      });
+    case "BlockStatement":
+      return Node.BlockStatement.create.nocopy(shared);
+    case "ReturnStatement":
+      return Node.ReturnStatement.create.nocopy({ ...shared, argument: maybe(raw.argument) });
+    case "AssignmentPattern":
+      return Node.AssignmentPattern.create.nocopy(shared);
+    case "RestElement":
+      return Node.RestElement.create.nocopy(shared);
     case "TSLiteralType":
       return Node.TSLiteralType.create.nocopy({ ...shared, literal: at(raw.literal) });
     case "ExportNamedDeclaration":
@@ -211,9 +286,13 @@ function build(
     case "SpreadElement":
       return Node.SpreadElement.create.nocopy({ ...shared, argument: at(raw.argument) });
     case "ArrowFunctionExpression":
-      return Node.ArrowFunctionExpression.create.nocopy({ ...shared, body: at(raw.body) });
+      return Node.ArrowFunctionExpression.create.nocopy({
+        ...shared,
+        params: raw.params.map(at),
+        body: at(raw.body),
+      });
     default:
-      return Node.Other.create.nocopy(shared);
+      return Node.Other.create.nocopy({ ...shared, nodeType: raw.type });
   }
 }
 

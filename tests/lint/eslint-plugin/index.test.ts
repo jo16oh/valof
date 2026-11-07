@@ -96,6 +96,15 @@ test("underlines the whole directive, which has no name to point at", () => {
 test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
   expect(plugin.configs.recommended.rules).toEqual({
+    // The members work, but the block gives them state they share and no reader sees.
+    "valof/block-step": "warn",
+    "valof/hidden-optional": "error",
+    "valof/payload-of-property": "error",
+    "valof/unreturned-seal": "error",
+    "valof/unrelated-assoc": "warn",
+    "valof/constructor-name": "warn",
+    "valof/split-variant-steps": "warn",
+    "valof/unqualified-variant": "warn",
     "valof/unnecessary-alias": "error",
     "valof/unimplemented-trait": "error",
     "valof/brand-mismatch": "error",
@@ -111,4 +120,26 @@ test("names every rule, under the plugin's own name", () => {
     "valof/unused-disable": "warn",
     "valof/unused-member": "warn",
   });
+});
+
+test("runs model-only-in-valof with the settings under its name, and not from an older run's", () => {
+  const file = at("model/row.ts");
+  const text = readFileSync(file, "utf8");
+  const reported = (model?: { classes: boolean }): string[] => {
+    const reports: string[] = [];
+    plugin.rules["model-only-in-valof"]!.create({
+      filename: file,
+      settings: { valof: { project: file, ...(model ? { "model-only-in-valof": model } : {}) } },
+      sourceCode: { text },
+      report: ({ loc, message }: { loc: { start: Where }; message: string }) =>
+        void reports.push(`${loc.start.line}:${message}`),
+    }).Program();
+    return reports;
+  };
+  const row = "1:Row declares a data type outside Valof; model it as a Val, an Enum or a Trait";
+  expect(reported()).toEqual([row]);
+  expect(reported({ classes: true })).toEqual([
+    row,
+    "3:a class declares data outside Valof; model it as a Val",
+  ]);
 });

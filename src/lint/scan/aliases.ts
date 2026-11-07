@@ -1,5 +1,12 @@
 import { Val, type VariantOf } from "../../index.ts";
-import { keyName, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
+import {
+  annotationOf,
+  keyName,
+  typeParams,
+  unparenthesized,
+  type Node,
+  type Position,
+} from "../ast.ts";
 import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
@@ -37,6 +44,8 @@ export type EnumAlias = Val<
      * them reports nothing there rather than guessing at a mapped type or an import.
      */
     variants: string[] | null;
+    /** The traits each variant declares in its payload, `{ Book: { pages: number } & Named }`. */
+    variantTraits: VariantTraits[];
   }
 >;
 export const EnumAlias = Val.companion<EnumAlias>().build();
@@ -73,6 +82,17 @@ export type BrandClaim = Val<
 >;
 export const BrandClaim = Val.companion<BrandClaim>().build();
 
+/** The traits one variant declares in its payload. */
+export type VariantTraits = Val<"VariantTraits", { variant: string; traits: DeclaredTrait[] }>;
+export const VariantTraits = Val.companion<VariantTraits>().build();
+
+/** A `PayloadOf<X>` written inside a payload rather than as it, or as its intersected base. */
+export type NestedPayloadOf = Val<
+  "NestedPayloadOf",
+  { at: Position; alias: string; wrapped: string }
+>;
+export const NestedPayloadOf = Val.companion<NestedPayloadOf>().build();
+
 /**
  * The name a type reference is written under, or `undefined` when it is not a plain one.
  *
@@ -104,6 +124,7 @@ export type Aliases = Val<
     enumAliases: EnumAlias[];
     brands: BrandClaim[];
     reAliases: ReAlias[];
+    nestedPayloadOfs: NestedPayloadOf[];
   }
 >;
 export const Aliases = Val.companion<Aliases>().build();
@@ -119,6 +140,7 @@ export function valAliases(
   const enumAliases: EnumAlias[] = [];
   const brands: BrandClaim[] = [];
   const reAliases: ReAlias[] = [];
+  const nestedPayloadOfs: NestedPayloadOf[] = [];
   const locals = localAliases(program);
 
   for (const node of topLevelAliases(program)) {
@@ -147,6 +169,16 @@ export function valAliases(
 
     const kind = Bindings.original(bound, named);
     const declared = { file, alias: id.name, ref: symbolRef(file, bound, id.name) };
+    const nested = (payload: Node | null | undefined): void => {
+      if (payload) nestedPayloadOfs.push(...payloadOfs(payload, id.name, bound, locals, position));
+    };
+    if (kind === "Val") nested(params[1]);
+    if (kind === "Enum") {
+      // Each variant's payload is a top level of its own.
+      const record = unparenthesized(params[1]);
+      if (record?.type === "TSTypeLiteral")
+        for (const member of record.members) nested(annotationOf(member));
+    }
     if (kind === "Val") {
       aliases.push(
         Alias.seal({
@@ -165,6 +197,7 @@ export function valAliases(
           // fields and the tag's name, all intersected.
           traits: traitNames(params[2], file, bound, locals, position),
           variants: variants ?? null,
+          variantTraits: variantTraits(params[1], file, bound, locals, position),
         }),
       );
     }
@@ -183,7 +216,7 @@ export function valAliases(
     );
   }
 
-  return Aliases.seal({ aliases, traitAliases, enumAliases, brands, reAliases });
+  return Aliases.seal({ aliases, traitAliases, enumAliases, brands, reAliases, nestedPayloadOfs });
 }
 
 /** Every top-level `type X = …` in the file, which the two syntax-only walks below expand. */
@@ -302,4 +335,88 @@ function traitNames(
   };
   visit(node);
   return [...out.values()];
+}
+
+/** The traits each variant of a literal variant record names in its payload. */
+function variantTraits(
+  node: Node | undefined,
+  file: string,
+  bound: Bindings,
+  aliases: ReadonlyMap<string, Node>,
+  position: (offset: number) => Position,
+): VariantTraits[] {
+  const record = unparenthesized(node);
+  if (record?.type !== "TSTypeLiteral") return [];
+  return record.members.flatMap((member) => {
+    if (member.type !== "TSPropertySignature") return [];
+    const variant = keyName(member.key, member.computed);
+    const payload = annotationOf(member);
+    if (!variant || !payload) return [];
+    const traits = traitNames(payload, file, bound, aliases, position);
+    return traits.length > 0 ? [VariantTraits.seal({ variant, traits })] : [];
+  });
+}
+
+/**
+ * The `PayloadOf<X>` references in a payload below its top. At the top, or intersected there,
+ * it builds the payload on `X`'s, which is its purpose. Below, `total: PayloadOf<Money>` holds
+ * `Money`'s payload with neither its brand nor its seal.
+ */
+function payloadOfs(
+  payload: Node,
+  alias: string,
+  bound: Bindings,
+  aliases: ReadonlyMap<string, Node>,
+  position: (offset: number) => Position,
+): NestedPayloadOf[] {
+  /** The reference's name, resolved against the imports, and its first type argument. */
+  const referenced = (
+    node: Node | undefined,
+  ): { name: string; first: Node | undefined } | undefined => {
+    const inside = unparenthesized(node);
+    if (inside?.type !== "TSTypeReference") return undefined;
+    const named = valName(inside.typeName, bound);
+    if (!named) return undefined;
+    return { name: Bindings.original(bound, named), first: typeParams(inside.typeArguments)[0] };
+  };
+  /** The name a `PayloadOf<X>` argument is written under, or "it" when it is not a plain name. */
+  const wrappedName = (wrapped: Node | undefined): string =>
+    wrapped?.type === "TSTypeReference" && wrapped.typeName.type === "Identifier"
+      ? wrapped.typeName.name
+      : "it";
+  /** What a local `type M = Payload<PayloadOf<X>>` wraps: `X`, read one step and no further. */
+  const wrapping = (name: string): string | undefined => {
+    const outer = referenced(aliases.get(name));
+    const inner = outer?.name === "Payload" ? referenced(outer.first) : undefined;
+    return inner?.name === "PayloadOf" ? wrappedName(inner.first) : undefined;
+  };
+  const found: NestedPayloadOf[] = [];
+  const visit = (node: Node, top: boolean): void => {
+    const inside = unparenthesized(node);
+    if (!inside) return;
+    if (inside.type === "TSIntersectionType") {
+      for (const part of inside.types) visit(part, top);
+      return;
+    }
+    if (inside.type === "TSTypeReference") {
+      const named = valName(inside.typeName, bound);
+      const args = typeParams(inside.typeArguments);
+      if (named && Bindings.original(bound, named) === "PayloadOf" && !top)
+        found.push(
+          NestedPayloadOf.seal({
+            at: position(inside.start),
+            alias,
+            wrapped: wrappedName(args[0]),
+          }),
+        );
+      const through = named && !top ? wrapping(named) : undefined;
+      if (through)
+        found.push(NestedPayloadOf.seal({ at: position(inside.start), alias, wrapped: through }));
+      for (const arg of args) visit(arg, false);
+      return;
+    }
+    for (const one of inside.children) visit(one, false);
+  };
+  visit(payload, true);
+  return found;
 }

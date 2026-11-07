@@ -272,3 +272,23 @@ export function companionSite(
     seals: steps.includes("implSeal"),
   });
 }
+
+/**
+ * The entry point of the chain a step is called on, through variants and a builder held in a
+ * variable: `Val.companion<X>().implSeal(f).impl` and `built.Circle.impl` alike.
+ */
+export function chainRoot(
+  callee: VariantOf<Node, "MemberExpression">,
+  bound: Bindings,
+): string | undefined {
+  let { receiver } = stepOf(callee);
+  for (;;) {
+    const inner = variantOf(receiver)?.builder ?? receiver;
+    if (inner.type === "Identifier") return Bindings.builder(bound, inner.name);
+    if (inner.type !== "CallExpression" || inner.callee.type !== "MemberExpression")
+      return undefined;
+    const root = fromRoot(inner.callee, bound);
+    if (root) return root;
+    receiver = stepOf(inner.callee).receiver;
+  }
+}

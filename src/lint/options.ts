@@ -1,12 +1,40 @@
 import { resolve } from "node:path";
 
 import { Val } from "../index.ts";
-import { KindSet } from "./rules/index.ts";
+import { KindSet } from "./rules/rule.ts";
+
+/** What `model-only-in-valof` reports beyond what it always reports. */
+export type ModelSettings = Val<
+  "ModelSettings",
+  {
+    /** Report a class, declared or as an expression. */
+    classes: boolean;
+    /** Report a data shape in a type parameter's constraint: `<T extends { id: string }>`. */
+    constraints: boolean;
+    /** Report a type taken out of a value: `typeof`, `ReturnType`, `Awaited` and the like. */
+    extraction: boolean;
+  }
+>;
+export const ModelSettings = Val.companion<ModelSettings>()
+  .implCreate(
+    ({
+      classes = false,
+      constraints = false,
+      extraction = false,
+    }: { classes?: boolean; constraints?: boolean; extraction?: boolean } = {}) => ({
+      classes,
+      constraints,
+      extraction,
+    }),
+  )
+  .build();
 
 /** How a run reads and reports. Paths are resolved, so any spelling of a file finds it. */
 export type Options = Val<
   "Options",
   {
+    /** The rules that are off unless named here, with their settings. */
+    enable: { "model-only-in-valof"?: ModelSettings };
     /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
     skip: KindSet;
     /**
@@ -32,14 +60,19 @@ export type Options = Val<
 export const Options = Val.companion<Options>()
   .implCreate(
     ({
+      enable = {},
       skip = [],
       report,
       overlay = [],
     }: {
+      enable?: { "model-only-in-valof"?: Parameters<typeof ModelSettings.create>[0] };
       skip?: Iterable<string>;
       report?: Iterable<string>;
       overlay?: Iterable<readonly [string, string]>;
     } = {}) => ({
+      enable: enable["model-only-in-valof"]
+        ? { "model-only-in-valof": ModelSettings.create(enable["model-only-in-valof"]) }
+        : {},
       skip: KindSet.create(skip),
       report: report
         ? Object.fromEntries([...report].map((file) => [resolve(file), true as const]))

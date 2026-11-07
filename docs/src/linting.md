@@ -10,19 +10,28 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 ## Rules
 
-| rule                  | reports                                                                 | default |
-| --------------------- | ----------------------------------------------------------------------- | ------- |
-| `unused-member`       | a member registered with `.impl` or `.implTrait` that nothing reads     | warning |
-| `duplicate-brand`     | a brand string claimed by more than one top-level alias                 | error   |
-| `brand-mismatch`      | a brand whose last segment is not the name of the type it brands        | error   |
-| `unnecessary-alias`   | a type alias that is a second name for a Val, a Trait or an Enum        | error   |
-| `unimplemented-trait` | a Trait a Val or an Enum declares that its companion does not implement | error   |
-| `companion-mismatch`  | a companion, or a variant, bound to a name other than its own           | error   |
-| `split-companion`     | a companion for a type that another file declares                       | error   |
-| `bypassed-companion`  | a `Val.of` for a type whose companion is how it is built                | warning |
-| `unnamed-of`          | a `Val.of` that names no type, taking one from its target               | warning |
-| `incomplete-disable`  | a disable comment leaving out the rules it silences, or its scope       | error   |
-| `unused-disable`      | a disable comment naming a rule that reports nothing there              | warning |
+| rule                  | reports                                                                                                       | default |
+| --------------------- | ------------------------------------------------------------------------------------------------------------- | ------- |
+| `unused-member`       | a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads                             | warning |
+| `duplicate-brand`     | a brand string claimed by more than one top-level alias                                                       | error   |
+| `brand-mismatch`      | a brand whose last segment is not the name of the type it brands                                              | error   |
+| `unnecessary-alias`   | a type alias that is a second name for a Val, a Trait or an Enum                                              | error   |
+| `unimplemented-trait` | a Trait a Val, an Enum or a variant declares that its companion does not implement                            | error   |
+| `companion-mismatch`  | a companion, or a variant, bound to a name other than its own                                                 | error   |
+| `split-companion`     | a companion for a type that another file declares                                                             | error   |
+| `bypassed-companion`  | a `Val.of` for a type whose companion is how it is built                                                      | warning |
+| `unnamed-of`          | a `Val.of` that names no type, taking one from its target                                                     | warning |
+| `block-step`          | a function passed to `.impl`, `.implTrait` or `.implAssoc` with a block body                                  | warning |
+| `unqualified-variant` | a variant bound to a local name without the name of its enum                                                  | warning |
+| `split-variant-steps` | a variant whose steps are split by another variant's steps in the chain                                       | warning |
+| `constructor-name`    | a constructor in `.implAssoc` not named `from*`, `parse*` or `create*`, or a member of `.impl` named like one | warning |
+| `unrelated-assoc`     | an `.implAssoc` member that names neither its type nor a `seal` or `create`                                   | warning |
+| `unreturned-seal`     | a seal that keeps the default seal's result outside its return, in a chain with `.implCreate.noseal`          | error   |
+| `payload-of-property` | a `PayloadOf<X>` inside a payload, which drops the brand and the seal of `X`                                  | error   |
+| `hidden-optional`     | a default or rest parameter that a member's type annotation hides                                             | error   |
+| `model-only-in-valof` | a data type declared outside Valof                                                                            | off     |
+| `incomplete-disable`  | a disable comment leaving out the rules it silences, or its scope                                             | error   |
+| `unused-disable`      | a disable comment naming a rule that reports nothing there                                                    | warning |
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two
 types the checker stops distinguishing, or a name that has to agree with another and does not.
@@ -35,6 +44,42 @@ on any of them.
 
 A member registered with `.impl(() => ({…}))` is not tree-shaken, and knip does not report it when
 it becomes unused.
+
+`hidden-optional` reads the annotation through TypeScript 7.1 or later. valof does not install it,
+and a run needs it only where an annotated function with a default or a rest parameter is passed as
+a member.
+
+```bash
+pnpm add -D typescript
+```
+
+## Modelling only in Valof
+
+`model-only-in-valof` reports a named data type declared outside Valof: an object type, an array, a
+tuple, a primitive, a utility type such as `Pick`, or an `interface`. A union of Vals and a function
+type pass. It is off until a project turns it on.
+
+Name a type meant for a payload with `Payload`. It may appear inside a Valof type, and in the
+function passed to `implSeal` or `implCreate`.
+
+```ts
+import { Val, type Payload, type PayloadOf } from "valof";
+
+type User = Val<"User", { id: string; name: string }>;
+type Fields = Payload<Omit<PayloadOf<User>, "id">>;
+
+const User = Val.companion<User>()
+  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }))
+  .build();
+```
+
+Three settings, each off by default, make the rule report more:
+
+| setting       | reports                                                                     |
+| ------------- | --------------------------------------------------------------------------- |
+| `classes`     | a class, declared or as an expression                                       |
+| `constraints` | a data shape in a type parameter's constraint, `<T extends { id: string }>` |
+| `extraction`  | a type taken out of a value: `typeof`, `ReturnType`, `Awaited` and the like |
 
 ## Disable comments
 
@@ -59,8 +104,9 @@ like any other.
 ## Plugin for ESLint and Oxlint
 
 The same rules, one per finding kind. Each rule can be given its own severity, or turned off, by its
-name. The project to read is one setting for all of them, a path or a list of paths, and defaults to
-`src/**/*.ts`. A path starting with `!` is excluded from it.
+name. `recommended` leaves `model-only-in-valof` out. The rule's settings go under
+`settings.valof["model-only-in-valof"]`. The project to read is one setting for all of them, a path
+or a list of paths, and defaults to `src/**/*.ts`. A path starting with `!` is excluded from it.
 
 ESLint needs a parser that reads your TypeScript.
 
@@ -106,6 +152,7 @@ pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree
 | the paths after it         | the files to report on, the whole project when there are none                    |
 | `--project`, `--report-on` | the same two by name, in either order. Either can be repeated, and takes `!path` |
 | `--no-<rule>`              | a rule to leave out of the run, by the rule name in the finding                  |
+| `--model-only-in-valof`    | the rule, turned on. Any of its settings can follow `=`, separated by commas     |
 
 A single file given as the project is refused, because a duplicate brand needs the other alias to be
 seen.

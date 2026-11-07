@@ -15,7 +15,7 @@ import type { AST, Rule } from "eslint";
 import { Enum, Val } from "../index.ts";
 import { expand } from "./files.ts";
 import { RULES, type Finding } from "./index.ts";
-import { Options } from "./options.ts";
+import { ModelSettings, Options } from "./options.ts";
 import { run } from "./run.ts";
 
 type Ask = Val<
@@ -25,6 +25,11 @@ type Ask = Val<
     project: readonly string[];
     file: string;
     text: string;
+    /**
+     * The settings of `model-only-in-valof`. It always runs here, because the host reports it only
+     * where the project turned it on.
+     */
+    model: ModelSettings;
   }
 >;
 const Ask = Val.companion<Ask>().build();
@@ -108,10 +113,22 @@ function found(
   file: string,
   text: string,
   // A host may leave the settings out.
-  settings: { valof?: { project?: string | readonly string[] } } | undefined,
+  settings:
+    | {
+        valof?: {
+          project?: string | readonly string[];
+          "model-only-in-valof"?: {
+            classes?: boolean;
+            constraints?: boolean;
+            extraction?: boolean;
+          };
+        };
+      }
+    | undefined,
 ): readonly Finding[] {
   const project = read(settings?.valof?.project ?? "src/**/*.ts");
-  const key = `${file}\n${text}\n${project.join("\n")}`;
+  const model = ModelSettings.create(settings?.valof?.["model-only-in-valof"]);
+  const key = `${file}\n${text}\n${project.join("\n")}\n${JSON.stringify(model)}`;
   if (last?.key === key) return last.findings;
 
   const findings = ask(
@@ -119,6 +136,7 @@ function found(
       project,
       file,
       text,
+      model,
     }),
   );
   last = { key, findings };
@@ -150,7 +168,9 @@ const plugin: {
       // signature of `string` does not fit the rule map Oxlint's `defineConfig` declares, so
       // `extends: [valof.configs.recommended]` would not typecheck for a caller.
       rules: Object.fromEntries(
-        RULES.map(({ kind, warns }) => [`valof/${kind}`, warns ? "warn" : "error"] as const),
+        RULES.filter(({ optIn }) => optIn !== true).map(
+          ({ kind, warns }) => [`valof/${kind}`, warns ? "warn" : "error"] as const,
+        ),
       ),
     },
   },
@@ -220,13 +240,17 @@ function ask(what: Ask): readonly Finding[] {
 // The worker is this file again, so no path has to be guessed for it: the source tree runs as
 // `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
 if (!isMainThread && parentPort) {
-  parentPort.on("message", ({ ask: { project, file, text }, port, signal }: Message) => {
+  parentPort.on("message", ({ ask: { project, file, text, model }, port, signal }: Message) => {
     void (async () => {
       let reply: Reply;
       try {
         const found = await run(
           project,
-          Options.create({ report: [file], overlay: [[file, text]] }),
+          Options.create({
+            report: [file],
+            overlay: [[file, text]],
+            enable: { "model-only-in-valof": model },
+          }),
         );
         // The message the command prints, so a user of the plugin gets the same instruction.
         reply = R.isSuccess(found)

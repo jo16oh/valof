@@ -11,7 +11,7 @@ let oxc: typeof import("oxc-parser") | undefined;
 export type Parser = Val<"Parser", { visitorKeys: Record<string, readonly string[]> }>;
 export const Parser = Val.companion<Parser>()
   .impl(() => ({
-    parse(parser, file: string, source: string) {
+    read(parser, file: string, source: string) {
       if (!oxc) throw new Error("valof-lint: oxc-parser is not loaded");
       const { program, comments } = oxc.parseSync(file, source);
       return { program: fromOxc(program, parser.visitorKeys), comments };
