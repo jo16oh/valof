@@ -1,6 +1,6 @@
 import { Val } from "../../index.ts";
 import { child, children, keyName, unparenthesized, type Node, type Position } from "../ast.ts";
-import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
+import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
 export type DeclaredTrait = Val<"DeclaredTrait", { at: Position; name: string; ref: SymbolRef }>;
@@ -80,13 +80,13 @@ export const BrandClaim = Val.companion<BrandClaim>().build();
  * namespace only says where the name came from. The caller still resolves the result against the
  * file's import aliases, which is what tells `Val` apart from something else bound to that name.
  */
-function valName(typeName: Node, namespaces: ReadonlyMap<string, string>): string | undefined {
+function valName(typeName: Node, bound: Bindings): string | undefined {
   if (typeName.type === "Identifier") return typeName["name"] as string;
   if (typeName.type !== "TSQualifiedName") return undefined;
   const left = child(typeName, "left");
   const right = child(typeName, "right");
   if (!left || !right || left.type !== "Identifier") return undefined;
-  if (!namespaces.has(left["name"] as string)) return undefined;
+  if (!Bindings.isNamespace(bound, left["name"] as string)) return undefined;
   // Qualified by a namespace import, so the name is already the exporting module's own.
   return right.type === "Identifier" ? (right["name"] as string) : undefined;
 }
@@ -126,7 +126,7 @@ export function valAliases(
     const typeName = child(annotation, "typeName");
     const args = child(annotation, "typeArguments");
     if (!typeName) continue;
-    const named = valName(typeName, bound.namespaces);
+    const named = valName(typeName, bound);
     if (named === undefined) continue;
 
     if (!args) {
@@ -151,7 +151,7 @@ export function valAliases(
       continue;
     }
 
-    const kind = original(bound, named);
+    const kind = Bindings.original(bound, named);
     const declared = {
       file,
       alias: id["name"] as string,
@@ -229,10 +229,10 @@ function variantNames(
       return children(inside, "types").every((part) => visit(part, seen));
     if (inside.type === "TSTypeReference") {
       const name = child(inside, "typeName");
-      const named = name && valName(name, bound.namespaces);
+      const named = name && valName(name, bound);
       if (!named) return false;
       // The tag's name arrives as a marker, which declares no variant of its own.
-      if (original(bound, named) === "Tag") return true;
+      if (Bindings.original(bound, named) === "Tag") return true;
       const alias = aliases.get(named);
       if (!alias || seen.has(named)) return false;
       return visit(alias, new Set(seen).add(named));
@@ -274,10 +274,10 @@ function traitNames(
     }
     if (one.type !== "TSTypeReference") return;
     const name = child(one, "typeName");
-    const named = name && valName(name, bound.namespaces);
+    const named = name && valName(name, bound);
     if (!named) return;
     // An enum's tag arrives in the same argument, and the marker carrying it names no trait.
-    if (original(bound, named) === "Tag") return;
+    if (Bindings.original(bound, named) === "Tag") return;
     const qualifier =
       name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
     const ref = symbolRef(file, bound, named, qualifier);
@@ -292,8 +292,8 @@ function traitNames(
     // A bare alias chain is expanded too; unnecessary-alias reports that spelling separately.
     if (alias?.type === "TSTypeReference") {
       const targetName = child(alias, "typeName");
-      const target = targetName && valName(targetName, bound.namespaces);
-      if (target && original(bound, target) !== "Trait") {
+      const target = targetName && valName(targetName, bound);
+      if (target && Bindings.original(bound, target) !== "Trait") {
         visit(alias, occurrence);
         return;
       }

@@ -11,7 +11,7 @@ import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
 import type { AnyVal, CompanionBuilder } from "../../val.ts";
 import { Val } from "../../index.ts";
-import { original, symbolRef, type Bindings, type Root, type SymbolRef } from "./bindings.ts";
+import { Bindings, symbolRef, type Root, type SymbolRef } from "./bindings.ts";
 
 /** `K`, which must be a key of every member of `T`. */
 type On<T, K extends keyof T> = K;
@@ -94,10 +94,10 @@ export function fromRoot(node: Node, bound: Bindings): Root | undefined {
   const path = rootPath(node);
   if (!path || path.length === 0) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  if (path.length === 1) return bound.builders.get(first);
+  if (path.length === 1) return Bindings.builder(bound, first);
   // `valof.Val.companion`: step past the namespace, which only says where the name came from.
-  const qualified = bound.namespaces.has(first);
-  const name = qualified ? second : original(bound, first);
+  const qualified = Bindings.isNamespace(bound, first);
+  const name = qualified ? second : Bindings.original(bound, first);
   const step = qualified ? third : second;
   if (step === undefined || !ENTRY_POINTS.has(step)) return undefined;
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
@@ -137,8 +137,8 @@ export function valOf(
   const path = rootPath(callee);
   if (!path || path.length < 2) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  const qualified = bound.namespaces.has(first);
-  const name = qualified ? second : original(bound, first);
+  const qualified = Bindings.isNamespace(bound, first);
+  const name = qualified ? second : Bindings.original(bound, first);
   const step = qualified ? third : second;
   if (name !== "Val" || step !== ("of" satisfies keyof typeof Val)) return undefined;
   const args = child(node, "typeArguments");
@@ -157,7 +157,7 @@ export function valOf(
   // A type argument that is not a plain reference, `Val.of<{ … }>`, names no Val to key it by.
   if (param.type !== "TSTypeReference") return undefined;
   const written = child(param, "typeName");
-  const named = written && typeReference(written, bound.namespaces);
+  const named = written && typeReference(written, bound);
   if (!named) return undefined;
   const of = variantArgument(param, named, bound);
   const reached = of ?? named;
@@ -178,14 +178,14 @@ function variantArgument(
 ): { node: Node; qualifier: string | undefined; variant: string } | undefined {
   const written = named.node["name"] as string;
   // A name reached through a namespace is already the exporting module's own.
-  if ((named.qualifier === undefined ? original(bound, written) : written) !== "VariantOf")
+  if ((named.qualifier === undefined ? Bindings.original(bound, written) : written) !== "VariantOf")
     return undefined;
   const args = child(param, "typeArguments");
   const [enumType, variantType] = args ? children(args, "params").map(unparenthesized) : [];
   if (enumType?.type !== "TSTypeReference" || !variantType) return undefined;
   const literal = child(variantType, "literal");
   const enumName = child(enumType, "typeName");
-  const held = enumName && typeReference(enumName, bound.namespaces);
+  const held = enumName && typeReference(enumName, bound);
   if (!held || typeof literal?.["value"] !== "string") return undefined;
   return { ...held, variant: literal["value"] };
 }
@@ -241,7 +241,7 @@ function readChain(node: Node, bound: Bindings): Chain {
  */
 export function typeReference(
   written: Node,
-  namespaces: ReadonlyMap<string, string>,
+  bound: Bindings,
 ): { node: Node; qualifier: string | undefined } | undefined {
   if (written.type === "Identifier") return { node: written, qualifier: undefined };
   if (written.type !== "TSQualifiedName") return undefined;
@@ -250,7 +250,7 @@ export function typeReference(
   if (!left || !right || left.type !== "Identifier" || right.type !== "Identifier")
     return undefined;
   const qualifier = left["name"] as string;
-  return namespaces.has(qualifier) ? { node: right, qualifier } : undefined;
+  return Bindings.isNamespace(bound, qualifier) ? { node: right, qualifier } : undefined;
 }
 
 /** The chain as a companion site, or `undefined` when it names no type to key it by. */
@@ -270,7 +270,7 @@ export function companionSite(
   if (child(first, "typeArguments")) return undefined;
   const written = child(first, "typeName");
   if (!written) return undefined;
-  const named = typeReference(written, bound.namespaces);
+  const named = typeReference(written, bound);
   if (!named) return undefined;
   return CompanionSite.seal({
     at,

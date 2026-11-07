@@ -26,11 +26,9 @@ import {
   type TraitAlias,
 } from "./aliases.ts";
 import {
-  bindings,
   moduleRef,
-  original,
   symbolRef,
-  type Bindings,
+  Bindings,
   ImportBinding,
   ImportMap,
   type SymbolRef,
@@ -246,7 +244,7 @@ export function scan(
   const source = given ?? readFileSync(file, "utf8");
   const position = positions(source);
 
-  const bound = bindings();
+  let bound = Bindings.create();
   const exportedAs = new Map<string, string>();
   const exportedRefs = new Map<string, SymbolRef>();
   const members: Member[] = [];
@@ -276,7 +274,7 @@ export function scan(
         key,
       }),
     );
-    dotted.set(name, `${original(bound, companion)}.${key}`);
+    dotted.set(name, `${Bindings.original(bound, companion)}.${key}`);
   };
 
   const visit = (node: Node): void => {
@@ -345,13 +343,17 @@ export function scan(
         }
         if (id.type !== "Identifier") break;
         const root = fromRoot(init, bound);
-        if (root) bound.builders.set(id["name"] as string, root);
+        if (root) bound = Bindings.patch(bound, { builders: { [id["name"] as string]: root } });
         // `const Round = Shape.Circle` takes the same key the destructuring above takes.
         if (init.type === "MemberExpression") {
           const from = child(init, "object");
           const key = child(init, "property");
           const taken = key && keyName(key, init["computed"] === true);
-          if (from?.type === "Identifier" && taken && !bound.namespaces.has(from["name"] as string))
+          if (
+            from?.type === "Identifier" &&
+            taken &&
+            !Bindings.isNamespace(bound, from["name"] as string)
+          )
             took(
               id["name"] as string,
               position(id["start"] as number),
@@ -407,13 +409,13 @@ export function scan(
         if (!namespace || !companion || namespace.type !== "Identifier") break;
         const through = keyName(companion, object["computed"] === true);
         if (!through) break;
-        if (bound.namespaces.has(namespace["name"] as string)) {
+        if (Bindings.isNamespace(bound, namespace["name"] as string)) {
           collect(namespaceReads, through, name);
           break;
         }
         // `Shape.Circle.diameter`: a variant's members are declared under the same dotted key,
         // which is where the two meet.
-        collect(reads, `${original(bound, namespace["name"] as string)}.${through}`, name);
+        collect(reads, `${Bindings.original(bound, namespace["name"] as string)}.${through}`, name);
         break;
       }
       case "ImportDeclaration": {
@@ -424,12 +426,16 @@ export function scan(
           const local = child(specifier, "local");
           if (local?.type !== "Identifier") continue;
           if (specifier.type === "ImportNamespaceSpecifier") {
-            bound.namespaces.set(local["name"] as string, module);
+            bound = Bindings.patch(bound, { namespaces: { [local["name"] as string]: module } });
           } else if (specifier.type === "ImportSpecifier") {
             const imported = child(specifier, "imported");
             const name = imported && keyName(imported, false);
             if (name)
-              bound.imported.set(local["name"] as string, ImportBinding.seal({ name, module }));
+              bound = Bindings.patch(bound, {
+                imported: ImportMap.patch(bound.imported, {
+                  [local["name"] as string]: ImportBinding.seal({ name, module }),
+                }),
+              });
           }
         }
         break;
@@ -486,7 +492,7 @@ export function scan(
 
   return Scan.seal({
     file,
-    imported: ImportMap.seal(Object.fromEntries(bound.imported)),
+    imported: bound.imported,
     members,
     traitImplementations,
     dynReads,
@@ -532,7 +538,11 @@ function valueReference(node: Node, file: string, bound: Bindings): SymbolRef | 
   if (node.type !== "MemberExpression") return undefined;
   const object = child(node, "object");
   const property = child(node, "property");
-  if (object?.type !== "Identifier" || !bound.namespaces.has(object["name"] as string) || !property)
+  if (
+    object?.type !== "Identifier" ||
+    !Bindings.isNamespace(bound, object["name"] as string) ||
+    !property
+  )
     return undefined;
   const name = keyName(property, node["computed"] === true);
   return name ? symbolRef(file, bound, name, object["name"] as string) : undefined;
@@ -568,7 +578,7 @@ function implTrait(
     const rootArgs = child(rootCall, "typeArguments");
     const valNode = unparenthesized(rootArgs ? children(rootArgs, "params")[0] : undefined);
     const valRef = valNode?.type === "TSTypeReference" ? child(valNode, "typeName") : undefined;
-    const valNamed = valRef && typeReference(valRef, bound.namespaces);
+    const valNamed = valRef && typeReference(valRef, bound);
     val = valNamed
       ? symbolRef(file, bound, valNamed.node["name"] as string, valNamed.qualifier)
       : undefined;
