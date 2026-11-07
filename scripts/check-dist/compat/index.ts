@@ -235,7 +235,7 @@ async function differs(tsc: Tsc, { project, exports }: RoundTrip): Promise<strin
   } catch (error) {
     const output = (error as { stdout?: string }).stdout ?? "";
     const lines = [...output.matchAll(/round-trip\/[^/]+\/index\.ts\((\d+),\d+\)/g)].map(
-      ([, line]) => exports.get(Number(line)),
+      ([, line]) => exports[line!],
     );
     if (lines.length === 0 || lines.includes(undefined)) throw error;
     return [...new Set(lines as string[])];

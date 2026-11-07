@@ -2,13 +2,18 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import * as ts from "typescript-5";
+import { Val } from "#valof";
 
 /** A program comparing each export of some modules with the type their declarations give it. */
-export interface RoundTrip {
-  readonly project: string;
-  /** Each export's name, such as `fixture-builders.ts: traitImpl`, keyed by the line that compares it. */
-  readonly exports: ReadonlyMap<number, string>;
-}
+export type RoundTrip = Val<
+  "RoundTrip",
+  {
+    project: string;
+    /** Each export's name, such as `fixture-builders.ts: traitImpl`, keyed by the line that compares it. */
+    exports: Record<string, string>;
+  }
+>;
+export const RoundTrip = Val.companion<RoundTrip>().build();
 
 /**
  * Reads the exports of `files`, modules under `directory`. The function returned writes the
@@ -89,18 +94,22 @@ async function write(
       2,
     )}\n`,
   );
-  return {
+  return RoundTrip.seal({
     project,
-    exports: new Map(comparisons.map(({ name }, i) => [head.length + i + 1, name])),
-  };
+    exports: Object.fromEntries(comparisons.map(({ name }, i) => [head.length + i + 1, name])),
+  });
 }
 
-interface Export {
-  readonly name: string;
-  readonly value: boolean;
-  /** How many type parameters it takes, where the name is a type too. */
-  readonly parameters: number | undefined;
-}
+type Export = Val<
+  "Export",
+  {
+    name: string;
+    value: boolean;
+    /** How many type parameters it takes, where the name is a type too. */
+    parameters?: number;
+  }
+>;
+const Export = Val.companion<Export>().build();
 
 // The checker reads the exports, and resolves `export *` and `export { … }` too. Every TypeScript
 // line returns the same exports, and the 5.x one has the compiler API.
@@ -120,7 +129,7 @@ function exportsOf(
   return files.map((file) => {
     const module = checker.getSymbolAtLocation(program.getSourceFile(file)!);
     const symbols = (module === undefined ? [] : checker.getExportsOfModule(module)).map(
-      (exported): Export => {
+      (exported) => {
         const symbol =
           exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
         const value = (symbol.flags & ts.SymbolFlags.Value) !== 0;
@@ -143,7 +152,7 @@ function exportsOf(
           );
         }
         const parameters = Math.max(0, ...declared.map((list) => list.length));
-        return { name: exported.name, value, parameters: type ? parameters : undefined };
+        return Export.seal({ name: exported.name, value, ...(type ? { parameters } : {}) });
       },
     );
     return { file, symbols };

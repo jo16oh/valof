@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
+import { Val } from "#valof";
 
 /** The repository, which the claimed files are relative to. */
 const repository = new URL("../../../", import.meta.url);
@@ -34,26 +35,28 @@ export class StaleClaimError extends ErrorFactory({
   }>(),
 }) {}
 
-function marked(): RegExp {
-  return new RegExp(`(?<=<!-- ${marker} -->)[\\s\\S]*?(?=<!-- /${marker} -->)`, "g");
-}
+/** The source of a regular expression that finds a claim. */
+type Pattern = Val<"Pattern", string>;
+const Pattern = Val.companion<Pattern>()
+  .impl(() => ({ regExp: (pattern) => new RegExp(pattern, "g") }))
+  .build();
 
-function description(): RegExp {
-  return /(?<="description": "[^"]*)\d+(?:\.\d+)? [kM]?B gzipped(?=[^"]*")/g;
-}
+const patterns = [
+  // A Markdown claim, between the markers.
+  Pattern.seal(`(?<=<!-- ${marker} -->)[\\s\\S]*?(?=<!-- /${marker} -->)`),
+  // The package description.
+  Pattern.seal(/(?<="description": "[^"]*)\d+(?:\.\d+)? [kM]?B gzipped(?=[^"]*")/.source),
+];
 
 function format(bytes: number): string {
   return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(2)} kB`;
 }
 
-type Claim = {
-  file: string;
-  url: URL;
-  text: string;
-  pattern: RegExp;
-  found: string;
-  stale: boolean;
-};
+type Claim = Val<
+  "Claim",
+  { file: string; text: string; pattern: Pattern; found: string; stale: boolean }
+>;
+const Claim = Val.companion<Claim>().build();
 
 /**
  * Compares the size each file states with `gzip`, the production gzip of the base bundle, and
@@ -67,23 +70,25 @@ export async function claims(
   const size = `${format(gzip)} gzipped`;
   const found: Claim[] = [];
   for (const file of claimed(release)) {
-    const url = new URL(file, root);
-    const text = await readFile(url, "utf8");
-    const matches = [marked(), description()].flatMap((pattern) =>
-      [...text.matchAll(pattern)].map((match) => ({ pattern, value: match[0] })),
+    const text = await readFile(new URL(file, root), "utf8");
+    const matches = patterns.flatMap((pattern) =>
+      [...text.matchAll(Pattern.regExp(pattern))].map((match) => ({ pattern, value: match[0] })),
     );
     const [match] = matches;
     if (matches.length !== 1 || !match)
       return R.fail(new ClaimCountError({ file, found: matches.length }));
     // The formatter can wrap a marked Markdown claim across lines.
     const said = match.value.replace(/\s+/g, " ");
-    found.push({ file, url, text, pattern: match.pattern, found: said, stale: said !== size });
+    found.push(
+      Claim.seal({ file, text, pattern: match.pattern, found: said, stale: said !== size }),
+    );
   }
 
   if (write)
     await Promise.all(
-      found.map(async ({ url, text, pattern, stale }) => {
-        if (stale) await writeFile(url, text.replace(pattern, size));
+      found.map(async ({ file, text, pattern, stale }) => {
+        if (stale)
+          await writeFile(new URL(file, root), text.replace(Pattern.regExp(pattern), size));
       }),
     );
 

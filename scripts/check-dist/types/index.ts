@@ -6,6 +6,7 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
+import { Val } from "#valof";
 
 import { floor, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
 
@@ -70,14 +71,11 @@ const budget: Record<Fixture, number> = { core: 10_000, trait: 25_000, enum: 90_
  */
 const declarationsBudget = 104 * 1024;
 
-type Counts = { types: number; instantiations: number; check: number; total: number };
-
-const fields = [
-  ["types", "Types:"],
-  ["instantiations", "Instantiations:"],
-  ["check", "Check time:"],
-  ["total", "Total time:"],
-] as const;
+type Counts = Val<
+  "Counts",
+  { types: number; instantiations: number; check: number; total: number }
+>;
+const Counts = Val.companion<Counts>().build();
 
 async function measure(tsc: Tsc, name: string): Promise<Counts> {
   const config = new URL(`.tsconfig.${name}.json`, here);
@@ -95,7 +93,12 @@ async function measure(tsc: Tsc, name: string): Promise<Counts> {
     });
     const read = (label: string): number =>
       Number(stdout.match(new RegExp(`^${label}\\s+([\\d.]+)`, "m"))?.[1] ?? Number.NaN);
-    return Object.fromEntries(fields.map(([key, label]) => [key, read(label)])) as Counts;
+    return Counts.seal({
+      types: read("Types:"),
+      instantiations: read("Instantiations:"),
+      check: read("Check time:"),
+      total: read("Total time:"),
+    });
   } finally {
     await rm(config, { force: true });
   }
@@ -168,12 +171,10 @@ export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudge
     const measured = Object.fromEntries(
       fixtures.map((name) => [
         name,
-        {
+        Counts.patch(counts[name], {
           types: counts[name].types - baseline.types,
           instantiations: counts[name].instantiations - baseline.instantiations,
-          check: counts[name].check,
-          total: counts[name].total,
-        },
+        }),
       ]),
     ) as Record<Fixture, Counts>;
 
