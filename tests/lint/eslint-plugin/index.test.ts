@@ -7,8 +7,8 @@ import { expect, test } from "vite-plus/test";
 import plugin from "../../../src/lint/eslint-plugin.ts";
 import { kinds } from "../../../src/lint/index.ts";
 
-// The host is not a dependency, so the rules are called the way ESLint and oxlint both call them.
-// That the two really do call them this way is checked by hand, not here.
+// The rules are called here with a context holding only what they read. `tests/lint/hosts` runs
+// them in ESLint and oxlint.
 
 type Where = { line: number; column: number };
 
@@ -131,7 +131,8 @@ test("runs model-only-in-valof with the settings under its name, and not from an
       filename: file,
       settings: { valof: { project: file, ...(model ? { "model-only-in-valof": model } : {}) } },
       sourceCode: { text },
-      report: ({ loc, message }) => void reports.push(`${loc.start.line}:${message}`),
+      report: ({ loc, message }: { loc: { start: Where }; message: string }) =>
+        void reports.push(`${loc.start.line}:${message}`),
     }).Program();
     return reports;
   };
