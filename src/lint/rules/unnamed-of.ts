@@ -1,21 +1,18 @@
-import type { Where } from "../ast.ts";
+import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Finding, Rule } from "./rule.ts";
 
 /** A `Val.of(…)` that names no type, and takes one from whatever it is assigned to. */
-export type UnnamedOf = Where & {
-  kind: "unnamed-of";
-  file: string;
-  message: string;
-};
-
-export const UnnamedOf: Rule<UnnamedOf> = {
-  kind: "unnamed-of",
-  description: "a `Val.of` that names no type, taking one from its target",
-  // The lift itself is sound. What it costs is the name that makes the lift greppable.
-  warns: true,
-  run: findings,
-};
+export type UnnamedOf = Val<"UnnamedOf", { kind: "unnamed-of" }, Rule>;
+export const UnnamedOf = Val.companion<UnnamedOf>()
+  .implCreate(() => ({
+    kind: "unnamed-of",
+    description: "a `Val.of` that names no type, taking one from its target",
+    // The lift itself is sound. What it costs is the name that makes the lift greppable.
+    warns: true,
+  }))
+  .implTrait(Rule, () => ({ run: findings }))
+  .build();
 
 /**
  * Reports every `Val.of(…)` written without its type argument.
@@ -29,16 +26,17 @@ export const UnnamedOf: Rule<UnnamedOf> = {
  * argument. With nothing to infer from, the parameter resolves to `never` and the compiler
  * rejects the call before this rule is reached.
  */
-function findings(scans: readonly Scan[]): UnnamedOf[] {
+function findings({ kind }: UnnamedOf, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, lifts }) =>
     lifts
-      .filter(({ typeName }) => typeName === undefined)
-      .map(({ line, column }) => ({
-        kind: "unnamed-of" as const,
-        file,
-        line,
-        column,
-        message: "Val.of names no type here, and takes one from its target",
-      })),
+      .filter(({ typeName }) => typeName === null)
+      .map(({ at }) =>
+        Finding.seal({
+          kind,
+          file,
+          at,
+          message: "Val.of names no type here, and takes one from its target",
+        }),
+      ),
   );
 }

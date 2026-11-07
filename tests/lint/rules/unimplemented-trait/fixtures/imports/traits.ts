@@ -1,3 +1,4 @@
+import { Trait } from "valof";
 export type Greetable = Trait<"Greetable", { name: string }>;
 export const Greetable = Trait.companion<Greetable>().build();
 

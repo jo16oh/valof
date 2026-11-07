@@ -1,6 +1,6 @@
-import { Enum, Trait } from "valof";
+import { Enum, Trait, type Self } from "valof";
 
-export type Labelled = Trait<"Labelled", { id: string }>;
+export type Labelled = Trait<"Labelled", { id: string }, { label: (self: Self) => string }>;
 export const Labelled = Trait.companion<Labelled>().impl(() => ({ label: (l) => `#${l.id}` })).build();
 
 export type Shape = Enum<

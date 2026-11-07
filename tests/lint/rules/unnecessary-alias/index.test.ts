@@ -48,7 +48,7 @@ test("leaves a union, a wrapped type and a generic alias alone", async () => {
 });
 
 test("reports a second name for a Trait", async () => {
-  expect(await lint("trait")).toEqual([{ rule: UnnecessaryAlias, at: "trait.ts:3:13" }]);
+  expect(await lint("trait")).toEqual([{ rule: UnnecessaryAlias, at: "trait.ts:4:13" }]);
   expect(await messages("trait")).toEqual([
     "Friendly is a second name for Greetable; use Greetable",
   ]);
@@ -56,8 +56,8 @@ test("reports a second name for a Trait", async () => {
 
 test("looks through parentheses around a second name", async () => {
   expect(await lint("parenthesized")).toEqual([
-    { rule: UnnecessaryAlias, at: "parenthesized.ts:4:13" },
     { rule: UnnecessaryAlias, at: "parenthesized.ts:5:13" },
+    { rule: UnnecessaryAlias, at: "parenthesized.ts:6:13" },
   ]);
 });
 

@@ -1,30 +1,44 @@
-import type { Where } from "../ast.ts";
-
-/**
- * How a directive is written.
- *
- * The scope is always in the spelling: a reader never has to know which one covers what. The
- * `-all` slot sits before it, so a line-scoped `-all` has a place to go if it is ever wanted.
- * `valof-lint-disable` on its own names no scope, which is the mistake this shape makes visible
- * rather than guesses at.
- */
-export type Spelling =
-  | "valof-lint-disable-next-line"
-  | "valof-lint-disable-whole-file"
-  | "valof-lint-disable-all-whole-file"
-  | "valof-lint-disable";
+import { Enum, Val } from "../../index.ts";
+import type { Position } from "../ast.ts";
+import { KindSet } from "../rules/rule.ts";
 
 /** One disable comment, whole. */
-export type Directive = Where & {
-  /** The 1-based line it silences, the one after the block it sits in, or the whole file. */
-  covers: number | "file";
-  /** The kinds it named, empty when it named none. */
-  kinds: ReadonlySet<string>;
-  spelling: Spelling;
-};
+export type Directive = Val<
+  "Directive",
+  {
+    at: Position;
+    /** The 1-based line it silences, the one after the block it sits in, or the whole file. */
+    covers: number | "file";
+    /** The kinds it named, in order and without repeats, empty when it named none. */
+    kinds: string[];
+    /**
+     * How it is written: `valof-lint-disable-next-line`, `-whole-file`, `-all-whole-file`, or
+     * `valof-lint-disable` alone.
+     *
+     * The scope is always in the spelling: a reader never has to know which one covers what. The
+     * `-all` slot sits before it, so a line-scoped `-all` has a place to go if it is ever wanted.
+     * `valof-lint-disable` on its own names no scope, which is the mistake this shape makes
+     * visible rather than guesses at.
+     */
+    spelling: string;
+  }
+>;
+export const Directive = Val.companion<Directive>().build();
 
 /** What a set of directives silences: the kinds they named, or every kind there is. */
-type Silenced = ReadonlySet<string> | "every";
+type Silenced = Enum<"Silenced", { Every: {}; Named: { kinds: KindSet } }>;
+const Silenced = Enum.companion<Silenced>()
+  .impl(() => ({
+    /** Two directives over the same lines silence the union, and every kind swallows any list. */
+    widen: (left, right: Silenced): Silenced =>
+      left._tag === "Every"
+        ? left
+        : right._tag === "Every"
+          ? right
+          : named([...Object.keys(left.kinds), ...Object.keys(right.kinds)]),
+    has: (silenced, kind: string) => silenced._tag === "Every" || KindSet.has(silenced.kinds, kind),
+  }))
+  .build();
 
 /**
  * What one directive silences, which is not always what it named.
@@ -35,10 +49,10 @@ type Silenced = ReadonlySet<string> | "every";
  * `valof-lint-disable-all-whole-file` is how a file is turned off, and it says so.
  */
 const effect = ({ spelling, kinds }: Directive): Silenced => {
-  if (spelling === "valof-lint-disable-all-whole-file") return "every";
-  if (spelling === "valof-lint-disable") return new Set();
-  if (kinds.size > 0) return kinds;
-  return spelling === "valof-lint-disable-next-line" ? "every" : new Set();
+  if (spelling === "valof-lint-disable-all-whole-file") return Silenced.Every.create({});
+  if (spelling === "valof-lint-disable") return named([]);
+  if (kinds.length > 0) return named(kinds);
+  return spelling === "valof-lint-disable-next-line" ? Silenced.Every.create({}) : named([]);
 };
 
 /**
@@ -48,7 +62,7 @@ const effect = ({ spelling, kinds }: Directive): Silenced => {
  * writing a list will reach for either. Nothing but a space may follow a spelling, so a
  * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
  */
-function directive(text: string): { spelling: Spelling; kinds: Set<string> } | undefined {
+function directive(text: string): { spelling: string; kinds: string[] } | undefined {
   const match =
     /(?:^|\s)valof-lint-disable(-next-line|-all-whole-file|-whole-file)?(?![-\w])(?:[^\S\n]+([^\n]*))?/.exec(
       text,
@@ -57,8 +71,8 @@ function directive(text: string): { spelling: Spelling; kinds: Set<string> } | u
   // Everything after `--` is a note for the reader, the way other linters spell it.
   const listed = (match[2] ?? "").split("--")[0] ?? "";
   return {
-    spelling: `valof-lint-disable${match[1] ?? ""}` as Spelling,
-    kinds: new Set(listed.split(/[\s,]+/).filter(Boolean)),
+    spelling: `valof-lint-disable${match[1] ?? ""}`,
+    kinds: [...new Set(listed.split(/[\s,]+/).filter(Boolean))],
   };
 }
 
@@ -71,10 +85,6 @@ function ownLine(source: string, start: number): boolean {
   }
   return true;
 }
-
-/** Two directives over the same lines silence the union, and every kind swallows any list. */
-const widen = (left: Silenced, right: Silenced): Silenced =>
-  left === "every" || right === "every" ? "every" : new Set([...left, ...right]);
 
 /**
  * Every directive in one file, at its own comment rather than the line it covers.
@@ -91,19 +101,19 @@ const widen = (left: Silenced, right: Silenced): Silenced =>
 export function directives(
   comments: readonly { value: string; start: number; end: number }[],
   source: string,
-  at: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): Directive[] {
-  const lineOf = (offset: number): number => at(offset).line;
+  const lineOf = (offset: number): number => position(offset).line;
   const found: Directive[] = [];
   /** The line directives of the block being read, held until its last line is known. */
-  let block: Omit<Directive, "covers">[] = [];
+  let block: { at: Position; spelling: string; kinds: string[] }[] = [];
   /** The last line of that block, or -1 when the previous comment closed one. */
   let blockEnd = -1;
   /** Where that comment ended, so code written after it on its own line breaks the block. */
   let blockEndOffset = 0;
 
   const close = (): void => {
-    for (const carried of block) found.push({ ...carried, covers: blockEnd + 1 });
+    for (const carried of block) found.push(Directive.seal({ ...carried, covers: blockEnd + 1 }));
     block = [];
   };
 
@@ -120,9 +130,9 @@ export function directives(
     if (!joins) close();
     const carried = directive(comment.value);
     if (carried) {
-      const written = { ...at(comment.start), ...carried };
+      const written = { at: position(comment.start), ...carried };
       if (carried.spelling === "valof-lint-disable-next-line") block.push(written);
-      else found.push({ ...written, covers: "file" });
+      else found.push(Directive.seal({ ...written, covers: "file" }));
     }
     blockEnd = lineOf(comment.end);
     blockEndOffset = comment.end;
@@ -144,13 +154,17 @@ export function silences(found: readonly Directive[]): (line: number, kind: stri
   for (const written of found) {
     const silenced = effect(written);
     if (written.covers === "file") {
-      whole = whole ? widen(whole, silenced) : silenced;
+      whole = whole ? Silenced.widen(whole, silenced) : silenced;
       continue;
     }
     const already = byLine.get(written.covers);
-    byLine.set(written.covers, already ? widen(already, silenced) : silenced);
+    byLine.set(written.covers, already ? Silenced.widen(already, silenced) : silenced);
   }
   const reaches = (silenced: Silenced | undefined, kind: string): boolean =>
-    silenced === "every" || silenced?.has(kind) === true;
+    silenced !== undefined && Silenced.has(silenced, kind);
   return (line, kind) => reaches(whole, kind) || reaches(byLine.get(line), kind);
+}
+
+function named(kinds: Iterable<string>): Silenced {
+  return Silenced.Named.create({ kinds: KindSet.create(kinds) });
 }

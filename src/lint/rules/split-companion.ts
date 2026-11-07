@@ -1,21 +1,17 @@
-import type { Where } from "../ast.ts";
-import type { Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Val } from "../../index.ts";
+import { ImportMap, type Scan } from "../scan/index.ts";
+import { Finding, Rule } from "./rule.ts";
 
 /** A companion written in one file for a type declared in another. */
-export type SplitCompanion = Where & {
-  kind: "split-companion";
-  file: string;
-  /** The type argument, as written. */
-  typeName: string;
-  message: string;
-};
-
-export const SplitCompanion: Rule<SplitCompanion> = {
-  kind: "split-companion",
-  description: "a companion for a type that another file declares",
-  run: findings,
-};
+export type SplitCompanion = Val<"SplitCompanion", { kind: "split-companion" }, Rule>;
+export const SplitCompanion = Val.companion<SplitCompanion>()
+  .implCreate(() => ({
+    kind: "split-companion",
+    description: "a companion for a type that another file declares",
+    warns: false,
+  }))
+  .implTrait(Rule, () => ({ run: findings }))
+  .build();
 
 /**
  * Reports every companion chain, of any root, whose type argument came from another module:
@@ -32,18 +28,19 @@ export const SplitCompanion: Rule<SplitCompanion> = {
  * helper of the user's own, `type Local = Imported`, is not seen: the name is local, and silence
  * is the safe direction.
  */
-function findings(scans: readonly Scan[]): SplitCompanion[] {
-  const found: SplitCompanion[] = [];
-  for (const { file, sites, bound } of scans) {
+function findings({ kind }: SplitCompanion, scans: readonly Scan[]): Finding[] {
+  const found: Finding[] = [];
+  for (const { file, sites, imported } of scans) {
     for (const { typeName, typeAt, qualifier } of sites) {
-      if (qualifier === undefined && !bound.imported.has(typeName)) continue;
-      found.push({
-        kind: "split-companion",
-        file,
-        ...typeAt,
-        typeName,
-        message: `${typeName} is declared in another file, where its companion belongs`,
-      });
+      if (qualifier === null && !ImportMap.has(imported, typeName)) continue;
+      found.push(
+        Finding.seal({
+          kind,
+          file,
+          at: typeAt,
+          message: `${typeName} is declared in another file, where its companion belongs`,
+        }),
+      );
     }
   }
   return found;

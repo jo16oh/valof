@@ -1,32 +1,45 @@
-import { child, children, keyName, unparenthesized, type Node, type Where } from "../ast.ts";
-import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
-
-/** A top-level `type X = Val<"brand", payload>`. */
-export type Alias = {
-  file: string;
-  alias: string;
-  ref: SymbolRef;
-  /** Traits declared in Val's third argument. */
-  traits: DeclaredTrait[];
-};
-
-/** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their own rules. */
-export type TraitAlias = { file: string; alias: string; ref: SymbolRef };
-
-/** A top-level `type X = Enum<…>`, whose variants each derive a Val of their own. */
-export type EnumAlias = Alias & {
-  /**
-   * The variant names, or `undefined` where the syntax does not settle them. Every rule reading
-   * them stays silent on `undefined` rather than guessing at a mapped type or an import.
-   */
-  variants: readonly string[] | undefined;
-};
+import { Val } from "../../index.ts";
+import { child, children, keyName, unparenthesized, type Node, type Position } from "../ast.ts";
+import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
-export type DeclaredTrait = Where & {
-  name: string;
-  ref: SymbolRef;
-};
+export type DeclaredTrait = Val<"DeclaredTrait", { at: Position; name: string; ref: SymbolRef }>;
+export const DeclaredTrait = Val.companion<DeclaredTrait>().build();
+
+/** A top-level `type X = Val<"brand", payload>`. */
+export type Alias = Val<
+  "Alias",
+  {
+    file: string;
+    alias: string;
+    ref: SymbolRef;
+    /** Traits declared in Val's third argument. */
+    traits: DeclaredTrait[];
+  }
+>;
+export const Alias = Val.companion<Alias>().build();
+
+/** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their own rules. */
+export type TraitAlias = Val<"TraitAlias", { file: string; alias: string; ref: SymbolRef }>;
+export const TraitAlias = Val.companion<TraitAlias>().build();
+
+/** A top-level `type X = Enum<…>`, whose variants each derive a Val of their own. */
+export type EnumAlias = Val<
+  "EnumAlias",
+  {
+    file: string;
+    alias: string;
+    ref: SymbolRef;
+    /** Traits declared in the enum's third argument. */
+    traits: DeclaredTrait[];
+    /**
+     * The variant names, `null` where the syntax does not determine them. Every rule reading
+     * them reports nothing there rather than guessing at a mapped type or an import.
+     */
+    variants: string[] | null;
+  }
+>;
+export const EnumAlias = Val.companion<EnumAlias>().build();
 
 /**
  * A top-level `type A = B`, where `B` is a bare reference and nothing more.
@@ -34,21 +47,31 @@ export type DeclaredTrait = Where & {
  * `A` is a second name for whatever `B` is. Whether that is a Val is not known here: it takes
  * the other file's aliases, which the rule has and this walk does not.
  */
-export type ReAlias = Where & {
-  alias: string;
-  ref: SymbolRef;
-  /** The name on the right, as the declaring module names it when it was qualified. */
-  target: string;
-  targetRef: SymbolRef;
-};
+export type ReAlias = Val<
+  "ReAlias",
+  {
+    at: Position;
+    alias: string;
+    ref: SymbolRef;
+    /** The name on the right, as the declaring module names it when it was qualified. */
+    target: string;
+    targetRef: SymbolRef;
+  }
+>;
+export const ReAlias = Val.companion<ReAlias>().build();
 
 /** The brand one alias claims, before anything is known about who else claims it. */
-export type BrandClaim = Where & {
-  /** The name `Val` was written under here, resolved against the file's imports by the rule. */
-  typeName: string;
-  brand: string;
-  alias: string;
-};
+export type BrandClaim = Val<
+  "BrandClaim",
+  {
+    at: Position;
+    /** The name `Val` was written under here, resolved against the file's imports by the rule. */
+    typeName: string;
+    brand: string;
+    alias: string;
+  }
+>;
+export const BrandClaim = Val.companion<BrandClaim>().build();
 
 /**
  * The name a type reference is written under, or `undefined` when it is not a plain one.
@@ -57,13 +80,13 @@ export type BrandClaim = Where & {
  * namespace only says where the name came from. The caller still resolves the result against the
  * file's import aliases, which is what tells `Val` apart from something else bound to that name.
  */
-function valName(typeName: Node, namespaces: ReadonlyMap<string, string>): string | undefined {
+function valName(typeName: Node, bound: Bindings): string | undefined {
   if (typeName.type === "Identifier") return typeName["name"] as string;
   if (typeName.type !== "TSQualifiedName") return undefined;
   const left = child(typeName, "left");
   const right = child(typeName, "right");
   if (!left || !right || left.type !== "Identifier") return undefined;
-  if (!namespaces.has(left["name"] as string)) return undefined;
+  if (!Bindings.isNamespace(bound, left["name"] as string)) return undefined;
   // Qualified by a namespace import, so the name is already the exporting module's own.
   return right.type === "Identifier" ? (right["name"] as string) : undefined;
 }
@@ -74,18 +97,25 @@ function valName(typeName: Node, namespaces: ReadonlyMap<string, string>): strin
  * Only a top-level alias can be imported and assigned somewhere else, which is the collision the
  * brand rule reports. A `type Point` inside a `describe` block collides with nothing.
  */
+/** The Valof aliases one file declares, and the brands they claim. */
+export type Aliases = Val<
+  "Aliases",
+  {
+    aliases: Alias[];
+    traitAliases: TraitAlias[];
+    enumAliases: EnumAlias[];
+    brands: BrandClaim[];
+    reAliases: ReAlias[];
+  }
+>;
+export const Aliases = Val.companion<Aliases>().build();
+
 export function valAliases(
   program: Node,
   file: string,
   bound: Bindings,
-  at: (offset: number) => Where,
-): {
-  aliases: Alias[];
-  traitAliases: TraitAlias[];
-  enumAliases: EnumAlias[];
-  brands: BrandClaim[];
-  reAliases: ReAlias[];
-} {
+  position: (offset: number) => Position,
+): Aliases {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
   const enumAliases: EnumAlias[] = [];
@@ -103,65 +133,74 @@ export function valAliases(
     const typeName = child(annotation, "typeName");
     const args = child(annotation, "typeArguments");
     if (!typeName) continue;
-    const named = valName(typeName, bound.namespaces);
+    const named = valName(typeName, bound);
     if (named === undefined) continue;
 
     if (!args) {
       // `type Wrap<T> = T` describes no particular type, and its right side is a parameter.
       if (child(node, "typeParameters")) continue;
-      reAliases.push({
-        ...at((id["start"] ?? node["start"]) as number),
-        alias: id["name"] as string,
-        ref: symbolRef(file, bound, id["name"] as string),
-        target: named,
-        targetRef: symbolRef(
-          file,
-          bound,
-          named,
-          typeName.type === "TSQualifiedName"
-            ? (child(typeName, "left")?.["name"] as string)
-            : undefined,
-        ),
-      });
+      reAliases.push(
+        ReAlias.seal({
+          at: position((id["start"] ?? node["start"]) as number),
+          alias: id["name"] as string,
+          ref: symbolRef(file, bound, id["name"] as string),
+          target: named,
+          targetRef: symbolRef(
+            file,
+            bound,
+            named,
+            typeName.type === "TSQualifiedName"
+              ? (child(typeName, "left")?.["name"] as string)
+              : undefined,
+          ),
+        }),
+      );
       continue;
     }
 
-    const kind = original(bound, named);
+    const kind = Bindings.original(bound, named);
     const declared = {
       file,
       alias: id["name"] as string,
       ref: symbolRef(file, bound, id["name"] as string),
     };
     if (kind === "Val") {
-      aliases.push({
-        ...declared,
-        traits: traitNames(children(args, "params")[2], file, bound, locals, at),
-      });
+      aliases.push(
+        Alias.seal({
+          ...declared,
+          traits: traitNames(children(args, "params")[2], file, bound, locals, position),
+        }),
+      );
     } else if (kind === "Trait") {
-      traitAliases.push(declared);
+      traitAliases.push(TraitAlias.seal(declared));
     } else if (kind === "Enum") {
-      enumAliases.push({
-        ...declared,
-        // The same position as a Val's: an enum's third argument carries the traits, the shared
-        // fields and the tag's name, all intersected.
-        traits: traitNames(children(args, "params")[2], file, bound, locals, at),
-        variants: variantNames(children(args, "params")[1], bound, locals),
-      });
+      const variants = variantNames(children(args, "params")[1], bound, locals);
+      enumAliases.push(
+        EnumAlias.seal({
+          ...declared,
+          // The same position as a Val's: an enum's third argument carries the traits, the shared
+          // fields and the tag's name, all intersected.
+          traits: traitNames(children(args, "params")[2], file, bound, locals, position),
+          variants: variants ?? null,
+        }),
+      );
     }
 
     const first = unparenthesized(children(args, "params")[0]);
     if (!first || first.type !== "TSLiteralType") continue;
     const literal = child(first, "literal");
     if (!literal || typeof literal["value"] !== "string") continue;
-    brands.push({
-      ...at((id["start"] ?? node["start"]) as number),
-      typeName: named,
-      brand: literal["value"],
-      alias: id["name"] as string,
-    });
+    brands.push(
+      BrandClaim.seal({
+        at: position((id["start"] ?? node["start"]) as number),
+        typeName: named,
+        brand: literal["value"],
+        alias: id["name"] as string,
+      }),
+    );
   }
 
-  return { aliases, traitAliases, enumAliases, brands, reAliases };
+  return Aliases.seal({ aliases, traitAliases, enumAliases, brands, reAliases });
 }
 
 /** Every top-level `type X = …` in the file, which the two syntax-only walks below expand. */
@@ -188,8 +227,8 @@ function variantNames(
   node: Node | undefined,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-): readonly string[] | undefined {
-  let found: readonly string[] | undefined;
+): string[] | undefined {
+  let found: string[] | undefined;
   const visit = (one: Node, seen: ReadonlySet<string>): boolean => {
     const inside = unparenthesized(one);
     if (!inside) return false;
@@ -197,10 +236,10 @@ function variantNames(
       return children(inside, "types").every((part) => visit(part, seen));
     if (inside.type === "TSTypeReference") {
       const name = child(inside, "typeName");
-      const named = name && valName(name, bound.namespaces);
+      const named = name && valName(name, bound);
       if (!named) return false;
       // The tag's name arrives as a marker, which declares no variant of its own.
-      if (original(bound, named) === "Tag") return true;
+      if (Bindings.original(bound, named) === "Tag") return true;
       const alias = aliases.get(named);
       if (!alias || seen.has(named)) return false;
       return visit(alias, new Set(seen).add(named));
@@ -226,7 +265,7 @@ function traitNames(
   file: string,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-  at: (offset: number) => Where,
+  position: (offset: number) => Position,
 ): DeclaredTrait[] {
   if (!node) return [];
   const seen = new Set<string>();
@@ -242,10 +281,10 @@ function traitNames(
     }
     if (one.type !== "TSTypeReference") return;
     const name = child(one, "typeName");
-    const named = name && valName(name, bound.namespaces);
+    const named = name && valName(name, bound);
     if (!named) return;
     // An enum's tag arrives in the same argument, and the marker carrying it names no trait.
-    if (original(bound, named) === "Tag") return;
+    if (Bindings.original(bound, named) === "Tag") return;
     const qualifier =
       name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
     const ref = symbolRef(file, bound, named, qualifier);
@@ -260,8 +299,8 @@ function traitNames(
     // A bare alias chain is expanded too; unnecessary-alias reports that spelling separately.
     if (alias?.type === "TSTypeReference") {
       const targetName = child(alias, "typeName");
-      const target = targetName && valName(targetName, bound.namespaces);
-      if (target && original(bound, target) !== "Trait") {
+      const target = targetName && valName(targetName, bound);
+      if (target && Bindings.original(bound, target) !== "Trait") {
         visit(alias, occurrence);
         return;
       }
@@ -271,11 +310,14 @@ function traitNames(
       occurrenceName.type === "TSQualifiedName"
         ? (child(occurrenceName, "right") ?? occurrenceName)
         : occurrenceName;
-    out.set(ref.key, {
-      ...at(written["start"] as number),
-      name: named,
-      ref,
-    });
+    out.set(
+      ref.key,
+      DeclaredTrait.seal({
+        at: position(written["start"] as number),
+        name: named,
+        ref,
+      }),
+    );
   };
   visit(node);
   return [...out.values()];

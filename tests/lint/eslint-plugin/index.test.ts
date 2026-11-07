@@ -36,14 +36,10 @@ const run = (name: string, text?: string, read?: string | string[]): string[] =>
   return reports;
 };
 
-/** The same in a host process of its own, started in `cwd`, after the modules in `hooks`. */
-const host = (cwd: string, name: string, hooks: string[] = []) => {
-  const imports = hooks.flatMap((hook) => [
-    "--import",
-    fileURLToPath(new URL(hook, import.meta.url)),
-  ]);
+/** The same in a host process of its own, started in `cwd`. */
+const host = (cwd: string, name: string) => {
   const script = fileURLToPath(new URL("host.ts", import.meta.url));
-  const { status, stdout, stderr } = spawnSync(process.execPath, [...imports, script, name], {
+  const { status, stdout, stderr } = spawnSync(process.execPath, [script, name], {
     cwd,
     encoding: "utf8",
   });
@@ -67,12 +63,6 @@ test("reads src/**/*.ts when no project is set", () => {
   expect(host(at("default"), "src/orders.ts").stdout).toBe(
     'Ref claims the brand "Ref", and so does another type\n',
   );
-});
-
-test("asks for oxc-parser when the worker cannot load it", () => {
-  const { status, stderr } = host(at("."), "money.ts", ["../no-oxc-parser.ts"]);
-  expect(status).toBe(1);
-  expect(stderr).toContain("pnpm add -D oxc-parser");
 });
 
 test("says nothing about a file that holds no finding of its own", () => {

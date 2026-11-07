@@ -1,3 +1,4 @@
+import { Val } from "valof";
 // valof-lint-disable-next-line duplicate-brand brand-mismatch
 export type OrderId = Val<"Id", string>;
 

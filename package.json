@@ -93,5 +93,9 @@
       "onFail": "download"
     }
   },
+  "inlinedDependencies": {
+    "@praha/byethrow": "0.13.0",
+    "@praha/error-factory": "1.4.1"
+  },
   "valof-pinned-for-scripts-commit": "8d32b2ae3ab76618b3c577cc19b25da177c4242f"
 }
