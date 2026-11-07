@@ -9,15 +9,15 @@ import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
 import { flow, pipe } from "../../../shared/pipe/index.ts";
-import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
+import { Build, BuildResult, Mode, Sizes } from "./index.ts";
 
 export class NoChunkError extends ErrorFactory({
-  message: ({ mode }) => `no chunk emitted for ${mode}`,
+  message: ({ mode }) => `no chunk emitted for ${mode._tag}`,
   fields: ErrorFactory.fields<{ mode: Mode }>(),
 }) {}
 
 export class CompileError extends ErrorFactory({
-  message: ({ mode, step, detail }) => `${step} failed for ${mode}: ${detail}`,
+  message: ({ mode, step, detail }) => `${step} failed for ${mode._tag}: ${detail}`,
   fields: ErrorFactory.fields<{ mode: Mode; step: string; detail: string }>(),
 }) {}
 
@@ -32,14 +32,14 @@ export async function measure(
   imports: Imports,
 ): R.ResultAsync<BuildResult, NoChunkError | CompileError | MinifyError> {
   const compiled = await R.sequence([
-    compile("production", imports),
-    compile("development", imports),
+    compile(Mode.production.create({}), imports),
+    compile(Mode.development.create({}), imports),
   ]);
   if (R.isFailure(compiled)) return compiled;
   const [production, development] = compiled.value;
 
   const reads = await R.sequence(
-    development.modules.map((module) => Module.readsNodeEnv(module, "development")),
+    development.modules.map((module) => Module.readsNodeEnv(module, Mode.development.create({}))),
   );
   if (R.isFailure(reads)) return reads;
 
@@ -152,7 +152,7 @@ async function compileEntry(
           root: fileURLToPath(root),
           logLevel: "silent",
           configFile: false,
-          define: { "process.env.NODE_ENV": JSON.stringify(mode) },
+          define: { "process.env.NODE_ENV": JSON.stringify(mode._tag) },
           build: {
             write: false,
             minify: false,

@@ -1,12 +1,15 @@
 import { Result as R } from "@praha/byethrow";
+import { Val } from "#valof";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { runChecks } from "./run.ts";
+import { Check, runChecks } from "./run.ts";
 
 let logged: string[];
+let ran: string[];
 
 beforeEach(() => {
   logged = [];
+  ran = [];
   vi.spyOn(console, "log").mockImplementation((line: string) => logged.push(line));
   vi.spyOn(console, "error").mockImplementation((line: string) => logged.push(line));
 });
@@ -15,28 +18,35 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+type Stub = Val<"Stub", { name: string; outcome: "pass" | "fail" | "throw" }, Check>;
+const Stub = Val.companion<Stub>()
+  .implTrait(Check, () => ({
+    run: async (stub) => {
+      ran.push(stub.name);
+      if (stub.outcome === "throw") throw new Error(`${stub.name} crashed`);
+      return stub.outcome === "pass" ? R.succeed() : R.fail(new Error(`${stub.name} failed`));
+    },
+  }))
+  .build();
+
+const check = (name: string, outcome: "pass" | "fail" | "throw") =>
+  Check.dyn(Stub, Stub.seal({ name, outcome }));
+
 describe("runChecks", () => {
   test("runs every check after one fails or throws, and exits 1 with the summary", async () => {
-    const ran: string[] = [];
-    const check = (name: string, run: () => Promise<R.Result<void, Error>>) => ({
-      name,
-      run: () => (ran.push(name), run()),
-    });
     const code = await runChecks([
-      check("size", async () => R.fail(new Error("over budget"))),
-      check("types", async () => {
-        throw new Error("tsc crashed");
-      }),
-      check("compat", async () => R.succeed()),
+      check("size", "fail"),
+      check("types", "throw"),
+      check("compat", "pass"),
     ]);
     expect(ran).toEqual(["size", "types", "compat"]);
     expect(code).toBe(1);
-    expect(logged).toContain("\nover budget");
-    expect(logged).toContain("\ntsc crashed");
+    expect(logged).toContain("\nsize failed");
+    expect(logged).toContain("\ntypes crashed");
     expect(logged.slice(-3)).toEqual(["  size    fail", "  types   fail", "  compat  pass"]);
   });
 
   test("exits 0 when every check passes", async () => {
-    expect(await runChecks([{ name: "size", run: async () => R.succeed() }])).toBe(0);
+    expect(await runChecks([check("size", "pass")])).toBe(0);
   });
 });

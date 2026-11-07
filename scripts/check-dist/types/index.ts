@@ -6,14 +6,22 @@ import { readFile, rm, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
-import { Val } from "#valof";
+import { Enum, Val, type VariantsOf } from "#valof";
+
+import { Check } from "../run.ts";
 
 import { floor, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
 
 const here = new URL("./", import.meta.url);
 
-const fixtures = ["core", "trait", "enum"] as const;
-type Fixture = (typeof fixtures)[number];
+type Fixture = Enum<
+  "Fixture",
+  { core: Record<never, never>; trait: Record<never, never>; enum: Record<never, never> }
+>;
+const Fixture = Enum.companion<Fixture>().build();
+const fixtures = [Fixture.core.create({}), Fixture.trait.create({}), Fixture.enum.create({})].map(
+  ({ _tag }) => _tag,
+);
 
 /**
  * Instantiations over the baseline, which is the same lib with none of the library.
@@ -49,7 +57,11 @@ type Fixture = (typeof fixtures)[number];
  * the wrapper removed, `core` and `trait` exceed their budgets. `enum` stays within its own, so the
  * comments at its steps are the only record.
  */
-const budget: Record<Fixture, number> = { core: 10_000, trait: 25_000, enum: 90_000 };
+const budget: Record<keyof VariantsOf<Fixture>, number> = {
+  core: 10_000,
+  trait: 25_000,
+  enum: 90_000,
+};
 
 /**
  * The published declarations, in bytes. Deterministic like the counts above, and budgeted the
@@ -164,7 +176,7 @@ export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudge
     const baseline = await measure(compile, "baseline");
     const counts = Object.fromEntries(
       await Promise.all(fixtures.map(async (name) => [name, await measure(compile, name)])),
-    ) as Record<Fixture, Counts>;
+    ) as Record<keyof VariantsOf<Fixture>, Counts>;
 
     // Reported over the baseline, which is a constant each checker materialises at startup: 86
     // types on 5.9, 341 on tsgo, whatever the lib. Subtracting it leaves what the library costs.
@@ -176,7 +188,7 @@ export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudge
           instantiations: counts[name].instantiations - baseline.instantiations,
         }),
       ]),
-    ) as Record<Fixture, Counts>;
+    ) as Record<keyof VariantsOf<Fixture>, Counts>;
 
     {
       console.log(
@@ -235,3 +247,9 @@ export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudge
     throw error;
   }
 }
+
+export type TypesCheck = Val<"TypesCheck", { name: string }, Check>;
+export const TypesCheck = Val.companion<TypesCheck>()
+  .implCreate(() => ({ name: "types" }))
+  .implTrait(Check, () => ({ run: (_check) => checkTypes() }))
+  .build();

@@ -1,5 +1,6 @@
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
+import { Val } from "#valof";
 
 import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import { join } from "node:path";
 import { docBlocks } from "../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../pin-valof/index.ts";
 import { aliases, root, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
+import { Check } from "../run.ts";
 import { roundTrip, type RoundTrip } from "./round-trip.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
@@ -225,6 +227,12 @@ export async function checkCompat({
     }
   }
 }
+
+export type CompatCheck = Val<"CompatCheck", { name: string; release: boolean }, Check>;
+export const CompatCheck = Val.companion<CompatCheck>()
+  .implCreate(({ release }: { release: boolean }) => ({ name: "compat", release }))
+  .implTrait(Check, () => ({ run: (check) => checkCompat(check) }))
+  .build();
 
 // The exports whose declaration changes their type. It throws on an error outside the
 // comparisons, such as a declaration that does not parse.

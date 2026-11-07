@@ -1,5 +1,8 @@
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
+import { Val } from "#valof";
+
+import { Check } from "../run.ts";
 
 import { claims } from "./claims.ts";
 import { over, render } from "./format.ts";
@@ -68,3 +71,13 @@ export async function checkSize(options: { release: boolean; write: boolean }) {
   if (overs.length > 0) return R.fail(new OverBudgetError({ lines: overs }));
   return claimed;
 }
+
+export type SizeCheck = Val<"SizeCheck", { name: string; release: boolean; write: boolean }, Check>;
+export const SizeCheck = Val.companion<SizeCheck>()
+  .implCreate(({ release, write }: { release: boolean; write: boolean }) => ({
+    name: "size",
+    release,
+    write,
+  }))
+  .implTrait(Check, () => ({ run: (check) => checkSize(check) }))
+  .build();

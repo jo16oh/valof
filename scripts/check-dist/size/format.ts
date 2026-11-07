@@ -40,7 +40,10 @@ function sizes(build: BuildResult): string {
   return pipe(
     [
       ["", ...heads],
-      ...modes.map((mode) => [mode, ...heads.map((head) => format(build[mode].sizes[head]))]),
+      ...modes.map(({ _tag: mode }) => [
+        mode,
+        ...heads.map((head) => format(build[mode].sizes[head])),
+      ]),
     ],
     (rows) => align(rows, ["left", "right", "right", "right"]),
     (rows) => rows.map((cells) => `  ${cells.join("  ")}`),

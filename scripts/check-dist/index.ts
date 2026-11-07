@@ -2,12 +2,12 @@
 // the checker, and whether they typecheck on every TypeScript line.
 import { Result as R } from "@praha/byethrow";
 
-import { checkCompat } from "./compat/index.ts";
+import { CompatCheck } from "./compat/index.ts";
 import { pack } from "./pack.ts";
-import { runChecks, type Check } from "./run.ts";
+import { Check, runChecks } from "./run.ts";
 import { Selection } from "./selection.ts";
-import { checkSize } from "./size/index.ts";
-import { checkTypes } from "./types/index.ts";
+import { SizeCheck } from "./size/index.ts";
+import { TypesCheck } from "./types/index.ts";
 
 const selected = Selection.fromArgv(process.argv.slice(2));
 if (R.isFailure(selected)) {
@@ -22,9 +22,8 @@ if (R.isFailure(packed)) {
   process.exit(1);
 }
 
-const checks: Check[] = [
-  ...(size ? [{ name: "size", run: () => checkSize({ release, write }) }] : []),
-  ...(types ? [{ name: "types", run: () => checkTypes() }] : []),
-  ...(compat ? [{ name: "compat", run: () => checkCompat({ release }) }] : []),
-];
-process.exitCode = await runChecks(checks);
+process.exitCode = await runChecks([
+  ...(size ? [Check.dyn(SizeCheck, SizeCheck.create({ release, write }))] : []),
+  ...(types ? [Check.dyn(TypesCheck, TypesCheck.create())] : []),
+  ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release }))] : []),
+]);
