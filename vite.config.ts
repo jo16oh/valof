@@ -21,6 +21,9 @@ export default defineConfig({
     },
     // The linter's own dependencies, inlined so that installing valof installs nothing more.
     deps: { onlyBundle: ["@praha/byethrow", "@praha/error-factory"] },
+    // The linter's Vals are its own, built from the parser's output, so valof's development checks
+    // guard no user code here. A command runs without `NODE_ENV`, which would leave them on.
+    define: { "process.env.NODE_ENV": JSON.stringify("production") },
     exports: {
       // The CLI ships as a command, not as an import, so it stays out of the public exports.
       // Naming it here as well: left to auto-detect, the command takes the package's own name.

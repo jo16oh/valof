@@ -80,6 +80,7 @@ export function fromOxc(
   return convert(program);
 }
 
+// `nocopy`: every payload below is a fresh object, and the nodes inside it are sealed already.
 function build(
   raw: import("oxc-parser").Node,
   shared: { start: number; children: Node[] },
@@ -89,116 +90,130 @@ function build(
     raw ? at(raw) : null;
   switch (raw.type) {
     case "Program":
-      return Node.Program.create({ ...shared, body: raw.body.map(at) });
+      return Node.Program.create.nocopy({ ...shared, body: raw.body.map(at) });
     case "Identifier":
-      return Node.Identifier.create({ ...shared, name: raw.name });
+      return Node.Identifier.create.nocopy({ ...shared, name: raw.name });
     case "Literal":
-      return Node.Literal.create({
+      return Node.Literal.create.nocopy({
         ...shared,
         value: typeof raw.value === "string" ? raw.value : null,
       });
     case "MemberExpression":
-      return Node.MemberExpression.create({
+      return Node.MemberExpression.create.nocopy({
         ...shared,
         object: at(raw.object),
         property: at(raw.property),
         computed: raw.computed,
       });
     case "CallExpression":
-      return Node.CallExpression.create({
+      return Node.CallExpression.create.nocopy({
         ...shared,
         callee: at(raw.callee),
         arguments: raw.arguments.map(at),
         typeArguments: maybe(raw.typeArguments),
       });
     case "TSTypeParameterInstantiation":
-      return Node.TSTypeParameterInstantiation.create({ ...shared, params: raw.params.map(at) });
+      return Node.TSTypeParameterInstantiation.create.nocopy({
+        ...shared,
+        params: raw.params.map(at),
+      });
     case "TSTypeReference":
-      return Node.TSTypeReference.create({
+      return Node.TSTypeReference.create.nocopy({
         ...shared,
         typeName: at(raw.typeName),
         typeArguments: maybe(raw.typeArguments),
       });
     case "TSQualifiedName":
-      return Node.TSQualifiedName.create({ ...shared, left: at(raw.left), right: at(raw.right) });
+      return Node.TSQualifiedName.create.nocopy({
+        ...shared,
+        left: at(raw.left),
+        right: at(raw.right),
+      });
     case "TSIntersectionType":
-      return Node.TSIntersectionType.create({ ...shared, types: raw.types.map(at) });
+      return Node.TSIntersectionType.create.nocopy({ ...shared, types: raw.types.map(at) });
     case "TSParenthesizedType":
-      return Node.TSParenthesizedType.create({
+      return Node.TSParenthesizedType.create.nocopy({
         ...shared,
         typeAnnotation: at(raw.typeAnnotation),
       });
     case "ParenthesizedExpression":
-      return Node.ParenthesizedExpression.create({ ...shared, expression: at(raw.expression) });
+      return Node.ParenthesizedExpression.create.nocopy({
+        ...shared,
+        expression: at(raw.expression),
+      });
     case "TSTypeAliasDeclaration":
-      return Node.TSTypeAliasDeclaration.create({
+      return Node.TSTypeAliasDeclaration.create.nocopy({
         ...shared,
         id: at(raw.id),
         typeAnnotation: at(raw.typeAnnotation),
         generic: raw.typeParameters != null,
       });
     case "TSTypeLiteral":
-      return Node.TSTypeLiteral.create({ ...shared, members: raw.members.map(at) });
+      return Node.TSTypeLiteral.create.nocopy({ ...shared, members: raw.members.map(at) });
     case "TSPropertySignature":
-      return Node.TSPropertySignature.create({
+      return Node.TSPropertySignature.create.nocopy({
         ...shared,
         key: at(raw.key),
         computed: raw.computed,
       });
     case "TSLiteralType":
-      return Node.TSLiteralType.create({ ...shared, literal: at(raw.literal) });
+      return Node.TSLiteralType.create.nocopy({ ...shared, literal: at(raw.literal) });
     case "ExportNamedDeclaration":
-      return Node.ExportNamedDeclaration.create({
+      return Node.ExportNamedDeclaration.create.nocopy({
         ...shared,
         declaration: maybe(raw.declaration),
         source: maybe(raw.source),
         specifiers: raw.specifiers.map(at),
       });
     case "ExportSpecifier":
-      return Node.ExportSpecifier.create({
+      return Node.ExportSpecifier.create.nocopy({
         ...shared,
         local: at(raw.local),
         exported: at(raw.exported),
       });
     case "ImportDeclaration":
-      return Node.ImportDeclaration.create({
+      return Node.ImportDeclaration.create.nocopy({
         ...shared,
         source: at(raw.source),
         specifiers: raw.specifiers.map(at),
       });
     case "ImportSpecifier":
-      return Node.ImportSpecifier.create({
+      return Node.ImportSpecifier.create.nocopy({
         ...shared,
         local: at(raw.local),
         imported: at(raw.imported),
       });
     case "ImportNamespaceSpecifier":
-      return Node.ImportNamespaceSpecifier.create({ ...shared, local: at(raw.local) });
+      return Node.ImportNamespaceSpecifier.create.nocopy({ ...shared, local: at(raw.local) });
     case "VariableDeclaration":
-      return Node.VariableDeclaration.create({
+      return Node.VariableDeclaration.create.nocopy({
         ...shared,
         kind: raw.kind,
         declarations: raw.declarations.map(at),
       });
     case "VariableDeclarator":
-      return Node.VariableDeclarator.create({ ...shared, id: at(raw.id), init: maybe(raw.init) });
+      return Node.VariableDeclarator.create.nocopy({
+        ...shared,
+        id: at(raw.id),
+        init: maybe(raw.init),
+      });
     case "ObjectPattern":
-      return Node.ObjectPattern.create({ ...shared, properties: raw.properties.map(at) });
+      return Node.ObjectPattern.create.nocopy({ ...shared, properties: raw.properties.map(at) });
     case "ObjectExpression":
-      return Node.ObjectExpression.create({ ...shared, properties: raw.properties.map(at) });
+      return Node.ObjectExpression.create.nocopy({ ...shared, properties: raw.properties.map(at) });
     case "Property":
-      return Node.Property.create({
+      return Node.Property.create.nocopy({
         ...shared,
         key: at(raw.key),
         value: at(raw.value),
         computed: raw.computed,
       });
     case "SpreadElement":
-      return Node.SpreadElement.create({ ...shared, argument: at(raw.argument) });
+      return Node.SpreadElement.create.nocopy({ ...shared, argument: at(raw.argument) });
     case "ArrowFunctionExpression":
-      return Node.ArrowFunctionExpression.create({ ...shared, body: at(raw.body) });
+      return Node.ArrowFunctionExpression.create.nocopy({ ...shared, body: at(raw.body) });
     default:
-      return Node.Other.create(shared);
+      return Node.Other.create.nocopy(shared);
   }
 }
 
