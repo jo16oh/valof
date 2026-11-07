@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
@@ -35,6 +36,20 @@ const run = (name: string, text?: string, read?: string | string[]): string[] =>
   return reports;
 };
 
+/** The same in a host process of its own, started in `cwd`, after the modules in `hooks`. */
+const host = (cwd: string, name: string, hooks: string[] = []) => {
+  const imports = hooks.flatMap((hook) => [
+    "--import",
+    fileURLToPath(new URL(hook, import.meta.url)),
+  ]);
+  const script = fileURLToPath(new URL("host.ts", import.meta.url));
+  const { status, stdout, stderr } = spawnSync(process.execPath, [...imports, script, name], {
+    cwd,
+    encoding: "utf8",
+  });
+  return { status, stdout, stderr };
+};
+
 test("reports on the file it was called for, having read the whole project", () => {
   expect(run("money.ts")).toEqual(["6:2-8  Money.format is never read"]);
 });
@@ -46,6 +61,18 @@ test("takes a list for the project, and leaves out what one entry excludes", () 
   expect(
     run("money.ts", undefined, [project, at("reader/*.ts"), `!${at("reader/show.ts")}`]),
   ).toEqual([finding]);
+});
+
+test("reads src/**/*.ts when no project is set", () => {
+  expect(host(at("default"), "src/orders.ts").stdout).toBe(
+    'Ref claims the brand "Ref", and so does another type\n',
+  );
+});
+
+test("asks for oxc-parser when the worker cannot load it", () => {
+  const { status, stderr } = host(at("."), "money.ts", ["../no-oxc-parser.ts"]);
+  expect(status).toBe(1);
+  expect(stderr).toContain("pnpm add -D oxc-parser");
 });
 
 test("says nothing about a file that holds no finding of its own", () => {

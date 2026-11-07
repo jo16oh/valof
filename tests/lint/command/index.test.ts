@@ -1,6 +1,13 @@
 import { expect, test } from "vite-plus/test";
 
-import { UnusedMember, RULES, cli, cliWithoutParser, cliWithoutTypeScript } from "../support.ts";
+import {
+  UnusedMember,
+  RULES,
+  cli,
+  cliWithBrokenParser,
+  cliWithoutParser,
+  cliWithoutTypeScript,
+} from "../support.ts";
 
 const under = (fixture: string): string => `tests/lint/command/fixtures/${fixture}`;
 
@@ -46,4 +53,11 @@ test("asks for oxc-parser when it is not installed", () => {
   expect(status).toBe(2);
   expect(stderr).toContain("oxc-parser");
   expect(stderr).toContain("pnpm add -D oxc-parser");
+});
+
+test("lets another failure to load the parser surface as itself", () => {
+  const { status, stderr } = cliWithBrokenParser(under("*.ts"));
+  expect(status).toBe(1);
+  expect(stderr).toContain("the parser's native binding failed to load");
+  expect(stderr).not.toContain("pnpm add -D oxc-parser");
 });

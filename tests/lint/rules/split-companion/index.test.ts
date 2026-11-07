@@ -2,7 +2,7 @@ import { expect, test } from "vite-plus/test";
 
 import { SplitCompanion, fixtures } from "../../support.ts";
 
-const { lint } = fixtures(import.meta.url);
+const { lint, messages } = fixtures(import.meta.url);
 
 test("says nothing when the companion sits beside the type it is for", async () => {
   expect(await lint("beside")).toEqual([]);
@@ -14,6 +14,9 @@ test("reports a companion for a type another file declares", async () => {
       rule: SplitCompanion,
       at: "imported/companion.ts:5:28",
     },
+  ]);
+  expect(await messages("imported")).toEqual([
+    "User is declared in another file, where its companion belongs",
   ]);
 });
 
