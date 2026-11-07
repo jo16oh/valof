@@ -10,6 +10,7 @@ import {
 
 import { Result as R } from "@praha/byethrow";
 
+import { Enum, Val } from "../index.ts";
 import { expand } from "./files.ts";
 import { RULES, type Finding } from "./index.ts";
 import { run } from "./run.ts";
@@ -25,18 +26,23 @@ type Context = {
   report: (report: { loc: { start: Where; end: Where }; message: string }) => void;
 };
 
-type Ask = {
-  /** The files the run reads, absolute. The one being linted is among them. */
-  files: readonly string[];
-  /** The project files scanned together. */
-  project: readonly string[];
-  file: string;
-  text: string;
-};
+type Ask = Val<
+  "Ask",
+  {
+    /** The files the run reads, absolute. The one being linted is among them. */
+    files: readonly string[];
+    /** The project files scanned together. */
+    project: readonly string[];
+    file: string;
+    text: string;
+  }
+>;
+const Ask = Val.companion<Ask>().build();
 
-type Reply = { findings: Finding[] } | { failed: string };
+type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
+const Reply = Enum.companion<Reply>().build();
 
-type Message = Ask & { port: MessagePort; signal: Int32Array };
+type Message = { ask: Ask; port: MessagePort; signal: Int32Array };
 
 /** Long enough that no run reaches it, short enough that a wedged worker still says so. */
 const PATIENCE = 60_000;
@@ -87,7 +93,7 @@ const WORD = /^[\p{L}\p{N}_$]+/u;
  *
  * Columns count from 1 in a finding, as an editor shows them, and from 0 in a report.
  */
-function over(text: string, { line, column }: Finding): { start: Where; end: Where } {
+function over(text: string, { at: { line, column } }: Finding): { start: Where; end: Where } {
   const rest = (text.split("\n")[line - 1] ?? "").slice(column - 1);
   const width = WORD.exec(rest)?.[0].length ?? rest.trimEnd().length;
   const start = { line, column: column - 1 };
@@ -115,12 +121,14 @@ function found(file: string, text: string, settings: Context["settings"]): reado
   const key = `${file}\n${text}\n${project.join("\n")}`;
   if (last?.key === key) return last.findings;
 
-  const findings = ask({
-    files: project.includes(file) ? project : [...project, file],
-    project,
-    file,
-    text,
-  });
+  const findings = ask(
+    Ask.seal({
+      files: project.includes(file) ? project : [...project, file],
+      project,
+      file,
+      text,
+    }),
+  );
   last = { key, findings };
   queueMicrotask(() => (last = undefined));
   return findings;
@@ -191,20 +199,24 @@ function ask(what: Ask): readonly Finding[] {
 
   const { port1, port2 } = new MessageChannel();
   const signal = new Int32Array(new SharedArrayBuffer(4));
-  worker.postMessage({ ...what, port: port2, signal } satisfies Message, [port2]);
+  worker.postMessage({ ask: what, port: port2, signal } satisfies Message, [port2]);
   if (Atomics.wait(signal, 0, 0, PATIENCE) === "timed-out")
     throw new Error(`valof-lint: no answer in ${PATIENCE / 1000}s`);
 
   const reply = receiveMessageOnPort(port1)?.message as Reply | undefined;
   if (!reply) throw new Error("valof-lint: the worker answered nothing");
-  if ("failed" in reply) throw new Error(reply.failed);
-  return reply.findings;
+  return Reply.match(reply, {
+    Found: ({ findings }) => findings,
+    Failed: ({ message }) => {
+      throw new Error(message);
+    },
+  });
 }
 
 // The worker is this file again, so no path has to be guessed for it: the source tree runs as
 // `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
 if (!isMainThread && parentPort) {
-  parentPort.on("message", ({ port, signal, files, file, text }: Message) => {
+  parentPort.on("message", ({ ask: { files, file, text }, port, signal }: Message) => {
     void (async () => {
       let reply: Reply;
       try {
@@ -213,15 +225,17 @@ if (!isMainThread && parentPort) {
           overlay: new Map([[file, text]]),
         });
         // The message the command prints, so a user of the plugin gets the same instruction.
-        reply = R.isSuccess(found) ? { findings: found.value } : { failed: found.error.message };
+        reply = R.isSuccess(found)
+          ? Reply.Found.create({ findings: found.value })
+          : Reply.Failed.create({ message: found.error.message });
       } catch (error) {
-        reply = { failed: `valof-lint: ${String(error)}` };
+        reply = Reply.Failed.create({ message: `valof-lint: ${String(error)}` });
       }
       // Whatever happened, the thread waiting on this has to receive it.
       try {
         port.postMessage(reply);
       } catch (error) {
-        port.postMessage({ failed: `valof-lint: ${String(error)}` } satisfies Reply);
+        port.postMessage(Reply.Failed.create({ message: `valof-lint: ${String(error)}` }));
       }
       Atomics.store(signal, 0, 1);
       Atomics.notify(signal, 0);

@@ -86,7 +86,7 @@ export function fixtures(url: string): {
     all: () => globSync(`${directory}**/*.ts`),
     files,
     lint: async (fixture, options) =>
-      (await found(fixture, options)).map(({ file, line, column, kind }) => ({
+      (await found(fixture, options)).map(({ file, at: { line, column }, kind }) => ({
         rule: reporting(kind),
         at: `${file.replace(directory, "")}:${line}:${column}`,
       })),

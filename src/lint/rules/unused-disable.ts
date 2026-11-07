@@ -19,7 +19,7 @@ export const UnusedDisable = Val.companion<UnusedDisable>()
   .build();
 
 /** What a finding answers for: its own line, and its file as a whole. */
-const answers = ({ file, line, kind }: { file: string; line: number; kind: string }): string[] => [
+const answers = ({ file, at: { line }, kind }: Finding): string[] => [
   `${file}\0${line}\0${kind}`,
   `${file}\0file\0${kind}`,
 ];
@@ -43,7 +43,7 @@ function findings(
 ): Finding[] {
   const used = new Set(reported.flatMap(answers));
   return scans.flatMap(({ file, directives }) =>
-    directives.flatMap(({ line, column, covers, kinds, spelling }) =>
+    directives.flatMap(({ at, covers, kinds, spelling }) =>
       // One naming no scope silences nothing whatever it lists, which is incomplete-disable's to say.
       spelling === "valof-lint-disable"
         ? []
@@ -55,8 +55,7 @@ function findings(
               Finding.seal({
                 kind,
                 file,
-                line,
-                column,
+                at,
                 message: `${spelling} names ${named}, which reports nothing ${
                   covers === "file" ? "in this file" : "here"
                 }`,

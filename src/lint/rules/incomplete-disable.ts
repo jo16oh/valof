@@ -49,8 +49,7 @@ function findings({ kind }: IncompleteDisable, scans: readonly Scan[]): Finding[
         Finding.seal({
           kind,
           file,
-          line: written.line,
-          column: written.column,
+          at: written.at,
           message: `${written.spelling} ${left}`,
         }),
       ];

@@ -12,5 +12,5 @@ test("finds nothing in valof's own source and scripts", async () => {
     exclude: (file) => file.includes("fixtures"),
   });
   const findings = await lint(files.map((file) => root + file));
-  expect(findings.map(({ file, line, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
+  expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
 });

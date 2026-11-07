@@ -29,7 +29,8 @@ const ENTRY_POINTS: ReadonlySet<string> = new Set([
 /** A `Val` / `Trait` / `Enum` companion chain, whatever else it registered. */
 export type CompanionSite = Val<
   "CompanionSite",
-  Where & {
+  {
+    at: Where;
     file: string;
     /** Which entry point the chain grew from. */
     of: Root;
@@ -110,7 +111,8 @@ export function fromRoot(node: Node, bound: Bindings): Root | undefined {
  */
 export type Lift = Val<
   "Lift",
-  Where & {
+  {
+    at: Where;
     typeName: string | null;
     typeRef: SymbolRef | null;
     qualifier: string | null;
@@ -128,7 +130,7 @@ export function valOf(
   node: Node,
   file: string,
   bound: Bindings,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
 ): Lift | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
@@ -145,7 +147,7 @@ export function valOf(
     const property = child(callee, "property");
     if (!property) return undefined;
     return Lift.seal({
-      ...at(property["start"] as number),
+      at: position(property["start"] as number),
       typeName: null,
       typeRef: null,
       qualifier: null,
@@ -160,7 +162,7 @@ export function valOf(
   const of = variantArgument(param, named, bound);
   const reached = of ?? named;
   return Lift.seal({
-    ...at(reached.node["start"] as number),
+    at: position(reached.node["start"] as number),
     typeName: reached.node["name"] as string,
     typeRef: symbolRef(file, bound, reached.node["name"] as string, reached.qualifier),
     qualifier: reached.qualifier ?? null,
@@ -257,7 +259,7 @@ export function companionSite(
   file: string,
   where: Where,
   bound: Bindings,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
 ): CompanionSite | undefined {
   const { steps, typeArguments, of } = readChain(node, bound);
   const first = unparenthesized(typeArguments ? children(typeArguments, "params")[0] : undefined);
@@ -271,14 +273,14 @@ export function companionSite(
   const named = typeReference(written, bound.namespaces);
   if (!named) return undefined;
   return CompanionSite.seal({
-    ...where,
+    at: where,
     file,
     of,
     nameAt: where,
     typeName: named.node["name"] as string,
     typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
     typeOffset: named.node["start"] as number,
-    typeAt: at(named.node["start"] as number),
+    typeAt: position(named.node["start"] as number),
     name: null,
     qualifier: named.qualifier ?? null,
     seals: steps.has("implSeal"),

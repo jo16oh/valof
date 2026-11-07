@@ -3,7 +3,7 @@ import { child, children, keyName, unparenthesized, type Node, type Where } from
 import { original, symbolRef, type Bindings, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
-export type DeclaredTrait = Val<"DeclaredTrait", Where & { name: string; ref: SymbolRef }>;
+export type DeclaredTrait = Val<"DeclaredTrait", { at: Where; name: string; ref: SymbolRef }>;
 export const DeclaredTrait = Val.companion<DeclaredTrait>().build();
 
 /** A top-level `type X = Val<"brand", payload>`. */
@@ -49,7 +49,8 @@ export const EnumAlias = Val.companion<EnumAlias>().build();
  */
 export type ReAlias = Val<
   "ReAlias",
-  Where & {
+  {
+    at: Where;
     alias: string;
     ref: SymbolRef;
     /** The name on the right, as the declaring module names it when it was qualified. */
@@ -62,7 +63,8 @@ export const ReAlias = Val.companion<ReAlias>().build();
 /** The brand one alias claims, before anything is known about who else claims it. */
 export type BrandClaim = Val<
   "BrandClaim",
-  Where & {
+  {
+    at: Where;
     /** The name `Val` was written under here, resolved against the file's imports by the rule. */
     typeName: string;
     brand: string;
@@ -99,7 +101,7 @@ export function valAliases(
   program: Node,
   file: string,
   bound: Bindings,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
 ): {
   aliases: Alias[];
   traitAliases: TraitAlias[];
@@ -132,7 +134,7 @@ export function valAliases(
       if (child(node, "typeParameters")) continue;
       reAliases.push(
         ReAlias.seal({
-          ...at((id["start"] ?? node["start"]) as number),
+          at: position((id["start"] ?? node["start"]) as number),
           alias: id["name"] as string,
           ref: symbolRef(file, bound, id["name"] as string),
           target: named,
@@ -159,7 +161,7 @@ export function valAliases(
       aliases.push(
         Alias.seal({
           ...declared,
-          traits: traitNames(children(args, "params")[2], file, bound, locals, at),
+          traits: traitNames(children(args, "params")[2], file, bound, locals, position),
         }),
       );
     } else if (kind === "Trait") {
@@ -171,7 +173,7 @@ export function valAliases(
           ...declared,
           // The same position as a Val's: an enum's third argument carries the traits, the shared
           // fields and the tag's name, all intersected.
-          traits: traitNames(children(args, "params")[2], file, bound, locals, at),
+          traits: traitNames(children(args, "params")[2], file, bound, locals, position),
           variants: variants ?? null,
         }),
       );
@@ -183,7 +185,7 @@ export function valAliases(
     if (!literal || typeof literal["value"] !== "string") continue;
     brands.push(
       BrandClaim.seal({
-        ...at((id["start"] ?? node["start"]) as number),
+        at: position((id["start"] ?? node["start"]) as number),
         typeName: named,
         brand: literal["value"],
         alias: id["name"] as string,
@@ -256,7 +258,7 @@ function traitNames(
   file: string,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
 ): DeclaredTrait[] {
   if (!node) return [];
   const seen = new Set<string>();
@@ -304,7 +306,7 @@ function traitNames(
     out.set(
       ref.key,
       DeclaredTrait.seal({
-        ...at(written["start"] as number),
+        at: position(written["start"] as number),
         name: named,
         ref,
       }),

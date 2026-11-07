@@ -16,6 +16,7 @@ import {
   type Node,
   type Where,
 } from "../ast.ts";
+import { Parser } from "../parser.ts";
 import {
   valAliases,
   type Alias,
@@ -30,7 +31,7 @@ import {
   original,
   symbolRef,
   type Bindings,
-  type ImportBinding,
+  ImportBinding,
   type SymbolRef,
   type Root,
 } from "./bindings.ts";
@@ -63,7 +64,7 @@ export type { Directive, Spelling } from "./directives.ts";
 export { silences } from "./directives.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
-export type Member = Val<"Member", Where & { companion: string; member: string }>;
+export type Member = Val<"Member", { at: Where; companion: string; member: string }>;
 export const Member = Val.companion<Member>().build();
 
 /** One implementation attached to a Val companion chain. */
@@ -99,7 +100,8 @@ export const DynRead = Val.companion<DynRead>().build();
  */
 export type CompanionBinding = Val<
   "CompanionBinding",
-  Where & {
+  {
+    at: Where;
     /** The local name it was bound to. */
     name: string;
     /** The companion it was taken from, as this file names it. */
@@ -190,14 +192,6 @@ export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => stri
   };
 }
 
-/** The parser's surface, passed in so the optional import stays at the caller. */
-export type Parser = {
-  parseSync: (file: string, source: string) => { program: unknown; comments: readonly Comment[] };
-  visitorKeys: Record<string, readonly string[] | undefined>;
-};
-
-type Comment = { value: string; start: number; end: number };
-
 /** An enum to read keys from. `AnyEnum` widens them to `string`. */
 type Sample = Enum<"Sample", { A: { a: 1 } }>;
 
@@ -252,12 +246,12 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  */
 export function scan(
   file: string,
-  { parseSync, visitorKeys }: Parser,
+  parser: Parser,
   given?: string,
   resolveModule: (file: string, source: string) => string = (_file, source) => source,
 ): Scan {
   const source = given ?? readFileSync(file, "utf8");
-  const at = positions(source);
+  const position = positions(source);
 
   const bound = bindings();
   const exportedAs = new Map<string, string>();
@@ -282,7 +276,7 @@ export function scan(
   const took = (name: string, where: Where, companion: string, key: string): void => {
     companionBindings.push(
       CompanionBinding.seal({
-        ...where,
+        at: where,
         name,
         companion,
         companionRef: symbolRef(file, bound, companion),
@@ -313,13 +307,13 @@ export function scan(
         const id = child(node, "id");
         const init = child(node, "init");
         if (!id || !init) break;
-        const site = companionSite(init, file, at(init["start"] as number), bound, at);
+        const site = companionSite(init, file, position(init["start"] as number), bound, position);
         if (site)
           sites.push(
             id.type === "Identifier"
               ? CompanionSite.patch(site, {
                   name: id["name"] as string,
-                  nameAt: at(id["start"] as number),
+                  nameAt: position(id["start"] as number),
                 })
               : site,
           );
@@ -338,7 +332,7 @@ export function scan(
                 collect(reads, from, name);
                 const local = child(property, "value");
                 if (local?.type === "Identifier")
-                  took(local["name"] as string, at(local["start"] as number), from, name);
+                  took(local["name"] as string, position(local["start"] as number), from, name);
               }
             }
           }
@@ -365,18 +359,23 @@ export function scan(
           const key = child(init, "property");
           const taken = key && keyName(key, init["computed"] === true);
           if (from?.type === "Identifier" && taken && !bound.namespaces.has(from["name"] as string))
-            took(id["name"] as string, at(id["start"] as number), from["name"] as string, taken);
+            took(
+              id["name"] as string,
+              position(id["start"] as number),
+              from["name"] as string,
+              taken,
+            );
         }
-        members.push(...implMembers(init, id["name"] as string, bound, objects, at));
+        members.push(...implMembers(init, id["name"] as string, bound, objects, position));
         break;
       }
       case "CallExpression": {
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
-        const lift = valOf(node, file, bound, at);
+        const lift = valOf(node, file, bound, position);
         if (lift) lifts.push(lift);
-        const implementation = implTrait(node, file, bound, sites, objects, at);
+        const implementation = implTrait(node, file, bound, sites, objects, position);
         if (implementation) {
           traitImplementations.push(implementation);
           members.push(...implementation.overrides);
@@ -436,7 +435,8 @@ export function scan(
           } else if (specifier.type === "ImportSpecifier") {
             const imported = child(specifier, "imported");
             const name = imported && keyName(imported, false);
-            if (name) bound.imported.set(local["name"] as string, { name, module });
+            if (name)
+              bound.imported.set(local["name"] as string, ImportBinding.seal({ name, module }));
           }
         }
         break;
@@ -445,7 +445,7 @@ export function scan(
         break;
     }
 
-    for (const key of visitorKeys[node.type] ?? []) {
+    for (const key of parser.visitorKeys[node.type] ?? []) {
       const value = node[key];
       if (Array.isArray(value)) {
         for (const element of value) if (isNode(element)) visit(element);
@@ -453,8 +453,8 @@ export function scan(
     }
   };
 
-  const parsed = parseSync(file, source);
-  const program = parsed.program as Node;
+  const { program, comments } = Parser.parse(parser, file, source);
+  if (!isNode(program)) throw new Error(`valof-lint: ${file} parsed to no program`);
   visit(program);
 
   // Imports may follow an export declaration. Resolve local exports only after every binding is
@@ -488,7 +488,7 @@ export function scan(
     program,
     file,
     bound,
-    at,
+    position,
   );
 
   return Scan.seal({
@@ -510,7 +510,7 @@ export function scan(
     sites,
     companionBindings,
     lifts,
-    directives: directives(parsed.comments, source, at),
+    directives: directives(comments, source, position),
   });
 }
 
@@ -552,7 +552,7 @@ function implTrait(
   bound: Bindings,
   sites: readonly CompanionSite[],
   objects: ReadonlyMap<string, Node>,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
 ): TraitImplementation | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
@@ -589,7 +589,7 @@ function implTrait(
   const [traitRef, object] = children(node, "arguments");
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
-  const resolved = object ? stepMembers(object, val.name, objects, at) : [];
+  const resolved = object ? stepMembers(object, val.name, objects, position) : [];
   return TraitImplementation.seal({ val, trait, overrides: resolved });
 }
 
@@ -601,12 +601,12 @@ function stepMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
 ): Member[] {
   const fn = node.type === "Identifier" ? objects.get(node["name"] as string) : node;
   const body =
     fn?.type === "ArrowFunctionExpression" ? unparenthesized(child(fn, "body")) : undefined;
-  return body ? objectMembers(body, companion, objects, at, new Set()) : [];
+  return body ? objectMembers(body, companion, objects, position, new Set()) : [];
 }
 
 /** Resolves inline/const objects and spreads, retaining known keys even beside an unknown spread. */
@@ -614,7 +614,7 @@ function objectMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
   seen: Set<string>,
 ): Member[] {
   if (node.type === "Identifier") {
@@ -624,7 +624,7 @@ function objectMembers(
     if (!target) return [];
     const next = new Set(seen);
     next.add(name);
-    return objectMembers(target, companion, objects, at, next);
+    return objectMembers(target, companion, objects, position, next);
   }
   if (node.type !== "ObjectExpression") return [];
   const byName = new Map<string, Member>();
@@ -632,7 +632,7 @@ function objectMembers(
     if (entry.type === "SpreadElement") {
       const argument = child(entry, "argument");
       if (!argument) continue;
-      for (const member of objectMembers(argument, companion, objects, at, seen))
+      for (const member of objectMembers(argument, companion, objects, position, seen))
         byName.set(member.member, member);
       continue;
     }
@@ -642,7 +642,10 @@ function objectMembers(
     if (!name) {
       continue;
     }
-    byName.set(name, Member.seal({ ...at(entry["start"] as number), companion, member: name }));
+    byName.set(
+      name,
+      Member.seal({ at: position(entry["start"] as number), companion, member: name }),
+    );
   }
   return [...byName.values()];
 }
@@ -656,7 +659,7 @@ function implMembers(
   companion: string,
   bound: Bindings,
   objects: ReadonlyMap<string, Node>,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
 ): Member[] {
   const found = new Map<string, Member>();
   let current: Node = node;
@@ -670,7 +673,7 @@ function implMembers(
     const [object] = children(current, "arguments");
     if (step.name === "impl" && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
-      for (const member of stepMembers(object, owner, objects, at))
+      for (const member of stepMembers(object, owner, objects, position))
         if (!rejected(member.member, variant ? undefined : root))
           found.set(`${owner}\0${member.member}`, member);
     }

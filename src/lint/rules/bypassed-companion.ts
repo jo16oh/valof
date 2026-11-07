@@ -40,7 +40,7 @@ function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[
 
   const found: Finding[] = [];
   for (const { file, lifts } of scans) {
-    for (const { typeName, typeRef, variant, line, column } of lifts) {
+    for (const { typeName, typeRef, variant, at } of lifts) {
       // A lift naming no type is the unnamed-of rule's finding. Which companion it goes around,
       // if any, is not written anywhere here.
       if (typeName === null || typeRef === null) continue;
@@ -53,8 +53,7 @@ function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: `Val.of<${written}> ${instead(site, site.typeRef.name, variant)}`,
         }),
       );

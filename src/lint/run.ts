@@ -2,9 +2,10 @@ import { resolve } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 
-import { MissingParserError } from "./errors.ts";
+import type { MissingParserError } from "./errors.ts";
 import { Context, RULES, type Finding } from "./rules/index.ts";
-import { scan, silences, type Parser } from "./scan/index.ts";
+import { loadParser } from "./parser.ts";
+import { scan, silences } from "./scan/index.ts";
 import { moduleResolver } from "./scan/bindings.ts";
 import type { Options } from "./index.ts";
 
@@ -39,7 +40,7 @@ export async function run(
    * brand is still reported, since silencing it is its own line's decision.
    */
   const disabled = new Map(scans.map(({ file, directives }) => [file, silences(directives)]));
-  const silenced = ({ file, line, kind }: Finding): boolean =>
+  const silenced = ({ file, at: { line }, kind }: Finding): boolean =>
     disabled.get(file)?.(line, kind) === true;
   const asked = ({ file }: Finding): boolean => report === undefined || report.has(resolve(file));
 
@@ -49,23 +50,9 @@ export async function run(
       .sort(
         (a, b) =>
           a.file.localeCompare(b.file) ||
-          a.line - b.line ||
-          a.column - b.column ||
+          a.at.line - b.at.line ||
+          a.at.column - b.at.column ||
           a.kind.localeCompare(b.kind),
       ),
   );
 }
-
-/**
- * The parser, loaded here rather than imported at the top, because a static import would be
- * hoisted above the caller's own error handling once bundled, turning a missing install into a
- * stack trace instead of an instruction. See {@link MissingParserError}.
- */
-const loadParser = (): Promise<R.Result<Parser, MissingParserError>> =>
-  R.try({
-    try: async () => (await import("oxc-parser")) as unknown as Parser,
-    catch: (error) => {
-      if ((error as { code?: string }).code !== "ERR_MODULE_NOT_FOUND") throw error;
-      return new MissingParserError({ cause: error });
-    },
-  });

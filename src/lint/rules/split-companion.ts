@@ -37,7 +37,7 @@ function findings({ kind }: SplitCompanion, scans: readonly Scan[]): Finding[] {
         Finding.seal({
           kind,
           file,
-          ...typeAt,
+          at: typeAt,
           message: `${typeName} is declared in another file, where its companion belongs`,
         }),
       );

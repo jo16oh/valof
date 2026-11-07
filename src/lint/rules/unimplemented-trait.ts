@@ -44,8 +44,7 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
             Finding.seal({
               kind,
               file: scan.file,
-              line: trait.line,
-              column: trait.column,
+              at: trait.at,
               message: `${alias} declares ${trait.name}, but its companion does not implement it`,
             }),
           );

@@ -18,7 +18,8 @@ export type Spelling =
 /** One disable comment, whole. */
 export type Directive = Val<
   "Directive",
-  Where & {
+  {
+    at: Where;
     /** The 1-based line it silences, the one after the block it sits in, or the whole file. */
     covers: number | "file";
     /** The kinds it named, in order and without repeats, empty when it named none. */
@@ -96,12 +97,12 @@ const widen = (left: Silenced, right: Silenced): Silenced =>
 export function directives(
   comments: readonly { value: string; start: number; end: number }[],
   source: string,
-  at: (offset: number) => Where,
+  position: (offset: number) => Where,
 ): Directive[] {
-  const lineOf = (offset: number): number => at(offset).line;
+  const lineOf = (offset: number): number => position(offset).line;
   const found: Directive[] = [];
   /** The line directives of the block being read, held until its last line is known. */
-  let block: (Where & { spelling: Spelling; kinds: string[] })[] = [];
+  let block: { at: Where; spelling: Spelling; kinds: string[] }[] = [];
   /** The last line of that block, or -1 when the previous comment closed one. */
   let blockEnd = -1;
   /** Where that comment ended, so code written after it on its own line breaks the block. */
@@ -125,7 +126,7 @@ export function directives(
     if (!joins) close();
     const carried = directive(comment.value);
     if (carried) {
-      const written = { ...at(comment.start), ...carried };
+      const written = { at: position(comment.start), ...carried };
       if (carried.spelling === "valof-lint-disable-next-line") block.push(written);
       else found.push(Directive.seal({ ...written, covers: "file" }));
     }

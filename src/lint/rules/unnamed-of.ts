@@ -30,12 +30,11 @@ function findings({ kind }: UnnamedOf, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, lifts }) =>
     lifts
       .filter(({ typeName }) => typeName === null)
-      .map(({ line, column }) =>
+      .map(({ at }) =>
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: "Val.of names no type here, and takes one from its target",
         }),
       ),

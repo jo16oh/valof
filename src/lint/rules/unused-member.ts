@@ -147,12 +147,11 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
     return members
       .filter(({ companion, member }) => !taken.get(companion)?.has(member))
       .filter(({ companion, member }) => !read.get(companion)?.has(member))
-      .map(({ companion, member, line, column }) =>
+      .map(({ companion, member, at }) =>
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: `${companion}.${member} is never read`,
         }),
       );

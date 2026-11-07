@@ -31,7 +31,7 @@ export const BrandMismatch = Val.companion<BrandMismatch>()
 function findings({ kind }: BrandMismatch, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
   for (const { file, brands, imported } of scans) {
-    for (const { typeName, brand, alias, line, column } of brands) {
+    for (const { typeName, brand, alias, at } of brands) {
       const owner = importedName(imported, typeName);
       if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
       const namespace = brand.slice(0, brand.lastIndexOf("/") + 1);
@@ -40,8 +40,7 @@ function findings({ kind }: BrandMismatch, scans: readonly Scan[]): Finding[] {
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: `${alias} claims the brand "${brand}", which should be "${namespace}${alias}"`,
         }),
       );

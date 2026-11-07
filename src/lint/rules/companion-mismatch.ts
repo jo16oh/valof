@@ -53,12 +53,12 @@ function findings({ kind }: CompanionMismatch, scans: readonly Scan[]): Finding[
         Finding.seal({
           kind,
           file,
-          ...nameAt,
+          at: nameAt,
           message: `${name} is the companion for ${typeName}, and should be named ${typeName}`,
         }),
       );
     }
-    for (const { name, companion, companionRef, key, line, column } of companionBindings) {
+    for (const { name, companion, companionRef, key, at } of companionBindings) {
       if (name === key) continue;
       // Keyed by the enum's declaration, so anything else taken off anything else misses here.
       if (variants.get(identity(companionRef))?.has(key) !== true) continue;
@@ -66,8 +66,7 @@ function findings({ kind }: CompanionMismatch, scans: readonly Scan[]): Finding[
         Finding.seal({
           kind,
           file,
-          line,
-          column,
+          at,
           message: `${name} is ${companion}.${key} under another name; call ${companion}.${key}, or bind it to ${key}`,
         }),
       );

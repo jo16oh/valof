@@ -30,7 +30,7 @@ function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
   for (const { file, brands, imported, enumAliases } of scans) {
     /** The variants each enum in this file declared, for the brands they derive. */
     const declared = new Map(enumAliases.map(({ alias, variants }) => [alias, variants]));
-    for (const { typeName, brand, alias, line, column } of brands) {
+    for (const { typeName, brand, alias, at } of brands) {
       const owner = importedName(imported, typeName);
       if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
       const claim = (name: string, claimed: string, how: string): void => {
@@ -40,8 +40,7 @@ function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
           Finding.seal({
             kind,
             file,
-            line,
-            column,
+            at,
             message: `${alias} ${how} the brand "${claimed}", and so does another type`,
           }),
         );
@@ -60,11 +59,11 @@ function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
   return [...claims.values()]
     .filter((claimed) => claimed.length > 1)
     .flat()
-    .filter(({ file, line, column }) => {
+    .filter(({ file, at: { line, column } }) => {
       // One declaration, one finding: an enum claims a brand per variant beside its own.
-      const at = `${file}:${line}:${column}`;
-      if (reported.has(at)) return false;
-      reported.add(at);
+      const key = `${file}:${line}:${column}`;
+      if (reported.has(key)) return false;
+      reported.add(key);
       return true;
     });
 }

@@ -37,15 +37,14 @@ function findings({ kind }: UnnecessaryAlias, scans: readonly Scan[]): Finding[]
     return undefined;
   };
   return scans.flatMap(({ file, reAliases }) =>
-    reAliases.flatMap(({ alias, targetRef, line, column }) => {
+    reAliases.flatMap(({ alias, targetRef, at }) => {
       const declaration = endsAt({ name: targetRef.name, key: identity(targetRef) });
       return declaration
         ? [
             Finding.seal({
               kind,
               file,
-              line,
-              column,
+              at,
               message: `${alias} is a second name for ${declaration}; use ${declaration}`,
             }),
           ]

@@ -2,7 +2,9 @@ import { dirname, extname, normalize, resolve } from "node:path";
 
 import { Val } from "../../index.ts";
 
-export type ImportBinding = { name: string; module: string };
+/** What an import binds a local name to: the exporting module and the name it exports. */
+export type ImportBinding = Val<"ImportBinding", { name: string; module: string }>;
+export const ImportBinding = Val.companion<ImportBinding>().build();
 
 /** The entry point a builder chain grows from. */
 export type Root = "Val" | "Trait" | "Enum";
