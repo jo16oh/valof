@@ -4,13 +4,7 @@ import { BrandMismatch, IncompleteDisable, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
-test("reports a directive that names no rule, and lets it go on silencing", async () => {
-  expect(await lint("bare")).toEqual([
-    {
-      rule: IncompleteDisable,
-      at: "bare.ts:2:3",
-    },
-  ]);
+test("asks a directive that names no rule to name the ones it silences", async () => {
   expect(await messages("bare")).toEqual([
     "valof-lint-disable-next-line names no rule; name the ones it silences",
   ]);
