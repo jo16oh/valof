@@ -268,7 +268,7 @@ type Sample = Enum<"Sample", { A: { a: 1 } }>;
 /** The {@link Reserved} names with no pattern. */
 type Unlisted<N extends string> = Reserved extends infer R
   ? R extends unknown
-    ? [Extract<N, R>] extends [never]
+    ? Extract<N, R> extends never
       ? R
       : never
     : never
