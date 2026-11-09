@@ -1,3 +1,4 @@
+import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vite-plus/test";
@@ -14,5 +15,15 @@ const dead = (name: string): string =>
 
 test("scans a file the buffer is the only copy of", async () => {
   const findings = await lint([], Options.create({ overlay: [[at("unsaved.ts"), dead("Id")]] }));
+  expect(findings.map(({ kind }) => kind)).toEqual([UnusedMember.kind]);
+});
+
+const saved = at("saved.ts");
+
+test.each([
+  ["a relative path, the buffer by an absolute one", relative(process.cwd(), saved), saved],
+  ["an absolute path, the buffer by a relative one", saved, relative(process.cwd(), saved)],
+])("reads the buffer over a file listed by %s", async (_, listed, key) => {
+  const findings = await lint([listed], Options.create({ overlay: [[key, dead("Id")]] }));
   expect(findings.map(({ kind }) => kind)).toEqual([UnusedMember.kind]);
 });
