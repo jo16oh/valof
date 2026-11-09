@@ -34,3 +34,6 @@ declare global {
     app: string;
   }
 }
+
+export type Flag = boolean;
+export type Code = `id-${string}`;

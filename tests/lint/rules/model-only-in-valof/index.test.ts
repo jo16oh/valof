@@ -22,7 +22,7 @@ test("runs only when enabled", async () => {
   expect((await run("domain")).filter(({ rule }) => rule === ModelOnlyInValof)).toEqual([]);
 });
 
-test("reports a named data type outside Valof, and spares Valof types, unions and functions", async () => {
+test("reports a named data or primitive type outside Valof, and spares Valof types and functions", async () => {
   expect(await reported({})).toEqual([
     `9:13 ${data("Row")}`,
     `10:18 ${data("Props")}`,
@@ -33,6 +33,8 @@ test("reports a named data type outside Valof, and spares Valof types, unions an
     `17:27 ${data("OnRow")}`,
     "21:43 Order nests an object that is not a Val; nest a Val instead",
     "23:29 Name is a payload type; use it in a Valof type, or in the function passed to implSeal or implCreate",
+    `38:13 ${primitive("Flag")}`,
+    `39:13 ${primitive("Code")}`,
   ]);
 });
 
@@ -55,27 +57,30 @@ test("reports classes, constraints and types taken out of values, each only when
 test("reads a nested object in a variant, beside an intersected base, in an array and in a mapped type", async () => {
   const nests = (name: string): string =>
     `${name} nests an object that is not a Val; nest a Val instead`;
-  expect(await reported({}, "more")).toEqual([
+  expect(await reported({}, "nested")).toEqual([
     `4:49 ${nests("Choice")}`,
     `5:52 ${nests("Joined")}`,
     `6:45 ${nests("Listed")}`,
     `7:41 ${nests("Mapped")}`,
-    `11:13 ${data("Wrapped")}`,
-    "17:41 Name is a payload type; use it in a Valof type, or in the function passed to implSeal or implCreate",
-    `23:13 ${primitive("Flag")}`,
-    `24:13 ${primitive("Code")}`,
   ]);
 });
 
-test("takes a type out of a value below the top too, and reports a class expression, when asked", async () => {
-  const always = new Set(await reported({}, "more"));
-  const added = (await reported({ classes: true, extraction: true }, "more")).filter(
+test("takes a payload type in the function passed to implSeal or implCreate, not in a variant's impl", async () => {
+  expect(await reported({}, "impl")).toEqual([
+    "7:41 Name is a payload type; use it in a Valof type, or in the function passed to implSeal or implCreate",
+  ]);
+});
+
+test("takes a type out of a value below the top too, besides its data, and reports a class expression, when asked", async () => {
+  const always = new Set(await reported({}, "extracted"));
+  expect([...always]).toEqual([`3:13 ${data("Wrapped")}`]);
+  const added = (await reported({ classes: true, extraction: true }, "extracted")).filter(
     (one) => !always.has(one),
   );
   expect(added).toEqual([
-    "10:13 Labeler takes its type out of a value; declare a Val instead",
-    "11:13 Wrapped takes its type out of a value; declare a Val instead",
-    "22:21 a class declares data outside Valof; model it as a Val",
+    "2:13 Labeler takes its type out of a value; declare a Val instead",
+    "3:13 Wrapped takes its type out of a value; declare a Val instead",
+    "5:21 a class declares data outside Valof; model it as a Val",
   ]);
 });
 
