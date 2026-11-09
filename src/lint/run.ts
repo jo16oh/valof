@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { Result as R } from "@praha/byethrow";
 
 import { MissingTypeScriptError, type MissingParserError } from "./errors.ts";
-import { Context, KindSet, compile, type Finding } from "./rules/index.ts";
+import { Context, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { loadParser } from "./parser.ts";
 import { scan, silences } from "./scan/index.ts";
 import { moduleResolver } from "./scan/bindings.ts";
@@ -31,12 +31,19 @@ export async function run(
   );
 
   const findings: Finding[] = [];
-  const notRun = options.skip;
+  const rules = compile(options.enable);
+  // An opt-in rule left off is out of the run as much as a skipped one.
+  const notRun = KindSet.create([
+    ...Object.keys(options.skip),
+    ...RULES.filter(({ kind }) => !rules.some((rule) => rule.kind === kind)).map(
+      ({ kind }) => kind,
+    ),
+  ]);
   // Started by the first rule that asks, and by none when no rule does.
   let program: ReturnType<typeof arities> | undefined;
   const types = (): Arity => (program ??= arities(walk.map((file) => resolve(file)))).arity;
   try {
-    for (const rule of compile(options.enable)) {
+    for (const rule of rules) {
       if (KindSet.has(notRun, rule.kind)) continue;
       findings.push(...rule.run(scans, Context.seal({ reported: findings, notRun }), types));
     }
