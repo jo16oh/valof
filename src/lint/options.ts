@@ -29,12 +29,22 @@ export const ModelSettings = Val.companion<ModelSettings>()
   )
   .build();
 
+/** The rules that are off unless named here, with their settings. */
+export type Enabled = Val<"Enabled", { "model-only-in-valof"?: ModelSettings }>;
+export const Enabled = Val.companion<Enabled>()
+  .implCreate(
+    ({
+      "model-only-in-valof": model,
+    }: { "model-only-in-valof"?: Parameters<typeof ModelSettings.create>[0] } = {}) =>
+      model ? { "model-only-in-valof": ModelSettings.create(model) } : {},
+  )
+  .build();
+
 /** How a run reads and reports. Paths are resolved, so any spelling of a file finds it. */
 export type Options = Val<
   "Options",
   {
-    /** The rules that are off unless named here, with their settings. */
-    enable: { "model-only-in-valof"?: ModelSettings };
+    enable: Enabled;
     /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
     skip: KindSet;
     /**
@@ -65,14 +75,12 @@ export const Options = Val.companion<Options>()
       report,
       overlay = [],
     }: {
-      enable?: { "model-only-in-valof"?: Parameters<typeof ModelSettings.create>[0] };
+      enable?: Parameters<typeof Enabled.create>[0];
       skip?: Iterable<string>;
       report?: Iterable<string>;
       overlay?: Iterable<readonly [string, string]>;
     } = {}) => ({
-      enable: enable["model-only-in-valof"]
-        ? { "model-only-in-valof": ModelSettings.create(enable["model-only-in-valof"]) }
-        : {},
+      enable: Enabled.create(enable),
       skip: KindSet.create(skip),
       report: report
         ? Object.fromEntries([...report].map((file) => [resolve(file), true as const]))

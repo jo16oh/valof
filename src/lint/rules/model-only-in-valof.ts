@@ -37,33 +37,33 @@ export const ModelOnlyInValof = Val.companion<ModelOnlyInValof>()
 
 /** What each shape says, and the setting that has to ask for it. */
 const SAID: Record<
-  Shape,
+  Shape["_tag"],
   { setting?: "classes" | "constraints" | "extraction"; say: (name: string) => string }
 > = {
-  data: {
+  Data: {
     say: (name) =>
       `${name} declares a data type outside Valof; model it as a Val, an Enum or a Trait`,
   },
-  interface: {
+  Interface: {
     say: (name) =>
       `${name} declares a data type outside Valof; model it as a Val, an Enum or a Trait`,
   },
-  primitive: {
+  Primitive: {
     say: (name) =>
       `${name} names a primitive type outside Valof; make it a Val, or Payload<…> for a payload`,
   },
-  "nested-object": {
+  NestedObject: {
     say: (name) => `${name} nests an object that is not a Val; nest a Val instead`,
   },
-  class: {
+  Class: {
     setting: "classes",
     say: () => "a class declares data outside Valof; model it as a Val",
   },
-  constraint: {
+  Constraint: {
     setting: "constraints",
     say: () => "this constraint declares a data shape; write a Trait or an Enum",
   },
-  extraction: {
+  Extraction: {
     setting: "extraction",
     say: (name) => `${name} takes its type out of a value; declare a Val instead`,
   },
@@ -77,10 +77,10 @@ function findings(rule: ModelOnlyInValof, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, models }) => [
     ...models.models
       .filter(({ shape }) => {
-        const { setting } = SAID[shape];
+        const { setting } = SAID[shape._tag];
         return setting === undefined || rule[setting];
       })
-      .map((one) => at(file, one, SAID[one.shape].say(one.name))),
+      .map((one) => at(file, one, SAID[one.shape._tag].say(one.name))),
     ...models.outside
       .filter(({ name }) => payloads.has(name))
       .map((one) =>

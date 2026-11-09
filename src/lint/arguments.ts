@@ -8,7 +8,7 @@ import {
   UnknownRuleError,
   UnknownSettingError,
 } from "./errors.ts";
-import { ModelSettings } from "./options.ts";
+import { Enabled, ModelSettings } from "./options.ts";
 import { isKind, kinds } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
@@ -39,7 +39,7 @@ export type Arguments = Val<
     /** Kinds left out with `--no-<kind>`. */
     skip: string[];
     /** Rules off by default that `--<kind>` turned on, with the settings after `=`. */
-    enable: { "model-only-in-valof"?: ModelSettings };
+    enable: Enabled;
     help: boolean;
   }
 >;
@@ -64,7 +64,7 @@ export const Arguments = Val.companion<Arguments>()
       const excluded: string[] = [];
       const loose: string[] = [];
       const skip: string[] = [];
-      const enable: { "model-only-in-valof"?: ModelSettings } = {};
+      let model: ModelSettings | undefined;
       let help = false;
       let pending: "project" | "report-on" | undefined;
 
@@ -95,7 +95,7 @@ export const Arguments = Val.companion<Arguments>()
               return R.fail(new UnknownSettingError({ setting, known: SETTINGS }));
             settings[setting] = true;
           }
-          enable["model-only-in-valof"] = ModelSettings.create(settings);
+          model = ModelSettings.create(settings);
         } else if (argument.startsWith("--no-")) {
           const kind = argument.slice("--no-".length);
           if (!isKind(kind)) return R.fail(new UnknownRuleError({ kind, known: kinds }));
@@ -105,6 +105,7 @@ export const Arguments = Val.companion<Arguments>()
         }
       }
 
+      const enable = Enabled.create(model ? { "model-only-in-valof": model } : {});
       if (help) return R.succeed(seal({ projects, targets, excluded, skip, enable, help }));
       if (pending) return R.fail(new MissingPathError({ flag: pending }));
 

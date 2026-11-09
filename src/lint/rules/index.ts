@@ -90,7 +90,7 @@ export { Context, Finding, KindSet, Rule } from "./rule.ts";
  * The rules a run uses: every rule on by default, and each opt-in rule `enable` names, with its
  * settings.
  */
-export const compile = (enable: Options["enable"] = {}): readonly Dyn<Rule>[] => {
+export const compile = (enable: Options["enable"]): readonly Dyn<Rule>[] => {
   const model = enable["model-only-in-valof"];
   return RULES.flatMap((rule) =>
     rule.optIn !== true

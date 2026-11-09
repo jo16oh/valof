@@ -1,17 +1,22 @@
-import { Val, type VariantOf } from "../../index.ts";
+import { Enum, Val, type VariantOf } from "../../index.ts";
 import { annotationOf, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
 import { Bindings } from "./bindings.ts";
 import { stepOf } from "./chains.ts";
 
 /** What a {@link Model} found, which decides its message and whether a setting must ask for it. */
-export type Shape =
-  | "data"
-  | "primitive"
-  | "interface"
-  | "nested-object"
-  | "class"
-  | "constraint"
-  | "extraction";
+export type Shape = Enum<
+  "Shape",
+  {
+    Data: {};
+    Primitive: {};
+    Interface: {};
+    NestedObject: {};
+    Class: {};
+    Constraint: {};
+    Extraction: {};
+  }
+>;
+export const Shape = Enum.companion<Shape>().build();
 
 /** A data type declared outside Valof, or a shape in a place only a Valof type should hold. */
 export type Model = Val<"Model", { at: Position; shape: Shape; name: string }>;
@@ -95,8 +100,8 @@ export function models(
   const outside: TypeUse[] = [];
   const done = (): Models => Models.seal({ models: found, payloadAliases, outside });
   if (/\.d\.[cm]?ts$/.test(file)) return done();
-  const report = (shape: Shape, name: string, node: Node): void =>
-    void found.push(Model.seal({ at: position(node.start), shape, name }));
+  const report = (shape: Shape["_tag"], name: string, node: Node): void =>
+    void found.push(Model.seal({ at: position(node.start), shape: Shape[shape].create({}), name }));
 
   /** The first node under `node` that declares data, skipping every Valof type's arguments. */
   const data = (node: Node): Node | undefined => {
@@ -147,7 +152,7 @@ export function models(
         const type = bare(annotationOf(member));
         const element = type?.type === "TSArrayType" ? bare(type.elementType) : type;
         if (element?.type === "TSTypeLiteral" || element?.type === "TSMappedType")
-          report("nested-object", alias, element);
+          report("NestedObject", alias, element);
       }
     }
   };
@@ -171,10 +176,10 @@ export function models(
       return;
     }
     if (valof && VALOF.has(valof)) return;
-    if (primitive(rhs)) return report("primitive", name, id);
-    if (extracts(rhs)) report("extraction", name, id);
+    if (primitive(rhs)) return report("Primitive", name, id);
+    if (extracts(rhs)) report("Extraction", name, id);
     const hit = data(rhs);
-    if (hit) report("data", name, hit === top ? id : hit);
+    if (hit) report("Data", name, hit === top ? id : hit);
   };
 
   const visit = (node: Node, allowed: boolean): void => {
@@ -185,15 +190,15 @@ export function models(
         alias(node);
         break;
       case "TSInterfaceDeclaration":
-        if (node.id.type === "Identifier") report("interface", node.id.name, node.id);
+        if (node.id.type === "Identifier") report("Interface", node.id.name, node.id);
         break;
       case "ClassDeclaration":
       case "ClassExpression":
-        report("class", "", node);
+        report("Class", "", node);
         break;
       case "TSTypeParameter": {
         const hit = node.constraint && data(node.constraint);
-        if (hit) report("constraint", "", hit);
+        if (hit) report("Constraint", "", hit);
         break;
       }
       case "TSTypeReference": {
