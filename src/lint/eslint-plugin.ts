@@ -37,6 +37,7 @@ const Ask = Val.companion<Ask>().build();
 type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
 const Reply = Enum.companion<Reply>().build();
 
+// valof-lint-disable-next-line model-only-in-valof -- a MessagePort and an Int32Array are not payloads
 type Message = { ask: Ask; port: MessagePort; signal: Int32Array };
 
 /** Long enough that no run reaches it, short enough that a wedged worker still says so. */
