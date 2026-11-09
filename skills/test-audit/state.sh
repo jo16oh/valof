@@ -3,7 +3,8 @@
 #
 #   state.sh tree    print the hash of the working tree, untracked files included
 #   state.sh base    print the recorded tree, or HEAD with no record
-#   state.sh check   Claude Code Stop hook: block while tests changed since the base
+#   state.sh check   exit 2 while tests changed since the base
+#     --stdin        read the Stop hook's input, and let the turn end once the hook blocked it
 set -eu
 
 cd "$(git rev-parse --show-toplevel)"
@@ -30,8 +31,12 @@ case "${1:-}" in
   tree) tree ;;
   base) base ;;
   check)
-    # Let the turn end when this hook already blocked it once.
-    if grep -Eq '"stop_hook_active" *: *true'; then exit 0; fi
+    # Only the hook passes --stdin. A run by hand has no input, and would wait for it.
+    case "${2:-}" in
+      --stdin) if grep -Eq '"stop_hook_active" *: *true'; then exit 0; fi ;;
+      "") ;;
+      *) echo "usage: $0 check [--stdin]" >&2; exit 1 ;;
+    esac
     [ -n "$(git branch --show-current)" ] || exit 0
     changed="$(git diff --name-only "$(base)" "$(tree)" -- tests '*.test.ts')"
     [ -z "$changed" ] && exit 0
@@ -40,7 +45,7 @@ case "${1:-}" in
     exit 2
     ;;
   *)
-    echo "usage: $0 tree|base|check" >&2
+    echo "usage: $0 tree|base|check [--stdin]" >&2
     exit 1
     ;;
 esac
