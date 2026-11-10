@@ -4213,8 +4213,14 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
 - **報告するファイルは target と呼ぶ（2026-11-10）。**`Options.targets` と `Options.isTarget`。CLI の
   `Arguments.targets` と同じ言葉にした。それまでは、報告するファイルを `report`、判定を `reports` と呼んでいた
 - **Val の配列に `readonly` を書かない（2026-11-10）。**payload の配列は `Record` の中でも readonly になる
-- **Val にしないもの（2026-11-07）。**worker に送る `{ ask, port, signal }`。`MessagePort` と `Int32Array` は
-  payload に入らない。port と signal を起動時に一度だけ渡しても、型は起動時に渡すデータへ移るだけで、消えない
+- **Val にしないもの（2026-11-07）。**worker が起動時に受け取る `{ port, signal }`。`MessagePort` と
+  `Int32Array` は payload に入らない
+- **時間切れの worker は止めて作り直す（2026-11-10）。**それまでは時間切れのあとも同じ worker に送っていたので、
+  後の依頼は詰まった worker の後ろに並び、ファイルごとに 60 秒待って時間切れになった。port と signal は起動時に
+  一度だけ渡し、依頼で送るのは `Ask` だけにした。依頼ごとに送っていた `{ ask, port, signal }` の型は無くなった。
+  待つ側と答える側は `src/lint/worker.ts` の `connect` と `serve` に切り出し、fixture の worker でテストする。
+  却下: 待ち時間を環境変数で変えられるようにしてテストする。利用者向けの設定が増えるうえ、worker を確実に
+  詰まらせる方法が別に要る
 - **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
   かけたら `unused-member` が全ルールの `run` を報告した。`box` を通った `dyn` は追えていなかった。
   作った式の外へ出た `dyn`（関数に渡す、配列に入れる）は、どこかで読まれたキーをすべて、第 1 引数の Val
