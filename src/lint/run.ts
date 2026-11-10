@@ -37,29 +37,26 @@ export async function run(
   const directives = DirectiveMap.from(scans);
 
   return pipe(
-    RULES.filter(({ kind }) => !KindSet.has(options.skip, kind)),
-    // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
-    (rules) =>
-      rules.reduce<Finding[]>(
+    RULES.filter(({ kind }) => !KindSet.has(options.skip, kind))
+      // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
+      .reduce<Finding[]>(
         (reported, rule) => [
           ...reported,
           ...rule.run(scans, Context.seal({ reported, notRun: options.skip })),
         ],
         [],
-      ),
-    (findings) =>
-      findings.filter(
+      )
+      .filter(
         ({ file, at: { line }, kind }) =>
           Options.isTarget(options, file) && !DirectiveMap.silences(directives, file, line, kind),
-      ),
-    (findings) =>
-      findings.sort(
+      )
+      .sort(
         (a, b) =>
           a.file.localeCompare(b.file) ||
           a.at.line - b.at.line ||
           a.at.column - b.at.column ||
           a.kind.localeCompare(b.kind),
       ),
-    (findings) => R.succeed(findings),
+    R.succeed<Finding[]>,
   );
 }
