@@ -81,13 +81,17 @@ export function stepOf(callee: VariantOf<Node, "MemberExpression">): Step {
  * Reads `….Circle` in `….Circle.impl(f)` as the variant an enum's builder names, with the builder
  * it was read off: a call, or a builder held in a variable. The step on it belongs to that variant.
  */
-export function variantOf(receiver: Node): { variant: string; builder: Node } | undefined {
+export function variantOf(receiver: Node): NamedVariant | undefined {
   if (receiver.type !== "MemberExpression") return undefined;
   const builder = receiver.object;
   if (builder.type !== "CallExpression" && builder.type !== "Identifier") return undefined;
   const variant = keyName(receiver.property, receiver.computed);
-  return variant ? { variant, builder } : undefined;
+  return variant ? NamedVariant.seal({ variant, builder }) : undefined;
 }
+
+/** A variant read off an enum's builder, with that builder. See {@link variantOf}. */
+type NamedVariant = Val<"NamedVariant", { variant: string; builder: Node }>;
+const NamedVariant = Val.companion<NamedVariant>().build();
 
 /** Which entry point a chain grows from, however the name was bound. */
 export function fromRoot(node: Node, bound: Bindings): string | undefined {
@@ -161,8 +165,8 @@ function valOf(node: Node, file: FilePath, bound: Bindings, lines: Lines): Lift 
   return Lift.seal({
     at: Lines.at(lines, reached.node.start),
     typeName: reached.node.name,
-    typeRef: Bindings.refOf(bound, file, reached.node.name, reached.qualifier),
-    qualifier: reached.qualifier ?? null,
+    typeRef: Bindings.refOf(bound, file, reached.node.name, reached.qualifier ?? undefined),
+    qualifier: reached.qualifier,
     variant: of?.variant ?? null,
   });
 }
@@ -170,12 +174,12 @@ function valOf(node: Node, file: FilePath, bound: Bindings, lines: Lines): Lift 
 /** The enum and variant a `VariantOf<E, "N">` argument names, which stand in for the reference. */
 function variantArgument(
   param: VariantOf<Node, "TSTypeReference">,
-  named: { node: Identifier; qualifier: string | undefined },
+  named: TypeName,
   bound: Bindings,
-): { node: Identifier; qualifier: string | undefined; variant: string } | undefined {
+): VariantName | undefined {
   const written = named.node.name;
   // A name reached through a namespace is already the exporting module's own.
-  if ((named.qualifier === undefined ? Bindings.original(bound, written) : written) !== "VariantOf")
+  if ((named.qualifier === null ? Bindings.original(bound, written) : written) !== "VariantOf")
     return undefined;
   const [enumType, variantType] = typeParams(param.typeArguments).map(unparenthesized);
   if (enumType?.type !== "TSTypeReference" || variantType?.type !== "TSLiteralType")
@@ -183,8 +187,15 @@ function variantArgument(
   const { literal } = variantType;
   const held = typeReference(enumType.typeName, bound);
   if (!held || literal.type !== "Literal" || literal.value === null) return undefined;
-  return { ...held, variant: literal.value };
+  return VariantName.seal({ ...held, variant: literal.value });
 }
+
+/** The enum a `VariantOf<E, "N">` argument names, with the variant. See {@link variantArgument}. */
+type VariantName = Val<
+  "VariantName",
+  { node: Identifier; qualifier: string | null; variant: string }
+>;
+const VariantName = Val.companion<VariantName>().build();
 
 /** What a chain called, and the type argument at its root. */
 type Chain = Val<
@@ -236,17 +247,20 @@ function readChain(node: Node, bound: Bindings): Chain {
  * `valof.Val<…>` in a type position is the alias walk's job; here the qualifier says the type
  * was declared in another module, which nothing else about the site records.
  */
-export function typeReference(
-  written: Node,
-  bound: Bindings,
-): { node: Identifier; qualifier: string | undefined } | undefined {
-  if (written.type === "Identifier") return { node: written, qualifier: undefined };
+export function typeReference(written: Node, bound: Bindings): TypeName | undefined {
+  if (written.type === "Identifier") return TypeName.seal({ node: written, qualifier: null });
   if (written.type !== "TSQualifiedName") return undefined;
   const { left, right } = written;
   if (left.type !== "Identifier" || right.type !== "Identifier") return undefined;
   const qualifier = left.name;
-  return Bindings.isNamespace(bound, qualifier) ? { node: right, qualifier } : undefined;
+  return Bindings.isNamespace(bound, qualifier)
+    ? TypeName.seal({ node: right, qualifier })
+    : undefined;
 }
+
+/** A type's name as written, and the namespace it was reached through. See {@link typeReference}. */
+export type TypeName = Val<"TypeName", { node: Identifier; qualifier: string | null }>;
+const TypeName = Val.companion<TypeName>().build();
 
 /** The body of {@link CompanionSite.fromChain}. */
 function companionSite(
@@ -271,11 +285,11 @@ function companionSite(
     of,
     nameAt: at,
     typeName: named.node.name,
-    typeRef: Bindings.refOf(bound, file, named.node.name, named.qualifier),
+    typeRef: Bindings.refOf(bound, file, named.node.name, named.qualifier ?? undefined),
     typeOffset: named.node.start,
     typeAt: Lines.at(lines, named.node.start),
     name: null,
-    qualifier: named.qualifier ?? null,
+    qualifier: named.qualifier,
     seals: steps.includes("implSeal"),
   });
 }

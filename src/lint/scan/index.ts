@@ -530,7 +530,7 @@ function implTrait(
     const valNamed =
       valNode?.type === "TSTypeReference" ? typeReference(valNode.typeName, bound) : undefined;
     val = valNamed
-      ? Bindings.refOf(bound, file, valNamed.node.name, valNamed.qualifier)
+      ? Bindings.refOf(bound, file, valNamed.node.name, valNamed.qualifier ?? undefined)
       : undefined;
   } else {
     const receiver = root.object;

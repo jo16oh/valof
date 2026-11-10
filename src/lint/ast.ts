@@ -73,7 +73,7 @@ export function fromOxc(
       for (const one of Array.isArray(value) ? value : [value])
         if (isOxcNode(one)) children.push(convert(one));
     }
-    const node = build(raw, { start: raw.start, children }, convert);
+    const node = build(raw, raw.start, children, convert);
     converted.set(raw, node);
     return node;
   };
@@ -83,9 +83,11 @@ export function fromOxc(
 // `nocopy`: every payload below is a fresh object, and the nodes inside it are sealed already.
 function build(
   raw: import("oxc-parser").Node,
-  shared: { start: number; children: Node[] },
+  start: number,
+  children: Node[],
   at: (raw: import("oxc-parser").Node) => Node,
 ): Node {
+  const shared = { start, children };
   const maybe = (raw: import("oxc-parser").Node | null | undefined): Node | null =>
     raw ? at(raw) : null;
   switch (raw.type) {
