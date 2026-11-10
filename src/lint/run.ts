@@ -5,10 +5,31 @@ import { Result as R } from "@praha/byethrow";
 import { MissingTypeScriptError, type MissingParserError } from "./errors.ts";
 import { Context, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { loadParser } from "./parser.ts";
-import { Directive, scan } from "./scan/index.ts";
+import { Val } from "../index.ts";
+import { Directive, scan, type Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { arities, type Arity } from "./types.ts";
 import { Options } from "./options.ts";
+
+/**
+ * The directives of each file in a run, by the path the file was scanned under.
+ *
+ * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
+ * brand is still reported, since silencing it is its own line's decision.
+ */
+type DirectiveMap = Val<"DirectiveMap", Record<string, Directive[]>>;
+const DirectiveMap = Val.companion<DirectiveMap>()
+  .implCreate((scans: readonly Scan[]) =>
+    Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives])),
+  )
+  .impl(() => ({
+    /** Whether a directive in the file silences a finding of `kind` on `line`. */
+    silences: (map, file: string, line: number, kind: string) =>
+      (Object.hasOwn(map, file) ? map[file]! : []).some((directive) =>
+        Directive.silences(directive, line, kind),
+      ),
+  }))
+  .build();
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
 // Every file is walked once, by `scan`, and each rule runs over what it collected. There is no
@@ -65,23 +86,13 @@ export async function run(
   if (R.isFailure(ran)) return ran;
   const findings = ran.value;
 
-  /**
-   * Whether a directive in the file silences a finding of `kind` on `line`.
-   *
-   * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
-   * brand is still reported, since silencing it is its own line's decision.
-   */
-  const silenced = (() => {
-    const directives = new Map(scans.map((scanned) => [scanned.file, scanned.directives]));
-    return (file: string, line: number, kind: string): boolean =>
-      (directives.get(file) ?? []).some((directive) => Directive.silences(directive, line, kind));
-  })();
+  const directives = DirectiveMap.create(scans);
 
   return R.succeed(
     findings
       .filter(
         ({ file, at: { line }, kind }) =>
-          Options.isTarget(options, file) && !silenced(file, line, kind),
+          Options.isTarget(options, file) && !DirectiveMap.silences(directives, file, line, kind),
       )
       .sort(
         (a, b) =>
