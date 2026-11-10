@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vite-plus/test";
@@ -14,7 +14,9 @@ import { kinds } from "../../../src/lint/index.ts";
 
 type Where = { line: number; column: number };
 
-const at = (name: string): string => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
+/** A fixture by its name, or a file elsewhere by its absolute path. */
+const at = (name: string): string =>
+  isAbsolute(name) ? name : fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
 const project = at("*.ts");
 
 const context = (
@@ -68,15 +70,7 @@ test("asks again once the stack empties, since another file of the project may h
   try {
     cpSync(at("money.ts"), join(dir, "money.ts"));
     writeFileSync(join(dir, "show.ts"), "export {};\n");
-    const text = readFileSync(at("money.ts"), "utf8");
-    const read = join(dir, "*.ts");
-    const money = join(dir, "money.ts");
-    const lint = (): string[] => {
-      const reports: string[] = [];
-      const one = { ...context("money.ts", text, reports, read), filename: money };
-      for (const rule of Object.values(plugin.rules)) rule.create(one).Program();
-      return reports;
-    };
+    const lint = (): string[] => run(join(dir, "money.ts"), undefined, join(dir, "*.ts"));
 
     expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
     writeFileSync(
