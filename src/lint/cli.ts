@@ -13,7 +13,7 @@ const excluded: string[] = [];
 const loose: string[] = [];
 const skip = new Set<Kind>();
 let help = false;
-let pending: "project" | "report-on" | undefined;
+let pending = false;
 
 /**
  * A path goes where it was written, unless it starts with `!`.
@@ -28,16 +28,14 @@ const take = (into: string[], path: string): void => {
 
 for (const argument of process.argv.slice(2)) {
   if (pending) {
-    take(pending === "project" ? projects : targets, argument);
-    pending = undefined;
+    take(projects, argument);
+    pending = false;
   } else if (argument === "--help" || argument === "-h") {
     help = true;
-  } else if (argument === "--project" || argument === "--report-on") {
-    pending = argument.slice("--".length) as "project" | "report-on";
+  } else if (argument === "--project") {
+    pending = true;
   } else if (argument.startsWith("--project=")) {
     take(projects, argument.slice("--project=".length));
-  } else if (argument.startsWith("--report-on=")) {
-    take(targets, argument.slice("--report-on=".length));
   } else if (argument.startsWith("--no-")) {
     const kind = argument.slice("--no-".length);
     if (!isKind(kind)) {
@@ -47,6 +45,9 @@ for (const argument of process.argv.slice(2)) {
       process.exit(2);
     }
     skip.add(kind);
+  } else if (argument.startsWith("-")) {
+    console.error(`valof-lint: no option called ${JSON.stringify(argument.split("=")[0])}`);
+    process.exit(2);
   } else {
     take(loose, argument);
   }
@@ -64,10 +65,10 @@ if (help) {
       "",
       "The project is a directory or a glob, and defaults to src/**/*.ts. It is what the",
       "run reads. Files named after it are what the run reports on; leave them out to",
-      "report on the whole project. Either can be given by name, --project and",
-      "--report-on, in any order, and either can be given more than once.",
+      "report on the whole project. The project can also be given by name, --project,",
+      "before or after the files, and either can be given more than once.",
       "  valof-lint src src/billing/id.ts",
-      "  valof-lint --report-on src/billing/id.ts --project 'src/**/*.ts'",
+      "  valof-lint src/billing/id.ts --project 'src/**/*.ts'",
       "",
       "A path starting with ! is excluded, from the run as well as the report:",
       "  valof-lint 'src/**/*.ts' '!src/generated/**'",
@@ -95,7 +96,7 @@ if (help) {
 }
 
 if (pending) {
-  console.error(`valof-lint: --${pending} needs a path`);
+  console.error("valof-lint: --project needs a path");
   process.exit(2);
 }
 
