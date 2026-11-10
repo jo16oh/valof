@@ -13,7 +13,10 @@ test("reports a step function with a block body, and spares a seal, a held funct
     { rule: BlockStep, at: "steps.ts:29:16" },
     { rule: BlockStep, at: "steps.ts:37:23" },
   ]);
-  expect((await messages("steps", { skip: [CompanionMismatch] }))[0]).toBe(
-    "the function passed to .impl has a block body; move what it declares out of the companion, and return the object itself: () => ({ … })",
+  expect((await messages("steps", { skip: [CompanionMismatch] })).slice(0, 3)).toEqual(
+    ["impl", "implTrait", "implAssoc"].map(
+      (step) =>
+        `the function passed to .${step} has a block body; move what it declares out of the companion, and return the object itself: () => ({ … })`,
+    ),
   );
 });
