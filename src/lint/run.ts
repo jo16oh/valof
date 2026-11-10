@@ -43,13 +43,17 @@ export async function run(
    * brand is still reported, since silencing it is its own line's decision.
    */
   const directives = new Map(scans.map((scanned) => [scanned.file, scanned.directives]));
-  const silenced = ({ file, at: { line }, kind }: Finding): boolean =>
-    (directives.get(file) ?? []).some((directive) => Directive.silences(directive, line, kind));
   const asked = ({ file }: Finding): boolean => Options.reports(options, file);
 
   return R.succeed(
     findings
-      .filter((finding) => asked(finding) && !silenced(finding))
+      .filter(
+        (finding) =>
+          asked(finding) &&
+          !(directives.get(finding.file) ?? []).some((directive) =>
+            Directive.silences(directive, finding.at.line, finding.kind),
+          ),
+      )
       .sort(
         (a, b) =>
           a.file.localeCompare(b.file) ||
