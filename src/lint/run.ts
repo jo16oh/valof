@@ -47,11 +47,11 @@ export async function run(
   return R.succeed(
     findings
       .filter(({ file, at: { line }, kind }) => {
-        const asked = Options.reports(options, file);
+        const target = Options.isTarget(options, file);
         const silenced = (directives.get(file) ?? []).some((directive) =>
           Directive.silences(directive, line, kind),
         );
-        return asked && !silenced;
+        return target && !silenced;
       })
       .sort(
         (a, b) =>

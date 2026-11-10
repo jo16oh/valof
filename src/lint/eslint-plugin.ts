@@ -226,7 +226,7 @@ if (!isMainThread && parentPort) {
       try {
         const found = await run(
           project,
-          Options.create({ report: [file], overlay: [[file, text]] }),
+          Options.create({ targets: [file], overlay: [[file, text]] }),
         );
         // The message the command prints, so a user of the plugin gets the same instruction.
         reply = R.isSuccess(found)
