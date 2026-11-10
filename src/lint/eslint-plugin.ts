@@ -27,7 +27,39 @@ type Ask = Val<
     text: string;
   }
 >;
-const Ask = Val.companion<Ask>().build();
+const Ask = Val.companion<Ask>()
+  .impl(() => ({
+    /**
+     * `lint` is async, and a rule is not.
+     *
+     * `create` returns a visitor, and a visitor cannot be async. So the run happens in a worker and
+     * this thread blocks on `Atomics.wait` until the answer is in the port's queue.
+     * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here.
+     */
+    send: (what): readonly Finding[] => {
+      if (!worker) {
+        worker = new Worker(new URL(import.meta.url));
+        // The host decides when it exits. A linter waiting on its own worker would never finish.
+        worker.unref();
+      }
+
+      const { port1, port2 } = new MessageChannel();
+      const signal = new Int32Array(new SharedArrayBuffer(4));
+      worker.postMessage({ ask: what, port: port2, signal } satisfies Message, [port2]);
+      if (Atomics.wait(signal, 0, 0, PATIENCE) === "timed-out")
+        throw new Error(`valof-lint: no answer in ${PATIENCE / 1000}s`);
+
+      const reply = receiveMessageOnPort(port1)?.message as Reply | undefined;
+      if (!reply) throw new Error("valof-lint: the worker answered nothing");
+      return Reply.match(reply, {
+        Found: ({ findings }) => findings,
+        Failed: ({ message }) => {
+          throw new Error(message);
+        },
+      });
+    },
+  }))
+  .build();
 
 type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
 const Reply = Enum.companion<Reply>().build();
@@ -97,7 +129,7 @@ function found(
   const key = `${file}\n${text}\n${project.join("\n")}`;
   if (last?.key === key) return last.findings;
 
-  const findings = ask(
+  const findings = Ask.send(
     Ask.seal({
       project,
       file,
@@ -168,37 +200,8 @@ const read = (given: string | readonly string[]): string[] => {
 
 const excludes = (path: string): boolean => path.startsWith("!");
 
-/**
- * `lint` is async, and a rule is not.
- *
- * `create` returns a visitor, and a visitor cannot be async. So the run happens in a worker and
- * this thread blocks on `Atomics.wait` until the answer is in the port's queue.
- * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here.
- */
+/** The worker that answers {@link Ask.send}, started on the first file and kept for the rest. */
 let worker: Worker | undefined;
-function ask(what: Ask): readonly Finding[] {
-  // Started on the first file and kept for the rest.
-  if (!worker) {
-    worker = new Worker(new URL(import.meta.url));
-    // The host decides when it exits. A linter waiting on its own worker would never finish.
-    worker.unref();
-  }
-
-  const { port1, port2 } = new MessageChannel();
-  const signal = new Int32Array(new SharedArrayBuffer(4));
-  worker.postMessage({ ask: what, port: port2, signal } satisfies Message, [port2]);
-  if (Atomics.wait(signal, 0, 0, PATIENCE) === "timed-out")
-    throw new Error(`valof-lint: no answer in ${PATIENCE / 1000}s`);
-
-  const reply = receiveMessageOnPort(port1)?.message as Reply | undefined;
-  if (!reply) throw new Error("valof-lint: the worker answered nothing");
-  return Reply.match(reply, {
-    Found: ({ findings }) => findings,
-    Failed: ({ message }) => {
-      throw new Error(message);
-    },
-  });
-}
 
 // The worker is this file again, so no path has to be guessed for it: the source tree runs as
 // `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
