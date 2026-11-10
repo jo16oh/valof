@@ -22,8 +22,10 @@ test("still reports the file it was asked about", () => {
 });
 
 test("takes the glob joined by an equals sign too", () => {
-  const { stdout } = cli(`--project=${under}/*.ts`, `${under}/billing.ts`);
-  expect(stdout).toBe("");
+  const { stdout } = cli(`--project=${under}/*.ts`, `${under}/orders.ts`);
+  expect(stdout).toBe(
+    `${under}/orders.ts:1:13  duplicate-brand  Id claims the brand "Id", and so does another type\n`,
+  );
 });
 
 test("reads src/**/*.ts when no project is named", () => {
@@ -47,10 +49,14 @@ test("scans a file it was asked about even where the project glob misses it", ()
   expect(stdout).toBe(`${under}/outside/fresh.ts:2:3  unused-member  User.shout is never read\n`);
 });
 
-test("refuses an option it does not take, rather than read it as a path", () => {
-  const { status, stderr } = cli(under, "--report-on", `${under}/orders.ts`);
+test.each([
+  ["--report-on", "--report-on"],
+  [`--report-on=${under}/orders.ts`, "--report-on"],
+  ["-x", "-x"],
+])("refuses an option it does not take, rather than read it as a path: %s", (option, named) => {
+  const { status, stderr } = cli(under, option);
   expect(status).toBe(2);
-  expect(stderr).toBe('valof-lint: no option called "--report-on"');
+  expect(stderr).toBe(`valof-lint: no option called "${named}"`);
 });
 
 test("says so when a flag is given no path", () => {
@@ -97,8 +103,9 @@ test("drops an excluded path from the run, and the finding that needed it with i
 });
 
 test("excludes a path given to --project, since the mark is on the path", () => {
-  const { stdout } = cli("--project", `${under}/*.ts`, `--project=!${under}/billing.ts`);
+  const { status, stdout } = cli("--project", `${under}/*.ts`, `--project=!${under}/billing.ts`);
   expect(stdout).toBe("");
+  expect(status).toBe(0);
 });
 
 test("says so when everything is excluded", () => {
