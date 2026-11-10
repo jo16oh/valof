@@ -3,7 +3,7 @@ import { extname, resolve } from "node:path";
 import type { Rule } from "eslint";
 
 import { pipe } from "../../shared/pipe/index.ts";
-import { Answer, Ask, Reply } from "./messages.ts";
+import { Answer, Query, Reply } from "./messages.ts";
 import { Underline } from "./underline.ts";
 import { expand } from "../files.ts";
 import { RULES, type Finding } from "../index.ts";
@@ -39,7 +39,7 @@ function valof(): {
    * The patience is long enough that no run reaches it, short enough that a wedged worker still
    * says so.
    */
-  const ask = connect<Ask, Reply>(
+  const ask = connect<Query, Reply>(
     new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
     60_000,
   );
@@ -47,20 +47,20 @@ function valof(): {
   /**
    * One run per file, however many of the rules are on. The host creates every rule for a file
    * before it walks it, so the `Program` handlers run back to back over the same text, and the
-   * ask blocks the thread: nothing runs in between. So the last answer is kept, and the same ask
-   * gets it.
+   * `ask` blocks the thread: nothing runs in between. So the last answer is kept, and the same
+   * query gets it.
    *
-   * It is dropped as soon as the stack empties, and not kept for the next pass, because the ask
+   * It is dropped as soon as the stack empties, and not kept for the next pass, because the query
    * says nothing about the rest of the project: a file saved in another editor tab changes what
    * this file's findings are while its own text is unchanged.
    */
   let last: Answer | undefined;
-  const send = (what: Ask): readonly Finding[] => {
-    const key = `${what.file}\n${what.text}\n${what.project.join("\n")}`;
+  const send = (query: Query): readonly Finding[] => {
+    const key = `${query.file}\n${query.text}\n${query.project.join("\n")}`;
     if (last?.key === key) return last.findings;
 
     const findings = pipe(
-      what,
+      query,
       ask,
       Reply.match({
         Found: ({ findings }) => findings,
@@ -113,8 +113,8 @@ function valof(): {
     sourceCode: { text: string };
     // A host may leave the settings out.
     settings: { valof?: { project?: string | readonly string[] } } | undefined;
-  }): Ask =>
-    Ask.seal({
+  }): Query =>
+    Query.seal({
       project: glob(settings?.valof?.project ?? "src/**/*.ts"),
       file: resolve(filename),
       text,
