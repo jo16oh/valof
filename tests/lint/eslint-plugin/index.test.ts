@@ -1,5 +1,7 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vite-plus/test";
@@ -59,6 +61,33 @@ test("takes a list for the project, and leaves out what one entry excludes", () 
   expect(
     run("money.ts", undefined, [project, at("reader/*.ts"), `!${at("reader/show.ts")}`]),
   ).toEqual([finding]);
+});
+
+test("asks again once the stack empties, since another file of the project may have changed", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
+  try {
+    cpSync(at("money.ts"), join(dir, "money.ts"));
+    writeFileSync(join(dir, "show.ts"), "export {};\n");
+    const text = readFileSync(at("money.ts"), "utf8");
+    const read = join(dir, "*.ts");
+    const money = join(dir, "money.ts");
+    const lint = (): string[] => {
+      const reports: string[] = [];
+      const one = { ...context("money.ts", text, reports, read), filename: money };
+      for (const rule of Object.values(plugin.rules)) rule.create(one).Program();
+      return reports;
+    };
+
+    expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
+    writeFileSync(
+      join(dir, "show.ts"),
+      readFileSync(at("reader/show.ts"), "utf8").replace("../money.ts", "./money.ts"),
+    );
+    await Promise.resolve();
+    expect(lint()).toEqual([]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("reads src/**/*.ts when no project is set", () => {
