@@ -61,8 +61,6 @@ export type Bindings = Val<
 export const Bindings = Val.companion<Bindings>()
   .implCreate(() => ({ imported: ImportMap.seal({}), namespaces: {}, builders: {} }))
   .impl(() => ({
-    /** The module `import * as ns` bound `ns` to, or `undefined` when `ns` is not a namespace. */
-    namespace: (bound, local: string) => own(bound.namespaces, local),
     isNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
     builder: (bound, local: string) => own(bound.builders, local),
     /** The name the exporting module uses, or the local one when it was not imported. */
@@ -74,6 +72,7 @@ export const Bindings = Val.companion<Bindings>()
     refOf: (bound, file: string, local: string, qualifier: string | undefined): SymbolRef => {
       const module = normalize(resolve(file));
       if (qualifier !== undefined) {
+        // The module `import * as ns` bound `ns` to, when `ns` is a namespace.
         const importedModule = own(bound.namespaces, qualifier);
         return SymbolRef.fromExport(importedModule ?? `${module}\0namespace:${qualifier}`, local);
       }
