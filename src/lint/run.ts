@@ -23,12 +23,12 @@ export async function run(
 
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
-  const walk = [
+  const toScan = [
     ...files,
     ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
   ];
-  const modules = Modules.create(walk);
-  const scans = walk.map((file) => scan(file, parser, modules, Options.sourceOf(options, file)));
+  const modules = Modules.create(toScan);
+  const scans = toScan.map((file) => scan(file, parser, modules, Options.sourceOf(options, file)));
 
   // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
   const findings = RULES.filter(({ kind }) => !KindSet.has(options.skip, kind)).reduce<Finding[]>(
