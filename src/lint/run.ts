@@ -10,26 +10,6 @@ import { Directive, scan, type Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { Options } from "./options.ts";
 
-/**
- * The directives of each file in a run, by the path the file was scanned under.
- *
- * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
- * brand is still reported, since silencing it is its own line's decision.
- */
-type DirectiveMap = Val<"DirectiveMap", Record<string, Directive[]>>;
-const DirectiveMap = Val.companion<DirectiveMap>()
-  .implCreate((scans: readonly Scan[]) =>
-    Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives])),
-  )
-  .impl(() => ({
-    /** Whether a directive in the file silences a finding of `kind` on `line`. */
-    silences: (map, file: string, line: number, kind: string) =>
-      (Object.hasOwn(map, file) ? map[file]! : []).some((directive) =>
-        Directive.silences(directive, line, kind),
-      ),
-  }))
-  .build();
-
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
 // Every file is walked once, by `scan`, and each rule runs over what it collected. There is no
 // branch per rule here: a rule is the object in `RULES`, and adding one changes nothing in this
@@ -76,3 +56,23 @@ export async function run(
       ),
   );
 }
+
+/**
+ * The directives of each file in a run, by the path the file was scanned under.
+ *
+ * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
+ * brand is still reported, since silencing it is its own line's decision.
+ */
+type DirectiveMap = Val<"DirectiveMap", Record<string, Directive[]>>;
+const DirectiveMap = Val.companion<DirectiveMap>()
+  .implCreate((scans: readonly Scan[]) =>
+    Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives])),
+  )
+  .impl(() => ({
+    /** Whether a directive in the file silences a finding of `kind` on `line`. */
+    silences: (map, file: string, line: number, kind: string) =>
+      (Object.hasOwn(map, file) ? map[file]! : []).some((directive) =>
+        Directive.silences(directive, line, kind),
+      ),
+  }))
+  .build();
