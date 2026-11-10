@@ -2,6 +2,7 @@ import { extname, resolve } from "node:path";
 
 import type { Rule } from "eslint";
 
+import { pipe } from "../../shared/pipe/index.ts";
 import { Answer, Ask, Reply } from "./messages.ts";
 import { Underline } from "./underline.ts";
 import { expand } from "../files.ts";
@@ -58,12 +59,16 @@ function valof(): {
     const key = `${what.file}\n${what.text}\n${what.project.join("\n")}`;
     if (last?.key === key) return last.findings;
 
-    const findings = Reply.match(ask(what), {
-      Found: ({ findings }) => findings,
-      Failed: ({ message }) => {
-        throw new Error(message);
-      },
-    });
+    const findings = pipe(
+      what,
+      ask,
+      Reply.match({
+        Found: ({ findings }) => findings,
+        Failed: ({ message }) => {
+          throw new Error(message);
+        },
+      }),
+    );
     last = Answer.seal({ key, findings });
     queueMicrotask(() => (last = undefined));
     return findings;

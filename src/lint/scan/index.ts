@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
+import { pipe } from "../../shared/pipe/index.ts";
 import { Val } from "../../index.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
@@ -171,16 +172,16 @@ export type Exports = Val<"Exports", Record<string, SymbolRef>>;
 export const Exports = Val.companion<Exports>()
   .implAssoc(({ seal }) => ({
     from: (scans: readonly Scan[]): Exports =>
-      seal(
-        Object.fromEntries(
-          scans.flatMap(({ file, exportedRefs }) => {
-            const module = normalize(resolve(file));
-            return Object.entries(exportedRefs).map(([name, target]) => [
-              SymbolRef.fromExport(module, name).key,
-              target,
-            ]);
-          }),
-        ),
+      pipe(
+        scans.flatMap(({ file, exportedRefs }) => {
+          const module = normalize(resolve(file));
+          return Object.entries(exportedRefs).map(([name, target]) => [
+            SymbolRef.fromExport(module, name).key,
+            target,
+          ]);
+        }),
+        Object.fromEntries,
+        seal,
       ),
   }))
   .impl(() => ({

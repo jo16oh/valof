@@ -1,3 +1,4 @@
+import { pipe } from "../../shared/pipe/index.ts";
 import { Enum, Val } from "../../index.ts";
 import { Lines, type Position } from "../ast.ts";
 import type { FilePath } from "../files.ts";
@@ -93,12 +94,15 @@ const DirectiveComment = Val.companion<DirectiveComment>()
           text,
         );
       if (!match) return undefined;
-      // Everything after `--` is a note for the reader, the way other linters spell it.
-      const listed = (match[2] ?? "").split("--")[0] ?? "";
       return seal({
         at,
         spelling: `valof-lint-disable${match[1] ?? ""}`,
-        kinds: [...new Set(listed.split(/[\s,]+/).filter(Boolean))],
+        kinds: pipe(
+          // Everything after `--` is a note for the reader, the way other linters spell it.
+          (match[2] ?? "").split("--")[0] ?? "",
+          (listed) => listed.split(/[\s,]+/).filter(Boolean),
+          (names) => [...new Set(names)],
+        ),
       });
     },
   }))
