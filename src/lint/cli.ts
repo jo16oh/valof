@@ -55,7 +55,7 @@ function usage(): string {
   ].join("\n");
 }
 
-type Files = Val<"Files", { scanned: string[]; asked: string[]; reported: string[] }>;
+type Files = Val<"Files", { scanned: string[]; targets: string[]; reported: string[] }>;
 const Files = Val.companion<Files>().build();
 
 /** The files read and the files reported on, with every exclusion applied to both. */
@@ -66,14 +66,14 @@ function files({ projects, targets, excluded }: Arguments): R.Result<Files, NoFi
   const kept = (found: string[]): string[] => found.filter((file) => !dropped.has(resolve(file)));
 
   const read = kept((projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand));
-  const asked = kept(targets.flatMap(expand));
+  const targeted = kept(targets.flatMap(expand));
   // Scanned together, so a file to report on that the project glob does not cover is still read,
   // rather than skipped and called clean.
-  const scanned = [...new Set([...read, ...asked])];
-  const reported = targets.length > 0 ? asked : scanned;
+  const scanned = [...new Set([...read, ...targeted])];
+  const reported = targets.length > 0 ? targeted : scanned;
   return reported.length === 0
     ? R.fail(new NoFilesMatchedError())
-    : R.succeed(Files.seal({ scanned, asked, reported }));
+    : R.succeed(Files.seal({ scanned, targets: targeted, reported }));
 }
 
 /** Runs what the arguments ask for, and returns the status to exit with. */
@@ -87,13 +87,13 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
   }
   const chosen = files(args);
   if (R.isFailure(chosen)) return chosen;
-  const { scanned, asked, reported } = chosen.value;
+  const { scanned, targets, reported } = chosen.value;
   const found = await run(
     scanned,
     Options.create({
       skip: args.skip,
       enable: args.enable,
-      ...(args.targets.length > 0 ? { report: asked } : {}),
+      ...(args.targets.length > 0 ? { targets } : {}),
     }),
   );
   if (R.isFailure(found)) return found;

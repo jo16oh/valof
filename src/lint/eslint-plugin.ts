@@ -248,7 +248,7 @@ if (!isMainThread && parentPort) {
         const found = await run(
           project,
           Options.create({
-            report: [file],
+            targets: [file],
             overlay: [[file, text]],
             enable: { "model-only-in-valof": model },
           }),
