@@ -21,7 +21,7 @@ export const UnrelatedAssoc = Val.companion<UnrelatedAssoc>()
 function findings({ kind }: UnrelatedAssoc, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, stepMembers }) =>
     stepMembers
-      .filter(({ step, related }) => step === "implAssoc" && !related)
+      .filter(({ related }) => !related)
       .map(({ companion, type, member, at }) =>
         Finding.seal({
           kind,

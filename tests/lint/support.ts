@@ -28,7 +28,6 @@ export const HiddenOptional = registered(Rules.HiddenOptional);
 export const PayloadOfProperty = registered(Rules.PayloadOfProperty);
 export const UnreturnedSeal = registered(Rules.UnreturnedSeal);
 export const UnrelatedAssoc = registered(Rules.UnrelatedAssoc);
-export const ConstructorName = registered(Rules.ConstructorName);
 export const SplitVariantSteps = registered(Rules.SplitVariantSteps);
 export const UnqualifiedVariant = registered(Rules.UnqualifiedVariant);
 export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);

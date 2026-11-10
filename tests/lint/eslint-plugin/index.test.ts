@@ -102,7 +102,6 @@ test("names every rule, under the plugin's own name", () => {
     "valof/payload-of-property": "error",
     "valof/unreturned-seal": "error",
     "valof/unrelated-assoc": "warn",
-    "valof/constructor-name": "warn",
     "valof/split-variant-steps": "warn",
     "valof/unqualified-variant": "warn",
     "valof/unnecessary-alias": "error",

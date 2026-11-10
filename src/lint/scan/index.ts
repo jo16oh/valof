@@ -103,7 +103,7 @@ export type SplitVariant = Val<
 export const SplitVariant = Val.companion<SplitVariant>().build();
 
 /**
- * A member `.impl` or `.implAssoc` registered, with what its body says about the type it is on.
+ * A member `.implAssoc` registered, with what its body says about the type it is on.
  * Only a member written inline in the step's object is read.
  */
 export type StepMember = Val<
@@ -114,12 +114,6 @@ export type StepMember = Val<
     /** The type the companion is for, as the chain's type argument names it. */
     type: string;
     member: string;
-    /** `impl` or `implAssoc`. */
-    step: string;
-    /** Whether the member is a function, rather than a value such as `zero: seal(…)`. */
-    function: boolean;
-    /** Whether it calls the step's `seal` or `create`, or the companion's own. */
-    constructs: boolean;
     /**
      * Whether it names the type (the companion too) or a `seal` / `create` anywhere. A member
      * passed by name, `exec: scan`, is read through the function of that name in the same file.
@@ -876,7 +870,7 @@ function* descendants(node: Node): Generator<Node> {
   for (const one of node.children) yield* descendants(one);
 }
 
-/** What the members written inline in each `.impl` and `.implAssoc` of a chain say. */
+/** What the members written inline in each `.implAssoc` of a chain say. */
 function bodies(
   node: Node,
   companion: string,
@@ -891,46 +885,22 @@ function bodies(
     const receiver = variantOf(step.receiver)?.builder ?? step.receiver;
     const [fn] = current.arguments;
     const body = fn?.type === "ArrowFunctionExpression" ? unparenthesized(fn.body) : undefined;
-    if (
-      (step.name === "impl" || step.name === "implAssoc") &&
-      fn &&
-      body?.type === "ObjectExpression"
-    ) {
+    if (step.name === "implAssoc" && fn && body?.type === "ObjectExpression") {
       const local = constructors(fn);
       for (const entry of body.properties) {
         if (entry.type !== "Property") continue;
         const member = keyName(entry.key, entry.computed);
         if (!member) continue;
-        let constructs = false;
-        let related = false;
-        for (const inner of descendants(entry.value)) {
-          // The companion shares the type's name, which companion-mismatch enforces.
-          if (inner.type === "Identifier" && (inner.name === type || local.has(inner.name)))
-            related = true;
-          if (inner.type !== "CallExpression") continue;
-          const called = inner.callee;
-          if (called.type === "Identifier" && local.has(called.name)) constructs = true;
-          if (called.type === "MemberExpression") {
-            const name = keyName(called.property, called.computed);
-            if (
-              called.object.type === "Identifier" &&
-              called.object.name === companion &&
-              (name === "seal" || name === "create")
-            )
-              constructs = true;
-          }
-        }
+        // The companion shares the type's name, which companion-mismatch enforces.
+        const related = [...descendants(entry.value)].some(
+          (inner) => inner.type === "Identifier" && (inner.name === type || local.has(inner.name)),
+        );
         found.push(
           StepMember.seal({
             at: position(entry.start),
             companion,
             type,
             member,
-            step: step.name,
-            function:
-              entry.value.type === "ArrowFunctionExpression" ||
-              entry.value.type === "FunctionExpression",
-            constructs,
             related,
             reference: entry.value.type === "Identifier" ? entry.value.name : null,
           }),
