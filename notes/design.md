@@ -3110,6 +3110,13 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       resolve フックで `typescript/sync` に当てる
 - [ ] **lint の残り（2026-11-03 の追加から）。**
   - `block-step`、`split-variant-steps`、`unqualified-variant` は追加済み（`__memo__/tasks-to-design.md` の 3 件）
+  - **`block-step` は残す（2026-11-11）。**状態は Val の外に置く。Val は不変のデータで、段のブロックの状態は
+    メンバを読んでも見えない。報告は「ブロックで宣言したものを companion の外へ出す」とだけ言い、行き先は
+    書かない。定数ならモジュールレベル、状態ならそれを使う範囲のクロージャ（valof-lint の plugin は
+    `valof()` の中、§14.8）
+    - **却下: 外す。**モジュールレベルに出しても状態があることは変わらない、という理由で一度は外しかけた。
+      規則が求めるのは状態を消すことではなく、Val から出すこと
+    - **却下: 行き先にクラスを勧める。**範囲を絞ったクロージャのほうがよい場面が多い（ユーザー）
   - `model-only-in-valof` は追加済み（`__memo__/lint-model-only-in-valof.md`）。オプションは `Options.enable` に渡し、
     runner が既定のルールと合わせて走らせる箱を組み立てる（css-var-kit の `compile`）。「Valof が値として許さない
     組み込み型」の別規則は入れていない
@@ -3183,6 +3190,13 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     `try*` / `new*`（`parse*` と重なる、失敗は戻り型が示す、型リテラルで構築シグネチャになる）
   - 参照: 引数の型注釈か実装にその型が現れないメンバを警告する。companion を補助関数の置き場にさせない
   - `unused-member` が `implAssoc` のメンバも見る
+  - **名前で渡したメンバは、同じファイルの関数を読む（2026-11-10）。**`exec: scan` の `scan` を、ファイルの
+    トップレベルで `function` か `const` で宣言した関数として読み、その中に型の名前があれば参照とみなす。
+    それまでは識別子 1 つしか読まず、型を使うメンバも報告した。別のファイルから import した関数は読まない
+  - **`constructor-name` は外した（2026-11-11）。**厳しすぎる（ユーザー）。valof-lint を自分にかけたら、規則を
+    通すために `Files.read` から `Files.fromPaths` を、`Parser.load` から `Parser.fromModule` を切り出すことになった。
+    名前は純粋かどうかを確かめられず、副作用のある構築を動作の名前（`read`、`load`）で呼ぶ方針（§14.8）とも
+    ぶつかる。`impl` の側の検査だけ残す案も却下した。誤検出は少ないが、それだけのために規則を置くほどではない
 - [x] ~~**valof-lint の誤検出、§6.12 から。**`detached-impl` が、`fixed` という名前のメンバを別ファイルから
       呼ぶと「鎖の外で書いた段」と報告する。~~ → `fixed` を型引数に移して `STEPS` から外し、消えた
       （2026-10-22）。段と同じ名前のメンバは型が拒むので、ほかに同じ誤検出は起きない
