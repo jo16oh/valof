@@ -5227,7 +5227,7 @@ notRun: ReadonlySet<string>;       // 報告できなかった kind
 
 ```
 valof-lint src src/billing/id.ts                         第 1 引数がプロジェクト、以降が報告対象
-valof-lint --report-on src/billing/id.ts --project src   名前で渡せば順序は自由
+valof-lint src/billing/id.ts --project src               プロジェクトを名前で渡せば順序は自由
 valof-lint src                                           報告対象を省けばプロジェクト全体
 valof-lint 'src/**/*.ts' '!src/generated/**'             ! で除外
 ```
@@ -5256,6 +5256,16 @@ glob マッチャは要らない。`expand("src/generated/**")` の結果を引�
 **`--target` を `--report-on` に改名した、2026-09-09。** 内部 API が `Options.report` と呼んでいるものが CLI で `--target` になっていて、同じものに 2 つの綴りがあった。ヘルプ本文も元から "what the run reports on" と書いている。
 
 却下した名前。`--files`（project も files である）、`--only`（「これだけ lint する」と読める。走査を絞ると答えが変わるという、この設計が一番避けたい誤解）、`--report`（1 語で済み、`--format` が形式フラグの慣用なので衝突は薄いと実測した。それでも `--report-on` のほうが動詞と前置詞が揃って読みやすいという判断）。`v0.4.0` に `bin` が無く未リリースなので改名は無料だった。
+
+**`--report-on` を消した、2026-11-11。** 報告対象は位置引数だけで渡す。ESLint、Biome、oxlint、Ruff は
+lint するファイルを位置引数で受け、tsc は読む範囲を `--project` で受ける。報告を絞る名前付きのフラグには
+標準の名前が無い。`--project` を付ければ位置引数はすべて報告対象になるので、できなくなることは無い。
+
+- **既定のプロジェクトのまま報告対象を渡すには、プロジェクトを書く。**`--report-on src/a.ts` は
+  `src/**/*.ts` を読んだ。今は `valof-lint src src/a.ts` か `valof-lint src/a.ts --project 'src/**/*.ts'`
+- **知らないオプションは拒む。**`-` で始まる引数は、知らないものなら終了コード 2 で止める。それまでは
+  パスとして読んだ。拒まないと、`--report-on` を書いた呼び出しはそれをパスとして読む
+- v0.5.0 から公開していたので破壊的変更。1.0 前なので minor で出す
 
 リンタが「run が完全か」を推測する案は採らない。判定できないものを推測させると、本当に効いていない指示を
 見逃す側に倒れる。**どこまでが自分のプロジェクトかは利用者が知っていて、引数で言える。**

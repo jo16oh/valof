@@ -100,12 +100,12 @@ pnpm exec valof-lint src src/billing/id.ts              # report on the changed 
 pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree out
 ```
 
-| argument                   | what it is                                                                       |
-| -------------------------- | -------------------------------------------------------------------------------- |
-| the first path             | the project to read, a directory or a glob                                       |
-| the paths after it         | the files to report on, the whole project when there are none                    |
-| `--project`, `--report-on` | the same two by name, in either order. Either can be repeated, and takes `!path` |
-| `--no-<rule>`              | a rule to leave out of the run, by the rule name in the finding                  |
+| argument           | what it is                                                                         |
+| ------------------ | ---------------------------------------------------------------------------------- |
+| the first path     | the project to read, a directory or a glob                                         |
+| the paths after it | the files to report on, the whole project when there are none                      |
+| `--project`        | the project by name, before or after the files. Can be repeated, and takes `!path` |
+| `--no-<rule>`      | a rule to leave out of the run, by the rule name in the finding                    |
 
 A single file given as the project is refused, because a duplicate brand needs the other alias to be
 seen.
