@@ -53,25 +53,28 @@ function usage(): string {
 }
 
 type Files = Val<"Files", { scanned: string[]; targets: string[]; reported: string[] }>;
-const Files = Val.companion<Files>().build();
+const Files = Val.companion<Files>()
+  .implAssoc(({ seal }) => ({
+    /** The files read and the files reported on, with every exclusion applied to both. */
+    read: ({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> => {
+      // Resolved, because the same file can come from a glob the caller wrote and from one it
+      // excluded, spelled differently.
+      const dropped = new Set(excluded.flatMap(expand).map((file) => resolve(file)));
+      const kept = (found: string[]): string[] =>
+        found.filter((file) => !dropped.has(resolve(file)));
 
-/** The files read and the files reported on, with every exclusion applied to both. */
-function files({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> {
-  // Resolved, because the same file can come from a glob the caller wrote and from one it
-  // excluded, spelled differently.
-  const dropped = new Set(excluded.flatMap(expand).map((file) => resolve(file)));
-  const kept = (found: string[]): string[] => found.filter((file) => !dropped.has(resolve(file)));
-
-  const read = kept((projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand));
-  const targeted = kept(targets.flatMap(expand));
-  // Scanned together, so a file to report on that the project glob does not cover is still read,
-  // rather than skipped and called clean.
-  const scanned = [...new Set([...read, ...targeted])];
-  const reported = targets.length > 0 ? targeted : scanned;
-  return reported.length === 0
-    ? R.fail(new NoFilesMatchedError())
-    : R.succeed(Files.seal({ scanned, targets: targeted, reported }));
-}
+      const read = kept((projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand));
+      const targeted = kept(targets.flatMap(expand));
+      // Scanned together, so a file to report on that the project glob does not cover is still
+      // read, rather than skipped and called clean.
+      const scanned = [...new Set([...read, ...targeted])];
+      const reported = targets.length > 0 ? targeted : scanned;
+      return reported.length === 0
+        ? R.fail(new NoFilesMatchedError())
+        : R.succeed(seal({ scanned, targets: targeted, reported }));
+    },
+  }))
+  .build();
 
 /** Runs what the arguments ask for, and returns the status to exit with. */
 async function command(argv: readonly string[]): Promise<R.Result<number, UsageError>> {
@@ -82,7 +85,7 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
     console.log(usage());
     return R.succeed(0);
   }
-  const chosen = files(args);
+  const chosen = Files.read(args);
   if (R.isFailure(chosen)) return chosen;
   const { scanned, targets, reported } = chosen.value;
   const found = await run(

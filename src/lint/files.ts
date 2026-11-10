@@ -1,5 +1,11 @@
 import { globSync, statSync } from "node:fs";
 
+import { Val } from "../index.ts";
+
+/** A file in a run, spelled as it was given to the run, which is how a finding prints it. */
+export type FilePath = Val<"FilePath", string>;
+export const FilePath = Val.companion<FilePath>().build();
+
 /** What a directory holds, for a caller who names one instead of writing the glob out. */
 const UNDER = "**/*.{ts,tsx,mts,cts}";
 

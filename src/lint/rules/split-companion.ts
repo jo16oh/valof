@@ -1,12 +1,12 @@
 import { Val } from "../../index.ts";
 import { ImportMap, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A companion written in one file for a type declared in another. */
-export type SplitCompanion = Val<"SplitCompanion", { kind: "split-companion" }, Rule>;
+export type SplitCompanion = Val<"SplitCompanion", { kind: Kind }, Rule>;
 export const SplitCompanion = Val.companion<SplitCompanion>()
   .implCreate(() => ({
-    kind: "split-companion",
+    kind: Kind.seal("split-companion"),
     description: "a companion for a type that another file declares",
     warns: false,
   }))

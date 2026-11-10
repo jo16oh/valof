@@ -5,13 +5,15 @@ import {
   unparenthesized,
   type Identifier,
   type Node,
+  Lines,
   type Position,
 } from "../ast.ts";
+import type { FilePath } from "../files.ts";
 import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
 import type { AnyVal, CompanionBuilder } from "../../val.ts";
 import { Val, type VariantOf } from "../../index.ts";
-import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
+import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** `K`, which must be a key of every member of `T`. */
 type On<T, K extends keyof T> = K;
@@ -26,7 +28,7 @@ export type CompanionSite = Val<
   "CompanionSite",
   {
     at: Position;
-    file: string;
+    file: FilePath;
     /** Which entry point the chain grew from: `Val`, `Trait` or `Enum`. */
     of: string;
     /** The name the chain was bound to, or `null` when it was not bound to a plain one. */
@@ -50,7 +52,12 @@ export type CompanionSite = Val<
     seals: boolean;
   }
 >;
-export const CompanionSite = Val.companion<CompanionSite>().build();
+export const CompanionSite = Val.companion<CompanionSite>()
+  .implAssoc(() => ({
+    /** The chain as a companion site, or `undefined` when it names no type to key it by. */
+    fromChain: companionSite,
+  }))
+  .build();
 
 /** One step of a builder chain: the name it was called by, and what it was called on. */
 type Step = Val<"Step", { name: string | null; property: Node; receiver: Node }>;
@@ -116,15 +123,15 @@ export type Lift = Val<
     variant: string | null;
   }
 >;
-export const Lift = Val.companion<Lift>().build();
+export const Lift = Val.companion<Lift>()
+  .implAssoc(() => ({
+    /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
+    fromCall: valOf,
+  }))
+  .build();
 
-/** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
-export function valOf(
-  node: Node,
-  file: string,
-  bound: Bindings,
-  position: (offset: number) => Position,
-): Lift | undefined {
+/** The body of {@link Lift.fromCall}. */
+function valOf(node: Node, file: FilePath, bound: Bindings, lines: Lines): Lift | undefined {
   if (node.type !== "CallExpression") return undefined;
   const { callee } = node;
   if (callee.type !== "MemberExpression") return undefined;
@@ -138,7 +145,7 @@ export function valOf(
   const param = unparenthesized(typeParams(node.typeArguments)[0]);
   if (!param) {
     return Lift.seal({
-      at: position(callee.property.start),
+      at: Lines.at(lines, callee.property.start),
       typeName: null,
       typeRef: null,
       qualifier: null,
@@ -152,9 +159,9 @@ export function valOf(
   const of = variantArgument(param, named, bound);
   const reached = of ?? named;
   return Lift.seal({
-    at: position(reached.node.start),
+    at: Lines.at(lines, reached.node.start),
     typeName: reached.node.name,
-    typeRef: symbolRef(file, bound, reached.node.name, reached.qualifier),
+    typeRef: Bindings.refOf(bound, file, reached.node.name, reached.qualifier),
     qualifier: reached.qualifier ?? null,
     variant: of?.variant ?? null,
   });
@@ -241,13 +248,13 @@ export function typeReference(
   return Bindings.isNamespace(bound, qualifier) ? { node: right, qualifier } : undefined;
 }
 
-/** The chain as a companion site, or `undefined` when it names no type to key it by. */
-export function companionSite(
+/** The body of {@link CompanionSite.fromChain}. */
+function companionSite(
   node: Node,
-  file: string,
+  file: FilePath,
   at: Position,
   bound: Bindings,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): CompanionSite | undefined {
   const { steps, typeArguments, of } = readChain(node, bound);
   const first = unparenthesized(typeParams(typeArguments)[0]);
@@ -264,9 +271,9 @@ export function companionSite(
     of,
     nameAt: at,
     typeName: named.node.name,
-    typeRef: symbolRef(file, bound, named.node.name, named.qualifier),
+    typeRef: Bindings.refOf(bound, file, named.node.name, named.qualifier),
     typeOffset: named.node.start,
-    typeAt: position(named.node.start),
+    typeAt: Lines.at(lines, named.node.start),
     name: null,
     qualifier: named.qualifier ?? null,
     seals: steps.includes("implSeal"),

@@ -5,48 +5,24 @@ import { Val } from "../../index.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
 import type { Reserved } from "../../val.ts";
+import type { FilePath } from "../files.ts";
 
-import {
-  keyName,
-  positions,
-  typeParams,
-  unparenthesized,
-  type Node,
-  type Position,
-} from "../ast.ts";
+import { keyName, Lines, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
 import { Parser } from "../parser.ts";
 import {
-  valAliases,
+  Aliases,
   type Alias,
   type BrandClaim,
   type EnumAlias,
   type ReAlias,
   type TraitAlias,
 } from "./aliases.ts";
-import {
-  moduleRef,
-  symbolRef,
-  Bindings,
-  ImportBinding,
-  ImportMap,
-  Modules,
-  type SymbolRef,
-} from "./bindings.ts";
-import {
-  CompanionSite,
-  companionSite,
-  fromRoot,
-  stepOf,
-  variantOf,
-  typeReference,
-  valOf,
-  type Lift,
-} from "./chains.ts";
+import { Bindings, ImportBinding, ImportMap, Modules, SymbolRef } from "./bindings.ts";
+import { CompanionSite, fromRoot, stepOf, variantOf, typeReference, Lift } from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
-export { symbolRef } from "./bindings.ts";
 export { ImportMap } from "./bindings.ts";
 export type { ImportBinding, SymbolRef } from "./bindings.ts";
 export type {
@@ -58,7 +34,7 @@ export type {
   TraitAlias,
 } from "./aliases.ts";
 export type { CompanionSite, Lift } from "./chains.ts";
-export { Directive } from "./directives.ts";
+export { Directive, DirectiveMap } from "./directives.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
 export type Member = Val<"Member", { at: Position; companion: string; member: string }>;
@@ -121,7 +97,7 @@ export const CompanionBinding = Val.companion<CompanionBinding>().build();
 export type Scan = Val<
   "Scan",
   {
-    file: string;
+    file: FilePath;
     imported: ImportMap;
     /** What `.impl(() => ({…}))` registered here. */
     members: Member[];
@@ -157,28 +133,56 @@ export type Scan = Val<
     directives: Directive[];
   }
 >;
-export const Scan = Val.companion<Scan>().build();
+export const Scan = Val.companion<Scan>()
+  .implAssoc(() => ({
+    /**
+     * Walks one file once, for every rule.
+     *
+     * One walk rather than one per rule because the rules share their footing: {@link Bindings}
+     * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
+     * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
+     * rules' job, and they see every file rather than this one.
+     *
+     * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
+     * unsaved, or `undefined` to read the file. With a buffer, the file may not exist at all.
+     */
+    exec: scan,
+  }))
+  .build();
 
-/** Resolves local exports and re-export chains to the symbol they expose. */
-export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => string {
-  const exports = new Map<string, SymbolRef>();
-  for (const scan of scans) {
-    const module = normalize(resolve(scan.file));
-    for (const [name, target] of Object.entries(scan.exportedRefs))
-      exports.set(moduleRef(module, name).key, target);
-  }
-  return (ref) => {
-    const seen = new Set<string>();
-    let current = ref;
-    while (!seen.has(current.key)) {
-      seen.add(current.key);
-      const target = exports.get(current.key);
-      if (!target) break;
-      current = target;
-    }
-    return current.key;
-  };
-}
+/**
+ * What each module of a run exports, keyed by the reference an export makes: a re-export points on
+ * to the symbol it exposes.
+ */
+export type Exports = Val<"Exports", Record<string, SymbolRef>>;
+export const Exports = Val.companion<Exports>()
+  .implAssoc(({ seal }) => ({
+    from: (scans: readonly Scan[]): Exports =>
+      seal(
+        Object.fromEntries(
+          scans.flatMap(({ file, exportedRefs }) => {
+            const module = normalize(resolve(file));
+            return Object.entries(exportedRefs).map(([name, target]) => [
+              SymbolRef.fromExport(module, name).key,
+              target,
+            ]);
+          }),
+        ),
+      ),
+  }))
+  .impl(() => ({
+    /** The key of the symbol `ref` stands for, past every local export and re-export chain. */
+    identify: (exports, ref: SymbolRef): string => {
+      const seen = new Set<string>();
+      let current = ref;
+      while (!seen.has(current.key) && Object.hasOwn(exports, current.key)) {
+        seen.add(current.key);
+        current = exports[current.key]!;
+      }
+      return current.key;
+    },
+  }))
+  .build();
 
 /** An enum to read keys from. `AnyEnum` widens them to `string`. */
 type Sample = Enum<"Sample", { A: { a: 1 } }>;
@@ -221,20 +225,10 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   set.add(value);
 }
 
-/**
- * Walks one file once, for every rule.
- *
- * One walk rather than one per rule because the rules share their footing: {@link Bindings}
- * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
- * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
- * rules' job, and they see every file rather than this one.
- *
- * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
- * unsaved. The file may not exist at all.
- */
-export function scan(file: string, parser: Parser, modules: Modules, given?: string): Scan {
+/** The body of {@link Scan.exec}. */
+function scan(file: FilePath, parser: Parser, modules: Modules, given: string | undefined): Scan {
   const source = given ?? readFileSync(file, "utf8");
-  const position = positions(source);
+  const lines = Lines.from(source);
 
   let bound = Bindings.create();
   const exportedAs = new Map<string, string>();
@@ -262,7 +256,7 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
         at,
         name,
         companion,
-        companionRef: symbolRef(file, bound, companion),
+        companionRef: Bindings.refOf(bound, file, companion, undefined),
         key,
       }),
     );
@@ -289,11 +283,11 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
       case "VariableDeclarator": {
         const { id, init } = node;
         if (!init) break;
-        const site = companionSite(init, file, position(init.start), bound, position);
+        const site = CompanionSite.fromChain(init, file, Lines.at(lines, init.start), bound, lines);
         if (site)
           sites.push(
             id.type === "Identifier"
-              ? CompanionSite.patch(site, { name: id.name, nameAt: position(id.start) })
+              ? CompanionSite.patch(site, { name: id.name, nameAt: Lines.at(lines, id.start) })
               : site,
           );
         // `const { a, b: c } = X` reads `a` and `b` off `X`.
@@ -309,7 +303,7 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
                 collect(reads, from, name);
                 const local = property.value;
                 if (local.type === "Identifier")
-                  took(local.name, position(local.start), from, name);
+                  took(local.name, Lines.at(lines, local.start), from, name);
               }
             }
           }
@@ -334,18 +328,18 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
           const from = init.object;
           const taken = keyName(init.property, init.computed);
           if (from.type === "Identifier" && taken && !Bindings.isNamespace(bound, from.name))
-            took(id.name, position(id.start), from.name, taken);
+            took(id.name, Lines.at(lines, id.start), from.name, taken);
         }
-        members.push(...implMembers(init, id.name, bound, objects, position));
+        members.push(...implMembers(init, id.name, bound, objects, lines));
         break;
       }
       case "CallExpression": {
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
-        const lift = valOf(node, file, bound, position);
+        const lift = Lift.fromCall(node, file, bound, lines);
         if (lift) lifts.push(lift);
-        const implementation = implTrait(node, file, bound, sites, objects, position);
+        const implementation = implTrait(node, file, bound, sites, objects, lines);
         if (implementation) {
           traitImplementations.push(implementation);
           members.push(...implementation.overrides);
@@ -439,17 +433,19 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
       exportedAs.set(outside, inside);
       exportedRefs.set(
         outside,
-        module ? moduleRef(module, inside) : symbolRef(file, bound, inside),
+        module
+          ? SymbolRef.fromExport(module, inside)
+          : Bindings.refOf(bound, file, inside, undefined),
       );
     }
   }
 
   // After the walk, which is what collected the imports `Val` is resolved against.
-  const { aliases, traitAliases, enumAliases, brands, reAliases } = valAliases(
+  const { aliases, traitAliases, enumAliases, brands, reAliases } = Aliases.fromProgram(
     program,
     file,
     bound,
-    position,
+    lines,
   );
 
   return Scan.seal({
@@ -471,14 +467,14 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
     sites,
     companionBindings,
     lifts,
-    directives: directives(comments, source, position),
+    directives: directives(comments, source, lines),
   });
 }
 
 /** The uncomplicated `Trait.dyn(Val, value)` form.  Escaping the box is deliberately not traced. */
 function dynBox(
   node: Node,
-  file: string,
+  file: FilePath,
   bound: Bindings,
 ): { trait: SymbolRef; val: SymbolRef } | undefined {
   if (node.type !== "CallExpression") return undefined;
@@ -492,23 +488,23 @@ function dynBox(
 }
 
 /** A runtime companion reference with its exporting module retained. */
-function valueReference(node: Node, file: string, bound: Bindings): SymbolRef | undefined {
-  if (node.type === "Identifier") return symbolRef(file, bound, node.name);
+function valueReference(node: Node, file: FilePath, bound: Bindings): SymbolRef | undefined {
+  if (node.type === "Identifier") return Bindings.refOf(bound, file, node.name, undefined);
   if (node.type !== "MemberExpression") return undefined;
   const { object } = node;
   if (object.type !== "Identifier" || !Bindings.isNamespace(bound, object.name)) return undefined;
   const name = keyName(node.property, node.computed);
-  return name ? symbolRef(file, bound, name, object.name) : undefined;
+  return name ? Bindings.refOf(bound, file, name, object.name) : undefined;
 }
 
 /** Reads one `.implTrait` call without collapsing repeated calls in the same chain. */
 function implTrait(
   node: Node,
-  file: string,
+  file: FilePath,
   bound: Bindings,
   sites: readonly CompanionSite[],
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): TraitImplementation | undefined {
   if (node.type !== "CallExpression") return undefined;
   const { callee } = node;
@@ -533,7 +529,9 @@ function implTrait(
     const valNode = unparenthesized(typeParams(rootCall.typeArguments)[0]);
     const valNamed =
       valNode?.type === "TSTypeReference" ? typeReference(valNode.typeName, bound) : undefined;
-    val = valNamed ? symbolRef(file, bound, valNamed.node.name, valNamed.qualifier) : undefined;
+    val = valNamed
+      ? Bindings.refOf(bound, file, valNamed.node.name, valNamed.qualifier)
+      : undefined;
   } else {
     const receiver = root.object;
     const builder = receiver.type === "Identifier" ? receiver.name : undefined;
@@ -544,7 +542,7 @@ function implTrait(
   const [traitRef, object] = node.arguments;
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
-  const resolved = object ? stepMembers(object, val.name, objects, position) : [];
+  const resolved = object ? stepMembers(object, val.name, objects, lines) : [];
   return TraitImplementation.seal({ val, trait, overrides: resolved });
 }
 
@@ -556,11 +554,11 @@ function stepMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Member[] {
   const fn = node.type === "Identifier" ? objects.get(node.name) : node;
   const body = fn?.type === "ArrowFunctionExpression" ? unparenthesized(fn.body) : undefined;
-  return body ? objectMembers(body, companion, objects, position, new Set()) : [];
+  return body ? objectMembers(body, companion, objects, lines, new Set()) : [];
 }
 
 /** Resolves inline/const objects and spreads, retaining known keys even beside an unknown spread. */
@@ -568,7 +566,7 @@ function objectMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
   seen: Set<string>,
 ): Member[] {
   if (node.type === "Identifier") {
@@ -578,19 +576,20 @@ function objectMembers(
     if (!target) return [];
     const next = new Set(seen);
     next.add(name);
-    return objectMembers(target, companion, objects, position, next);
+    return objectMembers(target, companion, objects, lines, next);
   }
   if (node.type !== "ObjectExpression") return [];
   const byName = new Map<string, Member>();
   for (const entry of node.properties) {
     if (entry.type === "SpreadElement") {
-      for (const member of objectMembers(entry.argument, companion, objects, position, seen))
+      for (const member of objectMembers(entry.argument, companion, objects, lines, seen))
         byName.set(member.member, member);
       continue;
     }
     if (entry.type !== "Property") continue;
     const name = keyName(entry.key, entry.computed);
-    if (name) byName.set(name, Member.seal({ at: position(entry.start), companion, member: name }));
+    if (name)
+      byName.set(name, Member.seal({ at: Lines.at(lines, entry.start), companion, member: name }));
   }
   return [...byName.values()];
 }
@@ -604,7 +603,7 @@ function implMembers(
   companion: string,
   bound: Bindings,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Member[] {
   const found = new Map<string, Member>();
   let current: Node = node;
@@ -618,7 +617,7 @@ function implMembers(
     const [object] = current.arguments;
     if (step.name === "impl" && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
-      for (const member of stepMembers(object, owner, objects, position))
+      for (const member of stepMembers(object, owner, objects, lines))
         if (!rejected(member.member, variant ? undefined : root))
           found.set(`${owner}\0${member.member}`, member);
     }

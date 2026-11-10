@@ -1,6 +1,7 @@
 import { Val, type VariantOf } from "../../index.ts";
-import { keyName, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
-import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
+import { keyName, Lines, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
+import type { FilePath } from "../files.ts";
+import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
 export type DeclaredTrait = Val<"DeclaredTrait", { at: Position; name: string; ref: SymbolRef }>;
@@ -10,7 +11,7 @@ export const DeclaredTrait = Val.companion<DeclaredTrait>().build();
 export type Alias = Val<
   "Alias",
   {
-    file: string;
+    file: FilePath;
     alias: string;
     ref: SymbolRef;
     /** Traits declared in Val's third argument. */
@@ -20,14 +21,14 @@ export type Alias = Val<
 export const Alias = Val.companion<Alias>().build();
 
 /** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their own rules. */
-export type TraitAlias = Val<"TraitAlias", { file: string; alias: string; ref: SymbolRef }>;
+export type TraitAlias = Val<"TraitAlias", { file: FilePath; alias: string; ref: SymbolRef }>;
 export const TraitAlias = Val.companion<TraitAlias>().build();
 
 /** A top-level `type X = Enum<…>`, whose variants each derive a Val of their own. */
 export type EnumAlias = Val<
   "EnumAlias",
   {
-    file: string;
+    file: FilePath;
     alias: string;
     ref: SymbolRef;
     /** Traits declared in the enum's third argument. */
@@ -106,14 +107,15 @@ export type Aliases = Val<
     reAliases: ReAlias[];
   }
 >;
-export const Aliases = Val.companion<Aliases>().build();
+export const Aliases = Val.companion<Aliases>()
+  .implAssoc(() => ({
+    /** The Valof aliases one program declares, and the brands they claim. */
+    fromProgram: valAliases,
+  }))
+  .build();
 
-export function valAliases(
-  program: Node,
-  file: string,
-  bound: Bindings,
-  position: (offset: number) => Position,
-): Aliases {
+/** The body of {@link Aliases.fromProgram}. */
+function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines): Aliases {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
   const enumAliases: EnumAlias[] = [];
@@ -135,23 +137,23 @@ export function valAliases(
       if (node.generic) continue;
       reAliases.push(
         ReAlias.seal({
-          at: position(id.start),
+          at: Lines.at(lines, id.start),
           alias: id.name,
-          ref: symbolRef(file, bound, id.name),
+          ref: Bindings.refOf(bound, file, id.name, undefined),
           target: named,
-          targetRef: symbolRef(file, bound, named, qualifierOf(typeName)),
+          targetRef: Bindings.refOf(bound, file, named, qualifierOf(typeName)),
         }),
       );
       continue;
     }
 
     const kind = Bindings.original(bound, named);
-    const declared = { file, alias: id.name, ref: symbolRef(file, bound, id.name) };
+    const declared = { file, alias: id.name, ref: Bindings.refOf(bound, file, id.name, undefined) };
     if (kind === "Val") {
       aliases.push(
         Alias.seal({
           ...declared,
-          traits: traitNames(params[2], file, bound, locals, position),
+          traits: traitNames(params[2], file, bound, locals, lines),
         }),
       );
     } else if (kind === "Trait") {
@@ -163,7 +165,7 @@ export function valAliases(
           ...declared,
           // The same position as a Val's: an enum's third argument carries the traits, the shared
           // fields and the tag's name, all intersected.
-          traits: traitNames(params[2], file, bound, locals, position),
+          traits: traitNames(params[2], file, bound, locals, lines),
           variants: variants ?? null,
         }),
       );
@@ -175,7 +177,7 @@ export function valAliases(
     if (literal.type !== "Literal" || literal.value === null) continue;
     brands.push(
       BrandClaim.seal({
-        at: position(id.start),
+        at: Lines.at(lines, id.start),
         typeName: named,
         brand: literal.value,
         alias: id.name,
@@ -250,10 +252,10 @@ function variantNames(
 /** Expands the deliberately small, syntax-only trait-list language used by Val declarations. */
 function traitNames(
   node: Node | undefined,
-  file: string,
+  file: FilePath,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): DeclaredTrait[] {
   if (!node) return [];
   const seen = new Set<string>();
@@ -271,7 +273,7 @@ function traitNames(
     if (!named) return;
     // An enum's tag arrives in the same argument, and the marker carrying it names no trait.
     if (Bindings.original(bound, named) === "Tag") return;
-    const ref = symbolRef(file, bound, named, qualifierOf(one.typeName));
+    const ref = Bindings.refOf(bound, file, named, qualifierOf(one.typeName));
     if (seen.has(ref.key)) return;
     seen.add(ref.key);
     const alias = unparenthesized(aliases.get(named));
@@ -294,7 +296,7 @@ function traitNames(
     out.set(
       ref.key,
       DeclaredTrait.seal({
-        at: position(written.start),
+        at: Lines.at(lines, written.start),
         name: named,
         ref,
       }),

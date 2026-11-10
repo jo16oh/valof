@@ -3,7 +3,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "../index.ts";
 import { isDirectory } from "./files.ts";
 import { MissingPathError, NotAProjectError, UnknownRuleError } from "./errors.ts";
-import { isKind, kinds } from "./rules/index.ts";
+import { ALL_KINDS, KindSet, kinds, type Kind } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
@@ -19,7 +19,7 @@ export type Arguments = Val<
     /** Paths written with a leading `!`, removed from the run and the report alike. */
     excluded: string[];
     /** Kinds left out with `--no-<kind>`. */
-    skip: string[];
+    skip: Kind[];
     help: boolean;
   }
 >;
@@ -40,7 +40,7 @@ export const Arguments = Val.companion<Arguments>()
       const targets: string[] = [];
       const excluded: string[] = [];
       const loose: string[] = [];
-      const skip: string[] = [];
+      const skip: Kind[] = [];
       let help = false;
       let pending: "project" | "report-on" | undefined;
 
@@ -62,8 +62,9 @@ export const Arguments = Val.companion<Arguments>()
         } else if (argument.startsWith("--report-on=")) {
           take(targets, argument.slice("--report-on=".length));
         } else if (argument.startsWith("--no-")) {
-          const kind = argument.slice("--no-".length);
-          if (!isKind(kind)) return R.fail(new UnknownRuleError({ kind, known: kinds }));
+          const name = argument.slice("--no-".length);
+          const kind = KindSet.find(ALL_KINDS, name);
+          if (!kind) return R.fail(new UnknownRuleError({ kind: name, known: kinds }));
           skip.push(kind);
         } else {
           take(loose, argument);

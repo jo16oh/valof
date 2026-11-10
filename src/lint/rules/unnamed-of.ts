@@ -1,12 +1,12 @@
 import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A `Val.of(…)` that names no type, and takes one from whatever it is assigned to. */
-export type UnnamedOf = Val<"UnnamedOf", { kind: "unnamed-of" }, Rule>;
+export type UnnamedOf = Val<"UnnamedOf", { kind: Kind }, Rule>;
 export const UnnamedOf = Val.companion<UnnamedOf>()
   .implCreate(() => ({
-    kind: "unnamed-of",
+    kind: Kind.seal("unnamed-of"),
     description: "a `Val.of` that names no type, taking one from its target",
     // The lift itself is sound. What it costs is the name that makes the lift greppable.
     warns: true,

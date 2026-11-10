@@ -1,12 +1,12 @@
 import { Val } from "../../index.ts";
-import { symbolIdentity, type CompanionSite, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Exports, type CompanionSite, type Scan } from "../scan/index.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A `Val.of<X>(…)` for a type that has a companion of its own. */
-export type BypassedCompanion = Val<"BypassedCompanion", { kind: "bypassed-companion" }, Rule>;
+export type BypassedCompanion = Val<"BypassedCompanion", { kind: Kind }, Rule>;
 export const BypassedCompanion = Val.companion<BypassedCompanion>()
   .implCreate(() => ({
-    kind: "bypassed-companion",
+    kind: Kind.seal("bypassed-companion"),
     description: "a `Val.of` for a type whose companion is how it is built",
     // The value that comes out is a well-formed Val. What it went around is the type's own way in.
     warns: true,
@@ -32,11 +32,12 @@ function instead(site: CompanionSite, type: string, variant: string | null): str
  * from the target it is assigned to, and there is no name here to key it by.
  */
 function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[] {
-  const identity = symbolIdentity(scans);
+  const exports = Exports.from(scans);
   const companions = new Map<string, CompanionSite>();
   for (const { sites } of scans)
     for (const site of sites)
-      if (!companions.has(identity(site.typeRef))) companions.set(identity(site.typeRef), site);
+      if (!companions.has(Exports.identify(exports, site.typeRef)))
+        companions.set(Exports.identify(exports, site.typeRef), site);
 
   const found: Finding[] = [];
   for (const { file, lifts } of scans) {
@@ -44,7 +45,7 @@ function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[
       // A lift naming no type is the unnamed-of rule's finding. Which companion it goes around,
       // if any, is not written anywhere here.
       if (typeName === null || typeRef === null) continue;
-      const site = companions.get(identity(typeRef));
+      const site = companions.get(Exports.identify(exports, typeRef));
       if (!site) continue;
       // `Val.of` builds one Val, and the enum's union is not one: the type error says so.
       if (site.of === "Enum" && variant === null) continue;

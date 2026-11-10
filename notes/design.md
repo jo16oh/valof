@@ -4192,12 +4192,35 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   他の事実に交差で混ぜる `Payload` にしたが、Val のフィールドにすれば足りた
 - **実行と plugin の値も Valof の型（2026-11-07）。**`lint()` は `Options` を受け取る。plugin は worker に
   `Ask` を送り、`Reply`（`Found` / `Failed` の Enum）を受け取る。disable コメントが黙らせるものは
-  `Silenced`（`Every` / `Named` の Enum）。oxc-parser はモジュールの変数に置き、`Parser` の Val のメンバが使う
+  `Silenced`（`Every` / `Named` の Enum）。oxc-parser は `Parser.load` がモジュールの変数に読み込み、`Parser` の Val のメンバが使う
 - **実行が読むファイルも Val（2026-11-10）。**相対の import は、実行が読むファイルの中から解決先を探す。
   その一覧を持つクロージャを返していた `moduleResolver` を、`Modules` の Val にした。`Modules.create` が
-  パスを一度だけ正規化し、`Modules.resolve` が解決先を引く。`scan` は関数ではなく `Modules` を受け取る
-- **Val にしないもの（2026-11-07）。**worker に送る `{ ask, port, signal }`。`MessagePort` と `Int32Array` は
-  payload に入らない。port と signal を起動時に一度だけ渡しても、型は起動時に渡すデータへ移るだけで、消えない
+  パスを一度だけ正規化し、`Modules.resolve` が解決先を引く。`Scan.exec` は関数ではなく `Modules` を受け取る
+- **Val を作る関数、Val を読む関数は companion に置く（2026-11-10）。**`Scan.exec`、`Parser.load`、
+  `Files.read`、`Ask.send`、`Aliases.fromProgram`、`Lift.fromCall`、`CompanionSite.fromChain`、
+  `SymbolRef.fromExport`、`Bindings.refOf`、`Underline.fromFinding`。状態を持つクロージャも Val にした。
+  行の位置は `Lines`、re-export の解決は `Exports`、ファイルごとの disable コメントは `DirectiveMap`
+  - **副作用があっても置く。**名前で示す。`exec`、`load`、`read`、`send` は動作の名前で、`from*` は純粋な変換にだけ使う
+  - **却下: 副作用のある関数は自由関数に残す。**型の API の一部が companion の外に出て、`Scan.` の補完で作り方が見えなくなる。
+    置き場所で気にするのは、副作用ではなく実行環境だ。companion は丸ごと bundle に入るので、`node:fs` を使うメンバを
+    ブラウザでも使う Val に置かない。lint は Node 専用なので、この制約は関係しない
+  - **省略できる引数は持てない。**メンバは省略できる引数を拒むので、`Scan.exec` の `given` と `Bindings.refOf` の
+    `qualifier` は `string | undefined` にして、無いときは `undefined` を渡す
+  - **黙らせる判定は disable コメントごとに見る。**`Directive.silences` が 1 つのコメントについて答え、
+    `DirectiveMap.silences` がそのファイルのコメントのどれかが黙らせるかを見る。行ごとに `Silenced` を合成していた
+    `Silenced.widen` は要らなくなった。却下: 合成済みの `Silences` を `Scan` の欄に持つ。`directives` から導出できる
+    ものを欄に重ねて持つことになり、読みにくくなった
+- **報告するファイルは target と呼ぶ（2026-11-10）。**`Options.targets` と `Options.isTarget`。CLI の
+  `Arguments.targets` と同じ言葉にした。それまでは、報告するファイルを `report`、判定を `reports` と呼んでいた
+- **Val の配列に `readonly` を書かない（2026-11-10）。**payload の配列は `Record` の中でも readonly になる
+- **Val にしないもの（2026-11-07）。**worker が起動時に受け取る `{ port, signal }`。`MessagePort` と
+  `Int32Array` は payload に入らない
+- **時間切れの worker は止めて作り直す（2026-11-10）。**それまでは時間切れのあとも同じ worker に送っていたので、
+  後の依頼は詰まった worker の後ろに並び、ファイルごとに 60 秒待って時間切れになった。port と signal は起動時に
+  一度だけ渡し、依頼で送るのは `Ask` だけにした。依頼ごとに送っていた `{ ask, port, signal }` の型は無くなった。
+  待つ側と答える側は `src/lint/worker.ts` の `connect` と `serve` に切り出し、fixture の worker でテストする。
+  却下: 待ち時間を環境変数で変えられるようにしてテストする。利用者向けの設定が増えるうえ、worker を確実に
+  詰まらせる方法が別に要る
 - **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
   かけたら `unused-member` が全ルールの `run` を報告した。`box` を通った `dyn` は追えていなかった。
   作った式の外へ出た `dyn`（関数に渡す、配列に入れる）は、どこかで読まれたキーをすべて、第 1 引数の Val

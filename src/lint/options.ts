@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
 import { Val } from "../index.ts";
-import { KindSet } from "./rules/index.ts";
+import { KindSet, type Kind } from "./rules/index.ts";
 
 /** How a run reads and reports. Paths are resolved, so any spelling of a file finds it. */
 export type Options = Val<
@@ -36,7 +36,7 @@ export const Options = Val.companion<Options>()
       targets,
       overlay = [],
     }: {
-      skip?: Iterable<string>;
+      skip?: Iterable<Kind>;
       targets?: Iterable<string>;
       overlay?: Iterable<readonly [string, string]>;
     } = {}) => ({

@@ -1,16 +1,16 @@
 import { Val } from "../../index.ts";
 import { ImportMap, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /**
  * A brand string that more than one type alias claims. Two Vals with the same brand and the same
  * payload are silently assignable to each other, which is the whole failure the brand exists to
  * prevent.
  */
-export type DuplicateBrand = Val<"DuplicateBrand", { kind: "duplicate-brand" }, Rule>;
+export type DuplicateBrand = Val<"DuplicateBrand", { kind: Kind }, Rule>;
 export const DuplicateBrand = Val.companion<DuplicateBrand>()
   .implCreate(() => ({
-    kind: "duplicate-brand",
+    kind: Kind.seal("duplicate-brand"),
     description: "a brand string claimed by more than one type alias",
     warns: false,
   }))

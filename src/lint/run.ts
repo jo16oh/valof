@@ -4,10 +4,10 @@ import { Result as R } from "@praha/byethrow";
 
 import type { MissingParserError } from "./errors.ts";
 import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
-import { loadParser } from "./parser.ts";
-import { Val } from "../index.ts";
-import { Directive, scan, type Scan } from "./scan/index.ts";
+import { Parser } from "./parser.ts";
+import { DirectiveMap, Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
+import { FilePath } from "./files.ts";
 import { Options } from "./options.ts";
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
@@ -18,17 +18,20 @@ export async function run(
   files: readonly string[],
   options: Options = Options.create(),
 ): Promise<R.Result<Finding[], MissingParserError>> {
-  const loaded = await loadParser();
+  const loaded = await Parser.load();
   if (R.isFailure(loaded)) return loaded;
   const parser = loaded.value;
+
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
-  const walk = [
+  const toScan = [
     ...files,
     ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
-  ];
-  const modules = Modules.create(walk);
-  const scans = walk.map((file) => scan(file, parser, modules, Options.sourceOf(options, file)));
+  ].map((file) => FilePath.seal(file));
+  const modules = Modules.create(toScan);
+  const scans = toScan.map((file) =>
+    Scan.exec(file, parser, modules, Options.sourceOf(options, file)),
+  );
 
   // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
   const findings = RULES.filter(({ kind }) => !KindSet.has(options.skip, kind)).reduce<Finding[]>(
@@ -39,7 +42,7 @@ export async function run(
     [],
   );
 
-  const directives = DirectiveMap.create(scans);
+  const directives = DirectiveMap.from(scans);
 
   return R.succeed(
     findings
@@ -56,23 +59,3 @@ export async function run(
       ),
   );
 }
-
-/**
- * The directives of each file in a run, by the path the file was scanned under.
- *
- * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
- * brand is still reported, since silencing it is its own line's decision.
- */
-type DirectiveMap = Val<"DirectiveMap", Record<string, Directive[]>>;
-const DirectiveMap = Val.companion<DirectiveMap>()
-  .implCreate((scans: readonly Scan[]) =>
-    Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives])),
-  )
-  .impl(() => ({
-    /** Whether a directive in the file silences a finding of `kind` on `line`. */
-    silences: (map, file: string, line: number, kind: string) =>
-      (Object.hasOwn(map, file) ? map[file]! : []).some((directive) =>
-        Directive.silences(directive, line, kind),
-      ),
-  }))
-  .build();

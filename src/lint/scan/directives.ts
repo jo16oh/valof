@@ -1,6 +1,7 @@
 import { Enum, Val } from "../../index.ts";
-import type { Position } from "../ast.ts";
-import { KindSet } from "../rules/rule.ts";
+import { Lines, type Position } from "../ast.ts";
+import type { FilePath } from "../files.ts";
+import type { Scan } from "./index.ts";
 
 /** One disable comment, whole. */
 export type Directive = Val<
@@ -23,11 +24,24 @@ export type Directive = Val<
     spelling: string;
   }
 >;
-/** What a directive silences: the kinds it named, or every kind there is. */
-type Silenced = Enum<"Silenced", { Every: {}; Named: { kinds: KindSet } }>;
+
+/**
+ * The names one disable comment lists, as a set. A name is what the author wrote, which no rule may
+ * have: `unused-disable` reports such a name, so it is kept rather than checked against the rules.
+ */
+type NameSet = Val<"NameSet", Record<string, true>>;
+const NameSet = Val.companion<NameSet>()
+  .implCreate((names: Iterable<string>) =>
+    Object.fromEntries([...names].map((name) => [name, true as const])),
+  )
+  .impl(() => ({ has: (names, name: string) => Object.hasOwn(names, name) }))
+  .build();
+
+/** What a directive silences: the names it listed, or every kind there is. */
+type Silenced = Enum<"Silenced", { Every: {}; Named: { names: NameSet } }>;
 const Silenced = Enum.companion<Silenced>()
   .impl(() => ({
-    has: (silenced, kind: string) => silenced._tag === "Every" || KindSet.has(silenced.kinds, kind),
+    has: (silenced, kind: string) => silenced._tag === "Every" || NameSet.has(silenced.names, kind),
   }))
   .build();
 
@@ -105,9 +119,9 @@ function ownLine(source: string, start: number): boolean {
 export function directives(
   comments: readonly { value: string; start: number; end: number }[],
   source: string,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Directive[] {
-  const lineOf = (offset: number): number => position(offset).line;
+  const lineOf = (offset: number): number => Lines.at(lines, offset).line;
   const found: Directive[] = [];
   /** The line directives of the block being read, held until its last line is known. */
   let block: { at: Position; spelling: string; kinds: string[] }[] = [];
@@ -134,7 +148,7 @@ export function directives(
     if (!joins) close();
     const carried = directive(comment.value);
     if (carried) {
-      const written = { at: position(comment.start), ...carried };
+      const written = { at: Lines.at(lines, comment.start), ...carried };
       if (carried.spelling === "valof-lint-disable-next-line") block.push(written);
       else found.push(Directive.seal({ ...written, covers: "file" }));
     }
@@ -145,6 +159,27 @@ export function directives(
   return found;
 }
 
-function named(kinds: Iterable<string>): Silenced {
-  return Silenced.Named.create({ kinds: KindSet.create(kinds) });
+/**
+ * The directives of each file in a run, by the path the file was scanned under.
+ *
+ * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
+ * brand is still reported, since silencing it is its own line's decision.
+ */
+export type DirectiveMap = Val<"DirectiveMap", Record<FilePath, Directive[]>>;
+export const DirectiveMap = Val.companion<DirectiveMap>()
+  .implAssoc(({ seal }) => ({
+    from: (scans: readonly Scan[]): DirectiveMap =>
+      seal(Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives]))),
+  }))
+  .impl(() => ({
+    /** Whether a directive in the file silences a finding of `kind` on `line`. */
+    silences: (map, file: FilePath, line: number, kind: string) =>
+      ((Object.hasOwn(map, file) ? map[file] : undefined) ?? []).some((directive) =>
+        Directive.silences(directive, line, kind),
+      ),
+  }))
+  .build();
+
+function named(names: Iterable<string>): Silenced {
+  return Silenced.Named.create({ names: NameSet.create(names) });
 }

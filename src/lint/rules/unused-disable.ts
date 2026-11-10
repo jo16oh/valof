@@ -1,16 +1,16 @@
 import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import { Finding, KindSet, Rule, type Context } from "./rule.ts";
+import { Kind, Finding, KindSet, Rule, type Context } from "./rule.ts";
 
 /**
  * A `valof-lint-disable-next-line` naming a rule that reports nothing on the line below. The
  * finding it was written for is gone, and what stays is a claim about the code that is no longer
  * true.
  */
-export type UnusedDisable = Val<"UnusedDisable", { kind: "unused-disable" }, Rule>;
+export type UnusedDisable = Val<"UnusedDisable", { kind: Kind }, Rule>;
 export const UnusedDisable = Val.companion<UnusedDisable>()
   .implCreate(() => ({
-    kind: "unused-disable",
+    kind: Kind.seal("unused-disable"),
     description: "a disable comment naming a rule that reports nothing there",
     // A directive that silences nothing changes nothing about the code.
     warns: true,
