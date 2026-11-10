@@ -1,16 +1,16 @@
 import { Val } from "../../index.ts";
 import { ImportMap, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /**
  * A brand that does not end in the name of the type it brands. TypeScript cannot derive `X` from
  * `type X = Val<…>`, so the brand string is the type's name written a second time, and only a
  * rule keeps the two from drifting apart.
  */
-export type BrandMismatch = Val<"BrandMismatch", { kind: "brand-mismatch" }, Rule>;
+export type BrandMismatch = Val<"BrandMismatch", { kind: Kind }, Rule>;
 export const BrandMismatch = Val.companion<BrandMismatch>()
   .implCreate(() => ({
-    kind: "brand-mismatch",
+    kind: Kind.seal("brand-mismatch"),
     description: "a brand whose last segment is not the name of the type it brands",
     warns: false,
   }))

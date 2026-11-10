@@ -1,15 +1,15 @@
 import { Val } from "../../index.ts";
 import { Exports, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /**
  * A companion bound to a name other than the type it is for. `const Account =
  * Val.companion<User>()` compiles, and every call site then reads `Account.greet(user)`.
  */
-export type CompanionMismatch = Val<"CompanionMismatch", { kind: "companion-mismatch" }, Rule>;
+export type CompanionMismatch = Val<"CompanionMismatch", { kind: Kind }, Rule>;
 export const CompanionMismatch = Val.companion<CompanionMismatch>()
   .implCreate(() => ({
-    kind: "companion-mismatch",
+    kind: Kind.seal("companion-mismatch"),
     description: "a companion bound to a name other than the type it is for",
     warns: false,
   }))

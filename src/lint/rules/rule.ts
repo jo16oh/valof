@@ -13,7 +13,7 @@ export type Finding = Val<
   "Finding",
   {
     /** The `kind` of the rule that reported it. */
-    kind: string;
+    kind: Kind;
     file: FilePath;
     at: Position;
     message: string;
@@ -21,13 +21,23 @@ export type Finding = Val<
 >;
 export const Finding = Val.companion<Finding>().build();
 
+/** A rule's name, as a finding, a `--no-<kind>` flag and `--help` spell it. */
+export type Kind = Val<"Kind", string>;
+export const Kind = Val.companion<Kind>().build();
+
 /** Rule kinds, as a set. */
-export type KindSet = Val<"KindSet", Record<string, true>>;
+export type KindSet = Val<"KindSet", Record<Kind, true>>;
 export const KindSet = Val.companion<KindSet>()
-  .implCreate((kinds: Iterable<string>) =>
+  .implCreate((kinds: Iterable<Kind>) =>
     Object.fromEntries([...kinds].map((kind) => [kind, true as const])),
   )
-  .impl(() => ({ has: (kinds, kind: string) => Object.hasOwn(kinds, kind) }))
+  .impl(() => ({
+    /** Whether `name` is in the set. A disable comment's name, which no rule may have, is checked too. */
+    has: (kinds, name: string) => Object.hasOwn(kinds, name),
+    /** The kind `name` spells, or `undefined` when it is not in the set. */
+    find: (kinds, name: string): Kind | undefined =>
+      Object.hasOwn(kinds, name) ? Kind.seal(name) : undefined,
+  }))
   .build();
 
 /** What a rule gets beyond the scans. */
@@ -60,7 +70,7 @@ export type Rule = Trait<
   "Rule",
   {
     /** The name that names it everywhere: `--no-<kind>`, the disable comment, and `--help`. */
-    kind: string;
+    kind: Kind;
     /** The line `--help` prints, after the kind. */
     description: string;
     /**

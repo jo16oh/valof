@@ -1,7 +1,6 @@
 import { Enum, Val } from "../../index.ts";
 import { Lines, type Position } from "../ast.ts";
 import type { FilePath } from "../files.ts";
-import { KindSet } from "../rules/rule.ts";
 import type { Scan } from "./index.ts";
 
 /** One disable comment, whole. */
@@ -26,11 +25,23 @@ export type Directive = Val<
   }
 >;
 
-/** What a directive silences: the kinds it named, or every kind there is. */
-type Silenced = Enum<"Silenced", { Every: {}; Named: { kinds: KindSet } }>;
+/**
+ * The names one disable comment lists, as a set. A name is what the author wrote, which no rule may
+ * have: `unused-disable` reports such a name, so it is kept rather than checked against the rules.
+ */
+type NameSet = Val<"NameSet", Record<string, true>>;
+const NameSet = Val.companion<NameSet>()
+  .implCreate((names: Iterable<string>) =>
+    Object.fromEntries([...names].map((name) => [name, true as const])),
+  )
+  .impl(() => ({ has: (names, name: string) => Object.hasOwn(names, name) }))
+  .build();
+
+/** What a directive silences: the names it listed, or every kind there is. */
+type Silenced = Enum<"Silenced", { Every: {}; Named: { names: NameSet } }>;
 const Silenced = Enum.companion<Silenced>()
   .impl(() => ({
-    has: (silenced, kind: string) => silenced._tag === "Every" || KindSet.has(silenced.kinds, kind),
+    has: (silenced, kind: string) => silenced._tag === "Every" || NameSet.has(silenced.names, kind),
   }))
   .build();
 
@@ -169,6 +180,6 @@ export const DirectiveMap = Val.companion<DirectiveMap>()
   }))
   .build();
 
-function named(kinds: Iterable<string>): Silenced {
-  return Silenced.Named.create({ kinds: KindSet.create(kinds) });
+function named(names: Iterable<string>): Silenced {
+  return Silenced.Named.create({ names: NameSet.create(names) });
 }

@@ -1,11 +1,11 @@
 import { Val } from "../../index.ts";
 import { Exports, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
-export type UnimplementedTrait = Val<"UnimplementedTrait", { kind: "unimplemented-trait" }, Rule>;
+export type UnimplementedTrait = Val<"UnimplementedTrait", { kind: Kind }, Rule>;
 export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
   .implCreate(() => ({
-    kind: "unimplemented-trait",
+    kind: Kind.seal("unimplemented-trait"),
     description: "a Trait declared by a Val or an Enum that its companion does not implement",
     warns: false,
   }))

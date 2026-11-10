@@ -1,12 +1,12 @@
 import { Val } from "../../index.ts";
 import { Exports, type CompanionSite, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A `Val.of<X>(…)` for a type that has a companion of its own. */
-export type BypassedCompanion = Val<"BypassedCompanion", { kind: "bypassed-companion" }, Rule>;
+export type BypassedCompanion = Val<"BypassedCompanion", { kind: Kind }, Rule>;
 export const BypassedCompanion = Val.companion<BypassedCompanion>()
   .implCreate(() => ({
-    kind: "bypassed-companion",
+    kind: Kind.seal("bypassed-companion"),
     description: "a `Val.of` for a type whose companion is how it is built",
     // The value that comes out is a well-formed Val. What it went around is the type's own way in.
     warns: true,

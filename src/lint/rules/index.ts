@@ -4,7 +4,7 @@ import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
-import { Rule } from "./rule.ts";
+import { KindSet, Rule, type Kind } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
 import { UnnamedOf } from "./unnamed-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
@@ -51,8 +51,9 @@ export {
 };
 
 /** What each rule is called, in a `--no-<kind>` flag and in a disable comment alike. */
-export const kinds: readonly string[] = RULES.map(({ kind }) => kind);
+export const kinds: readonly Kind[] = RULES.map(({ kind }) => kind);
 
-export const isKind = (name: string): boolean => kinds.includes(name);
+/** Every rule's kind, to check a name against. */
+export const ALL_KINDS = KindSet.create(kinds);
 
-export { Context, Finding, KindSet, Rule } from "./rule.ts";
+export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";

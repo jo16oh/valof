@@ -1,12 +1,12 @@
 import { Val } from "../../index.ts";
 import { Exports, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A type alias which is only another spelling for a Val, a Trait or an Enum. */
-export type UnnecessaryAlias = Val<"UnnecessaryAlias", { kind: "unnecessary-alias" }, Rule>;
+export type UnnecessaryAlias = Val<"UnnecessaryAlias", { kind: Kind }, Rule>;
 export const UnnecessaryAlias = Val.companion<UnnecessaryAlias>()
   .implCreate(() => ({
-    kind: "unnecessary-alias",
+    kind: Kind.seal("unnecessary-alias"),
     description: "a type alias that is a second name for a Val, a Trait or an Enum",
     warns: false,
   }))

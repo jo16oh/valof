@@ -1,12 +1,12 @@
 import { Val } from "../../index.ts";
 import { ImportMap, Exports, type Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
-export type UnusedMember = Val<"UnusedMember", { kind: "unused-member" }, Rule>;
+export type UnusedMember = Val<"UnusedMember", { kind: Kind }, Rule>;
 export const UnusedMember = Val.companion<UnusedMember>()
   .implCreate(() => ({
-    kind: "unused-member",
+    kind: Kind.seal("unused-member"),
     description: "members registered with `.impl` or `.implTrait` that nothing reads",
     // A member nothing reads is dead weight, and the code around it works.
     warns: true,
