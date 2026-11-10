@@ -60,6 +60,10 @@ export const TraitImplementation = Val.companion<TraitImplementation>().build();
 export type EscapedDyn = Val<"EscapedDyn", { trait: SymbolRef; val: SymbolRef }>;
 export const EscapedDyn = Val.companion<EscapedDyn>().build();
 
+/** A `Trait.dyn(Val, value)` box: the Trait, and the Val it holds. */
+type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
+const DynBox = Val.companion<DynBox>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
 export const DynRead = Val.companion<DynRead>().build();
@@ -240,7 +244,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, given: string | 
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
   const objects = new Map<string, Node>();
-  const dynBindings = new Map<string, { trait: SymbolRef; val: SymbolRef }>();
+  const dynBindings = new Map<string, DynBox>();
   const reads = new Map<string, Set<string>>();
   const namespaceReads = new Map<string, Set<string>>();
   const sites: CompanionSite[] = [];
@@ -472,11 +476,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, given: string | 
 }
 
 /** The uncomplicated `Trait.dyn(Val, value)` form.  Escaping the box is deliberately not traced. */
-function dynBox(
-  node: Node,
-  file: FilePath,
-  bound: Bindings,
-): { trait: SymbolRef; val: SymbolRef } | undefined {
+function dynBox(node: Node, file: FilePath, bound: Bindings): DynBox | undefined {
   if (node.type !== "CallExpression") return undefined;
   const { callee } = node;
   if (callee.type !== "MemberExpression" || keyName(callee.property, callee.computed) !== "dyn")
@@ -484,7 +484,7 @@ function dynBox(
   const args = node.arguments;
   const trait = valueReference(callee.object, file, bound);
   const val = args[0] && valueReference(args[0], file, bound);
-  return trait && val ? { trait, val } : undefined;
+  return trait && val ? DynBox.seal({ trait, val }) : undefined;
 }
 
 /** A runtime companion reference with its exporting module retained. */

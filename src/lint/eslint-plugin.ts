@@ -85,7 +85,7 @@ const Ask = Val.companion<Ask>()
   .impl(() => {
     /** Long enough that no run reaches it, short enough that a wedged worker still says so. */
     const ask = connect<Ask, Reply>(new URL(import.meta.url), 60_000);
-    let last: { key: string; findings: readonly Finding[] } | undefined;
+    let last: Answer | undefined;
     return {
       /**
        * `lint` is async, and a rule is not.
@@ -113,7 +113,7 @@ const Ask = Val.companion<Ask>()
             throw new Error(message);
           },
         });
-        last = { key, findings };
+        last = Answer.seal({ key, findings });
         queueMicrotask(() => (last = undefined));
         return findings;
       },
@@ -170,6 +170,10 @@ const Ask = Val.companion<Ask>()
     };
   })
   .build();
+
+/** The findings for one ask, under the key {@link Ask.send} compares the next ask by. */
+type Answer = Val<"Answer", { key: string; findings: Finding[] }>;
+const Answer = Val.companion<Answer>().build();
 
 type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
 const Reply = Enum.companion<Reply>().build();

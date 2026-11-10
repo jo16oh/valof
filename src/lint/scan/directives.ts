@@ -73,26 +73,36 @@ export const Directive = Val.companion<Directive>()
   }))
   .build();
 
-/**
- * What one comment carries, or `undefined` when it carries no directive.
- *
- * More than one name goes on a line, separated by a space or a comma alike, since a reader
- * writing a list will reach for either. Nothing but a space may follow a spelling, so a
- * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
- */
-function directive(text: string): { spelling: string; kinds: string[] } | undefined {
-  const match =
-    /(?:^|\s)valof-lint-disable(-next-line|-all-whole-file|-whole-file)?(?![-\w])(?:[^\S\n]+([^\n]*))?/.exec(
-      text,
-    );
-  if (!match) return undefined;
-  // Everything after `--` is a note for the reader, the way other linters spell it.
-  const listed = (match[2] ?? "").split("--")[0] ?? "";
-  return {
-    spelling: `valof-lint-disable${match[1] ?? ""}`,
-    kinds: [...new Set(listed.split(/[\s,]+/).filter(Boolean))],
-  };
-}
+/** A directive as its comment writes it, before the line it covers is known. */
+type DirectiveComment = Val<
+  "DirectiveComment",
+  { at: Position; spelling: string; kinds: string[] }
+>;
+const DirectiveComment = Val.companion<DirectiveComment>()
+  .implAssoc(({ seal }) => ({
+    /**
+     * What one comment carries, or `undefined` when it carries no directive.
+     *
+     * More than one name goes on a line, separated by a space or a comma alike, since a reader
+     * writing a list will reach for either. Nothing but a space may follow a spelling, so a
+     * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
+     */
+    parse: (text: string, at: Position): DirectiveComment | undefined => {
+      const match =
+        /(?:^|\s)valof-lint-disable(-next-line|-all-whole-file|-whole-file)?(?![-\w])(?:[^\S\n]+([^\n]*))?/.exec(
+          text,
+        );
+      if (!match) return undefined;
+      // Everything after `--` is a note for the reader, the way other linters spell it.
+      const listed = (match[2] ?? "").split("--")[0] ?? "";
+      return seal({
+        at,
+        spelling: `valof-lint-disable${match[1] ?? ""}`,
+        kinds: [...new Set(listed.split(/[\s,]+/).filter(Boolean))],
+      });
+    },
+  }))
+  .build();
 
 /** Whether nothing but whitespace precedes `start` on its line. */
 function ownLine(source: string, start: number): boolean {
@@ -124,7 +134,7 @@ export function directives(
   const lineOf = (offset: number): number => Lines.at(lines, offset).line;
   const found: Directive[] = [];
   /** The line directives of the block being read, held until its last line is known. */
-  let block: { at: Position; spelling: string; kinds: string[] }[] = [];
+  let block: DirectiveComment[] = [];
   /** The last line of that block, or -1 when the previous comment closed one. */
   let blockEnd = -1;
   /** Where that comment ended, so code written after it on its own line breaks the block. */
@@ -146,12 +156,9 @@ export function directives(
       lineOf(comment.start) <= blockEnd + 1 &&
       source.slice(blockEndOffset, comment.start).trim() === "";
     if (!joins) close();
-    const carried = directive(comment.value);
-    if (carried) {
-      const written = { at: Lines.at(lines, comment.start), ...carried };
-      if (carried.spelling === "valof-lint-disable-next-line") block.push(written);
-      else found.push(Directive.seal({ ...written, covers: "file" }));
-    }
+    const written = DirectiveComment.parse(comment.value, Lines.at(lines, comment.start));
+    if (written?.spelling === "valof-lint-disable-next-line") block.push(written);
+    else if (written) found.push(Directive.seal({ ...written, covers: "file" }));
     blockEnd = lineOf(comment.end);
     blockEndOffset = comment.end;
   }
