@@ -23,12 +23,13 @@ export async function run(
   const parser = loaded.value;
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
-  const listed = new Set(files.map((file) => resolve(file)));
-  const walk = [...files, ...Object.keys(options.overlay).filter((file) => !listed.has(file))];
+  const walk = [
+    ...files,
+    ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
+  ];
   const modules = Modules.create(walk);
   const scans = walk.map((file) => scan(file, parser, modules, Options.sourceOf(options, file)));
 
-  const findings: Finding[] = [];
   const rules = compile(options.enable);
   // An opt-in rule left off is out of the run as much as a skipped one.
   const notRun = KindSet.create([
@@ -40,17 +41,29 @@ export async function run(
   // Started by the first rule that asks, and by none when no rule does.
   let program: ReturnType<typeof arities> | undefined;
   const types = (): Arity => (program ??= arities(walk.map((file) => resolve(file)))).arity;
-  try {
-    for (const rule of rules) {
-      if (KindSet.has(notRun, rule.kind)) continue;
-      findings.push(...rule.run(scans, Context.seal({ reported: findings, notRun }), types));
+  const ran = ((): R.Result<Finding[], MissingTypeScriptError> => {
+    try {
+      // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
+      return R.succeed(
+        rules
+          .filter(({ kind }) => !KindSet.has(notRun, kind))
+          .reduce<Finding[]>(
+            (reported, rule) => [
+              ...reported,
+              ...rule.run(scans, Context.seal({ reported, notRun }), types),
+            ],
+            [],
+          ),
+      );
+    } catch (error) {
+      if (error instanceof MissingTypeScriptError) return R.fail(error);
+      throw error;
+    } finally {
+      program?.close();
     }
-  } catch (error) {
-    if (error instanceof MissingTypeScriptError) return R.fail(error);
-    throw error;
-  } finally {
-    program?.close();
-  }
+  })();
+  if (R.isFailure(ran)) return ran;
+  const findings = ran.value;
 
   /**
    * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
