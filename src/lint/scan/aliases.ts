@@ -116,9 +116,15 @@ export type Aliases = Val<
     reAliases: ReAlias[];
   }
 >;
-export const Aliases = Val.companion<Aliases>().build();
+export const Aliases = Val.companion<Aliases>()
+  .implAssoc(() => ({
+    /** The Valof aliases one program declares, and the brands they claim. */
+    fromProgram: valAliases,
+  }))
+  .build();
 
-export function valAliases(program: Node, file: string, bound: Bindings, lines: Lines): Aliases {
+/** The body of {@link Aliases.fromProgram}. */
+function valAliases(program: Node, file: string, bound: Bindings, lines: Lines): Aliases {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
   const enumAliases: EnumAlias[] = [];

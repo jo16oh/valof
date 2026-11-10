@@ -18,7 +18,7 @@ import {
 } from "../ast.ts";
 import { Parser } from "../parser.ts";
 import {
-  valAliases,
+  Aliases,
   type Alias,
   type BrandClaim,
   type EnumAlias,
@@ -34,16 +34,7 @@ import {
   Modules,
   type SymbolRef,
 } from "./bindings.ts";
-import {
-  CompanionSite,
-  companionSite,
-  fromRoot,
-  stepOf,
-  variantOf,
-  typeReference,
-  valOf,
-  type Lift,
-} from "./chains.ts";
+import { CompanionSite, fromRoot, stepOf, variantOf, typeReference, Lift } from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
@@ -297,7 +288,7 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
         const id = child(node, "id");
         const init = child(node, "init");
         if (!id || !init) break;
-        const site = companionSite(
+        const site = CompanionSite.fromChain(
           init,
           file,
           Lines.at(lines, init["start"] as number),
@@ -378,7 +369,7 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
-        const lift = valOf(node, file, bound, lines);
+        const lift = Lift.fromCall(node, file, bound, lines);
         if (lift) lifts.push(lift);
         const implementation = implTrait(node, file, bound, sites, objects, lines);
         if (implementation) {
@@ -493,7 +484,7 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
   }
 
   // After the walk, which is what collected the imports `Val` is resolved against.
-  const { aliases, traitAliases, enumAliases, brands, reAliases } = valAliases(
+  const { aliases, traitAliases, enumAliases, brands, reAliases } = Aliases.fromProgram(
     program,
     file,
     bound,

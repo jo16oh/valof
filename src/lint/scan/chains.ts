@@ -51,7 +51,12 @@ export type CompanionSite = Val<
     seals: boolean;
   }
 >;
-export const CompanionSite = Val.companion<CompanionSite>().build();
+export const CompanionSite = Val.companion<CompanionSite>()
+  .implAssoc(() => ({
+    /** The chain as a companion site, or `undefined` when it names no type to key it by. */
+    fromChain: companionSite,
+  }))
+  .build();
 
 type Called = { name: string | undefined; property: Node; receiver: Node };
 
@@ -119,10 +124,15 @@ export type Lift = Val<
     variant: string | null;
   }
 >;
-export const Lift = Val.companion<Lift>().build();
+export const Lift = Val.companion<Lift>()
+  .implAssoc(() => ({
+    /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
+    fromCall: valOf,
+  }))
+  .build();
 
-/** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
-export function valOf(node: Node, file: string, bound: Bindings, lines: Lines): Lift | undefined {
+/** The body of {@link Lift.fromCall}. */
+function valOf(node: Node, file: string, bound: Bindings, lines: Lines): Lift | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
   const path = rootPath(callee);
@@ -244,8 +254,8 @@ export function typeReference(
   return Bindings.isNamespace(bound, qualifier) ? { node: right, qualifier } : undefined;
 }
 
-/** The chain as a companion site, or `undefined` when it names no type to key it by. */
-export function companionSite(
+/** The body of {@link CompanionSite.fromChain}. */
+function companionSite(
   node: Node,
   file: string,
   at: Position,
