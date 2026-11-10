@@ -4215,6 +4215,9 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
 - **実行と plugin の値も Valof の型（2026-11-07）。**`lint()` は `Options` を受け取る。plugin は worker に
   `Ask` を送り、`Reply`（`Found` / `Failed` の Enum）を受け取る。disable コメントが黙らせるものは
   `Silenced`（`Every` / `Named` の Enum）。oxc-parser はモジュールの変数に置き、`Parser` の Val のメンバが使う
+- **実行が読むファイルも Val（2026-11-10）。**相対の import は、実行が読むファイルの中から解決先を探す。
+  その一覧を持つクロージャを返していた `moduleResolver` を、`Modules` の Val にした。`Modules.create` が
+  パスを一度だけ正規化し、`Modules.resolve` が解決先を引く。`scan` は関数ではなく `Modules` を受け取る
 - **Val にしないもの（2026-11-07）。**worker に送る `{ ask, port, signal }`。`MessagePort` と `Int32Array` は
   payload に入らない。port と signal を起動時に一度だけ渡しても、型は起動時に渡すデータへ移るだけで、消えない
 - **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
