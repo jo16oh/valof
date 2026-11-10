@@ -5,7 +5,7 @@ import { Result as R } from "@praha/byethrow";
 import { MissingTypeScriptError, type MissingParserError } from "./errors.ts";
 import { Context, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { loadParser } from "./parser.ts";
-import { scan, silences } from "./scan/index.ts";
+import { Directive, scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { arities, type Arity } from "./types.ts";
 import { Options } from "./options.ts";
@@ -69,9 +69,9 @@ export async function run(
    * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
    * brand is still reported, since silencing it is its own line's decision.
    */
-  const disabled = new Map(scans.map(({ file, directives }) => [file, silences(directives)]));
+  const directives = new Map(scans.map((scanned) => [scanned.file, scanned.directives]));
   const silenced = ({ file, at: { line }, kind }: Finding): boolean =>
-    disabled.get(file)?.(line, kind) === true;
+    (directives.get(file) ?? []).some((directive) => Directive.silences(directive, line, kind));
   const asked = ({ file }: Finding): boolean => Options.reports(options, file);
 
   return R.succeed(
