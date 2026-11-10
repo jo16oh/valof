@@ -1,6 +1,7 @@
 import { Enum, Val } from "../../index.ts";
 import type { Position } from "../ast.ts";
 import { KindSet } from "../rules/rule.ts";
+import type { Scan } from "./index.ts";
 
 /** One disable comment, whole. */
 export type Directive = Val<
@@ -144,6 +145,26 @@ export function directives(
   close();
   return found;
 }
+
+/**
+ * The directives of each file in a run, by the path the file was scanned under.
+ *
+ * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
+ * brand is still reported, since silencing it is its own line's decision.
+ */
+export type DirectiveMap = Val<"DirectiveMap", Record<string, Directive[]>>;
+export const DirectiveMap = Val.companion<DirectiveMap>()
+  .implCreate((scans: readonly Scan[]) =>
+    Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives])),
+  )
+  .impl(() => ({
+    /** Whether a directive in the file silences a finding of `kind` on `line`. */
+    silences: (map, file: string, line: number, kind: string) =>
+      ((Object.hasOwn(map, file) ? map[file] : undefined) ?? []).some((directive) =>
+        Directive.silences(directive, line, kind),
+      ),
+  }))
+  .build();
 
 function named(kinds: Iterable<string>): Silenced {
   return Silenced.Named.create({ kinds: KindSet.create(kinds) });

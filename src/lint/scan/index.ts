@@ -60,7 +60,7 @@ export type {
   TraitAlias,
 } from "./aliases.ts";
 export type { CompanionSite, Lift } from "./chains.ts";
-export { Directive } from "./directives.ts";
+export { Directive, DirectiveMap } from "./directives.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
 export type Member = Val<"Member", { at: Position; companion: string; member: string }>;

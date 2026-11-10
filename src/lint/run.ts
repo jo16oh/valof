@@ -5,8 +5,7 @@ import { Result as R } from "@praha/byethrow";
 import type { MissingParserError } from "./errors.ts";
 import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
 import { loadParser } from "./parser.ts";
-import { Val } from "../index.ts";
-import { Directive, scan, type Scan } from "./scan/index.ts";
+import { DirectiveMap, scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { Options } from "./options.ts";
 
@@ -57,23 +56,3 @@ export async function run(
       ),
   );
 }
-
-/**
- * The directives of each file in a run, by the path the file was scanned under.
- *
- * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
- * brand is still reported, since silencing it is its own line's decision.
- */
-type DirectiveMap = Val<"DirectiveMap", Record<string, Directive[]>>;
-const DirectiveMap = Val.companion<DirectiveMap>()
-  .implCreate((scans: readonly Scan[]) =>
-    Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives])),
-  )
-  .impl(() => ({
-    /** Whether a directive in the file silences a finding of `kind` on `line`. */
-    silences: (map, file: string, line: number, kind: string) =>
-      (Object.hasOwn(map, file) ? map[file]! : []).some((directive) =>
-        Directive.silences(directive, line, kind),
-      ),
-  }))
-  .build();
