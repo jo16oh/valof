@@ -10,7 +10,7 @@ import {
 
 import { Result as R } from "@praha/byethrow";
 
-import type { AST, Rule } from "eslint";
+import type { Rule } from "eslint";
 
 import { Enum, Val } from "../index.ts";
 import { expand } from "./files.ts";
@@ -60,7 +60,7 @@ const rule = ({ kind, description }: (typeof RULES)[number]) => ({
         for (const finding of found(file, text, context.settings))
           if (finding.kind === kind)
             context.report({
-              loc: over(text, finding),
+              loc: Underline.fromFinding(finding, text),
               // No kind in the message: the rule the host names is the kind, and every host that
               // renders a finding renders the rule name with it.
               message: finding.message,
@@ -72,23 +72,6 @@ const rule = ({ kind, description }: (typeof RULES)[number]) => ({
 
 /** A word, for the squiggle to cover. Runs of these are what a finding points at. */
 const WORD = /^[\p{L}\p{N}_$]+/u;
-
-/**
- * What the underline covers, from the point the finding names.
- *
- * A finding carries one position, and a report drawn from one position underlines one character.
- * So the name at that position is measured here: the linter points at `label`, `Val` or an alias,
- * and the editor should underline the whole of it. Where the position is not on a word, which is
- * the disable comments, the rest of the line stands in.
- *
- * Columns count from 1 in a finding, as an editor shows them, and from 0 in a report.
- */
-function over(text: string, { at: { line, column } }: Finding): AST.SourceLocation {
-  const rest = (text.split("\n")[line - 1] ?? "").slice(column - 1);
-  const width = WORD.exec(rest)?.[0].length ?? rest.trimEnd().length;
-  const start = { line, column: column - 1 };
-  return { start, end: { line, column: start.column + Math.max(width, 1) } };
-}
 
 const rules = Object.fromEntries(RULES.map((one) => [one.kind, rule(one)]));
 
@@ -246,3 +229,30 @@ if (!isMainThread && parentPort) {
     })();
   });
 }
+
+/** A point as ESLint counts it: lines from 1, columns from 0. */
+type Point = Val<"Point", { line: number; column: number }>;
+const Point = Val.companion<Point>().build();
+
+/**
+ * What the underline covers, from the point the finding names.
+ *
+ * A finding carries one position, and a report drawn from one position underlines one character.
+ * So the name at that position is measured here: the linter points at `label`, `Val` or an alias,
+ * and the editor should underline the whole of it. Where the position is not on a word, which is
+ * the disable comments, the rest of the line stands in.
+ */
+type Underline = Val<"Underline", { start: Point; end: Point }>;
+const Underline = Val.companion<Underline>()
+  .implAssoc(({ seal }) => ({
+    /** Columns count from 1 in a finding, as an editor shows them, and from 0 in a report. */
+    fromFinding: ({ at: { line, column } }: Finding, text: string): Underline => {
+      const rest = (text.split("\n")[line - 1] ?? "").slice(column - 1);
+      const width = WORD.exec(rest)?.[0].length ?? rest.trimEnd().length;
+      return seal({
+        start: Point.seal({ line, column: column - 1 }),
+        end: Point.seal({ line, column: column - 1 + Math.max(width, 1) }),
+      });
+    },
+  }))
+  .build();

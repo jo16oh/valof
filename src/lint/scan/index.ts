@@ -159,7 +159,22 @@ export type Scan = Val<
     directives: Directive[];
   }
 >;
-export const Scan = Val.companion<Scan>().build();
+export const Scan = Val.companion<Scan>()
+  .implAssoc(() => ({
+    /**
+     * Walks one file once, for every rule.
+     *
+     * One walk rather than one per rule because the rules share their footing: {@link Bindings}
+     * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
+     * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
+     * rules' job, and they see every file rather than this one.
+     *
+     * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
+     * unsaved, or `undefined` to read the file. With a buffer, the file may not exist at all.
+     */
+    exec: scan,
+  }))
+  .build();
 
 /** Resolves local exports and re-export chains to the symbol they expose. */
 export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => string {
@@ -223,18 +238,8 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   set.add(value);
 }
 
-/**
- * Walks one file once, for every rule.
- *
- * One walk rather than one per rule because the rules share their footing: {@link Bindings}
- * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
- * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
- * rules' job, and they see every file rather than this one.
- *
- * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
- * unsaved. The file may not exist at all.
- */
-export function scan(file: string, parser: Parser, modules: Modules, given?: string): Scan {
+/** The body of {@link Scan.exec}. */
+function scan(file: string, parser: Parser, modules: Modules, given: string | undefined): Scan {
   const source = given ?? readFileSync(file, "utf8");
   const position = positions(source);
 

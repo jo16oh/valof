@@ -5,7 +5,7 @@ import { Result as R } from "@praha/byethrow";
 import type { MissingParserError } from "./errors.ts";
 import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
 import { loadParser } from "./parser.ts";
-import { DirectiveMap, scan } from "./scan/index.ts";
+import { DirectiveMap, Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { Options } from "./options.ts";
 
@@ -28,7 +28,9 @@ export async function run(
     ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
   ];
   const modules = Modules.create(toScan);
-  const scans = toScan.map((file) => scan(file, parser, modules, Options.sourceOf(options, file)));
+  const scans = toScan.map((file) =>
+    Scan.exec(file, parser, modules, Options.sourceOf(options, file)),
+  );
 
   // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
   const findings = RULES.filter(({ kind }) => !KindSet.has(options.skip, kind)).reduce<Finding[]>(
@@ -39,7 +41,7 @@ export async function run(
     [],
   );
 
-  const directives = DirectiveMap.create(scans);
+  const directives = DirectiveMap.from(scans);
 
   return R.succeed(
     findings

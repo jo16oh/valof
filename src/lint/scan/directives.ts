@@ -154,9 +154,10 @@ export function directives(
  */
 export type DirectiveMap = Val<"DirectiveMap", Record<string, Directive[]>>;
 export const DirectiveMap = Val.companion<DirectiveMap>()
-  .implCreate((scans: readonly Scan[]) =>
-    Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives])),
-  )
+  .implAssoc(({ seal }) => ({
+    from: (scans: readonly Scan[]): DirectiveMap =>
+      seal(Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives]))),
+  }))
   .impl(() => ({
     /** Whether a directive in the file silences a finding of `kind` on `line`. */
     silences: (map, file: string, line: number, kind: string) =>
