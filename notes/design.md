@@ -4191,7 +4191,7 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   全体はコピーしない。位置は `Position`（`{ line, column }` の Val）で、各事実の `at` が持つ。一度は `Where` を
   他の事実に交差で混ぜる `Payload` にしたが、Val のフィールドにすれば足りた
 - **実行と plugin の値も Valof の型（2026-11-07）。**`lint()` は `Options` を受け取る。plugin は worker に
-  `Ask` を送り、`Reply`（`Found` / `Failed` の Enum）を受け取る。disable コメントが黙らせるものは
+  `Query` を送り、`Reply`（`Found` / `Failed` の Enum）を受け取る。disable コメントが黙らせるものは
   `Silenced`（`Every` / `Named` の Enum）。oxc-parser は `Parser.load` がモジュールの変数に読み込み、`Parser` の Val のメンバが使う
 - **実行が読むファイルも Val（2026-11-10）。**相対の import は、実行が読むファイルの中から解決先を探す。
   その一覧を持つクロージャを返していた `moduleResolver` を、`Modules` の Val にした。`Modules.create` が
@@ -4231,15 +4231,24 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   - **`Program` には置けない。**`create` と `Program` はルールとファイルの組ごとに呼ばれるので、そこで作った
     状態はルールの間でもファイルの間でも共有されない。共有できる一番狭い範囲が plugin
   - **却下: companion の `impl` / `implAssoc` のブロックに置く。**Val は不変のデータで、ブロックの中の状態は
-    メンバを読んでも見えない（#112 の `block-step` が報告する）。`Ask` は質問のデータだけの Val にした
+    メンバを読んでも見えない（#112 の `block-step` が報告する）。`Query` は質問のデータだけの Val にした
   - **却下: モジュールレベルの変数、状態を閉じ込める高階関数（`memo` など）をモジュールレベルに置く。**
     どちらもファイル全体から触れる。高階関数で包んでも、モジュールが状態を持つことは変わらない
   - **却下: クラスにする。**範囲を絞ったクロージャで足りる
+- **`Ask` を `Query` に改名した（2026-11-11）。**`Ask` は動詞にも読める（ユーザー）。worker に聞く関数は
+  動詞なので `ask` のまま
+- **`pipe` を `src/shared/pipe` に移した（2026-11-11）。**valof-lint が `pipe` を使うようになったので、
+  配布するコードが `scripts/` を import しないように移した。`pipe` は値の形が変わる段を分けるのに使う
+  （`Exports.from` の `flatMap` → `Object.fromEntries` → `seal`）。`Reply.match` は data-last の形で段に置く。
+  `run` の末尾はメソッドチェーンを `R.succeed<Finding[]>` に渡す。型引数が無いとオーバーロードから
+  結果が `unknown` になる
+  - **却下: メソッドチェーンの各メソッドを `pipe` の段に分ける。**チェーンで書けるものを分けても段が増える
+    だけ（ユーザー）
 - **Val にしないもの（2026-11-07）。**worker が起動時に受け取る `{ port, signal }`。`MessagePort` と
   `Int32Array` は payload に入らない
 - **時間切れの worker は止めて作り直す（2026-11-10）。**それまでは時間切れのあとも同じ worker に送っていたので、
   後の依頼は詰まった worker の後ろに並び、ファイルごとに 60 秒待って時間切れになった。port と signal は起動時に
-  一度だけ渡し、依頼で送るのは `Ask` だけにした。依頼ごとに送っていた `{ ask, port, signal }` の型は無くなった。
+  一度だけ渡し、依頼で送るのは `Query` だけにした。依頼ごとに送っていた `{ ask, port, signal }` の型は無くなった。
   待つ側と答える側は `src/lint/worker.ts` の `connect` と `serve` に切り出し、fixture の worker でテストする。
   却下: 待ち時間を環境変数で変えられるようにしてテストする。利用者向けの設定が増えるうえ、worker を確実に
   詰まらせる方法が別に要る
@@ -4595,7 +4604,7 @@ export default defineConfig({
 
 **worker はこのファイル自身。** `new Worker(new URL(import.meta.url))` として `isMainThread` で二役を分けた。別ファイルにすると、ソースツリーでは `./worker.ts`、配布物では `./worker.mjs` になり、どちらが動いているかをコードが当てにいくことになる。（2026-11-11 に分けた、下）
 
-**worker を別ファイルにした、2026-11-11。** 1 ファイルに 2 つの役割があると読みにくい（ユーザー）。拡張子は当てずに、plugin 自身の拡張子を使う（`extname(import.meta.url)`）。plugin と worker は `src/lint/eslint-plugin/` にまとめ、配布物も `dist/eslint-plugin/` に同じ並びで出す。両方が使う `Ask` と `Reply` は `messages.ts`、下線の `Underline` は `underline.ts`。
+**worker を別ファイルにした、2026-11-11。** 1 ファイルに 2 つの役割があると読みにくい（ユーザー）。拡張子は当てずに、plugin 自身の拡張子を使う（`extname(import.meta.url)`）。plugin と worker は `src/lint/eslint-plugin/` にまとめ、配布物も `dist/eslint-plugin/` に同じ並びで出す。両方が使う `Query` と `Reply` は `messages.ts`、下線の `Underline` は `underline.ts`。
 
 - **配布物の worker の場所はテストが見ていない。**テストはソースの plugin を読む。`vp pack` は出力先を変えても `package.json` の `exports` を書き換えるので、テストの中ではビルドできない。#114 の `check-dist` に、ビルドした plugin を動かす検査を足す
 
