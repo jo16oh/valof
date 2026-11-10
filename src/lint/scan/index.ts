@@ -31,6 +31,7 @@ import {
   Bindings,
   ImportBinding,
   ImportMap,
+  Modules,
   type SymbolRef,
 } from "./bindings.ts";
 import {
@@ -234,12 +235,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
  * unsaved. The file may not exist at all.
  */
-export function scan(
-  file: string,
-  parser: Parser,
-  given?: string,
-  resolveModule: (file: string, source: string) => string = (_file, source) => source,
-): Scan {
+export function scan(file: string, parser: Parser, modules: Modules, given?: string): Scan {
   const source = given ?? readFileSync(file, "utf8");
   const position = positions(source);
 
@@ -420,7 +416,7 @@ export function scan(
       case "ImportDeclaration": {
         const source = child(node, "source");
         if (!source || typeof source["value"] !== "string") break;
-        const module = resolveModule(file, source["value"]);
+        const module = Modules.resolve(modules, file, source["value"]);
         for (const specifier of children(node, "specifiers")) {
           const local = child(specifier, "local");
           if (local?.type !== "Identifier") continue;
@@ -464,7 +460,7 @@ export function scan(
     const sourceNode = child(statement, "source");
     const module =
       sourceNode && typeof sourceNode["value"] === "string"
-        ? resolveModule(file, sourceNode["value"])
+        ? Modules.resolve(modules, file, sourceNode["value"])
         : undefined;
     for (const specifier of children(statement, "specifiers")) {
       const local = child(specifier, "local");

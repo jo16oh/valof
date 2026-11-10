@@ -86,30 +86,36 @@ export function symbolRef(
   return imported ? moduleRef(imported.module, imported.name) : moduleRef(module, local);
 }
 
-/** Resolves relative module specifiers against the files in this lint run. */
-export function moduleResolver(files: readonly string[]): (file: string, source: string) => string {
-  const known = new Set(files.map((file) => normalize(resolve(file))));
-  return (file, source) => {
-    if (!source.startsWith(".")) return `package:${source}`;
-    const base = normalize(resolve(dirname(file), source));
-    const extension = extname(base);
-    const candidates = extension
-      ? [
-          base,
-          ...({ ".js": [".ts", ".tsx"], ".mjs": [".mts"], ".cjs": [".cts"] }[extension] ?? []).map(
-            (typescript) => `${base.slice(0, -extension.length)}${typescript}`,
-          ),
-        ]
-      : [
-          base,
-          ...[".ts", ".tsx", ".mts", ".cts"].map((extension) => `${base}${extension}`),
-          ...["index.ts", "index.tsx", "index.mts", "index.cts"].map((entry) =>
-            resolve(base, entry),
-          ),
-        ];
-    return candidates.find((candidate) => known.has(candidate)) ?? base;
-  };
-}
+/** The files in this lint run, which a relative module specifier resolves against. */
+export type Modules = Val<"Modules", { known: Record<string, true> }>;
+export const Modules = Val.companion<Modules>()
+  .implCreate((files: readonly string[]) => ({
+    known: Object.fromEntries(files.map((file) => [normalize(resolve(file)), true as const])),
+  }))
+  .impl(() => ({
+    /** The module `source` names from `file`: a file in the run, or a package. */
+    resolve: (modules, file: string, source: string) => {
+      if (!source.startsWith(".")) return `package:${source}`;
+      const base = normalize(resolve(dirname(file), source));
+      const extension = extname(base);
+      const candidates = extension
+        ? [
+            base,
+            ...(
+              { ".js": [".ts", ".tsx"], ".mjs": [".mts"], ".cjs": [".cts"] }[extension] ?? []
+            ).map((typescript) => `${base.slice(0, -extension.length)}${typescript}`),
+          ]
+        : [
+            base,
+            ...[".ts", ".tsx", ".mts", ".cts"].map((extension) => `${base}${extension}`),
+            ...["index.ts", "index.tsx", "index.mts", "index.cts"].map((entry) =>
+              resolve(base, entry),
+            ),
+          ];
+      return candidates.find((candidate) => Object.hasOwn(modules.known, candidate)) ?? base;
+    },
+  }))
+  .build();
 
 /** An own entry of a record, never one inherited from `Object.prototype`. */
 function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
