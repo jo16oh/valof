@@ -46,13 +46,13 @@ export async function run(
 
   return R.succeed(
     findings
-      .filter(
-        (finding) =>
-          Options.reports(options, finding.file) &&
-          !(directives.get(finding.file) ?? []).some((directive) =>
-            Directive.silences(directive, finding.at.line, finding.kind),
-          ),
-      )
+      .filter(({ file, at: { line }, kind }) => {
+        const asked = Options.reports(options, file);
+        const silenced = (directives.get(file) ?? []).some((directive) =>
+          Directive.silences(directive, line, kind),
+        );
+        return asked && !silenced;
+      })
       .sort(
         (a, b) =>
           a.file.localeCompare(b.file) ||
