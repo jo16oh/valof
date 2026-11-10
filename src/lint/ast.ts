@@ -60,6 +60,8 @@ export type Node = Enum<
     SpreadElement: { argument: Rec<Node> };
     ArrowFunctionExpression: { params: Rec<Node>[]; body: Rec<Node> };
     FunctionExpression: { params: Rec<Node>[]; body: Rec<Node> | null };
+    /** `id` is `null` for `export default function () {}`. */
+    FunctionDeclaration: { id: Rec<Node> | null };
     BlockStatement: {};
     ReturnStatement: { argument: Rec<Node> | null };
     AssignmentPattern: {};
@@ -223,6 +225,8 @@ function build(
         params: raw.params.map(at),
         body: maybe(raw.body),
       });
+    case "FunctionDeclaration":
+      return Node.FunctionDeclaration.create.nocopy({ ...shared, id: maybe(raw.id) });
     case "BlockStatement":
       return Node.BlockStatement.create.nocopy(shared);
     case "ReturnStatement":

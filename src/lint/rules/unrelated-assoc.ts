@@ -4,8 +4,9 @@ import { Finding, Rule } from "./rule.ts";
 
 /**
  * An `.implAssoc` member that names neither the type, nor its companion, nor a `seal` or `create`:
- * a helper placed on the companion. Only the member's own syntax is read, so one defined elsewhere
- * and passed in is not reported.
+ * a helper placed on the companion. A member passed by name is read through the function of that
+ * name at the top of the same file, declared with `function` or `const`; one from anywhere else is
+ * reported.
  */
 export type UnrelatedAssoc = Val<"UnrelatedAssoc", { kind: "unrelated-assoc" }, Rule>;
 export const UnrelatedAssoc = Val.companion<UnrelatedAssoc>()

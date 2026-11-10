@@ -120,8 +120,13 @@ export type StepMember = Val<
     function: boolean;
     /** Whether it calls the step's `seal` or `create`, or the companion's own. */
     constructs: boolean;
-    /** Whether it names the type (the companion too) or a `seal` / `create` anywhere. */
+    /**
+     * Whether it names the type (the companion too) or a `seal` / `create` anywhere. A member
+     * passed by name, `exec: scan`, is read through the function of that name in the same file.
+     */
     related: boolean;
+    /** The name a member passed by name gives, `null` for one written inline. */
+    reference: string | null;
   }
 >;
 export const StepMember = Val.companion<StepMember>().build();
@@ -555,7 +560,7 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
     escapedDyns,
     blockSteps,
     splitVariants,
-    stepMembers: memberBodies,
+    stepMembers: throughReferences(memberBodies, program),
     heldSeals,
     hiddenParameters: hidden(program, file, bound, position),
     memberSources,
@@ -833,6 +838,38 @@ function constructors(fn: Node): Set<string> {
   return names;
 }
 
+/**
+ * Settles `related` for the members passed by name, once the walk has read every function in the
+ * file: a function declared after the companion is read too.
+ */
+function throughReferences(members: readonly StepMember[], program: Node): StepMember[] {
+  const functions = new Map<string, Node>();
+  for (const statement of program.type === "Program" ? program.body : []) {
+    const declared =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    if (declared?.type === "FunctionDeclaration" && declared.id?.type === "Identifier")
+      functions.set(declared.id.name, declared);
+    if (declared?.type !== "VariableDeclaration" || declared.kind !== "const") continue;
+    for (const declarator of declared.declarations)
+      if (
+        declarator.type === "VariableDeclarator" &&
+        declarator.id.type === "Identifier" &&
+        (declarator.init?.type === "ArrowFunctionExpression" ||
+          declarator.init?.type === "FunctionExpression")
+      )
+        functions.set(declarator.id.name, declarator.init);
+  }
+  return members.map((member) => {
+    const named = member.reference === null ? undefined : functions.get(member.reference);
+    const related =
+      named !== undefined &&
+      [...descendants(named)].some(
+        (inner) => inner.type === "Identifier" && inner.name === member.type,
+      );
+    return !member.related && related ? StepMember.patch(member, { related }) : member;
+  });
+}
+
 /** Every node under `node`, itself included. */
 function* descendants(node: Node): Generator<Node> {
   yield node;
@@ -895,6 +932,7 @@ function bodies(
               entry.value.type === "FunctionExpression",
             constructs,
             related,
+            reference: entry.value.type === "Identifier" ? entry.value.name : null,
           }),
         );
       }
