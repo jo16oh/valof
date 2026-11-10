@@ -42,6 +42,8 @@ const host = (cwd: string, name: string) => {
   const { status, stdout, stderr } = spawnSync(process.execPath, [script, name], {
     cwd,
     encoding: "utf8",
+    // A host that never exits is a failure, not a run that never ends.
+    timeout: 10_000,
   });
   return { status, stdout, stderr };
 };
@@ -60,9 +62,10 @@ test("takes a list for the project, and leaves out what one entry excludes", () 
 });
 
 test("reads src/**/*.ts when no project is set", () => {
-  expect(host(at("default"), "src/orders.ts").stdout).toBe(
-    'Ref claims the brand "Ref", and so does another type\n',
-  );
+  expect(host(at("default"), "src/orders.ts")).toMatchObject({
+    status: 0,
+    stdout: 'Ref claims the brand "Ref", and so does another type\n',
+  });
 });
 
 test("says nothing about a file that holds no finding of its own", () => {
