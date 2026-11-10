@@ -21,6 +21,7 @@ export async function run(
   const loaded = await loadParser();
   if (R.isFailure(loaded)) return loaded;
   const parser = loaded.value;
+
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
   const walk = [
