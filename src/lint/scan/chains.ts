@@ -5,6 +5,7 @@ import {
   rootPath,
   unparenthesized,
   type Node,
+  Lines,
   type Position,
 } from "../ast.ts";
 import type { Enum } from "../../enum.ts";
@@ -121,12 +122,7 @@ export type Lift = Val<
 export const Lift = Val.companion<Lift>().build();
 
 /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
-export function valOf(
-  node: Node,
-  file: string,
-  bound: Bindings,
-  position: (offset: number) => Position,
-): Lift | undefined {
+export function valOf(node: Node, file: string, bound: Bindings, lines: Lines): Lift | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
   const path = rootPath(callee);
@@ -142,7 +138,7 @@ export function valOf(
     const property = child(callee, "property");
     if (!property) return undefined;
     return Lift.seal({
-      at: position(property["start"] as number),
+      at: Lines.at(lines, property["start"] as number),
       typeName: null,
       typeRef: null,
       qualifier: null,
@@ -157,7 +153,7 @@ export function valOf(
   const of = variantArgument(param, named, bound);
   const reached = of ?? named;
   return Lift.seal({
-    at: position(reached.node["start"] as number),
+    at: Lines.at(lines, reached.node["start"] as number),
     typeName: reached.node["name"] as string,
     typeRef: symbolRef(file, bound, reached.node["name"] as string, reached.qualifier),
     qualifier: reached.qualifier ?? null,
@@ -254,7 +250,7 @@ export function companionSite(
   file: string,
   at: Position,
   bound: Bindings,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): CompanionSite | undefined {
   const { steps, typeArguments, of } = readChain(node, bound);
   const first = unparenthesized(typeArguments ? children(typeArguments, "params")[0] : undefined);
@@ -275,7 +271,7 @@ export function companionSite(
     typeName: named.node["name"] as string,
     typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
     typeOffset: named.node["start"] as number,
-    typeAt: position(named.node["start"] as number),
+    typeAt: Lines.at(lines, named.node["start"] as number),
     name: null,
     qualifier: named.qualifier ?? null,
     seals: steps.has("implSeal"),

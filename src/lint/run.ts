@@ -4,7 +4,7 @@ import { Result as R } from "@praha/byethrow";
 
 import type { MissingParserError } from "./errors.ts";
 import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
-import { loadParser } from "./parser.ts";
+import { Parser } from "./parser.ts";
 import { DirectiveMap, Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { Options } from "./options.ts";
@@ -17,7 +17,7 @@ export async function run(
   files: readonly string[],
   options: Options = Options.create(),
 ): Promise<R.Result<Finding[], MissingParserError>> {
-  const loaded = await loadParser();
+  const loaded = await Parser.load();
   if (R.isFailure(loaded)) return loaded;
   const parser = loaded.value;
 

@@ -1,5 +1,5 @@
 import { Enum, Val } from "../../index.ts";
-import type { Position } from "../ast.ts";
+import { Lines, type Position } from "../ast.ts";
 import { KindSet } from "../rules/rule.ts";
 import type { Scan } from "./index.ts";
 
@@ -106,9 +106,9 @@ function ownLine(source: string, start: number): boolean {
 export function directives(
   comments: readonly { value: string; start: number; end: number }[],
   source: string,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Directive[] {
-  const lineOf = (offset: number): number => position(offset).line;
+  const lineOf = (offset: number): number => Lines.at(lines, offset).line;
   const found: Directive[] = [];
   /** The line directives of the block being read, held until its last line is known. */
   let block: { at: Position; spelling: string; kinds: string[] }[] = [];
@@ -135,7 +135,7 @@ export function directives(
     if (!joins) close();
     const carried = directive(comment.value);
     if (carried) {
-      const written = { at: position(comment.start), ...carried };
+      const written = { at: Lines.at(lines, comment.start), ...carried };
       if (carried.spelling === "valof-lint-disable-next-line") block.push(written);
       else found.push(Directive.seal({ ...written, covers: "file" }));
     }

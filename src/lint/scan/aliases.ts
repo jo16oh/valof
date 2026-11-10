@@ -1,5 +1,13 @@
 import { Val } from "../../index.ts";
-import { child, children, keyName, unparenthesized, type Node, type Position } from "../ast.ts";
+import {
+  child,
+  children,
+  keyName,
+  Lines,
+  unparenthesized,
+  type Node,
+  type Position,
+} from "../ast.ts";
 import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
@@ -110,12 +118,7 @@ export type Aliases = Val<
 >;
 export const Aliases = Val.companion<Aliases>().build();
 
-export function valAliases(
-  program: Node,
-  file: string,
-  bound: Bindings,
-  position: (offset: number) => Position,
-): Aliases {
+export function valAliases(program: Node, file: string, bound: Bindings, lines: Lines): Aliases {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
   const enumAliases: EnumAlias[] = [];
@@ -141,7 +144,7 @@ export function valAliases(
       if (child(node, "typeParameters")) continue;
       reAliases.push(
         ReAlias.seal({
-          at: position((id["start"] ?? node["start"]) as number),
+          at: Lines.at(lines, (id["start"] ?? node["start"]) as number),
           alias: id["name"] as string,
           ref: symbolRef(file, bound, id["name"] as string),
           target: named,
@@ -168,7 +171,7 @@ export function valAliases(
       aliases.push(
         Alias.seal({
           ...declared,
-          traits: traitNames(children(args, "params")[2], file, bound, locals, position),
+          traits: traitNames(children(args, "params")[2], file, bound, locals, lines),
         }),
       );
     } else if (kind === "Trait") {
@@ -180,7 +183,7 @@ export function valAliases(
           ...declared,
           // The same position as a Val's: an enum's third argument carries the traits, the shared
           // fields and the tag's name, all intersected.
-          traits: traitNames(children(args, "params")[2], file, bound, locals, position),
+          traits: traitNames(children(args, "params")[2], file, bound, locals, lines),
           variants: variants ?? null,
         }),
       );
@@ -192,7 +195,7 @@ export function valAliases(
     if (!literal || typeof literal["value"] !== "string") continue;
     brands.push(
       BrandClaim.seal({
-        at: position((id["start"] ?? node["start"]) as number),
+        at: Lines.at(lines, (id["start"] ?? node["start"]) as number),
         typeName: named,
         brand: literal["value"],
         alias: id["name"] as string,
@@ -265,7 +268,7 @@ function traitNames(
   file: string,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): DeclaredTrait[] {
   if (!node) return [];
   const seen = new Set<string>();
@@ -313,7 +316,7 @@ function traitNames(
     out.set(
       ref.key,
       DeclaredTrait.seal({
-        at: position(written["start"] as number),
+        at: Lines.at(lines, written["start"] as number),
         name: named,
         ref,
       }),

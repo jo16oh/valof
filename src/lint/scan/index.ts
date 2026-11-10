@@ -11,7 +11,7 @@ import {
   children,
   isNode,
   keyName,
-  positions,
+  Lines,
   unparenthesized,
   type Node,
   type Position,
@@ -241,7 +241,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
 /** The body of {@link Scan.exec}. */
 function scan(file: string, parser: Parser, modules: Modules, given: string | undefined): Scan {
   const source = given ?? readFileSync(file, "utf8");
-  const position = positions(source);
+  const lines = Lines.from(source);
 
   let bound = Bindings.create();
   const exportedAs = new Map<string, string>();
@@ -297,13 +297,19 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
         const id = child(node, "id");
         const init = child(node, "init");
         if (!id || !init) break;
-        const site = companionSite(init, file, position(init["start"] as number), bound, position);
+        const site = companionSite(
+          init,
+          file,
+          Lines.at(lines, init["start"] as number),
+          bound,
+          lines,
+        );
         if (site)
           sites.push(
             id.type === "Identifier"
               ? CompanionSite.patch(site, {
                   name: id["name"] as string,
-                  nameAt: position(id["start"] as number),
+                  nameAt: Lines.at(lines, id["start"] as number),
                 })
               : site,
           );
@@ -322,7 +328,12 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
                 collect(reads, from, name);
                 const local = child(property, "value");
                 if (local?.type === "Identifier")
-                  took(local["name"] as string, position(local["start"] as number), from, name);
+                  took(
+                    local["name"] as string,
+                    Lines.at(lines, local["start"] as number),
+                    from,
+                    name,
+                  );
               }
             }
           }
@@ -355,21 +366,21 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
           )
             took(
               id["name"] as string,
-              position(id["start"] as number),
+              Lines.at(lines, id["start"] as number),
               from["name"] as string,
               taken,
             );
         }
-        members.push(...implMembers(init, id["name"] as string, bound, objects, position));
+        members.push(...implMembers(init, id["name"] as string, bound, objects, lines));
         break;
       }
       case "CallExpression": {
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
-        const lift = valOf(node, file, bound, position);
+        const lift = valOf(node, file, bound, lines);
         if (lift) lifts.push(lift);
-        const implementation = implTrait(node, file, bound, sites, objects, position);
+        const implementation = implTrait(node, file, bound, sites, objects, lines);
         if (implementation) {
           traitImplementations.push(implementation);
           members.push(...implementation.overrides);
@@ -486,7 +497,7 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
     program,
     file,
     bound,
-    position,
+    lines,
   );
 
   return Scan.seal({
@@ -508,7 +519,7 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
     sites,
     companionBindings,
     lifts,
-    directives: directives(comments, source, position),
+    directives: directives(comments, source, lines),
   });
 }
 
@@ -554,7 +565,7 @@ function implTrait(
   bound: Bindings,
   sites: readonly CompanionSite[],
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): TraitImplementation | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
@@ -591,7 +602,7 @@ function implTrait(
   const [traitRef, object] = children(node, "arguments");
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
-  const resolved = object ? stepMembers(object, val.name, objects, position) : [];
+  const resolved = object ? stepMembers(object, val.name, objects, lines) : [];
   return TraitImplementation.seal({ val, trait, overrides: resolved });
 }
 
@@ -603,12 +614,12 @@ function stepMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Member[] {
   const fn = node.type === "Identifier" ? objects.get(node["name"] as string) : node;
   const body =
     fn?.type === "ArrowFunctionExpression" ? unparenthesized(child(fn, "body")) : undefined;
-  return body ? objectMembers(body, companion, objects, position, new Set()) : [];
+  return body ? objectMembers(body, companion, objects, lines, new Set()) : [];
 }
 
 /** Resolves inline/const objects and spreads, retaining known keys even beside an unknown spread. */
@@ -616,7 +627,7 @@ function objectMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
   seen: Set<string>,
 ): Member[] {
   if (node.type === "Identifier") {
@@ -626,7 +637,7 @@ function objectMembers(
     if (!target) return [];
     const next = new Set(seen);
     next.add(name);
-    return objectMembers(target, companion, objects, position, next);
+    return objectMembers(target, companion, objects, lines, next);
   }
   if (node.type !== "ObjectExpression") return [];
   const byName = new Map<string, Member>();
@@ -634,7 +645,7 @@ function objectMembers(
     if (entry.type === "SpreadElement") {
       const argument = child(entry, "argument");
       if (!argument) continue;
-      for (const member of objectMembers(argument, companion, objects, position, seen))
+      for (const member of objectMembers(argument, companion, objects, lines, seen))
         byName.set(member.member, member);
       continue;
     }
@@ -646,7 +657,7 @@ function objectMembers(
     }
     byName.set(
       name,
-      Member.seal({ at: position(entry["start"] as number), companion, member: name }),
+      Member.seal({ at: Lines.at(lines, entry["start"] as number), companion, member: name }),
     );
   }
   return [...byName.values()];
@@ -661,7 +672,7 @@ function implMembers(
   companion: string,
   bound: Bindings,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Member[] {
   const found = new Map<string, Member>();
   let current: Node = node;
@@ -675,7 +686,7 @@ function implMembers(
     const [object] = children(current, "arguments");
     if (step.name === "impl" && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
-      for (const member of stepMembers(object, owner, objects, position))
+      for (const member of stepMembers(object, owner, objects, lines))
         if (!rejected(member.member, variant ? undefined : root))
           found.set(`${owner}\0${member.member}`, member);
     }
