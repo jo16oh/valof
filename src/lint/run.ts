@@ -66,20 +66,23 @@ export async function run(
   const findings = ran.value;
 
   /**
+   * Whether a directive in the file silences a finding of `kind` on `line`.
+   *
    * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
    * brand is still reported, since silencing it is its own line's decision.
    */
-  const directives = new Map(scans.map((scanned) => [scanned.file, scanned.directives]));
+  const silenced = (() => {
+    const directives = new Map(scans.map((scanned) => [scanned.file, scanned.directives]));
+    return (file: string, line: number, kind: string): boolean =>
+      (directives.get(file) ?? []).some((directive) => Directive.silences(directive, line, kind));
+  })();
 
   return R.succeed(
     findings
-      .filter(({ file, at: { line }, kind }) => {
-        const target = Options.isTarget(options, file);
-        const silenced = (directives.get(file) ?? []).some((directive) =>
-          Directive.silences(directive, line, kind),
-        );
-        return target && !silenced;
-      })
+      .filter(
+        ({ file, at: { line }, kind }) =>
+          Options.isTarget(options, file) && !silenced(file, line, kind),
+      )
       .sort(
         (a, b) =>
           a.file.localeCompare(b.file) ||
