@@ -22,8 +22,10 @@ export async function run(
   const parser = loaded.value;
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
-  const listed = new Set(files.map((file) => resolve(file)));
-  const walk = [...files, ...Object.keys(options.overlay).filter((file) => !listed.has(file))];
+  const walk = [
+    ...files,
+    ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
+  ];
   const modules = Modules.create(walk);
   const scans = walk.map((file) => scan(file, parser, modules, Options.sourceOf(options, file)));
 
