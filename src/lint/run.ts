@@ -22,17 +22,21 @@ export async function run(
   const parser = loaded.value;
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
-  const listed = new Set(files.map((file) => resolve(file)));
-  const walk = [...files, ...Object.keys(options.overlay).filter((file) => !listed.has(file))];
+  const walk = [
+    ...files,
+    ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
+  ];
   const modules = Modules.create(walk);
   const scans = walk.map((file) => scan(file, parser, modules, Options.sourceOf(options, file)));
 
-  const findings: Finding[] = [];
-  const notRun = options.skip;
-  for (const rule of RULES) {
-    if (KindSet.has(notRun, rule.kind)) continue;
-    findings.push(...rule.run(scans, Context.seal({ reported: findings, notRun })));
-  }
+  // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
+  const findings = RULES.filter(({ kind }) => !KindSet.has(options.skip, kind)).reduce<Finding[]>(
+    (reported, rule) => [
+      ...reported,
+      ...rule.run(scans, Context.seal({ reported, notRun: options.skip })),
+    ],
+    [],
+  );
 
   /**
    * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
