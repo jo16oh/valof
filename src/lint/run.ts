@@ -6,7 +6,7 @@ import { MissingTypeScriptError, type MissingParserError } from "./errors.ts";
 import { Context, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { loadParser } from "./parser.ts";
 import { scan, silences } from "./scan/index.ts";
-import { moduleResolver } from "./scan/bindings.ts";
+import { Modules } from "./scan/bindings.ts";
 import { arities, type Arity } from "./types.ts";
 import { Options } from "./options.ts";
 
@@ -25,10 +25,8 @@ export async function run(
   // caller did not list joins them, as itself.
   const listed = new Set(files.map((file) => resolve(file)));
   const walk = [...files, ...Object.keys(options.overlay).filter((file) => !listed.has(file))];
-  const resolveModule = moduleResolver(walk);
-  const scans = walk.map((file) =>
-    scan(file, parser, Options.sourceOf(options, file), resolveModule),
-  );
+  const modules = Modules.create(walk);
+  const scans = walk.map((file) => scan(file, parser, modules, Options.sourceOf(options, file)));
 
   const findings: Finding[] = [];
   const rules = compile(options.enable);
