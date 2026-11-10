@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { symbolIdentity, type Scan } from "../scan/index.ts";
+import { Exports, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /**
@@ -38,12 +38,12 @@ export const CompanionMismatch = Val.companion<CompanionMismatch>()
  * companion, `const x = config.value`, is no variant and is left alone.
  */
 function findings({ kind }: CompanionMismatch, scans: readonly Scan[]): Finding[] {
-  const identity = symbolIdentity(scans);
+  const exports = Exports.from(scans);
   /** Every enum whose variants the declaration settled, by the identity its companion shares. */
   const variants = new Map<string, ReadonlySet<string>>();
   for (const { enumAliases } of scans)
     for (const { ref, variants: declared } of enumAliases)
-      if (declared) variants.set(identity(ref), new Set(declared));
+      if (declared) variants.set(Exports.identify(exports, ref), new Set(declared));
 
   const found: Finding[] = [];
   for (const { file, sites, companionBindings } of scans) {
@@ -61,7 +61,7 @@ function findings({ kind }: CompanionMismatch, scans: readonly Scan[]): Finding[
     for (const { name, companion, companionRef, key, at } of companionBindings) {
       if (name === key) continue;
       // Keyed by the enum's declaration, so anything else taken off anything else misses here.
-      if (variants.get(identity(companionRef))?.has(key) !== true) continue;
+      if (variants.get(Exports.identify(exports, companionRef))?.has(key) !== true) continue;
       found.push(
         Finding.seal({
           kind,

@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { symbolIdentity, type Scan } from "../scan/index.ts";
+import { Exports, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 export type UnimplementedTrait = Val<"UnimplementedTrait", { kind: "unimplemented-trait" }, Rule>;
@@ -22,9 +22,11 @@ export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
  */
 function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];
-  const identity = symbolIdentity(scans);
+  const exports = Exports.from(scans);
   const traits = new Set(
-    scans.flatMap(({ traitAliases }) => traitAliases.map(({ ref }) => identity(ref))),
+    scans.flatMap(({ traitAliases }) =>
+      traitAliases.map(({ ref }) => Exports.identify(exports, ref)),
+    ),
   );
   for (const scan of scans)
     for (const { alias, ref, traits: declared, onlyDeclared } of [
@@ -33,12 +35,12 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
     ]) {
       const implemented = new Set(
         scan.traitImplementations
-          .filter((one) => identity(one.val) === identity(ref))
-          .map((one) => identity(one.trait)),
+          .filter((one) => Exports.identify(exports, one.val) === Exports.identify(exports, ref))
+          .map((one) => Exports.identify(exports, one.trait)),
       );
       for (const trait of declared)
-        if (!implemented.has(identity(trait.ref))) {
-          if (onlyDeclared && !traits.has(identity(trait.ref))) continue;
+        if (!implemented.has(Exports.identify(exports, trait.ref))) {
+          if (onlyDeclared && !traits.has(Exports.identify(exports, trait.ref))) continue;
           // The declaration's position is deliberate: it points to the promise that is missing.
           found.push(
             Finding.seal({

@@ -158,26 +158,39 @@ export const Scan = Val.companion<Scan>()
   }))
   .build();
 
-/** Resolves local exports and re-export chains to the symbol they expose. */
-export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => string {
-  const exports = new Map<string, SymbolRef>();
-  for (const scan of scans) {
-    const module = normalize(resolve(scan.file));
-    for (const [name, target] of Object.entries(scan.exportedRefs))
-      exports.set(SymbolRef.fromExport(module, name).key, target);
-  }
-  return (ref) => {
-    const seen = new Set<string>();
-    let current = ref;
-    while (!seen.has(current.key)) {
-      seen.add(current.key);
-      const target = exports.get(current.key);
-      if (!target) break;
-      current = target;
-    }
-    return current.key;
-  };
-}
+/**
+ * What each module of a run exports, keyed by the reference an export makes: a re-export points on
+ * to the symbol it exposes.
+ */
+export type Exports = Val<"Exports", Record<string, SymbolRef>>;
+export const Exports = Val.companion<Exports>()
+  .implAssoc(({ seal }) => ({
+    from: (scans: readonly Scan[]): Exports =>
+      seal(
+        Object.fromEntries(
+          scans.flatMap(({ file, exportedRefs }) => {
+            const module = normalize(resolve(file));
+            return Object.entries(exportedRefs).map(([name, target]) => [
+              SymbolRef.fromExport(module, name).key,
+              target,
+            ]);
+          }),
+        ),
+      ),
+  }))
+  .impl(() => ({
+    /** The key of the symbol `ref` stands for, past every local export and re-export chain. */
+    identify: (exports, ref: SymbolRef): string => {
+      const seen = new Set<string>();
+      let current = ref;
+      while (!seen.has(current.key) && Object.hasOwn(exports, current.key)) {
+        seen.add(current.key);
+        current = exports[current.key]!;
+      }
+      return current.key;
+    },
+  }))
+  .build();
 
 /** An enum to read keys from. `AnyEnum` widens them to `string`. */
 type Sample = Enum<"Sample", { A: { a: 1 } }>;

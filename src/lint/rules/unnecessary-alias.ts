@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { symbolIdentity, type Scan } from "../scan/index.ts";
+import { Exports, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /** A type alias which is only another spelling for a Val, a Trait or an Enum. */
@@ -14,15 +14,18 @@ export const UnnecessaryAlias = Val.companion<UnnecessaryAlias>()
   .build();
 
 function findings({ kind }: UnnecessaryAlias, scans: readonly Scan[]): Finding[] {
-  const identity = symbolIdentity(scans);
+  const exports = Exports.from(scans);
   const declarations = new Map<string, string>();
   for (const { aliases, traitAliases, enumAliases } of scans)
     for (const { alias, ref } of [...aliases, ...traitAliases, ...enumAliases])
-      declarations.set(identity(ref), alias);
+      declarations.set(Exports.identify(exports, ref), alias);
   const links = new Map<string, { key: string; name: string }>();
   for (const { reAliases } of scans)
     for (const link of reAliases)
-      links.set(identity(link.ref), { key: identity(link.targetRef), name: link.targetRef.name });
+      links.set(Exports.identify(exports, link.ref), {
+        key: Exports.identify(exports, link.targetRef),
+        name: link.targetRef.name,
+      });
   const endsAt = (start: { key: string; name: string }): string | undefined => {
     const seen = new Set<string>();
     let current = start;
@@ -38,7 +41,10 @@ function findings({ kind }: UnnecessaryAlias, scans: readonly Scan[]): Finding[]
   };
   return scans.flatMap(({ file, reAliases }) =>
     reAliases.flatMap(({ alias, targetRef, at }) => {
-      const declaration = endsAt({ name: targetRef.name, key: identity(targetRef) });
+      const declaration = endsAt({
+        name: targetRef.name,
+        key: Exports.identify(exports, targetRef),
+      });
       return declaration
         ? [
             Finding.seal({

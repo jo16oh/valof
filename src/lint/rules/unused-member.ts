@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import { ImportMap, symbolIdentity, type Scan } from "../scan/index.ts";
+import { ImportMap, Exports, type Scan } from "../scan/index.ts";
 import { Finding, Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
@@ -36,7 +36,7 @@ export const UnusedMember = Val.companion<UnusedMember>()
  * are never reported however dead they are.
  */
 function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
-  const identity = symbolIdentity(scans);
+  const exports = Exports.from(scans);
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
   for (const scan of scans)
@@ -82,14 +82,16 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   for (const scan of scans)
     for (const implementation of scan.traitImplementations)
       implementations.set(
-        `${identity(implementation.val)}\0${identity(implementation.trait)}`,
+        `${Exports.identify(exports, implementation.val)}\0${Exports.identify(exports, implementation.trait)}`,
         implementation,
       );
 
   // A dyn read dispatches through the Val's selected implementation.
   for (const scan of scans)
     for (const { val, trait, member } of scan.dynReads) {
-      const implementation = implementations.get(`${identity(val)}\0${identity(trait)}`);
+      const implementation = implementations.get(
+        `${Exports.identify(exports, val)}\0${Exports.identify(exports, trait)}`,
+      );
       const overridden = implementation?.overrides.some((one) => one.member === member) === true;
       note(overridden ? val.name : trait.name, member);
     }
@@ -104,9 +106,11 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   for (const scan of scans)
     for (const { trait, val } of scan.escapedDyns) {
       const implementing = [...implementations.values()].filter(
-        (one) => identity(one.trait) === identity(trait),
+        (one) => Exports.identify(exports, one.trait) === Exports.identify(exports, trait),
       );
-      const named = implementing.filter((one) => identity(one.val) === identity(val));
+      const named = implementing.filter(
+        (one) => Exports.identify(exports, one.val) === Exports.identify(exports, val),
+      );
       for (const implementation of named.length > 0 ? named : implementing)
         for (const key of anywhere) {
           const overridden = implementation.overrides.some((one) => one.member === key);
@@ -132,7 +136,7 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   const variants = new Map<string, ReadonlySet<string>>();
   for (const { enumAliases } of scans)
     for (const { ref, variants: declared } of enumAliases)
-      if (declared) variants.set(identity(ref), new Set(declared));
+      if (declared) variants.set(Exports.identify(exports, ref), new Set(declared));
 
   return scans.flatMap(({ file, members, sites }) => {
     /**
@@ -141,7 +145,7 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
      */
     const taken = new Map<string, ReadonlySet<string>>();
     for (const site of sites) {
-      const declared = variants.get(identity(site.typeRef));
+      const declared = variants.get(Exports.identify(exports, site.typeRef));
       if (site.name !== null && declared) taken.set(site.name, declared);
     }
     return members
