@@ -28,6 +28,12 @@ test("names the one that silenced nothing, not the whole directive", async () =>
   ]);
 });
 
+test("reports a name written twice once", async () => {
+  expect(await messages("repeated")).toEqual([
+    "valof-lint-disable-next-line names unused-member, which reports nothing here",
+  ]);
+});
+
 test("says a whole-file directive reports nothing in the file, not here", async () => {
   expect(await lint("whole-file")).toEqual([
     {
