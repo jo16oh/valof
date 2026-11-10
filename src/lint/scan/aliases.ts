@@ -8,7 +8,7 @@ import {
   type Node,
   type Position,
 } from "../ast.ts";
-import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
+import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
 export type DeclaredTrait = Val<"DeclaredTrait", { at: Position; name: string; ref: SymbolRef }>;
@@ -152,11 +152,11 @@ function valAliases(program: Node, file: string, bound: Bindings, lines: Lines):
         ReAlias.seal({
           at: Lines.at(lines, (id["start"] ?? node["start"]) as number),
           alias: id["name"] as string,
-          ref: symbolRef(file, bound, id["name"] as string),
+          ref: Bindings.refOf(bound, file, id["name"] as string, undefined),
           target: named,
-          targetRef: symbolRef(
-            file,
+          targetRef: Bindings.refOf(
             bound,
+            file,
             named,
             typeName.type === "TSQualifiedName"
               ? (child(typeName, "left")?.["name"] as string)
@@ -171,7 +171,7 @@ function valAliases(program: Node, file: string, bound: Bindings, lines: Lines):
     const declared = {
       file,
       alias: id["name"] as string,
-      ref: symbolRef(file, bound, id["name"] as string),
+      ref: Bindings.refOf(bound, file, id["name"] as string, undefined),
     };
     if (kind === "Val") {
       aliases.push(
@@ -296,7 +296,7 @@ function traitNames(
     if (Bindings.original(bound, named) === "Tag") return;
     const qualifier =
       name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
-    const ref = symbolRef(file, bound, named, qualifier);
+    const ref = Bindings.refOf(bound, file, named, qualifier);
     if (seen.has(ref.key)) return;
     seen.add(ref.key);
     const alias = unparenthesized(aliases.get(named));

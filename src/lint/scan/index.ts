@@ -25,21 +25,12 @@ import {
   type ReAlias,
   type TraitAlias,
 } from "./aliases.ts";
-import {
-  moduleRef,
-  symbolRef,
-  Bindings,
-  ImportBinding,
-  ImportMap,
-  Modules,
-  type SymbolRef,
-} from "./bindings.ts";
+import { Bindings, ImportBinding, ImportMap, Modules, SymbolRef } from "./bindings.ts";
 import { CompanionSite, fromRoot, stepOf, variantOf, typeReference, Lift } from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
-export { symbolRef } from "./bindings.ts";
 export { ImportMap } from "./bindings.ts";
 export type { ImportBinding, SymbolRef } from "./bindings.ts";
 export type {
@@ -173,7 +164,7 @@ export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => stri
   for (const scan of scans) {
     const module = normalize(resolve(scan.file));
     for (const [name, target] of Object.entries(scan.exportedRefs))
-      exports.set(moduleRef(module, name).key, target);
+      exports.set(SymbolRef.fromExport(module, name).key, target);
   }
   return (ref) => {
     const seen = new Set<string>();
@@ -260,7 +251,7 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
         at,
         name,
         companion,
-        companionRef: symbolRef(file, bound, companion),
+        companionRef: Bindings.refOf(bound, file, companion, undefined),
         key,
       }),
     );
@@ -478,7 +469,9 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
       exportedAs.set(outside, inside);
       exportedRefs.set(
         outside,
-        module ? moduleRef(module, inside) : symbolRef(file, bound, inside),
+        module
+          ? SymbolRef.fromExport(module, inside)
+          : Bindings.refOf(bound, file, inside, undefined),
       );
     }
   }
@@ -535,7 +528,8 @@ function dynBox(
 
 /** A runtime companion reference with its exporting module retained. */
 function valueReference(node: Node, file: string, bound: Bindings): SymbolRef | undefined {
-  if (node.type === "Identifier") return symbolRef(file, bound, node["name"] as string);
+  if (node.type === "Identifier")
+    return Bindings.refOf(bound, file, node["name"] as string, undefined);
   if (node.type !== "MemberExpression") return undefined;
   const object = child(node, "object");
   const property = child(node, "property");
@@ -546,7 +540,7 @@ function valueReference(node: Node, file: string, bound: Bindings): SymbolRef | 
   )
     return undefined;
   const name = keyName(property, node["computed"] === true);
-  return name ? symbolRef(file, bound, name, object["name"] as string) : undefined;
+  return name ? Bindings.refOf(bound, file, name, object["name"] as string) : undefined;
 }
 
 /** Reads one `.implTrait` call without collapsing repeated calls in the same chain. */
@@ -581,7 +575,7 @@ function implTrait(
     const valRef = valNode?.type === "TSTypeReference" ? child(valNode, "typeName") : undefined;
     const valNamed = valRef && typeReference(valRef, bound);
     val = valNamed
-      ? symbolRef(file, bound, valNamed.node["name"] as string, valNamed.qualifier)
+      ? Bindings.refOf(bound, file, valNamed.node["name"] as string, valNamed.qualifier)
       : undefined;
   } else {
     const receiver = child(root, "object");

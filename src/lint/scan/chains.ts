@@ -12,7 +12,7 @@ import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
 import type { AnyVal, CompanionBuilder } from "../../val.ts";
 import { Val } from "../../index.ts";
-import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
+import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** `K`, which must be a key of every member of `T`. */
 type On<T, K extends keyof T> = K;
@@ -165,7 +165,7 @@ function valOf(node: Node, file: string, bound: Bindings, lines: Lines): Lift | 
   return Lift.seal({
     at: Lines.at(lines, reached.node["start"] as number),
     typeName: reached.node["name"] as string,
-    typeRef: symbolRef(file, bound, reached.node["name"] as string, reached.qualifier),
+    typeRef: Bindings.refOf(bound, file, reached.node["name"] as string, reached.qualifier),
     qualifier: reached.qualifier ?? null,
     variant: of?.variant ?? null,
   });
@@ -279,7 +279,7 @@ function companionSite(
     of,
     nameAt: at,
     typeName: named.node["name"] as string,
-    typeRef: symbolRef(file, bound, named.node["name"] as string, named.qualifier),
+    typeRef: Bindings.refOf(bound, file, named.node["name"] as string, named.qualifier),
     typeOffset: named.node["start"] as number,
     typeAt: Lines.at(lines, named.node["start"] as number),
     name: null,
