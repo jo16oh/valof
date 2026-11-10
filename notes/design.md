@@ -4197,10 +4197,13 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   その一覧を持つクロージャを返していた `moduleResolver` を、`Modules` の Val にした。`Modules.create` が
   パスを一度だけ正規化し、`Modules.resolve` が解決先を引く。`Scan.exec` は関数ではなく `Modules` を受け取る
 - **Val を作る関数、Val を読む関数は companion に置く（2026-11-10）。**`Scan.exec`、`Parser.load`、
-  `Files.read`、`Ask.send`、`Aliases.fromProgram`、`Lift.fromCall`、`CompanionSite.fromChain`、
+  `Files.read`、`Aliases.fromProgram`、`Lift.fromCall`、`CompanionSite.fromChain`、
   `SymbolRef.fromExport`、`Bindings.refOf`、`Underline.fromFinding`。状態を持つクロージャも Val にした。
   行の位置は `Lines`、re-export の解決は `Exports`、ファイルごとの disable コメントは `DirectiveMap`
-  - **副作用があっても置く。**名前で示す。`exec`、`load`、`read`、`send` は動作の名前で、`from*` は純粋な変換にだけ使う
+  - **副作用があっても置く。**名前で示す。`exec`、`load`、`read` は動作の名前で、`from*` は純粋な変換にだけ使う
+  - **入出力と変換を分ける（2026-11-11）。**`Files.read` は glob を展開するだけで、除外と報告先の決定は純粋な
+    `Files.fromPaths` が行う。`Parser.load` は oxc-parser を import し、`Parser.fromModule` に渡す。パーサを
+    走らせるメンバは `Parser.parse` から動作の名前の `Parser.exec` にした
   - **却下: 副作用のある関数は自由関数に残す。**型の API の一部が companion の外に出て、`Scan.` の補完で作り方が見えなくなる。
     置き場所で気にするのは、副作用ではなく実行環境だ。companion は丸ごと bundle に入るので、`node:fs` を使うメンバを
     ブラウザでも使う Val に置かない。lint は Node 専用なので、この制約は関係しない
@@ -4213,6 +4216,24 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
 - **報告するファイルは target と呼ぶ（2026-11-10）。**`Options.targets` と `Options.isTarget`。CLI の
   `Arguments.targets` と同じ言葉にした。それまでは、報告するファイルを `report`、判定を `reports` と呼んでいた
 - **Val の配列に `readonly` を書かない（2026-11-10）。**payload の配列は `Record` の中でも readonly になる
+- **残っていた型も Val にした（2026-11-10）。**valof-lint を自分にかけて、Val 以外で書いた型を探した。
+  - 文字列の Val: ファイルのパスは `FilePath`、ルールの名前は `Kind`。どちらも実行の入口から `Finding` まで
+    運ぶ。`Kind` は名前の union ではなく、ただの文字列の Val（union をやめた理由は上）
+  - 集合: ルールの名前は `KindSet`。disable コメントが挙げた名前は、どのルールにも無い綴りもあるので
+    `NameSet` に分けた。`KindSet.find` が名前の綴りを `Kind` にする
+  - その他: plugin の下線は `Underline` と `Point`、`dyn` の箱は `DynBox`、行が決まる前の disable コメントは
+    `DirectiveComment`、plugin の直前の答えは `Answer`
+- **plugin の状態は plugin の中に置く（2026-11-11）。**worker への接続、直前の答え、glob したプロジェクトの
+  3 つ。`export default valof()` の `valof()` がクロージャで持ち、モジュールにも companion にも置かない。
+  どれも外せない。直前の答えが無いと 1 ファイルをルールの数だけ lint し、glob の結果が無いとファイルごとに
+  プロジェクトを glob し直す
+  - **`Program` には置けない。**`create` と `Program` はルールとファイルの組ごとに呼ばれるので、そこで作った
+    状態はルールの間でもファイルの間でも共有されない。共有できる一番狭い範囲が plugin
+  - **却下: companion の `impl` / `implAssoc` のブロックに置く。**Val は不変のデータで、ブロックの中の状態は
+    メンバを読んでも見えない（#112 の `block-step` が報告する）。`Ask` は質問のデータだけの Val にした
+  - **却下: モジュールレベルの変数、状態を閉じ込める高階関数（`memo` など）をモジュールレベルに置く。**
+    どちらもファイル全体から触れる。高階関数で包んでも、モジュールが状態を持つことは変わらない
+  - **却下: クラスにする。**範囲を絞ったクロージャで足りる
 - **Val にしないもの（2026-11-07）。**worker が起動時に受け取る `{ port, signal }`。`MessagePort` と
   `Int32Array` は payload に入らない
 - **時間切れの worker は止めて作り直す（2026-11-10）。**それまでは時間切れのあとも同じ worker に送っていたので、
