@@ -13,6 +13,7 @@ import { run } from "./run.ts";
 import { connect, serve } from "./worker.ts";
 
 export default valof();
+if (!isMainThread) answer();
 
 /**
  * The plugin, with the state its rules share.
@@ -184,7 +185,8 @@ const Answer = Val.companion<Answer>().build();
 type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
 const Reply = Enum.companion<Reply>().build();
 
-if (!isMainThread)
+/** Runs what the plugin asks, in the worker that is this file again. See `ask` in {@link valof}. */
+function answer(): void {
   serve<Ask, Reply>(
     async ({ project, file, text }) => {
       const found = await run(
@@ -198,6 +200,7 @@ if (!isMainThread)
     },
     (error) => Reply.Failed.create({ message: `valof-lint: ${String(error)}` }),
   );
+}
 
 /** A point as ESLint counts it: lines from 1, columns from 0. */
 type Point = Val<"Point", { line: number; column: number }>;
