@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vite-plus/test";
 
-import plugin from "../../../src/lint/eslint-plugin.ts";
+import plugin from "../../../src/lint/eslint-plugin/index.ts";
 import { kinds } from "../../../src/lint/index.ts";
 
 // The rules are called here with a context holding only what they read. `tests/lint/hosts` runs

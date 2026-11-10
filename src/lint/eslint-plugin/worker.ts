@@ -1,11 +1,11 @@
 import { Result as R } from "@praha/byethrow";
 
-import { Ask, Reply } from "./eslint-plugin-messages.ts";
-import { Options } from "./options.ts";
-import { run } from "./run.ts";
-import { serve } from "./worker.ts";
+import { Ask, Reply } from "./messages.ts";
+import { Options } from "../options.ts";
+import { run } from "../run.ts";
+import { serve } from "../worker.ts";
 
-// The worker the plugin asks, one file at a time. See `ask` in `eslint-plugin.ts`.
+// The worker the plugin asks, one file at a time. See `ask` in `index.ts`.
 serve<Ask, Reply>(
   async ({ project, file, text }) => {
     const found = await run(project, Options.create({ targets: [file], overlay: [[file, text]] }));

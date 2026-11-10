@@ -1,5 +1,5 @@
-import { Enum, Val } from "../index.ts";
-import type { Finding } from "./index.ts";
+import { Enum, Val } from "../../index.ts";
+import type { Finding } from "../index.ts";
 
 /** What the plugin asks the worker about one file. */
 export type Ask = Val<

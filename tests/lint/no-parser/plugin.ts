@@ -1,4 +1,4 @@
-import plugin from "../../../src/lint/eslint-plugin.ts";
+import plugin from "../../../src/lint/eslint-plugin/index.ts";
 
 const file = "tests/lint/command/fixtures/clean.ts";
 

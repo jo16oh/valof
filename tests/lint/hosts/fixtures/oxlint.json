@@ -1,5 +1,5 @@
 {
-  "jsPlugins": ["../../../../src/lint/eslint-plugin.ts"],
+  "jsPlugins": ["../../../../src/lint/eslint-plugin/index.ts"],
   "rules": {
     "valof/unused-member": "error"
   }

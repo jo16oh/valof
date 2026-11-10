@@ -2,11 +2,11 @@ import { extname, resolve } from "node:path";
 
 import type { Rule } from "eslint";
 
-import { Val } from "../index.ts";
-import { Ask, Reply } from "./eslint-plugin-messages.ts";
-import { expand } from "./files.ts";
-import { RULES, type Finding } from "./index.ts";
-import { connect } from "./worker.ts";
+import { Val } from "../../index.ts";
+import { Ask, Reply } from "./messages.ts";
+import { expand } from "../files.ts";
+import { RULES, type Finding } from "../index.ts";
+import { connect } from "../worker.ts";
 
 export default valof();
 
@@ -32,14 +32,14 @@ function valof(): {
    * `lint` is async, and a rule is not.
    *
    * `create` returns a visitor, and a visitor cannot be async. So the run happens in a worker,
-   * `eslint-plugin-worker` beside this file. Its extension is this file's own, since the source
-   * tree runs as `.ts` and the package ships `.mjs`.
+   * `worker` beside this file. Its extension is this file's own, since the source tree runs as
+   * `.ts` and the package ships `.mjs`.
    *
    * The patience is long enough that no run reaches it, short enough that a wedged worker still
    * says so.
    */
   const ask = connect<Ask, Reply>(
-    new URL(`./eslint-plugin-worker${extname(import.meta.url)}`, import.meta.url),
+    new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
     60_000,
   );
 
