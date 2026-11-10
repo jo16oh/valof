@@ -55,20 +55,34 @@ function usage(): string {
 type Files = Val<"Files", { scanned: string[]; targets: string[]; reported: string[] }>;
 const Files = Val.companion<Files>()
   .implAssoc(({ seal }) => ({
-    /** The files read and the files reported on, with every exclusion applied to both. */
-    read: ({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> => {
+    /** Expands the globs the arguments name, and makes the files of {@link Files.fromPaths}. */
+    read: ({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> =>
+      Files.fromPaths(
+        (projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand),
+        targets.length > 0 ? targets.flatMap(expand) : null,
+        excluded.flatMap(expand),
+      ),
+    /**
+     * The files read and the files reported on, with every exclusion applied to both. `targets` is
+     * `null` when the arguments name none, and then every file read is reported on.
+     */
+    fromPaths: (
+      project: string[],
+      targets: string[] | null,
+      excluded: string[],
+    ): R.Result<Files, NoFilesMatchedError> => {
       // Resolved, because the same file can come from a glob the caller wrote and from one it
       // excluded, spelled differently.
-      const dropped = new Set(excluded.flatMap(expand).map((file) => resolve(file)));
+      const dropped = new Set(excluded.map((file) => resolve(file)));
       const kept = (found: string[]): string[] =>
         found.filter((file) => !dropped.has(resolve(file)));
 
-      const read = kept((projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand));
-      const targeted = kept(targets.flatMap(expand));
+      const read = kept(project);
+      const targeted = kept(targets ?? []);
       // Scanned together, so a file to report on that the project glob does not cover is still
       // read, rather than skipped and called clean.
       const scanned = [...new Set([...read, ...targeted])];
-      const reported = targets.length > 0 ? targeted : scanned;
+      const reported = targets ? targeted : scanned;
       return reported.length === 0
         ? R.fail(new NoFilesMatchedError())
         : R.succeed(seal({ scanned, targets: targeted, reported }));

@@ -462,7 +462,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, given: string | 
     }
   };
 
-  const { program, comments } = Parser.parse(parser, file, source);
+  const { program, comments } = Parser.exec(parser, file, source);
   if (!isNode(program)) throw new Error(`valof-lint: ${file} parsed to no program`);
   visit(program);
 
