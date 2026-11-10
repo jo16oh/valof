@@ -23,19 +23,10 @@ export type Directive = Val<
     spelling: string;
   }
 >;
-export const Directive = Val.companion<Directive>().build();
-
-/** What a set of directives silences: the kinds they named, or every kind there is. */
+/** What a directive silences: the kinds it named, or every kind there is. */
 type Silenced = Enum<"Silenced", { Every: {}; Named: { kinds: KindSet } }>;
 const Silenced = Enum.companion<Silenced>()
   .impl(() => ({
-    /** Two directives over the same lines silence the union, and every kind swallows any list. */
-    widen: (left, right: Silenced): Silenced =>
-      left._tag === "Every"
-        ? left
-        : right._tag === "Every"
-          ? right
-          : named([...Object.keys(left.kinds), ...Object.keys(right.kinds)]),
     has: (silenced, kind: string) => silenced._tag === "Every" || KindSet.has(silenced.kinds, kind),
   }))
   .build();
@@ -54,6 +45,19 @@ const effect = ({ spelling, kinds }: Directive): Silenced => {
   if (kinds.length > 0) return named(kinds);
   return spelling === "valof-lint-disable-next-line" ? Silenced.Every.create({}) : named([]);
 };
+
+export const Directive = Val.companion<Directive>()
+  .impl(() => ({
+    /**
+     * Whether it silences a finding of `kind` on `line`. A whole-file one covers every line, its
+     * own comment included: leaving a file out of the run is what it is for, so the findings about
+     * the directive go with the rest.
+     */
+    silences: (directive, line: number, kind: string) =>
+      (directive.covers === "file" || directive.covers === line) &&
+      Silenced.has(effect(directive), kind),
+  }))
+  .build();
 
 /**
  * What one comment carries, or `undefined` when it carries no directive.
@@ -139,30 +143,6 @@ export function directives(
   }
   close();
   return found;
-}
-
-/**
- * Whether the directives of one file silence a finding of `kind` on `line`.
- *
- * Two directives in one block land on the same line, so what they silence is merged there. A
- * whole-file one covers every line, its own comment included: leaving a file out of the run is
- * what it is for, so the findings about the directive go with the rest.
- */
-export function silences(found: readonly Directive[]): (line: number, kind: string) => boolean {
-  let whole: Silenced | undefined;
-  const byLine = new Map<number, Silenced>();
-  for (const written of found) {
-    const silenced = effect(written);
-    if (written.covers === "file") {
-      whole = whole ? Silenced.widen(whole, silenced) : silenced;
-      continue;
-    }
-    const already = byLine.get(written.covers);
-    byLine.set(written.covers, already ? Silenced.widen(already, silenced) : silenced);
-  }
-  const reaches = (silenced: Silenced | undefined, kind: string): boolean =>
-    silenced !== undefined && Silenced.has(silenced, kind);
-  return (line, kind) => reaches(whole, kind) || reaches(byLine.get(line), kind);
 }
 
 function named(kinds: Iterable<string>): Silenced {
