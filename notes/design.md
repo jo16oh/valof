@@ -4253,6 +4253,9 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   コマンドは `NODE_ENV` 無しで走る。変換した node は `create.nocopy` で作る
 - **費用。**230 ファイルで、出荷するコマンドは 0.14 s → 0.21 s。development のままでは、置き換えの費用が
   約 300 ms だった
+- **node を持つ戻り値も Val（2026-11-10）。**`Node` が Enum になったので、node を payload に持てる。型の名前と
+  その名前空間は `TypeName`、`VariantOf<E, "N">` が指す enum と variant は `VariantName`、builder から読んだ
+  variant とその builder は `NamedVariant`
 
 ### 14.9 エディタ統合、2026-09-08 調査。overlay まで実装
 
