@@ -15,6 +15,7 @@ export default defineConfig({
       lint: "src/lint/index.ts",
       "eslint-plugin": "src/lint/eslint-plugin.ts",
       "lint-cli": "src/lint/cli.ts",
+      "eslint-plugin-worker": "src/lint/eslint-plugin-worker.ts",
     },
     dts: {
       tsgo: true,
@@ -27,7 +28,7 @@ export default defineConfig({
     exports: {
       // The CLI ships as a command, not as an import, so it stays out of the public exports.
       // Naming it here as well: left to auto-detect, the command takes the package's own name.
-      exclude: ["lint-cli"],
+      exclude: ["lint-cli", "eslint-plugin-worker"],
       customExports: (exports) => ({
         ".": "./dist/index.js",
         // For a consumer with `declaration: true`.

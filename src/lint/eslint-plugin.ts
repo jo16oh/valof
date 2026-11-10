@@ -1,19 +1,14 @@
-import { resolve } from "node:path";
-import { isMainThread } from "node:worker_threads";
-
-import { Result as R } from "@praha/byethrow";
+import { extname, resolve } from "node:path";
 
 import type { Rule } from "eslint";
 
-import { Enum, Val } from "../index.ts";
+import { Val } from "../index.ts";
+import { Ask, Reply } from "./eslint-plugin-messages.ts";
 import { expand } from "./files.ts";
 import { RULES, type Finding } from "./index.ts";
-import { Options } from "./options.ts";
-import { run } from "./run.ts";
-import { connect, serve } from "./worker.ts";
+import { connect } from "./worker.ts";
 
 export default valof();
-if (!isMainThread) answer();
 
 /**
  * The plugin, with the state its rules share.
@@ -37,13 +32,16 @@ function valof(): {
    * `lint` is async, and a rule is not.
    *
    * `create` returns a visitor, and a visitor cannot be async. So the run happens in a worker,
-   * which is this file again: no path has to be guessed for it, since the source tree runs as
-   * `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
+   * `eslint-plugin-worker` beside this file. Its extension is this file's own, since the source
+   * tree runs as `.ts` and the package ships `.mjs`.
    *
    * The patience is long enough that no run reaches it, short enough that a wedged worker still
    * says so.
    */
-  const ask = connect<Ask, Reply>(new URL(import.meta.url), 60_000);
+  const ask = connect<Ask, Reply>(
+    new URL(`./eslint-plugin-worker${extname(import.meta.url)}`, import.meta.url),
+    60_000,
+  );
 
   /**
    * One run per file, however many of the rules are on. The host creates every rule for a file
@@ -166,41 +164,9 @@ function valof(): {
   };
 }
 
-/** What the plugin asks the worker about one file. */
-type Ask = Val<
-  "Ask",
-  {
-    /** The project files scanned together, absolute. The file being linted joins them, as `text`. */
-    project: string[];
-    file: string;
-    text: string;
-  }
->;
-const Ask = Val.companion<Ask>().build();
-
 /** The findings for one ask, under the key the next ask is compared by. */
 type Answer = Val<"Answer", { key: string; findings: Finding[] }>;
 const Answer = Val.companion<Answer>().build();
-
-type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
-const Reply = Enum.companion<Reply>().build();
-
-/** Runs what the plugin asks, in the worker that is this file again. See `ask` in {@link valof}. */
-function answer(): void {
-  serve<Ask, Reply>(
-    async ({ project, file, text }) => {
-      const found = await run(
-        project,
-        Options.create({ targets: [file], overlay: [[file, text]] }),
-      );
-      // The message the command prints, so a user of the plugin gets the same instruction.
-      return R.isSuccess(found)
-        ? Reply.Found.create({ findings: found.value })
-        : Reply.Failed.create({ message: found.error.message });
-    },
-    (error) => Reply.Failed.create({ message: `valof-lint: ${String(error)}` }),
-  );
-}
 
 /** A point as ESLint counts it: lines from 1, columns from 0. */
 type Point = Val<"Point", { line: number; column: number }>;
