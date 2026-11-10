@@ -1,4 +1,3 @@
-import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
 import { pipe } from "../../shared/pipe/index.ts";
@@ -156,9 +155,6 @@ export const Scan = Val.companion<Scan>()
      * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
      * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
      * rules' job, and they see every file rather than this one.
-     *
-     * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
-     * unsaved, or `undefined` to read the file. With a buffer, the file may not exist at all.
      */
     exec: scan,
   }))
@@ -240,8 +236,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
 }
 
 /** The body of {@link Scan.exec}. */
-function scan(file: FilePath, parser: Parser, modules: Modules, given: string | undefined): Scan {
-  const source = given ?? readFileSync(file, "utf8");
+function scan(file: FilePath, parser: Parser, modules: Modules, source: string): Scan {
   const lines = Lines.from(source);
 
   let bound = Bindings.create();

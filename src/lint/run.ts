@@ -31,7 +31,7 @@ export async function run(
   ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
   const scans = toScan.map((file) =>
-    Scan.exec(file, parser, modules, Options.sourceOf(options, file)),
+    Scan.exec(file, parser, modules, FilePath.read(file, options.overlay)),
   );
 
   const directives = DirectiveMap.from(scans);

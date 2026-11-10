@@ -1,10 +1,19 @@
-import { globSync, statSync } from "node:fs";
+import { globSync, readFileSync, statSync } from "node:fs";
+import { resolve } from "node:path";
 
 import { Val } from "../index.ts";
 
 /** A file in a run, spelled as it was given to the run, which is how a finding prints it. */
 export type FilePath = Val<"FilePath", string>;
-export const FilePath = Val.companion<FilePath>().build();
+export const FilePath = Val.companion<FilePath>()
+  .impl(() => ({
+    /** The file's source: the overlay's, keyed by resolved path, or else what disk holds. */
+    read: (file, overlay: Readonly<Record<string, string>>): string => {
+      const key = resolve(file);
+      return Object.hasOwn(overlay, key) ? (overlay[key] as string) : readFileSync(file, "utf8");
+    },
+  }))
+  .build();
 
 /** What a directory holds, for a caller who names one instead of writing the glob out. */
 const UNDER = "**/*.{ts,tsx,mts,cts}";
