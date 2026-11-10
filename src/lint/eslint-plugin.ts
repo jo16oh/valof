@@ -1,12 +1,5 @@
 import { resolve } from "node:path";
-import {
-  isMainThread,
-  MessageChannel,
-  parentPort,
-  receiveMessageOnPort,
-  Worker,
-  type MessagePort,
-} from "node:worker_threads";
+import { isMainThread } from "node:worker_threads";
 
 import { Result as R } from "@praha/byethrow";
 
@@ -17,6 +10,7 @@ import { expand } from "./files.ts";
 import { RULES, type Finding } from "./index.ts";
 import { Options } from "./options.ts";
 import { run } from "./run.ts";
+import { connect, serve } from "./worker.ts";
 
 type Ask = Val<
   "Ask",
@@ -32,42 +26,25 @@ const Ask = Val.companion<Ask>()
     /**
      * `lint` is async, and a rule is not.
      *
-     * `create` returns a visitor, and a visitor cannot be async. So the run happens in a worker and
-     * this thread blocks on `Atomics.wait` until the answer is in the port's queue.
-     * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here.
+     * `create` returns a visitor, and a visitor cannot be async. So the run happens in a worker,
+     * which is this file again: no path has to be guessed for it, since the source tree runs as
+     * `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
      */
-    send: (what): readonly Finding[] => {
-      if (!worker) {
-        worker = new Worker(new URL(import.meta.url));
-        // The host decides when it exits. A linter waiting on its own worker would never finish.
-        worker.unref();
-      }
-
-      const { port1, port2 } = new MessageChannel();
-      const signal = new Int32Array(new SharedArrayBuffer(4));
-      worker.postMessage({ ask: what, port: port2, signal } satisfies Message, [port2]);
-      if (Atomics.wait(signal, 0, 0, PATIENCE) === "timed-out")
-        throw new Error(`valof-lint: no answer in ${PATIENCE / 1000}s`);
-
-      const reply = receiveMessageOnPort(port1)?.message as Reply | undefined;
-      if (!reply) throw new Error("valof-lint: the worker answered nothing");
-      return Reply.match(reply, {
+    send: (what): readonly Finding[] =>
+      Reply.match(ask(what), {
         Found: ({ findings }) => findings,
         Failed: ({ message }) => {
           throw new Error(message);
         },
-      });
-    },
+      }),
   }))
   .build();
 
 type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
 const Reply = Enum.companion<Reply>().build();
 
-type Message = { ask: Ask; port: MessagePort; signal: Int32Array };
-
 /** Long enough that no run reaches it, short enough that a wedged worker still says so. */
-const PATIENCE = 60_000;
+const ask = connect<Ask, Reply>(new URL(import.meta.url), 60_000);
 
 /**
  * One rule per kind, so a project sets the severity of each and turns off what it does not want.
@@ -200,38 +177,20 @@ const read = (given: string | readonly string[]): string[] => {
 
 const excludes = (path: string): boolean => path.startsWith("!");
 
-/** The worker that answers {@link Ask.send}, started on the first file and kept for the rest. */
-let worker: Worker | undefined;
-
-// The worker is this file again, so no path has to be guessed for it: the source tree runs as
-// `.ts` and the package ships `.mjs`, and `import.meta.url` is already whichever is running.
-if (!isMainThread && parentPort) {
-  parentPort.on("message", ({ ask: { project, file, text }, port, signal }: Message) => {
-    void (async () => {
-      let reply: Reply;
-      try {
-        const found = await run(
-          project,
-          Options.create({ targets: [file], overlay: [[file, text]] }),
-        );
-        // The message the command prints, so a user of the plugin gets the same instruction.
-        reply = R.isSuccess(found)
-          ? Reply.Found.create({ findings: found.value })
-          : Reply.Failed.create({ message: found.error.message });
-      } catch (error) {
-        reply = Reply.Failed.create({ message: `valof-lint: ${String(error)}` });
-      }
-      // Whatever happened, the thread waiting on this has to receive it.
-      try {
-        port.postMessage(reply);
-      } catch (error) {
-        port.postMessage(Reply.Failed.create({ message: `valof-lint: ${String(error)}` }));
-      }
-      Atomics.store(signal, 0, 1);
-      Atomics.notify(signal, 0);
-    })();
-  });
-}
+if (!isMainThread)
+  serve<Ask, Reply>(
+    async ({ project, file, text }) => {
+      const found = await run(
+        project,
+        Options.create({ targets: [file], overlay: [[file, text]] }),
+      );
+      // The message the command prints, so a user of the plugin gets the same instruction.
+      return R.isSuccess(found)
+        ? Reply.Found.create({ findings: found.value })
+        : Reply.Failed.create({ message: found.error.message });
+    },
+    (error) => Reply.Failed.create({ message: `valof-lint: ${String(error)}` }),
+  );
 
 /** A point as ESLint counts it: lines from 1, columns from 0. */
 type Point = Val<"Point", { line: number; column: number }>;
