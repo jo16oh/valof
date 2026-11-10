@@ -4224,7 +4224,8 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   - その他: plugin の下線は `Underline` と `Point`、`dyn` の箱は `DynBox`、行が決まる前の disable コメントは
     `DirectiveComment`、plugin の直前の答えは `Answer`
 - **plugin の状態は plugin の中に置く（2026-11-11）。**worker への接続、直前の答え、glob したプロジェクトの
-  3 つ。`export default valof()` の `valof()` がクロージャで持ち、モジュールにも companion にも置かない。
+  3 つ。`export default valof()` の `valof()` がクロージャで持ち、モジュールにも companion にも置かない
+  （worker の側は別ファイル、§14.9）。
   どれも外せない。直前の答えが無いと 1 ファイルをルールの数だけ lint し、glob の結果が無いとファイルごとに
   プロジェクトを glob し直す
   - **`Program` には置けない。**`create` と `Program` はルールとファイルの組ごとに呼ばれるので、そこで作った
@@ -4592,7 +4593,11 @@ export default defineConfig({
 
 **`make-synchronized` は入れなかった。** 68 kB・deps 0 で品質に問題は無いが、上の表で「プラグイン側の依存」と書いたのはプラグインが valof の外にいる前提だった。同梱すると valof の `dependencies` になり、§14.3 の「実行時依存ゼロ」を崩す。`Atomics.wait` + `receiveMessageOnPort` は 30 行ほどで、`SharedArrayBuffer` の版を worker が上げて notify するだけである。タイムアウト付きで待つので、worker が答えないときも 60 秒で言う。
 
-**worker はこのファイル自身。** `new Worker(new URL(import.meta.url))` として `isMainThread` で二役を分けた。別ファイルにすると、ソースツリーでは `./worker.ts`、配布物では `./worker.mjs` になり、どちらが動いているかをコードが当てにいくことになる。
+**worker はこのファイル自身。** `new Worker(new URL(import.meta.url))` として `isMainThread` で二役を分けた。別ファイルにすると、ソースツリーでは `./worker.ts`、配布物では `./worker.mjs` になり、どちらが動いているかをコードが当てにいくことになる。（2026-11-11 に分けた、下）
+
+**worker を別ファイルにした、2026-11-11。** 1 ファイルに 2 つの役割があると読みにくい（ユーザー）。拡張子は当てずに、plugin 自身の拡張子を使う（`extname(import.meta.url)`）。plugin と worker は `src/lint/eslint-plugin/` にまとめ、配布物も `dist/eslint-plugin/` に同じ並びで出す。両方が使う `Ask` と `Reply` は `messages.ts`、下線の `Underline` は `underline.ts`。
+
+- **配布物の worker の場所はテストが見ていない。**テストはソースの plugin を読む。`vp pack` は出力先を変えても `package.json` の `exports` を書き換えるので、テストの中ではビルドできない。#114 の `check-dist` に、ビルドした plugin を動かす検査を足す
 
 **渡し方は overlay 1 枚 + `report` 1 ファイル。** 計算はプロジェクト全体で、返るのも全部だが、報告するのは今のファイルの分だけ。`report` が先にあったのでプラグイン側に絞り込みは要らない。列は finding が 1 始まり、report が 0 始まりなので 1 引く。
 
