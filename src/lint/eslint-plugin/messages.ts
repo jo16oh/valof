@@ -16,3 +16,7 @@ export const Ask = Val.companion<Ask>().build();
 /** What the worker answers, the findings or the message to throw. */
 export type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
 export const Reply = Enum.companion<Reply>().build();
+
+/** The findings for one ask, under the key the next ask is compared by. */
+export type Answer = Val<"Answer", { key: string; findings: Finding[] }>;
+export const Answer = Val.companion<Answer>().build();

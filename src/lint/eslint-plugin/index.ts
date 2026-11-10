@@ -2,8 +2,8 @@ import { extname, resolve } from "node:path";
 
 import type { Rule } from "eslint";
 
-import { Val } from "../../index.ts";
-import { Ask, Reply } from "./messages.ts";
+import { Answer, Ask, Reply } from "./messages.ts";
+import { Underline } from "./underline.ts";
 import { expand } from "../files.ts";
 import { RULES, type Finding } from "../index.ts";
 import { connect } from "../worker.ts";
@@ -163,40 +163,6 @@ function valof(): {
     },
   };
 }
-
-/** The findings for one ask, under the key the next ask is compared by. */
-type Answer = Val<"Answer", { key: string; findings: Finding[] }>;
-const Answer = Val.companion<Answer>().build();
-
-/** A point as ESLint counts it: lines from 1, columns from 0. */
-type Point = Val<"Point", { line: number; column: number }>;
-const Point = Val.companion<Point>().build();
-
-/**
- * What the underline covers, from the point the finding names.
- *
- * A finding carries one position, and a report drawn from one position underlines one character.
- * So the name at that position is measured here: the linter points at `label`, `Val` or an alias,
- * and the editor should underline the whole of it. Where the position is not on a word, which is
- * the disable comments, the rest of the line stands in.
- */
-type Underline = Val<"Underline", { start: Point; end: Point }>;
-const Underline = Val.companion<Underline>()
-  .implAssoc(({ seal }) => ({
-    /** Columns count from 1 in a finding, as an editor shows them, and from 0 in a report. */
-    fromFinding: ({ at: { line, column } }: Finding, text: string): Underline => {
-      const rest = (text.split("\n")[line - 1] ?? "").slice(column - 1);
-      const width = WORD.exec(rest)?.[0].length ?? rest.trimEnd().length;
-      return seal({
-        start: Point.seal({ line, column: column - 1 }),
-        end: Point.seal({ line, column: column - 1 + Math.max(width, 1) }),
-      });
-    },
-  }))
-  .build();
-
-/** A word, for the squiggle to cover. Runs of these are what a finding points at. */
-const WORD = /^[\p{L}\p{N}_$]+/u;
 
 function excludes(path: string): boolean {
   return path.startsWith("!");
