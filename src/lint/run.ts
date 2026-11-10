@@ -7,6 +7,7 @@ import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
 import { Parser } from "./parser.ts";
 import { DirectiveMap, Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
+import { FilePath } from "./files.ts";
 import { Options } from "./options.ts";
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
@@ -26,7 +27,7 @@ export async function run(
   const toScan = [
     ...files,
     ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
-  ];
+  ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
   const scans = toScan.map((file) =>
     Scan.exec(file, parser, modules, Options.sourceOf(options, file)),

@@ -1,5 +1,6 @@
 import { Enum, Val } from "../../index.ts";
 import { Lines, type Position } from "../ast.ts";
+import type { FilePath } from "../files.ts";
 import { KindSet } from "../rules/rule.ts";
 import type { Scan } from "./index.ts";
 
@@ -24,6 +25,7 @@ export type Directive = Val<
     spelling: string;
   }
 >;
+
 /** What a directive silences: the kinds it named, or every kind there is. */
 type Silenced = Enum<"Silenced", { Every: {}; Named: { kinds: KindSet } }>;
 const Silenced = Enum.companion<Silenced>()
@@ -152,7 +154,7 @@ export function directives(
  * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
  * brand is still reported, since silencing it is its own line's decision.
  */
-export type DirectiveMap = Val<"DirectiveMap", Record<string, Directive[]>>;
+export type DirectiveMap = Val<"DirectiveMap", Record<FilePath, Directive[]>>;
 export const DirectiveMap = Val.companion<DirectiveMap>()
   .implAssoc(({ seal }) => ({
     from: (scans: readonly Scan[]): DirectiveMap =>
@@ -160,7 +162,7 @@ export const DirectiveMap = Val.companion<DirectiveMap>()
   }))
   .impl(() => ({
     /** Whether a directive in the file silences a finding of `kind` on `line`. */
-    silences: (map, file: string, line: number, kind: string) =>
+    silences: (map, file: FilePath, line: number, kind: string) =>
       ((Object.hasOwn(map, file) ? map[file] : undefined) ?? []).some((directive) =>
         Directive.silences(directive, line, kind),
       ),

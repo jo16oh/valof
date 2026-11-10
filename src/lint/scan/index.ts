@@ -5,6 +5,7 @@ import { Val } from "../../index.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
 import type { Reserved } from "../../val.ts";
+import type { FilePath } from "../files.ts";
 
 import {
   child,
@@ -105,7 +106,7 @@ export const CompanionBinding = Val.companion<CompanionBinding>().build();
 export type Scan = Val<
   "Scan",
   {
-    file: string;
+    file: FilePath;
     imported: ImportMap;
     /** What `.impl(() => ({…}))` registered here. */
     members: Member[];
@@ -234,7 +235,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
 }
 
 /** The body of {@link Scan.exec}. */
-function scan(file: string, parser: Parser, modules: Modules, given: string | undefined): Scan {
+function scan(file: FilePath, parser: Parser, modules: Modules, given: string | undefined): Scan {
   const source = given ?? readFileSync(file, "utf8");
   const lines = Lines.from(source);
 
@@ -523,7 +524,7 @@ function scan(file: string, parser: Parser, modules: Modules, given: string | un
 /** The uncomplicated `Trait.dyn(Val, value)` form.  Escaping the box is deliberately not traced. */
 function dynBox(
   node: Node,
-  file: string,
+  file: FilePath,
   bound: Bindings,
 ): { trait: SymbolRef; val: SymbolRef } | undefined {
   if (node.type !== "CallExpression") return undefined;
@@ -540,7 +541,7 @@ function dynBox(
 }
 
 /** A runtime companion reference with its exporting module retained. */
-function valueReference(node: Node, file: string, bound: Bindings): SymbolRef | undefined {
+function valueReference(node: Node, file: FilePath, bound: Bindings): SymbolRef | undefined {
   if (node.type === "Identifier")
     return Bindings.refOf(bound, file, node["name"] as string, undefined);
   if (node.type !== "MemberExpression") return undefined;
@@ -559,7 +560,7 @@ function valueReference(node: Node, file: string, bound: Bindings): SymbolRef | 
 /** Reads one `.implTrait` call without collapsing repeated calls in the same chain. */
 function implTrait(
   node: Node,
-  file: string,
+  file: FilePath,
   bound: Bindings,
   sites: readonly CompanionSite[],
   objects: ReadonlyMap<string, Node>,

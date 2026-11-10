@@ -8,6 +8,7 @@ import {
   type Node,
   type Position,
 } from "../ast.ts";
+import type { FilePath } from "../files.ts";
 import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
@@ -18,7 +19,7 @@ export const DeclaredTrait = Val.companion<DeclaredTrait>().build();
 export type Alias = Val<
   "Alias",
   {
-    file: string;
+    file: FilePath;
     alias: string;
     ref: SymbolRef;
     /** Traits declared in Val's third argument. */
@@ -28,14 +29,14 @@ export type Alias = Val<
 export const Alias = Val.companion<Alias>().build();
 
 /** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their own rules. */
-export type TraitAlias = Val<"TraitAlias", { file: string; alias: string; ref: SymbolRef }>;
+export type TraitAlias = Val<"TraitAlias", { file: FilePath; alias: string; ref: SymbolRef }>;
 export const TraitAlias = Val.companion<TraitAlias>().build();
 
 /** A top-level `type X = Enum<…>`, whose variants each derive a Val of their own. */
 export type EnumAlias = Val<
   "EnumAlias",
   {
-    file: string;
+    file: FilePath;
     alias: string;
     ref: SymbolRef;
     /** Traits declared in the enum's third argument. */
@@ -124,7 +125,7 @@ export const Aliases = Val.companion<Aliases>()
   .build();
 
 /** The body of {@link Aliases.fromProgram}. */
-function valAliases(program: Node, file: string, bound: Bindings, lines: Lines): Aliases {
+function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines): Aliases {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
   const enumAliases: EnumAlias[] = [];
@@ -271,7 +272,7 @@ function variantNames(
 /** Expands the deliberately small, syntax-only trait-list language used by Val declarations. */
 function traitNames(
   node: Node | undefined,
-  file: string,
+  file: FilePath,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
   lines: Lines,

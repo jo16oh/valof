@@ -1,6 +1,7 @@
 import { dirname, extname, normalize, resolve } from "node:path";
 
 import { Val } from "../../index.ts";
+import type { FilePath } from "../files.ts";
 
 /** What an import binds a local name to: the exporting module and the name it exports. */
 export type ImportBinding = Val<"ImportBinding", { name: string; module: string }>;
@@ -69,7 +70,7 @@ export const Bindings = Val.companion<Bindings>()
      * A local declaration, named import, or namespace member as one comparable reference.
      * `qualifier` is the namespace it was reached through, or `undefined`.
      */
-    refOf: (bound, file: string, local: string, qualifier: string | undefined): SymbolRef => {
+    refOf: (bound, file: FilePath, local: string, qualifier: string | undefined): SymbolRef => {
       const module = normalize(resolve(file));
       if (qualifier !== undefined) {
         // The module `import * as ns` bound `ns` to, when `ns` is a namespace.
@@ -92,7 +93,7 @@ export const Modules = Val.companion<Modules>()
   }))
   .impl(() => ({
     /** The module `source` names from `file`: a file in the run, or a package. */
-    resolve: (modules, file: string, source: string) => {
+    resolve: (modules, file: FilePath, source: string) => {
       if (!source.startsWith(".")) return `package:${source}`;
       const base = normalize(resolve(dirname(file), source));
       const extension = extname(base);

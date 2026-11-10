@@ -8,6 +8,7 @@ import {
   Lines,
   type Position,
 } from "../ast.ts";
+import type { FilePath } from "../files.ts";
 import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
 import type { AnyVal, CompanionBuilder } from "../../val.ts";
@@ -27,7 +28,7 @@ export type CompanionSite = Val<
   "CompanionSite",
   {
     at: Position;
-    file: string;
+    file: FilePath;
     /** Which entry point the chain grew from: `Val`, `Trait` or `Enum`. */
     of: string;
     /** The name the chain was bound to, or `null` when it was not bound to a plain one. */
@@ -132,7 +133,7 @@ export const Lift = Val.companion<Lift>()
   .build();
 
 /** The body of {@link Lift.fromCall}. */
-function valOf(node: Node, file: string, bound: Bindings, lines: Lines): Lift | undefined {
+function valOf(node: Node, file: FilePath, bound: Bindings, lines: Lines): Lift | undefined {
   const callee = child(node, "callee");
   if (!callee || callee.type !== "MemberExpression") return undefined;
   const path = rootPath(callee);
@@ -257,7 +258,7 @@ export function typeReference(
 /** The body of {@link CompanionSite.fromChain}. */
 function companionSite(
   node: Node,
-  file: string,
+  file: FilePath,
   at: Position,
   bound: Bindings,
   lines: Lines,
