@@ -7,7 +7,7 @@ import { MissingParserError } from "./errors.ts";
 let oxc: typeof import("oxc-parser") | undefined;
 
 /** oxc-parser, loaded. Only {@link Parser.load} makes one. */
-export type Parser = Val<"Parser", { visitorKeys: Record<string, readonly string[]> }>;
+export type Parser = Val<"Parser", { visitorKeys: Record<string, string[]> }>;
 export const Parser = Val.companion<Parser>()
   .implAssoc(({ seal }) => ({
     /**

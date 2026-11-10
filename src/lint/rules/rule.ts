@@ -39,7 +39,7 @@ export type Context = Val<
      * Rules run in the order `RULES` lists them, so a rule reading this must sit last. Only
      * a rule about the run itself needs it; a rule about the code reads the scans.
      */
-    reported: readonly Finding[];
+    reported: Finding[];
     /**
      * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
      */

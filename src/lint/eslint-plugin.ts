@@ -22,7 +22,7 @@ type Ask = Val<
   "Ask",
   {
     /** The project files scanned together, absolute. The file being linted joins them, as `text`. */
-    project: readonly string[];
+    project: string[];
     file: string;
     text: string;
   }
