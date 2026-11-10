@@ -29,6 +29,7 @@ import {
   Bindings,
   ImportBinding,
   ImportMap,
+  Modules,
   type SymbolRef,
 } from "./bindings.ts";
 import {
@@ -232,12 +233,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
  * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
  * unsaved. The file may not exist at all.
  */
-export function scan(
-  file: string,
-  parser: Parser,
-  given?: string,
-  resolveModule: (file: string, source: string) => string = (_file, source) => source,
-): Scan {
+export function scan(file: string, parser: Parser, modules: Modules, given?: string): Scan {
   const source = given ?? readFileSync(file, "utf8");
   const position = positions(source);
 
@@ -398,7 +394,7 @@ export function scan(
       case "ImportDeclaration": {
         const module = stringOf(node.source);
         if (module === undefined) break;
-        const resolved = resolveModule(file, module);
+        const resolved = Modules.resolve(modules, file, module);
         for (const specifier of node.specifiers) {
           if (
             specifier.type === "ImportNamespaceSpecifier" &&
@@ -434,7 +430,8 @@ export function scan(
   for (const statement of program.type === "Program" ? program.body : []) {
     if (statement.type !== "ExportNamedDeclaration") continue;
     const from = statement.source && stringOf(statement.source);
-    const module = from === null || from === undefined ? undefined : resolveModule(file, from);
+    const module =
+      from === null || from === undefined ? undefined : Modules.resolve(modules, file, from);
     for (const specifier of statement.specifiers) {
       if (specifier.type !== "ExportSpecifier") continue;
       const outside = keyName(specifier.exported, false);
