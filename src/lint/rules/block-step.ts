@@ -27,7 +27,7 @@ function findings({ kind }: BlockStep, scans: readonly Scan[]): Finding[] {
         kind,
         file,
         at,
-        message: `the function passed to .${step} has a block body; return the object itself: () => ({ … })`,
+        message: `the function passed to .${step} has a block body; move what it declares out of the companion, and return the object itself: () => ({ … })`,
       }),
     ),
   );
