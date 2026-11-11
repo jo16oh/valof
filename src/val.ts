@@ -98,9 +98,16 @@ export type Refused<Msg extends string> = { readonly [RefusedKey]: Msg };
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
 // The whole is assignable to a constituent the others are assignable to, so that constituent gives
 // `false` and the results together are `boolean`: `Dollar | { amount: number }`. `true extends`
-// reads any `true` among them.
+// reads any `true` among them. Two objects can each be assignable to the other, as
+// `{ a: number } | { a: number; b?: string }`, so the keys are compared too.
 export type IsUnion<T, U = T> = true extends (
-  T extends unknown ? ([U] extends [T] ? false : true) : false
+  T extends unknown
+    ? [U] extends [T]
+      ? [keyof T] extends [keyof U]
+        ? false
+        : true
+      : true
+    : false
 )
   ? true
   : false;
@@ -182,7 +189,10 @@ type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = 
                 : ValidateValue<T>;
 
 type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
-  ? T
+  ? // A Val with a primitive payload extends `Primitive` too.
+    [Extract<T, AnyVal>] extends [never]
+    ? T
+    : Beside<T, Root>
   : [T] extends [ReadonlyArray<unknown>]
     ? number extends T["length"]
       ? { [I in keyof T]: Validate<T[I], false> }
@@ -201,9 +211,7 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
       ? Invalid<"functions are not allowed">
       : [T] extends [object]
         ? IsUnion<T> extends true
-          ? [Extract<T, AnyVal>] extends [never]
-            ? Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
-            : Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+          ? Clash<T>
           : // `keyof` a string index signature is `string | number`.
             [Exclude<keyof T, string | (string extends keyof T ? number : never)>] extends [never]
             ? Root extends true
@@ -214,15 +222,39 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
               ? Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
               : Invalid<"not a plain value">
         : [Extract<T, bigint>] extends [never]
-          ? // Below the root, a field may hold `null` or a primitive beside one other kind. `patch`
-            // replaces such a field whole, see `PatchValue`.
-            [Root, Extract<T, Primitive>, Exclude<T, Primitive | undefined>] extends
-              | [true, unknown, unknown]
-              | [boolean, never, unknown]
-              | [boolean, unknown, never]
-            ? Invalid<"not a plain value">
-            : Extract<T, Primitive> | Validate<Exclude<T, Primitive>, false>
+          ? Beside<T, Root>
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
+
+/**
+ * Checks a field that holds `null` or a primitive beside one other kind, which `patch` replaces
+ * whole. The root rejects it.
+ */
+// A Val counts as the other kind, so the primitive must not be a type its payload holds.
+type Beside<
+  T,
+  Root,
+  P = Extract<Exclude<T, AnyVal>, Primitive>,
+  O = Exclude<T, AnyVal | P | undefined> | Extract<T, AnyVal>,
+> = [Root, P, O] extends
+  | [true, unknown, unknown]
+  | [boolean, never, unknown]
+  | [boolean, unknown, never]
+  ? Invalid<"not a plain value">
+  : [Extract<O, P>] extends [never]
+    ? P | Validate<O, false>
+    : Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
+
+/**
+ * Each broken constituent's message. With none, the Enum message where a Val or a `Rec` is among
+ * them, else the `patch` message.
+ */
+type Clash<T, E = T extends unknown ? Validate<T, false> : never> = [
+  Extract<E, Invalid<string>>,
+] extends [never]
+  ? true extends (T extends unknown ? ([T] extends [AnyVal] ? true : IsRec<T>) : never)
+    ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+    : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+  : Extract<E, Invalid<string>>;
 
 // oxlint-disable-next-line no-unsafe-function-type
 type MethodKeys<T> = { [K in keyof T]-?: T[K] extends Function ? K : never }[keyof T];
