@@ -50,39 +50,30 @@ name, and `instanceof` narrows.
 
 ## Bundle Size and Type Cost
 
-Run `vp run bundle-size` after changing runtime code. It measures what a user ships. It also checks
-the production bundle against its budgets. It does not update release documentation.
+Run `vp run bundle-size` after changing runtime code. Update the bundle-size claim in
+`docs/src/introduction.md` with
+`vp run replace-bundle-size-claims --write docs/src/introduction.md`. Leave the claims in
+`README.md` and `package.json` to `vp run bump-version`.
 
-The bundle-size claim in `docs/src/introduction.md` follows the current branch. Update it with
-`vp run replace-bundle-size-claims --write docs/src/introduction.md`; regular CI checks it. The
-claims in `README.md` and the `package.json` description describe the latest release instead.
-`vp run bump-version` updates them in the release commit, and CI checks them on the release PR.
-After the merge, the release workflow checks all three again before it creates the tag.
+Run `vp run type-perf` after changing a type.
 
-Run `vp run type-perf` after changing a type. It compiles the fixtures in `scripts/type-perf/`
-against the published declarations, and budgets the instantiation count and the size of the
-declarations that `import "valof"` loads. Both are type costs, so both live here.
-
-Neither `vp check` nor `vp test` covers either one.
+Neither `vp check` nor `vp test` runs `bundle-size` or `type-perf`.
 
 ## Testing
 
 Audit the tests every time you write or change one (`/test-audit` in Claude Code, where a Stop hook
-enforces it). It reports tests to delete or merge, behaviour the diff changes with no test covering
-it, and tests that pass whatever the source does. `skills/test-audit/SKILL.md` holds the three
-passes.
+enforces it). Elsewhere, follow `skills/test-audit/SKILL.md`.
 
 A separate agent runs it, on the same model, and reports back. Apply the clear findings yourself,
 and ask me about the ones you doubt.
 
-Never commit an implementation before writing the tests that cover it. A later test cannot audit the
-implementation commit that required it.
+Never commit an implementation before writing the tests that cover it.
 
 ## Committing
 
-Commit without waiting for a go-ahead. Keep tests, implementation and docs in separate commits, so
-the history records each step. When the pre-commit `vp check` rejects tests that do not type-check
-yet, commit them with `--no-verify`. Do not skip the hook for the implementation commit.
+Commit without waiting for a go-ahead. Keep tests, implementation and docs in separate commits. When
+the pre-commit `vp check` rejects tests that do not type-check yet, commit them with `--no-verify`.
+Do not skip the hook for the implementation commit.
 
 ## Releasing
 
@@ -91,9 +82,8 @@ yet, commit them with `--no-verify`. Do not skip the hook for the implementation
    PR body.
 2. In a PR of its own, run `vp run pin-valof origin/main`, which points the scripts' `#valof` at
    that commit, and fix the scripts where `vp check` or `vp run bundle-size` fails. Report what
-   breaks, and where the new API is awkward to use in the scripts. A user encounters both when
-   upgrading. If a problem is serious, stop the release and rework the design. CI fails the release
-   PR while the pinned commit builds a different `dist` from the release.
+   breaks, and where the new API is awkward to use in the scripts. If a problem is serious, stop the
+   release and rework the design.
 3. Run `vp run bump-version --release <type> --yes`, where `<type>` is the release type I give, such
    as `patch`. Add `--body-file notes.md` when step 1 wrote one. The script updates the bundle-size
    claims, pushes a release branch, and opens its PR. Options other than `--body-file` go to bumpp.
@@ -104,9 +94,8 @@ Step 3 pushes and opens a PR. Run it only on my explicit go-ahead.
 
 ## Writing Style
 
-Code and prose go in separate turns. Finish the code, then edit the `.md` in a turn of its own, and
-run `/proofread` over the changed files before committing them. A separate agent runs it, on the
-same model, and reports back. Apply the clear findings yourself, and ask me about the ones you
+Run `/proofread` over the changed `.md` files before committing them. A separate agent runs it, on
+the same model, and reports back. Apply the clear findings yourself, and ask me about the ones you
 doubt.
 
 Decide what to leave out before choosing words. Say one thing per sentence. Where a fact does not
@@ -148,9 +137,7 @@ error that raised the question.
 
 Do not name an example type `Box`. Valof reserves it for a planned built-in type.
 
-A GitHub callout needs `<!-- prettier-ignore -->` above it. `proseWrap: "always"` joins the marker
-into the paragraph, and `> [!NOTE] the text` renders as a plain quote in GitHub and in the book
-alike. The comment exempts that block alone, so the rest of the file still wraps.
+A GitHub callout needs `<!-- prettier-ignore -->` above it:
 
 ```md
 <!-- prettier-ignore -->
@@ -164,9 +151,6 @@ Conventional Commits, lowercase subject. Stay imperative in the body and the PR 
 alone is the default. Write a body only where the diff cannot carry the intent, the same test a
 comment has to pass. Bullets, as brief as they go, fragments rather than full sentences.
 
-Local commits are working history. Squash merge takes the PR title as the subject and the PR body as
-the body, so what lands on `main` is the PR, not these messages.
-
 Do not add a `Co-Authored-By: Claude ...` trailer. The `main` ruleset requires an extra approval for
 unattributed changes, and an `noreply@anthropic.com` co-author trips that rule, blocking merges.
 
@@ -175,13 +159,12 @@ unattributed changes, and an `noreply@anthropic.com` co-author trips that rule, 
 Bullets, one line each, saying what changed. Lead with the problem where the change does not explain
 itself, and show it in a code block rather than a paragraph.
 
-Use `## Why` and `## What changed` once the body is long enough to need navigation. A short one
-reads better without them.
+Use `## Why` and `## What changed` once the body is long enough to need navigation.
 
-Include a label from `.github/release.yml`. The release notes group PRs by it.
+Include a label from `.github/release.yml`.
 
-Leave `notes/*.md` out of the body. It is the working record, not something the reviewer acts on.
-Where a memo correction drove the code change, say what the code does now.
+Leave `notes/*.md` out of the body. Where a memo correction drove the code change, say what the code
+does now.
 
 No `Generated with Claude Code` footer, for the same reason as the commit trailer.
 
