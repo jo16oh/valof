@@ -49,17 +49,11 @@ export async function run(
   const ran = ((): R.Result<Finding[], MissingTypeScriptError> => {
     try {
       // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
-      return R.succeed(
-        rules
-          .filter(({ kind }) => !KindSet.has(notRun, kind))
-          .reduce<Finding[]>(
-            (reported, rule) => [
-              ...reported,
-              ...rule.run(scans, Context.seal({ reported, notRun }), types),
-            ],
-            [],
-          ),
-      );
+      const reported: Finding[] = [];
+      for (const rule of rules.filter(({ kind }) => !KindSet.has(notRun, kind)))
+        reported.push(...rule.run(scans, Context.seal({ reported, notRun }), types));
+
+      return R.succeed(reported);
     } catch (error) {
       if (error instanceof MissingTypeScriptError) return R.fail(error);
       throw error;

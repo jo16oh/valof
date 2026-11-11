@@ -23,7 +23,7 @@ describe("pipe", () => {
 describe("flow", () => {
   test("rejects with a step's rejection and skips the steps after it", async () => {
     const error = new Error("failed");
-    const rest = vi.fn();
+    const rest = vi.fn<(value: never) => unknown>();
     await expect(flow("a", () => Promise.reject(error), rest)).rejects.toBe(error);
     expect(rest).not.toHaveBeenCalled();
   });
@@ -46,7 +46,7 @@ describe("flow", () => {
 
 describe("tap", () => {
   test("calls the function with the value and passes the value on", () => {
-    const seen = vi.fn();
+    const seen = vi.fn<(text: string) => void>();
     const result = pipe(
       1,
       tap((n) => {
@@ -65,12 +65,12 @@ describe("tap", () => {
       1,
       tap(
         () =>
-          new Promise<void>((resolve) =>
+          new Promise<void>((resolve) => {
             setTimeout(() => {
               order.push("tap");
               resolve();
-            }),
-          ),
+            });
+          }),
       ),
     );
     expectTypeOf(tapped).toEqualTypeOf<Promise<number>>();

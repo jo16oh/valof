@@ -61,8 +61,7 @@ export async function createMarkdownHighlighter(options: Options = {}) {
     themes: [settings.lightTheme, settings.darkTheme],
     langs: languages,
   });
-  const loadedLanguages = new Set(highlighter.getLoadedLanguages());
-  loadedLanguages.add("text");
+  const loadedLanguages = new Set([...highlighter.getLoadedLanguages(), "text"]);
 
   if (!loadedLanguages.has(settings.fallbackLanguage)) {
     highlighter.dispose();
@@ -162,7 +161,7 @@ async function main() {
     stdin += chunk;
   }
 
-  const input = JSON.parse(stdin);
+  const input = JSON.parse(stdin) as PreprocessorInput;
   process.stdout.write(JSON.stringify(await preprocess(input)));
 }
 

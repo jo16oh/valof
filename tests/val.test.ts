@@ -262,8 +262,8 @@ describe("Val", () => {
     test("a Record works as a Set", () => {
       const Tags = Val.companion<Tags>().build();
       const t = Tags.seal({ a: true, b: true });
-      expect(t.a).toBe(true);
-      expect(t.c).toBeUndefined();
+      expect(t["a"]).toBe(true);
+      expect(t["c"]).toBeUndefined();
     });
 
     test("optional keys are allowed", () => {
@@ -979,10 +979,8 @@ describe("copying", () => {
 
     test("a class instance is rejected in development", () => {
       class Point {
-        constructor(
-          public x = 1,
-          public y = 2,
-        ) {}
+        x = 1;
+        y = 2;
       }
       type Pt = Val<"Pt", { x: number; y: number }>;
       expect(() => Val.of<Pt>(new Point())).toThrow(TypeError);
@@ -1478,7 +1476,7 @@ describe("patch", () => {
       Shop.patch(shop(), { staff: { u3: {} } });
 
       expect(Place.patch(place, { at: { x: 1, y: 2 } }).at).toEqual({ x: 1, y: 2 });
-      expect(Shop.patch(shop(), { staff: { u3: { role: "host" } } }).staff.u3).toEqual({
+      expect(Shop.patch(shop(), { staff: { u3: { role: "host" } } }).staff["u3"]).toEqual({
         role: "host",
       });
     });
@@ -2490,11 +2488,11 @@ describe("building", () => {
 
       const copied = Score.create(1);
       expect(copied.ok).toBe(true);
-      if (copied.ok) expect(copied.value).not.toBe(created);
+      expect(copied.ok && copied.value).not.toBe(created);
 
       const adopted = Score.create.nocopy(2);
       expect(adopted.ok).toBe(true);
-      if (adopted.ok) expect(adopted.value).toBe(created);
+      expect(adopted.ok && adopted.value).toBe(created);
 
       expect(Score.create.nocopy(-1)).toEqual({
         ok: false,
@@ -2504,7 +2502,7 @@ describe("building", () => {
       const valid = { points: 3 } as const;
       const sealed = Score.seal.nocopy(valid);
       expect(sealed.ok).toBe(true);
-      if (sealed.ok) expect(sealed.value).toBe(valid);
+      expect(sealed.ok && sealed.value).toBe(valid);
       expect(Score.seal.nocopy({ points: -1 })).toEqual({
         ok: false,
         error: "points must not be negative",

@@ -83,7 +83,7 @@ export function fixtures(url: string): {
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
   const found = async (fixture: string, { skip = [], overlay, enable }: Options = {}) =>
-    await run(
+    run(
       files(fixture),
       LintOptions.create({
         overlay: overlay ?? [],
