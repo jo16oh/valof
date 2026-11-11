@@ -31,7 +31,7 @@ export async function run(
   ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
   const scans = toScan.map((file) =>
-    Scan.exec(file, parser, modules, FilePath.read(file, options.overlay)),
+    Scan.walk(file, parser, modules, FilePath.read(file, options.overlay)),
   );
 
   const directives = DirectiveMap.from(scans);
@@ -48,7 +48,8 @@ export async function run(
       )
       .filter(
         ({ file, at: { line }, kind }) =>
-          Options.isTarget(options, file) && !DirectiveMap.silences(directives, file, line, kind),
+          FilePath.isTarget(file, options.targets) &&
+          !DirectiveMap.silences(directives, file, line, kind),
       )
       .sort(
         (a, b) =>

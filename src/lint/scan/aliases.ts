@@ -95,7 +95,7 @@ function valName(typeName: Node, bound: Bindings): string | undefined {
   const left = child(typeName, "left");
   const right = child(typeName, "right");
   if (!left || !right || left.type !== "Identifier") return undefined;
-  if (!Bindings.isNamespace(bound, left["name"] as string)) return undefined;
+  if (!Bindings.hasNamespace(bound, left["name"] as string)) return undefined;
   // Qualified by a namespace import, so the name is already the exporting module's own.
   return right.type === "Identifier" ? (right["name"] as string) : undefined;
 }
@@ -168,7 +168,7 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
       continue;
     }
 
-    const kind = Bindings.original(bound, named);
+    const kind = Bindings.originalName(bound, named);
     const declared = {
       file,
       alias: id["name"] as string,
@@ -249,7 +249,7 @@ function variantNames(
       const named = name && valName(name, bound);
       if (!named) return false;
       // The tag's name arrives as a marker, which declares no variant of its own.
-      if (Bindings.original(bound, named) === "Tag") return true;
+      if (Bindings.originalName(bound, named) === "Tag") return true;
       const alias = aliases.get(named);
       if (!alias || seen.has(named)) return false;
       return visit(alias, new Set(seen).add(named));
@@ -294,7 +294,7 @@ function traitNames(
     const named = name && valName(name, bound);
     if (!named) return;
     // An enum's tag arrives in the same argument, and the marker carrying it names no trait.
-    if (Bindings.original(bound, named) === "Tag") return;
+    if (Bindings.originalName(bound, named) === "Tag") return;
     const qualifier =
       name.type === "TSQualifiedName" ? (child(name, "left")?.["name"] as string) : undefined;
     const ref = Bindings.refOf(bound, file, named, qualifier);
@@ -310,7 +310,7 @@ function traitNames(
     if (alias?.type === "TSTypeReference") {
       const targetName = child(alias, "typeName");
       const target = targetName && valName(targetName, bound);
-      if (target && Bindings.original(bound, target) !== "Trait") {
+      if (target && Bindings.originalName(bound, target) !== "Trait") {
         visit(alias, occurrence);
         return;
       }

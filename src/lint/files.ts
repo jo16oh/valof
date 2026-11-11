@@ -7,6 +7,9 @@ import { Val } from "../index.ts";
 export type FilePath = Val<"FilePath", string>;
 export const FilePath = Val.companion<FilePath>()
   .impl(() => ({
+    /** Whether a finding in the file is reported. `targets` is `null` when every file is. */
+    isTarget: (file, targets: Readonly<Record<string, true>> | null): boolean =>
+      targets === null || Object.hasOwn(targets, resolve(file)),
     /** The file's source: the overlay's, keyed by resolved path, or else what disk holds. */
     read: (file, overlay: Readonly<Record<string, string>>): string => {
       const key = resolve(file);

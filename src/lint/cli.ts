@@ -56,7 +56,7 @@ type Files = Val<"Files", { scanned: string[]; targets: string[]; reported: stri
 const Files = Val.companion<Files>()
   .implAssoc(({ seal }) => ({
     /** Expands the globs the arguments name, and makes the files of {@link Files.fromPaths}. */
-    read: ({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> =>
+    glob: ({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> =>
       Files.fromPaths(
         (projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand),
         targets.length > 0 ? targets.flatMap(expand) : null,
@@ -99,7 +99,7 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
     console.log(usage());
     return R.succeed(0);
   }
-  const chosen = Files.read(args);
+  const chosen = Files.glob(args);
   if (R.isFailure(chosen)) return chosen;
   const { scanned, targets, reported } = chosen.value;
   const found = await run(

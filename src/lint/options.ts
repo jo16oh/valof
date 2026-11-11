@@ -47,9 +47,4 @@ export const Options = Val.companion<Options>()
       overlay: Object.fromEntries([...overlay].map(([file, text]) => [resolve(file), text])),
     }),
   )
-  .impl(() => ({
-    /** Whether a finding in the file is reported. */
-    isTarget: (options, file: string) =>
-      options.targets === null || Object.hasOwn(options.targets, resolve(file)),
-  }))
   .build();

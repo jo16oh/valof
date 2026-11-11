@@ -156,7 +156,7 @@ export const Scan = Val.companion<Scan>()
      * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
      * rules' job, and they see every file rather than this one.
      */
-    exec: scan,
+    walk: scan,
   }))
   .build();
 
@@ -235,7 +235,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   set.add(value);
 }
 
-/** The body of {@link Scan.exec}. */
+/** The body of {@link Scan.walk}. */
 function scan(file: FilePath, parser: Parser, modules: Modules, source: string): Scan {
   const lines = Lines.from(source);
 
@@ -269,7 +269,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
         key,
       }),
     );
-    dotted.set(name, `${Bindings.original(bound, companion)}.${key}`);
+    dotted.set(name, `${Bindings.originalName(bound, companion)}.${key}`);
   };
 
   const visit = (node: Node): void => {
@@ -358,7 +358,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
           if (
             from?.type === "Identifier" &&
             taken &&
-            !Bindings.isNamespace(bound, from["name"] as string)
+            !Bindings.hasNamespace(bound, from["name"] as string)
           )
             took(
               id["name"] as string,
@@ -415,13 +415,17 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
         if (!namespace || !companion || namespace.type !== "Identifier") break;
         const through = keyName(companion, object["computed"] === true);
         if (!through) break;
-        if (Bindings.isNamespace(bound, namespace["name"] as string)) {
+        if (Bindings.hasNamespace(bound, namespace["name"] as string)) {
           collect(namespaceReads, through, name);
           break;
         }
         // `Shape.Circle.diameter`: a variant's members are declared under the same dotted key,
         // which is where the two meet.
-        collect(reads, `${Bindings.original(bound, namespace["name"] as string)}.${through}`, name);
+        collect(
+          reads,
+          `${Bindings.originalName(bound, namespace["name"] as string)}.${through}`,
+          name,
+        );
         break;
       }
       case "ImportDeclaration": {
@@ -545,7 +549,7 @@ function valueReference(node: Node, file: FilePath, bound: Bindings): SymbolRef 
   const property = child(node, "property");
   if (
     object?.type !== "Identifier" ||
-    !Bindings.isNamespace(bound, object["name"] as string) ||
+    !Bindings.hasNamespace(bound, object["name"] as string) ||
     !property
   )
     return undefined;

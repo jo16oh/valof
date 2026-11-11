@@ -96,10 +96,10 @@ export function fromRoot(node: Node, bound: Bindings): string | undefined {
   const path = rootPath(node);
   if (!path || path.length === 0) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  if (path.length === 1) return Bindings.builder(bound, first);
+  if (path.length === 1) return Bindings.builderOf(bound, first);
   // `valof.Val.companion`: step past the namespace, which only says where the name came from.
-  const qualified = Bindings.isNamespace(bound, first);
-  const name = qualified ? second : Bindings.original(bound, first);
+  const qualified = Bindings.hasNamespace(bound, first);
+  const name = qualified ? second : Bindings.originalName(bound, first);
   const step = qualified ? third : second;
   if (step === undefined || !ENTRY_POINTS.has(step)) return undefined;
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
@@ -139,8 +139,8 @@ function valOf(node: Node, file: FilePath, bound: Bindings, lines: Lines): Lift 
   const path = rootPath(callee);
   if (!path || path.length < 2) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  const qualified = Bindings.isNamespace(bound, first);
-  const name = qualified ? second : Bindings.original(bound, first);
+  const qualified = Bindings.hasNamespace(bound, first);
+  const name = qualified ? second : Bindings.originalName(bound, first);
   const step = qualified ? third : second;
   if (name !== "Val" || step !== ("of" satisfies keyof typeof Val)) return undefined;
   const args = child(node, "typeArguments");
@@ -180,7 +180,10 @@ function variantArgument(
 ): { node: Node; qualifier: string | undefined; variant: string } | undefined {
   const written = named.node["name"] as string;
   // A name reached through a namespace is already the exporting module's own.
-  if ((named.qualifier === undefined ? Bindings.original(bound, written) : written) !== "VariantOf")
+  if (
+    (named.qualifier === undefined ? Bindings.originalName(bound, written) : written) !==
+    "VariantOf"
+  )
     return undefined;
   const args = child(param, "typeArguments");
   const [enumType, variantType] = args ? children(args, "params").map(unparenthesized) : [];
@@ -252,7 +255,7 @@ export function typeReference(
   if (!left || !right || left.type !== "Identifier" || right.type !== "Identifier")
     return undefined;
   const qualifier = left["name"] as string;
-  return Bindings.isNamespace(bound, qualifier) ? { node: right, qualifier } : undefined;
+  return Bindings.hasNamespace(bound, qualifier) ? { node: right, qualifier } : undefined;
 }
 
 /** The body of {@link CompanionSite.fromChain}. */
