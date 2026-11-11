@@ -24,13 +24,20 @@ where a step needs a value from outside the chain.
 
 Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
 where the next step starts. Declare a variable in the paragraph that uses it, right before its first
-use. Put a call and its failure check on adjacent lines, with a blank line after the check:
+use. Put a call and its failure check on adjacent lines. A line that only unwraps `.value` stays
+with them, and the blank line goes after it:
 
 ```ts
-const dir = await attempt(mode, "creating the entry directory", () => mkdtemp(prefix));
-if (R.isFailure(dir)) return dir;
+const compiled = await R.sequence([
+  compile("production", imports),
+  compile("development", imports),
+]);
+if (R.isFailure(compiled)) return compiled;
+const [production, development] = compiled.value;
 
-const built = await compileEntry(mode, imports, join(dir.value, "entry.mjs"));
+const reads = await R.sequence(
+  development.modules.map((module) => Module.readsNodeEnv(module, "development")),
+);
 ```
 
 Gather the guard clauses at the top of the function, and put a blank line before the main work. Put
