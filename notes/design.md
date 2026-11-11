@@ -5495,7 +5495,7 @@ If this is revisited, remove `always` from `unused-disable`.
 
 ```
 valof-lint src src/billing/id.ts                         the first argument is the project, the rest are report targets
-valof-lint --report-on src/billing/id.ts --project src   passed by name, in any order
+valof-lint src/billing/id.ts --project src               the project passed by name, in any order
 valof-lint src                                           without report targets, the whole project
 valof-lint 'src/**/*.ts' '!src/generated/**'             ! excludes
 ```
@@ -5524,6 +5524,17 @@ No glob matcher is needed. Subtracting the result of `expand("src/generated/**")
 **Renamed `--target` to `--report-on`, 2026-09-09.** What the internal API calls `Options.report` was `--target` in the CLI, so one thing had two spellings. The help text already said "what the run reports on".
 
 Rejected names: `--files` (the project is files too), `--only` (reads as "lint only these", the misreading this design most wants to avoid, since narrowing the scan changes the answers), `--report` (one word, and measured to clash little, since `--format` is the usual flag for the output format; still, `--report-on` reads better with its verb and preposition). `v0.4.0` has no `bin` and the CLI is unreleased, so the rename cost nothing.
+
+**Removed `--report-on`, 2026-11-11.** The files to report on are passed only as positional arguments. ESLint,
+Biome, oxlint and Ruff take the files to lint as positional arguments, and tsc takes what to read with `--project`.
+A named flag that narrows the report has no standard name. With `--project` given, every positional argument is a
+file to report on, so nothing becomes impossible.
+
+- **Reporting on files under the default project now means writing the project.** `--report-on src/a.ts` read
+  `src/**/*.ts`. Now write `valof-lint src src/a.ts` or `valof-lint src/a.ts --project 'src/**/*.ts'`
+- **An unknown option is refused.** An argument starting with `-` that the command does not take stops it with exit
+  code 2. Until then it was read as a path, so a call that still wrote `--report-on` would read it as one
+- A breaking change, since it shipped from v0.5.0. Before 1.0, so it goes out in a minor release
 
 The linter does not guess whether a run is complete. Guessing what it cannot determine leans toward missing directives that really are ineffective.
 **The user knows where their project ends, and can say so in the arguments.**

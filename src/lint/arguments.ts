@@ -5,6 +5,7 @@ import { Path } from "./files.ts";
 import {
   MissingPathError,
   NotAProjectError,
+  UnknownOptionError,
   UnknownRuleError,
   UnknownSettingError,
 } from "./errors.ts";
@@ -57,7 +58,11 @@ export const Arguments = Val.companion<Arguments>()
       argv: readonly string[],
     ): R.Result<
       Arguments,
-      UnknownRuleError | UnknownSettingError | MissingPathError | NotAProjectError
+      | UnknownRuleError
+      | UnknownSettingError
+      | UnknownOptionError
+      | MissingPathError
+      | NotAProjectError
     > => {
       const projects: Path[] = [];
       const targets: Path[] = [];
@@ -66,7 +71,7 @@ export const Arguments = Val.companion<Arguments>()
       const skip: Kind[] = [];
       let model: DataTypeSettings | undefined;
       let help = false;
-      let pending: "project" | "report-on" | undefined;
+      let pending = false;
 
       const take = (into: Path[], written: string): void => {
         const path = Path.seal(written);
@@ -76,16 +81,14 @@ export const Arguments = Val.companion<Arguments>()
 
       for (const argument of argv) {
         if (pending) {
-          take(pending === "project" ? projects : targets, argument);
-          pending = undefined;
+          take(projects, argument);
+          pending = false;
         } else if (argument === "--help" || argument === "-h") {
           help = true;
-        } else if (argument === "--project" || argument === "--report-on") {
-          pending = argument.slice("--".length) as "project" | "report-on";
+        } else if (argument === "--project") {
+          pending = true;
         } else if (argument.startsWith("--project=")) {
           take(projects, argument.slice("--project=".length));
-        } else if (argument.startsWith("--report-on=")) {
-          take(targets, argument.slice("--report-on=".length));
         } else if (argument === MODEL || argument.startsWith(`${MODEL}=`)) {
           const settings: { -readonly [K in (typeof SETTINGS)[number]]?: boolean } = {};
           for (const setting of argument
@@ -102,6 +105,8 @@ export const Arguments = Val.companion<Arguments>()
           const kind = KindSet.find(ALL_KINDS, name);
           if (!kind) return R.fail(new UnknownRuleError({ kind: name, known: kinds }));
           skip.push(kind);
+        } else if (argument.startsWith("-")) {
+          return R.fail(new UnknownOptionError({ option: argument.split("=")[0] ?? argument }));
         } else {
           take(loose, argument);
         }
@@ -109,7 +114,7 @@ export const Arguments = Val.companion<Arguments>()
 
       const enable = Enabled.create(model ? { "data-type-outside-valof": model } : {});
       if (help) return R.succeed(seal({ projects, targets, excluded, skip, enable, help }));
-      if (pending) return R.fail(new MissingPathError({ flag: pending }));
+      if (pending) return R.fail(new MissingPathError({ flag: "project" }));
 
       // The first loose path is the project, unless `--project` gave one.
       const first = projects.length === 0 ? loose.shift() : undefined;

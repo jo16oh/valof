@@ -33,11 +33,18 @@ export class UnknownSettingError extends ErrorFactory({
   fields: ErrorFactory.fields<{ setting: string; known: readonly string[] }>(),
 }) {}
 
-/** `--project` or `--report-on` as the last argument. */
+/** `--project` as the last argument. */
 export class MissingPathError extends ErrorFactory({
   name: "MissingPathError",
   message: ({ flag }) => `valof-lint: --${flag} needs a path`,
   fields: ErrorFactory.fields<{ flag: string }>(),
+}) {}
+
+/** An argument starting with `-` that the command does not take, rather than a path read as one. */
+export class UnknownOptionError extends ErrorFactory({
+  name: "UnknownOptionError",
+  message: ({ option }) => `valof-lint: no option called ${JSON.stringify(option)}`,
+  fields: ErrorFactory.fields<{ option: string }>(),
 }) {}
 
 /**
@@ -63,6 +70,7 @@ export type UsageError =
   | MissingTypeScriptError
   | UnknownRuleError
   | UnknownSettingError
+  | UnknownOptionError
   | MissingPathError
   | NotAProjectError
   | NoFilesMatchedError;
