@@ -72,8 +72,8 @@ export class LinterWorker {
     if (!this.#worker) {
       const { port1, port2 } = new MessageChannel();
       const signal = new Int32Array(new SharedArrayBuffer(4));
-      const thread = new Worker(this.#script, {
-        workerData: { port: port2, signal },
+      const thread = new Worker(START, {
+        workerData: { port: port2, signal, script: this.#script.href },
         transferList: [port2],
       });
       // The host decides when it exits. A linter waiting on its own worker would never finish.
@@ -95,3 +95,27 @@ export class LinterWorker {
     return reply.message as Reply;
   }
 }
+
+/**
+ * Starts the worker on its script, and answers every query with why when the script does not load.
+ *
+ * Without it, a script that fails to load leaves the caller waiting out its patience: the caller's
+ * thread is blocked, so it cannot hear the worker's `error` event, and nothing else answers. The
+ * failure is what `R.fail` makes, written out because this runs as source in the worker.
+ *
+ * A module rather than `eval`, because an `eval` worker skips the `--import` preloads the host was
+ * started with, and so the loaders they register.
+ */
+const START = new URL(
+  `data:text/javascript,${encodeURIComponent(`
+import { parentPort, workerData } from "node:worker_threads";
+import(workerData.script).catch((error) => {
+  const { port, signal } = workerData;
+  parentPort.on("message", () => {
+    port.postMessage({ type: "Failure", error: "valof-lint: the worker did not start: " + String(error) });
+    Atomics.store(signal, 0, 1);
+    Atomics.notify(signal, 0);
+  });
+});
+`)}`,
+);
