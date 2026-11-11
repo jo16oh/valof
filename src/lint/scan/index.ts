@@ -246,6 +246,7 @@ type Unlisted<N extends string> = Reserved extends infer R
  * Matches a whole name against the patterns. A {@link Reserved} name without a pattern, or a
  * pattern that is not one, is a type error.
  */
+// valof-lint-disable-next-line data-type-outside-valof -- a list of Vals, not a new shape
 export function reserved<const N extends readonly Reserved[]>(
   patterns: N &
     ([Unlisted<N[number]>] extends [never] ? unknown : { unlisted: Unlisted<N[number]> }),
