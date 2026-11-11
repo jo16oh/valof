@@ -1,9 +1,10 @@
 import { Val } from "../../index.ts";
 import { resolve } from "node:path";
 
-import { symbolIdentity, type Scan } from "../scan/index.ts";
+import { Exports, type Scan } from "../scan/index.ts";
+import type { SymbolRef } from "../scan/bindings.ts";
 import type { Arity } from "../types.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Finding, Kind, Rule } from "./rule.ts";
 
 /**
  * A member whose type annotation declares a parameter the implementation gives a default or a
@@ -14,10 +15,10 @@ import { Finding, Rule } from "./rule.ts";
  * TypeScript counts the annotation's parameters, through an alias or an import. A default after
  * the parameters the annotation declares is not reported, because the type does not offer it.
  */
-export type HiddenOptional = Val<"HiddenOptional", { kind: "hidden-optional" }, Rule>;
+export type HiddenOptional = Val<"HiddenOptional", { kind: Kind }, Rule>;
 export const HiddenOptional = Val.companion<HiddenOptional>()
   .implCreate(() => ({
-    kind: "hidden-optional",
+    kind: Kind.seal("hidden-optional"),
     description: "a default or rest parameter that a member's type annotation hides",
     warns: false,
   }))
@@ -25,7 +26,8 @@ export const HiddenOptional = Val.companion<HiddenOptional>()
   .build();
 
 function findings({ kind }: HiddenOptional, scans: readonly Scan[], types: () => Arity): Finding[] {
-  const identity = symbolIdentity(scans);
+  const exports = Exports.from(scans);
+  const identity = (ref: SymbolRef): string => Exports.identify(exports, ref);
   const used = new Set(scans.flatMap(({ memberSources }) => memberSources.map(identity)));
   const candidates = scans.flatMap(({ file, hiddenParameters }) =>
     hiddenParameters.filter(({ ref }) => used.has(identity(ref))).map((one) => ({ file, one })),

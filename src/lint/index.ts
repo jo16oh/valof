@@ -4,7 +4,7 @@ import type { Finding } from "./rules/index.ts";
 import { Options } from "./options.ts";
 import { run } from "./run.ts";
 
-export { RULES, kinds, isKind, type Finding } from "./rules/index.ts";
+export { RULES, kinds, Kind, type Finding } from "./rules/index.ts";
 export { MissingParserError, MissingTypeScriptError } from "./errors.ts";
 export { ModelSettings, Options } from "./options.ts";
 

@@ -1,12 +1,12 @@
 import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Finding, Kind, Rule } from "./rule.ts";
 
 /** A step function with a block body, whose locals every member shares as hidden state. */
-export type BlockStep = Val<"BlockStep", { kind: "block-step" }, Rule>;
+export type BlockStep = Val<"BlockStep", { kind: Kind }, Rule>;
 export const BlockStep = Val.companion<BlockStep>()
   .implCreate(() => ({
-    kind: "block-step",
+    kind: Kind.seal("block-step"),
     description: "a function passed to `.impl`, `.implTrait` or `.implAssoc` with a block body",
     warns: true,
   }))

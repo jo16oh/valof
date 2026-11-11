@@ -1,6 +1,8 @@
+import { pipe } from "../../shared/pipe/index.ts";
 import { Enum, Val } from "../../index.ts";
-import type { Position } from "../ast.ts";
-import { KindSet } from "../rules/rule.ts";
+import { Lines, type Position } from "../ast.ts";
+import type { FilePath } from "../files.ts";
+import type { Scan } from "./index.ts";
 
 /** One disable comment, whole. */
 export type Directive = Val<
@@ -23,11 +25,24 @@ export type Directive = Val<
     spelling: string;
   }
 >;
-/** What a directive silences: the kinds it named, or every kind there is. */
-type Silenced = Enum<"Silenced", { Every: {}; Named: { kinds: KindSet } }>;
+
+/**
+ * The names one disable comment lists, as a set. A name is what the author wrote, which no rule may
+ * have: `unused-disable` reports such a name, so it is kept rather than checked against the rules.
+ */
+type NameSet = Val<"NameSet", Record<string, true>>;
+const NameSet = Val.companion<NameSet>()
+  .implCreate((names: Iterable<string>) =>
+    Object.fromEntries([...names].map((name) => [name, true as const])),
+  )
+  .impl(() => ({ has: (names, name: string) => Object.hasOwn(names, name) }))
+  .build();
+
+/** What a directive silences: the names it listed, or every kind there is. */
+type Silenced = Enum<"Silenced", { Every: {}; Named: { names: NameSet } }>;
 const Silenced = Enum.companion<Silenced>()
   .impl(() => ({
-    has: (silenced, kind: string) => silenced._tag === "Every" || KindSet.has(silenced.kinds, kind),
+    has: (silenced, kind: string) => silenced._tag === "Every" || NameSet.has(silenced.names, kind),
   }))
   .build();
 
@@ -59,26 +74,39 @@ export const Directive = Val.companion<Directive>()
   }))
   .build();
 
-/**
- * What one comment carries, or `undefined` when it carries no directive.
- *
- * More than one name goes on a line, separated by a space or a comma alike, since a reader
- * writing a list will reach for either. Nothing but a space may follow a spelling, so a
- * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
- */
-function directive(text: string): { spelling: string; kinds: string[] } | undefined {
-  const match =
-    /(?:^|\s)valof-lint-disable(-next-line|-all-whole-file|-whole-file)?(?![-\w])(?:[^\S\n]+([^\n]*))?/.exec(
-      text,
-    );
-  if (!match) return undefined;
-  // Everything after `--` is a note for the reader, the way other linters spell it.
-  const listed = (match[2] ?? "").split("--")[0] ?? "";
-  return {
-    spelling: `valof-lint-disable${match[1] ?? ""}`,
-    kinds: [...new Set(listed.split(/[\s,]+/).filter(Boolean))],
-  };
-}
+/** A directive as its comment writes it, before the line it covers is known. */
+type DirectiveComment = Val<
+  "DirectiveComment",
+  { at: Position; spelling: string; kinds: string[] }
+>;
+const DirectiveComment = Val.companion<DirectiveComment>()
+  .implAssoc(({ seal }) => ({
+    /**
+     * What one comment carries, or `undefined` when it carries no directive.
+     *
+     * More than one name goes on a line, separated by a space or a comma alike, since a reader
+     * writing a list will reach for either. Nothing but a space may follow a spelling, so a
+     * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
+     */
+    parse: (text: string, at: Position): DirectiveComment | undefined => {
+      const match =
+        /(?:^|\s)valof-lint-disable(-next-line|-all-whole-file|-whole-file)?(?![-\w])(?:[^\S\n]+([^\n]*))?/.exec(
+          text,
+        );
+      if (!match) return undefined;
+      return seal({
+        at,
+        spelling: `valof-lint-disable${match[1] ?? ""}`,
+        kinds: pipe(
+          // Everything after `--` is a note for the reader, the way other linters spell it.
+          (match[2] ?? "").split("--")[0] ?? "",
+          (listed) => listed.split(/[\s,]+/).filter(Boolean),
+          (names) => [...new Set(names)],
+        ),
+      });
+    },
+  }))
+  .build();
 
 /** Whether nothing but whitespace precedes `start` on its line. */
 function ownLine(source: string, start: number): boolean {
@@ -105,12 +133,12 @@ function ownLine(source: string, start: number): boolean {
 export function directives(
   comments: readonly { value: string; start: number; end: number }[],
   source: string,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Directive[] {
-  const lineOf = (offset: number): number => position(offset).line;
+  const lineOf = (offset: number): number => Lines.at(lines, offset).line;
   const found: Directive[] = [];
   /** The line directives of the block being read, held until its last line is known. */
-  let block: { at: Position; spelling: string; kinds: string[] }[] = [];
+  let block: DirectiveComment[] = [];
   /** The last line of that block, or -1 when the previous comment closed one. */
   let blockEnd = -1;
   /** Where that comment ended, so code written after it on its own line breaks the block. */
@@ -132,12 +160,9 @@ export function directives(
       lineOf(comment.start) <= blockEnd + 1 &&
       source.slice(blockEndOffset, comment.start).trim() === "";
     if (!joins) close();
-    const carried = directive(comment.value);
-    if (carried) {
-      const written = { at: position(comment.start), ...carried };
-      if (carried.spelling === "valof-lint-disable-next-line") block.push(written);
-      else found.push(Directive.seal({ ...written, covers: "file" }));
-    }
+    const written = DirectiveComment.parse(comment.value, Lines.at(lines, comment.start));
+    if (written?.spelling === "valof-lint-disable-next-line") block.push(written);
+    else if (written) found.push(Directive.seal({ ...written, covers: "file" }));
     blockEnd = lineOf(comment.end);
     blockEndOffset = comment.end;
   }
@@ -145,6 +170,27 @@ export function directives(
   return found;
 }
 
-function named(kinds: Iterable<string>): Silenced {
-  return Silenced.Named.create({ kinds: KindSet.create(kinds) });
+/**
+ * The directives of each file in a run, by the path the file was scanned under.
+ *
+ * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
+ * brand is still reported, since silencing it is its own line's decision.
+ */
+export type DirectiveMap = Val<"DirectiveMap", Record<FilePath, Directive[]>>;
+export const DirectiveMap = Val.companion<DirectiveMap>()
+  .implAssoc(({ seal }) => ({
+    from: (scans: readonly Scan[]): DirectiveMap =>
+      seal(Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives]))),
+  }))
+  .impl(() => ({
+    /** Whether a directive in the file silences a finding of `kind` on `line`. */
+    silences: (map, file: FilePath, line: number, kind: string) =>
+      ((Object.hasOwn(map, file) ? map[file] : undefined) ?? []).some((directive) =>
+        Directive.silences(directive, line, kind),
+      ),
+  }))
+  .build();
+
+function named(names: Iterable<string>): Silenced {
+  return Silenced.Named.create({ names: NameSet.create(names) });
 }

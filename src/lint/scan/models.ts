@@ -1,5 +1,12 @@
 import { Enum, Val, type VariantOf } from "../../index.ts";
-import { annotationOf, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
+import {
+  annotationOf,
+  Lines,
+  typeParams,
+  unparenthesized,
+  type Node,
+  type Position,
+} from "../ast.ts";
 import { Bindings } from "./bindings.ts";
 import { stepOf } from "./chains.ts";
 
@@ -75,7 +82,7 @@ const PRIMITIVE = new Set([
 
 const nameOf = (node: Node, bound: Bindings): string | undefined =>
   node.type === "TSTypeReference" && node.typeName.type === "Identifier"
-    ? Bindings.original(bound, node.typeName.name)
+    ? Bindings.originalName(bound, node.typeName.name)
     : undefined;
 
 /** The node itself, with parentheses and `readonly` unwrapped, which add no shape of their own. */
@@ -89,19 +96,16 @@ const bare = (node: Node | null | undefined): Node | undefined => {
  * spelling, the way the other rules match one. A `.d.ts` and the body of `declare global` /
  * `declare module` describe someone else's code, and are skipped.
  */
-export function models(
-  file: string,
-  program: Node,
-  bound: Bindings,
-  position: (offset: number) => Position,
-): Models {
+export function models(file: string, program: Node, bound: Bindings, lines: Lines): Models {
   const found: Model[] = [];
   const payloadAliases: string[] = [];
   const outside: TypeUse[] = [];
   const done = (): Models => Models.seal({ models: found, payloadAliases, outside });
   if (/\.d\.[cm]?ts$/.test(file)) return done();
   const report = (shape: Shape["_tag"], name: string, node: Node): void =>
-    void found.push(Model.seal({ at: position(node.start), shape: Shape[shape].create({}), name }));
+    void found.push(
+      Model.seal({ at: Lines.at(lines, node.start), shape: Shape[shape].create({}), name }),
+    );
 
   /** The first node under `node` that declares data, skipping every Valof type's arguments. */
   const data = (node: Node): Node | undefined => {
@@ -207,7 +211,7 @@ export function models(
         if (name && VALOF.has(name)) return;
         const written = node.typeName;
         if (!allowed && written.type === "Identifier")
-          outside.push(TypeUse.seal({ at: position(written.start), name: written.name }));
+          outside.push(TypeUse.seal({ at: Lines.at(lines, written.start), name: written.name }));
         break;
       }
       case "CallExpression": {

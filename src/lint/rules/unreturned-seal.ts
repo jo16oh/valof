@@ -1,6 +1,6 @@
 import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Finding, Kind, Rule } from "./rule.ts";
 
 /**
  * A custom seal that holds the default seal's result outside its `return`, in a chain whose create
@@ -13,10 +13,10 @@ import { Finding, Rule } from "./rule.ts";
  * passed in is not reported, and neither is any chain with an ordinary create, where discarding the
  * result is legitimate.
  */
-export type UnreturnedSeal = Val<"UnreturnedSeal", { kind: "unreturned-seal" }, Rule>;
+export type UnreturnedSeal = Val<"UnreturnedSeal", { kind: Kind }, Rule>;
 export const UnreturnedSeal = Val.companion<UnreturnedSeal>()
   .implCreate(() => ({
-    kind: "unreturned-seal",
+    kind: Kind.seal("unreturned-seal"),
     description:
       "a seal that keeps the default seal's result outside its return, in a chain with `.implCreate.noseal`",
     warns: false,

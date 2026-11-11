@@ -102,6 +102,12 @@ test("says so when everything is excluded", () => {
   expect(stderr).toBe("valof-lint: no files matched");
 });
 
+test("says so when every file named to report on is excluded, rather than report on the project", () => {
+  const { status, stderr } = cli(`${under}/*.ts`, `${under}/orders.ts`, `!${under}/orders.ts`);
+  expect(status).toBe(2);
+  expect(stderr).toBe("valof-lint: no files matched");
+});
+
 test("takes an excluded file off the report too, where it was named as a target", () => {
   const both = cli(under, `${under}/orders.ts`, `${under}/outside/fresh.ts`);
   expect(both.stdout.split("\n").filter(Boolean)).toHaveLength(2);

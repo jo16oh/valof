@@ -1,16 +1,16 @@
 import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Finding, Kind, Rule } from "./rule.ts";
 
 /**
  * A variant whose steps are split by another variant's steps:
  * `.Circle.implSeal(f).Square.impl(g).Circle.impl(h)`. The type accepts the order, and a reader of
  * one variant has to find its steps across the chain.
  */
-export type SplitVariantSteps = Val<"SplitVariantSteps", { kind: "split-variant-steps" }, Rule>;
+export type SplitVariantSteps = Val<"SplitVariantSteps", { kind: Kind }, Rule>;
 export const SplitVariantSteps = Val.companion<SplitVariantSteps>()
   .implCreate(() => ({
-    kind: "split-variant-steps",
+    kind: Kind.seal("split-variant-steps"),
     description: "a variant whose steps are split by another variant's steps in the chain",
     warns: true,
   }))

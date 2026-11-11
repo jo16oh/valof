@@ -1,23 +1,17 @@
-import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
+import { pipe } from "../../shared/pipe/index.ts";
 import { Val, type VariantOf } from "../../index.ts";
 import type { AnyVal, CompanionBuilder } from "../../val.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
 import type { Reserved } from "../../val.ts";
+import type { FilePath } from "../files.ts";
 
-import {
-  keyName,
-  positions,
-  typeParams,
-  unparenthesized,
-  type Node,
-  type Position,
-} from "../ast.ts";
+import { keyName, Lines, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
 import { Parser } from "../parser.ts";
 import {
-  valAliases,
+  Aliases,
   type Alias,
   type BrandClaim,
   type EnumAlias,
@@ -25,32 +19,21 @@ import {
   type ReAlias,
   type TraitAlias,
 } from "./aliases.ts";
-import {
-  moduleRef,
-  symbolRef,
-  Bindings,
-  ImportBinding,
-  ImportMap,
-  Modules,
-  type SymbolRef,
-} from "./bindings.ts";
+import { Bindings, ImportBinding, ImportMap, Modules, SymbolRef } from "./bindings.ts";
 import {
   CompanionSite,
   chainRoot,
-  companionSite,
   fromRoot,
   stepOf,
   variantOf,
   typeReference,
-  valOf,
-  type Lift,
+  Lift,
 } from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
 import { models, type Models } from "./models.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
-export { symbolRef } from "./bindings.ts";
 export { ImportMap } from "./bindings.ts";
 export type { ImportBinding, SymbolRef } from "./bindings.ts";
 export type {
@@ -62,7 +45,7 @@ export type {
   TraitAlias,
 } from "./aliases.ts";
 export type { CompanionSite, Lift } from "./chains.ts";
-export { Directive } from "./directives.ts";
+export { Directive, DirectiveMap } from "./directives.ts";
 export type { Model, Models, Shape, TypeUse } from "./models.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
@@ -150,6 +133,10 @@ export type HiddenParameter = Val<
 >;
 export const HiddenParameter = Val.companion<HiddenParameter>().build();
 
+/** A `Trait.dyn(Val, value)` box: the Trait, and the Val it holds. */
+type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
+const DynBox = Val.companion<DynBox>().build();
+
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
 export const DynRead = Val.companion<DynRead>().build();
@@ -187,7 +174,7 @@ export const CompanionBinding = Val.companion<CompanionBinding>().build();
 export type Scan = Val<
   "Scan",
   {
-    file: string;
+    file: FilePath;
     imported: ImportMap;
     /** What `.impl(() => ({…}))` registered here. */
     members: Member[];
@@ -238,28 +225,53 @@ export type Scan = Val<
     directives: Directive[];
   }
 >;
-export const Scan = Val.companion<Scan>().build();
+export const Scan = Val.companion<Scan>()
+  .implAssoc(() => ({
+    /**
+     * Walks one file once, for every rule.
+     *
+     * One walk rather than one per rule because the rules share their footing: {@link Bindings}
+     * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
+     * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
+     * rules' job, and they see every file rather than this one.
+     */
+    walk: scan,
+  }))
+  .build();
 
-/** Resolves local exports and re-export chains to the symbol they expose. */
-export function symbolIdentity(scans: readonly Scan[]): (ref: SymbolRef) => string {
-  const exports = new Map<string, SymbolRef>();
-  for (const scan of scans) {
-    const module = normalize(resolve(scan.file));
-    for (const [name, target] of Object.entries(scan.exportedRefs))
-      exports.set(moduleRef(module, name).key, target);
-  }
-  return (ref) => {
-    const seen = new Set<string>();
-    let current = ref;
-    while (!seen.has(current.key)) {
-      seen.add(current.key);
-      const target = exports.get(current.key);
-      if (!target) break;
-      current = target;
-    }
-    return current.key;
-  };
-}
+/**
+ * What each module of a run exports, keyed by the reference an export makes: a re-export points on
+ * to the symbol it exposes.
+ */
+export type Exports = Val<"Exports", Record<string, SymbolRef>>;
+export const Exports = Val.companion<Exports>()
+  .implAssoc(({ seal }) => ({
+    from: (scans: readonly Scan[]): Exports =>
+      pipe(
+        scans.flatMap(({ file, exportedRefs }) => {
+          const module = normalize(resolve(file));
+          return Object.entries(exportedRefs).map(([name, target]) => [
+            SymbolRef.fromExport(module, name).key,
+            target,
+          ]);
+        }),
+        Object.fromEntries,
+        seal,
+      ),
+  }))
+  .impl(() => ({
+    /** The key of the symbol `ref` stands for, past every local export and re-export chain. */
+    identify: (exports, ref: SymbolRef): string => {
+      const seen = new Set<string>();
+      let current = ref;
+      while (!seen.has(current.key) && Object.hasOwn(exports, current.key)) {
+        seen.add(current.key);
+        current = exports[current.key]!;
+      }
+      return current.key;
+    },
+  }))
+  .build();
 
 /** An enum to read keys from. `AnyEnum` widens them to `string`. */
 type Sample = Enum<"Sample", { A: { a: 1 } }>;
@@ -302,20 +314,9 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   set.add(value);
 }
 
-/**
- * Walks one file once, for every rule.
- *
- * One walk rather than one per rule because the rules share their footing: {@link Bindings}
- * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
- * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
- * rules' job, and they see every file rather than this one.
- *
- * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
- * unsaved. The file may not exist at all.
- */
-export function scan(file: string, parser: Parser, modules: Modules, given?: string): Scan {
-  const source = given ?? readFileSync(file, "utf8");
-  const position = positions(source);
+/** The body of {@link Scan.walk}. */
+function scan(file: FilePath, parser: Parser, modules: Modules, source: string): Scan {
+  const lines = Lines.from(source);
 
   let bound = Bindings.create();
   const exportedAs = new Map<string, string>();
@@ -332,7 +333,7 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
   const objects = new Map<string, Node>();
-  const dynBindings = new Map<string, { trait: SymbolRef; val: SymbolRef }>();
+  const dynBindings = new Map<string, DynBox>();
   const reads = new Map<string, Set<string>>();
   const namespaceReads = new Map<string, Set<string>>();
   const sites: CompanionSite[] = [];
@@ -348,11 +349,11 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
         at,
         name,
         companion,
-        companionRef: symbolRef(file, bound, companion),
+        companionRef: Bindings.refOf(bound, file, companion, undefined),
         key,
       }),
     );
-    dotted.set(name, `${Bindings.original(bound, companion)}.${key}`);
+    dotted.set(name, `${Bindings.originalName(bound, companion)}.${key}`);
   };
 
   const visit = (node: Node): void => {
@@ -375,11 +376,11 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
       case "VariableDeclarator": {
         const { id, init } = node;
         if (!init) break;
-        const site = companionSite(init, file, position(init.start), bound, position);
+        const site = CompanionSite.fromChain(init, file, Lines.at(lines, init.start), bound, lines);
         if (site)
           sites.push(
             id.type === "Identifier"
-              ? CompanionSite.patch(site, { name: id.name, nameAt: position(id.start) })
+              ? CompanionSite.patch(site, { name: id.name, nameAt: Lines.at(lines, id.start) })
               : site,
           );
         // `const { a, b: c } = X` reads `a` and `b` off `X`.
@@ -395,7 +396,7 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
                 collect(reads, from, name);
                 const local = property.value;
                 if (local.type === "Identifier")
-                  took(local.name, position(local.start), from, name);
+                  took(local.name, Lines.at(lines, local.start), from, name);
               }
             }
           }
@@ -419,13 +420,13 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
         if (init.type === "MemberExpression") {
           const from = init.object;
           const taken = keyName(init.property, init.computed);
-          if (from.type === "Identifier" && taken && !Bindings.isNamespace(bound, from.name))
-            took(id.name, position(id.start), from.name, taken);
+          if (from.type === "Identifier" && taken && !Bindings.hasNamespace(bound, from.name))
+            took(id.name, Lines.at(lines, id.start), from.name, taken);
         }
-        members.push(...implMembers(init, id.name, bound, objects, position));
-        splitVariants.push(...split(init, id.name, bound, position));
-        heldSeals.push(...held(init, id.name, position));
-        if (site) memberBodies.push(...bodies(init, id.name, site.typeName, bound, position));
+        members.push(...implMembers(init, id.name, bound, objects, lines));
+        splitVariants.push(...split(init, id.name, bound, lines));
+        heldSeals.push(...held(init, id.name, lines));
+        if (site) memberBodies.push(...bodies(init, id.name, site.typeName, bound, lines));
         break;
       }
       case "CallExpression": {
@@ -435,10 +436,12 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
         memberSources.push(...sources(node, file, bound));
         const block = blockStep(node, bound);
         if (block)
-          blockSteps.push(BlockStepFunction.seal({ at: position(block.start), step: block.step }));
-        const lift = valOf(node, file, bound, position);
+          blockSteps.push(
+            BlockStepFunction.seal({ at: Lines.at(lines, block.start), step: block.step }),
+          );
+        const lift = Lift.fromCall(node, file, bound, lines);
         if (lift) lifts.push(lift);
-        const implementation = implTrait(node, file, bound, sites, objects, position);
+        const implementation = implTrait(node, file, bound, sites, objects, lines);
         if (implementation) {
           traitImplementations.push(implementation);
           members.push(...implementation.overrides);
@@ -474,13 +477,13 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
         if (namespace.type !== "Identifier") break;
         const through = keyName(object.property, object.computed);
         if (!through) break;
-        if (Bindings.isNamespace(bound, namespace.name)) {
+        if (Bindings.hasNamespace(bound, namespace.name)) {
           collect(namespaceReads, through, name);
           break;
         }
         // `Shape.Circle.diameter`: a variant's members are declared under the same dotted key,
         // which is where the two meet.
-        collect(reads, `${Bindings.original(bound, namespace.name)}.${through}`, name);
+        collect(reads, `${Bindings.originalName(bound, namespace.name)}.${through}`, name);
         break;
       }
       case "ImportDeclaration": {
@@ -512,7 +515,7 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
     for (const one of node.children) visit(one);
   };
 
-  const { program, comments } = Parser.read(parser, file, source);
+  const { program, comments } = Parser.exec(parser, file, source);
   visit(program);
 
   // Imports may follow an export declaration. Resolve local exports only after every binding is
@@ -532,18 +535,16 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
       exportedAs.set(outside, inside);
       exportedRefs.set(
         outside,
-        module ? moduleRef(module, inside) : symbolRef(file, bound, inside),
+        module
+          ? SymbolRef.fromExport(module, inside)
+          : Bindings.refOf(bound, file, inside, undefined),
       );
     }
   }
 
   // After the walk, which is what collected the imports `Val` is resolved against.
-  const { aliases, traitAliases, enumAliases, brands, reAliases, nestedPayloadOfs } = valAliases(
-    program,
-    file,
-    bound,
-    position,
-  );
+  const { aliases, traitAliases, enumAliases, brands, reAliases, nestedPayloadOfs } =
+    Aliases.fromProgram(program, file, bound, lines);
 
   return Scan.seal({
     file,
@@ -556,7 +557,7 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
     splitVariants,
     stepMembers: throughReferences(memberBodies, program),
     heldSeals,
-    hiddenParameters: hidden(program, file, bound, position),
+    hiddenParameters: hidden(program, file, bound, lines),
     memberSources,
     reads: sets(reads),
     namespaceReads: sets(namespaceReads),
@@ -571,17 +572,13 @@ export function scan(file: string, parser: Parser, modules: Modules, given?: str
     sites,
     companionBindings,
     lifts,
-    models: models(file, program, bound, position),
-    directives: directives(comments, source, position),
+    models: models(file, program, bound, lines),
+    directives: directives(comments, source, lines),
   });
 }
 
 /** The uncomplicated `Trait.dyn(Val, value)` form.  Escaping the box is deliberately not traced. */
-function dynBox(
-  node: Node,
-  file: string,
-  bound: Bindings,
-): { trait: SymbolRef; val: SymbolRef } | undefined {
+function dynBox(node: Node, file: FilePath, bound: Bindings): DynBox | undefined {
   if (node.type !== "CallExpression") return undefined;
   const { callee } = node;
   if (callee.type !== "MemberExpression" || keyName(callee.property, callee.computed) !== "dyn")
@@ -589,27 +586,27 @@ function dynBox(
   const args = node.arguments;
   const trait = valueReference(callee.object, file, bound);
   const val = args[0] && valueReference(args[0], file, bound);
-  return trait && val ? { trait, val } : undefined;
+  return trait && val ? DynBox.seal({ trait, val }) : undefined;
 }
 
 /** A runtime companion reference with its exporting module retained. */
-function valueReference(node: Node, file: string, bound: Bindings): SymbolRef | undefined {
-  if (node.type === "Identifier") return symbolRef(file, bound, node.name);
+function valueReference(node: Node, file: FilePath, bound: Bindings): SymbolRef | undefined {
+  if (node.type === "Identifier") return Bindings.refOf(bound, file, node.name, undefined);
   if (node.type !== "MemberExpression") return undefined;
   const { object } = node;
-  if (object.type !== "Identifier" || !Bindings.isNamespace(bound, object.name)) return undefined;
+  if (object.type !== "Identifier" || !Bindings.hasNamespace(bound, object.name)) return undefined;
   const name = keyName(node.property, node.computed);
-  return name ? symbolRef(file, bound, name, object.name) : undefined;
+  return name ? Bindings.refOf(bound, file, name, object.name) : undefined;
 }
 
 /** Reads one `.implTrait` call without collapsing repeated calls in the same chain. */
 function implTrait(
   node: Node,
-  file: string,
+  file: FilePath,
   bound: Bindings,
   sites: readonly CompanionSite[],
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): TraitImplementation | undefined {
   if (node.type !== "CallExpression") return undefined;
   const { callee } = node;
@@ -638,7 +635,9 @@ function implTrait(
     const valNode = unparenthesized(typeParams(current.typeArguments)[0]);
     const valNamed =
       valNode?.type === "TSTypeReference" ? typeReference(valNode.typeName, bound) : undefined;
-    val = valNamed ? symbolRef(file, bound, valNamed.node.name, valNamed.qualifier) : undefined;
+    val = valNamed
+      ? Bindings.refOf(bound, file, valNamed.node.name, valNamed.qualifier ?? undefined)
+      : undefined;
   } else if (current.type === "Identifier") {
     const builder = current.name;
     val = sites.find((one) => one.name === builder)?.typeRef;
@@ -647,7 +646,7 @@ function implTrait(
   const [traitRef, object] = node.arguments;
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
-  const resolved = object ? stepMembers(object, val.name, objects, position) : [];
+  const resolved = object ? stepMembers(object, val.name, objects, lines) : [];
   return TraitImplementation.seal({
     val,
     trait,
@@ -664,11 +663,11 @@ function stepMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Member[] {
   const fn = node.type === "Identifier" ? objects.get(node.name) : node;
   const body = fn?.type === "ArrowFunctionExpression" ? unparenthesized(fn.body) : undefined;
-  return body ? objectMembers(body, companion, objects, position, new Set()) : [];
+  return body ? objectMembers(body, companion, objects, lines, new Set()) : [];
 }
 
 /** Resolves inline/const objects and spreads, retaining known keys even beside an unknown spread. */
@@ -676,7 +675,7 @@ function objectMembers(
   node: Node,
   companion: string,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
   seen: Set<string>,
 ): Member[] {
   if (node.type === "Identifier") {
@@ -686,19 +685,20 @@ function objectMembers(
     if (!target) return [];
     const next = new Set(seen);
     next.add(name);
-    return objectMembers(target, companion, objects, position, next);
+    return objectMembers(target, companion, objects, lines, next);
   }
   if (node.type !== "ObjectExpression") return [];
   const byName = new Map<string, Member>();
   for (const entry of node.properties) {
     if (entry.type === "SpreadElement") {
-      for (const member of objectMembers(entry.argument, companion, objects, position, seen))
+      for (const member of objectMembers(entry.argument, companion, objects, lines, seen))
         byName.set(member.member, member);
       continue;
     }
     if (entry.type !== "Property") continue;
     const name = keyName(entry.key, entry.computed);
-    if (name) byName.set(name, Member.seal({ at: position(entry.start), companion, member: name }));
+    if (name)
+      byName.set(name, Member.seal({ at: Lines.at(lines, entry.start), companion, member: name }));
   }
   return [...byName.values()];
 }
@@ -712,7 +712,7 @@ function implMembers(
   companion: string,
   bound: Bindings,
   objects: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): Member[] {
   const found = new Map<string, Member>();
   let current: Node = node;
@@ -726,7 +726,7 @@ function implMembers(
     const [object] = current.arguments;
     if ((step.name === "impl" || step.name === "implAssoc") && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
-      for (const member of stepMembers(object, owner, objects, position))
+      for (const member of stepMembers(object, owner, objects, lines))
         if (!rejected(member.member, variant ? undefined : root))
           found.set(`${owner}\0${member.member}`, member);
     }
@@ -783,12 +783,7 @@ function blockStep(node: Node, bound: Bindings): { step: string; start: number }
  * The variant steps in a chain that resume a variant after another variant's step: in
  * `.Circle.implSeal(f).Square.impl(g).Circle.impl(h)`, the second `.Circle`.
  */
-function split(
-  node: Node,
-  companion: string,
-  bound: Bindings,
-  position: (offset: number) => Position,
-): SplitVariant[] {
+function split(node: Node, companion: string, bound: Bindings, lines: Lines): SplitVariant[] {
   /** Each step from the root outwards, with the variant it is on, if any. */
   const steps: { variant: string | undefined; start: number }[] = [];
   let current: Node = node;
@@ -808,7 +803,7 @@ function split(
   steps.forEach(({ variant, start }, index) => {
     if (variant === undefined) return;
     if (seen.has(variant) && steps[index - 1]?.variant !== variant)
-      found.push(SplitVariant.seal({ at: position(start), companion, variant }));
+      found.push(SplitVariant.seal({ at: Lines.at(lines, start), companion, variant }));
     seen.add(variant);
   });
   return found;
@@ -876,7 +871,7 @@ function bodies(
   companion: string,
   type: string,
   bound: Bindings,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): StepMember[] {
   const found: StepMember[] = [];
   let current: Node = node;
@@ -897,7 +892,7 @@ function bodies(
         );
         found.push(
           StepMember.seal({
-            at: position(entry.start),
+            at: Lines.at(lines, entry.start),
             companion,
             type,
             member,
@@ -918,7 +913,7 @@ function bodies(
  * whether the chain's create is `.implCreate.noseal`. An arrow with an expression body returns
  * that expression, so every call in it is held by the return.
  */
-function held(node: Node, companion: string, position: (offset: number) => Position): HeldSeal[] {
+function held(node: Node, companion: string, lines: Lines): HeldSeal[] {
   let noseal = false;
   let fn: Node | undefined;
   let current: Node = node;
@@ -949,7 +944,7 @@ function held(node: Node, companion: string, position: (offset: number) => Posit
         inner.callee.type === "Identifier" &&
         inner.callee.name === seal.name,
     )
-    .map((call) => HeldSeal.seal({ at: position(call.start), companion, noseal }));
+    .map((call) => HeldSeal.seal({ at: Lines.at(lines, call.start), companion, noseal }));
 }
 
 /** The index of a function's first default or rest parameter, and which it is. */
@@ -965,12 +960,7 @@ function optional(
 }
 
 /** Every annotated top-level const holding a function, or an object of them, with one. */
-function hidden(
-  program: Node,
-  file: string,
-  bound: Bindings,
-  position: (offset: number) => Position,
-): HiddenParameter[] {
+function hidden(program: Node, file: FilePath, bound: Bindings, lines: Lines): HiddenParameter[] {
   const found: HiddenParameter[] = [];
   for (const statement of program.type === "Program" ? program.body : []) {
     const declaration =
@@ -981,13 +971,17 @@ function hidden(
       const { id } = declarator;
       const init = unparenthesized(declarator.init);
       if (id.type !== "Identifier" || !id.annotated || !init) continue;
-      const base = { name: id.name, ref: symbolRef(file, bound, id.name), offset: id.start };
+      const base = {
+        name: id.name,
+        ref: Bindings.refOf(bound, file, id.name, undefined),
+        offset: id.start,
+      };
       const own = optional(init);
       if (own)
         found.push(
           HiddenParameter.seal({
             ...base,
-            at: position(own.start),
+            at: Lines.at(lines, own.start),
             property: null,
             parameter: own.parameter,
             rest: own.rest,
@@ -1002,7 +996,7 @@ function hidden(
           found.push(
             HiddenParameter.seal({
               ...base,
-              at: position(inner.start),
+              at: Lines.at(lines, inner.start),
               property,
               parameter: inner.parameter,
               rest: inner.rest,
@@ -1015,11 +1009,11 @@ function hidden(
 }
 
 /** The names a member step's function returns, or the object it returns takes its members from. */
-function sources(node: Node, file: string, bound: Bindings): SymbolRef[] {
+function sources(node: Node, file: FilePath, bound: Bindings): SymbolRef[] {
   const fn = memberStep(node, bound)?.fn;
   const body = fn?.type === "ArrowFunctionExpression" ? unparenthesized(fn.body) : undefined;
   const named = (one: Node | undefined): SymbolRef[] =>
-    one?.type === "Identifier" ? [symbolRef(file, bound, one.name)] : [];
+    one?.type === "Identifier" ? [Bindings.refOf(bound, file, one.name, undefined)] : [];
   if (body?.type === "Identifier") return named(body);
   if (body?.type !== "ObjectExpression") return [];
   return body.properties.flatMap((entry) => (entry.type === "Property" ? named(entry.value) : []));

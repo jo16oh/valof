@@ -1,6 +1,7 @@
 import { dirname, extname, normalize, resolve } from "node:path";
 
 import { Val } from "../../index.ts";
+import type { FilePath } from "../files.ts";
 
 /** What an import binds a local name to: the exporting module and the name it exports. */
 export type ImportBinding = Val<"ImportBinding", { name: string; module: string }>;
@@ -31,7 +32,13 @@ export type SymbolRef = Val<
     key: string;
   }
 >;
-export const SymbolRef = Val.companion<SymbolRef>().build();
+export const SymbolRef = Val.companion<SymbolRef>()
+  .implAssoc(({ seal }) => ({
+    /** A name exported by a known module. */
+    fromExport: (module: string, name: string): SymbolRef =>
+      seal({ name, key: `${module}\0${name}` }),
+  }))
+  .build();
 
 /**
  * How one file bound the names it uses.
@@ -55,36 +62,28 @@ export type Bindings = Val<
 export const Bindings = Val.companion<Bindings>()
   .implCreate(() => ({ imported: ImportMap.seal({}), namespaces: {}, builders: {} }))
   .impl(() => ({
-    /** The module `import * as ns` bound `ns` to, or `undefined` when `ns` is not a namespace. */
-    namespace: (bound, local: string) => own(bound.namespaces, local),
-    isNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
-    builder: (bound, local: string) => own(bound.builders, local),
+    hasNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
+    builderOf: (bound, local: string) => own(bound.builders, local),
     /** The name the exporting module uses, or the local one when it was not imported. */
-    original: (bound, local: string) => ImportMap.nameOf(bound.imported, local),
+    originalName: (bound, local: string) => ImportMap.nameOf(bound.imported, local),
+    /**
+     * A local declaration, named import, or namespace member as one comparable reference.
+     * `qualifier` is the namespace it was reached through, or `undefined`.
+     */
+    refOf: (bound, file: FilePath, local: string, qualifier: string | undefined): SymbolRef => {
+      const module = normalize(resolve(file));
+      if (qualifier !== undefined) {
+        // The module `import * as ns` bound `ns` to, when `ns` is a namespace.
+        const importedModule = own(bound.namespaces, qualifier);
+        return SymbolRef.fromExport(importedModule ?? `${module}\0namespace:${qualifier}`, local);
+      }
+      const imported = ImportMap.get(bound.imported, local);
+      return imported
+        ? SymbolRef.fromExport(imported.module, imported.name)
+        : SymbolRef.fromExport(module, local);
+    },
   }))
   .build();
-
-const key = (module: string, name: string): string => `${module}\0${name}`;
-
-/** A name exported by a known module. */
-export const moduleRef = (module: string, name: string): SymbolRef =>
-  SymbolRef.seal({ name, key: key(module, name) });
-
-/** A local declaration, named import, or namespace member as one comparable reference. */
-export function symbolRef(
-  file: string,
-  bound: Bindings,
-  local: string,
-  qualifier?: string,
-): SymbolRef {
-  const module = normalize(resolve(file));
-  if (qualifier !== undefined) {
-    const importedModule = Bindings.namespace(bound, qualifier);
-    return moduleRef(importedModule ?? `${module}\0namespace:${qualifier}`, local);
-  }
-  const imported = ImportMap.get(bound.imported, local);
-  return imported ? moduleRef(imported.module, imported.name) : moduleRef(module, local);
-}
 
 /** The files in this lint run, which a relative module specifier resolves against. */
 export type Modules = Val<"Modules", { known: Record<string, true> }>;
@@ -94,7 +93,7 @@ export const Modules = Val.companion<Modules>()
   }))
   .impl(() => ({
     /** The module `source` names from `file`: a file in the run, or a package. */
-    resolve: (modules, file: string, source: string) => {
+    resolve: (modules, file: FilePath, source: string) => {
       if (!source.startsWith(".")) return `package:${source}`;
       const base = normalize(resolve(dirname(file), source));
       const extension = extname(base);

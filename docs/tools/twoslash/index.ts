@@ -50,7 +50,7 @@ const twoslasher = createTwoslasher({
     paths: {
       valof: [join(root, "src/index.ts")],
       "valof/lint": [join(root, "src/lint/index.ts")],
-      "valof/eslint-plugin": [join(root, "src/lint/eslint-plugin.ts")],
+      "valof/eslint-plugin": [join(root, "src/lint/eslint-plugin/index.ts")],
       remeda: [join(root, "docs/tools/twoslash/stubs/remeda.d.ts")],
     },
   },

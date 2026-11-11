@@ -1,7 +1,7 @@
 import { resolve } from "node:path";
 
 import { Val } from "../index.ts";
-import { KindSet } from "./rules/rule.ts";
+import { KindSet, type Kind } from "./rules/rule.ts";
 
 /** What `model-only-in-valof` reports beyond what it always reports. */
 export type ModelSettings = Val<
@@ -76,7 +76,7 @@ export const Options = Val.companion<Options>()
       overlay = [],
     }: {
       enable?: Parameters<typeof Enabled.create>[0];
-      skip?: Iterable<string>;
+      skip?: Iterable<Kind>;
       targets?: Iterable<string>;
       overlay?: Iterable<readonly [string, string]>;
     } = {}) => ({
@@ -88,14 +88,4 @@ export const Options = Val.companion<Options>()
       overlay: Object.fromEntries([...overlay].map(([file, text]) => [resolve(file), text])),
     }),
   )
-  .impl(() => ({
-    /** Whether a finding in the file is reported. */
-    isTarget: (options, file: string) =>
-      options.targets === null || Object.hasOwn(options.targets, resolve(file)),
-    /** The source given for the file, or `undefined` to read it from disk. */
-    sourceOf: (options, file: string) => {
-      const key = resolve(file);
-      return Object.hasOwn(options.overlay, key) ? options.overlay[key] : undefined;
-    },
-  }))
   .build();

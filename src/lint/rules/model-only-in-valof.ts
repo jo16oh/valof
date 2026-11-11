@@ -1,8 +1,9 @@
 import { Val } from "../../index.ts";
 import type { Position } from "../ast.ts";
+import type { FilePath } from "../files.ts";
 import type { ModelSettings } from "../options.ts";
 import type { Scan, Shape } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Finding, Kind, Rule } from "./rule.ts";
 
 /**
  * A named data type outside Valof: an object type, an array, a tuple, a primitive, a utility type
@@ -14,7 +15,7 @@ import { Finding, Rule } from "./rule.ts";
 export type ModelOnlyInValof = Val<
   "ModelOnlyInValof",
   {
-    kind: "model-only-in-valof";
+    kind: Kind;
     optIn: true;
     classes: boolean;
     constraints: boolean;
@@ -24,7 +25,7 @@ export type ModelOnlyInValof = Val<
 >;
 export const ModelOnlyInValof = Val.companion<ModelOnlyInValof>()
   .implCreate(({ classes, constraints, extraction }: ModelSettings) => ({
-    kind: "model-only-in-valof",
+    kind: Kind.seal("model-only-in-valof"),
     description: "a data type declared outside Valof, off by default",
     warns: false,
     optIn: true,
@@ -72,7 +73,7 @@ const SAID: Record<
 function findings(rule: ModelOnlyInValof, scans: readonly Scan[]): Finding[] {
   const { kind } = rule;
   const payloads = new Set(scans.flatMap(({ models }) => models.payloadAliases));
-  const at = (file: string, { at }: { at: Position }, message: string): Finding =>
+  const at = (file: FilePath, { at }: { at: Position }, message: string): Finding =>
     Finding.seal({ kind, file, at, message });
   return scans.flatMap(({ file, models }) => [
     ...models.models

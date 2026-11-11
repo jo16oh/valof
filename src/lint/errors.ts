@@ -1,12 +1,9 @@
 import { ErrorFactory } from "@praha/error-factory";
 
-/** The install line every message about the missing parser ends with. */
-const INSTALL = "  pnpm add -D oxc-parser";
-
 /** oxc-parser is an optional peer dependency, so a run can start without it. */
 export class MissingParserError extends ErrorFactory({
   name: "MissingParserError",
-  message: `valof-lint needs oxc-parser, which valof does not install for you.\n${INSTALL}`,
+  message: `valof-lint needs oxc-parser, which valof does not install for you.\n  pnpm add -D oxc-parser`,
 }) {}
 
 /**

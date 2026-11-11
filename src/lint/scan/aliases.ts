@@ -2,12 +2,14 @@ import { Val, type VariantOf } from "../../index.ts";
 import {
   annotationOf,
   keyName,
+  Lines,
   typeParams,
   unparenthesized,
   type Node,
   type Position,
 } from "../ast.ts";
-import { Bindings, symbolRef, type SymbolRef } from "./bindings.ts";
+import type { FilePath } from "../files.ts";
+import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */
 export type DeclaredTrait = Val<"DeclaredTrait", { at: Position; name: string; ref: SymbolRef }>;
@@ -17,7 +19,7 @@ export const DeclaredTrait = Val.companion<DeclaredTrait>().build();
 export type Alias = Val<
   "Alias",
   {
-    file: string;
+    file: FilePath;
     alias: string;
     ref: SymbolRef;
     /** Traits declared in Val's third argument. */
@@ -27,14 +29,14 @@ export type Alias = Val<
 export const Alias = Val.companion<Alias>().build();
 
 /** A top-level `type X = Trait<…>`. Kept separate from Val aliases and their own rules. */
-export type TraitAlias = Val<"TraitAlias", { file: string; alias: string; ref: SymbolRef }>;
+export type TraitAlias = Val<"TraitAlias", { file: FilePath; alias: string; ref: SymbolRef }>;
 export const TraitAlias = Val.companion<TraitAlias>().build();
 
 /** A top-level `type X = Enum<…>`, whose variants each derive a Val of their own. */
 export type EnumAlias = Val<
   "EnumAlias",
   {
-    file: string;
+    file: FilePath;
     alias: string;
     ref: SymbolRef;
     /** Traits declared in the enum's third argument. */
@@ -104,7 +106,7 @@ function valName(typeName: Node, bound: Bindings): string | undefined {
   if (typeName.type === "Identifier") return typeName.name;
   if (typeName.type !== "TSQualifiedName") return undefined;
   const { left, right } = typeName;
-  if (left.type !== "Identifier" || !Bindings.isNamespace(bound, left.name)) return undefined;
+  if (left.type !== "Identifier" || !Bindings.hasNamespace(bound, left.name)) return undefined;
   // Qualified by a namespace import, so the name is already the exporting module's own.
   return right.type === "Identifier" ? right.name : undefined;
 }
@@ -127,14 +129,15 @@ export type Aliases = Val<
     nestedPayloadOfs: NestedPayloadOf[];
   }
 >;
-export const Aliases = Val.companion<Aliases>().build();
+export const Aliases = Val.companion<Aliases>()
+  .implAssoc(() => ({
+    /** The Valof aliases one program declares, and the brands they claim. */
+    fromProgram: valAliases,
+  }))
+  .build();
 
-export function valAliases(
-  program: Node,
-  file: string,
-  bound: Bindings,
-  position: (offset: number) => Position,
-): Aliases {
+/** The body of {@link Aliases.fromProgram}. */
+function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines): Aliases {
   const aliases: Alias[] = [];
   const traitAliases: TraitAlias[] = [];
   const enumAliases: EnumAlias[] = [];
@@ -157,20 +160,20 @@ export function valAliases(
       if (node.generic) continue;
       reAliases.push(
         ReAlias.seal({
-          at: position(id.start),
+          at: Lines.at(lines, id.start),
           alias: id.name,
-          ref: symbolRef(file, bound, id.name),
+          ref: Bindings.refOf(bound, file, id.name, undefined),
           target: named,
-          targetRef: symbolRef(file, bound, named, qualifierOf(typeName)),
+          targetRef: Bindings.refOf(bound, file, named, qualifierOf(typeName)),
         }),
       );
       continue;
     }
 
-    const kind = Bindings.original(bound, named);
-    const declared = { file, alias: id.name, ref: symbolRef(file, bound, id.name) };
+    const kind = Bindings.originalName(bound, named);
+    const declared = { file, alias: id.name, ref: Bindings.refOf(bound, file, id.name, undefined) };
     const nested = (payload: Node | null | undefined): void => {
-      if (payload) nestedPayloadOfs.push(...payloadOfs(payload, id.name, bound, locals, position));
+      if (payload) nestedPayloadOfs.push(...payloadOfs(payload, id.name, bound, locals, lines));
     };
     if (kind === "Val") nested(params[1]);
     if (kind === "Enum") {
@@ -183,7 +186,7 @@ export function valAliases(
       aliases.push(
         Alias.seal({
           ...declared,
-          traits: traitNames(params[2], file, bound, locals, position),
+          traits: traitNames(params[2], file, bound, locals, lines),
         }),
       );
     } else if (kind === "Trait") {
@@ -195,9 +198,9 @@ export function valAliases(
           ...declared,
           // The same position as a Val's: an enum's third argument carries the traits, the shared
           // fields and the tag's name, all intersected.
-          traits: traitNames(params[2], file, bound, locals, position),
+          traits: traitNames(params[2], file, bound, locals, lines),
           variants: variants ?? null,
-          variantTraits: variantTraits(params[1], file, bound, locals, position),
+          variantTraits: variantTraits(params[1], file, bound, locals, lines),
         }),
       );
     }
@@ -208,7 +211,7 @@ export function valAliases(
     if (literal.type !== "Literal" || literal.value === null) continue;
     brands.push(
       BrandClaim.seal({
-        at: position(id.start),
+        at: Lines.at(lines, id.start),
         typeName: named,
         brand: literal.value,
         alias: id.name,
@@ -261,7 +264,7 @@ function variantNames(
       const named = valName(inside.typeName, bound);
       if (!named) return false;
       // The tag's name arrives as a marker, which declares no variant of its own.
-      if (Bindings.original(bound, named) === "Tag") return true;
+      if (Bindings.originalName(bound, named) === "Tag") return true;
       const alias = aliases.get(named);
       if (!alias || seen.has(named)) return false;
       return visit(alias, new Set(seen).add(named));
@@ -283,10 +286,10 @@ function variantNames(
 /** Expands the deliberately small, syntax-only trait-list language used by Val declarations. */
 function traitNames(
   node: Node | undefined,
-  file: string,
+  file: FilePath,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): DeclaredTrait[] {
   if (!node) return [];
   const seen = new Set<string>();
@@ -303,8 +306,8 @@ function traitNames(
     const named = valName(one.typeName, bound);
     if (!named) return;
     // An enum's tag arrives in the same argument, and the marker carrying it names no trait.
-    if (Bindings.original(bound, named) === "Tag") return;
-    const ref = symbolRef(file, bound, named, qualifierOf(one.typeName));
+    if (Bindings.originalName(bound, named) === "Tag") return;
+    const ref = Bindings.refOf(bound, file, named, qualifierOf(one.typeName));
     if (seen.has(ref.key)) return;
     seen.add(ref.key);
     const alias = unparenthesized(aliases.get(named));
@@ -316,7 +319,7 @@ function traitNames(
     // A bare alias chain is expanded too; unnecessary-alias reports that spelling separately.
     if (alias?.type === "TSTypeReference") {
       const target = valName(alias.typeName, bound);
-      if (target && Bindings.original(bound, target) !== "Trait") {
+      if (target && Bindings.originalName(bound, target) !== "Trait") {
         visit(alias, occurrence);
         return;
       }
@@ -327,7 +330,7 @@ function traitNames(
     out.set(
       ref.key,
       DeclaredTrait.seal({
-        at: position(written.start),
+        at: Lines.at(lines, written.start),
         name: named,
         ref,
       }),
@@ -340,10 +343,10 @@ function traitNames(
 /** The traits each variant of a literal variant record names in its payload. */
 function variantTraits(
   node: Node | undefined,
-  file: string,
+  file: FilePath,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): VariantTraits[] {
   const record = unparenthesized(node);
   if (record?.type !== "TSTypeLiteral") return [];
@@ -352,7 +355,7 @@ function variantTraits(
     const variant = keyName(member.key, member.computed);
     const payload = annotationOf(member);
     if (!variant || !payload) return [];
-    const traits = traitNames(payload, file, bound, aliases, position);
+    const traits = traitNames(payload, file, bound, aliases, lines);
     return traits.length > 0 ? [VariantTraits.seal({ variant, traits })] : [];
   });
 }
@@ -367,7 +370,7 @@ function payloadOfs(
   alias: string,
   bound: Bindings,
   aliases: ReadonlyMap<string, Node>,
-  position: (offset: number) => Position,
+  lines: Lines,
 ): NestedPayloadOf[] {
   /** The reference's name, resolved against the imports, and its first type argument. */
   const referenced = (
@@ -377,7 +380,10 @@ function payloadOfs(
     if (inside?.type !== "TSTypeReference") return undefined;
     const named = valName(inside.typeName, bound);
     if (!named) return undefined;
-    return { name: Bindings.original(bound, named), first: typeParams(inside.typeArguments)[0] };
+    return {
+      name: Bindings.originalName(bound, named),
+      first: typeParams(inside.typeArguments)[0],
+    };
   };
   /** The name a `PayloadOf<X>` argument is written under, or "it" when it is not a plain name. */
   const wrappedName = (wrapped: Node | undefined): string =>
@@ -401,17 +407,19 @@ function payloadOfs(
     if (inside.type === "TSTypeReference") {
       const named = valName(inside.typeName, bound);
       const args = typeParams(inside.typeArguments);
-      if (named && Bindings.original(bound, named) === "PayloadOf" && !top)
+      if (named && Bindings.originalName(bound, named) === "PayloadOf" && !top)
         found.push(
           NestedPayloadOf.seal({
-            at: position(inside.start),
+            at: Lines.at(lines, inside.start),
             alias,
             wrapped: wrappedName(args[0]),
           }),
         );
       const through = named && !top ? wrapping(named) : undefined;
       if (through)
-        found.push(NestedPayloadOf.seal({ at: position(inside.start), alias, wrapped: through }));
+        found.push(
+          NestedPayloadOf.seal({ at: Lines.at(lines, inside.start), alias, wrapped: through }),
+        );
       for (const arg of args) visit(arg, false);
       return;
     }

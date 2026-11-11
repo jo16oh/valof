@@ -1,6 +1,6 @@
 import { Val } from "../../index.ts";
 import type { Directive, Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /**
  * A directive that leaves out what it needs: the rules it silences, or the scope it applies to.
@@ -9,10 +9,10 @@ import { Finding, Rule } from "./rule.ts";
  * hides grows without anyone deciding to. Over a whole file it silences nothing at all, since a
  * whole file is turned off by saying so: `valof-lint-disable-all-whole-file`.
  */
-export type IncompleteDisable = Val<"IncompleteDisable", { kind: "incomplete-disable" }, Rule>;
+export type IncompleteDisable = Val<"IncompleteDisable", { kind: Kind }, Rule>;
 export const IncompleteDisable = Val.companion<IncompleteDisable>()
   .implCreate(() => ({
-    kind: "incomplete-disable",
+    kind: Kind.seal("incomplete-disable"),
     description: "a disable comment leaving out the rules it silences, or its scope",
     warns: false,
   }))

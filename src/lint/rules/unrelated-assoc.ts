@@ -1,6 +1,6 @@
 import { Val } from "../../index.ts";
 import type { Scan } from "../scan/index.ts";
-import { Finding, Rule } from "./rule.ts";
+import { Finding, Kind, Rule } from "./rule.ts";
 
 /**
  * An `.implAssoc` member that names neither the type, nor its companion, nor a `seal` or `create`:
@@ -8,10 +8,10 @@ import { Finding, Rule } from "./rule.ts";
  * name at the top of the same file, declared with `function` or `const`; one from anywhere else is
  * reported.
  */
-export type UnrelatedAssoc = Val<"UnrelatedAssoc", { kind: "unrelated-assoc" }, Rule>;
+export type UnrelatedAssoc = Val<"UnrelatedAssoc", { kind: Kind }, Rule>;
 export const UnrelatedAssoc = Val.companion<UnrelatedAssoc>()
   .implCreate(() => ({
-    kind: "unrelated-assoc",
+    kind: Kind.seal("unrelated-assoc"),
     description: "an `.implAssoc` member that names neither its type nor a `seal` or `create`",
     warns: true,
   }))

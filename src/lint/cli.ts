@@ -7,7 +7,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "../index.ts";
 import { Arguments } from "./arguments.ts";
 import { NoFilesMatchedError, type UsageError } from "./errors.ts";
-import { expand } from "./files.ts";
+import { Path, type FilePath } from "./files.ts";
 import { RULES, type Finding } from "./rules/index.ts";
 import { Options } from "./options.ts";
 import { run } from "./run.ts";
@@ -55,26 +55,45 @@ function usage(): string {
   ].join("\n");
 }
 
-type Files = Val<"Files", { scanned: string[]; targets: string[]; reported: string[] }>;
-const Files = Val.companion<Files>().build();
+type Files = Val<"Files", { scanned: FilePath[]; targets: FilePath[]; reported: FilePath[] }>;
+const Files = Val.companion<Files>()
+  .implAssoc(({ seal }) => ({
+    /** Expands the globs the arguments name, and makes the files of {@link Files.fromPaths}. */
+    glob: ({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> =>
+      Files.fromPaths(
+        (projects.length > 0 ? projects : [Path.seal("src/**/*.ts")]).flatMap((path) =>
+          Path.expand(path),
+        ),
+        targets.length > 0 ? targets.flatMap((path) => Path.expand(path)) : null,
+        excluded.flatMap((path) => Path.expand(path)),
+      ),
+    /**
+     * The files read and the files reported on, with every exclusion applied to both. `targets` is
+     * `null` when the arguments name none, and then every file read is reported on.
+     */
+    fromPaths: (
+      project: FilePath[],
+      targets: FilePath[] | null,
+      excluded: FilePath[],
+    ): R.Result<Files, NoFilesMatchedError> => {
+      // Resolved, because the same file can come from a glob the caller wrote and from one it
+      // excluded, spelled differently.
+      const dropped = new Set(excluded.map((file) => resolve(file)));
+      const kept = (found: FilePath[]): FilePath[] =>
+        found.filter((file) => !dropped.has(resolve(file)));
 
-/** The files read and the files reported on, with every exclusion applied to both. */
-function files({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> {
-  // Resolved, because the same file can come from a glob the caller wrote and from one it
-  // excluded, spelled differently.
-  const dropped = new Set(excluded.flatMap(expand).map((file) => resolve(file)));
-  const kept = (found: string[]): string[] => found.filter((file) => !dropped.has(resolve(file)));
-
-  const read = kept((projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand));
-  const targeted = kept(targets.flatMap(expand));
-  // Scanned together, so a file to report on that the project glob does not cover is still read,
-  // rather than skipped and called clean.
-  const scanned = [...new Set([...read, ...targeted])];
-  const reported = targets.length > 0 ? targeted : scanned;
-  return reported.length === 0
-    ? R.fail(new NoFilesMatchedError())
-    : R.succeed(Files.seal({ scanned, targets: targeted, reported }));
-}
+      const read = kept(project);
+      const targeted = kept(targets ?? []);
+      // Scanned together, so a file to report on that the project glob does not cover is still
+      // read, rather than skipped and called clean.
+      const scanned = [...new Set([...read, ...targeted])];
+      const reported = targets ? targeted : scanned;
+      return reported.length === 0
+        ? R.fail(new NoFilesMatchedError())
+        : R.succeed(seal({ scanned, targets: targeted, reported }));
+    },
+  }))
+  .build();
 
 /** Runs what the arguments ask for, and returns the status to exit with. */
 async function command(argv: readonly string[]): Promise<R.Result<number, UsageError>> {
@@ -85,7 +104,7 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
     console.log(usage());
     return R.succeed(0);
   }
-  const chosen = files(args);
+  const chosen = Files.glob(args);
   if (R.isFailure(chosen)) return chosen;
   const { scanned, targets, reported } = chosen.value;
   const found = await run(

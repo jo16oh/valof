@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../index.ts";
-import { isDirectory } from "./files.ts";
+import { Path } from "./files.ts";
 import {
   MissingPathError,
   NotAProjectError,
@@ -9,7 +9,7 @@ import {
   UnknownSettingError,
 } from "./errors.ts";
 import { Enabled, ModelSettings } from "./options.ts";
-import { isKind, kinds } from "./rules/index.ts";
+import { ALL_KINDS, KindSet, kinds, type Kind } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
@@ -31,13 +31,13 @@ export type Arguments = Val<
   "Arguments",
   {
     /** What the run reads. Empty means the default, `src/**\/*.ts`. */
-    projects: string[];
+    projects: Path[];
     /** What the run reports on. Empty means the whole project. */
-    targets: string[];
+    targets: Path[];
     /** Paths written with a leading `!`, removed from the run and the report alike. */
-    excluded: string[];
+    excluded: Path[];
     /** Kinds left out with `--no-<kind>`. */
-    skip: string[];
+    skip: Kind[];
     /** Rules off by default that `--<kind>` turned on, with the settings after `=`. */
     enable: Enabled;
     help: boolean;
@@ -59,17 +59,18 @@ export const Arguments = Val.companion<Arguments>()
       Arguments,
       UnknownRuleError | UnknownSettingError | MissingPathError | NotAProjectError
     > => {
-      const projects: string[] = [];
-      const targets: string[] = [];
-      const excluded: string[] = [];
-      const loose: string[] = [];
-      const skip: string[] = [];
+      const projects: Path[] = [];
+      const targets: Path[] = [];
+      const excluded: Path[] = [];
+      const loose: Path[] = [];
+      const skip: Kind[] = [];
       let model: ModelSettings | undefined;
       let help = false;
       let pending: "project" | "report-on" | undefined;
 
-      const take = (into: string[], path: string): void => {
-        if (path.startsWith("!")) excluded.push(path.slice(1));
+      const take = (into: Path[], written: string): void => {
+        const path = Path.seal(written);
+        if (Path.excludes(path)) excluded.push(Path.seal(path.slice(1)));
         else into.push(path);
       };
 
@@ -97,8 +98,9 @@ export const Arguments = Val.companion<Arguments>()
           }
           model = ModelSettings.create(settings);
         } else if (argument.startsWith("--no-")) {
-          const kind = argument.slice("--no-".length);
-          if (!isKind(kind)) return R.fail(new UnknownRuleError({ kind, known: kinds }));
+          const name = argument.slice("--no-".length);
+          const kind = KindSet.find(ALL_KINDS, name);
+          if (!kind) return R.fail(new UnknownRuleError({ kind: name, known: kinds }));
           skip.push(kind);
         } else {
           take(loose, argument);
@@ -110,9 +112,9 @@ export const Arguments = Val.companion<Arguments>()
       if (pending) return R.fail(new MissingPathError({ flag: pending }));
 
       // The first loose path is the project, unless `--project` gave one.
-      if (projects.length === 0 && loose.length > 0) {
-        const first = loose.shift() as string;
-        if (!GLOB.test(first) && !isDirectory(first))
+      const first = projects.length === 0 ? loose.shift() : undefined;
+      if (first !== undefined) {
+        if (!GLOB.test(first) && !Path.isDirectory(first))
           return R.fail(new NotAProjectError({ path: first }));
         projects.push(first);
       }
