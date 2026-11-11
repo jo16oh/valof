@@ -40,10 +40,10 @@ export const Path = Val.companion<Path>()
      * A directory includes the TypeScript files under it, never what its dependencies installed: a
      * project given as `.` would otherwise walk `node_modules`.
      */
-    expand: (path): string[] =>
+    expand: (path): FilePath[] =>
       globSync(Path.isDirectory(path) ? `${path}/${UNDER}` : path, {
         exclude: (found) => found.split(/[\\/]/).includes("node_modules"),
-      }),
+      }).map((file) => FilePath.seal(file)),
     /** Whether it starts with `!`, which removes what the rest matches. */
     excludes: (path): boolean => path.startsWith("!"),
   }))

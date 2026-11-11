@@ -7,7 +7,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "../index.ts";
 import { Arguments } from "./arguments.ts";
 import { NoFilesMatchedError, type UsageError } from "./errors.ts";
-import { Path } from "./files.ts";
+import { Path, type FilePath } from "./files.ts";
 import { RULES, type Finding } from "./rules/index.ts";
 import { Options } from "./options.ts";
 import { run } from "./run.ts";
@@ -52,7 +52,7 @@ function usage(): string {
   ].join("\n");
 }
 
-type Files = Val<"Files", { scanned: string[]; targets: string[]; reported: string[] }>;
+type Files = Val<"Files", { scanned: FilePath[]; targets: FilePath[]; reported: FilePath[] }>;
 const Files = Val.companion<Files>()
   .implAssoc(({ seal }) => ({
     /** Expands the globs the arguments name, and makes the files of {@link Files.fromPaths}. */
@@ -69,14 +69,14 @@ const Files = Val.companion<Files>()
      * `null` when the arguments name none, and then every file read is reported on.
      */
     fromPaths: (
-      project: string[],
-      targets: string[] | null,
-      excluded: string[],
+      project: FilePath[],
+      targets: FilePath[] | null,
+      excluded: FilePath[],
     ): R.Result<Files, NoFilesMatchedError> => {
       // Resolved, because the same file can come from a glob the caller wrote and from one it
       // excluded, spelled differently.
       const dropped = new Set(excluded.map((file) => resolve(file)));
-      const kept = (found: string[]): string[] =>
+      const kept = (found: FilePath[]): FilePath[] =>
         found.filter((file) => !dropped.has(resolve(file)));
 
       const read = kept(project);
