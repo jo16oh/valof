@@ -30,15 +30,16 @@ enforces it). It reports tests to delete or merge, behaviour the diff changes wi
 it, and tests that pass whatever the source does. `skills/test-audit/SKILL.md` holds the three
 passes.
 
-A separate agent runs it, on the same model, and reports back. Apply the cuts yourself, on a
-go-ahead.
+A separate agent runs it, on the same model, and reports back. Apply the cuts yourself.
 
 Never commit an implementation before writing the tests that cover it. A later test cannot audit the
 implementation commit that required it.
 
 ## Committing and Pushing
 
-Commit or amend only on an explicit go-ahead. Draft the message, show it, and wait.
+Commit without waiting for a go-ahead. Keep tests, implementation and docs in separate commits, so
+the history records each step. When the pre-commit `vp check` rejects a failing test, commit it with
+`--no-verify`. The implementation commit passes the hook.
 
 Never push, and never open a PR. I do both myself, opening the PR from the web UI. Hand me the PR
 title and body as a draft and stop there.
@@ -65,7 +66,7 @@ Run it only on my explicit go-ahead.
 ## Writing Style
 
 Code and prose go in separate turns. Finish the code, then edit the `.md` in a turn of its own, and
-run `/proofread` over what changed there before showing it or proposing a commit.
+run `/proofread` over what changed there before committing it.
 
 Remember how limited humans are, especially me, since English isn't my first language. We don't have
 a large context window like you do, and we can't read as fast as you can. Reducing redundant
