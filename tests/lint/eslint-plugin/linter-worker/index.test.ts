@@ -68,7 +68,10 @@ test("throws what the worker makes of a failure, in the answer or in sending it"
   expect(thrown(() => say(worker, "uncloneable")).message).toMatch(/^failed: DataCloneError/);
 });
 
-const pause = () => new Promise((done) => setTimeout(done, 200));
+const pause = () =>
+  new Promise((done) => {
+    setTimeout(done, 200);
+  });
 
 /** The error `act` throws. A host reads the message off an `Error`, so anything else fails. */
 function thrown(act: () => unknown): Error {
@@ -76,7 +79,7 @@ function thrown(act: () => unknown): Error {
     act();
   } catch (error) {
     if (error instanceof Error) return error;
-    throw new Error(`threw ${String(error)}, not an Error`);
+    throw new Error(`threw ${String(error)}, not an Error`, { cause: error });
   }
   throw new Error("threw nothing");
 }

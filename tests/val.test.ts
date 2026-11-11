@@ -2488,11 +2488,11 @@ describe("building", () => {
 
       const copied = Score.create(1);
       expect(copied.ok).toBe(true);
-      if (copied.ok) expect(copied.value).not.toBe(created);
+      expect(copied.ok && copied.value).not.toBe(created);
 
       const adopted = Score.create.nocopy(2);
       expect(adopted.ok).toBe(true);
-      if (adopted.ok) expect(adopted.value).toBe(created);
+      expect(adopted.ok && adopted.value).toBe(created);
 
       expect(Score.create.nocopy(-1)).toEqual({
         ok: false,
@@ -2502,7 +2502,7 @@ describe("building", () => {
       const valid = { points: 3 } as const;
       const sealed = Score.seal.nocopy(valid);
       expect(sealed.ok).toBe(true);
-      if (sealed.ok) expect(sealed.value).toBe(valid);
+      expect(sealed.ok && sealed.value).toBe(valid);
       expect(Score.seal.nocopy({ points: -1 })).toEqual({
         ok: false,
         error: "points must not be negative",
