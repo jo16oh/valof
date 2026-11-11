@@ -73,7 +73,7 @@ export const TraitImplementation = Val.companion<TraitImplementation>().build();
 export type EscapedDyn = Val<"EscapedDyn", { trait: SymbolRef; val: SymbolRef }>;
 export const EscapedDyn = Val.companion<EscapedDyn>().build();
 
-/** The function a member step takes, `.impl(() => { … })`, where it has a block body. */
+/** The function a member step takes, `.impl(() => { … })`, where its body declares something. */
 export type StepState = Val<"StepState", { at: Position; step: string }>;
 export const StepState = Val.companion<StepState>().build();
 
@@ -190,7 +190,7 @@ export type Scan = Val<
     heldSeals: HeldSeal[];
     /** The members `.impl` and `.implAssoc` registered inline, with what their bodies name. */
     stepMembers: StepMember[];
-    /** Member steps whose function has a block body. */
+    /** Member steps whose function declares something in its body. */
     stepStates: StepState[];
     /** Keys read off a local name, each a set. */
     reads: Record<string, Record<string, true>>;

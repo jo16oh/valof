@@ -18,9 +18,8 @@ export const HiddenStateInImpl = Val.companion<HiddenStateInImpl>()
  * `() => { const n = 0; … }` or `function () { … }` alike.
  *
  * What it declares is state every member shares and no reader of a member sees. A body that only
- * returns the object is not reported. `implSeal`
- * and `implCreate` are not reported, since a check or the code that builds a payload is written as
- * statements.
+ * returns the object is not reported. `implSeal` and `implCreate` are not reported, since a check
+ * or the code that builds a payload is written as statements.
  */
 function findings({ kind }: HiddenStateInImpl, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, stepStates }) =>
