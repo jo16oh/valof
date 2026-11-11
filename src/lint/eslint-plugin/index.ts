@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 
 import type { Rule } from "eslint";
 
+import { PassCache } from "./pass-cache.ts";
 import { ProjectCache } from "./project-cache.ts";
 import { Underline } from "./underline.ts";
 import { Patterns } from "../files.ts";
@@ -14,7 +15,8 @@ export default valof();
  * The plugin, with the state its rules share.
  *
  * The host creates every rule once per file, so whatever outlives one file, or is shared by the
- * rules of one file, lives here: the worker, the last answer and the globbed projects.
+ * rules of one file, lives here: the worker, the answer a file's rules share, and the globbed
+ * projects.
  */
 // What a config file needs of the plugin, written out so ESLint's types stay out of the declaration.
 function valof(): {
@@ -30,6 +32,7 @@ function valof(): {
 } {
   const worker = new LinterWorker(import.meta.url);
   const projects = new ProjectCache();
+  const pass = new PassCache();
 
   return {
     meta: { name: "valof" },
@@ -50,9 +53,15 @@ function valof(): {
           },
           create: (context: Rule.RuleContext) => ({
             Program(): void {
-              const project = projects.glob(Patterns.fromSettings(context.settings));
               const file = resolve(context.filename);
-              for (const finding of worker.lint(Query.read(context, project)))
+              const findings = pass.findings(
+                `${file}\n${JSON.stringify(context.settings)}\n${context.sourceCode.text}`,
+                () =>
+                  worker.lint(
+                    Query.read(context, projects.glob(Patterns.fromSettings(context.settings))),
+                  ),
+              );
+              for (const finding of findings)
                 if (finding.kind === kind && resolve(finding.file) === file)
                   context.report({
                     loc: Underline.fromFinding(finding, context.sourceCode.text),
