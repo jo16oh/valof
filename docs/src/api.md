@@ -90,9 +90,10 @@ so that your own `.d.ts` can reference them when you re-export a companion.
 | `.[VariantName].implAssoc(f)`         | adds the members `f` returns, which do not take that variant first |
 | `.build()`                            | ends the chain, and returns the companion                          |
 
-`.tag` comes first if the enum has a custom tag key. Each variant's steps follow, in the same order
-as `Val.companion`'s. The enum's steps come after them, in that order. The first enum step removes
-the variants' steps from the chain.
+`.tag` comes first if the enum has a custom tag key. Each variant's steps follow, together and in
+the same order as `Val.companion`'s. The enum's steps come after them, in that order. Another
+variant's step removes the steps of the variant before it, and the first enum step removes every
+variant's steps.
 
 The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `E.seal`, and
 `E.create` where the enum's `implCreate` registered one. The function passed to a variant's `impl`,

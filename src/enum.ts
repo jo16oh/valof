@@ -834,7 +834,9 @@ type VariantTrait<
 
 /**
  * One variant's steps on the builder, `.Circle.implSeal(…)`: the steps `Val.companion` takes, in
- * its order. Each returns the enum's builder, so the next variant follows with `.Square`.
+ * its order. Each returns the enum's builder, so the next variant follows with `.Square`. Write
+ * each variant's steps together. Once another variant's step follows, this variant's steps are
+ * removed from the chain.
  *
  * The gates come first, `implSeal` then `implCreate`. `impl` (once), `implTrait` and `implAssoc`
  * follow, and the first of them removes the gates from the chain.
@@ -937,9 +939,10 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * `.tag` comes first if the enum has a custom tag key. Each variant's steps come next, under its
- * name, together: another variant's step closes them. Then the enum's, in `Val`'s order: `implSeal` then `implCreate`, and `impl` (once),
- * `implTrait` and `implAssoc` after them. The first of the enum's steps removes the variants' steps
- * from the chain.
+ * name, written together. Once another variant's step follows, the steps of the variant before it
+ * are removed from the chain. Then the enum's, in `Val`'s order: `implSeal` then `implCreate`, and
+ * `impl` (once), `implTrait` and `implAssoc` after them. The first of the enum's steps removes the
+ * variants' steps from the chain.
  */
 // The variants come before the enum because the enum's seal passes the payload to theirs, so its
 // type is known once theirs are.
@@ -948,7 +951,8 @@ export type EnumBuilder<
   O extends Options = [],
   VM = Record<never, never>,
   M = Record<never, never>,
-  // The variant the last step took. A variant with steps that is not `L` leaves the chain.
+  // The variant named by the last variant step. A variant other than `L` that has steps is removed
+  // from the builder.
   L = never,
   F = undefined,
   C = undefined,
