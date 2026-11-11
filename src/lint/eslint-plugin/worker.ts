@@ -1,12 +1,12 @@
 import { Result as R } from "@praha/byethrow";
 
-import { Query, Reply } from "./messages.ts";
+import { Reply } from "./messages.ts";
 import { Options } from "../options.ts";
 import { run } from "../run.ts";
-import { serve } from "../worker.ts";
+import { serve } from "./channel.ts";
 
 // The worker the plugin asks, one file at a time. See `worker` in `index.ts`.
-serve<Query, Reply>(
+serve(
   async ({ project, file, text }) => {
     const found = await run(project, Options.create({ targets: [file], overlay: [[file, text]] }));
     // The message the command prints, so a user of the plugin gets the same instruction.

@@ -2,7 +2,7 @@ import { pipe } from "../../shared/pipe/index.ts";
 import { Answer, type Query, Reply } from "./messages.ts";
 import { Patterns, type Project } from "../files.ts";
 import type { Finding } from "../index.ts";
-import type { WorkerClient } from "../worker.ts";
+import type { LinterWorker } from "./channel.ts";
 
 /**
  * The worker's answer, asked once per file, however many of the rules are on. The host creates
@@ -15,10 +15,10 @@ import type { WorkerClient } from "../worker.ts";
  * file's findings are while its own text is unchanged.
  */
 export class AnswerCache {
-  readonly #worker: WorkerClient<Query, Reply>;
+  readonly #worker: LinterWorker;
   #last: Answer | undefined;
 
-  constructor(worker: WorkerClient<Query, Reply>) {
+  constructor(worker: LinterWorker) {
     this.#worker = worker;
   }
 

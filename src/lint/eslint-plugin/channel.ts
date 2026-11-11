@@ -7,18 +7,20 @@ import {
   type MessagePort,
 } from "node:worker_threads";
 
+import type { Query, Reply } from "./messages.ts";
+
 /**
  * Asks a worker running `script` and blocks until it answers, for a caller that cannot be async.
  *
  * The thread blocks on `Atomics.wait` until the answer is in the port's queue, and
  * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here. The port
- * and the signal go to the worker once, as it starts, so a question is all that each ask sends.
+ * and the signal go to the worker once, as it starts, so a query is all that each ask sends.
  *
- * The worker starts on the first question and answers the rest. One that does not answer within
- * `patience` milliseconds is stopped, and the next question starts another: a worker still busy
- * would leave every later question waiting behind it.
+ * The worker starts on the first query and answers the rest. One that does not answer within
+ * `patience` milliseconds is stopped, and the next query starts another: a worker still busy would
+ * leave every later query waiting behind it.
  */
-export class WorkerClient<Question, Answer> {
+export class LinterWorker {
   readonly #script: URL;
   readonly #patience: number;
   #worker: { thread: Worker; port: MessagePort; signal: Int32Array } | undefined;
@@ -28,7 +30,7 @@ export class WorkerClient<Question, Answer> {
     this.#patience = patience;
   }
 
-  ask(question: Question): Answer {
+  ask(query: Query): Reply {
     if (!this.#worker) {
       const { port1, port2 } = new MessageChannel();
       const signal = new Int32Array(new SharedArrayBuffer(4));
@@ -43,36 +45,36 @@ export class WorkerClient<Question, Answer> {
 
     const { thread, port, signal } = this.#worker;
     Atomics.store(signal, 0, 0);
-    thread.postMessage(question);
+    thread.postMessage(query);
     if (Atomics.wait(signal, 0, 0, this.#patience) === "timed-out") {
       void thread.terminate();
       this.#worker = undefined;
       throw new Error(`valof-lint: no answer in ${this.#patience / 1000}s`);
     }
 
-    const answer = receiveMessageOnPort(port);
-    if (!answer) throw new Error("valof-lint: the worker answered nothing");
-    return answer.message as Answer;
+    const reply = receiveMessageOnPort(port);
+    if (!reply) throw new Error("valof-lint: the worker answered nothing");
+    return reply.message as Reply;
   }
 }
 
 /**
- * Answers what {@link WorkerClient} asks, in the worker.
+ * Answers what {@link LinterWorker} asks, in the worker.
  *
  * `fail` makes the answer when `respond` throws, or when its answer cannot be sent: whatever
  * happened, the thread waiting on this has to receive something.
  */
-export function serve<Question, Answer>(
-  respond: (question: Question) => Promise<Answer>,
-  fail: (error: unknown) => Answer,
+export function serve(
+  respond: (query: Query) => Promise<Reply>,
+  fail: (error: unknown) => Reply,
 ): void {
   const { port, signal } = workerData as { port: MessagePort; signal: Int32Array };
-  parentPort?.on("message", (question: Question) => {
-    void respond(question)
+  parentPort?.on("message", (query: Query) => {
+    void respond(query)
       .catch(fail)
-      .then((answer) => {
+      .then((reply) => {
         try {
-          port.postMessage(answer);
+          port.postMessage(reply);
         } catch (error) {
           port.postMessage(fail(error));
         }

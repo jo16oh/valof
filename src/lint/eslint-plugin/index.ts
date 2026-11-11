@@ -3,11 +3,11 @@ import { extname } from "node:path";
 import type { Rule } from "eslint";
 
 import { AnswerCache, ProjectCache } from "./caches.ts";
-import { Query, type Reply } from "./messages.ts";
+import { Query } from "./messages.ts";
 import { Underline } from "./underline.ts";
 import { Patterns } from "../files.ts";
 import { RULES } from "../index.ts";
-import { WorkerClient } from "../worker.ts";
+import { LinterWorker } from "./channel.ts";
 
 export default valof();
 
@@ -39,7 +39,7 @@ function valof(): {
    * The patience is long enough that no run reaches it, short enough that a wedged worker still
    * says so.
    */
-  const worker = new WorkerClient<Query, Reply>(
+  const worker = new LinterWorker(
     new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
     60_000,
   );
