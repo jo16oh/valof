@@ -6,7 +6,9 @@ import {
   type MessagePort,
 } from "node:worker_threads";
 
-import type { Query, Reply } from "./messages.ts";
+import { pipe } from "../../shared/pipe/index.ts";
+import { Answer, type Query, Reply } from "./messages.ts";
+import type { Finding } from "../index.ts";
 
 /**
  * The worker that lints, asked from a rule and blocked on until it answers.
@@ -25,11 +27,19 @@ import type { Query, Reply } from "./messages.ts";
  * `patience` milliseconds is stopped, and the next query starts another: a worker still busy would
  * leave every later query waiting behind it. The default is long enough that no run reaches it,
  * short enough that a wedged worker still says so.
+ *
+ * One run per file, however many of the rules are on. The host creates every rule for a file
+ * before it walks it, so the `Program` handlers run back to back over the same text, and asking
+ * blocks the thread: nothing runs in between. So the last answer is kept, and the same query gets
+ * it. It is dropped as soon as the stack empties, and not kept for the next pass, because the query
+ * says nothing about the rest of the project: a file saved in another editor tab changes what this
+ * file's findings are while its own text is unchanged.
  */
 export class LinterWorker {
   readonly #script: URL;
   readonly #patience: number;
   #worker: { thread: Worker; port: MessagePort; signal: Int32Array } | undefined;
+  #last: Answer | undefined;
 
   constructor(
     script = new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
@@ -39,7 +49,27 @@ export class LinterWorker {
     this.#patience = patience;
   }
 
-  ask(query: Query): Reply {
+  /** The findings for the query. Throws the message the worker failed with. */
+  lint(query: Query): readonly Finding[] {
+    const key = `${query.file}\n${query.text}\n${query.project.join("\n")}`;
+    if (this.#last?.key === key) return this.#last.findings;
+
+    const findings = pipe(
+      query,
+      (asked) => this.#ask(asked),
+      Reply.match({
+        Found: ({ findings }) => findings,
+        Failed: ({ message }) => {
+          throw new Error(message);
+        },
+      }),
+    );
+    this.#last = Answer.seal({ key, findings });
+    queueMicrotask(() => (this.#last = undefined));
+    return findings;
+  }
+
+  #ask(query: Query): Reply {
     if (!this.#worker) {
       const { port1, port2 } = new MessageChannel();
       const signal = new Int32Array(new SharedArrayBuffer(4));

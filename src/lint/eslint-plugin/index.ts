@@ -1,6 +1,6 @@
 import type { Rule } from "eslint";
 
-import { AnswerCache, ProjectCache } from "./caches.ts";
+import { ProjectCache } from "./project-cache.ts";
 import { Query } from "./messages.ts";
 import { Underline } from "./underline.ts";
 import { Patterns } from "../files.ts";
@@ -27,13 +27,13 @@ function valof(): {
   >;
   configs: { recommended: { rules: Record<string, "error" | "warn"> } };
 } {
-  const answers = new AnswerCache(new LinterWorker());
+  const worker = new LinterWorker();
   const projects = new ProjectCache();
 
   return {
     meta: { name: "valof" },
     // One rule per kind, so a project sets the severity of each and turns off what it does not
-    // want. They share one run all the same: the linter reports on every kind at once, and `answers`
+    // want. They share one run all the same: the linter reports on every kind at once, and `worker`
     // passes the same result to each rule of the same file. What a rule adds is which findings it
     // reports.
     rules: Object.fromEntries(
@@ -50,7 +50,7 @@ function valof(): {
           create: (context: Rule.RuleContext) => ({
             Program(): void {
               const project = projects.glob(Patterns.fromSettings(context.settings));
-              for (const finding of answers.send(Query.fromContext(context, project)))
+              for (const finding of worker.lint(Query.fromContext(context, project)))
                 if (finding.kind === kind)
                   context.report({
                     loc: Underline.fromFinding(finding, context.sourceCode.text),

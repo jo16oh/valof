@@ -5,24 +5,22 @@ import { join } from "node:path";
 import { expect, test } from "vite-plus/test";
 
 import { LinterWorker } from "../../../../src/lint/eslint-plugin/linter-worker.ts";
-import { Query, Reply } from "../../../../src/lint/eslint-plugin/messages.ts";
+import { Query } from "../../../../src/lint/eslint-plugin/messages.ts";
 import { Project } from "../../../../src/lint/files.ts";
 
 const script = new URL("answerer.ts", import.meta.url);
 const PATIENCE = 2000;
 
-/** What the answerer says to a query naming `file`. */
-const say = (worker: LinterWorker, file: string, text = ""): string =>
-  Reply.match(worker.ask(Query.seal({ project: Project.seal([]), file, text })), {
-    Found: () => "found",
-    Failed: ({ message }) => message,
-  });
+/** What the answerer says to a query naming `file`. A failure is thrown. */
+const say = (worker: LinterWorker, file: string, text = ""): string | undefined =>
+  worker.lint(Query.seal({ project: Project.seal([]), file, text }))[0]?.message;
 
 test("asks the same worker again, once it has answered", () => {
   const worker = new LinterWorker(script, PATIENCE);
-  const first = say(worker, "thread");
+  // Two texts, so the second query is not the first one's kept answer.
+  const first = say(worker, "thread", "one");
   expect(first).toMatch(/^thread \d+$/);
-  expect(say(worker, "thread")).toBe(first);
+  expect(say(worker, "thread", "two")).toBe(first);
 });
 
 test("stops a wedged worker, and asks a new one next", async () => {
@@ -48,8 +46,8 @@ test("stops a wedged worker, and asks a new one next", async () => {
 
 test("returns what the worker makes of a failure, in the answer or in sending it", () => {
   const worker = new LinterWorker(script, PATIENCE);
-  expect(say(worker, "reject")).toBe("failed: Error: rejected");
-  expect(say(worker, "uncloneable")).toMatch(/^failed: DataCloneError/);
+  expect(() => say(worker, "reject")).toThrow("failed: Error: rejected");
+  expect(() => say(worker, "uncloneable")).toThrow(/^failed: DataCloneError/);
 });
 
 const pause = () => new Promise((done) => setTimeout(done, 200));
