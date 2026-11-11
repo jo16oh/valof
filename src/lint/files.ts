@@ -67,12 +67,13 @@ export const Patterns = Val.companion<Patterns>()
     fromSettings: (
       // A host may leave the settings out.
       settings: { valof?: { project?: string | readonly string[] } } | undefined,
-    ): Patterns => {
-      const given = settings?.valof?.project ?? "src/**/*.ts";
-      return seal(
-        (typeof given === "string" ? [given] : [...given]).map((path) => Path.seal(path)),
-      );
-    },
+    ): Patterns =>
+      pipe(
+        settings?.valof?.project ?? "src/**/*.ts",
+        (given) => (typeof given === "string" ? [given] : [...given]),
+        (given) => given.map((path) => Path.seal(path)),
+        seal,
+      ),
   }))
   .impl(() => ({
     /** The same patterns in the same order give the same key. */
