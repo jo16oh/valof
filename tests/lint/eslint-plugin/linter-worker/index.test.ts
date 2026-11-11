@@ -23,6 +23,14 @@ test("asks the same worker again, once it has answered", () => {
   expect(say(worker, "thread", "two")).toBe(first);
 });
 
+test("keeps the last answer for the same file and text alone", () => {
+  // In one tick, as a fix pass lints the file again with its fixed text.
+  const worker = new LinterWorker(script, PATIENCE);
+  expect(say(worker, "a.ts", "before")).toBe("answered a.ts before");
+  expect(say(worker, "a.ts", "after")).toBe("answered a.ts after");
+  expect(say(worker, "b.ts", "after")).toBe("answered b.ts after");
+});
+
 test("stops a wedged worker, and asks a new one next", async () => {
   const worker = new LinterWorker(script, PATIENCE);
   const dir = mkdtempSync(join(tmpdir(), "valof-linter-worker-"));
@@ -44,7 +52,7 @@ test("stops a wedged worker, and asks a new one next", async () => {
   }
 });
 
-test("returns what the worker makes of a failure, in the answer or in sending it", () => {
+test("throws what the worker makes of a failure, in the answer or in sending it", () => {
   const worker = new LinterWorker(script, PATIENCE);
   expect(() => say(worker, "reject")).toThrow("failed: Error: rejected");
   expect(() => say(worker, "uncloneable")).toThrow(/^failed: DataCloneError/);
