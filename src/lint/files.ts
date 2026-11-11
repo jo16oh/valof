@@ -19,14 +19,14 @@ export const FilePath = Val.companion<FilePath>()
   .build();
 
 /** The files of a project, resolved, as {@link Patterns.glob} found them. */
-export type Project = Val<"Project", readonly string[]>;
+export type Project = Val<"Project", FilePath[]>;
 export const Project = Val.companion<Project>().build();
 
 /**
  * The paths and globs that name a project. A path starting with `!` removes what it matches, as it
  * does on the command line.
  */
-export type Patterns = Val<"Patterns", readonly string[]>;
+export type Patterns = Val<"Patterns", string[]>;
 export const Patterns = Val.companion<Patterns>()
   .implAssoc(({ seal }) => ({
     /**
@@ -59,7 +59,8 @@ export const Patterns = Val.companion<Patterns>()
           .filter((path) => !excludes(path))
           .flatMap(expand)
           .map((file) => resolve(file))
-          .filter((file) => !dropped.has(file)),
+          .filter((file) => !dropped.has(file))
+          .map((file) => FilePath.seal(file)),
       );
     },
   }))
