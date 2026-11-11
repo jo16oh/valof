@@ -7,7 +7,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "../index.ts";
 import { Arguments } from "./arguments.ts";
 import { NoFilesMatchedError, type UsageError } from "./errors.ts";
-import { expand } from "./files.ts";
+import { Path } from "./files.ts";
 import { RULES, type Finding } from "./rules/index.ts";
 import { Options } from "./options.ts";
 import { run } from "./run.ts";
@@ -58,9 +58,11 @@ const Files = Val.companion<Files>()
     /** Expands the globs the arguments name, and makes the files of {@link Files.fromPaths}. */
     glob: ({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> =>
       Files.fromPaths(
-        (projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand),
-        targets.length > 0 ? targets.flatMap(expand) : null,
-        excluded.flatMap(expand),
+        (projects.length > 0 ? projects : [Path.seal("src/**/*.ts")]).flatMap((path) =>
+          Path.expand(path),
+        ),
+        targets.length > 0 ? targets.flatMap((path) => Path.expand(path)) : null,
+        excluded.flatMap((path) => Path.expand(path)),
       ),
     /**
      * The files read and the files reported on, with every exclusion applied to both. `targets` is

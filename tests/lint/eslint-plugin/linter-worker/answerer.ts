@@ -23,10 +23,10 @@ const says = (file: string, message: string): Reply =>
 /** How many queries this thread has answered. */
 let asked = 0;
 
-// Answers by the query's `file`: counts what it was asked, names its thread, rejects, answers with what cannot be sent, or
-// wedges, writing a count to the path in `text` for as long as the thread runs. Each count is
-// renamed into place, so a reader never sees one half written. Anything else is echoed back, with
-// its text.
+// Answers by the query's `file`: says how many queries it was asked, names its thread, rejects,
+// answers with what cannot be sent, or wedges, writing a count to the path in `text` for as long as
+// the thread runs. Each count is renamed into place, so a reader never sees one half written.
+// Anything else is echoed back, with its text.
 serve(
   async ({ file, text }) => {
     asked++;
@@ -37,8 +37,11 @@ serve(
         renameSync(`${text}.next`, text);
       }
     if (file === "reject") throw new Error("rejected");
-    // A function cannot be cloned, which is what this one is for.
-    if (file === "uncloneable") return R.succeed([(() => file) as unknown as Finding]);
+    // A function cannot be cloned, even as a property of the list, which is what this one is for.
+    if (file === "uncloneable") {
+      const findings: Finding[] = [];
+      return R.succeed(Object.assign(findings, { send: () => file }));
+    }
     return says(file, file === "thread" ? `thread ${threadId}` : `answered ${file} ${text}`.trim());
   },
   (error) => R.fail(`failed: ${String(error)}`),

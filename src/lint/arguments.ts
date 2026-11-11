@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../index.ts";
-import { isDirectory } from "./files.ts";
+import { Path } from "./files.ts";
 import { MissingPathError, NotAProjectError, UnknownRuleError } from "./errors.ts";
 import { ALL_KINDS, KindSet, kinds, type Kind } from "./rules/index.ts";
 
@@ -13,11 +13,11 @@ export type Arguments = Val<
   "Arguments",
   {
     /** What the run reads. Empty means the default, `src/**\/*.ts`. */
-    projects: string[];
+    projects: Path[];
     /** What the run reports on. Empty means the whole project. */
-    targets: string[];
+    targets: Path[];
     /** Paths written with a leading `!`, removed from the run and the report alike. */
-    excluded: string[];
+    excluded: Path[];
     /** Kinds left out with `--no-<kind>`. */
     skip: Kind[];
     help: boolean;
@@ -36,16 +36,17 @@ export const Arguments = Val.companion<Arguments>()
     fromArgv: (
       argv: readonly string[],
     ): R.Result<Arguments, UnknownRuleError | MissingPathError | NotAProjectError> => {
-      const projects: string[] = [];
-      const targets: string[] = [];
-      const excluded: string[] = [];
-      const loose: string[] = [];
+      const projects: Path[] = [];
+      const targets: Path[] = [];
+      const excluded: Path[] = [];
+      const loose: Path[] = [];
       const skip: Kind[] = [];
       let help = false;
       let pending: "project" | "report-on" | undefined;
 
-      const take = (into: string[], path: string): void => {
-        if (path.startsWith("!")) excluded.push(path.slice(1));
+      const take = (into: Path[], written: string): void => {
+        const path = Path.seal(written);
+        if (Path.excludes(path)) excluded.push(Path.seal(path.slice(1)));
         else into.push(path);
       };
 
@@ -75,9 +76,9 @@ export const Arguments = Val.companion<Arguments>()
       if (pending) return R.fail(new MissingPathError({ flag: pending }));
 
       // The first loose path is the project, unless `--project` gave one.
-      if (projects.length === 0 && loose.length > 0) {
-        const first = loose.shift() as string;
-        if (!GLOB.test(first) && !isDirectory(first))
+      const first = projects.length === 0 ? loose.shift() : undefined;
+      if (first !== undefined) {
+        if (!GLOB.test(first) && !Path.isDirectory(first))
           return R.fail(new NotAProjectError({ path: first }));
         projects.push(first);
       }
