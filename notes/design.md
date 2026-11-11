@@ -3051,6 +3051,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       members included) passes, and anything below it is reported. A local `type M = Payload<PayloadOf<X>>` is followed
       one level. It errors by default. The syntactic position distinguishes it from the legitimate use (the base of a
       top-level intersection)
+  - **Dropped, 2026-11-11.** It catches one mistake, and what led readers to it is gone: the README's
+    `Reusing a Val` composed `PayloadOf<User> & { … }` at the top level, and neither the README nor the book composes
+    `PayloadOf` any more. The rule cost a scan pass of its own and its tests. The hole stays, recorded in §4.1. The
+    types cannot close it, since `PayloadOf<Money>` is a plain object type
 - [x] ~~valof-lint rule `foreign-rec`: report a `Rec` that is not self-referential~~ Not added (§14.26).
       `Rec<Other>` opens to `Other`, so the type is the same. It causes no harm, and nobody has a reason to write it
 - [x] ~~**Implement `Enum` (a sum type).**~~ Implemented, in `src/enum.ts`, exported from `valof/experimental` next to
@@ -3128,15 +3132,21 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       2026-11-03 (§18.5). Found while adding valof-lint rules. Only the lint tests map the `typescript-7.1` alias to
       `typescript/sync` with a resolve hook
 - [ ] **What remains of lint (from the 2026-11-03 additions).**
-  - `block-step`, `split-variant-steps` and `unqualified-variant` are added (the three in `__memo__/tasks-to-design.md`)
+  - `block-step` (now `hidden-state-in-impl`, below), `split-variant-steps` and `unqualified-variant` are added (the three in `__memo__/tasks-to-design.md`)
   - **`block-step` stays (2026-11-11).** State goes outside the Val. A Val is immutable data, and state in a step's
-    block is invisible to anyone reading the members. The report says only "move what the block declares out of the
+    block is invisible to anyone reading the members. The report says only "move what it declares out of the
     companion", without saying where. A constant goes to module level, and state to a closure over the scope that uses
     it (valof-lint's plugin: inside `valof()`, §14.8)
     - **Rejected: dropping it.** It was almost dropped once, since moving state to module level still leaves state.
       The rule asks to move state out of the Val, not to remove it
     - **Rejected: recommending a class as the destination.** A closure with a narrow scope fits more cases (user).
       The plugin itself later moved its state into classes (§14.8, "State lives in classes")
+  - **`block-step` became `hidden-state-in-impl`, and narrowed (2026-11-11).** `block` gave no picture of what the
+    rule reports (user). The name says what goes wrong and where, and `impl` stands for every `impl*` step. It
+    reports only a body whose own statements declare a variable, a function or a class. A body that only returns
+    holds no state. A member's own locals, inside its function, are created per call and are not read
+    - **Rejected: `step-block-body`.** It describes the form, and `block` was the word that gave no picture
+    - **Rejected: `hidden-state-in-impl-block`.** Only a block body can declare anything, so `block` adds nothing
   - `model-only-in-valof` is added (`__memo__/lint-model-only-in-valof.md`). Its options go to `Options.enable`, and
     the runner builds the boxes to run together with the default rules (css-var-kit's `compile`). No separate rule
     for "built-in types Valof does not allow as values"
@@ -4295,7 +4305,7 @@ valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait 
   - **Not in `Program`.** ESLint calls `create` and `Program` per rule and file pair, so state made there is shared
     neither across rules nor across files. The narrowest scope that shares it is the plugin
   - **Rejected: in a companion's `impl` / `implAssoc` block.** A Val is immutable data, and state inside the block is
-    invisible to anyone reading the members (#112's `block-step` reports it). `Query` became a Val of the question's
+    invisible to anyone reading the members (#112's `hidden-state-in-impl` reports it). `Query` became a Val of the question's
     data only
   - **Rejected: a module-level variable, or a module-level higher-order function that encloses the state (such as
     `memo`).** The whole file can reach both. Wrapping it in a higher-order function does not stop the module from
