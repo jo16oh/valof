@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -138,6 +139,21 @@ test("keeps the worker's scans under node_modules/.cache, and reports the same f
     expect(existsSync(join(dir, "node_modules", ".cache", "valof-lint", "scans.json"))).toBe(true);
     expect(host(dir, "src/orders.ts", keeping())).toEqual(first);
     expect(first.stdout).toBe('Ref claims the brand "Ref", and so does another type\n');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("keeps the scan of a saved file outside the project", () => {
+  const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
+  try {
+    cpSync(at("default"), dir, { recursive: true });
+    mkdirSync(join(dir, "node_modules"));
+    writeFileSync(join(dir, "outside.ts"), "export {};\n");
+    host(dir, "outside.ts", keeping());
+    const store = join(dir, "node_modules", ".cache", "valof-lint", "scans.json");
+    const { scans } = JSON.parse(readFileSync(store, "utf8")) as { scans: object };
+    expect(Object.keys(scans)).toContain(join(realpathSync(dir), "outside.ts"));
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

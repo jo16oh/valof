@@ -26,6 +26,7 @@ const say = (
       project: Project.seal(project.map((path) => FilePath.seal(path))),
       overlay: { [file]: text },
       model: DataTypeSettings.create(),
+      saved: false,
     }),
   )[0]?.message;
 
@@ -68,7 +69,12 @@ test("keeps the answer for the buffers disk holds while another buffer is edited
   const worker = new LinterWorker(import.meta.url, PATIENCE);
   const saved = (): string | undefined =>
     worker.lint(
-      Query.seal({ project: Project.seal([]), overlay: {}, model: DataTypeSettings.create() }),
+      Query.seal({
+        project: Project.seal([]),
+        overlay: {},
+        model: DataTypeSettings.create(),
+        saved: true,
+      }),
     )[0]?.message;
   expect(saved()).toBe("asked 1");
   expect(say(worker, "count", "a")).toBe("asked 2");
@@ -97,6 +103,7 @@ const read = (file: string, text = readFileSync(file, "utf8")): Query =>
 
 test("leaves out a buffer that disk holds, so the files of a batch ask the same", () => {
   expect(read(at("money.ts")).overlay).toEqual({});
+  expect(read(at("money.ts")).saved).toBe(true);
   expect(Query.key(read(at("money.ts")))).toBe(Query.key(read(at("order.ts"))));
 });
 
@@ -104,8 +111,11 @@ test("passes a buffer that disk does not hold, or a file the project leaves out"
   expect(read(at("money.ts"), "export {};\n").overlay).toEqual({
     [at("money.ts")]: "export {};\n",
   });
+  expect(read(at("money.ts"), "export {};\n").saved).toBe(false);
+  // Outside the project, but saved.
   const silenced = at("silenced.ts");
   expect(read(silenced).overlay).toEqual({ [silenced]: readFileSync(silenced, "utf8") });
+  expect(read(silenced).saved).toBe(true);
 });
 
 test("passes the buffer of a project file deleted from disk", () => {
@@ -119,6 +129,7 @@ test("passes the buffer of a project file deleted from disk", () => {
       listed,
     );
     expect(query.overlay).toEqual({ [file]: "x" });
+    expect(query.saved).toBe(false);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
