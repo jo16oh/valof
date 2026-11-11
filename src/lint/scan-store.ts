@@ -116,17 +116,15 @@ function hashOf(source: string): string {
 
 /**
  * The path, modification time and size of each of the linter's own files, and of the parser's
- * `package.json`. From source the linter's files are everything under `src`, and from the package
- * everything it ships, so editing the linter, installing another version of it or of oxc-parser
- * discards the store.
+ * `package.json`. Run from source, the linter's files are everything under `src`. Run from the
+ * package, they are everything under the built module's directory. Editing the linter, or
+ * installing another version of it or of oxc-parser, discards the store.
  */
 function fingerprint(): string {
-  const root = fileURLToPath(new URL("..", import.meta.url));
+  const source = import.meta.url.endsWith(".ts");
+  const root = fileURLToPath(new URL(source ? ".." : ".", import.meta.url));
   try {
-    const own = readdirSync(root, { recursive: true, encoding: "utf8" })
-      .filter((name) => /\.[cm]?[jt]s$|package\.json$/.test(name))
-      .filter((name) => !name.split(/[\\/]/).includes("node_modules"))
-      .map((name) => join(root, name));
+    const own = filesUnder(root).filter((file) => /\.[cm]?[jt]s$|package\.json$/.test(file));
     return Project.stat(
       Project.seal([...own, parserManifest()].map((file) => FilePath.seal(file))),
     );
@@ -135,7 +133,17 @@ function fingerprint(): string {
   }
 }
 
-/** Where oxc-parser's `package.json` is, or a path that is not there when it is not installed. */
+/** Every file under `dir`, leaving out `node_modules` and every file or directory whose name
+ * starts with a dot. */
+function filesUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    if (entry.name === "node_modules" || entry.name.startsWith(".")) return [];
+    const path = join(dir, entry.name);
+    return entry.isDirectory() ? filesUnder(path) : [path];
+  });
+}
+
+/** The path of oxc-parser's `package.json`, or a path where no file exists when oxc-parser is not installed. */
 function parserManifest(): string {
   try {
     let dir = dirname(fileURLToPath(import.meta.resolve("oxc-parser")));
