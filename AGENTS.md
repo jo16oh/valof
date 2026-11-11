@@ -122,10 +122,8 @@ run `/proofread` over the changed files before committing them. A separate agent
 same model, and reports back. Apply the clear findings yourself, and ask me about the ones you
 doubt.
 
-Remember how limited humans are, especially me, since English isn't my first language. We don't have
-a large context window like you do, and we can't read as fast as you can. Reducing redundant
-expressions really matters, and it helps you save context too. Keep only the essential parts. Keep
-it brief.
+Decide what to leave out before choosing words. Say one thing per sentence. Where a fact does not
+change what the reader does, drop it rather than compressing it into a clause.
 
 The repo is English: README, source comments, commit messages, PRs.
 
