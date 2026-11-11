@@ -1,6 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../index.ts";
+import { fromOxc } from "./ast.ts";
 import { MissingParserError } from "./errors.ts";
 
 /** oxc-parser, once {@link Parser.load} has imported it. */
@@ -31,9 +32,10 @@ export const Parser = Val.companion<Parser>()
       seal({ visitorKeys: module.visitorKeys }),
   }))
   .impl(() => ({
-    exec(_parser, file: string, source: string) {
+    exec(parser, file: string, source: string) {
       if (!oxc) throw new Error("valof-lint: oxc-parser is not loaded");
-      return oxc.parseSync(file, source);
+      const { program, comments } = oxc.parseSync(file, source);
+      return { program: fromOxc(program, parser.visitorKeys), comments };
     },
   }))
   .build();

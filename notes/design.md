@@ -4364,6 +4364,24 @@ valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait 
   Hand-written, 525 B. `vp run type-perf`'s budget is 2 kB. If ESLint's types get into the declaration, the build
   (`deps.onlyBundle`) stops before the budget does
 
+#### 2026-11-07: The syntax tree became an Enum
+
+- **`Node` is an Enum.** Each node type the walk reads has a variant holding only the fields it reads. The other
+  types are `Other` (only `nodeType`). Typed reads replaced `child` / `children` and the casts on `node[key]`. It
+  also serves as an example of Enum in use
+- **`Parser.exec` converts oxc-parser's tree once.** Fields nobody reads are dropped. A `Literal`'s `value` keeps
+  only strings, and anything else becomes `null`. A value a payload cannot hold, such as a `RegExp` or a `bigint`,
+  does not survive
+- **Sealing a recursive Enum took 2^depth.** The development seal snapshots its input before and after, and went
+  into children already sealed. That is a valof bug, fixed in #144. The snapshot stops at a value already sealed
+- **The lint build sets `NODE_ENV` to production.** lint holds no user code for the development checks to guard.
+  The command runs without `NODE_ENV`. Converted nodes are built with `create.nocopy`
+- **Cost.** On 230 files, the shipped command went from 0.14 s to 0.21 s. Left in development, the replacement cost
+  about 300 ms
+- **Return values that hold nodes are Vals too (2026-11-10).** With `Node` an Enum, a payload can hold a node. A
+  type's name and its namespace are `TypeName`, the enum and variant a `VariantOf<E, "N">` points to are
+  `VariantName`, and a variant read from a builder, with its builder, is `NamedVariant`
+
 ### 14.9 Editor integration, investigated 2026-09-08. Implemented up to overlay
 
 **Conclusion first.** From oxlint's `jsPlugins`, **call `lint()` directly** across a Worker. valof exports only `lint` and `Options.overlay`, with no `--server` and no protocol. **Not on this branch.**

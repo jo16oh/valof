@@ -7,16 +7,7 @@ import type { AnyTrait, TraitCompanion } from "../../trait.ts";
 import type { Reserved } from "../../val.ts";
 import type { FilePath } from "../files.ts";
 
-import {
-  child,
-  children,
-  isNode,
-  keyName,
-  Lines,
-  unparenthesized,
-  type Node,
-  type Position,
-} from "../ast.ts";
+import { keyName, Lines, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
 import { Parser } from "../parser.ts";
 import {
   Aliases,
@@ -275,61 +266,44 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
   const visit = (node: Node): void => {
     switch (node.type) {
       case "VariableDeclaration": {
-        if (node["kind"] !== "const") break;
-        for (const declaration of children(node, "declarations")) {
-          const id = child(declaration, "id");
-          const init = child(declaration, "init");
-          if (id?.type !== "Identifier" || !init) continue;
-          objects.set(id["name"] as string, init);
+        if (node.kind !== "const") break;
+        for (const declaration of node.declarations) {
+          if (declaration.type !== "VariableDeclarator") continue;
+          const { id, init } = declaration;
+          if (id.type !== "Identifier" || !init) continue;
+          objects.set(id.name, init);
           const dyn = dynBox(init, file, bound);
           if (dyn) {
-            dynBindings.set(id["name"] as string, dyn);
+            dynBindings.set(id.name, dyn);
             followed.add(init);
           }
         }
         break;
       }
       case "VariableDeclarator": {
-        const id = child(node, "id");
-        const init = child(node, "init");
-        if (!id || !init) break;
-        const site = CompanionSite.fromChain(
-          init,
-          file,
-          Lines.at(lines, init["start"] as number),
-          bound,
-          lines,
-        );
+        const { id, init } = node;
+        if (!init) break;
+        const site = CompanionSite.fromChain(init, file, Lines.at(lines, init.start), bound, lines);
         if (site)
           sites.push(
             id.type === "Identifier"
-              ? CompanionSite.patch(site, {
-                  name: id["name"] as string,
-                  nameAt: Lines.at(lines, id["start"] as number),
-                })
+              ? CompanionSite.patch(site, { name: id.name, nameAt: Lines.at(lines, id.start) })
               : site,
           );
         // `const { a, b: c } = X` reads `a` and `b` off `X`.
         if (id.type === "ObjectPattern" && init.type === "Identifier") {
-          const from = init["name"] as string;
+          const from = init.name;
           const dyn = dynBindings.get(from);
-          for (const property of children(id, "properties")) {
+          for (const property of id.properties) {
             if (property.type !== "Property") continue;
-            const key = child(property, "key");
-            if (!key) continue;
-            const name = keyName(key, property["computed"] === true);
+            const name = keyName(property.key, property.computed);
             if (name) {
               if (dyn) dynReads.push(DynRead.seal({ ...dyn, member: name }));
               else {
                 collect(reads, from, name);
-                const local = child(property, "value");
-                if (local?.type === "Identifier")
-                  took(
-                    local["name"] as string,
-                    Lines.at(lines, local["start"] as number),
-                    from,
-                    name,
-                  );
+                const local = property.value;
+                if (local.type === "Identifier")
+                  took(local.name, Lines.at(lines, local.start), from, name);
               }
             }
           }
@@ -340,34 +314,23 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
           const dyn = dynBox(init, file, bound);
           if (dyn) followed.add(init);
           if (dyn)
-            for (const property of children(id, "properties")) {
+            for (const property of id.properties) {
               if (property.type !== "Property") continue;
-              const key = child(property, "key");
-              const name = key && keyName(key, property["computed"] === true);
+              const name = keyName(property.key, property.computed);
               if (name) dynReads.push(DynRead.seal({ ...dyn, member: name }));
             }
         }
         if (id.type !== "Identifier") break;
         const root = fromRoot(init, bound);
-        if (root) bound = Bindings.patch(bound, { builders: { [id["name"] as string]: root } });
+        if (root) bound = Bindings.patch(bound, { builders: { [id.name]: root } });
         // `const Round = Shape.Circle` takes the same key the destructuring above takes.
         if (init.type === "MemberExpression") {
-          const from = child(init, "object");
-          const key = child(init, "property");
-          const taken = key && keyName(key, init["computed"] === true);
-          if (
-            from?.type === "Identifier" &&
-            taken &&
-            !Bindings.hasNamespace(bound, from["name"] as string)
-          )
-            took(
-              id["name"] as string,
-              Lines.at(lines, id["start"] as number),
-              from["name"] as string,
-              taken,
-            );
+          const from = init.object;
+          const taken = keyName(init.property, init.computed);
+          if (from.type === "Identifier" && taken && !Bindings.hasNamespace(bound, from.name))
+            took(id.name, Lines.at(lines, id.start), from.name, taken);
         }
-        members.push(...implMembers(init, id["name"] as string, bound, objects, lines));
+        members.push(...implMembers(init, id.name, bound, objects, lines));
         break;
       }
       case "CallExpression": {
@@ -384,20 +347,18 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
         break;
       }
       case "MemberExpression": {
-        const object = child(node, "object");
-        const property = child(node, "property");
-        if (!object || !property) break;
-        const name = keyName(property, node["computed"] === true);
+        const { object } = node;
+        const name = keyName(node.property, node.computed);
         if (!name) break;
         if (object.type === "Identifier") {
-          const dyn = dynBindings.get(object["name"] as string);
+          const dyn = dynBindings.get(object.name);
           if (dyn) {
             dynReads.push(DynRead.seal({ ...dyn, member: name }));
             break;
           }
-          collect(reads, object["name"] as string, name);
+          collect(reads, object.name, name);
           // A variant bound to a local name is read here and declared under the dotted key.
-          const pair = dotted.get(object["name"] as string);
+          const pair = dotted.get(object.name);
           if (pair) collect(reads, pair, name);
           break;
         }
@@ -410,40 +371,35 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
         // `ns.User.greet`: the companion is the middle name, and it is the exporting module's
         // name for it, so it skips this file's import aliases.
         if (object.type !== "MemberExpression") break;
-        const namespace = child(object, "object");
-        const companion = child(object, "property");
-        if (!namespace || !companion || namespace.type !== "Identifier") break;
-        const through = keyName(companion, object["computed"] === true);
+        const namespace = object.object;
+        if (namespace.type !== "Identifier") break;
+        const through = keyName(object.property, object.computed);
         if (!through) break;
-        if (Bindings.hasNamespace(bound, namespace["name"] as string)) {
+        if (Bindings.hasNamespace(bound, namespace.name)) {
           collect(namespaceReads, through, name);
           break;
         }
         // `Shape.Circle.diameter`: a variant's members are declared under the same dotted key,
         // which is where the two meet.
-        collect(
-          reads,
-          `${Bindings.originalName(bound, namespace["name"] as string)}.${through}`,
-          name,
-        );
+        collect(reads, `${Bindings.originalName(bound, namespace.name)}.${through}`, name);
         break;
       }
       case "ImportDeclaration": {
-        const source = child(node, "source");
-        if (!source || typeof source["value"] !== "string") break;
-        const module = Modules.resolve(modules, file, source["value"]);
-        for (const specifier of children(node, "specifiers")) {
-          const local = child(specifier, "local");
-          if (local?.type !== "Identifier") continue;
-          if (specifier.type === "ImportNamespaceSpecifier") {
-            bound = Bindings.patch(bound, { namespaces: { [local["name"] as string]: module } });
-          } else if (specifier.type === "ImportSpecifier") {
-            const imported = child(specifier, "imported");
-            const name = imported && keyName(imported, false);
+        const module = stringOf(node.source);
+        if (module === undefined) break;
+        const resolved = Modules.resolve(modules, file, module);
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportNamespaceSpecifier" &&
+            specifier.local.type === "Identifier"
+          )
+            bound = Bindings.patch(bound, { namespaces: { [specifier.local.name]: resolved } });
+          else if (specifier.type === "ImportSpecifier" && specifier.local.type === "Identifier") {
+            const name = keyName(specifier.imported, false);
             if (name)
               bound = Bindings.patch(bound, {
                 imported: ImportMap.patch(bound.imported, {
-                  [local["name"] as string]: ImportBinding.seal({ name, module }),
+                  [specifier.local.name]: ImportBinding.seal({ name, module: resolved }),
                 }),
               });
           }
@@ -454,35 +410,25 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
         break;
     }
 
-    for (const key of parser.visitorKeys[node.type] ?? []) {
-      const value = node[key];
-      if (Array.isArray(value)) {
-        for (const element of value) if (isNode(element)) visit(element);
-      } else if (isNode(value)) visit(value);
-    }
+    for (const one of node.children) visit(one);
   };
 
   const { program, comments } = Parser.exec(parser, file, source);
-  if (!isNode(program)) throw new Error(`valof-lint: ${file} parsed to no program`);
   visit(program);
 
   // Imports may follow an export declaration. Resolve local exports only after every binding is
   // known, so `export { Imported as Public }` retains Imported's source module either way.
   exportedAs.clear();
   exportedRefs.clear();
-  for (const statement of children(program, "body")) {
+  for (const statement of program.type === "Program" ? program.body : []) {
     if (statement.type !== "ExportNamedDeclaration") continue;
-    const sourceNode = child(statement, "source");
+    const from = statement.source && stringOf(statement.source);
     const module =
-      sourceNode && typeof sourceNode["value"] === "string"
-        ? Modules.resolve(modules, file, sourceNode["value"])
-        : undefined;
-    for (const specifier of children(statement, "specifiers")) {
-      const local = child(specifier, "local");
-      const exported = child(specifier, "exported");
-      if (!local || !exported) continue;
-      const outside = keyName(exported, false);
-      const inside = keyName(local, false);
+      from === null || from === undefined ? undefined : Modules.resolve(modules, file, from);
+    for (const specifier of statement.specifiers) {
+      if (specifier.type !== "ExportSpecifier") continue;
+      const outside = keyName(specifier.exported, false);
+      const inside = keyName(specifier.local, false);
       if (!outside || !inside) continue;
       exportedAs.set(outside, inside);
       exportedRefs.set(
@@ -528,33 +474,23 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
 /** The uncomplicated `Trait.dyn(Val, value)` form.  Escaping the box is deliberately not traced. */
 function dynBox(node: Node, file: FilePath, bound: Bindings): DynBox | undefined {
   if (node.type !== "CallExpression") return undefined;
-  const callee = child(node, "callee");
-  if (!callee || callee.type !== "MemberExpression") return undefined;
-  const property = child(callee, "property");
-  const object = child(callee, "object");
-  if (!property || keyName(property, callee["computed"] === true) !== "dyn" || !object)
+  const { callee } = node;
+  if (callee.type !== "MemberExpression" || keyName(callee.property, callee.computed) !== "dyn")
     return undefined;
-  const args = children(node, "arguments");
-  const trait = valueReference(object, file, bound);
+  const args = node.arguments;
+  const trait = valueReference(callee.object, file, bound);
   const val = args[0] && valueReference(args[0], file, bound);
   return trait && val ? DynBox.seal({ trait, val }) : undefined;
 }
 
 /** A runtime companion reference with its exporting module retained. */
 function valueReference(node: Node, file: FilePath, bound: Bindings): SymbolRef | undefined {
-  if (node.type === "Identifier")
-    return Bindings.refOf(bound, file, node["name"] as string, undefined);
+  if (node.type === "Identifier") return Bindings.refOf(bound, file, node.name, undefined);
   if (node.type !== "MemberExpression") return undefined;
-  const object = child(node, "object");
-  const property = child(node, "property");
-  if (
-    object?.type !== "Identifier" ||
-    !Bindings.hasNamespace(bound, object["name"] as string) ||
-    !property
-  )
-    return undefined;
-  const name = keyName(property, node["computed"] === true);
-  return name ? Bindings.refOf(bound, file, name, object["name"] as string) : undefined;
+  const { object } = node;
+  if (object.type !== "Identifier" || !Bindings.hasNamespace(bound, object.name)) return undefined;
+  const name = keyName(node.property, node.computed);
+  return name ? Bindings.refOf(bound, file, name, object.name) : undefined;
 }
 
 /** Reads one `.implTrait` call without collapsing repeated calls in the same chain. */
@@ -566,39 +502,40 @@ function implTrait(
   objects: ReadonlyMap<string, Node>,
   lines: Lines,
 ): TraitImplementation | undefined {
-  const callee = child(node, "callee");
-  if (!callee || callee.type !== "MemberExpression") return undefined;
-  const property = child(callee, "property");
-  if (!property || keyName(property, callee["computed"] === true) !== "implTrait") return undefined;
-  let current = child(callee, "object");
-  while (current?.type === "CallExpression") {
-    const inner = child(current, "callee");
-    if (!inner || inner.type !== "MemberExpression") break;
-    const receiver = stepOf(inner)?.receiver;
-    if (!receiver || receiver.type !== "CallExpression") break;
+  if (node.type !== "CallExpression") return undefined;
+  const { callee } = node;
+  if (
+    callee.type !== "MemberExpression" ||
+    keyName(callee.property, callee.computed) !== "implTrait"
+  )
+    return undefined;
+  let current = callee.object;
+  while (current.type === "CallExpression") {
+    const inner = current.callee;
+    if (inner.type !== "MemberExpression") break;
+    const { receiver } = stepOf(inner);
+    if (receiver.type !== "CallExpression") break;
     current = receiver;
   }
-  if (!current) return undefined;
   const rootCall = current.type === "CallExpression" ? current : node;
-  const root = current.type === "CallExpression" ? child(current, "callee") : callee;
-  if (!root || root.type !== "MemberExpression") return undefined;
+  const root = current.type === "CallExpression" ? current.callee : callee;
+  if (root.type !== "MemberExpression") return undefined;
   let val: SymbolRef | undefined;
   if (fromRoot(root, bound)) {
-    const rootArgs = child(rootCall, "typeArguments");
-    const valNode = unparenthesized(rootArgs ? children(rootArgs, "params")[0] : undefined);
-    const valRef = valNode?.type === "TSTypeReference" ? child(valNode, "typeName") : undefined;
-    const valNamed = valRef && typeReference(valRef, bound);
+    const valNode = unparenthesized(typeParams(rootCall.typeArguments)[0]);
+    const valNamed =
+      valNode?.type === "TSTypeReference" ? typeReference(valNode.typeName, bound) : undefined;
     val = valNamed
-      ? Bindings.refOf(bound, file, valNamed.node["name"] as string, valNamed.qualifier)
+      ? Bindings.refOf(bound, file, valNamed.node.name, valNamed.qualifier ?? undefined)
       : undefined;
   } else {
-    const receiver = child(root, "object");
-    const builder = receiver?.type === "Identifier" ? (receiver["name"] as string) : undefined;
+    const receiver = root.object;
+    const builder = receiver.type === "Identifier" ? receiver.name : undefined;
     const site = builder ? sites.find((one) => one.name === builder) : undefined;
     if (site) val = site.typeRef;
   }
   if (!val) return undefined;
-  const [traitRef, object] = children(node, "arguments");
+  const [traitRef, object] = node.arguments;
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
   const resolved = object ? stepMembers(object, val.name, objects, lines) : [];
@@ -615,9 +552,8 @@ function stepMembers(
   objects: ReadonlyMap<string, Node>,
   lines: Lines,
 ): Member[] {
-  const fn = node.type === "Identifier" ? objects.get(node["name"] as string) : node;
-  const body =
-    fn?.type === "ArrowFunctionExpression" ? unparenthesized(child(fn, "body")) : undefined;
+  const fn = node.type === "Identifier" ? objects.get(node.name) : node;
+  const body = fn?.type === "ArrowFunctionExpression" ? unparenthesized(fn.body) : undefined;
   return body ? objectMembers(body, companion, objects, lines, new Set()) : [];
 }
 
@@ -630,7 +566,7 @@ function objectMembers(
   seen: Set<string>,
 ): Member[] {
   if (node.type === "Identifier") {
-    const name = node["name"] as string;
+    const { name } = node;
     if (seen.has(name)) return [];
     const target = objects.get(name);
     if (!target) return [];
@@ -640,24 +576,16 @@ function objectMembers(
   }
   if (node.type !== "ObjectExpression") return [];
   const byName = new Map<string, Member>();
-  for (const entry of children(node, "properties")) {
+  for (const entry of node.properties) {
     if (entry.type === "SpreadElement") {
-      const argument = child(entry, "argument");
-      if (!argument) continue;
-      for (const member of objectMembers(argument, companion, objects, lines, seen))
+      for (const member of objectMembers(entry.argument, companion, objects, lines, seen))
         byName.set(member.member, member);
       continue;
     }
     if (entry.type !== "Property") continue;
-    const key = child(entry, "key");
-    const name = key && keyName(key, entry["computed"] === true);
-    if (!name) {
-      continue;
-    }
-    byName.set(
-      name,
-      Member.seal({ at: Lines.at(lines, entry["start"] as number), companion, member: name }),
-    );
+    const name = keyName(entry.key, entry.computed);
+    if (name)
+      byName.set(name, Member.seal({ at: Lines.at(lines, entry.start), companion, member: name }));
   }
   return [...byName.values()];
 }
@@ -676,13 +604,13 @@ function implMembers(
   const found = new Map<string, Member>();
   let current: Node = node;
   while (current.type === "CallExpression") {
-    const callee = child(current, "callee");
-    const step = callee?.type === "MemberExpression" ? stepOf(callee) : undefined;
-    if (!step) break;
+    const { callee } = current;
+    if (callee.type !== "MemberExpression") break;
+    const step = stepOf(callee);
     const variant = variantOf(step.receiver);
     const receiver = variant?.builder ?? step.receiver;
     const root = fromRoot(receiver, bound);
-    const [object] = children(current, "arguments");
+    const [object] = current.arguments;
     if (step.name === "impl" && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
       for (const member of stepMembers(object, owner, objects, lines))
@@ -702,4 +630,9 @@ function sets(map: ReadonlyMap<string, ReadonlySet<string>>): Record<string, Rec
       Object.fromEntries([...members].map((one) => [one, true])),
     ]),
   );
+}
+
+/** The string a literal node spells, or `undefined` for any other node. */
+function stringOf(node: Node): string | undefined {
+  return node.type === "Literal" ? (node.value ?? undefined) : undefined;
 }
