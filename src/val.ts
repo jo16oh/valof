@@ -1147,6 +1147,14 @@ type PayloadKeys<V> = V extends unknown
 
 export const isObject = (v: unknown): v is object => typeof v === "object" && v !== null;
 
+/** Returns the object it is given, so a subclass's private field is defined on that object. */
+// oxlint-disable-next-line typescript/no-extraneous-class -- the class exists for its constructor
+class Stamp {
+  constructor(value: object) {
+    return value;
+  }
+}
+
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   isObject(v) && !Array.isArray(v);
 
@@ -1215,17 +1223,29 @@ const equalsUnknown = equals as (a: unknown, b: unknown) => boolean;
  * The nodes this module built. Subtrees are immutable, so recognizing one lets a derivation
  * copy only the path down to what changed and share everything below it.
  *
- * Leaves are recorded too. A record costs about 20x a lookup and never earns that back in
+ * Leaves are recorded too. A record costs about 4x a lookup and never earns that back in
  * copying time, but frameworks compare identity: without it every small nested Val gets a new
  * identity on each `patch`, and a memoized component re-renders for a change it never saw.
  *
- * Missing a node costs a copy, never correctness, so the set can be lost across a
+ * Missing a node costs a copy, never correctness, so the mark can be lost across a
  * `structuredClone` or a JSON round trip with nothing to repair.
+ *
+ * The mark is a private field on the node itself. A spread does not copy it, nothing outside
+ * this module can read or forge it, and the node stays a plain object. A non-extensible node
+ * gets no mark, so a copy that reaches it copies it.
  */
-const owned = new WeakSet<object>();
+class Owned extends Stamp {
+  // oxlint-disable-next-line no-unused-private-class-members -- read through `in`
+  #owned = true;
+  static has = (value: object): boolean => #owned in value;
+}
 
 /** Roots adopted by production `nocopy`. Their descendants are indexed only if a copy needs it. */
-const adopted = new WeakSet<object>();
+class Adopted extends Stamp {
+  // oxlint-disable-next-line no-unused-private-class-members -- read through `in`
+  #adopted = true;
+  static has = (value: object): boolean => #adopted in value;
+}
 
 const unsnapshotable = Symbol("unsnapshotable seal input");
 type SealSnapshot = Primitive | bigint | undefined | object | typeof unsnapshotable;
@@ -1248,7 +1268,7 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
         : (value as Primitive | bigint | undefined);
     }
     // Sealed already, so frozen, and the same node before and after.
-    if (owned.has(value)) return value;
+    if (Owned.has(value)) return value;
     if (active.has(value)) return unsnapshotable;
 
     const array = Array.isArray(value);
@@ -1302,16 +1322,16 @@ export const notFixedPoint = (): never => {
 const deepCopy = (owning: boolean) => {
   const copy = <T>(value: T): T => {
     if (!isObject(value)) return value;
-    if (owning && adopted.has(value)) {
+    if (owning && Owned.has(value)) return value;
+    if (owning && Adopted.has(value)) {
       indexAdopted(value);
       return value;
     }
-    if (owning && owned.has(value)) return value;
 
     let out: unknown;
 
     if (Array.isArray(value)) {
-      out = (value as unknown[]).map((element) => copy(element));
+      out = (value as unknown[]).map(copy);
     } else {
       const source = value as Record<string, unknown>;
 
@@ -1333,7 +1353,8 @@ const deepCopy = (owning: boolean) => {
     }
 
     if (owning) {
-      owned.add(out as object);
+      // oxlint-disable-next-line no-new -- the new instance is `out`, now marked
+      new Owned(out as object);
       if (development) Object.freeze(out);
     }
     return out as T;
@@ -1356,51 +1377,60 @@ const own = deepCopy(true);
  * This is intentionally deferred: `nocopy` itself remains O(1) in production.
  */
 const indexAdopted = (root: object): void => {
-  if (!adopted.has(root)) return;
-  const seen = new WeakSet<object>();
+  // A field cannot be removed, so the root keeps its `Adopted` mark. Its `Owned` mark shows that it
+  // is indexed already.
+  if (!Adopted.has(root)) return;
+  const seen = new Set<object>();
+  // A marked node's descendants are marked already, except non-extensible ones, which cannot carry
+  // a mark, so the walk stops there.
   const visit = (value: unknown): void => {
-    if (!isObject(value) || seen.has(value)) return;
+    if (!isObject(value) || Owned.has(value) || seen.has(value)) return;
     seen.add(value);
-    owned.add(value);
+    // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
+    if (Object.isExtensible(value)) new Owned(value);
     for (const key of Object.keys(value)) visit((value as Record<string, unknown>)[key]);
   };
   visit(root);
-  adopted.delete(root);
 };
 
 /** Adopt a caller-owned payload. Development validates and freezes every node before returning. */
 const adopt = <T>(value: T): T => {
   if (!isObject(value)) return value;
-  if (owned.has(value)) return value;
+  if (Owned.has(value)) return value;
 
-  if (!development) {
-    adopted.add(value);
-    return value;
+  if (development) {
+    const active = new WeakSet<object>();
+    const done = new WeakSet<object>();
+    const visit = (node: unknown): void => {
+      if (!isObject(node) || Owned.has(node) || done.has(node)) return;
+      if (active.has(node)) throw new TypeError("a Val payload cannot contain a cycle");
+      active.add(node);
+      try {
+        if (!Array.isArray(node)) assertPlainObject(node);
+        for (const key of Reflect.ownKeys(node)) {
+          const descriptor = Object.getOwnPropertyDescriptor(node, key);
+          if (!descriptor || "get" in descriptor || "set" in descriptor) {
+            throw new TypeError("a Val payload cannot contain accessor properties");
+          }
+          visit(descriptor.value);
+        }
+        // oxlint-disable-next-line no-new -- the new instance is `node`, now marked
+        if (Object.isExtensible(node)) new Owned(node);
+        Object.freeze(node);
+        done.add(node);
+      } finally {
+        active.delete(node);
+      }
+    };
+    visit(value);
   }
 
-  const active = new WeakSet<object>();
-  const done = new WeakSet<object>();
-  const visit = (node: unknown): void => {
-    if (!isObject(node) || owned.has(node) || done.has(node)) return;
-    if (active.has(node)) throw new TypeError("a Val payload cannot contain a cycle");
-    active.add(node);
-    try {
-      if (!Array.isArray(node)) assertPlainObject(node);
-      for (const key of Reflect.ownKeys(node)) {
-        const descriptor = Object.getOwnPropertyDescriptor(node, key);
-        if (!descriptor || "get" in descriptor || "set" in descriptor) {
-          throw new TypeError("a Val payload cannot contain accessor properties");
-        }
-        visit(descriptor.value);
-      }
-      owned.add(node);
-      Object.freeze(node);
-      done.add(node);
-    } finally {
-      active.delete(node);
-    }
-  };
-  visit(value);
+  // A non-extensible payload cannot carry a mark, so `own` copies it once, and derivations share
+  // the copy's nodes. This runs after the checks above, so a frozen payload throws the same errors
+  // as an unfrozen one.
+  if (!Object.isExtensible(value)) return own(value);
+  // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
+  if (!development && !Adopted.has(value)) new Adopted(value);
   return value;
 };
 
@@ -1482,7 +1512,7 @@ const patched = (
     kept++;
     const before = base[key];
     const child =
-      isObjectShaped(before) && isObjectShaped(value) && !owned.has(value)
+      isObjectShaped(before) && isObjectShaped(value) && !Owned.has(value)
         ? patched(before, value)
         : value;
     merged[key] = child;
