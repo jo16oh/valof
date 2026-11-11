@@ -25,7 +25,6 @@ const registered = (companion: { create: (settings: never) => { kind: string } }
 export const BlockStep = registered(Rules.BlockStep);
 export const ModelOnlyInValof = registered(Rules.ModelOnlyInValof);
 export const HiddenOptional = registered(Rules.HiddenOptional);
-export const PayloadOfProperty = registered(Rules.PayloadOfProperty);
 export const UnreturnedSeal = registered(Rules.UnreturnedSeal);
 export const UnrelatedAssoc = registered(Rules.UnrelatedAssoc);
 export const SplitVariantSteps = registered(Rules.SplitVariantSteps);

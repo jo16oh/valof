@@ -26,7 +26,6 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `split-variant-steps` | a variant whose steps are split by another variant's steps in the chain                              | warning |
 | `unrelated-assoc`     | an `.implAssoc` member that names neither its type nor a `seal` or `create`                          | warning |
 | `unreturned-seal`     | a seal that keeps the default seal's result outside its return, in a chain with `.implCreate.noseal` | error   |
-| `payload-of-property` | a `PayloadOf<X>` inside a payload, which drops the brand and the seal of `X`                         | error   |
 | `hidden-optional`     | a default or rest parameter that a member's type annotation hides                                    | error   |
 | `model-only-in-valof` | a data type declared outside Valof                                                                   | off     |
 | `incomplete-disable`  | a disable comment leaving out the rules it silences, or its scope                                    | error   |

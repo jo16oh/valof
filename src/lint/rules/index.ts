@@ -1,7 +1,6 @@
 import { BlockStep } from "./block-step.ts";
 import { ModelOnlyInValof } from "./model-only-in-valof.ts";
 import { HiddenOptional } from "./hidden-optional.ts";
-import { PayloadOfProperty } from "./payload-of-property.ts";
 import { UnreturnedSeal } from "./unreturned-seal.ts";
 import { UnrelatedAssoc } from "./unrelated-assoc.ts";
 import { SplitVariantSteps } from "./split-variant-steps.ts";
@@ -40,7 +39,6 @@ export const RULES = [
   Rule.dyn(BlockStep, BlockStep.create()),
   Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create(ModelSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
-  Rule.dyn(PayloadOfProperty, PayloadOfProperty.create()),
   Rule.dyn(UnreturnedSeal, UnreturnedSeal.create()),
   Rule.dyn(UnrelatedAssoc, UnrelatedAssoc.create()),
   Rule.dyn(SplitVariantSteps, SplitVariantSteps.create()),
@@ -58,7 +56,6 @@ export {
   BlockStep,
   ModelOnlyInValof,
   HiddenOptional,
-  PayloadOfProperty,
   UnreturnedSeal,
   UnrelatedAssoc,
   SplitVariantSteps,

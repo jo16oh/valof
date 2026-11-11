@@ -130,7 +130,6 @@ test("names every rule, under the plugin's own name", () => {
     // The members work, but the block gives them state they share and no reader sees.
     "valof/block-step": "warn",
     "valof/hidden-optional": "error",
-    "valof/payload-of-property": "error",
     "valof/unreturned-seal": "error",
     "valof/unrelated-assoc": "warn",
     "valof/split-variant-steps": "warn",

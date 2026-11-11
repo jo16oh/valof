@@ -15,7 +15,6 @@ import {
   type Alias,
   type BrandClaim,
   type EnumAlias,
-  type NestedPayloadOf,
   type ReAlias,
   type TraitAlias,
 } from "./aliases.ts";
@@ -212,7 +211,6 @@ export type Scan = Val<
     /** Top-level `type A = B`, which gives `B` a second name. */
     reAliases: ReAlias[];
     /** `PayloadOf<X>` written inside a Val's or a variant's payload. */
-    nestedPayloadOfs: NestedPayloadOf[];
     /** Companion chains of all three roots, and what each registered. */
     sites: CompanionSite[];
     /** Keys taken off a companion and bound to a local name. */
@@ -543,8 +541,12 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
   }
 
   // After the walk, which is what collected the imports `Val` is resolved against.
-  const { aliases, traitAliases, enumAliases, brands, reAliases, nestedPayloadOfs } =
-    Aliases.fromProgram(program, file, bound, lines);
+  const { aliases, traitAliases, enumAliases, brands, reAliases } = Aliases.fromProgram(
+    program,
+    file,
+    bound,
+    lines,
+  );
 
   return Scan.seal({
     file,
@@ -568,7 +570,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     enumAliases,
     brands,
     reAliases,
-    nestedPayloadOfs,
     sites,
     companionBindings,
     lifts,
