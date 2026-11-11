@@ -56,20 +56,17 @@ test("reports on the file it was called for, having read the whole project", () 
   expect(run("money.ts")).toEqual(["6:2-8  Money.format is never read"]);
 });
 
-test("takes a list for the project, and leaves out what one entry excludes", () => {
+test("takes a list for the project, and leaves out what one entry excludes, however each is spelled", () => {
   const finding = "6:2-8  Money.format is never read";
+  const spelled = (path: string): string => relative(process.cwd(), path);
   // `reader/show.ts` reads the member, so the finding goes only when the list keeps that file.
   expect(run("money.ts", undefined, [project, at("reader/*.ts")])).toEqual([]);
   expect(
-    run("money.ts", undefined, [project, at("reader/*.ts"), `!${at("reader/show.ts")}`]),
+    run("money.ts", undefined, [project, spelled(at("reader/*.ts")), `!${at("reader/show.ts")}`]),
   ).toEqual([finding]);
-});
-
-test("leaves out a file excluded under another spelling than the glob that reached it", () => {
-  const reader = relative(process.cwd(), at("reader/*.ts"));
-  expect(run("money.ts", undefined, [project, reader, `!${at("reader/show.ts")}`])).toEqual([
-    "6:2-8  Money.format is never read",
-  ]);
+  expect(
+    run("money.ts", undefined, [project, at("reader/*.ts"), `!${spelled(at("reader/show.ts"))}`]),
+  ).toEqual([finding]);
 });
 
 test("asks again once the stack empties, since another file of the project may have changed", async () => {
