@@ -29,9 +29,17 @@ export const Project = Val.companion<Project>().build();
 export type Patterns = Val<"Patterns", readonly string[]>;
 export const Patterns = Val.companion<Patterns>()
   .implAssoc(({ seal }) => ({
-    /** The patterns a setting names, as one pattern or a list of them. */
-    fromSetting: (given: string | readonly string[]): Patterns =>
-      seal(typeof given === "string" ? [given] : [...given]),
+    /**
+     * The patterns the host's `settings.valof.project` names, as one pattern or a list of them, or
+     * `src/**\/*.ts` when it names none.
+     */
+    fromSettings: (
+      // A host may leave the settings out.
+      settings: { valof?: { project?: string | readonly string[] } } | undefined,
+    ): Patterns => {
+      const given = settings?.valof?.project ?? "src/**/*.ts";
+      return seal(typeof given === "string" ? [given] : [...given]);
+    },
   }))
   .impl(() => ({
     /** The same patterns in the same order give the same key. */

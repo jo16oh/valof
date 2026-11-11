@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import { Enum, Val } from "../../index.ts";
 import type { Project } from "../files.ts";
 import type { Finding } from "../index.ts";
@@ -12,7 +14,15 @@ export type Query = Val<
     text: string;
   }
 >;
-export const Query = Val.companion<Query>().build();
+export const Query = Val.companion<Query>()
+  .implAssoc(({ seal }) => ({
+    /** What to ask about the file the host is linting. */
+    fromContext: (
+      { filename, sourceCode: { text } }: { filename: string; sourceCode: { text: string } },
+      project: Project,
+    ): Query => seal({ project, file: resolve(filename), text }),
+  }))
+  .build();
 
 /** What the worker answers, the findings or the message to throw. */
 export type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;

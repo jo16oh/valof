@@ -1,4 +1,4 @@
-import { extname, resolve } from "node:path";
+import { extname } from "node:path";
 
 import type { Rule } from "eslint";
 
@@ -47,23 +47,6 @@ function valof(): {
   const send = createCachedSender(ask);
   const glob = createCachedGlobber();
 
-  /** What to ask about the file the host is linting, with the project its settings name. */
-  const read = ({
-    filename,
-    sourceCode: { text },
-    settings,
-  }: {
-    filename: string;
-    sourceCode: { text: string };
-    // A host may leave the settings out.
-    settings: { valof?: { project?: string | readonly string[] } } | undefined;
-  }): Query =>
-    Query.seal({
-      project: glob(Patterns.fromSetting(settings?.valof?.project ?? "src/**/*.ts")),
-      file: resolve(filename),
-      text,
-    });
-
   return {
     meta: { name: "valof" },
     // One rule per kind, so a project sets the severity of each and turns off what it does not
@@ -78,12 +61,13 @@ function valof(): {
             type: "problem" as const,
             docs: { description },
             // The project to read is one setting for all of them, since repeating it per rule
-            // lets the copies disagree. See `read`.
+            // lets the copies disagree. See `Patterns.fromSettings`.
             schema: [],
           },
           create: (context: Rule.RuleContext) => ({
             Program(): void {
-              for (const finding of send(read(context)))
+              const project = glob(Patterns.fromSettings(context.settings));
+              for (const finding of send(Query.fromContext(context, project)))
                 if (finding.kind === kind)
                   context.report({
                     loc: Underline.fromFinding(finding, context.sourceCode.text),
