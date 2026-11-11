@@ -828,7 +828,8 @@ type VariantTrait<
   VM & { [K in `${N}:trait`]: true } & {
     [K in `${N}:members`]: Unbound<MembersOf<Tr>, VariantOf<E, N>>;
   },
-  M
+  M,
+  N
 >;
 
 /**
@@ -859,7 +860,7 @@ export type VariantSteps<
       // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
       supplied: NoInfer<VariantSupplied<E, O, VM, N>>,
     ) => Grown<VariantNames<VM, N>, Unclaimed<E, G>> & LooseArity<G> & ThisType<undefined>,
-  ) => EnumBuilder<E, O, VM & { [K in `${N}:assoc`]: G }, M>;
+  ) => EnumBuilder<E, O, VM & { [K in `${N}:assoc`]: G }, M, N>;
 } & ([Extract<S, "impl" | "trait" | "assoc">] extends [never]
   ? ("seal" extends S
       ? unknown
@@ -871,10 +872,10 @@ export type VariantSteps<
            * before sealing.
            */
           implSeal: "create" extends S
-            ? (seal: "write `implSeal` before `implCreate`") => EnumBuilder<E, O, VM, M>
+            ? (seal: "write `implSeal` before `implCreate`") => EnumBuilder<E, O, VM, M, N>
             : <G extends VariantSealImpl<E, N>>(
                 seal: CheckedSeal<G>,
-              ) => EnumBuilder<E, O, VM & { [K in `${N}:seal`]: G }, M>;
+              ) => EnumBuilder<E, O, VM & { [K in `${N}:seal`]: G }, M, N>;
         }) &
       ("create" extends S
         ? unknown
@@ -882,14 +883,14 @@ export type VariantSteps<
             /** Registers a function that creates this variant's payload, as `create`. */
             implCreate: (<G extends (...args: never[]) => SeedFor<E, N>>(
               create: G,
-            ) => EnumBuilder<E, O, VM & { [K in `${N}:create`]: G }, M>) & {
+            ) => EnumBuilder<E, O, VM & { [K in `${N}:create`]: G }, M, N>) & {
               /**
                * A `create` that bypasses the seal and returns the variant. See `Val`'s
                * `implCreate.noseal`.
                */
               noseal: <G extends AnyFn>(
                 create: Argumentless<SeedFor<E, N>, G>,
-              ) => EnumBuilder<E, O, VM & { [K in `${N}:create`]: Unsealed }, M>;
+              ) => EnumBuilder<E, O, VM & { [K in `${N}:create`]: Unsealed }, M, N>;
             };
           })
   : unknown) &
@@ -908,7 +909,13 @@ export type VariantSteps<
             // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
             supplied: NoInfer<VariantSupplied<E, O, VM, N>>,
           ) => Grown<VariantNames<VM, N>, Unclaimed<E, G>> & Arity<G> & ThisType<undefined>,
-        ) => EnumBuilder<E, O, VM & { [K in `${N}:impl`]: true } & { [K in `${N}:members`]: G }, M>;
+        ) => EnumBuilder<
+          E,
+          O,
+          VM & { [K in `${N}:impl`]: true } & { [K in `${N}:members`]: G },
+          M,
+          N
+        >;
       });
 
 /**
@@ -930,7 +937,7 @@ type UnionTakes<E extends AnyEnum, Tr extends AnyTrait, M, Ok> =
  * Inferred, not written: it is exported so your own declarations can name it.
  *
  * `.tag` comes first if the enum has a custom tag key. Each variant's steps come next, under its
- * name. Then the enum's, in `Val`'s order: `implSeal` then `implCreate`, and `impl` (once),
+ * name, together: another variant's step closes them. Then the enum's, in `Val`'s order: `implSeal` then `implCreate`, and `impl` (once),
  * `implTrait` and `implAssoc` after them. The first of the enum's steps removes the variants' steps
  * from the chain.
  */
@@ -941,6 +948,8 @@ export type EnumBuilder<
   O extends Options = [],
   VM = Record<never, never>,
   M = Record<never, never>,
+  // The variant the last step took. A variant with steps that is not `L` leaves the chain.
+  L = never,
   F = undefined,
   C = undefined,
   D extends EnumTaken = never,
@@ -954,7 +963,13 @@ export type EnumBuilder<
    */
   build: () => EnumCompanion<E, O, VM, M, F, C, A>;
 } & ([D] extends [never]
-  ? { readonly [N in keyof VariantsOf<E>]: VariantSteps<E, O, VM, M, N & string> }
+  ? {
+      readonly [N in keyof VariantsOf<E> as [N] extends [L]
+        ? N
+        : [VariantTaken<VM, N & string>] extends [never]
+          ? N
+          : never]: VariantSteps<E, O, VM, M, N & string>;
+    }
   : unknown) &
   ([Extract<D, "impl" | "implTrait" | "implAssoc">] extends [never]
     ? ("implSeal" extends D
@@ -971,10 +986,12 @@ export type EnumBuilder<
              * can validate it, but may not accept a string.
              */
             implSeal: "implCreate" extends D
-              ? (seal: "write `implSeal` before `implCreate`") => EnumBuilder<E, O, VM, M, F, C, D>
+              ? (
+                  seal: "write `implSeal` before `implCreate`",
+                ) => EnumBuilder<E, O, VM, M, L, F, C, D>
               : <G extends EnumSealImpl<E, VM>>(
                   seal: CheckedSeal<G>,
-                ) => EnumBuilder<E, O, VM, M, G, C, D | "implSeal">;
+                ) => EnumBuilder<E, O, VM, M, L, G, C, D | "implSeal">;
           }) &
         ("implCreate" extends D
           ? unknown
@@ -985,7 +1002,7 @@ export type EnumBuilder<
                */
               implCreate: (<G extends (...args: never[]) => Exclusive<E>>(
                 create: G,
-              ) => EnumBuilder<E, O, VM, M, F, G, D | "implCreate">) & {
+              ) => EnumBuilder<E, O, VM, M, L, F, G, D | "implCreate">) & {
                 /**
                  * A `create` that bypasses every seal and returns the variant its payload's tag
                  * names, for a payload the seals always accept. Takes no arguments. Development
@@ -998,6 +1015,7 @@ export type EnumBuilder<
                   O,
                   VM,
                   M,
+                  L,
                   F,
                   Unsealed & { payload: ReturnType<G> },
                   D | "implCreate"
@@ -1026,7 +1044,7 @@ export type EnumBuilder<
             // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
             supplied: NoInfer<EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>,
           ) => Grown<keyof A, Unclaimed<E, G>> & Arity<G> & ThisType<undefined>,
-        ) => EnumBuilder<E, O, VM, M & G, F, C, D | "impl", A>;
+        ) => EnumBuilder<E, O, VM, M & G, L, F, C, D | "impl", A>;
       }) & {
     /**
      * Collects the members that do not take the union first: `parse`, `fromArgs`, a constant.
@@ -1040,7 +1058,7 @@ export type EnumBuilder<
         // `NoInfer` for the type cost: see `Supplied` in `val.ts`.
         supplied: NoInfer<EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>,
       ) => Grown<keyof M | keyof A, Unclaimed<E, G>> & LooseArity<G> & ThisType<undefined>,
-    ) => EnumBuilder<E, O, VM, M, F, C, D | "implAssoc", A & G>;
+    ) => EnumBuilder<E, O, VM, M, L, F, C, D | "implAssoc", A & G>;
     /**
      * Implements a trait the enum declares. The implementation takes the union, so a member that
      * differs per variant is a `match` inside it.
@@ -1048,7 +1066,7 @@ export type EnumBuilder<
     implTrait: <Tr extends LoneTrait<Tr>, G, I extends Implement<Tr, G, E>>(
       trait: UnionTakes<E, Tr, M & A, Complete<Tr, G>>,
       ...impl: Passes<Tr, G, I, EnumSeal<E, VM, F> & EnumCreate<E, VM, F, C>>
-    ) => EnumBuilder<E, O, VM, M & Unbound<MembersOf<Tr>, E>, F, C, D | "implTrait", A>;
+    ) => EnumBuilder<E, O, VM, M & Unbound<MembersOf<Tr>, E>, L, F, C, D | "implTrait", A>;
   };
 
 /** Where the chain starts: a tag of its own is named first, since the builder writes it. */
