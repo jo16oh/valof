@@ -3021,7 +3021,27 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       `never` なので、値を `null` のままブランドで区別できない。union にブランドを置けば素の `null` も
       入り、wrapper は plain data と falsy を失う。オブジェクト・配列内の `null` は従来どおり許す
 - [ ] TS 7.1（ベータ 2026-10-06、安定版 2026-11-24）が in-process の LS API を出すか（§14.5）。出れば 7.x の LSP クライアントをそれに寄せて、5.x / 6.x と同じ経路に畳める。**急がない。**`tsc --lsp` で 7.0 から動くので、これは簡素化の機会であって前提条件ではない
+  - 2026-11-11: 7.1.0-dev.20261110.1 は `typescript/sync` と `typescript/async` を export する。`Checker` に
+    `getSymbolAtPosition` と `getTypeOfSymbol` がある。in-process かは未確認
 - [ ] エディタ統合（§14.9）。実装は入った（`Options.overlay`、`valof/lint`、`valof/eslint-plugin`）。残りは README のレシピと、実際のエディタでの確認
+- [x] ~~**エディタでメンバの JSDoc が読めない。カスタムの `seal` / `create` の定義ジャンプが valof の中に飛ぶ。**~~
+      → メンバは TS 7.1 で直る。`seal` / `create` は諦める（2026-11-11）
+  - **メンバの JSDoc は TS 7.0.2 のバグ。**`{ [K in keyof T]: T[K] }` のような素の mapped type を通すだけで
+    落ちる。5.9.3、6.0.3、7.1.0-beta、7.1.0-dev.20261110.1 は出す。定義ジャンプはどの版でも利用者のコードに飛ぶ
+  - **`seal` / `create` はどの版でも valof に飛ぶ。**プロパティを宣言しているのは `SealMethod` / `CreateMethod`
+    で、`.implSeal` に渡した関数は型引数になるだけ。hover も valof の JSDoc を出し、コールバックに書いた JSDoc は
+    出ない（7.1 nightly）
+  - **諦める理由。**役割は規約で決まっていて、valof の JSDoc がそれを説明する。引数と戻り値の型は利用者の定義
+    どおり hover に出る。`Result<User>` を返せば、失敗しうることが分かる。型に出ない規則は、`User.seal` の
+    `User` から companion に飛べば数行下にある（同じ名前でトップレベル、§14.21）
+  - **却下: TS 7.1 の `registerLspMiddleware`。**応答を書き換えて `.implSeal(` に飛ばせる。ただし効くのは VS
+    Code の `TypeScriptTeam.native-preview` 拡張の中だけで、PR は unstable な API と呼ぶ
+    （microsoft/TypeScript#64583）。7 系は `compilerOptions.plugins` を読まないので、どのエディタでも効く口は
+    無い（7.1 nightly で、読み込まれたら印のファイルを書くプラグインが動かなかった）
+  - **却下: `tsc --lsp` を包む LSP プロキシ。**どのエディタでも効くが、利用者にエディタの設定を求める
+  - **却下: 利用者に `.implSeal({ seal: … })` と書かせる。**メンバと同じく宣言元が利用者のコードになるはずだが、
+    未検証。API が不格好になる
+  - **却下: ビルド時の変換。**エディタはソースを読むので、変換の結果が届かない
 - [x] ~~valof-lint: ローカル別名（`type Local = ImportedUser`）を報告する~~ → 実装した。brand-mismatch ではなく
       独立した規則 `unnecessary-alias`（§14.25）。`split-companion` の唯一の穴もこれで塞がった
 - [ ] valof-lint の規則: `PayloadOf<X>` が Val の payload の**プロパティ位置**に現れたら警告する。正当な用法（トップレベルの交差型の基底）とは構文位置で区別できる
@@ -4191,29 +4211,29 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   全体はコピーしない。位置は `Position`（`{ line, column }` の Val）で、各事実の `at` が持つ。一度は `Where` を
   他の事実に交差で混ぜる `Payload` にしたが、Val のフィールドにすれば足りた
 - **実行と plugin の値も Valof の型（2026-11-07）。**`lint()` は `Options` を受け取る。plugin は worker に
-  `Query` を送り、`Reply`（`Found` / `Failed` の Enum）を受け取る。disable コメントが黙らせるものは
+  `Query` を送り、`Reply`（byethrow の `Result<Finding[], string>`、下）を受け取る。disable コメントが黙らせるものは
   `Silenced`（`Every` / `Named` の Enum）。oxc-parser は `Parser.load` がモジュールの変数に読み込み、`Parser` の Val のメンバが使う
 - **実行が読むファイルも Val（2026-11-10）。**相対の import は、実行が読むファイルの中から解決先を探す。
   その一覧を持つクロージャを返していた `moduleResolver` を、`Modules` の Val にした。`Modules.create` が
-  パスを一度だけ正規化し、`Modules.resolve` が解決先を引く。`Scan.exec` は関数ではなく `Modules` を受け取る
-- **Val を作る関数、Val を読む関数は companion に置く（2026-11-10）。**`Scan.exec`、`Parser.load`、
-  `Files.read`、`Aliases.fromProgram`、`Lift.fromCall`、`CompanionSite.fromChain`、
+  パスを一度だけ正規化し、`Modules.resolve` が解決先を引く。`Scan.walk` は関数ではなく `Modules` を受け取る
+- **Val を作る関数、Val を読む関数は companion に置く（2026-11-10）。**`Scan.walk`、`Parser.load`、
+  `Files.glob`、`FilePath.read`、`Aliases.fromProgram`、`Lift.fromCall`、`CompanionSite.fromChain`、
   `SymbolRef.fromExport`、`Bindings.refOf`、`Underline.fromFinding`。状態を持つクロージャも Val にした。
   行の位置は `Lines`、re-export の解決は `Exports`、ファイルごとの disable コメントは `DirectiveMap`
-  - **副作用があっても置く。**名前で示す。`exec`、`load`、`read` は動作の名前で、`from*` は純粋な変換にだけ使う
-  - **入出力と変換を分ける（2026-11-11）。**`Files.read` は glob を展開するだけで、除外と報告先の決定は純粋な
+  - **副作用があっても置く。**名前で示す。`walk`、`load`、`glob`、`read` は動作の名前で、`from*` は純粋な変換にだけ使う
+  - **入出力と変換を分ける（2026-11-11）。**`Files.glob` は glob を展開するだけで、除外と報告先の決定は純粋な
     `Files.fromPaths` が行う。`Parser.load` は oxc-parser を import し、`Parser.fromModule` に渡す。パーサを
     走らせるメンバは `Parser.parse` から動作の名前の `Parser.exec` にした
   - **却下: 副作用のある関数は自由関数に残す。**型の API の一部が companion の外に出て、`Scan.` の補完で作り方が見えなくなる。
     置き場所で気にするのは、副作用ではなく実行環境だ。companion は丸ごと bundle に入るので、`node:fs` を使うメンバを
     ブラウザでも使う Val に置かない。lint は Node 専用なので、この制約は関係しない
-  - **省略できる引数は持てない。**メンバは省略できる引数を拒むので、`Scan.exec` の `given` と `Bindings.refOf` の
-    `qualifier` は `string | undefined` にして、無いときは `undefined` を渡す
+  - **省略できる引数は持てない。**メンバは省略できる引数を拒むので、`Bindings.refOf` の `qualifier` は
+    `string | undefined` にして、無いときは `undefined` を渡す
   - **黙らせる判定は disable コメントごとに見る。**`Directive.silences` が 1 つのコメントについて答え、
     `DirectiveMap.silences` がそのファイルのコメントのどれかが黙らせるかを見る。行ごとに `Silenced` を合成していた
     `Silenced.widen` は要らなくなった。却下: 合成済みの `Silences` を `Scan` の欄に持つ。`directives` から導出できる
     ものを欄に重ねて持つことになり、読みにくくなった
-- **報告するファイルは target と呼ぶ（2026-11-10）。**`Options.targets` と `Options.isTarget`。CLI の
+- **報告するファイルは target と呼ぶ（2026-11-10）。**`Options.targets` と `FilePath.isTarget`。CLI の
   `Arguments.targets` と同じ言葉にした。それまでは、報告するファイルを `report`、判定を `reports` と呼んでいた
 - **Val の配列に `readonly` を書かない（2026-11-10）。**payload の配列は `Record` の中でも readonly になる
 - **残っていた型も Val にした（2026-11-10）。**valof-lint を自分にかけて、Val 以外で書いた型を探した。
@@ -4222,10 +4242,10 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
   - 集合: ルールの名前は `KindSet`。disable コメントが挙げた名前は、どのルールにも無い綴りもあるので
     `NameSet` に分けた。`KindSet.find` が名前の綴りを `Kind` にする
   - その他: plugin の下線は `Underline` と `Point`、`dyn` の箱は `DynBox`、行が決まる前の disable コメントは
-    `DirectiveComment`、plugin の直前の答えは `Answer`
+    `DirectiveComment`
 - **plugin の状態は plugin の中に置く（2026-11-11）。**worker への接続、直前の答え、glob したプロジェクトの
-  3 つ。`export default valof()` の `valof()` がクロージャで持ち、モジュールにも companion にも置かない
-  （worker の側は別ファイル、§14.9）。
+  3 つ。`export default valof()` の `valof()` が作り、モジュールにも companion にも置かない
+  （worker の側は別ファイル、§14.9）。持つのはクラスで、下の「状態はクラスに持たせる」。
   どれも外せない。直前の答えが無いと 1 ファイルをルールの数だけ lint し、glob の結果が無いとファイルごとに
   プロジェクトを glob し直す
   - **`Program` には置けない。**`create` と `Program` はルールとファイルの組ごとに呼ばれるので、そこで作った
@@ -4234,22 +4254,77 @@ valof-lint を valof で書き直した。形は css-var-kit の `Rule` trait �
     メンバを読んでも見えない（#112 の `block-step` が報告する）。`Query` は質問のデータだけの Val にした
   - **却下: モジュールレベルの変数、状態を閉じ込める高階関数（`memo` など）をモジュールレベルに置く。**
     どちらもファイル全体から触れる。高階関数で包んでも、モジュールが状態を持つことは変わらない
-  - **却下: クラスにする。**範囲を絞ったクロージャで足りる
+  - **クラスにしない、は撤回した（下）。**最初は範囲を絞ったクロージャで足りるとした
 - **`Ask` を `Query` に改名した（2026-11-11）。**`Ask` は動詞にも読める（ユーザー）。worker に聞く関数は
   動詞なので `ask` のまま
 - **`pipe` を `src/shared/pipe` に移した（2026-11-11）。**valof-lint が `pipe` を使うようになったので、
   配布するコードが `scripts/` を import しないように移した。`pipe` は値の形が変わる段を分けるのに使う
-  （`Exports.from` の `flatMap` → `Object.fromEntries` → `seal`）。`Reply.match` は data-last の形で段に置く。
-  `run` の末尾はメソッドチェーンを `R.succeed<Finding[]>` に渡す。型引数が無いとオーバーロードから
+  （`Exports.from` の `flatMap` → `Object.fromEntries` → `seal`）。メンバも型引数を付けた関数も段に置ける
+  （`Path.seal`、`Path.expand`）。`run` の末尾はメソッドチェーンを `R.succeed<Finding[]>` に渡す。型引数が無いとオーバーロードから
   結果が `unknown` になる
   - **却下: メソッドチェーンの各メソッドを `pipe` の段に分ける。**チェーンで書けるものを分けても段が増える
     だけ（ユーザー）
+- **名前はレシーバを主語にして読む（2026-11-11）。**`Type.member(レシーバ, …)` が「レシーバが〜する」と
+  読めない名前を直した。`Options.sourceOf` → `FilePath.read`、`Options.isTarget` → `FilePath.isTarget`
+  （判定の主語はファイル）、`Files.read` → `Files.glob`（読むのは引数ではない）、`Bindings.isNamespace` →
+  `hasNamespace`、`original` → `originalName`、`builder` → `builderOf`、`Scan.exec` → `Scan.walk`
+  - **却下: `Files.fromGlob`。**ファイルシステムを読むので、`from*` は純粋な変換にだけ使う決まりに反する。
+    Rust の `File::open` と同じく、副作用のあるコンストラクタは動作の名前にする
+- **パスとプロジェクトも Val（2026-11-11）。**利用者が書いたパスか glob は `Path`（`isDirectory`、`expand`、
+  `excludes`）。`expand` が返すのは実行が読む `FilePath[]` で、`Path[]` ではない。glob を展開した結果は
+  glob ではない。plugin の設定の並びは `Patterns`（`fromSettings`、`key`、`glob`）、展開した結果は
+  `Project`（`FilePath[]`）。plugin が worker に送る質問は `Query.fromContext` で作り、同じ質問かは
+  `Query.key` が決める
+- **状態はクラスに持たせる（2026-11-11）。**`new` が見えればそこに状態があると分かる（ユーザー）。データは
+  Val、状態はクラス。`extends` は使わず、状態は `#private`、メソッドは普通のメソッドにする。関数として渡す
+  ときは `(q) => this.#worker.ask(q)` と包む。plugin は `new LinterWorker()`（worker と直前の答え）と
+  `new ProjectCache()`（glob の結果）を持つ
+  - **却下: 状態を持つ関数を返す関数（`createCachedGlobber` など）。**名前の約束事で `new` を真似ている
+    だけで、呼び出しの場所からは状態が見えない
+  - **却下: 直前の答えを plugin に見せる `AnswerCache`。**同じ質問を 2 度送らないのは worker に聞く側の事情。
+    plugin が呼ぶのは `worker.lint(query)` だけで、答えは `#lastKey` と `#lastFindings` が持つ
+  - **却下: アロー関数のフィールド。**`this` を固定できるが、気をつければ普通のメソッドで足りる（ユーザー）
+- **`LinterWorker` はジェネリックにしない（2026-11-11）。**worker は 1 つで、送るのは `Query`、返るのは
+  `Reply` だけ。型引数の `Question` / `Answer` は `Query` や直前の答えと紛らわしかった。テストの worker も
+  `Query` を受けて `Reply` を返す。詰まった worker が止まったかは、worker が書き続けるファイルの更新が止まる
+  かで見る。書いてから rename するので、読む側に書きかけは見えない
+- **`LinterWorker` と `serve` は別ファイル（2026-11-11）。**worker の場所は `import.meta.url` から相対で
+  決める。両方が 1 ファイルにあると、plugin と worker の両方から import され、ビルドで共通のチャンク
+  （`dist/channel-*.mjs`）に切り出される。すると `import.meta.url` が `dist/` を指し、`dist/worker.mjs` を
+  探してしまう。plugin の入口だけが `linter-worker.ts` を import すれば、`dist/eslint-plugin/index.mjs` に
+  入る。これで URL も待ち時間も既定値として持て、plugin は `new LinterWorker()` だけを書く
+  - **却下: ビルド時に相対パスを埋め込む（`define`）。**ソースで動くときの分岐が別に要り、配布物の側は
+    #114 の検査まで誰も通らない
+  - **却下: クラスにまとめて `serve` を静的メソッドにする。**両端は別のスレッドで動く。同じクラスにすると
+    かえって分かりにくい（ユーザー）
+- **`Reply` は byethrow の Result（2026-11-11）。**`Found` / `Failed` の Enum は Result の作り直しだった。
+  失敗はメッセージの文字列で送る。エラーのクラスはスレッドの間のコピーで落ちる。`R.unwrap` は失敗の値を
+  そのまま投げるので、`R.mapError((message) => new Error(message))` で包んでから外す。vitest の
+  `toThrow("…")` は文字列が投げられても通るので、テストは `Error` であることを見る
+- **起動しない worker はその理由を返す（2026-11-11）。**読み込めない script は、待ち時間いっぱい待たせて
+  「no answer in 60s」になっていた。待つ側のスレッドは止まっているので、worker の `error` を聞けない。
+  起動用の小さなモジュールが script を import し、失敗したら届く質問すべてに理由を返す
+  - **却下: `eval: true` の worker。**ホストを起動したときの `--import`（ローダ）が効かない。data: URL の
+    モジュールなら効く。oxc-parser を外すテストがこの差で落ちる
+- **待ち時間は 60 秒のまま（2026-11-11）。**`src`（48 ファイル）の 1 回が約 0.12 秒で、plugin は 1 ファイル
+  ごとにプロジェクト全体を読み直す。短すぎると大きなプロジェクトで正常な lint が毎回時間切れになり、
+  plugin が動かなくなる。長すぎて困るのは worker が本当に詰まったときだけで、それも一度で済む
+  - **却下: 設定で変えられるようにする。**利用者向けの設定が増える（環境変数の案と同じ理由）
+- **直前の 1 件だけ答えを残す（2026-11-11）。**答えは質問の中身だけでは決まらず、プロジェクト全体の中身で
+  決まる。別のタブで別のファイルを保存すると、同じ質問の正しい答えが変わる。1 ファイルのルールは同期的に
+  続けて呼ばれ、間にほかの処理が入らないので、その間だけは同じ答えを使える
+  - **却下: すべての質問の答えを残す。**ESLint はファイルの書き込みもバッファの変更も知らせない。
+    `fs.watch` は保存していないバッファを知らず、lint の呼び出しから推測しても開いていないファイルの変更は
+    分からない
+  - **未解決: 別のタブで未保存のバッファ。**overlay として渡すのは lint 中のファイルだけなので、別のタブで
+    編集中のファイルはディスクの中身で読まれる。届いたバッファを覚えて全部渡せば直る。困ったら対応する
 - **Val にしないもの（2026-11-07）。**worker が起動時に受け取る `{ port, signal }`。`MessagePort` と
   `Int32Array` は payload に入らない
 - **時間切れの worker は止めて作り直す（2026-11-10）。**それまでは時間切れのあとも同じ worker に送っていたので、
   後の依頼は詰まった worker の後ろに並び、ファイルごとに 60 秒待って時間切れになった。port と signal は起動時に
   一度だけ渡し、依頼で送るのは `Query` だけにした。依頼ごとに送っていた `{ ask, port, signal }` の型は無くなった。
-  待つ側と答える側は `src/lint/worker.ts` の `connect` と `serve` に切り出し、fixture の worker でテストする。
+  待つ側と答える側は `LinterWorker`（`linter-worker.ts`）と `serve`（`serve.ts`）に切り出し、fixture の
+  worker でテストする。
   却下: 待ち時間を環境変数で変えられるようにしてテストする。利用者向けの設定が増えるうえ、worker を確実に
   詰まらせる方法が別に要る
 - **valof-lint を自分にかける。**`tests/lint/self/` が `src/` と `scripts/` で何も報告しないことを見る。
@@ -4606,7 +4681,8 @@ export default defineConfig({
 
 **worker を別ファイルにした、2026-11-11。** 1 ファイルに 2 つの役割があると読みにくい（ユーザー）。拡張子は当てずに、plugin 自身の拡張子を使う（`extname(import.meta.url)`）。plugin と worker は `src/lint/eslint-plugin/` にまとめ、配布物も `dist/eslint-plugin/` に同じ並びで出す。両方が使う `Query` と `Reply` は `messages.ts`、下線の `Underline` は `underline.ts`。
 
-- **配布物の worker の場所はテストが見ていない。**テストはソースの plugin を読む。`vp pack` は出力先を変えても `package.json` の `exports` を書き換えるので、テストの中ではビルドできない。#114 の `check-dist` に、ビルドした plugin を動かす検査を足す
+- **配布物の worker の場所はテストが見ていない。**`LinterWorker` が plugin の入口のチャンクに残ることも
+  見ていない（§14.8 の「`LinterWorker` と `serve` は別ファイル」）。テストはソースの plugin を読む。`vp pack` は出力先を変えても `package.json` の `exports` を書き換えるので、テストの中ではビルドできない。#114 の `check-dist` に、ビルドした plugin を動かす検査を足す
 
 **渡し方は overlay 1 枚 + `report` 1 ファイル。** 計算はプロジェクト全体で、返るのも全部だが、報告するのは今のファイルの分だけ。`report` が先にあったのでプラグイン側に絞り込みは要らない。列は finding が 1 始まり、report が 0 始まりなので 1 引く。
 
