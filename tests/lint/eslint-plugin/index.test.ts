@@ -69,7 +69,7 @@ test("takes a list for the project, and leaves out what one entry excludes, howe
   ).toEqual([finding]);
 });
 
-test("asks again once another file of the project changes on disk", () => {
+test("shares one answer among the rules of a file, and asks again once the call stack empties", async () => {
   const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
   try {
     cpSync(at("money.ts"), join(dir, "money.ts"));
@@ -82,13 +82,17 @@ test("asks again once another file of the project changes on disk", () => {
     // The finding comes back only from a new run, so an emptied answer cannot pass for one.
     expect(lint()).toEqual([]);
     writeFileSync(join(dir, "show.ts"), "export {};\n");
+    // A second rule of the same file gets the same answer, though show.ts changed on disk, because
+    // the host runs a file's rules before the call stack empties.
+    expect(lint()).toEqual([]);
+    await Promise.resolve();
     expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 });
 
-test("keeps linting a project a file is deleted from or added to", () => {
+test("keeps linting a project a file is deleted from or added to", async () => {
   const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
   try {
     cpSync(at("money.ts"), join(dir, "money.ts"));
@@ -98,8 +102,10 @@ test("keeps linting a project a file is deleted from or added to", () => {
 
     expect(lint()).toEqual([]);
     rmSync(join(dir, "show.ts"));
+    await Promise.resolve();
     expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
     writeFileSync(join(dir, "other.ts"), reader);
+    await Promise.resolve();
     expect(lint()).toEqual([]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -122,6 +128,8 @@ test("takes the buffer over the file, so a fix lands before the save", () => {
     'import { Val } from "valof";\n' +
     'export type Order = Val<"Order", { id: string }>;\n\n' +
     "export const Order = Val.companion<Order>().impl(() => ({\n  label: (order) => order.id,\n})).build();\n";
+  // In one tick, as ESLint's `--fix` lints the fixed text again before the call stack empties.
+  expect(run("order.ts")).toEqual([]);
   expect(run("order.ts", changed)).toEqual(["5:2-7  Order.label is never read"]);
 });
 
