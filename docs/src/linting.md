@@ -40,14 +40,6 @@ on any of them.
 A member registered with `.impl(() => ({…}))` is not tree-shaken, and knip does not report it when
 it becomes unused.
 
-`hidden-optional` reads the annotation through TypeScript 7.1 or later. valof does not install it,
-and a run needs it only where an annotated function with a default or a rest parameter is passed as
-a member.
-
-```bash
-pnpm add -D typescript
-```
-
 ## Modelling only in Valof
 
 `data-type-outside-valof` reports a named data type declared outside Valof: an object type, an
