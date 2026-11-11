@@ -1,6 +1,6 @@
 // Type-only, so nothing from enum.ts crosses at run time. The phantom stays in enum.ts, beside
 // the declaration that carries it.
-import type { AnyEnum } from "./enum.ts";
+import type { AnyEnum, NameOf } from "./enum.ts";
 import type {
   AnyImpl,
   AnyTrait,
@@ -141,18 +141,24 @@ type IsRec<T> = string extends keyof T
  */
 type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = "Val"> =
   IsRec<T> extends true
-    ? T
+    ? IsUnion<T> extends true
+      ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+      : T
     : [T] extends [AnyVal]
-      ? T
-      : // Below the root, a union of `Impl`, like a union of Vals, is a union of values rather than
-        // of objects to merge. Each one's fields are still checked. That rejects a `Dyn` box,
-        // because its trait members are functions.
+      ? // Vals of different types with the same fields hold the same payload, so `equals` and a
+        // JSON round trip cannot distinguish them. A Val with a boolean payload is a union of two
+        // types with one brand, and an enum a union of variants with one name, so the check
+        // requires one brand, or one enum name.
+        IsUnion<
+          T extends AnyEnum ? NameOf<T> : T extends Phantom<infer B, unknown> ? B : never
+        > extends true
+        ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+        : T
+      : // A field typed `Impl` holds any Val implementing the trait, which is the same problem.
         [T] extends [AnyImpl]
         ? Root extends true
           ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
-          : T extends unknown
-            ? ValidateFields<T>
-            : never
+          : Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">
         : [T] extends [AnyTrait]
           ? Root extends true
             ? Owner extends "Val"
@@ -278,10 +284,7 @@ export type DeepReadonly<T, Arg extends Position = false> =
 /** Not an argument, the payload an argument takes, or a part of that payload. */
 type Position = boolean | "field";
 
-/**
- * Recursion stops at a nested Val, because it is already deep-readonly. A field typed with `Impl`
- * holds a Val, so a `Dyn` box does not fit.
- */
+/** Recursion stops at a nested Val, because it is already deep-readonly. */
 type DeepReadonlyValue<
   T,
   Arg extends Position,
@@ -289,35 +292,33 @@ type DeepReadonlyValue<
   Inner extends Position = Arg extends false ? false : "field",
 > = [T] extends [AnyVal]
   ? T
-  : [T] extends [AnyImpl]
-    ? T & Phantom<string, unknown>
-    : [T] extends [Primitive]
-      ? T
-      : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
-        // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
-        // still being declared. Only an array or a string payload has a numeric key.
-        number extends keyof T
-        ? [T] extends [object]
-          ? number extends Extract<T, readonly unknown[]>["length"]
-            ? ReadonlyArray<DeepReadonly<T[number], Inner>>
-            : { readonly [I in keyof T]: DeepReadonly<T[I], Inner> }
-          : Mixed<T, Arg, Split>
-        : [T] extends [object]
-          ? [keyof T] extends [never]
-            ? Arg extends true
-              ? EmptyField | AnyVal
-              : Arg extends "field"
-                ? EmptyField
-                : Record<never, never>
-            : {
-                // An optional key carries `undefined` in its type, and a union stops the walk one
-                // level short: a `Rec` inside it would never open. The value never holds the
-                // `undefined` either way, since an optional key is absent or set.
-                readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Inner>;
-              }
-          : [Extract<T, Primitive>] extends [never]
-            ? T
-            : Mixed<T, Arg, Split>;
+  : [T] extends [Primitive]
+    ? T
+    : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
+      // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
+      // still being declared. Only an array or a string payload has a numeric key.
+      number extends keyof T
+      ? [T] extends [object]
+        ? number extends Extract<T, readonly unknown[]>["length"]
+          ? ReadonlyArray<DeepReadonly<T[number], Inner>>
+          : { readonly [I in keyof T]: DeepReadonly<T[I], Inner> }
+        : Mixed<T, Arg, Split>
+      : [T] extends [object]
+        ? [keyof T] extends [never]
+          ? Arg extends true
+            ? EmptyField | AnyVal
+            : Arg extends "field"
+              ? EmptyField
+              : Record<never, never>
+          : {
+              // An optional key carries `undefined` in its type, and a union stops the walk one
+              // level short: a `Rec` inside it would never open. The value never holds the
+              // `undefined` either way, since an optional key is absent or set.
+              readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Inner>;
+            }
+        : [Extract<T, Primitive>] extends [never]
+          ? T
+          : Mixed<T, Arg, Split>;
 
 /**
  * `null` or a primitive beside one other kind, which only a field can hold. The rest is not split
