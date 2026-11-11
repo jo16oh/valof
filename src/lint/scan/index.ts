@@ -210,7 +210,6 @@ export type Scan = Val<
     brands: BrandClaim[];
     /** Top-level `type A = B`, which gives `B` a second name. */
     reAliases: ReAlias[];
-    /** `PayloadOf<X>` written inside a Val's or a variant's payload. */
     /** Companion chains of all three roots, and what each registered. */
     sites: CompanionSite[];
     /** Keys taken off a companion and bound to a local name. */
