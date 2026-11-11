@@ -1,4 +1,12 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -75,6 +83,27 @@ test("saves only the scans found or kept since it opened", () => {
     expect(third.find(a, "export {};\n")).toBeDefined();
     expect(third.find(b, "export {};\n")).toBeUndefined();
     expect(third.find(c, "export {};\n")).toBeDefined();
+  });
+});
+
+test("removes the temporary files of saves that stopped halfway, and not one a process is still writing", () => {
+  inDirectory((dir) => {
+    const path = join(dir, "scans.json");
+    writeFileSync(`${path}.1.stale`, "");
+    const past = new Date(Date.now() - 10 * 60_000);
+    utimesSync(`${path}.1.stale`, past, past);
+    writeFileSync(`${path}.2.writing`, "");
+    writeFileSync(join(dir, "other.json.1.stale"), "");
+    utimesSync(join(dir, "other.json.1.stale"), past, past);
+
+    const store = new ScanStore(path, "linter");
+    store.keep(a, "export {};\n", scanOf(a, "export {};\n"));
+    store.save();
+    expect(readdirSync(dir).sort()).toEqual([
+      "other.json.1.stale",
+      "scans.json",
+      "scans.json.2.writing",
+    ]);
   });
 });
 
