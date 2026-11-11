@@ -204,7 +204,9 @@ State.patch(loading, { kind: "loaded", value: "ok" });
 The object branch of `Validate` rejects the union. Unions of primitives (`"a" | "b"`, `string | null`, `boolean`) pass as is.
 
 ```ts
-type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+type IsUnion<T, U = T> = true extends (T extends unknown ? ([U] extends [T] ? false : true) : false)
+  ? true
+  : false;
 ```
 
 The `[T] extends [Primitive]` branch comes first, so `boolean` (= `true | false`) is not caught. The check applies at every level as a consequence of `Validate`'s recursion. Checking only the root would leave the same hole in nested values.
@@ -228,10 +230,12 @@ JSON does not record which type the field held either. A field typed `Impl<Price
 - **The check compares brands, or an enum's name, not member types.** A Val with a boolean payload is `V<true> | V<false>` under one brand. An enum's variants carry different brands but one name, so it compares the enum's `NameOf`. Two enums, or an enum and a Val, are rejected
 - **An `Impl` is rejected alone, not only in a union.** This withdraws "A union of `Impl`s can be written in a field" (§15.1, 2026-11-04). `Impl` stays the type for a variable or a parameter
 - **Rejected: a runtime brand that `equals` compares** (§5). The type rule rejects such a field at no runtime cost
-- **`Rec<Dollar> | Rec<Yen>` is rejected too.** `Validate` reads a `Rec` by its keys before the Val check, so the `Rec` branch rejects a union of its own
+- **`Rec<Dollar> | Rec<Yen>` is rejected too.** `Validate` reads a `Rec` by its keys alone, so the check counts each `Rec` as a type of its own
   - **A type that references itself gives TS2615, not the message.** In `Val<"Tree2", { kid: Rec<Tree2> | Rec<Tree> }>`, with `Tree` from §3.7, the check compares the two `Rec`s' type arguments to tell them apart, and that resolves `Tree2` while it is being declared. The declaration is still rejected, on the type definition line. Moving the check to the verdict, which is read lazily, would need a flag passed through `Validate`. By estimate, not measured, that would put `index.d.ts` over its budget
+- **A Val beside a plain object, a `Rec` or an `Impl` gets the Enum message.** `Dollar | Rec<Yen>` and `Impl<Greetable> | Dollar` are not unions of Vals, so they reach the object branch of `ValidateValue`. That branch gave the message for unions of objects, about `patch`. It now gives the Enum message when the union includes a Val
+- **`IsUnion` returned `boolean` for a union with a constituent the others are assignable to.** `Dollar | { amount: number }` and `{ a: number } | { a: number; b: string }` passed, since `boolean extends true` is false. `main` had the hole. `IsUnion` now returns `true` when any constituent differs from the whole
 - **`DeepReadonlyValue` no longer maps `Impl`.** No payload holds one now, so the branch that kept a `Dyn` box out of an `Impl` field (§15.1, 2026-11-04) was dead
-- Cost: core 8,893 → 8,854, trait 24,668 → 24,436, `index.d.ts` 103.73 → 103.93 kB. Reusing `NameOf` rather than a new helper kept `index.d.ts` under its 104 kB budget
+- Cost: core 8,893 → 8,863, trait 24,668 → 24,441, `index.d.ts` 103.73 → 103.99 kB. To stay under the 104 kB budget, the check reuses `NameOf` rather than a new helper, and the `Rec` and Val branches share one check. A tuple test (`[IsRec<T>, T] extends …`) and `true extends IsRec<T> | …` were shorter but cost core +300 to +450 instantiations
 
 ## 3.7 Self-reference: `Rec`
 
