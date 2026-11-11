@@ -15,11 +15,14 @@ test("finds nothing in valof's own source and scripts", async () => {
   expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
 });
 
+// Every setting but `classes`: the linter keeps state in classes, and builds its errors as classes.
 test("finds no data type outside Valof in the linter", async () => {
   const files = globSync("src/lint/**/*.ts", { cwd: root });
   const findings = await lint(
     files.map((file) => root + file),
-    Options.create({ enable: { "data-type-outside-valof": {} } }),
+    Options.create({
+      enable: { "data-type-outside-valof": { constraints: true, extraction: true } },
+    }),
   );
   expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
 });
