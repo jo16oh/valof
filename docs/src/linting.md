@@ -10,26 +10,25 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 ## Rules
 
-| rule                   | reports                                                                                              | default |
-| ---------------------- | ---------------------------------------------------------------------------------------------------- | ------- |
-| `unused-member`        | a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads                    | warning |
-| `duplicate-brand`      | a brand string claimed by more than one top-level alias                                              | error   |
-| `brand-mismatch`       | a brand whose last segment is not the name of the type it brands                                     | error   |
-| `unnecessary-alias`    | a type alias that is a second name for a Val, a Trait or an Enum                                     | error   |
-| `unimplemented-trait`  | a Trait a Val, an Enum or a variant declares that its companion does not implement                   | error   |
-| `companion-mismatch`   | a companion, or a variant, bound to a name other than its own                                        | error   |
-| `split-companion`      | a companion for a type that another file declares                                                    | error   |
-| `bypassed-companion`   | a `Val.of` for a type whose companion is how it is built                                             | warning |
-| `unnamed-of`           | a `Val.of` that names no type, taking one from its target                                            | warning |
-| `hidden-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`                         | warning |
-| `unqualified-variant`  | a variant bound to a local name without the name of its enum                                         | warning |
-| `split-variant-steps`  | a variant whose steps are split by another variant's steps in the chain                              | warning |
-| `unrelated-assoc`      | an `.implAssoc` member that names neither its type nor a `seal` or `create`                          | warning |
-| `unreturned-seal`      | a seal that keeps the default seal's result outside its return, in a chain with `.implCreate.noseal` | error   |
-| `hidden-optional`      | a default or rest parameter that a member's type annotation hides                                    | error   |
-| `model-only-in-valof`  | a data type declared outside Valof                                                                   | off     |
-| `incomplete-disable`   | a disable comment leaving out the rules it silences, or its scope                                    | error   |
-| `unused-disable`       | a disable comment naming a rule that reports nothing there                                           | warning |
+| rule                   | reports                                                                            | default |
+| ---------------------- | ---------------------------------------------------------------------------------- | ------- |
+| `unused-member`        | a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads  | warning |
+| `duplicate-brand`      | a brand string claimed by more than one top-level alias                            | error   |
+| `brand-mismatch`       | a brand whose last segment is not the name of the type it brands                   | error   |
+| `unnecessary-alias`    | a type alias that is a second name for a Val, a Trait or an Enum                   | error   |
+| `unimplemented-trait`  | a Trait a Val, an Enum or a variant declares that its companion does not implement | error   |
+| `companion-mismatch`   | a companion, or a variant, bound to a name other than its own                      | error   |
+| `split-companion`      | a companion for a type that another file declares                                  | error   |
+| `bypassed-companion`   | a `Val.of` for a type whose companion is how it is built                           | warning |
+| `unnamed-of`           | a `Val.of` that names no type, taking one from its target                          | warning |
+| `hidden-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`       | warning |
+| `unqualified-variant`  | a variant bound to a local name without the name of its enum                       | warning |
+| `split-variant-steps`  | a variant whose steps are split by another variant's steps in the chain            | warning |
+| `unrelated-assoc`      | an `.implAssoc` member that names neither its type nor a `seal` or `create`        | warning |
+| `hidden-optional`      | a default or rest parameter that a member's type annotation hides                  | error   |
+| `model-only-in-valof`  | a data type declared outside Valof                                                 | off     |
+| `incomplete-disable`   | a disable comment leaving out the rules it silences, or its scope                  | error   |
+| `unused-disable`       | a disable comment naming a rule that reports nothing there                         | warning |
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two
 types the checker stops distinguishing, or a name that has to agree with another and does not.

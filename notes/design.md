@@ -2993,6 +2993,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 
 - [x] ~~**Seals the noseal development check misses.**~~ Added `unreturned-seal`, 2026-11-03, as proposed below. It
       reports every call of the second argument outside the argument of a `return`. The record from that time follows
+  - **Dropped, 2026-11-11.** It reported a seal kept in a variable and returned later, as in
+    `const sealed = seal(x); return sealed;`, since following the value needs data-flow analysis. The hole it
+    guarded needs `.implCreate.noseal` and a seal that calls the default seal and then returns a failure, which is
+    too narrow for those false positives (user)
 - A seal that calls the default seal,
   then discards the result and returns a failure, passes the check, since "the seal was called and the value is equal". Production
   skips the seal, so a value that should be rejected gets created. The same applies to a seal that returns `undefined`, not only to `Result`
