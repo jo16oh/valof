@@ -1,5 +1,3 @@
-import { extname } from "node:path";
-
 import type { Rule } from "eslint";
 
 import { ProjectCache } from "./project-cache.ts";
@@ -28,8 +26,7 @@ function valof(): {
   >;
   configs: { recommended: { rules: Record<string, "error" | "warn"> } };
 } {
-  // Built from the entry's own URL, which is always in `dist/eslint-plugin/`, beside the worker.
-  const worker = new LinterWorker(new URL(`./worker${extname(import.meta.url)}`, import.meta.url));
+  const worker = new LinterWorker(import.meta.url);
   const projects = new ProjectCache();
 
   return {

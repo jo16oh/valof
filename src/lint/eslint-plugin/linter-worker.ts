@@ -1,4 +1,4 @@
-import { resolve } from "node:path";
+import { extname, resolve } from "node:path";
 import {
   MessageChannel,
   parentPort,
@@ -49,9 +49,10 @@ export type Reply = R.Result<Finding[], string>;
  * The worker that lints, asked from a rule and blocked on until it answers.
  *
  * `lint` is async, and a rule is not: `create` returns a visitor, and a visitor cannot be async. So
- * the run happens in a worker, at `script`, which answers with {@link LinterWorker.serve}. The
- * caller gives the URL, since this file is in whichever chunk the build puts it in, and its own
- * `import.meta.url` says nothing about where the worker is.
+ * the run happens in a worker, `worker` beside the caller, which answers with
+ * {@link LinterWorker.serve}. The caller passes its own `import.meta.url`, since this file is in
+ * whichever chunk the build puts it in, and its own URL says nothing about where the worker is.
+ * The worker has the caller's extension: the source tree runs as `.ts` and the package ships `.mjs`.
  *
  * The thread blocks on `Atomics.wait` until the answer is in the port's queue, and
  * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here. The port
@@ -76,8 +77,8 @@ export class LinterWorker {
   #lastKey: string | undefined;
   #lastFindings: readonly Finding[] = [];
 
-  constructor(script: URL, patience = 60_000) {
-    this.#script = script;
+  constructor(beside: string, patience = 60_000) {
+    this.#script = new URL(`./worker${extname(beside)}`, beside);
     this.#patience = patience;
   }
 
