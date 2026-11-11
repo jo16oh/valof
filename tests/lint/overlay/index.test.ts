@@ -27,3 +27,10 @@ test.each([
   const findings = await lint([listed], Options.create({ overlay: [[key, dead("Id")]] }));
   expect(findings.map(({ kind }) => kind)).toEqual([UnusedMember.kind]);
 });
+
+test("reads an empty buffer as the file, not what disk holds", async () => {
+  // On disk the file has a member nothing reads. The editor has it emptied, unsaved.
+  const emptied = at("emptied.ts");
+  expect(await lint([emptied])).not.toEqual([]);
+  expect(await lint([emptied], Options.create({ overlay: [[emptied, ""]] }))).toEqual([]);
+});

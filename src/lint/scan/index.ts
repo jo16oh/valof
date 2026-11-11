@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
 import { normalize, resolve } from "node:path";
 
+import { pipe } from "../../shared/pipe/index.ts";
 import { Val } from "../../index.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
@@ -146,11 +146,8 @@ export const Scan = Val.companion<Scan>()
      * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
      * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
      * rules' job, and they see every file rather than this one.
-     *
-     * `given` is the source to walk in place of the file on disk, for a buffer the editor holds
-     * unsaved, or `undefined` to read the file. With a buffer, the file may not exist at all.
      */
-    exec: scan,
+    walk: scan,
   }))
   .build();
 
@@ -162,16 +159,16 @@ export type Exports = Val<"Exports", Record<string, SymbolRef>>;
 export const Exports = Val.companion<Exports>()
   .implAssoc(({ seal }) => ({
     from: (scans: readonly Scan[]): Exports =>
-      seal(
-        Object.fromEntries(
-          scans.flatMap(({ file, exportedRefs }) => {
-            const module = normalize(resolve(file));
-            return Object.entries(exportedRefs).map(([name, target]) => [
-              SymbolRef.fromExport(module, name).key,
-              target,
-            ]);
-          }),
-        ),
+      pipe(
+        scans.flatMap(({ file, exportedRefs }) => {
+          const module = normalize(resolve(file));
+          return Object.entries(exportedRefs).map(([name, target]) => [
+            SymbolRef.fromExport(module, name).key,
+            target,
+          ]);
+        }),
+        Object.fromEntries,
+        seal,
       ),
   }))
   .impl(() => ({
@@ -229,9 +226,8 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   set.add(value);
 }
 
-/** The body of {@link Scan.exec}. */
-function scan(file: FilePath, parser: Parser, modules: Modules, given: string | undefined): Scan {
-  const source = given ?? readFileSync(file, "utf8");
+/** The body of {@link Scan.walk}. */
+function scan(file: FilePath, parser: Parser, modules: Modules, source: string): Scan {
   const lines = Lines.from(source);
 
   let bound = Bindings.create();
@@ -264,7 +260,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, given: string | 
         key,
       }),
     );
-    dotted.set(name, `${Bindings.original(bound, companion)}.${key}`);
+    dotted.set(name, `${Bindings.originalName(bound, companion)}.${key}`);
   };
 
   const visit = (node: Node): void => {
@@ -331,7 +327,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, given: string | 
         if (init.type === "MemberExpression") {
           const from = init.object;
           const taken = keyName(init.property, init.computed);
-          if (from.type === "Identifier" && taken && !Bindings.isNamespace(bound, from.name))
+          if (from.type === "Identifier" && taken && !Bindings.hasNamespace(bound, from.name))
             took(id.name, Lines.at(lines, id.start), from.name, taken);
         }
         members.push(...implMembers(init, id.name, bound, objects, lines));
@@ -379,13 +375,13 @@ function scan(file: FilePath, parser: Parser, modules: Modules, given: string | 
         if (namespace.type !== "Identifier") break;
         const through = keyName(object.property, object.computed);
         if (!through) break;
-        if (Bindings.isNamespace(bound, namespace.name)) {
+        if (Bindings.hasNamespace(bound, namespace.name)) {
           collect(namespaceReads, through, name);
           break;
         }
         // `Shape.Circle.diameter`: a variant's members are declared under the same dotted key,
         // which is where the two meet.
-        collect(reads, `${Bindings.original(bound, namespace.name)}.${through}`, name);
+        collect(reads, `${Bindings.originalName(bound, namespace.name)}.${through}`, name);
         break;
       }
       case "ImportDeclaration": {
@@ -417,7 +413,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, given: string | 
     for (const one of node.children) visit(one);
   };
 
-  const { program, comments } = Parser.parse(parser, file, source);
+  const { program, comments } = Parser.exec(parser, file, source);
   visit(program);
 
   // Imports may follow an export declaration. Resolve local exports only after every binding is
@@ -492,7 +488,7 @@ function valueReference(node: Node, file: FilePath, bound: Bindings): SymbolRef 
   if (node.type === "Identifier") return Bindings.refOf(bound, file, node.name, undefined);
   if (node.type !== "MemberExpression") return undefined;
   const { object } = node;
-  if (object.type !== "Identifier" || !Bindings.isNamespace(bound, object.name)) return undefined;
+  if (object.type !== "Identifier" || !Bindings.hasNamespace(bound, object.name)) return undefined;
   const name = keyName(node.property, node.computed);
   return name ? Bindings.refOf(bound, file, name, object.name) : undefined;
 }

@@ -20,16 +20,19 @@ export const Parser = Val.companion<Parser>()
       R.try({
         try: async () => {
           oxc = await import("oxc-parser");
-          return seal({ visitorKeys: oxc.visitorKeys });
+          return Parser.fromModule(oxc);
         },
         catch: (error) => {
           if ((error as { code?: string }).code !== "ERR_MODULE_NOT_FOUND") throw error;
           return new MissingParserError({ cause: error });
         },
       }),
+    /** The parser that oxc-parser's module makes. */
+    fromModule: (module: typeof import("oxc-parser")): Parser =>
+      seal({ visitorKeys: module.visitorKeys }),
   }))
   .impl(() => ({
-    parse(parser, file: string, source: string) {
+    exec(parser, file: string, source: string) {
       if (!oxc) throw new Error("valof-lint: oxc-parser is not loaded");
       const { program, comments } = oxc.parseSync(file, source);
       return { program: fromOxc(program, parser.visitorKeys), comments };

@@ -98,10 +98,10 @@ export function fromRoot(node: Node, bound: Bindings): string | undefined {
   const path = rootPath(node);
   if (!path || path.length === 0) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  if (path.length === 1) return Bindings.builder(bound, first);
+  if (path.length === 1) return Bindings.builderOf(bound, first);
   // `valof.Val.companion`: step past the namespace, which only says where the name came from.
-  const qualified = Bindings.isNamespace(bound, first);
-  const name = qualified ? second : Bindings.original(bound, first);
+  const qualified = Bindings.hasNamespace(bound, first);
+  const name = qualified ? second : Bindings.originalName(bound, first);
   const step = qualified ? third : second;
   if (step === undefined || !ENTRY_POINTS.has(step)) return undefined;
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
@@ -142,8 +142,8 @@ function valOf(node: Node, file: FilePath, bound: Bindings, lines: Lines): Lift 
   const path = rootPath(callee);
   if (!path || path.length < 2) return undefined;
   const [first, second, third] = path as [string, string?, string?];
-  const qualified = Bindings.isNamespace(bound, first);
-  const name = qualified ? second : Bindings.original(bound, first);
+  const qualified = Bindings.hasNamespace(bound, first);
+  const name = qualified ? second : Bindings.originalName(bound, first);
   const step = qualified ? third : second;
   if (name !== "Val" || step !== ("of" satisfies keyof typeof Val)) return undefined;
   const param = unparenthesized(typeParams(node.typeArguments)[0]);
@@ -179,7 +179,7 @@ function variantArgument(
 ): VariantName | undefined {
   const written = named.node.name;
   // A name reached through a namespace is already the exporting module's own.
-  if ((named.qualifier === null ? Bindings.original(bound, written) : written) !== "VariantOf")
+  if ((named.qualifier === null ? Bindings.originalName(bound, written) : written) !== "VariantOf")
     return undefined;
   const [enumType, variantType] = typeParams(param.typeArguments).map(unparenthesized);
   if (enumType?.type !== "TSTypeReference" || variantType?.type !== "TSLiteralType")
@@ -253,7 +253,7 @@ export function typeReference(written: Node, bound: Bindings): TypeName | undefi
   const { left, right } = written;
   if (left.type !== "Identifier" || right.type !== "Identifier") return undefined;
   const qualifier = left.name;
-  return Bindings.isNamespace(bound, qualifier)
+  return Bindings.hasNamespace(bound, qualifier)
     ? TypeName.seal({ node: right, qualifier })
     : undefined;
 }

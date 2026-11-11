@@ -85,7 +85,7 @@ function valName(typeName: Node, bound: Bindings): string | undefined {
   if (typeName.type === "Identifier") return typeName.name;
   if (typeName.type !== "TSQualifiedName") return undefined;
   const { left, right } = typeName;
-  if (left.type !== "Identifier" || !Bindings.isNamespace(bound, left.name)) return undefined;
+  if (left.type !== "Identifier" || !Bindings.hasNamespace(bound, left.name)) return undefined;
   // Qualified by a namespace import, so the name is already the exporting module's own.
   return right.type === "Identifier" ? right.name : undefined;
 }
@@ -147,7 +147,7 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
       continue;
     }
 
-    const kind = Bindings.original(bound, named);
+    const kind = Bindings.originalName(bound, named);
     const declared = { file, alias: id.name, ref: Bindings.refOf(bound, file, id.name, undefined) };
     if (kind === "Val") {
       aliases.push(
@@ -230,7 +230,7 @@ function variantNames(
       const named = valName(inside.typeName, bound);
       if (!named) return false;
       // The tag's name arrives as a marker, which declares no variant of its own.
-      if (Bindings.original(bound, named) === "Tag") return true;
+      if (Bindings.originalName(bound, named) === "Tag") return true;
       const alias = aliases.get(named);
       if (!alias || seen.has(named)) return false;
       return visit(alias, new Set(seen).add(named));
@@ -272,7 +272,7 @@ function traitNames(
     const named = valName(one.typeName, bound);
     if (!named) return;
     // An enum's tag arrives in the same argument, and the marker carrying it names no trait.
-    if (Bindings.original(bound, named) === "Tag") return;
+    if (Bindings.originalName(bound, named) === "Tag") return;
     const ref = Bindings.refOf(bound, file, named, qualifierOf(one.typeName));
     if (seen.has(ref.key)) return;
     seen.add(ref.key);
@@ -285,7 +285,7 @@ function traitNames(
     // A bare alias chain is expanded too; unnecessary-alias reports that spelling separately.
     if (alias?.type === "TSTypeReference") {
       const target = valName(alias.typeName, bound);
-      if (target && Bindings.original(bound, target) !== "Trait") {
+      if (target && Bindings.originalName(bound, target) !== "Trait") {
         visit(alias, occurrence);
         return;
       }

@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 
+import { pipe } from "../shared/pipe/index.ts";
 import type { MissingParserError } from "./errors.ts";
 import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
 import { Parser } from "./parser.ts";
@@ -30,25 +31,25 @@ export async function run(
   ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
   const scans = toScan.map((file) =>
-    Scan.exec(file, parser, modules, Options.sourceOf(options, file)),
-  );
-
-  // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
-  const findings = RULES.filter(({ kind }) => !KindSet.has(options.skip, kind)).reduce<Finding[]>(
-    (reported, rule) => [
-      ...reported,
-      ...rule.run(scans, Context.seal({ reported, notRun: options.skip })),
-    ],
-    [],
+    Scan.walk(file, parser, modules, FilePath.read(file, options.overlay)),
   );
 
   const directives = DirectiveMap.from(scans);
 
-  return R.succeed(
-    findings
+  return pipe(
+    RULES.filter(({ kind }) => !KindSet.has(options.skip, kind))
+      // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
+      .reduce<Finding[]>(
+        (reported, rule) => [
+          ...reported,
+          ...rule.run(scans, Context.seal({ reported, notRun: options.skip })),
+        ],
+        [],
+      )
       .filter(
         ({ file, at: { line }, kind }) =>
-          Options.isTarget(options, file) && !DirectiveMap.silences(directives, file, line, kind),
+          FilePath.isTarget(file, options.targets) &&
+          !DirectiveMap.silences(directives, file, line, kind),
       )
       .sort(
         (a, b) =>
@@ -57,5 +58,6 @@ export async function run(
           a.at.column - b.at.column ||
           a.kind.localeCompare(b.kind),
       ),
+    R.succeed<Finding[]>,
   );
 }

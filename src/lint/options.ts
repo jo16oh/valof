@@ -47,14 +47,4 @@ export const Options = Val.companion<Options>()
       overlay: Object.fromEntries([...overlay].map(([file, text]) => [resolve(file), text])),
     }),
   )
-  .impl(() => ({
-    /** Whether a finding in the file is reported. */
-    isTarget: (options, file: string) =>
-      options.targets === null || Object.hasOwn(options.targets, resolve(file)),
-    /** The source given for the file, or `undefined` to read it from disk. */
-    sourceOf: (options, file: string) => {
-      const key = resolve(file);
-      return Object.hasOwn(options.overlay, key) ? options.overlay[key] : undefined;
-    },
-  }))
   .build();

@@ -1,10 +1,12 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vite-plus/test";
 
-import plugin from "../../../src/lint/eslint-plugin.ts";
+import plugin from "../../../src/lint/eslint-plugin/index.ts";
 import { kinds } from "../../../src/lint/index.ts";
 
 // The rules are called here with a context holding only what they read. `tests/lint/hosts` runs
@@ -12,7 +14,9 @@ import { kinds } from "../../../src/lint/index.ts";
 
 type Where = { line: number; column: number };
 
-const at = (name: string): string => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
+/** A fixture by its name, or a file elsewhere by its absolute path. */
+const at = (name: string): string =>
+  isAbsolute(name) ? name : fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
 const project = at("*.ts");
 
 const context = (
@@ -52,13 +56,37 @@ test("reports on the file it was called for, having read the whole project", () 
   expect(run("money.ts")).toEqual(["6:2-8  Money.format is never read"]);
 });
 
-test("takes a list for the project, and leaves out what one entry excludes", () => {
+test("takes a list for the project, and leaves out what one entry excludes, however each is spelled", () => {
   const finding = "6:2-8  Money.format is never read";
+  const spelled = (path: string): string => relative(process.cwd(), path);
   // `reader/show.ts` reads the member, so the finding goes only when the list keeps that file.
   expect(run("money.ts", undefined, [project, at("reader/*.ts")])).toEqual([]);
   expect(
-    run("money.ts", undefined, [project, at("reader/*.ts"), `!${at("reader/show.ts")}`]),
+    run("money.ts", undefined, [project, spelled(at("reader/*.ts")), `!${at("reader/show.ts")}`]),
   ).toEqual([finding]);
+  expect(
+    run("money.ts", undefined, [project, at("reader/*.ts"), `!${spelled(at("reader/show.ts"))}`]),
+  ).toEqual([finding]);
+});
+
+test("asks again once the stack empties, since another file of the project may have changed", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
+  try {
+    cpSync(at("money.ts"), join(dir, "money.ts"));
+    writeFileSync(
+      join(dir, "show.ts"),
+      readFileSync(at("reader/show.ts"), "utf8").replace("../money.ts", "./money.ts"),
+    );
+    const lint = (): string[] => run(join(dir, "money.ts"), undefined, join(dir, "*.ts"));
+
+    // The finding comes back only from a new run, so an emptied answer cannot pass for one.
+    expect(lint()).toEqual([]);
+    writeFileSync(join(dir, "show.ts"), "export {};\n");
+    await Promise.resolve();
+    expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("reads src/**/*.ts when no project is set", () => {

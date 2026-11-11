@@ -1,4 +1,4 @@
-import valof from "../../../../src/lint/eslint-plugin.ts";
+import valof from "../../../../src/lint/eslint-plugin/index.ts";
 
 export default [
   {

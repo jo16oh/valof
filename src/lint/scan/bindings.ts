@@ -62,10 +62,10 @@ export type Bindings = Val<
 export const Bindings = Val.companion<Bindings>()
   .implCreate(() => ({ imported: ImportMap.seal({}), namespaces: {}, builders: {} }))
   .impl(() => ({
-    isNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
-    builder: (bound, local: string) => own(bound.builders, local),
+    hasNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
+    builderOf: (bound, local: string) => own(bound.builders, local),
     /** The name the exporting module uses, or the local one when it was not imported. */
-    original: (bound, local: string) => ImportMap.nameOf(bound.imported, local),
+    originalName: (bound, local: string) => ImportMap.nameOf(bound.imported, local),
     /**
      * A local declaration, named import, or namespace member as one comparable reference.
      * `qualifier` is the namespace it was reached through, or `undefined`.
