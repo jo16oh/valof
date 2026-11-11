@@ -7,9 +7,16 @@ import { LinterWorker } from "./linter-worker.ts";
 
 // The worker the plugin asks, one file at a time.
 LinterWorker.serve(
-  async ({ project, file, text }) =>
+  async ({ project, file, text, model }) =>
     pipe(
-      await run(project, Options.create({ targets: [file], overlay: [[file, text]] })),
+      await run(
+        project,
+        Options.create({
+          targets: [file],
+          overlay: [[file, text]],
+          enable: { "data-type-outside-valof": model },
+        }),
+      ),
       // The message the command prints, so a user of the plugin gets the same instruction.
       R.mapError((error) => error.message),
     ),

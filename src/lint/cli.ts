@@ -40,6 +40,9 @@ function usage(): string {
     "Leave a rule out of the run:",
     "  valof-lint --no-unused-member",
     "",
+    "Turn on data-type-outside-valof, with any of its settings:",
+    "  valof-lint --data-type-outside-valof=classes,constraints,extraction",
+    "",
     "Silence one line with a comment in the block above it, by the same names:",
     "  // valof-lint-disable-next-line unused-member, brand-mismatch -- why",
     "",
@@ -106,7 +109,11 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
   const { scanned, targets, reported } = chosen.value;
   const found = await run(
     scanned,
-    Options.create({ skip: args.skip, ...(args.targets.length > 0 ? { targets } : {}) }),
+    Options.create({
+      skip: args.skip,
+      enable: args.enable,
+      ...(args.targets.length > 0 ? { targets } : {}),
+    }),
   );
   if (R.isFailure(found)) return found;
   print(found.value, reported.length);

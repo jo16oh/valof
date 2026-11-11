@@ -3,12 +3,13 @@ import { resolve } from "node:path";
 import { Result as R } from "@praha/byethrow";
 
 import { pipe } from "../shared/pipe/index.ts";
-import type { MissingParserError } from "./errors.ts";
-import { Context, KindSet, RULES, type Finding } from "./rules/index.ts";
+import { MissingTypeScriptError, type MissingParserError } from "./errors.ts";
+import { Context, Kind, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { Parser } from "./parser.ts";
 import { DirectiveMap, Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { FilePath } from "./files.ts";
+import { arities, type Arity } from "./types.ts";
 import { Options } from "./options.ts";
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
@@ -18,7 +19,7 @@ import { Options } from "./options.ts";
 export async function run(
   files: readonly string[],
   options: Options = Options.create(),
-): Promise<R.Result<Finding[], MissingParserError>> {
+): Promise<R.Result<Finding[], MissingParserError | MissingTypeScriptError>> {
   const loaded = await Parser.load();
   if (R.isFailure(loaded)) return loaded;
   const parser = loaded.value;
@@ -34,30 +35,57 @@ export async function run(
     Scan.walk(file, parser, modules, FilePath.read(file, options.overlay)),
   );
 
+  const rules = compile(options.enable);
+  // An opt-in rule left off is out of the run as much as a skipped one.
+  const notRun = KindSet.create([
+    ...Object.keys(options.skip).map((kind) => Kind.seal(kind)),
+    ...RULES.filter(({ kind }) => !rules.some((rule) => rule.kind === kind)).map(
+      ({ kind }) => kind,
+    ),
+  ]);
+  // Started by the first rule that asks, and by none when no rule does.
+  let program: ReturnType<typeof arities> | undefined;
+  const types = (): Arity => (program ??= arities(toScan.map((file) => resolve(file)))).arity;
+  const ran = ((): R.Result<Finding[], MissingTypeScriptError> => {
+    try {
+      // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
+      return R.succeed(
+        rules
+          .filter(({ kind }) => !KindSet.has(notRun, kind))
+          .reduce<Finding[]>(
+            (reported, rule) => [
+              ...reported,
+              ...rule.run(scans, Context.seal({ reported, notRun }), types),
+            ],
+            [],
+          ),
+      );
+    } catch (error) {
+      if (error instanceof MissingTypeScriptError) return R.fail(error);
+      throw error;
+    } finally {
+      program?.close();
+    }
+  })();
+
   const directives = DirectiveMap.from(scans);
 
   return pipe(
-    RULES.filter(({ kind }) => !KindSet.has(options.skip, kind))
-      // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
-      .reduce<Finding[]>(
-        (reported, rule) => [
-          ...reported,
-          ...rule.run(scans, Context.seal({ reported, notRun: options.skip })),
-        ],
-        [],
-      )
-      .filter(
-        ({ file, at: { line }, kind }) =>
-          FilePath.isTarget(file, options.targets) &&
-          !DirectiveMap.silences(directives, file, line, kind),
-      )
-      .sort(
-        (a, b) =>
-          a.file.localeCompare(b.file) ||
-          a.at.line - b.at.line ||
-          a.at.column - b.at.column ||
-          a.kind.localeCompare(b.kind),
-      ),
-    R.succeed<Finding[]>,
+    ran,
+    R.map((findings) =>
+      findings
+        .filter(
+          ({ file, at: { line }, kind }) =>
+            FilePath.isTarget(file, options.targets) &&
+            !DirectiveMap.silences(directives, file, line, kind),
+        )
+        .sort(
+          (a, b) =>
+            a.file.localeCompare(b.file) ||
+            a.at.line - b.at.line ||
+            a.at.column - b.at.column ||
+            a.kind.localeCompare(b.kind),
+        ),
+    ),
   );
 }

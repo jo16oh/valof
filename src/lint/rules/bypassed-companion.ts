@@ -28,7 +28,7 @@ function instead(site: CompanionSite, type: string, variant: string | null): str
  * Resolution keeps the source module through a renamed import, namespace import or re-export.
  * The display name stays separate from that identity.
  *
- * `Val.of` spelling no type argument is left to the unnamed-of rule. That form takes the type
+ * `Val.of` spelling no type argument is left to the inferred-val-of rule. That form takes the type
  * from the target it is assigned to, and there is no name here to key it by.
  */
 function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[] {
@@ -42,8 +42,8 @@ function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[
   const found: Finding[] = [];
   for (const { file, lifts } of scans) {
     for (const { typeName, typeRef, variant, at } of lifts) {
-      // A lift naming no type is the unnamed-of rule's finding. Which companion it goes around,
-      // if any, is not written anywhere here.
+      // A lift naming no type is the inferred-val-of rule's finding. Which companion it goes
+      // around, if any, is not written anywhere here.
       if (typeName === null || typeRef === null) continue;
       const site = companions.get(Exports.identify(exports, typeRef));
       if (!site) continue;

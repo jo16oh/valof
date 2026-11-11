@@ -18,8 +18,17 @@ import {
   type TraitAlias,
 } from "./aliases.ts";
 import { Bindings, ImportBinding, ImportMap, Modules, SymbolRef } from "./bindings.ts";
-import { CompanionSite, fromRoot, stepOf, variantOf, typeReference, Lift } from "./chains.ts";
+import {
+  CompanionSite,
+  chainRoot,
+  fromRoot,
+  stepOf,
+  variantOf,
+  typeReference,
+  Lift,
+} from "./chains.ts";
 import { directives, type Directive } from "./directives.ts";
+import { models, type Models } from "./models.ts";
 
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
@@ -35,6 +44,7 @@ export type {
 } from "./aliases.ts";
 export type { CompanionSite, Lift } from "./chains.ts";
 export { Directive, DirectiveMap } from "./directives.ts";
+export type { Model, Models, Shape, TypeUse } from "./models.ts";
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
 export type Member = Val<"Member", { at: Position; companion: string; member: string }>;
@@ -48,6 +58,8 @@ export type TraitImplementation = Val<
     trait: SymbolRef;
     /** Statically known override keys, at their declaration sites. */
     overrides: Member[];
+    /** The variant it was written for, or `null` where it was written for the whole type. */
+    variant: string | null;
   }
 >;
 export const TraitImplementation = Val.companion<TraitImplementation>().build();
@@ -59,6 +71,38 @@ export const TraitImplementation = Val.companion<TraitImplementation>().build();
  */
 export type EscapedDyn = Val<"EscapedDyn", { trait: SymbolRef; val: SymbolRef }>;
 export const EscapedDyn = Val.companion<EscapedDyn>().build();
+
+/** The function a member step takes, `.impl(() => { … })`, where its body declares something. */
+export type StepState = Val<"StepState", { at: Position; step: string }>;
+export const StepState = Val.companion<StepState>().build();
+
+/** A variant's step written after another variant's, where an earlier step was its own. */
+export type SplitVariant = Val<
+  "SplitVariant",
+  { at: Position; companion: string; variant: string }
+>;
+export const SplitVariant = Val.companion<SplitVariant>().build();
+
+/**
+ * A top-level const whose type annotation may hide a default or a rest parameter of the function
+ * it holds: `const toWire: ToWire = (u, sep = ",") => …`, or a property of an annotated object.
+ */
+export type HiddenParameter = Val<
+  "HiddenParameter",
+  {
+    at: Position;
+    name: string;
+    ref: SymbolRef;
+    /** Where the const's name starts, which is what TypeScript is asked about. */
+    offset: number;
+    /** The property holding the function, or `null` where the const holds the function. */
+    property: string | null;
+    /** The index of the first default or rest parameter. */
+    parameter: number;
+    rest: boolean;
+  }
+>;
+export const HiddenParameter = Val.companion<HiddenParameter>().build();
 
 /** A `Trait.dyn(Val, value)` box: the Trait, and the Val it holds. */
 type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
@@ -109,6 +153,13 @@ export type Scan = Val<
     traitImplementations: TraitImplementation[];
     dynReads: DynRead[];
     escapedDyns: EscapedDyn[];
+    splitVariants: SplitVariant[];
+    /** Annotated top-level consts holding a function with a default or a rest parameter. */
+    hiddenParameters: HiddenParameter[];
+    /** The names a member step takes its members from: `() => fns`, or `() => ({ toWire })`. */
+    memberSources: SymbolRef[];
+    /** Member steps whose function declares something in its body. */
+    stepStates: StepState[];
     /** Keys read off a local name, each a set. */
     reads: Record<string, Record<string, true>>;
     /** Keys read through a namespace, already named as the exporting module names them. */
@@ -133,6 +184,8 @@ export type Scan = Val<
     companionBindings: CompanionBinding[];
     /** `Val.of<X>(…)` calls. */
     lifts: Lift[];
+    /** What `data-type-outside-valof` reads. */
+    models: Models;
     /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
     directives: Directive[];
   }
@@ -191,7 +244,7 @@ type Sample = Enum<"Sample", { A: { a: 1 } }>;
 /** The {@link Reserved} names with no pattern. */
 type Unlisted<N extends string> = Reserved extends infer R
   ? R extends unknown
-    ? [Extract<N, R>] extends [never]
+    ? Extract<N, R> extends never
       ? R
       : never
     : never
@@ -201,7 +254,8 @@ type Unlisted<N extends string> = Reserved extends infer R
  * Matches a whole name against the patterns. A {@link Reserved} name without a pattern, or a
  * pattern that is not one, is a type error.
  */
-function reserved<const N extends readonly Reserved[]>(
+// valof-lint-disable-next-line data-type-outside-valof -- a list of Vals, not a new shape
+export function reserved<const N extends readonly Reserved[]>(
   patterns: N &
     ([Unlisted<N[number]>] extends [never] ? unknown : { unlisted: Unlisted<N[number]> }),
 ): RegExp {
@@ -237,6 +291,9 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
   const traitImplementations: TraitImplementation[] = [];
   const dynReads: DynRead[] = [];
   const escapedDyns: EscapedDyn[] = [];
+  const stepStates: StepState[] = [];
+  const splitVariants: SplitVariant[] = [];
+  const memberSources: SymbolRef[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
   const objects = new Map<string, Node>();
@@ -331,12 +388,17 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
             took(id.name, Lines.at(lines, id.start), from.name, taken);
         }
         members.push(...implMembers(init, id.name, bound, objects, lines));
+        splitVariants.push(...split(init, id.name, bound, lines));
         break;
       }
       case "CallExpression": {
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
+        memberSources.push(...sources(node, file, bound));
+        const state = stepState(node, bound);
+        if (state)
+          stepStates.push(StepState.seal({ at: Lines.at(lines, state.start), step: state.step }));
         const lift = Lift.fromCall(node, file, bound, lines);
         if (lift) lifts.push(lift);
         const implementation = implTrait(node, file, bound, sites, objects, lines);
@@ -455,6 +517,10 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     traitImplementations,
     dynReads,
     escapedDyns,
+    stepStates,
+    splitVariants,
+    hiddenParameters: hidden(program, file, bound, lines),
+    memberSources,
     reads: sets(reads),
     namespaceReads: sets(namespaceReads),
     exportedAs: Object.fromEntries(exportedAs),
@@ -467,6 +533,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     sites,
     companionBindings,
     lifts,
+    models: models(file, program, bound, lines),
     directives: directives(comments, source, lines),
   });
 }
@@ -509,37 +576,44 @@ function implTrait(
     keyName(callee.property, callee.computed) !== "implTrait"
   )
     return undefined;
-  let current = callee.object;
+  // `….Book.implTrait(T, f)` implements the trait for that variant alone.
+  const variant = variantOf(callee.object);
+  let current = variant?.builder ?? callee.object;
   while (current.type === "CallExpression") {
     const inner = current.callee;
     if (inner.type !== "MemberExpression") break;
     const { receiver } = stepOf(inner);
-    if (receiver.type !== "CallExpression") break;
-    current = receiver;
+    const next = variantOf(receiver)?.builder ?? receiver;
+    if (next.type !== "CallExpression") break;
+    current = next;
   }
-  const rootCall = current.type === "CallExpression" ? current : node;
-  const root = current.type === "CallExpression" ? current.callee : callee;
-  if (root.type !== "MemberExpression") return undefined;
   let val: SymbolRef | undefined;
-  if (fromRoot(root, bound)) {
-    const valNode = unparenthesized(typeParams(rootCall.typeArguments)[0]);
+  if (
+    current.type === "CallExpression" &&
+    current.callee.type === "MemberExpression" &&
+    fromRoot(current.callee, bound)
+  ) {
+    const valNode = unparenthesized(typeParams(current.typeArguments)[0]);
     const valNamed =
       valNode?.type === "TSTypeReference" ? typeReference(valNode.typeName, bound) : undefined;
     val = valNamed
       ? Bindings.refOf(bound, file, valNamed.node.name, valNamed.qualifier ?? undefined)
       : undefined;
-  } else {
-    const receiver = root.object;
-    const builder = receiver.type === "Identifier" ? receiver.name : undefined;
-    const site = builder ? sites.find((one) => one.name === builder) : undefined;
-    if (site) val = site.typeRef;
+  } else if (current.type === "Identifier") {
+    const builder = current.name;
+    val = sites.find((one) => one.name === builder)?.typeRef;
   }
   if (!val) return undefined;
   const [traitRef, object] = node.arguments;
   const trait = traitRef && valueReference(traitRef, file, bound);
   if (!trait) return undefined;
   const resolved = object ? stepMembers(object, val.name, objects, lines) : [];
-  return TraitImplementation.seal({ val, trait, overrides: resolved });
+  return TraitImplementation.seal({
+    val,
+    trait,
+    overrides: resolved,
+    variant: variant?.variant ?? null,
+  });
 }
 
 /**
@@ -591,7 +665,7 @@ function objectMembers(
 }
 
 /**
- * Every `.impl` in a builder chain of any root, including repeated Trait `.impl` calls. A
+ * Every `.impl` and `.implAssoc` in a builder chain of any root, including repeated calls. A
  * variant's, `.Circle.impl(() => ({…}))`, registers under `` `${enum}.${variant}` ``.
  */
 function implMembers(
@@ -611,7 +685,7 @@ function implMembers(
     const receiver = variant?.builder ?? step.receiver;
     const root = fromRoot(receiver, bound);
     const [object] = current.arguments;
-    if (step.name === "impl" && root !== undefined && object) {
+    if ((step.name === "impl" || step.name === "implAssoc") && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
       for (const member of stepMembers(object, owner, objects, lines))
         if (!rejected(member.member, variant ? undefined : root))
@@ -635,4 +709,148 @@ function sets(map: ReadonlyMap<string, ReadonlySet<string>>): Record<string, Rec
 /** The string a literal node spells, or `undefined` for any other node. */
 function stringOf(node: Node): string | undefined {
   return node.type === "Literal" ? (node.value ?? undefined) : undefined;
+}
+
+/** The steps that take the members, and which argument holds their function. */
+const MEMBER_STEPS: ReadonlyMap<string, number> = new Map([
+  ["impl", 0],
+  ["implTrait", 1],
+  ["implAssoc", 0],
+]);
+
+/** The function a member step on a companion chain takes, with the step's name. */
+function memberStep(
+  node: Node,
+  bound: Bindings,
+): { step: string; fn: Node | undefined } | undefined {
+  if (node.type !== "CallExpression" || node.callee.type !== "MemberExpression") return undefined;
+  const step = stepOf(node.callee).name;
+  const index = step === null ? undefined : MEMBER_STEPS.get(step);
+  if (step === null || index === undefined || !chainRoot(node.callee, bound)) return undefined;
+  return { step, fn: node.arguments[index] };
+}
+
+/** What a function body may declare: each is state the members share. */
+const DECLARATIONS = new Set(["VariableDeclaration", "FunctionDeclaration", "ClassDeclaration"]);
+
+/**
+ * A member step on a companion chain whose function declares something in its body, where the
+ * function starts. Only the body's own statements are read.
+ */
+function stepState(node: Node, bound: Bindings): { step: string; start: number } | undefined {
+  const found = memberStep(node, bound);
+  const fn = found?.fn;
+  const body =
+    fn?.type === "FunctionExpression" || fn?.type === "ArrowFunctionExpression"
+      ? fn.body
+      : undefined;
+  const declares =
+    body?.type === "BlockStatement" && body.children.some((one) => DECLARATIONS.has(one.type));
+  return found && fn && declares ? { step: found.step, start: fn.start } : undefined;
+}
+
+/**
+ * The variant steps in a chain that resume a variant after another variant's step: in
+ * `.Circle.implSeal(f).Square.impl(g).Circle.impl(h)`, the second `.Circle`.
+ */
+function split(node: Node, companion: string, bound: Bindings, lines: Lines): SplitVariant[] {
+  /** Each step from the root outwards, with the variant it is on, if any. */
+  const steps: { variant: string | undefined; start: number }[] = [];
+  let current: Node = node;
+  while (current.type === "CallExpression" && current.callee.type === "MemberExpression") {
+    const step = stepOf(current.callee);
+    const variant = variantOf(step.receiver);
+    // The root call, `Enum.companion<X>()`, is not a step.
+    if (!variant && step.receiver.type !== "CallExpression") break;
+    const property =
+      variant && step.receiver.type === "MemberExpression" ? step.receiver.property : undefined;
+    steps.unshift({ variant: variant?.variant, start: (property ?? step.property).start });
+    current = variant?.builder ?? step.receiver;
+  }
+  if (!fromRoot(current, bound)) return [];
+  const found: SplitVariant[] = [];
+  const seen = new Set<string>();
+  steps.forEach(({ variant, start }, index) => {
+    if (variant === undefined) return;
+    if (seen.has(variant) && steps[index - 1]?.variant !== variant)
+      found.push(SplitVariant.seal({ at: Lines.at(lines, start), companion, variant }));
+    seen.add(variant);
+  });
+  return found;
+}
+
+/** The parameters of a function node, none for anything else. */
+const paramsOf = (fn: Node | undefined): readonly Node[] =>
+  fn?.type === "ArrowFunctionExpression" || fn?.type === "FunctionExpression" ? fn.params : [];
+
+/** The index of a function's first default or rest parameter, and which it is. */
+function optional(
+  fn: Node | null | undefined,
+): { parameter: number; rest: boolean; start: number } | undefined {
+  const params = paramsOf(fn ?? undefined);
+  const parameter = params.findIndex(
+    (one) => one.type === "AssignmentPattern" || one.type === "RestElement",
+  );
+  const found = params[parameter];
+  return found ? { parameter, rest: found.type === "RestElement", start: found.start } : undefined;
+}
+
+/** Every annotated top-level const holding a function, or an object of them, with one. */
+function hidden(program: Node, file: FilePath, bound: Bindings, lines: Lines): HiddenParameter[] {
+  const found: HiddenParameter[] = [];
+  for (const statement of program.type === "Program" ? program.body : []) {
+    const declaration =
+      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
+    if (declaration?.type !== "VariableDeclaration" || declaration.kind !== "const") continue;
+    for (const declarator of declaration.declarations) {
+      if (declarator.type !== "VariableDeclarator") continue;
+      const { id } = declarator;
+      const init = unparenthesized(declarator.init);
+      if (id.type !== "Identifier" || !id.annotated || !init) continue;
+      const base = {
+        name: id.name,
+        ref: Bindings.refOf(bound, file, id.name, undefined),
+        offset: id.start,
+      };
+      const own = optional(init);
+      if (own)
+        found.push(
+          HiddenParameter.seal({
+            ...base,
+            at: Lines.at(lines, own.start),
+            property: null,
+            parameter: own.parameter,
+            rest: own.rest,
+          }),
+        );
+      if (init.type !== "ObjectExpression") continue;
+      for (const entry of init.properties) {
+        if (entry.type !== "Property") continue;
+        const property = keyName(entry.key, entry.computed);
+        const inner = optional(entry.value);
+        if (property && inner)
+          found.push(
+            HiddenParameter.seal({
+              ...base,
+              at: Lines.at(lines, inner.start),
+              property,
+              parameter: inner.parameter,
+              rest: inner.rest,
+            }),
+          );
+      }
+    }
+  }
+  return found;
+}
+
+/** The names a member step's function returns, or the object it returns takes its members from. */
+function sources(node: Node, file: FilePath, bound: Bindings): SymbolRef[] {
+  const fn = memberStep(node, bound)?.fn;
+  const body = fn?.type === "ArrowFunctionExpression" ? unparenthesized(fn.body) : undefined;
+  const named = (one: Node | undefined): SymbolRef[] =>
+    one?.type === "Identifier" ? [Bindings.refOf(bound, file, one.name, undefined)] : [];
+  if (body?.type === "Identifier") return named(body);
+  if (body?.type !== "ObjectExpression") return [];
+  return body.properties.flatMap((entry) => (entry.type === "Property" ? named(entry.value) : []));
 }

@@ -1,5 +1,13 @@
 import { Val, type VariantOf } from "../../index.ts";
-import { keyName, Lines, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
+import {
+  annotationOf,
+  keyName,
+  Lines,
+  typeParams,
+  unparenthesized,
+  type Node,
+  type Position,
+} from "../ast.ts";
 import type { FilePath } from "../files.ts";
 import { Bindings, type SymbolRef } from "./bindings.ts";
 
@@ -38,6 +46,8 @@ export type EnumAlias = Val<
      * them reports nothing there rather than guessing at a mapped type or an import.
      */
     variants: string[] | null;
+    /** The traits each variant declares in its payload, `{ Book: { pages: number } & Named }`. */
+    variantTraits: VariantTraits[];
   }
 >;
 export const EnumAlias = Val.companion<EnumAlias>().build();
@@ -73,6 +83,10 @@ export type BrandClaim = Val<
   }
 >;
 export const BrandClaim = Val.companion<BrandClaim>().build();
+
+/** The traits one variant declares in its payload. */
+export type VariantTraits = Val<"VariantTraits", { variant: string; traits: DeclaredTrait[] }>;
+export const VariantTraits = Val.companion<VariantTraits>().build();
 
 /**
  * The name a type reference is written under, or `undefined` when it is not a plain one.
@@ -167,6 +181,7 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
           // fields and the tag's name, all intersected.
           traits: traitNames(params[2], file, bound, locals, lines),
           variants: variants ?? null,
+          variantTraits: variantTraits(params[1], file, bound, locals, lines),
         }),
       );
     }
@@ -304,4 +319,24 @@ function traitNames(
   };
   visit(node);
   return [...out.values()];
+}
+
+/** The traits each variant of a literal variant record names in its payload. */
+function variantTraits(
+  node: Node | undefined,
+  file: FilePath,
+  bound: Bindings,
+  aliases: ReadonlyMap<string, Node>,
+  lines: Lines,
+): VariantTraits[] {
+  const record = unparenthesized(node);
+  if (record?.type !== "TSTypeLiteral") return [];
+  return record.members.flatMap((member) => {
+    if (member.type !== "TSPropertySignature") return [];
+    const variant = keyName(member.key, member.computed);
+    const payload = annotationOf(member);
+    if (!variant || !payload) return [];
+    const traits = traitNames(payload, file, bound, aliases, lines);
+    return traits.length > 0 ? [VariantTraits.seal({ variant, traits })] : [];
+  });
 }

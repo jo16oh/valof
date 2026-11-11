@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, UnusedMember, fixtures } from "../../support.ts";
+import { CompanionMismatch, DetachedVariant, UnusedMember, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
@@ -56,6 +56,13 @@ describe("what the rule finds", () => {
 
   test("counts a member passed without a call, as a pipeline takes it, as a read", async () => {
     expect(await lint("unapplied")).toEqual([]);
+  });
+
+  test("collects the members of every implAssoc", async () => {
+    expect(await messages("assoc")).toEqual([
+      "Money.zero is never read",
+      "Money.unit is never read",
+    ]);
   });
 
   test("collects method shorthand and non-function members", async () => {
@@ -175,13 +182,13 @@ describe("Trait members", () => {
 });
 
 test("credits a variant's member through the enum and through a binding of its own", async () => {
-  expect(await lint("enum")).toEqual([
+  expect(await lint("enum", { skip: [DetachedVariant] })).toEqual([
     { rule: UnusedMember, at: "enum.ts:5:51" },
     { rule: UnusedMember, at: "enum.ts:6:55" },
     { rule: UnusedMember, at: "enum.ts:7:18" },
   ]);
   // One name on two variants and on the union is three members.
-  expect(await messages("enum")).toEqual([
+  expect(await messages("enum", { skip: [DetachedVariant] })).toEqual([
     "Shape.Circle.area is never read",
     "Shape.Square.area is never read",
     "Shape.area is never read",

@@ -6,12 +6,31 @@ export class MissingParserError extends ErrorFactory({
   message: `valof-lint needs oxc-parser, which valof does not install for you.\n  pnpm add -D oxc-parser`,
 }) {}
 
+/**
+ * TypeScript 7.1 or later is an optional peer dependency. Only a rule that reads a type needs it,
+ * and only where the code has something for that rule to check.
+ */
+export class MissingTypeScriptError extends ErrorFactory({
+  name: "MissingTypeScriptError",
+  message:
+    "valof-lint needs TypeScript 7.1 or later to read the annotations here. valof does not" +
+    " install it for you.\n  pnpm add -D typescript",
+}) {}
+
 /** `--no-<kind>` with a kind no rule has. */
 export class UnknownRuleError extends ErrorFactory({
   name: "UnknownRuleError",
   message: ({ kind, known }) =>
     `valof-lint: no rule called ${JSON.stringify(kind)}\n  known rules: ${known.join(", ")}`,
   fields: ErrorFactory.fields<{ kind: string; known: readonly string[] }>(),
+}) {}
+
+/** A setting after `--data-type-outside-valof=` that the rule does not take. */
+export class UnknownSettingError extends ErrorFactory({
+  name: "UnknownSettingError",
+  message: ({ setting, known }) =>
+    `valof-lint: no setting called ${JSON.stringify(setting)}\n  known settings: ${known.join(", ")}`,
+  fields: ErrorFactory.fields<{ setting: string; known: readonly string[] }>(),
 }) {}
 
 /** `--project` or `--report-on` as the last argument. */
@@ -41,7 +60,9 @@ export class NoFilesMatchedError extends ErrorFactory({
 /** What the command reports before exiting 2, because the run never started. */
 export type UsageError =
   | MissingParserError
+  | MissingTypeScriptError
   | UnknownRuleError
+  | UnknownSettingError
   | MissingPathError
   | NotAProjectError
   | NoFilesMatchedError;

@@ -14,6 +14,7 @@ import { Val } from "../../index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
 import type { Project } from "../files.ts";
 import type { Finding } from "../index.ts";
+import { DataTypeSettings } from "../options.ts";
 
 /** What the plugin asks the worker about one file. */
 export type Query = Val<
@@ -23,19 +24,46 @@ export type Query = Val<
     project: Project;
     file: string;
     text: string;
+    /**
+     * The settings of `data-type-outside-valof`. It always runs here, because the host reports it
+     * only where the project turned it on.
+     */
+    model: DataTypeSettings;
   }
 >;
 export const Query = Val.companion<Query>()
   .implAssoc(({ seal }) => ({
     /** What to ask about the file the host is linting. */
     fromContext: (
-      { filename, sourceCode: { text } }: { filename: string; sourceCode: { text: string } },
+      {
+        filename,
+        sourceCode: { text },
+        settings,
+      }: {
+        filename: string;
+        sourceCode: { text: string };
+        // A host may leave the settings out.
+        settings:
+          | {
+              valof?: {
+                "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0];
+              };
+            }
+          | undefined;
+      },
       project: Project,
-    ): Query => seal({ project, file: resolve(filename), text }),
+    ): Query =>
+      seal({
+        project,
+        file: resolve(filename),
+        text,
+        model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
+      }),
   }))
   .impl(() => ({
-    /** The same file, text and project give the same key. */
-    key: ({ file, text, project }): string => `${file}\n${text}\n${project.join("\n")}`,
+    /** The same file, text, project and settings give the same key. */
+    key: ({ file, text, project, model }): string =>
+      `${file}\n${text}\n${project.join("\n")}\n${JSON.stringify(model)}`,
   }))
   .build();
 
@@ -43,6 +71,7 @@ export const Query = Val.companion<Query>()
  * What the worker answers: the findings, or the message to throw. A message rather than the error,
  * since an error's class does not survive the copy between threads.
  */
+// valof-lint-disable-next-line data-type-outside-valof -- byethrow's Result, sent as is
 export type Reply = R.Result<Finding[], string>;
 
 /**

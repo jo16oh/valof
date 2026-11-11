@@ -2969,9 +2969,14 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       This lets users write `pipe(u, User.rename("x"))`. The member tells the two apart by argument count, and the types forbid optional parameters. The data-last form of a generic
       member loses its type arguments, so call it data-first inside an arrow function. Scope and rejected alternatives in §6.11
 
-- [ ] **valof-lint rule: optional parameters that a type annotation hides. To do (user, 2026-10-28), not started, separate PR.** When a type annotation hides an implementation's default
-      parameters or rest parameters, the types cannot reject them and the data-last call breaks (§6.11, "Remaining hole"). The linter reads the syntax, so it
-      sees the implementation under the annotation
+- [x] ~~**valof-lint rule: optional parameters that a type annotation hides.**~~ Added `hidden-optional`, 2026-11-03.
+      TypeScript 7.1's `typescript/sync` counts the annotation's parameters (through aliases and imports). A run with
+      no candidate does not load TypeScript. It catches an annotated top-level const (a function, or an object holding
+      functions) used as a value of the object a step's function returns, or as the name that function returns. It
+      reports at the default or the rest parameter. The record from that time follows
+- When a type annotation hides an implementation's default
+  parameters or rest parameters, the types cannot reject them and the data-last call breaks (§6.11, "Remaining hole"). The linter reads the syntax, so it
+  sees the implementation under the annotation
   - **Since 2026-10-28, development throws in `build`** (§6.11, "Run time: throw on hidden defaults and rest parameters in development"). The lint rule still adds value by showing the problem
     where it was written, before anything runs. oxlint's `typescript/no-useless-default-assignment` catches the case where the annotated type
     does not include nullish
@@ -2986,9 +2991,15 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     tracking. Check whether `unused-member`'s name resolution (imports, renames, namespaces) can be reused
   - `implTrait<Tr>({ … })` was removed on 2026-10-20 (§15.1). That form was the main way into this hole
 
-- [ ] **Seals the noseal development check misses. A lint rule idea, not started, 2026-10-14.** A seal that calls the default seal,
-      then discards the result and returns a failure, passes the check, since "the seal was called and the value is equal". Production
-      skips the seal, so a value that should be rejected gets created. The same applies to a seal that returns `undefined`, not only to `Result`
+- [x] ~~**Seals the noseal development check misses.**~~ Added `unreturned-seal`, 2026-11-03, as proposed below. It
+      reports every call of the second argument outside the argument of a `return`. The record from that time follows
+  - **Dropped, 2026-11-11.** It reported a seal kept in a variable and returned later, as in
+    `const sealed = seal(x); return sealed;`, since following the value needs data-flow analysis. The hole it
+    guarded needs `.implCreate.noseal` and a seal that calls the default seal and then returns a failure, which is
+    too narrow for those false positives (user)
+- A seal that calls the default seal,
+  then discards the result and returns a failure, passes the check, since "the seal was called and the value is equal". Production
+  skips the seal, so a value that should be rejected gets created. The same applies to a seal that returns `undefined`, not only to `Result`
 
   ```ts
   .implCreate.noseal(() => randomId())
@@ -3039,7 +3050,15 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **Rejected: a build-time transform.** The editor reads the source, so the transform's output never reaches it
 - [x] ~~valof-lint: report a local alias (`type Local = ImportedUser`)~~ Implemented, as the separate rule `unnecessary-alias` (§14.25)
       rather than in brand-mismatch. It also closed the only hole in `split-companion`
-- [ ] valof-lint rule: warn when `PayloadOf<X>` appears **at a property position** in a Val's payload. The syntactic position distinguishes it from the legitimate use (the base of a top-level intersection)
+- [x] ~~valof-lint rule: warn when `PayloadOf<X>` appears **at a property position** in a Val's payload.~~ Added
+      `payload-of-property`, 2026-11-03. The top of a Val's payload and of each variant's payload (an intersection's
+      members included) passes, and anything below it is reported. A local `type M = Payload<PayloadOf<X>>` is followed
+      one level. It errors by default. The syntactic position distinguishes it from the legitimate use (the base of a
+      top-level intersection)
+  - **Dropped, 2026-11-11.** It catches one mistake, and what led readers to it is gone: the README's
+    `Reusing a Val` composed `PayloadOf<User> & { … }` at the top level, and neither the README nor the book composes
+    `PayloadOf` any more. The rule cost a scan pass of its own and its tests. The hole stays, recorded in §4.1. The
+    types cannot close it, since `PayloadOf<Money>` is a plain object type
 - [x] ~~valof-lint rule `foreign-rec`: report a `Rec` that is not self-referential~~ Not added (§14.26).
       `Rec<Other>` opens to `Other`, so the type is the same. It causes no harm, and nobody has a reason to write it
 - [x] ~~**Implement `Enum` (a sum type).**~~ Implemented, in `src/enum.ts`, exported from `valof/experimental` next to
@@ -3070,6 +3089,13 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       phantom on Variant
     - The cost is that TypeScript expands the constraint into the message. The key of `Invalid` (`__valError`) appears on the second line as missing,
       so one internal name is visible
+  - **2026-11-03: rebinding under the same name warns too (`unqualified-variant`, warn).** Destructuring and
+    `const Circle = Shape.Circle` both hide the enum from the reader (§15.2, "Keep the prefix"). A rename stays with
+    `companion-mismatch`. The record from that time follows
+  - **Renamed `detached-variant`, 2026-11-11.** "Unqualified" is a technical word that does not say what the
+    code does (user). The rule reports a variant taken off its enum into a local name, by either form.
+    Rejected: `destructured-variant`. It is the most direct for `const { Circle } = Shape`, but not for
+    `const Circle = Shape.Circle`
   - **A rule against rebinding a Variant.** `const { Circle } = Shape` and `const Circle = Shape.Circle` are
     legal. The only thing to check is that the names match, which an extension of `companion-mismatch` covers
 - [x] ~~**The callback form of §15.4 is not in val.ts yet.**~~ Added, then removed on 2026-09-18. `.impl` closes
@@ -3110,6 +3136,34 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - Intended invalid code passes with `@ts-expect-error`. valof-lint reads only syntax, so its results do not change.
     **Put an invalid property on its own line.** The directive hides every error on its line, so
     writing `.impl({ patch: … })` on one line would miss a rename of `impl`
+- [x] ~~With TypeScript 7.1 beta, a user's declaration output fails with TS7056.~~ The builder is now printed by name,
+      2026-11-03 (§18.5). Found while adding valof-lint rules. Only the lint tests map the `typescript-7.1` alias to
+      `typescript/sync` with a resolve hook
+- [ ] **What remains of lint (from the 2026-11-03 additions).**
+  - `block-step` (now `hidden-state-in-impl`, below), `split-variant-steps` and `unqualified-variant` are added (the three in `__memo__/tasks-to-design.md`)
+  - **`block-step` stays (2026-11-11).** State goes outside the Val. A Val is immutable data, and state in a step's
+    block is invisible to anyone reading the members. The report says only "move what it declares out of the
+    companion", without saying where. A constant goes to module level, and state to a closure over the scope that uses
+    it (valof-lint's plugin: inside `valof()`, §14.8)
+    - **Rejected: dropping it.** It was almost dropped once, since moving state to module level still leaves state.
+      The rule asks to move state out of the Val, not to remove it
+    - **Rejected: recommending a class as the destination.** A closure with a narrow scope fits more cases (user).
+      The plugin itself later moved its state into classes (§14.8, "State lives in classes")
+  - **`block-step` became `hidden-state-in-impl`, and narrowed (2026-11-11).** `block` gave no picture of what the
+    rule reports (user). The name says what goes wrong and where, and `impl` stands for every `impl*` step. It
+    reports only a body whose own statements declare a variable, a function or a class. A body that only returns
+    holds no state. A member's own locals, inside its function, are created per call and are not read
+    - **Rejected: `step-block-body`.** It describes the form, and `block` was the word that gave no picture
+    - **Rejected: `hidden-state-in-impl-block`.** Only a block body can declare anything, so `block` adds nothing
+    - **Then `hidden-shared-state-in-impl`, the same day.** The state is both hidden from a reader of a member and
+      shared by every member, and both are the harm (user)
+  - `model-only-in-valof` is added (`__memo__/lint-model-only-in-valof.md`). Its options go to `Options.enable`, and
+    the runner builds the boxes to run together with the default rules (css-var-kit's `compile`). No separate rule
+    for "built-in types Valof does not allow as values"
+  - **`model-only-in-valof` became `data-type-outside-valof` (2026-11-11).** The old name stated a policy, while
+    every other rule is named after what it reports (user). The CLI flag, the plugin's setting and the key in
+    `Options.enable` follow, and `ModelSettings` became `DataTypeSettings`. Rejected: `type-outside-valof`. The
+    rule leaves out function types and `Payload<…>` aliases, so "type" claims more than it reports
 - [ ] **The book's Map / Set gets membership wrong for inherited keys.** Found while turning valof-lint's Scan into
       Records, 2026-11-07. `docs/src/patterns.md` says "`if (tags[key])` is the membership test", but
       `tags["constructor"]` and `tags["toString"]` are truthy too (probed). The book lacks §8.1's note to check with
@@ -3167,16 +3221,33 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     - Record: `implSeal({ Circle: fn })`. Weak, because nothing in the name refers to the whole
   - Two of the reasons in §15.2, "Rejected: write one seal for the whole enum", are weak: "the amount of code does not change" and "TS7022 in `match`"
     (it can be written as `switch (p._tag)`). What remains is that the return type does not differ per Variant
-- [ ] **`unimplemented-trait` ignores traits declared on a variant (§15.2, "Build with one chain").** There are no false positives, but
+- [x] ~~**`unimplemented-trait` ignores traits declared on a variant (§15.2, "Build with one chain").**~~ It reads them,
+      2026-11-03. `TraitImplementation.variant` holds the variant of `.Book.implTrait`, and a trait in a variant's
+      payload is met only by that variant's implementation. The record from that time follows. There are no false positives, but
       it does not warn about a forgotten implementation. `scan` would need to read the trait in `{ Book: … & Named }` and `.Book.implTrait`.
       Add it in the valof-lint rewrite
-- [ ] **A lint rule over `implAssoc` members (§6.13).** Add it after the valof-lint rewrite
+- [x] ~~**A lint rule over `implAssoc` members (§6.13).**~~ Added, 2026-11-03: `constructor-name` for naming and
+      `unrelated-assoc` for references, both warn. `unused-member` counts `implAssoc` members too. A reference is the
+      type's name (the companion shares it) or the name of the `seal` / `create` the step's function receives. The
+      record from that time follows
   - Naming: an `implAssoc` member that calls `seal` / `create` is named `from*` / `parse*` / `create*` (matched at a word boundary).
     Warn when an `impl` member uses one of these prefixes. The prefix check is `/^(?:from|parse|create)(?:$|[A-Z0-9_])/`.
     Rejected: `of` (`Val.of` does not go through the seal, while `Money.of` does), `with*` (in JS it means a derived value), `decode*` /
     `try*` / `new*` (overlaps `parse*`; the return type already shows failure; in a type literal it becomes a construct signature)
   - Reference: warn on a member whose parameter annotations and implementation never mention the type. A companion is not a place for helper functions
   - `unused-member` covers `implAssoc` members too
+  - **A member passed by name is read through the function in the same file (2026-11-10).** In `exec: scan`, `scan`
+    is read as a function declared at the file's top level with `function` or `const`, and a type name inside it
+    counts as a reference. Until then only the one identifier was read, and a member that uses the type was reported.
+    A function imported from another file is not read
+  - **`constructor-name` was dropped (2026-11-11).** Too strict (user). Running valof-lint on itself, the rule would
+    have split `Files.fromPaths` out of `Files.read` and `Parser.fromModule` out of `Parser.load`. A name cannot show
+    whether a function is pure, and the rule conflicts with naming a construction with side effects by its action
+    (`read`, `load`, §14.8). Keeping only the check on the `impl` side was rejected too. It has few false positives,
+    but that alone does not justify a rule
+  - **`unrelated-assoc` was dropped too (2026-11-11).** It guesses from syntax whether a member belongs to its type,
+    and what it guards is a style: a companion used as a place for helpers. It needed a fix for members passed by
+    name, and its sibling `constructor-name` was already gone (user)
 - [x] ~~**A valof-lint false positive, from §6.12.** `detached-impl` reports a member named `fixed`, called from another file,
       as "a step written outside the chain".~~ Fixed after `fixed` moved to a type argument and left `STEPS`
       (2026-10-22). The types reject a member named like a step, so no other false positive of this kind can occur
@@ -4251,7 +4322,7 @@ valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait 
   - **Not in `Program`.** ESLint calls `create` and `Program` per rule and file pair, so state made there is shared
     neither across rules nor across files. The narrowest scope that shares it is the plugin
   - **Rejected: in a companion's `impl` / `implAssoc` block.** A Val is immutable data, and state inside the block is
-    invisible to anyone reading the members (#112's `block-step` reports it). `Query` became a Val of the question's
+    invisible to anyone reading the members (#112's `hidden-state-in-impl` reports it). `Query` became a Val of the question's
     data only
   - **Rejected: a module-level variable, or a module-level higher-order function that encloses the state (such as
     `memo`).** The whole file can reach both. Wrapping it in a higher-order function does not stop the module from
@@ -4317,6 +4388,12 @@ valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait 
   message string, because error classes are lost in the copy between threads. `R.unwrap` throws the failure value
   as is, so `R.mapError((message) => new Error(message))` wraps it first. vitest's `toThrow("…")` passes even when a
   string is thrown, so the tests check for an `Error`
+  - **`model-only-in-valof` is silenced on `type Reply` (2026-11-11).** The alias stays. Both thread ends import the
+    one name, and the receiving end reads the message with `as Reply`, which no type check covers. Written out in
+    each place, the sending end could change alone, and nothing would fail
+  - **Rejected: writing `R.Result<Finding[], string>` in place.** Five copies, and the two ends can drift (above)
+  - **Rejected: not reporting an alias of a library type.** `Reply` declares no data shape, but the change widens
+    what the rule lets through, which is a decision about the rule rather than about `Reply`
 - **A worker that does not start returns why (2026-11-11).** A script that failed to load made the plugin wait out its
   full patience and say "no answer in 60s". The waiting thread is blocked, so it cannot listen for the worker's
   `error`. A small start-up module imports the script, and if that fails, answers every question with the reason
@@ -5686,6 +5763,13 @@ the type and the companion are in the same file, so a name clash reduces to the 
 ### 14.24 Rule: `Val.of` without a type argument, 2026-09-09
 
 **Adopted.** `unnamed-of`. It reports `Val.of(…)` without a type argument. On by default, warn.
+
+**Renamed `inferred-val-of`, 2026-11-11.** `unnamed-of` said neither that the rule is about `Val.of` nor what is
+missing (user). The new name says that the lift takes its type from inference. A breaking change for a disable
+comment or a config that refers to the rule.
+
+- **Rejected: `implicit-val-of`.** "Implicit" covers more than the type argument
+- **Rejected: `untyped-val-of`.** It reads as `any`, and the type is in fact fixed by the target
 
 `Val.of<Age>(x)` is allowed as an escape hatch because **the required type argument makes it greppable** (§2.2).
 Without the type argument that justification no longer holds, and `bypassed-companion` cannot see it either. **Right after a new rule was added,

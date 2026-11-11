@@ -72,7 +72,9 @@ function valof(): {
         // signature of `string` does not fit the rule map Oxlint's `defineConfig` declares, so
         // `extends: [valof.configs.recommended]` would not typecheck for a caller.
         rules: Object.fromEntries(
-          RULES.map(({ kind, warns }) => [`valof/${kind}`, warns ? "warn" : "error"] as const),
+          RULES.filter(({ optIn }) => optIn !== true).map(
+            ({ kind, warns }) => [`valof/${kind}`, warns ? "warn" : "error"] as const,
+          ),
         ),
       },
     },

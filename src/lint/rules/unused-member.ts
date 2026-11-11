@@ -7,7 +7,7 @@ export type UnusedMember = Val<"UnusedMember", { kind: Kind }, Rule>;
 export const UnusedMember = Val.companion<UnusedMember>()
   .implCreate(() => ({
     kind: Kind.seal("unused-member"),
-    description: "members registered with `.impl` or `.implTrait` that nothing reads",
+    description: "members registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads",
     // A member nothing reads is dead weight, and the code around it works.
     warns: true,
   }))
@@ -15,7 +15,7 @@ export const UnusedMember = Val.companion<UnusedMember>()
   .build();
 
 /**
- * Reports a member registered with `.impl` or `.implTrait` that nothing reads.
+ * Reports a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads.
  *
  * A declaration is kept per site rather than per name, because two modules may each declare a
  * companion called `User`; reads stay keyed by name alone, so a read anywhere counts for both.

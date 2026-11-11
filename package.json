@@ -74,15 +74,20 @@
     "typescript": "^7.0.2",
     "typescript-5": "npm:typescript@^5.9.3",
     "typescript-6": "npm:typescript@^6.0.3",
+    "typescript-7.1": "npm:typescript@7.1.0-beta",
     "valof-pinned-for-scripts": "link:node_modules/.valof-pinned-for-scripts",
     "vite": "catalog:",
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "oxc-parser": ">=0.148"
+    "oxc-parser": ">=0.148",
+    "typescript": ">=7.1.0-0"
   },
   "peerDependenciesMeta": {
     "oxc-parser": {
+      "optional": true
+    },
+    "typescript": {
       "optional": true
     }
   },

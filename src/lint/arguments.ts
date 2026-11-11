@@ -2,11 +2,29 @@ import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../index.ts";
 import { Path } from "./files.ts";
-import { MissingPathError, NotAProjectError, UnknownRuleError } from "./errors.ts";
+import {
+  MissingPathError,
+  NotAProjectError,
+  UnknownRuleError,
+  UnknownSettingError,
+} from "./errors.ts";
+import { Enabled, DataTypeSettings } from "./options.ts";
 import { ALL_KINDS, KindSet, kinds, type Kind } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
+
+const MODEL = "--data-type-outside-valof";
+
+/** What `--data-type-outside-valof=` takes, separated by commas. */
+const SETTINGS = [
+  "classes",
+  "constraints",
+  "extraction",
+] as const satisfies readonly (keyof DataTypeSettings)[];
+
+const isSetting = (name: string): name is (typeof SETTINGS)[number] =>
+  (SETTINGS as readonly string[]).includes(name);
 
 /** What the command was asked to do, before any file is read. */
 export type Arguments = Val<
@@ -20,6 +38,8 @@ export type Arguments = Val<
     excluded: Path[];
     /** Kinds left out with `--no-<kind>`. */
     skip: Kind[];
+    /** Rules off by default that `--<kind>` turned on, with the settings after `=`. */
+    enable: Enabled;
     help: boolean;
   }
 >;
@@ -35,12 +55,16 @@ export const Arguments = Val.companion<Arguments>()
      */
     fromArgv: (
       argv: readonly string[],
-    ): R.Result<Arguments, UnknownRuleError | MissingPathError | NotAProjectError> => {
+    ): R.Result<
+      Arguments,
+      UnknownRuleError | UnknownSettingError | MissingPathError | NotAProjectError
+    > => {
       const projects: Path[] = [];
       const targets: Path[] = [];
       const excluded: Path[] = [];
       const loose: Path[] = [];
       const skip: Kind[] = [];
+      let model: DataTypeSettings | undefined;
       let help = false;
       let pending: "project" | "report-on" | undefined;
 
@@ -62,6 +86,17 @@ export const Arguments = Val.companion<Arguments>()
           take(projects, argument.slice("--project=".length));
         } else if (argument.startsWith("--report-on=")) {
           take(targets, argument.slice("--report-on=".length));
+        } else if (argument === MODEL || argument.startsWith(`${MODEL}=`)) {
+          const settings: { -readonly [K in (typeof SETTINGS)[number]]?: boolean } = {};
+          for (const setting of argument
+            .slice(MODEL.length + 1)
+            .split(",")
+            .filter(Boolean)) {
+            if (!isSetting(setting))
+              return R.fail(new UnknownSettingError({ setting, known: SETTINGS }));
+            settings[setting] = true;
+          }
+          model = DataTypeSettings.create(settings);
         } else if (argument.startsWith("--no-")) {
           const name = argument.slice("--no-".length);
           const kind = KindSet.find(ALL_KINDS, name);
@@ -72,7 +107,8 @@ export const Arguments = Val.companion<Arguments>()
         }
       }
 
-      if (help) return R.succeed(seal({ projects, targets, excluded, skip, help }));
+      const enable = Enabled.create(model ? { "data-type-outside-valof": model } : {});
+      if (help) return R.succeed(seal({ projects, targets, excluded, skip, enable, help }));
       if (pending) return R.fail(new MissingPathError({ flag: pending }));
 
       // The first loose path is the project, unless `--project` gave one.
@@ -83,7 +119,7 @@ export const Arguments = Val.companion<Arguments>()
         projects.push(first);
       }
       targets.push(...loose);
-      return R.succeed(seal({ projects, targets, excluded, skip, help }));
+      return R.succeed(seal({ projects, targets, excluded, skip, enable, help }));
     },
   }))
   .build();

@@ -50,6 +50,13 @@ test("blames no rule that was left out of the run", async () => {
   expect(await lint("unused", { skip: [UnusedMember] })).toEqual([]);
 });
 
+test("blames an opt-in rule only when the run turned it on", async () => {
+  expect(await lint("opt-in")).toEqual([]);
+  expect(await lint("opt-in-unused", { enable: { "data-type-outside-valof": {} } })).toEqual([
+    { rule: UnusedDisable, at: "opt-in-unused.ts:1:1" },
+  ]);
+});
+
 test("reports a name that is an Object.prototype key, which no rule has", async () => {
   expect(await lint("prototype-key")).toEqual([
     { rule: UnusedDisable, at: "prototype-key.ts:2:1" },

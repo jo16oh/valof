@@ -2,7 +2,7 @@ import { globSync } from "node:fs";
 
 import { expect, test } from "vite-plus/test";
 
-import { lint } from "../../../src/lint/index.ts";
+import { Options, lint } from "../../../src/lint/index.ts";
 import { root } from "../support.ts";
 
 // The linter and the scripts use the library, so the linter's rules apply to them too.
@@ -12,5 +12,17 @@ test("finds nothing in valof's own source and scripts", async () => {
     exclude: (file) => file.includes("fixtures"),
   });
   const findings = await lint(files.map((file) => root + file));
+  expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
+});
+
+// Every setting but `classes`: the linter keeps state in classes, and builds its errors as classes.
+test("finds no data type outside Valof in the linter", async () => {
+  const files = globSync("src/lint/**/*.ts", { cwd: root });
+  const findings = await lint(
+    files.map((file) => root + file),
+    Options.create({
+      enable: { "data-type-outside-valof": { constraints: true, extraction: true } },
+    }),
+  );
   expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
 });

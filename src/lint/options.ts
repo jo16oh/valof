@@ -1,12 +1,50 @@
 import { resolve } from "node:path";
 
 import { Val } from "../index.ts";
-import { KindSet, type Kind } from "./rules/index.ts";
+import { KindSet, type Kind } from "./rules/rule.ts";
+
+/** What `data-type-outside-valof` reports beyond what it always reports. */
+export type DataTypeSettings = Val<
+  "DataTypeSettings",
+  {
+    /** Report a class, declared or as an expression. */
+    classes: boolean;
+    /** Report a data shape in a type parameter's constraint: `<T extends { id: string }>`. */
+    constraints: boolean;
+    /** Report a type taken out of a value: `typeof`, `ReturnType`, `Awaited` and the like. */
+    extraction: boolean;
+  }
+>;
+export const DataTypeSettings = Val.companion<DataTypeSettings>()
+  .implCreate(
+    ({
+      classes = false,
+      constraints = false,
+      extraction = false,
+    }: { classes?: boolean; constraints?: boolean; extraction?: boolean } = {}) => ({
+      classes,
+      constraints,
+      extraction,
+    }),
+  )
+  .build();
+
+/** The rules that are off unless named here, with their settings. */
+export type Enabled = Val<"Enabled", { "data-type-outside-valof"?: DataTypeSettings }>;
+export const Enabled = Val.companion<Enabled>()
+  .implCreate(
+    ({
+      "data-type-outside-valof": model,
+    }: { "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0] } = {}) =>
+      model ? { "data-type-outside-valof": DataTypeSettings.create(model) } : {},
+  )
+  .build();
 
 /** How a run reads and reports. Paths are resolved, so any spelling of a file finds it. */
 export type Options = Val<
   "Options",
   {
+    enable: Enabled;
     /** Kinds to leave out of the run. A skipped rule does no work, not merely no reporting. */
     skip: KindSet;
     /**
@@ -32,14 +70,17 @@ export type Options = Val<
 export const Options = Val.companion<Options>()
   .implCreate(
     ({
+      enable = {},
       skip = [],
       targets,
       overlay = [],
     }: {
+      enable?: Parameters<typeof Enabled.create>[0];
       skip?: Iterable<Kind>;
       targets?: Iterable<string>;
       overlay?: Iterable<readonly [string, string]>;
     } = {}) => ({
+      enable: Enabled.create(enable),
       skip: KindSet.create(skip),
       targets: targets
         ? Object.fromEntries([...targets].map((file) => [resolve(file), true as const]))

@@ -127,6 +127,11 @@ test("underlines the whole directive, which has no name to point at", () => {
 test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
   expect(plugin.configs.recommended.rules).toEqual({
+    // The members work, but what the step declares gives them state they share and no reader sees.
+    "valof/hidden-shared-state-in-impl": "warn",
+    "valof/hidden-optional": "error",
+    "valof/split-variant-steps": "warn",
+    "valof/detached-variant": "warn",
     "valof/unnecessary-alias": "error",
     "valof/unimplemented-trait": "error",
     "valof/brand-mismatch": "error",
@@ -137,9 +142,33 @@ test("names every rule, under the plugin's own name", () => {
     "valof/incomplete-disable": "error",
     "valof/split-companion": "error",
     // The lift is sound; what it costs is the name that makes it greppable.
-    "valof/unnamed-of": "warn",
+    "valof/inferred-val-of": "warn",
     // Dead weight, not a defect: the code around either of these works.
     "valof/unused-disable": "warn",
     "valof/unused-member": "warn",
   });
+});
+
+test("runs data-type-outside-valof with the settings under its name, and not from an older run's", () => {
+  const file = at("model/row.ts");
+  const text = readFileSync(file, "utf8");
+  const reported = (model?: { classes: boolean }): string[] => {
+    const reports: string[] = [];
+    plugin.rules["data-type-outside-valof"]!.create({
+      filename: file,
+      settings: {
+        valof: { project: file, ...(model ? { "data-type-outside-valof": model } : {}) },
+      },
+      sourceCode: { text },
+      report: ({ loc, message }: { loc: { start: Where }; message: string }) =>
+        void reports.push(`${loc.start.line}:${message}`),
+    }).Program();
+    return reports;
+  };
+  const row = "1:Row declares a data type outside Valof; model it as a Val, an Enum or a Trait";
+  expect(reported()).toEqual([row]);
+  expect(reported({ classes: true })).toEqual([
+    row,
+    "3:a class declares data outside Valof; model it as a Val",
+  ]);
 });

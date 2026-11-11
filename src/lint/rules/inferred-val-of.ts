@@ -3,10 +3,10 @@ import type { Scan } from "../scan/index.ts";
 import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A `Val.of(…)` that names no type, and takes one from whatever it is assigned to. */
-export type UnnamedOf = Val<"UnnamedOf", { kind: Kind }, Rule>;
-export const UnnamedOf = Val.companion<UnnamedOf>()
+export type InferredValOf = Val<"InferredValOf", { kind: Kind }, Rule>;
+export const InferredValOf = Val.companion<InferredValOf>()
   .implCreate(() => ({
-    kind: Kind.seal("unnamed-of"),
+    kind: Kind.seal("inferred-val-of"),
     description: "a `Val.of` that names no type, taking one from its target",
     // The lift itself is sound. What it costs is the name that makes the lift greppable.
     warns: true,
@@ -26,7 +26,7 @@ export const UnnamedOf = Val.companion<UnnamedOf>()
  * argument. With nothing to infer from, the parameter resolves to `never` and the compiler
  * rejects the call before this rule is reached.
  */
-function findings({ kind }: UnnamedOf, scans: readonly Scan[]): Finding[] {
+function findings({ kind }: InferredValOf, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, lifts }) =>
     lifts
       .filter(({ typeName }) => typeName === null)
