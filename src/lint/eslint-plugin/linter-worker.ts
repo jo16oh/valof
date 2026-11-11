@@ -149,6 +149,10 @@ export class LinterWorker {
       const thread = new Worker(START, {
         workerData: { port: port2, signal, script: this.#script.href },
         transferList: [port2],
+        // As in the shipped package, which builds the linter with NODE_ENV=production. The linter
+        // declares every Val it builds from the parser's output, so valof's development checks
+        // guard no user code. From source, they take most of the time converting the AST.
+        env: { ...process.env, NODE_ENV: "production" },
       });
       // The host decides when it exits. A linter waiting on its own worker would never finish.
       thread.unref();
