@@ -15,14 +15,6 @@ const PATIENCE = 2000;
 const say = (worker: LinterWorker, file: string, text = ""): string | undefined =>
   worker.lint(Query.seal({ project: Project.seal([]), file, text }))[0]?.message;
 
-test("asks the same worker again, once it has answered", () => {
-  const worker = new LinterWorker(script, PATIENCE);
-  // Two texts, so the second query is not the first one's kept answer.
-  const first = say(worker, "thread", "one");
-  expect(first).toMatch(/^thread \d+$/);
-  expect(say(worker, "thread", "two")).toBe(first);
-});
-
 test("asks once for the same query in one tick, and again after it", async () => {
   const worker = new LinterWorker(script, PATIENCE);
   expect(say(worker, "count")).toBe("asked 1");
@@ -37,6 +29,13 @@ test("keeps the last answer for the same file and text alone", () => {
   expect(say(worker, "a.ts", "before")).toBe("answered a.ts before");
   expect(say(worker, "a.ts", "after")).toBe("answered a.ts after");
   expect(say(worker, "b.ts", "after")).toBe("answered b.ts after");
+});
+
+test("says why the worker did not start, rather than wait out its patience", () => {
+  const worker = new LinterWorker(new URL("missing.ts", import.meta.url), PATIENCE);
+  const error = thrown(() => say(worker, "after"));
+  expect(error.message).toMatch(/^valof-lint: the worker did not start: /);
+  expect(error.message).toContain("missing.ts");
 });
 
 test("stops a wedged worker, and asks a new one next", async () => {

@@ -1,5 +1,4 @@
 import { renameSync, writeFileSync } from "node:fs";
-import { threadId } from "node:worker_threads";
 
 import { Result as R } from "@praha/byethrow";
 
@@ -23,10 +22,10 @@ const says = (file: string, message: string): Reply =>
 /** How many queries this thread has answered. */
 let asked = 0;
 
-// Answers by the query's `file`: says how many queries it was asked, names its thread, rejects,
-// answers with what cannot be sent, or wedges, writing a count to the path in `text` for as long as
-// the thread runs. Each count is renamed into place, so a reader never sees one half written.
-// Anything else is echoed back, with its text.
+// Answers by the query's `file`: says how many queries it was asked, rejects, answers with what
+// cannot be sent, or wedges, writing a count to the path in `text` for as long as the thread runs.
+// Each count is renamed into place, so a reader never sees one half written. Anything else is
+// echoed back, with its text.
 serve(
   async ({ file, text }) => {
     asked++;
@@ -42,7 +41,7 @@ serve(
       const findings: Finding[] = [];
       return R.succeed(Object.assign(findings, { send: () => file }));
     }
-    return says(file, file === "thread" ? `thread ${threadId}` : `answered ${file} ${text}`.trim());
+    return says(file, `answered ${file} ${text}`.trim());
   },
   (error) => R.fail(`failed: ${String(error)}`),
 );
