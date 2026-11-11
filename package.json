@@ -79,14 +79,10 @@
     "vite-plus": "catalog:"
   },
   "peerDependencies": {
-    "oxc-parser": ">=0.148",
-    "typescript": ">=7.1.0-0"
+    "oxc-parser": ">=0.148"
   },
   "peerDependenciesMeta": {
     "oxc-parser": {
-      "optional": true
-    },
-    "typescript": {
       "optional": true
     }
   },

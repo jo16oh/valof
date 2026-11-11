@@ -279,6 +279,9 @@
     peer dependency on 7.1, a `MissingTypeScriptError` where 7.0 is installed, and a program started from inside the
     ESLint or oxlint process. The rule does not reuse `hidesParameter`, because the scan reads the parameters from the
     AST, which is more exact than reading tokens
+    - The optional peer dependency on `typescript` stayed in `package.json` after that change, and was removed later
+      the same day. Nothing in the package loads TypeScript now, so `typescript` is again not a peer dependency, as §14 recorded before
+      `hidden-optional`
 - When a type annotation hides an implementation's default
   parameters or rest parameters, the types cannot reject them and the data-last call breaks (§6.11, "Remaining hole"). The linter reads the syntax, so it
   sees the implementation under the annotation
