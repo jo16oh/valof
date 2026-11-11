@@ -36,14 +36,11 @@ and ask me about the ones you doubt.
 Never commit an implementation before writing the tests that cover it. A later test cannot audit the
 implementation commit that required it.
 
-## Committing and Pushing
+## Committing
 
 Commit without waiting for a go-ahead. Keep tests, implementation and docs in separate commits, so
 the history records each step. When the pre-commit `vp check` rejects tests that do not type-check
 yet, commit them with `--no-verify`. Do not skip the hook for the implementation commit.
-
-Never push, and never open a PR. I do both myself, opening the PR from the web UI. Hand me the PR
-title and body as a draft and stop there.
 
 ## Releasing
 
@@ -61,8 +58,7 @@ title and body as a draft and stop there.
 4. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
    release, and publishes the book.
 
-Step 3 pushes and opens a PR. It is the only exception to "Never push, and never open a PR" above.
-Run it only on my explicit go-ahead.
+Step 3 pushes and opens a PR. Run it only on my explicit go-ahead.
 
 ## Writing Style
 
@@ -141,7 +137,7 @@ itself, and show it in a code block rather than a paragraph.
 Use `## Why` and `## What changed` once the body is long enough to need navigation. A short one
 reads better without them.
 
-Include a label from `.github/release.yml` in the draft. The release notes group PRs by it.
+Include a label from `.github/release.yml`. The release notes group PRs by it.
 
 Leave `notes/*.md` out of the body. It is the working record, not something the reviewer acts on.
 Where a memo correction drove the code change, say what the code does now.
