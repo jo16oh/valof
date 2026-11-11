@@ -2,14 +2,12 @@ import { resolve } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 
-import { pipe } from "../shared/pipe/index.ts";
-import { MissingTypeScriptError, type MissingParserError } from "./errors.ts";
+import type { MissingParserError } from "./errors.ts";
 import { Context, Kind, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { Parser } from "./parser.ts";
 import { DirectiveMap, Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { FilePath } from "./files.ts";
-import { arities, type Arity } from "./types.ts";
 import { Options } from "./options.ts";
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
@@ -19,7 +17,7 @@ import { Options } from "./options.ts";
 export async function run(
   files: readonly string[],
   options: Options = Options.create(),
-): Promise<R.Result<Finding[], MissingParserError | MissingTypeScriptError>> {
+): Promise<R.Result<Finding[], MissingParserError>> {
   const loaded = await Parser.load();
   if (R.isFailure(loaded)) return loaded;
   const parser = loaded.value;
@@ -43,43 +41,26 @@ export async function run(
       ({ kind }) => kind,
     ),
   ]);
-  // Started by the first rule that asks, and by none when no rule does.
-  let program: ReturnType<typeof arities> | undefined;
-  const types = (): Arity => (program ??= arities(toScan.map((file) => resolve(file)))).arity;
-  const ran = ((): R.Result<Finding[], MissingTypeScriptError> => {
-    try {
-      // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
-      const reported: Finding[] = [];
-      for (const rule of rules.filter(({ kind }) => !KindSet.has(notRun, kind)))
-        reported.push(...rule.run(scans, Context.seal({ reported, notRun }), types));
-
-      return R.succeed(reported);
-    } catch (error) {
-      if (error instanceof MissingTypeScriptError) return R.fail(error);
-      throw error;
-    } finally {
-      program?.close();
-    }
-  })();
+  // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
+  const reported: Finding[] = [];
+  for (const rule of rules.filter(({ kind }) => !KindSet.has(notRun, kind)))
+    reported.push(...rule.run(scans, Context.seal({ reported, notRun })));
 
   const directives = DirectiveMap.from(scans);
 
-  return pipe(
-    ran,
-    R.map((findings) =>
-      findings
-        .filter(
-          ({ file, at: { line }, kind }) =>
-            FilePath.isTarget(file, options.targets) &&
-            !DirectiveMap.silences(directives, file, line, kind),
-        )
-        .sort(
-          (a, b) =>
-            a.file.localeCompare(b.file) ||
-            a.at.line - b.at.line ||
-            a.at.column - b.at.column ||
-            a.kind.localeCompare(b.kind),
-        ),
-    ),
+  return R.succeed(
+    reported
+      .filter(
+        ({ file, at: { line }, kind }) =>
+          FilePath.isTarget(file, options.targets) &&
+          !DirectiveMap.silences(directives, file, line, kind),
+      )
+      .sort(
+        (a, b) =>
+          a.file.localeCompare(b.file) ||
+          a.at.line - b.at.line ||
+          a.at.column - b.at.column ||
+          a.kind.localeCompare(b.kind),
+      ),
   );
 }

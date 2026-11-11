@@ -77,7 +77,7 @@ export type StepState = Val<"StepState", { at: Position; step: string }>;
 export const StepState = Val.companion<StepState>().build();
 
 /**
- * A top-level const whose type annotation may hide a default or a rest parameter of the function
+ * A top-level const whose type annotation hides a default or a rest parameter of the function
  * it holds: `const toWire: ToWire = (u, sep = ",") => …`, or a property of an annotated object.
  */
 export type HiddenParameter = Val<
@@ -86,12 +86,8 @@ export type HiddenParameter = Val<
     at: Position;
     name: string;
     ref: SymbolRef;
-    /** Where the const's name starts, which is what TypeScript is asked about. */
-    offset: number;
     /** The property holding the function, or `null` where the const holds the function. */
     property: string | null;
-    /** The index of the first default or rest parameter. */
-    parameter: number;
     rest: boolean;
   }
 >;
@@ -740,16 +736,12 @@ function stepState(node: Node, bound: Bindings): { step: string; start: number }
 const paramsOf = (fn: Node | undefined): readonly Node[] =>
   fn?.type === "ArrowFunctionExpression" || fn?.type === "FunctionExpression" ? fn.params : [];
 
-/** The index of a function's first default or rest parameter, and which it is. */
-function optional(
-  fn: Node | null | undefined,
-): { parameter: number; rest: boolean; start: number } | undefined {
-  const params = paramsOf(fn ?? undefined);
-  const parameter = params.findIndex(
+/** A function's first default or rest parameter, and which it is. */
+function optional(fn: Node | null | undefined): { rest: boolean; start: number } | undefined {
+  const found = paramsOf(fn ?? undefined).find(
     (one) => one.type === "AssignmentPattern" || one.type === "RestElement",
   );
-  const found = params[parameter];
-  return found ? { parameter, rest: found.type === "RestElement", start: found.start } : undefined;
+  return found ? { rest: found.type === "RestElement", start: found.start } : undefined;
 }
 
 /** Every annotated top-level const holding a function, or an object of them, with one. */
@@ -767,7 +759,6 @@ function hidden(program: Node, file: FilePath, bound: Bindings, lines: Lines): H
       const base = {
         name: id.name,
         ref: Bindings.refOf(bound, file, id.name, undefined),
-        offset: id.start,
       };
       const own = optional(init);
       if (own)
@@ -776,7 +767,6 @@ function hidden(program: Node, file: FilePath, bound: Bindings, lines: Lines): H
             ...base,
             at: Lines.at(lines, own.start),
             property: null,
-            parameter: own.parameter,
             rest: own.rest,
           }),
         );
@@ -791,7 +781,6 @@ function hidden(program: Node, file: FilePath, bound: Bindings, lines: Lines): H
               ...base,
               at: Lines.at(lines, inner.start),
               property,
-              parameter: inner.parameter,
               rest: inner.rest,
             }),
           );

@@ -117,30 +117,18 @@ function spawn(node: string[], args: string[], script = `${root}src/lint/cli.ts`
 }
 
 /** The command, for what only the command does. */
-const typescript = ["--import", fileURLToPath(new URL("typescript-7.1.ts", import.meta.url))];
-
-export const cli = (...args: string[]): Run => spawn(typescript, args);
+export const cli = (...args: string[]): Run => spawn([], args);
 
 /** The same, run from another directory. */
-export const cliIn = (cwd: string, ...args: string[]): Run =>
-  spawn(typescript, args, undefined, cwd);
+export const cliIn = (cwd: string, ...args: string[]): Run => spawn([], args, undefined, cwd);
 
 /** The same, with a parser that fails to load for another reason. */
 export const cliWithBrokenParser = (...args: string[]): Run =>
-  spawn(
-    [...typescript, "--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))],
-    args,
-  );
+  spawn(["--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))], args);
 
 /** The same, with the parser out of reach, as it is before anyone installs it. */
 export const cliWithoutParser = (...args: string[]): Run =>
-  spawn(
-    [...typescript, "--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))],
-    args,
-  );
-
-/** The same, with the TypeScript the package builds with, 7.0, which has no `typescript/sync`. */
-export const cliWithTypeScript70 = (...args: string[]): Run => spawn([], args);
+  spawn(["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))], args);
 
 /** The same, with TypeScript out of reach. */
 export const cliWithoutTypeScript = (...args: string[]): Run =>
