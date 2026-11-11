@@ -1,0 +1,145 @@
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+import { FilePath, Project } from "./files.ts";
+import { Scan } from "./scan/index.ts";
+
+/**
+ * Scans kept on disk between processes, so a new run walks only the files that changed.
+ *
+ * Each scan is kept under its file and a hash of the text it was walked from. The store as a whole
+ * belongs to one build of the linter, identified by `fingerprint`, and a store left by another
+ * build returns no scan. Failing to read or write it costs a walk, never a finding.
+ */
+export class ScanStore {
+  readonly #path: string | undefined;
+  readonly #fingerprint: string;
+  readonly #saved: Record<string, { hash: string; scan: Scan }>;
+  #touched = new Map<string, { hash: string; scan: Scan }>();
+  #changed = false;
+
+  /** A store at `path`, or one that keeps nothing when `path` is `undefined`. */
+  constructor(path: string | undefined, fingerprint: string) {
+    this.#path = path;
+    this.#fingerprint = fingerprint;
+    this.#saved = path === undefined ? {} : readSaved(path, fingerprint);
+  }
+
+  /**
+   * The store under `node_modules/.cache/valof-lint` in `cwd`, or one that keeps nothing where
+   * `cwd` has no `node_modules` or `VALOF_LINT_CACHE` is `0`.
+   */
+  static open(cwd = process.cwd(), env = process.env): ScanStore {
+    const modules = join(cwd, "node_modules");
+    const kept = env["VALOF_LINT_CACHE"] !== "0" && existsSync(modules);
+    return new ScanStore(
+      kept ? join(modules, ".cache", "valof-lint", "scans.json") : undefined,
+      kept ? fingerprint() : "",
+    );
+  }
+
+  /** The scan kept for `file` with the text `source`, if any. */
+  find(file: FilePath, source: string): Scan | undefined {
+    const kept = this.#saved[file];
+    if (kept?.hash !== hashOf(source)) return undefined;
+
+    // Parsed from JSON, so this process has not adopted it as a Scan yet.
+    const scan = Scan.seal.nocopy(kept.scan);
+    this.#touched.set(file, { hash: kept.hash, scan });
+    return scan;
+  }
+
+  /** Keeps `scan` for `file` with the text `source`. */
+  keep(file: FilePath, source: string, scan: Scan): void {
+    this.#touched.set(file, { hash: hashOf(source), scan });
+    this.#changed = true;
+  }
+
+  /** Writes the scans found or kept since the store opened, if it kept a new one. */
+  save(): void {
+    if (this.#path === undefined || !this.#changed) return;
+
+    const content = JSON.stringify({
+      fingerprint: this.#fingerprint,
+      scans: Object.fromEntries(this.#touched),
+    });
+    // Renamed into place, so a process that stops halfway leaves the last store whole.
+    const next = `${this.#path}.${process.pid}.${Math.random().toString(36).slice(2)}`;
+    try {
+      mkdirSync(dirname(this.#path), { recursive: true });
+      writeFileSync(next, content);
+      renameSync(next, this.#path);
+      this.#changed = false;
+    } catch {
+      // The next run walks the files again.
+      try {
+        rmSync(next, { force: true });
+      } catch {
+        // Nothing was written where the directory could not be made.
+      }
+    }
+  }
+}
+
+/** The saved scans at `path`, if the file holds a store of this build. */
+function readSaved(
+  path: string,
+  fingerprint: string,
+): Record<string, { hash: string; scan: Scan }> {
+  try {
+    const saved = JSON.parse(readFileSync(path, "utf8")) as {
+      fingerprint?: string;
+      scans?: Record<string, { hash: string; scan: Scan }>;
+    };
+    return saved.fingerprint === fingerprint ? (saved.scans ?? {}) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** The hash a scan is kept under. */
+function hashOf(source: string): string {
+  return createHash("sha1").update(source).digest("base64");
+}
+
+/**
+ * The path, modification time and size of each of the linter's own files, and of the parser's
+ * `package.json`. From source the linter's files are everything under `src`, and from the package
+ * everything it ships, so editing the linter, installing another version of it or of oxc-parser
+ * discards the store.
+ */
+function fingerprint(): string {
+  const root = fileURLToPath(new URL("..", import.meta.url));
+  try {
+    const own = readdirSync(root, { recursive: true, encoding: "utf8" })
+      .filter((name) => /\.[cm]?[jt]s$|package\.json$/.test(name))
+      .filter((name) => !name.split(/[\\/]/).includes("node_modules"))
+      .map((name) => join(root, name));
+    return Project.stat(
+      Project.seal([...own, parserManifest()].map((file) => FilePath.seal(file))),
+    );
+  } catch {
+    return String(Math.random());
+  }
+}
+
+/** Where oxc-parser's `package.json` is, or a path that is not there when it is not installed. */
+function parserManifest(): string {
+  try {
+    let dir = dirname(fileURLToPath(import.meta.resolve("oxc-parser")));
+    while (!existsSync(join(dir, "package.json")) && dirname(dir) !== dir) dir = dirname(dir);
+    return join(dir, "package.json");
+  } catch {
+    return "oxc-parser";
+  }
+}

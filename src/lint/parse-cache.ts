@@ -10,21 +10,19 @@ import { Parser } from "./parser.ts";
 export class ParseCache {
   #trees = new Map<string, { source: string; parsed: ReturnType<typeof Parser.exec> }>();
 
-  /** The tree of each file, in order. Forgets the files this call leaves out. */
-  parse(
-    parser: Parser,
-    sources: readonly (readonly [FilePath, string])[],
-  ): ReturnType<typeof Parser.exec>[] {
-    const trees = new Map<string, { source: string; parsed: ReturnType<typeof Parser.exec> }>();
-    const parsed = sources.map(([file, source]) => {
-      const found = this.#trees.get(file);
-      const entry =
-        found?.source === source ? found : { source, parsed: Parser.exec(parser, file, source) };
-      trees.set(file, entry);
-      return entry.parsed;
-    });
-    this.#trees = trees;
+  /** The file's tree, parsed again only once its text changes. */
+  tree(parser: Parser, file: FilePath, source: string): ReturnType<typeof Parser.exec> {
+    const found = this.#trees.get(file);
+    if (found?.source === source) return found.parsed;
 
+    const parsed = Parser.exec(parser, file, source);
+    this.#trees.set(file, { source, parsed });
     return parsed;
+  }
+
+  /** Forgets every file but `files`. */
+  keep(files: readonly string[]): void {
+    const kept = new Set(files);
+    for (const file of this.#trees.keys()) if (!kept.has(file)) this.#trees.delete(file);
   }
 }
