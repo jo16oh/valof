@@ -30,8 +30,8 @@ enforces it). It reports tests to delete or merge, behaviour the diff changes wi
 it, and tests that pass whatever the source does. `skills/test-audit/SKILL.md` holds the three
 passes.
 
-A separate agent runs it, on the same model, and reports back. Apply the clear cuts yourself, and
-ask me about the ones you doubt.
+A separate agent runs it, on the same model, and reports back. Apply the clear findings yourself,
+and ask me about the ones you doubt.
 
 Never commit an implementation before writing the tests that cover it. A later test cannot audit the
 implementation commit that required it.
@@ -68,7 +68,8 @@ Run it only on my explicit go-ahead.
 
 Code and prose go in separate turns. Finish the code, then edit the `.md` in a turn of its own, and
 run `/proofread` over the changed files before committing them. A separate agent runs it, on the
-same model, and reports back. Apply the clear fixes yourself, and ask me about the ones you doubt.
+same model, and reports back. Apply the clear findings yourself, and ask me about the ones you
+doubt.
 
 Remember how limited humans are, especially me, since English isn't my first language. We don't have
 a large context window like you do, and we can't read as fast as you can. Reducing redundant
