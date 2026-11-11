@@ -1,35 +1,111 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vite-plus/test";
 
 import { LinterWorker, Query } from "../../../../src/lint/eslint-plugin/linter-worker.ts";
-import { Project } from "../../../../src/lint/files.ts";
+import { FilePath, Project } from "../../../../src/lint/files.ts";
 import { DataTypeSettings } from "../../../../src/lint/options.ts";
 
 const PATIENCE = 2000;
 
-/** What `worker.ts` beside this file says to a query naming `file`. A failure is thrown. */
-const say = (worker: LinterWorker, file: string, text = ""): string | undefined =>
+/**
+ * What `worker.ts` beside this file says to a query whose overlay names `file`, over the files in
+ * `project`. A failure is thrown.
+ */
+const say = (
+  worker: LinterWorker,
+  file: string,
+  text = "",
+  project: readonly string[] = [],
+): string | undefined =>
   worker.lint(
-    Query.seal({ project: Project.seal([]), file, text, model: DataTypeSettings.create() }),
+    Query.seal({
+      project: Project.seal(project.map((path) => FilePath.seal(path))),
+      overlay: { [file]: text },
+      model: DataTypeSettings.create(),
+    }),
   )[0]?.message;
 
-test("asks once for the same query in one tick, and again after it", async () => {
+test("asks once for the same query over an unchanged project, however many ticks pass", async () => {
   const worker = new LinterWorker(import.meta.url, PATIENCE);
   expect(say(worker, "count")).toBe("asked 1");
+  await pause();
   expect(say(worker, "count")).toBe("asked 1");
-  await Promise.resolve();
-  expect(say(worker, "count")).toBe("asked 2");
+});
+
+test("asks again once a project file changes on disk, in its time, its size or its being there", () => {
+  const worker = new LinterWorker(import.meta.url, PATIENCE);
+  const dir = mkdtempSync(join(tmpdir(), "valof-linter-worker-"));
+  try {
+    const file = join(dir, "a.ts");
+    writeFileSync(file, "a");
+    utimesSync(file, 1, 1);
+    const asked = (): string | undefined => say(worker, "count", "", [file]);
+    expect(asked()).toBe("asked 1");
+    expect(asked()).toBe("asked 1");
+
+    // The same size, and only the time differs.
+    writeFileSync(file, "b");
+    utimesSync(file, 2, 2);
+    expect(asked()).toBe("asked 2");
+
+    // The same time, and only the size differs.
+    writeFileSync(file, "bb");
+    utimesSync(file, 2, 2);
+    expect(asked()).toBe("asked 3");
+
+    unlinkSync(file);
+    expect(asked()).toBe("asked 4");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("keeps the last answer for the same file and text alone", () => {
-  // In one tick, as a fix pass lints the file again with its fixed text.
+  // As a fix pass lints the file again with its fixed text.
   const worker = new LinterWorker(import.meta.url, PATIENCE);
   expect(say(worker, "a.ts", "before")).toBe("answered a.ts before");
   expect(say(worker, "a.ts", "after")).toBe("answered a.ts after");
   expect(say(worker, "b.ts", "after")).toBe("answered b.ts after");
+});
+
+const at = (name: string): string => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
+const project = Project.seal([at("money.ts"), at("order.ts")].map((file) => FilePath.seal(file)));
+
+/** What the plugin asks about `file`, the buffer holding `text`. */
+const read = (file: string, text = readFileSync(file, "utf8")): Query =>
+  Query.read({ filename: file, sourceCode: { text }, settings: undefined }, project);
+
+test("leaves out a buffer that disk holds, so the files of a batch ask the same", () => {
+  expect(read(at("money.ts")).overlay).toEqual({});
+  expect(Query.key(read(at("money.ts")))).toBe(Query.key(read(at("order.ts"))));
+});
+
+test("passes a buffer that disk does not hold, or a file the project leaves out", () => {
+  expect(read(at("money.ts"), "export {};\n").overlay).toEqual({
+    [at("money.ts")]: "export {};\n",
+  });
+  const silenced = at("silenced.ts");
+  expect(read(silenced).overlay).toEqual({ [silenced]: readFileSync(silenced, "utf8") });
+});
+
+test("passes the buffer of a project file deleted from disk", () => {
+  // The project is globbed once, so it still lists a file deleted while its buffer is open.
+  const dir = mkdtempSync(join(tmpdir(), "valof-linter-worker-"));
+  try {
+    const file = join(dir, "a.ts");
+    const listed = Project.seal([FilePath.seal(file)]);
+    const query = Query.read(
+      { filename: file, sourceCode: { text: "x" }, settings: undefined },
+      listed,
+    );
+    expect(query.overlay).toEqual({ [file]: "x" });
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 // `.mjs`, the package's extension. Every other test passes this `.ts` file, and the worker takes the

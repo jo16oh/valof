@@ -69,7 +69,7 @@ test("takes a list for the project, and leaves out what one entry excludes, howe
   ).toEqual([finding]);
 });
 
-test("asks again once the stack empties, since another file of the project may have changed", async () => {
+test("asks again once another file of the project changes on disk", () => {
   const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
   try {
     cpSync(at("money.ts"), join(dir, "money.ts"));
@@ -82,7 +82,6 @@ test("asks again once the stack empties, since another file of the project may h
     // The finding comes back only from a new run, so an emptied answer cannot pass for one.
     expect(lint()).toEqual([]);
     writeFileSync(join(dir, "show.ts"), "export {};\n");
-    await Promise.resolve();
     expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });

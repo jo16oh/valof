@@ -21,12 +21,13 @@ const says = (file: string, message: string): Reply =>
 /** How many queries this thread has answered. */
 let asked = 0;
 
-// Answers by the query's `file`: says how many queries it was asked, rejects, answers with what
-// cannot be sent, or wedges, writing a count to the path in `text` for as long as the thread runs.
-// Each count is renamed into place, so a reader never sees one half written. Anything else is
-// echoed back, with its text.
+// Answers by the file the query's overlay names: says how many queries it was asked, rejects,
+// answers with what cannot be sent, or wedges, writing a count to the path in its text for as long
+// as the thread runs. Each count is renamed into place, so a reader never sees one half written.
+// Anything else is echoed back, with its text.
 LinterWorker.serve(
-  async ({ file, text }) => {
+  async ({ overlay }) => {
+    const [file = "", text = ""] = Object.entries(overlay)[0] ?? [];
     asked++;
     if (file === "count") return says(file, `asked ${asked}`);
     if (file === "wedge")
