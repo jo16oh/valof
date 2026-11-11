@@ -9,6 +9,7 @@ import { MissingTypeScriptError } from "./errors.ts";
 export type Arity = (file: string, offset: number, property?: string) => number | undefined;
 
 // Typed from 7.1, installed under another name until it is what `typescript` resolves to.
+// valof-lint-disable-next-line data-type-outside-valof -- a module's type has no other name
 type Sync = typeof import("typescript-7.1/sync");
 
 /**
