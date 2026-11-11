@@ -9,9 +9,12 @@ Only three things can be a payload:
 | Objects    | `{ k: allowed }`, or `Record<string, allowed>`                 |
 
 A Val is itself one of these, so Vals nest. A field may hold `null` or a primitive beside one other
-kind, as `string[] | null` or `User | null`. A union of objects is rejected. A tuple keeps its
-positions and its length. Valof treats one with a rest element (`[string, ...number[]]`) as an array
-instead, since a fixed length is what distinguishes the two.
+kind, as `string[] | null` or `User | null`. A union of objects is rejected. So is a field holding
+Vals of different types, or an [`Impl`](traits.md#implement-it-on-a-val), because
+[`equals`](utilities.md#equals) compares structurally. It would find a `Dollar` of 1 equal to a
+`Yen` of 1. Declare an [enum](enums.md) of those types instead. Its tag distinguishes the variants.
+A tuple keeps its positions and its length. Valof treats one with a rest element
+(`[string, ...number[]]`) as an array instead, since a fixed length is what distinguishes the two.
 
 A payload cannot contain a type parameter, and a Val's brand cannot be one. To declare several Vals
 with the same payload, share it with `Payload`:
