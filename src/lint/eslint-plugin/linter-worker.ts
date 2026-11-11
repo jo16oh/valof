@@ -1,25 +1,87 @@
-import { extname } from "node:path";
+import { extname, resolve } from "node:path";
 import {
   MessageChannel,
+  parentPort,
   receiveMessageOnPort,
   Worker,
+  workerData,
   type MessagePort,
 } from "node:worker_threads";
 
 import { Result as R } from "@praha/byethrow";
 
+import { Val } from "../../index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
-import { Query, type Reply } from "./messages.ts";
+import type { Project } from "../files.ts";
 import type { Finding } from "../index.ts";
+import { ModelSettings } from "../options.ts";
+
+/** What the plugin asks the worker about one file. */
+export type Query = Val<
+  "Query",
+  {
+    /** The project files scanned together, absolute. The file being linted joins them, as `text`. */
+    project: Project;
+    file: string;
+    text: string;
+    /**
+     * The settings of `model-only-in-valof`. It always runs here, because the host reports it only
+     * where the project turned it on.
+     */
+    model: ModelSettings;
+  }
+>;
+export const Query = Val.companion<Query>()
+  .implAssoc(({ seal }) => ({
+    /** What to ask about the file the host is linting. */
+    fromContext: (
+      {
+        filename,
+        sourceCode: { text },
+        settings,
+      }: {
+        filename: string;
+        sourceCode: { text: string };
+        // A host may leave the settings out.
+        settings:
+          | {
+              valof?: {
+                "model-only-in-valof"?: Parameters<typeof ModelSettings.create>[0];
+              };
+            }
+          | undefined;
+      },
+      project: Project,
+    ): Query =>
+      seal({
+        project,
+        file: resolve(filename),
+        text,
+        model: ModelSettings.create(settings?.valof?.["model-only-in-valof"]),
+      }),
+  }))
+  .impl(() => ({
+    /** The same file, text, project and settings give the same key. */
+    key: ({ file, text, project, model }): string =>
+      `${file}\n${text}\n${project.join("\n")}\n${JSON.stringify(model)}`,
+  }))
+  .build();
+
+/**
+ * What the worker answers: the findings, or the message to throw. A message rather than the error,
+ * since an error's class does not survive the copy between threads.
+ */
+// valof-lint-disable-next-line model-only-in-valof -- byethrow's Result, which the worker sends as is
+export type Reply = R.Result<Finding[], string>;
 
 /**
  * The worker that lints, asked from a rule and blocked on until it answers.
  *
  * `lint` is async, and a rule is not: `create` returns a visitor, and a visitor cannot be async. So
- * the run happens in a worker, `worker` beside this file, started with its extension: the source
- * tree runs as `.ts` and the package ships `.mjs`. Only the plugin's entry imports this file, so
- * the build keeps it there, beside `worker.mjs`. Imported by the worker as well, it would move to a
- * chunk of its own and look for the worker in the wrong directory.
+ * the run happens in a worker, `worker` beside the caller, which answers with
+ * {@link LinterWorker.serve}. The caller passes its own `import.meta.url`, since this file is in
+ * whichever chunk the build puts it in, and its own URL says nothing about where the worker is.
+ * The worker has the caller's extension: the source tree runs as `.ts` and the package ships `.mjs`.
  *
  * The thread blocks on `Atomics.wait` until the answer is in the port's queue, and
  * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here. The port
@@ -44,11 +106,8 @@ export class LinterWorker {
   #lastKey: string | undefined;
   #lastFindings: readonly Finding[] = [];
 
-  constructor(
-    script = new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
-    patience = 60_000,
-  ) {
-    this.#script = script;
+  constructor(beside: string, patience = 60_000) {
+    this.#script = new URL(`./worker${extname(beside)}`, beside);
     this.#patience = patience;
   }
 
@@ -93,6 +152,29 @@ export class LinterWorker {
     const reply = receiveMessageOnPort(port);
     if (!reply) throw new Error("valof-lint: the worker answered nothing");
     return reply.message as Reply;
+  }
+
+  /**
+   * Answers what a `LinterWorker` asks, in the worker.
+   *
+   * `fail` makes the answer when `respond` throws, or when its answer cannot be sent: whatever
+   * happened, the thread waiting on this has to receive something.
+   */
+  static serve(respond: (query: Query) => Promise<Reply>, fail: (error: unknown) => Reply): void {
+    const { port, signal } = workerData as { port: MessagePort; signal: Int32Array };
+    parentPort?.on("message", (query: Query) => {
+      void respond(query)
+        .catch(fail)
+        .then((reply) => {
+          try {
+            port.postMessage(reply);
+          } catch (error) {
+            port.postMessage(fail(error));
+          }
+          Atomics.store(signal, 0, 1);
+          Atomics.notify(signal, 0);
+        });
+    });
   }
 }
 
