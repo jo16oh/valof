@@ -96,7 +96,14 @@ export type Invalid<Msg extends string> = { readonly [InvalidKey]: Msg };
 export type Refused<Msg extends string> = { readonly [RefusedKey]: Msg };
 
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
-export type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+// The whole is assignable to a constituent the others are assignable to, so that constituent gives
+// `false` and the results together are `boolean`: `Dollar | { amount: number }`. `true extends`
+// reads any `true` among them.
+export type IsUnion<T, U = T> = true extends (
+  T extends unknown ? ([U] extends [T] ? false : true) : false
+)
+  ? true
+  : false;
 
 /** `true` for one string literal, and `false` for a union, `string`, a template, `any` or `never`. */
 // `{}` fits a record keyed by `string` or a template, and none keyed by a literal. The values are
@@ -140,42 +147,39 @@ type IsRec<T> = string extends keyof T
  * payload is declared for, read at the root alone.
  */
 type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = "Val"> =
-  IsRec<T> extends true
-    ? IsUnion<T> extends true
+  // Vals of different types with the same fields hold the same payload, so `equals` and a JSON
+  // round trip cannot distinguish them. A Val with a boolean payload is a union of two types with
+  // one brand, and an enum a union of variants with one name, so the check requires one brand, or
+  // one enum name. `IsRec` reads a `Rec` by its keys and never opens it to a brand, so the check
+  // compares the `Rec`s themselves.
+  (IsRec<T> extends true ? 1 : [T] extends [AnyVal] ? 1 : 0) extends 1
+    ? IsUnion<
+        T extends AnyEnum ? NameOf<T> : T extends Phantom<infer B, unknown> ? B : T
+      > extends true
       ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
       : T
-    : [T] extends [AnyVal]
-      ? // Vals of different types with the same fields hold the same payload, so `equals` and a
-        // JSON round trip cannot distinguish them. A Val with a boolean payload is a union of two
-        // types with one brand, and an enum a union of variants with one name, so the check
-        // requires one brand, or one enum name.
-        IsUnion<
-          T extends AnyEnum ? NameOf<T> : T extends Phantom<infer B, unknown> ? B : never
-        > extends true
-        ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
-        : T
-      : // A field typed `Impl` holds any Val implementing the trait, which is the same problem.
-        [T] extends [AnyImpl]
+    : // A field typed `Impl` holds any Val implementing the trait, which is the same problem.
+      [T] extends [AnyImpl]
+      ? Root extends true
+        ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
+        : Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">
+      : [T] extends [AnyTrait]
         ? Root extends true
-          ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
-          : Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">
-        : [T] extends [AnyTrait]
-          ? Root extends true
-            ? Owner extends "Val"
-              ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
-              : Invalid<"a payload cannot declare a trait">
-            : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
-          : [T] extends [Invalid<infer M>]
-            ? Refused<M>
-            : [T] extends [Refused<infer M>]
-              ? Invalid<M>
-              : unknown extends T
-                ? Invalid<"`unknown` is not a plain value; write the type">
-                : Root extends true
-                  ? null extends T
-                    ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-                    : ValidateValue<T, true>
-                  : ValidateValue<T>;
+          ? Owner extends "Val"
+            ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+            : Invalid<"a payload cannot declare a trait">
+          : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+        : [T] extends [Invalid<infer M>]
+          ? Refused<M>
+          : [T] extends [Refused<infer M>]
+            ? Invalid<M>
+            : unknown extends T
+              ? Invalid<"`unknown` is not a plain value; write the type">
+              : Root extends true
+                ? null extends T
+                  ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+                  : ValidateValue<T, true>
+                : ValidateValue<T>;
 
 type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
   ? T
@@ -197,7 +201,9 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
       ? Invalid<"functions are not allowed">
       : [T] extends [object]
         ? IsUnion<T> extends true
-          ? Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+          ? [Extract<T, AnyVal>] extends [never]
+            ? Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+            : Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
           : // `keyof` a string index signature is `string | number`.
             [Exclude<keyof T, string | (string extends keyof T ? number : never)>] extends [never]
             ? Root extends true
