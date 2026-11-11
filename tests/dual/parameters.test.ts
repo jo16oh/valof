@@ -45,7 +45,7 @@ test("but not one inside a destructured parameter, nor `=` or `(` elsewhere", ()
     "({ a = `\\`} = `, b = 1 }, sep) => sep",
     "({ a = `${x}}=`, b = 1 }, sep) => sep",
     "({ a = String.raw`${/]}=/.source}`, b = 1 }, sep) => sep",
-    ((u: unknown, sep: string) => sep).bind(null),
+    ((_u: unknown, sep: string) => sep).bind(null),
   ];
   expect(passing.filter(hides)).toEqual([]);
 });

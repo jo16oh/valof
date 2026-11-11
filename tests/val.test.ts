@@ -262,8 +262,8 @@ describe("Val", () => {
     test("a Record works as a Set", () => {
       const Tags = Val.companion<Tags>().build();
       const t = Tags.seal({ a: true, b: true });
-      expect(t.a).toBe(true);
-      expect(t.c).toBeUndefined();
+      expect(t["a"]).toBe(true);
+      expect(t["c"]).toBeUndefined();
     });
 
     test("optional keys are allowed", () => {
@@ -979,10 +979,8 @@ describe("copying", () => {
 
     test("a class instance is rejected in development", () => {
       class Point {
-        constructor(
-          public x = 1,
-          public y = 2,
-        ) {}
+        x = 1;
+        y = 2;
       }
       type Pt = Val<"Pt", { x: number; y: number }>;
       expect(() => Val.of<Pt>(new Point())).toThrow(TypeError);
@@ -1478,7 +1476,7 @@ describe("patch", () => {
       Shop.patch(shop(), { staff: { u3: {} } });
 
       expect(Place.patch(place, { at: { x: 1, y: 2 } }).at).toEqual({ x: 1, y: 2 });
-      expect(Shop.patch(shop(), { staff: { u3: { role: "host" } } }).staff.u3).toEqual({
+      expect(Shop.patch(shop(), { staff: { u3: { role: "host" } } }).staff["u3"]).toEqual({
         role: "host",
       });
     });
