@@ -1,8 +1,6 @@
 import { HiddenStateInImpl } from "./hidden-state-in-impl.ts";
 import { ModelOnlyInValof } from "./model-only-in-valof.ts";
 import { HiddenOptional } from "./hidden-optional.ts";
-import { UnreturnedSeal } from "./unreturned-seal.ts";
-import { UnrelatedAssoc } from "./unrelated-assoc.ts";
 import { UnqualifiedVariant } from "./unqualified-variant.ts";
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
@@ -13,7 +11,7 @@ import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Dyn } from "../../index.ts";
 import { KindSet, Rule, type Kind } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
-import { UnnamedOf } from "./unnamed-of.ts";
+import { InferredValOf } from "./inferred-val-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
 import { UnimplementedTrait } from "./unimplemented-trait.ts";
@@ -34,12 +32,10 @@ export const RULES = [
   Rule.dyn(CompanionMismatch, CompanionMismatch.create()),
   Rule.dyn(SplitCompanion, SplitCompanion.create()),
   Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
-  Rule.dyn(UnnamedOf, UnnamedOf.create()),
+  Rule.dyn(InferredValOf, InferredValOf.create()),
   Rule.dyn(HiddenStateInImpl, HiddenStateInImpl.create()),
   Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create(ModelSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
-  Rule.dyn(UnreturnedSeal, UnreturnedSeal.create()),
-  Rule.dyn(UnrelatedAssoc, UnrelatedAssoc.create()),
   Rule.dyn(UnqualifiedVariant, UnqualifiedVariant.create()),
   Rule.dyn(IncompleteDisable, IncompleteDisable.create()),
   Rule.dyn(UnusedDisable, UnusedDisable.create()),
@@ -54,8 +50,6 @@ export {
   HiddenStateInImpl,
   ModelOnlyInValof,
   HiddenOptional,
-  UnreturnedSeal,
-  UnrelatedAssoc,
   UnqualifiedVariant,
   UnnecessaryAlias,
   BrandMismatch,
@@ -64,7 +58,7 @@ export {
   DuplicateBrand,
   IncompleteDisable,
   SplitCompanion,
-  UnnamedOf,
+  InferredValOf,
   UnusedDisable,
   UnusedMember,
   UnimplementedTrait,

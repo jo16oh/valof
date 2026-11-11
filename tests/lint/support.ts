@@ -25,8 +25,6 @@ const registered = (companion: { create: (settings: never) => { kind: string } }
 export const HiddenStateInImpl = registered(Rules.HiddenStateInImpl);
 export const ModelOnlyInValof = registered(Rules.ModelOnlyInValof);
 export const HiddenOptional = registered(Rules.HiddenOptional);
-export const UnreturnedSeal = registered(Rules.UnreturnedSeal);
-export const UnrelatedAssoc = registered(Rules.UnrelatedAssoc);
 export const UnqualifiedVariant = registered(Rules.UnqualifiedVariant);
 export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
 export const UnimplementedTrait = registered(Rules.UnimplementedTrait);
@@ -36,7 +34,7 @@ export const CompanionMismatch = registered(Rules.CompanionMismatch);
 export const DuplicateBrand = registered(Rules.DuplicateBrand);
 export const IncompleteDisable = registered(Rules.IncompleteDisable);
 export const SplitCompanion = registered(Rules.SplitCompanion);
-export const UnnamedOf = registered(Rules.UnnamedOf);
+export const InferredValOf = registered(Rules.InferredValOf);
 export const UnusedDisable = registered(Rules.UnusedDisable);
 export const UnusedMember = registered(Rules.UnusedMember);
 

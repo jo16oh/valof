@@ -1,12 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import {
-  CompanionMismatch,
-  UnrelatedAssoc,
-  UnqualifiedVariant,
-  UnusedMember,
-  fixtures,
-} from "../../support.ts";
+import { CompanionMismatch, UnqualifiedVariant, UnusedMember, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
@@ -65,7 +59,7 @@ describe("what the rule finds", () => {
   });
 
   test("collects the members of every implAssoc", async () => {
-    expect(await messages("assoc", { skip: [UnrelatedAssoc] })).toEqual([
+    expect(await messages("assoc")).toEqual([
       "Money.zero is never read",
       "Money.unit is never read",
     ]);
