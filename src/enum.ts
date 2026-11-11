@@ -1097,7 +1097,7 @@ type HandlerMap = Record<PropertyKey, Handler>;
  * `_` is that variant's handler and `[Otherwise]` handles the rest.
  */
 const arm = (handlers: HandlerMap, tag: string): Handler =>
-  (handlers[tag] ?? handlers[Otherwise] ?? handlers._)!;
+  (handlers[tag] ?? handlers[Otherwise] ?? handlers["_"])!;
 
 const matchTag = dual((tag: string, handlers: HandlerMap) => arm(handlers, tag)());
 
