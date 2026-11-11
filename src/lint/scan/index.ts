@@ -184,7 +184,7 @@ export type Scan = Val<
     companionBindings: CompanionBinding[];
     /** `Val.of<X>(…)` calls. */
     lifts: Lift[];
-    /** What `model-only-in-valof` reads. */
+    /** What `data-type-outside-valof` reads. */
     models: Models;
     /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
     directives: Directive[];

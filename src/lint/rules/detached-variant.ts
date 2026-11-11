@@ -7,10 +7,10 @@ import { Finding, Kind, Rule } from "./rule.ts";
  * A variant read from its enum and bound under its own name: `const { Circle } = Shape` and
  * `const Circle = Shape.Circle`. A reader of `Circle({ r: 2 })` cannot tell which enum declared it.
  */
-export type UnqualifiedVariant = Val<"UnqualifiedVariant", { kind: Kind }, Rule>;
-export const UnqualifiedVariant = Val.companion<UnqualifiedVariant>()
+export type DetachedVariant = Val<"DetachedVariant", { kind: Kind }, Rule>;
+export const DetachedVariant = Val.companion<DetachedVariant>()
   .implCreate(() => ({
-    kind: Kind.seal("unqualified-variant"),
+    kind: Kind.seal("detached-variant"),
     description: "a variant bound to a local name without the name of its enum",
     warns: true,
   }))
@@ -18,7 +18,7 @@ export const UnqualifiedVariant = Val.companion<UnqualifiedVariant>()
   .build();
 
 /** Reports each such binding. companion-mismatch reports one under another name. */
-function findings({ kind }: UnqualifiedVariant, scans: readonly Scan[]): Finding[] {
+function findings({ kind }: DetachedVariant, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);
   const identity = (ref: SymbolRef): string => Exports.identify(exports, ref);
   const variants = new Map<string, ReadonlySet<string>>();

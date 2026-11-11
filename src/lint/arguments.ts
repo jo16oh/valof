@@ -8,20 +8,20 @@ import {
   UnknownRuleError,
   UnknownSettingError,
 } from "./errors.ts";
-import { Enabled, ModelSettings } from "./options.ts";
+import { Enabled, DataTypeSettings } from "./options.ts";
 import { ALL_KINDS, KindSet, kinds, type Kind } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
 
-const MODEL = "--model-only-in-valof";
+const MODEL = "--data-type-outside-valof";
 
-/** What `--model-only-in-valof=` takes, separated by commas. */
+/** What `--data-type-outside-valof=` takes, separated by commas. */
 const SETTINGS = [
   "classes",
   "constraints",
   "extraction",
-] as const satisfies readonly (keyof ModelSettings)[];
+] as const satisfies readonly (keyof DataTypeSettings)[];
 
 const isSetting = (name: string): name is (typeof SETTINGS)[number] =>
   (SETTINGS as readonly string[]).includes(name);
@@ -64,7 +64,7 @@ export const Arguments = Val.companion<Arguments>()
       const excluded: Path[] = [];
       const loose: Path[] = [];
       const skip: Kind[] = [];
-      let model: ModelSettings | undefined;
+      let model: DataTypeSettings | undefined;
       let help = false;
       let pending: "project" | "report-on" | undefined;
 
@@ -96,7 +96,7 @@ export const Arguments = Val.companion<Arguments>()
               return R.fail(new UnknownSettingError({ setting, known: SETTINGS }));
             settings[setting] = true;
           }
-          model = ModelSettings.create(settings);
+          model = DataTypeSettings.create(settings);
         } else if (argument.startsWith("--no-")) {
           const name = argument.slice("--no-".length);
           const kind = KindSet.find(ALL_KINDS, name);
@@ -107,7 +107,7 @@ export const Arguments = Val.companion<Arguments>()
         }
       }
 
-      const enable = Enabled.create(model ? { "model-only-in-valof": model } : {});
+      const enable = Enabled.create(model ? { "data-type-outside-valof": model } : {});
       if (help) return R.succeed(seal({ projects, targets, excluded, skip, enable, help }));
       if (pending) return R.fail(new MissingPathError({ flag: pending }));
 

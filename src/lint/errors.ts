@@ -25,7 +25,7 @@ export class UnknownRuleError extends ErrorFactory({
   fields: ErrorFactory.fields<{ kind: string; known: readonly string[] }>(),
 }) {}
 
-/** A setting after `--model-only-in-valof=` that the rule does not take. */
+/** A setting after `--data-type-outside-valof=` that the rule does not take. */
 export class UnknownSettingError extends ErrorFactory({
   name: "UnknownSettingError",
   message: ({ setting, known }) =>

@@ -14,7 +14,7 @@ LinterWorker.serve(
         Options.create({
           targets: [file],
           overlay: [[file, text]],
-          enable: { "model-only-in-valof": model },
+          enable: { "data-type-outside-valof": model },
         }),
       ),
       // The message the command prints, so a user of the plugin gets the same instruction.

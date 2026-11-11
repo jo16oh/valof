@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 import { Val } from "../index.ts";
 import { KindSet, type Kind } from "./rules/rule.ts";
 
-/** What `model-only-in-valof` reports beyond what it always reports. */
-export type ModelSettings = Val<
-  "ModelSettings",
+/** What `data-type-outside-valof` reports beyond what it always reports. */
+export type DataTypeSettings = Val<
+  "DataTypeSettings",
   {
     /** Report a class, declared or as an expression. */
     classes: boolean;
@@ -15,7 +15,7 @@ export type ModelSettings = Val<
     extraction: boolean;
   }
 >;
-export const ModelSettings = Val.companion<ModelSettings>()
+export const DataTypeSettings = Val.companion<DataTypeSettings>()
   .implCreate(
     ({
       classes = false,
@@ -30,13 +30,13 @@ export const ModelSettings = Val.companion<ModelSettings>()
   .build();
 
 /** The rules that are off unless named here, with their settings. */
-export type Enabled = Val<"Enabled", { "model-only-in-valof"?: ModelSettings }>;
+export type Enabled = Val<"Enabled", { "data-type-outside-valof"?: DataTypeSettings }>;
 export const Enabled = Val.companion<Enabled>()
   .implCreate(
     ({
-      "model-only-in-valof": model,
-    }: { "model-only-in-valof"?: Parameters<typeof ModelSettings.create>[0] } = {}) =>
-      model ? { "model-only-in-valof": ModelSettings.create(model) } : {},
+      "data-type-outside-valof": model,
+    }: { "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0] } = {}) =>
+      model ? { "data-type-outside-valof": DataTypeSettings.create(model) } : {},
   )
   .build();
 

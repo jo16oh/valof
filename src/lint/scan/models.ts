@@ -92,8 +92,8 @@ const bare = (node: Node | null | undefined): Node | undefined => {
 };
 
 /**
- * Reads one file for `model-only-in-valof`. It reads syntax alone. A name is matched to a Val by
- * spelling, the way the other rules match one. A `.d.ts` and the body of `declare global` /
+ * Reads one file for `data-type-outside-valof`. It reads syntax alone. A name is matched to a Val
+ * by spelling, the way the other rules match one. A `.d.ts` and the body of `declare global` /
  * `declare module` describe someone else's code, and are skipped.
  */
 export function models(file: string, program: Node, bound: Bindings, lines: Lines): Models {
