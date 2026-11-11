@@ -84,29 +84,6 @@ export type SplitVariant = Val<
 export const SplitVariant = Val.companion<SplitVariant>().build();
 
 /**
- * A member `.implAssoc` registered, with what its body says about the type it is on.
- * Only a member written inline in the step's object is read.
- */
-export type StepMember = Val<
-  "StepMember",
-  {
-    at: Position;
-    companion: string;
-    /** The type the companion is for, as the chain's type argument names it. */
-    type: string;
-    member: string;
-    /**
-     * Whether it names the type (the companion too) or a `seal` / `create` anywhere. A member
-     * passed by name, `exec: scan`, is read through the function of that name in the same file.
-     */
-    related: boolean;
-    /** The name a member passed by name gives, `null` for one written inline. */
-    reference: string | null;
-  }
->;
-export const StepMember = Val.companion<StepMember>().build();
-
-/**
  * A top-level const whose type annotation may hide a default or a rest parameter of the function
  * it holds: `const toWire: ToWire = (u, sep = ",") => …`, or a property of an annotated object.
  */
@@ -181,8 +158,6 @@ export type Scan = Val<
     hiddenParameters: HiddenParameter[];
     /** The names a member step takes its members from: `() => fns`, or `() => ({ toWire })`. */
     memberSources: SymbolRef[];
-    /** The members `.impl` and `.implAssoc` registered inline, with what their bodies name. */
-    stepMembers: StepMember[];
     /** Member steps whose function declares something in its body. */
     stepStates: StepState[];
     /** Keys read off a local name, each a set. */
@@ -317,7 +292,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
   const escapedDyns: EscapedDyn[] = [];
   const stepStates: StepState[] = [];
   const splitVariants: SplitVariant[] = [];
-  const memberBodies: StepMember[] = [];
   const memberSources: SymbolRef[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
@@ -414,7 +388,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
         }
         members.push(...implMembers(init, id.name, bound, objects, lines));
         splitVariants.push(...split(init, id.name, bound, lines));
-        if (site) memberBodies.push(...bodies(init, id.name, site.typeName, bound, lines));
         break;
       }
       case "CallExpression": {
@@ -545,7 +518,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     escapedDyns,
     stepStates,
     splitVariants,
-    stepMembers: throughReferences(memberBodies, program),
     hiddenParameters: hidden(program, file, bound, lines),
     memberSources,
     reads: sets(reads),
@@ -809,101 +781,6 @@ function split(node: Node, companion: string, bound: Bindings, lines: Lines): Sp
 /** The parameters of a function node, none for anything else. */
 const paramsOf = (fn: Node | undefined): readonly Node[] =>
   fn?.type === "ArrowFunctionExpression" || fn?.type === "FunctionExpression" ? fn.params : [];
-
-/** The names a step's function took `seal` and `create` under: `({ seal, create: make })`. */
-function constructors(fn: Node): Set<string> {
-  const names = new Set<string>();
-  const [first] = paramsOf(fn);
-  if (first?.type !== "ObjectPattern") return names;
-  for (const property of first.properties) {
-    if (property.type !== "Property") continue;
-    const name = keyName(property.key, property.computed);
-    if ((name === "seal" || name === "create") && property.value.type === "Identifier")
-      names.add(property.value.name);
-  }
-  return names;
-}
-
-/**
- * Settles `related` for the members passed by name, once the walk has read every function in the
- * file: a function declared after the companion is read too.
- */
-function throughReferences(members: readonly StepMember[], program: Node): StepMember[] {
-  const functions = new Map<string, Node>();
-  for (const statement of program.type === "Program" ? program.body : []) {
-    const declared =
-      statement.type === "ExportNamedDeclaration" ? statement.declaration : statement;
-    if (declared?.type === "FunctionDeclaration" && declared.id?.type === "Identifier")
-      functions.set(declared.id.name, declared);
-    if (declared?.type !== "VariableDeclaration" || declared.kind !== "const") continue;
-    for (const declarator of declared.declarations)
-      if (
-        declarator.type === "VariableDeclarator" &&
-        declarator.id.type === "Identifier" &&
-        (declarator.init?.type === "ArrowFunctionExpression" ||
-          declarator.init?.type === "FunctionExpression")
-      )
-        functions.set(declarator.id.name, declarator.init);
-  }
-  return members.map((member) => {
-    const named = member.reference === null ? undefined : functions.get(member.reference);
-    const related =
-      named !== undefined &&
-      [...descendants(named)].some(
-        (inner) => inner.type === "Identifier" && inner.name === member.type,
-      );
-    return !member.related && related ? StepMember.patch(member, { related }) : member;
-  });
-}
-
-/** Every node under `node`, itself included. */
-function* descendants(node: Node): Generator<Node> {
-  yield node;
-  for (const one of node.children) yield* descendants(one);
-}
-
-/** What the members written inline in each `.implAssoc` of a chain say. */
-function bodies(
-  node: Node,
-  companion: string,
-  type: string,
-  bound: Bindings,
-  lines: Lines,
-): StepMember[] {
-  const found: StepMember[] = [];
-  let current: Node = node;
-  while (current.type === "CallExpression" && current.callee.type === "MemberExpression") {
-    const step = stepOf(current.callee);
-    const receiver = variantOf(step.receiver)?.builder ?? step.receiver;
-    const [fn] = current.arguments;
-    const body = fn?.type === "ArrowFunctionExpression" ? unparenthesized(fn.body) : undefined;
-    if (step.name === "implAssoc" && fn && body?.type === "ObjectExpression") {
-      const local = constructors(fn);
-      for (const entry of body.properties) {
-        if (entry.type !== "Property") continue;
-        const member = keyName(entry.key, entry.computed);
-        if (!member) continue;
-        // The companion shares the type's name, which companion-mismatch enforces.
-        const related = [...descendants(entry.value)].some(
-          (inner) => inner.type === "Identifier" && (inner.name === type || local.has(inner.name)),
-        );
-        found.push(
-          StepMember.seal({
-            at: Lines.at(lines, entry.start),
-            companion,
-            type,
-            member,
-            related,
-            reference: entry.value.type === "Identifier" ? entry.value.name : null,
-          }),
-        );
-      }
-    }
-    if (receiver.type !== "CallExpression" && !fromRoot(receiver, bound)) break;
-    current = receiver;
-  }
-  return found.reverse();
-}
 
 /** The index of a function's first default or rest parameter, and which it is. */
 function optional(
