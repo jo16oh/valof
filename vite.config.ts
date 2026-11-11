@@ -18,7 +18,6 @@ export default defineConfig({
       "eslint-plugin/worker": "src/lint/eslint-plugin/worker.ts",
     },
     dts: {
-      tsgo: true,
       // A config file in TypeScript reads the plugin's type. The linter's API is the CLI and the
       // plugin alone, so its other entries ship no declarations.
       entry: "src/lint/eslint-plugin/index.ts",
