@@ -1374,7 +1374,13 @@ describe("a broken declaration", () => {
       // @ts-expect-error even where one object holds every key of the other
       { a: number } | { a: number; b: string }
     >;
-    expectTypeOf<Widened>().not.toBeNever();
+    type Optional = Enum<
+      "Optional",
+      { A: { n: number }; B: { m: number } },
+      // @ts-expect-error even where each object is assignable to the other
+      { a: number } | { a: number; b?: string }
+    >;
+    expectTypeOf<Widened | Optional>().not.toBeNever();
   });
 
   test("a companion accepts its options as one list, not a union of lists", () => {
