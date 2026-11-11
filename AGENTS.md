@@ -14,6 +14,32 @@ take the Val first as `self`, and `.implAssoc` holds the associated functions. `
 `impl Trait for Type`. A Val is plain data with no methods, so call a member through the companion:
 `User.displayName(user)`, not `user.displayName()`.
 
+## Code Style
+
+`pipe` (`scripts/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them
+where a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
+`User.seal(parse(text))`. Fold a variable used once into the chain. Keep it as a local, next to its
+use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
+where a step needs a value from outside the chain.
+
+Put a Val's type and its companion on adjacent lines, with a blank line before and after the pair.
+
+Place a helper used only inside its module at the end of the file. Declare it with `function`, so
+hoisting makes the order safe.
+
+A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
+a connection, so `new` at the call site shows where state lives. Do not use `extends`. Keep state in
+`#private` fields, and write plain methods rather than arrow-function fields. A class is not
+hoisted, so it cannot come after top-level code that uses it. Give it a file of its own instead.
+
+A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
+it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
+companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
+
+New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
+`class X extends ErrorFactory({ message, fields }) {}`. Leave out `name`. It defaults to the class
+name, and `instanceof` narrows.
+
 ## Bundle Size and Type Cost
 
 Run `vp run bundle-size` after changing runtime code. It measures what a user ships. It also checks
@@ -114,6 +140,8 @@ stops the idea coming back.
 The README carries what a reader needs before writing code. What they need only once they get it
 wrong goes in the JSDoc of the thing it describes, where the hover arrives together with the type
 error that raised the question.
+
+Do not name an example type `Box`. Valof reserves it for a planned built-in type.
 
 A GitHub callout needs `<!-- prettier-ignore -->` above it. `proseWrap: "always"` joins the marker
 into the paragraph, and `> [!NOTE] the text` renders as a plain quote in GitHub and in the book
