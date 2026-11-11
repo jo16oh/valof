@@ -29,16 +29,14 @@ test("keeps the last answer for the same file and text alone", () => {
   expect(say(worker, "b.ts", "after")).toBe("answered b.ts after");
 });
 
-// With the caller's extension, which is `.mjs` in the package.
-test.each(["ts", "mjs"])(
-  "says why the worker did not start, rather than wait out its patience (.%s)",
-  (extension) => {
-    const beside = new URL(`missing/index.${extension}`, import.meta.url).href;
-    const error = thrown(() => say(new LinterWorker(beside, PATIENCE), "after"));
-    expect(error.message).toMatch(/^valof-lint: the worker did not start: /);
-    expect(error.message).toContain(`missing/worker.${extension}`);
-  },
-);
+// `.mjs`, the package's extension. Every other test passes this `.ts` file, and the worker takes the
+// caller's extension.
+test("says why the worker did not start, rather than wait out its patience", () => {
+  const beside = new URL("missing/index.mjs", import.meta.url).href;
+  const error = thrown(() => say(new LinterWorker(beside, PATIENCE), "after"));
+  expect(error.message).toMatch(/^valof-lint: the worker did not start: /);
+  expect(error.message).toContain("missing/worker.mjs");
+});
 
 test("stops a wedged worker, and asks a new one next", async () => {
   const worker = new LinterWorker(import.meta.url, PATIENCE);
