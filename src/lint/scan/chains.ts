@@ -74,7 +74,8 @@ export function stepOf(callee: VariantOf<Node, "MemberExpression">): Step {
     const outer = stepOf(receiver);
     if (outer.name === "implCreate") return outer;
   }
-  return Step.seal({ name, property, receiver });
+  // `nocopy`: the nodes are sealed already, and the copy would record each one's whole subtree.
+  return Step.seal.nocopy({ name, property, receiver });
 }
 
 /**
