@@ -25,7 +25,6 @@ const registered = (companion: { create: (settings: never) => { kind: string } }
 export const HiddenStateInImpl = registered(Rules.HiddenStateInImpl);
 export const ModelOnlyInValof = registered(Rules.ModelOnlyInValof);
 export const HiddenOptional = registered(Rules.HiddenOptional);
-export const UnrelatedAssoc = registered(Rules.UnrelatedAssoc);
 export const SplitVariantSteps = registered(Rules.SplitVariantSteps);
 export const UnqualifiedVariant = registered(Rules.UnqualifiedVariant);
 export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
