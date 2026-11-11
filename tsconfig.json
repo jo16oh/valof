@@ -17,8 +17,6 @@
     "noFallthroughCasesInSwitch": true,
     "noPropertyAccessFromIndexSignature": true,
     "noUncheckedSideEffectImports": true,
-    "allowUnreachableCode": false,
-    "allowUnusedLabels": false,
     "erasableSyntaxOnly": true,
     "declaration": true,
     "noEmit": true,
