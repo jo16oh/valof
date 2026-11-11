@@ -24,6 +24,10 @@ export const Query = Val.companion<Query>()
       project: Project,
     ): Query => seal({ project, file: resolve(filename), text }),
   }))
+  .impl(() => ({
+    /** The same file, text and project give the same key. */
+    key: ({ file, text, project }): string => `${file}\n${text}\n${project.join("\n")}`,
+  }))
   .build();
 
 /**
@@ -31,7 +35,3 @@ export const Query = Val.companion<Query>()
  * since an error's class does not survive the copy between threads.
  */
 export type Reply = R.Result<Finding[], string>;
-
-/** The findings for one query, under the key the next query is compared by. */
-export type Answer = Val<"Answer", { key: string; findings: Finding[] }>;
-export const Answer = Val.companion<Answer>().build();

@@ -6,10 +6,10 @@ import {
   type MessagePort,
 } from "node:worker_threads";
 
-import { pipe } from "../../shared/pipe/index.ts";
 import { Result as R } from "@praha/byethrow";
 
-import { Answer, type Query, type Reply } from "./messages.ts";
+import { pipe } from "../../shared/pipe/index.ts";
+import { Query, type Reply } from "./messages.ts";
 import type { Finding } from "../index.ts";
 
 /**
@@ -41,7 +41,8 @@ export class LinterWorker {
   readonly #script: URL;
   readonly #patience: number;
   #worker: { thread: Worker; port: MessagePort; signal: Int32Array } | undefined;
-  #last: Answer | undefined;
+  #lastKey: string | undefined;
+  #lastFindings: readonly Finding[] = [];
 
   constructor(
     script = new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
@@ -53,18 +54,18 @@ export class LinterWorker {
 
   /** The findings for the query. Throws the message the worker failed with. */
   lint(query: Query): readonly Finding[] {
-    const key = `${query.file}\n${query.text}\n${query.project.join("\n")}`;
-    if (this.#last?.key === key) return this.#last.findings;
+    const key = Query.key(query);
+    if (this.#lastKey === key) return this.#lastFindings;
 
-    const findings = pipe(
+    this.#lastFindings = pipe(
       query,
       (asked) => this.#ask(asked),
       R.mapError((message) => new Error(message)),
       R.unwrap(),
     );
-    this.#last = Answer.seal({ key, findings });
-    queueMicrotask(() => (this.#last = undefined));
-    return findings;
+    this.#lastKey = key;
+    queueMicrotask(() => (this.#lastKey = undefined));
+    return this.#lastFindings;
   }
 
   #ask(query: Query): Reply {
