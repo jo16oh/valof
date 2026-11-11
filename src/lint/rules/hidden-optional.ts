@@ -1,19 +1,17 @@
 import { Val } from "../../index.ts";
-import { resolve } from "node:path";
 
 import { Exports, type Scan } from "../scan/index.ts";
 import type { SymbolRef } from "../scan/bindings.ts";
-import type { Arity } from "../types.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 
 /**
- * A member whose type annotation declares a parameter the implementation gives a default or a
- * rest: `const toWire: ToWire = (u, sep = ",") => …` passed as `.impl(() => ({ toWire }))`. The
- * checker sees only the annotation, so it cannot reject the member. The value-last call counts the
+ * A member whose type annotation hides a default or a rest parameter of its implementation:
+ * `const toWire: ToWire = (u, sep = ",") => …` passed as `.impl(() => ({ toWire }))`. The checker
+ * sees only the annotation, so it cannot reject the member. The value-last call counts the
  * parameters at run time, where a default and a rest do not count, and picks the wrong form.
  *
- * TypeScript counts the annotation's parameters, through an alias or an import. A default after
- * the parameters the annotation declares is not reported, because the type does not offer it.
+ * The rule reports every such parameter, whatever the annotation declares. The development check in
+ * `build` rejects every one too.
  */
 export type HiddenOptional = Val<"HiddenOptional", { kind: Kind }, Rule>;
 export const HiddenOptional = Val.companion<HiddenOptional>()
@@ -22,29 +20,25 @@ export const HiddenOptional = Val.companion<HiddenOptional>()
     description: "a default or rest parameter that a member's type annotation hides",
     warns: false,
   }))
-  .implTrait(Rule, () => ({ run: (rule, scans, _context, types) => findings(rule, scans, types) }))
+  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
   .build();
 
-function findings({ kind }: HiddenOptional, scans: readonly Scan[], types: () => Arity): Finding[] {
+function findings({ kind }: HiddenOptional, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);
   const identity = (ref: SymbolRef): string => Exports.identify(exports, ref);
   const used = new Set(scans.flatMap(({ memberSources }) => memberSources.map(identity)));
-  const candidates = scans.flatMap(({ file, hiddenParameters }) =>
-    hiddenParameters.filter(({ ref }) => used.has(identity(ref))).map((one) => ({ file, one })),
-  );
-  if (candidates.length === 0) return [];
-  const arity = types();
-  return candidates.flatMap(({ file, one: { name, offset, property, parameter, rest, at } }) => {
-    const declared = arity(resolve(file), offset, property ?? undefined);
-    if (declared === undefined || declared <= parameter) return [];
-    const what = rest ? "rest parameter" : "default";
-    return [
-      Finding.seal({
-        kind,
-        file,
-        at,
-        message: `the annotation on ${property === null ? name : `${name}.${property}`} declares the parameter this ${what} makes optional, so a call with the value last finds the wrong arity; drop the ${what}, or write the member inline`,
+
+  return scans.flatMap(({ file, hiddenParameters }) =>
+    hiddenParameters
+      .filter(({ ref }) => used.has(identity(ref)))
+      .map(({ name, property, rest, at }) => {
+        const what = rest ? "rest parameter" : "default";
+        return Finding.seal({
+          kind,
+          file,
+          at,
+          message: `the annotation on ${property === null ? name : `${name}.${property}`} hides this ${what} from the types. A member cannot have a ${what}, because the argument count decides whether a call passes the value last; drop the ${what}, or write the member inline`,
+        });
       }),
-    ];
-  });
+  );
 }

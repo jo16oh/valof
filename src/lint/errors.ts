@@ -6,17 +6,6 @@ export class MissingParserError extends ErrorFactory({
   message: `valof-lint needs oxc-parser, which valof does not install for you.\n  pnpm add -D oxc-parser`,
 }) {}
 
-/**
- * TypeScript 7.1 or later is an optional peer dependency. Only a rule that reads a type needs it,
- * and only where the code has something for that rule to check.
- */
-export class MissingTypeScriptError extends ErrorFactory({
-  name: "MissingTypeScriptError",
-  message:
-    "valof-lint needs TypeScript 7.1 or later to read the annotations here. valof does not" +
-    " install it for you.\n  pnpm add -D typescript",
-}) {}
-
 /** `--no-<kind>` with a kind no rule has. */
 export class UnknownRuleError extends ErrorFactory({
   name: "UnknownRuleError",
@@ -67,7 +56,6 @@ export class NoFilesMatchedError extends ErrorFactory({
 /** What the command reports before exiting 2, because the run never started. */
 export type UsageError =
   | MissingParserError
-  | MissingTypeScriptError
   | UnknownRuleError
   | UnknownSettingError
   | UnknownOptionError
