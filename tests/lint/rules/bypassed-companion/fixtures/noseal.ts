@@ -3,7 +3,7 @@ import { Val } from "valof";
 type Age = Val<"Age", number>;
 
 const Age = Val.companion<Age>()
-  .implCreate.noseal(() => 0)
-  .implSeal((n, seal) => seal(Math.trunc(n))).build();
+  .implSeal((n, seal) => seal(Math.trunc(n)))
+  .implCreate.noseal(() => 0).build();
 
 export const zero = (): Age => Val.of<Age>(0);

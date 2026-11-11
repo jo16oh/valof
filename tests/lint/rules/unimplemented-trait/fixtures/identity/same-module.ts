@@ -1,3 +1,4 @@
+import { Val } from "valof";
 import { Shared as Named } from "./a.ts";
 import * as traits from "./a.ts";
 

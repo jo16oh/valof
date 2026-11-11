@@ -1,3 +1,4 @@
+import { Val } from "valof";
 import { Greetable as Friendly } from "./traits.ts";
 import * as traits from "./traits.ts";
 

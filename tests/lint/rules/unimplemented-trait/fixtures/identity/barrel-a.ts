@@ -1,1 +1,1 @@
-export { Shared } from "./a";
+export { Shared } from "./a.ts";

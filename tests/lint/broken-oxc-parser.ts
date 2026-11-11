@@ -4,6 +4,8 @@ import { registerHooks } from "node:module";
 registerHooks({
   resolve: (specifier, context, next) => {
     if (specifier !== "oxc-parser") return next(specifier, context);
-    throw new Error("the parser's native binding failed to load");
+    throw Object.assign(new Error("the parser's binding failed to load"), {
+      code: "ERR_DLOPEN_FAILED",
+    });
   },
 });

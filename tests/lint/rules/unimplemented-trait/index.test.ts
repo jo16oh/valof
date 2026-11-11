@@ -1,19 +1,31 @@
 import { expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, UnimplementedTrait, UnusedMember, fixtures } from "../../support.ts";
+import {
+  CompanionMismatch,
+  UnimplementedTrait,
+  UnrelatedAssoc,
+  UnusedMember,
+  fixtures,
+} from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
 test("reports each Trait a Val declares but does not implement", async () => {
   expect(await lint("missing")).toEqual([
-    { rule: UnimplementedTrait, at: "missing.ts:4:50" },
-    { rule: UnimplementedTrait, at: "missing.ts:7:64" },
-    { rule: UnimplementedTrait, at: "missing.ts:10:52" },
+    { rule: UnimplementedTrait, at: "missing.ts:5:50" },
+    { rule: UnimplementedTrait, at: "missing.ts:8:64" },
+    { rule: UnimplementedTrait, at: "missing.ts:11:52" },
   ]);
   expect(await messages("missing")).toEqual([
     "User declares Greetable, but its companion does not implement it",
     "Admin declares Named, but its companion does not implement it",
     "Guest declares Named, but its companion does not implement it",
+  ]);
+});
+
+test("reports a Trait a Val declares even when no linted file declares the Trait", async () => {
+  expect(await messages("unlinted-trait")).toEqual([
+    "User declares Greetable, but its companion does not implement it",
   ]);
 });
 
@@ -27,8 +39,8 @@ test("looks through parentheses around the Val the companion is for", async () =
 
 test("looks through parentheses in a Trait intersection and its alias", async () => {
   expect(await lint("parenthesized")).toEqual([
-    { rule: UnimplementedTrait, at: "parenthesized.ts:4:63" },
-    { rule: UnimplementedTrait, at: "parenthesized.ts:8:52" },
+    { rule: UnimplementedTrait, at: "parenthesized.ts:5:63" },
+    { rule: UnimplementedTrait, at: "parenthesized.ts:9:52" },
   ]);
   expect(await messages("parenthesized")).toEqual([
     "User declares Named, but its companion does not implement it",
@@ -46,9 +58,9 @@ test("matches a module through a `.js` specifier and a directory import", async 
 
 test("keeps same-named Traits from different modules distinct", async () => {
   expect(await lint("identity")).toEqual([
-    { rule: UnimplementedTrait, at: "identity/barrels.ts:4:45" },
-    { rule: UnimplementedTrait, at: "identity/namespace.ts:4:60" },
-    { rule: UnimplementedTrait, at: "identity/renamed.ts:4:47" },
+    { rule: UnimplementedTrait, at: "identity/barrels.ts:5:45" },
+    { rule: UnimplementedTrait, at: "identity/namespace.ts:5:60" },
+    { rule: UnimplementedTrait, at: "identity/renamed.ts:5:47" },
   ]);
 });
 
@@ -69,4 +81,19 @@ test("reports a Trait an Enum declares and its companion leaves out", async () =
 // promise to implement anything.
 test("says nothing about a shared field, a tag, or a Trait the enum implements", async () => {
   expect(await lint("enum-implemented", { skip: [UnusedMember] })).toEqual([]);
+});
+
+test("reports a Trait a variant declares and its companion leaves out", async () => {
+  expect(await lint("variant", { skip: [UnusedMember, UnrelatedAssoc] })).toEqual([
+    { rule: UnimplementedTrait, at: "variant.ts:6:91" },
+  ]);
+  expect(await messages("variant", { skip: [UnusedMember, UnrelatedAssoc] })).toEqual([
+    "Item.Pen declares Named, but its companion does not implement it",
+  ]);
+});
+
+test("does not let a variant's implementation answer for the enum's Trait", async () => {
+  expect(await messages("variant-only", { skip: [UnusedMember, UnrelatedAssoc] })).toEqual([
+    "Item declares Named, but its companion does not implement it",
+  ]);
 });

@@ -1,3 +1,4 @@
+import { type Unpatchable, Val } from "valof";
 const Doc = Val.companion<Doc, [Unpatchable<"id">]>()
   .implSeal((d, seal) => seal(d))
   .impl(() => ({
@@ -6,3 +7,6 @@ const Doc = Val.companion<Doc, [Unpatchable<"id">]>()
   })).build();
 
 Doc.title(doc);
+
+type Doc = Val<"Doc", { id: string; name: string; title: string }>;
+declare const doc: Doc;
