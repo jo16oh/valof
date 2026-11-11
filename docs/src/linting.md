@@ -20,7 +20,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `companion-mismatch`   | a companion, or a variant, bound to a name other than its own                      | error   |
 | `split-companion`      | a companion for a type that another file declares                                  | error   |
 | `bypassed-companion`   | a `Val.of` for a type whose companion is how it is built                           | warning |
-| `unnamed-of`           | a `Val.of` that names no type, taking one from its target                          | warning |
+| `inferred-val-of`      | a `Val.of` that names no type, taking one from its target                          | warning |
 | `hidden-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`       | warning |
 | `unqualified-variant`  | a variant bound to a local name without the name of its enum                       | warning |
 | `split-variant-steps`  | a variant whose steps are split by another variant's steps in the chain            | warning |

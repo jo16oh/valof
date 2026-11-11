@@ -5754,6 +5754,13 @@ the type and the companion are in the same file, so a name clash reduces to the 
 
 **Adopted.** `unnamed-of`. It reports `Val.of(…)` without a type argument. On by default, warn.
 
+**Renamed `inferred-val-of`, 2026-11-11.** `unnamed-of` said neither that the rule is about `Val.of` nor what is
+missing (user). The new name says that the lift takes its type from inference. A breaking change for a disable
+comment or a config that refers to the rule.
+
+- **Rejected: `implicit-val-of`.** "Implicit" covers more than the type argument
+- **Rejected: `untyped-val-of`.** It reads as `any`, and the type is in fact fixed by the target
+
 `Val.of<Age>(x)` is allowed as an escape hatch because **the required type argument makes it greppable** (§2.2).
 Without the type argument that justification no longer holds, and `bypassed-companion` cannot see it either. **Right after a new rule was added,
 a way to bypass that rule silently remained.**
