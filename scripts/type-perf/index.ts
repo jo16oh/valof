@@ -146,7 +146,7 @@ await pack();
 
 const declarations = await declarationBytes(new URL("../../dist/index.d.ts", here));
 const plugin = Buffer.byteLength(
-  await readFile(new URL("../../dist/eslint-plugin.d.mts", here), "utf8"),
+  await readFile(new URL("../../dist/eslint-plugin/index.d.mts", here), "utf8"),
   "utf8",
 );
 

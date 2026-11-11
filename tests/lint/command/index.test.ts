@@ -14,7 +14,7 @@ const under = (fixture: string): string => `tests/lint/command/fixtures/${fixtur
 test("prints a finding's location and kind, and exits 1 with a summary", () => {
   const { status, stdout, stderr } = cli(under("*.ts"), under("finding.ts"));
   expect(stdout).toMatch(
-    new RegExp(`^tests/lint/command/fixtures/finding\\.ts:3:3  ${UnusedMember.kind}  `),
+    new RegExp(`^tests/lint/command/fixtures/finding\\.ts:4:3  ${UnusedMember.kind}  `),
   );
   expect(status).toBe(1);
   expect(stderr).toBe("valof-lint: 1 finding(s) in 1 file(s)");
@@ -58,6 +58,6 @@ test("asks for oxc-parser when it is not installed", () => {
 test("lets another failure to load the parser surface as itself", () => {
   const { status, stderr } = cliWithBrokenParser(under("*.ts"));
   expect(status).toBe(1);
-  expect(stderr).toContain("the parser's native binding failed to load");
+  expect(stderr).toContain("the parser's binding failed to load");
   expect(stderr).not.toContain("pnpm add -D oxc-parser");
 });

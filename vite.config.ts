@@ -13,16 +13,22 @@ export default defineConfig({
     // entry turns `Val`'s namespace into an object, and the user's bundler keeps every member.
     entry: {
       lint: "src/lint/index.ts",
-      "eslint-plugin": "src/lint/eslint-plugin.ts",
+      "eslint-plugin/index": "src/lint/eslint-plugin/index.ts",
       "lint-cli": "src/lint/cli.ts",
+      "eslint-plugin/worker": "src/lint/eslint-plugin/worker.ts",
     },
     dts: {
       tsgo: true,
+      // A config file in TypeScript reads the plugin's type. The linter's API is the CLI and the
+      // plugin alone, so its other entries ship no declarations.
+      entry: "src/lint/eslint-plugin/index.ts",
     },
+    // The linter's own dependencies, inlined so that installing valof installs nothing more.
+    deps: { onlyBundle: ["@praha/byethrow", "@praha/error-factory"] },
     exports: {
       // The CLI ships as a command, not as an import, so it stays out of the public exports.
       // Naming it here as well: left to auto-detect, the command takes the package's own name.
-      exclude: ["lint-cli"],
+      exclude: ["lint-cli", "eslint-plugin/worker"],
       customExports: (exports) => ({
         ".": "./dist/index.js",
         // For a consumer with `declaration: true`.

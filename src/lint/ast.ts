@@ -1,3 +1,5 @@
+import { Val } from "../index.ts";
+
 /** The ESTree subset the linter walks. Narrow by `type` before reading anything past `type`. */
 export type Node = { type: string; [key: string]: unknown };
 
@@ -59,20 +61,32 @@ export function rootPath(node: Node): string[] | undefined {
 }
 
 /** Where something sits, 1-based on both axes, the way an editor and every linter count. */
-export type Where = { line: number; column: number };
+export type Position = Val<"Position", { line: number; column: number }>;
+export const Position = Val.companion<Position>().build();
 
-/** Byte offset -> {@link Where}, from a prefix scan done once per file. */
-export function positions(source: string): (offset: number) => Where {
-  const starts = [0];
-  for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1)) starts.push(i + 1);
-  return (offset) => {
-    let low = 0;
-    let high = starts.length - 1;
-    while (low < high) {
-      const mid = (low + high + 1) >> 1;
-      if ((starts[mid] as number) <= offset) low = mid;
-      else high = mid - 1;
-    }
-    return { line: low + 1, column: offset - (starts[low] as number) + 1 };
-  };
-}
+/** Where each line of one file starts, so an offset finds its {@link Position}. */
+export type Lines = Val<"Lines", { starts: number[] }>;
+export const Lines = Val.companion<Lines>()
+  .implAssoc(({ seal }) => ({
+    /** Scans the source once for line breaks. */
+    from: (source: string): Lines => {
+      const starts = [0];
+      for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1))
+        starts.push(i + 1);
+      return seal({ starts });
+    },
+  }))
+  .impl(() => ({
+    /** The {@link Position} of a byte offset. */
+    at: ({ starts }, offset: number): Position => {
+      let low = 0;
+      let high = starts.length - 1;
+      while (low < high) {
+        const mid = (low + high + 1) >> 1;
+        if ((starts[mid] as number) <= offset) low = mid;
+        else high = mid - 1;
+      }
+      return Position.seal({ line: low + 1, column: offset - (starts[low] as number) + 1 });
+    },
+  }))
+  .build();

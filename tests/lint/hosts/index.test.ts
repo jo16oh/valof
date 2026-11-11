@@ -5,7 +5,7 @@ import type { Linter } from "eslint";
 import type { OxlintConfig } from "oxlint";
 import { expect, expectTypeOf, test } from "vite-plus/test";
 
-import valof from "../../../src/lint/eslint-plugin.ts";
+import valof from "../../../src/lint/eslint-plugin/index.ts";
 
 // What a host does with the plugin is beyond what a type can check, so both are run for real, over
 // a fixture holding one finding each.

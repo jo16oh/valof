@@ -1,3 +1,4 @@
+import { Trait } from "valof";
 type Greetable = Trait<"Greetable", { name: string }>;
 
 export type Friendly = Greetable;

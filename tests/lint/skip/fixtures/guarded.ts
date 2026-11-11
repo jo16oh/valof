@@ -1,3 +1,4 @@
+import { Val } from "valof";
 // valof-lint-disable unused-member
 
 // valof-lint-disable-whole-file duplicate-brand
