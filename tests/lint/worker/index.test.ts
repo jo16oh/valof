@@ -7,8 +7,9 @@ const PATIENCE = 2000;
 
 test("asks the same worker again, once it has answered", () => {
   const worker = new WorkerClient<string, string>(script, PATIENCE);
-  expect(worker.ask("one")).toBe("answered one");
-  expect(worker.ask("two")).toBe("answered two");
+  const first = worker.ask("thread");
+  expect(first).toMatch(/^thread \d+$/);
+  expect(worker.ask("thread")).toBe(first);
 });
 
 test("stops a wedged worker, and asks a new one next", async () => {
