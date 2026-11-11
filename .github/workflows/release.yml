@@ -136,7 +136,7 @@ jobs:
       # setup-vp puts `vp` on PATH but not pnpm, which the publish step needs.
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
-          version: 11.25.0
+          version: 12.18.0
 
       - run: vp install
 
