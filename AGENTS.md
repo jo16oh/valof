@@ -151,10 +151,9 @@ resolved type, assign it to an impossible target (`const x: 0 = value`) and read
 
 ### Docs
 
-Keep only what changes the reader's behaviour. That cuts machinery they never touch, the reasoning
-behind a choice defended against an alternative nobody proposed, and prose restating the example
-above it. `notes/` is the exception: a rejected alternative stays there, since that record is what
-stops the idea coming back.
+Cut machinery the reader never touches, the reasoning behind a choice defended against an
+alternative nobody proposed, and prose restating the example above it. `notes/` is the exception: a
+rejected alternative stays there, since that record is what stops the idea coming back.
 
 The README carries what a reader needs before writing code. What they need only once they get it
 wrong goes in the JSDoc of the thing it describes, where the hover arrives together with the type
