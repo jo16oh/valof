@@ -3,10 +3,10 @@ import { Result as R } from "@praha/byethrow";
 import { pipe } from "../../shared/pipe/index.ts";
 import { Options } from "../options.ts";
 import { run } from "../run.ts";
-import { serve } from "./serve.ts";
+import { LinterWorker } from "./linter-worker.ts";
 
-// The worker the plugin asks, one file at a time. See `LinterWorker`.
-serve(
+// The worker the plugin asks, one file at a time.
+LinterWorker.serve(
   async ({ project, file, text }) =>
     pipe(
       await run(project, Options.create({ targets: [file], overlay: [[file, text]] })),

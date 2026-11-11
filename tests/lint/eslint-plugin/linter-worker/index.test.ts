@@ -4,8 +4,7 @@ import { join } from "node:path";
 
 import { expect, test } from "vite-plus/test";
 
-import { LinterWorker } from "../../../../src/lint/eslint-plugin/linter-worker.ts";
-import { Query } from "../../../../src/lint/eslint-plugin/messages.ts";
+import { LinterWorker, Query } from "../../../../src/lint/eslint-plugin/linter-worker.ts";
 import { Project } from "../../../../src/lint/files.ts";
 
 const script = new URL("answerer.ts", import.meta.url);
