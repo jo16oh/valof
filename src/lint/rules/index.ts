@@ -1,7 +1,6 @@
 import { HiddenStateInImpl } from "./hidden-state-in-impl.ts";
 import { ModelOnlyInValof } from "./model-only-in-valof.ts";
 import { HiddenOptional } from "./hidden-optional.ts";
-import { UnreturnedSeal } from "./unreturned-seal.ts";
 import { UnrelatedAssoc } from "./unrelated-assoc.ts";
 import { SplitVariantSteps } from "./split-variant-steps.ts";
 import { UnqualifiedVariant } from "./unqualified-variant.ts";
@@ -39,7 +38,6 @@ export const RULES = [
   Rule.dyn(HiddenStateInImpl, HiddenStateInImpl.create()),
   Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create(ModelSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
-  Rule.dyn(UnreturnedSeal, UnreturnedSeal.create()),
   Rule.dyn(UnrelatedAssoc, UnrelatedAssoc.create()),
   Rule.dyn(SplitVariantSteps, SplitVariantSteps.create()),
   Rule.dyn(UnqualifiedVariant, UnqualifiedVariant.create()),
@@ -56,7 +54,6 @@ export {
   HiddenStateInImpl,
   ModelOnlyInValof,
   HiddenOptional,
-  UnreturnedSeal,
   UnrelatedAssoc,
   SplitVariantSteps,
   UnqualifiedVariant,

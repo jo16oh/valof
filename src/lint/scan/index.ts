@@ -1,8 +1,7 @@
 import { normalize, resolve } from "node:path";
 
 import { pipe } from "../../shared/pipe/index.ts";
-import { Val, type VariantOf } from "../../index.ts";
-import type { AnyVal, CompanionBuilder } from "../../val.ts";
+import { Val } from "../../index.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
 import type { Reserved } from "../../val.ts";
@@ -107,10 +106,6 @@ export type StepMember = Val<
 >;
 export const StepMember = Val.companion<StepMember>().build();
 
-/** A call of the default seal, inside a custom one, that no `return` holds. */
-export type HeldSeal = Val<"HeldSeal", { at: Position; companion: string; noseal: boolean }>;
-export const HeldSeal = Val.companion<HeldSeal>().build();
-
 /**
  * A top-level const whose type annotation may hide a default or a rest parameter of the function
  * it holds: `const toWire: ToWire = (u, sep = ",") => …`, or a property of an annotated object.
@@ -186,8 +181,6 @@ export type Scan = Val<
     hiddenParameters: HiddenParameter[];
     /** The names a member step takes its members from: `() => fns`, or `() => ({ toWire })`. */
     memberSources: SymbolRef[];
-    /** Calls of the default seal that a custom seal holds outside its `return`. */
-    heldSeals: HeldSeal[];
     /** The members `.impl` and `.implAssoc` registered inline, with what their bodies name. */
     stepMembers: StepMember[];
     /** Member steps whose function declares something in its body. */
@@ -325,7 +318,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
   const stepStates: StepState[] = [];
   const splitVariants: SplitVariant[] = [];
   const memberBodies: StepMember[] = [];
-  const heldSeals: HeldSeal[] = [];
   const memberSources: SymbolRef[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
@@ -422,7 +414,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
         }
         members.push(...implMembers(init, id.name, bound, objects, lines));
         splitVariants.push(...split(init, id.name, bound, lines));
-        heldSeals.push(...held(init, id.name, lines));
         if (site) memberBodies.push(...bodies(init, id.name, site.typeName, bound, lines));
         break;
       }
@@ -555,7 +546,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     stepStates,
     splitVariants,
     stepMembers: throughReferences(memberBodies, program),
-    heldSeals,
     hiddenParameters: hidden(program, file, bound, lines),
     memberSources,
     reads: sets(reads),
@@ -913,45 +903,6 @@ function bodies(
     current = receiver;
   }
   return found.reverse();
-}
-
-/**
- * The default seal's calls that a chain's inline `implSeal` makes outside what it returns, and
- * whether the chain's create is `.implCreate.noseal`. An arrow with an expression body returns
- * that expression, so every call in it is held by the return.
- */
-function held(node: Node, companion: string, lines: Lines): HeldSeal[] {
-  let noseal = false;
-  let fn: Node | undefined;
-  let current: Node = node;
-  while (current.type === "CallExpression" && current.callee.type === "MemberExpression") {
-    const { callee } = current;
-    if (
-      keyName(callee.property, callee.computed) ===
-      ("noseal" satisfies keyof CompanionBuilder<AnyVal>["implCreate"])
-    )
-      noseal = true;
-    const step = stepOf(callee);
-    if (step.name === "implSeal") fn = current.arguments[0];
-    current = variantOf(step.receiver)?.builder ?? step.receiver;
-  }
-  const body =
-    fn?.type === "ArrowFunctionExpression" || fn?.type === "FunctionExpression" ? fn.body : null;
-  const seal = paramsOf(fn)[1];
-  if (body?.type !== "BlockStatement" || seal?.type !== "Identifier") return [];
-  const returned = new Set<Node>();
-  for (const inner of descendants(body))
-    if (inner.type === "ReturnStatement" && inner.argument)
-      for (const one of descendants(inner.argument)) returned.add(one);
-  return [...descendants(body)]
-    .filter(
-      (inner): inner is VariantOf<Node, "CallExpression"> =>
-        inner.type === "CallExpression" &&
-        !returned.has(inner) &&
-        inner.callee.type === "Identifier" &&
-        inner.callee.name === seal.name,
-    )
-    .map((call) => HeldSeal.seal({ at: Lines.at(lines, call.start), companion, noseal }));
 }
 
 /** The index of a function's first default or rest parameter, and which it is. */
