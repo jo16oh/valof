@@ -23,7 +23,6 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `unnamed-of`           | a `Val.of` that names no type, taking one from its target                                            | warning |
 | `hidden-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`                         | warning |
 | `unqualified-variant`  | a variant bound to a local name without the name of its enum                                         | warning |
-| `split-variant-steps`  | a variant whose steps are split by another variant's steps in the chain                              | warning |
 | `unrelated-assoc`      | an `.implAssoc` member that names neither its type nor a `seal` or `create`                          | warning |
 | `unreturned-seal`      | a seal that keeps the default seal's result outside its return, in a chain with `.implCreate.noseal` | error   |
 | `hidden-optional`      | a default or rest parameter that a member's type annotation hides                                    | error   |

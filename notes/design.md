@@ -3132,7 +3132,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       2026-11-03 (§18.5). Found while adding valof-lint rules. Only the lint tests map the `typescript-7.1` alias to
       `typescript/sync` with a resolve hook
 - [ ] **What remains of lint (from the 2026-11-03 additions).**
-  - `block-step` (now `hidden-state-in-impl`, below), `split-variant-steps` and `unqualified-variant` are added (the three in `__memo__/tasks-to-design.md`)
+  - `block-step` (now `hidden-state-in-impl`, below), `split-variant-steps` (removed for the Enum builder's type, §15.2) and `unqualified-variant` are added (the three in `__memo__/tasks-to-design.md`)
   - **`block-step` stays (2026-11-11).** State goes outside the Val. A Val is immutable data, and state in a step's
     block is invisible to anyone reading the members. The report says only "move what it declares out of the
     companion", without saying where. A constant goes to module level, and state to a closure over the scope that uses
@@ -8078,7 +8078,7 @@ is a type error, so a reader finds a variant's steps in one place. Steps of one 
 - The error lands on the second `.Circle`: `Property 'Circle' does not exist on type 'EnumBuilder<…>'`. It gives no
   reason, and TS7006 follows on the callback's parameter. The book and the JSDoc of `EnumBuilder` and `VariantSteps` state the rule
 - `L` is the fifth type parameter, before `F`. If `L` came last, every variant step's return would spell out four defaults. Users who write `EnumBuilder`'s type arguments out have to reorder them
-- valof-lint's `split-variant-steps` can be removed once this merges
+- valof-lint's `split-variant-steps` is removed in the same change
 
 **Rejected: a message type in place of the removed variant** (`readonly Circle: "write a variant's steps together, not
 split by another variant's"`). The error said why, but completion still listed `Circle`, and `.Circle.` offered the
