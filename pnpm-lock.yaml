@@ -229,7 +229,7 @@ importers:
         specifier: ^11.1.0
         version: 11.1.0
       eslint:
-        specifier: ^10.10.0
+        specifier: ^10.14.0
         version: 10.14.0(jiti@2.7.0)(supports-color@5.5.0)
       handlebars:
         specifier: ^4.7.10
