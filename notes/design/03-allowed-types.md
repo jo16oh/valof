@@ -213,6 +213,25 @@ Only unions of objects used to pass. `Point | null` and `string | Point` do not 
 
 Sum types go to `Enum`, not `Val` (§9).
 
+### A field holding Vals of different types, 2026-11-12
+
+`equals` compares structure, so it finds two Vals of different types with the same fields equal.
+
+```ts
+type Order = Val<"Order", { money: Dollar | Yen }>;
+equals(Order.seal({ money: dollar(1) }), Order.seal({ money: yen(1) })); // true
+```
+
+JSON does not record which type the field held either. A field typed `Impl<Priced>` has the same problem without a union. It holds any Val implementing the trait.
+
+- `Validate` rejects both below the root, and the message points to an Enum. An enum's tag distinguishes the variants in `equals` and in JSON
+- **The check compares brands, or an enum's name, not member types.** A Val with a boolean payload is `V<true> | V<false>` under one brand. An enum's variants carry different brands but one name, so it compares the enum's `NameOf`. Two enums, or an enum and a Val, are rejected
+- **An `Impl` is rejected alone, not only in a union.** This withdraws "A union of `Impl`s can be written in a field" (§15.1, 2026-11-04). `Impl` stays the type for a variable or a parameter
+- **Rejected: a runtime brand that `equals` compares** (§5). The type rule rejects such a field at no runtime cost
+- **`Rec<Dollar> | Rec<Yen>` is rejected too.** `Validate` reads a `Rec` by its keys before the Val check, so the `Rec` branch rejects a union of its own
+- **`DeepReadonlyValue` no longer maps `Impl`.** No payload holds one now, so the branch that kept a `Dyn` box out of an `Impl` field (§15.1, 2026-11-04) was dead
+- Cost: core 8,893 → 8,854, trait 24,668 → 24,436, `index.d.ts` 103.73 → 103.93 kB. Reusing `NameOf` rather than a new helper kept `index.d.ts` under its 104 kB budget
+
 ## 3.7 Self-reference: `Rec`
 
 You can write a `Tree` that holds a `Tree`. Insert a marker that appears only in the declaration.
