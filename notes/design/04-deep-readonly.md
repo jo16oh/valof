@@ -123,6 +123,45 @@ The WeakSet wins on more than speed.
 
 It is internal, so it can be swapped later without a breaking change if needed.
 
+### What production `nocopy` costs, measured 2026-11-11
+
+valof-lint builds every AST node with `create.nocopy`. Converting `src/val.ts` (6,798 nodes) took 4.5 ms in production, and `adopt` took half of it. Measured with Node 24.21 / M-series, `NODE_ENV=production`, per object over 6,800 objects. `adopt` checks `owned` and then adds to `adopted`. The benchmarks approximate that with `has` + `add` on one WeakSet. Each table here and in the next section is a separate run. The long-lived WeakSet's figure varies between them, from 116 to 210 ns.
+
+| Cost                                                           | ns/object |
+| -------------------------------------------------------------- | --------- |
+| `N.A.create.nocopy` on a variant, whole call                   | 166       |
+| `has` + `add` on one long-lived WeakSet, as `owned`, `adopted` | 138       |
+| `has` + `add` on a WeakSet made for this round                 | 46        |
+| `Map.prototype.set`                                            | 27        |
+| `{ ...payload, type }`, the spread `mint` uses to add the tag  | 5         |
+
+**Registering in the WeakSet is about 80% of `nocopy`.** The set's age and size make it slow, not rehashing. A hash table rehashes only when it doubles, which costs constant time per entry on average.
+
+| `has` + `add` on                                 | default | `--max-semi-space-size=128` |
+| ------------------------------------------------ | ------- | --------------------------- |
+| a WeakSet made for this round                    | 44 ns   | 43 ns                       |
+| one long-lived WeakSet, its entries soon garbage | 210 ns  | 123 ns                      |
+| a WeakSet holding 200,000 live entries           | 268 ns  | 204 ns                      |
+
+- **Most of the gap is GC.** A long-lived WeakSet is in the old generation. Each young object registered in it is an ephemeron that every scavenge has to process. With fewer scavenges (`--max-semi-space-size=128`), it drops from 210 ns to 123 ns
+- **The rest is the table's size.** With 200,000 entries it is still 204 ns with fewer scavenges, which points to cache misses
+
+### Rejected: splitting the ownership WeakSets into small ones
+
+The idea was a `Map` of small WeakSets, a new one every K registrations, each counting its live entries through a `FinalizationRegistry` and removed from the `Map` once the count reaches 0, for `owned` and `adopted` alike. `has` + `add` on a WeakSet made for this round takes 44 ns, against 138 ns on the long-lived one.
+
+| Per object                                                 | ns/object | WeakSets alive at most |
+| ---------------------------------------------------------- | --------- | ---------------------- |
+| one long-lived WeakSet, as now                             | 116       | 1                      |
+| `FinalizationRegistry.register` alone                      | 17        |                        |
+| split every 1,024: `has` over every set, `add`, `register` | 4,354     | 1,993                  |
+| split every 8,192                                          | 686       | 250                    |
+
+- **A lookup has to check every set.** JS exposes no identity hash, so nothing tells which set holds an object. The common case in `adopt` is a miss (`owned.has` on a payload just built)
+- **The sets are not removed in time.** A `FinalizationRegistry` callback runs after a GC, as a task of its own. No set is removed during a synchronous burst, such as converting one file, so the sets accumulate
+
+**Rejected because JS exposes no identity hash: a B-tree or any ordered structure.** Objects cannot be ordered without an identity hash. Giving each one an id needs a WeakMap, which costs about what a WeakSet does, or a mark on the object, which "Rejected: holding the ownership mark under a symbol key" rejects. Holding the objects in anything but a WeakSet, a WeakMap or a WeakRef keeps them alive.
+
 ### A `patch` that changes nothing returns the value itself
 
 Even with sharing, a no-op `patch` creates a new root, so the identity changes and a re-render runs. `patch` already loops once over the keys of the merged payload, so the identity comparison runs in that same loop. This matches Immer's `produce`.
