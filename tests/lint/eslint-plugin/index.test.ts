@@ -1,7 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vite-plus/test";
@@ -63,6 +63,13 @@ test("takes a list for the project, and leaves out what one entry excludes", () 
   expect(
     run("money.ts", undefined, [project, at("reader/*.ts"), `!${at("reader/show.ts")}`]),
   ).toEqual([finding]);
+});
+
+test("leaves out a file excluded under another spelling than the glob that reached it", () => {
+  const reader = relative(process.cwd(), at("reader/*.ts"));
+  expect(run("money.ts", undefined, [project, reader, `!${at("reader/show.ts")}`])).toEqual([
+    "6:2-8  Money.format is never read",
+  ]);
 });
 
 test("asks again once the stack empties, since another file of the project may have changed", async () => {
