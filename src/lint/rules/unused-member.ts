@@ -1,28 +1,21 @@
-import type { Where } from "../ast.ts";
-import { original, symbolIdentity, type Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Val } from "../../index.ts";
+import { ImportMap, Exports, type Scan } from "../scan/index.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
-export type UnusedMember = Where & {
-  kind: "unused-member";
-  file: string;
-  /** The companion's declared name, as written at its declaration site. */
-  companion: string;
-  /** The member's key. */
-  member: string;
-  message: string;
-};
-
-export const UnusedMember: Rule<UnusedMember> = {
-  kind: "unused-member",
-  description: "members registered with `.impl` or `.implTrait` that nothing reads",
-  // A member nothing reads is dead weight, and the code around it works.
-  warns: true,
-  run: findings,
-};
+export type UnusedMember = Val<"UnusedMember", { kind: Kind }, Rule>;
+export const UnusedMember = Val.companion<UnusedMember>()
+  .implCreate(() => ({
+    kind: Kind.seal("unused-member"),
+    description: "members registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads",
+    // A member nothing reads is dead weight, and the code around it works.
+    warns: true,
+  }))
+  .implTrait(Rule, () => ({ run: findings }))
+  .build();
 
 /**
- * Reports a member registered with `.impl` or `.implTrait` that nothing reads.
+ * Reports a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads.
  *
  * A declaration is kept per site rather than per name, because two modules may each declare a
  * companion called `User`; reads stay keyed by name alone, so a read anywhere counts for both.
@@ -42,12 +35,12 @@ export const UnusedMember: Rule<UnusedMember> = {
  * is used. A spread whose value is not a local const object contributes no keys, so those members
  * are never reported however dead they are.
  */
-function findings(scans: readonly Scan[]): UnusedMember[] {
-  const identity = symbolIdentity(scans);
+function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
+  const exports = Exports.from(scans);
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
   for (const scan of scans)
-    for (const [outside, inside] of scan.exportedAs) {
+    for (const [outside, inside] of Object.entries(scan.exportedAs)) {
       exportedAs.set(outside, inside);
     }
 
@@ -76,28 +69,53 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
     keys.add(key);
   };
   for (const scan of scans) {
-    for (const [local, keys] of scan.reads) {
-      const name = original(scan.bound, local);
-      for (const key of keys) note(name, key);
+    for (const [local, keys] of Object.entries(scan.reads)) {
+      const name = ImportMap.nameOf(scan.imported, local);
+      for (const key of Object.keys(keys)) note(name, key);
     }
     // Already named as the exporting module names them, so this file's aliases do not apply.
-    for (const [name, keys] of scan.namespaceReads) for (const key of keys) note(name, key);
+    for (const [name, keys] of Object.entries(scan.namespaceReads))
+      for (const key of Object.keys(keys)) note(name, key);
   }
 
   const implementations = new Map<string, Scan["traitImplementations"][number]>();
   for (const scan of scans)
     for (const implementation of scan.traitImplementations)
       implementations.set(
-        `${identity(implementation.val)}\0${identity(implementation.trait)}`,
+        `${Exports.identify(exports, implementation.val)}\0${Exports.identify(exports, implementation.trait)}`,
         implementation,
       );
 
   // A dyn read dispatches through the Val's selected implementation.
   for (const scan of scans)
     for (const { val, trait, member } of scan.dynReads) {
-      const implementation = implementations.get(`${identity(val)}\0${identity(trait)}`);
+      const implementation = implementations.get(
+        `${Exports.identify(exports, val)}\0${Exports.identify(exports, trait)}`,
+      );
       const overridden = implementation?.overrides.some((one) => one.member === member) === true;
       note(overridden ? val.name : trait.name, member);
+    }
+
+  // A box that escaped is read off names the walk does not follow, so a key read anywhere may be
+  // read off it. It holds the Val its first argument references, or any Val implementing the
+  // trait when that references none.
+  const anywhere = new Set<string>();
+  for (const scan of scans)
+    for (const keys of [...Object.values(scan.reads), ...Object.values(scan.namespaceReads)])
+      for (const key of Object.keys(keys)) anywhere.add(key);
+  for (const scan of scans)
+    for (const { trait, val } of scan.escapedDyns) {
+      const implementing = [...implementations.values()].filter(
+        (one) => Exports.identify(exports, one.trait) === Exports.identify(exports, trait),
+      );
+      const named = implementing.filter(
+        (one) => Exports.identify(exports, one.val) === Exports.identify(exports, val),
+      );
+      for (const implementation of named.length > 0 ? named : implementing)
+        for (const key of anywhere) {
+          const overridden = implementation.overrides.some((one) => one.member === key);
+          note(overridden ? implementation.val.name : trait.name, key);
+        }
     }
 
   // A Val reads a trait's default unless that Val supplied the same key to implTrait.  Unknown
@@ -118,7 +136,7 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
   const variants = new Map<string, ReadonlySet<string>>();
   for (const { enumAliases } of scans)
     for (const { ref, variants: declared } of enumAliases)
-      if (declared) variants.set(identity(ref), new Set(declared));
+      if (declared) variants.set(Exports.identify(exports, ref), new Set(declared));
 
   return scans.flatMap(({ file, members, sites }) => {
     /**
@@ -127,20 +145,19 @@ function findings(scans: readonly Scan[]): UnusedMember[] {
      */
     const taken = new Map<string, ReadonlySet<string>>();
     for (const site of sites) {
-      const declared = variants.get(identity(site.typeRef));
-      if (site.name !== undefined && declared) taken.set(site.name, declared);
+      const declared = variants.get(Exports.identify(exports, site.typeRef));
+      if (site.name !== null && declared) taken.set(site.name, declared);
     }
     return members
       .filter(({ companion, member }) => !taken.get(companion)?.has(member))
       .filter(({ companion, member }) => !read.get(companion)?.has(member))
-      .map(({ companion, member, line, column }) => ({
-        kind: "unused-member" as const,
-        file,
-        line,
-        column,
-        companion,
-        member,
-        message: `${companion}.${member} is never read`,
-      }));
+      .map(({ companion, member, at }) =>
+        Finding.seal({
+          kind,
+          file,
+          at,
+          message: `${companion}.${member} is never read`,
+        }),
+      );
   });
 }

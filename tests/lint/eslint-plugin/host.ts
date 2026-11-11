@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import plugin from "../../../src/lint/eslint-plugin.ts";
+import plugin from "../../../src/lint/eslint-plugin/index.ts";
 
 // Every rule over the file named first, with no settings, as a host in its own process runs them:
 // for what depends on the directory the host runs in, or on what it can import.

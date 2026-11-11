@@ -2,28 +2,44 @@ import { spawnSync } from "node:child_process";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { RULES, lint as run } from "../../src/lint/index.ts";
+import { Options as LintOptions, RULES, lint as run } from "../../src/lint/index.ts";
 
 export { RULES };
 
-// Named rather than spelled as a kind: a test that names a rule reads the same object the
-// registry does, so renaming a kind is one edit and no test string follows it.
-export {
-  UnnecessaryAlias,
-  UnimplementedTrait,
-  BrandMismatch,
-  BypassedCompanion,
-  CompanionMismatch,
-  DuplicateBrand,
-  IncompleteDisable,
-  SplitCompanion,
-  UnnamedOf,
-  UnusedDisable,
-  UnusedMember,
-} from "../../src/lint/rules/index.ts";
+import * as Rules from "../../src/lint/rules/index.ts";
 
 /** One of the rules in the registry. */
 type Registered = (typeof RULES)[number];
+
+/** The rule in the registry that a companion creates. */
+const registered = (companion: { create: (settings: never) => { kind: string } }): Registered => {
+  // An opt-in rule's create takes its settings, and none of them changes the kind.
+  const { kind } = companion.create({} as never);
+  const rule = RULES.find((one) => one.kind === kind);
+  if (!rule) throw new Error(`no rule reports ${kind}`);
+  return rule;
+};
+
+// Named rather than spelled as a kind: a test that names a rule reads the same object the
+// registry does, so renaming a kind is one edit and no test string follows it.
+export const HiddenStateInImpl = registered(Rules.HiddenStateInImpl);
+export const ModelOnlyInValof = registered(Rules.ModelOnlyInValof);
+export const HiddenOptional = registered(Rules.HiddenOptional);
+export const UnreturnedSeal = registered(Rules.UnreturnedSeal);
+export const UnrelatedAssoc = registered(Rules.UnrelatedAssoc);
+export const SplitVariantSteps = registered(Rules.SplitVariantSteps);
+export const UnqualifiedVariant = registered(Rules.UnqualifiedVariant);
+export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
+export const UnimplementedTrait = registered(Rules.UnimplementedTrait);
+export const BrandMismatch = registered(Rules.BrandMismatch);
+export const BypassedCompanion = registered(Rules.BypassedCompanion);
+export const CompanionMismatch = registered(Rules.CompanionMismatch);
+export const DuplicateBrand = registered(Rules.DuplicateBrand);
+export const IncompleteDisable = registered(Rules.IncompleteDisable);
+export const SplitCompanion = registered(Rules.SplitCompanion);
+export const UnnamedOf = registered(Rules.UnnamedOf);
+export const UnusedDisable = registered(Rules.UnusedDisable);
+export const UnusedMember = registered(Rules.UnusedMember);
 
 /**
  * A finding as a test names it: which rule reported it, and where.
@@ -55,6 +71,7 @@ export const root = fileURLToPath(new URL("../../", import.meta.url));
 type Options = {
   skip?: readonly Registered[];
   overlay?: Map<string, string>;
+  enable?: NonNullable<Parameters<typeof LintOptions.create>[0]>["enable"];
 };
 
 export function fixtures(url: string): {
@@ -68,17 +85,21 @@ export function fixtures(url: string): {
   const files = (fixture: string): string[] =>
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
-  const found = async (fixture: string, { skip = [], overlay }: Options = {}) =>
-    await run(files(fixture), {
-      ...(overlay ? { overlay } : {}),
-      skip: new Set(skip.map(({ kind }) => kind)),
-    });
+  const found = async (fixture: string, { skip = [], overlay, enable }: Options = {}) =>
+    await run(
+      files(fixture),
+      LintOptions.create({
+        overlay: overlay ?? [],
+        skip: skip.map(({ kind }) => kind),
+        ...(enable ? { enable } : {}),
+      }),
+    );
 
   return {
     all: () => globSync(`${directory}**/*.ts`),
     files,
     lint: async (fixture, options) =>
-      (await found(fixture, options)).map(({ file, line, column, kind }) => ({
+      (await found(fixture, options)).map(({ file, at: { line, column }, kind }) => ({
         rule: reporting(kind),
         at: `${file.replace(directory, "")}:${line}:${column}`,
       })),
@@ -89,8 +110,8 @@ export function fixtures(url: string): {
 
 type Run = { status: number; stdout: string; stderr: string };
 
-function spawn(node: string[], args: string[], cwd = root): Run {
-  const result = spawnSync(process.execPath, [...node, `${root}src/lint/cli.ts`, ...args], {
+function spawn(node: string[], args: string[], script = `${root}src/lint/cli.ts`, cwd = root): Run {
+  const result = spawnSync(process.execPath, [...node, script, ...args], {
     cwd,
     encoding: "utf8",
   });
@@ -99,19 +120,45 @@ function spawn(node: string[], args: string[], cwd = root): Run {
 }
 
 /** The command, for what only the command does. */
-export const cli = (...args: string[]): Run => spawn([], args);
+const typescript = ["--import", fileURLToPath(new URL("typescript-7.1.ts", import.meta.url))];
+
+export const cli = (...args: string[]): Run => spawn(typescript, args);
 
 /** The same, run from another directory. */
-export const cliIn = (cwd: string, ...args: string[]): Run => spawn([], args, cwd);
+export const cliIn = (cwd: string, ...args: string[]): Run =>
+  spawn(typescript, args, undefined, cwd);
 
 /** The same, with a parser that fails to load for another reason. */
 export const cliWithBrokenParser = (...args: string[]): Run =>
-  spawn(["--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))], args);
+  spawn(
+    [...typescript, "--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))],
+    args,
+  );
 
 /** The same, with the parser out of reach, as it is before anyone installs it. */
 export const cliWithoutParser = (...args: string[]): Run =>
-  spawn(["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))], args);
+  spawn(
+    [...typescript, "--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))],
+    args,
+  );
+
+/** The same, with the TypeScript the package builds with, 7.0, which has no `typescript/sync`. */
+export const cliWithTypeScript70 = (...args: string[]): Run => spawn([], args);
 
 /** The same, with TypeScript out of reach. */
 export const cliWithoutTypeScript = (...args: string[]): Run =>
   spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);
+
+/**
+ * Runs a module's default export with the parser out of reach, and prints what it threw. `broken`
+ * makes the parser fail to load for another reason than a missing install.
+ */
+export const withoutParser = (module: string, broken = false): Run =>
+  spawn(
+    [
+      "--import",
+      fileURLToPath(new URL(broken ? "broken-oxc-parser.ts" : "no-oxc-parser.ts", import.meta.url)),
+    ],
+    [module],
+    fileURLToPath(new URL("no-parser/run.ts", import.meta.url)),
+  );

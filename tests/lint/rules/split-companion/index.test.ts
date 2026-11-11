@@ -8,6 +8,10 @@ test("says nothing when the companion sits beside the type it is for", async () 
   expect(await lint("beside")).toEqual([]);
 });
 
+test("says nothing for a type named like an Object.prototype key, which no file imported", async () => {
+  expect(await lint("prototype-key")).toEqual([]);
+});
+
 test("reports a companion for a type another file declares", async () => {
   expect(await lint("imported")).toEqual([
     {
@@ -39,9 +43,9 @@ test("sees the chain however `Val` was imported", async () => {
 });
 
 test("reports a Trait companion split from its declaration", async () => {
-  expect(await lint("trait")).toEqual([{ rule: SplitCompanion, at: "trait/companion.ts:3:51" }]);
+  expect(await lint("trait")).toEqual([{ rule: SplitCompanion, at: "trait/companion.ts:4:51" }]);
 });
 
 test("reports an Enum companion written beside an imported declaration", async () => {
-  expect(await lint("enum")).toEqual([{ rule: SplitCompanion, at: "enum/companion.ts:5:37" }]);
+  expect(await lint("enum")).toEqual([{ rule: SplitCompanion, at: "enum/companion.ts:7:37" }]);
 });

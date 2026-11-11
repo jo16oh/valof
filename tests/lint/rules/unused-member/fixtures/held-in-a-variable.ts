@@ -1,3 +1,4 @@
+import { Val } from "valof";
 const seal = Val.companion<User>();
 
 export const User = seal.impl(() => ({
@@ -6,3 +7,6 @@ export const User = seal.impl(() => ({
 })).build();
 
 User.greet(user);
+
+type User = Val<"User", { id: string; name: string; title: string }>;
+declare const user: User;

@@ -2969,9 +2969,14 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       This lets users write `pipe(u, User.rename("x"))`. The member tells the two apart by argument count, and the types forbid optional parameters. The data-last form of a generic
       member loses its type arguments, so call it data-first inside an arrow function. Scope and rejected alternatives in §6.11
 
-- [ ] **valof-lint rule: optional parameters that a type annotation hides. To do (user, 2026-10-28), not started, separate PR.** When a type annotation hides an implementation's default
-      parameters or rest parameters, the types cannot reject them and the data-last call breaks (§6.11, "Remaining hole"). The linter reads the syntax, so it
-      sees the implementation under the annotation
+- [x] ~~**valof-lint rule: optional parameters that a type annotation hides.**~~ Added `hidden-optional`, 2026-11-03.
+      TypeScript 7.1's `typescript/sync` counts the annotation's parameters (through aliases and imports). A run with
+      no candidate does not load TypeScript. It catches an annotated top-level const (a function, or an object holding
+      functions) used as a value of the object a step's function returns, or as the name that function returns. It
+      reports at the default or the rest parameter. The record from that time follows
+- When a type annotation hides an implementation's default
+  parameters or rest parameters, the types cannot reject them and the data-last call breaks (§6.11, "Remaining hole"). The linter reads the syntax, so it
+  sees the implementation under the annotation
   - **Since 2026-10-28, development throws in `build`** (§6.11, "Run time: throw on hidden defaults and rest parameters in development"). The lint rule still adds value by showing the problem
     where it was written, before anything runs. oxlint's `typescript/no-useless-default-assignment` catches the case where the annotated type
     does not include nullish
@@ -2986,9 +2991,11 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     tracking. Check whether `unused-member`'s name resolution (imports, renames, namespaces) can be reused
   - `implTrait<Tr>({ … })` was removed on 2026-10-20 (§15.1). That form was the main way into this hole
 
-- [ ] **Seals the noseal development check misses. A lint rule idea, not started, 2026-10-14.** A seal that calls the default seal,
-      then discards the result and returns a failure, passes the check, since "the seal was called and the value is equal". Production
-      skips the seal, so a value that should be rejected gets created. The same applies to a seal that returns `undefined`, not only to `Result`
+- [x] ~~**Seals the noseal development check misses.**~~ Added `unreturned-seal`, 2026-11-03, as proposed below. It
+      reports every call of the second argument outside the argument of a `return`. The record from that time follows
+- A seal that calls the default seal,
+  then discards the result and returns a failure, passes the check, since "the seal was called and the value is equal". Production
+  skips the seal, so a value that should be rejected gets created. The same applies to a seal that returns `undefined`, not only to `Result`
 
   ```ts
   .implCreate.noseal(() => randomId())
@@ -3014,10 +3021,40 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       `never`, so a value that stays `null` cannot be told apart by brand. Putting the brand on a union lets a bare `null`
       in, and a wrapper loses plain data and falsiness. `null` inside objects and arrays is still allowed
 - [ ] Whether TS 7.1 (beta 2026-10-06, stable 2026-11-24) ships an in-process LS API (§14.5). If it does, the 7.x LSP client can move to it and fold into the same path as 5.x / 6.x. **No hurry.** `tsc --lsp` works from 7.0, so this is a chance to simplify, not a prerequisite
+  - 2026-11-11: 7.1.0-dev.20261110.1 exports `typescript/sync` and `typescript/async`. Its `Checker` has
+    `getSymbolAtPosition` and `getTypeOfSymbol`. Whether it runs in-process is unconfirmed
 - [ ] Editor integration (§14.9). The implementation is in (`Options.overlay`, `valof/lint`, `valof/eslint-plugin`). What remains is the README recipe and checking it in real editors
+- [x] ~~**Editors do not show a member's JSDoc. Go to definition on a custom `seal` / `create` jumps into valof.**~~
+      Members are fixed in TS 7.1. `seal` / `create` are given up (2026-11-11)
+  - **A member's JSDoc is a TS 7.0.2 bug.** Passing through a bare mapped type such as `{ [K in keyof T]: T[K] }` is
+    enough to lose it. 5.9.3, 6.0.3, 7.1.0-beta and 7.1.0-dev.20261110.1 show it. Go to definition reaches the
+    user's code in every version
+  - **`seal` / `create` jump into valof in every version.** `SealMethod` / `CreateMethod` declare the properties, and
+    the function passed to `.implSeal` is only a type argument. Hover also shows valof's JSDoc, not the JSDoc written
+    on the callback (7.1 nightly)
+  - **Why give up.** The convention fixes their role, and valof's JSDoc explains it. Hover shows the parameter and
+    return types as the user defined them. Returning `Result<User>` says it can fail. A rule the types do not show is
+    a few lines below the companion, reached by jumping from the `User` in `User.seal` (same name, top level, §14.21)
+  - **Rejected: TS 7.1's `registerLspMiddleware`.** It can rewrite the response to jump to `.implSeal(`. But it works
+    only inside VS Code's `TypeScriptTeam.native-preview` extension, and the PR calls it an unstable API
+    (microsoft/TypeScript#64583). 7.x does not read `compilerOptions.plugins`, so no hook works in every editor (on
+    7.1 nightly, a plugin that writes a marker file when loaded did not run)
+  - **Rejected: an LSP proxy wrapping `tsc --lsp`.** It works in every editor, but asks the user to configure the
+    editor
+  - **Rejected: having the user write `.implSeal({ seal: … })`.** As with members, the declaration site should become
+    the user's code, but this is unverified. The API becomes awkward
+  - **Rejected: a build-time transform.** The editor reads the source, so the transform's output never reaches it
 - [x] ~~valof-lint: report a local alias (`type Local = ImportedUser`)~~ Implemented, as the separate rule `unnecessary-alias` (§14.25)
       rather than in brand-mismatch. It also closed the only hole in `split-companion`
-- [ ] valof-lint rule: warn when `PayloadOf<X>` appears **at a property position** in a Val's payload. The syntactic position distinguishes it from the legitimate use (the base of a top-level intersection)
+- [x] ~~valof-lint rule: warn when `PayloadOf<X>` appears **at a property position** in a Val's payload.~~ Added
+      `payload-of-property`, 2026-11-03. The top of a Val's payload and of each variant's payload (an intersection's
+      members included) passes, and anything below it is reported. A local `type M = Payload<PayloadOf<X>>` is followed
+      one level. It errors by default. The syntactic position distinguishes it from the legitimate use (the base of a
+      top-level intersection)
+  - **Dropped, 2026-11-11.** It catches one mistake, and what led readers to it is gone: the README's
+    `Reusing a Val` composed `PayloadOf<User> & { … }` at the top level, and neither the README nor the book composes
+    `PayloadOf` any more. The rule cost a scan pass of its own and its tests. The hole stays, recorded in §4.1. The
+    types cannot close it, since `PayloadOf<Money>` is a plain object type
 - [x] ~~valof-lint rule `foreign-rec`: report a `Rec` that is not self-referential~~ Not added (§14.26).
       `Rec<Other>` opens to `Other`, so the type is the same. It causes no harm, and nobody has a reason to write it
 - [x] ~~**Implement `Enum` (a sum type).**~~ Implemented, in `src/enum.ts`, exported from `valof/experimental` next to
@@ -3048,6 +3085,9 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
       phantom on Variant
     - The cost is that TypeScript expands the constraint into the message. The key of `Invalid` (`__valError`) appears on the second line as missing,
       so one internal name is visible
+  - **2026-11-03: rebinding under the same name warns too (`unqualified-variant`, warn).** Destructuring and
+    `const Circle = Shape.Circle` both hide the enum from the reader (§15.2, "Keep the prefix"). A rename stays with
+    `companion-mismatch`. The record from that time follows
   - **A rule against rebinding a Variant.** `const { Circle } = Shape` and `const Circle = Shape.Circle` are
     legal. The only thing to check is that the names match, which an extension of `companion-mismatch` covers
 - [x] ~~**The callback form of §15.4 is not in val.ts yet.**~~ Added, then removed on 2026-09-18. `.impl` closes
@@ -3067,9 +3107,20 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - 2026-09-16: reversed (#39). `docs/tools/twoslash` type-checks each ts block in the README. The README does not use cut, and writes the preamble as part of the visible block. `paths` points imports from external packages to declarations in `docs/tools/twoslash/stubs/` (currently `remeda`)
 - [ ] `Temporal` support in each runtime (low priority since valof leaves it out, but worth confirming if the README mentions it)
 - [ ] The current state of the Records & Tuples proposal. The champions withdrew it in spring 2025 and were exploring Composites, as far as I recall, but this needs confirming. **valof does not adopt a strategy of waiting for the language to solve this**
-- [ ] Close the gaps in valof-lint's tests (§14.10). Two rounds done. What remains: the chaining of `declaredName`, and `widen` and `joins` in `directives.ts`
-- [ ] **Type-check the fixtures? (§14.10) Reopened, 2026-10-14.** Still no rule needs types, but there is another reason.
-      The fixtures are not type-checked, so renaming an API in the core leaves the lint tests green (§14.27)
+- [x] ~~Close the gaps in valof-lint's tests (§14.10).~~ Closed in the third round, 2026-11-03. Mutations already
+      failed on the chaining of `declaredName` and on `joins`. `widen` is covered by a fixture with two directives on
+      one block (the union, and every kind winning in either order)
+- [x] ~~**Type-check the fixtures? (§14.10) Reopened, 2026-10-14.**~~ Type-checked, 2026-11-03.
+      `tests/lint/fixtures.test.ts` runs `tsc` with `tests/lint/tsconfig.fixtures.json` (0.1 s)
+  - **The declarations went at the end of each file.** Type aliases are hoisted, so the positions the tests expect do
+    not move. Only the leading `import` and the `@ts-expect-error` lines moved, and the expectations were rewritten
+    from the line mapping
+  - **The tsconfig loosens two options.** `noUnusedLocals` (a companion nobody reads is what a rule examines) and
+    `declaration` (the declaration output of exported variables is not under test)
+  - **Fixtures where two files share a brand got a namespace** (`billing/User`). Adding the declarations raised
+    `duplicate-brand`
+  - The record from that time follows.
+    The fixtures are not type-checked, so renaming an API in the core leaves the lint tests green (§14.27)
   - Counted with a temporary tsconfig: 122 of 186 files, 329 errors. Most are omissions, not intended invalid code.
     `Val` not imported (162 as TS2304 / TS2552), parameters without types (TS7006, 77), types not
     declared (TS2749, 41)
@@ -3077,6 +3128,45 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - Intended invalid code passes with `@ts-expect-error`. valof-lint reads only syntax, so its results do not change.
     **Put an invalid property on its own line.** The directive hides every error on its line, so
     writing `.impl({ patch: … })` on one line would miss a rename of `impl`
+- [x] ~~With TypeScript 7.1 beta, a user's declaration output fails with TS7056.~~ The builder is now printed by name,
+      2026-11-03 (§18.5). Found while adding valof-lint rules. Only the lint tests map the `typescript-7.1` alias to
+      `typescript/sync` with a resolve hook
+- [ ] **What remains of lint (from the 2026-11-03 additions).**
+  - `block-step` (now `hidden-state-in-impl`, below), `split-variant-steps` and `unqualified-variant` are added (the three in `__memo__/tasks-to-design.md`)
+  - **`block-step` stays (2026-11-11).** State goes outside the Val. A Val is immutable data, and state in a step's
+    block is invisible to anyone reading the members. The report says only "move what it declares out of the
+    companion", without saying where. A constant goes to module level, and state to a closure over the scope that uses
+    it (valof-lint's plugin: inside `valof()`, §14.8)
+    - **Rejected: dropping it.** It was almost dropped once, since moving state to module level still leaves state.
+      The rule asks to move state out of the Val, not to remove it
+    - **Rejected: recommending a class as the destination.** A closure with a narrow scope fits more cases (user).
+      The plugin itself later moved its state into classes (§14.8, "State lives in classes")
+  - **`block-step` became `hidden-state-in-impl`, and narrowed (2026-11-11).** `block` gave no picture of what the
+    rule reports (user). The name says what goes wrong and where, and `impl` stands for every `impl*` step. It
+    reports only a body whose own statements declare a variable, a function or a class. A body that only returns
+    holds no state. A member's own locals, inside its function, are created per call and are not read
+    - **Rejected: `step-block-body`.** It describes the form, and `block` was the word that gave no picture
+    - **Rejected: `hidden-state-in-impl-block`.** Only a block body can declare anything, so `block` adds nothing
+  - `model-only-in-valof` is added (`__memo__/lint-model-only-in-valof.md`). Its options go to `Options.enable`, and
+    the runner builds the boxes to run together with the default rules (css-var-kit's `compile`). No separate rule
+    for "built-in types Valof does not allow as values"
+- [ ] **The book's Map / Set gets membership wrong for inherited keys.** Found while turning valof-lint's Scan into
+      Records, 2026-11-07. `docs/src/patterns.md` says "`if (tags[key])` is the membership test", but
+      `tags["constructor"]` and `tags["toString"]` are truthy too (probed). The book lacks §8.1's note to check with
+      `Object.hasOwn`. `__proto__` stays an own key through `Object.fromEntries` and `seal`. Not fixed
+- [x] ~~**A mistake in `<W extends Rule>` gives no pointer to `Impl`.**~~ Not fixed, 2026-11-07. The release notes
+      are enough. A check that gives the pointer adds type cost (user). `Rule` became a trait declaration (#125), so
+      `Rule.dyn<W>` prints `TraitDeclaration<…>` in full with TS2344, and all it says is "Property 'kind' is missing"
+- [x] ~~A Trait member returning a `Promise` breaks the declaration with TS2615.~~ The depth of `HasSelf`'s search is
+      capped, 2026-11-03 (§15.1, "Capping the search depth"). Found while rewriting valof-lint
+- [x] ~~A second type argument for `Dyn` that keeps the concrete Val (`Dyn<Tr, W extends Tr = Tr>`).~~ Not added,
+      2026-11-04. `Dyn` is a box that forgets the concrete Val, so the shape's type widening to the trait's
+      declaration is natural. valof-lint dropped the union of rule names (§14.8)
+  - **Rejected: taking the original value out of the box (downcast).** Not now. If added, it goes on the trait's
+    companion rather than on the box, and returns the original value (`Rule.downcast(box, DuplicateBrand)`, Rust's
+    `downcast_ref`). The box is a Proxy where every key reaches the value, so a method would collide with the
+    payload's fields and the trait's members. Branching on which Val it is means a closed set, which is a job for an
+    Enum and `match`
 - [x] ~~A Trait member overwrites a name the library puts on the companion.~~ Rejected by the types, 2026-10-14.
       Until then it passed the types, and only the run time replaced the name with the member
   - **An Enum's Variant names and `match`.** `Shape.Square({ side: 1 })` returned the Trait member's return value, and
@@ -3117,16 +3207,30 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     - Record: `implSeal({ Circle: fn })`. Weak, because nothing in the name refers to the whole
   - Two of the reasons in §15.2, "Rejected: write one seal for the whole enum", are weak: "the amount of code does not change" and "TS7022 in `match`"
     (it can be written as `switch (p._tag)`). What remains is that the return type does not differ per Variant
-- [ ] **`unimplemented-trait` ignores traits declared on a variant (§15.2, "Build with one chain").** There are no false positives, but
+- [x] ~~**`unimplemented-trait` ignores traits declared on a variant (§15.2, "Build with one chain").**~~ It reads them,
+      2026-11-03. `TraitImplementation.variant` holds the variant of `.Book.implTrait`, and a trait in a variant's
+      payload is met only by that variant's implementation. The record from that time follows. There are no false positives, but
       it does not warn about a forgotten implementation. `scan` would need to read the trait in `{ Book: … & Named }` and `.Book.implTrait`.
       Add it in the valof-lint rewrite
-- [ ] **A lint rule over `implAssoc` members (§6.13).** Add it after the valof-lint rewrite
+- [x] ~~**A lint rule over `implAssoc` members (§6.13).**~~ Added, 2026-11-03: `constructor-name` for naming and
+      `unrelated-assoc` for references, both warn. `unused-member` counts `implAssoc` members too. A reference is the
+      type's name (the companion shares it) or the name of the `seal` / `create` the step's function receives. The
+      record from that time follows
   - Naming: an `implAssoc` member that calls `seal` / `create` is named `from*` / `parse*` / `create*` (matched at a word boundary).
     Warn when an `impl` member uses one of these prefixes. The prefix check is `/^(?:from|parse|create)(?:$|[A-Z0-9_])/`.
     Rejected: `of` (`Val.of` does not go through the seal, while `Money.of` does), `with*` (in JS it means a derived value), `decode*` /
     `try*` / `new*` (overlaps `parse*`; the return type already shows failure; in a type literal it becomes a construct signature)
   - Reference: warn on a member whose parameter annotations and implementation never mention the type. A companion is not a place for helper functions
   - `unused-member` covers `implAssoc` members too
+  - **A member passed by name is read through the function in the same file (2026-11-10).** In `exec: scan`, `scan`
+    is read as a function declared at the file's top level with `function` or `const`, and a type name inside it
+    counts as a reference. Until then only the one identifier was read, and a member that uses the type was reported.
+    A function imported from another file is not read
+  - **`constructor-name` was dropped (2026-11-11).** Too strict (user). Running valof-lint on itself, the rule would
+    have split `Files.fromPaths` out of `Files.read` and `Parser.fromModule` out of `Parser.load`. A name cannot show
+    whether a function is pure, and the rule conflicts with naming a construction with side effects by its action
+    (`read`, `load`, §14.8). Keeping only the check on the `impl` side was rejected too. It has few false positives,
+    but that alone does not justify a rule
 - [x] ~~**A valof-lint false positive, from §6.12.** `detached-impl` reports a member named `fixed`, called from another file,
       as "a step written outside the chain".~~ Fixed after `fixed` moved to a type argument and left `STEPS`
       (2026-10-22). The types reject a member named like a step, so no other false positive of this kind can occur
@@ -4080,7 +4184,7 @@ export type Kind = Finding["kind"];
 
 The hand-written `Finding` union was removed too. Previously the same fact was written in three places (the keys of `RULES`, `rule.kind`, and the `Finding` union).
 
-**Exhaustiveness does not weaken. It gets stronger.** A rule left out of the array does not appear in `Kind`, as if it did not exist. Confirmed by removing `DuplicateBrand` from the array:
+**Exhaustiveness does not weaken. It gets stronger.** A rule left out of the array does not appear in `Kind`, as if it did not exist. Confirmed by removing `DuplicateBrand` from the array (`Kind` itself was dropped on 2026-11-04, §14.8):
 
 ```
 x typescript(TS6133): 'DuplicateBrand' is declared but its value is never read.
@@ -4126,6 +4230,217 @@ Dependencies flow one way. `scan/` is self-contained, and `rules/` sees only the
 `Scan` has no rule-specific fields. **It holds syntactic facts, and its type does not say which rule reads them.** `aliases` and `brands` come from the same single pass over the same declarations, and two rules take one each. Writing down that ownership would tell the next person who adds a rule to "add a field for yourself".
 
 Keep the exported names few. `src/lint/index.ts` is not in the package's `exports` and serves only the CLI, so it exports nothing but `lint`. Each rule exports exactly two things: its finding type and its `rule` object.
+
+#### 2026-11-03: Rules became a Trait
+
+valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait and `Vec<Box<dyn Rule>>`.
+
+- **`Rule` is a Trait.** Its fields are `kind`, `description` and `warns`, and its member is `run`. Each rule is
+  `Val<"UnusedMember", { kind: "unused-member" }, Rule>`, and the companion's `implCreate` builds the rule's value.
+  The fields other than `kind` come from the Trait's shape
+- **`RULES` is an array of `Rule.dyn` boxes.** `Dyn` erases the concrete Val, so `kind` is `string`.
+- **The union of rule names (`Kind`) was dropped, 2026-11-04.** It was kept once, through a lint-side `box`
+  (`Dyn<Rule> & Pick<W, "kind">`). The CLI's `--no-<kind>`, disable comments and the plugin's settings all take the
+  name as a string and check it against `kinds` at run time. All the union caught in the types was a misspelling in
+  the `skip` of `lint()`, which is unsupported. css-var-kit has the same shape. Each rule's own tests catch a rule
+  left off the list
+- **`Finding` is one shared Val, with `kind` as `string`.** Nobody read the rule-specific fields (`brand`, `alias` and
+  so on). Typing `kind` as `Kind` is circular: `Kind` comes from `RULES`, and `RULES` from `run`'s return type. The
+  `ReportedBy` above is gone
+- **`run` is synchronous.** At the time of the rewrite, a Trait member returning a `Promise` broke the declaration
+  (§15.1). It can be written now, but no rule is asynchronous, so it stays synchronous (2026-11-07)
+- **Errors are byethrow Results and error-factory classes.** `Arguments.fromArgv` parses the arguments, and `run`
+  loads the parser, both returning a Result. The public `lint()` throws at the boundary. A Result in the public types
+  would pull the bundled byethrow declarations into `lint.d.mts`. Since lint no longer emits declarations, that
+  reason is gone (2026-11-07, below)
+- **The scan's facts are Vals too.** `Scan` and `Context` are Vals, and hold Maps and Sets as §8.1's Records
+  (2026-11-07). The keys are source names, so one can be `constructor`. Lookups therefore use `Object.hasOwn`, hidden
+  in a `has` member on the Val that holds the Record. 2,190 files: 305 ms → 319 ms. `Directive.kinds` went from a Set
+  to an array
+- **The state during the walk is a Val too (2026-11-07).** The walk `patch`es `Bindings`. `patch` shares structure,
+  so the whole is not copied. A position is a `Position` (a Val of `{ line, column }`), held in each fact's `at`.
+  `Where` was once a `Payload` intersected into the other facts, but a Val field was enough
+- **The run's and the plugin's values are Valof types too (2026-11-07).** `lint()` takes `Options`. The plugin sends
+  the worker a `Query` and receives a `Reply` (byethrow's `Result<Finding[], string>`, below). What a disable comment
+  silences is `Silenced` (an Enum of `Every` / `Named`). `Parser.load` loads oxc-parser into a module variable, and
+  members of the `Parser` Val use it
+- **The files a run reads are a Val too (2026-11-10).** A relative import resolves among the files the run reads.
+  `moduleResolver`, which returned a closure over that list, became the `Modules` Val. `Modules.create` normalizes
+  the paths once, and `Modules.resolve` looks up the target. `Scan.walk` takes `Modules` rather than a function
+- **Functions that build or read a Val go on the companion (2026-11-10).** `Scan.walk`, `Parser.load`, `Files.glob`,
+  `FilePath.read`, `Aliases.fromProgram`, `Lift.fromCall`, `CompanionSite.fromChain`, `SymbolRef.fromExport`,
+  `Bindings.refOf`, `Underline.fromFinding`. Closures that held state became Vals too. Line positions are `Lines`,
+  re-export resolution is `Exports`, and each file's disable comments are `DirectiveMap`
+  - **Side effects included.** The name shows them. `walk`, `load`, `glob` and `read` are action names, and `from*` is
+    only for pure conversions
+  - **I/O is separate from conversion (2026-11-11).** `Files.glob` only expands globs, and the pure `Files.fromPaths`
+    applies the exclusions and picks the targets. `Parser.load` imports oxc-parser and passes it to
+    `Parser.fromModule`. The member that runs the parser went from `Parser.parse` to `Parser.exec`, an action name
+  - **Rejected: keeping functions with side effects as free functions.** Part of the type's API would leave the
+    companion, and completing `Scan.` would no longer show how to build one. What matters for placement is the
+    runtime, not side effects. The whole companion goes into the bundle, so a member that uses `node:fs` does not
+    belong on a Val also used in browsers. lint is Node-only, so that constraint does not apply
+  - **No optional parameters.** Members reject optional parameters, so `Bindings.refOf`'s `qualifier` is
+    `string | undefined`, and the caller passes `undefined` when there is none
+  - **Silencing is decided per disable comment.** `Directive.silences` answers for one comment, and
+    `DirectiveMap.silences` checks whether any comment in the file silences. `Silenced.widen`, which combined a
+    `Silenced` per line, is no longer needed. Rejected: keeping the combined `Silences` in a `Scan` field. That holds
+    what `directives` already derives in a second field, and was harder to read
+- **The files to report on are called targets (2026-11-10).** `Options.targets` and `FilePath.isTarget`, the same
+  word as the CLI's `Arguments.targets`. Until then the files to report on were `report`, and the check `reports`
+- **No `readonly` on a Val's arrays (2026-11-10).** A payload's arrays are readonly even inside a `Record`
+- **The remaining types became Vals too (2026-11-10).** Running valof-lint on itself found the types written as
+  something other than a Val.
+  - String Vals: a file path is `FilePath`, a rule name is `Kind`. Both travel from the run's entry to `Finding`.
+    `Kind` is a plain string Val, not a union of names (why the union was dropped is above)
+  - Sets: rule names are `KindSet`. The names a disable comment lists may include spellings no rule has, so they are
+    a separate `NameSet`. `KindSet.find` turns a spelled name into a `Kind`
+  - Others: the plugin's underline is `Underline` and `Point`, `dyn`'s box is `DynBox`, and a disable comment before
+    its line is known is `DirectiveComment`
+- **The plugin's state lives inside the plugin (2026-11-11).** Three things: the connection to the worker, the last
+  answer, and the globbed project. `valof()` in `export default valof()` creates them, neither in the module nor on a
+  companion (the worker side is a separate file, §14.9). Classes hold them, per "State lives in classes" below. None
+  can go. Without the last answer, one file is linted once per rule, and without the glob result, the project is
+  globbed again for every file
+  - **Not in `Program`.** ESLint calls `create` and `Program` per rule and file pair, so state made there is shared
+    neither across rules nor across files. The narrowest scope that shares it is the plugin
+  - **Rejected: in a companion's `impl` / `implAssoc` block.** A Val is immutable data, and state inside the block is
+    invisible to anyone reading the members (#112's `hidden-state-in-impl` reports it). `Query` became a Val of the question's
+    data only
+  - **Rejected: a module-level variable, or a module-level higher-order function that encloses the state (such as
+    `memo`).** The whole file can reach both. Wrapping it in a higher-order function does not stop the module from
+    holding state
+  - **"No classes" is retracted (below).** At first a closure with a narrow scope seemed enough
+- **`Ask` was renamed to `Query` (2026-11-11).** `Ask` also reads as a verb (user). The function that asks the worker
+  is a verb, so it stays `ask`
+- **`pipe` moved to `src/shared/pipe` (2026-11-11).** valof-lint now uses `pipe`, and shipped code must not import
+  `scripts/`. `pipe` separates the steps where a value changes shape (`Exports.from`'s `flatMap` →
+  `Object.fromEntries` → `seal`). Members and functions given type arguments can be steps too (`Path.seal`,
+  `Path.expand`). The end of `run` passes a method chain to `R.succeed<Finding[]>`. Without the type argument, the
+  overloads make the result `unknown`
+  - **Rejected: splitting each method of a chain into a `pipe` step.** Splitting what a chain already expresses only
+    adds steps (user)
+- **Names read with the receiver as the subject (2026-11-11).** Fixed the names where `Type.member(receiver, …)` does
+  not read as "the receiver does …". `Options.sourceOf` → `FilePath.read`, `Options.isTarget` → `FilePath.isTarget`
+  (the file is the subject of the check), `Files.read` → `Files.glob` (it does not read its argument),
+  `Bindings.isNamespace` → `hasNamespace`, `original` → `originalName`, `builder` → `builderOf`, `Scan.exec` →
+  `Scan.walk`
+  - **Rejected: `Files.fromGlob`.** It reads the file system, which breaks the rule that `from*` is only for pure
+    conversions. Like Rust's `File::open`, a constructor with side effects takes an action name
+- **Paths and projects are Vals too (2026-11-11).** A path or glob the user wrote is a `Path` (`isDirectory`,
+  `expand`, `excludes`). `expand` returns the `FilePath[]` the run reads, not `Path[]`. An expanded glob is not a
+  glob. The plugin's list of settings is `Patterns` (`fromSettings`, `key`, `glob`), and its expansion is a `Project`
+  (`FilePath[]`). `Query.fromContext` builds the question the plugin sends the worker, and `Query.key` decides
+  whether two questions are the same
+- **State lives in classes (2026-11-11).** A visible `new` shows where state is (user). Data is a Val, state is a
+  class: no `extends`, state in `#private` fields, plain methods. A method passed as a function is wrapped, as in
+  `(q) => this.#worker.ask(q)`. The plugin holds `new LinterWorker(import.meta.url)` (the worker and the last answer) and
+  `new ProjectCache()` (the glob results)
+  - **Rejected: functions that return stateful functions (`createCachedGlobber` and so on).** They imitate `new`
+    through a naming convention, and the call site does not show the state
+  - **Rejected: an `AnswerCache` that exposes the last answer to the plugin.** Not sending the same question twice is
+    the asking side's concern. The plugin calls only `worker.lint(query)`, and `#lastKey` and `#lastFindings` hold
+    the answer
+  - **Rejected: arrow-function fields.** They fix `this`, but plain methods are enough with some care (user)
+- **`LinterWorker` is not generic (2026-11-11).** There is one worker, it is sent only a `Query`, and it returns only
+  a `Reply`. The type arguments `Question` / `Answer` were easy to confuse with `Query` and the last answer. The
+  tests' worker also takes a `Query` and returns a `Reply`. Whether a wedged worker stopped is checked by whether a
+  file it keeps writing stops changing. It writes and then renames, so a reader never sees a half-written file
+- **`LinterWorker` and `serve` are separate files (2026-11-11).** The worker's location is relative to
+  `import.meta.url`. With both in one file, the plugin and the worker both import it, and the build splits it into a
+  shared chunk (`dist/channel-*.mjs`). `import.meta.url` then points into `dist/`, and it looks for
+  `dist/worker.mjs`. When only the plugin's entry imports `linter-worker.ts`, it lands in
+  `dist/eslint-plugin/index.mjs`. The URL and the patience can then be defaults, and the plugin writes only
+  `new LinterWorker()`. Superseded the same day (below)
+  - **Rejected: embedding the relative path at build time (`define`).** Running from source needs a separate branch,
+    and nothing exercises the shipped side until #114's check
+  - **Rejected: one class with `serve` as a static method.** The two ends run on different threads. One class for
+    both is harder to follow (user). Retracted (below)
+- **`serve` is a static method of `LinterWorker` (2026-11-11).** A free function `serve` hides that it is the other
+  end of `LinterWorker` (user). `Query` and `Reply` sit beside them in `linter-worker.ts`. The worker's entry now
+  imports the class too, so the build puts it in a shared chunk (`dist/linter-worker-*.mjs`), where its own
+  `import.meta.url` points into `dist/`. So the caller passes its own `import.meta.url`, and the constructor resolves
+  `worker` beside it, with the caller's extension. The plugin writes `new LinterWorker(import.meta.url)`, and the
+  entry is always in `dist/eslint-plugin/`, so the chunk `LinterWorker` lands in no longer matters
+  - **The tests pass their own URL,** with a fixture `worker.ts` beside them. A constructor that resolved from its
+    own URL would start the real worker, and the tests would fail. One test passes a `.mjs` URL, since every other test
+    passes a `.ts` one
+  - **Rejected: the plugin builds the worker's URL and passes it.** Every caller would repeat the rule for the
+    extension, and the constructor can apply it to one argument
+- **`Reply` is a byethrow Result (2026-11-11).** The `Found` / `Failed` Enum reinvented Result. A failure is sent as a
+  message string, because error classes are lost in the copy between threads. `R.unwrap` throws the failure value
+  as is, so `R.mapError((message) => new Error(message))` wraps it first. vitest's `toThrow("…")` passes even when a
+  string is thrown, so the tests check for an `Error`
+  - **`model-only-in-valof` is silenced on `type Reply` (2026-11-11).** The alias stays. Both thread ends import the
+    one name, and the receiving end reads the message with `as Reply`, which no type check covers. Written out in
+    each place, the sending end could change alone, and nothing would fail
+  - **Rejected: writing `R.Result<Finding[], string>` in place.** Five copies, and the two ends can drift (above)
+  - **Rejected: not reporting an alias of a library type.** `Reply` declares no data shape, but the change widens
+    what the rule lets through, which is a decision about the rule rather than about `Reply`
+- **A worker that does not start returns why (2026-11-11).** A script that failed to load made the plugin wait out its
+  full patience and say "no answer in 60s". The waiting thread is blocked, so it cannot listen for the worker's
+  `error`. A small start-up module imports the script, and if that fails, answers every question with the reason
+  - **Rejected: an `eval: true` worker.** The host's `--import` (a loader) does not apply to it. It does apply to a
+    data: URL module. The test that removes oxc-parser fails on this difference
+- **The patience stays at 60 seconds (2026-11-11).** One run over `src` (48 files) takes about 0.12 s, and the plugin
+  rereads the whole project for every file. Too short, and a normal lint of a large project times out every time,
+  so the plugin stops working. Too long hurts only when the worker really is wedged, and only once
+  - **Rejected: making it configurable.** It adds a user-facing setting (the same reason as for the
+    environment-variable idea)
+- **Only the last answer is kept (2026-11-11).** The answer depends on the whole project's contents, not only on the
+  question. Saving a different file in another tab changes the correct answer to the same question. ESLint calls one
+  file's rules back to back, synchronously, with nothing in between, so the same answer holds only for that span
+  - **Rejected: keeping every answer.** ESLint reports neither file writes nor buffer changes. `fs.watch` does not
+    know unsaved buffers, and inferring from the lint calls misses changes to files that are not open
+  - **Unresolved: unsaved buffers in other tabs.** Only the file being linted goes in as the overlay, so a file being
+    edited in another tab is read from disk. Remembering every buffer that arrives and passing them all would fix
+    it. To be addressed if it causes trouble
+- **Not a Val (2026-11-07).** The `{ port, signal }` the worker receives at start-up. A `MessagePort` and an
+  `Int32Array` cannot go in a payload
+- **A timed-out worker is stopped and recreated (2026-11-10).** Until then, requests after a timeout went to the same
+  worker, so later ones queued behind the wedged worker, and each file waited 60 seconds to time out. The port and
+  the signal are passed once at start-up, and a request sends only the `Query`. The `{ ask, port, signal }` type sent
+  per request is gone. The waiting and answering ends were split into `LinterWorker` (`linter-worker.ts`) and
+  `serve` (`serve.ts`), and a fixture worker tests them. `serve` became `LinterWorker.serve` on 2026-11-11 (above).
+  Rejected: making the patience configurable through an environment variable for the test. It adds a user-facing
+  setting, and a reliable way to wedge the worker is needed anyway
+- **valof-lint is run on itself.** `tests/lint/self/` checks that it reports nothing in `src/` and `scripts/`. The
+  first run had `unused-member` report every rule's `run`, because a `dyn` that passed through `box` was not
+  tracked. A `dyn` that leaves the expression that built it (passed to a function, put in an array) counts every key
+  read anywhere as a read of its first argument's Val (or, if none is named, of every Val implementing the trait)
+- **Time.** On 1,810 files (the fixtures copied 10 times), 95 ms → 101 ms (the development freeze)
+- **`lint.d.mts` inlines valof's declarations (17 kB → 73 kB).** tsdown pulls in `../../index.ts`. The inlined
+  `unique symbol` differs from the one in `valof` itself, so passing lint's `Finding` to a `valof` function is a type
+  mismatch. The harm is small, so it stayed. No longer emitted (2026-11-07, below)
+- byethrow and error-factory stay in devDependencies and go into dist through `deps.onlyBundle`. Bundling valof adds
+  no dependency either
+- **Declarations only for the plugin (2026-11-07).** valof-lint provides only the CLI and the plugin, not a library.
+  `dts.entry` narrows to `eslint-plugin.ts`, and `lint.d.mts` and `lint-cli.d.mts` are not emitted. The plugin's
+  declaration stays, since `eslint.config.ts` reads it
+- **The plugin's export is a minimal hand-written type (2026-11-07).** The inferred type had `meta.type` as `string`
+  and `create`'s parameter narrower than ESLint's type, so `plugins: { valof }` in `eslint.config.ts` was a type
+  error (v0.12.0 has it too). The implementation is written against ESLint's types (`Rule.RuleContext`), and the
+  export declares only what a config file reads. Inferred, ESLint's types go into the declaration at 93.7 kB.
+  Hand-written, 525 B. `vp run type-perf`'s budget is 2 kB. If ESLint's types get into the declaration, the build
+  (`deps.onlyBundle`) stops before the budget does
+
+#### 2026-11-07: The syntax tree became an Enum
+
+- **`Node` is an Enum.** Each node type the walk reads has a variant holding only the fields it reads. The other
+  types are `Other` (only `nodeType`). Typed reads replaced `child` / `children` and the casts on `node[key]`. It
+  also serves as an example of Enum in use
+- **`Parser.exec` converts oxc-parser's tree once.** Fields nobody reads are dropped. A `Literal`'s `value` keeps
+  only strings, and anything else becomes `null`. A value a payload cannot hold, such as a `RegExp` or a `bigint`,
+  does not survive
+- **Sealing a recursive Enum took 2^depth.** The development seal snapshots its input before and after, and went
+  into children already sealed. That is a valof bug, fixed in #144. The snapshot stops at a value already sealed
+- **The lint build sets `NODE_ENV` to production.** lint holds no user code for the development checks to guard.
+  The command runs without `NODE_ENV`. Converted nodes are built with `create.nocopy`
+- **Cost.** On 230 files, the shipped command went from 0.14 s to 0.21 s. Left in development, the replacement cost
+  about 300 ms
+- **Return values that hold nodes are Vals too (2026-11-10).** With `Node` an Enum, a payload can hold a node. A
+  type's name and its namespace are `TypeName`, the enum and variant a `VariantOf<E, "N">` points to are
+  `VariantName`, and a variant read from a builder, with its builder, is `NamedVariant`
 
 ### 14.9 Editor integration, investigated 2026-09-08. Implemented up to overlay
 
@@ -4456,7 +4771,15 @@ The kind prefix was also removed from messages. The host shows it as the rule na
 
 **`make-synchronized` was not added.** At 68 kB and deps 0, its quality is fine, but the table above called it "a dependency on the plugin side" assuming the plugin lived outside valof. Shipped inside, it would become one of valof's `dependencies` and break §14.3's "zero runtime dependencies". `Atomics.wait` + `receiveMessageOnPort` takes about 30 lines: the worker increments a version in a `SharedArrayBuffer` and notifies. The wait has a timeout, so if the worker does not answer, the plugin says so after 60 seconds.
 
-**The worker is this same file.** `new Worker(new URL(import.meta.url))`, with `isMainThread` separating the two roles. As a separate file, it would be `./worker.ts` in the source tree and `./worker.mjs` in the shipped files, and the code would have to guess which one is running.
+**The worker is this same file.** `new Worker(new URL(import.meta.url))`, with `isMainThread` separating the two roles. As a separate file, it would be `./worker.ts` in the source tree and `./worker.mjs` in the shipped files, and the code would have to guess which one is running. (Split on 2026-11-11, below.)
+
+**The worker became a separate file, 2026-11-11.** Two roles in one file are hard to read (user). The extension is not guessed. It is the plugin's own (`extname(import.meta.url)`). The plugin and the worker sit together in `src/lint/eslint-plugin/`, and ship in the same layout under `dist/eslint-plugin/`. `Query` and `Reply`, which both use, were in `messages.ts`, and have been in `linter-worker.ts` since 2026-11-11 (§14.8). The underline's `Underline` is in `underline.ts`.
+
+- **No test checks where the shipped worker is.** The tests read the plugin from source, and a URL right only there
+  passes them, such as one that hard-codes `.ts`. Which chunk `LinterWorker` lands in no longer matters (§14.8,
+  "`serve` is a static method of `LinterWorker`"). `vp pack` rewrites
+  `package.json`'s `exports` even with a different output directory, so a test cannot build it. #114's `check-dist`
+  gets a check that runs the built plugin
 
 **What is passed: one overlay + `report` for one file.** The computation covers the whole project and returns everything, but only the current file's findings are reported. `report` already existed, so the plugin needs no filtering. A finding's column is 1-based and `report`'s is 0-based, so subtract 1.
 
@@ -5155,7 +5478,7 @@ If this is revisited, remove `always` from `unused-disable`.
 
 ```
 valof-lint src src/billing/id.ts                         the first argument is the project, the rest are report targets
-valof-lint --report-on src/billing/id.ts --project src   passed by name, in any order
+valof-lint src/billing/id.ts --project src               the project passed by name, in any order
 valof-lint src                                           without report targets, the whole project
 valof-lint 'src/**/*.ts' '!src/generated/**'             ! excludes
 ```
@@ -5184,6 +5507,17 @@ No glob matcher is needed. Subtracting the result of `expand("src/generated/**")
 **Renamed `--target` to `--report-on`, 2026-09-09.** What the internal API calls `Options.report` was `--target` in the CLI, so one thing had two spellings. The help text already said "what the run reports on".
 
 Rejected names: `--files` (the project is files too), `--only` (reads as "lint only these", the misreading this design most wants to avoid, since narrowing the scan changes the answers), `--report` (one word, and measured to clash little, since `--format` is the usual flag for the output format; still, `--report-on` reads better with its verb and preposition). `v0.4.0` has no `bin` and the CLI is unreleased, so the rename cost nothing.
+
+**Removed `--report-on`, 2026-11-11.** The files to report on are passed only as positional arguments. ESLint,
+Biome, oxlint and Ruff take the files to lint as positional arguments, and tsc takes what to read with `--project`.
+A named flag that narrows the report has no standard name. With `--project` given, every positional argument is a
+file to report on, so nothing becomes impossible.
+
+- **Reporting on files under the default project now means writing the project.** `--report-on src/a.ts` read
+  `src/**/*.ts`. Now write `valof-lint src src/a.ts` or `valof-lint src/a.ts --project 'src/**/*.ts'`
+- **An unknown option is refused.** An argument starting with `-` that the command does not take stops it with exit
+  code 2. Until then it was read as a path, so a call that still wrote `--report-on` would read it as one
+- A breaking change, since it shipped from v0.5.0. Before 1.0, so it goes out in a minor release
 
 The linter does not guess whether a run is complete. Guessing what it cannot determine leans toward missing directives that really are ineffective.
 **The user knows where their project ends, and can say so in the arguments.**
@@ -5663,7 +5997,7 @@ This duplication was inside the core, unrelated to the lint.
 - **Enum is read through a concrete type.** With `AnyEnum` the keys collapse to `string`. The lint side has one `Sample`
 - **An exported type does not use the core's types.** Using one for `CompanionSite.root` made `dist/lint.d.mts` import the core's
   60 kB chunk. The match goes in a `satisfies` on a non-exported constant, and the exported type is written directly as
-  `"sealer" | "companion"`. The JS never imported the core in the first place
+  `"sealer" | "companion"`. The JS never imported the core in the first place. Since lint no longer emits declarations, this constraint is gone (2026-11-07, §14.8)
 - **The entry-point check only checks that the names exist.** A rename is a type error. Dropping a name from the lint's list is caught
   by the tests
 

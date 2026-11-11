@@ -101,9 +101,9 @@ const copy: PayloadOf<Post> = Val.unwrap(post);
 `PayloadOf` and `Val.unwrap` both remove the brand of a nested Val.
 
 Persistence helpers can create the same hole.
-[Jotai's `atomWithStorage`](https://jotai.org/docs/utilities/storage), for example, parses stored
-JSON and returns it as the type inferred from its initial value. Store a `PayloadOf<User>`, then
-seal it after reading.
+[Jotai's `atomWithStorage`](https://github.com/pmndrs/jotai/blob/main/docs/utilities/storage.mdx),
+for example, parses stored JSON and returns it as the type inferred from its initial value. Store a
+`PayloadOf<User>`, then seal it after reading.
 
 Seal at the boundary, because the two sides deploy separately. The value was sealed by whichever
 build the server is running, and that seal may be older than yours.

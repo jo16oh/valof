@@ -1,3 +1,4 @@
+import { Val } from "valof";
 type User = (Val<"User", { id: string }>);
 const User = Val.companion<((User))>().build();
 

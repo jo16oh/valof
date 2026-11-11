@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, SplitCompanion, fixtures } from "../../support.ts";
+import { CompanionMismatch, SplitCompanion, UnqualifiedVariant, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
@@ -42,7 +42,7 @@ test("says nothing about a chain bound to no plain name", async () => {
 });
 
 test("applies the same naming rule to Trait companions", async () => {
-  expect(await lint("trait")).toEqual([{ rule: CompanionMismatch, at: "trait.ts:3:14" }]);
+  expect(await lint("trait")).toEqual([{ rule: CompanionMismatch, at: "trait.ts:4:14" }]);
   expect(await messages("trait")).toEqual([
     "Friendly is the companion for Greetable, and should be named Greetable",
   ]);
@@ -50,8 +50,8 @@ test("applies the same naming rule to Trait companions", async () => {
 
 test("looks through parentheses around companion type arguments", async () => {
   expect(await lint("parenthesized")).toEqual([
-    { rule: CompanionMismatch, at: "parenthesized.ts:4:14" },
     { rule: CompanionMismatch, at: "parenthesized.ts:5:14" },
+    { rule: CompanionMismatch, at: "parenthesized.ts:6:14" },
   ]);
 });
 
@@ -63,11 +63,11 @@ test("names the Enum an aliased companion is for, through a variant's step", asy
 });
 
 test("reports a variant bound to a name other than its own, and nothing else taken off one", async () => {
-  expect(await lint("enum-variant")).toEqual([
+  expect(await lint("enum-variant", { skip: [UnqualifiedVariant] })).toEqual([
     { rule: CompanionMismatch, at: "enum-variant.ts:6:25" },
     { rule: CompanionMismatch, at: "enum-variant.ts:7:7" },
   ]);
-  expect(await messages("enum-variant")).toEqual([
+  expect(await messages("enum-variant", { skip: [UnqualifiedVariant] })).toEqual([
     "Round is Shape.Square under another name; call Shape.Square, or bind it to Square",
     "Disc is Shape.Circle under another name; call Shape.Circle, or bind it to Circle",
   ]);

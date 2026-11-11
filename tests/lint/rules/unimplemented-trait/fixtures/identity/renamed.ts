@@ -1,3 +1,4 @@
+import { Val } from "valof";
 import { Shared as A } from "./a.ts";
 import { Shared as B } from "./b.ts";
 
