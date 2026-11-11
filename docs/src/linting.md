@@ -148,6 +148,10 @@ seen.
 A `!path` is excluded wherever it is written, and is removed from the run rather than only from the
 report, so what a generated tree declares no longer applies to the rest.
 
+The plugin and the command keep what they learn from each file in `node_modules/.cache/valof-lint`,
+so a later run parses again only the files that changed. With `VALOF_LINT_CACHE=0`, they keep
+nothing there.
+
 ## Spreading a Val under `no-misused-spread`
 
 `no-misused-spread`, a type-aware rule in typescript-eslint and in Oxlint, reports
