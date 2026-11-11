@@ -20,12 +20,17 @@ const says = (file: string, message: string): Reply =>
     }),
   ]);
 
-// Answers by the query's `file`: names its thread, rejects, answers with what cannot be sent, or
+/** How many queries this thread has answered. */
+let asked = 0;
+
+// Answers by the query's `file`: counts what it was asked, names its thread, rejects, answers with what cannot be sent, or
 // wedges, writing a count to the path in `text` for as long as the thread runs. Each count is
 // renamed into place, so a reader never sees one half written. Anything else is echoed back, with
 // its text.
 serve(
   async ({ file, text }) => {
+    asked++;
+    if (file === "count") return says(file, `asked ${asked}`);
     if (file === "wedge")
       for (let count = 1; ; count++) {
         writeFileSync(`${text}.next`, String(count));

@@ -73,16 +73,17 @@ test("asks again once the stack empties, since another file of the project may h
   const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
   try {
     cpSync(at("money.ts"), join(dir, "money.ts"));
-    writeFileSync(join(dir, "show.ts"), "export {};\n");
-    const lint = (): string[] => run(join(dir, "money.ts"), undefined, join(dir, "*.ts"));
-
-    expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
     writeFileSync(
       join(dir, "show.ts"),
       readFileSync(at("reader/show.ts"), "utf8").replace("../money.ts", "./money.ts"),
     );
-    await Promise.resolve();
+    const lint = (): string[] => run(join(dir, "money.ts"), undefined, join(dir, "*.ts"));
+
+    // The finding comes back only from a new run, so an emptied answer cannot pass for one.
     expect(lint()).toEqual([]);
+    writeFileSync(join(dir, "show.ts"), "export {};\n");
+    await Promise.resolve();
+    expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

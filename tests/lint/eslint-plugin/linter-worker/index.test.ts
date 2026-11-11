@@ -23,6 +23,14 @@ test("asks the same worker again, once it has answered", () => {
   expect(say(worker, "thread", "two")).toBe(first);
 });
 
+test("asks once for the same query in one tick, and again after it", async () => {
+  const worker = new LinterWorker(script, PATIENCE);
+  expect(say(worker, "count")).toBe("asked 1");
+  expect(say(worker, "count")).toBe("asked 1");
+  await Promise.resolve();
+  expect(say(worker, "count")).toBe("asked 2");
+});
+
 test("keeps the last answer for the same file and text alone", () => {
   // In one tick, as a fix pass lints the file again with its fixed text.
   const worker = new LinterWorker(script, PATIENCE);
