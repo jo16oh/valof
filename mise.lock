@@ -52,10 +52,7 @@ provenance = "github-attestations"
 [[tools."cargo:mdbook-linkcheck2"]]
 version = "0.13.0"
 backend = "cargo:mdbook-linkcheck2"
-specifiers = [
-    "0.13.0",
-    "latest",
-]
+specifiers = ["0.13.0"]
 
 [[tools."github:marxin/mdbook-linkcheck2"]]
 version = "0.13.0"
@@ -75,10 +72,7 @@ url_api = "https://api.github.com/repos/marxin/mdbook-linkcheck2/releases/assets
 [[tools.mdbook]]
 version = "0.5.4"
 backend = "aqua:rust-lang/mdBook"
-specifiers = [
-    "0.5.4",
-    "latest",
-]
+specifiers = ["0.5.4"]
 
 [tools.mdbook."platforms.linux-x64"]
 checksum = "sha256:3f28de05dafca9d0f2eab99c662116b0e37b89b1d96a08f8f430b9eeae958cd7"
