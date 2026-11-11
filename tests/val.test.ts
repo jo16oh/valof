@@ -535,7 +535,10 @@ describe("Val", () => {
       type Ledger = Val<"UnionLedger", { entries: (Dollar | Yen)[] }>;
       // @ts-expect-error nor through Rec
       type Account = Val<"UnionAccount", { money: Rec<Dollar> | Rec<Yen> }>;
-      expectTypeOf<Ledger | Account>().not.toExtend<AnyVal>();
+      type Leaf = Val<"UnionLeaf", { kids: Rec<Leaf>[] }>;
+      // @ts-expect-error a type that references itself is rejected too, as circular rather than with the Enum message
+      type Branch = Val<"UnionBranch", { kid: Rec<Branch> | Rec<Leaf> }>;
+      expectTypeOf<Ledger | Account | Branch>().not.toExtend<AnyVal>();
 
       type Money = Enum<"UnionMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
       type OtherMoney = Enum<
