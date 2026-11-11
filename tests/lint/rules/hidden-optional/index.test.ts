@@ -1,46 +1,40 @@
 import { expect, test } from "vite-plus/test";
 
-import {
-  HiddenOptional,
-  cliWithTypeScript70,
-  cliWithoutTypeScript,
-  fixtures,
-} from "../../support.ts";
+import { HiddenOptional, cliWithoutTypeScript, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
 const under = "tests/lint/rules/hidden-optional/fixtures";
 
-test("reports a default or a rest parameter the annotation declares, in this file or another, and none without an annotation", async () => {
+// The rule gives the same verdict as the development check in `build`: any default or rest
+// parameter, whatever the annotation declares.
+test("reports a default or a rest parameter under an annotation, in this file or another, and none without an annotation", async () => {
   expect(await lint("members")).toEqual([
     { rule: HiddenOptional, at: "members/helpers.ts:3:61" },
     { rule: HiddenOptional, at: "members/user.ts:8:28" },
     { rule: HiddenOptional, at: "members/user.ts:9:52" },
-    { rule: HiddenOptional, at: "members/user.ts:18:37" },
-    { rule: HiddenOptional, at: "members/user.ts:30:33" },
+    { rule: HiddenOptional, at: "members/user.ts:11:40" },
+    { rule: HiddenOptional, at: "members/user.ts:19:37" },
+    { rule: HiddenOptional, at: "members/user.ts:31:33" },
   ]);
   const hides = (name: string, what: string): string =>
-    `the annotation on ${name} declares the parameter this ${what} makes optional, so a call with the value last finds the wrong arity; drop the ${what}, or write the member inline`;
+    `the annotation on ${name} hides this ${what} from the types. A member cannot have a ${what}, because the argument count decides whether a call passes the value last; drop the ${what}, or write the member inline`;
   expect(await messages("members")).toEqual([
     hides("shout", "default"),
     hides("toWire", "default"),
     hides("tags", "rest parameter"),
+    hides("short", "default"),
     hides("labels.label", "default"),
     hides("glue", "default"),
   ]);
 });
 
-test("reads no annotation on a const that no step takes, and needs no TypeScript for it", async () => {
+test("reports nothing on a const that no step takes", async () => {
   expect(await lint("unused")).toEqual([]);
-  expect(cliWithoutTypeScript(`${under}/unused`).status).toBe(0);
 });
 
-test("asks for TypeScript 7.1 where an annotated member has a default, with none or 7.0 installed", () => {
-  for (const run of [cliWithoutTypeScript, cliWithTypeScript70]) {
-    const { status, stderr } = run(`${under}/members`);
-    expect(status).toBe(2);
-    expect(stderr).toBe(
-      "valof-lint needs TypeScript 7.1 or later to read the annotations here. valof does not install it for you.\n  pnpm add -D typescript",
-    );
-  }
+test("needs no TypeScript", () => {
+  const { status, stdout } = cliWithoutTypeScript(`${under}/members`);
+  expect(status).toBe(1);
+  expect(stdout).toContain(`${HiddenOptional.kind}  the annotation on toWire hides this default`);
 });
