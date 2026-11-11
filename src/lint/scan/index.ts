@@ -8,7 +8,7 @@ import type { Reserved } from "../../val.ts";
 import type { FilePath } from "../files.ts";
 
 import { keyName, Lines, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
-import { Parser } from "../parser.ts";
+import type { Parser } from "../parser.ts";
 import {
   Aliases,
   type Alias,
@@ -269,7 +269,12 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
 }
 
 /** The body of {@link Scan.walk}. */
-function scan(file: FilePath, parser: Parser, modules: Modules, source: string): Scan {
+function scan(
+  file: FilePath,
+  { program, comments }: ReturnType<typeof Parser.exec>,
+  modules: Modules,
+  source: string,
+): Scan {
   const lines = Lines.from(source);
 
   let bound = Bindings.create();
@@ -461,7 +466,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     for (const one of node.children) visit(one);
   };
 
-  const { program, comments } = Parser.exec(parser, file, source);
   visit(program);
 
   // Imports may follow an export declaration. Resolve local exports only after every binding is

@@ -51,7 +51,21 @@ export const Path = Val.companion<Path>()
 
 /** The files of a project, resolved, as {@link Patterns.glob} found them. */
 export type Project = Val<"Project", FilePath[]>;
-export const Project = Val.companion<Project>().build();
+export const Project = Val.companion<Project>()
+  .impl(() => ({
+    /**
+     * Each file's path, modification time and size, or that it is gone. Saving any file changes
+     * it, so a run's answer can be kept for as long as it holds.
+     */
+    stat: (project): string =>
+      project
+        .map((file) => {
+          const stats = statSync(file, { bigint: true, throwIfNoEntry: false });
+          return stats ? `${file} ${stats.mtimeNs} ${stats.size}` : `${file} gone`;
+        })
+        .join("\n"),
+  }))
+  .build();
 
 /**
  * The paths and globs that name a project. A path starting with `!` removes what it matches, as it

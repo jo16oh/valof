@@ -5,6 +5,7 @@ import { Result as R } from "@praha/byethrow";
 import type { MissingParserError } from "./errors.ts";
 import { Context, Kind, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { Parser } from "./parser.ts";
+import { ParseCache } from "./parse-cache.ts";
 import { DirectiveMap, Scan } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { FilePath } from "./files.ts";
@@ -17,6 +18,7 @@ import { Options } from "./options.ts";
 export async function run(
   files: readonly string[],
   options: Options = Options.create(),
+  cache: ParseCache = new ParseCache(),
 ): Promise<R.Result<Finding[], MissingParserError>> {
   const loaded = await Parser.load();
   if (R.isFailure(loaded)) return loaded;
@@ -29,8 +31,10 @@ export async function run(
     ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
   ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
-  const scans = toScan.map((file) =>
-    Scan.walk(file, parser, modules, FilePath.read(file, options.overlay)),
+  const sources = toScan.map((file) => [file, FilePath.read(file, options.overlay)] as const);
+  const trees = cache.parse(parser, sources);
+  const scans = sources.map(([file, source], index) =>
+    Scan.walk(file, trees[index]!, modules, source),
   );
 
   const rules = compile(options.enable);

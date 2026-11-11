@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 import type { Rule } from "eslint";
 
 import { ProjectCache } from "./project-cache.ts";
@@ -33,8 +35,8 @@ function valof(): {
     meta: { name: "valof" },
     // One rule per kind, so a project sets the severity of each and turns off what it does not
     // want. They share one run all the same: the linter reports on every kind at once, and `worker`
-    // passes the same result to each rule of the same file. What a rule adds is which findings it
-    // reports.
+    // passes the same result to every rule of every file. What a rule adds is which findings it
+    // reports: its own kind, in its own file.
     rules: Object.fromEntries(
       RULES.map(({ kind, description }) => [
         kind,
@@ -49,8 +51,9 @@ function valof(): {
           create: (context: Rule.RuleContext) => ({
             Program(): void {
               const project = projects.glob(Patterns.fromSettings(context.settings));
-              for (const finding of worker.lint(Query.fromContext(context, project)))
-                if (finding.kind === kind)
+              const file = resolve(context.filename);
+              for (const finding of worker.lint(Query.read(context, project)))
+                if (finding.kind === kind && resolve(finding.file) === file)
                   context.report({
                     loc: Underline.fromFinding(finding, context.sourceCode.text),
                     // No kind in the message: the rule the host names is the kind, and every

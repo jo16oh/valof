@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import {
   MessageChannel,
@@ -12,18 +13,24 @@ import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../../index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
-import type { Project } from "../files.ts";
+import { Project } from "../files.ts";
 import type { Finding } from "../index.ts";
 import { DataTypeSettings } from "../options.ts";
 
-/** What the plugin asks the worker about one file. */
+/**
+ * What the plugin asks the worker: the findings of the whole project, as the host's buffer of one
+ * file has it.
+ */
 export type Query = Val<
   "Query",
   {
-    /** The project files scanned together, absolute. The file being linted joins them, as `text`. */
+    /** The project files scanned together, absolute. */
     project: Project;
-    file: string;
-    text: string;
+    /**
+     * The buffer of the file being linted, keyed by its path, where disk does not hold it or the
+     * project leaves the file out. Empty otherwise, so every file of a batch asks the same.
+     */
+    overlay: Record<string, string>;
     /**
      * The settings of `data-type-outside-valof`. It always runs here, because the host reports it
      * only where the project turned it on.
@@ -33,8 +40,8 @@ export type Query = Val<
 >;
 export const Query = Val.companion<Query>()
   .implAssoc(({ seal }) => ({
-    /** What to ask about the file the host is linting. */
-    fromContext: (
+    /** What to ask about the file the host is linting. Reads the file, to compare the buffer. */
+    read: (
       {
         filename,
         sourceCode: { text },
@@ -52,18 +59,21 @@ export const Query = Val.companion<Query>()
           | undefined;
       },
       project: Project,
-    ): Query =>
-      seal({
+    ): Query => {
+      const file = resolve(filename);
+      const saved = project.some((path) => path === file) && readSaved(file) === text;
+
+      return seal({
         project,
-        file: resolve(filename),
-        text,
+        overlay: saved ? {} : { [file]: text },
         model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
-      }),
+      });
+    },
   }))
   .impl(() => ({
-    /** The same file, text, project and settings give the same key. */
-    key: ({ file, text, project, model }): string =>
-      `${file}\n${text}\n${project.join("\n")}\n${JSON.stringify(model)}`,
+    /** The same project, buffer and settings give the same key. */
+    key: ({ project, overlay, model }): string =>
+      JSON.stringify([project, Object.entries(overlay), model]),
   }))
   .build();
 
@@ -92,12 +102,10 @@ export type Reply = R.Result<Finding[], string>;
  * leave every later query waiting behind it. The default is long enough that no run reaches it,
  * short enough that a wedged worker still says so.
  *
- * One run per file, however many of the rules are on. The host creates every rule for a file
- * before it walks it, so the `Program` handlers run back to back over the same text, and asking
- * blocks the thread: nothing runs in between. So the last answer is kept, and the same query gets
- * it. It is dropped as soon as the stack empties, and not kept for the next pass, because the query
- * says nothing about the rest of the project: a file saved in another editor tab changes what this
- * file's findings are while its own text is unchanged.
+ * One run per project state, however many files and rules ask. The last answer is kept, keyed by
+ * the query and by the path, modification time and size of each project file, so a file saved in
+ * another editor tab still changes the key. Every file of a batch whose buffer disk holds asks the
+ * same query, so the batch costs one run.
  */
 export class LinterWorker {
   readonly #script: URL;
@@ -113,7 +121,7 @@ export class LinterWorker {
 
   /** The findings for the query. Throws the message the worker failed with. */
   lint(query: Query): readonly Finding[] {
-    const key = Query.key(query);
+    const key = `${Project.stat(query.project)}\n${Query.key(query)}`;
     if (this.#lastKey === key) return this.#lastFindings;
 
     this.#lastFindings = pipe(
@@ -123,7 +131,6 @@ export class LinterWorker {
       R.unwrap(),
     );
     this.#lastKey = key;
-    queueMicrotask(() => (this.#lastKey = undefined));
     return this.#lastFindings;
   }
 
@@ -201,3 +208,12 @@ import(workerData.script).catch((error) => {
 });
 `)}`,
 );
+
+/** What disk holds of the file, or `undefined` where it holds nothing. */
+function readSaved(file: string): string | undefined {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}
