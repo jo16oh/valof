@@ -2,9 +2,11 @@
 
 ## Design Memo
 
-`notes/design.md` holds every design decision and the alternatives rejected along the way. Its index
-is at the top. Read the sections it points you to before proposing anything about equality, copying,
-wrapper types, the linter, or new API. §9 lists the open questions. New deliberation goes there.
+`notes/design/` holds every design decision and the alternatives rejected along the way. Each
+section has a file of its own. `notes/design/README.md` is the index. Read the files it lists before
+proposing anything about equality, copying, wrapper types, the linter, or new API. §9 lists the open
+questions. New deliberation goes in §9. A new section gets a file of its own and a line in the
+index.
 
 ## Writing Code with Valof
 
@@ -163,7 +165,7 @@ Use `## Why` and `## What changed` once the body is long enough to need navigati
 
 Include a label from `.github/release.yml`.
 
-Leave `notes/*.md` out of the body. Where a memo correction drove the code change, say what the code
+Leave `notes/` out of the body. Where a memo correction drove the code change, say what the code
 does now.
 
 No `Generated with Claude Code` footer, for the same reason as the commit trailer.
