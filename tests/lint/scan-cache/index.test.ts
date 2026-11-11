@@ -17,7 +17,7 @@ const sources = (text = 'import { x } from "./c";\n'): [FilePath, string][] => [
   [b, "export {};\n"],
 ];
 
-test("walks a file again only when its text changes", () => {
+test("walks a file again when its text changes, and keeps the others", () => {
   const cache = new ScanCache();
   const modules = Modules.create([a, b]);
   const [first, other] = cache.scan(parser, sources(), modules);
@@ -31,10 +31,23 @@ test("walks a file again only when its text changes", () => {
   expect(still).toBe(other);
 });
 
-test("walks every file again when the files in the run change, because an import may resolve to another file", () => {
+test.each([
+  ["an import", 'import { y } from "./b";\nimport { x } from "./c";\n'],
+  ["a re-export", 'export { x } from "./c";\n'],
+])("walks a file again when the files in the run change what %s resolves to", (_, text) => {
   const cache = new ScanCache();
-  const [before] = cache.scan(parser, sources(), Modules.create([a, b]));
-  const [after] = cache.scan(parser, sources(), Modules.create([a, b, c]));
+  const [before, other] = cache.scan(parser, sources(text), Modules.create([a, b]));
+  const [after, untouched] = cache.scan(parser, sources(text), Modules.create([a, b, c]));
   expect(after).not.toBe(before);
-  expect(after?.imported["x"]?.module).toBe("/project/c.ts");
+  expect(after?.resolved["./c"]).toBe("/project/c.ts");
+  expect(untouched).toBe(other);
+});
+
+test("keeps every scan when a file no import resolves to joins the run", () => {
+  const cache = new ScanCache();
+  const d = FilePath.seal("/project/d.ts");
+  const [first, other] = cache.scan(parser, sources(), Modules.create([a, b]));
+  const [same, untouched] = cache.scan(parser, sources(), Modules.create([a, b, d]));
+  expect(same).toBe(first);
+  expect(untouched).toBe(other);
 });
