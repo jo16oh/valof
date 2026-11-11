@@ -64,6 +64,18 @@ test("asks again once a project file changes on disk, in its time, its size or i
   }
 });
 
+test("keeps the answer for the buffers disk holds while another buffer is edited", () => {
+  const worker = new LinterWorker(import.meta.url, PATIENCE);
+  const saved = (): string | undefined =>
+    worker.lint(
+      Query.seal({ project: Project.seal([]), overlay: {}, model: DataTypeSettings.create() }),
+    )[0]?.message;
+  expect(saved()).toBe("asked 1");
+  expect(say(worker, "count", "a")).toBe("asked 2");
+  expect(say(worker, "count", "ab")).toBe("asked 3");
+  expect(saved()).toBe("asked 1");
+});
+
 test("keeps the last answer for the same file and text alone", () => {
   // As a fix pass lints the file again with its fixed text.
   const worker = new LinterWorker(import.meta.url, PATIENCE);
@@ -93,7 +105,7 @@ test("passes a buffer that disk does not hold, or a file the project leaves out"
 });
 
 test("passes the buffer of a project file deleted from disk", () => {
-  // The project is globbed once, so it still lists a file deleted while its buffer is open.
+  // The project still lists a file deleted after the last glob, while its buffer is open.
   const dir = mkdtempSync(join(tmpdir(), "valof-linter-worker-"));
   try {
     const file = join(dir, "a.ts");

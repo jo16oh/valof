@@ -88,6 +88,24 @@ test("asks again once another file of the project changes on disk", () => {
   }
 });
 
+test("keeps linting a project a file is deleted from or added to", () => {
+  const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
+  try {
+    cpSync(at("money.ts"), join(dir, "money.ts"));
+    const reader = readFileSync(at("reader/show.ts"), "utf8").replace("../money.ts", "./money.ts");
+    writeFileSync(join(dir, "show.ts"), reader);
+    const lint = (): string[] => run(join(dir, "money.ts"), undefined, join(dir, "*.ts"));
+
+    expect(lint()).toEqual([]);
+    rmSync(join(dir, "show.ts"));
+    expect(lint()).toEqual(["6:2-8  Money.format is never read"]);
+    writeFileSync(join(dir, "other.ts"), reader);
+    expect(lint()).toEqual([]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("reads src/**/*.ts when no project is set", () => {
   expect(host(at("default"), "src/orders.ts")).toMatchObject({
     status: 0,
