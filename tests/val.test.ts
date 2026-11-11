@@ -535,6 +535,16 @@ describe("Val", () => {
       type Ledger = Val<"UnionLedger", { entries: (Dollar | Yen)[] }>;
       // @ts-expect-error nor through Rec
       type Account = Val<"UnionAccount", { money: Rec<Dollar> | Rec<Yen> }>;
+      // @ts-expect-error nor a Val and a plain object of its fields
+      type Loose = Val<"UnionLoose", { money: Dollar | { amount: number } }>;
+      expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{
+        money: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
+      }>();
+      // @ts-expect-error a Val beside a Rec gets the Enum message
+      type Twig = Val<"UnionTwig", { kid: Rec<Twig> | Dollar }>;
+      expectTypeOf<VerdictOf<Twig>>().toEqualTypeOf<{
+        kid: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
+      }>();
       type Leaf = Val<"UnionLeaf", { kids: Rec<Leaf>[] }>;
       // @ts-expect-error a type that references itself is rejected too, as circular rather than with the Enum message
       type Branch = Val<"UnionBranch", { kid: Rec<Branch> | Rec<Leaf> }>;
@@ -586,6 +596,10 @@ describe("Val", () => {
       // @ts-expect-error an object payload cannot be a union
       type InTuple = Val<"InTuple", [State, number]>;
       expectTypeOf<InTuple>().not.toExtend<AnyVal>();
+
+      // @ts-expect-error even where one object holds every key of the other
+      type Widened = Val<"Widened", { a: number } | { a: number; b: string }>;
+      expectTypeOf<Widened>().not.toExtend<AnyVal>();
     });
 
     test("a field no value fits is rejected", () => {

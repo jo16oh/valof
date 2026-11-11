@@ -402,6 +402,13 @@ describe("Trait", () => {
       expectTypeOf<VerdictOf<Split>>().toEqualTypeOf<
         Invalid<"a trait's members must be one object type, not a union">
       >();
+      type Widened = Trait<
+        "Widened",
+        { n: number },
+        // @ts-expect-error even where one object holds every key of the other
+        { f: (self: Self) => number } | { f: (self: Self) => number; g: (self: Self) => string }
+      >;
+      expectTypeOf<Widened>().not.toBeNever();
     });
   });
 
@@ -837,6 +844,12 @@ describe("nesting", () => {
     type Row = Val<"Row", { owners: Impl<Greetable>[] }>;
     // @ts-expect-error a field cannot hold an Impl
     type Boxed = Val<"Boxed", { item: Dyn<Greetable> }>;
+    type Plain = Val<"Plain", { n: number }>;
+    // @ts-expect-error an Impl beside a Val gets the message for Vals of different types
+    type Stall = Val<"Stall", { owner: Impl<Greetable> | Plain }>;
+    expectTypeOf<ValVerdictOf<Stall>>().toEqualTypeOf<{
+      owner: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
+    }>();
     expectTypeOf<Shelf | Seat | Row | Boxed>().not.toBeNever();
   });
 
