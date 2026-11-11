@@ -167,6 +167,21 @@ describe("Val", () => {
       expect(() => Point.seal.nocopy(accessor as never)).toThrow(/accessor/);
       expect(() => Point.seal.nocopy(new Source() as never)).toThrow(/plain objects/);
       expect(() => Point.seal.nocopy(cyclic as never)).toThrow(/cycle/);
+      // A frozen payload throws too. `nocopy` checks it before copying it.
+      expect(() => Point.seal.nocopy(Object.freeze(accessor) as never)).toThrow(/accessor/);
+      expect(() => Point.seal.nocopy(Object.freeze(cyclic) as never)).toThrow(/cycle/);
+    });
+
+    test("copies a frozen payload once, since it cannot carry the mark that lets a node be shared", () => {
+      type Point = Val<"NocopyFrozen", { x: number; tags: string[] }>;
+      const Point = Val.companion<Point>().build();
+      const raw = Object.freeze({ x: 1, tags: Object.freeze(["a"]) });
+      const point = Point.seal.nocopy(raw);
+
+      expect(point).not.toBe(raw);
+      expect(point).toEqual(raw);
+      // The copy carries the mark, so a derivation shares the nodes it leaves unchanged.
+      expect(Point.patch(point, { x: 2 }).tags).toBe(point.tags);
     });
 
     test("freezes children stored in non-enumerable data properties", () => {
@@ -938,6 +953,17 @@ describe("copying", () => {
       const user = User.seal(raw);
       raw.name = "mallory";
       expect(user.name).toBe("alice");
+    });
+
+    test("the ownership mark is invisible on the value, and a spread does not carry it", () => {
+      const order = Order.seal({ id: "o", total: { amount: 1, currency: "JPY" } });
+
+      expect(Object.getPrototypeOf(order)).toBe(Object.prototype);
+      expect(Object.keys(order)).toEqual(["id", "total"]);
+      expect(Object.getOwnPropertySymbols(order)).toEqual([]);
+      expect(JSON.parse(JSON.stringify(order))).toEqual(order);
+      const spread = { ...order };
+      expect(Order.seal(spread)).not.toBe(spread);
     });
 
     test("the copy is deep", () => {
