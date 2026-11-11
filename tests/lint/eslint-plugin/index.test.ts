@@ -127,7 +127,7 @@ test("underlines the whole directive, which has no name to point at", () => {
 test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
   expect(plugin.configs.recommended.rules).toEqual({
-    // The members work, but the block gives them state they share and no reader sees.
+    // The members work, but what the step declares gives them state they share and no reader sees.
     "valof/hidden-state-in-impl": "warn",
     "valof/hidden-optional": "error",
     "valof/unreturned-seal": "error",

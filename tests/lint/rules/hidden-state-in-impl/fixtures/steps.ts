@@ -35,7 +35,12 @@ const Shape = Enum.companion<Shape>()
     return { diameter: (c) => (new Cache(), c.r * 2) };
   })
   .Square.impl(() => {
-    return { perimeter: (s) => s.side * 4 };
+    return {
+      perimeter: (s) => {
+        const sides = 4;
+        return s.side * sides;
+      },
+    };
   })
   .impl(members)
   .build();
