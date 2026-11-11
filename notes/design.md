@@ -3235,6 +3235,9 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     whether a function is pure, and the rule conflicts with naming a construction with side effects by its action
     (`read`, `load`, §14.8). Keeping only the check on the `impl` side was rejected too. It has few false positives,
     but that alone does not justify a rule
+  - **`unrelated-assoc` was dropped too (2026-11-11).** It guesses from syntax whether a member belongs to its type,
+    and what it guards is a style: a companion used as a place for helpers. It needed a fix for members passed by
+    name, and its sibling `constructor-name` was already gone (user)
 - [x] ~~**A valof-lint false positive, from §6.12.** `detached-impl` reports a member named `fixed`, called from another file,
       as "a step written outside the chain".~~ Fixed after `fixed` moved to a type argument and left `STEPS`
       (2026-10-22). The types reject a member named like a step, so no other false positive of this kind can occur
