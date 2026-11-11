@@ -1,4 +1,4 @@
-import { BlockStep } from "./block-step.ts";
+import { HiddenStateInImpl } from "./hidden-state-in-impl.ts";
 import { ModelOnlyInValof } from "./model-only-in-valof.ts";
 import { HiddenOptional } from "./hidden-optional.ts";
 import { UnreturnedSeal } from "./unreturned-seal.ts";
@@ -36,7 +36,7 @@ export const RULES = [
   Rule.dyn(SplitCompanion, SplitCompanion.create()),
   Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
   Rule.dyn(UnnamedOf, UnnamedOf.create()),
-  Rule.dyn(BlockStep, BlockStep.create()),
+  Rule.dyn(HiddenStateInImpl, HiddenStateInImpl.create()),
   Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create(ModelSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
   Rule.dyn(UnreturnedSeal, UnreturnedSeal.create()),
@@ -53,7 +53,7 @@ export const RULES = [
  * {@link RULES} is what the runner reads. This is for naming a single one.
  */
 export {
-  BlockStep,
+  HiddenStateInImpl,
   ModelOnlyInValof,
   HiddenOptional,
   UnreturnedSeal,

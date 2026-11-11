@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vite-plus/test";
 
 import {
-  BlockStep,
+  HiddenStateInImpl,
   CompanionMismatch,
   UnrelatedAssoc,
   UnqualifiedVariant,
@@ -128,7 +128,7 @@ describe("what name resolution cannot reach", () => {
   });
 
   test("reads a function held in a const, and not one with a block body", async () => {
-    expect(await lint("step-functions", { skip: [BlockStep] })).toEqual([
+    expect(await lint("step-functions", { skip: [HiddenStateInImpl] })).toEqual([
       { rule: UnusedMember, at: "step-functions.ts:2:26" },
     ]);
   });

@@ -128,7 +128,7 @@ test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...kinds]);
   expect(plugin.configs.recommended.rules).toEqual({
     // The members work, but the block gives them state they share and no reader sees.
-    "valof/block-step": "warn",
+    "valof/hidden-state-in-impl": "warn",
     "valof/hidden-optional": "error",
     "valof/unreturned-seal": "error",
     "valof/unrelated-assoc": "warn",

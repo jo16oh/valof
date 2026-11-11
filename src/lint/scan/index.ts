@@ -74,8 +74,8 @@ export type EscapedDyn = Val<"EscapedDyn", { trait: SymbolRef; val: SymbolRef }>
 export const EscapedDyn = Val.companion<EscapedDyn>().build();
 
 /** The function a member step takes, `.impl(() => { … })`, where it has a block body. */
-export type BlockStepFunction = Val<"BlockStepFunction", { at: Position; step: string }>;
-export const BlockStepFunction = Val.companion<BlockStepFunction>().build();
+export type StepState = Val<"StepState", { at: Position; step: string }>;
+export const StepState = Val.companion<StepState>().build();
 
 /** A variant's step written after another variant's, where an earlier step was its own. */
 export type SplitVariant = Val<
@@ -191,7 +191,7 @@ export type Scan = Val<
     /** The members `.impl` and `.implAssoc` registered inline, with what their bodies name. */
     stepMembers: StepMember[];
     /** Member steps whose function has a block body. */
-    blockSteps: BlockStepFunction[];
+    stepStates: StepState[];
     /** Keys read off a local name, each a set. */
     reads: Record<string, Record<string, true>>;
     /** Keys read through a namespace, already named as the exporting module names them. */
@@ -322,7 +322,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
   const traitImplementations: TraitImplementation[] = [];
   const dynReads: DynRead[] = [];
   const escapedDyns: EscapedDyn[] = [];
-  const blockSteps: BlockStepFunction[] = [];
+  const stepStates: StepState[] = [];
   const splitVariants: SplitVariant[] = [];
   const memberBodies: StepMember[] = [];
   const heldSeals: HeldSeal[] = [];
@@ -431,11 +431,9 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) escapedDyns.push(EscapedDyn.seal(box));
         memberSources.push(...sources(node, file, bound));
-        const block = blockStep(node, bound);
-        if (block)
-          blockSteps.push(
-            BlockStepFunction.seal({ at: Lines.at(lines, block.start), step: block.step }),
-          );
+        const state = stepState(node, bound);
+        if (state)
+          stepStates.push(StepState.seal({ at: Lines.at(lines, state.start), step: state.step }));
         const lift = Lift.fromCall(node, file, bound, lines);
         if (lift) lifts.push(lift);
         const implementation = implTrait(node, file, bound, sites, objects, lines);
@@ -554,7 +552,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     traitImplementations,
     dynReads,
     escapedDyns,
-    blockSteps,
+    stepStates,
     splitVariants,
     stepMembers: throughReferences(memberBodies, program),
     heldSeals,
@@ -769,14 +767,23 @@ function memberStep(
   return { step, fn: node.arguments[index] };
 }
 
-/** A member step on a companion chain whose function has a block body, where it starts. */
-function blockStep(node: Node, bound: Bindings): { step: string; start: number } | undefined {
+/** What a function body may declare: each is state the members share. */
+const DECLARATIONS = new Set(["VariableDeclaration", "FunctionDeclaration", "ClassDeclaration"]);
+
+/**
+ * A member step on a companion chain whose function declares something in its body, where the
+ * function starts. Only the body's own statements are read.
+ */
+function stepState(node: Node, bound: Bindings): { step: string; start: number } | undefined {
   const found = memberStep(node, bound);
   const fn = found?.fn;
-  const block =
-    fn?.type === "FunctionExpression" ||
-    (fn?.type === "ArrowFunctionExpression" && fn.body.type === "BlockStatement");
-  return found && fn && block ? { step: found.step, start: fn.start } : undefined;
+  const body =
+    fn?.type === "FunctionExpression" || fn?.type === "ArrowFunctionExpression"
+      ? fn.body
+      : undefined;
+  const declares =
+    body?.type === "BlockStatement" && body.children.some((one) => DECLARATIONS.has(one.type));
+  return found && fn && declares ? { step: found.step, start: fn.start } : undefined;
 }
 
 /**
