@@ -24,21 +24,8 @@ where a step needs a value from outside the chain.
 
 Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
 where the next step starts. Declare a variable in the paragraph that uses it, right before its first
-use. Put a call and its failure check on adjacent lines. A line that only unwraps `.value` stays
-with them, and the blank line goes after it:
-
-```ts
-const compiled = await R.sequence([
-  compile("production", imports),
-  compile("development", imports),
-]);
-if (R.isFailure(compiled)) return compiled;
-const [production, development] = compiled.value;
-
-const reads = await R.sequence(
-  development.modules.map((module) => Module.readsNodeEnv(module, "development")),
-);
-```
+use. Put a call that returns a Result and its failure check on adjacent lines. A line that only
+unwraps the Result's `.value` stays with them, and the blank line goes after it.
 
 Gather the guard clauses at the top of the function, and put a blank line before the main work. Put
 a blank line before the final `return`, unless the whole body is one paragraph.
