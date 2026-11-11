@@ -6,14 +6,14 @@ import { expect, test } from "vite-plus/test";
 
 import { LinterWorker, Query } from "../../../../src/lint/eslint-plugin/linter-worker.ts";
 import { Project } from "../../../../src/lint/files.ts";
-import { ModelSettings } from "../../../../src/lint/options.ts";
+import { DataTypeSettings } from "../../../../src/lint/options.ts";
 
 const PATIENCE = 2000;
 
 /** What `worker.ts` beside this file says to a query naming `file`. A failure is thrown. */
 const say = (worker: LinterWorker, file: string, text = ""): string | undefined =>
   worker.lint(
-    Query.seal({ project: Project.seal([]), file, text, model: ModelSettings.create() }),
+    Query.seal({ project: Project.seal([]), file, text, model: DataTypeSettings.create() }),
   )[0]?.message;
 
 test("asks once for the same query in one tick, and again after it", async () => {

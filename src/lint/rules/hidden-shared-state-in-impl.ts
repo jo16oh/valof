@@ -3,10 +3,10 @@ import type { Scan } from "../scan/index.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 
 /** A step function that declares something beside the members, which every member shares unseen. */
-export type HiddenStateInImpl = Val<"HiddenStateInImpl", { kind: Kind }, Rule>;
-export const HiddenStateInImpl = Val.companion<HiddenStateInImpl>()
+export type HiddenSharedStateInImpl = Val<"HiddenSharedStateInImpl", { kind: Kind }, Rule>;
+export const HiddenSharedStateInImpl = Val.companion<HiddenSharedStateInImpl>()
   .implCreate(() => ({
-    kind: Kind.seal("hidden-state-in-impl"),
+    kind: Kind.seal("hidden-shared-state-in-impl"),
     description: "state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`",
     warns: true,
   }))
@@ -21,7 +21,7 @@ export const HiddenStateInImpl = Val.companion<HiddenStateInImpl>()
  * returns the object is not reported. `implSeal` and `implCreate` are not reported, since a check
  * or the code that builds a payload is written as statements.
  */
-function findings({ kind }: HiddenStateInImpl, scans: readonly Scan[]): Finding[] {
+function findings({ kind }: HiddenSharedStateInImpl, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, stepStates }) =>
     stepStates.map(({ step, at }) =>
       Finding.seal({

@@ -19,7 +19,7 @@ test("finds no data type outside Valof in the linter", async () => {
   const files = globSync("src/lint/**/*.ts", { cwd: root });
   const findings = await lint(
     files.map((file) => root + file),
-    Options.create({ enable: { "model-only-in-valof": {} } }),
+    Options.create({ enable: { "data-type-outside-valof": {} } }),
   );
   expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
 });

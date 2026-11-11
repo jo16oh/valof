@@ -22,10 +22,10 @@ const registered = (companion: { create: (settings: never) => { kind: string } }
 
 // Named rather than spelled as a kind: a test that names a rule reads the same object the
 // registry does, so renaming a kind is one edit and no test string follows it.
-export const HiddenStateInImpl = registered(Rules.HiddenStateInImpl);
-export const ModelOnlyInValof = registered(Rules.ModelOnlyInValof);
+export const HiddenSharedStateInImpl = registered(Rules.HiddenSharedStateInImpl);
+export const DataTypeOutsideValof = registered(Rules.DataTypeOutsideValof);
 export const HiddenOptional = registered(Rules.HiddenOptional);
-export const UnqualifiedVariant = registered(Rules.UnqualifiedVariant);
+export const DetachedVariant = registered(Rules.DetachedVariant);
 export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
 export const UnimplementedTrait = registered(Rules.UnimplementedTrait);
 export const BrandMismatch = registered(Rules.BrandMismatch);

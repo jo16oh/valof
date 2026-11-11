@@ -10,23 +10,23 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 ## Rules
 
-| rule                   | reports                                                                            | default |
-| ---------------------- | ---------------------------------------------------------------------------------- | ------- |
-| `unused-member`        | a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads  | warning |
-| `duplicate-brand`      | a brand string claimed by more than one top-level alias                            | error   |
-| `brand-mismatch`       | a brand whose last segment is not the name of the type it brands                   | error   |
-| `unnecessary-alias`    | a type alias that is a second name for a Val, a Trait or an Enum                   | error   |
-| `unimplemented-trait`  | a Trait a Val, an Enum or a variant declares that its companion does not implement | error   |
-| `companion-mismatch`   | a companion, or a variant, bound to a name other than its own                      | error   |
-| `split-companion`      | a companion for a type that another file declares                                  | error   |
-| `bypassed-companion`   | a `Val.of` for a type whose companion is how it is built                           | warning |
-| `inferred-val-of`      | a `Val.of` that names no type, taking one from its target                          | warning |
-| `hidden-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`       | warning |
-| `unqualified-variant`  | a variant bound to a local name without the name of its enum                       | warning |
-| `hidden-optional`      | a default or rest parameter that a member's type annotation hides                  | error   |
-| `model-only-in-valof`  | a data type declared outside Valof                                                 | off     |
-| `incomplete-disable`   | a disable comment leaving out the rules it silences, or its scope                  | error   |
-| `unused-disable`       | a disable comment naming a rule that reports nothing there                         | warning |
+| rule                          | reports                                                                            | default |
+| ----------------------------- | ---------------------------------------------------------------------------------- | ------- |
+| `unused-member`               | a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads  | warning |
+| `duplicate-brand`             | a brand string claimed by more than one top-level alias                            | error   |
+| `brand-mismatch`              | a brand whose last segment is not the name of the type it brands                   | error   |
+| `unnecessary-alias`           | a type alias that is a second name for a Val, a Trait or an Enum                   | error   |
+| `unimplemented-trait`         | a Trait a Val, an Enum or a variant declares that its companion does not implement | error   |
+| `companion-mismatch`          | a companion, or a variant, bound to a name other than its own                      | error   |
+| `split-companion`             | a companion for a type that another file declares                                  | error   |
+| `bypassed-companion`          | a `Val.of` for a type whose companion is how it is built                           | warning |
+| `inferred-val-of`             | a `Val.of` that names no type, taking one from its target                          | warning |
+| `hidden-shared-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`       | warning |
+| `detached-variant`            | a variant bound to a local name without the name of its enum                       | warning |
+| `hidden-optional`             | a default or rest parameter that a member's type annotation hides                  | error   |
+| `data-type-outside-valof`     | a data type declared outside Valof                                                 | off     |
+| `incomplete-disable`          | a disable comment leaving out the rules it silences, or its scope                  | error   |
+| `unused-disable`              | a disable comment naming a rule that reports nothing there                         | warning |
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two
 types the checker stops distinguishing, or a name that has to agree with another and does not.
@@ -50,9 +50,9 @@ pnpm add -D typescript
 
 ## Modelling only in Valof
 
-`model-only-in-valof` reports a named data type declared outside Valof: an object type, an array, a
-tuple, a primitive, a utility type such as `Pick`, or an `interface`. A union of Vals and a function
-type pass. It is off until a project turns it on.
+`data-type-outside-valof` reports a named data type declared outside Valof: an object type, an
+array, a tuple, a primitive, a utility type such as `Pick`, or an `interface`. A union of Vals and a
+function type pass. It is off until a project turns it on.
 
 Name a type meant for a payload with `Payload`. It may appear inside a Valof type, and in the
 function passed to `implSeal` or `implCreate`.
@@ -99,9 +99,10 @@ like any other.
 ## Plugin for ESLint and Oxlint
 
 The same rules, one per finding kind. Each rule can be given its own severity, or turned off, by its
-name. `recommended` leaves `model-only-in-valof` out. The rule's settings go under
-`settings.valof["model-only-in-valof"]`. The project to read is one setting for all of them, a path
-or a list of paths, and defaults to `src/**/*.ts`. A path starting with `!` is excluded from it.
+name. `recommended` leaves `data-type-outside-valof` out. The rule's settings go under
+`settings.valof["data-type-outside-valof"]`. The project to read is one setting for all of them, a
+path or a list of paths, and defaults to `src/**/*.ts`. A path starting with `!` is excluded from
+it.
 
 ESLint needs a parser that reads your TypeScript.
 
@@ -141,13 +142,13 @@ pnpm exec valof-lint src src/billing/id.ts              # report on the changed 
 pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree out
 ```
 
-| argument                | what it is                                                                         |
-| ----------------------- | ---------------------------------------------------------------------------------- |
-| the first path          | the project to read, a directory or a glob                                         |
-| the paths after it      | the files to report on, the whole project when there are none                      |
-| `--project`             | the project by name, before or after the files. Can be repeated, and takes `!path` |
-| `--no-<rule>`           | a rule to leave out of the run, by the rule name in the finding                    |
-| `--model-only-in-valof` | the rule, turned on. Any of its settings can follow `=`, separated by commas       |
+| argument                    | what it is                                                                         |
+| --------------------------- | ---------------------------------------------------------------------------------- |
+| the first path              | the project to read, a directory or a glob                                         |
+| the paths after it          | the files to report on, the whole project when there are none                      |
+| `--project`                 | the project by name, before or after the files. Can be repeated, and takes `!path` |
+| `--no-<rule>`               | a rule to leave out of the run, by the rule name in the finding                    |
+| `--data-type-outside-valof` | the rule, turned on. Any of its settings can follow `=`, separated by commas       |
 
 A single file given as the project is refused, because a duplicate brand needs the other alias to be
 seen.

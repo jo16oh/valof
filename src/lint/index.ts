@@ -6,7 +6,7 @@ import { run } from "./run.ts";
 
 export { RULES, kinds, Kind, type Finding } from "./rules/index.ts";
 export { MissingParserError, MissingTypeScriptError } from "./errors.ts";
-export { ModelSettings, Options } from "./options.ts";
+export { DataTypeSettings, Options } from "./options.ts";
 
 /**
  * Reports what the type checker cannot. See {@link RULES} for what each rule looks for.
