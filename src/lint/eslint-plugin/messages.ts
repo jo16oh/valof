@@ -1,4 +1,5 @@
 import { Enum, Val } from "../../index.ts";
+import type { Project } from "../files.ts";
 import type { Finding } from "../index.ts";
 
 /** What the plugin asks the worker about one file. */
@@ -6,7 +7,7 @@ export type Query = Val<
   "Query",
   {
     /** The project files scanned together, absolute. The file being linted joins them, as `text`. */
-    project: string[];
+    project: Project;
     file: string;
     text: string;
   }

@@ -1,18 +1,18 @@
 import { expect, test } from "vite-plus/test";
 
-import { connect } from "../../../src/lint/worker.ts";
+import { createWorkerAsker } from "../../../src/lint/worker.ts";
 
 const script = new URL("answerer.ts", import.meta.url);
 const PATIENCE = 2000;
 
 test("asks the same worker again, once it has answered", () => {
-  const ask = connect<string, string>(script, PATIENCE);
+  const ask = createWorkerAsker<string, string>(script, PATIENCE);
   expect(ask("one")).toBe("answered one");
   expect(ask("two")).toBe("answered two");
 });
 
 test("stops a wedged worker, and asks a new one next", async () => {
-  const ask = connect<string | Int32Array, string>(script, PATIENCE);
+  const ask = createWorkerAsker<string | Int32Array, string>(script, PATIENCE);
   const spins = new Int32Array(new SharedArrayBuffer(4));
   expect(() => ask(spins)).toThrow(`valof-lint: no answer in ${PATIENCE / 1000}s`);
 
@@ -26,7 +26,7 @@ test("stops a wedged worker, and asks a new one next", async () => {
 });
 
 test("returns what the worker makes of a failure, in the answer or in sending it", () => {
-  const ask = connect<string, string>(script, PATIENCE);
+  const ask = createWorkerAsker<string, string>(script, PATIENCE);
   expect(ask("reject")).toBe("failed: Error: rejected");
   expect(ask("uncloneable")).toMatch(/^failed: DataCloneError/);
 });

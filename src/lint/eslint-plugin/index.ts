@@ -5,9 +5,9 @@ import type { Rule } from "eslint";
 import { pipe } from "../../shared/pipe/index.ts";
 import { Answer, Query, Reply } from "./messages.ts";
 import { Underline } from "./underline.ts";
-import { expand } from "../files.ts";
+import { Patterns, type Project } from "../files.ts";
 import { RULES, type Finding } from "../index.ts";
-import { connect } from "../worker.ts";
+import { createWorkerAsker } from "../worker.ts";
 
 export default valof();
 
@@ -39,69 +39,13 @@ function valof(): {
    * The patience is long enough that no run reaches it, short enough that a wedged worker still
    * says so.
    */
-  const ask = connect<Query, Reply>(
+  const ask = createWorkerAsker<Query, Reply>(
     new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
     60_000,
   );
 
-  /**
-   * One run per file, however many of the rules are on. The host creates every rule for a file
-   * before it walks it, so the `Program` handlers run back to back over the same text, and the
-   * `ask` blocks the thread: nothing runs in between. So the last answer is kept, and the same
-   * query gets it.
-   *
-   * It is dropped as soon as the stack empties, and not kept for the next pass, because the query
-   * says nothing about the rest of the project: a file saved in another editor tab changes what
-   * this file's findings are while its own text is unchanged.
-   */
-  let last: Answer | undefined;
-  const send = (query: Query): readonly Finding[] => {
-    const key = `${query.file}\n${query.text}\n${query.project.join("\n")}`;
-    if (last?.key === key) return last.findings;
-
-    const findings = pipe(
-      query,
-      ask,
-      Reply.match({
-        Found: ({ findings }) => findings,
-        Failed: ({ message }) => {
-          throw new Error(message);
-        },
-      }),
-    );
-    last = Answer.seal({ key, findings });
-    queueMicrotask(() => (last = undefined));
-    return findings;
-  };
-
-  /**
-   * The project, globbed once however many files are linted.
-   *
-   * The host walks the same project file by file, so the glob would otherwise run again for each.
-   */
-  const projects = new Map<string, string[]>();
-  const glob = (given: string | readonly string[]): string[] => {
-    const paths = typeof given === "string" ? [given] : [...given];
-    const key = paths.join("\n");
-    let found = projects.get(key);
-    if (!found) {
-      // A path starting with `!` is removed from the project, as it is on the command line.
-      // Resolved, since the glob that reached a file and the one that excluded it need not be
-      // spelled alike.
-      const dropped = new Set(
-        paths
-          .filter(excludes)
-          .flatMap((path) => expand(path.slice(1)).map((file) => resolve(file))),
-      );
-      found = paths
-        .filter((path) => !excludes(path))
-        .flatMap(expand)
-        .map((file) => resolve(file))
-        .filter((file) => !dropped.has(file));
-      projects.set(key, found);
-    }
-    return found;
-  };
+  const send = createCachedSender(ask);
+  const glob = createCachedGlobber();
 
   /** What to ask about the file the host is linting, with the project its settings name. */
   const read = ({
@@ -115,7 +59,7 @@ function valof(): {
     settings: { valof?: { project?: string | readonly string[] } } | undefined;
   }): Query =>
     Query.seal({
-      project: glob(settings?.valof?.project ?? "src/**/*.ts"),
+      project: glob(Patterns.fromSetting(settings?.valof?.project ?? "src/**/*.ts")),
       file: resolve(filename),
       text,
     });
@@ -169,6 +113,49 @@ function valof(): {
   };
 }
 
-function excludes(path: string): boolean {
-  return path.startsWith("!");
+/**
+ * `ask`, run once per file, however many of the rules are on. The host creates every rule for
+ * a file before it walks it, so the `Program` handlers run back to back over the same text, and
+ * `ask` blocks the thread: nothing runs in between. So the last answer is kept, and the same query
+ * gets it.
+ *
+ * It is dropped as soon as the stack empties, and not kept for the next pass, because the query
+ * says nothing about the rest of the project: a file saved in another editor tab changes what this
+ * file's findings are while its own text is unchanged.
+ */
+function createCachedSender(ask: (query: Query) => Reply): (query: Query) => readonly Finding[] {
+  let last: Answer | undefined;
+  return (query) => {
+    const key = `${query.file}\n${query.text}\n${query.project.join("\n")}`;
+    if (last?.key === key) return last.findings;
+
+    const findings = pipe(
+      query,
+      ask,
+      Reply.match({
+        Found: ({ findings }) => findings,
+        Failed: ({ message }) => {
+          throw new Error(message);
+        },
+      }),
+    );
+    last = Answer.seal({ key, findings });
+    queueMicrotask(() => (last = undefined));
+    return findings;
+  };
+}
+
+/**
+ * {@link Patterns.glob}, run once however many files are linted.
+ *
+ * The host walks the same project file by file, so the glob would otherwise run again for each.
+ */
+function createCachedGlobber(): (patterns: Patterns) => Project {
+  const projects = new Map<string, Project>();
+  return (patterns) => {
+    const key = Patterns.key(patterns);
+    let found = projects.get(key);
+    if (!found) projects.set(key, (found = Patterns.glob(patterns)));
+    return found;
+  };
 }

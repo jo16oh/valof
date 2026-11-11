@@ -18,7 +18,7 @@ import {
  * `patience` milliseconds is stopped, and the next question starts another: a worker still busy
  * would leave every later question waiting behind it.
  */
-export function connect<Question, Answer>(
+export function createWorkerAsker<Question, Answer>(
   script: URL,
   patience: number,
 ): (question: Question) => Answer {
@@ -52,7 +52,7 @@ export function connect<Question, Answer>(
 }
 
 /**
- * Answers what {@link connect} asks, in the worker.
+ * Answers what {@link createWorkerAsker} asks, in the worker.
  *
  * `fail` makes the answer when `respond` throws, or when its answer cannot be sent: whatever
  * happened, the thread waiting on this has to receive something.

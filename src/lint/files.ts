@@ -18,6 +18,45 @@ export const FilePath = Val.companion<FilePath>()
   }))
   .build();
 
+/** The files of a project, resolved, as {@link Patterns.glob} found them. */
+export type Project = Val<"Project", readonly string[]>;
+export const Project = Val.companion<Project>().build();
+
+/**
+ * The paths and globs that name a project. A path starting with `!` removes what it matches, as it
+ * does on the command line.
+ */
+export type Patterns = Val<"Patterns", readonly string[]>;
+export const Patterns = Val.companion<Patterns>()
+  .implAssoc(({ seal }) => ({
+    /** The patterns a setting names, as one pattern or a list of them. */
+    fromSetting: (given: string | readonly string[]): Patterns =>
+      seal(typeof given === "string" ? [given] : [...given]),
+  }))
+  .impl(() => ({
+    /** The same patterns in the same order give the same key. */
+    key: (patterns): string => patterns.join("\n"),
+    /**
+     * Expands every pattern, and removes what an exclusion matches. Resolved, since the glob that
+     * reached a file and the one that excluded it need not be spelled alike.
+     */
+    glob: (patterns): Project => {
+      const dropped = new Set(
+        patterns
+          .filter(excludes)
+          .flatMap((path) => expand(path.slice(1)).map((file) => resolve(file))),
+      );
+      return Project.seal(
+        patterns
+          .filter((path) => !excludes(path))
+          .flatMap(expand)
+          .map((file) => resolve(file))
+          .filter((file) => !dropped.has(file)),
+      );
+    },
+  }))
+  .build();
+
 /** What a directory holds, for a caller who names one instead of writing the glob out. */
 const UNDER = "**/*.{ts,tsx,mts,cts}";
 
@@ -39,3 +78,7 @@ export const expand = (path: string): string[] =>
   globSync(isDirectory(path) ? `${path}/${UNDER}` : path, {
     exclude: (found) => found.split(/[\\/]/).includes("node_modules"),
   });
+
+function excludes(path: string): boolean {
+  return path.startsWith("!");
+}
