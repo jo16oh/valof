@@ -2,12 +2,12 @@ import { extname } from "node:path";
 
 import type { Rule } from "eslint";
 
-import { pipe } from "../../shared/pipe/index.ts";
-import { Answer, Query, Reply } from "./messages.ts";
+import { AnswerCache, ProjectCache } from "./caches.ts";
+import { Query, type Reply } from "./messages.ts";
 import { Underline } from "./underline.ts";
-import { Patterns, type Project } from "../files.ts";
-import { RULES, type Finding } from "../index.ts";
-import { createWorkerAsker } from "../worker.ts";
+import { Patterns } from "../files.ts";
+import { RULES } from "../index.ts";
+import { WorkerClient } from "../worker.ts";
 
 export default valof();
 
@@ -39,18 +39,18 @@ function valof(): {
    * The patience is long enough that no run reaches it, short enough that a wedged worker still
    * says so.
    */
-  const ask = createWorkerAsker<Query, Reply>(
+  const worker = new WorkerClient<Query, Reply>(
     new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
     60_000,
   );
 
-  const send = createCachedSender(ask);
-  const glob = createCachedGlobber();
+  const answers = new AnswerCache(worker);
+  const projects = new ProjectCache();
 
   return {
     meta: { name: "valof" },
     // One rule per kind, so a project sets the severity of each and turns off what it does not
-    // want. They share one run all the same: the linter reports on every kind at once, and `send`
+    // want. They share one run all the same: the linter reports on every kind at once, and `answers`
     // passes the same result to each rule of the same file. What a rule adds is which findings it
     // reports.
     rules: Object.fromEntries(
@@ -66,8 +66,8 @@ function valof(): {
           },
           create: (context: Rule.RuleContext) => ({
             Program(): void {
-              const project = glob(Patterns.fromSettings(context.settings));
-              for (const finding of send(Query.fromContext(context, project)))
+              const project = projects.glob(Patterns.fromSettings(context.settings));
+              for (const finding of answers.send(Query.fromContext(context, project)))
                 if (finding.kind === kind)
                   context.report({
                     loc: Underline.fromFinding(finding, context.sourceCode.text),
@@ -94,52 +94,5 @@ function valof(): {
         ),
       },
     },
-  };
-}
-
-/**
- * `ask`, run once per file, however many of the rules are on. The host creates every rule for
- * a file before it walks it, so the `Program` handlers run back to back over the same text, and
- * `ask` blocks the thread: nothing runs in between. So the last answer is kept, and the same query
- * gets it.
- *
- * It is dropped as soon as the stack empties, and not kept for the next pass, because the query
- * says nothing about the rest of the project: a file saved in another editor tab changes what this
- * file's findings are while its own text is unchanged.
- */
-function createCachedSender(ask: (query: Query) => Reply): (query: Query) => readonly Finding[] {
-  let last: Answer | undefined;
-  return (query) => {
-    const key = `${query.file}\n${query.text}\n${query.project.join("\n")}`;
-    if (last?.key === key) return last.findings;
-
-    const findings = pipe(
-      query,
-      ask,
-      Reply.match({
-        Found: ({ findings }) => findings,
-        Failed: ({ message }) => {
-          throw new Error(message);
-        },
-      }),
-    );
-    last = Answer.seal({ key, findings });
-    queueMicrotask(() => (last = undefined));
-    return findings;
-  };
-}
-
-/**
- * {@link Patterns.glob}, run once however many files are linted.
- *
- * The host walks the same project file by file, so the glob would otherwise run again for each.
- */
-function createCachedGlobber(): (patterns: Patterns) => Project {
-  const projects = new Map<string, Project>();
-  return (patterns) => {
-    const key = Patterns.key(patterns);
-    let found = projects.get(key);
-    if (!found) projects.set(key, (found = Patterns.glob(patterns)));
-    return found;
   };
 }

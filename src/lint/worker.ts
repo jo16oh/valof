@@ -18,41 +18,46 @@ import {
  * `patience` milliseconds is stopped, and the next question starts another: a worker still busy
  * would leave every later question waiting behind it.
  */
-export function createWorkerAsker<Question, Answer>(
-  script: URL,
-  patience: number,
-): (question: Question) => Answer {
-  let worker: { thread: Worker; port: MessagePort; signal: Int32Array } | undefined;
-  return (question) => {
-    if (!worker) {
+export class WorkerClient<Question, Answer> {
+  readonly #script: URL;
+  readonly #patience: number;
+  #worker: { thread: Worker; port: MessagePort; signal: Int32Array } | undefined;
+
+  constructor(script: URL, patience: number) {
+    this.#script = script;
+    this.#patience = patience;
+  }
+
+  ask(question: Question): Answer {
+    if (!this.#worker) {
       const { port1, port2 } = new MessageChannel();
       const signal = new Int32Array(new SharedArrayBuffer(4));
-      const thread = new Worker(script, {
+      const thread = new Worker(this.#script, {
         workerData: { port: port2, signal },
         transferList: [port2],
       });
       // The host decides when it exits. A linter waiting on its own worker would never finish.
       thread.unref();
-      worker = { thread, port: port1, signal };
+      this.#worker = { thread, port: port1, signal };
     }
 
-    const { thread, port, signal } = worker;
+    const { thread, port, signal } = this.#worker;
     Atomics.store(signal, 0, 0);
     thread.postMessage(question);
-    if (Atomics.wait(signal, 0, 0, patience) === "timed-out") {
+    if (Atomics.wait(signal, 0, 0, this.#patience) === "timed-out") {
       void thread.terminate();
-      worker = undefined;
-      throw new Error(`valof-lint: no answer in ${patience / 1000}s`);
+      this.#worker = undefined;
+      throw new Error(`valof-lint: no answer in ${this.#patience / 1000}s`);
     }
 
     const answer = receiveMessageOnPort(port);
     if (!answer) throw new Error("valof-lint: the worker answered nothing");
     return answer.message as Answer;
-  };
+  }
 }
 
 /**
- * Answers what {@link createWorkerAsker} asks, in the worker.
+ * Answers what {@link WorkerClient} asks, in the worker.
  *
  * `fail` makes the answer when `respond` throws, or when its answer cannot be sent: whatever
  * happened, the thread waiting on this has to receive something.
