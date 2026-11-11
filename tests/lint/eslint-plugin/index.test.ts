@@ -1,5 +1,13 @@
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -8,6 +16,7 @@ import { expect, test } from "vite-plus/test";
 
 import plugin from "../../../src/lint/eslint-plugin/index.ts";
 import { kinds } from "../../../src/lint/index.ts";
+import { keeping } from "../support.ts";
 
 // The rules are called here with a context holding only what they read. `tests/lint/hosts` runs
 // them in ESLint and oxlint.
@@ -41,10 +50,11 @@ const run = (name: string, text?: string, read?: string | string[]): string[] =>
 };
 
 /** The same in a host process of its own, started in `cwd`. */
-const host = (cwd: string, name: string) => {
+const host = (cwd: string, name: string, env = process.env) => {
   const script = fileURLToPath(new URL("host.ts", import.meta.url));
   const { status, stdout, stderr } = spawnSync(process.execPath, [script, name], {
     cwd,
+    env,
     encoding: "utf8",
     // A host that never exits is a failure, not a run that never ends.
     timeout: 10_000,
@@ -117,6 +127,20 @@ test("reads src/**/*.ts when no project is set", () => {
     status: 0,
     stdout: 'Ref claims the brand "Ref", and so does another type\n',
   });
+});
+
+test("keeps the worker's scans under node_modules/.cache, and reports the same findings with them", () => {
+  const dir = mkdtempSync(join(tmpdir(), "valof-plugin-"));
+  try {
+    cpSync(at("default"), dir, { recursive: true });
+    mkdirSync(join(dir, "node_modules"));
+    const first = host(dir, "src/orders.ts", keeping());
+    expect(existsSync(join(dir, "node_modules", ".cache", "valof-lint", "scans.json"))).toBe(true);
+    expect(host(dir, "src/orders.ts", keeping())).toEqual(first);
+    expect(first.stdout).toBe('Ref claims the brand "Ref", and so does another type\n');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("says nothing about a file that holds no finding of its own", () => {

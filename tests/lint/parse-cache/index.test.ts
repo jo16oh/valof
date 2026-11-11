@@ -11,41 +11,29 @@ const b = FilePath.seal("/project/b.ts");
 
 test("parses a file again only once its text changes", () => {
   const cache = new ParseCache();
-  const [first, other] = cache.parse(parser, [
-    [a, "export const x = 1;\n"],
-    [b, "export {};\n"],
-  ]);
-  const [same, untouched] = cache.parse(parser, [
-    [a, "export const x = 1;\n"],
-    [b, "export {};\n"],
-  ]);
-  expect(same).toBe(first);
-  expect(untouched).toBe(other);
+  const first = cache.tree(parser, a, "export const x = 1;\n");
+  const other = cache.tree(parser, b, "export {};\n");
+  expect(cache.tree(parser, a, "export const x = 1;\n")).toBe(first);
 
-  const [changed, still] = cache.parse(parser, [
-    [a, "export const y = 1;\n"],
-    [b, "export {};\n"],
-  ]);
+  const changed = cache.tree(parser, a, "export const y = 1;\n");
   expect(changed).not.toBe(first);
-  expect(JSON.stringify(changed?.program)).toContain('"name":"y"');
-  expect(still).toBe(other);
+  expect(JSON.stringify(changed.program)).toContain('"name":"y"');
+  expect(cache.tree(parser, b, "export {};\n")).toBe(other);
 });
 
 test("keeps a file apart from another with the same text", () => {
   const cache = new ParseCache();
-  const both: [FilePath, string][] = [
-    [a, "export {};\n"],
-    [b, "export {};\n"],
-  ];
-  const [, first] = cache.parse(parser, both);
-  const [one, two] = cache.parse(parser, both);
-  expect(two).toBe(first);
+  const one = cache.tree(parser, a, "export {};\n");
+  const two = cache.tree(parser, b, "export {};\n");
+  expect(cache.tree(parser, b, "export {};\n")).toBe(two);
   expect(two).not.toBe(one);
 });
 
-test("forgets a file the last call left out", () => {
+test("forgets every file but those it is told to keep", () => {
   const cache = new ParseCache();
-  const [kept] = cache.parse(parser, [[a, "export {};\n"]]);
-  cache.parse(parser, [[b, "export {};\n"]]);
-  expect(cache.parse(parser, [[a, "export {};\n"]])[0]).not.toBe(kept);
+  const dropped = cache.tree(parser, a, "export {};\n");
+  const kept = cache.tree(parser, b, "export {};\n");
+  cache.keep([b]);
+  expect(cache.tree(parser, a, "export {};\n")).not.toBe(dropped);
+  expect(cache.tree(parser, b, "export {};\n")).toBe(kept);
 });
