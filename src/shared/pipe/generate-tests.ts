@@ -18,7 +18,7 @@ function tooMany(call: string): string {
   return [
     `    ${call}(`,
     "      0,",
-    ...Array<string>(steps).fill("      wrap,"),
+    ...Array.from({ length: steps }, () => "      wrap,"),
     "      // @ts-expect-error no overload takes this many steps",
     "      wrap,",
     "    );",
@@ -49,7 +49,7 @@ describe("pipe", () => {
 ${lengths
   .map(
     (n) =>
-      `    expectTypeOf(pipe(0, ${Array(n).fill("wrap").join(", ")})).toEqualTypeOf<${nested(n)}>();`,
+      `    expectTypeOf(pipe(0, ${Array.from({ length: n }, () => "wrap").join(", ")})).toEqualTypeOf<${nested(n)}>();`,
   )
   .join("\n")}
 ${tooMany("pipe")}
@@ -72,7 +72,8 @@ function format(file: URL, text: string): Promise<string> {
       fileURLToPath(new URL("node_modules/.bin/vp", root)),
       ["fmt", `--stdin-filepath=${fileURLToPath(file)}`],
       { cwd: fileURLToPath(root) },
-      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+      (error, stdout) =>
+        error === null ? resolve(stdout) : reject(new Error("vp fmt failed", { cause: error })),
     );
     child.stdin?.end(text);
   });

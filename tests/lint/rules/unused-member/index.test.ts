@@ -169,6 +169,12 @@ describe("Trait members", () => {
     ]);
   });
 
+  test("stops at objects that spread each other", async () => {
+    expect(await lint("cyclic-spread")).toEqual([
+      { rule: UnusedMember, at: "cyclic-spread.ts:3:19" },
+    ]);
+  });
+
   test("treats an unresolved override object conservatively", async () => {
     expect(await lint("unresolved-overrides")).toEqual([]);
   });

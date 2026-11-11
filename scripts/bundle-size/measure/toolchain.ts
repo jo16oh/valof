@@ -75,7 +75,7 @@ export async function measure(
   if (R.isFailure(builds)) return builds;
 
   return R.succeed(
-    BuildResult.seal({ imports, readsNodeEnv: reads.value.some((read) => read), ...builds.value }),
+    BuildResult.seal({ imports, readsNodeEnv: reads.value.some(Boolean), ...builds.value }),
   );
 }
 

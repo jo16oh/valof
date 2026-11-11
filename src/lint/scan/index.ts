@@ -633,9 +633,7 @@ function objectMembers(
     if (seen.has(name)) return [];
     const target = objects.get(name);
     if (!target) return [];
-    const next = new Set(seen);
-    next.add(name);
-    return objectMembers(target, companion, objects, lines, next);
+    return objectMembers(target, companion, objects, lines, new Set([...seen, name]));
   }
   if (node.type !== "ObjectExpression") return [];
   const byName = new Map<string, Member>();

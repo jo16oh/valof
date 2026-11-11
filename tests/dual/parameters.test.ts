@@ -5,7 +5,7 @@ import { hidesParameter } from "../../src/dual/parameters.ts";
 // Built from strings, since the test transform drops comments and rewrites the source.
 const hides = (member: unknown) =>
   hidesParameter(
-    typeof member == "string"
+    typeof member === "string"
       ? // oxlint-disable-next-line typescript/no-implied-eval -- the source has to survive the transform
         (new Function(`let key; return ${member}`)() as object)
       : (member as object),
@@ -45,7 +45,8 @@ test("but not one inside a destructured parameter, nor `=` or `(` elsewhere", ()
     "({ a = `\\`} = `, b = 1 }, sep) => sep",
     "({ a = `${x}}=`, b = 1 }, sep) => sep",
     "({ a = String.raw`${/]}=/.source}`, b = 1 }, sep) => sep",
-    ((u: unknown, sep: string) => sep).bind(null),
+    // oxlint-disable-next-line no-extra-bind -- a bound function hides its source
+    ((_u: unknown, sep: string) => sep).bind(null),
   ];
   expect(passing.filter(hides)).toEqual([]);
 });

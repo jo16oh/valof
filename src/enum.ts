@@ -1099,7 +1099,7 @@ type HandlerMap = Record<PropertyKey, Handler>;
  * `_` is that variant's handler and `[Otherwise]` handles the rest.
  */
 const arm = (handlers: HandlerMap, tag: string): Handler =>
-  (handlers[tag] ?? handlers[Otherwise] ?? handlers._)!;
+  (handlers[tag] ?? handlers[Otherwise] ?? handlers["_"])!;
 
 const matchTag = dual((tag: string, handlers: HandlerMap) => arm(handlers, tag)());
 
@@ -1246,7 +1246,7 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
   const implemented = Object.assign(
     {},
     ...traits.map(([trait, fns]) => ({ ...trait[Shared], ...fns?.(gates) })),
-  );
+  ) as Record<string, unknown>;
   gates[Traits] = implemented;
   return resolving(
     gates,
