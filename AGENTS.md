@@ -38,8 +38,8 @@ implementation commit that required it.
 ## Committing and Pushing
 
 Commit without waiting for a go-ahead. Keep tests, implementation and docs in separate commits, so
-the history records each step. When the pre-commit `vp check` rejects a failing test, commit it with
-`--no-verify`. Commit the implementation through the hook.
+the history records each step. When the pre-commit `vp check` rejects tests that do not type-check
+yet, commit them with `--no-verify`. Do not skip the hook for the implementation commit.
 
 Never push, and never open a PR. I do both myself, opening the PR from the web UI. Hand me the PR
 title and body as a draft and stop there.
