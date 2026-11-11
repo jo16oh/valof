@@ -66,7 +66,8 @@ Run it only on my explicit go-ahead.
 ## Writing Style
 
 Code and prose go in separate turns. Finish the code, then edit the `.md` in a turn of its own, and
-run `/proofread` over what changed there before committing it.
+run `/proofread` over the changed files before committing them. A separate agent runs it, on the
+same model, and reports back. Apply the fixes yourself.
 
 Remember how limited humans are, especially me, since English isn't my first language. We don't have
 a large context window like you do, and we can't read as fast as you can. Reducing redundant
