@@ -49,6 +49,8 @@ export default defineConfig({
     "no-underscore-dangle": "off",
     // Merging members into a new object is the point, and the records hold a few keys.
     "oxc/no-map-spread": "off",
+    // `Record<never, never>` is the empty set of members a builder starts from.
+    "typescript/no-generated-empty-object-type": "off",
     // Its `targetOrigin` is `window.postMessage`'s. Nothing here posts to a window.
     "unicorn/require-post-message-target-origin": "off",
     // A test named from a variable, which the rule cannot read as a string.
