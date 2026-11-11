@@ -4350,6 +4350,12 @@ valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait 
   message string, because error classes are lost in the copy between threads. `R.unwrap` throws the failure value
   as is, so `R.mapError((message) => new Error(message))` wraps it first. vitest's `toThrow("…")` passes even when a
   string is thrown, so the tests check for an `Error`
+  - **`model-only-in-valof` is silenced on `type Reply` (2026-11-11).** The alias stays. Both thread ends import the
+    one name, and the receiving end reads the message with `as Reply`, which no type check covers. Written out in
+    each place, the sending end could change alone, and nothing would fail
+  - **Rejected: writing `R.Result<Finding[], string>` in place.** Five copies, and the two ends can drift (above)
+  - **Rejected: not reporting an alias of a library type.** `Reply` declares no data shape, but the change widens
+    what the rule lets through, which is a decision about the rule rather than about `Reply`
 - **A worker that does not start returns why (2026-11-11).** A script that failed to load made the plugin wait out its
   full patience and say "no answer in 60s". The waiting thread is blocked, so it cannot listen for the worker's
   `error`. A small start-up module imports the script, and if that fails, answers every question with the reason
