@@ -229,6 +229,7 @@ JSON does not record which type the field held either. A field typed `Impl<Price
 - **An `Impl` is rejected alone, not only in a union.** This withdraws "A union of `Impl`s can be written in a field" (§15.1, 2026-11-04). `Impl` stays the type for a variable or a parameter
 - **Rejected: a runtime brand that `equals` compares** (§5). The type rule rejects such a field at no runtime cost
 - **`Rec<Dollar> | Rec<Yen>` is rejected too.** `Validate` reads a `Rec` by its keys before the Val check, so the `Rec` branch rejects a union of its own
+  - **A type that references itself gives TS2615, not the message.** In `Val<"Tree2", { kid: Rec<Tree2> | Rec<Tree> }>`, with `Tree` from §3.7, the check compares the two `Rec`s' type arguments to tell them apart, and that resolves `Tree2` while it is being declared. The declaration is still rejected, on the type definition line. Moving the check to the verdict, which is read lazily, would need a flag passed through `Validate`. By estimate, not measured, that would put `index.d.ts` over its budget
 - **`DeepReadonlyValue` no longer maps `Impl`.** No payload holds one now, so the branch that kept a `Dyn` box out of an `Impl` field (§15.1, 2026-11-04) was dead
 - Cost: core 8,893 → 8,854, trait 24,668 → 24,436, `index.d.ts` 103.73 → 103.93 kB. Reusing `NameOf` rather than a new helper kept `index.d.ts` under its 104 kB budget
 
