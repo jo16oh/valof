@@ -213,6 +213,26 @@ What the field requires:
 - **Val production gzip: 958 B → 1017 B,** within the 1.00 kB budget once this change trimmed the rest of the ownership code: `map` takes `copy` itself, and the index walk stops at marked nodes
 - **A check that finds no mark is slower than the WeakSet's.** The paths that check most (`copy`, `adopt`) also mark, and the mark dominates
 
+### The copy clones each level with a spread, 2026-11-11
+
+`copy` built each object key by key. It now clones the whole level with `{ ...source }`, then copies each child that is an object. V8 clones the spread's source, an object of a known shape, in one step (`CloneObjectIC`), which key-by-key assignment does not get.
+
+| Copying a deeply frozen tree of 1,093 nodes | ns/node |
+| ------------------------------------------- | ------- |
+| key by key, as before                       | 41      |
+| a spread, then a copy of each object child  | 18      |
+| `structuredClone`                           | 237     |
+
+| Production, per operation        | key by key | spread  |
+| -------------------------------- | ---------- | ------- |
+| `seal` of a flat value of 3 keys | 91 ns      | 71 ns   |
+| building a list of 200 Vals      | 24.0 µs    | 22.5 µs |
+
+- **`__proto__` needs no special case.** The spread defines it as an own key, and assigning an own data property writes that property, not the prototype. The loop no longer needs `define` for it. The `__proto__` tests turn red when `Object.assign`, which goes through the setter, replaces the spread
+- **Enumerable symbol keys are kept,** with their values shared rather than copied, where the loop over `Object.keys` dropped them. `nocopy` kept them already. A payload's type has no symbol keys
+- **Skipping primitive children accounts for part of the gain.** Calling `copy` on every child measured 88 ns for the flat `seal`, against 71 ns, although `copy` returns a primitive at once
+- **Val production gzip: 1017 B → 1002 B**
+
 ### A `patch` that changes nothing returns the value itself
 
 Even with sharing, a no-op `patch` creates a new root, so the identity changes and a re-render runs. `patch` already loops once over the keys of the merged payload, so the identity comparison runs in that same loop. This matches Immer's `produce`.
