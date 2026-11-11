@@ -22,6 +22,20 @@ where a call nests in another call's first argument: `pipe(text, parse, User.sea
 use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
 where a step needs a value from outside the chain.
 
+Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
+where the next step starts. Declare a variable in the paragraph that uses it, right before its first
+use. Put a call and its failure check on adjacent lines, with a blank line after the check:
+
+```ts
+const dir = await attempt(mode, "creating the entry directory", () => mkdtemp(prefix));
+if (R.isFailure(dir)) return dir;
+
+const built = await compileEntry(mode, imports, join(dir.value, "entry.mjs"));
+```
+
+Gather the guard clauses at the top of the function, and put a blank line before the main work. Put
+a blank line before the final `return`, unless the whole body is one paragraph.
+
 Put a Val's type and its companion on adjacent lines, with a blank line before and after the pair.
 
 Place a helper used only inside its module at the end of the file. Declare it with `function`, so
