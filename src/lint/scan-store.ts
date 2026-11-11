@@ -6,9 +6,10 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { FilePath, Project } from "./files.ts";
@@ -80,12 +81,13 @@ export class ScanStore {
       writeFileSync(next, content);
       renameSync(next, this.#path);
       this.#changed = false;
+      removeStale(this.#path);
     } catch {
       // The next run walks the files again.
       try {
         rmSync(next, { force: true });
       } catch {
-        // Nothing was written where the directory could not be made.
+        // Nothing was written where the directory could not be created.
       }
     }
   }
@@ -141,5 +143,23 @@ function parserManifest(): string {
     return join(dir, "package.json");
   } catch {
     return "oxc-parser";
+  }
+}
+
+/**
+ * Removes the temporary files left beside `path` by saves that stopped halfway. A file under a
+ * minute old may belong to a save another process is still writing, so it stays.
+ */
+function removeStale(path: string): void {
+  const dir = dirname(path);
+  const prefix = `${basename(path)}.`;
+  try {
+    for (const name of readdirSync(dir)) {
+      if (!name.startsWith(prefix)) continue;
+      const file = join(dir, name);
+      if (Date.now() - statSync(file).mtimeMs > 60_000) rmSync(file, { force: true });
+    }
+  } catch {
+    // The next save tries again.
   }
 }
