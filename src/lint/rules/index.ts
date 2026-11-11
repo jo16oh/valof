@@ -3,7 +3,6 @@ import { ModelOnlyInValof } from "./model-only-in-valof.ts";
 import { HiddenOptional } from "./hidden-optional.ts";
 import { UnreturnedSeal } from "./unreturned-seal.ts";
 import { UnrelatedAssoc } from "./unrelated-assoc.ts";
-import { SplitVariantSteps } from "./split-variant-steps.ts";
 import { UnqualifiedVariant } from "./unqualified-variant.ts";
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
@@ -41,7 +40,6 @@ export const RULES = [
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
   Rule.dyn(UnreturnedSeal, UnreturnedSeal.create()),
   Rule.dyn(UnrelatedAssoc, UnrelatedAssoc.create()),
-  Rule.dyn(SplitVariantSteps, SplitVariantSteps.create()),
   Rule.dyn(UnqualifiedVariant, UnqualifiedVariant.create()),
   Rule.dyn(IncompleteDisable, IncompleteDisable.create()),
   Rule.dyn(UnusedDisable, UnusedDisable.create()),
@@ -58,7 +56,6 @@ export {
   HiddenOptional,
   UnreturnedSeal,
   UnrelatedAssoc,
-  SplitVariantSteps,
   UnqualifiedVariant,
   UnnecessaryAlias,
   BrandMismatch,

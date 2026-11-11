@@ -77,13 +77,6 @@ export const EscapedDyn = Val.companion<EscapedDyn>().build();
 export type StepState = Val<"StepState", { at: Position; step: string }>;
 export const StepState = Val.companion<StepState>().build();
 
-/** A variant's step written after another variant's, where an earlier step was its own. */
-export type SplitVariant = Val<
-  "SplitVariant",
-  { at: Position; companion: string; variant: string }
->;
-export const SplitVariant = Val.companion<SplitVariant>().build();
-
 /**
  * A member `.implAssoc` registered, with what its body says about the type it is on.
  * Only a member written inline in the step's object is read.
@@ -181,7 +174,6 @@ export type Scan = Val<
     traitImplementations: TraitImplementation[];
     dynReads: DynRead[];
     escapedDyns: EscapedDyn[];
-    splitVariants: SplitVariant[];
     /** Annotated top-level consts holding a function with a default or a rest parameter. */
     hiddenParameters: HiddenParameter[];
     /** The names a member step takes its members from: `() => fns`, or `() => ({ toWire })`. */
@@ -323,7 +315,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
   const dynReads: DynRead[] = [];
   const escapedDyns: EscapedDyn[] = [];
   const stepStates: StepState[] = [];
-  const splitVariants: SplitVariant[] = [];
   const memberBodies: StepMember[] = [];
   const heldSeals: HeldSeal[] = [];
   const memberSources: SymbolRef[] = [];
@@ -421,7 +412,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
             took(id.name, Lines.at(lines, id.start), from.name, taken);
         }
         members.push(...implMembers(init, id.name, bound, objects, lines));
-        splitVariants.push(...split(init, id.name, bound, lines));
         heldSeals.push(...held(init, id.name, lines));
         if (site) memberBodies.push(...bodies(init, id.name, site.typeName, bound, lines));
         break;
@@ -553,7 +543,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     dynReads,
     escapedDyns,
     stepStates,
-    splitVariants,
     stepMembers: throughReferences(memberBodies, program),
     heldSeals,
     hiddenParameters: hidden(program, file, bound, lines),
@@ -784,36 +773,6 @@ function stepState(node: Node, bound: Bindings): { step: string; start: number }
   const declares =
     body?.type === "BlockStatement" && body.children.some((one) => DECLARATIONS.has(one.type));
   return found && fn && declares ? { step: found.step, start: fn.start } : undefined;
-}
-
-/**
- * The variant steps in a chain that resume a variant after another variant's step: in
- * `.Circle.implSeal(f).Square.impl(g).Circle.impl(h)`, the second `.Circle`.
- */
-function split(node: Node, companion: string, bound: Bindings, lines: Lines): SplitVariant[] {
-  /** Each step from the root outwards, with the variant it is on, if any. */
-  const steps: { variant: string | undefined; start: number }[] = [];
-  let current: Node = node;
-  while (current.type === "CallExpression" && current.callee.type === "MemberExpression") {
-    const step = stepOf(current.callee);
-    const variant = variantOf(step.receiver);
-    // The root call, `Enum.companion<X>()`, is not a step.
-    if (!variant && step.receiver.type !== "CallExpression") break;
-    const property =
-      variant && step.receiver.type === "MemberExpression" ? step.receiver.property : undefined;
-    steps.unshift({ variant: variant?.variant, start: (property ?? step.property).start });
-    current = variant?.builder ?? step.receiver;
-  }
-  if (!fromRoot(current, bound)) return [];
-  const found: SplitVariant[] = [];
-  const seen = new Set<string>();
-  steps.forEach(({ variant, start }, index) => {
-    if (variant === undefined) return;
-    if (seen.has(variant) && steps[index - 1]?.variant !== variant)
-      found.push(SplitVariant.seal({ at: Lines.at(lines, start), companion, variant }));
-    seen.add(variant);
-  });
-  return found;
 }
 
 /** The parameters of a function node, none for anything else. */
