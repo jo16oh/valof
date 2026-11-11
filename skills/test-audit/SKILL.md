@@ -7,7 +7,8 @@ description:
 
 # Test audit
 
-One pass over the tests, separate from writing them. Report findings; apply them only on a go-ahead.
+One pass over the tests, separate from writing them. Report findings. The writer applies the clear
+ones and asks the user about the rest.
 
 The question every finding answers: **which realistic bug reaches a user if this test is gone?** A
 test that answers nothing costs run time, flakiness and edits on every refactor, and buys nothing.
