@@ -63,7 +63,7 @@
     "@praha/byethrow": "^0.13.0",
     "@praha/error-factory": "^1.4.1",
     "@types/node": "^26.5.0",
-    "bumpp": "^11.1.0",
+    "bumpp": "^12.3.0",
     "eslint": "^10.14.0",
     "handlebars": "^4.7.10",
     "mdast-util-from-markdown": "^2.0.3",
