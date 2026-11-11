@@ -46,23 +46,27 @@ const isolated = (code: string): string =>
 
 // Exported, so the declaration pass below has something to emit. A companion's type is inferred,
 // and an inferred type is what reaches for a name the library never published.
-const exported = (code: string): string => code.replace(/^(const|type|function) /gm, "export $1 ");
+const exported = (code: string): string =>
+  code.replaceAll(/^(const|type|function) /gm, "export $1 ");
 
-const blocks = fixtures();
-const modules: string[] = [];
-for (const block of blocks) {
-  const file = join(directory, `${block.name.replace(/\.md:/, "-")}.ts`);
-  await writeFile(file, exported(isolated(block.code)));
-  modules.push(file);
-}
+const blocks = await Promise.all(
+  fixtures().map(async (block) => {
+    const file = join(directory, `${block.name.replace(/\.md:/, "-")}.ts`);
+    await writeFile(file, exported(isolated(block.code)));
+    return file;
+  }),
+);
 
 // Exports the book does not show, kept beside this script.
 const extras = join(root, "scripts/ts-compatibility/fixtures");
-const files = await readdir(extras);
-for (const file of files) {
-  await copyFile(join(extras, file), join(directory, `fixture-${file}`));
-  modules.push(join(directory, `fixture-${file}`));
-}
+const copies = await Promise.all(
+  (await readdir(extras)).map(async (file) => {
+    const copy = join(directory, `fixture-${file}`);
+    await copyFile(join(extras, file), copy);
+    return copy;
+  }),
+);
+const modules = [...blocks, ...copies];
 
 await writeFile(
   join(directory, "tsconfig.json"),
@@ -157,7 +161,7 @@ if (current) {
  */
 const trip = roundTrip(directory, modules);
 
-console.log(`  ${blocks.length} blocks from the book, ${files.length} fixtures`);
+console.log(`  ${blocks.length} blocks from the book, ${copies.length} fixtures`);
 if (current) {
   console.log(`  ${importers.length} scripts on valof ${pin.slice(0, 7)}`);
 } else if (process.argv.includes("--require-pin")) {
@@ -204,7 +208,7 @@ async function check(alias: string): Promise<string[]> {
       ...(cut.length > 0 ? [`    /*elided*/ in ${cut.join(", ")}`] : []),
     ];
   } catch (error) {
-    return [`${(error as { stdout?: string }).stdout ?? String(error)}`];
+    return [(error as { stdout?: string }).stdout ?? String(error)];
   }
 }
 
@@ -226,21 +230,30 @@ async function differs(tsc: Tsc, { project, exports }: RoundTrip): Promise<strin
 
 // The declaration files in which TypeScript truncated a type to `/*elided*/ any`.
 async function elided(directory: string): Promise<string[]> {
-  const files = await readdir(directory, { recursive: true });
-  const cut: string[] = [];
-  for (const file of files.filter((file) => file.endsWith(".d.ts"))) {
-    if ((await readFile(join(directory, file), "utf8")).includes("/*elided*/")) cut.push(file);
-  }
-  return cut.sort();
+  const files = (await readdir(directory, { recursive: true })).filter((file) =>
+    file.endsWith(".d.ts"),
+  );
+  const read = await readAll(directory, files);
+  return read
+    .filter(({ text }) => text.includes("/*elided*/"))
+    .map(({ file }) => file)
+    .sort();
 }
 
 async function valofImporters(): Promise<string[]> {
-  const files = await readdir(join(root, "scripts"), { recursive: true });
-  const importers: string[] = [];
   // The tests stay out of the copy, so out of the program as well.
-  for (const file of files.filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts"))) {
-    const code = await readFile(join(root, "scripts", file), "utf8");
-    if (/^import\b[^;]*from "#valof"/m.test(code)) importers.push(file);
-  }
-  return importers.sort();
+  const files = (await readdir(join(root, "scripts"), { recursive: true })).filter(
+    (file) => file.endsWith(".ts") && !file.endsWith(".test.ts"),
+  );
+  const read = await readAll(join(root, "scripts"), files);
+  return read
+    .filter(({ text }) => /^import\b[^;]*from "#valof"/m.test(text))
+    .map(({ file }) => file)
+    .sort();
+}
+
+function readAll(directory: string, files: string[]): Promise<{ file: string; text: string }[]> {
+  return Promise.all(
+    files.map(async (file) => ({ file, text: await readFile(join(directory, file), "utf8") })),
+  );
 }

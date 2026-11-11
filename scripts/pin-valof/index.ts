@@ -73,7 +73,7 @@ export async function build(commit: string): Promise<void> {
 
 // Only when run as a command. ts-compatibility and the tests import this file for its functions.
 if (import.meta.main) {
-  const [rev] = process.argv.slice(2).filter((arg) => arg !== "--");
+  const rev = process.argv.slice(2).find((arg) => arg !== "--");
   if (rev === undefined) {
     await build(await pinned());
   } else {

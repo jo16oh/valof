@@ -74,7 +74,7 @@ function budgets(bundles: readonly BundleSize[]): string {
 
 function json(bundles: readonly BundleSize[]): string {
   return pipe(
-    bundles.map(({ bundle, build }) => [
+    bundles.map(({ bundle, build }): [string, unknown] => [
       bundle.key,
       Object.fromEntries(modes.map((mode) => [mode, build[mode].sizes])),
     ]),

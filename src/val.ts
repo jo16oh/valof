@@ -433,6 +433,7 @@ type Disagreement<T, S, R = DeepReadonly<Checked<T>>> = {
 }[keyof S & string];
 
 // Spelled without an escaped backtick, which the declaration bundler drops the whole file over.
+// oxlint-disable-next-line typescript/no-unnecessary-template-expression -- see above
 export type Code<S extends string> = `${"`"}${S}${"`"}`;
 
 // Distributes over the union to collect one parameter position per member, which infers as their
@@ -1252,7 +1253,7 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
 
     const array = Array.isArray(value);
     if (!array) {
-      const prototype = Object.getPrototypeOf(value);
+      const prototype: unknown = Object.getPrototypeOf(value);
       if (prototype !== Object.prototype && prototype !== null) return unsnapshotable;
     }
 
@@ -1582,7 +1583,7 @@ export const attach = (registered: Registered): Record<string, unknown> => {
   const traits = Object.assign(
     {},
     ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
-  );
+  ) as Record<string, unknown>;
   (target as Record<symbol, unknown>)[Traits] = traits;
   return Object.assign(
     target,
@@ -1597,7 +1598,10 @@ export const attach = (registered: Registered): Record<string, unknown> => {
  * the value.
  */
 export const associated = (assoc: Members[] = [], supplied: object): Record<string, unknown> =>
-  Object.assign({}, ...assoc.map((fns) => createMembers(fns(supplied), true)));
+  Object.assign({}, ...assoc.map((fns) => createMembers(fns(supplied), true))) as Record<
+    string,
+    unknown
+  >;
 
 /**
  * The steps on a builder, each handing what it registers to `grow`. `registered` is what the steps

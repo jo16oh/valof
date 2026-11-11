@@ -119,9 +119,11 @@ async function declarationBytes(entry: URL): Promise<number> {
     const text = await readFile(url, "utf8");
     bytes += Buffer.byteLength(text, "utf8");
     // `tsc` keeps the source specifier; its declarations sit beside it.
-    for (const [, module] of text.matchAll(/from\s+"(\.[^"]+)\.ts"/g)) {
-      await walk(new URL(`${module}.d.ts`, url));
-    }
+    await Promise.all(
+      [...text.matchAll(/from\s+"(\.[^"]+)\.ts"/g)].map(([, module]) =>
+        walk(new URL(`${module}.d.ts`, url)),
+      ),
+    );
   };
   await walk(entry);
   return bytes;

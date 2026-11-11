@@ -54,27 +54,27 @@ try {
 const measurement = JSON.parse(stdout) as Measurement;
 const gzip = measurement.val?.production?.gzip;
 if (typeof gzip !== "number") {
-  throw new Error("bundle-size returned no production gzip measurement");
+  throw new TypeError("bundle-size returned no production gzip measurement");
 }
 const size = `${format(gzip)} gzipped`;
 
 const unique = [...new Map(files.map((file) => [new URL(file, root).href, file])).entries()];
-const claims: Claim[] = [];
-
-for (const [href, file] of unique) {
-  const url = new URL(href);
-  const text = await readFile(url, "utf8");
-  const matches = [marked(), description()].flatMap((pattern) =>
-    [...text.matchAll(pattern)].map((match) => ({ pattern, value: match[0] })),
-  );
-  if (matches.length !== 1) {
-    throw new Error(`${file}: expected one bundle-size claim, found ${matches.length}`);
-  }
-  const match = matches[0]!;
-  // The formatter can wrap a marked Markdown claim across lines.
-  const found = match.value.replace(/\s+/g, " ");
-  claims.push({ file, url, text, pattern: match.pattern, found, stale: found !== size });
-}
+const claims: Claim[] = await Promise.all(
+  unique.map(async ([href, file]) => {
+    const url = new URL(href);
+    const text = await readFile(url, "utf8");
+    const matches = [marked(), description()].flatMap((pattern) =>
+      [...text.matchAll(pattern)].map((match) => ({ pattern, value: match[0] })),
+    );
+    if (matches.length !== 1) {
+      throw new Error(`${file}: expected one bundle-size claim, found ${matches.length}`);
+    }
+    const match = matches[0]!;
+    // The formatter can wrap a marked Markdown claim across lines.
+    const found = match.value.replaceAll(/\s+/g, " ");
+    return { file, url, text, pattern: match.pattern, found, stale: found !== size };
+  }),
+);
 
 if (write) {
   await Promise.all(

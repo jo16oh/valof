@@ -17,50 +17,50 @@ export function hidesParameter(f: object): boolean {
     let c = source[i]!;
     const next = source[i + 1];
     if (/\s/.test(c)) continue;
-    if (c == "/" && next == "/") {
+    if (c === "/" && next === "/") {
       i = source.indexOf("\n", i);
       if (i < 0) return false;
       continue;
     }
-    if (c == "/" && next == "*") {
+    if (c === "/" && next === "*") {
       i = source.indexOf("*/", i + 2) + 1;
       continue;
     }
-    if (c == "`" || (c == "}" && open.at(-1) == "`")) {
-      if (c == "}") open.pop();
+    if (c === "`" || (c === "}" && open.at(-1) === "`")) {
+      if (c === "}") open.pop();
       while (
         ++i < source.length &&
-        (c = source[i]!) != "`" &&
-        !(c == "$" && source[i + 1] == "{")
+        (c = source[i]!) !== "`" &&
+        !(c === "$" && source[i + 1] === "{")
       ) {
-        if (c == "\\") i++;
+        if (c === "\\") i++;
       }
-      if (c == "$") {
+      if (c === "$") {
         open.push("`");
         i++;
         previous = "{";
       } else previous = "a";
       continue;
     }
-    if (c == '"' || c == "'" || (c == "/" && "(,=:[!&|?{;+-*%<>~^".includes(previous))) {
+    if (c === '"' || c === "'" || (c === "/" && "(,=:[!&|?{;+-*%<>~^".includes(previous))) {
       // `/` ends a regular expression outside a character class only.
-      for (let inClass = false; ++i < source.length && (source[i] != c || inClass);) {
-        if (source[i] == "\\") i++;
-        else if (c == "/") inClass = source[i] == "[" || (inClass && source[i] != "]");
+      for (let inClass = false; ++i < source.length && (source[i] !== c || inClass);) {
+        if (source[i] === "\\") i++;
+        else if (c === "/") inClass = source[i] === "[" || (inClass && source[i] !== "]");
       }
       previous = "a";
       continue;
     }
-    if (list && open.length == 1 && (c == "=" || source.startsWith("...", i))) {
+    if (list && open.length === 1 && (c === "=" || source.startsWith("...", i))) {
       return true;
     }
-    if (c == "(" || c == "[" || c == "{") {
-      if (!open.length && c == "(") list = true;
+    if (c === "(" || c === "[" || c === "{") {
+      if (!open.length && c === "(") list = true;
       open.push(c);
-    } else if (c == ")" || c == "]" || c == "}") {
+    } else if (c === ")" || c === "]" || c === "}") {
       open.pop();
       if (list && !open.length) return false;
-    } else if (!open.length && c == "=" && next == ">") return false;
+    } else if (!open.length && c === "=" && next === ">") return false;
     previous = /[\w$]/.test(c) ? "a" : c;
   }
   return false;
