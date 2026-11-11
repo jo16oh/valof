@@ -5,8 +5,8 @@ import { Result as R } from "@praha/byethrow";
 import type { MissingParserError } from "./errors.ts";
 import { Context, Kind, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { Parser } from "./parser.ts";
-import { ParseCache } from "./parse-cache.ts";
-import { DirectiveMap, Scan } from "./scan/index.ts";
+import { ScanCache } from "./scan-cache.ts";
+import { DirectiveMap } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { FilePath } from "./files.ts";
 import { Options } from "./options.ts";
@@ -18,7 +18,7 @@ import { Options } from "./options.ts";
 export async function run(
   files: readonly string[],
   options: Options = Options.create(),
-  cache: ParseCache = new ParseCache(),
+  cache: ScanCache = new ScanCache(),
 ): Promise<R.Result<Finding[], MissingParserError>> {
   const loaded = await Parser.load();
   if (R.isFailure(loaded)) return loaded;
@@ -32,10 +32,7 @@ export async function run(
   ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
   const sources = toScan.map((file) => [file, FilePath.read(file, options.overlay)] as const);
-  const trees = cache.parse(parser, sources);
-  const scans = sources.map(([file, source], index) =>
-    Scan.walk(file, trees[index]!, modules, source),
-  );
+  const scans = cache.scan(parser, sources, modules);
 
   const rules = compile(options.enable);
   // An opt-in rule left off is out of the run as much as a skipped one.

@@ -2,13 +2,13 @@ import { Result as R } from "@praha/byethrow";
 
 import { pipe } from "../../shared/pipe/index.ts";
 import { Options } from "../options.ts";
-import { ParseCache } from "../parse-cache.ts";
+import { ScanCache } from "../scan-cache.ts";
 import { run } from "../run.ts";
 import { LinterWorker } from "./linter-worker.ts";
 
-// The worker the plugin asks, one project state at a time. Each run re-parses only the files whose
-// text changed since the last.
-const cache = new ParseCache();
+// The worker the plugin asks, one project state at a time. Each run walks again only the files whose
+// text changed since the last, unless the files in the run changed.
+const cache = new ScanCache();
 
 LinterWorker.serve(
   async ({ project, overlay, model }) =>
