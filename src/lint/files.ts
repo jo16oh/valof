@@ -1,5 +1,5 @@
-import { globSync, readFileSync, statSync } from "node:fs";
-import { resolve } from "node:path";
+import { globSync, readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 import { Val } from "../index.ts";
 import { pipe } from "../shared/pipe/index.ts";
@@ -46,6 +46,16 @@ export const Path = Val.companion<Path>()
       }).map((file) => FilePath.seal(file)),
     /** Whether it starts with `!`, which removes what the rest matches. */
     excludes: (path): boolean => path.startsWith("!"),
+    /**
+     * The directory a glob starts in: the path up to its first wildcard, the directory itself, or a
+     * file's directory.
+     */
+    base: (path): string => {
+      if (Path.isDirectory(path)) return path;
+      const parts = path.split(/[\\/]/);
+      const wild = parts.findIndex((part) => /[*?[\]{}]/.test(part));
+      return wild === -1 ? dirname(path) : parts.slice(0, wild).join("/") || ".";
+    },
   }))
   .build();
 
@@ -57,13 +67,23 @@ export const Project = Val.companion<Project>()
      * Each file's path, modification time and size, or that it is gone. Saving any file changes
      * it, so a run's answer can be kept for as long as it holds.
      */
-    stat: (project): string =>
-      project
-        .map((file) => {
-          const stats = statSync(file, { bigint: true, throwIfNoEntry: false });
-          return stats ? `${file} ${stats.mtimeNs} ${stats.size}` : `${file} gone`;
-        })
-        .join("\n"),
+    stat: (project): string => stamp(project),
+  }))
+  .build();
+
+/**
+ * The directories a project's files can appear in: every directory under the one each pattern
+ * starts in, except `node_modules` and those starting with a dot, which the glob skips.
+ */
+export type Directories = Val<"Directories", string[]>;
+export const Directories = Val.companion<Directories>()
+  .impl(() => ({
+    /**
+     * Each directory's path and modification time, or that it is gone. Adding, deleting or
+     * renaming a file changes the time of the directory it is in, so the files a glob finds stay
+     * the same for as long as this stamp does.
+     */
+    stat: (directories): string => stamp(directories),
   }))
   .build();
 
@@ -93,6 +113,18 @@ export const Patterns = Val.companion<Patterns>()
     /** The same patterns in the same order give the same key. */
     key: (patterns): string => patterns.join("\n"),
     /**
+     * Every directory a file the patterns match can be in, walked from the one each pattern starts
+     * in.
+     */
+    directories: (patterns): Directories =>
+      pipe(
+        patterns
+          .filter((path) => !Path.excludes(path))
+          .flatMap((path) => under(resolve(Path.base(path)))),
+        (found) => [...new Set(found)],
+        Directories.seal,
+      ),
+    /**
      * Expands every pattern, and removes what an exclusion matches. Resolved, since the glob that
      * reached a file and the one that excluded it need not be spelled alike.
      */
@@ -117,3 +149,30 @@ export const Patterns = Val.companion<Patterns>()
     },
   }))
   .build();
+
+/** Each path's modification time and size, or that it is gone. */
+function stamp(paths: readonly string[]): string {
+  return paths
+    .map((path) => {
+      const stats = statSync(path, { bigint: true, throwIfNoEntry: false });
+      return stats ? `${path} ${stats.mtimeNs} ${stats.size}` : `${path} gone`;
+    })
+    .join("\n");
+}
+
+/**
+ * The directory and every directory under it, except `node_modules` and those starting with a dot.
+ */
+function under(directory: string): string[] {
+  try {
+    return [
+      directory,
+      ...readdirSync(directory, { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .filter(({ name }) => name !== "node_modules" && !name.startsWith("."))
+        .flatMap(({ name }) => under(join(directory, name))),
+    ];
+  } catch {
+    return [directory];
+  }
+}

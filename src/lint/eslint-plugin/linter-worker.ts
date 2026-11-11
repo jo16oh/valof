@@ -102,17 +102,21 @@ export type Reply = R.Result<Finding[], string>;
  * leave every later query waiting behind it. The default is long enough that no run reaches it,
  * short enough that a wedged worker still says so.
  *
- * One run per project state, however many files and rules ask. The last answer is kept, keyed by
- * the query and by the path, modification time and size of each project file, so a file saved in
+ * One run per project state, however many files and rules ask. Each answer is kept, keyed by the
+ * query and by the path, modification time and size of each project file, so a file saved in
  * another editor tab still changes the key. Every file of a batch whose buffer disk holds asks the
  * same query, so the batch costs one run.
+ *
+ * Two answers are kept: the last for a query with no buffer, and the last for one with a buffer.
+ * A file outside the project, or one being edited, then does not replace the answer every other
+ * file shares.
  */
 export class LinterWorker {
   readonly #script: URL;
   readonly #patience: number;
   #worker: { thread: Worker; port: MessagePort; signal: Int32Array } | undefined;
-  #lastKey: string | undefined;
-  #lastFindings: readonly Finding[] = [];
+  #saved: { key: string; findings: readonly Finding[] } | undefined;
+  #edited: { key: string; findings: readonly Finding[] } | undefined;
 
   constructor(beside: string, patience = 60_000) {
     this.#script = new URL(`./worker${extname(beside)}`, beside);
@@ -122,16 +126,20 @@ export class LinterWorker {
   /** The findings for the query. Throws the message the worker failed with. */
   lint(query: Query): readonly Finding[] {
     const key = `${Project.stat(query.project)}\n${Query.key(query)}`;
-    if (this.#lastKey === key) return this.#lastFindings;
+    const saved = Object.keys(query.overlay).length === 0;
+    const kept = saved ? this.#saved : this.#edited;
+    if (kept?.key === key) return kept.findings;
 
-    this.#lastFindings = pipe(
+    const findings = pipe(
       query,
       (asked) => this.#ask(asked),
       R.mapError((message) => new Error(message)),
       R.unwrap(),
     );
-    this.#lastKey = key;
-    return this.#lastFindings;
+    if (saved) this.#saved = { key, findings };
+    else this.#edited = { key, findings };
+
+    return findings;
   }
 
   #ask(query: Query): Reply {
