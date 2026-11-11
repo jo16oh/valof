@@ -130,7 +130,7 @@ jobs:
       # No cache in this workflow: a cache another ref wrote must not reach what a release publishes.
       - uses: voidzero-dev/setup-vp@1b32467adbe183473499fd9d5d372c3ed9641754 # v1.18.0
         with:
-          node-version: "24"
+          node-version: "26"
           registry-url: "https://registry.npmjs.org"
 
       # setup-vp puts `vp` on PATH but not pnpm, which the publish step needs.
@@ -201,7 +201,7 @@ jobs:
 
       - uses: voidzero-dev/setup-vp@1b32467adbe183473499fd9d5d372c3ed9641754 # v1.18.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       # mdbook and mdbook-linkcheck2, pinned in mise.toml.
       - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3.6.3
