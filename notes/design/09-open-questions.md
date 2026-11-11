@@ -272,7 +272,13 @@
       TypeScript 7.1's `typescript/sync` counts the annotation's parameters (through aliases and imports). A run with
       no candidate does not load TypeScript. It catches an annotated top-level const (a function, or an object holding
       functions) used as a value of the object a step's function returns, or as the name that function returns. It
-      reports at the default or the rest parameter. The record from that time follows
+      reports at the default or the rest parameter. → Overturned on 2026-11-11 (below). The record from that time follows
+  - **Without TypeScript, 2026-11-11.** The rule reports every default and rest parameter under an annotation, as the
+    development check in `build` does. Counting the annotation's parameters exempted one shape, a type that lists only the
+    parameters before the default, and the development check throws on that shape anyway. TypeScript cost an optional
+    peer dependency on 7.1, a `MissingTypeScriptError` where 7.0 is installed, and a program started from inside the
+    ESLint or oxlint process. The rule does not reuse `hidesParameter`, because the scan reads the parameters from the
+    AST, which is more exact than reading tokens
 - When a type annotation hides an implementation's default
   parameters or rest parameters, the types cannot reject them and the data-last call breaks (§6.11, "Remaining hole"). The linter reads the syntax, so it
   sees the implementation under the annotation
@@ -280,7 +286,7 @@
     where it was written, before anything runs. oxlint's `typescript/no-useless-default-assignment` catches the case where the annotated type
     does not include nullish
   - **Match the run-time check.** `=` and `...` at the top level of the parameter list. Inside destructuring is accepted. The linter can also read the annotation's parameter count,
-    so it does not report a type that lists only the parameters before the default (§6.11, "Remaining false positive")
+    so it does not report a type that lists only the parameters before the default (§6.11, "Remaining false positive"). → Overturned on 2026-11-11 (above)
   - **Forms it catches.** `.impl(fns)` with an annotated const object, and
     `.impl({ toWire })` with an annotated function variable. The same for the second argument of `implTrait(Tr, …)`. `unused-member`
     already follows const objects and spreads. For function variables, add tracking to their declaration in the same file

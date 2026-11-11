@@ -7,6 +7,7 @@ export type User = Val<"User", { name: string }>;
 type ToWire = (u: User, sep: string) => string;
 const toWire: ToWire = (u, sep = ",") => u.name + sep;
 const tags: (u: User, tag: string) => string = (u, ...more) => [u.name, ...more].join();
+// The annotation leaves out the parameter with the default, and the development check still rejects it.
 const short: (u: User) => string = (u, cut = 4) => u.name.slice(0, cut);
 
 export const User = Val.companion<User>()

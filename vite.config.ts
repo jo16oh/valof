@@ -43,7 +43,6 @@ export default defineConfig({
     },
   },
   lint,
-  test: { setupFiles: ["tests/lint/typescript-7.1.ts"] },
   fmt: {
     ignorePatterns: ["tests/lint/**/fixtures/**", "**/*.hbs"],
     proseWrap: "always",

@@ -2,7 +2,6 @@ import { Trait, Val, type Self } from "../../index.ts";
 import type { Position } from "../ast.ts";
 import type { FilePath } from "../files.ts";
 import type { Scan } from "../scan/index.ts";
-import type { Arity } from "../types.ts";
 
 /**
  * What every rule reports: what it is, where to look, and what to say.
@@ -88,12 +87,8 @@ export type Rule = Trait<
     /**
      * Every finding, over every scanned file. Rules see all of them rather than one, which is what
      * lets a read in one module answer for a declaration in another.
-     *
-     * `types` gives the declared parameter count of an annotated const, from TypeScript. The
-     * program starts on the first call, so a rule calls it only once it has something to ask. It
-     * throws {@link MissingTypeScriptError} when TypeScript 7.1 or later is not installed.
      */
-    run: (rule: Self, scans: readonly Scan[], context: Context, types: () => Arity) => Finding[];
+    run: (rule: Self, scans: readonly Scan[], context: Context) => Finding[];
   }
 >;
 export const Rule = Trait.companion<Rule>().build();
