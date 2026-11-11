@@ -35,7 +35,7 @@ export const CompanionMismatch = registered(Rules.CompanionMismatch);
 export const DuplicateBrand = registered(Rules.DuplicateBrand);
 export const IncompleteDisable = registered(Rules.IncompleteDisable);
 export const SplitCompanion = registered(Rules.SplitCompanion);
-export const UnnamedOf = registered(Rules.UnnamedOf);
+export const InferredValOf = registered(Rules.InferredValOf);
 export const UnusedDisable = registered(Rules.UnusedDisable);
 export const UnusedMember = registered(Rules.UnusedMember);
 

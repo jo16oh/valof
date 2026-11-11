@@ -142,7 +142,7 @@ test("names every rule, under the plugin's own name", () => {
     "valof/incomplete-disable": "error",
     "valof/split-companion": "error",
     // The lift is sound; what it costs is the name that makes it greppable.
-    "valof/unnamed-of": "warn",
+    "valof/inferred-val-of": "warn",
     // Dead weight, not a defect: the code around either of these works.
     "valof/unused-disable": "warn",
     "valof/unused-member": "warn",
