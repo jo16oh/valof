@@ -15,6 +15,9 @@ import type { Allowed, CallBuildFirst, Invalid, Verdict, Wired } from "../src/va
 import type { LoneTrait, OneTrait, VerdictOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
+/** What a Val's payload rules make of it: the payload, or the messages in place of what breaks one. */
+type ValVerdictOf<V> = V extends Verdict<infer X> ? X : never;
+
 type Greetable = Trait<
   "Greetable",
   { name: string },
@@ -819,35 +822,22 @@ describe("nesting", () => {
     expect(Greetable.dyn(Team, team).greet()).toBe("Team core");
   });
 
-  test("a field holds any Val implementing a trait through Impl, but no box", () => {
-    type Desk = Val<"Desk", { owner: Impl<Greetable> }>;
-    const Desk = Val.companion<Desk>().build();
-    const desks = [Desk.seal({ owner: user }), Desk.seal({ owner: admin })];
-    expect(desks.map((d) => Greetable.shout(d.owner))).toEqual(["ALICE", "ROOT"]);
-    // @ts-expect-error a payload cannot hold a box
-    Desk.seal({ owner: Greetable.dyn(User, user) });
-    // @ts-expect-error an object that merely holds the fields
-    Desk.seal({ owner: { name: "duck" } });
-  });
-
-  test("a field holds a Val implementing either trait through a union of Impl", () => {
+  test("a field cannot hold an Impl, alone, in a union or beside null, and points to an Enum", () => {
     type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
+    type Message =
+      Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">;
+    // @ts-expect-error a field cannot hold an Impl
+    type Desk = Val<"Desk", { owner: Impl<Greetable> }>;
+    expectTypeOf<ValVerdictOf<Desk>>().toEqualTypeOf<{ owner: Message }>();
+    // @ts-expect-error a field cannot hold an Impl
     type Shelf = Val<"Shelf", { item: Impl<Greetable> | Impl<Weighed> }>;
-    const Shelf = Val.companion<Shelf>().build();
-    type Scale = Val<"Scale", { kg: number }, Weighed>;
-    const items = [Shelf.seal({ item: user }), Shelf.seal({ item: Val.of<Scale>({ kg: 2 }) })];
-    expect(items.map((s) => s.item)).toEqual([user, { kg: 2 }]);
-    // @ts-expect-error a payload cannot hold a box
-    type Boxed = Val<"Boxed", { item: Dyn<Greetable> | Impl<Weighed> }>;
-    expectTypeOf<Boxed>().not.toBeNever();
-  });
-
-  test("a field holds a Val implementing a trait, or null", () => {
-    type Desk = Val<"Desk", { owner: Impl<Greetable> | null }>;
-    const Desk = Val.companion<Desk>().build();
-    Desk.seal({ owner: null });
-    // @ts-expect-error a payload cannot hold a box
-    Desk.seal({ owner: Greetable.dyn(User, user) });
+    // @ts-expect-error a field cannot hold an Impl
+    type Seat = Val<"Seat", { owner: Impl<Greetable> | null }>;
+    // @ts-expect-error a field cannot hold an Impl
+    type Row = Val<"Row", { owners: Impl<Greetable>[] }>;
+    // @ts-expect-error a field cannot hold an Impl
+    type Boxed = Val<"Boxed", { item: Dyn<Greetable> }>;
+    expectTypeOf<Shelf | Seat | Row | Boxed>().not.toBeNever();
   });
 
   test("nor can a payload be an Impl", () => {
@@ -885,7 +875,7 @@ describe("nesting", () => {
     >();
     // @ts-expect-error a payload cannot declare a trait
     type Card = Val<"Card", { id: string; name: string } & Greetable>;
-    expectTypeOf<Card extends Verdict<infer X> ? X : never>().toEqualTypeOf<
+    expectTypeOf<ValVerdictOf<Card>>().toEqualTypeOf<
       Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
     >();
   });

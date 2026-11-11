@@ -523,6 +523,36 @@ describe("Val", () => {
       Val.companion<Maybe>().build();
     });
 
+    test("a field cannot hold Vals of different types, and points to an Enum", () => {
+      type Dollar = Val<"UnionDollar", { amount: number }>;
+      type Yen = Val<"UnionYen", { amount: number }>;
+      // @ts-expect-error a field cannot hold Vals of different types
+      type Order = Val<"UnionOrder", { money: Dollar | Yen }>;
+      expectTypeOf<VerdictOf<Order>>().toEqualTypeOf<{
+        money: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
+      }>();
+      // @ts-expect-error a field cannot hold Vals of different types
+      type Ledger = Val<"UnionLedger", { entries: (Dollar | Yen)[] }>;
+      // @ts-expect-error nor through Rec
+      type Account = Val<"UnionAccount", { money: Rec<Dollar> | Rec<Yen> }>;
+      expectTypeOf<Ledger | Account>().not.toExtend<AnyVal>();
+
+      type Money = Enum<"UnionMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
+      type OtherMoney = Enum<
+        "UnionOtherMoney",
+        { Dollar: { amount: number }; Yen: { amount: number } }
+      >;
+      // @ts-expect-error nor can it hold two enums
+      type TwoEnums = Val<"UnionTwoEnums", { money: Money | OtherMoney }>;
+      // @ts-expect-error nor an enum and a Val
+      type EnumAndVal = Val<"UnionEnumAndVal", { money: Money | Dollar }>;
+      expectTypeOf<TwoEnums | EnumAndVal>().not.toBeNever();
+
+      // An enum is one type, and so is a Val whose payload is a union of primitives.
+      type Flag = Val<"UnionFlag", boolean>;
+      expectTypeOf<Val<"UnionPriced", { money: Money; flag: Flag }>>().toExtend<AnyVal>();
+    });
+
     test("an object union is rejected, however it is spelled", () => {
       // @ts-expect-error an object payload cannot be a union
       type Bad = Val<"Bad", { kind: "a"; a: number } | { kind: "b"; b: string }>;
