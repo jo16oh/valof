@@ -22,9 +22,10 @@ const says = (file: string, message: string): Reply =>
 let asked = 0;
 
 // Answers by the file the query's overlay names, and an overlay that names none as `count` does:
-// says how many queries it was asked, rejects, answers with what cannot be sent, or wedges, writing
-// a count to the path in its text for as long as the thread runs. Each count is renamed into place,
-// so a reader never sees one half written. Anything else is echoed back, with its text.
+// says how many queries it was asked, says its `NODE_ENV`, rejects, answers with what cannot be
+// sent, or wedges, writing a count to the path in its text for as long as the thread runs. Each
+// count is renamed into place, so a reader never sees one half written. Anything else is echoed
+// back, with its text.
 LinterWorker.serve(
   async ({ overlay }) => {
     const [file = "", text = ""] = Object.entries(overlay)[0] ?? [];
@@ -35,6 +36,7 @@ LinterWorker.serve(
         writeFileSync(`${text}.next`, String(count));
         renameSync(`${text}.next`, text);
       }
+    if (file === "env") return says(file, String(process.env["NODE_ENV"]));
     if (file === "reject") throw new Error("rejected");
     // A function cannot be cloned, even as a property of the list, which is what this one is for.
     if (file === "uncloneable") {

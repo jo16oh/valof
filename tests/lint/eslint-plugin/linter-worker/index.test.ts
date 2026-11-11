@@ -76,6 +76,10 @@ test("keeps the answer for the buffers disk holds while another buffer is edited
   expect(saved()).toBe("asked 1");
 });
 
+test("runs with valof's development checks off, like the shipped linter", () => {
+  expect(say(new LinterWorker(import.meta.url, PATIENCE), "env")).toBe("production");
+});
+
 test("keeps the last answer for the same file and text alone", () => {
   // As a fix pass lints the file again with its fixed text.
   const worker = new LinterWorker(import.meta.url, PATIENCE);
