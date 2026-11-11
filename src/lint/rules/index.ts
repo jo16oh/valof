@@ -12,7 +12,7 @@ import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Dyn } from "../../index.ts";
 import { KindSet, Rule, type Kind } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
-import { UnnamedOf } from "./unnamed-of.ts";
+import { InferredValOf } from "./inferred-val-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
 import { UnimplementedTrait } from "./unimplemented-trait.ts";
@@ -33,7 +33,7 @@ export const RULES = [
   Rule.dyn(CompanionMismatch, CompanionMismatch.create()),
   Rule.dyn(SplitCompanion, SplitCompanion.create()),
   Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
-  Rule.dyn(UnnamedOf, UnnamedOf.create()),
+  Rule.dyn(InferredValOf, InferredValOf.create()),
   Rule.dyn(HiddenStateInImpl, HiddenStateInImpl.create()),
   Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create(ModelSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
@@ -61,7 +61,7 @@ export {
   DuplicateBrand,
   IncompleteDisable,
   SplitCompanion,
-  UnnamedOf,
+  InferredValOf,
   UnusedDisable,
   UnusedMember,
   UnimplementedTrait,
