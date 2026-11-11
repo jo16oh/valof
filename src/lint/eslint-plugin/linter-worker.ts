@@ -36,6 +36,11 @@ export type Query = Val<
      * only where the project turned it on.
      */
     model: DataTypeSettings;
+    /**
+     * Whether disk holds the buffer, so the worker may keep its scans for the next process.
+     * A file outside the project is passed as a buffer even when disk holds it.
+     */
+    saved: boolean;
   }
 >;
 export const Query = Val.companion<Query>()
@@ -61,12 +66,14 @@ export const Query = Val.companion<Query>()
       project: Project,
     ): Query => {
       const file = resolve(filename);
-      const saved = project.some((path) => path === file) && readSaved(file) === text;
+      const saved = readSaved(file) === text;
+      const listed = project.some((path) => path === file);
 
       return seal({
         project,
-        overlay: saved ? {} : { [file]: text },
+        overlay: saved && listed ? {} : { [file]: text },
         model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
+        saved,
       });
     },
   }))
@@ -126,8 +133,8 @@ export class LinterWorker {
   /** The findings for the query. Throws the message the worker failed with. */
   lint(query: Query): readonly Finding[] {
     const key = `${Project.stat(query.project)}\n${Query.key(query)}`;
-    const saved = Object.keys(query.overlay).length === 0;
-    const kept = saved ? this.#saved : this.#edited;
+    const bufferless = Object.keys(query.overlay).length === 0;
+    const kept = bufferless ? this.#saved : this.#edited;
     if (kept?.key === key) return kept.findings;
 
     const findings = pipe(
@@ -136,7 +143,7 @@ export class LinterWorker {
       R.mapError((message) => new Error(message)),
       R.unwrap(),
     );
-    if (saved) this.#saved = { key, findings };
+    if (bufferless) this.#saved = { key, findings };
     else this.#edited = { key, findings };
 
     return findings;
