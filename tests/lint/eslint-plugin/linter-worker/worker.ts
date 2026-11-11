@@ -3,8 +3,7 @@ import { renameSync, writeFileSync } from "node:fs";
 import { Result as R } from "@praha/byethrow";
 
 import { Position } from "../../../../src/lint/ast.ts";
-import type { Reply } from "../../../../src/lint/eslint-plugin/messages.ts";
-import { serve } from "../../../../src/lint/eslint-plugin/serve.ts";
+import { LinterWorker, type Reply } from "../../../../src/lint/eslint-plugin/linter-worker.ts";
 import { FilePath } from "../../../../src/lint/files.ts";
 import { Finding, Kind } from "../../../../src/lint/rules/index.ts";
 
@@ -26,7 +25,7 @@ let asked = 0;
 // cannot be sent, or wedges, writing a count to the path in `text` for as long as the thread runs.
 // Each count is renamed into place, so a reader never sees one half written. Anything else is
 // echoed back, with its text.
-serve(
+LinterWorker.serve(
   async ({ file, text }) => {
     asked++;
     if (file === "count") return says(file, `asked ${asked}`);

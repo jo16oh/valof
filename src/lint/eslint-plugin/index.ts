@@ -1,11 +1,10 @@
 import type { Rule } from "eslint";
 
 import { ProjectCache } from "./project-cache.ts";
-import { Query } from "./messages.ts";
 import { Underline } from "./underline.ts";
 import { Patterns } from "../files.ts";
 import { RULES } from "../index.ts";
-import { LinterWorker } from "./linter-worker.ts";
+import { LinterWorker, Query } from "./linter-worker.ts";
 
 export default valof();
 
@@ -27,7 +26,7 @@ function valof(): {
   >;
   configs: { recommended: { rules: Record<string, "error" | "warn"> } };
 } {
-  const worker = new LinterWorker();
+  const worker = new LinterWorker(import.meta.url);
   const projects = new ProjectCache();
 
   return {

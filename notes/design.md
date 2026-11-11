@@ -4280,7 +4280,7 @@ valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait 
   whether two questions are the same
 - **State lives in classes (2026-11-11).** A visible `new` shows where state is (user). Data is a Val, state is a
   class: no `extends`, state in `#private` fields, plain methods. A method passed as a function is wrapped, as in
-  `(q) => this.#worker.ask(q)`. The plugin holds `new LinterWorker()` (the worker and the last answer) and
+  `(q) => this.#worker.ask(q)`. The plugin holds `new LinterWorker(import.meta.url)` (the worker and the last answer) and
   `new ProjectCache()` (the glob results)
   - **Rejected: functions that return stateful functions (`createCachedGlobber` and so on).** They imitate `new`
     through a naming convention, and the call site does not show the state
@@ -4297,11 +4297,22 @@ valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait 
   shared chunk (`dist/channel-*.mjs`). `import.meta.url` then points into `dist/`, and it looks for
   `dist/worker.mjs`. When only the plugin's entry imports `linter-worker.ts`, it lands in
   `dist/eslint-plugin/index.mjs`. The URL and the patience can then be defaults, and the plugin writes only
-  `new LinterWorker()`
+  `new LinterWorker()`. Superseded the same day (below)
   - **Rejected: embedding the relative path at build time (`define`).** Running from source needs a separate branch,
     and nothing exercises the shipped side until #114's check
   - **Rejected: one class with `serve` as a static method.** The two ends run on different threads. One class for
-    both is harder to follow (user)
+    both is harder to follow (user). Retracted (below)
+- **`serve` is a static method of `LinterWorker` (2026-11-11).** A free function `serve` hides that it is the other
+  end of `LinterWorker` (user). `Query` and `Reply` sit beside them in `linter-worker.ts`. The worker's entry now
+  imports the class too, so the build puts it in a shared chunk (`dist/linter-worker-*.mjs`), where its own
+  `import.meta.url` points into `dist/`. So the caller passes its own `import.meta.url`, and the constructor resolves
+  `worker` beside it, with the caller's extension. The plugin writes `new LinterWorker(import.meta.url)`, and the
+  entry is always in `dist/eslint-plugin/`, so the chunk `LinterWorker` lands in no longer matters
+  - **The tests pass their own URL,** with a fixture `worker.ts` beside them. A constructor that resolved from its
+    own URL would start the real worker, and the tests would fail. One test passes a `.mjs` URL, since every other test
+    passes a `.ts` one
+  - **Rejected: the plugin builds the worker's URL and passes it.** Every caller would repeat the rule for the
+    extension, and the constructor can apply it to one argument
 - **`Reply` is a byethrow Result (2026-11-11).** The `Found` / `Failed` Enum reinvented Result. A failure is sent as a
   message string, because error classes are lost in the copy between threads. `R.unwrap` throws the failure value
   as is, so `R.mapError((message) => new Error(message))` wraps it first. vitest's `toThrow("…")` passes even when a
@@ -4330,7 +4341,7 @@ valof-lint was rewritten in valof. The shape follows css-var-kit's `Rule` trait 
   worker, so later ones queued behind the wedged worker, and each file waited 60 seconds to time out. The port and
   the signal are passed once at start-up, and a request sends only the `Query`. The `{ ask, port, signal }` type sent
   per request is gone. The waiting and answering ends were split into `LinterWorker` (`linter-worker.ts`) and
-  `serve` (`serve.ts`), and a fixture worker tests them.
+  `serve` (`serve.ts`), and a fixture worker tests them. `serve` became `LinterWorker.serve` on 2026-11-11 (above).
   Rejected: making the patience configurable through an environment variable for the test. It adds a user-facing
   setting, and a reliable way to wedge the worker is needed anyway
 - **valof-lint is run on itself.** `tests/lint/self/` checks that it reports nothing in `src/` and `scripts/`. The
@@ -4702,10 +4713,11 @@ The kind prefix was also removed from messages. The host shows it as the rule na
 
 **The worker is this same file.** `new Worker(new URL(import.meta.url))`, with `isMainThread` separating the two roles. As a separate file, it would be `./worker.ts` in the source tree and `./worker.mjs` in the shipped files, and the code would have to guess which one is running. (Split on 2026-11-11, below.)
 
-**The worker became a separate file, 2026-11-11.** Two roles in one file are hard to read (user). The extension is not guessed. It is the plugin's own (`extname(import.meta.url)`). The plugin and the worker sit together in `src/lint/eslint-plugin/`, and ship in the same layout under `dist/eslint-plugin/`. `Query` and `Reply`, which both use, are in `messages.ts`, and the underline's `Underline` is in `underline.ts`.
+**The worker became a separate file, 2026-11-11.** Two roles in one file are hard to read (user). The extension is not guessed. It is the plugin's own (`extname(import.meta.url)`). The plugin and the worker sit together in `src/lint/eslint-plugin/`, and ship in the same layout under `dist/eslint-plugin/`. `Query` and `Reply`, which both use, were in `messages.ts`, and have been in `linter-worker.ts` since 2026-11-11 (§14.8). The underline's `Underline` is in `underline.ts`.
 
-- **No test checks where the shipped worker is.** Nor that `LinterWorker` stays in the plugin entry's chunk (§14.8,
-  "`LinterWorker` and `serve` are separate files"). The tests read the plugin from source. `vp pack` rewrites
+- **No test checks where the shipped worker is.** The tests read the plugin from source, and a URL right only there
+  passes them, such as one that hard-codes `.ts`. Which chunk `LinterWorker` lands in no longer matters (§14.8,
+  "`serve` is a static method of `LinterWorker`"). `vp pack` rewrites
   `package.json`'s `exports` even with a different output directory, so a test cannot build it. #114's `check-dist`
   gets a check that runs the built plugin
 
