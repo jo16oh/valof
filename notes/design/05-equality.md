@@ -246,3 +246,15 @@ The types guard "does the comparison written in the spec fit the type", and the 
 This option narrows the spec to "which children use their own equality, and which are excluded". A Val position accepts only a companion, and an unbranded position accepts only an exclusion marker (`Val.ignore`). It turns the §5 principle, that equality belongs to the type and is declared in one place, directly into types.
 
 We do not adopt it, because the types cannot guarantee the other half of the principle. No type can say "require `implEquals` only when a nested child has a custom equals" (3 above). So tightening only the Val positions does not establish the invariant, and only reduces expressiveness. That also removes the value of adding one more sentinel, `Val.ignore`. `updatedAt: () => true` stays.
+
+## Rejected: a runtime brand that `equals` compares, 2026-11-12
+
+The idea was to give each value a private field holding its companion's symbol, so that `equals` tells apart two values with the same payload and different brands. `Val.of` builds a value without a companion, so it would be removed.
+
+- **A boundary drops the brand, and nothing can restore it.** A private field does not survive JSON, `structuredClone`, `postMessage` or RSC props. A companion's seal restores its own brand, but valof has no runtime schema, so `Order.seal(JSON.parse(text))` cannot brand the `Money` inside. An `Order` built in the process and one parsed from JSON would hold the same payload and compare unequal. Treating a missing brand as matching any brand removes what the comparison was for
+- **`patch` would have to carry the brand.** Merging a nested Val builds a new object, and a spread does not copy a private field, so `patch` would give each merged child the brand of the child it replaces
+- **A primitive Val cannot carry one.** `Val<"UserId", string>` and `Val<"OrderId", string>` are strings at run time, so `equals` would tell brands apart for object Vals only
+- **The types already cover the case.** The first argument of `equals` fixes the type of the second, so comparing two brands is a type error. Unions of objects are forbidden (§3.6), and an enum's variants differ by tag. What remains is a value whose type was erased or cast
+- **`Val.of` is the constructor of a type without a custom seal (§2.2), and the lift at a boundary (§8.3).** Removing it would make a companion mandatory for every Val
+
+**Also rejected: a check in `equals`, in development builds only, that throws on two different brands.** It would catch an incorrect cast, but the first three points still apply, so it could check only values that carry a brand.

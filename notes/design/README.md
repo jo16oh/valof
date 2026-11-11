@@ -26,7 +26,7 @@ grep -rnE '^#+ .*(Rejected|Withdrawn)|^ *(- )?\*\*(Rejected|Withdrawn)' notes/de
   - **4.1** Why the constructor copies its argument by default, and the explicit `.nocopy`. Neither types nor lint can close the gap (no linear types), ownership tracking (WeakSet, registering every node), the rejected symbol-key mark, diamonds and GC, the friction of `unwrap`, the type-checking speed benchmark
   - **4.2** Keep tuples. Optional elements and `Required<T>`, the limit of rest elements
   - **4.3** Open `Rec`. Detection by key, `undefined` on optional keys, why array detection moved to `keyof`
-- **§5 Equality** ([05-equality.md](05-equality.md)) A named `equals` that compares structure only. The principle of constructing in canonical form. The record of the withdrawn companion `equals`, `implEquals` and spec
+- **§5 Equality** ([05-equality.md](05-equality.md)) A named `equals` that compares structure only. The principle of constructing in canonical form. The record of the withdrawn companion `equals`, `implEquals` and spec. The rejected runtime brand that `equals` compares (2026-11-12)
 - **§6 Smart constructors and updates**
   - **6.1–6.10** ([06-constructors-and-updates.md](06-constructors-and-updates.md))
     - **6.1** A constructor is determined by its origin / **6.2** `patch`, `undefined` in a patch, patch at any depth, merging only into nodes that already exist / **6.3** independent of Result / **6.4** remove `update`
