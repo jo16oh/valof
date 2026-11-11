@@ -993,7 +993,7 @@ A primitive payload gets the third argument too. `deepEquals` is not `===`: it t
 ### Requirements for the default implementation
 
 - Deep structural comparison
-- **Independent of key order** (sort the keys, then compare). The Set representation in §8.1 needs it, and it is the correct behaviour anyway
+- **Independent of key order** (sort the keys, then compare). The Set representation in §8.1 needs it, and it is the correct behavior anyway
 - **Ignore keys whose value is `undefined`.** `{ a: undefined }` and `{}` are equal. This makes a serialization difference between two paths unobservable when an `undefined` leaks in with EOPT off (§3.5)
 
 ### Constraint: a parent cannot call a child's custom equals
@@ -1205,9 +1205,9 @@ We do not adopt it, because the types cannot guarantee the other half of the pri
 Constructor generation moves to `Val.sealer`, separate from `companion`.
 
 ```ts
-Val.sealer<Tags>(); // constructor (+ default behaviour)
-Val.sealer<User>().impl({ greet }); // constructor + behaviour
-Val.companion<Age>().implSeal(check); // behaviour only. Not callable
+Val.sealer<Tags>(); // constructor (+ default behavior)
+Val.sealer<User>().impl({ greet }); // constructor + behavior
+Val.companion<Age>().implSeal(check); // behavior only. Not callable
 ```
 
 **Origin, not detection,** decides whether a companion is callable. A sealer is a constructor, so whatever is built from it stays a constructor, and a companion built without a sealer is not a function at all.
@@ -1229,7 +1229,7 @@ Age.seal(30); // ← the only entry point
 
 It was implemented and worked, but deciding by origin removes the need for detection. `HasSmartCtor<M>`, `SmartCtorGuard`, the gate-only `new` and the return-type constraint on `CompanionMethods` all went away. The guarantee is stronger too. Under the gate approach, **the type error appeared, but the function existed and threw at run time**. Now no constructor exists, so there is nothing to bypass.
 
-The two entry points differ only in their first call (`Val.sealer` or `Val.companion`). `.impl()` is the one way to add behaviour, and the only choice left is the meaningful one: "does this type need a constructor?" §13.1 explains the two-step call.
+The two entry points differ only in their first call (`Val.sealer` or `Val.companion`). `.impl()` is the one way to add behavior, and the only choice left is the meaningful one: "does this type need a constructor?" §13.1 explains the two-step call.
 
 ### 6.2 `patch`
 
@@ -1374,7 +1374,7 @@ arr.with(0, 9); // "arr, with index 0 set to 9"
 Order.with(order, {}); // the preposition's subject moves into an argument and is left hanging
 ```
 
-§1 decided to keep behaviour outside the value, so a companion's first argument is the value. A word made for method syntax cannot be carried over unchanged.
+§1 decided to keep behavior outside the value, so a companion's first argument is the value. A word made for method syntax cannot be carried over unchanged.
 
 `patch` is an imperative, so its verb form matches `equals` / `create` / `seal` / `of` / `unwrap`, and the name matches the argument type `Patch<T>`. A function named `with` no longer takes a `Patch`.
 
@@ -1423,7 +1423,7 @@ Removed: `UpdateMethod`, `NoExtra`, the run-time `target.update` and the boolean
 
 Users may now name a member `update`. It is no longer `never` in `.impl` and no longer in the linter's BUILTIN.
 
-**The cost.** On a type with `fixed`, `update` kept the optional keys the callback left out (because the blind merge at the root had no key names). This behaviour is not carried over. Delete with `patch(v, { k: undefined })`.
+**The cost.** On a type with `fixed`, `update` kept the optional keys the callback left out (because the blind merge at the root had no key names). This behavior is not carried over. Delete with `patch(v, { k: undefined })`.
 
 Rejected options: extending `patch` to arrays (`{}` would be a no-op and `[]` a whole replacement, so the meaning would depend on the payload's shape); making `undefined` in an array the deletion sentinel (it overlaps with the standard `filter` / `map`, and the spec would grow a distinction between holes and optional elements); letting `patch` take both a value and a callback (the same operation would have two forms).
 
@@ -1511,7 +1511,7 @@ Should `Val.companion<V>().impl({…})` be allowed without a custom seal? **Yes.
 2. **It cannot be made consistent.** `Val.companion<V>()` is already a usable Companion as is (with `equals` / `patch`). Requiring a seal on `.impl` alone leaves the earlier step open
 3. **It forces a fake seal.** A pass-through rubber stamp, `(v) => Val.of<V>(v)`, appears. A seal that reads as validation and does nothing is worse than no seal
 
-A companion without a custom seal is a meaningful form too. For a type whose values come from a boundary (a decoder, a DB row, an external API), the right design bundles only behaviour, has no constructor, and builds values with `Val.of`.
+A companion without a custom seal is a meaningful form too. For a type whose values come from a boundary (a decoder, a DB row, an external API), the right design bundles only behavior, has no constructor, and builds values with `Val.of`.
 
 #### No omittable parameters
 
@@ -1519,7 +1519,7 @@ A member with no parameters, an optional parameter, a default parameter or a res
 
 #### What is lost
 
-A helper factory whose first parameter is not the Val (`Money.fromCents(n)` / `IsoDate.parse(s)`) cannot go in `.impl`. It is not "behaviour on a value", so it makes more sense as a separate plain exported function. A constructor with several parameters (`Point.create(x, y)`) is covered by `implCreate`, so it is unaffected.
+A helper factory whose first parameter is not the Val (`Money.fromCents(n)` / `IsoDate.parse(s)`) cannot go in `.impl`. It is not "behavior on a value", so it makes more sense as a separate plain exported function. A constructor with several parameters (`Point.create(x, y)`) is covered by `implCreate`, so it is unaffected.
 
 → On 2026-10-26, the `implAssoc` step made room for these (§6.13).
 
@@ -1837,8 +1837,8 @@ pipe(shape, Shape.match({ Circle: (c) => …, Square: (s) => … }));
 Overloads separate the forms in the types. The problem is telling them apart at run time.
 
 - **`.impl` reads `n = fn.length` once.** A call with `n - 1` arguments is data-last, and anything else is data-first
-- **Data-first is not limited to exactly `n` arguments.** `xs.map(User.greet)` passes three arguments. Treating `n` or more as data-first keeps the current behaviour
-- **Rejected: decide with a predicate.** The brand is a phantom (§2.1). `owned` disappears through `structuredClone` / JSON and cannot mark a primitive. A miss would change the outcome from "one copy" to "wrong behaviour"
+- **Data-first is not limited to exactly `n` arguments.** `xs.map(User.greet)` passes three arguments. Treating `n` or more as data-first keeps the current behavior
+- **Rejected: decide with a predicate.** The brand is a phantom (§2.1). `owned` disappears through `structuredClone` / JSON and cannot mark a primitive. A miss would change the outcome from "one copy" to "wrong behavior"
 
 #### The types forbid omittable parameters
 
@@ -1994,7 +1994,7 @@ For `over: (s) => s.n > 1`, `over()` only returns `over` itself and has no use. 
 - **Types.** `Dual<F, S>` returns `F` alone when the parameters after the value are `[]`. `Loose<F>` also returns `F` when the parameters after the first are `[]` (zero or one parameter). `M.member()` is a type error
 - **The trigger was a lint false positive.** `xs.filter(BundleSize.over)` triggered oxlint's `no-unnecessary-condition` (§19). tsgolint 7.0.2001 reports it when any signature always returns truthy, whether as an intersection or as overloads. Swapping the order does not help, and neither does the other signature returning `boolean`. It does not report a plain function. Not reported upstream (the user)
 - **A member with one parameter (and with zero for `implAssoc`) is attached unwrapped, via `f.bind(undefined)`.** Both `impl` and `implAssoc`. Returning `f` unwrapped would make `this` in `User.greet(u)` the companion, which disagrees with `ThisType<undefined>`. The zero-parameter `implAssoc` members in #95 did exactly that. The call cost of going through the wrapper disappears too
-- **`impl` and `implAssoc` are treated the same (the user).** Binding only in `implAssoc` would split behaviour on a difference the types do not show, so we do not
+- **`impl` and `implAssoc` are treated the same (the user).** Binding only in `implAssoc` would split behavior on a difference the types do not show, so we do not
 - **`dual` only wraps (the user).** `createMembers` (formerly `duals`), which receives the record, decides between `bind` and `dual` and runs the development checks. Adding `bind` to `dual` would give it two responsibilities. The function `loose` became `createMembers`'s second parameter, `loose`
 - **Cost.** Val 967 → 965 B. Instantiations: core 7,214 → 7,186, trait 18,320 → 17,642, enum 36,361 → 35,703
 
@@ -2066,7 +2066,7 @@ It moved to the companion's type argument (`Val.companion<User, [PrivateSeal, Un
 - In an Enum, `PrivateSeal` removes `Shape.seal` and the `seal` of every variant. It is not set per variant. A variant's
   `.create` is currently a seal that adds the tag, so per-variant hiding comes when the variant entry points are reorganized (§9)
   - **Rejected: private per variant.** `Shape.seal` passes the payload to the variant's slot by tag, so it reaches a hidden variant
-    from there. Making it refuse would shift what `Shape.seal` means and make the behaviour implicit
+    from there. Making it refuse would shift what `Shape.seal` means and make the behavior implicit
   - To protect only one variant, move what needs protecting into a Val in the payload, and hide that Val's seal
     (`Pending { id: PendingId }`)
 - On a type with `PrivateSeal`, members cannot call `User.seal` either. Until `implAssoc` (§9) arrives, the only paths that create values are
@@ -2213,10 +2213,10 @@ The Proxy no longer reads step names, so `Shape.impl` is the slot of a variant n
 
 #### Keep the Proxy
 
-- The `dyn` Proxy stays. It fits the meaning of a box that wraps a value and adds behaviour. Options compared: a shallow copy
+- The `dyn` Proxy stays. It fits the meaning of a box that wraps a value and adds behavior. Options compared: a shallow copy
   (`equals` would compare functions), a method prototype (an extracted method loses `this`), a box that does not expose
   the fields (the API changes)
-- The Enum Proxy stays. Effect uses this shape too, and a companion is not passed around, so its behaviour can be seen as part of the types
+- The Enum Proxy stays. Effect uses this shape too, and a companion is not passed around, so its behavior can be seen as part of the types
 - **Rejected: pass the variant names at run time.** The names would be written twice, and the argument order would break
 
 ### 6.13 `implAssoc`: members that do not take the Val, 2026-10-26
@@ -2485,13 +2485,13 @@ Being plain data is everything that sets this library apart. Dropping it would m
 
 **Rejected. `.impl` holds only what attaches to the companion as is.**
 
-A function in `.impl` attaches to the companion under its own name. These three did not; the library wired them.
+A function in `.impl` attaches to the companion under its own name. These two did not; the library wired them.
 
 - Their return type is fixed (`equals` returns `boolean`, `patch` returns what the seal returns)
 - `equals` has its third argument (`deepEquals`) bound, so the public signature drops it
 - The companion's type removes them from `M` with `Omit<M, "equals" | "patch">`
 
-This showed at run time as well: the `for` loop in `attach` skipped these three with `continue`. The principle that `.impl` passes everything through was already broken.
+This showed at run time as well: the `for` loop in `attach` skipped these two with `continue`. The principle that `.impl` passes everything through was already broken.
 
 `seal` and `create` had their own steps from the start, and `.impl` rejects them with `never` (§6.5). One rule then covers all of them.
 
@@ -2639,7 +2639,7 @@ User.patch(user, { id: "forged" }); // type error
 **Conclusion: React / Solid can hold a plain value as is. Svelte / Vue need a shallow container (`$state.raw` /
 `shallowRef`).** The table is in README §Framework state.
 
-The danger is not the deep proxy itself but that **dev does not reproduce it**. The dev freeze (§7.1) changes the behaviour.
+The danger is not the deep proxy itself but that **dev does not reproduce it**. The dev freeze (§7.1) changes the behavior.
 
 Measured with svelte 5.57.0 / vue 3.5.42 / solid-js 1.9.15 (`dist/index.mjs`, under both `NODE_ENV` values).
 
@@ -3133,7 +3133,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 - [x] ~~Implement the valof-lint rule `brand-mismatch` (§14.12)~~ Implemented. With `incomplete-disable` (§14.14) and `unused-disable` (§14.15), there are 6 rules
 - [x] ~~valof-lint does not know `Trait`.~~ It tracks Trait declarations, companions, `implTrait` and `dyn` from the syntax.
       Two kinds of addition
-  - [x] Extend the existing rules to the trait syntax. The judgments are the same; they only recognise more forms. `brand-mismatch`
+  - [x] Extend the existing rules to the trait syntax. The judgments are the same; they only recognize more forms. `brand-mismatch`
         (`Trait<"Greetble", …>`), `duplicate-brand`, `companion-mismatch`, `split-companion`,
         `unnecessary-alias`, `unused-member` (a final can be read through two paths, `Greetable.shout` and `User.shout`,
         so either counts as a use)
@@ -3199,7 +3199,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **Rejected: intersecting the whole enum with `Phantom` as well.** TypeScript distributes `(A | B) & P` into `(A & P) | (B & P)`, so
     the type stays a union, and oxlint still warns (probed)
   - **Enabled in this repo too.** It allows two: `Phantom` from `src/val.ts` (the tests import from `src`), and the same
-    package specifier as the docs (`#valof` is named `valof`). `tests/no-misused-spread.ts` pins each form where the warning disappears or stays, one per line. An unused disable comment is an error, so the test fails whichever way the rule's behaviour changes.
+    package specifier as the docs (`#valof` is named `valof`). `tests/no-misused-spread.ts` pins each form where the warning disappears or stays, one per line. An unused disable comment is an error, so the test fails whichever way the rule's behavior changes.
     The three disable comments in the tests that silenced spreading a Val are no longer needed
 - [x] ~~**Spreading a `Dyn` lies about the type.**~~ Treated as misuse, left to the `no-misused-spread` warning, 2026-11-03.
       The type of `{ ...Greetable.dyn(User, user) }` is `{ name: string; greet: () => string }`, but at run time it is
@@ -3226,7 +3226,7 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     → It is a problem, 2026-11-04. With the same shape, a value without a brand is accepted too
     - [x] ~~**Accept only Vals that implement the trait, with `Impl<Same>`.**~~ Done, 2026-11-04. §15.1, "`Impl`".
           `other: Impl<Same>`. Breaking
-      - **With `Impl` as an interface marker, member parameters do not become circular (probe).** The search for `Self` recognises it by key alone and stops
+      - **With `Impl` as an interface marker, member parameters do not become circular (probe).** The search for `Self` recognizes it by key alone and stops
         (the same trick as `Rec`), and `Unbound` / `Bound` replace `Impl<X>` with `X`. However,
         `let s: Impl<Same>` stays a marker and does not become the same type as `Same` (`interface Impl<Tr> extends Tr` raises TS2312)
       - **Direction: make a trait a declaration-only type, and write the value type as `Impl<Same>` everywhere.** `Trait<K, S, M>` becomes an interface that only
@@ -3577,7 +3577,7 @@ The way to confirm is mutation. Remove the check and see whether the `@ts-expect
 - Near: **VALOFE Co., Ltd.** (a Korean game developer and publisher in Seoul, 364 employees, founded 2007. It filed and registered VFUN in the US in 2019, and runs `forums.valofe.com`). One letter different and in software, so the trademark classes may overlap
 - The audiences are entirely different, and **free OSS hardly counts as commercial use**, so the practical risk was judged low
 - The other near words (VALOU = jewellery, VALOIE = cosmetics, VALO = game controllers, VALUT = vodka, VALFLEUR = wine) are all in unrelated classes
-- **Revisit before commercialising or incorporating**
+- **Revisit before commercializing or incorporating**
 
 **Rejected candidates:** `valob` / `valobe` (no settled reading), `valcase` (clear but sounds weak), `valeur` (an everyday French word, hard to search for), `valcom` (how it sounds), the scoped `@user/val` (hard to discover)
 
@@ -3689,7 +3689,7 @@ Reasons for rejection:
 - **`sealer`**: the `-er` keeps it from being misread as `Val.of`. The name shows that it returns a function, not a value
 - **`.impl()`**: originally the means of attaching members was split in two, `.companion()` (on the sealer side) and `()({...})` (on the companion side), and the only difference was whether the result was callable, which was hard to see. Unifying on `.impl()` moved the difference onto **the one axis that means something**: `sealer` or `companion`. `methods` was not adopted because it suggests a class (values do not get methods). `fns` is a tautology, since everything inside is a function. `impl` also matches Rust's `impl` block
 
-A bare `Val.sealer<V>()` / `Val.companion<V>()` is also a complete companion with the default behaviour (`equals` / `patch`). A Val with no methods does not have to write `.impl({})`.
+A bare `Val.sealer<V>()` / `Val.companion<V>()` is also a complete companion with the default behavior (`equals` / `patch`). A Val with no methods does not have to write `.impl({})`.
 
 ### 13.8 Secondary decisions
 
@@ -3700,7 +3700,7 @@ A bare `Val.sealer<V>()` / `Val.companion<V>()` is also a complete companion wit
 
 ## 14. valof-lint
 
-Investigated 2026-09-03, implemented on the `feat/valof-lint` branch. As of 2026-09-07 it is not merged into `main`. There are six rules (§14.4, §14.7, §14.12, §14.14, §14.15), and §14.8 describes the layout.
+Investigated 2026-09-03, implemented on the `feat/valof-lint` branch. As of 2026-09-07 it is not merged into `main`. The rules are in §14.4, §14.7, §14.12, §14.14 and §14.15, and §14.8 describes the layout.
 
 A function inside `.impl({...})` is never reported as dead, and never dropped from the bundle. `attach` puts it on the companion with `Object.defineProperty` at run time, so static analysis sees only "an object literal passed to a function".
 
@@ -3828,7 +3828,7 @@ $ node -e "const ts=require('typescript'); console.log(ts.version, Object.keys(t
 
 This repository itself is on `typescript@^7.0.2`, so adopting ts-morph means **analysing TS 7 users' code with a bundled TS 5-series checker**.
 
-**What 7.1 stabilises is the Language Service API.** The iteration plan (microsoft/TypeScript#63703, beta 2026-10-06, stable 2026-11-24) lists three items: Language Service / Emit / Content Mapper. **It does not mention the TypeChecker.**
+**What 7.1 stabilizes is the Language Service API.** The iteration plan (microsoft/TypeScript#63703, beta 2026-10-06, stable 2026-11-24) lists three items: Language Service / Emit / Content Mapper. **It does not mention the TypeChecker.**
 
 That is enough, because the rule in §14.7 needs go-to-definition, not the checker.
 
@@ -3841,7 +3841,7 @@ That is enough, because the rule in §14.7 needs go-to-definition, not the check
 
 **ts-morph's only remaining advantage is sparing us the `LanguageServiceHost` boilerplate.** Implementing `getScriptFileNames` / `getScriptVersion` / `getScriptSnapshot` / `getCompilationSettings` / `getDefaultLibFileName` takes about 60 lines, written once. The manipulation API is not needed as long as the output is a text suggestion such as "add `total: Money` to the spec".
 
-**The LS is offset-based, which favours oxc.** `findReferences(fileName, position)` returns `{ fileName, textSpan }`, not a node. An API that returns nodes helps when the analysis lives in ts-morph, but nodes are useless when the analysis lives on the oxc AST. The code already handles offsets with `lineIndex`.
+**The LS is offset-based, which favors oxc.** `findReferences(fileName, position)` returns `{ fileName, textSpan }`, not a node. An API that returns nodes helps when the analysis lives in ts-morph, but nodes are useless when the analysis lives on the oxc AST. The code already handles offsets with `lineIndex`.
 
 **With plain `typescript`, the optional peer dependency is effectively free.** Every TS project already has it, so the 3.2 MB vs 15 MB argument above disappears altogether.
 
@@ -3907,7 +3907,7 @@ The whole CLI went from 580 ms to 213 ms on 65 files. **The gap widens as the fi
 
 Files in `tsconfig.json`'s `exclude` resolved too (this repository's fixtures are exactly that case), because the server creates an inferred project.
 
-What remains is 30 ms of init and 45 ms for the first query, once per run. **We do not keep the process alive to amortise it.** A lint run starts only one LS anyway, and carrying it across runs needs lifecycle and staleness management. A linter that runs once in CI should not pay that complexity for 75 ms.
+What remains is 30 ms of init and 45 ms for the first query, once per run. **We do not keep the process alive to amortize it.** A lint run starts only one LS anyway, and carrying it across runs needs lifecycle and staleness management. A linter that runs once in CI should not pay that complexity for 75 ms.
 
 #### `typescript` is not a peer dependency
 
@@ -4005,7 +4005,7 @@ The two sides are matched by **alias name**, not by the companion's variable nam
 
 **Name collisions are duplicate-brand's job.** If two files both have `type Money`, name resolution cannot tell them apart, and the rule would misfire. The alias → brand mapping already exists, so **report only when the name resolves to a single brand within the scan**. Another rule reports the collision itself, and fixing that is enough.
 
-**The `PayloadOf` path is deliberately out of scope.** This is correct behaviour, not a miss.
+**The `PayloadOf` path is deliberately out of scope.** This is correct behavior, not a miss.
 
 ```ts
 type OrderB = Val<"OrderB", { total: PayloadOf<Money> }>;
@@ -4013,7 +4013,7 @@ type OrderB = Val<"OrderB", { total: PayloadOf<Money> }>;
 
 The other rule in §9 says "do not put `PayloadOf` in a field position, write `total: Money`". If the equals rule fired here, it would say "keep the payload and add `Money.equals` to the spec", and **two rules would give contradictory instructions on the same line**. It would also push the fix in the direction that hides the real defect. As §4.3 says, the brand is dropped here, and with it the child's seal and the tracked sharing, so restoring equals alone does not fix it. Changing to `total: Money` makes the rule fire, naturally and correctly. The rule stays silent on a top-level `PayloadOf<User> & { … }` too. A `SuperUser` contains no `User` value, it only reuses the field types, so there is nothing to dispatch to.
 
-**Implementation pitfall.** A naive version stays silent on its own here, so nobody notices, but it breaks the moment `ReadonlyArray<Money>` is treated like `readonly Money[]`. The former requires descending into a `TSTypeReference`'s type arguments, and generalising that also picks up the `Money` inside `PayloadOf<Money>`. Make the walk **a whitelist of "shapes a spec can map"**: `TSTypeLiteral` / `TSArrayType` / `TSTupleType` / `ReadonlyArray` / `Array`. Any other type reference is opaque, and the rule stays silent. `PayloadOf`, `SeedOf` and `Omit` are all excluded there.
+**Implementation pitfall.** A naive version stays silent on its own here, so nobody notices, but it breaks the moment `ReadonlyArray<Money>` is treated like `readonly Money[]`. The former requires descending into a `TSTypeReference`'s type arguments, and generalizing that also picks up the `Money` inside `PayloadOf<Money>`. Make the walk **a whitelist of "shapes a spec can map"**: `TSTypeLiteral` / `TSArrayType` / `TSTupleType` / `ReadonlyArray` / `Array`. Any other type reference is opaque, and the rule stays silent. `PayloadOf`, `SeedOf` and `Omit` are all excluded there.
 
 #### Out of reach
 
@@ -4027,7 +4027,7 @@ All of these are misses, not false positives.
 
 What it covers is **the paths that reach the child**: renamed imports, re-exports, `interface`, one alias hop, intersections, `Money | null`. Each follows the reference to its declaration, so there is no need to trace it syntactically.
 
-What it does not cover is **the side that recognises an alias as a Val**. `type Money = Branded<"Money", X>` through `type Branded<K, T> = Val<K, T>` does not enter the candidate set, because collection checks by name that `Val<…>` is written directly. So it is not recognised as a child. **This is the same hole duplicate-brand has, and the whole linter rests on this assumption.** Closing it means identifying `Val` itself with go-to-definition too. It is a miss, not a false positive, so there is no hurry. 2026-11-05: a helper that takes the brand as a type parameter is now a type error, so this path no longer exists (§15.1 "Holes in trait declarations").
+What it does not cover is **the side that recognizes an alias as a Val**. `type Money = Branded<"Money", X>` through `type Branded<K, T> = Val<K, T>` does not enter the candidate set, because collection checks by name that `Val<…>` is written directly. So it is not recognized as a child. **This is the same hole duplicate-brand has, and the whole linter rests on this assumption.** Closing it means identifying `Val` itself with go-to-definition too. It is a miss, not a false positive, so there is no hurry. 2026-11-05: a helper that takes the brand as a type parameter is now a type error, so this path no longer exists (§15.1 "Holes in trait declarations").
 
 #### Why N×M is nothing to fear
 
@@ -4230,7 +4230,7 @@ $ valof-lint --server 'src/**/*.ts'
 > {"findings":[{"file":"src/order.ts","line":6,"column":22,"kind":"…","message":"…"}]}
 ```
 
-**Not taken.** The Worker approach below asks valof for no protocol and no dispatch. This idea's premise, "no editor extension to build", holds for the Worker approach too, and so does the reason for rejecting valof-lint speaking LSP itself. There is no capability negotiation, no URIs, no position encodings, no `publishDiagnostics` and no initialisation sequence, and the only client is the one plugin we write ourselves.
+**Not taken.** The Worker approach below asks valof for no protocol and no dispatch. This idea's premise, "no editor extension to build", holds for the Worker approach too, and so does the reason for rejecting valof-lint speaking LSP itself. There is no capability negotiation, no URIs, no position encodings, no `publishDiagnostics` and no initialization sequence, and the only client is the one plugin we write ourselves.
 
 **`--server` does not make tests faster either.** The tests were slow because of process startup, and `--server` was a mechanism for crossing that boundary. Tests can remove the boundary itself (by calling `lint()` in the same process), so it has no role there. Doing exactly that took the tests from 4.40 s to 748 ms. The `Options.types` added then also becomes the way to keep the resolver in the Worker approach below.
 
@@ -4247,11 +4247,11 @@ There is **no need** to write elaborate output ourselves (a source excerpt + car
    `----
 ```
 
-The caret lands on `Val` because the finding carries a `column`. The squiggle in the editor appears at the same place. The whole `--format` set (json / sarif / github / gitlab / junit / checkstyle / stylish / unix) comes with it, as does the handling of terminal width and colour.
+The caret lands on `Val` because the finding carries a `column`. The squiggle in the editor appears at the same place. The whole `--format` set (json / sarif / github / gitlab / junit / checkstyle / stylish / unix) comes with it, as does the handling of terminal width and color.
 
 Writing our own wins only when running valof-lint by itself in a terminal, and the one-line format is enough there. In CI the one-line format is actually easier to read.
 
-**This does not generalise to ESLint.** Its built-in formatters are just stylish / html / json / json-with-metadata, and none shows a source excerpt (`codeframe` left the core in ESLint 7 and became `eslint-formatter-codeframe`).
+**This does not generalize to ESLint.** Its built-in formatters are just stylish / html / json / json-with-metadata, and none shows a source excerpt (`codeframe` left the core in ESLint 7 and became `eslint-formatter-codeframe`).
 
 ```
 ESLint default (stylish)
@@ -4325,7 +4325,7 @@ Compared with `--server`, valof needs less.
 | ------- | --------------------------------- | ---------------------------------------- |
 | valof   | server mode, protocol, dispatch   | **just exporting `lint`**                |
 | types   | protocol types defined separately | work naturally, it is the same TS module |
-| overlay | serialised to JSON                | passed as is via structured clone        |
+| overlay | serialized to JSON                | passed as is via structured clone        |
 | deps    | none                              | 68 kB on the plugin side; none in valof  |
 
 The cost is that `lint` becomes public API. Today `src/lint/index.ts` serves only the CLI and is not in `exports`. "A larger API surface" joins the §14.3 argument about shipping inside valof.
@@ -4661,7 +4661,7 @@ save → follows disk changes to files not open
 
 **Pull the diagnostics.** Both servers answer `textDocument/diagnostic`. Waiting for pushes would make the test guess how many more are coming.
 
-**Compare only the message body.** The position and the spelling of the rule name belong to the host (`valof(unused-member)` / `valof/unused-member`), and `tests/lint/hosts` covers those on both hosts. Normalisation came down to one line.
+**Compare only the message body.** The position and the spelling of the rule name belong to the host (`valof(unused-member)` / `valof/unused-member`), and `tests/lint/hosts` covers those on both hosts. Normalization came down to one line.
 
 **The disk-following test looks at the scan, not the resolver.** When `.implEquals` disappears from `money.ts`, `needsTypes` becomes false, and the rule goes silent without touching type checking. The resolver follows the disk 300 ms late (§14.9), so a test that touches it would be flaky.
 
@@ -4786,7 +4786,7 @@ structural-equals only works when go-to-definition resolves, so its fixtures had
 - Passing would need a `Val` import, payload types, declarations of `user` / `id`, and parameter type annotations. A 6-line fixture would more than double, burying the 3 lines that matter.
 - Fixtures would have to satisfy the real `EqImpl` / `Sealer`, so touching the equality design (§5) would break unrelated lint fixtures.
 
-**Rejected: passing with `as any`.** In `(Val.sealer<User>() as any).impl({…})`, `rootPath` cannot follow `TSAsExpression`, so `fromVal` returns false and it is not recognised as a companion site. Findings drop to 0. Rewriting the expectation to `[]` makes it "pass", but that is exactly a test that cannot fail. Confirmed by measurement.
+**Rejected: passing with `as any`.** In `(Val.sealer<User>() as any).impl({…})`, `rootPath` cannot follow `TSAsExpression`, so `fromVal` returns false and it is not recognized as a companion site. Findings drop to 0. Rewriting the expectation to `[]` makes it "pass", but that is exactly a test that cannot fail. Confirmed by measurement.
 
 **Rejected: sprinkling `@ts-expect-error`.** It does silence everything, TS6133 included. But `@ts-expect-error` is not a suppression; it is **an inverted assertion**, and fails with TS2578 (`Unused '@ts-expect-error' directive`) once it is no longer needed. Putting it on 110 lines makes 110 claims that "this fixture is broken", the exact opposite of what type checking should give us (whether `implEquals([Money])` is a valid form).
 
@@ -5259,7 +5259,7 @@ there is also less to search for. Off by default is rejected too. On by default 
 
 ### 14.13 One place for how `Val` is spelled, 2026-09-08
 
-"Recognise `Val` however it is spelled" is a shared fact that three places depend on: `brands.ts:41` (type position), `aliases.ts:76`
+"Recognize `Val` however it is spelled" is a shared fact that three places depend on: `brands.ts:41` (type position), `aliases.ts:76`
 (type position, collecting equals aliases), and `fromVal` in `chains.ts` (value position). Their fixtures were scattered across per-rule directories,
 so they were gathered in `bindings/` (matching `src/lint/scan/bindings.ts`).
 
@@ -5384,11 +5384,11 @@ Val.of<Token>(s); // no companion                         → silent
 
 #### Rejected: stay silent only for a companion without a seal
 
-This proposal (B) was the first recommendation. `Val.of` is the only way to build a value of a companion without a seal (§6.5), so
+This proposal was the first recommendation. `Val.of` is the only way to build a value of a companion without a seal (§6.5), so
 a warning there would point at something with no fix. **Withdrawn, because lifting a value across a boundary is orthogonal
 to whether a seal exists.** When a verified `Age` payload arrives over RSC, `Age.seal(p)` runs the check twice and adds
 `Result` handling, so the code to write is `Val.of<Age>(p)`. A "legitimate `Val.of`" therefore happens on types
-with a seal too. **Both proposals need a disable comment at the boundary**, so B's split buys nothing.
+with a seal too. **Both proposals need a disable comment at the boundary**, so this split buys nothing.
 
 Instead, the message comes in three forms that say "what the type has". A companion without a seal has no fix,
 so its message gives none.
@@ -5402,7 +5402,7 @@ is correct. What it bypassed is the type's entry point.
 
 #### A companion without a seal does not get noisy, examined 2026-09-09
 
-The question checked: "a type without a seal can only be built with `Val.of`, so won't C warn every time?" **It won't.**
+The question checked: "a type without a seal can only be built with `Val.of`, so won't the rule warn every time?" **It won't.**
 
 - **`patch` works without a seal.** It goes through the default seal (brand + copy), so values derive normally
   (`Derive` in `val.ts`). `equals` too
@@ -5630,15 +5630,14 @@ type Steps = Partial<Record<ValStep, never>> & Partial<Record<EnumStep, never>>;
   minor release allows this. `Steps`'s JSDoc says "a step added later may take a name starting with `impl`"
 
 **Rejected: `` `impl` | `impl${Capitalize<string>}` ``.** `implicit` passes. But `Capitalize<string>` matches
-"starts with a character that capitalising does not change", so it also rejects `impl_x`, `impl1` and `impl$`. It rejects
+"starts with a character that capitalizing does not change", so it also rejects `impl_x`, `impl1` and `impl$`. It rejects
 `implFoo`, which is not a step, too. TS 7.0.2 / 6.0.3 / 5.9.3 gave the same result.
 
-**Rejected: a lint rule that warns on names where an uppercase letter follows `impl`.** Both things it would protect are weak.
+**Rejected: a lint rule that warns on names where an uppercase letter follows `impl`.** Both things it would protect are weak, and it does not pay for its maintenance.
 
 - Readability. Naming something `User.implFoo` is the user's decision
 - Clashes with steps added later. These do not break silently: adding a step to the list makes every such name a type error. A warning ahead of time
   is needed only where something breaks silently
-- It does not pay for its maintenance (fixtures, tracking three kinds of declarations, docs)
 
 **Rejected: mix `impl[A-Z].*` into `RESERVED`.** `RESERVED` holds the names that "the types reject, so `unused-member` does not report".
 Mixing it in would stop reporting an unread `implFoo`, which the types accept.
@@ -6602,7 +6601,7 @@ Absolute values cannot be compared across compilers.
 - Traits must not have `equals` / `patch` / `update`. With neither a brand nor a seal, there is nothing to rebuild
 - `DeepReadonly` is applied to the shape. Otherwise a Val with an array field would not match
 
-#### What valof-lint analyses, 2026-09-11
+#### What valof-lint analyzes, 2026-09-11
 
 **No new type resolver; follow only what the syntax determines.** For Val's third type argument, the lint recursively expands direct intersection types and
 top-level intersection type aliases. For `implTrait`'s object, it follows inline objects, `const` bindings and spreads,
@@ -6666,7 +6665,7 @@ place for the default implementations and dynamic dispatch that the prototype us
 **"Types catch a missing implementation" is not an argument.** `satisfies` covers nearly all of it. The namespace is what matters,
 and the namespace is not a by-product. It is the very place the default implementations and dispatch live.
 
-**Narrow but deep.** Only users whose domain is large enough for several Vals to share behaviour need it. It is overkill for a small
+**Narrow but deep.** Only users whose domain is large enough for several Vals to share behavior need it. It is overkill for a small
 app. Still, brand types alone take 10 lines to write yourself, so Trait is the stronger reason to choose valof.
 
 ##### `dyn` stays
@@ -6940,7 +6939,7 @@ accepts anything, and without a test nobody notices. Writing `DeepReadonly<Varia
 avoids it.
 
 **Runtime: the proxy caches a frame per variant. The reason is allocation, not identity.** Creating it every time would
-not change behaviour. A destructured `Circle` and `Shape.Circle` are different objects, but they hold the same members with
+not change behavior. A destructured `Circle` and `Shape.Circle` are different objects, but they hold the same members with
 the same implementations. The problem above is "members diverge", not identity itself. The cache exists so that each access
 does not rebuild the whole set of closures. One `Map` is enough.
 
@@ -7562,7 +7561,7 @@ which counts against the type-perf budget. Spelled `implTag`, it would be the on
 
 **B differs from the current form in two ways only:** whether the call's meaning is readable, and 8 characters. Forgetting the argument (TS2554), completion, chain states,
 lint's chain root, and implementation cost are all the same. "TS2353 rejects `{ key: … }` with the correct key name" does not count
-in B's favour. B itself creates that kind of mistake.
+in B's favor. B itself creates that kind of mistake.
 
 **The type rejecting something does not guarantee it is readable.** The reason for choosing the current form was "the type rejects both forgetting and misspelling"
 (no need for `tag-mismatch` above), but the point raised was about reading, not that. `Tag<"kind">` one line above
@@ -7829,7 +7828,7 @@ removed (−9 B). Reading `then` returns the frame.
 `then` as a member name was also unreserved, in three places: the Val and Trait types, and valof-lint's `RESERVED`. Awaiting a companion
 does not happen in practice; if someone writes it and it breaks, that is the user's responsibility, outside what valof guarantees. The same reasoning as not guaranteeing
 duplicate copies of valof (§2.1). Hitting it makes `await` hang without settling, with no error. One line was left in the JSDoc of Val's `.impl`.
-→ Removed on 2026-10-26. Awaiting a companion is odd code, and thenable behaviour is a general JS matter, not something valof should mention. In a Result or Option Val, `then` is a natural member name (`Result.then(r, f)`).
+→ Removed on 2026-10-26. Awaiting a companion is odd code, and thenable behavior is a general JS matter, not something valof should mention. In a Result or Option Val, `then` is a natural member name (`Result.then(r, f)`).
 
 **`__proto__` is not protected either, 2026-10-26.** Val's `attach` put members on with `define`, leaving a member named `["__proto__"]`
 as an own property. There was a test for it. Trait and Enum put members on by assignment in `duals`, so the same member
@@ -7926,7 +7925,7 @@ Result contains, so it needs a marker. There are three options, and **we take th
 **The third leaves the seal contract untouched.** A seal returns the user's Result as before. `abort`
 belongs to `path`'s vocabulary and does not exist for anyone who does not use `path`. It is a
 standalone export, so tree-shaking removes it (as measured for `dyn` in §15.1). It has no implicit
-dependency on §3.5, and a normalising seal (an `implSeal` that returns `V`) passes through unchanged.
+dependency on §3.5, and a normalizing seal (an `implSeal` that returns `V`) passes through unchanged.
 
 **Rejected: make the tuple the default.** Discrimination would be sound, since §3.5 forbids
 `undefined`. But **if the default return is a Result, `Val.sealer` becomes moot.** The value of
@@ -7934,7 +7933,7 @@ dependency on §3.5, and a normalising seal (an `implSeal` that returns `V`) pas
 is unacceptable.
 
 **Rejected: the seal returns `err()`.** The success path stays as it is, which is good, but the
-marker enters the seal contract. `implSeal` also serves normalisation (§5), so registering a custom
+marker enters the seal contract. `implSeal` also serves normalization (§5), so registering a custom
 seal does not mean the seal can fail, and no runtime flag can tell the two apart. Splitting the
 wiring name (`implTrySeal`) makes the user state twice what the return type already says. This is
 the same shape as §15.1's rejection of the two steps `implDefault` / `implFinal`.
@@ -7951,7 +7950,7 @@ type has to be **generic over the type constructor** of the user's Result.
 { open: <V, E>(r: ???<V, E>) => V | Abort<E> } // ??? cannot be written
 ```
 
-**That needs HKTs.** TypeScript has none, so it would take defunctionalisation with `TypeLambda` +
+**That needs HKTs.** TypeScript has none, so it would take defunctionalization with `TypeLambda` +
 `Kind`, the layer Effect dropped in v4 (§17). At the last step the concrete types are all known, so
 the problem goes away.
 
@@ -8658,7 +8657,7 @@ export interface Equal extends Hash.Hash {
 
 A symbol-keyed method sits on the value. This is the opposite of §1. A JSON round trip does not give
 back the same thing. `Data` offers only the two extremes. `Data.Class` has a prototype, and
-`Data.taggedEnum` is plain but has no behaviour. **The middle is empty.** §15.1's `dyn` (dynamic
+`Data.taggedEnum` is plain but has no behavior. **The middle is empty.** §15.1's `dyn` (dynamic
 dispatch while staying plain) fits there.
 
 ### The benefit of no classes, on the equality side
@@ -8738,7 +8737,7 @@ The `Enum` and `Trait` increments barely change (-2 B or less), because every me
 same internal function. We aligned them anyway. There is one shape, and members added later cost
 only those who use them.
 
-- **Rejected: `export const Val = ns`.** The namespace materialises as an object, growing to 979 B
+- **Rejected: `export const Val = ns`.** The namespace materializes as an object, growing to 979 B
 - **Rejected: keep Rolldown, with a plugin that makes `src/ns/*.ts` separate entries and treats them
   as external.** The type and namespace merge would move to a type alias in `index.ts`, duplicating
   the JSDoc
