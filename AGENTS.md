@@ -6,6 +6,14 @@
 is at the top. Read the sections it points you to before proposing anything about equality, copying,
 wrapper types, the linter, or new API. §9 lists the open questions. New deliberation goes there.
 
+## Writing Code with Valof
+
+Model the domain as you would in Rust. A named data type is a Val (a struct or a newtype) or an
+Enum. A Trait is a Rust trait. Behaviour goes in the companion. `.impl` holds the methods, which
+take the Val first as `self`, and `.implAssoc` holds the associated functions. A Val is plain data
+with no methods, so call a member through the companion: `User.displayName(user)`, not
+`user.displayName()`.
+
 ## Bundle Size and Type Cost
 
 Run `vp run bundle-size` after changing runtime code. It measures what a user ships. It also checks
