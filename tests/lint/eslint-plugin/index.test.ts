@@ -132,7 +132,6 @@ test("names every rule, under the plugin's own name", () => {
     "valof/hidden-optional": "error",
     "valof/unreturned-seal": "error",
     "valof/unrelated-assoc": "warn",
-    "valof/split-variant-steps": "warn",
     "valof/unqualified-variant": "warn",
     "valof/unnecessary-alias": "error",
     "valof/unimplemented-trait": "error",

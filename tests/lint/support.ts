@@ -27,7 +27,6 @@ export const ModelOnlyInValof = registered(Rules.ModelOnlyInValof);
 export const HiddenOptional = registered(Rules.HiddenOptional);
 export const UnreturnedSeal = registered(Rules.UnreturnedSeal);
 export const UnrelatedAssoc = registered(Rules.UnrelatedAssoc);
-export const SplitVariantSteps = registered(Rules.SplitVariantSteps);
 export const UnqualifiedVariant = registered(Rules.UnqualifiedVariant);
 export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
 export const UnimplementedTrait = registered(Rules.UnimplementedTrait);
