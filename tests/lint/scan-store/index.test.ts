@@ -142,8 +142,9 @@ test("opens a store under node_modules/.cache, and none where there is no node_m
   });
 });
 
-test("lets a new cache take a stored scan while its imports resolve to the same files", () => {
-  inDirectory((dir) => {
+test("lets a new cache take a stored scan while its imports resolve to the same files", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "valof-scan-store-"));
+  try {
     const path = join(dir, "scans.json");
     // Kept under the text that imports `x`, so a scan taken from the store imports `y`.
     const marked = scanOf(a, 'import { y } from "./c";\n');
@@ -151,15 +152,27 @@ test("lets a new cache take a stored scan while its imports resolve to the same 
     first.keep(a, 'import { x } from "./c";\n', marked);
     first.save();
 
+    let loads = 0;
+    const load = async () => {
+      loads++;
+      return R.succeed(parser);
+    };
     const sources: [FilePath, string][] = [[a, 'import { x } from "./c";\n']];
-    const [stored] = new ScanCache(new ScanStore(path, "linter")).scan(parser, sources, modules);
-    expect(Object.keys(stored?.imported ?? {})).toEqual(["y"]);
-
-    const [walked] = new ScanCache(new ScanStore(path, "linter")).scan(
-      parser,
-      sources,
-      Modules.create([a, b, c]),
+    const stored = R.unwrap(
+      await new ScanCache(new ScanStore(path, "linter")).scan(load, sources, modules),
     );
-    expect(Object.keys(walked?.imported ?? {})).toEqual(["x"]);
-  });
+    expect(Object.keys(stored[0]?.imported ?? {})).toEqual(["y"]);
+    expect(loads).toBe(0);
+
+    const walked = R.unwrap(
+      await new ScanCache(new ScanStore(path, "linter")).scan(
+        load,
+        sources,
+        Modules.create([a, b, c]),
+      ),
+    );
+    expect(Object.keys(walked[0]?.imported ?? {})).toEqual(["x"]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

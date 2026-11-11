@@ -11,21 +11,41 @@ const a = FilePath.seal("/project/a.ts");
 const b = FilePath.seal("/project/b.ts");
 const c = FilePath.seal("/project/c.ts");
 
+/** How many times any cache has asked for the parser, across the tests. */
+let loads = 0;
+
+/** The scans `cache` returns for `files`, counting in {@link loads} each time it asks for the parser. */
+const scanned = async (
+  cache: ScanCache,
+  files: readonly (readonly [FilePath, string])[],
+  modules: Modules,
+) =>
+  R.unwrap(
+    await cache.scan(
+      async () => {
+        loads++;
+        return R.succeed(parser);
+      },
+      files,
+      modules,
+    ),
+  );
+
 // `a` imports `./c`, which resolves to `c.ts` only while the run includes `c.ts`.
 const sources = (text = 'import { x } from "./c";\n'): [FilePath, string][] => [
   [a, text],
   [b, "export {};\n"],
 ];
 
-test("walks a file again when its text changes, and keeps the others", () => {
+test("walks a file again when its text changes, and keeps the others", async () => {
   const cache = new ScanCache();
   const modules = Modules.create([a, b]);
-  const [first, other] = cache.scan(parser, sources(), modules);
-  const [same, untouched] = cache.scan(parser, sources(), modules);
+  const [first, other] = await scanned(cache, sources(), modules);
+  const [same, untouched] = await scanned(cache, sources(), modules);
   expect(same).toBe(first);
   expect(untouched).toBe(other);
 
-  const [changed, still] = cache.scan(parser, sources('import { y } from "./c";\n'), modules);
+  const [changed, still] = await scanned(cache, sources('import { y } from "./c";\n'), modules);
   expect(changed).not.toBe(first);
   expect(Object.keys(changed?.imported ?? {})).toEqual(["y"]);
   expect(still).toBe(other);
@@ -34,20 +54,29 @@ test("walks a file again when its text changes, and keeps the others", () => {
 test.each([
   ["an import", 'import { y } from "./b";\nimport { x } from "./c";\n'],
   ["a re-export", 'export { x } from "./c";\n'],
-])("walks a file again when the files in the run change what %s resolves to", (_, text) => {
+])("walks a file again when the files in the run change what %s resolves to", async (_, text) => {
   const cache = new ScanCache();
-  const [before, other] = cache.scan(parser, sources(text), Modules.create([a, b]));
-  const [after, untouched] = cache.scan(parser, sources(text), Modules.create([a, b, c]));
+  const [before, other] = await scanned(cache, sources(text), Modules.create([a, b]));
+  const [after, untouched] = await scanned(cache, sources(text), Modules.create([a, b, c]));
   expect(after).not.toBe(before);
   expect(after?.resolved["./c"]).toBe("/project/c.ts");
   expect(untouched).toBe(other);
 });
 
-test("keeps every scan when a file no import resolves to joins the run", () => {
+test("keeps every scan when a file no import resolves to joins the run", async () => {
   const cache = new ScanCache();
   const d = FilePath.seal("/project/d.ts");
-  const [first, other] = cache.scan(parser, sources(), Modules.create([a, b]));
-  const [same, untouched] = cache.scan(parser, sources(), Modules.create([a, b, d]));
+  const [first, other] = await scanned(cache, sources(), Modules.create([a, b]));
+  const [same, untouched] = await scanned(cache, sources(), Modules.create([a, b, d]));
   expect(same).toBe(first);
   expect(untouched).toBe(other);
+});
+
+test("loads the parser only when a file has to be walked", async () => {
+  const cache = new ScanCache();
+  const before = loads;
+  await scanned(cache, sources(), Modules.create([a, b]));
+  expect(loads).toBe(before + 1);
+  await scanned(cache, sources(), Modules.create([a, b]));
+  expect(loads).toBe(before + 1);
 });
