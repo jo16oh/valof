@@ -2993,6 +2993,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
 
 - [x] ~~**Seals the noseal development check misses.**~~ Added `unreturned-seal`, 2026-11-03, as proposed below. It
       reports every call of the second argument outside the argument of a `return`. The record from that time follows
+  - **Dropped, 2026-11-11.** It reported a seal kept in a variable and returned later, as in
+    `const sealed = seal(x); return sealed;`, since following the value needs data-flow analysis. The hole it
+    guarded needs `.implCreate.noseal` and a seal that calls the default seal and then returns a failure, which is
+    too narrow for those false positives (user)
 - A seal that calls the default seal,
   then discards the result and returns a failure, passes the check, since "the seal was called and the value is equal". Production
   skips the seal, so a value that should be rejected gets created. The same applies to a seal that returns `undefined`, not only to `Result`
@@ -3231,6 +3235,9 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     whether a function is pure, and the rule conflicts with naming a construction with side effects by its action
     (`read`, `load`, §14.8). Keeping only the check on the `impl` side was rejected too. It has few false positives,
     but that alone does not justify a rule
+  - **`unrelated-assoc` was dropped too (2026-11-11).** It guesses from syntax whether a member belongs to its type,
+    and what it guards is a style: a companion used as a place for helpers. It needed a fix for members passed by
+    name, and its sibling `constructor-name` was already gone (user)
 - [x] ~~**A valof-lint false positive, from §6.12.** `detached-impl` reports a member named `fixed`, called from another file,
       as "a step written outside the chain".~~ Fixed after `fixed` moved to a type argument and left `STEPS`
       (2026-10-22). The types reject a member named like a step, so no other false positive of this kind can occur
@@ -5757,6 +5764,13 @@ the type and the companion are in the same file, so a name clash reduces to the 
 ### 14.24 Rule: `Val.of` without a type argument, 2026-09-09
 
 **Adopted.** `unnamed-of`. It reports `Val.of(…)` without a type argument. On by default, warn.
+
+**Renamed `inferred-val-of`, 2026-11-11.** `unnamed-of` said neither that the rule is about `Val.of` nor what is
+missing (user). The new name says that the lift takes its type from inference. A breaking change for a disable
+comment or a config that refers to the rule.
+
+- **Rejected: `implicit-val-of`.** "Implicit" covers more than the type argument
+- **Rejected: `untyped-val-of`.** It reads as `any`, and the type is in fact fixed by the target
 
 `Val.of<Age>(x)` is allowed as an escape hatch because **the required type argument makes it greppable** (§2.2).
 Without the type argument that justification no longer holds, and `bypassed-companion` cannot see it either. **Right after a new rule was added,

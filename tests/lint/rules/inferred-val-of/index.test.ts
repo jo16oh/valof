@@ -1,17 +1,17 @@
 import { expect, test } from "vite-plus/test";
 
-import { UnnamedOf, fixtures } from "../../support.ts";
+import { InferredValOf, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
 test("reports a lift that takes its type from what it is assigned to", async () => {
-  expect(await lint("unnamed")).toEqual([
+  expect(await lint("inferred")).toEqual([
     {
-      rule: UnnamedOf,
-      at: "unnamed.ts:5:31",
+      rule: InferredValOf,
+      at: "inferred.ts:5:31",
     },
   ]);
-  expect(await messages("unnamed")).toEqual([
+  expect(await messages("inferred")).toEqual([
     "Val.of names no type here, and takes one from its target",
   ]);
 });
@@ -19,7 +19,7 @@ test("reports a lift that takes its type from what it is assigned to", async () 
 test("reports one that takes it from the parameter it is passed to", async () => {
   expect(await lint("in-an-argument")).toEqual([
     {
-      rule: UnnamedOf,
+      rule: InferredValOf,
       at: "in-an-argument.ts:7:56",
     },
   ]);
