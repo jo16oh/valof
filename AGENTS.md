@@ -190,6 +190,13 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 different things. Check `package.json` and `vite.config.ts` first, and run `vp run <name>` when the
 project defines a script or task with that name.
 
+## Running Scripts
+
+Run TypeScript and JavaScript files with `vpx <file>`, for example
+`vpx ./scripts/seed.ts --dry-run`. It handles enums, decorators, JSX, and tsconfig `paths`, so do
+not add `tsx` or `ts-node` to run scripts. `vpx --watch <file>` reruns the file when a file it uses
+changes, in place of `tsx watch`. `vp node <file>` runs plain Node.js.
+
 ## Tool Versions
 
 Run `vp toolchain` to show versions and relationships in the active Vite+ release. Add a tool name

@@ -1641,9 +1641,9 @@ type NotEnum<V> = [V] extends [AnyEnum]
 // The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
 // with a boolean payload is a union of two types with one brand, so the check compares brands.
 type OneVal<V, M extends string> = {
-  readonly [K in M as IsUnion<V extends Phantom<infer B, unknown> ? B : never> extends true
-    ? K
-    : never]: never;
+  readonly [
+    K in M as IsUnion<V extends Phantom<infer B, unknown> ? B : never> extends true ? K : never
+  ]: never;
 };
 
 /** Nothing, or the reason a union of option lists is rejected. */

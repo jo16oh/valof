@@ -968,11 +968,13 @@ export type EnumBuilder<
   build: () => EnumCompanion<E, O, VM, M, F, C, A>;
 } & ([D] extends [never]
   ? {
-      readonly [N in keyof VariantsOf<E> as [N] extends [L]
-        ? N
-        : [VariantTaken<VM, N & string>] extends [never]
+      readonly [
+        N in keyof VariantsOf<E> as [N] extends [L]
           ? N
-          : never]: VariantSteps<E, O, VM, M, N & string>;
+          : [VariantTaken<VM, N & string>] extends [never]
+            ? N
+            : never
+      ]: VariantSteps<E, O, VM, M, N & string>;
     }
   : unknown) &
   ([Extract<D, "impl" | "implTrait" | "implAssoc">] extends [never]
@@ -1258,19 +1260,21 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
 // The key is the error message. Without it, a Val reports the enum's private phantom as missing.
 type NotVal<E> = {
   // Any enum's phantom, whatever its name: a broken enum fails `AnyEnum` and reports its own fault.
-  readonly [M in "a Val is built by `Val.companion`" as [E] extends [
-    EnumPhantom<unknown, unknown, unknown, unknown, unknown, unknown>,
-  ]
-    ? never
-    : [E] extends [AnyVal]
-      ? M
-      : never]: never;
+  readonly [
+    M in "a Val is built by `Val.companion`" as [E] extends [
+      EnumPhantom<unknown, unknown, unknown, unknown, unknown, unknown>,
+    ]
+      ? never
+      : [E] extends [AnyVal]
+        ? M
+        : never
+  ]: never;
 };
 
 type OneEnum<E> = {
-  readonly [M in "a companion builds one enum" as IsUnion<Declared<E>["name"]> extends true
-    ? M
-    : never]: never;
+  readonly [
+    M in "a companion builds one enum" as IsUnion<Declared<E>["name"]> extends true ? M : never
+  ]: never;
 };
 
 /**

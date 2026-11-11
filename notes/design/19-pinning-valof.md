@@ -13,9 +13,14 @@ pointed at `valof-release` (0.9.1 on npm), and the scripts caught up only after 
 ```
 
 - After `vp install`, `prepare` runs `scripts/pin-valof/index.ts`. It extracts the pinned commit with
-  `git archive`, runs `vp run build`, and puts `dist` and `package.json` at the link target. It skips
-  all this when the sha is unchanged. It runs `git fetch --depth=1` for a commit not present locally
-  (the CI checkout has only one commit)
+  `git archive`, runs `tsc -p tsconfig.build.json`, and puts `dist` and `package.json` at the link
+  target. It skips all this when the sha is unchanged. It runs `git fetch --depth=1` for a commit
+  not present locally (the CI checkout has only one commit)
+- **Only tsc builds the pin, 2026-11-11.** `prepare` ran `vp run build` before. The upgrade to
+  vite-plus 1.5.1 broke CI. The working tree's `vp` read the pinned commit's `vite.config.ts`, which
+  sets `dts.tsgo: true`, and 1.5.1 no longer parses that option. The scripts import only the root
+  entry, which tsc emits. The `vp pack` step in `vp run build` packs only the linter, which the
+  scripts never needed
 - `vp run pin-valof <rev>` moves the pin. The lockfile records only the link path, so moving the pin
   leaves the lockfile unchanged
 - The pin exists for local work in progress. Even with a half-written, broken `src`, the scripts run on
@@ -24,7 +29,7 @@ pointed at `valof-release` (0.9.1 on npm), and the scripts caught up only after 
 **A diff of the build inputs between the pin and the working tree decides whether they match.**
 
 ```sh
-git diff --quiet "$pin" -- src vite.config.ts tsconfig.json tsconfig.build.json
+git diff --quiet "$pin" -- src tsconfig.json tsconfig.build.json
 ```
 
 - Compare with the working tree, not HEAD. `dist` is built from the working tree. On CI the two are
@@ -33,6 +38,8 @@ git diff --quiet "$pin" -- src vite.config.ts tsconfig.json tsconfig.build.json
   output
 - Leave out `package.json`. It holds the pin's hash, and changes with the version bump at release
   too. valof has no runtime dependencies, so leaving it out misses nothing
+- Leave out `vite.config.ts` (since 2026-11-11). Its `pack` section configures only the linter's
+  build, and the pin no longer builds the linter
 
 **ts-compatibility reads the scripts as fixtures only when they match.** It runs the scripts that
 import `#valof` through type checking and declaration output on each line. When they do not match, it

@@ -205,11 +205,13 @@ export type LoneTrait<Tr> = Kind<Tr> & AnyTrait & Lone<Tr> & Single<Tr>;
 
 // The key is the error message. For an intersection, the checker reports the key as missing from it.
 type Lone<Tr> = {
-  readonly [K in LoneMessage as [Tr] extends [UnionToIntersection<Tr>]
-    ? [BrandNames<Tr>] extends [UnionToIntersection<BrandNames<Tr>>]
-      ? never
+  readonly [
+    K in LoneMessage as [Tr] extends [UnionToIntersection<Tr>]
+      ? [BrandNames<Tr>] extends [UnionToIntersection<BrandNames<Tr>>]
+        ? never
+        : K
       : K
-    : K]: never;
+  ]: never;
 };
 
 type BrandNames<Tr> = keyof BrandsOf<Tr>;
