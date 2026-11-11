@@ -2,7 +2,7 @@ import { pipe } from "../../shared/pipe/index.ts";
 import { Answer, type Query, Reply } from "./messages.ts";
 import { Patterns, type Project } from "../files.ts";
 import type { Finding } from "../index.ts";
-import type { LinterWorker } from "./channel.ts";
+import type { LinterWorker } from "./linter-worker.ts";
 
 /**
  * The worker's answer, asked once per file, however many of the rules are on. The host creates

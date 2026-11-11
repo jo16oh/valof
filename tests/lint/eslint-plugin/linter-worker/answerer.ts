@@ -1,7 +1,7 @@
 import { writeFileSync } from "node:fs";
 import { threadId } from "node:worker_threads";
 
-import { serve } from "../../../../src/lint/eslint-plugin/channel.ts";
+import { serve } from "../../../../src/lint/eslint-plugin/serve.ts";
 import { Reply } from "../../../../src/lint/eslint-plugin/messages.ts";
 
 // Answers by the query's `file`: names its thread, rejects, answers with what cannot be sent, or

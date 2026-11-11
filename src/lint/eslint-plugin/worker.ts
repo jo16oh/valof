@@ -3,9 +3,9 @@ import { Result as R } from "@praha/byethrow";
 import { Reply } from "./messages.ts";
 import { Options } from "../options.ts";
 import { run } from "../run.ts";
-import { serve } from "./channel.ts";
+import { serve } from "./serve.ts";
 
-// The worker the plugin asks, one file at a time. See `worker` in `index.ts`.
+// The worker the plugin asks, one file at a time. See `LinterWorker`.
 serve(
   async ({ project, file, text }) => {
     const found = await run(project, Options.create({ targets: [file], overlay: [[file, text]] }));

@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { expect, test } from "vite-plus/test";
 
-import { LinterWorker } from "../../../../src/lint/eslint-plugin/channel.ts";
+import { LinterWorker } from "../../../../src/lint/eslint-plugin/linter-worker.ts";
 import { Query, Reply } from "../../../../src/lint/eslint-plugin/messages.ts";
 import { Project } from "../../../../src/lint/files.ts";
 
@@ -27,7 +27,7 @@ test("asks the same worker again, once it has answered", () => {
 
 test("stops a wedged worker, and asks a new one next", async () => {
   const worker = new LinterWorker(script, PATIENCE);
-  const dir = mkdtempSync(join(tmpdir(), "valof-channel-"));
+  const dir = mkdtempSync(join(tmpdir(), "valof-linter-worker-"));
   try {
     const count = join(dir, "count");
     expect(() => say(worker, "wedge", count)).toThrow(

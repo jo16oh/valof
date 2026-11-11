@@ -1,5 +1,3 @@
-import { extname } from "node:path";
-
 import type { Rule } from "eslint";
 
 import { AnswerCache, ProjectCache } from "./caches.ts";
@@ -7,7 +5,7 @@ import { Query } from "./messages.ts";
 import { Underline } from "./underline.ts";
 import { Patterns } from "../files.ts";
 import { RULES } from "../index.ts";
-import { LinterWorker } from "./channel.ts";
+import { LinterWorker } from "./linter-worker.ts";
 
 export default valof();
 
@@ -29,22 +27,7 @@ function valof(): {
   >;
   configs: { recommended: { rules: Record<string, "error" | "warn"> } };
 } {
-  /**
-   * `lint` is async, and a rule is not.
-   *
-   * `create` returns a visitor, and a visitor cannot be async. So the run happens in a worker,
-   * `worker` beside this file. Its extension is this file's own, since the source tree runs as
-   * `.ts` and the package ships `.mjs`.
-   *
-   * The patience is long enough that no run reaches it, short enough that a wedged worker still
-   * says so.
-   */
-  const worker = new LinterWorker(
-    new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
-    60_000,
-  );
-
-  const answers = new AnswerCache(worker);
+  const answers = new AnswerCache(new LinterWorker());
   const projects = new ProjectCache();
 
   return {

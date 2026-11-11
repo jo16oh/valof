@@ -1,16 +1,21 @@
+import { extname } from "node:path";
 import {
   MessageChannel,
-  parentPort,
   receiveMessageOnPort,
   Worker,
-  workerData,
   type MessagePort,
 } from "node:worker_threads";
 
 import type { Query, Reply } from "./messages.ts";
 
 /**
- * Asks a worker running `script` and blocks until it answers, for a caller that cannot be async.
+ * The worker that lints, asked from a rule and blocked on until it answers.
+ *
+ * `lint` is async, and a rule is not: `create` returns a visitor, and a visitor cannot be async. So
+ * the run happens in a worker, `worker` beside this file, started with its extension: the source
+ * tree runs as `.ts` and the package ships `.mjs`. Only the plugin's entry imports this file, so
+ * the build keeps it there, beside `worker.mjs`. Imported by the worker as well, it would move to a
+ * chunk of its own and look for the worker in the wrong directory.
  *
  * The thread blocks on `Atomics.wait` until the answer is in the port's queue, and
  * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here. The port
@@ -18,14 +23,18 @@ import type { Query, Reply } from "./messages.ts";
  *
  * The worker starts on the first query and answers the rest. One that does not answer within
  * `patience` milliseconds is stopped, and the next query starts another: a worker still busy would
- * leave every later query waiting behind it.
+ * leave every later query waiting behind it. The default is long enough that no run reaches it,
+ * short enough that a wedged worker still says so.
  */
 export class LinterWorker {
   readonly #script: URL;
   readonly #patience: number;
   #worker: { thread: Worker; port: MessagePort; signal: Int32Array } | undefined;
 
-  constructor(script: URL, patience: number) {
+  constructor(
+    script = new URL(`./worker${extname(import.meta.url)}`, import.meta.url),
+    patience = 60_000,
+  ) {
     this.#script = script;
     this.#patience = patience;
   }
@@ -56,30 +65,4 @@ export class LinterWorker {
     if (!reply) throw new Error("valof-lint: the worker answered nothing");
     return reply.message as Reply;
   }
-}
-
-/**
- * Answers what {@link LinterWorker} asks, in the worker.
- *
- * `fail` makes the answer when `respond` throws, or when its answer cannot be sent: whatever
- * happened, the thread waiting on this has to receive something.
- */
-export function serve(
-  respond: (query: Query) => Promise<Reply>,
-  fail: (error: unknown) => Reply,
-): void {
-  const { port, signal } = workerData as { port: MessagePort; signal: Int32Array };
-  parentPort?.on("message", (query: Query) => {
-    void respond(query)
-      .catch(fail)
-      .then((reply) => {
-        try {
-          port.postMessage(reply);
-        } catch (error) {
-          port.postMessage(fail(error));
-        }
-        Atomics.store(signal, 0, 1);
-        Atomics.notify(signal, 0);
-      });
-  });
 }
