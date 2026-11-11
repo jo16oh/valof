@@ -123,6 +123,8 @@ The WeakSet wins on more than speed.
 
 It is internal, so it can be swapped later without a breaking change if needed.
 
+A private field later replaced the WeakSet ("The ownership mark is a private field", below). A private field is non-enumerable without `defineProperty`, and none of the marks measured above was.
+
 ### What production `nocopy` costs, measured 2026-11-11
 
 valof-lint builds every AST node with `create.nocopy`. Converting `src/val.ts` (6,798 nodes) took 4.5 ms in production, and `adopt` took half of it. Measured with Node 24.21 / M-series, `NODE_ENV=production`, per object over 6,800 objects. `adopt` checks `owned` and then adds to `adopted`. The benchmarks approximate that with `has` + `add` on one WeakSet. Each table here and in the next section is a separate run. The long-lived WeakSet's figure varies between them, from 116 to 210 ns.
@@ -161,6 +163,55 @@ The idea was a `Map` of small WeakSets, a new one every K registrations, each co
 - **The sets are not removed in time.** A `FinalizationRegistry` callback runs after a GC, as a task of its own. No set is removed during a synchronous burst, such as converting one file, so the sets accumulate
 
 **Rejected because JS exposes no identity hash: a B-tree or any ordered structure.** Objects cannot be ordered without an identity hash. Giving each one an id needs a WeakMap, which costs about what a WeakSet does, or a mark on the object, which "Rejected: holding the ownership mark under a symbol key" rejects. Holding the objects in anything but a WeakSet, a WeakMap or a WeakRef keeps them alive.
+
+### The ownership mark is a private field, 2026-11-11
+
+`owned` and `adopted` were WeakSets. Each is now a private field that a class adds to the node. A base class's constructor returns the object it is given, so a subclass's field is defined on that object (the "return override" trick).
+
+```ts
+class Stamp {
+  constructor(value: object) {
+    return value;
+  }
+}
+class Owned extends Stamp {
+  #owned = true;
+  static has = (value: object): boolean => #owned in value;
+}
+new Owned(node); // marks `node` itself
+```
+
+| Per object, Node 24.21, production | WeakSet (long-lived) | private field |
+| ---------------------------------- | -------------------- | ------------- |
+| mark                               | 89.5 ns              | 5.9 ns        |
+| check, marked                      | 4.9 ns               | 1.6 ns        |
+| check, not marked                  | about 5 ns           | 14.3 ns       |
+
+It keeps what the WeakSet gave, including what the symbol mark above could not give.
+
+- **It is invisible on the object.** It adds no key, no symbol and no prototype, so `JSON.stringify`, `Object.keys` and lodash-style `isPlainObject` see a plain object
+- **A spread does not carry it,** so `{ ...value }` is a new, unmarked object, as with the WeakSet. The enumerable symbol failed here
+- **Nothing outside `src/val.ts` can read or forge it.** A second copy of valof has its own fields, and a miss costs a copy, as before
+- **`structuredClone` and JSON drop it,** with the same result: a copy
+
+| Production, per operation             | WeakSet    | private field |
+| ------------------------------------- | ---------- | ------------- |
+| `seal` of a flat value of 3 keys      | 159 ns     | 95 ns         |
+| building a list of 200 Vals           | 57.2 µs    | 25.1 µs       |
+| `patch` of one key of a 50-entry Val  | 283 ns     | 210 ns        |
+| `patch` of a nested key               | 480 ns     | 323 ns        |
+| 6,800 enum nodes with `create.nocopy` | 800 µs     | 294 µs        |
+| valof-lint's AST of `src/val.ts`      | 3.9–4.4 ms | 2.2–2.6 ms    |
+
+What the field requires:
+
+- **A non-extensible object gets no mark.** A TC39 proposal at Stage 3 since September 2025, "Nonextensible Applies to Private", makes adding a private field to a frozen or sealed object throw. JavaScriptCore has an implementation and V8 a flag. The code checks `Object.isExtensible` first, so it behaves the same on either side of the change
+- **`nocopy` copies a non-extensible root once.** Left unmarked, it would be copied by every derivation from it. The copy is marked, and derivations share its nodes from then on. Development checks the payload before the copy, so a non-extensible payload with an accessor or a cycle throws the same error as an extensible one. The copy keeps only enumerable keys, as `seal` does, whereas adopting also kept a child under a non-enumerable key
+- **A non-extensible node deeper in a `nocopy` payload stays unmarked.** Every copy that reaches it copies it again, whereas a WeakSet entry let the copies share it. A non-extensible cycle, which development rejects, now overflows the stack in production when a derivation copies it
+- **A node is never marked twice.** A second field initialization throws, so `adopt` checks `Adopted.has` first. `indexAdopted` cannot delete the `adopted` field as it deleted the WeakSet entry, so `indexAdopted` tells an indexed root apart by its `Owned` mark, and its walk stops at marked nodes
+- **The project's style forbids `extends`.** The trick needs it, so `Stamp` is the exception, with the lint rules it triggers (`no-new`, `no-extraneous-class`, `no-unused-private-class-members`) disabled on the lines that report them
+- **Val production gzip: 958 B → 1017 B,** within the 1.00 kB budget once this change trimmed the rest of the ownership code: `map` takes `copy` itself, and the index walk stops at marked nodes
+- **A check that finds no mark is slower than the WeakSet's.** The paths that check most (`copy`, `adopt`) also mark, and the mark dominates
 
 ### A `patch` that changes nothing returns the value itself
 
