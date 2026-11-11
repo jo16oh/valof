@@ -11,7 +11,8 @@ description:
 
 # Proofread
 
-One pass over prose, separate from writing it. Report findings; apply them only after approval.
+One pass over prose, separate from writing it. Report findings. The writer applies the clear ones
+and asks the user about the rest.
 
 This file is the record. A rewrite that taught something new goes in as a rule here, with the
 example that raised it.
