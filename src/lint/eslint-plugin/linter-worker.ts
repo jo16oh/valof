@@ -7,7 +7,9 @@ import {
 } from "node:worker_threads";
 
 import { pipe } from "../../shared/pipe/index.ts";
-import { Answer, type Query, Reply } from "./messages.ts";
+import { Result as R } from "@praha/byethrow";
+
+import { Answer, type Query, type Reply } from "./messages.ts";
 import type { Finding } from "../index.ts";
 
 /**
@@ -57,12 +59,8 @@ export class LinterWorker {
     const findings = pipe(
       query,
       (asked) => this.#ask(asked),
-      Reply.match({
-        Found: ({ findings }) => findings,
-        Failed: ({ message }) => {
-          throw new Error(message);
-        },
-      }),
+      R.mapError((message) => new Error(message)),
+      R.unwrap(),
     );
     this.#last = Answer.seal({ key, findings });
     queueMicrotask(() => (this.#last = undefined));

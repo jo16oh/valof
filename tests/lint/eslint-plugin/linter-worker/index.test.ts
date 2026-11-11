@@ -54,8 +54,19 @@ test("stops a wedged worker, and asks a new one next", async () => {
 
 test("throws what the worker makes of a failure, in the answer or in sending it", () => {
   const worker = new LinterWorker(script, PATIENCE);
-  expect(() => say(worker, "reject")).toThrow("failed: Error: rejected");
-  expect(() => say(worker, "uncloneable")).toThrow(/^failed: DataCloneError/);
+  expect(thrown(() => say(worker, "reject")).message).toBe("failed: Error: rejected");
+  expect(thrown(() => say(worker, "uncloneable")).message).toMatch(/^failed: DataCloneError/);
 });
 
 const pause = () => new Promise((done) => setTimeout(done, 200));
+
+/** The error `act` throws. A host reads the message off an `Error`, so anything else fails. */
+function thrown(act: () => unknown): Error {
+  try {
+    act();
+  } catch (error) {
+    if (error instanceof Error) return error;
+    throw new Error(`threw ${String(error)}, not an Error`);
+  }
+  throw new Error("threw nothing");
+}

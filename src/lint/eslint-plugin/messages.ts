@@ -1,6 +1,8 @@
 import { resolve } from "node:path";
 
-import { Enum, Val } from "../../index.ts";
+import type { Result as R } from "@praha/byethrow";
+
+import { Val } from "../../index.ts";
 import type { Project } from "../files.ts";
 import type { Finding } from "../index.ts";
 
@@ -24,9 +26,11 @@ export const Query = Val.companion<Query>()
   }))
   .build();
 
-/** What the worker answers, the findings or the message to throw. */
-export type Reply = Enum<"Reply", { Found: { findings: Finding[] }; Failed: { message: string } }>;
-export const Reply = Enum.companion<Reply>().build();
+/**
+ * What the worker answers: the findings, or the message to throw. A message rather than the error,
+ * since an error's class does not survive the copy between threads.
+ */
+export type Reply = R.Result<Finding[], string>;
 
 /** The findings for one query, under the key the next query is compared by. */
 export type Answer = Val<"Answer", { key: string; findings: Finding[] }>;
