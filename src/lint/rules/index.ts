@@ -1,7 +1,6 @@
 import { HiddenSharedStateInImpl } from "./hidden-shared-state-in-impl.ts";
 import { DataTypeOutsideValof } from "./data-type-outside-valof.ts";
 import { HiddenOptional } from "./hidden-optional.ts";
-import { SplitVariantSteps } from "./split-variant-steps.ts";
 import { DetachedVariant } from "./detached-variant.ts";
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
@@ -37,7 +36,6 @@ export const RULES = [
   Rule.dyn(HiddenSharedStateInImpl, HiddenSharedStateInImpl.create()),
   Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(DataTypeSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
-  Rule.dyn(SplitVariantSteps, SplitVariantSteps.create()),
   Rule.dyn(DetachedVariant, DetachedVariant.create()),
   Rule.dyn(IncompleteDisable, IncompleteDisable.create()),
   Rule.dyn(UnusedDisable, UnusedDisable.create()),
@@ -52,7 +50,6 @@ export {
   HiddenSharedStateInImpl,
   DataTypeOutsideValof,
   HiddenOptional,
-  SplitVariantSteps,
   DetachedVariant,
   UnnecessaryAlias,
   BrandMismatch,

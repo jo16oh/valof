@@ -23,7 +23,6 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `inferred-val-of`             | a `Val.of` that names no type, taking one from its target                          | warning |
 | `hidden-shared-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`       | warning |
 | `detached-variant`            | a variant bound to a local name without the name of its enum                       | warning |
-| `split-variant-steps`         | a variant whose steps are split by another variant's steps in the chain            | warning |
 | `hidden-optional`             | a default or rest parameter that a member's type annotation hides                  | error   |
 | `data-type-outside-valof`     | a data type declared outside Valof                                                 | off     |
 | `incomplete-disable`          | a disable comment leaving out the rules it silences, or its scope                  | error   |

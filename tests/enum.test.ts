@@ -1934,6 +1934,40 @@ describe("the order of the steps", () => {
     expectTypeOf(implemented.Square).toHaveProperty("implSeal");
   });
 
+  test("a variant's steps are written together: another variant's step removes them", () => {
+    const squared = Enum.companion<Shape>()
+      .Circle.implSeal((c, seal) => seal(c))
+      .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+      .Square.impl(() => ({ perimeter: (s) => s.side * 4 }));
+    expectTypeOf(squared).not.toHaveProperty("Circle");
+    expect(squared.Square.implAssoc(() => ({ UNIT: 1 })).build().Square.UNIT).toBe(1);
+
+    const unsealed = Enum.companion<Shape>()
+      .Circle.implCreate.noseal(() => ({ r: 1 }))
+      .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+      .build();
+    expect(unsealed.Circle.diameter(unsealed.Circle.create())).toBe(2);
+  });
+
+  test("whichever step a variant took, another variant's step removes it", () => {
+    type Round = Trait<"Round", { r: number }, { area: (self: Self) => number }>;
+    const Round = Trait.companion<Round>().build();
+    type Disc = Enum<"Disc", { Circle: { r: number } & Round; Square: { side: number } }>;
+    const start = () => Enum.companion<Disc>();
+    const sealed = start().Circle.implSeal((c, seal) => seal(c));
+    const created = start().Circle.implCreate((r: number) => ({ r }));
+    const implemented = start().Circle.impl(() => ({ d: (c) => c.r * 2 }));
+    const traited = start().Circle.implTrait(Round, () => ({ area: (c) => c.r * c.r }));
+    const associated = start().Circle.implAssoc(() => ({ UNIT: 1 }));
+    const square = { perimeter: (s: VariantOf<Disc, "Square">) => s.side * 4 };
+
+    expectTypeOf(sealed.Square.impl(() => square)).not.toHaveProperty("Circle");
+    expectTypeOf(created.Square.impl(() => square)).not.toHaveProperty("Circle");
+    expectTypeOf(implemented.Square.impl(() => square)).not.toHaveProperty("Circle");
+    expectTypeOf(traited.Square.impl(() => square)).not.toHaveProperty("Circle");
+    expectTypeOf(associated.Square.impl(() => square)).not.toHaveProperty("Circle");
+  });
+
   test("`impl` takes the members: `.build()` closes the chain, not `.impl()`", () => {
     // Never called: the empty call would throw before the type is the point.
     const bare = () => {

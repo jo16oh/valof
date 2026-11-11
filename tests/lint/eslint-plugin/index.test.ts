@@ -130,7 +130,6 @@ test("names every rule, under the plugin's own name", () => {
     // The members work, but what the step declares gives them state they share and no reader sees.
     "valof/hidden-shared-state-in-impl": "warn",
     "valof/hidden-optional": "error",
-    "valof/split-variant-steps": "warn",
     "valof/detached-variant": "warn",
     "valof/unnecessary-alias": "error",
     "valof/unimplemented-trait": "error",

@@ -42,10 +42,11 @@ export const variantSeal = enumStart.Circle.implSeal((c, seal) => seal(c));
 export const variantCreate = variantSeal.Circle.implCreate(() => ({ r: 1, name: "c" }));
 export const variantNoseal = enumStart.Circle.implCreate.noseal(() => ({ r: 1, name: "c" }));
 export const variantImpl = variantCreate.Circle.impl(() => ({ d: (c) => c.r * 2 }));
-export const variantAssoc = variantImpl.Circle.implAssoc(() => ({ unit: () => 1 }))
-  .Rect.implAssoc(() => ({ a: () => 1 }))
-  .Rect.implAssoc(() => ({ b: () => 1 }));
-export const variantDone = variantAssoc.Circle;
+export const variantDone = variantImpl.Circle.implAssoc(() => ({ unit: () => 1 }));
+export const variantDoneSteps = variantDone.Circle;
+export const variantAssoc = variantDone.Rect.implAssoc(() => ({ a: () => 1 })).Rect.implAssoc(
+  () => ({ b: () => 1 }),
+);
 export const enumSeal = variantAssoc.implSeal((s, seal) => seal(s));
 export const enumCreate = enumSeal.implCreate(() => ({ _tag: "Rect" as const, w: 1, name: "r" }));
 export const enumNoseal = enumSeal.implCreate.noseal(() => ({

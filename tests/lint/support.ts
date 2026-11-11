@@ -25,7 +25,6 @@ const registered = (companion: { create: (settings: never) => { kind: string } }
 export const HiddenSharedStateInImpl = registered(Rules.HiddenSharedStateInImpl);
 export const DataTypeOutsideValof = registered(Rules.DataTypeOutsideValof);
 export const HiddenOptional = registered(Rules.HiddenOptional);
-export const SplitVariantSteps = registered(Rules.SplitVariantSteps);
 export const DetachedVariant = registered(Rules.DetachedVariant);
 export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
 export const UnimplementedTrait = registered(Rules.UnimplementedTrait);
