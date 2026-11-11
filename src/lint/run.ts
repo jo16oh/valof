@@ -20,10 +20,6 @@ export async function run(
   options: Options = Options.create(),
   cache: ScanCache = new ScanCache(),
 ): Promise<R.Result<Finding[], MissingParserError>> {
-  const loaded = await Parser.load();
-  if (R.isFailure(loaded)) return loaded;
-  const parser = loaded.value;
-
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
   const toScan = [
@@ -32,7 +28,9 @@ export async function run(
   ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
   const sources = toScan.map((file) => [file, FilePath.read(file, options.overlay)] as const);
-  const scans = cache.scan(parser, sources, modules);
+  const scanned = await cache.scan(() => Parser.load(), sources, modules);
+  if (R.isFailure(scanned)) return scanned;
+  const scans = scanned.value;
 
   const rules = compile(options.enable);
   // An opt-in rule left off is out of the run as much as a skipped one.

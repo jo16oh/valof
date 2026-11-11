@@ -104,7 +104,7 @@ export type Reply = R.Result<Finding[], string>;
  * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here. The port
  * and the signal go to the worker once, as it starts, so a query is all that each ask sends.
  *
- * The worker starts on the first query and answers the rest. One that does not answer within
+ * The worker starts on the first query, or earlier through {@link LinterWorker.start}, and answers the rest. One that does not answer within
  * `patience` milliseconds is stopped, and the next query starts another: a worker still busy would
  * leave every later query waiting behind it. The default is long enough that no run reaches it,
  * short enough that a wedged worker still says so.
@@ -149,24 +149,32 @@ export class LinterWorker {
     return findings;
   }
 
-  #ask(query: Query): Reply {
-    if (!this.#worker) {
-      const { port1, port2 } = new MessageChannel();
-      const signal = new Int32Array(new SharedArrayBuffer(4));
-      const thread = new Worker(START, {
-        workerData: { port: port2, signal, script: this.#script.href },
-        transferList: [port2],
-        // As in the shipped package, which builds the linter with NODE_ENV=production. The linter
-        // declares every Val it builds from the parser's output, so valof's development checks
-        // guard no user code. From source, they take most of the time converting the AST.
-        env: { ...process.env, NODE_ENV: "production" },
-      });
-      // The host decides when it exits. A linter waiting on its own worker would never finish.
-      thread.unref();
-      this.#worker = { thread, port: port1, signal };
-    }
+  /**
+   * Starts the worker, if it is not running, so it imports the linter while the caller does other
+   * work.
+   */
+  start(): { thread: Worker; port: MessagePort; signal: Int32Array } {
+    if (this.#worker) return this.#worker;
 
-    const { thread, port, signal } = this.#worker;
+    const { port1, port2 } = new MessageChannel();
+    const signal = new Int32Array(new SharedArrayBuffer(4));
+    const thread = new Worker(START, {
+      workerData: { port: port2, signal, script: this.#script.href },
+      transferList: [port2],
+      // As in the shipped package, which builds the linter with NODE_ENV=production. The linter
+      // declares every Val it builds from the parser's output, so valof's development checks
+      // guard no user code. From source, they take most of the time converting the AST.
+      env: { ...process.env, NODE_ENV: "production" },
+    });
+    // The host decides when it exits. A linter waiting on its own worker would never finish.
+    thread.unref();
+    this.#worker = { thread, port: port1, signal };
+
+    return this.#worker;
+  }
+
+  #ask(query: Query): Reply {
+    const { thread, port, signal } = this.start();
     Atomics.store(signal, 0, 0);
     thread.postMessage(query);
     if (Atomics.wait(signal, 0, 0, this.#patience) === "timed-out") {

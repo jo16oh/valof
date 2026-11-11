@@ -51,26 +51,30 @@ function valof(): {
             // lets the copies disagree. See `Patterns.fromSettings`.
             schema: [],
           },
-          create: (context: Rule.RuleContext) => ({
-            Program(): void {
-              const file = resolve(context.filename);
-              const findings = pass.findings(
-                `${file}\n${JSON.stringify(context.settings)}\n${context.sourceCode.text}`,
-                () =>
-                  worker.lint(
-                    Query.read(context, projects.glob(Patterns.fromSettings(context.settings))),
-                  ),
-              );
-              for (const finding of findings)
-                if (finding.kind === kind && resolve(finding.file) === file)
-                  context.report({
-                    loc: Underline.fromFinding(finding, context.sourceCode.text),
-                    // No kind in the message: the rule the host names is the kind, and every
-                    // host that renders a finding renders the rule name with it.
-                    message: finding.message,
-                  });
-            },
-          }),
+          create: (context: Rule.RuleContext) => {
+            // The worker imports the linter while this thread globs the project and reads the file.
+            worker.start();
+            return {
+              Program(): void {
+                const file = resolve(context.filename);
+                const findings = pass.findings(
+                  `${file}\n${JSON.stringify(context.settings)}\n${context.sourceCode.text}`,
+                  () =>
+                    worker.lint(
+                      Query.read(context, projects.glob(Patterns.fromSettings(context.settings))),
+                    ),
+                );
+                for (const finding of findings)
+                  if (finding.kind === kind && resolve(finding.file) === file)
+                    context.report({
+                      loc: Underline.fromFinding(finding, context.sourceCode.text),
+                      // No kind in the message: the rule the host names is the kind, and every
+                      // host that renders a finding renders the rule name with it.
+                      message: finding.message,
+                    });
+              },
+            };
+          },
         },
       ]),
     ),
