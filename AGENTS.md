@@ -4,9 +4,10 @@
 
 `notes/design/` holds every design decision and the alternatives rejected along the way. Each
 section has a file of its own. `notes/design/README.md` is the index. Read the files it lists before
-proposing anything about equality, copying, wrapper types, the linter, or new API. §9 lists the open
-questions. New deliberation goes in §9. A new section gets a file of its own and a line in the
-index.
+proposing anything about equality, copying, wrapper types, the linter, or new API. Before changing a
+file, read the sections the index's "Code to memo" table lists for its path. Before proposing an
+alternative, search for it with the command the index gives. §9 lists the open questions. New
+deliberation goes in §9. A new section gets a file of its own and a line in the index.
 
 ## Writing Code with Valof
 

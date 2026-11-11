@@ -88,7 +88,7 @@ None of these was A or B. **When you write a new check, confirm it sits at A or 
 
 The way to confirm is mutation. Remove the check and see whether the `@ts-expect-error` becomes unused. If nothing goes red, the test checks nothing.
 
-## 11.5 Dropped alternatives
+## 11.5 Rejected alternatives
 
 - **Putting it in the return type** (§11.1). Considered once for `Takes`, and rejected.
 - **Writing both A and B.** After `Declarable` moved to B, the A-side gate left in `Alone` was removed. When the same check lives in two places, fixing the B side leaves the A side behind as an unreachable defence. In fact, adding `Fits` made `V extends ShapeOf<Tr>` in `Takes` unreachable, and it was dropped.

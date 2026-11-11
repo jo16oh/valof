@@ -299,7 +299,7 @@ Where the only place for information is a parameter type, an embedded message is
 
 **The `impl` prefix also belongs to the library.** `.impl({ implTrait: fn })` overwrites nothing, because `.impl(fns)` builds and returns a new object from `base()`, and the step methods are not assigned to it. The types `Sealed` / `Companion` have no steps either. The chain has ended, so nothing can collide. It is rejected anyway, because `User.implTrait(u)` reads as a step. Reserving the whole prefix means a new step never collides with a user's name. `fixed` is not rejected. It is a legitimate member name, as in `Money.fixed(m)`, and nothing can collide with it.
 
-### No `implSeal` on a sealer
+### Rejected: `implSeal` on a sealer
 
 **2026-10-21: the sealer itself is removed (§6.12).**
 
@@ -451,7 +451,7 @@ an await is still detected in development by `changedDuringSeal`.
 The production bundle does not change (852 B gzip). Type instantiations: core 5,665 → 5,781, enum
 33,264 → 33,537.
 
-### No `create` on a sealer
+### Rejected: `create` on a sealer
 
 **2026-10-21: the sealer itself is removed (§6.12).**
 

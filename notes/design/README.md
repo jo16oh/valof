@@ -13,6 +13,12 @@ import { Val } from "valof";
 
 Each file reads on its own. Open only the ones you need. A `§` number refers to a section. The list below links each section to its file.
 
+An alternative never adopted is recorded under a heading, or in a bold lead-in, that starts with `Rejected` (after the section number, if it has one). A design adopted and later removed has a heading that ends with `Withdrawn <date>`. This command lists both:
+
+```sh
+grep -rnE '^#+ .*(Rejected|Withdrawn)|^ *(- )?\*\*(Rejected|Withdrawn)' notes/design
+```
+
 - **§1 Design philosophy** ([01-philosophy.md](01-philosophy.md)) "Values are plain data. Behavior lives outside them." The basis for every other decision. The per-call cost of making members dual
 - **§2 Basic API** ([02-basic-api.md](02-basic-api.md)) `Val.companion` / `.seal` / `.impl`. 2.1 why the brand is a phantom string (the record of rejecting symbol and a function type that a boundary strips; the key went back to symbol on 2026-10-26), 2.2 `Val.of` is not an escape hatch
 - **§3 Allowed types** ([03-allowed-types.md](03-allowed-types.md)) Primitive / Val / ReadonlyArray / Record only. Why a payload does not use `readonly`, 3.5 why `undefined` is forbidden as a value, and the EOPT wall, 3.6 why unions of objects are forbidden, 3.7 self-reference with `Rec`
@@ -42,7 +48,7 @@ Each file reads on its own. Open only the ones you need. A `§` number refers to
   - **14.8** ([14.8-rule-representation.md](14.8-rule-representation.md)) how rules are expressed and organized
   - **14.9** ([14.9-editor-integration.md](14.9-editor-integration.md)) editor integration, implemented up to the overlay
   - **14.10–14.11** ([14.10-tests.md](14.10-tests.md)) the holes in the tests (§14.10), where the tests live (§14.11)
-  - **14.12–14.18, 14.21–14.27** ([14.12-rules.md](14.12-rules.md)) a brand that does not match the type name (§14.12), the spelling of `Val` (§14.13), missing disable comments (§14.14), ineffective disable comments (§14.15), file-wide disable (§14.16), rules that do not accept `--no-` (§14.17), how rules about directives are presented (§14.18), a companion that does not match the type name (§14.21), a companion in a different file from its type (§14.22), `Val.of` on a type with a companion (§14.23), `Val.of` without a type argument (§14.24), a second name for a Val / Trait (§14.25), the rejected rule for a `Rec` that is not self-referencing (§14.26), `unused-member` and the names the types reject (§14.27, lint names tied to the types, the dropped `impl` prefix match)
+  - **14.12–14.18, 14.21–14.27** ([14.12-rules.md](14.12-rules.md)) a brand that does not match the type name (§14.12), the spelling of `Val` (§14.13), missing disable comments (§14.14), ineffective disable comments (§14.15), file-wide disable (§14.16), rules that do not accept `--no-` (§14.17), how rules about directives are presented (§14.18), a companion that does not match the type name (§14.21), a companion in a different file from its type (§14.22), `Val.of` on a type with a companion (§14.23), `Val.of` without a type argument (§14.24), a second name for a Val / Trait (§14.25), the rejected rule for a `Rec` that is not self-referencing (§14.26), `unused-member` and the names the types reject (§14.27, lint names tied to the types, the withdrawn `impl` prefix match)
   - **14.19–14.20** ([14.19-oxlint.md](14.19-oxlint.md)) the oxlint version and the canonical config, the `no-unsafe-*` rules not added (§14.19), host integration tests over LSP (§14.20, withdrawn)
 - **§15 v2 candidates**
   - **15.1 `Trait`** ([15.1-trait.md](15.1-trait.md)) The `Final<F>` marker and a one-step `impl`, intersecting trait brands and a `|` removed by type arguments alone (the rejected tuple), the `Self` marker and the ban on returning it, `Self` only as the first parameter (2026-11-03, the dropped "report `Payload` in a member's parameters through the trait"), `Impl` (2026-11-04, separating the declaration's type from the value's type, the rejected marker interface), `dyn` (the equivalent of `Box<dyn Trait>`), the rejected WeakMap dispatch, demand and the rejected shape that lets `dyn` be dropped, the experimental subpath (the rejected per-feature subpath, removed on 2026-10-27), the callback form of `impl` (its argument is only the implemented finals, the rejected implementer-side companion), removing the form that passes a Trait as a type argument, Vals bring a shape too (the conflict check, stripping `readonly`, the declaration bundler and backticks)
@@ -53,3 +59,26 @@ Each file reads on its own. Open only the ones you need. A `§` number refers to
 - **§17 Effect v4 investigation** ([17-effect-v4.md](17-effect-v4.md)) The typeclass and HKT layers Effect dropped (the basis for §15.3), placing equality inside the value, the hole that structural comparison of classes opens, what Effect has and valof does not
 - **§18 Distribution shape** ([18-package-shape.md](18-package-shape.md)) Making `Val` / `Enum` / `Trait` namespaces so tree shaking drops unused members. Exporting under the same name as the type, why tsc emits the runtime entry file by file (Rolldown's `__exportAll` and type names in `.d.ts`), the bundle-size base, raising the declaration budget to 96 kB. The rejected `.ts` distribution and `.d.ts` minification. 18.4 the `internal/*` that consumers' declaration emit references (the rejected export from the entry, `PrivateSeal` / `PrivateCreate` made into classes), 18.5 keeping declaration emit from cutting types to `any` (builders printed by name, the decision to keep TypeScript 7.1 out of the ts-compatibility lines)
 - **§19 Pinning the valof the scripts use** ([19-pinning-valof.md](19-pinning-valof.md)) Pointing `#valof` at a commit's build. How a match is detected, requiring a match only on the release PR, ts-compatibility copying the scripts and reading them, why the hash goes in `package.json` (`optimisticRepeatInstall`), the rejected git dependency, pkg.pr.new and reading in place. The dual members and lint issues found while updating the scripts
+
+## Code to memo
+
+Before changing the code on the left, read the sections on the right. A path matches every row it starts with.
+
+| Code                                                              | Sections                   |
+| ----------------------------------------------------------------- | -------------------------- |
+| `src/val.ts`, `src/ns/val.ts`                                     | §2–6, §11                  |
+| `src/keys.ts`                                                     | §2.1, §11                  |
+| `src/env.ts`                                                      | §6.11, §7.1                |
+| `src/dual/`                                                       | §6.11, §6.13               |
+| `src/trait.ts`, `src/ns/trait.ts`                                 | §15.1, §15.4               |
+| `src/enum.ts`, `src/ns/enum.ts`                                   | §15.2                      |
+| `src/index.ts`                                                    | §18                        |
+| `src/lint/`                                                       | §14.1–14.7                 |
+| `src/lint/rules/`, `src/lint/scan/`                               | §14.8, §14.12–14.27, §15.1 |
+| `src/lint/eslint-plugin/`                                         | §14.9, §14.19–14.20        |
+| `tests/lint/`                                                     | §14.10–14.11               |
+| `scripts/bundle-size/`, `scripts/type-perf/`                      | §16, §18                   |
+| `scripts/ts-compatibility/`, `scripts/shared/typescript-lines.ts` | §10.1, §18.5               |
+| `scripts/pin-valof/`                                              | §19                        |
+
+A lint rule still being planned is in §9.
