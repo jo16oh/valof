@@ -14,7 +14,7 @@ import { Val } from "../../index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
 import type { Project } from "../files.ts";
 import type { Finding } from "../index.ts";
-import { ModelSettings } from "../options.ts";
+import { DataTypeSettings } from "../options.ts";
 
 /** What the plugin asks the worker about one file. */
 export type Query = Val<
@@ -25,10 +25,10 @@ export type Query = Val<
     file: string;
     text: string;
     /**
-     * The settings of `model-only-in-valof`. It always runs here, because the host reports it only
-     * where the project turned it on.
+     * The settings of `data-type-outside-valof`. It always runs here, because the host reports it
+     * only where the project turned it on.
      */
-    model: ModelSettings;
+    model: DataTypeSettings;
   }
 >;
 export const Query = Val.companion<Query>()
@@ -46,7 +46,7 @@ export const Query = Val.companion<Query>()
         settings:
           | {
               valof?: {
-                "model-only-in-valof"?: Parameters<typeof ModelSettings.create>[0];
+                "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0];
               };
             }
           | undefined;
@@ -57,7 +57,7 @@ export const Query = Val.companion<Query>()
         project,
         file: resolve(filename),
         text,
-        model: ModelSettings.create(settings?.valof?.["model-only-in-valof"]),
+        model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
       }),
   }))
   .impl(() => ({
@@ -71,7 +71,7 @@ export const Query = Val.companion<Query>()
  * What the worker answers: the findings, or the message to throw. A message rather than the error,
  * since an error's class does not survive the copy between threads.
  */
-// valof-lint-disable-next-line model-only-in-valof -- byethrow's Result, which the worker sends as is
+// valof-lint-disable-next-line data-type-outside-valof -- byethrow's Result, sent as is
 export type Reply = R.Result<Finding[], string>;
 
 /**

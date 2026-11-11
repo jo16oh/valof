@@ -1,7 +1,7 @@
 import { Val } from "../../index.ts";
 import type { Position } from "../ast.ts";
 import type { FilePath } from "../files.ts";
-import type { ModelSettings } from "../options.ts";
+import type { DataTypeSettings } from "../options.ts";
 import type { Scan, Shape } from "../scan/index.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 
@@ -12,8 +12,8 @@ import { Finding, Kind, Rule } from "./rule.ts";
  *
  * Off unless enabled, because it enforces a way of modelling and reports nothing broken.
  */
-export type ModelOnlyInValof = Val<
-  "ModelOnlyInValof",
+export type DataTypeOutsideValof = Val<
+  "DataTypeOutsideValof",
   {
     kind: Kind;
     optIn: true;
@@ -23,9 +23,9 @@ export type ModelOnlyInValof = Val<
   },
   Rule
 >;
-export const ModelOnlyInValof = Val.companion<ModelOnlyInValof>()
-  .implCreate(({ classes, constraints, extraction }: ModelSettings) => ({
-    kind: Kind.seal("model-only-in-valof"),
+export const DataTypeOutsideValof = Val.companion<DataTypeOutsideValof>()
+  .implCreate(({ classes, constraints, extraction }: DataTypeSettings) => ({
+    kind: Kind.seal("data-type-outside-valof"),
     description: "a data type declared outside Valof, off by default",
     warns: false,
     optIn: true,
@@ -70,7 +70,7 @@ const SAID: Record<
   },
 };
 
-function findings(rule: ModelOnlyInValof, scans: readonly Scan[]): Finding[] {
+function findings(rule: DataTypeOutsideValof, scans: readonly Scan[]): Finding[] {
   const { kind } = rule;
   const payloads = new Set(scans.flatMap(({ models }) => models.payloadAliases));
   const at = (file: FilePath, { at }: { at: Position }, message: string): Finding =>

@@ -1,8 +1,8 @@
-import { HiddenStateInImpl } from "./hidden-state-in-impl.ts";
-import { ModelOnlyInValof } from "./model-only-in-valof.ts";
+import { HiddenSharedStateInImpl } from "./hidden-shared-state-in-impl.ts";
+import { DataTypeOutsideValof } from "./data-type-outside-valof.ts";
 import { HiddenOptional } from "./hidden-optional.ts";
 import { SplitVariantSteps } from "./split-variant-steps.ts";
-import { UnqualifiedVariant } from "./unqualified-variant.ts";
+import { DetachedVariant } from "./detached-variant.ts";
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
 import { UnnecessaryAlias } from "./unnecessary-alias.ts";
@@ -16,7 +16,7 @@ import { InferredValOf } from "./inferred-val-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
 import { UnimplementedTrait } from "./unimplemented-trait.ts";
-import { ModelSettings, type Options } from "../options.ts";
+import { DataTypeSettings, type Options } from "../options.ts";
 
 /**
  * Every rule, in the order they run and `--help` lists them.
@@ -34,11 +34,11 @@ export const RULES = [
   Rule.dyn(SplitCompanion, SplitCompanion.create()),
   Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
   Rule.dyn(InferredValOf, InferredValOf.create()),
-  Rule.dyn(HiddenStateInImpl, HiddenStateInImpl.create()),
-  Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create(ModelSettings.create())),
+  Rule.dyn(HiddenSharedStateInImpl, HiddenSharedStateInImpl.create()),
+  Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(DataTypeSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
   Rule.dyn(SplitVariantSteps, SplitVariantSteps.create()),
-  Rule.dyn(UnqualifiedVariant, UnqualifiedVariant.create()),
+  Rule.dyn(DetachedVariant, DetachedVariant.create()),
   Rule.dyn(IncompleteDisable, IncompleteDisable.create()),
   Rule.dyn(UnusedDisable, UnusedDisable.create()),
 ];
@@ -49,11 +49,11 @@ export const RULES = [
  * {@link RULES} is what the runner reads. This is for naming a single one.
  */
 export {
-  HiddenStateInImpl,
-  ModelOnlyInValof,
+  HiddenSharedStateInImpl,
+  DataTypeOutsideValof,
   HiddenOptional,
   SplitVariantSteps,
-  UnqualifiedVariant,
+  DetachedVariant,
   UnnecessaryAlias,
   BrandMismatch,
   BypassedCompanion,
@@ -80,12 +80,12 @@ export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";
  * settings.
  */
 export const compile = (enable: Options["enable"]): Dyn<Rule>[] => {
-  const model = enable["model-only-in-valof"];
+  const model = enable["data-type-outside-valof"];
   return RULES.flatMap((rule) =>
     rule.optIn !== true
       ? [rule]
-      : rule.kind === "model-only-in-valof" && model
-        ? [Rule.dyn(ModelOnlyInValof, ModelOnlyInValof.create(model))]
+      : rule.kind === "data-type-outside-valof" && model
+        ? [Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(model))]
         : [],
   );
 };

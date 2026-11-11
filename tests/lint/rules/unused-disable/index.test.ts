@@ -52,7 +52,7 @@ test("blames no rule that was left out of the run", async () => {
 
 test("blames an opt-in rule only when the run turned it on", async () => {
   expect(await lint("opt-in")).toEqual([]);
-  expect(await lint("opt-in-unused", { enable: { "model-only-in-valof": {} } })).toEqual([
+  expect(await lint("opt-in-unused", { enable: { "data-type-outside-valof": {} } })).toEqual([
     { rule: UnusedDisable, at: "opt-in-unused.ts:1:1" },
   ]);
 });

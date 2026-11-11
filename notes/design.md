@@ -3092,6 +3092,10 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
   - **2026-11-03: rebinding under the same name warns too (`unqualified-variant`, warn).** Destructuring and
     `const Circle = Shape.Circle` both hide the enum from the reader (§15.2, "Keep the prefix"). A rename stays with
     `companion-mismatch`. The record from that time follows
+  - **Renamed `detached-variant`, 2026-11-11.** "Unqualified" is a technical word that does not say what the
+    code does (user). The rule reports a variant taken off its enum into a local name, by either form.
+    Rejected: `destructured-variant`. It is the most direct for `const { Circle } = Shape`, but not for
+    `const Circle = Shape.Circle`
   - **A rule against rebinding a Variant.** `const { Circle } = Shape` and `const Circle = Shape.Circle` are
     legal. The only thing to check is that the names match, which an extension of `companion-mismatch` covers
 - [x] ~~**The callback form of §15.4 is not in val.ts yet.**~~ Added, then removed on 2026-09-18. `.impl` closes
@@ -3151,9 +3155,15 @@ BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
     holds no state. A member's own locals, inside its function, are created per call and are not read
     - **Rejected: `step-block-body`.** It describes the form, and `block` was the word that gave no picture
     - **Rejected: `hidden-state-in-impl-block`.** Only a block body can declare anything, so `block` adds nothing
+    - **Then `hidden-shared-state-in-impl`, the same day.** The state is both hidden from a reader of a member and
+      shared by every member, and both are the harm (user)
   - `model-only-in-valof` is added (`__memo__/lint-model-only-in-valof.md`). Its options go to `Options.enable`, and
     the runner builds the boxes to run together with the default rules (css-var-kit's `compile`). No separate rule
     for "built-in types Valof does not allow as values"
+  - **`model-only-in-valof` became `data-type-outside-valof` (2026-11-11).** The old name stated a policy, while
+    every other rule is named after what it reports (user). The CLI flag, the plugin's setting and the key in
+    `Options.enable` follow, and `ModelSettings` became `DataTypeSettings`. Rejected: `type-outside-valof`. The
+    rule leaves out function types and `Payload<…>` aliases, so "type" claims more than it reports
 - [ ] **The book's Map / Set gets membership wrong for inherited keys.** Found while turning valof-lint's Scan into
       Records, 2026-11-07. `docs/src/patterns.md` says "`if (tags[key])` is the membership test", but
       `tags["constructor"]` and `tags["toString"]` are truthy too (probed). The book lacks §8.1's note to check with

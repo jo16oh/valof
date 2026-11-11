@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { Options, lint } from "../../../../src/lint/index.ts";
-import { ModelOnlyInValof, cli, fixtures } from "../../support.ts";
+import { DataTypeOutsideValof, cli, fixtures } from "../../support.ts";
 
 const { files, lint: run } = fixtures(import.meta.url);
 
@@ -9,8 +9,8 @@ const reported = async (
   settings: { classes?: boolean; constraints?: boolean; extraction?: boolean },
   file = "domain",
 ): Promise<string[]> =>
-  (await lint(files(file), Options.create({ enable: { "model-only-in-valof": settings } })))
-    .filter(({ kind }) => kind === ModelOnlyInValof.kind)
+  (await lint(files(file), Options.create({ enable: { "data-type-outside-valof": settings } })))
+    .filter(({ kind }) => kind === DataTypeOutsideValof.kind)
     .map(({ at: { line, column }, message }) => `${line}:${column} ${message}`);
 
 const data = (name: string): string =>
@@ -19,7 +19,7 @@ const primitive = (name: string): string =>
   `${name} names a primitive type outside Valof; make it a Val, or Payload<…> for a payload`;
 
 test("runs only when enabled", async () => {
-  expect((await run("domain")).filter(({ rule }) => rule === ModelOnlyInValof)).toEqual([]);
+  expect((await run("domain")).filter(({ rule }) => rule === DataTypeOutsideValof)).toEqual([]);
 });
 
 test("reports a named data or primitive type outside Valof, and spares Valof types and functions", async () => {
@@ -88,19 +88,19 @@ test("leaves a declaration file alone", async () => {
   expect(await reported({}, "declared.d")).toEqual([]);
 });
 
-const under = "tests/lint/rules/model-only-in-valof/fixtures";
+const under = "tests/lint/rules/data-type-outside-valof/fixtures";
 
 test("is enabled on the command line, with its settings after an equals sign", () => {
-  expect(cli(under, "--model-only-in-valof").stdout).toContain(
-    "domain.ts:9:13  model-only-in-valof",
+  expect(cli(under, "--data-type-outside-valof").stdout).toContain(
+    "domain.ts:9:13  data-type-outside-valof",
   );
-  const classes = cli(under, "--model-only-in-valof=classes").stdout;
-  expect(classes).toContain("domain.ts:28:8  model-only-in-valof");
+  const classes = cli(under, "--data-type-outside-valof=classes").stdout;
+  expect(classes).toContain("domain.ts:28:8  data-type-outside-valof");
   expect(classes).not.toContain("domain.ts:29:32");
 });
 
 test("refuses a setting it does not take", () => {
-  const { status, stderr } = cli(under, "--model-only-in-valof=typo");
+  const { status, stderr } = cli(under, "--data-type-outside-valof=typo");
   expect(status).toBe(2);
   expect(stderr).toBe(
     'valof-lint: no setting called "typo"\n  known settings: classes, constraints, extraction',
