@@ -8,7 +8,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { ClaimedFile, Claims } from "./claims.ts";
 
-// The same files the size check reads.
+// A file every run reads, then a Markdown file and a package.json that only a release reads.
 const files = [
   ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
   ClaimedFile.Markdown.create({ path: "README.md", release: true }),
