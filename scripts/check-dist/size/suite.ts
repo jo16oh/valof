@@ -30,15 +30,15 @@ export type MeasureError =
   | DevCodeKeptError
   | AddsNothingError;
 
-export type Report = Val<
-  "Report",
+export type Measurement = Val<
+  "Measurement",
   {
     base: BuildResult;
     bundles: BundleSize[];
     separateBase: BuildResult[];
   }
 >;
-export const Report = Val.companion<Report>()
+export const Measurement = Val.companion<Measurement>()
   .impl(() => ({
     /** Each build's sizes, then each bundle's budget. */
     render: ({ bundles, separateBase }): string =>
@@ -62,7 +62,7 @@ export const Suite = Val.companion<Suite>()
         ? R.succeed(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
         : R.fail(new NoBaseError());
     },
-    measure: async (suite: Suite): R.ResultAsync<Report, MeasureError> => {
+    measure: async (suite: Suite): R.ResultAsync<Measurement, MeasureError> => {
       const baseImports = Suite.base(suite);
       if (R.isFailure(baseImports)) return baseImports;
 
@@ -99,7 +99,7 @@ export const Suite = Val.companion<Suite>()
       const added = R.sequence(bundles, (size) => BundleSize.check(size, base.value));
       if (R.isFailure(added)) return added;
 
-      return R.succeed(Report.seal({ base: base.value, bundles, separateBase }));
+      return R.succeed(Measurement.seal({ base: base.value, bundles, separateBase }));
     },
   }))
   .build();

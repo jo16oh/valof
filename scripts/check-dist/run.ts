@@ -8,11 +8,26 @@ import type { TypesError } from "./types/index.ts";
 /** What any check fails with. */
 export type CheckError = SizeError | TypesError | CompatError;
 
-/** One check of the built `dist`, reported under its name. */
+/** What a check found, printed whole and then judged. */
+export type Report = Trait<
+  "Report",
+  Record<never, never>,
+  {
+    render: (self: Self) => string;
+    /** Fails where what the check found is over a budget, stale or incompatible. */
+    verdict: (self: Self) => R.Result<void, CheckError>;
+  }
+>;
+export const Report = Trait.companion<Report>().build();
+
+/**
+ * One check of the built `dist`, reported under its name. `run` fails where it cannot report, as
+ * on a build that breaks.
+ */
 export type Check = Trait<
   "Check",
   { name: string },
-  { run: (self: Self) => R.ResultAsync<void, CheckError> }
+  { run: (self: Self) => R.ResultAsync<Dyn<Report>, CheckError> }
 >;
 export const Check = Trait.companion<Check>().build();
 
@@ -34,13 +49,12 @@ export async function runChecks(checks: readonly Dyn<Check>[]): Promise<number> 
     console.log(`\n# ${check.name}\n`);
     // oxlint-disable-next-line no-await-in-loop -- one at a time, see above
     const result = await R.try({ try: () => check.run(), catch: (error) => error as Error });
-    const failure = R.isFailure(result)
-      ? result.error
-      : R.isFailure(result.value)
-        ? result.value.error
-        : undefined;
-    if (failure) console.error(`\n${failure.message}`);
-    outcomes.push(Outcome.seal({ name: check.name, failed: failure !== undefined }));
+    const report = R.isFailure(result) ? result : result.value;
+    if (R.isSuccess(report)) console.log(report.value.render());
+
+    const judged = R.isSuccess(report) ? report.value.verdict() : report;
+    if (R.isFailure(judged)) console.error(`\n${judged.error.message}`);
+    outcomes.push(Outcome.seal({ name: check.name, failed: R.isFailure(judged) }));
   }
 
   console.log();

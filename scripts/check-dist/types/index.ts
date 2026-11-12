@@ -6,11 +6,10 @@ import { readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
-import { Enum, Val, type VariantsOf } from "#valof";
+import { Enum, Val, type Dyn, type VariantsOf } from "#valof";
 
 import { align, Budget, count, OverBudgetError } from "../report.ts";
-import { pipe } from "../../../src/shared/pipe/index.ts";
-import { Check } from "../run.ts";
+import { Check, Report } from "../run.ts";
 
 import { output, repository, writeJson } from "../../shared/repository.ts";
 import { floor, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
@@ -140,10 +139,11 @@ type TypesReport = Val<
     baseline: Counts;
     fixtures: FixtureCounts[];
     budgets: Budget[];
-  }
+  },
+  Report
 >;
 const TypesReport = Val.companion<TypesReport>()
-  .impl(() => ({
+  .implTrait(Report, () => ({
     /** The counts, then the budgets, then what each column means. */
     render: ({ typescript, baseline, fixtures, budgets }): string =>
       [
@@ -176,6 +176,10 @@ const TypesReport = Val.companion<TypesReport>()
         "index.d.ts: the published declarations, in bytes. what every consumer parses.",
         "eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.",
       ].join("\n"),
+    verdict: ({ budgets }): R.Result<void, TypesError> => {
+      const over = budgets.filter(Budget.over);
+      return over.length === 0 ? R.succeed() : R.fail(new OverBudgetError({ over }));
+    },
   }))
   .build();
 
@@ -195,7 +199,7 @@ export const TypesCheck = Val.companion<TypesCheck>()
      * Measures the fixtures and the declarations against their budgets. Expects `dist` to be
      * built.
      */
-    run: async (_check): R.ResultAsync<void, TypesError> => {
+    run: async (_check): R.ResultAsync<Dyn<Report>, TypesError> => {
       /**
        * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
        * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
@@ -229,20 +233,17 @@ export const TypesCheck = Val.companion<TypesCheck>()
           unit: "bytes",
         }),
       ];
-      pipe(
-        TypesReport.seal({
-          typescript: version(floor),
-          baseline: baseline.value,
-          fixtures: measured,
-          budgets,
-        }),
-        TypesReport.render,
-        (report) => console.log(report),
+      return R.succeed(
+        Report.dyn(
+          TypesReport,
+          TypesReport.seal({
+            typescript: version(floor),
+            baseline: baseline.value,
+            fixtures: measured,
+            budgets,
+          }),
+        ),
       );
-
-      const over = budgets.filter(Budget.over);
-
-      return over.length === 0 ? R.succeed() : R.fail(new OverBudgetError({ over }));
     },
   }))
   .build();

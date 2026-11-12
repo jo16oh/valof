@@ -3,13 +3,13 @@ import { join } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
-import { Val } from "#valof";
+import { Val, type Dyn } from "#valof";
 
 import { docBlocks } from "../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../pin-valof/index.ts";
 import { output, root, writeJson } from "../../shared/repository.ts";
 import { aliases, tsc, version } from "../../shared/typescript-lines.ts";
-import { Check } from "../run.ts";
+import { Check, Report } from "../run.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
@@ -31,6 +31,46 @@ export class IncompatibleError extends ErrorFactory({
 
 export type CompatError = StalePinError | IncompatibleError;
 
+/** One TypeScript line's failure messages, empty where it passes. */
+type LineResult = Val<"LineResult", { version: string; failures: string[] }>;
+const LineResult = Val.companion<LineResult>().build();
+
+/** What the compat check found, on every TypeScript line. */
+type CompatReport = Val<
+  "CompatReport",
+  {
+    blocks: number;
+    fixtures: number;
+    pin: string;
+    /** How many scripts were checked, or nothing where the pin builds a different `dist`. */
+    scripts?: number;
+    lines: LineResult[];
+  },
+  Report
+>;
+const CompatReport = Val.companion<CompatReport>()
+  .implTrait(Report, () => ({
+    render: ({ blocks, fixtures, pin, scripts, lines }) =>
+      [
+        `  ${blocks} blocks from the book, ${fixtures} fixtures`,
+        scripts === undefined
+          ? `  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`
+          : `  ${scripts} scripts on valof ${pin.slice(0, 7)}`,
+        ...lines.flatMap(({ version, failures }) => [
+          `  typescript@${version}  ${failures.length === 0 ? "pass" : "fail"}`,
+          ...failures,
+        ]),
+        "",
+      ].join("\n"),
+    verdict: ({ lines }): R.Result<void, CompatError> => {
+      const failed = lines
+        .filter(({ failures }) => failures.length > 0)
+        .map(({ version }) => version);
+      return failed.length === 0 ? R.succeed() : R.fail(new IncompatibleError({ failed }));
+    },
+  }))
+  .build();
+
 export type CompatCheck = Val<"CompatCheck", { name: string; release: boolean }, Check>;
 export const CompatCheck = Val.companion<CompatCheck>()
   .implCreate(({ release }: { release: boolean }) => ({ name: "compat", release }))
@@ -40,7 +80,7 @@ export const CompatCheck = Val.companion<CompatCheck>()
      * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin
      * builds this same `dist`.
      */
-    run: async ({ release }): R.ResultAsync<void, CompatError> => {
+    run: async ({ release }): R.ResultAsync<Dyn<Report>, CompatError> => {
       const pin = await pinned();
       const current = await matches(pin);
       if (!current && release) return R.fail(new StalePinError({ pin }));
@@ -63,25 +103,28 @@ export const CompatCheck = Val.companion<CompatCheck>()
        */
       const exports = SourceExports.read(directory, [...blocks, ...fixtures]);
 
-      console.log(`  ${blocks.length} blocks from the book, ${fixtures.length} fixtures`);
-      console.log(
-        current
-          ? `  ${importers.length} scripts on valof ${pin.slice(0, 7)}`
-          : `  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`,
+      // The TypeScript lines run concurrently, each emitting to directories of its own.
+      const lines = await Promise.all(
+        aliases.map(async (alias) =>
+          LineResult.seal({
+            version: version(alias),
+            failures: await check(alias, exports, current),
+          }),
+        ),
       );
 
-      // The TypeScript lines run concurrently, each emitting to directories of its own, and report
-      // in the order of `aliases`.
-      const reports = await Promise.all(aliases.map((alias) => check(alias, exports, current)));
-      for (const [i, alias] of aliases.entries()) {
-        const report = reports[i]!;
-        console.log(`  typescript@${version(alias)}  ${report.length === 0 ? "pass" : "fail"}`);
-        for (const line of report) console.log(line);
-      }
-      const failed = aliases.filter((_, i) => reports[i]!.length > 0).map(version);
-      console.log();
-
-      return failed.length === 0 ? R.succeed() : R.fail(new IncompatibleError({ failed }));
+      return R.succeed(
+        Report.dyn(
+          CompatReport,
+          CompatReport.seal({
+            blocks: blocks.length,
+            fixtures: fixtures.length,
+            pin,
+            ...(current ? { scripts: importers.length } : {}),
+            lines,
+          }),
+        ),
+      );
     },
   }))
   .build();

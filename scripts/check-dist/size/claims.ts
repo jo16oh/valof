@@ -5,7 +5,6 @@ import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val } from "#valof";
 
 import { bytes } from "../report.ts";
-import { repository } from "../../shared/repository.ts";
 
 const marker = "valof-minimal-bundle-size";
 
@@ -90,43 +89,56 @@ const Claim = Val.companion<Claim>()
   }))
   .build();
 
-/**
- * Compares the size each file states with `gzip`, the production gzip of the base bundle, and
- * rewrites the stale ones with `write`.
- */
-export async function claims(
-  gzip: number,
-  { release, write }: { release: boolean; write: boolean },
-  root: URL = repository,
-): R.ResultAsync<void, ClaimCountError | StaleClaimError> {
-  const size = `${bytes(gzip)} gzipped`;
-  const texts = await Promise.all(
-    claimed
-      .filter((file) => release || !file.release)
-      .map(async (file) => ({ file, text: await readFile(new URL(file.path, root), "utf8") })),
-  );
-  const found = R.sequence(texts, ({ file, text }) => Claim.find(file, text, size));
-  if (R.isFailure(found)) return found;
-  const stated = found.value;
-
-  if (write)
-    await Promise.all(
-      stated.filter(({ stale }) => stale).map((claim) => Claim.rewrite(claim, size, root)),
-    );
-
-  const label = Math.max(...stated.map(({ file }) => file.path.length));
-  console.log(`claims  ${size}`);
-  for (const claim of stated)
-    console.log(`  ${claim.file.path.padEnd(label)}  ${Claim.state(claim, write)}`);
-
-  const stale = stated.filter((claim) => claim.stale);
-  return write || stale.length === 0
-    ? R.succeed()
-    : R.fail(
-        new StaleClaimError({
-          stale,
-          size,
-          rerun: release ? "--write --release" : "--write",
-        }),
+/** The claims a run checks, against `size`, the production gzip of the base bundle. */
+export type Claims = Val<"Claims", { size: string; claims: Claim[] }>;
+export const Claims = Val.companion<Claims>()
+  .implAssoc(({ seal }) => ({
+    /** Reads the claims under `root`. A `release` adds the files that describe the release. */
+    read: async (
+      gzip: number,
+      release: boolean,
+      root: URL,
+    ): R.ResultAsync<Claims, ClaimCountError> => {
+      const size = `${bytes(gzip)} gzipped`;
+      const texts = await Promise.all(
+        claimed
+          .filter((file) => release || !file.release)
+          .map(async (file) => ({ file, text: await readFile(new URL(file.path, root), "utf8") })),
       );
-}
+      const found = R.sequence(texts, ({ file, text }) => Claim.find(file, text, size));
+      if (R.isFailure(found)) return found;
+
+      return R.succeed(seal({ size, claims: found.value }));
+    },
+  }))
+  .impl(() => ({
+    /** Writes the measured size in place of each stale claim, in its file under `root`. */
+    rewrite: async ({ size, claims }, root: URL): Promise<void> => {
+      await Promise.all(
+        claims.filter(({ stale }) => stale).map((claim) => Claim.rewrite(claim, size, root)),
+      );
+    },
+    /** Each claim's state, after a run that rewrites with `write`. */
+    render: ({ size, claims }, write: boolean): string => {
+      const label = Math.max(...claims.map(({ file }) => file.path.length));
+      return [
+        `claims  ${size}`,
+        ...claims.map(
+          (claim) => `  ${claim.file.path.padEnd(label)}  ${Claim.state(claim, write)}`,
+        ),
+      ].join("\n");
+    },
+    /** Fails on a stale claim that `write` did not rewrite. */
+    verdict: (
+      { size, claims },
+      { release, write }: { release: boolean; write: boolean },
+    ): R.Result<void, StaleClaimError> => {
+      const stale = claims.filter((claim) => claim.stale);
+      return write || stale.length === 0
+        ? R.succeed()
+        : R.fail(
+            new StaleClaimError({ stale, size, rerun: release ? "--write --release" : "--write" }),
+          );
+    },
+  }))
+  .build();
