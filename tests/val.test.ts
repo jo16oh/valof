@@ -12,6 +12,7 @@ import type {
 } from "../src/index.ts";
 import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "../src/index.ts";
 import { Traits } from "../src/keys.ts";
+import type { VerdictOf as TraitVerdictOf } from "../src/trait.ts";
 // `BrandOf` is not published from the entry point.
 import type {
   Allowed,
@@ -726,6 +727,77 @@ describe("Val", () => {
         }
       >;
       expectTypeOf<Arrays>().toExtend<AnyVal>();
+    });
+
+    test("an enum's variants and shared fields, a trait's shape and an optional key follow the rule", () => {
+      type Dollar = Val<"UnionElsewhereDollar", { amount: number }>;
+      type Yen = Val<"UnionElsewhereYen", { amount: number }>;
+      type Mode = Val<"UnionElsewhereMode", "on" | "off">;
+      type Money = Enum<"UnionElsewhereMoney", { D: { amount: number }; Y: { amount: number } }>;
+      // @ts-expect-error only null can share a field with a Val
+      type Variants = Enum<"UnionVariants", { A: { m: Dollar | Yen }; B: { n: number } }>;
+      type Shared = Enum<
+        "UnionShared",
+        { A: { a: number }; B: { b: number } },
+        // @ts-expect-error only null can share a field with a Val
+        { m: Dollar | string }
+      >;
+      // @ts-expect-error only null can share a field with a Val
+      type Shape = Trait<"UnionShape", { m: Mode | "none" }>;
+      // @ts-expect-error only null can share a field with a Val
+      type Wallet = Val<"UnionWallet", { money?: Dollar | Yen; m: Money | null }>;
+      expectTypeOf<VerdictOf<Variants>>().toEqualTypeOf<
+        true | { m: Invalid<"only null can share a field with a Val; declare an Enum">; _tag: "A" }
+      >();
+      expectTypeOf<VerdictOf<Shared>>().toEqualTypeOf<
+        | {
+            a: number;
+            m: Invalid<"only null can share a field with a Val; declare an Enum">;
+            _tag: "A";
+          }
+        | {
+            b: number;
+            m: Invalid<"only null can share a field with a Val; declare an Enum">;
+            _tag: "B";
+          }
+      >();
+      expectTypeOf<TraitVerdictOf<Shape>>().toEqualTypeOf<{
+        readonly UnionShape: {
+          m: Invalid<"only null can share a field with a Val; declare an Enum">;
+        };
+      }>();
+      expectTypeOf<VerdictOf<Wallet>>().toEqualTypeOf<{
+        money?: Invalid<"only null can share a field with a Val; declare an Enum">;
+        m: Money | null;
+      }>();
+    });
+
+    test("two Recs count as holding a value in common, and a Rec beside anything else as not", () => {
+      type Ring = Val<"UnionRing", { next: Rec<Ring>; v: number }>;
+      type Loop = Val<"UnionLoop", { next: Rec<Loop>; v: number }>;
+      type List = Enum<"UnionRecList", { Cons: { head: number; tail: Rec<List> }; Nil: {} }>;
+      type Chain = Enum<
+        "UnionRecChain",
+        { Cons: { head: number; tail: Rec<Chain> }; End: { end: true } }
+      >;
+      type Odd = Val<
+        "UnionOdd",
+        // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
+        { a: { x: Ring } | { x: Loop }; b: { x: List } | { x: Chain }; k?: Rec<Odd> }
+      >;
+      expectTypeOf<VerdictOf<Odd>>().toEqualTypeOf<{
+        a: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        b: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        k?: Rec<Odd>;
+      }>();
+      type Apart = Val<
+        "UnionRecApart",
+        // @ts-expect-error an object payload cannot be a union
+        { k: { x: Rec<Apart>; t: 1 } | { x: string; t: 1 } }
+      >;
+      expectTypeOf<VerdictOf<Apart>>().toEqualTypeOf<{
+        k: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+      }>();
     });
 
     test("types that reference themselves are compared without opening their Recs", () => {
