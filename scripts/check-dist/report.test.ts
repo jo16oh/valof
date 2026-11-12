@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { align, bytes } from "./format.ts";
+import { align, bytes } from "./report.ts";
 
 test("prints bytes below 1 kB as they are, and above it in kB", () => {
   expect([bytes(1023), bytes(1024), bytes(1100)]).toEqual(["1023 B", "1.00 kB", "1.07 kB"]);
