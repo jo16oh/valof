@@ -2,15 +2,15 @@
 // the checker, and whether they typecheck on every TypeScript line.
 import { Result as R } from "@praha/byethrow";
 
-import { CompatCheck } from "./compat/index.ts";
+import { CompatCheck } from "./checks/compat/index.ts";
 import { pack } from "./pack.ts";
 import { Check, runChecks } from "./run.ts";
 import { Selection } from "./selection.ts";
-import { Bundle, Imports } from "./size/bundle.ts";
-import { ClaimedFile } from "./size/claims.ts";
-import { SizeCheck } from "./size/index.ts";
-import { Suite } from "./size/suite.ts";
-import { TypesBudgets, TypesCheck } from "./types/index.ts";
+import { Bundle, Imports } from "./checks/size/bundle.ts";
+import { ClaimedFile } from "./checks/size/claims.ts";
+import { SizeCheck } from "./checks/size/index.ts";
+import { Suite } from "./checks/size/suite.ts";
+import { TypesBudgets, TypesCheck } from "./checks/types/index.ts";
 
 /** The bundles the size check measures, each against its budget in bytes of production gzip. */
 const suite = Suite.seal([

@@ -3,7 +3,7 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { CompatCheck, CompatReport, LineResult } from "./index.ts";
 
-vi.mock(import("../../pin-valof/index.ts"), () => ({
+vi.mock(import("../../../pin-valof/index.ts"), () => ({
   pinned: async () => "8d32b2ae3ab76618b3c577cc19b25da177c4242f",
   matches: async () => false,
 }));

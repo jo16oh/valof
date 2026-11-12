@@ -5,12 +5,12 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Val, type Dyn } from "#valof";
 
-import { docBlocks } from "../../../docs/tools/twoslash/index.ts";
-import { matches, pinned } from "../../pin-valof/index.ts";
-import { output, root, writeJson } from "../../shared/repository.ts";
-import { aliases, tsc, version } from "../../shared/typescript-lines.ts";
-import { Report } from "../report.ts";
-import { Check } from "../run.ts";
+import { docBlocks } from "../../../../docs/tools/twoslash/index.ts";
+import { matches, pinned } from "../../../pin-valof/index.ts";
+import { output, root, writeJson } from "../../../shared/repository.ts";
+import { aliases, tsc, version } from "../../../shared/typescript-lines.ts";
+import { Report } from "../../report.ts";
+import { Check } from "../../run.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
@@ -178,7 +178,7 @@ function writeBlocks(): Promise<string[]> {
 
 /** Exports the book does not show, kept beside this script. */
 async function copyFixtures(): Promise<string[]> {
-  const extras = join(root, "scripts/check-dist/compat/fixtures");
+  const extras = join(root, "scripts/check-dist/checks/compat/fixtures");
   return Promise.all(
     (await readdir(extras)).map(async (file) => {
       const copy = join(directory, `fixture-${file}`);

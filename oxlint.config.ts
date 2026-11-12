@@ -102,8 +102,8 @@ export default defineConfig({
   ],
   ignorePatterns: [
     "tests/lint/**/fixtures/**",
-    "scripts/check-dist/types/fixtures/*.ts",
-    "scripts/check-dist/compat/fixtures/*.ts",
+    "scripts/check-dist/checks/types/fixtures/*.ts",
+    "scripts/check-dist/checks/compat/fixtures/*.ts",
   ],
   options: {
     typeAware: true,

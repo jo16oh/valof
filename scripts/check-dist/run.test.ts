@@ -2,7 +2,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "#valof";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { IncompatibleError } from "./compat/index.ts";
+import { IncompatibleError } from "./checks/compat/index.ts";
 import { Report } from "./report.ts";
 import { Check, runChecks } from "./run.ts";
 

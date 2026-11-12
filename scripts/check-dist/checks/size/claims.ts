@@ -4,7 +4,7 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val } from "#valof";
 
-import { bytes } from "../report.ts";
+import { bytes } from "../../report.ts";
 
 const marker = "valof-minimal-bundle-size";
 

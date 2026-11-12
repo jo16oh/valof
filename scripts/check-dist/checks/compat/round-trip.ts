@@ -4,8 +4,8 @@ import { join, relative } from "node:path";
 import * as ts from "typescript-5";
 import { Val } from "#valof";
 
-import { output, writeJson } from "../../shared/repository.ts";
-import type { Tsc } from "../../shared/typescript-lines.ts";
+import { output, writeJson } from "../../../shared/repository.ts";
+import type { Tsc } from "../../../shared/typescript-lines.ts";
 
 /** A program comparing each export of some modules with the type their declarations give it. */
 export type RoundTrip = Val<
