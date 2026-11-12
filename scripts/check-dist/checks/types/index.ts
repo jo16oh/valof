@@ -10,7 +10,7 @@ import { Enum, Val, type Dyn, type VariantsOf } from "#valof";
 
 import { Budget, OverBudgetError } from "../../budget.ts";
 import { align, count, Report } from "../../report.ts";
-import { Check } from "../../run.ts";
+import { Check } from "../../check.ts";
 
 import { output, repository, writeJson } from "../../../shared/repository.ts";
 import { floor, tsc, version, type Tsc } from "../../../shared/typescript-lines.ts";

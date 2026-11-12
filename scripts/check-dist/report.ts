@@ -1,12 +1,7 @@
 import type { Result as R } from "@praha/byethrow";
 import { Trait, type Self } from "#valof";
 
-import type { CompatError } from "./checks/compat/index.ts";
-import type { SizeError } from "./checks/size/index.ts";
-import type { TypesError } from "./checks/types/index.ts";
-
-/** What any check fails with. */
-export type CheckError = SizeError | TypesError | CompatError;
+import type { CheckError } from "./check.ts";
 
 /** What a check found, printed whole and then judged. */
 export type Report = Trait<

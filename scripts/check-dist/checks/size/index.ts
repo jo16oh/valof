@@ -3,7 +3,7 @@ import { Val, type Dyn } from "#valof";
 
 import { Budget, OverBudgetError } from "../../budget.ts";
 import { Report } from "../../report.ts";
-import { Check } from "../../run.ts";
+import { Check } from "../../check.ts";
 import { repository } from "../../../shared/repository.ts";
 
 import { Claims, type ClaimedFile, type ClaimCountError, type StaleClaimError } from "./claims.ts";

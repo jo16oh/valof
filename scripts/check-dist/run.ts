@@ -1,18 +1,7 @@
 import { Result as R } from "@praha/byethrow";
-import { Trait, Val, type Dyn, type Self } from "#valof";
+import { Val, type Dyn } from "#valof";
 
-import type { CheckError, Report } from "./report.ts";
-
-/**
- * One check of the built `dist`, reported under its name. `run` fails where it cannot report, as
- * on a build that breaks.
- */
-export type Check = Trait<
-  "Check",
-  { name: string },
-  { run: (self: Self) => R.ResultAsync<Dyn<Report>, CheckError> }
->;
-export const Check = Trait.companion<Check>().build();
+import type { Check } from "./check.ts";
 
 /** Whether a check passed, as the summary prints it. */
 type Outcome = Val<"Outcome", { name: string; failed: boolean }>;

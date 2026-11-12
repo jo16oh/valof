@@ -10,7 +10,7 @@ import { matches, pinned } from "../../../pin-valof/index.ts";
 import { output, root, writeJson } from "../../../shared/repository.ts";
 import { aliases, tsc, version } from "../../../shared/typescript-lines.ts";
 import { Report } from "../../report.ts";
-import { Check } from "../../run.ts";
+import { Check } from "../../check.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
