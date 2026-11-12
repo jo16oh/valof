@@ -36,13 +36,4 @@ export type {
 
 export { Trait } from "./trait.ts";
 
-export type {
-  AnyTrait,
-  Dyn,
-  Final,
-  Impl,
-  Members,
-  Self,
-  TraitBuilder,
-  TraitCompanion,
-} from "./trait.ts";
+export type { Dyn, Final, Impl, Members, Self, TraitBuilder, TraitCompanion } from "./trait.ts";
