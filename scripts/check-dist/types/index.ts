@@ -9,6 +9,7 @@ import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val, type VariantsOf } from "#valof";
 
 import { align, Budget, count, OverBudgetError } from "../report.ts";
+import { pipe } from "../../../src/shared/pipe/index.ts";
 import { Check } from "../run.ts";
 
 import { output, repository, writeJson } from "../../shared/repository.ts";
@@ -130,6 +131,54 @@ const FixtureCounts = Val.companion<FixtureCounts>()
   }))
   .build();
 
+/** What the types check measured, against the budgets. */
+type TypesReport = Val<
+  "TypesReport",
+  {
+    /** The version the counts come from. */
+    typescript: string;
+    baseline: Counts;
+    fixtures: FixtureCounts[];
+    budgets: Budget[];
+  }
+>;
+const TypesReport = Val.companion<TypesReport>()
+  .impl(() => ({
+    /** The counts, then the budgets, then what each column means. */
+    render: ({ typescript, baseline, fixtures, budgets }): string =>
+      [
+        `typescript@${typescript}, over a baseline of ${count(baseline.types)} types`,
+        "",
+        table(
+          ["", "instantiations", "types", "check (s)", "total (s)"],
+          fixtures.map(({ name, counts }) => [
+            name,
+            count(counts.instantiations),
+            count(counts.types),
+            seconds(counts.check),
+            seconds(counts.total),
+          ]),
+        ),
+        "",
+        "budget  (the fixtures are instantiations)",
+        table(
+          ["", "used / budget", ""],
+          budgets.map((budget) => [
+            budget.name,
+            `${Budget.amount(budget, budget.used)} / ${Budget.amount(budget, budget.limit)}`,
+            Budget.left(budget),
+          ]),
+        ),
+        "",
+        // A reader meets this table years after the last person who chose what to put in it.
+        "instantiations: type arguments applied, where a conditional running away shows.",
+        "types: distinct types the checker made. printed only, and it tracks the first.",
+        "index.d.ts: the published declarations, in bytes. what every consumer parses.",
+        "eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.",
+      ].join("\n"),
+  }))
+  .build();
+
 export class FixtureError extends ErrorFactory({
   name: "FixtureError",
   message: ({ fixture, output }) => `the ${fixture} fixture does not compile\n${output}`,
@@ -154,7 +203,6 @@ export async function checkTypes(): R.ResultAsync<void, TypesError> {
   const measured = fixtures.map((name, index) =>
     FixtureCounts.seal({ name, counts: Counts.above(counted.value[index]!, baseline.value) }),
   );
-  printCounts(baseline.value, measured);
 
   const budgets = [
     ...measured.map(FixtureCounts.budget),
@@ -174,8 +222,16 @@ export async function checkTypes(): R.ResultAsync<void, TypesError> {
       unit: "bytes",
     }),
   ];
-  printBudgets(budgets);
-  printLegend();
+  pipe(
+    TypesReport.seal({
+      typescript: version(floor),
+      baseline: baseline.value,
+      fixtures: measured,
+      budgets,
+    }),
+    TypesReport.render,
+    (report) => console.log(report),
+  );
 
   const over = budgets.filter(Budget.over);
 
@@ -225,44 +281,6 @@ async function declarationBytes(entry: URL): Promise<number> {
   };
   await walk(entry);
   return bytes;
-}
-
-function printCounts(baseline: Counts, measured: readonly FixtureCounts[]): void {
-  console.log(`typescript@${version(floor)}, over a baseline of ${count(baseline.types)} types\n`);
-  console.log(
-    table(
-      ["", "instantiations", "types", "check (s)", "total (s)"],
-      measured.map(({ name, counts }) => [
-        name,
-        count(counts.instantiations),
-        count(counts.types),
-        seconds(counts.check),
-        seconds(counts.total),
-      ]),
-    ),
-  );
-}
-
-function printBudgets(budgets: readonly Budget[]): void {
-  console.log("\nbudget  (the fixtures are instantiations)");
-  console.log(
-    table(
-      ["", "used / budget", ""],
-      budgets.map((budget) => [
-        budget.name,
-        `${Budget.amount(budget, budget.used)} / ${Budget.amount(budget, budget.limit)}`,
-        Budget.left(budget),
-      ]),
-    ),
-  );
-}
-
-// A reader meets this table years after the last person who chose what to put in it.
-function printLegend(): void {
-  console.log("\ninstantiations: type arguments applied, where a conditional running away shows.");
-  console.log("types: distinct types the checker made. printed only, and it tracks the first.");
-  console.log("index.d.ts: the published declarations, in bytes. what every consumer parses.");
-  console.log("eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.");
 }
 
 function seconds(value: number): string {
