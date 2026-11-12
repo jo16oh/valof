@@ -662,6 +662,8 @@ describe("Val", () => {
       type Money = Enum<"UnionHeldMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
       // Its payload is that of `Money`'s `Dollar` variant.
       type Other = Val<"UnionHeldOther", { amount: number; _tag: "Dollar" }>;
+      // Its variants differ in their keys, and `Other` holds the payload of one.
+      type Coins = Enum<"UnionHeldCoins", { Dollar: { amount: number }; Yen: { yen: number } }>;
       type Held = Val<
         "UnionHeld",
         // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
@@ -673,6 +675,9 @@ describe("Val", () => {
           e: { x: Money } | { x: Other };
           f: { x: Money }[] | { x: Other }[];
           g: { x: Dollar } | { x: { amount: number; memo?: string } };
+          h: { x: Coins } | { x: Other };
+          i: { x: Dollar; n?: number } | { x: Yen; n?: string };
+          j: { x: Dollar; l: number[] } | { x: Yen; l: string[] };
         }
       >;
       expectTypeOf<VerdictOf<Held>>().toEqualTypeOf<{
@@ -683,6 +688,9 @@ describe("Val", () => {
         e: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
         f: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
         g: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        h: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        i: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        j: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
       }>();
       // @ts-expect-error a union cannot hold objects `equals` cannot tell apart, at the root too
       type Rooted = Val<"UnionHeldRoot", { x: Dollar } | { x: Yen }>;
@@ -698,12 +706,16 @@ describe("Val", () => {
           a: { x: Dollar } | { y: Yen };
           b: { x: Dollar; y: number } | { x: Yen };
           c: { x: Dollar } | { x: Money };
+          d: { x: Dollar; k: "a" } | { x: Yen; k: "b" };
+          e: { x: Dollar; l: [number] } | { x: Yen; l: [string] };
         }
       >;
       expectTypeOf<VerdictOf<Apart>>().toEqualTypeOf<{
         a: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
         b: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
         c: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        d: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        e: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
       }>();
       type Arrays = Val<
         "UnionArrays",
@@ -714,6 +726,27 @@ describe("Val", () => {
         }
       >;
       expectTypeOf<Arrays>().toExtend<AnyVal>();
+    });
+
+    test("types that reference themselves are compared without opening their Recs", () => {
+      type Tree = Val<"UnionSelfTree", { kid: Rec<Tree> | null; v: number }>;
+      type Leaf = Val<"UnionSelfLeaf", { kid: Rec<Leaf> | null; v: number }>;
+      type List = Enum<"UnionSelfList", { Cons: { head: number; tail: Rec<List> }; Nil: {} }>;
+      type Chain = Enum<"UnionSelfChain", { Cons: { head: number; tail: Rec<Chain> }; Nil: {} }>;
+      type Held = Val<
+        "UnionSelfHeld",
+        // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
+        {
+          a: { x: Tree } | { x: Leaf };
+          b: { x: Tree }[] | { x: Leaf }[];
+          c: { x: List } | { x: Chain };
+        }
+      >;
+      expectTypeOf<VerdictOf<Held>>().toEqualTypeOf<{
+        a: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        b: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        c: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+      }>();
     });
 
     test("an object union is rejected, however it is spelled", () => {
