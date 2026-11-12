@@ -126,14 +126,43 @@ const Comparison = Val.companion<Comparison>()
 export type SourceExports = Val<"SourceExports", { directory: string; modules: ModuleExports[] }>;
 export const SourceExports = Val.companion<SourceExports>()
   .implAssoc(({ seal }) => ({
-    /** Reads the exports of `files`, modules under `directory`. */
-    read: (directory: string, files: readonly string[]): SourceExports =>
-      seal({ directory, modules: exportsOf(directory, files) }),
+    /**
+     * Reads the exports of `files`, modules under `directory`. Every TypeScript line returns the
+     * same exports, and the 5.x one has the compiler API.
+     */
+    read: (directory: string, files: readonly string[]): SourceExports => {
+      const config = ts.getParsedCommandLineOfConfigFile(
+        join(directory, "tsconfig.json"),
+        undefined,
+        {
+          ...ts.sys,
+          onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
+            throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
+          },
+        },
+      )!;
+      const program = ts.createProgram(files, config.options);
+      const checker = program.getTypeChecker();
+
+      return seal({
+        directory,
+        modules: files.map((file) => ModuleExports.read(program, checker, file)),
+      });
+    },
   }))
   .build();
 
 type ModuleExports = Val<"ModuleExports", { file: string; symbols: Export[] }>;
-const ModuleExports = Val.companion<ModuleExports>().build();
+const ModuleExports = Val.companion<ModuleExports>()
+  .implAssoc(({ seal }) => ({
+    // The checker resolves `export *` and `export { … }` too.
+    read: (program: ts.Program, checker: ts.TypeChecker, file: string): ModuleExports => {
+      const module = checker.getSymbolAtLocation(program.getSourceFile(file)!);
+      const exported = module === undefined ? [] : checker.getExportsOfModule(module);
+      return seal({ file, symbols: exported.map((symbol) => Export.read(checker, file, symbol)) });
+    },
+  }))
+  .build();
 
 type Export = Val<
   "Export",
@@ -144,49 +173,35 @@ type Export = Val<
     parameters?: number;
   }
 >;
-const Export = Val.companion<Export>().build();
+const Export = Val.companion<Export>()
+  .implAssoc(({ seal }) => ({
+    /** Throws on an export the round trip cannot compare. */
+    read: (checker: ts.TypeChecker, file: string, exported: ts.Symbol): Export => {
+      const symbol =
+        exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
+      const value = (symbol.flags & ts.SymbolFlags.Value) !== 0;
+      const type = (symbol.flags & ts.SymbolFlags.Type) !== 0;
+      if (!value && !type) throw new Error(`${file}: cannot compare ${exported.name}`);
 
-// The checker reads the exports, and resolves `export *` and `export { … }` too. Every TypeScript
-// line returns the same exports, and the 5.x one has the compiler API.
-function exportsOf(directory: string, files: readonly string[]): ModuleExports[] {
-  const config = ts.getParsedCommandLineOfConfigFile(join(directory, "tsconfig.json"), undefined, {
-    ...ts.sys,
-    onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
-      throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
+      // Each declaration of a merged type lists the parameters again.
+      const declared = (symbol.declarations ?? [])
+        .filter(
+          (declaration) =>
+            ts.isTypeAliasDeclaration(declaration) ||
+            ts.isInterfaceDeclaration(declaration) ||
+            ts.isClassDeclaration(declaration),
+        )
+        .map((declaration) => declaration.typeParameters ?? []);
+      // The `<T0>() => …` comparison declares the parameters without constraints, which a
+      // constrained parameter rejects.
+      if (declared.flat().some((parameter) => parameter.constraint !== undefined)) {
+        throw new Error(
+          `${file}: cannot compare ${exported.name}, whose type parameters have constraints`,
+        );
+      }
+      const parameters = Math.max(0, ...declared.map((list) => list.length));
+
+      return seal({ name: exported.name, value, ...(type ? { parameters } : {}) });
     },
-  })!;
-  const program = ts.createProgram(files, config.options);
-  const checker = program.getTypeChecker();
-
-  return files.map((file) => {
-    const module = checker.getSymbolAtLocation(program.getSourceFile(file)!);
-    const symbols = (module === undefined ? [] : checker.getExportsOfModule(module)).map(
-      (exported) => {
-        const symbol =
-          exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
-        const value = (symbol.flags & ts.SymbolFlags.Value) !== 0;
-        const type = (symbol.flags & ts.SymbolFlags.Type) !== 0;
-        if (!value && !type) throw new Error(`${file}: cannot compare ${exported.name}`);
-        // Each declaration of a merged type lists the parameters again.
-        const declared = (symbol.declarations ?? [])
-          .filter(
-            (declaration) =>
-              ts.isTypeAliasDeclaration(declaration) ||
-              ts.isInterfaceDeclaration(declaration) ||
-              ts.isClassDeclaration(declaration),
-          )
-          .map((declaration) => declaration.typeParameters ?? []);
-        // The `<T0>() => …` comparison declares the parameters without constraints, which a
-        // constrained parameter rejects.
-        if (declared.flat().some((parameter) => parameter.constraint !== undefined)) {
-          throw new Error(
-            `${file}: cannot compare ${exported.name}, whose type parameters have constraints`,
-          );
-        }
-        const parameters = Math.max(0, ...declared.map((list) => list.length));
-        return Export.seal({ name: exported.name, value, ...(type ? { parameters } : {}) });
-      },
-    );
-    return ModuleExports.seal({ file, symbols });
-  });
-}
+  }))
+  .build();
