@@ -220,7 +220,7 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
             ? Extract<
                 Validate<T[number], false>,
                 | Invalid<"only null can share a field with a Val; declare an Enum">
-                | Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">
+                | Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
               >
             : Invalid<"only null can share a field with a Val; declare an Enum">
           : never,
@@ -289,15 +289,15 @@ type Clash<T, E = T extends unknown ? Validate<T, false> : never> =
     ? Invalid<"only null can share a field with a Val; declare an Enum">
     : [Extract<E, Invalid<string>>] extends [never]
       ? true extends Collides<Exclude<T, ReadonlyArray<unknown>>>
-        ? Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">
+        ? Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
         : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
       : Extract<E, Invalid<string>>;
 
-/** `true` where two constituents match once each Val is read as its payload. */
+/** `true` where two constituents match both ways once each Val is read as its payload. */
 type Collides<N, A = N> = N extends unknown
   ? Exclude<A, N> extends infer O
     ? O extends unknown
-      ? [Erased<O>] extends [Erased<N>]
+      ? [Erased<O>, Erased<N>] extends [Erased<N>, Erased<O>]
         ? true
         : never
       : never
