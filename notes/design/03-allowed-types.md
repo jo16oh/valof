@@ -266,11 +266,19 @@ only null can share a field with a Val; declare an Enum
   JSON round trip can tell its members apart (user)
 - **A union of arrays is checked by its elements.** `Dollar[] | Yen[]` and `Dollar[] | number[]`
   get the message. `string[] | number[]` passes, and so does the tuple `[Dollar, Yen]`, which is not a union
-- **Objects that match once each Val is read as its payload get "a field cannot hold objects `equals` cannot tell apart".** `{ x: Dollar } | { x: Yen }` had the `patch` message, and
+- **Objects that hold a value in common once each Val is read as its payload get "a union cannot hold objects `equals` cannot tell apart".** `{ x: Dollar } | { x: Yen }` had the `patch` message, and
   `{ x: Dollar }[] | { x: Yen }[]` passed. `Clash` reads each Val as its payload and compares the
   constituents (`Collides`). `{ x: Dollar } | { y: Yen }` keeps the `patch` message, and arrays of
   it pass. `main` had the hole
   - The message first said "Vals of different types", but `{ x: Dollar } | { x: { amount: number } }` holds one Val and gets the message too
+  - It then said "a field", but a payload gets it too, as in `Val<"V", { x: Dollar } | { x: Yen }>`
+  - **`Collides` first checked assignability in one direction.** An object holding every field of another was assignable to it, so
+    `{ x: Dollar; y: number }[] | { x: Yen }[]` and `{ x: Dollar }[] | { x: Money }[]` (`Money` an Enum) were
+    rejected, though `equals` tells them apart and `main` accepted them. Requiring each to be assignable to the other then let
+    `{ x: Money }[] | { x: Other }[]` pass, where `Other` holds the payload of `Money`'s `Dollar` variant. The enum's payload is the union of its variants' payloads, which is not assignable to `Other`
+  - **`Collides` now asks whether two constituents hold a value in common.** `equals` cannot tell which of the two holds such a value. `Collides` reads an enum variant by variant. Two objects hold a value in common where neither requires a key the other lacks, and, for each key that one of them requires, the two value types hold a value in common. Two primitives hold one where their intersection is not `never`. Two arrays count as holding a value in common unless both are tuples. `Collides` compares two tuples by the union of their elements, not position by position, so `{ t: [Dollar] } | { t: [Yen, Yen] }` gets the message too. The union is rejected either way; only the message differs
+  - **Two `Rec`s count as holding a value in common, and a `Rec` and anything else as not.** Opening a `Rec` recursed without end on two types of the same shape that reference themselves, and raised TS2615. The one-way assignability check above also treated two `Rec`s as matching
+  - **A union of objects with no Val in them that hold a value in common gets this message too,** as `{ x?: number } | { y?: string }`, both of which hold `{}`. It got the `patch` message before. The union is rejected either way; only the message differs
 - **An `Impl` beside a Val gets the message above, not the `Impl` message.** Both point to an Enum
 - **A Val whose brand equals an enum's name passed beside the enum.** The check compared an enum's name and a Val's brand as plain strings, so `Money | Namesake`, with `Money` an enum named `"Money"` and `Namesake` a `Val<"Money", …>`, passed. The check now labels each by its kind, as `EnumName<"Money">` and `ValBrand<"Money">`. A tuple around the enum's name alone also rejected `Money | Namesake`, but cost enum +600 instantiations. The labels cost enum +36. A separate PR makes valof-lint's `duplicate-brand` report a Val and an Enum with the same name
 - **The check runs where `Validate` handles a union:** at its top for a union made only of Vals
@@ -280,7 +288,7 @@ only null can share a field with a Val; declare an Enum
   it refers to, since that is circular for a type that references itself
 - **`any` in a field still passes,** per §9's policy (2026-11-04). `Val<"V", { a: any }>` satisfies
   `[T] extends [Validate<T>]` whatever `Validate` maps `a` to
-- Cost: core 9,078 → 9,269, trait 24,633 → 24,746, enum 46,754 → 47,105, `index.d.ts` 105.12 → 105.95 kB, inside the 106 kB budget
+- Cost: core 9,078 → 9,269, trait 24,633 → 24,746, enum 46,754 → 47,105, `index.d.ts` 105.12 → 106.79 kB, over the 106 kB budget. The budget went to 108 kB, which also leaves room for the 0.3 kB the checks on `Patch`, `Unpatchable` and `PayloadOf` add in a separate PR
 
 ## 3.7 Self-reference: `Rec`
 
