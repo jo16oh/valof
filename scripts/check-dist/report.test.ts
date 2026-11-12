@@ -1,9 +1,17 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { Budget, bytes, OverBudgetError } from "./report.ts";
+import { align, Budget, bytes, OverBudgetError } from "./report.ts";
 
 test("prints bytes below 1 kB as they are, and above it in kB", () => {
   expect([bytes(1023), bytes(1024), bytes(1100)]).toEqual(["1023 B", "1.00 kB", "1.07 kB"]);
+});
+
+test("pads each column to its widest cell, on its side", () => {
+  expect(align([["a", "1"], ["bbb", "22"], ["cc"]], ["left", "right"])).toEqual([
+    ["a  ", " 1"],
+    ["bbb", "22"],
+    ["cc ", "  "],
+  ]);
 });
 
 describe("Budget", () => {
@@ -13,7 +21,7 @@ describe("Budget", () => {
     Budget.seal({ name: "index.d.ts", used, limit: 2048, unit: "bytes" });
 
   test("prints what is left, in the budget's unit", () => {
-    expect(Budget.left(instantiations(9386))).toBe("614 left (6%)");
+    expect(Budget.left(instantiations(9340))).toBe("660 left (7%)");
     expect(Budget.left(declarations(1024))).toBe("1.00 kB left (50%)");
   });
 
