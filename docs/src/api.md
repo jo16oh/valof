@@ -58,7 +58,6 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | Type                  | Description                                                                       |
 | --------------------- | --------------------------------------------------------------------------------- |
 | `Val<K, T>`           | a branded value type                                                              |
-| `AnyVal`              | a constraint over any Val                                                         |
 | `SeedOf<V>`           | the payload accepted by seals                                                     |
 | `PayloadOf<V>`        | the payload, with the brand removed at every depth                                |
 | `Payload<T>`          | marks a type as meant for a payload, and checks it against the allowed-type rules |
@@ -143,7 +142,6 @@ argument. They apply to the enum and every variant. To configure a specific vari
 | `SealedPayload<E>`              | a tagged payload of one variant                     |
 | `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields        |
 | `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name           |
-| `AnyEnum`                       | a constraint over any enum                          |
 | `EnumBuilder<E>`                | an enum's builder, with the steps it can still take |
 | `EnumCompanion<E>`              | the enum's companion `.build()` returns             |
 
@@ -175,7 +173,6 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | `Self`               | the implementing Val, as a member's first parameter |
 | `Final<F>`           | marks a member no Val may replace                   |
 | `Dyn<Tr>`            | a boxed value, with the concrete type gone          |
-| `AnyTrait`           | a constraint over any trait                         |
 | `Members`            | the members a trait declares                        |
 | `TraitBuilder<Tr>`   | a trait's builder, with the steps it can still take |
 | `TraitCompanion<Tr>` | the trait's companion `.build()` returns            |
