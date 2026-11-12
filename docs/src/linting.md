@@ -40,7 +40,7 @@ on any of them.
 A member registered with `.impl(() => ({…}))` is not tree-shaken, and knip does not report it when
 it becomes unused.
 
-## Modelling only in Valof
+## Enforcing Valof for data types
 
 `data-type-outside-valof` reports a named data type declared outside Valof: an object type, an
 array, a tuple, a primitive, a utility type such as `Pick`, or an `interface`. A union of Vals and a
