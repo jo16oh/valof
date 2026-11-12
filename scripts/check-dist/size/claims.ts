@@ -16,11 +16,13 @@ const claimed = (release: boolean): string[] => [
 ];
 
 export class ClaimCountError extends ErrorFactory({
+  name: "ClaimCountError",
   message: ({ file, found }) => `${file}: expected one bundle-size claim, found ${found}`,
   fields: ErrorFactory.fields<{ file: string; found: number }>(),
 }) {}
 
 export class StaleClaimError extends ErrorFactory({
+  name: "StaleClaimError",
   message: ({ stale, size, rerun }) =>
     stale
       .map(

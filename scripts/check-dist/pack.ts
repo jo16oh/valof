@@ -6,6 +6,7 @@ import { ErrorFactory } from "@praha/error-factory";
 import { output, root, run } from "../shared/repository.ts";
 
 export class PackError extends ErrorFactory({
+  name: "PackError",
   message: ({ output }) => `vp run build failed\n${output}`,
   fields: ErrorFactory.fields<{ output: string }>(),
 }) {}

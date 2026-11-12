@@ -122,6 +122,7 @@ export const Counts = Val.companion<Counts>()
   .build();
 
 export class FixtureError extends ErrorFactory({
+  name: "FixtureError",
   message: ({ fixture, output }) => `the ${fixture} fixture does not compile\n${output}`,
   fields: ErrorFactory.fields<{ fixture: string; output: string }>(),
 }) {}

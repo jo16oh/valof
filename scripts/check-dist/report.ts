@@ -41,6 +41,7 @@ export const Budget = Val.companion<Budget>()
   .build();
 
 export class OverBudgetError extends ErrorFactory({
+  name: "OverBudgetError",
   message: ({ over }) =>
     over
       .map(
