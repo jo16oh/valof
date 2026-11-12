@@ -661,7 +661,7 @@ describe("Val", () => {
       type Yen = Val<"UnionHeldYen", { amount: number }>;
       type Held = Val<
         "UnionHeld",
-        // @ts-expect-error a field cannot hold objects `equals` cannot tell apart
+        // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
         {
           a: { x: Dollar } | { x: Yen };
           b: { x: Dollar }[] | { x: Yen }[];
@@ -670,18 +670,41 @@ describe("Val", () => {
         }
       >;
       expectTypeOf<VerdictOf<Held>>().toEqualTypeOf<{
-        a: Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
-        b: Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
-        c: Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
-        d: Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        a: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        b: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        c: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        d: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
       }>();
-      // Objects with different fields get the `patch` message, and arrays of them pass.
-      // @ts-expect-error an object payload cannot be a union
-      type Apart = Val<"UnionApart", { a: { x: Dollar } | { y: Yen } }>;
+      // @ts-expect-error a payload cannot either
+      type Rooted = Val<"UnionHeldRoot", { x: Dollar } | { x: Yen }>;
+      expectTypeOf<VerdictOf<Rooted>>().toEqualTypeOf<
+        Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
+      >();
+      // Objects `equals` tells apart get the `patch` message, and arrays of them pass, though one
+      // holds every field of the other.
+      type Money = Enum<"UnionHeldMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
+      type Apart = Val<
+        "UnionApart",
+        // @ts-expect-error an object payload cannot be a union
+        {
+          a: { x: Dollar } | { y: Yen };
+          b: { x: Dollar; y: number } | { x: Yen };
+          c: { x: Dollar } | { x: Money };
+        }
+      >;
       expectTypeOf<VerdictOf<Apart>>().toEqualTypeOf<{
         a: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        b: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        c: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
       }>();
-      type Arrays = Val<"UnionArrays", { a: { x: Dollar }[] | { y: Yen }[] }>;
+      type Arrays = Val<
+        "UnionArrays",
+        {
+          a: { x: Dollar }[] | { y: Yen }[];
+          b: { x: Dollar; y: number }[] | { x: Yen }[];
+          c: { x: Dollar }[] | { x: Money }[];
+        }
+      >;
       expectTypeOf<Arrays>().toExtend<AnyVal>();
     });
 
