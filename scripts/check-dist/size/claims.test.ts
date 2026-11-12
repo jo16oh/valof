@@ -40,6 +40,14 @@ describe("claims", () => {
     expect(message(await claims(965, { release: false, write: false }, root))).toBeUndefined();
   });
 
+  test("reads only the marked claim in Markdown, even beside a package description", async () => {
+    await writeFile(
+      join(directory, "docs/src/introduction.md"),
+      `${intro("965 B gzipped")}\n\`\`\`json\n${manifest("9 B gzipped")}\`\`\`\n`,
+    );
+    expect(message(await claims(965, { release: false, write: false }, root))).toBeUndefined();
+  });
+
   test("fails on a stale claim, naming the file and both sizes", async () => {
     await writeFile(join(directory, "docs/src/introduction.md"), intro("9 B gzipped"));
     expect(message(await claims(965, { release: false, write: false }, root))).toBe(
