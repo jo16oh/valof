@@ -189,30 +189,33 @@ headroom criterion remains.
 ## 16.4 One command checks `dist`, 2026-11-03
 
 `vp run check-dist` replaces `bundle-size`, `replace-bundle-size-claims`, `type-perf` and
-`ts-compatibility`. The split above, by what is measured and by the kind of budget, stays in the
-module of each check (`scripts/check-dist/{size,types,compat}`) and in the budgets. Only the entry
-point and the build are shared.
+`ts-compatibility`. §16's split, by what is measured and by the kind of budget, stays. Each check has
+its own module (`scripts/check-dist/{size,types,compat}`) and its own budgets. Only the entry point
+and the build are shared.
 
 - **The entry point builds `dist` once.** Before, each of the three scripts ran `vp run build`, and
-  the claims script ran bundle-size again in a child process. The claims now take the size check's
-  measurements directly
-- **Flags.** `--size`, `--types` and `--compat` select checks; with none, all run. `--release` adds
-  `README.md` and `package.json` to the files whose claims are checked, and requires the scripts'
-  pin to match. `--write` rewrites the claims. `--write` without the size check, and an unknown flag
-  (`parseArgs` with `strict`), are errors
-- **The declaration round-trip (#118) and the search for `/*elided*/` (#116) moved into compat,**
-  from `scripts/ts-compatibility/` to `scripts/check-dist/compat/`. The TypeScript lines still run
-  in parallel
-- **Every check runs even after one fails, then a summary prints pass or fail for each.** With one
+  the claims script ran bundle-size again in a child process. The claim update now uses the size
+  check's measurements directly
+- **Flags.** `--size`, `--types` and `--compat` select checks. With none, all three run.
+  `--release` adds `README.md` and `package.json` to the files whose claims are checked, and
+  requires the scripts' `#valof` pin to match (§19). `--write` rewrites the claims. `--write`
+  without the size check fails, and so does an unknown flag (`parseArgs` with `strict`)
+- **The declaration round-trip (#118) and the search for `/*elided*/` (#116) moved** from
+  `scripts/ts-compatibility/` to `scripts/check-dist/compat/`. The TypeScript lines still run in
+  parallel
+- **Every check runs even after one fails.** Then a summary prints pass or fail for each. With one
   CI step, the summary still shows which check failed
-- **CI decides once whether a PR is a release.** The `RELEASE` environment variable only switches
-  `--release` on
-- **The release workflow runs `--release` too,** so it now requires the pin to match. The release
-  PR's CI requires the match, and the `main-ci` ruleset (strict required checks) blocks merging a PR
-  that is behind main. A squash merge produces the tree CI checked, so the pin still matches after
+- **CI tests whether a PR is a release in one place.** Before, two `if`s tested
+  `startsWith(github.head_ref, 'chore/release-')`, one for the claim files and one for
+  `--require-pin`. Now the `RELEASE` environment variable only turns on `--release`
+- **The release workflow runs `--release` too,** so it now requires the pin to match. CI on the
+  release PR requires the match, and the `main-ci` ruleset (strict required checks) blocks merging a
+  PR that is behind main. A squash merge produces the tree CI checked, so the pin still matches after
   the merge (verified 2026-11-07)
-- **Rejected: `--json`.** Its only reader, the claims script, now calls the size check directly.
-  `Bundle.key` went with it
-- **The name.** All three check the built `dist` from a user's side. `bundlecheck` reads as size
-  alone, `budget` and `measure` do not fit compat, which passes or fails, and only `docs:*` uses a
-  colon in a script name
+- **Rejected: `--json`.** Its only reader was the claims script, and the claim update now calls the
+  size check directly. `Bundle.key` was removed with it
+- **The name.** All three check the built `dist` from a user's side
+- **Rejected: `bundlecheck`.** It reads as size alone
+- **Rejected: `budget` and `measure`.** They do not fit compat, which only passes or fails
+- **Rejected: `dist:verify` and `dist:test`.** Only `docs:*` uses a colon in a script name, and
+  `test` reads as `vp test`
