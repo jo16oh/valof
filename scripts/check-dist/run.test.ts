@@ -3,7 +3,7 @@ import { Val } from "#valof";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { IncompatibleError } from "./compat/index.ts";
-import { Check, runChecks } from "./run.ts";
+import { Check, Report, runChecks } from "./run.ts";
 
 let logged: string[];
 let ran: string[];
@@ -19,34 +19,64 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-type Stub = Val<"Stub", { name: string; outcome: "pass" | "fail" | "throw" }, Check>;
+type Note = Val<"Note", { text: string; fails: boolean }, Report>;
+const Note = Val.companion<Note>()
+  .implTrait(Report, () => ({
+    render: (note) => note.text,
+    verdict: (note) =>
+      note.fails ? R.fail(new IncompatibleError({ failed: [note.text] })) : R.succeed(),
+  }))
+  .build();
+
+type Outcome = "pass" | "fail" | "reject" | "throw";
+
+// "fail" reports and then fails its verdict; "reject" fails before it has a report.
+type Stub = Val<"Stub", { name: string; outcome: Outcome }, Check>;
 const Stub = Val.companion<Stub>()
   .implTrait(Check, () => ({
     run: async (stub) => {
       ran.push(stub.name);
       if (stub.outcome === "throw") throw new Error(`${stub.name} crashed`);
-      return stub.outcome === "pass"
-        ? R.succeed()
-        : R.fail(new IncompatibleError({ failed: [stub.name] }));
+      if (stub.outcome === "reject") return R.fail(new IncompatibleError({ failed: [stub.name] }));
+      return R.succeed(
+        Report.dyn(
+          Note,
+          Note.seal({ text: `${stub.name} report`, fails: stub.outcome === "fail" }),
+        ),
+      );
     },
   }))
   .build();
 
-const check = (name: string, outcome: "pass" | "fail" | "throw") =>
-  Check.dyn(Stub, Stub.seal({ name, outcome }));
+const check = (name: string, outcome: Outcome) => Check.dyn(Stub, Stub.seal({ name, outcome }));
 
 describe("runChecks", () => {
-  test("runs every check after one fails or throws, and exits 1 with the summary", async () => {
+  test("runs every check after one fails, rejects or throws, and exits 1 with the summary", async () => {
     const code = await runChecks([
       check("size", "fail"),
-      check("types", "throw"),
-      check("compat", "pass"),
+      check("types", "reject"),
+      check("compat", "throw"),
+      check("pack", "pass"),
     ]);
-    expect(ran).toEqual(["size", "types", "compat"]);
+    expect(ran).toEqual(["size", "types", "compat", "pack"]);
     expect(code).toBe(1);
-    expect(logged).toContain(`\n${new IncompatibleError({ failed: ["size"] }).message}`);
-    expect(logged).toContain("\ntypes crashed");
-    expect(logged.slice(-3)).toEqual(["  size    fail", "  types   fail", "  compat  pass"]);
+    // A report prints before its verdict, and a check that fails before reporting prints none.
+    expect(logged.slice(0, 4)).toEqual([
+      "\n# size\n",
+      "size report",
+      `\n${new IncompatibleError({ failed: ["size report"] }).message}`,
+      "\n# types\n",
+    ]);
+    expect(logged).toContain(`\n${new IncompatibleError({ failed: ["types"] }).message}`);
+    expect(logged).not.toContain("types report");
+    expect(logged).toContain("\ncompat crashed");
+    expect(logged).toContain("pack report");
+    expect(logged.slice(-4)).toEqual([
+      "  size    fail",
+      "  types   fail",
+      "  compat  fail",
+      "  pack    pass",
+    ]);
   });
 
   test("exits 0 when every check passes", async () => {

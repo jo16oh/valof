@@ -4,9 +4,9 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import { Result as R } from "@praha/byethrow";
-import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
+import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { claims, type ClaimCountError, type StaleClaimError } from "./claims.ts";
+import { Claims } from "./claims.ts";
 
 let root: URL;
 let directory: string;
@@ -22,22 +22,32 @@ beforeEach(async () => {
   await writeFile(join(directory, "docs/src/introduction.md"), intro("965 B gzipped"));
   await writeFile(join(directory, "README.md"), intro("965 B gzipped"));
   await writeFile(join(directory, "package.json"), manifest("965 B gzipped"));
-  vi.spyOn(console, "log").mockImplementation(() => {});
 });
 
 afterEach(async () => {
-  vi.restoreAllMocks();
   await rm(directory, { recursive: true, force: true });
 });
 
 const read = (file: string): Promise<string> => readFile(join(directory, file), "utf8");
-const message = (result: R.Result<void, ClaimCountError | StaleClaimError>): string | undefined =>
-  R.isFailure(result) ? result.error.message : undefined;
 
-describe("claims", () => {
+// Reads, rewrites with `write`, and judges, as the size check does. The verdict's message, if any.
+async function check(
+  gzip: number,
+  { release, write }: { release: boolean; write: boolean },
+): Promise<string | undefined> {
+  const claims = await Claims.read(gzip, release, root);
+  if (R.isFailure(claims)) return claims.error.message;
+
+  if (write) await Claims.rewrite(claims.value, root);
+  const verdict = Claims.verdict(claims.value, { release, write });
+
+  return R.isFailure(verdict) ? verdict.error.message : undefined;
+}
+
+describe("Claims", () => {
   test("reads a claim the formatter wrapped across lines", async () => {
     await writeFile(join(directory, "docs/src/introduction.md"), intro("965 B\n  gzipped"));
-    expect(message(await claims(965, { release: false, write: false }, root))).toBeUndefined();
+    expect(await check(965, { release: false, write: false })).toBeUndefined();
   });
 
   test("reads only the marked claim in Markdown, even beside a package description", async () => {
@@ -45,31 +55,47 @@ describe("claims", () => {
       join(directory, "docs/src/introduction.md"),
       `${intro("965 B gzipped")}\n\`\`\`json\n${manifest("9 B gzipped")}\`\`\`\n`,
     );
-    expect(message(await claims(965, { release: false, write: false }, root))).toBeUndefined();
+    expect(await check(965, { release: false, write: false })).toBeUndefined();
   });
 
   test("fails on a stale claim, naming the file and both sizes", async () => {
     await writeFile(join(directory, "docs/src/introduction.md"), intro("9 B gzipped"));
-    expect(message(await claims(965, { release: false, write: false }, root))).toBe(
+    expect(await check(965, { release: false, write: false })).toBe(
       "stale claim: docs/src/introduction.md says 9 B gzipped, measured 965 B gzipped. Rerun with --write.",
     );
   });
 
   test("rewrites a stale claim with --write", async () => {
     await writeFile(join(directory, "docs/src/introduction.md"), intro("9 B gzipped"));
-    expect(message(await claims(1100, { release: false, write: true }, root))).toBeUndefined();
+    expect(await check(1100, { release: false, write: true })).toBeUndefined();
     expect(await read("docs/src/introduction.md")).toBe(intro("1.07 kB gzipped"));
   });
 
   test("reads the README and the package description only for a release", async () => {
     await writeFile(join(directory, "package.json"), manifest("9 B gzipped"));
-    expect(message(await claims(965, { release: false, write: false }, root))).toBeUndefined();
-    expect(message(await claims(965, { release: true, write: false }, root))).toBe(
+    expect(await check(965, { release: false, write: false })).toBeUndefined();
+    expect(await check(965, { release: true, write: false })).toBe(
       "stale claim: package.json says 9 B gzipped, measured 965 B gzipped. Rerun with --write --release.",
     );
-    await claims(1100, { release: true, write: true }, root);
+    await check(1100, { release: true, write: true });
     expect(await read("package.json")).toBe(manifest("1.07 kB gzipped"));
     expect(await read("README.md")).toBe(intro("1.07 kB gzipped"));
+  });
+
+  test("prints each claim's state, and what --write rewrote", async () => {
+    await writeFile(join(directory, "docs/src/introduction.md"), intro("9 B gzipped"));
+    const claims = R.unwrap(await Claims.read(965, true, root));
+    expect(Claims.render(claims, false)).toBe(
+      [
+        "claims  965 B gzipped",
+        "  docs/src/introduction.md  stale: 9 B gzipped",
+        "  README.md                 ok",
+        "  package.json              ok",
+      ].join("\n"),
+    );
+    expect(Claims.render(claims, true)).toContain(
+      "  docs/src/introduction.md  updated from 9 B gzipped",
+    );
   });
 
   test.each([
@@ -77,7 +103,7 @@ describe("claims", () => {
     { text: intro("965 B gzipped").repeat(2), found: 2 },
   ])("fails on a file that states the size $found times", async ({ text, found }) => {
     await writeFile(join(directory, "docs/src/introduction.md"), text);
-    expect(message(await claims(965, { release: false, write: false }, root))).toBe(
+    expect(await check(965, { release: false, write: false })).toBe(
       `docs/src/introduction.md: expected one bundle-size claim, found ${found}`,
     );
   });
