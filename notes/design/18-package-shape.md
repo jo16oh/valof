@@ -171,3 +171,25 @@ inferred type. If declaration output changes an export's type, the check fails t
 **7.1 stays out of the ts-compatibility lines.** It is in beta. Once a stable release ships, it goes
 into `aliases` as the latest version (§10.1). The spots that 7.1 turns into TS7056 appear as
 `/*elided*/` on the earlier lines, so the check above catches them.
+
+## 18.6 `AnyVal`, `AnyEnum` and `AnyTrait` are no longer exported from the entry, 2026-11-12
+
+**No user code needs to know that a value is a Val without knowing which one.** A store or a
+serializer that does not care which Val it holds takes the payload `Val.unwrap(v)` returns, which
+fits a JSON type the user writes. The Val itself does not fit `{ readonly [k: string]: Json }`,
+because the classes it carries (`Phantom` and `Verdict`) have no implicit index signature. A
+primitive Val fits `Json`, and any Val fits `object`. Code that cares which Val it holds references
+the Val's type, or calls its companion.
+
+No user code needs an enum or a trait without knowing which one either. Code that uses a trait
+references it, as in `Impl<Greetable>` or `Dyn<Greetable>`.
+
+**What we lost: a generic over every Val, enum or trait.** `<V extends AnyVal>(v: V) => Val.unwrap(v)`
+can no longer be written against the entry. `equals` and `Val.unwrap` still take any Val.
+
+**A user's declaration output is unaffected.** Exporting `equals` or `Val.unwrap` under a name of
+the user's own emits `import("valof/internal/val").AnyVal` (§18.4). ts-compatibility checks that
+output for `equals` on every TypeScript line.
+
+We found no other inferred type in a user's exports that references one of the three. Exporting
+`Enum.companion` itself does, but it already fails with TS4023 on `EnumKey`.

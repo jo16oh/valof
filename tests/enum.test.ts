@@ -9,7 +9,6 @@ import {
   type Unpatchable,
   Enum,
   Trait,
-  type AnyEnum,
   type Dyn,
   type Final,
   type Impl,
@@ -22,6 +21,7 @@ import {
   Tag,
   type VariantOf,
 } from "../src/index.ts";
+import type { AnyEnum } from "../src/enum.ts";
 import type { CallBuildFirst, Invalid, Verdict } from "../src/val.ts";
 
 // The verdict is a private field, so it is read through the class rather than by a key.

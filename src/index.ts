@@ -7,7 +7,6 @@ export { equals, Val } from "./val.ts";
  * ones a caller writes for themselves.
  */
 export type {
-  AnyVal,
   Companion,
   CompanionBuilder,
   Patch,
@@ -23,7 +22,6 @@ export type {
 export { Enum, Otherwise, Tag } from "./enum.ts";
 
 export type {
-  AnyEnum,
   EnumBuilder,
   EnumCompanion,
   NameOf,
@@ -38,13 +36,4 @@ export type {
 
 export { Trait } from "./trait.ts";
 
-export type {
-  AnyTrait,
-  Dyn,
-  Final,
-  Impl,
-  Members,
-  Self,
-  TraitBuilder,
-  TraitCompanion,
-} from "./trait.ts";
+export type { Dyn, Final, Impl, Members, Self, TraitBuilder, TraitCompanion } from "./trait.ts";

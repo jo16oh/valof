@@ -1,6 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 import type {
-  AnyVal,
   Patch,
   Payload,
   PayloadOf,
@@ -13,9 +12,10 @@ import type {
 import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "../src/index.ts";
 import { Traits } from "../src/keys.ts";
 import type { VerdictOf as TraitVerdictOf } from "../src/trait.ts";
-// `BrandOf` is not published from the entry point.
+// `AnyVal` and `BrandOf` are not published from the entry point.
 import type {
   Allowed,
+  AnyVal,
   BrandOf,
   CallBuildFirst,
   CompanionMembers,
@@ -1243,6 +1243,17 @@ describe("Val", () => {
       raw.name = "sue";
       expect(raw.name).toBe("sue");
     });
+  });
+});
+
+describe("the entry point", () => {
+  test("does not export the constraints over any Val, enum or trait", () => {
+    // @ts-expect-error the entry point does not export AnyVal
+    expectTypeOf<import("../src/index.ts").AnyVal>();
+    // @ts-expect-error the entry point does not export AnyEnum
+    expectTypeOf<import("../src/index.ts").AnyEnum>();
+    // @ts-expect-error the entry point does not export AnyTrait
+    expectTypeOf<import("../src/index.ts").AnyTrait>();
   });
 });
 

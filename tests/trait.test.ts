@@ -3,7 +3,6 @@ import {
   Enum,
   Trait,
   Val,
-  type AnyTrait,
   type Dyn,
   type Final,
   type Impl,
@@ -12,7 +11,7 @@ import {
 } from "../src/index.ts";
 // `Wired` is not published from the entry point.
 import type { Allowed, CallBuildFirst, Invalid, Verdict, Wired } from "../src/val.ts";
-import type { LoneTrait, OneTrait, VerdictOf } from "../src/trait.ts";
+import type { AnyTrait, LoneTrait, OneTrait, VerdictOf } from "../src/trait.ts";
 import { Shared } from "../src/keys.ts";
 
 /** What a Val's payload rules make of it: the payload, or the messages in place of what breaks one. */
