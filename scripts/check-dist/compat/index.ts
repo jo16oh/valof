@@ -8,9 +8,9 @@ import { Val } from "#valof";
 import { docBlocks } from "../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../pin-valof/index.ts";
 import { output, root, writeJson } from "../../shared/repository.ts";
-import { aliases, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
+import { aliases, tsc, version } from "../../shared/typescript-lines.ts";
 import { Check } from "../run.ts";
-import { roundTrip, type RoundTrip } from "./round-trip.ts";
+import { RoundTrip, SourceExports } from "./round-trip.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
 const scripts = join(directory, "scripts");
@@ -61,7 +61,7 @@ export async function checkCompat({
    * packages in their declarations, such as the base class of `ErrorFactory`, and the comparison
    * counts that as a change.
    */
-  const trip = roundTrip(directory, [...blocks, ...fixtures]);
+  const exports = SourceExports.read(directory, [...blocks, ...fixtures]);
 
   console.log(`  ${blocks.length} blocks from the book, ${fixtures.length} fixtures`);
   console.log(
@@ -72,7 +72,7 @@ export async function checkCompat({
 
   // The TypeScript lines run concurrently, each emitting to directories of its own, and report in
   // the order of `aliases`.
-  const reports = await Promise.all(aliases.map((alias) => check(alias, trip, current)));
+  const reports = await Promise.all(aliases.map((alias) => check(alias, exports, current)));
   for (const [i, alias] of aliases.entries()) {
     const report = reports[i]!;
     console.log(`  typescript@${version(alias)}  ${report.length === 0 ? "pass" : "fail"}`);
@@ -211,11 +211,7 @@ async function copyScripts(): Promise<string[]> {
 }
 
 // The failure messages of one TypeScript line, empty where it passes. `current` adds the scripts.
-async function check(
-  alias: string,
-  trip: (dts: string, project: string) => Promise<RoundTrip>,
-  current: boolean,
-): Promise<string[]> {
+async function check(alias: string, exports: SourceExports, current: boolean): Promise<string[]> {
   const run = tsc(alias);
   const dts = join(directory, "dts", alias);
   const own = join(scripts, "dts", alias);
@@ -223,7 +219,8 @@ async function check(
     await run(["-p", directory]);
     await run(["-p", join(directory, "tsconfig.declaration.json"), "--outDir", dts]);
     if (current) await run(["-p", scripts, "--outDir", own]);
-    const changed = await differs(run, await trip(dts, join(directory, "round-trip", alias)));
+    const trip = await RoundTrip.write(exports, dts, join(directory, "round-trip", alias));
+    const changed = await RoundTrip.differs(trip, run);
     const cut = current ? await elided(own) : [];
     return [
       ...changed.map((name) => `    the declaration changes ${name}`),
@@ -231,21 +228,6 @@ async function check(
     ];
   } catch (error) {
     return [output(error)];
-  }
-}
-
-// The exports whose declaration changes their type. It throws on an error outside the
-// comparisons, such as a declaration that does not parse.
-async function differs(tsc: Tsc, { project, exports }: RoundTrip): Promise<string[]> {
-  try {
-    await tsc(["-p", project]);
-    return [];
-  } catch (error) {
-    const lines = [...output(error).matchAll(/round-trip\/[^/]+\/index\.ts\((\d+),\d+\)/g)].map(
-      ([, line]) => exports[line!],
-    );
-    if (lines.length === 0 || lines.includes(undefined)) throw error;
-    return [...new Set(lines as string[])];
   }
 }
 

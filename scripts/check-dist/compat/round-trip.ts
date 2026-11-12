@@ -4,7 +4,8 @@ import { join, relative } from "node:path";
 import * as ts from "typescript-5";
 import { Val } from "#valof";
 
-import { writeJson } from "../../shared/repository.ts";
+import { output, writeJson } from "../../shared/repository.ts";
+import type { Tsc } from "../../shared/typescript-lines.ts";
 
 /** A program comparing each export of some modules with the type their declarations give it. */
 export type RoundTrip = Val<
@@ -15,85 +16,107 @@ export type RoundTrip = Val<
     exports: Record<string, string>;
   }
 >;
-export const RoundTrip = Val.companion<RoundTrip>().build();
+export const RoundTrip = Val.companion<RoundTrip>()
+  .implAssoc(({ seal }) => ({
+    /**
+     * Writes the program to `project`, for the declarations of `exports` emitted to `dts` at the
+     * same paths as the modules. The program's `tsconfig.json` extends the one in their directory.
+     *
+     * `Equal` distinguishes `any` from every other type, so an export fails where TypeScript
+     * truncated a type in its declaration to `/*elided*\/ any`, and where the declaration no longer
+     * exports it. A type alias or an interface the module declares compares equal to the one its
+     * declaration declares again. An enum, a `unique symbol`, or a class with a private member does
+     * not.
+     */
+    write: async (exports: SourceExports, dts: string, project: string): Promise<RoundTrip> => {
+      const imports: string[] = [];
+      const comparisons: { name: string; source: string; declaration: string }[] = [];
 
-/**
- * Reads the exports of `files`, modules under `directory`. The function returned writes the
- * program to `project`, for the declarations emitted to `dts` at the same paths as the modules.
- * The program's `tsconfig.json` extends the one in `directory`.
- *
- * `Equal` distinguishes `any` from every other type, so an export fails where TypeScript truncated a
- * type in its declaration to `/*elided*\/ any`, and where the declaration no longer exports it. A
- * type alias or an interface the module declares compares equal to the one its declaration
- * declares again. An enum, a `unique symbol`, or a class with a private member does not.
- */
-export function roundTrip(
-  directory: string,
-  files: readonly string[],
-): (dts: string, project: string) => Promise<RoundTrip> {
-  const modules = exportsOf(directory, files);
-  return (dts, project) => write(directory, modules, dts, project);
-}
-
-async function write(
-  directory: string,
-  modules: { file: string; symbols: Export[] }[],
-  dts: string,
-  project: string,
-): Promise<RoundTrip> {
-  const imports: string[] = [];
-  const comparisons: { name: string; source: string; declaration: string }[] = [];
-
-  for (const [index, { file, symbols }] of modules.entries()) {
-    const path = relative(directory, file);
-    const module = path.replace(/\.ts$/, ".js");
-    imports.push(
-      `import type * as S${index} from "${relative(project, join(directory, module))}";`,
-      `import type * as D${index} from "${relative(project, join(dts, module))}";`,
-    );
-    for (const { name, value, parameters } of symbols) {
-      if (value) {
-        comparisons.push({
-          name: `${path}: ${name}`,
-          source: `typeof S${index}.${name}`,
-          declaration: `typeof D${index}.${name}`,
-        });
+      for (const [index, { file, symbols }] of exports.modules.entries()) {
+        const path = relative(exports.directory, file);
+        const module = path.replace(/\.ts$/, ".js");
+        imports.push(
+          `import type * as S${index} from "${relative(project, join(exports.directory, module))}";`,
+          `import type * as D${index} from "${relative(project, join(dts, module))}";`,
+        );
+        for (const { name, value, parameters } of symbols) {
+          if (value) {
+            comparisons.push({
+              name: `${path}: ${name}`,
+              source: `typeof S${index}.${name}`,
+              declaration: `typeof D${index}.${name}`,
+            });
+          }
+          if (parameters === undefined) continue;
+          // A generic type compares as a function of its parameters, which `Equal` relates for every
+          // argument at once.
+          const list = Array.from({ length: parameters }, (_, i) => `T${i}`).join(", ");
+          const type = (module: string): string =>
+            parameters === 0 ? `${module}.${name}` : `<${list}>() => ${module}.${name}<${list}>`;
+          comparisons.push({
+            name: `${path}: type ${name}`,
+            source: type(`S${index}`),
+            declaration: type(`D${index}`),
+          });
+        }
       }
-      if (parameters === undefined) continue;
-      // A generic type compares as a function of its parameters, which `Equal` relates for every
-      // argument at once.
-      const list = Array.from({ length: parameters }, (_, i) => `T${i}`).join(", ");
-      const type = (module: string): string =>
-        parameters === 0 ? `${module}.${name}` : `<${list}>() => ${module}.${name}<${list}>`;
-      comparisons.push({
-        name: `${path}: type ${name}`,
-        source: type(`S${index}`),
-        declaration: type(`D${index}`),
+
+      const head = [
+        "type Equal<X, Y> =",
+        "  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;",
+        "type Expect<T extends true> = T;",
+        ...imports,
+      ];
+      const lines = comparisons.map(
+        ({ source, declaration }, i) =>
+          `export type _${i} = Expect<Equal<${source}, ${declaration}>>;`,
+      );
+
+      await mkdir(project, { recursive: true });
+      await writeFile(join(project, "index.ts"), `${[...head, ...lines].join("\n")}\n`);
+      await writeJson(join(project, "tsconfig.json"), {
+        extends: relative(project, join(exports.directory, "tsconfig.json")),
+        files: ["index.ts"],
       });
-    }
-  }
 
-  const head = [
-    "type Equal<X, Y> =",
-    "  (<T>() => T extends X ? 1 : 2) extends <T>() => T extends Y ? 1 : 2 ? true : false;",
-    "type Expect<T extends true> = T;",
-    ...imports,
-  ];
-  const lines = comparisons.map(
-    ({ source, declaration }, i) => `export type _${i} = Expect<Equal<${source}, ${declaration}>>;`,
-  );
+      return seal({
+        project,
+        exports: Object.fromEntries(comparisons.map(({ name }, i) => [head.length + i + 1, name])),
+      });
+    },
+  }))
+  .impl(() => ({
+    /**
+     * The exports whose declaration changes their type. Throws on an error outside the
+     * comparisons, such as a declaration that does not parse.
+     */
+    differs: async ({ project, exports }, tsc: Tsc): Promise<string[]> => {
+      try {
+        await tsc(["-p", project]);
+        return [];
+      } catch (error) {
+        const lines = [...output(error).matchAll(/round-trip\/[^/]+\/index\.ts\((\d+),\d+\)/g)].map(
+          ([, line]) => exports[line!],
+        );
+        if (lines.length === 0 || lines.includes(undefined)) throw error;
+        return [...new Set(lines as string[])];
+      }
+    },
+  }))
+  .build();
 
-  await mkdir(project, { recursive: true });
-  await writeFile(join(project, "index.ts"), `${[...head, ...lines].join("\n")}\n`);
-  await writeJson(join(project, "tsconfig.json"), {
-    extends: relative(project, join(directory, "tsconfig.json")),
-    files: ["index.ts"],
-  });
-  return RoundTrip.seal({
-    project,
-    exports: Object.fromEntries(comparisons.map(({ name }, i) => [head.length + i + 1, name])),
-  });
-}
+/** The exports of some modules under one directory. */
+export type SourceExports = Val<"SourceExports", { directory: string; modules: ModuleExports[] }>;
+export const SourceExports = Val.companion<SourceExports>()
+  .implAssoc(({ seal }) => ({
+    /** Reads the exports of `files`, modules under `directory`. */
+    read: (directory: string, files: readonly string[]): SourceExports =>
+      seal({ directory, modules: exportsOf(directory, files) }),
+  }))
+  .build();
+
+type ModuleExports = Val<"ModuleExports", { file: string; symbols: Export[] }>;
+const ModuleExports = Val.companion<ModuleExports>().build();
 
 type Export = Val<
   "Export",
@@ -108,10 +131,7 @@ const Export = Val.companion<Export>().build();
 
 // The checker reads the exports, and resolves `export *` and `export { … }` too. Every TypeScript
 // line returns the same exports, and the 5.x one has the compiler API.
-function exportsOf(
-  directory: string,
-  files: readonly string[],
-): { file: string; symbols: Export[] }[] {
+function exportsOf(directory: string, files: readonly string[]): ModuleExports[] {
   const config = ts.getParsedCommandLineOfConfigFile(join(directory, "tsconfig.json"), undefined, {
     ...ts.sys,
     onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
@@ -150,6 +170,6 @@ function exportsOf(
         return Export.seal({ name: exported.name, value, ...(type ? { parameters } : {}) });
       },
     );
-    return { file, symbols };
+    return ModuleExports.seal({ file, symbols });
   });
 }

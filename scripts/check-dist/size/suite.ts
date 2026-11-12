@@ -2,7 +2,8 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "./bundle.ts";
-import { flow } from "../../../src/shared/pipe/index.ts";
+import { flow, pipe } from "../../../src/shared/pipe/index.ts";
+import { align, Budget } from "../report.ts";
 import {
   BuildResult,
   BundleSize,
@@ -37,7 +38,18 @@ export type Report = Val<
     separateBase: BuildResult[];
   }
 >;
-export const Report = Val.companion<Report>().build();
+export const Report = Val.companion<Report>()
+  .impl(() => ({
+    /** Each build's sizes, then each bundle's budget. */
+    render: ({ bundles, separateBase }): string =>
+      [
+        ...[...separateBase, ...bundles.map(({ build }) => build)].map(
+          (build) => `${BuildResult.render(build)}\n`,
+        ),
+        budgets(bundles),
+      ].join("\n"),
+  }))
+  .build();
 
 export type Suite = Val<"Suite", Bundle[]>;
 export const Suite = Val.companion<Suite>()
@@ -91,3 +103,22 @@ export const Suite = Val.companion<Suite>()
     },
   }))
   .build();
+
+function budgets(bundles: readonly BundleSize[]): string {
+  return pipe(
+    bundles.map((size) => {
+      const budget = BundleSize.budget(size);
+      return [
+        budget.name,
+        BundleSize.amount(size, budget.used),
+        BundleSize.amount(size, budget.limit),
+        Budget.left(budget),
+      ];
+    }),
+    (rows) => align(rows, ["left", "right", "right", "left"]),
+    (rows) =>
+      rows.map(([name, used, limit, left]) => `  ${name}  ${used} / ${limit}  ${left}`.trimEnd()),
+    (lines) => ["budget (production gzip)", ...lines],
+    (lines) => lines.join("\n"),
+  );
+}

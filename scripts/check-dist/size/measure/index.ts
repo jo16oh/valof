@@ -2,7 +2,8 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val } from "#valof";
 import { Imports, type Bundle } from "../bundle.ts";
-import { Budget } from "../../report.ts";
+import { pipe } from "../../../../src/shared/pipe/index.ts";
+import { align, Budget, bytes } from "../../report.ts";
 
 export class DevCodeKeptError extends ErrorFactory({
   name: "DevCodeKeptError",
@@ -56,6 +57,23 @@ export const BuildResult = Val.companion<BuildResult>()
       !build.readsNodeEnv || build.production.sizes.minified !== build.development.sizes.minified
         ? R.succeed()
         : R.fail(new DevCodeKeptError({ imports: build.imports })),
+    /** The bundle's imports, over a table of each mode's sizes. */
+    render: (build): string => {
+      const heads = ["minified", "gzip", "brotli"] as const;
+      return pipe(
+        [
+          ["", ...heads],
+          ...modes.map(({ _tag: mode }) => [
+            mode,
+            ...heads.map((head) => bytes(build[mode].sizes[head])),
+          ]),
+        ],
+        (rows) => align(rows, ["left", "right", "right", "right"]),
+        (rows) => rows.map((cells) => `  ${cells.join("  ")}`),
+        (lines) => [`bundle  import { ${Imports.names(build.imports).join(", ")} }`, ...lines],
+        (lines) => lines.join("\n"),
+      );
+    },
   }))
   .build();
 
@@ -83,6 +101,8 @@ export const BundleSize = Val.companion<BundleSize>()
         limit: size.bundle.budget,
         unit: "bytes",
       }),
+    // An added bundle is budgeted by what it adds to the base.
+    amount: (size, value: number): string => (size.bundle.base ? bytes(value) : `+${bytes(value)}`),
     check: (size, base: BuildResult): R.Result<void, AddsNothingError> =>
       size.bundle.base || size.build.production.library !== base.production.library
         ? R.succeed()

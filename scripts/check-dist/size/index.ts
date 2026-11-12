@@ -5,10 +5,9 @@ import { Budget, OverBudgetError } from "../report.ts";
 import { Check } from "../run.ts";
 
 import { claims, type ClaimCountError, type StaleClaimError } from "./claims.ts";
-import { render } from "./format.ts";
 import { BundleSize } from "./measure/index.ts";
 import { Bundle, Imports } from "./bundle.ts";
-import { Suite, type MeasureError } from "./suite.ts";
+import { Report, Suite, type MeasureError } from "./suite.ts";
 
 const suite = Suite.seal([
   Bundle.seal({
@@ -60,7 +59,7 @@ export async function checkSize(options: {
 }): R.ResultAsync<void, SizeError> {
   const measured = await Suite.measure(suite);
   if (R.isFailure(measured)) return measured;
-  console.log(render(measured.value));
+  console.log(Report.render(measured.value));
 
   const over = measured.value.bundles.map(BundleSize.budget).filter(Budget.over);
   // The claims are read even when a bundle is over budget, so a stale claim shows together
