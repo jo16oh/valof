@@ -4,6 +4,8 @@ import { join, relative } from "node:path";
 import * as ts from "typescript-5";
 import { Val } from "#valof";
 
+import { writeJson } from "../../shared/repository.ts";
+
 /** A program comparing each export of some modules with the type their declarations give it. */
 export type RoundTrip = Val<
   "RoundTrip",
@@ -83,17 +85,10 @@ async function write(
 
   await mkdir(project, { recursive: true });
   await writeFile(join(project, "index.ts"), `${[...head, ...lines].join("\n")}\n`);
-  await writeFile(
-    join(project, "tsconfig.json"),
-    `${JSON.stringify(
-      {
-        extends: relative(project, join(directory, "tsconfig.json")),
-        files: ["index.ts"],
-      },
-      undefined,
-      2,
-    )}\n`,
-  );
+  await writeJson(join(project, "tsconfig.json"), {
+    extends: relative(project, join(directory, "tsconfig.json")),
+    files: ["index.ts"],
+  });
   return RoundTrip.seal({
     project,
     exports: Object.fromEntries(comparisons.map(({ name }, i) => [head.length + i + 1, name])),

@@ -1,11 +1,11 @@
 import { Result as R } from "@praha/byethrow";
-import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 
+import { Budget, OverBudgetError } from "../report.ts";
 import { Check } from "../run.ts";
 
 import { claims, type ClaimCountError, type StaleClaimError } from "./claims.ts";
-import { over, render } from "./format.ts";
+import { render } from "./format.ts";
 import { BundleSize } from "./measure/index.ts";
 import { Bundle, Imports } from "./bundle.ts";
 import { Suite, type MeasureError } from "./suite.ts";
@@ -48,11 +48,6 @@ const suite = Suite.seal([
   }),
 ]);
 
-export class OverBudgetError extends ErrorFactory({
-  message: ({ lines }) => lines.join("\n"),
-  fields: ErrorFactory.fields<{ lines: string[] }>(),
-}) {}
-
 /**
  * Measures every bundle against its budget, then the claims against the base bundle's size.
  * Expects `dist` to be built.
@@ -65,13 +60,13 @@ export async function checkSize(options: {
   if (R.isFailure(measured)) return measured;
   console.log(render(measured.value));
 
-  const overs = measured.value.bundles.filter(BundleSize.over).map(over);
+  const over = measured.value.bundles.map(BundleSize.budget).filter(Budget.over);
   // The claims are read even when a bundle is over budget, so a stale claim shows together
   // with the over-budget error.
   console.log();
   const base = measured.value.bundles.find(({ bundle }) => bundle.base);
   const claimed = await claims(base?.build.production.sizes.gzip ?? Number.NaN, options);
-  if (overs.length > 0) return R.fail(new OverBudgetError({ lines: overs }));
+  if (over.length > 0) return R.fail(new OverBudgetError({ over }));
   return claimed;
 }
 

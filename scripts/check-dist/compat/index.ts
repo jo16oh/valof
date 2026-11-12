@@ -1,31 +1,19 @@
+import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 
-import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
-
 import { docBlocks } from "../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../pin-valof/index.ts";
-import { aliases, root, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
+import { output, root, writeJson } from "../../shared/repository.ts";
+import { aliases, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
 import { Check } from "../run.ts";
 import { roundTrip, type RoundTrip } from "./round-trip.ts";
 
 const directory = join(root, "docs/.generated/ts-compatibility");
-
-/**
- * The book's blocks are the fixture: they are the API surface a reader writes, and they are
- * maintained as documentation rather than as a second copy of it.
- *
- * The ones that declare `// @errors` stay out. Which errors a compiler reports, and under which
- * code, moves between lines, and plain `tsc` has nowhere to put the expectation. `vp test` keeps
- * checking those against `src` (docs/tools/twoslash).
- */
-function fixtures() {
-  return docBlocks(join(root, "docs/src")).filter(
-    (block) => !block.ignored && !block.code.includes("// @errors:"),
-  );
-}
+const scripts = join(directory, "scripts");
 
 export class StalePinError extends ErrorFactory({
   message: ({ pin }) =>
@@ -41,8 +29,8 @@ export class IncompatibleError extends ErrorFactory({
 
 /**
  * Typechecks the book's blocks, the fixtures and the scripts against `dist` on every TypeScript
- * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin builds this
- * same `dist`.
+ * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin builds
+ * this same `dist`.
  */
 export async function checkCompat({
   release,
@@ -53,129 +41,11 @@ export async function checkCompat({
   const current = await matches(pin);
   if (!current && release) return R.fail(new StalePinError({ pin }));
 
-  await rm(directory, { recursive: true, force: true });
-  await mkdir(directory, { recursive: true });
-
-  // Installed the way npm installs it, so `exports` decides what a declaration may reference. A
-  // path to `dist` would let it reach a module the package does not export.
-  const installed = join(directory, "node_modules/valof");
-  await cp(join(root, "dist"), join(installed, "dist"), { recursive: true });
-  await copyFile(join(root, "package.json"), join(installed, "package.json"));
-  // A package of its own, or `valof` resolves to this repository by self-reference.
-  await writeFile(
-    join(directory, "package.json"),
-    `${JSON.stringify({ private: true, type: "module" })}\n`,
-  );
-
-  // A block that imports nothing is a script, and its declarations land in a global scope every
-  // other one shares: two blocks declaring `User` collide. `export {}` gives it a scope of its own
-  // without changing what is checked.
-  const isolated = (code: string): string =>
-    /^\s*(?:import|export)\b/m.test(code) ? code : `${code}\nexport {};\n`;
-
-  // Exported, so the declaration pass below has something to emit. A companion's type is inferred,
-  // and an inferred type is what reaches for a name the library never published.
-  const exported = (code: string): string =>
-    code.replaceAll(/^(const|type|function) /gm, "export $1 ");
-
-  const blocks = await Promise.all(
-    fixtures().map(async (block) => {
-      const file = join(directory, `${block.name.replace(/\.md:/, "-")}.ts`);
-      await writeFile(file, exported(isolated(block.code)));
-      return file;
-    }),
-  );
-
-  // Exports the book does not show, kept beside this script.
-  const extras = join(root, "scripts/check-dist/compat/fixtures");
-  const copies = await Promise.all(
-    (await readdir(extras)).map(async (file) => {
-      const copy = join(directory, `fixture-${file}`);
-      await copyFile(join(extras, file), copy);
-      return copy;
-    }),
-  );
-  const modules = [...blocks, ...copies];
-
-  await writeFile(
-    join(directory, "tsconfig.json"),
-    `${JSON.stringify(
-      {
-        compilerOptions: {
-          target: "es2022",
-          lib: ["es2023"],
-          module: "esnext",
-          moduleResolution: "bundler",
-          strict: true,
-          exactOptionalPropertyTypes: true,
-          noUncheckedIndexedAccess: true,
-          types: ["node"],
-          noEmit: true,
-          skipLibCheck: true,
-        },
-        include: ["*.ts"],
-      },
-      undefined,
-      2,
-    )}\n`,
-  );
-
-  /**
-   * The same blocks again, emitting declarations. Typechecking alone does not reach this: an
-   * inferred type only has to be nameable when it is written to a `.d.ts`, and TS4023 and TS4094
-   * are what a consumer sees when it is not. Both have landed here before, on the one line
-   * `export const Shape = Enum.companion<Shape>()`.
-   */
-  await writeFile(
-    join(directory, "tsconfig.declaration.json"),
-    `${JSON.stringify(
-      {
-        extends: "./tsconfig.json",
-        compilerOptions: {
-          noEmit: false,
-          declaration: true,
-          emitDeclarationOnly: true,
-          outDir: "dts",
-        },
-      },
-      undefined,
-      2,
-    )}\n`,
-  );
-
-  /**
-   * The scripts, which are written against the pinned commit, as code a user wrote. They read
-   * against this `dist` only when the pin builds the same one; `release` fails otherwise,
-   * which a release PR passes so the scripts catch up before a release.
-   *
-   * Copied, with a `package.json` that sends `#valof` to the installed package. The copy sits
-   * inside the repository, so every other import still reaches its `node_modules`.
-   */
-  const scripts = join(directory, "scripts");
-  const importers = current ? await valofImporters() : [];
-  if (current) {
-    // Without the tests, which `vp test` would otherwise pick up here too.
-    await cp(join(root, "scripts"), scripts, {
-      recursive: true,
-      filter: (source) => !source.endsWith(".test.ts"),
-    });
-    await writeFile(
-      join(scripts, "package.json"),
-      `${JSON.stringify({ private: true, type: "module", imports: { "#valof": "valof" } })}\n`,
-    );
-    await writeFile(
-      join(scripts, "tsconfig.json"),
-      `${JSON.stringify(
-        {
-          extends: join(root, "tsconfig.json"),
-          compilerOptions: { noEmit: false, emitDeclarationOnly: true, outDir: "dts" },
-          files: importers,
-        },
-        undefined,
-        2,
-      )}\n`,
-    );
-  }
+  await install();
+  const blocks = await writeBlocks();
+  const fixtures = await copyFixtures();
+  await writeConfigs();
+  const importers = current ? await copyScripts() : [];
 
   /**
    * Each export of the book's blocks and the fixtures, compared with the type its declaration
@@ -187,9 +57,9 @@ export async function checkCompat({
    * packages in their declarations, such as the base class of `ErrorFactory`, and the comparison
    * counts that as a change.
    */
-  const trip = roundTrip(directory, modules);
+  const trip = roundTrip(directory, [...blocks, ...fixtures]);
 
-  console.log(`  ${blocks.length} blocks from the book, ${copies.length} fixtures`);
+  console.log(`  ${blocks.length} blocks from the book, ${fixtures.length} fixtures`);
   console.log(
     current
       ? `  ${importers.length} scripts on valof ${pin.slice(0, 7)}`
@@ -198,37 +68,16 @@ export async function checkCompat({
 
   // The TypeScript lines run concurrently, each emitting to directories of its own, and report in
   // the order of `aliases`.
-  const reports = await Promise.all(aliases.map(check));
+  const reports = await Promise.all(aliases.map((alias) => check(alias, trip, current)));
   for (const [i, alias] of aliases.entries()) {
     const report = reports[i]!;
     console.log(`  typescript@${version(alias)}  ${report.length === 0 ? "pass" : "fail"}`);
     for (const line of report) console.log(line);
   }
   const failed = aliases.filter((_, i) => reports[i]!.length > 0).map(version);
-
   console.log();
 
   return failed.length === 0 ? R.succeed() : R.fail(new IncompatibleError({ failed }));
-
-  // The failure messages of one TypeScript line, empty where it passes.
-  async function check(alias: string): Promise<string[]> {
-    const run = tsc(alias);
-    const dts = join(directory, "dts", alias);
-    const own = join(scripts, "dts", alias);
-    try {
-      await run(["-p", directory]);
-      await run(["-p", join(directory, "tsconfig.declaration.json"), "--outDir", dts]);
-      if (current) await run(["-p", scripts, "--outDir", own]);
-      const changed = await differs(run, await trip(dts, join(directory, "round-trip", alias)));
-      const cut = current ? await elided(own) : [];
-      return [
-        ...changed.map((name) => `    the declaration changes ${name}`),
-        ...(cut.length > 0 ? [`    /*elided*/ in ${cut.join(", ")}`] : []),
-      ];
-    } catch (error) {
-      return [(error as { stdout?: string }).stdout ?? String(error)];
-    }
-  }
 }
 
 export type CompatCheck = Val<"CompatCheck", { name: string; release: boolean }, Check>;
@@ -237,6 +86,150 @@ export const CompatCheck = Val.companion<CompatCheck>()
   .implTrait(Check, () => ({ run: (check) => checkCompat(check) }))
   .build();
 
+/**
+ * Installs `dist` the way npm installs it, so `exports` decides what a declaration may reference.
+ * A path to `dist` would let it reach a module the package does not export.
+ */
+async function install(): Promise<void> {
+  await rm(directory, { recursive: true, force: true });
+  await mkdir(directory, { recursive: true });
+
+  const installed = join(directory, "node_modules/valof");
+  await cp(join(root, "dist"), join(installed, "dist"), { recursive: true });
+  await copyFile(join(root, "package.json"), join(installed, "package.json"));
+  // A package of its own, or `valof` resolves to this repository by self-reference.
+  await writeJson(join(directory, "package.json"), { private: true, type: "module" });
+}
+
+/**
+ * The book's blocks are the fixture: they are the API surface a reader writes, and they are
+ * maintained as documentation rather than as a second copy of it.
+ *
+ * The ones that declare `// @errors` stay out. Which errors a compiler reports, and under which
+ * code, moves between lines, and plain `tsc` has nowhere to put the expectation. `vp test` keeps
+ * checking those against `src` (docs/tools/twoslash).
+ */
+function writeBlocks(): Promise<string[]> {
+  // A block that imports nothing is a script, and its declarations land in a global scope every
+  // other one shares: two blocks declaring `User` collide. `export {}` gives it a scope of its own
+  // without changing what is checked.
+  const isolated = (code: string): string =>
+    /^\s*(?:import|export)\b/m.test(code) ? code : `${code}\nexport {};\n`;
+
+  // Exported, so the declaration pass has something to emit. A companion's type is inferred, and
+  // an inferred type is what reaches for a name the library never published.
+  const exported = (code: string): string =>
+    code.replaceAll(/^(const|type|function) /gm, "export $1 ");
+
+  return Promise.all(
+    docBlocks(join(root, "docs/src"))
+      .filter((block) => !block.ignored && !block.code.includes("// @errors:"))
+      .map(async (block) => {
+        const file = join(directory, `${block.name.replace(/\.md:/, "-")}.ts`);
+        await writeFile(file, exported(isolated(block.code)));
+        return file;
+      }),
+  );
+}
+
+/** Exports the book does not show, kept beside this script. */
+async function copyFixtures(): Promise<string[]> {
+  const extras = join(root, "scripts/check-dist/compat/fixtures");
+  return Promise.all(
+    (await readdir(extras)).map(async (file) => {
+      const copy = join(directory, `fixture-${file}`);
+      await copyFile(join(extras, file), copy);
+      return copy;
+    }),
+  );
+}
+
+/**
+ * The blocks' `tsconfig.json`, and a second one that emits their declarations. Typechecking alone
+ * does not reach this: an inferred type only has to be nameable when it is written to a `.d.ts`,
+ * and TS4023 and TS4094 are what a consumer sees when it is not. Both have landed here before, on
+ * the one line `export const Shape = Enum.companion<Shape>()`.
+ */
+async function writeConfigs(): Promise<void> {
+  await writeJson(join(directory, "tsconfig.json"), {
+    compilerOptions: {
+      target: "es2022",
+      lib: ["es2023"],
+      module: "esnext",
+      moduleResolution: "bundler",
+      strict: true,
+      exactOptionalPropertyTypes: true,
+      noUncheckedIndexedAccess: true,
+      types: ["node"],
+      noEmit: true,
+      skipLibCheck: true,
+    },
+    include: ["*.ts"],
+  });
+  await writeJson(join(directory, "tsconfig.declaration.json"), {
+    extends: "./tsconfig.json",
+    compilerOptions: {
+      noEmit: false,
+      declaration: true,
+      emitDeclarationOnly: true,
+      outDir: "dts",
+    },
+  });
+}
+
+/**
+ * The scripts, which are written against the pinned commit, as code a user wrote. They read
+ * against this `dist` only when the pin builds the same one; `release` fails otherwise, which a
+ * release PR passes so the scripts catch up before a release.
+ *
+ * Copied, with a `package.json` that sends `#valof` to the installed package. The copy sits
+ * inside the repository, so every other import still reaches its `node_modules`. Returns the
+ * scripts that import valof.
+ */
+async function copyScripts(): Promise<string[]> {
+  const importers = await valofImporters();
+  // Without the tests, which `vp test` would otherwise pick up here too.
+  await cp(join(root, "scripts"), scripts, {
+    recursive: true,
+    filter: (source) => !source.endsWith(".test.ts"),
+  });
+  await writeJson(join(scripts, "package.json"), {
+    private: true,
+    type: "module",
+    imports: { "#valof": "valof" },
+  });
+  await writeJson(join(scripts, "tsconfig.json"), {
+    extends: join(root, "tsconfig.json"),
+    compilerOptions: { noEmit: false, emitDeclarationOnly: true, outDir: "dts" },
+    files: importers,
+  });
+  return importers;
+}
+
+// The failure messages of one TypeScript line, empty where it passes. `current` adds the scripts.
+async function check(
+  alias: string,
+  trip: (dts: string, project: string) => Promise<RoundTrip>,
+  current: boolean,
+): Promise<string[]> {
+  const run = tsc(alias);
+  const dts = join(directory, "dts", alias);
+  const own = join(scripts, "dts", alias);
+  try {
+    await run(["-p", directory]);
+    await run(["-p", join(directory, "tsconfig.declaration.json"), "--outDir", dts]);
+    if (current) await run(["-p", scripts, "--outDir", own]);
+    const changed = await differs(run, await trip(dts, join(directory, "round-trip", alias)));
+    const cut = current ? await elided(own) : [];
+    return [
+      ...changed.map((name) => `    the declaration changes ${name}`),
+      ...(cut.length > 0 ? [`    /*elided*/ in ${cut.join(", ")}`] : []),
+    ];
+  } catch (error) {
+    return [output(error)];
+  }
+}
+
 // The exports whose declaration changes their type. It throws on an error outside the
 // comparisons, such as a declaration that does not parse.
 async function differs(tsc: Tsc, { project, exports }: RoundTrip): Promise<string[]> {
@@ -244,8 +237,7 @@ async function differs(tsc: Tsc, { project, exports }: RoundTrip): Promise<strin
     await tsc(["-p", project]);
     return [];
   } catch (error) {
-    const output = (error as { stdout?: string }).stdout ?? "";
-    const lines = [...output.matchAll(/round-trip\/[^/]+\/index\.ts\((\d+),\d+\)/g)].map(
+    const lines = [...output(error).matchAll(/round-trip\/[^/]+\/index\.ts\((\d+),\d+\)/g)].map(
       ([, line]) => exports[line!],
     );
     if (lines.length === 0 || lines.includes(undefined)) throw error;

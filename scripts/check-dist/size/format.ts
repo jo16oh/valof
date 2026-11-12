@@ -1,11 +1,8 @@
 import { Imports } from "./bundle.ts";
-import { modes, type BuildResult, type BundleSize } from "./measure/index.ts";
+import { BundleSize, modes, type BuildResult } from "./measure/index.ts";
 import type { Report } from "./suite.ts";
 import { pipe } from "../../../src/shared/pipe/index.ts";
-
-export function over(size: BundleSize): string {
-  return `over budget: ${label(size)} is ${amount(size, size.capped)}, budget ${amount(size, size.bundle.budget)}`;
-}
+import { align, Budget, bytes } from "../report.ts";
 
 export function render({ bundles, separateBase }: Report): string {
   return [
@@ -14,25 +11,9 @@ export function render({ bundles, separateBase }: Report): string {
   ].join("\n");
 }
 
-function format(bytes: number): string {
-  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(2)} kB`;
-}
-
-function align(rows: readonly (readonly string[])[], sides: readonly ("left" | "right")[]) {
-  const columns = sides.map((side, index) => {
-    const cells = rows.map((row) => row[index] ?? "");
-    const width = Math.max(...cells.map((cell) => cell.length));
-    return cells.map((cell) => (side === "left" ? cell.padEnd(width) : cell.padStart(width)));
-  });
-  return rows.map((_, index) => columns.map((cells) => cells[index] ?? ""));
-}
-
-function amount({ bundle }: BundleSize, bytes: number): string {
-  return bundle.base ? format(bytes) : `+${format(bytes)}`;
-}
-
-function label({ bundle }: BundleSize): string {
-  return bundle.base ? bundle.name : `added by ${bundle.name}`;
+// An added bundle is budgeted by what it adds to the base.
+function amount({ bundle }: BundleSize, value: number): string {
+  return bundle.base ? bytes(value) : `+${bytes(value)}`;
 }
 
 function sizes(build: BuildResult): string {
@@ -42,7 +23,7 @@ function sizes(build: BuildResult): string {
       ["", ...heads],
       ...modes.map(({ _tag: mode }) => [
         mode,
-        ...heads.map((head) => format(build[mode].sizes[head])),
+        ...heads.map((head) => bytes(build[mode].sizes[head])),
       ]),
     ],
     (rows) => align(rows, ["left", "right", "right", "right"]),
@@ -55,13 +36,13 @@ function sizes(build: BuildResult): string {
 function budgets(bundles: readonly BundleSize[]): string {
   return pipe(
     bundles.map((size) => {
-      const bytes = size.capped;
-      const max = size.bundle.budget;
-      const left =
-        bytes > max
-          ? `${format(bytes - max)} over`
-          : `${format(max - bytes)} left (${Math.round((1 - bytes / max) * 100)}%)`;
-      return [label(size), amount(size, bytes), amount(size, max), left];
+      const budget = BundleSize.budget(size);
+      return [
+        budget.name,
+        amount(size, budget.used),
+        amount(size, budget.limit),
+        Budget.left(budget),
+      ];
     }),
     (rows) => align(rows, ["left", "right", "right", "left"]),
     (rows) =>

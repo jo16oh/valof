@@ -4,8 +4,9 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 
-/** The repository, which the claimed files are relative to. */
-const repository = new URL("../../../", import.meta.url);
+import { bytes } from "../report.ts";
+import { repository } from "../../shared/repository.ts";
+
 const marker = "valof-minimal-bundle-size";
 
 /** The files that state the bundle size. A release adds the ones that describe the release. */
@@ -48,10 +49,6 @@ const patterns = [
   Pattern.seal(/(?<="description": "[^"]*)\d+(?:\.\d+)? [kM]?B gzipped(?=[^"]*")/.source),
 ];
 
-function format(bytes: number): string {
-  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(2)} kB`;
-}
-
 type Claim = Val<
   "Claim",
   { file: string; text: string; pattern: Pattern; found: string; stale: boolean }
@@ -67,7 +64,7 @@ export async function claims(
   { release, write }: { release: boolean; write: boolean },
   root: URL = repository,
 ): R.ResultAsync<void, ClaimCountError | StaleClaimError> {
-  const size = `${format(gzip)} gzipped`;
+  const size = `${bytes(gzip)} gzipped`;
   const texts = await Promise.all(
     claimed(release).map(async (file) => ({
       file,

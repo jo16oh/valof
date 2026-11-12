@@ -1,11 +1,9 @@
-import { execFile } from "node:child_process";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
+import { join } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 
-const root = new URL("../../", import.meta.url);
+import { output, root, run } from "../shared/repository.ts";
 
 export class PackError extends ErrorFactory({
   message: ({ output }) => `vp run build failed\n${output}`,
@@ -16,17 +14,8 @@ export class PackError extends ErrorFactory({
 export function pack(): R.ResultAsync<void, PackError> {
   return R.try({
     try: async () => {
-      await promisify(execFile)(
-        fileURLToPath(new URL("node_modules/.bin/vp", root)),
-        ["run", "build"],
-        {
-          cwd: fileURLToPath(root),
-        },
-      );
+      await run(join(root, "node_modules/.bin/vp"), ["run", "build"], { cwd: root });
     },
-    catch: (cause) => {
-      const { stdout = "", stderr = "" } = cause as { stdout?: string; stderr?: string };
-      return new PackError({ output: `${stdout}${stderr}` || String(cause), cause });
-    },
+    catch: (cause) => new PackError({ output: output(cause), cause }),
   });
 }

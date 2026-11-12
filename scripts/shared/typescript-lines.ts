@@ -1,14 +1,9 @@
 // Shared by the types and compat checks of `vp run check-dist`: which TypeScript releases to run,
 // and how to get a `tsc` for each one.
-import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
-import { promisify } from "node:util";
 
-export const run = promisify(execFile);
-
-export const root = fileURLToPath(new URL("../../", import.meta.url));
+import { root, run } from "./repository.ts";
 
 /**
  * The oldest line supported, the line above it, and the current one, each installed under an

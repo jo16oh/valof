@@ -2,14 +2,16 @@
 //
 // `Instantiations` and `Types` are deterministic for a given compiler, so they carry the budget;
 // the times are printed and never checked.
-import { readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val, type VariantsOf } from "#valof";
 
+import { align, Budget, count, OverBudgetError } from "../report.ts";
 import { Check } from "../run.ts";
 
+import { output, repository, writeJson } from "../../shared/repository.ts";
 import { floor, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
 
 const here = new URL("./", import.meta.url);
@@ -94,33 +96,103 @@ type Counts = Val<
   "Counts",
   { types: number; instantiations: number; check: number; total: number }
 >;
-const Counts = Val.companion<Counts>().build();
+const Counts = Val.companion<Counts>()
+  .implAssoc(({ seal }) => ({
+    /** Reads the counts `tsc --extendedDiagnostics` prints. */
+    fromDiagnostics: (stdout: string) => {
+      const read = (label: string): number =>
+        Number(stdout.match(new RegExp(`^${label}\\s+([\\d.]+)`, "m"))?.[1] ?? Number.NaN);
+      return seal({
+        types: read("Types:"),
+        instantiations: read("Instantiations:"),
+        check: read("Check time:"),
+        total: read("Total time:"),
+      });
+    },
+  }))
+  .impl(({ patch }) => ({
+    // Reported over the baseline, which is a constant each checker materialises at startup: 86
+    // types on 5.9, 341 on tsgo, whatever the lib. Subtracting it leaves what the library costs.
+    above: (counts, baseline: Counts) =>
+      patch(counts, {
+        types: counts.types - baseline.types,
+        instantiations: counts.instantiations - baseline.instantiations,
+      }),
+  }))
+  .build();
 
-async function measure(tsc: Tsc, name: string): Promise<Counts> {
+export class FixtureError extends ErrorFactory({
+  message: ({ fixture, output }) => `the ${fixture} fixture does not compile\n${output}`,
+  fields: ErrorFactory.fields<{ fixture: string; output: string }>(),
+}) {}
+
+/** Measures the fixtures and the declarations against their budgets. Expects `dist` to be built. */
+export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudgetError> {
+  /**
+   * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
+   * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
+   * --compat` still typechecks every line.
+   */
+  const compile = tsc(floor);
+  const baseline = await measure(compile, "baseline");
+  if (R.isFailure(baseline)) return baseline;
+
+  const counted = await R.sequence(fixtures.map((name) => measure(compile, name)));
+  if (R.isFailure(counted)) return counted;
+  const measured = fixtures.map((name, index) => ({
+    name,
+    counts: Counts.above(counted.value[index]!, baseline.value),
+  }));
+  printCounts(baseline.value, measured);
+
+  const budgets = [
+    ...measured.map(({ name, counts }) =>
+      Budget.seal({ name, used: counts.instantiations, limit: budget[name], unit: "count" }),
+    ),
+    Budget.seal({
+      name: "index.d.ts",
+      used: await declarationBytes(new URL("dist/index.d.ts", repository)),
+      limit: declarationsBudget,
+      unit: "bytes",
+    }),
+    Budget.seal({
+      name: "eslint-plugin.d.mts",
+      used: Buffer.byteLength(
+        await readFile(new URL("dist/eslint-plugin/index.d.mts", repository), "utf8"),
+        "utf8",
+      ),
+      limit: pluginBudget,
+      unit: "bytes",
+    }),
+  ];
+  printBudgets(budgets);
+  printLegend();
+
+  const over = budgets.filter(Budget.over);
+
+  return over.length === 0 ? R.succeed() : R.fail(new OverBudgetError({ over }));
+}
+
+export type TypesCheck = Val<"TypesCheck", { name: string }, Check>;
+export const TypesCheck = Val.companion<TypesCheck>()
+  .implCreate(() => ({ name: "types" }))
+  .implTrait(Check, () => ({ run: (_check) => checkTypes() }))
+  .build();
+
+async function measure(tsc: Tsc, name: string): R.ResultAsync<Counts, FixtureError> {
   const config = new URL(`.tsconfig.${name}.json`, here);
   const base = JSON.parse(await readFile(new URL("tsconfig.base.json", here), "utf8")) as object;
-  await writeFile(config, JSON.stringify({ ...base, include: [`fixtures/${name}.ts`] }));
-  try {
-    // A fixture that stopped compiling measures nothing, so the error is the result.
-    const { stdout } = await tsc([
-      "--noEmit",
-      "--extendedDiagnostics",
-      "--project",
-      fileURLToPath(config),
-    ]).catch((error: { stdout?: string }) => {
-      throw new FixtureError({ fixture: name, output: error.stdout ?? "" });
-    });
-    const read = (label: string): number =>
-      Number(stdout.match(new RegExp(`^${label}\\s+([\\d.]+)`, "m"))?.[1] ?? Number.NaN);
-    return Counts.seal({
-      types: read("Types:"),
-      instantiations: read("Instantiations:"),
-      check: read("Check time:"),
-      total: read("Total time:"),
-    });
-  } finally {
-    await rm(config, { force: true });
-  }
+  await writeJson(config, { ...base, include: [`fixtures/${name}.ts`] });
+
+  // A fixture that stopped compiling measures nothing, so the error is the result.
+  const compiled = await R.try({
+    try: () => tsc(["--noEmit", "--extendedDiagnostics", "--project", fileURLToPath(config)]),
+    catch: (error) => new FixtureError({ fixture: name, output: output(error) }),
+  });
+  await rm(config, { force: true });
+  if (R.isFailure(compiled)) return compiled;
+
+  return R.succeed(Counts.fromDiagnostics(compiled.value.stdout));
 }
 
 /**
@@ -146,125 +218,54 @@ async function declarationBytes(entry: URL): Promise<number> {
   return bytes;
 }
 
-const num = (value: number): string => value.toLocaleString("en-US");
-const bytes = (value: number): string =>
-  value < 1024 ? `${value} B` : `${(value / 1024).toFixed(2)} kB`;
-const secs = (value: number): string => value.toFixed(3);
+function printCounts(baseline: Counts, measured: { name: string; counts: Counts }[]): void {
+  console.log(`typescript@${version(floor)}, over a baseline of ${count(baseline.types)} types\n`);
+  console.log(
+    table(
+      ["", "instantiations", "types", "check (s)", "total (s)"],
+      measured.map(({ name, counts }) => [
+        name,
+        count(counts.instantiations),
+        count(counts.types),
+        seconds(counts.check),
+        seconds(counts.total),
+      ]),
+    ),
+  );
+}
+
+function printBudgets(budgets: readonly Budget[]): void {
+  console.log("\nbudget  (the fixtures are instantiations)");
+  console.log(
+    table(
+      ["", "used / budget", ""],
+      budgets.map((budget) => [
+        budget.name,
+        `${Budget.amount(budget, budget.used)} / ${Budget.amount(budget, budget.limit)}`,
+        Budget.left(budget),
+      ]),
+    ),
+  );
+}
+
+// A reader meets this table years after the last person who chose what to put in it.
+function printLegend(): void {
+  console.log("\ninstantiations: type arguments applied, where a conditional running away shows.");
+  console.log("types: distinct types the checker made. printed only, and it tracks the first.");
+  console.log("index.d.ts: the published declarations, in bytes. what every consumer parses.");
+  console.log("eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.");
+}
+
+function seconds(value: number): string {
+  return value.toFixed(3);
+}
 
 /** Right-aligned columns under a header, so the units are named once. */
 function table(heads: string[], rows: string[][]): string {
-  const widths = heads.map((head, index) =>
-    Math.max(head.length, ...rows.map((row) => row[index]!.length)),
-  );
-  const line = (cells: string[]): string =>
-    `  ${cells.map((cell, index) => (index === 0 ? cell.padEnd(widths[0]!) : cell.padStart(widths[index]!))).join("  ")}`.trimEnd();
-  return [line(heads), ...rows.map(line)].join("\n");
+  return align(
+    [heads, ...rows],
+    heads.map((_, index) => (index === 0 ? "left" : "right")),
+  )
+    .map((cells) => `  ${cells.join("  ")}`.trimEnd())
+    .join("\n");
 }
-
-export class FixtureError extends ErrorFactory({
-  message: ({ fixture, output }) => `the ${fixture} fixture does not compile\n${output}`,
-  fields: ErrorFactory.fields<{ fixture: string; output: string }>(),
-}) {}
-
-export class OverBudgetError extends ErrorFactory({
-  message: ({ over }) => `over budget: ${over.join(", ")}`,
-  fields: ErrorFactory.fields<{ over: string[] }>(),
-}) {}
-
-/** Measures the fixtures and the declarations against their budgets. Expects `dist` to be built. */
-export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudgetError> {
-  try {
-    const declarations = await declarationBytes(new URL("../../../dist/index.d.ts", here));
-    const plugin = Buffer.byteLength(
-      await readFile(new URL("../../../dist/eslint-plugin/index.d.mts", here), "utf8"),
-      "utf8",
-    );
-
-    /**
-     * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
-     * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
-     * --compat` still typechecks every line.
-     */
-    const compile = tsc(floor);
-    const baseline = await measure(compile, "baseline");
-    const counts = Object.fromEntries(
-      await Promise.all(fixtures.map(async (name) => [name, await measure(compile, name)])),
-    ) as Record<keyof VariantsOf<Fixture>, Counts>;
-
-    // Reported over the baseline, which is a constant each checker materialises at startup: 86
-    // types on 5.9, 341 on tsgo, whatever the lib. Subtracting it leaves what the library costs.
-    const measured = Object.fromEntries(
-      fixtures.map((name) => [
-        name,
-        Counts.patch(counts[name], {
-          types: counts[name].types - baseline.types,
-          instantiations: counts[name].instantiations - baseline.instantiations,
-        }),
-      ]),
-    ) as Record<keyof VariantsOf<Fixture>, Counts>;
-
-    {
-      console.log(
-        `typescript@${version(floor)}, over a baseline of ${num(baseline.types)} types\n`,
-      );
-      console.log(
-        table(
-          ["", "instantiations", "types", "check (s)", "total (s)"],
-          fixtures.map((name) => [
-            name,
-            num(measured[name].instantiations),
-            num(measured[name].types),
-            secs(measured[name].check),
-            secs(measured[name].total),
-          ]),
-        ),
-      );
-    }
-
-    const checks = [
-      ...fixtures.map((name) => [name, measured[name].instantiations, budget[name], num] as const),
-      ["index.d.ts", declarations, declarationsBudget, bytes] as const,
-      ["eslint-plugin.d.mts", plugin, pluginBudget, bytes] as const,
-    ];
-
-    {
-      const left = ([, size, max, fmt]: (typeof checks)[number]): string =>
-        size > max
-          ? `${fmt(size - max)} over`
-          : `${fmt(max - size)} left (${Math.round((1 - size / max) * 100)}%)`;
-      console.log("\nbudget  (the fixtures are instantiations)");
-      console.log(
-        table(
-          ["", "used / budget", ""],
-          checks.map((check) => [
-            check[0],
-            `${check[3](check[1])} / ${check[3](check[2])}`,
-            left(check),
-          ]),
-        ),
-      );
-    }
-
-    {
-      // A reader meets this table years after the last person who chose what to put in it.
-      console.log(
-        "\ninstantiations: type arguments applied, where a conditional running away shows.",
-      );
-      console.log("types: distinct types the checker made. printed only, and it tracks the first.");
-      console.log("index.d.ts: the published declarations, in bytes. what every consumer parses.");
-      console.log("eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.");
-    }
-
-    const over = checks.filter(([, size, max]) => size > max).map(([name]) => name);
-    return over.length === 0 ? R.succeed() : R.fail(new OverBudgetError({ over }));
-  } catch (error) {
-    if (error instanceof FixtureError) return R.fail(error);
-    throw error;
-  }
-}
-
-export type TypesCheck = Val<"TypesCheck", { name: string }, Check>;
-export const TypesCheck = Val.companion<TypesCheck>()
-  .implCreate(() => ({ name: "types" }))
-  .implTrait(Check, () => ({ run: (_check) => checkTypes() }))
-  .build();

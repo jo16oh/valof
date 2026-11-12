@@ -9,7 +9,8 @@ import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
 import { flow, pipe } from "../../../../src/shared/pipe/index.ts";
-import { Build, BuildResult, Mode, Sizes } from "./index.ts";
+import { repository } from "../../../shared/repository.ts";
+import { Build, BuildResult, modes, Sizes, type Mode } from "./index.ts";
 
 export class NoChunkError extends ErrorFactory({
   message: ({ mode }) => `no chunk emitted for ${mode._tag}`,
@@ -26,20 +27,19 @@ export class MinifyError extends ErrorFactory({
   fields: ErrorFactory.fields<{ detail: string }>(),
 }) {}
 
-const root = new URL("../../../../", import.meta.url);
-
 export async function measure(
   imports: Imports,
 ): R.ResultAsync<BuildResult, NoChunkError | CompileError | MinifyError> {
+  const [productionMode, developmentMode] = modes;
   const compiled = await R.sequence([
-    compile(Mode.production.create({}), imports),
-    compile(Mode.development.create({}), imports),
+    compile(productionMode, imports),
+    compile(developmentMode, imports),
   ]);
   if (R.isFailure(compiled)) return compiled;
   const [production, development] = compiled.value;
 
   const reads = await R.sequence(
-    development.modules.map((module) => Module.readsNodeEnv(module, Mode.development.create({}))),
+    development.modules.map((module) => Module.readsNodeEnv(module, developmentMode)),
   );
   if (R.isFailure(reads)) return reads;
 
@@ -134,7 +134,7 @@ async function compileEntry(
       Object.entries(imports).map(
         ([module, names]) =>
           // `Val.companion` imports `Val` and reads one member, leaving the rest to tree-shaking.
-          `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, root)))};`,
+          `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, repository)))};`,
       ),
       (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
       (lines) => lines.join("\n"),
@@ -149,7 +149,7 @@ async function compileEntry(
       "the build",
       () =>
         build({
-          root: fileURLToPath(root),
+          root: fileURLToPath(repository),
           logLevel: "silent",
           configFile: false,
           define: { "process.env.NODE_ENV": JSON.stringify(mode._tag) },

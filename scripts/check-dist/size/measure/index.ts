@@ -2,6 +2,7 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val } from "#valof";
 import { Imports, type Bundle } from "../bundle.ts";
+import { Budget } from "../../report.ts";
 
 export class DevCodeKeptError extends ErrorFactory({
   message: ({ imports }) =>
@@ -19,7 +20,11 @@ export type Mode = Enum<
   { production: Record<never, never>; development: Record<never, never> }
 >;
 export const Mode = Enum.companion<Mode>().build();
-export const modes: readonly Mode[] = [Mode.production.create({}), Mode.development.create({})];
+/** Production, then development. */
+export const modes: readonly [Mode, Mode] = [
+  Mode.production.create({}),
+  Mode.development.create({}),
+];
 
 export type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;
 export const Sizes = Val.companion<Sizes>().build();
@@ -69,7 +74,13 @@ export const BundleSize = Val.companion<BundleSize>()
       : build.production.sizes.gzip - base.production.sizes.gzip,
   }))
   .impl(() => ({
-    over: (size) => size.capped > size.bundle.budget,
+    budget: (size) =>
+      Budget.seal({
+        name: size.bundle.base ? size.bundle.name : `added by ${size.bundle.name}`,
+        used: size.capped,
+        limit: size.bundle.budget,
+        unit: "bytes",
+      }),
     check: (size, base: BuildResult): R.Result<void, AddsNothingError> =>
       size.bundle.base || size.build.production.library !== base.production.library
         ? R.succeed()
