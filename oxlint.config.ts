@@ -1,7 +1,18 @@
 import { defineConfig } from "oxlint";
 
+import valof from "./src/lint/eslint-plugin/index.ts";
+
 export default defineConfig({
   plugins: ["typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
+  // The plugin from source, so the linter checks the library, the scripts and itself as it stands.
+  jsPlugins: ["./src/lint/eslint-plugin/index.ts"],
+  settings: {
+    valof: {
+      project: ["src/**/*.ts", "scripts/**/*.ts", "!**/fixtures/**"],
+      // An override cannot carry settings. The rule is on for the linter alone, below.
+      "data-type-outside-valof": { constraints: true, extraction: true },
+    },
+  },
   categories: { correctness: "error", suspicious: "error", perf: "error" },
   rules: {
     "typescript/no-explicit-any": "error",
@@ -65,6 +76,12 @@ export default defineConfig({
     "unicorn/consistent-function-scoping": "off",
   },
   overrides: [
+    { files: ["src/**/*.ts", "scripts/**/*.ts"], rules: valof.configs.recommended.rules },
+    {
+      // The linter keeps state in classes, and builds its errors as classes.
+      files: ["src/lint/**/*.ts"],
+      rules: { "valof/data-type-outside-valof": "error" },
+    },
     {
       // A test passes a value the types reject, and builds the class a Val must refuse.
       files: ["tests/**", "**/*.test.ts"],
