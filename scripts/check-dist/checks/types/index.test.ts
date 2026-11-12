@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 import { expect, test } from "vite-plus/test";
 
-import { Budget } from "../../budget.ts";
+import { Budget } from "../budget.ts";
 import { Counts, TypesReport } from "./index.ts";
 
 test("reads the counts tsc prints, over a baseline", () => {

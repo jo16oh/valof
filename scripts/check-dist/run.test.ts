@@ -3,8 +3,8 @@ import { Val } from "#valof";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
 import { IncompatibleError } from "./checks/compat/index.ts";
-import { Report } from "./report.ts";
-import { Check } from "./check.ts";
+import { Report } from "./checks/report.ts";
+import { Check } from "./checks/check.ts";
 import { runChecks } from "./run.ts";
 
 let logged: string[];
