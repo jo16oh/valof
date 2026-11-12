@@ -34,7 +34,6 @@ function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
       const owner = ImportMap.nameOf(imported, typeName);
       if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
       const claim = (name: string, claimed: string, how: string): void => {
-        // A Val, a Trait and an Enum intentionally use separate phantom-brand fields.
         const together = claims.get(name) ?? [];
         together.push(
           Finding.seal({
@@ -46,7 +45,9 @@ function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
         );
         claims.set(name, together);
       };
-      claim(`${owner}:${brand}`, brand, "claims");
+      // A trait's brand gets a key of its own, because no value has a trait as its type. An enum's
+      // name identifies a value's type, as a Val's brand does.
+      claim(`${owner === "Trait" ? "Trait" : "Val"}:${brand}`, brand, "claims");
       // Each variant derives a Val branded `` `${enum}.${variant}` ``, which a hand-written Val
       // can claim too. The enum's declaration is where that collision is fixed, so the finding
       // sits there rather than at a variant nobody wrote.

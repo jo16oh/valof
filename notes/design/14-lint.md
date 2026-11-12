@@ -98,6 +98,14 @@ Ten rules decide from syntax alone. The remaining one uses go-to-definition (§1
 
 Limiting the brand rule to top-level aliases matters. Without the limit, this repository's own tests report 30 collisions from fixtures scoped inside `describe` and `test`.
 
+**The brand rule counts an enum's name with the Vals' brands, 2026-11-12.** The two are stored in
+separate phantom fields, so until this change the rule counted them apart, as it still counts a
+Trait's brand. Before #204, the type check that rejects a field holding Vals of different types
+compared an enum's name and a Val's brand as plain strings. A Val branded "Money" beside an enum
+named "Money" therefore passed it, and the rule stayed silent on the pair. A Val and an enum of one
+name also confuse a reader. A Trait's brand is still counted apart, since no value has a trait as
+its type.
+
 This repository's `src` uses no companions, so the dead-member rule never fires here. It targets valof's _users_.
 
 ## 14.5 Rejected: ts-morph, 2026-09-04

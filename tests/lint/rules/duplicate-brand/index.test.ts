@@ -77,6 +77,13 @@ test("reports an enum beside a hand-written Val claiming one of its variant bran
   ]);
 });
 
+test("reports a Val and an enum of one name", async () => {
+  expect(await lint("enum-and-val")).toEqual([
+    { rule: DuplicateBrand, at: "enum-and-val/legacy.ts:3:13" },
+    { rule: DuplicateBrand, at: "enum-and-val/money.ts:3:13" },
+  ]);
+});
+
 test("reports each of two enums of one name once, not once per variant", async () => {
   expect(await lint("two-enums")).toEqual([
     { rule: DuplicateBrand, at: "two-enums/first.ts:3:13" },
