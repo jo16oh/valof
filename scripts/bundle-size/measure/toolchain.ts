@@ -14,21 +14,25 @@ import { flow, pipe } from "../../../src/shared/pipe/index.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class PackError extends ErrorFactory({
+  name: "PackError",
   message: ({ output }) => `vp run build failed\n${output}`,
   fields: ErrorFactory.fields<{ output: string }>(),
 }) {}
 
 export class NoChunkError extends ErrorFactory({
+  name: "NoChunkError",
   message: ({ mode }) => `no chunk emitted for ${mode}`,
   fields: ErrorFactory.fields<{ mode: Mode }>(),
 }) {}
 
 export class CompileError extends ErrorFactory({
+  name: "CompileError",
   message: ({ mode, step, detail }) => `${step} failed for ${mode}: ${detail}`,
   fields: ErrorFactory.fields<{ mode: Mode; step: string; detail: string }>(),
 }) {}
 
 export class MinifyError extends ErrorFactory({
+  name: "MinifyError",
   message: ({ detail }) => `minify failed: ${detail}`,
   fields: ErrorFactory.fields<{ detail: string }>(),
 }) {}
