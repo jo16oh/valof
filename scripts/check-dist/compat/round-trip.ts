@@ -30,7 +30,7 @@ export const RoundTrip = Val.companion<RoundTrip>()
      */
     write: async (exports: SourceExports, dts: string, project: string): Promise<RoundTrip> => {
       const imports: string[] = [];
-      const comparisons: { name: string; source: string; declaration: string }[] = [];
+      const comparisons: Comparison[] = [];
 
       for (const [index, { file, symbols }] of exports.modules.entries()) {
         const path = relative(exports.directory, file);
@@ -40,24 +40,9 @@ export const RoundTrip = Val.companion<RoundTrip>()
           `import type * as D${index} from "${relative(project, join(dts, module))}";`,
         );
         for (const { name, value, parameters } of symbols) {
-          if (value) {
-            comparisons.push({
-              name: `${path}: ${name}`,
-              source: `typeof S${index}.${name}`,
-              declaration: `typeof D${index}.${name}`,
-            });
-          }
-          if (parameters === undefined) continue;
-          // A generic type compares as a function of its parameters, which `Equal` relates for every
-          // argument at once.
-          const list = Array.from({ length: parameters }, (_, i) => `T${i}`).join(", ");
-          const type = (module: string): string =>
-            parameters === 0 ? `${module}.${name}` : `<${list}>() => ${module}.${name}<${list}>`;
-          comparisons.push({
-            name: `${path}: type ${name}`,
-            source: type(`S${index}`),
-            declaration: type(`D${index}`),
-          });
+          if (value) comparisons.push(Comparison.value(path, index, name));
+          if (parameters !== undefined)
+            comparisons.push(Comparison.type(path, index, name, parameters));
         }
       }
 
@@ -67,10 +52,7 @@ export const RoundTrip = Val.companion<RoundTrip>()
         "type Expect<T extends true> = T;",
         ...imports,
       ];
-      const lines = comparisons.map(
-        ({ source, declaration }, i) =>
-          `export type _${i} = Expect<Equal<${source}, ${declaration}>>;`,
-      );
+      const lines = comparisons.map(Comparison.line);
 
       await mkdir(project, { recursive: true });
       await writeFile(join(project, "index.ts"), `${[...head, ...lines].join("\n")}\n`);
@@ -102,6 +84,41 @@ export const RoundTrip = Val.companion<RoundTrip>()
         return [...new Set(lines as string[])];
       }
     },
+  }))
+  .build();
+
+/**
+ * One export of module `S${index}`, compared with its declaration in `D${index}`, under `name`,
+ * such as `fixture-builders.ts: traitImpl`.
+ */
+type Comparison = Val<"Comparison", { name: string; source: string; declaration: string }>;
+const Comparison = Val.companion<Comparison>()
+  .implAssoc(({ seal }) => ({
+    /** The type of a value the module at `path` exports. */
+    value: (path: string, index: number, name: string): Comparison =>
+      seal({
+        name: `${path}: ${name}`,
+        source: `typeof S${index}.${name}`,
+        declaration: `typeof D${index}.${name}`,
+      }),
+    /** A type the module at `path` exports, which takes `parameters` type parameters. */
+    type: (path: string, index: number, name: string, parameters: number): Comparison => {
+      // A generic type compares as a function of its parameters, which `Equal` relates for every
+      // argument at once.
+      const list = Array.from({ length: parameters }, (_, i) => `T${i}`).join(", ");
+      const type = (module: string): string =>
+        parameters === 0 ? `${module}.${name}` : `<${list}>() => ${module}.${name}<${list}>`;
+      return seal({
+        name: `${path}: type ${name}`,
+        source: type(`S${index}`),
+        declaration: type(`D${index}`),
+      });
+    },
+  }))
+  .impl(() => ({
+    /** The program's line for the comparison at `index`, which fails where the two differ. */
+    line: ({ source, declaration }, index: number): string =>
+      `export type _${index} = Expect<Equal<${source}, ${declaration}>>;`,
   }))
   .build();
 

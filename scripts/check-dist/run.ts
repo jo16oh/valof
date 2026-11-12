@@ -1,5 +1,5 @@
 import { Result as R } from "@praha/byethrow";
-import { Trait, type Dyn, type Self } from "#valof";
+import { Trait, Val, type Dyn, type Self } from "#valof";
 
 import type { CompatError } from "./compat/index.ts";
 import type { SizeError } from "./size/index.ts";
@@ -16,12 +16,20 @@ export type Check = Trait<
 >;
 export const Check = Trait.companion<Check>().build();
 
+/** Whether a check passed, as the summary prints it. */
+type Outcome = Val<"Outcome", { name: string; failed: boolean }>;
+const Outcome = Val.companion<Outcome>()
+  .impl(() => ({
+    line: ({ name, failed }): string => `  ${name.padEnd(6)}  ${failed ? "fail" : "pass"}`,
+  }))
+  .build();
+
 /**
  * Runs the checks one at a time, because types and compat each start `tsc` many times. Every check
  * runs even after one fails, so the summary says which failed. Returns the exit code.
  */
 export async function runChecks(checks: readonly Dyn<Check>[]): Promise<number> {
-  const results: { name: string; failure: Error | undefined }[] = [];
+  const outcomes: Outcome[] = [];
   for (const check of checks) {
     console.log(`\n# ${check.name}\n`);
     // oxlint-disable-next-line no-await-in-loop -- one at a time, see above
@@ -32,11 +40,10 @@ export async function runChecks(checks: readonly Dyn<Check>[]): Promise<number> 
         ? result.value.error
         : undefined;
     if (failure) console.error(`\n${failure.message}`);
-    results.push({ name: check.name, failure });
+    outcomes.push(Outcome.seal({ name: check.name, failed: failure !== undefined }));
   }
 
   console.log();
-  for (const { name, failure } of results)
-    console.log(`  ${name.padEnd(6)}  ${failure ? "fail" : "pass"}`);
-  return results.some(({ failure }) => failure) ? 1 : 0;
+  for (const outcome of outcomes) console.log(Outcome.line(outcome));
+  return outcomes.some(({ failed }) => failed) ? 1 : 0;
 }
