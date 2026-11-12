@@ -190,8 +190,8 @@ headroom criterion remains.
 
 `vp run check-dist` replaces `bundle-size`, `replace-bundle-size-claims`, `type-perf` and
 `ts-compatibility`. §16's split, by what is measured and by the kind of budget, stays. Each check has
-its own module (`scripts/check-dist/{size,types,compat}`) and its own budgets. Only the entry point
-and the build are shared.
+its own module (`scripts/check-dist/checks/{size,types,compat}`) and its own budgets. Only the entry
+point and the build are shared.
 
 - **The entry point builds `dist` once.** Before, each of the three scripts ran `vp run build`, and
   the claims script ran bundle-size again in a child process. The claim update now uses the size
@@ -201,8 +201,8 @@ and the build are shared.
   requires the scripts' `#valof` pin to match (§19). `--write` rewrites the claims. `--write`
   without the size check fails, and so does an unknown flag (`parseArgs` with `strict`)
 - **The declaration round-trip (#118) and the search for `/*elided*/` (#116) moved** from
-  `scripts/ts-compatibility/` to `scripts/check-dist/compat/`. The TypeScript lines still run in
-  parallel
+  `scripts/ts-compatibility/` to `scripts/check-dist/checks/compat/`. The TypeScript lines still
+  run in parallel
 - **Every check runs even after one fails.** Then a summary prints pass or fail for each. With one
   CI step, the summary still shows which check failed
 - **Each check returns a report, and `runChecks` prints it.** `runChecks` prints the `Report`'s

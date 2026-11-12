@@ -64,21 +64,21 @@ grep -rnE '^#+ .*(Rejected|Withdrawn)|^ *(- )?\*\*(Rejected|Withdrawn)' notes/de
 
 Before changing the code on the left, read the sections on the right. A path matches every row it starts with.
 
-| Code                                                               | Sections                   |
-| ------------------------------------------------------------------ | -------------------------- |
-| `src/val.ts`, `src/ns/val.ts`                                      | §2–6, §11                  |
-| `src/keys.ts`                                                      | §2.1, §11                  |
-| `src/env.ts`                                                       | §6.11, §7.1                |
-| `src/dual/`                                                        | §6.11, §6.13               |
-| `src/trait.ts`, `src/ns/trait.ts`                                  | §15.1, §15.4               |
-| `src/enum.ts`, `src/ns/enum.ts`                                    | §15.2                      |
-| `src/index.ts`                                                     | §18                        |
-| `src/lint/`                                                        | §14.1–14.7                 |
-| `src/lint/rules/`, `src/lint/scan/`                                | §14.8, §14.12–14.27, §15.1 |
-| `src/lint/eslint-plugin/`                                          | §14.9, §14.19–14.20        |
-| `tests/lint/`                                                      | §14.10–14.11               |
-| `scripts/check-dist/`                                              | §16, §18                   |
-| `scripts/check-dist/compat/`, `scripts/shared/typescript-lines.ts` | §10.1, §18.5               |
-| `scripts/pin-valof/`                                               | §19                        |
+| Code                                                                      | Sections                   |
+| ------------------------------------------------------------------------- | -------------------------- |
+| `src/val.ts`, `src/ns/val.ts`                                             | §2–6, §11                  |
+| `src/keys.ts`                                                             | §2.1, §11                  |
+| `src/env.ts`                                                              | §6.11, §7.1                |
+| `src/dual/`                                                               | §6.11, §6.13               |
+| `src/trait.ts`, `src/ns/trait.ts`                                         | §15.1, §15.4               |
+| `src/enum.ts`, `src/ns/enum.ts`                                           | §15.2                      |
+| `src/index.ts`                                                            | §18                        |
+| `src/lint/`                                                               | §14.1–14.7                 |
+| `src/lint/rules/`, `src/lint/scan/`                                       | §14.8, §14.12–14.27, §15.1 |
+| `src/lint/eslint-plugin/`                                                 | §14.9, §14.19–14.20        |
+| `tests/lint/`                                                             | §14.10–14.11               |
+| `scripts/check-dist/`                                                     | §16, §18                   |
+| `scripts/check-dist/checks/compat/`, `scripts/shared/typescript-lines.ts` | §10.1, §18.5               |
+| `scripts/pin-valof/`                                                      | §19                        |
 
 A lint rule still being planned is in §9.

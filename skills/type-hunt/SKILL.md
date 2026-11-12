@@ -149,8 +149,8 @@ declaration, such as an enum with one variant. A mapped type indexed by its only
 that property's type, which has no alias, so the `.d.ts` writes the type out in full, private
 members included.
 
-To check against the installed package, copy the probe into `scripts/check-dist/compat/fixtures/`
-and run `vp run check-dist --compat`.
+To check against the installed package, copy the probe into
+`scripts/check-dist/checks/compat/fixtures/` and run `vp run check-dist --compat`.
 
 ### 9. Another check's message
 
