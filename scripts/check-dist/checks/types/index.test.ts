@@ -30,7 +30,7 @@ test("fails on the budgets over their limit, and names only those", () => {
       .filter((line) => line.startsWith("over budget"));
 
   expect(TypesReport.passed(report([over, within]))).toBe(false);
-  expect(named([over, within])).toEqual(["over budget: core is 10,001, budget 10,000"]);
+  expect(named([over, within])).toEqual([Budget.overLine(over)]);
   expect(TypesReport.passed(report([within]))).toBe(true);
   expect(named([within])).toEqual([]);
 });

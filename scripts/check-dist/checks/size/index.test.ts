@@ -43,7 +43,7 @@ const build = (gzip: number) => {
   });
 };
 
-const report = (gzip: number, claims: Claims) => {
+const report = (gzip: number, claims: Claims, write = false) => {
   const base = build(gzip);
   const val = Bundle.seal({ name: "Val", base: true, imports: Imports.seal({}), budget: 1024 });
   return SizeReport.seal({
@@ -54,7 +54,7 @@ const report = (gzip: number, claims: Claims) => {
     }),
     claims,
     release: false,
-    write: false,
+    write,
   });
 };
 
@@ -72,4 +72,9 @@ test("fails on a bundle over its budget and on a stale claim, naming each", () =
   expect(named(1000, stale)).toEqual([outdated]);
   expect(SizeReport.passed(report(1000, fresh))).toBe(true);
   expect(named(1000, fresh)).toEqual([]);
+});
+
+test("passes on a claim that --write rewrote", () => {
+  expect(SizeReport.passed(report(1000, stale, true))).toBe(true);
+  expect(SizeReport.render(report(1000, stale, true))).not.toContain("stale claim");
 });
