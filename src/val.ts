@@ -258,8 +258,8 @@ type Beside<
     : Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
 
 /**
- * Each broken constituent's message. With none, the Enum message where two of those that are not
- * arrays include a Val or a `Rec`, else the `patch` message.
+ * Each broken constituent's message. With none, the Enum message where those that are not arrays
+ * are a union holding a Val or a `Rec`, else the `patch` message.
  */
 type Clash<
   T,
