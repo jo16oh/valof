@@ -333,6 +333,7 @@
   - **Copying a graph with shared nodes takes exponential time.** Removing `adopted.add` from production `adopt` took the lint of `src/lint/files.ts` from 15 ms to over 30 s. valof-lint's AST is a DAG. Each child is reachable from a field and from `children`. `Step` in `src/lint/scan/chains.ts` holds nodes and is built with the default seal. Without `adopted.add`, that seal copied the DAG as a tree. One copying seal anywhere above an unrecorded graph makes the run hang rather than fail
   - **A type argument cannot carry it.** The option changes what runs, so it has to be a step or a call-site form (`create.nocopy.untracked`). The Val budget has 66 B left (958 B of 1.00 kB, 2026-11-11)
   - Reconsider when a user builds large graphs with `nocopy` and measures what adding them to `adopted` costs
+  - **2026-11-11: the mark is a private field now (§4.1).** Marking costs 5.9 ns instead of 89.5 ns, and the AST of `src/val.ts` converts in 2.2–2.6 ms. Skipping the record would now save little of what it promised
 
 - [ ] **Partial freeze when a development `.nocopy` fails.** If traversing the graph fails on a later node's accessor or on a cycle, only the children checked before that point stay registered as owned and frozen. To undo the side effects on failure, switch to two phases: register and freeze only after checking the whole graph
 - [x] ~~Allow `null` as a top-level payload?~~ No. `null & { __brand: K }` is
