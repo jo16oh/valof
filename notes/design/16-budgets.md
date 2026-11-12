@@ -112,6 +112,8 @@ Now both checks compare sizes, with no dependence on a specific name or string.
 | `DevCodeKeptError` | The bundled source reads `NODE_ENV`, yet the production and development builds have the same minified size     |
 | `AddsNothingError` | A bundle stacked on the base has a library part as long as the base's. The added import is already in the base |
 
+§16.4 made both problem lines of the size report, in place of these errors.
+
 - **Measure the library part as "chunk length - the entry's `renderedLength`".** The entry passes the
   imported names to `console.log`, so the whole bundles always differ by those names. Each module's
   `renderedLength` is its length before tree-shaking, and was 13,923 with and without `equals`. It
@@ -207,12 +209,13 @@ point and the build are shared.
   CI step, the summary still shows which check failed
 - **Each check returns a report, and `runChecks` prints it.** A `Report` renders what the check
   found, and `passed()` says whether the check passed. A report that did not pass ends with the
-  problems: each budget it is over, each stale claim, or the TypeScript lines that failed. So a
-  bundle over budget still prints its table. `Check.run` fails only where the check stops before it
-  has a report: a measurement that breaks, a production build that keeps development code or a
-  bundle that adds nothing to the base (§16.2), a stale pin under `--release`, or a file that does
-  not state the size exactly once. The cost: compat prints nothing until every TypeScript line
-  finishes
+  problems: each budget a bundle is over, a production build that keeps development code, a bundle
+  that adds nothing to the base, each stale claim, or the TypeScript lines that failed. The two size
+  problems are §16.2's checks, which were the errors `DevCodeKeptError` and `AddsNothingError`
+  before. So `runChecks` still prints the table of a bundle over budget. `Check.run` fails only
+  where the check stops before it has a report: a build that fails, a types fixture that does not
+  compile, a stale pin under `--release`, or a file that does not state the size exactly once. The
+  cost is that compat's report prints only after every TypeScript line finishes
 - **Rejected: a `verdict` that fails with an error.** `CheckError` then held both a problem the
   check found and an error that stopped the check, so the type did not say which one a failure was
 - **Rejected: printing inside each check.** It printed compat's counts before the TypeScript lines
