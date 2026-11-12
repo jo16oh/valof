@@ -48,6 +48,8 @@ const suite = Suite.seal([
   }),
 ]);
 
+export type SizeError = MeasureError | OverBudgetError | ClaimCountError | StaleClaimError;
+
 /**
  * Measures every bundle against its budget, then the claims against the base bundle's size.
  * Expects `dist` to be built.
@@ -55,7 +57,7 @@ const suite = Suite.seal([
 export async function checkSize(options: {
   release: boolean;
   write: boolean;
-}): R.ResultAsync<void, MeasureError | OverBudgetError | ClaimCountError | StaleClaimError> {
+}): R.ResultAsync<void, SizeError> {
   const measured = await Suite.measure(suite);
   if (R.isFailure(measured)) return measured;
   console.log(render(measured.value));

@@ -27,6 +27,8 @@ export class IncompatibleError extends ErrorFactory({
   fields: ErrorFactory.fields<{ failed: string[] }>(),
 }) {}
 
+export type CompatError = StalePinError | IncompatibleError;
+
 /**
  * Typechecks the book's blocks, the fixtures and the scripts against `dist` on every TypeScript
  * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin builds
@@ -36,7 +38,7 @@ export async function checkCompat({
   release,
 }: {
   release: boolean;
-}): R.ResultAsync<void, StalePinError | IncompatibleError> {
+}): R.ResultAsync<void, CompatError> {
   const pin = await pinned();
   const current = await matches(pin);
   if (!current && release) return R.fail(new StalePinError({ pin }));

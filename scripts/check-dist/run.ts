@@ -1,11 +1,18 @@
 import { Result as R } from "@praha/byethrow";
 import { Trait, type Dyn, type Self } from "#valof";
 
+import type { CompatError } from "./compat/index.ts";
+import type { SizeError } from "./size/index.ts";
+import type { TypesError } from "./types/index.ts";
+
+/** What any check fails with. */
+export type CheckError = SizeError | TypesError | CompatError;
+
 /** One check of the built `dist`, reported under its name. */
 export type Check = Trait<
   "Check",
   { name: string },
-  { run: (self: Self) => Promise<R.Result<void, Error>> }
+  { run: (self: Self) => R.ResultAsync<void, CheckError> }
 >;
 export const Check = Trait.companion<Check>().build();
 

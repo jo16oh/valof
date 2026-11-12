@@ -126,8 +126,10 @@ export class FixtureError extends ErrorFactory({
   fields: ErrorFactory.fields<{ fixture: string; output: string }>(),
 }) {}
 
+export type TypesError = FixtureError | OverBudgetError;
+
 /** Measures the fixtures and the declarations against their budgets. Expects `dist` to be built. */
-export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudgetError> {
+export async function checkTypes(): R.ResultAsync<void, TypesError> {
   /**
    * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
    * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
