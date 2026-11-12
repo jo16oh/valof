@@ -692,7 +692,7 @@ describe("Val", () => {
         i: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
         j: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
       }>();
-      // @ts-expect-error a union cannot hold objects `equals` cannot tell apart, at the root too
+      // @ts-expect-error a union cannot hold objects `equals` cannot tell apart, as a whole payload too
       type Rooted = Val<"UnionHeldRoot", { x: Dollar } | { x: Yen }>;
       expectTypeOf<VerdictOf<Rooted>>().toEqualTypeOf<
         Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
