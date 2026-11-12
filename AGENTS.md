@@ -19,8 +19,8 @@ take the Val first as `self`, and `.implAssoc` holds the associated functions. `
 
 ## Code Style
 
-`pipe` (`scripts/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them
-where a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
+`pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them where
+a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
 `User.seal(parse(text))`. Fold a variable used once into the chain. Keep it as a local, next to its
 use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
 where a step needs a value from outside the chain.
