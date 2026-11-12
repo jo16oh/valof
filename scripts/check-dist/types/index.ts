@@ -131,7 +131,7 @@ const FixtureCounts = Val.companion<FixtureCounts>()
   .build();
 
 /** What the types check measured, against the budgets. */
-type TypesReport = Val<
+export type TypesReport = Val<
   "TypesReport",
   {
     /** The version the counts come from. */
@@ -142,7 +142,7 @@ type TypesReport = Val<
   },
   Report
 >;
-const TypesReport = Val.companion<TypesReport>()
+export const TypesReport = Val.companion<TypesReport>()
   .implTrait(Report, () => ({
     /** The counts, then the budgets, then what each column means. */
     render: ({ typescript, baseline, fixtures, budgets }): string =>

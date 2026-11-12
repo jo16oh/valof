@@ -51,12 +51,12 @@ const suite = Suite.seal([
 export type SizeError = MeasureError | OverBudgetError | ClaimCountError | StaleClaimError;
 
 /** What the size check found: each bundle's sizes and budget, then the claims. */
-type SizeReport = Val<
+export type SizeReport = Val<
   "SizeReport",
   { measurement: Measurement; claims: Claims; release: boolean; write: boolean },
   Report
 >;
-const SizeReport = Val.companion<SizeReport>()
+export const SizeReport = Val.companion<SizeReport>()
   .implTrait(Report, () => ({
     render: ({ measurement, claims, write }) =>
       `${Measurement.render(measurement)}\n\n${Claims.render(claims, write)}`,

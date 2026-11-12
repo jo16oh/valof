@@ -32,11 +32,11 @@ export class IncompatibleError extends ErrorFactory({
 export type CompatError = StalePinError | IncompatibleError;
 
 /** One TypeScript line's failure messages, empty where it passes. */
-type LineResult = Val<"LineResult", { version: string; failures: string[] }>;
-const LineResult = Val.companion<LineResult>().build();
+export type LineResult = Val<"LineResult", { version: string; failures: string[] }>;
+export const LineResult = Val.companion<LineResult>().build();
 
 /** What the compat check found, on every TypeScript line. */
-type CompatReport = Val<
+export type CompatReport = Val<
   "CompatReport",
   {
     blocks: number;
@@ -48,7 +48,7 @@ type CompatReport = Val<
   },
   Report
 >;
-const CompatReport = Val.companion<CompatReport>()
+export const CompatReport = Val.companion<CompatReport>()
   .implTrait(Report, () => ({
     render: ({ blocks, fixtures, pin, scripts, lines }) =>
       [
