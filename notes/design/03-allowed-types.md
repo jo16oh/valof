@@ -266,11 +266,14 @@ only null can share a field with a Val; declare an Enum
   JSON round trip can tell its members apart (user)
 - **A union of arrays is checked by its elements.** `Dollar[] | Yen[]` and `Dollar[] | number[]`
   get the message. `string[] | number[]` passes, and so does the tuple `[Dollar, Yen]`, which is not a union
-- **Objects that differ only in the Vals they hold get "a field cannot hold Vals of different types".** `{ x: Dollar } | { x: Yen }`
-  had the `patch` message, and `{ x: Dollar }[] | { x: Yen }[]` passed. `Clash` reads each Val as
-  its payload and compares the constituents (`Collides`). `{ x: Dollar } | { y: Yen }` keeps the
-  `patch` message, and arrays of it pass. `main` had the hole
+- **Objects that match once each Val is read as its payload get "a field cannot hold objects `equals` cannot tell apart".** `{ x: Dollar } | { x: Yen }` had the `patch` message, and
+  `{ x: Dollar }[] | { x: Yen }[]` passed. `Clash` reads each Val as its payload and compares the
+  constituents (`Collides`). `{ x: Dollar } | { y: Yen }` keeps the `patch` message, and arrays of
+  it pass. `main` had the hole
+  - The message first said "Vals of different types", but `{ x: Dollar } | { x: { amount: number } }` holds one Val and gets the message too
 - **An `Impl` beside a Val gets the message above, not the `Impl` message.** Both point to an Enum
+- **A Val whose brand equals an enum's name passed beside the enum.** The check compared an enum's name and a Val's brand as plain strings, so `Money | Namesake`, with `Money` an enum named `"Money"` and `Namesake` a `Val<"Money", …>`, passed. The
+  check now wraps the enum's name in a tuple. It cost enum +600 instantiations. A separate PR makes valof-lint's `duplicate-brand` report a Val and an Enum with the same name
 - **The check runs where `Validate` handles a union:** at its top for a union made only of Vals
   or `Rec`s, and in `Beside`, `Clash` and the union of arrays.
   Checking every field at the top of `Validate` cost core +450 and enum +1,700 instantiations
@@ -278,8 +281,8 @@ only null can share a field with a Val; declare an Enum
   it refers to, since that is circular for a type that references itself
 - **`any` in a field still passes,** per §9's policy (2026-11-04). `Val<"V", { a: any }>` satisfies
   `[T] extends [Validate<T>]` whatever `Validate` maps `a` to
-- Cost: core 9,078 → 9,207, trait 24,633 → 24,729, enum 46,754 → 47,069, `index.d.ts` 105.12 →
-  105.82 kB, inside the 106 kB budget
+- Cost: core 9,078 → 9,207, trait 24,633 → 24,729, enum 46,754 → 47,669, `index.d.ts` 105.12 →
+  105.84 kB, inside the 106 kB budget
 
 ## 3.7 Self-reference: `Rec`
 
