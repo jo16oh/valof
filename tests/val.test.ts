@@ -559,12 +559,14 @@ describe("Val", () => {
         b: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
         c: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
       }>();
-      // Arrays whose elements `equals` tells apart are one type each.
-      type Listed = Val<
-        "UnionListed",
-        { a: number[] | string[]; b: Dollar[] | number[]; c: Dollar[] | null; d: [Dollar, Yen] }
-      >;
+      // A union of arrays passes where `equals` tells their elements apart, and so does a tuple of different Vals.
+      type Listed = Val<"UnionListed", { b: Dollar[] | number[]; d: [Dollar, Yen] }>;
       expectTypeOf<Listed>().toExtend<AnyVal>();
+      // @ts-expect-error an element's own fault keeps its message
+      type DatedList = Val<"UnionDatedList", { a: number[] | Date[] }>;
+      expectTypeOf<VerdictOf<DatedList>>().toEqualTypeOf<{
+        a: number[] | Invalid<"not a plain value">[];
+      }>();
 
       type Money = Enum<"UnionMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
       type OtherMoney = Enum<
@@ -588,14 +590,15 @@ describe("Val", () => {
       type Flag = Val<"UnionPrimitiveFlag", boolean>;
       type Label = Val<"UnionLabel", string>;
       type Ids = Val<"UnionIds", number[]>;
+      type Mode = Val<"UnionMode", "on" | "off">;
       type Reading = Val<
         "UnionReading",
-        // @ts-expect-error a field cannot hold Vals of different types, beside null too
+        // @ts-expect-error a field cannot hold Vals of different types, beside null too, nor a primitive Val beside a value its payload holds
         {
           t: Celsius | Fahrenheit | null;
           u: Celsius | number;
           l: Label | "none";
-          z: Celsius | 0;
+          m: Mode | "on";
           i: Ids | number[];
         }
       >;
@@ -603,14 +606,14 @@ describe("Val", () => {
         t: null | Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
         u: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
         l: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
-        z: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
+        m: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
         i: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
       }>();
 
       // One Val beside null, or beside a primitive it does not hold, is one type.
       type Single = Val<
         "UnionSingle",
-        { t: Celsius | null; s: Celsius | "unknown"; f: Flag | null; l: Label | 0 }
+        { t: Celsius | null; s: Celsius | "unknown"; f: Flag | null; m: Mode | "none" }
       >;
       expectTypeOf<Single>().toExtend<AnyVal>();
       // @ts-expect-error a payload cannot hold a Val, beside a primitive either
@@ -646,7 +649,7 @@ describe("Val", () => {
         b: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
         c: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
       }>();
-      // @ts-expect-error unless two of the others are a Val and another object
+      // @ts-expect-error beside an array, a Val and another object still get the Enum message
       type Mixed = Val<"UnionMixedList", { a: Dollar | { amount: number } | number[] }>;
       expectTypeOf<VerdictOf<Mixed>>().toEqualTypeOf<{
         a: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
