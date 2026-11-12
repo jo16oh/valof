@@ -1,8 +1,9 @@
 import { Result as R } from "@praha/byethrow";
 import { Val, type Dyn } from "#valof";
 
-import { Budget, OverBudgetError } from "../report.ts";
-import { Check, Report } from "../run.ts";
+import { Budget, OverBudgetError } from "../budget.ts";
+import { Report } from "../report.ts";
+import { Check } from "../run.ts";
 import { repository } from "../../shared/repository.ts";
 
 import { Claims, type ClaimedFile, type ClaimCountError, type StaleClaimError } from "./claims.ts";

@@ -8,8 +8,10 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val, type Dyn, type VariantsOf } from "#valof";
 
-import { align, Budget, count, OverBudgetError } from "../report.ts";
-import { Check, Report } from "../run.ts";
+import { Budget, OverBudgetError } from "../budget.ts";
+import { align, count } from "../format.ts";
+import { Report } from "../report.ts";
+import { Check } from "../run.ts";
 
 import { output, repository, writeJson } from "../../shared/repository.ts";
 import { floor, tsc, version, type Tsc } from "../../shared/typescript-lines.ts";
