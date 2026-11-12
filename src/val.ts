@@ -156,37 +156,46 @@ type IsRec<T> = string extends keyof T
 type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = "Val"> =
   // Vals of different types with the same fields hold the same payload, so `equals` and a JSON
   // round trip cannot distinguish them. A Val with a boolean payload is a union of two types with
-  // one brand, and an enum a union of variants with one name, so the check requires one brand, or
-  // one enum name. `IsRec` reads a `Rec` by its keys and never opens it to a brand, so the check
-  // compares the `Rec`s themselves.
+  // one brand, and an enum a union of variants with one name, so the check compares brands, or enum
+  // names. `IsRec` reads a `Rec` by its keys, so the check compares the `Rec`s themselves.
   (IsRec<T> extends true ? 1 : [T] extends [AnyVal] ? 1 : 0) extends 1
-    ? IsUnion<
-        T extends AnyEnum ? NameOf<T> : T extends Phantom<infer B, unknown> ? B : T
-      > extends true
-      ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+    ? IsUnion<Kinds<T>> extends true
+      ? Invalid<"only null can share a field with a Val; declare an Enum">
       : T
-    : // A field typed `Impl` holds any Val implementing the trait, which is the same problem.
-      [T] extends [AnyImpl]
-      ? Root extends true
-        ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
-        : Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">
-      : [T] extends [AnyTrait]
-        ? Root extends true
-          ? Owner extends "Val"
-            ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
-            : Invalid<"a payload cannot declare a trait">
-          : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
-        : [T] extends [Invalid<infer M>]
-          ? Refused<M>
-          : [T] extends [Refused<infer M>]
-            ? Invalid<M>
-            : unknown extends T
-              ? Invalid<"`unknown` is not a plain value; write the type">
-              : Root extends true
-                ? null extends T
-                  ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-                  : ValidateValue<T, true>
-                : ValidateValue<T>;
+    : Rest<T, Root, Owner>;
+
+type HoldsVal<T> = T extends unknown
+  ? IsRec<T> extends true
+    ? true
+    : [T] extends [AnyVal]
+      ? true
+      : false
+  : never;
+
+type Kinds<T> = T extends AnyEnum ? NameOf<T> : T extends Phantom<infer B, unknown> ? B : T;
+
+// A field typed `Impl` holds any Val implementing the trait, which is the same problem.
+type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extends [AnyImpl]
+  ? Root extends true
+    ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
+    : Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">
+  : [T] extends [AnyTrait]
+    ? Root extends true
+      ? Owner extends "Val"
+        ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+        : Invalid<"a payload cannot declare a trait">
+      : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+    : [T] extends [Invalid<infer M>]
+      ? Refused<M>
+      : [T] extends [Refused<infer M>]
+        ? Invalid<M>
+        : unknown extends T
+          ? Invalid<"`unknown` is not a plain value; write the type">
+          : Root extends true
+            ? null extends T
+              ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+              : ValidateValue<T, true>
+            : ValidateValue<T>;
 
 type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
   ? // A Val with a primitive payload extends `Primitive` too.
@@ -194,31 +203,34 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
     ? T
     : Beside<T, Root>
   : [T] extends [ReadonlyArray<unknown>]
-    ? // A union of arrays is rejected where one of them is a Val, or where their elements together
-      // hold Vals `equals` cannot tell apart.
+    ? // Arrays are replaced whole, so a union of them passes unless their elements together break
+      // a rule about Vals.
       [
         IsUnion<T> extends true
-          ?
-              | Extract<T, AnyVal>
-              | Extract<
-                  Validate<T[number], false>,
-                  Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
-                >
+          ? [Extract<T, AnyVal>] extends [never]
+            ? Extract<
+                Validate<T[number], false>,
+                | Invalid<"only null can share a field with a Val; declare an Enum">
+                | Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+              >
+            : Invalid<"only null can share a field with a Val; declare an Enum">
           : never,
-      ] extends [never]
-      ? number extends T["length"]
-        ? { [I in keyof T]: Validate<T[I], false> }
-        : // A `never` element satisfies whatever it is mapped to, so the tuple is rejected whole.
-          true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
-          ? Invalid<"no value fits a tuple element">
-          : {
-              // An optional element is the tuple's form of an optional key: absent, it round trips.
-              // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
-              [I in keyof T]: undefined extends Required<T>[I]
-                ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
-                : Validate<Exclude<T[I], undefined>, false>;
-            }
-      : Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+      ] extends [infer M]
+      ? [M] extends [never]
+        ? number extends T["length"]
+          ? { [I in keyof T]: Validate<T[I], false> }
+          : // A `never` element satisfies whatever it is mapped to, so the tuple is rejected whole.
+            true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
+            ? Invalid<"no value fits a tuple element">
+            : {
+                // An optional element is the tuple's form of an optional key: absent, it round trips.
+                // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+                [I in keyof T]: undefined extends Required<T>[I]
+                  ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+                  : Validate<Exclude<T[I], undefined>, false>;
+              }
+        : M
+      : never
     : // oxlint-disable-next-line no-unsafe-function-type
       [T] extends [Function]
       ? Invalid<"functions are not allowed">
@@ -242,7 +254,7 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
  * Checks a field that holds `null` or a primitive beside one other kind, which `patch` replaces
  * whole. The root rejects it.
  */
-// A Val counts as the other kind, so the primitive must not be a type its payload holds.
+// A Val stands beside `null` alone: JSON cannot tell it from a value its payload could be.
 type Beside<
   T,
   Root,
@@ -253,26 +265,47 @@ type Beside<
   | [boolean, never, unknown]
   | [boolean, unknown, never]
   ? Invalid<"not a plain value">
-  : [Extract<P, O extends Phantom<string, infer X> ? X : never>] extends [never]
+  : [Exclude<P, null>] extends [never]
     ? P | Validate<O, false>
-    : Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
+    : true extends HoldsVal<O>
+      ? Invalid<"only null can share a field with a Val; declare an Enum">
+      : P | Validate<O, false>;
 
 /**
- * Each broken constituent's message. With none, the Enum message where those that are not arrays
- * are a union holding a Val or a `Rec`, else the `patch` message.
+ * Each broken constituent's message, else the Enum message where two objects differ only in their
+ * Vals, else the `patch` message.
  */
-type Clash<
-  T,
-  E = T extends unknown ? Validate<T, false> : never,
-  N = Exclude<T, ReadonlyArray<unknown>>,
-> = [Extract<E, Invalid<string>>] extends [never]
-  ? [IsUnion<N>, true] extends [
-      true,
-      N extends unknown ? ([N] extends [AnyVal] ? true : IsRec<N>) : never,
-    ]
-    ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
-    : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
-  : Extract<E, Invalid<string>>;
+type Clash<T, E = T extends unknown ? Validate<T, false> : never> =
+  true extends HoldsVal<T>
+    ? Invalid<"only null can share a field with a Val; declare an Enum">
+    : [Extract<E, Invalid<string>>] extends [never]
+      ? true extends Collides<Exclude<T, ReadonlyArray<unknown>>>
+        ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+        : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+      : Extract<E, Invalid<string>>;
+
+/** `true` where two constituents match once each Val is read as its payload. */
+type Collides<N, A = N> = N extends unknown
+  ? Exclude<A, N> extends infer O
+    ? O extends unknown
+      ? [Erased<O>] extends [Erased<N>]
+        ? [O] extends [N]
+          ? never
+          : true
+        : never
+      : never
+    : never
+  : never;
+
+/** Each nested Val read as its payload. A {@link Rec} stays, as opening it is circular. */
+type Erased<T> =
+  IsRec<T> extends true
+    ? T
+    : [T] extends [AnyVal]
+      ? Erased<Declared<T>>
+      : [T] extends [Primitive]
+        ? T
+        : { [K in keyof T]: Erased<T[K]> };
 
 // oxlint-disable-next-line no-unsafe-function-type
 type MethodKeys<T> = { [K in keyof T]-?: T[K] extends Function ? K : never }[keyof T];
