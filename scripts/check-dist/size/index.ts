@@ -5,7 +5,7 @@ import { Budget, OverBudgetError } from "../report.ts";
 import { Check, Report } from "../run.ts";
 import { repository } from "../../shared/repository.ts";
 
-import { Claims, type ClaimCountError, type StaleClaimError } from "./claims.ts";
+import { ClaimedFile, Claims, type ClaimCountError, type StaleClaimError } from "./claims.ts";
 import { BundleSize } from "./measure/index.ts";
 import { Bundle, Imports } from "./bundle.ts";
 import { Measurement, Suite, type MeasureError } from "./suite.ts";
@@ -48,6 +48,13 @@ const suite = Suite.seal([
   }),
 ]);
 
+/** The files that state the base bundle's size. */
+const claimed = [
+  ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
+  ClaimedFile.Markdown.create({ path: "README.md", release: true }),
+  ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
+];
+
 export type SizeError = MeasureError | OverBudgetError | ClaimCountError | StaleClaimError;
 
 /** What the size check found: each bundle's sizes and budget, then the claims. */
@@ -89,6 +96,7 @@ export const SizeCheck = Val.companion<SizeCheck>()
 
       const base = measurement.bundles.find(({ bundle }) => bundle.base);
       const read = await Claims.read(
+        claimed,
         base?.build.production.sizes.gzip ?? Number.NaN,
         release,
         repository,

@@ -9,7 +9,7 @@ import { bytes } from "../report.ts";
 const marker = "valof-minimal-bundle-size";
 
 /** A file that states the bundle size. `release` marks one that only a release checks. */
-type ClaimedFile = Enum<
+export type ClaimedFile = Enum<
   "ClaimedFile",
   {
     /** States it between the markers. */
@@ -18,7 +18,7 @@ type ClaimedFile = Enum<
     PackageJson: { path: string; release: boolean };
   }
 >;
-const ClaimedFile = Enum.companion<ClaimedFile>()
+export const ClaimedFile = Enum.companion<ClaimedFile>()
   .impl(() => ({
     /** Finds the claim in the file's text. */
     regExp: (file): RegExp =>
@@ -28,12 +28,6 @@ const ClaimedFile = Enum.companion<ClaimedFile>()
       }),
   }))
   .build();
-
-const claimed = [
-  ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
-  ClaimedFile.Markdown.create({ path: "README.md", release: true }),
-  ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
-];
 
 export class ClaimCountError extends ErrorFactory({
   name: "ClaimCountError",
@@ -93,15 +87,16 @@ const Claim = Val.companion<Claim>()
 export type Claims = Val<"Claims", { size: string; claims: Claim[] }>;
 export const Claims = Val.companion<Claims>()
   .implAssoc(({ seal }) => ({
-    /** Reads the claims under `root`. A `release` adds the files that describe the release. */
+    /** Reads the claims in `files` under `root`. Without `release`, skips the release-only ones. */
     read: async (
+      files: readonly ClaimedFile[],
       gzip: number,
       release: boolean,
       root: URL,
     ): R.ResultAsync<Claims, ClaimCountError> => {
       const size = `${bytes(gzip)} gzipped`;
       const texts = await Promise.all(
-        claimed
+        files
           .filter((file) => release || !file.release)
           .map(async (file) => ({ file, text: await readFile(new URL(file.path, root), "utf8") })),
       );
