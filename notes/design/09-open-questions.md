@@ -755,3 +755,10 @@
     The `-Of` convention already separates `Payload` from `PayloadOf`
   - **Rejected: adding a Val-only type (`AnyVal & DeepReadonly<Checked<T>>`).** In a probe it
     rejected bare objects, and the box could still call it. Add it when it becomes necessary. Adding it later is not a breaking change
+
+- [ ] **`Rec<Dollar | Yen>` and `Rec<Impl<Priced>>` pass in a field (2026-11-12, §3.6).** `equals` cannot tell the Vals
+      apart, as in the field `Dollar | Yen`. `Validate` reads a `Rec` by its keys, so it never sees the type argument. Opening the `Rec`
+      is circular for a type that references itself (§3.7). Undecided: leave it as misuse of `Rec`, or check the argument only
+      where it is not the type being declared
+  - `{ x: Rec<Tree> }[] | { x: Dollar }[]` (§3.7's `Tree`) passes too. `Collides` compares the objects with each Val read as its
+    payload, but not a `Rec` read as its Val (2026-11-12, §3.6)

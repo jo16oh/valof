@@ -12,6 +12,7 @@ import type {
 } from "../src/index.ts";
 import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "../src/index.ts";
 import { Traits } from "../src/keys.ts";
+import type { VerdictOf as TraitVerdictOf } from "../src/trait.ts";
 // `BrandOf` is not published from the entry point.
 import type {
   Allowed,
@@ -523,6 +524,302 @@ describe("Val", () => {
       Val.companion<Maybe>().build();
     });
 
+    test("a Val shares a field with null alone, and the message points to an Enum", () => {
+      type Dollar = Val<"UnionDollar", { amount: number }>;
+      type Yen = Val<"UnionYen", { amount: number }>;
+      // @ts-expect-error only null can share a field with a Val
+      type Order = Val<"UnionOrder", { money: Dollar | Yen }>;
+      expectTypeOf<VerdictOf<Order>>().toEqualTypeOf<{
+        money: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
+      // @ts-expect-error only null can share a field with a Val
+      type Ledger = Val<"UnionLedger", { entries: (Dollar | Yen)[] }>;
+      // @ts-expect-error nor through Rec
+      type Account = Val<"UnionAccount", { money: Rec<Dollar> | Rec<Yen> }>;
+      // @ts-expect-error nor a Val and a plain object of its fields
+      type Loose = Val<"UnionLoose", { money: Dollar | { amount: number } }>;
+      expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{
+        money: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
+      type Leaf = Val<"UnionLeaf", { kids: Rec<Leaf>[] }>;
+      // @ts-expect-error a type that references itself is rejected too, as circular rather than with the Enum message
+      type Branch = Val<"UnionBranch", { kid: Rec<Branch> | Rec<Leaf> }>;
+      expectTypeOf<Ledger | Account | Branch>().not.toExtend<AnyVal>();
+      type Lists = Val<
+        "UnionLists",
+        // @ts-expect-error nor in a union of arrays
+        {
+          a: Dollar[] | Yen[];
+          b: [Dollar] | [Yen];
+          c: Dollar[] | number[];
+          d: (Dollar | null)[] | number[];
+        }
+      >;
+      expectTypeOf<VerdictOf<Lists>>().toEqualTypeOf<{
+        a: Invalid<"only null can share a field with a Val; declare an Enum">;
+        b: Invalid<"only null can share a field with a Val; declare an Enum">;
+        c: Invalid<"only null can share a field with a Val; declare an Enum">;
+        d: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
+      // A tuple of different Vals passes, and so does an array of Vals beside null, or a union of arrays holding no Val.
+      type Listed = Val<
+        "UnionListed",
+        { b: string[] | number[]; d: [Dollar, Yen]; e: Dollar[] | null; f: string | Dollar[] }
+      >;
+      expectTypeOf<Listed>().toExtend<AnyVal>();
+      // @ts-expect-error an element's own fault keeps its message
+      type DatedList = Val<"UnionDatedList", { a: number[] | Date[] }>;
+      expectTypeOf<VerdictOf<DatedList>>().toEqualTypeOf<{
+        a: number[] | Invalid<"not a plain value">[];
+      }>();
+
+      type Money = Enum<"UnionMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
+      type OtherMoney = Enum<
+        "UnionOtherMoney",
+        { Dollar: { amount: number }; Yen: { amount: number } }
+      >;
+      // @ts-expect-error nor can it hold two enums
+      type TwoEnums = Val<"UnionTwoEnums", { money: Money | OtherMoney }>;
+      // @ts-expect-error nor an enum and a Val
+      type EnumAndVal = Val<"UnionEnumAndVal", { money: Money | Dollar }>;
+      // A Val may take the enum's name as its brand. Its payload holds the enum's tag, so JSON cannot
+      // tell them apart either.
+      type Namesake = Val<"UnionMoney", { amount: number; _tag: "Dollar" }>;
+      // @ts-expect-error nor a Val with the enum's name
+      type SameName = Val<"UnionSameName", { money: Money | Namesake; list: Money[] | Namesake[] }>;
+      expectTypeOf<VerdictOf<SameName>>().toEqualTypeOf<{
+        money: Invalid<"only null can share a field with a Val; declare an Enum">;
+        list: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
+      expectTypeOf<TwoEnums | EnumAndVal>().not.toBeNever();
+
+      // An enum is one type, and so is a Val whose payload is a union of primitives.
+      type Flag = Val<"UnionFlag", boolean>;
+      expectTypeOf<Val<"UnionPriced", { money: Money; flag: Flag }>>().toExtend<AnyVal>();
+    });
+
+    test("a Val with a primitive payload shares a field with null alone", () => {
+      type Celsius = Val<"UnionCelsius", number>;
+      type Fahrenheit = Val<"UnionFahrenheit", number>;
+      type Flag = Val<"UnionPrimitiveFlag", boolean>;
+      type Ids = Val<"UnionIds", number[]>;
+      type Mode = Val<"UnionMode", "on" | "off">;
+      type Reading = Val<
+        "UnionReading",
+        // @ts-expect-error only null can share a field with a Val
+        {
+          t: Celsius | Fahrenheit | null;
+          u: Celsius | number;
+          n: Mode | "none";
+          s: Celsius | string;
+          i: Ids | number[];
+        }
+      >;
+      expectTypeOf<VerdictOf<Reading>>().toEqualTypeOf<{
+        t: null | Invalid<"only null can share a field with a Val; declare an Enum">;
+        u: Invalid<"only null can share a field with a Val; declare an Enum">;
+        n: Invalid<"only null can share a field with a Val; declare an Enum">;
+        s: Invalid<"only null can share a field with a Val; declare an Enum">;
+        i: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
+
+      // One Val beside null is one type.
+      type Single = Val<"UnionSingle", { t: Celsius | null; f: Flag | null; m: Mode | null }>;
+      expectTypeOf<Single>().toExtend<AnyVal>();
+      // @ts-expect-error a payload cannot hold a Val, beside a primitive either
+      type Rooted = Val<"UnionRooted", Celsius | "unknown">;
+      expectTypeOf<Rooted>().not.toExtend<AnyVal>();
+    });
+
+    test("a Val or a Rec beside an object, an array or a primitive is rejected", () => {
+      type Dollar = Val<"UnionPlainDollar", { amount: number }>;
+      type Dated = Val<
+        "UnionDated",
+        // @ts-expect-error only null can share a field with a Val
+        { a: Dollar | Date }
+      >;
+      expectTypeOf<VerdictOf<Dated>>().toEqualTypeOf<{
+        a: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
+      // @ts-expect-error nor with a Rec
+      type Node = Val<"UnionNode", { b: Rec<Node> | { n: number }; s: Rec<Node> | string }>;
+      expectTypeOf<VerdictOf<Node>>().toEqualTypeOf<{
+        b: Invalid<"only null can share a field with a Val; declare an Enum">;
+        s: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
+      type Either = Val<
+        "UnionEither",
+        // @ts-expect-error nor beside an array
+        { a: Dollar | Dollar[] }
+      >;
+      expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<{
+        a: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
+    });
+
+    test("objects that differ only in the Vals they hold, or in a Val and its payload, are rejected", () => {
+      type Dollar = Val<"UnionHeldDollar", { amount: number }>;
+      type Yen = Val<"UnionHeldYen", { amount: number }>;
+      type Money = Enum<"UnionHeldMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
+      // Its payload is that of `Money`'s `Dollar` variant.
+      type Other = Val<"UnionHeldOther", { amount: number; _tag: "Dollar" }>;
+      // Its variants differ in their keys, and `Other` holds the payload of one.
+      type Coins = Enum<"UnionHeldCoins", { Dollar: { amount: number }; Yen: { yen: number } }>;
+      type Held = Val<
+        "UnionHeld",
+        // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
+        {
+          a: { x: Dollar } | { x: Yen };
+          b: { x: Dollar }[] | { x: Yen }[];
+          c: Record<string, Dollar>[] | Record<string, Yen>[];
+          d: { x: Dollar } | { x: { amount: number } };
+          e: { x: Money } | { x: Other };
+          f: { x: Money }[] | { x: Other }[];
+          g: { x: Dollar } | { x: { amount: number; memo?: string } };
+          h: { x: Coins } | { x: Other };
+          i: { x: Dollar; n?: number } | { x: Yen; n?: string };
+          j: { x: Dollar; l: number[] } | { x: Yen; l: string[] };
+        }
+      >;
+      expectTypeOf<VerdictOf<Held>>().toEqualTypeOf<{
+        a: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        b: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        c: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        d: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        e: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        f: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        g: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        h: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        i: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        j: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+      }>();
+      // @ts-expect-error a union cannot hold objects `equals` cannot tell apart, as a whole payload too
+      type Rooted = Val<"UnionHeldRoot", { x: Dollar } | { x: Yen }>;
+      expectTypeOf<VerdictOf<Rooted>>().toEqualTypeOf<
+        Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
+      >();
+      // Objects `equals` tells apart get the `patch` message, and arrays of them pass, even where one
+      // holds every field of the other.
+      type Apart = Val<
+        "UnionApart",
+        // @ts-expect-error an object payload cannot be a union
+        {
+          a: { x: Dollar } | { y: Yen };
+          b: { x: Dollar; y: number } | { x: Yen };
+          c: { x: Dollar } | { x: Money };
+          d: { x: Dollar; k: "a" } | { x: Yen; k: "b" };
+          e: { x: Dollar; l: [number] } | { x: Yen; l: [string] };
+        }
+      >;
+      expectTypeOf<VerdictOf<Apart>>().toEqualTypeOf<{
+        a: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        b: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        c: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        d: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        e: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+      }>();
+      type Arrays = Val<
+        "UnionArrays",
+        {
+          a: { x: Dollar }[] | { y: Yen }[];
+          b: { x: Dollar; y: number }[] | { x: Yen }[];
+          c: { x: Dollar }[] | { x: Money }[];
+        }
+      >;
+      expectTypeOf<Arrays>().toExtend<AnyVal>();
+    });
+
+    test("a Val shares a field with null alone in an enum's variants and shared fields, a trait's shape and an optional key", () => {
+      type Dollar = Val<"UnionElsewhereDollar", { amount: number }>;
+      type Yen = Val<"UnionElsewhereYen", { amount: number }>;
+      type Mode = Val<"UnionElsewhereMode", "on" | "off">;
+      type Money = Enum<"UnionElsewhereMoney", { D: { amount: number }; Y: { amount: number } }>;
+      // @ts-expect-error only null can share a field with a Val
+      type Variants = Enum<"UnionVariants", { A: { m: Dollar | Yen }; B: { n: number } }>;
+      type Shared = Enum<
+        "UnionShared",
+        { A: { a: number }; B: { b: number } },
+        // @ts-expect-error only null can share a field with a Val
+        { m: Dollar | string }
+      >;
+      // @ts-expect-error only null can share a field with a Val
+      type Shape = Trait<"UnionShape", { m: Mode | "none" }>;
+      // @ts-expect-error only null can share a field with a Val
+      type Wallet = Val<"UnionWallet", { money?: Dollar | Yen; m: Money | null }>;
+      expectTypeOf<VerdictOf<Variants>>().toEqualTypeOf<
+        true | { m: Invalid<"only null can share a field with a Val; declare an Enum">; _tag: "A" }
+      >();
+      expectTypeOf<VerdictOf<Shared>>().toEqualTypeOf<
+        | {
+            a: number;
+            m: Invalid<"only null can share a field with a Val; declare an Enum">;
+            _tag: "A";
+          }
+        | {
+            b: number;
+            m: Invalid<"only null can share a field with a Val; declare an Enum">;
+            _tag: "B";
+          }
+      >();
+      expectTypeOf<TraitVerdictOf<Shape>>().toEqualTypeOf<{
+        readonly UnionShape: {
+          m: Invalid<"only null can share a field with a Val; declare an Enum">;
+        };
+      }>();
+      expectTypeOf<VerdictOf<Wallet>>().toEqualTypeOf<{
+        money?: Invalid<"only null can share a field with a Val; declare an Enum">;
+        m: Money | null;
+      }>();
+    });
+
+    test("two Recs count as holding a value in common, and a Rec beside anything else as not", () => {
+      type Ring = Val<"UnionRing", { next: Rec<Ring>; v: number }>;
+      type Loop = Val<"UnionLoop", { next: Rec<Loop>; v: number }>;
+      type List = Enum<"UnionRecList", { Cons: { head: number; tail: Rec<List> }; Nil: {} }>;
+      type Chain = Enum<
+        "UnionRecChain",
+        { Cons: { head: number; tail: Rec<Chain> }; End: { end: true } }
+      >;
+      type Odd = Val<
+        "UnionOdd",
+        // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
+        { a: { x: Ring } | { x: Loop }; b: { x: List } | { x: Chain } }
+      >;
+      expectTypeOf<VerdictOf<Odd>>().toEqualTypeOf<{
+        a: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        b: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+      }>();
+      type Apart = Val<
+        "UnionRecApart",
+        // @ts-expect-error an object payload cannot be a union
+        { k: { x: Rec<Apart>; t: 1 } | { x: string; t: 1 } }
+      >;
+      expectTypeOf<VerdictOf<Apart>>().toEqualTypeOf<{
+        k: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+      }>();
+    });
+
+    test("types that reference themselves are compared without opening their Recs", () => {
+      type Tree = Val<"UnionSelfTree", { kid: Rec<Tree> | null; v: number }>;
+      type Leaf = Val<"UnionSelfLeaf", { kid: Rec<Leaf> | null; v: number }>;
+      type List = Enum<"UnionSelfList", { Cons: { head: number; tail: Rec<List> }; Nil: {} }>;
+      type Chain = Enum<"UnionSelfChain", { Cons: { head: number; tail: Rec<Chain> }; Nil: {} }>;
+      type Held = Val<
+        "UnionSelfHeld",
+        // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
+        {
+          a: { x: Tree } | { x: Leaf };
+          b: { x: Tree }[] | { x: Leaf }[];
+          c: { x: List } | { x: Chain };
+        }
+      >;
+      expectTypeOf<VerdictOf<Held>>().toEqualTypeOf<{
+        a: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        b: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        c: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+      }>();
+    });
+
     test("an object union is rejected, however it is spelled", () => {
       // @ts-expect-error an object payload cannot be a union
       type Bad = Val<"Bad", { kind: "a"; a: number } | { kind: "b"; b: string }>;
@@ -553,6 +850,12 @@ describe("Val", () => {
       // @ts-expect-error an object payload cannot be a union
       type InTuple = Val<"InTuple", [State, number]>;
       expectTypeOf<InTuple>().not.toExtend<AnyVal>();
+
+      // @ts-expect-error even where one object holds every key of the other
+      type Widened = Val<"Widened", { a: number } | { a: number; b: string }>;
+      // @ts-expect-error even where each object is assignable to the other
+      type Optional = Val<"Optional", { s: { a: number } | { a: number; b?: string } }>;
+      expectTypeOf<Widened | Optional>().not.toExtend<AnyVal>();
     });
 
     test("a field no value fits is rejected", () => {

@@ -11,6 +11,7 @@ import {
   type Final,
   type Impl,
   type Members,
+  type Payload,
   type PrivateCreate,
   type PrivateSeal,
   type Rec,
@@ -93,3 +94,20 @@ export const greetableStart: TraitBuilder<Greetable> = Trait.companion<Greetable
 export const Blank: TraitCompanion<Greetable> = Greetable;
 export const members = { greet: (self: Self) => String(self) } satisfies Members;
 export type ShapeParts = [TagOf<Shape>, SharedOf<Shape>, VariantsOf<Shape>];
+
+// Types that reference themselves, with fields the union rules compare. Emitting and re-reading
+// their declarations raised TS2615 until `Meets` stopped opening a pair of `Rec`s.
+export type Chain = Enum<"Chain", { Link: { head: number; tail: Rec<Chain> }; End: { end: true } }>;
+export type Ledger = Val<
+  "Ledger",
+  {
+    shape: Shape | null;
+    owner: User | null;
+    next: Rec<Ledger> | null;
+    chain: Chain;
+    rows: { user: User }[];
+    pairs: { x: Rec<Ledger>; t: 1 }[] | { x: Rec<Ledger>; t: 2 }[];
+  }
+>;
+export const Ledger = Val.companion<Ledger>().build();
+export type LedgerRow = Payload<{ owner: User | null; next: Rec<Ledger> | null }>;
