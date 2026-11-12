@@ -31,7 +31,7 @@ export class StaleClaimError extends ErrorFactory({
       )
       .join("\n"),
   fields: ErrorFactory.fields<{
-    stale: { file: string; found: string }[];
+    stale: Claim[];
     size: string;
     /** The flags that rewrite these claims. */
     rerun: string;
@@ -51,11 +51,35 @@ const patterns = [
   Pattern.seal(/(?<="description": "[^"]*)\d+(?:\.\d+)? [kM]?B gzipped(?=[^"]*")/.source),
 ];
 
-type Claim = Val<
+export type Claim = Val<
   "Claim",
   { file: string; text: string; pattern: Pattern; found: string; stale: boolean }
 >;
-const Claim = Val.companion<Claim>().build();
+const Claim = Val.companion<Claim>()
+  .implAssoc(({ seal }) => ({
+    /** The one claim `text` makes, compared with `size`. Fails unless `text` makes exactly one. */
+    find: (file: string, text: string, size: string): R.Result<Claim, ClaimCountError> => {
+      const matches = patterns.flatMap((pattern) =>
+        [...text.matchAll(Pattern.regExp(pattern))].map((match) => ({ pattern, value: match[0] })),
+      );
+      const [match] = matches;
+      if (matches.length !== 1 || !match)
+        return R.fail(new ClaimCountError({ file, found: matches.length }));
+
+      // The formatter can wrap a marked Markdown claim across lines.
+      const found = match.value.replaceAll(/\s+/g, " ");
+      return R.succeed(seal({ file, text, pattern: match.pattern, found, stale: found !== size }));
+    },
+  }))
+  .impl(() => ({
+    /** Writes `size` in place of the claim, in its file under `root`. */
+    rewrite: (claim, size: string, root: URL): Promise<void> =>
+      writeFile(new URL(claim.file, root), claim.text.replace(Pattern.regExp(claim.pattern), size)),
+    /** What the table prints for the claim, after a run that rewrites with `write`. */
+    state: (claim, write: boolean): string =>
+      !claim.stale ? "ok" : write ? `updated from ${claim.found}` : `stale: ${claim.found}`,
+  }))
+  .build();
 
 /**
  * Compares the size each file states with `gzip`, the production gzip of the base bundle, and
@@ -73,37 +97,21 @@ export async function claims(
       text: await readFile(new URL(file, root), "utf8"),
     })),
   );
-  const found: Claim[] = [];
-  for (const { file, text } of texts) {
-    const matches = patterns.flatMap((pattern) =>
-      [...text.matchAll(Pattern.regExp(pattern))].map((match) => ({ pattern, value: match[0] })),
-    );
-    const [match] = matches;
-    if (matches.length !== 1 || !match)
-      return R.fail(new ClaimCountError({ file, found: matches.length }));
-    // The formatter can wrap a marked Markdown claim across lines.
-    const said = match.value.replaceAll(/\s+/g, " ");
-    found.push(
-      Claim.seal({ file, text, pattern: match.pattern, found: said, stale: said !== size }),
-    );
-  }
+  const found = R.sequence(texts, ({ file, text }) => Claim.find(file, text, size));
+  if (R.isFailure(found)) return found;
+  const stated = found.value;
 
   if (write)
     await Promise.all(
-      found.map(async ({ file, text, pattern, stale }) => {
-        if (stale)
-          await writeFile(new URL(file, root), text.replace(Pattern.regExp(pattern), size));
-      }),
+      stated.filter(({ stale }) => stale).map((claim) => Claim.rewrite(claim, size, root)),
     );
 
-  const label = Math.max(...found.map(({ file }) => file.length));
+  const label = Math.max(...stated.map(({ file }) => file.length));
   console.log(`claims  ${size}`);
-  for (const { file, found: said, stale } of found) {
-    const state = !stale ? "ok" : write ? `updated from ${said}` : `stale: ${said}`;
-    console.log(`  ${file.padEnd(label)}  ${state}`);
-  }
+  for (const claim of stated)
+    console.log(`  ${claim.file.padEnd(label)}  ${Claim.state(claim, write)}`);
 
-  const stale = found.filter((claim) => claim.stale);
+  const stale = stated.filter((claim) => claim.stale);
   return write || stale.length === 0
     ? R.succeed()
     : R.fail(

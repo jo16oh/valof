@@ -121,6 +121,15 @@ export const Counts = Val.companion<Counts>()
   }))
   .build();
 
+/** A fixture's counts over the baseline. */
+type FixtureCounts = Val<"FixtureCounts", { name: keyof VariantsOf<Fixture>; counts: Counts }>;
+const FixtureCounts = Val.companion<FixtureCounts>()
+  .impl(() => ({
+    budget: ({ name, counts }): Budget =>
+      Budget.seal({ name, used: counts.instantiations, limit: budget[name], unit: "count" }),
+  }))
+  .build();
+
 export class FixtureError extends ErrorFactory({
   name: "FixtureError",
   message: ({ fixture, output }) => `the ${fixture} fixture does not compile\n${output}`,
@@ -142,16 +151,13 @@ export async function checkTypes(): R.ResultAsync<void, TypesError> {
 
   const counted = await R.sequence(fixtures.map((name) => measure(compile, name)));
   if (R.isFailure(counted)) return counted;
-  const measured = fixtures.map((name, index) => ({
-    name,
-    counts: Counts.above(counted.value[index]!, baseline.value),
-  }));
+  const measured = fixtures.map((name, index) =>
+    FixtureCounts.seal({ name, counts: Counts.above(counted.value[index]!, baseline.value) }),
+  );
   printCounts(baseline.value, measured);
 
   const budgets = [
-    ...measured.map(({ name, counts }) =>
-      Budget.seal({ name, used: counts.instantiations, limit: budget[name], unit: "count" }),
-    ),
+    ...measured.map(FixtureCounts.budget),
     Budget.seal({
       name: "index.d.ts",
       used: await declarationBytes(new URL("dist/index.d.ts", repository)),
@@ -221,7 +227,7 @@ async function declarationBytes(entry: URL): Promise<number> {
   return bytes;
 }
 
-function printCounts(baseline: Counts, measured: { name: string; counts: Counts }[]): void {
+function printCounts(baseline: Counts, measured: readonly FixtureCounts[]): void {
   console.log(`typescript@${version(floor)}, over a baseline of ${count(baseline.types)} types\n`);
   console.log(
     table(
