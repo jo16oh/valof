@@ -108,7 +108,7 @@ export const CompatCheck = Val.companion<CompatCheck>()
         aliases.map(async (alias) =>
           LineResult.seal({
             version: version(alias),
-            failures: await typecheckLine(alias, exports, current),
+            failures: await typecheck(alias, exports, current),
           }),
         ),
       );
@@ -250,7 +250,7 @@ async function copyScripts(): Promise<string[]> {
 }
 
 // The failure messages of one TypeScript line, empty where it passes. `current` adds the scripts.
-async function typecheckLine(
+async function typecheck(
   alias: string,
   exports: SourceExports,
   current: boolean,
