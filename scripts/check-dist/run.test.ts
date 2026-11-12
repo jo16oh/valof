@@ -44,7 +44,7 @@ describe("runChecks", () => {
     ]);
     expect(ran).toEqual(["size", "types", "compat"]);
     expect(code).toBe(1);
-    expect(logged).toContain("\nthe declarations do not typecheck, or change a type, on size");
+    expect(logged).toContain(`\n${new IncompatibleError({ failed: ["size"] }).message}`);
     expect(logged).toContain("\ntypes crashed");
     expect(logged.slice(-3)).toEqual(["  size    fail", "  types   fail", "  compat  pass"]);
   });
