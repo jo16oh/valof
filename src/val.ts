@@ -1337,17 +1337,13 @@ const deepCopy = (owning: boolean) => {
 
       if (development) assertPlainObject(source);
 
-      const target: Record<string, unknown> = {};
-      for (const key of Object.keys(source)) {
-        const copied = copy(source[key]);
-        // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
-        // the prototype instead of copying it. Defining it keeps it an own property, and only
-        // that key pays for the slower path.
-        if (key === "__proto__") {
-          define(target, key, copied);
-        } else {
-          target[key] = copied;
-        }
+      // A spread clones the whole level at once, which V8 does far faster than key by key. It
+      // defines `__proto__` as an own key, so assigning that key below writes the own key, not the
+      // prototype. Each child that is an object is then copied.
+      const target: Record<string, unknown> = { ...source };
+      for (const key of Object.keys(target)) {
+        const child = target[key];
+        if (isObject(child)) target[key] = copy(child);
       }
       out = target;
     }
