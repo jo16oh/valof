@@ -205,6 +205,14 @@ and the build are shared.
   parallel
 - **Every check runs even after one fails.** Then a summary prints pass or fail for each. With one
   CI step, the summary still shows which check failed
+- **Each check returns a report, and `runChecks` prints it.** `runChecks` prints the `Report`'s
+  `render()`, then its verdict's error, so a bundle over budget still prints its table before the
+  check fails. `Check.run` fails where the check stops before it has a report: a measurement that
+  breaks, a stale pin under `--release`, or a file that does not state the size exactly once. The
+  cost: compat prints nothing until every TypeScript line finishes
+- **Rejected: printing inside each check.** It printed compat's counts before the TypeScript lines
+  ran. But no test could read the output, and each check had to order its `console.log` calls
+  before returning a failure, by hand
 - **CI tests whether a PR is a release in one place.** Before, two `if`s tested
   `startsWith(github.head_ref, 'chore/release-')`, one for the claim files and one for
   `--require-pin`. Now the `RELEASE` environment variable only turns on `--release`
