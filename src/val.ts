@@ -293,16 +293,44 @@ type Clash<T, E = T extends unknown ? Validate<T, false> : never> =
         : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
       : Extract<E, Invalid<string>>;
 
-/** `true` where two constituents match both ways once each Val is read as its payload. */
+/** `true` where two constituents hold a value in common once each Val is read as its payload. */
 type Collides<N, A = N> = N extends unknown
   ? Exclude<A, N> extends infer O
     ? O extends unknown
-      ? [Erased<O>, Erased<N>] extends [Erased<N>, Erased<O>]
-        ? true
-        : never
+      ? Overlaps<Erased<O>, Erased<N>>
       : never
     : never
   : never;
+
+// `true` where some value fits both, which `equals` finds equal to itself. An enum is read variant
+// by variant, and an empty array fits any two arrays.
+type Overlaps<A, B> = A extends unknown ? (B extends unknown ? Meets<A, B> : never) : never;
+
+type Meets<A, B> = [A, B] extends [Primitive, Primitive]
+  ? [A & B] extends [never]
+    ? never
+    : true
+  : [A, B] extends [infer X extends ReadonlyArray<unknown>, infer Y extends ReadonlyArray<unknown>]
+    ? number extends X["length"] | Y["length"]
+      ? true
+      : Overlaps<X[number], Y[number]>
+    : [A | B] extends [object]
+      ? [Lacks<A, B> | Lacks<B, A> | Apart<A, B>] extends [never]
+        ? true
+        : never
+      : never;
+
+// A key `A` requires and `B` lacks.
+type Lacks<A, B> = Exclude<keyof A, OptionalKeys<A> | keyof B>;
+
+// A key both hold, one of them requiring it, whose values have nothing in common.
+type Apart<A, B> = {
+  [K in keyof A & keyof B]-?: [K] extends [OptionalKeys<A> & OptionalKeys<B>]
+    ? never
+    : true extends Overlaps<Exclude<A[K], undefined>, Exclude<B[K], undefined>>
+      ? never
+      : K;
+}[keyof A & keyof B];
 
 /** Each nested Val read as its payload. */
 type Erased<T> = [T] extends [AnyVal]
