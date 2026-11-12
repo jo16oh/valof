@@ -48,8 +48,9 @@ it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a p
 companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
-`class X extends ErrorFactory({ message, fields }) {}`. Leave out `name`. It defaults to the class
-name, and `instanceof` narrows.
+`class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
+Without the `name` option, the error's `name` property is typed `string`, and a union of errors
+cannot narrow on it.
 
 ## Bundle Size and Type Cost
 
