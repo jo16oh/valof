@@ -8,13 +8,14 @@ Only three things can be a payload:
 | Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                  |
 | Objects    | `{ k: allowed }`, or `Record<string, allowed>`                 |
 
-A Val is itself one of these, so Vals nest. A field may hold `null` or a primitive beside one other
-kind, as `string[] | null` or `User | null`. A union of objects is rejected. So is a field holding
-Vals of different types, or an [`Impl`](traits.md#implement-it-on-a-val), because
-[`equals`](utilities.md#equals) compares structurally. It would find a `Dollar` of 1 equal to a
-`Yen` of 1. Declare an [enum](enums.md) of those types instead. Its tag distinguishes the variants.
-A tuple keeps its positions and its length. Valof treats one with a rest element
-(`[string, ...number[]]`) as an array instead, since a fixed length is what distinguishes the two.
+A Val is itself one of these, so Vals nest. A Val may share a field only with `null`, as
+`User | null`. [`equals`](utilities.md#equals) compares structurally, so in a field of
+`Dollar | Yen` it would find a `Dollar` of 1 equal to a `Yen` of 1. Declare an [enum](enums.md) of
+those types instead. Its tag distinguishes the variants. Any other field may hold `null` or a
+primitive beside one other kind, as `string[] | null` or `string | string[]`. A union of objects is
+rejected, and so is a field holding an [`Impl`](traits.md#implement-it-on-a-val). A tuple keeps its
+positions and its length. Valof treats one with a rest element (`[string, ...number[]]`) as an array
+instead, since a fixed length is what distinguishes the two.
 
 A payload cannot contain a type parameter, and a Val's brand cannot be one. To declare several Vals
 with the same payload, share it with `Payload`:
