@@ -3,6 +3,7 @@
 // when the type is written by an exported name.
 import {
   Enum,
+  equals,
   Tag,
   Trait,
   Val,
@@ -111,3 +112,7 @@ export type Ledger = Val<
 >;
 export const Ledger = Val.companion<Ledger>().build();
 export type LedgerRow = Payload<{ owner: User | null; next: Rec<Ledger> | null }>;
+
+// Their types constrain by `AnyVal`, which the root does not export.
+export const same = equals;
+export const detach = Val.unwrap;
