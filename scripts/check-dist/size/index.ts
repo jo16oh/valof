@@ -4,13 +4,13 @@ import { Val } from "#valof";
 
 import { Check } from "../run.ts";
 
-import { claims } from "./claims.ts";
+import { claims, type ClaimCountError, type StaleClaimError } from "./claims.ts";
 import { over, render } from "./format.ts";
 import { BundleSize } from "./measure/index.ts";
 import { Bundle, Imports } from "./bundle.ts";
-import { Suite } from "./suite.ts";
+import { Suite, type MeasureError } from "./suite.ts";
 
-export const suite = Suite.seal([
+const suite = Suite.seal([
   Bundle.seal({
     name: "Val",
     base: true,
@@ -57,7 +57,10 @@ export class OverBudgetError extends ErrorFactory({
  * Measures every bundle against its budget, then the claims against the base bundle's size.
  * Expects `dist` to be built.
  */
-export async function checkSize(options: { release: boolean; write: boolean }) {
+export async function checkSize(options: {
+  release: boolean;
+  write: boolean;
+}): R.ResultAsync<void, MeasureError | OverBudgetError | ClaimCountError | StaleClaimError> {
   const measured = await Suite.measure(suite);
   if (R.isFailure(measured)) return measured;
   console.log(render(measured.value));

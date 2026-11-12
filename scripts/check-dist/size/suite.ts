@@ -18,6 +18,14 @@ import {
 
 export class NoBaseError extends ErrorFactory({ message: "no bundle sets base" }) {}
 
+export type MeasureError =
+  | NoBaseError
+  | NoChunkError
+  | CompileError
+  | MinifyError
+  | DevCodeKeptError
+  | AddsNothingError;
+
 export type Report = Val<
   "Report",
   {
@@ -39,12 +47,7 @@ export const Suite = Val.companion<Suite>()
         ? R.succeed(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
         : R.fail(new NoBaseError());
     },
-    measure: async (
-      suite: Suite,
-    ): R.ResultAsync<
-      Report,
-      NoBaseError | NoChunkError | CompileError | MinifyError | DevCodeKeptError | AddsNothingError
-    > => {
+    measure: async (suite: Suite): R.ResultAsync<Report, MeasureError> => {
       const baseImports = Suite.base(suite);
       if (R.isFailure(baseImports)) return baseImports;
 

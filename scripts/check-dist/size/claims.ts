@@ -9,7 +9,7 @@ const repository = new URL("../../../", import.meta.url);
 const marker = "valof-minimal-bundle-size";
 
 /** The files that state the bundle size. A release adds the ones that describe the release. */
-export const claimed = (release: boolean): string[] => [
+const claimed = (release: boolean): string[] => [
   "docs/src/introduction.md",
   ...(release ? ["README.md", "package.json"] : []),
 ];
@@ -109,7 +109,7 @@ export async function claims(
     ? R.succeed()
     : R.fail(
         new StaleClaimError({
-          stale: stale.map(({ file, found: said }) => ({ file, found: said })),
+          stale,
           size,
           rerun: release ? "--write --release" : "--write",
         }),

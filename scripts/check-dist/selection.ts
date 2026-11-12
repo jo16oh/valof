@@ -5,7 +5,6 @@ import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 
 export class UsageError extends ErrorFactory({
-  name: "UsageError",
   message: ({ problem }) => `check-dist: ${problem}`,
   fields: ErrorFactory.fields<{ problem: string }>(),
 }) {}
