@@ -1,8 +1,10 @@
+import byethrow from "@praha/byethrow-oxlint";
 import { defineConfig } from "oxlint";
 
 import valof from "./src/lint/eslint-plugin/index.ts";
 
 export default defineConfig({
+  extends: [byethrow.recommended],
   plugins: ["typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
   // The plugin from source, so the linter checks the library, the scripts and itself as it stands.
   jsPlugins: ["./src/lint/eslint-plugin/index.ts"],
@@ -15,6 +17,7 @@ export default defineConfig({
   },
   categories: { correctness: "error", suspicious: "error", perf: "error" },
   rules: {
+    "byethrow/consistent-namespace": ["error", "R"],
     "typescript/no-explicit-any": "error",
     "typescript/no-unnecessary-condition": "error",
     "typescript/no-unnecessary-type-assertion": "error",
@@ -92,6 +95,8 @@ export default defineConfig({
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-unsafe-return": "off",
         "typescript/no-extraneous-class": "off",
+        // A matcher cannot give back the value a test unwraps to set itself up.
+        "byethrow/prefer-result-matchers": "off",
       },
     },
   ],
