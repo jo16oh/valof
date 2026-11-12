@@ -2,7 +2,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "#valof";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { IncompatibleError } from "./checks/compat/index.ts";
+import { StalePinError } from "./checks/compat/index.ts";
 import { Report } from "./checks/report.ts";
 import { Check } from "./checks/check.ts";
 import { runChecks } from "./run.ts";
@@ -25,19 +25,18 @@ type Note = Val<"Note", { text: string; fails: boolean }, Report>;
 const Note = Val.companion<Note>()
   .implTrait(Report, () => ({
     render: (note) => note.text,
-    verdict: (note) =>
-      note.fails ? R.fail(new IncompatibleError({ failed: [note.text] })) : R.succeed(),
+    passed: (note) => !note.fails,
   }))
   .build();
 
-// "fail" reports and then fails its verdict; "reject" fails before it has a report.
+// "fail" reports that it did not pass; "reject" fails before it has a report.
 type Stub = Val<"Stub", { name: string; outcome: "pass" | "fail" | "reject" | "throw" }, Check>;
 const Stub = Val.companion<Stub>()
   .implTrait(Check, () => ({
     run: async (stub) => {
       ran.push(stub.name);
       if (stub.outcome === "throw") throw new Error(`${stub.name} crashed`);
-      if (stub.outcome === "reject") return R.fail(new IncompatibleError({ failed: [stub.name] }));
+      if (stub.outcome === "reject") return R.fail(new StalePinError({ pin: stub.name }));
       return R.succeed(
         Report.dyn(
           Note,
@@ -61,15 +60,11 @@ describe("runChecks", () => {
     ]);
     expect(ran).toEqual(["size", "types", "compat", "pack"]);
     expect(code).toBe(1);
-    // A report prints before its verdict, and a check that fails before reporting prints none.
-    expect(logged.slice(0, 4)).toEqual([
-      "\n# size\n",
-      "size report",
-      `\n${new IncompatibleError({ failed: ["size report"] }).message}`,
-      "\n# types\n",
-    ]);
+    // A failing report prints as a passing one does. A check that fails before it has a report
+    // prints its error instead.
+    expect(logged.slice(0, 3)).toEqual(["\n# size\n", "size report", "\n# types\n"]);
     expect(logged.slice(logged.indexOf("\n# types\n") + 1, logged.indexOf("\n# compat\n"))).toEqual(
-      [`\n${new IncompatibleError({ failed: ["types"] }).message}`],
+      [`\n${new StalePinError({ pin: "types" }).message}`],
     );
     expect(logged).toContain("\ncompat crashed");
     expect(logged).toContain("pack report");

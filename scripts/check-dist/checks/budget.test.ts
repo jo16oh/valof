@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { Budget, OverBudgetError } from "./budget.ts";
+import { Budget } from "./budget.ts";
 
 describe("Budget", () => {
   const instantiations = (used: number) =>
@@ -20,9 +20,10 @@ describe("Budget", () => {
     expect(Budget.left(instantiations(12_345))).toBe("2,345 over");
   });
 
-  test("reports each budget it is over on a line of its own", () => {
-    expect(new OverBudgetError({ over: [instantiations(12_345), declarations(4096)] }).message)
-      .toBe(`over budget: core is 12,345, budget 10,000
-over budget: index.d.ts is 4.00 kB, budget 2.00 kB`);
+  test("names a budget it is over, in the budget's unit", () => {
+    expect([Budget.overLine(instantiations(12_345)), Budget.overLine(declarations(4096))]).toEqual([
+      "over budget: core is 12,345, budget 10,000",
+      "over budget: index.d.ts is 4.00 kB, budget 2.00 kB",
+    ]);
   });
 });

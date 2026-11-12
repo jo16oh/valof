@@ -37,7 +37,7 @@ afterEach(async () => {
 
 const read = (file: string): Promise<string> => readFile(join(directory, file), "utf8");
 
-// Reads, rewrites with `write`, and judges, as the size check does. The verdict's message, if any.
+// Reads, rewrites with `write`, and judges, as the size check does. The problems found, if any.
 async function check(
   gzip: number,
   { release, write }: { release: boolean; write: boolean },
@@ -46,9 +46,9 @@ async function check(
   if (R.isFailure(claims)) return claims.error.message;
 
   if (write) await Claims.rewrite(claims.value, root);
-  const verdict = Claims.verdict(claims.value, { release, write });
+  const problems = Claims.problems(claims.value, { release, write });
 
-  return R.isFailure(verdict) ? verdict.error.message : undefined;
+  return problems.length > 0 ? problems.join("\n") : undefined;
 }
 
 describe("Claims", () => {

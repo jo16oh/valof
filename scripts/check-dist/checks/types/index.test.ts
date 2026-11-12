@@ -1,4 +1,3 @@
-import { Result as R } from "@praha/byethrow";
 import { expect, test } from "vite-plus/test";
 
 import { Budget } from "../budget.ts";
@@ -19,16 +18,19 @@ test("reads the counts tsc prints, over a baseline", () => {
   });
 });
 
-test("fails on the budgets over their limit, and on none other", () => {
+test("fails on the budgets over their limit, and names only those", () => {
   const counts = Counts.seal({ types: 0, instantiations: 0, check: 0, total: 0 });
   const over = Budget.seal({ name: "core", used: 10_001, limit: 10_000, unit: "count" });
   const within = Budget.seal({ name: "index.d.ts", used: 1, limit: 2, unit: "bytes" });
   const report = (budgets: Budget[]) =>
     TypesReport.seal({ typescript: "5.9.3", baseline: counts, fixtures: [], budgets });
+  const named = (budgets: Budget[]) =>
+    TypesReport.render(report(budgets))
+      .split("\n")
+      .filter((line) => line.startsWith("over budget"));
 
-  const verdict = TypesReport.verdict(report([over, within]));
-  expect(
-    R.isFailure(verdict) && verdict.error.name === "OverBudgetError" && verdict.error.over,
-  ).toEqual([over]);
-  expect(R.isSuccess(TypesReport.verdict(report([within])))).toBe(true);
+  expect(TypesReport.passed(report([over, within]))).toBe(false);
+  expect(named([over, within])).toEqual(["over budget: core is 10,001, budget 10,000"]);
+  expect(TypesReport.passed(report([within]))).toBe(true);
+  expect(named([within])).toEqual([]);
 });

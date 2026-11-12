@@ -58,14 +58,18 @@ const report = (gzip: number, claims: Claims) => {
   });
 };
 
-test("fails on a bundle over its budget before a stale claim, and on a stale claim", () => {
-  const over = SizeReport.verdict(report(1025, stale));
-  expect(R.isFailure(over) && over.error.name === "OverBudgetError" && over.error.over).toEqual([
-    { name: "Val", used: 1025, limit: 1024, unit: "bytes" },
-  ]);
+test("fails on a bundle over its budget and on a stale claim, naming each", () => {
+  const named = (gzip: number, claims: Claims) =>
+    SizeReport.render(report(gzip, claims))
+      .split("\n")
+      .filter((line) => line.startsWith("over budget") || line.startsWith("stale claim"));
+  const outdated =
+    "stale claim: docs/src/introduction.md says 1000 B gzipped, measured 900 B gzipped. Rerun with --write.";
 
-  const outdated = SizeReport.verdict(report(1000, stale));
-  expect(R.isFailure(outdated) && outdated.error.name).toBe("StaleClaimError");
-
-  expect(R.isSuccess(SizeReport.verdict(report(1000, fresh)))).toBe(true);
+  expect(SizeReport.passed(report(1100, stale))).toBe(false);
+  expect(named(1100, stale)).toEqual(["over budget: Val is 1.07 kB, budget 1.00 kB", outdated]);
+  expect(SizeReport.passed(report(1000, stale))).toBe(false);
+  expect(named(1000, stale)).toEqual([outdated]);
+  expect(SizeReport.passed(report(1000, fresh))).toBe(true);
+  expect(named(1000, fresh)).toEqual([]);
 });

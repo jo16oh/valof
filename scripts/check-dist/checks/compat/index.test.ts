@@ -38,17 +38,14 @@ const pin = "8d32b2ae3ab76618b3c577cc19b25da177c4242f";
 const passing = LineResult.seal({ version: "5.9.3", failures: [] });
 const failing = LineResult.seal({ version: "6.0.3", failures: ["    the declaration changes x"] });
 
-test("fails on each TypeScript line with a failure, naming its version", () => {
-  const verdict = CompatReport.verdict(
-    CompatReport.seal({ blocks: 1, fixtures: 1, pin, lines: [passing, failing] }),
+test("fails on a TypeScript line with a failure, naming its version", () => {
+  const report = CompatReport.seal({ blocks: 1, fixtures: 1, pin, lines: [passing, failing] });
+  expect(CompatReport.passed(report)).toBe(false);
+  expect(CompatReport.render(report).split("\n")).toContain(
+    "the declarations do not typecheck, or change a type, on 6.0.3",
   );
   expect(
-    R.isFailure(verdict) && verdict.error.name === "IncompatibleError" && verdict.error.failed,
-  ).toEqual(["6.0.3"]);
-  expect(
-    R.isSuccess(
-      CompatReport.verdict(CompatReport.seal({ blocks: 1, fixtures: 1, pin, lines: [passing] })),
-    ),
+    CompatReport.passed(CompatReport.seal({ blocks: 1, fixtures: 1, pin, lines: [passing] })),
   ).toBe(true);
 });
 
