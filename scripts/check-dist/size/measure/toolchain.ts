@@ -13,16 +13,19 @@ import { repository } from "../../../shared/repository.ts";
 import { Build, BuildResult, modes, Sizes, type Mode } from "./index.ts";
 
 export class NoChunkError extends ErrorFactory({
+  name: "NoChunkError",
   message: ({ mode }) => `no chunk emitted for ${mode._tag}`,
   fields: ErrorFactory.fields<{ mode: Mode }>(),
 }) {}
 
 export class CompileError extends ErrorFactory({
+  name: "CompileError",
   message: ({ mode, step, detail }) => `${step} failed for ${mode._tag}: ${detail}`,
   fields: ErrorFactory.fields<{ mode: Mode; step: string; detail: string }>(),
 }) {}
 
 export class MinifyError extends ErrorFactory({
+  name: "MinifyError",
   message: ({ detail }) => `minify failed: ${detail}`,
   fields: ErrorFactory.fields<{ detail: string }>(),
 }) {}

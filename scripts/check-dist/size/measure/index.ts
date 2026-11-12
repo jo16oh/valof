@@ -5,12 +5,14 @@ import { Imports, type Bundle } from "../bundle.ts";
 import { Budget } from "../../report.ts";
 
 export class DevCodeKeptError extends ErrorFactory({
+  name: "DevCodeKeptError",
   message: ({ imports }) =>
     `production keeps the development branches: import { ${Imports.names(imports).join(", ")} }`,
   fields: ErrorFactory.fields<{ imports: Imports }>(),
 }) {}
 
 export class AddsNothingError extends ErrorFactory({
+  name: "AddsNothingError",
   message: ({ bundle }) => `${bundle.name} adds nothing to the base, which already holds it`,
   fields: ErrorFactory.fields<{ bundle: Bundle }>(),
 }) {}

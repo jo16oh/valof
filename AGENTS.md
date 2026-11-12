@@ -19,8 +19,8 @@ take the Val first as `self`, and `.implAssoc` holds the associated functions. `
 
 ## Code Style
 
-`pipe` (`scripts/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them
-where a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
+`pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them where
+a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
 `User.seal(parse(text))`. Fold a variable used once into the chain. Keep it as a local, next to its
 use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
 where a step needs a value from outside the chain.
@@ -48,8 +48,9 @@ it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a p
 companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
-`class X extends ErrorFactory({ message, fields }) {}`. Leave out `name`. It defaults to the class
-name, and `instanceof` narrows.
+`class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
+Without the `name` option, the error's `name` property is typed `string`, and a union of errors
+cannot narrow on it.
 
 ## Bundle Size and Type Cost
 
