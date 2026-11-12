@@ -4,7 +4,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 
 import { IncompatibleError } from "./checks/compat/index.ts";
 import { Report } from "./report.ts";
-import { Check, runChecks } from "./run.ts";
+import { Check } from "./check.ts";
+import { runChecks } from "./run.ts";
 
 let logged: string[];
 let ran: string[];
