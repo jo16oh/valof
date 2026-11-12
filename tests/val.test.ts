@@ -20,6 +20,7 @@ import type {
   CallBuildFirst,
   CompanionMembers,
   Invalid,
+  Patching,
   Refused,
   Takes,
   Verdict,
@@ -1037,6 +1038,21 @@ describe("Val", () => {
       expectTypeOf<BrandOf<User>>().toEqualTypeOf<"app/User">();
       expectTypeOf<PayloadOf<ArticleId>>().toEqualTypeOf<string>();
       expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
+    });
+
+    // `never` satisfies the constraint, and opening it without a guard recurses past the checker's
+    // depth limit (TS2589).
+    test("PayloadOf<never> resolves to never", () => {
+      expectTypeOf<PayloadOf<never>>().toBeNever();
+    });
+
+    test("Patch takes a payload, not a Val", () => {
+      type Fault = Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">;
+      expectTypeOf<Patch<User>>().toEqualTypeOf<Fault>();
+      // `never` and `any` satisfy the check for a Val, and keep what they gave before it.
+      expectTypeOf<Patch<never>>().toBeNever();
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<Patch<any>>().toEqualTypeOf<Patching<any>>();
     });
 
     test("does not exist at runtime", () => {
@@ -2975,6 +2991,14 @@ describe("building", () => {
     test("keys must exist on the payload", () => {
       // @ts-expect-error there is no such field
       Val.companion<Account, [Unpatchable<"nope">]>().build();
+    });
+
+    test("takes no `any`", () => {
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = Unpatchable<any>;
+      expectTypeOf<Loose>().toEqualTypeOf<Invalid<"`Unpatchable` takes key names, not `any`">>();
+      // @ts-expect-error `Unpatchable` takes key names
+      Val.companion<Account, [Loose]>().build();
     });
 
     // An intersection of two would collapse to `never` and take nothing out.
