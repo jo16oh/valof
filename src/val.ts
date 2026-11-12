@@ -748,10 +748,14 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * `{ at: { ...point, x: 1 } }`.
  */
 export type Patch<T, X extends PropertyKey = never> = [T] extends [AnyVal]
-  ? Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">
+  ? [T] extends [never]
+    ? never
+    : 0 extends 1 & T
+      ? Patching<T, X>
+      : Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">
   : Patching<T, X>;
 
-// `Patch`, but `never` for a Val, which a field holding one reads as "replace it whole".
+// `Patch`, but `never` for a Val. `PatchValue` reads that `never` as "replace the field whole".
 // One mapped type rather than an intersection, because TypeScript rejects a variable sharing no
 // key with a weak type, and skips that check on an intersection where one side has no keys.
 export type Patching<T, X extends PropertyKey = never> = T extends object
@@ -986,8 +990,8 @@ export declare class PrivateCreate {
  * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>().build();
  * ```
  */
-// `any` satisfies every constraint, so the type itself reports it. Read through `infer`: against
-// the constraint, `1 & K` resolves to `never` before `K` is known.
+// `any` satisfies every constraint, so the type itself reports it. It reads the key through
+// `infer`, because against the constraint, `1 & K` resolves to `never` before `K` is known.
 export type Unpatchable<K extends string> = [K] extends [infer X]
   ? 0 extends 1 & X
     ? Invalid<"`Unpatchable` takes key names, not `any`">
