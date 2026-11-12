@@ -28,10 +28,8 @@ const Note = Val.companion<Note>()
   }))
   .build();
 
-type Outcome = "pass" | "fail" | "reject" | "throw";
-
 // "fail" reports and then fails its verdict; "reject" fails before it has a report.
-type Stub = Val<"Stub", { name: string; outcome: Outcome }, Check>;
+type Stub = Val<"Stub", { name: string; outcome: "pass" | "fail" | "reject" | "throw" }, Check>;
 const Stub = Val.companion<Stub>()
   .implTrait(Check, () => ({
     run: async (stub) => {
@@ -48,7 +46,8 @@ const Stub = Val.companion<Stub>()
   }))
   .build();
 
-const check = (name: string, outcome: Outcome) => Check.dyn(Stub, Stub.seal({ name, outcome }));
+const check = (name: string, outcome: Stub["outcome"]) =>
+  Check.dyn(Stub, Stub.seal({ name, outcome }));
 
 describe("runChecks", () => {
   test("runs every check after one fails, rejects or throws, and exits 1 with the summary", async () => {
