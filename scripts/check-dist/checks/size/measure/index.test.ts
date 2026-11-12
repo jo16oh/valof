@@ -1,4 +1,4 @@
-import { expect, test } from "vite-plus/test";
+import { describe, expect, test } from "vite-plus/test";
 
 import { Bundle, Imports } from "../bundle.ts";
 import { Build, BuildResult, BundleSize, Sizes } from "./index.ts";
@@ -31,5 +31,46 @@ test("budgets a base bundle by its size, and any other by what it adds", () => {
     used: 600,
     limit: 500,
     unit: "bytes",
+  });
+});
+
+describe("problems", () => {
+  const imports = Imports.seal({ "./dist/index.js": ["Val.companion"] });
+  const kept = (readsNodeEnv: boolean, development: number) => {
+    const mode = (minified: number) =>
+      Build.seal({ sizes: Sizes.seal({ minified, gzip: 0, brotli: 0 }), library: 10 });
+    return BuildResult.seal({
+      imports,
+      readsNodeEnv,
+      production: mode(100),
+      development: mode(development),
+    });
+  };
+
+  test("names a build whose production keeps the development branches it reads", () => {
+    expect(BuildResult.problems(kept(true, 100))).toEqual([
+      "production keeps the development branches: import { Val.companion }",
+    ]);
+    expect(BuildResult.problems(kept(true, 200))).toEqual([]);
+    expect(BuildResult.problems(kept(false, 100))).toEqual([]);
+  });
+
+  test("names a bundle that adds nothing to the base", () => {
+    const base = kept(false, 200);
+    const enumBundle = Bundle.seal({ name: "Enum", imports, budget: 500 });
+    const added = (library: number) =>
+      BundleSize.create(
+        enumBundle,
+        BuildResult.seal({
+          ...base,
+          production: Build.seal({ ...base.production, library }),
+        }),
+        base,
+      );
+
+    expect(BundleSize.problems(added(10), base)).toEqual([
+      "Enum adds nothing to the base, which already holds it",
+    ]);
+    expect(BundleSize.problems(added(20), base)).toEqual([]);
   });
 });
