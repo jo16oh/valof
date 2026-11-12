@@ -214,7 +214,8 @@ Item.Book.named(Item.Book.create({ label: "Dune", pages: 412 })); // "Dune, 412 
 ## Hold values of different types together
 
 `dyn` pairs a value with one Val's implementation, so values of different types share an array. The
-box drops the concrete type and keeps only the trait. This is inspired by Rust's `Box<dyn Trait>`:
+box `dyn` returns drops the concrete type and keeps only the trait. This is inspired by Rust's
+`Box<dyn Trait>`:
 
 ```ts
 import { Trait, Val, type Dyn, type Self } from "valof";
