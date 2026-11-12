@@ -92,11 +92,11 @@ const declarationsBudget = 108 * 1024;
  */
 const pluginBudget = 2 * 1024;
 
-type Counts = Val<
+export type Counts = Val<
   "Counts",
   { types: number; instantiations: number; check: number; total: number }
 >;
-const Counts = Val.companion<Counts>()
+export const Counts = Val.companion<Counts>()
   .implAssoc(({ seal }) => ({
     /** Reads the counts `tsc --extendedDiagnostics` prints. */
     fromDiagnostics: (stdout: string) => {
