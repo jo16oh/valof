@@ -172,8 +172,16 @@ type HoldsVal<T> = T extends unknown
       : false
   : never;
 
-// An enum's name is wrapped, since a Val may take it as its brand.
-type Kinds<T> = T extends AnyEnum ? [NameOf<T>] : T extends Phantom<infer B, unknown> ? B : T;
+// What tells the types in a union apart: an enum's name, a Val's brand, or a `Rec` itself.
+type Kinds<T> = T extends AnyEnum
+  ? EnumName<NameOf<T>>
+  : T extends Phantom<infer B, unknown>
+    ? ValBrand<B>
+    : T;
+
+// Labelled by kind, since a Val may take an enum's name as its brand.
+type EnumName<K> = { readonly enum: K };
+type ValBrand<B> = { readonly val: B };
 
 // A field typed `Impl` holds any Val implementing the trait, which is the same problem.
 type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extends [AnyImpl]
