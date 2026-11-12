@@ -289,23 +289,18 @@ type Collides<N, A = N> = N extends unknown
   ? Exclude<A, N> extends infer O
     ? O extends unknown
       ? [Erased<O>] extends [Erased<N>]
-        ? [O] extends [N]
-          ? never
-          : true
+        ? true
         : never
       : never
     : never
   : never;
 
-/** Each nested Val read as its payload. A {@link Rec} stays, as opening it is circular. */
-type Erased<T> =
-  IsRec<T> extends true
+/** Each nested Val read as its payload. */
+type Erased<T> = [T] extends [AnyVal]
+  ? Erased<Declared<T>>
+  : [T] extends [Primitive]
     ? T
-    : [T] extends [AnyVal]
-      ? Erased<Declared<T>>
-      : [T] extends [Primitive]
-        ? T
-        : { [K in keyof T]: Erased<T[K]> };
+    : { [K in keyof T]: Erased<T[K]> };
 
 // oxlint-disable-next-line no-unsafe-function-type
 type MethodKeys<T> = { [K in keyof T]-?: T[K] extends Function ? K : never }[keyof T];
