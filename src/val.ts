@@ -659,8 +659,9 @@ export type Payload<T extends Allowed<T, "Payload">> = Validate<T, true, "Payloa
 // One mapped type covers an array and a tuple both: homomorphic over either, it keeps the length,
 // the positions and the mutability. {@link DeepReadonly} needs the two apart only because it
 // rewrites them.
-type Opened<T> =
-  IsRec<T> extends true
+type Opened<T> = [T] extends [never]
+  ? never
+  : IsRec<T> extends true
     ? T extends Rec<infer V>
       ? Opened<Declared<V>>
       : T
@@ -746,9 +747,14 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * missing `y` that the type still calls a `Point`. Spread the current value to keep the rest:
  * `{ at: { ...point, x: 1 } }`.
  */
+export type Patch<T, X extends PropertyKey = never> = [T] extends [AnyVal]
+  ? Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">
+  : Patching<T, X>;
+
+// `Patch`, but `never` for a Val, which a field holding one reads as "replace it whole".
 // One mapped type rather than an intersection, because TypeScript rejects a variable sharing no
 // key with a weak type, and skips that check on an intersection where one side has no keys.
-export type Patch<T, X extends PropertyKey = never> = T extends object
+export type Patching<T, X extends PropertyKey = never> = T extends object
   ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
     : {
@@ -773,9 +779,9 @@ export type Patch<T, X extends PropertyKey = never> = T extends object
 // A Val declares the brand key private, and the public optional key added here rejects it from
 // the patch. Only the second member takes a Val, so a plain object still meets the first alone.
 type PatchValue<T> = [T] extends [object]
-  ? [Patch<T>] extends [never]
+  ? [Patching<T>] extends [never]
     ? T
-    : Patch<T, typeof PhantomBrand> | (T & AnyVal)
+    : Patching<T, typeof PhantomBrand> | (T & AnyVal)
   : T;
 
 export type AnyFn = (...args: never[]) => unknown;
@@ -930,7 +936,7 @@ type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
   : F;
 
 /** Type-only carrier for {@link Unpatchable}. */
-declare class UnpatchablePhantom<K extends string> {
+export declare class UnpatchablePhantom<K extends string> {
   private readonly [UnpatchableKey]: K;
   /** Declaration emit erases private field types; protected keeps the keys recoverable. */
   protected readonly [UnpatchableTypes]: K;
@@ -980,7 +986,13 @@ export declare class PrivateCreate {
  * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>().build();
  * ```
  */
-export type Unpatchable<K extends string> = UnpatchablePhantom<K>;
+// `any` satisfies every constraint, so the type itself reports it. Read through `infer`: against
+// the constraint, `1 & K` resolves to `never` before `K` is known.
+export type Unpatchable<K extends string> = [K] extends [infer X]
+  ? 0 extends 1 & X
+    ? Invalid<"`Unpatchable` takes key names, not `any`">
+    : UnpatchablePhantom<K>
+  : never;
 
 /** What the list after the Val in `Val.companion<V, […]>` takes. */
 type CompanionOption<V extends AnyVal> =
