@@ -30,7 +30,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two
 types the checker stops distinguishing, a name that has to agree with another and does not, or a
-member that its type promises but that runs differently or is missing. `incomplete-disable` errors
+member that the types promise but that runs differently or is missing. `incomplete-disable` errors
 for a reason of its own. A comment naming no rule silences every one, a rule added next year
 included.
 
@@ -93,7 +93,7 @@ like any other.
 
 The plugin has the rules in the table above, under the same names. Each rule can be given its own
 severity, or turned off, by its name. `recommended` leaves `data-type-outside-valof` out. The rule's
-settings go under `settings.valof["data-type-outside-valof"]`. `settings.valof.project` names the
+settings go under `settings.valof["data-type-outside-valof"]`. `settings.valof.project` sets the
 project to read, for every rule at once. It takes a path or a list of paths, and defaults to
 `src/**/*.ts`. A path starting with `!` is excluded from it.
 
