@@ -78,7 +78,7 @@ declare const res: { json(): Promise<PayloadOf<User>> };
 // ---cut---
 const plain = await res.json(); // the generated client types this as PayloadOf<User>
 const bad: User = plain; // type error: the brand is missing
-const user = User.seal(plain); // sealed, and now it is one
+const user = User.seal(plain); // sealed, and now it is a User
 ```
 
 `PayloadOf<V>` removes the brand from the type, not from the value, so it costs nothing at run time.
@@ -100,7 +100,7 @@ const copy: PayloadOf<Post> = Val.unwrap(post);
 
 `PayloadOf` and `Val.unwrap` both remove the brand of a nested Val.
 
-Persistence helpers can create the same hole.
+Persistence helpers can also return a value typed as a Val that never passed through the seal.
 [Jotai's `atomWithStorage`](https://github.com/pmndrs/jotai/blob/main/docs/utilities/storage.mdx),
 for example, parses stored JSON and returns it as the type inferred from its initial value. Store a
 `PayloadOf<User>`, then seal it after reading.

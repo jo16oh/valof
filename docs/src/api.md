@@ -23,7 +23,8 @@
 | `.build()`               | ends the chain, and returns the companion                     |
 
 Write `implSeal` first, then `implCreate`. `impl`, `implTrait` and `implAssoc` come next, in any
-order. `implSeal`, `implCreate` and `impl` are written once, and the other two any number of times.
+order. `implSeal`, `implCreate` and `impl` are written once, `implTrait` once per trait, and
+`implAssoc` any number of times.
 
 The function passed to `impl`, `implTrait` and `implAssoc` receives `seal`, `create` and `patch`,
 including the ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `create`
@@ -172,7 +173,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | `Impl<Tr>`           | a value implementing the trait                      |
 | `Self`               | the implementing Val, as a member's first parameter |
 | `Final<F>`           | marks a member no Val may replace                   |
-| `Dyn<Tr>`            | a boxed value, with the concrete type gone          |
+| `Dyn<Tr>`            | a boxed value, without its concrete type            |
 | `Members`            | the members a trait declares                        |
 | `TraitBuilder<Tr>`   | a trait's builder, with the steps it can still take |
 | `TraitCompanion<Tr>` | the trait's companion `.build()` returns            |

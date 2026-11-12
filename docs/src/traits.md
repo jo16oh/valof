@@ -214,7 +214,8 @@ Item.Book.named(Item.Book.create({ label: "Dune", pages: 412 })); // "Dune, 412 
 ## Hold values of different types together
 
 `dyn` pairs a value with one Val's implementation, so values of different types share an array. The
-concrete type is gone, and only the trait is left. This is inspired by Rust's `Box<dyn Trait>`:
+box `dyn` returns drops the concrete type and keeps only the trait. This is inspired by Rust's
+`Box<dyn Trait>`:
 
 ```ts
 import { Trait, Val, type Dyn, type Self } from "valof";
@@ -259,8 +260,8 @@ not. `p.id` is a type error, because `dyn` drops the concrete type.
 A box is a proxy over its value, not a Val. It has its own identity, and it has no `patch`. A
 payload cannot hold one.
 
-The two arguments belong together. The companion has to match the value's own type, so another Val's
-companion is rejected.
+The companion passed to `dyn` has to match the value's own type, so another Val's companion is
+rejected.
 
 An enum boxes the same way, through its own companion:
 `Describable.dyn(Cmd, Cmd.Add.create({ id: "c1", n: 2 }))`.

@@ -1,6 +1,6 @@
 # Linting
 
-Rules for the mistakes the type checker cannot catch. They run as a
+valof-lint reports the mistakes the type checker cannot catch. It runs as a
 [plugin for ESLint and Oxlint](linting.md#plugin-for-eslint-and-oxlint), and as a
 [standalone command](linting.md#cli).
 
@@ -29,16 +29,17 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `unused-disable`              | a disable comment naming a rule that reports nothing there                         | warning |
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two
-types the checker stops distinguishing, or a name that has to agree with another and does not.
-`incomplete-disable` errors for a reason of its own. A comment naming no rule silences every one, a
-rule added next year included.
+types the checker stops distinguishing, a name that has to agree with another and does not, or a
+member that the types promise but that runs differently or is missing. `incomplete-disable` errors
+for a reason of its own. A comment naming no rule silences every one, a rule added next year
+included.
 
 The severity is what the [plugin](linting.md#plugin-for-eslint-and-oxlint) sets, and a project can
 give any rule its own. The [command](linting.md#cli) prints every finding the same way and exits 1
 on any of them.
 
-A member registered with `.impl(() => ({…}))` is not tree-shaken, and knip does not report it when
-it becomes unused.
+`unused-member` reports what other tools miss. A member registered with `.impl(() => ({…}))` is not
+tree-shaken, and knip does not report it when it becomes unused.
 
 ## Enforcing Valof for data types
 
@@ -90,11 +91,11 @@ like any other.
 
 ## Plugin for ESLint and Oxlint
 
-The same rules, one per finding kind. Each rule can be given its own severity, or turned off, by its
-name. `recommended` leaves `data-type-outside-valof` out. The rule's settings go under
-`settings.valof["data-type-outside-valof"]`. The project to read is one setting for all of them, a
-path or a list of paths, and defaults to `src/**/*.ts`. A path starting with `!` is excluded from
-it.
+The plugin has the rules in the table above, under the same names. Each rule can be given its own
+severity, or turned off, by its name. `recommended` leaves `data-type-outside-valof` out. The rule's
+settings go under `settings.valof["data-type-outside-valof"]`. `settings.valof.project` sets the
+project to read, for every rule at once. It takes a path or a list of paths, and defaults to
+`src/**/*.ts`. A path starting with `!` is excluded from it.
 
 ESLint needs a parser that reads your TypeScript.
 
@@ -134,13 +135,13 @@ pnpm exec valof-lint src src/billing/id.ts              # report on the changed 
 pnpm exec valof-lint 'src/**/*.ts' '!src/generated/**'  # leave a generated tree out
 ```
 
-| argument                    | what it is                                                                         |
-| --------------------------- | ---------------------------------------------------------------------------------- |
-| the first path              | the project to read, a directory or a glob                                         |
-| the paths after it          | the files to report on, the whole project when there are none                      |
-| `--project`                 | the project by name, before or after the files. Can be repeated, and takes `!path` |
-| `--no-<rule>`               | a rule to leave out of the run, by the rule name in the finding                    |
-| `--data-type-outside-valof` | the rule, turned on. Any of its settings can follow `=`, separated by commas       |
+| argument                    | what it is                                                                                  |
+| --------------------------- | ------------------------------------------------------------------------------------------- |
+| the first path              | the project to read, a directory or a glob                                                  |
+| the paths after it          | the files to report on, the whole project when there are none                               |
+| `--project`                 | the project, given as a flag, before or after the files. Can be repeated, and takes `!path` |
+| `--no-<rule>`               | a rule to leave out of the run, by the rule name in the finding                             |
+| `--data-type-outside-valof` | the rule, turned on. Any of its settings can follow `=`, separated by commas                |
 
 A single file given as the project is refused, because a duplicate brand needs the other alias to be
 seen.
