@@ -39,7 +39,7 @@ describe("flow", () => {
       R.andThen(async (n) => (n > 0 ? R.succeed(n) : R.fail(new InvalidError()))),
       R.map((n) => n * 2),
     );
-    expectTypeOf(length).toEqualTypeOf<Promise<R.Result<number, NotFoundError | InvalidError>>>();
+    expectTypeOf(length).toEqualTypeOf<R.ResultAsync<number, NotFoundError | InvalidError>>();
     expect(R.unwrap(await length)).toBe(6);
   });
 });
