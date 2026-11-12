@@ -1247,11 +1247,13 @@ describe("Val", () => {
 });
 
 describe("the entry point", () => {
-  test("does not export the constraints over any Val or any enum", () => {
-    // @ts-expect-error a user writes a Val type of their own
+  test("does not export the constraints over any Val, enum or trait", () => {
+    // @ts-expect-error the entry point does not export AnyVal
     expectTypeOf<import("../src/index.ts").AnyVal>();
-    // @ts-expect-error a user writes an enum type of their own
+    // @ts-expect-error the entry point does not export AnyEnum
     expectTypeOf<import("../src/index.ts").AnyEnum>();
+    // @ts-expect-error the entry point does not export AnyTrait
+    expectTypeOf<import("../src/index.ts").AnyTrait>();
   });
 });
 
