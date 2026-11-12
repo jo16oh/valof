@@ -194,18 +194,31 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
     ? T
     : Beside<T, Root>
   : [T] extends [ReadonlyArray<unknown>]
-    ? number extends T["length"]
-      ? { [I in keyof T]: Validate<T[I], false> }
-      : // A `never` element satisfies whatever it is mapped to, so the tuple is rejected whole.
-        true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
-        ? Invalid<"no value fits a tuple element">
-        : {
-            // An optional element is the tuple's form of an optional key: absent, it round trips.
-            // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
-            [I in keyof T]: undefined extends Required<T>[I]
-              ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
-              : Validate<Exclude<T[I], undefined>, false>;
-          }
+    ? // A union of arrays is rejected where one of them is a Val, or where their elements together
+      // hold Vals `equals` cannot tell apart.
+      [
+        IsUnion<T> extends true
+          ?
+              | Extract<T, AnyVal>
+              | Extract<
+                  Validate<T[number], false>,
+                  Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+                >
+          : never,
+      ] extends [never]
+      ? number extends T["length"]
+        ? { [I in keyof T]: Validate<T[I], false> }
+        : // A `never` element satisfies whatever it is mapped to, so the tuple is rejected whole.
+          true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
+          ? Invalid<"no value fits a tuple element">
+          : {
+              // An optional element is the tuple's form of an optional key: absent, it round trips.
+              // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+              [I in keyof T]: undefined extends Required<T>[I]
+                ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+                : Validate<Exclude<T[I], undefined>, false>;
+            }
+      : Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
     : // oxlint-disable-next-line no-unsafe-function-type
       [T] extends [Function]
       ? Invalid<"functions are not allowed">
@@ -240,18 +253,23 @@ type Beside<
   | [boolean, never, unknown]
   | [boolean, unknown, never]
   ? Invalid<"not a plain value">
-  : [Extract<O, P>] extends [never]
+  : [Extract<P, O extends Phantom<string, infer X> ? X : never>] extends [never]
     ? P | Validate<O, false>
     : Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
 
 /**
- * Each broken constituent's message. With none, the Enum message where a Val or a `Rec` is among
- * them, else the `patch` message.
+ * Each broken constituent's message. With none, the Enum message where two of those that are not
+ * arrays include a Val or a `Rec`, else the `patch` message.
  */
-type Clash<T, E = T extends unknown ? Validate<T, false> : never> = [
-  Extract<E, Invalid<string>>,
-] extends [never]
-  ? true extends (T extends unknown ? ([T] extends [AnyVal] ? true : IsRec<T>) : never)
+type Clash<
+  T,
+  E = T extends unknown ? Validate<T, false> : never,
+  N = Exclude<T, ReadonlyArray<unknown>>,
+> = [Extract<E, Invalid<string>>] extends [never]
+  ? [IsUnion<N>, true] extends [
+      true,
+      N extends unknown ? ([N] extends [AnyVal] ? true : IsRec<N>) : never,
+    ]
     ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
     : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
   : Extract<E, Invalid<string>>;

@@ -64,10 +64,10 @@ const budget: Record<Fixture, number> = { core: 10_000, trait: 25_000, enum: 90_
  * 64.7 kB.
  *
  * The budget went from 96 to 104 kB for the checks on a broken declaration: their messages, and
- * the constraints that report them where the type is declared. It went to 105 kB for the checks
+ * the constraints that report them where the type is declared. It went to 106 kB for the checks
  * that reject a field holding two types `equals` cannot distinguish.
  */
-const declarationsBudget = 105 * 1024;
+const declarationsBudget = 106 * 1024;
 
 /**
  * The plugin's declarations, which a config file in TypeScript loads. Its export is annotated by
