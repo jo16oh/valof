@@ -30,8 +30,9 @@ export const SizeReport = Val.companion<SizeReport>()
     passed: (report): boolean => SizeReport.problems(report).length === 0,
   }))
   .impl(() => ({
-    /** Each bundle over its budget, then each stale claim. */
+    /** What the measurement found, each bundle over its budget, then each stale claim. */
     problems: ({ measurement, claims, release, write }): string[] => [
+      ...Measurement.problems(measurement),
       ...measurement.bundles.map(BundleSize.budget).filter(Budget.over).map(Budget.overLine),
       ...Claims.problems(claims, { release, write }),
     ],

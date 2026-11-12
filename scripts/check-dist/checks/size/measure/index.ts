@@ -1,23 +1,8 @@
-import { Result as R } from "@praha/byethrow";
-import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "../bundle.ts";
 import { pipe } from "../../../../../src/shared/pipe/index.ts";
 import { Budget } from "../../budget.ts";
 import { align, bytes } from "../../report.ts";
-
-export class DevCodeKeptError extends ErrorFactory({
-  name: "DevCodeKeptError",
-  message: ({ imports }) =>
-    `production keeps the development branches: import { ${Imports.names(imports).join(", ")} }`,
-  fields: ErrorFactory.fields<{ imports: Imports }>(),
-}) {}
-
-export class AddsNothingError extends ErrorFactory({
-  name: "AddsNothingError",
-  message: ({ bundle }) => `${bundle.name} adds nothing to the base, which already holds it`,
-  fields: ErrorFactory.fields<{ bundle: Bundle }>(),
-}) {}
 
 // oxlint-disable-next-line valof/data-type-outside-valof -- two modes, never more
 export type Mode = "production" | "development";
@@ -48,10 +33,13 @@ export type BuildResult = Val<
 >;
 export const BuildResult = Val.companion<BuildResult>()
   .impl(() => ({
-    check: (build): R.Result<void, DevCodeKeptError> =>
+    /** A line where production keeps the development branches the library reads. */
+    problems: (build): string[] =>
       !build.readsNodeEnv || build.production.sizes.minified !== build.development.sizes.minified
-        ? R.succeed()
-        : R.fail(new DevCodeKeptError({ imports: build.imports })),
+        ? []
+        : [
+            `production keeps the development branches: import { ${Imports.names(build.imports).join(", ")} }`,
+          ],
     /** The bundle's imports, over a table of each mode's sizes. */
     render: (build): string => {
       const heads = ["minified", "gzip", "brotli"] as const;
@@ -95,9 +83,10 @@ export const BundleSize = Val.companion<BundleSize>()
       }),
     // An added bundle is budgeted by what it adds to the base.
     amount: (size, value: number): string => (size.bundle.base ? bytes(value) : `+${bytes(value)}`),
-    check: (size, base: BuildResult): R.Result<void, AddsNothingError> =>
+    /** A line where an added bundle's library is the base's, so it measures nothing. */
+    problems: (size, base: BuildResult): string[] =>
       size.bundle.base || size.build.production.library !== base.production.library
-        ? R.succeed()
-        : R.fail(new AddsNothingError({ bundle: size.bundle })),
+        ? []
+        : [`${size.bundle.name} adds nothing to the base, which already holds it`],
   }))
   .build();

@@ -5,12 +5,7 @@ import { Imports, type Bundle } from "./bundle.ts";
 import { flow, pipe } from "../../../../src/shared/pipe/index.ts";
 import { Budget } from "../budget.ts";
 import { align } from "../report.ts";
-import {
-  BuildResult,
-  BundleSize,
-  type AddsNothingError,
-  type DevCodeKeptError,
-} from "./measure/index.ts";
+import { BuildResult, BundleSize } from "./measure/index.ts";
 import {
   measure,
   type CompileError,
@@ -23,13 +18,7 @@ export class NoBaseError extends ErrorFactory({
   message: "no bundle sets base",
 }) {}
 
-export type MeasureError =
-  | NoBaseError
-  | NoChunkError
-  | CompileError
-  | MinifyError
-  | DevCodeKeptError
-  | AddsNothingError;
+export type MeasureError = NoBaseError | NoChunkError | CompileError | MinifyError;
 
 export type Measurement = Val<
   "Measurement",
@@ -49,6 +38,11 @@ export const Measurement = Val.companion<Measurement>()
         ),
         budgets(bundles),
       ].join("\n"),
+    /** Each build that keeps development code, then each bundle that adds nothing (§16.2). */
+    problems: ({ base, bundles, separateBase }): string[] => [
+      ...[...separateBase, ...bundles.map(({ build }) => build)].flatMap(BuildResult.problems),
+      ...bundles.flatMap((size) => BundleSize.problems(size, base)),
+    ],
   }))
   .build();
 
@@ -87,18 +81,9 @@ export const Suite = Val.companion<Suite>()
       if (R.isFailure(base)) return base;
       const separateBase = base.value === only?.build ? [] : [base.value];
 
-      const kept = R.sequence(
-        [...separateBase, ...results.map(({ build }) => build)],
-        BuildResult.check,
-      );
-      if (R.isFailure(kept)) return kept;
-
       const bundles = results.map(({ bundle, build }) =>
         BundleSize.create(bundle, build, base.value),
       );
-
-      const added = R.sequence(bundles, (size) => BundleSize.check(size, base.value));
-      if (R.isFailure(added)) return added;
 
       return R.succeed(Measurement.seal({ base: base.value, bundles, separateBase }));
     },
