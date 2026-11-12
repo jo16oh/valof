@@ -78,3 +78,42 @@ test("passes on a claim that --write rewrote", () => {
   expect(SizeReport.passed(report(1000, stale, true))).toBe(true);
   expect(SizeReport.render(report(1000, stale, true))).not.toContain("stale claim");
 });
+
+test("fails on a build that keeps development code and a bundle that adds nothing, before its budgets", () => {
+  const imports = Imports.seal({ "./dist/index.js": ["Val.companion"] });
+  const result = (gzip: number, library: number, keeps: boolean) => {
+    const mode = (minified: number) =>
+      Build.seal({ sizes: Sizes.seal({ minified, gzip, brotli: 0 }), library });
+    return BuildResult.seal({
+      imports,
+      readsNodeEnv: keeps,
+      production: mode(100),
+      development: mode(keeps ? 100 : 200),
+    });
+  };
+  const base = result(1000, 10, true);
+  const enumBundle = Bundle.seal({ name: "Enum", imports, budget: 500 });
+  const traitBundle = Bundle.seal({ name: "Trait", imports, budget: 50 });
+  const kept = "production keeps the development branches: import { Val.companion }";
+  const report = SizeReport.seal({
+    measurement: Measurement.seal({
+      base,
+      separateBase: [base],
+      bundles: [
+        BundleSize.create(enumBundle, result(1300, 20, true), base),
+        BundleSize.create(traitBundle, result(1100, 10, false), base),
+      ],
+    }),
+    claims: fresh,
+    release: false,
+    write: false,
+  });
+
+  expect(SizeReport.passed(report)).toBe(false);
+  expect(SizeReport.problems(report)).toEqual([
+    kept,
+    kept,
+    "Trait adds nothing to the base, which already holds it",
+    "over budget: added by Trait is 100 B, budget 50 B",
+  ]);
+});
