@@ -851,9 +851,11 @@ describe("nesting", () => {
     // @ts-expect-error a field cannot hold an Impl
     type Boxed = Val<"Boxed", { item: Dyn<Greetable> }>;
     type Plain = Val<"Plain", { n: number }>;
-    // @ts-expect-error an Impl beside a Val gets the Impl message
+    // @ts-expect-error beside a Val, it gets the message about a Val
     type Stall = Val<"Stall", { owner: Impl<Greetable> | Plain }>;
-    expectTypeOf<ValVerdictOf<Stall>>().toEqualTypeOf<{ owner: Message }>();
+    expectTypeOf<ValVerdictOf<Stall>>().toEqualTypeOf<{
+      owner: Invalid<"only null can share a field with a Val; declare an Enum">;
+    }>();
     expectTypeOf<Shelf | Seat | Row | Boxed>().not.toBeNever();
   });
 
