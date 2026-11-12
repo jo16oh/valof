@@ -232,7 +232,7 @@ JSON does not record which type the field held either. A field typed `Impl<Price
 - **Rejected: a runtime brand that `equals` compares** (§5). The type rule rejects such a field at no runtime cost
 - **`Rec<Dollar> | Rec<Yen>` is rejected too.** `Validate` reads a `Rec` by its keys alone, so the check counts each `Rec` as a type of its own
   - **A type that references itself gives TS2615, not the message.** In `Val<"Tree2", { kid: Rec<Tree2> | Rec<Tree> }>`, with `Tree` from §3.7, the check compares the two `Rec`s' type arguments to tell them apart, and that resolves `Tree2` while it is being declared. The declaration is still rejected, on the type definition line. Moving the check to the verdict, which is read lazily, would need a flag passed through `Validate`. By estimate, not measured, that would put `index.d.ts` over its budget
-- **A union of objects, or of a Val and another kind, reports each broken constituent's message.** `Clash` runs `Validate` on each constituent. `Dollar | Date` gets "not a plain value", and `Impl<Greetable> | Dollar` the `Impl` message. With no broken constituent, a union holding a Val or a `Rec` gets the Enum message, and any other the message about `patch`. On `main`, both got the `patch` message
+- ~~**A union of objects, or of a Val and another kind, reports each broken constituent's message.** `Clash` runs `Validate` on each constituent. `Dollar | Date` gets "not a plain value", and `Impl<Greetable> | Dollar` the `Impl` message. With no broken constituent, a union holding a Val or a `Rec` gets the Enum message, and any other the message about `patch`. On `main`, both got the `patch` message~~ → A union holding a Val gets one message, below
 - **`IsUnion` returned `boolean` for a union with a constituent the others are assignable to.** `Dollar | { amount: number }` and `{ a: number } | { a: number; b: string }` passed, since `boolean extends true` is false. `main` had the hole. `IsUnion` now returns `true` when any constituent differs from the whole
 - **`IsUnion` also missed two objects each assignable to the other.** `{ a: number } | { a: number; b?: string }` passed, in a field, a payload, an enum's shared fields and a trait's members. In an enum's shared fields, `SharedOf` became `Pick<…, "a">`, so `b` was lost. `main` had the hole. `IsUnion` now compares each constituent's keys with the whole's too
 - **A Val with a primitive payload passed beside `null` or a primitive.** `Celsius | Fahrenheit | null`, both `Val<…, number>`, passed, because a primitive Val extends `Primitive` and the branch that allows `null` beside one other kind counted it as the primitive. On `main`, `Celsius | Fahrenheit` passed too, without `null`. `Beside` now sends the Vals to `Validate`, and rejects a primitive that a Val's payload holds, as `Celsius | number`
@@ -240,10 +240,46 @@ JSON does not record which type the field held either. A field typed `Impl<Price
 - **A union of arrays of Vals of different types passed.** `Dollar[] | Yen[]` and `[Dollar] | [Yen]` passed, in a field, an enum's variants and shared fields, and a trait's shape. `[dollar(1)]` equals `[yen(1)]`. §3.6 above says a union of arrays leaves no hole in `patch`, and that still holds, but `equals` has one. `main` had the hole. The array branch now runs `Validate` on the elements of a union of arrays, and rejects it where that gives the Enum message
   - It rejects `[Dollar, Yen] | [Dollar]`, though the lengths tell the two apart. Telling them apart would need a check per position
 - **A Val with an array payload beside an array got the expanded mapped type.** `Ids | number[]`, with `Ids` a `Val<…, number[]>`, was rejected, but the message showed the array's methods mapped to `Invalid`. `main` had it. The array branch's new check now gives the Enum message where a Val is one of the arrays
-- **A primitive Val passed beside a literal its payload holds.** `Label | "none"`, with `Label` a `Val<…, string>`, and `Celsius | 0` passed. JSON cannot tell `"none"` held by `Label` from `"none"`. `main` had the hole. `Beside` now compares the primitive with the Val's payload type, not with the Val
-- **A Val beside an array got the Enum message from the `Clash` above.** `Dollar | Dollar[]` has one Val type, and `equals` tells an object from an array. `Clash` now gives the Enum message only where those that are not arrays are a union that includes a Val or a `Rec`. The others get the `patch` message, as on `main`
+- ~~**A primitive Val passed beside a literal its payload holds.** `Label | "none"`, with `Label` a `Val<…, string>`, and `Celsius | 0` passed. JSON cannot tell `"none"` held by `Label` from `"none"`. `main` had the hole. `Beside` now compares the primitive with the Val's payload type, not with the Val~~ → A Val stands beside `null` alone, below
+- ~~**A Val beside an array got the Enum message from the `Clash` above.** `Dollar | Dollar[]` has one Val type, and `equals` tells an object from an array. `Clash` now gives the Enum message only where those that are not arrays are a union that includes a Val or a `Rec`. The others get the `patch` message, as on `main`~~ → the same message as any other union holding a Val, below
 - **Open: `Rec<Dollar | Yen>` and `Rec<Impl<Priced>>` pass (§9).** §3.7 lets `Rec<Other>` open to `Other`, and a field now rejects some `Other`s, as `Dollar | Yen`. Checking it would open the `Rec`, which is circular for a type that references itself
 - Cost: core 8,893 → 9,078, trait 24,668 → 24,633, enum 46,391 → 46,754, `index.d.ts` 103.73 → 105.12 kB. The budget went from 104 to 106 kB. The check reuses `NameOf` rather than a new helper, and the `Rec` and Val branches share one check. A tuple test (`[IsRec<T>, T] extends …`) and `true extends IsRec<T> | …` were shorter but cost core +300 to +450 instantiations
+
+### A Val stands beside `null` alone, 2026-11-12
+
+**A union that holds a Val is rejected unless its only other member is `null`.** Each earlier rule
+allowed some unions with a Val and rejected others, and each rule gave its own message. Together,
+the rules could not be stated in one sentence. One rule gives one message:
+
+```
+only null can share a field with a Val; declare an Enum
+```
+
+- **What it newly rejects.** `Mode | "none"` (`Mode` a `Val<…, "on" | "off">`), `Dollar | string` and `Dollar[] | number[]` were
+  allowed. `Size | string` (`Size` a `Val<…, "s" | "m" | "l">`) and `Zero | number` (`Zero` a
+  `Val<…, 0>`) passed through a hole, since `Beside` rejected a primitive only where the Val's
+  payload held it. An Enum gives each variant a
+  tag and `match` (user)
+- **Unions without a Val keep the rule that a field holds `null` or a primitive beside one other
+  kind (#125, §9).** `string | string[]` and `string | { b: number }`
+  pass. A field that takes external input may need such a union. With no Val in it, `equals` and a
+  JSON round trip can tell its members apart (user)
+- **A union of arrays is checked by its elements.** `Dollar[] | Yen[]` and `Dollar[] | number[]`
+  get the message. `string[] | number[]` passes, and so does the tuple `[Dollar, Yen]`, which is not a union
+- **Objects that differ only in the Vals they hold get "a field cannot hold Vals of different types".** `{ x: Dollar } | { x: Yen }`
+  had the `patch` message, and `{ x: Dollar }[] | { x: Yen }[]` passed. `Clash` reads each Val as
+  its payload and compares the constituents (`Collides`). `{ x: Dollar } | { y: Yen }` keeps the
+  `patch` message, and arrays of it pass. `main` had the hole
+- **An `Impl` beside a Val gets the message above, not the `Impl` message.** Both point to an Enum
+- **The check runs where `Validate` handles a union:** at its top for a union made only of Vals
+  or `Rec`s, and in `Beside`, `Clash` and the union of arrays.
+  Checking every field at the top of `Validate` cost core +450 and enum +1,700 instantiations
+- **Open: `{ x: Rec<Tree> }[] | { x: Dollar }[]` passes (§9).** `Collides` does not read a `Rec` as the Val
+  it refers to, since that is circular for a type that references itself
+- **`any` in a field still passes,** per §9's policy (2026-11-04). `Val<"V", { a: any }>` satisfies
+  `[T] extends [Validate<T>]` whatever `Validate` maps `a` to
+- Cost: core 9,078 → 9,207, trait 24,633 → 24,729, enum 46,754 → 47,069, `index.d.ts` 105.12 →
+  105.82 kB, inside the 106 kB budget
 
 ## 3.7 Self-reference: `Rec`
 
