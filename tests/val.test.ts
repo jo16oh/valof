@@ -581,6 +581,15 @@ describe("Val", () => {
       type TwoEnums = Val<"UnionTwoEnums", { money: Money | OtherMoney }>;
       // @ts-expect-error nor an enum and a Val
       type EnumAndVal = Val<"UnionEnumAndVal", { money: Money | Dollar }>;
+      // A Val may take the enum's name as its brand. Its payload holds the enum's tag, so JSON cannot
+      // tell them apart either.
+      type Namesake = Val<"UnionMoney", { amount: number; _tag: "Dollar" }>;
+      // @ts-expect-error nor a Val with the enum's name
+      type SameName = Val<"UnionSameName", { money: Money | Namesake; list: Money[] | Namesake[] }>;
+      expectTypeOf<VerdictOf<SameName>>().toEqualTypeOf<{
+        money: Invalid<"only null can share a field with a Val; declare an Enum">;
+        list: Invalid<"only null can share a field with a Val; declare an Enum">;
+      }>();
       expectTypeOf<TwoEnums | EnumAndVal>().not.toBeNever();
 
       // An enum is one type, and so is a Val whose payload is a union of primitives.
@@ -647,22 +656,24 @@ describe("Val", () => {
       }>();
     });
 
-    test("objects that differ only in the Vals they hold get the Enum message", () => {
+    test("objects that differ only in the Vals they hold, or in a Val and its payload, are rejected", () => {
       type Dollar = Val<"UnionHeldDollar", { amount: number }>;
       type Yen = Val<"UnionHeldYen", { amount: number }>;
       type Held = Val<
         "UnionHeld",
-        // @ts-expect-error a field cannot hold Vals of different types
+        // @ts-expect-error a field cannot hold objects `equals` cannot tell apart
         {
           a: { x: Dollar } | { x: Yen };
           b: { x: Dollar }[] | { x: Yen }[];
           c: Record<string, Dollar>[] | Record<string, Yen>[];
+          d: { x: Dollar } | { x: { amount: number } };
         }
       >;
       expectTypeOf<VerdictOf<Held>>().toEqualTypeOf<{
-        a: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
-        b: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
-        c: Invalid<"a field cannot hold Vals of different types; declare an Enum of them">;
+        a: Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        b: Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        c: Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        d: Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
       }>();
       // Objects with different fields get the `patch` message, and arrays of them pass.
       // @ts-expect-error an object payload cannot be a union
