@@ -7,7 +7,6 @@ export { equals, Val } from "./val.ts";
  * ones a caller writes for themselves.
  */
 export type {
-  AnyVal,
   Companion,
   CompanionBuilder,
   Patch,
@@ -23,7 +22,6 @@ export type {
 export { Enum, Otherwise, Tag } from "./enum.ts";
 
 export type {
-  AnyEnum,
   EnumBuilder,
   EnumCompanion,
   NameOf,
