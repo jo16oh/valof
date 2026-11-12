@@ -281,8 +281,8 @@ type Beside<
       : P | Validate<O, false>;
 
 /**
- * Each broken constituent's message, else the Enum message where two objects differ only in their
- * Vals, else the `patch` message.
+ * Each broken constituent's message, else the Enum message where two objects hold a value in
+ * common, else the `patch` message.
  */
 type Clash<T, E = T extends unknown ? Validate<T, false> : never> =
   true extends HoldsVal<T>
@@ -302,9 +302,9 @@ type Collides<N, A = N> = N extends unknown
     : never
   : never;
 
-// `true` where some value fits both. `equals` cannot tell which of the two holds it. It reads an
-// enum variant by variant. An empty array fits two arrays unless both are tuples. Two `Rec`s count
-// as holding a value in common, since opening one is circular for a type that references itself.
+// `true` where the two hold a value in common, which `equals` cannot attribute to either. An enum
+// is read variant by variant. Two arrays count as holding one unless both are tuples. Two `Rec`s
+// count as holding one, since opening one is circular for a type that references itself.
 type Overlaps<A, B> = A extends unknown ? (B extends unknown ? Meets<A, B> : never) : never;
 
 type Meets<A, B> = [IsRec<A>, IsRec<B>] extends [false, false]
@@ -330,7 +330,7 @@ type Opens<A, B> = [A, B] extends [Primitive, Primitive]
 // A key `A` requires and `B` lacks.
 type Lacks<A, B> = Exclude<keyof A, OptionalKeys<A> | keyof B>;
 
-// A key that both hold and at least one requires, where the two value types have nothing in common.
+// A key that both hold and at least one requires, where the two value types hold no value in common.
 type Apart<A, B> = {
   [K in keyof A & keyof B]-?: [K] extends [OptionalKeys<A> & OptionalKeys<B>]
     ? never
