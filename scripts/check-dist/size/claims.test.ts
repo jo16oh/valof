@@ -6,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { Result as R } from "@praha/byethrow";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { claims } from "./claims.ts";
+import { claims, type ClaimCountError, type StaleClaimError } from "./claims.ts";
 
 let root: URL;
 let directory: string;
@@ -31,7 +31,7 @@ afterEach(async () => {
 });
 
 const read = (file: string): Promise<string> => readFile(join(directory, file), "utf8");
-const message = (result: R.Result<void, Error>): string | undefined =>
+const message = (result: R.Result<void, ClaimCountError | StaleClaimError>): string | undefined =>
   R.isFailure(result) ? result.error.message : undefined;
 
 describe("claims", () => {

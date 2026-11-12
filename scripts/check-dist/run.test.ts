@@ -2,6 +2,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "#valof";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
+import { IncompatibleError } from "./compat/index.ts";
 import { Check, runChecks } from "./run.ts";
 
 let logged: string[];
@@ -24,7 +25,9 @@ const Stub = Val.companion<Stub>()
     run: async (stub) => {
       ran.push(stub.name);
       if (stub.outcome === "throw") throw new Error(`${stub.name} crashed`);
-      return stub.outcome === "pass" ? R.succeed() : R.fail(new Error(`${stub.name} failed`));
+      return stub.outcome === "pass"
+        ? R.succeed()
+        : R.fail(new IncompatibleError({ failed: [stub.name] }));
     },
   }))
   .build();
@@ -41,7 +44,7 @@ describe("runChecks", () => {
     ]);
     expect(ran).toEqual(["size", "types", "compat"]);
     expect(code).toBe(1);
-    expect(logged).toContain("\nsize failed");
+    expect(logged).toContain("\nthe declarations do not typecheck, or change a type, on size");
     expect(logged).toContain("\ntypes crashed");
     expect(logged.slice(-3)).toEqual(["  size    fail", "  types   fail", "  compat  pass"]);
   });
