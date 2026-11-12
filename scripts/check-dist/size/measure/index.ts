@@ -1,6 +1,6 @@
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
-import { Enum, Val } from "#valof";
+import { Val } from "#valof";
 import { Imports, type Bundle } from "../bundle.ts";
 import { pipe } from "../../../../src/shared/pipe/index.ts";
 import { align, Budget, bytes } from "../../report.ts";
@@ -18,16 +18,10 @@ export class AddsNothingError extends ErrorFactory({
   fields: ErrorFactory.fields<{ bundle: Bundle }>(),
 }) {}
 
-export type Mode = Enum<
-  "Mode",
-  { production: Record<never, never>; development: Record<never, never> }
->;
-export const Mode = Enum.companion<Mode>().build();
+// oxlint-disable-next-line valof/data-type-outside-valof -- two modes, never more
+export type Mode = "production" | "development";
 /** Production, then development. */
-export const modes: readonly [Mode, Mode] = [
-  Mode.production.create({}),
-  Mode.development.create({}),
-];
+export const modes: readonly [Mode, Mode] = ["production", "development"];
 
 export type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;
 export const Sizes = Val.companion<Sizes>().build();
@@ -63,10 +57,7 @@ export const BuildResult = Val.companion<BuildResult>()
       return pipe(
         [
           ["", ...heads],
-          ...modes.map(({ _tag: mode }) => [
-            mode,
-            ...heads.map((head) => bytes(build[mode].sizes[head])),
-          ]),
+          ...modes.map((mode) => [mode, ...heads.map((head) => bytes(build[mode].sizes[head]))]),
         ],
         (rows) => align(rows, ["left", "right", "right", "right"]),
         (rows) => rows.map((cells) => `  ${cells.join("  ")}`),

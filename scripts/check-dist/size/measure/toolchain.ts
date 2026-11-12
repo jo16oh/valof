@@ -10,17 +10,17 @@ import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
 import { flow, pipe } from "../../../../src/shared/pipe/index.ts";
 import { repository } from "../../../shared/repository.ts";
-import { Build, BuildResult, modes, Sizes, type Mode } from "./index.ts";
+import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class NoChunkError extends ErrorFactory({
   name: "NoChunkError",
-  message: ({ mode }) => `no chunk emitted for ${mode._tag}`,
+  message: ({ mode }) => `no chunk emitted for ${mode}`,
   fields: ErrorFactory.fields<{ mode: Mode }>(),
 }) {}
 
 export class CompileError extends ErrorFactory({
   name: "CompileError",
-  message: ({ mode, step, detail }) => `${step} failed for ${mode._tag}: ${detail}`,
+  message: ({ mode, step, detail }) => `${step} failed for ${mode}: ${detail}`,
   fields: ErrorFactory.fields<{ mode: Mode; step: string; detail: string }>(),
 }) {}
 
@@ -33,16 +33,15 @@ export class MinifyError extends ErrorFactory({
 export async function measure(
   imports: Imports,
 ): R.ResultAsync<BuildResult, NoChunkError | CompileError | MinifyError> {
-  const [productionMode, developmentMode] = modes;
   const compiled = await R.sequence([
-    compile(productionMode, imports),
-    compile(developmentMode, imports),
+    compile("production", imports),
+    compile("development", imports),
   ]);
   if (R.isFailure(compiled)) return compiled;
   const [production, development] = compiled.value;
 
   const reads = await R.sequence(
-    development.modules.map((module) => Module.readsNodeEnv(module, developmentMode)),
+    development.modules.map((module) => Module.readsNodeEnv(module, "development")),
   );
   if (R.isFailure(reads)) return reads;
 
@@ -155,7 +154,7 @@ async function compileEntry(
           root: fileURLToPath(repository),
           logLevel: "silent",
           configFile: false,
-          define: { "process.env.NODE_ENV": JSON.stringify(mode._tag) },
+          define: { "process.env.NODE_ENV": JSON.stringify(mode) },
           build: {
             write: false,
             minify: false,
