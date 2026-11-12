@@ -51,6 +51,41 @@ describe("Val nocopy in production", () => {
     expect(changed.metadata).not.toBe(external);
   });
 
+  test("adopts the same payload twice and returns the same value", () => {
+    const seed = {
+      item: { label: "kept" } as Item,
+      metadata: { version: 1 },
+      note: "before",
+    } as const;
+    const first = Document.seal.nocopy(seed);
+
+    expect(Document.seal.nocopy(seed)).toBe(first);
+  });
+
+  test("copies a frozen payload once, and shares that copy's nodes from then on", () => {
+    const seed = Object.freeze({
+      item: Object.freeze({ label: "kept" }) as Item,
+      metadata: Object.freeze({ version: 1 }),
+      note: "before",
+    });
+    const document = Document.seal.nocopy(seed);
+
+    expect(document).not.toBe(seed);
+    expect(document).toEqual(seed);
+    expect(Document.patch(document, { note: "after" }).metadata).toBe(document.metadata);
+  });
+
+  test("indexes an adopted graph holding a value sealed elsewhere, and keeps that value", () => {
+    type Product = Value<"ProductionProduct", { label: string }>;
+    const Product = Val.companion<Product>().build();
+    type Cart = Value<"ProductionCart", { product: Product; count: number }>;
+    const Cart = Val.companion<Cart>().build();
+    const product = Product.seal({ label: "kept" });
+    const cart = Cart.seal.nocopy({ product, count: 1 } as const);
+
+    expect(Cart.patch(cart, { count: 2 }).product).toBe(product);
+  });
+
   test("finishes indexing an adopted graph containing a cycle", () => {
     type Counter = Value<"ProductionCounter", { count: number }>;
     const Counter = Val.companion<Counter>().build();

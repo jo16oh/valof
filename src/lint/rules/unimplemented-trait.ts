@@ -1,20 +1,16 @@
-import type { Where } from "../ast.ts";
-import { symbolIdentity, type Alias, type Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Val } from "../../index.ts";
+import { Exports, type Scan } from "../scan/index.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
-export type UnimplementedTrait = Where & {
-  kind: "unimplemented-trait";
-  file: string;
-  val: string;
-  trait: string;
-  message: string;
-};
-export const UnimplementedTrait: Rule<UnimplementedTrait> = {
-  kind: "unimplemented-trait",
-  description: "a Trait declared by a Val or an Enum that its companion does not implement",
-  run: findings,
-};
-
+export type UnimplementedTrait = Val<"UnimplementedTrait", { kind: Kind }, Rule>;
+export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
+  .implCreate(() => ({
+    kind: Kind.seal("unimplemented-trait"),
+    description: "a Trait declared by a Val or an Enum that its companion does not implement",
+    warns: false,
+  }))
+  .implTrait(Rule, () => ({ run: findings }))
+  .build();
 /**
  * Reports a declared trait that no `implTrait` answers for.
  *
@@ -24,35 +20,57 @@ export const UnimplementedTrait: Rule<UnimplementedTrait> = {
  * reference resolves to a `Trait` declaration in the scanned files, which keeps a shared field
  * silent at the cost of missing a trait declared in a file nobody linted.
  */
-function findings(scans: readonly Scan[]): UnimplementedTrait[] {
-  const found: UnimplementedTrait[] = [];
-  const identity = symbolIdentity(scans);
+function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding[] {
+  const found: Finding[] = [];
+  const exports = Exports.from(scans);
   const traits = new Set(
-    scans.flatMap(({ traitAliases }) => traitAliases.map(({ ref }) => identity(ref))),
+    scans.flatMap(({ traitAliases }) =>
+      traitAliases.map(({ ref }) => Exports.identify(exports, ref)),
+    ),
   );
   for (const scan of scans)
-    for (const { alias, ref, traits: declared, onlyDeclared } of [
-      ...scan.aliases.map((one: Alias) => ({ ...one, onlyDeclared: false })),
-      ...scan.enumAliases.map((one: Alias) => ({ ...one, onlyDeclared: true })),
+    for (const { alias, ref, variant, traits: declared, onlyDeclared } of [
+      ...scan.aliases.map(({ alias, ref, traits }) => ({
+        alias,
+        ref,
+        variant: null,
+        traits,
+        onlyDeclared: false,
+      })),
+      ...scan.enumAliases.flatMap(({ alias, ref, traits, variantTraits }) => [
+        { alias, ref, variant: null, traits, onlyDeclared: true },
+        // A variant's payload intersects its fields with its traits, so, as for an enum, only a
+        // reference to a declared Trait counts.
+        ...variantTraits.map(({ variant, traits: own }) => ({
+          alias: `${alias}.${variant}`,
+          ref,
+          variant,
+          traits: own,
+          onlyDeclared: true,
+        })),
+      ]),
     ]) {
       const implemented = new Set(
         scan.traitImplementations
-          .filter((one) => identity(one.val) === identity(ref))
-          .map((one) => identity(one.trait)),
+          .filter(
+            (one) =>
+              Exports.identify(exports, one.val) === Exports.identify(exports, ref) &&
+              one.variant === variant,
+          )
+          .map((one) => Exports.identify(exports, one.trait)),
       );
       for (const trait of declared)
-        if (!implemented.has(identity(trait.ref))) {
-          if (onlyDeclared && !traits.has(identity(trait.ref))) continue;
+        if (!implemented.has(Exports.identify(exports, trait.ref))) {
+          if (onlyDeclared && !traits.has(Exports.identify(exports, trait.ref))) continue;
           // The declaration's position is deliberate: it points to the promise that is missing.
-          found.push({
-            kind: "unimplemented-trait",
-            file: scan.file,
-            line: trait.line,
-            column: trait.column,
-            val: alias,
-            trait: trait.name,
-            message: `${alias} declares ${trait.name}, but its companion does not implement it`,
-          });
+          found.push(
+            Finding.seal({
+              kind,
+              file: scan.file,
+              at: trait.at,
+              message: `${alias} declares ${trait.name}, but its companion does not implement it`,
+            }),
+          );
         }
     }
   return found;

@@ -64,15 +64,13 @@ describe("claims", () => {
     expect(await read("README.md")).toBe(intro("1.07 kB gzipped"));
   });
 
-  test("fails on a file that does not state the size exactly once", async () => {
-    for (const [text, found] of [
-      ["no claim\n", 0],
-      [intro("965 B gzipped").repeat(2), 2],
-    ] as const) {
-      await writeFile(join(directory, "docs/src/introduction.md"), text);
-      expect(message(await claims(965, { release: false, write: false }, root))).toBe(
-        `docs/src/introduction.md: expected one bundle-size claim, found ${found}`,
-      );
-    }
+  test.each([
+    { text: "no claim\n", found: 0 },
+    { text: intro("965 B gzipped").repeat(2), found: 2 },
+  ])("fails on a file that states the size $found times", async ({ text, found }) => {
+    await writeFile(join(directory, "docs/src/introduction.md"), text);
+    expect(message(await claims(965, { release: false, write: false }, root))).toBe(
+      `docs/src/introduction.md: expected one bundle-size claim, found ${found}`,
+    );
   });
 });

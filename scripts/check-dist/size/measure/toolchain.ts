@@ -8,7 +8,7 @@ import { ErrorFactory } from "@praha/error-factory";
 import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
-import { flow, pipe } from "../../../shared/pipe/index.ts";
+import { flow, pipe } from "../../../../src/shared/pipe/index.ts";
 import { Build, BuildResult, Mode, Sizes } from "./index.ts";
 
 export class NoChunkError extends ErrorFactory({
@@ -50,7 +50,7 @@ export async function measure(
   if (R.isFailure(builds)) return builds;
 
   return R.succeed(
-    BuildResult.seal({ imports, readsNodeEnv: reads.value.some((read) => read), ...builds.value }),
+    BuildResult.seal({ imports, readsNodeEnv: reads.value.some(Boolean), ...builds.value }),
   );
 }
 

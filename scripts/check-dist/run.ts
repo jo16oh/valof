@@ -17,6 +17,7 @@ export async function runChecks(checks: readonly Dyn<Check>[]): Promise<number> 
   const results: { name: string; failure: Error | undefined }[] = [];
   for (const check of checks) {
     console.log(`\n# ${check.name}\n`);
+    // oxlint-disable-next-line no-await-in-loop -- one at a time, see above
     const result = await R.try({ try: () => check.run(), catch: (error) => error as Error });
     const failure = R.isFailure(result)
       ? result.error

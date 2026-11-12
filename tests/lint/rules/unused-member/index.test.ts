@@ -1,12 +1,12 @@
 import { describe, expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, UnusedMember, fixtures } from "../../support.ts";
+import { CompanionMismatch, DetachedVariant, UnusedMember, fixtures } from "../../support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
 describe("what the rule finds", () => {
   test("reports a member nothing reads, and spares the one that is read", async () => {
-    expect(await lint("dead-member")).toEqual([{ rule: UnusedMember, at: "dead-member.ts:3:3" }]);
+    expect(await lint("dead-member")).toEqual([{ rule: UnusedMember, at: "dead-member.ts:4:3" }]);
   });
 
   test("does not count a name `.impl` rejects as a member", async () => {
@@ -31,7 +31,7 @@ describe("what the rule finds", () => {
 
   test("finds the reader in another file, through a renamed import", async () => {
     expect(await lint("renamed-import")).toEqual([
-      { rule: UnusedMember, at: "renamed-import/user.ts:3:3" },
+      { rule: UnusedMember, at: "renamed-import/user.ts:4:3" },
     ]);
   });
 
@@ -39,14 +39,14 @@ describe("what the rule finds", () => {
     expect(await lint("namespace-import")).toEqual([
       {
         rule: UnusedMember,
-        at: "namespace-import/user.ts:3:3",
+        at: "namespace-import/user.ts:4:3",
       },
     ]);
   });
 
   test("follows a read through a chain of renamed exports", async () => {
     expect(await lint("re-export-chain")).toEqual([
-      { rule: UnusedMember, at: "re-export-chain/user.ts:3:3" },
+      { rule: UnusedMember, at: "re-export-chain/user.ts:4:3" },
     ]);
   });
 
@@ -58,23 +58,30 @@ describe("what the rule finds", () => {
     expect(await lint("unapplied")).toEqual([]);
   });
 
+  test("collects the members of every implAssoc", async () => {
+    expect(await messages("assoc")).toEqual([
+      "Money.zero is never read",
+      "Money.unit is never read",
+    ]);
+  });
+
   test("collects method shorthand and non-function members", async () => {
     expect(await lint("shorthand-and-const")).toEqual([
-      { rule: UnusedMember, at: "shorthand-and-const.ts:2:3" },
-      { rule: UnusedMember, at: "shorthand-and-const.ts:5:3" },
+      { rule: UnusedMember, at: "shorthand-and-const.ts:3:3" },
+      { rule: UnusedMember, at: "shorthand-and-const.ts:6:3" },
     ]);
   });
 
   test("reads through a builder chain, past its options and implSeal", async () => {
     expect(await lint("builder-chain")).toEqual([
-      { rule: UnusedMember, at: "builder-chain.ts:5:5" },
+      { rule: UnusedMember, at: "builder-chain.ts:6:5" },
     ]);
   });
 
   test("keeps both declarations when two modules name a companion alike", async () => {
     expect(await lint("same-name")).toEqual([
-      { rule: UnusedMember, at: "same-name/billing.ts:1:50" },
-      { rule: UnusedMember, at: "same-name/orders.ts:1:50" },
+      { rule: UnusedMember, at: "same-name/billing.ts:2:50" },
+      { rule: UnusedMember, at: "same-name/orders.ts:2:50" },
     ]);
   });
 
@@ -82,7 +89,7 @@ describe("what the rule finds", () => {
     expect(await lint("no-cross-file-credit")).toEqual([
       {
         rule: UnusedMember,
-        at: "no-cross-file-credit/declaration.ts:1:50",
+        at: "no-cross-file-credit/declaration.ts:2:50",
       },
     ]);
   });
@@ -91,9 +98,9 @@ describe("what the rule finds", () => {
     expect(await lint("held-in-a-variable")).toEqual([
       {
         rule: CompanionMismatch,
-        at: "held-in-a-variable.ts:1:7",
+        at: "held-in-a-variable.ts:2:7",
       },
-      { rule: UnusedMember, at: "held-in-a-variable.ts:5:3" },
+      { rule: UnusedMember, at: "held-in-a-variable.ts:6:3" },
     ]);
   });
 
@@ -109,18 +116,18 @@ describe("what the rule finds", () => {
 describe("what name resolution cannot reach", () => {
   test("reports a member that is only ever read through a computed key", async () => {
     expect(await lint("computed-key")).toEqual([
-      { rule: UnusedMember, at: "computed-key.ts:1:57" },
+      { rule: UnusedMember, at: "computed-key.ts:2:57" },
     ]);
   });
 
   test("reads a function held in a const, and not one with a block body", async () => {
     expect(await lint("step-functions")).toEqual([
-      { rule: UnusedMember, at: "step-functions.ts:1:26" },
+      { rule: UnusedMember, at: "step-functions.ts:2:26" },
     ]);
   });
 
   test("resolves members spread into the impl", async () => {
-    expect(await lint("spread")).toEqual([{ rule: UnusedMember, at: "spread.ts:1:16" }]);
+    expect(await lint("spread")).toEqual([{ rule: UnusedMember, at: "spread.ts:2:16" }]);
   });
 });
 
@@ -131,13 +138,40 @@ describe("Trait members", () => {
 
   test("routes direct, bound, and destructured dyn reads to defaults or overrides", async () => {
     expect(await lint("trait-dispatch")).toEqual([
-      { rule: UnusedMember, at: "trait-dispatch.ts:12:3" },
+      { rule: UnusedMember, at: "trait-dispatch.ts:13:3" },
     ]);
+  });
+
+  test("counts a member read anywhere for a box that leaves where it was made", async () => {
+    // A box passed through a helper or held in an array is read off a name the walk does not
+    // follow. `explain` is read nowhere, so it stays dead.
+    expect(await messages("escaped-dyn")).toEqual([
+      "Dead.explain is never read",
+      "Unused.explain is never read",
+    ]);
+  });
+
+  test("credits an escaped box to the Val it names, and to no other", async () => {
+    expect(await messages("escaped-named")).toEqual([
+      "A.explain is never read",
+      "B.run is never read",
+      "B.explain is never read",
+    ]);
+  });
+
+  test("follows a box read where it is made, so a key read elsewhere does not count", async () => {
+    expect(await messages("followed-dyn")).toEqual(["A.explain is never read"]);
   });
 
   test("resolves const objects and recursive spreads", async () => {
     expect(await lint("resolved-overrides")).toEqual([
-      { rule: UnusedMember, at: "resolved-overrides.ts:2:62" },
+      { rule: UnusedMember, at: "resolved-overrides.ts:3:62" },
+    ]);
+  });
+
+  test("stops at objects that spread each other", async () => {
+    expect(await lint("cyclic-spread")).toEqual([
+      { rule: UnusedMember, at: "cyclic-spread.ts:3:19" },
     ]);
   });
 
@@ -147,20 +181,20 @@ describe("Trait members", () => {
 
   test("distinguishes overrides belonging to different Vals", async () => {
     expect(await lint("multiple-vals")).toEqual([
-      { rule: UnusedMember, at: "multiple-vals.ts:2:62" },
-      { rule: UnusedMember, at: "multiple-vals.ts:8:68" },
+      { rule: UnusedMember, at: "multiple-vals.ts:3:62" },
+      { rule: UnusedMember, at: "multiple-vals.ts:9:68" },
     ]);
   });
 });
 
 test("credits a variant's member through the enum and through a binding of its own", async () => {
-  expect(await lint("enum")).toEqual([
+  expect(await lint("enum", { skip: [DetachedVariant] })).toEqual([
     { rule: UnusedMember, at: "enum.ts:5:51" },
     { rule: UnusedMember, at: "enum.ts:6:55" },
     { rule: UnusedMember, at: "enum.ts:7:18" },
   ]);
   // One name on two variants and on the union is three members.
-  expect(await messages("enum")).toEqual([
+  expect(await messages("enum", { skip: [DetachedVariant] })).toEqual([
     "Shape.Circle.area is never read",
     "Shape.Square.area is never read",
     "Shape.area is never read",
@@ -175,4 +209,8 @@ test("registers a variant built through a builder held in a variable", async () 
   expect(await lint("held-enum-builder", { skip: [CompanionMismatch] })).toEqual([
     { rule: UnusedMember, at: "held-enum-builder.ts:6:51" },
   ]);
+});
+
+test("counts a read off a companion named like an Object.prototype key", async () => {
+  expect(await lint("prototype-key")).toEqual([]);
 });

@@ -9,7 +9,6 @@ import {
   type Unpatchable,
   Enum,
   Trait,
-  type AnyEnum,
   type Dyn,
   type Final,
   type Impl,
@@ -22,6 +21,7 @@ import {
   Tag,
   type VariantOf,
 } from "../src/index.ts";
+import type { AnyEnum } from "../src/enum.ts";
 import type { CallBuildFirst, Invalid, Verdict } from "../src/val.ts";
 
 // The verdict is a private field, so it is read through the class rather than by a key.
@@ -1368,6 +1368,19 @@ describe("a broken declaration", () => {
     expectTypeOf<NameOf<Keyed & AnyEnum>>().toEqualTypeOf<
       Invalid<"the shared fields cannot be a union"> & string
     >();
+    type Widened = Enum<
+      "Widened",
+      { A: { n: number }; B: { m: number } },
+      // @ts-expect-error even where one object holds every key of the other
+      { a: number } | { a: number; b: string }
+    >;
+    type Optional = Enum<
+      "Optional",
+      { A: { n: number }; B: { m: number } },
+      // @ts-expect-error even where each object is assignable to the other
+      { a: number } | { a: number; b?: string }
+    >;
+    expectTypeOf<Widened | Optional>().not.toBeNever();
   });
 
   test("a companion accepts its options as one list, not a union of lists", () => {
@@ -1932,6 +1945,40 @@ describe("the order of the steps", () => {
     expectTypeOf(implemented.Circle).not.toHaveProperty("implCreate");
     // Another variant's steps stay open.
     expectTypeOf(implemented.Square).toHaveProperty("implSeal");
+  });
+
+  test("a variant's steps are written together: another variant's step removes them", () => {
+    const squared = Enum.companion<Shape>()
+      .Circle.implSeal((c, seal) => seal(c))
+      .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+      .Square.impl(() => ({ perimeter: (s) => s.side * 4 }));
+    expectTypeOf(squared).not.toHaveProperty("Circle");
+    expect(squared.Square.implAssoc(() => ({ UNIT: 1 })).build().Square.UNIT).toBe(1);
+
+    const unsealed = Enum.companion<Shape>()
+      .Circle.implCreate.noseal(() => ({ r: 1 }))
+      .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
+      .build();
+    expect(unsealed.Circle.diameter(unsealed.Circle.create())).toBe(2);
+  });
+
+  test("whichever step a variant took, another variant's step removes it", () => {
+    type Round = Trait<"Round", { r: number }, { area: (self: Self) => number }>;
+    const Round = Trait.companion<Round>().build();
+    type Disc = Enum<"Disc", { Circle: { r: number } & Round; Square: { side: number } }>;
+    const start = () => Enum.companion<Disc>();
+    const sealed = start().Circle.implSeal((c, seal) => seal(c));
+    const created = start().Circle.implCreate((r: number) => ({ r }));
+    const implemented = start().Circle.impl(() => ({ d: (c) => c.r * 2 }));
+    const traited = start().Circle.implTrait(Round, () => ({ area: (c) => c.r * c.r }));
+    const associated = start().Circle.implAssoc(() => ({ UNIT: 1 }));
+    const square = { perimeter: (s: VariantOf<Disc, "Square">) => s.side * 4 };
+
+    expectTypeOf(sealed.Square.impl(() => square)).not.toHaveProperty("Circle");
+    expectTypeOf(created.Square.impl(() => square)).not.toHaveProperty("Circle");
+    expectTypeOf(implemented.Square.impl(() => square)).not.toHaveProperty("Circle");
+    expectTypeOf(traited.Square.impl(() => square)).not.toHaveProperty("Circle");
+    expectTypeOf(associated.Square.impl(() => square)).not.toHaveProperty("Circle");
   });
 
   test("`impl` takes the members: `.build()` closes the chain, not `.impl()`", () => {

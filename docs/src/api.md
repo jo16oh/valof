@@ -23,7 +23,8 @@
 | `.build()`               | ends the chain, and returns the companion                     |
 
 Write `implSeal` first, then `implCreate`. `impl`, `implTrait` and `implAssoc` come next, in any
-order. `implSeal`, `implCreate` and `impl` are written once, and the other two any number of times.
+order. `implSeal`, `implCreate` and `impl` are written once, `implTrait` once per trait, and
+`implAssoc` any number of times.
 
 The function passed to `impl`, `implTrait` and `implAssoc` receives `seal`, `create` and `patch`,
 including the ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `create`
@@ -58,7 +59,6 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | Type                  | Description                                                                       |
 | --------------------- | --------------------------------------------------------------------------------- |
 | `Val<K, T>`           | a branded value type                                                              |
-| `AnyVal`              | a constraint over any Val                                                         |
 | `SeedOf<V>`           | the payload accepted by seals                                                     |
 | `PayloadOf<V>`        | the payload, with the brand removed at every depth                                |
 | `Payload<T>`          | marks a type as meant for a payload, and checks it against the allowed-type rules |
@@ -90,9 +90,10 @@ so that your own `.d.ts` can reference them when you re-export a companion.
 | `.[VariantName].implAssoc(f)`         | adds the members `f` returns, which do not take that variant first |
 | `.build()`                            | ends the chain, and returns the companion                          |
 
-`.tag` comes first if the enum has a custom tag key. Each variant's steps follow, in the same order
-as `Val.companion`'s. The enum's steps come after them, in that order. The first enum step removes
-the variants' steps from the chain.
+`.tag` comes first if the enum has a custom tag key. Each variant's steps follow, together and in
+the same order as `Val.companion`'s. The enum's steps come after them, in that order. Another
+variant's step removes the steps of the variant before it, and the first enum step removes every
+variant's steps.
 
 The function passed to the enum's `impl`, `implTrait` and `implAssoc` receives `E.seal`, and
 `E.create` where the enum's `implCreate` registered one. The function passed to a variant's `impl`,
@@ -142,7 +143,6 @@ argument. They apply to the enum and every variant. To configure a specific vari
 | `SealedPayload<E>`              | a tagged payload of one variant                     |
 | `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields        |
 | `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name           |
-| `AnyEnum`                       | a constraint over any enum                          |
 | `EnumBuilder<E>`                | an enum's builder, with the steps it can still take |
 | `EnumCompanion<E>`              | the enum's companion `.build()` returns             |
 
@@ -173,8 +173,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | `Impl<Tr>`           | a value implementing the trait                      |
 | `Self`               | the implementing Val, as a member's first parameter |
 | `Final<F>`           | marks a member no Val may replace                   |
-| `Dyn<Tr>`            | a boxed value, with the concrete type gone          |
-| `AnyTrait`           | a constraint over any trait                         |
+| `Dyn<Tr>`            | a boxed value, without its concrete type            |
 | `Members`            | the members a trait declares                        |
 | `TraitBuilder<Tr>`   | a trait's builder, with the steps it can still take |
 | `TraitCompanion<Tr>` | the trait's companion `.build()` returns            |

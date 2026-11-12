@@ -183,8 +183,9 @@ Shape.Circle.diameter(Shape.Circle.create({ r: 2 })); // 4
 ```
 
 A variant with no steps keeps the default companion. Write a variant's steps, and then the enum's,
-in the [same order as in `Val.companion`](default-companion.md). After the first enum step, the
-chain no longer offers the variants' steps.
+in the [same order as in `Val.companion`](default-companion.md). Write each variant's steps
+together. Once another variant's step follows, the chain no longer offers the earlier variant. After
+the first enum step, the chain no longer offers the variants' steps.
 
 ## Check the payload
 

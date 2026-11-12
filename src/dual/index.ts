@@ -81,7 +81,7 @@ export function createMembers(
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(members)) {
     const f = members[key];
-    if (development && typeof f == "function") {
+    if (development && typeof f === "function") {
       if (hidesParameter(f)) {
         throw new TypeError(
           "A member cannot have a default or a rest parameter, because the argument count tells data-last from data-first.",
@@ -91,7 +91,7 @@ export function createMembers(
         throw new TypeError("A member must have the value as its first parameter.");
       }
     }
-    out[key] = typeof f != "function" ? f : f.length > 1 ? dual(f as AnyFn) : f.bind(undefined);
+    out[key] = typeof f !== "function" ? f : f.length > 1 ? dual(f as AnyFn) : f.bind(undefined);
   }
   return out;
 }

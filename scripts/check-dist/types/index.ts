@@ -79,9 +79,16 @@ const budget: Record<keyof VariantsOf<Fixture>, number> = {
  * 64.7 kB.
  *
  * The budget went from 96 to 104 kB for the checks on a broken declaration: their messages, and
- * the constraints that report them where the type is declared.
+ * the constraints that report them where the type is declared. It went to 108 kB for the checks
+ * that reject a union of two types `equals` cannot tell apart.
  */
-const declarationsBudget = 104 * 1024;
+const declarationsBudget = 108 * 1024;
+
+/**
+ * The plugin's declarations, which a config file in TypeScript loads. Its export is annotated by
+ * hand: inferred, it carries ESLint's types, which took it to 93.7 kB.
+ */
+const pluginBudget = 2 * 1024;
 
 type Counts = Val<
   "Counts",
@@ -129,9 +136,11 @@ async function declarationBytes(entry: URL): Promise<number> {
     const text = await readFile(url, "utf8");
     bytes += Buffer.byteLength(text, "utf8");
     // `tsc` keeps the source specifier; its declarations sit beside it.
-    for (const [, module] of text.matchAll(/from\s+"(\.[^"]+)\.ts"/g)) {
-      await walk(new URL(`${module}.d.ts`, url));
-    }
+    await Promise.all(
+      [...text.matchAll(/from\s+"(\.[^"]+)\.ts"/g)].map(([, module]) =>
+        walk(new URL(`${module}.d.ts`, url)),
+      ),
+    );
   };
   await walk(entry);
   return bytes;
@@ -166,6 +175,10 @@ export class OverBudgetError extends ErrorFactory({
 export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudgetError> {
   try {
     const declarations = await declarationBytes(new URL("../../../dist/index.d.ts", here));
+    const plugin = Buffer.byteLength(
+      await readFile(new URL("../../../dist/eslint-plugin/index.d.mts", here), "utf8"),
+      "utf8",
+    );
 
     /**
      * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
@@ -211,6 +224,7 @@ export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudge
     const checks = [
       ...fixtures.map((name) => [name, measured[name].instantiations, budget[name], num] as const),
       ["index.d.ts", declarations, declarationsBudget, bytes] as const,
+      ["eslint-plugin.d.mts", plugin, pluginBudget, bytes] as const,
     ];
 
     {
@@ -238,6 +252,7 @@ export async function checkTypes(): R.ResultAsync<void, FixtureError | OverBudge
       );
       console.log("types: distinct types the checker made. printed only, and it tracks the first.");
       console.log("index.d.ts: the published declarations, in bytes. what every consumer parses.");
+      console.log("eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.");
     }
 
     const over = checks.filter(([, size, max]) => size > max).map(([name]) => name);

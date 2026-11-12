@@ -68,9 +68,14 @@ export async function claims(
   root: URL = repository,
 ): R.ResultAsync<void, ClaimCountError | StaleClaimError> {
   const size = `${format(gzip)} gzipped`;
+  const texts = await Promise.all(
+    claimed(release).map(async (file) => ({
+      file,
+      text: await readFile(new URL(file, root), "utf8"),
+    })),
+  );
   const found: Claim[] = [];
-  for (const file of claimed(release)) {
-    const text = await readFile(new URL(file, root), "utf8");
+  for (const { file, text } of texts) {
     const matches = patterns.flatMap((pattern) =>
       [...text.matchAll(Pattern.regExp(pattern))].map((match) => ({ pattern, value: match[0] })),
     );
@@ -78,7 +83,7 @@ export async function claims(
     if (matches.length !== 1 || !match)
       return R.fail(new ClaimCountError({ file, found: matches.length }));
     // The formatter can wrap a marked Markdown claim across lines.
-    const said = match.value.replace(/\s+/g, " ");
+    const said = match.value.replaceAll(/\s+/g, " ");
     found.push(
       Claim.seal({ file, text, pattern: match.pattern, found: said, stale: said !== size }),
     );

@@ -1,27 +1,21 @@
-import type { Where } from "../ast.ts";
-import { original } from "../scan/index.ts";
-import type { Scan } from "../scan/index.ts";
-import type { Rule } from "./rule.ts";
+import { Val } from "../../index.ts";
+import { ImportMap, type Scan } from "../scan/index.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
 
 /**
  * A brand string that more than one type alias claims. Two Vals with the same brand and the same
  * payload are silently assignable to each other, which is the whole failure the brand exists to
  * prevent.
  */
-export type DuplicateBrand = Where & {
-  kind: "duplicate-brand";
-  file: string;
-  brand: string;
-  /** The alias that claims it, as written. */
-  alias: string;
-  message: string;
-};
-
-export const DuplicateBrand: Rule<DuplicateBrand> = {
-  kind: "duplicate-brand",
-  description: "a brand string claimed by more than one type alias",
-  run: findings,
-};
+export type DuplicateBrand = Val<"DuplicateBrand", { kind: Kind }, Rule>;
+export const DuplicateBrand = Val.companion<DuplicateBrand>()
+  .implCreate(() => ({
+    kind: Kind.seal("duplicate-brand"),
+    description: "a brand string claimed by more than one type alias",
+    warns: false,
+  }))
+  .implTrait(Rule, () => ({ run: findings }))
+  .build();
 
 /**
  * Reports every alias claiming a brand another alias also claims.
@@ -31,29 +25,29 @@ export const DuplicateBrand: Rule<DuplicateBrand> = {
  * reached through a namespace, or re-exported from a barrel. Something else bound to the name
  * `Val` is left alone.
  */
-function findings(scans: readonly Scan[]): DuplicateBrand[] {
-  const claims = new Map<string, DuplicateBrand[]>();
-  for (const { file, brands, bound, enumAliases } of scans) {
+function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
+  const claims = new Map<string, Finding[]>();
+  for (const { file, brands, imported, enumAliases } of scans) {
     /** The variants each enum in this file declared, for the brands they derive. */
     const declared = new Map(enumAliases.map(({ alias, variants }) => [alias, variants]));
-    for (const { typeName, brand, alias, line, column } of brands) {
-      const owner = original(bound, typeName);
+    for (const { typeName, brand, alias, at } of brands) {
+      const owner = ImportMap.nameOf(imported, typeName);
       if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
       const claim = (name: string, claimed: string, how: string): void => {
-        // A Val, a Trait and an Enum intentionally use separate phantom-brand fields.
         const together = claims.get(name) ?? [];
-        together.push({
-          kind: "duplicate-brand",
-          file,
-          line,
-          column,
-          brand: claimed,
-          alias,
-          message: `${alias} ${how} the brand "${claimed}", and so does another type`,
-        });
+        together.push(
+          Finding.seal({
+            kind,
+            file,
+            at,
+            message: `${alias} ${how} the brand "${claimed}", and so does another type`,
+          }),
+        );
         claims.set(name, together);
       };
-      claim(`${owner}:${brand}`, brand, "claims");
+      // A trait's brand gets a key of its own, because no value has a trait as its type. An enum's
+      // name identifies a value's type, as a Val's brand does.
+      claim(`${owner === "Trait" ? "Trait" : "Val"}:${brand}`, brand, "claims");
       // Each variant derives a Val branded `` `${enum}.${variant}` ``, which a hand-written Val
       // can claim too. The enum's declaration is where that collision is fixed, so the finding
       // sits there rather than at a variant nobody wrote.
@@ -66,11 +60,11 @@ function findings(scans: readonly Scan[]): DuplicateBrand[] {
   return [...claims.values()]
     .filter((claimed) => claimed.length > 1)
     .flat()
-    .filter(({ file, line, column }) => {
+    .filter(({ file, at: { line, column } }) => {
       // One declaration, one finding: an enum claims a brand per variant beside its own.
-      const at = `${file}:${line}:${column}`;
-      if (reported.has(at)) return false;
-      reported.add(at);
+      const key = `${file}:${line}:${column}`;
+      if (reported.has(key)) return false;
+      reported.add(key);
       return true;
     });
 }

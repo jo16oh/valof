@@ -7,7 +7,8 @@ description:
 
 # Test audit
 
-One pass over the tests, separate from writing them. Report findings; apply them only on a go-ahead.
+One pass over the tests, separate from writing them. Report findings. The writer applies the clear
+ones and asks the user about the rest.
 
 The question every finding answers: **which realistic bug reaches a user if this test is gone?** A
 test that answers nothing costs run time, flakiness and edits on every refactor, and buys nothing.
@@ -45,8 +46,9 @@ dir="$(git rev-parse --git-common-dir)/test-audit/$(git branch --show-current)"
 `$dir/tree` holds the hash of the working tree the audit read, and `$dir/report.md` its report. On a
 detached HEAD, skip the record.
 
-`state.sh` next to this file computes the hashes. In Claude Code, a Stop hook runs `state.sh check`,
-and blocks the end of a turn while a test has changed since the last audit.
+`state.sh` next to this file computes the hashes. In Claude Code, a Stop hook runs
+`state.sh check --stdin`, and blocks the end of a turn while a test has changed since the last
+audit.
 
 1. Before launching the agent, take the hash of the working tree.
 

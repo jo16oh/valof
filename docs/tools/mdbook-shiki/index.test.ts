@@ -5,7 +5,7 @@ import { createMarkdownHighlighter, preprocess } from "../mdbook-shiki/index.ts"
 describe("mdBook Shiki preprocessor", () => {
   let markdownHighlighter: Awaited<ReturnType<typeof createMarkdownHighlighter>>;
   // A language missing from the list falls back to text, which only the warning tells apart.
-  const fallback = vi.fn();
+  const fallback = vi.fn<(message: string) => void>();
 
   beforeAll(async () => {
     markdownHighlighter = await createMarkdownHighlighter({ onWarning: fallback });
@@ -69,7 +69,7 @@ describe("mdBook Shiki preprocessor", () => {
   });
 
   test("warns once and uses text for an unknown language", async () => {
-    const onWarning = vi.fn();
+    const onWarning = vi.fn<(message: string) => void>();
     const transformer = await createMarkdownHighlighter({ onWarning });
 
     try {

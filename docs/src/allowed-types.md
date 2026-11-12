@@ -8,8 +8,12 @@ Only three things can be a payload:
 | Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                  |
 | Objects    | `{ k: allowed }`, or `Record<string, allowed>`                 |
 
-A Val is itself one of these, so Vals nest. A field may hold `null` or a primitive beside one other
-kind, as `string[] | null` or `User | null`. A union of objects is rejected. A tuple keeps its
+A Val is itself one of these, so Vals nest. A Val may share a field only with `null`, as
+`User | null`. [`equals`](utilities.md#equals) compares structurally, so in a field of
+`Dollar | Yen` it would find a `Dollar` of 1 equal to a `Yen` of 1. Declare an [enum](enums.md) of
+those types instead. Its tag distinguishes the variants. Any other field may hold `null` or a
+primitive beside one other kind, as `string[] | null` or `string | string[]`. A union of objects is
+rejected, and so is a field holding an [`Impl`](traits.md#implement-it-on-a-val). A tuple keeps its
 positions and its length. Valof treats one with a rest element (`[string, ...number[]]`) as an array
 instead, since a fixed length is what distinguishes the two.
 
@@ -43,8 +47,8 @@ Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 
 ## Classes and functions
 
-Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
-all classes. See [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
+Neither a class instance nor a function can be a payload. `Date`, the `Temporal` types, `Map` and
+`Set` are all classes. See [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
 
 A class of plain fields is the one TypeScript cannot distinguish from an object, and sealing one
 throws in development.
@@ -69,7 +73,7 @@ root.children[0]; // Tree
 `Rec` is erased. The value holds a `Tree`, and the constructor takes one. It exists for the
 declaration alone.
 
-Without it the declaration compiles and the first use of the type fails.
+Without it, the declaration is a type error.
 
 ```ts
 // @errors: 2615
@@ -77,6 +81,4 @@ import { Val } from "valof";
 
 // ---cut---
 type Tree = Val<"Tree", { value: number; children: Tree[] }>;
-
-const Tree = Val.companion<Tree>().build();
 ```

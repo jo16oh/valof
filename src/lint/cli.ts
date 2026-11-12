@@ -1,154 +1,130 @@
 #!/usr/bin/env node
 import { resolve } from "node:path";
 import { styleText, type InspectColor } from "node:util";
-import { expand, isDirectory } from "./files.ts";
-import { isKind, kinds, lint, RULES, type Finding, type Kind } from "./index.ts";
 
-/** A path with any of these is a glob, and stands for whatever it matches. */
-const GLOB = /[*?[\]{}]/;
+import { Result as R } from "@praha/byethrow";
 
-const projects: string[] = [];
-const targets: string[] = [];
-const excluded: string[] = [];
-const loose: string[] = [];
-const skip = new Set<Kind>();
-let help = false;
-let pending: "project" | "report-on" | undefined;
+import { Val } from "../index.ts";
+import { Arguments } from "./arguments.ts";
+import { NoFilesMatchedError, type UsageError } from "./errors.ts";
+import { Path, type FilePath } from "./files.ts";
+import { RULES, type Finding } from "./rules/index.ts";
+import { Options } from "./options.ts";
+import { run } from "./run.ts";
+import { ScanCache } from "./scan-cache.ts";
+import { ScanStore } from "./scan-store.ts";
 
-/**
- * A path goes where it was written, unless it starts with `!`.
- *
- * An exclusion belongs to neither list: it is removed from the run and the report alike, so a
- * generated tree named once is out of the findings however it was reached.
- */
-const take = (into: string[], path: string): void => {
-  if (path.startsWith("!")) excluded.push(path.slice(1));
-  else into.push(path);
-};
-
-for (const argument of process.argv.slice(2)) {
-  if (pending) {
-    take(pending === "project" ? projects : targets, argument);
-    pending = undefined;
-  } else if (argument === "--help" || argument === "-h") {
-    help = true;
-  } else if (argument === "--project" || argument === "--report-on") {
-    pending = argument.slice("--".length) as "project" | "report-on";
-  } else if (argument.startsWith("--project=")) {
-    take(projects, argument.slice("--project=".length));
-  } else if (argument.startsWith("--report-on=")) {
-    take(targets, argument.slice("--report-on=".length));
-  } else if (argument.startsWith("--no-")) {
-    const kind = argument.slice("--no-".length);
-    if (!isKind(kind)) {
-      console.error(
-        `valof-lint: no rule called ${JSON.stringify(kind)}\n  known rules: ${kinds.join(", ")}`,
-      );
-      process.exit(2);
-    }
-    skip.add(kind);
-  } else {
-    take(loose, argument);
-  }
-}
-
-if (help) {
+/** What `--help` prints. */
+function usage(): string {
   const width = Math.max(...RULES.map(({ kind }) => kind.length));
   const listed = RULES.map(({ kind, description }) => `  ${kind.padEnd(width)}  ${description}`);
-  console.log(
-    [
-      "valof-lint [--no-<rule>...] [project] [file...]",
-      "",
-      "Reports what the type checker cannot, and what a disable comment does not do:",
-      ...listed,
-      "",
-      "The project is a directory or a glob, and defaults to src/**/*.ts. It is what the",
-      "run reads. Files named after it are what the run reports on; leave them out to",
-      "report on the whole project. Either can be given by name, --project and",
-      "--report-on, in any order, and either can be given more than once.",
-      "  valof-lint src src/billing/id.ts",
-      "  valof-lint --report-on src/billing/id.ts --project 'src/**/*.ts'",
-      "",
-      "A path starting with ! is excluded, from the run as well as the report:",
-      "  valof-lint 'src/**/*.ts' '!src/generated/**'",
-      "",
-      "Three rules need a second file to say anything, so a run narrowed to one file",
-      "loses their findings and calls the directives holding them back unused.",
-      "",
-      "Exits 1 when something is found.",
-      "",
-      "Leave a rule out of the run:",
-      "  valof-lint --no-unused-member",
-      "",
-      "Silence one line with a comment in the block above it, by the same names:",
-      "  // valof-lint-disable-next-line unused-member, brand-mismatch -- why",
-      "",
-      "Silence a whole file with one anywhere in it:",
-      "  // valof-lint-disable-whole-file unused-member -- why",
-      "  // valof-lint-disable-all-whole-file -- every rule, for a generated file",
-      "",
-      "Needs oxc-parser, which valof leaves for you to install:",
-      "  pnpm add -D oxc-parser",
-    ].join("\n"),
+  return [
+    "valof-lint [--no-<rule>...] [project] [file...]",
+    "",
+    "Reports what the type checker cannot, and what a disable comment does not do:",
+    ...listed,
+    "",
+    "The project is a directory or a glob, and defaults to src/**/*.ts. It is what the",
+    "run reads. Files named after it are what the run reports on; leave them out to",
+    "report on the whole project. The project can also be given by name, --project,",
+    "before or after the files, and either can be given more than once.",
+    "  valof-lint src src/billing/id.ts",
+    "  valof-lint src/billing/id.ts --project 'src/**/*.ts'",
+    "",
+    "A path starting with ! is excluded, from the run as well as the report:",
+    "  valof-lint 'src/**/*.ts' '!src/generated/**'",
+    "",
+    "Three rules need a second file to say anything, so a run narrowed to one file",
+    "loses their findings and calls the directives holding them back unused.",
+    "",
+    "Exits 1 when something is found.",
+    "",
+    "Leave a rule out of the run:",
+    "  valof-lint --no-unused-member",
+    "",
+    "Turn on data-type-outside-valof, with any of its settings:",
+    "  valof-lint --data-type-outside-valof=classes,constraints,extraction",
+    "",
+    "Silence one line with a comment in the block above it, by the same names:",
+    "  // valof-lint-disable-next-line unused-member, brand-mismatch -- why",
+    "",
+    "Silence a whole file with one anywhere in it:",
+    "  // valof-lint-disable-whole-file unused-member -- why",
+    "  // valof-lint-disable-all-whole-file -- every rule, for a generated file",
+    "",
+    "Needs oxc-parser, which valof leaves for you to install:",
+    "  pnpm add -D oxc-parser",
+  ].join("\n");
+}
+
+type Files = Val<"Files", { scanned: FilePath[]; targets: FilePath[]; reported: FilePath[] }>;
+const Files = Val.companion<Files>()
+  .implAssoc(({ seal }) => ({
+    /** Expands the globs the arguments name, and makes the files of {@link Files.fromPaths}. */
+    glob: ({ projects, targets, excluded }: Arguments): R.Result<Files, NoFilesMatchedError> =>
+      Files.fromPaths(
+        (projects.length > 0 ? projects : [Path.seal("src/**/*.ts")]).flatMap((path) =>
+          Path.expand(path),
+        ),
+        targets.length > 0 ? targets.flatMap((path) => Path.expand(path)) : null,
+        excluded.flatMap((path) => Path.expand(path)),
+      ),
+    /**
+     * The files read and the files reported on, with every exclusion applied to both. `targets` is
+     * `null` when the arguments name none, and then every file read is reported on.
+     */
+    fromPaths: (
+      project: FilePath[],
+      targets: FilePath[] | null,
+      excluded: FilePath[],
+    ): R.Result<Files, NoFilesMatchedError> => {
+      // Resolved, because the same file can come from a glob the caller wrote and from one it
+      // excluded, spelled differently.
+      const dropped = new Set(excluded.map((file) => resolve(file)));
+      const kept = (found: FilePath[]): FilePath[] =>
+        found.filter((file) => !dropped.has(resolve(file)));
+
+      const read = kept(project);
+      const targeted = kept(targets ?? []);
+      // Scanned together, so a file to report on that the project glob does not cover is still
+      // read, rather than skipped and called clean.
+      const scanned = [...new Set([...read, ...targeted])];
+      const reported = targets ? targeted : scanned;
+      return reported.length === 0
+        ? R.fail(new NoFilesMatchedError())
+        : R.succeed(seal({ scanned, targets: targeted, reported }));
+    },
+  }))
+  .build();
+
+/** Runs what the arguments ask for, and returns the status to exit with. */
+async function command(argv: readonly string[]): Promise<R.Result<number, UsageError>> {
+  const parsed = Arguments.fromArgv(argv);
+  if (R.isFailure(parsed)) return parsed;
+  const args = parsed.value;
+  if (args.help) {
+    console.log(usage());
+    return R.succeed(0);
+  }
+  const chosen = Files.glob(args);
+  if (R.isFailure(chosen)) return chosen;
+  const { scanned, targets, reported } = chosen.value;
+  const store = ScanStore.open();
+  const found = await run(
+    scanned,
+    Options.create({
+      skip: args.skip,
+      enable: args.enable,
+      ...(args.targets.length > 0 ? { targets } : {}),
+    }),
+    new ScanCache(store),
   );
-  process.exit(0);
+  store.save();
+  if (R.isFailure(found)) return found;
+  print(found.value, reported.length);
+  return R.succeed(found.value.length === 0 ? 0 : 1);
 }
 
-if (pending) {
-  console.error(`valof-lint: --${pending} needs a path`);
-  process.exit(2);
-}
-
-// The first loose path is the project, unless one was named. A file there is the mistake this
-// catches: it would narrow the run rather than the report, which is the whole point of the two.
-if (projects.length === 0 && loose.length > 0) {
-  const first = loose.shift() as string;
-  if (!GLOB.test(first) && !isDirectory(first)) {
-    console.error(
-      `valof-lint: the project must be a directory or a glob, and ${JSON.stringify(first)} is` +
-        " neither\n  valof-lint 'src/**/*.ts' " +
-        first,
-    );
-    process.exit(2);
-  }
-  projects.push(first);
-}
-targets.push(...loose);
-
-// Resolved, since a path reaches this from a glob the caller wrote and from one it excluded, and
-// the two spellings need not match.
-const dropped = new Set(excluded.flatMap(expand).map((file) => resolve(file)));
-const kept = (files: string[]): string[] => files.filter((file) => !dropped.has(resolve(file)));
-
-const read = kept((projects.length > 0 ? projects : ["src/**/*.ts"]).flatMap(expand));
-const asked = kept(targets.flatMap(expand));
-// Scanned together: a file to report on that the project glob does not cover is still read,
-// rather than passed over and called clean.
-const scanned = [...new Set([...read, ...asked])];
-const reported = targets.length > 0 ? asked : scanned;
-if (reported.length === 0) {
-  console.error("valof-lint: no files matched");
-  process.exit(2);
-}
-
-let findings: Finding[];
-try {
-  findings = await lint(scanned, {
-    skip,
-    ...(targets.length > 0 ? { report: new Set(asked.map((file) => resolve(file))) } : {}),
-  });
-} catch (error) {
-  const { code } = error as { code?: string };
-  if (code === "ERR_MODULE_NOT_FOUND") {
-    console.error(
-      "valof-lint needs oxc-parser, which valof does not install for you.\n" +
-        "  pnpm add -D oxc-parser",
-    );
-  } else {
-    throw error;
-  }
-  process.exit(2);
-}
 /**
  * Color, or not, as the stream warrants.
  *
@@ -161,15 +137,24 @@ const paint =
   (style: InspectColor, text: string): string =>
     styleText(style, text, { stream });
 
-const out = paint(process.stdout);
-const err = paint(process.stderr);
-
-for (const { file, line, column, kind, message } of findings) {
-  console.log(`${out("cyan", `${file}:${line}:${column}`)}  ${out("yellow", kind)}  ${message}`);
+function print(findings: readonly Finding[], reported: number): void {
+  const out = paint(process.stdout);
+  const err = paint(process.stderr);
+  for (const {
+    file,
+    at: { line, column },
+    kind,
+    message,
+  } of findings) {
+    console.log(`${out("cyan", `${file}:${line}:${column}`)}  ${out("yellow", kind)}  ${message}`);
+  }
+  console.error(
+    findings.length === 0
+      ? err("green", `valof-lint: nothing to report in ${reported} file(s)`)
+      : err("red", `valof-lint: ${findings.length} finding(s) in ${reported} file(s)`),
+  );
 }
-console.error(
-  findings.length === 0
-    ? err("green", `valof-lint: nothing to report in ${reported.length} file(s)`)
-    : err("red", `valof-lint: ${findings.length} finding(s) in ${reported.length} file(s)`),
-);
-process.exit(findings.length === 0 ? 0 : 1);
+
+const status = await command(process.argv.slice(2));
+if (R.isFailure(status)) console.error(status.error.message);
+process.exit(R.isFailure(status) ? 2 : status.value);

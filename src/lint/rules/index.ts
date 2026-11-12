@@ -1,35 +1,45 @@
+import { HiddenSharedStateInImpl } from "./hidden-shared-state-in-impl.ts";
+import { DataTypeOutsideValof } from "./data-type-outside-valof.ts";
+import { HiddenOptional } from "./hidden-optional.ts";
+import { DetachedVariant } from "./detached-variant.ts";
 import { IncompleteDisable } from "./incomplete-disable.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
 import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
-import type { Rule } from "./rule.ts";
+import type { Dyn } from "../../index.ts";
+import { KindSet, Rule, type Kind } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
-import { UnnamedOf } from "./unnamed-of.ts";
+import { InferredValOf } from "./inferred-val-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
 import { UnimplementedTrait } from "./unimplemented-trait.ts";
+import { DataTypeSettings, type Options } from "../options.ts";
 
 /**
  * Every rule, in the order they run and `--help` lists them.
  *
  * The only enumeration. A rule carries its own kind, so listing it here says nothing twice, and
- * {@link Kind} and {@link Finding} are read back off this array rather than written again.
+ * {@link kinds} is read back off this array rather than written again.
  */
 export const RULES = [
-  UnusedMember,
-  DuplicateBrand,
-  BrandMismatch,
-  UnnecessaryAlias,
-  UnimplementedTrait,
-  CompanionMismatch,
-  SplitCompanion,
-  BypassedCompanion,
-  UnnamedOf,
-  IncompleteDisable,
-  UnusedDisable,
-] as const;
+  Rule.dyn(UnusedMember, UnusedMember.create()),
+  Rule.dyn(DuplicateBrand, DuplicateBrand.create()),
+  Rule.dyn(BrandMismatch, BrandMismatch.create()),
+  Rule.dyn(UnnecessaryAlias, UnnecessaryAlias.create()),
+  Rule.dyn(UnimplementedTrait, UnimplementedTrait.create()),
+  Rule.dyn(CompanionMismatch, CompanionMismatch.create()),
+  Rule.dyn(SplitCompanion, SplitCompanion.create()),
+  Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
+  Rule.dyn(InferredValOf, InferredValOf.create()),
+  Rule.dyn(HiddenSharedStateInImpl, HiddenSharedStateInImpl.create()),
+  Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(DataTypeSettings.create())),
+  Rule.dyn(HiddenOptional, HiddenOptional.create()),
+  Rule.dyn(DetachedVariant, DetachedVariant.create()),
+  Rule.dyn(IncompleteDisable, IncompleteDisable.create()),
+  Rule.dyn(UnusedDisable, UnusedDisable.create()),
+];
 
 /**
  * Each rule under its own name, so a caller can name one without spelling its kind.
@@ -37,6 +47,10 @@ export const RULES = [
  * {@link RULES} is what the runner reads. This is for naming a single one.
  */
 export {
+  HiddenSharedStateInImpl,
+  DataTypeOutsideValof,
+  HiddenOptional,
+  DetachedVariant,
   UnnecessaryAlias,
   BrandMismatch,
   BypassedCompanion,
@@ -44,20 +58,31 @@ export {
   DuplicateBrand,
   IncompleteDisable,
   SplitCompanion,
-  UnnamedOf,
+  InferredValOf,
   UnusedDisable,
   UnusedMember,
   UnimplementedTrait,
 };
 
-/** The payload a rule reports, recovered from the rule itself. */
-type ReportedBy<R> = R extends Rule<infer F> ? F : never;
-
-export type Finding = ReportedBy<(typeof RULES)[number]>;
-
-/** What a finding is called, in a `--no-<kind>` flag and in a disable comment alike. */
-export type Kind = Finding["kind"];
-
+/** What each rule is called, in a `--no-<kind>` flag and in a disable comment alike. */
 export const kinds: readonly Kind[] = RULES.map(({ kind }) => kind);
 
-export const isKind = (name: string): name is Kind => kinds.includes(name as Kind);
+/** Every rule's kind, to check a name against. */
+export const ALL_KINDS = KindSet.create(kinds);
+
+export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";
+
+/**
+ * The rules a run uses: every rule on by default, and each opt-in rule `enable` names, with its
+ * settings.
+ */
+export const compile = (enable: Options["enable"]): Dyn<Rule>[] => {
+  const model = enable["data-type-outside-valof"];
+  return RULES.flatMap((rule) =>
+    rule.optIn !== true
+      ? [rule]
+      : rule.kind === "data-type-outside-valof" && model
+        ? [Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(model))]
+        : [],
+  );
+};

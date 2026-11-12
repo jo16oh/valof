@@ -17,13 +17,12 @@ const field = "valof-pinned-for-scripts-commit";
 
 /** What `devDependencies.valof-pinned-for-scripts` links to. Inside `node_modules`, so tsc skips it. */
 const target = join(root, "node_modules/.valof-pinned-for-scripts");
-const stamp = join(target, ".commit");
 
 /**
- * What `dist` is built from. `package.json` stays out: it holds the pin, and a release bumps its
- * version. Valof has no runtime dependency, so nothing else in it reaches `dist`.
+ * What the runtime in `dist` is built from. `package.json` stays out: it holds the pin, and a
+ * release bumps its version. Valof has no runtime dependency, so nothing else in it reaches `dist`.
  */
-const inputs = ["src", "vite.config.ts", "tsconfig.json", "tsconfig.build.json"];
+const inputs = ["src", "tsconfig.json", "tsconfig.build.json"];
 
 export async function pinned(): Promise<string> {
   const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8")) as {
@@ -45,25 +44,30 @@ export async function matches(commit: string, cwd = root): Promise<boolean> {
   }
 }
 
-/** Builds `commit` into {@link target}, unless it is already there. */
-export async function build(commit: string): Promise<void> {
+/**
+ * Builds the runtime of `commit` into `out`, unless it is already there. The scripts import the
+ * root entry alone, so tsc builds it and the linter is left out. The working tree's toolchain then
+ * never reads the pinned commit's `vite.config.ts`, which an older toolchain may have written.
+ */
+export async function build(commit: string, cwd = root, out = target): Promise<void> {
+  const stamp = join(out, ".commit");
   const built = await readFile(stamp, "utf8").catch(() => undefined);
   if (built === commit) return;
 
-  await fetched(commit);
+  await fetched(commit, cwd);
   const tree = await mkdtemp(join(tmpdir(), "valof-pinned-"));
   try {
     const archive = join(tree, "tree.tar");
-    await run("git", ["archive", "--output", archive, commit], { cwd: root });
+    await run("git", ["archive", "--output", archive, commit], { cwd });
     await run("tar", ["-xf", archive, "-C", tree]);
     // The toolchain of the working tree builds it. Only the source is the pinned one.
     await symlink(join(root, "node_modules"), join(tree, "node_modules"));
-    await run(join(root, "node_modules/.bin/vp"), ["run", "build"], { cwd: tree });
+    await run(join(root, "node_modules/.bin/tsc"), ["-p", "tsconfig.build.json"], { cwd: tree });
 
-    await rm(target, { recursive: true, force: true });
-    await mkdir(target);
-    await cp(join(tree, "dist"), join(target, "dist"), { recursive: true });
-    await cp(join(tree, "package.json"), join(target, "package.json"));
+    await rm(out, { recursive: true, force: true });
+    await mkdir(out);
+    await cp(join(tree, "dist"), join(out, "dist"), { recursive: true });
+    await cp(join(tree, "package.json"), join(out, "package.json"));
     await writeFile(stamp, commit);
   } finally {
     await rm(tree, { recursive: true, force: true });
@@ -73,7 +77,7 @@ export async function build(commit: string): Promise<void> {
 
 // Only when run as a command. The compat check and the tests import this file for its functions.
 if (import.meta.main) {
-  const [rev] = process.argv.slice(2).filter((arg) => arg !== "--");
+  const rev = process.argv.slice(2).find((arg) => arg !== "--");
   if (rev === undefined) {
     await build(await pinned());
   } else {
@@ -87,11 +91,11 @@ if (import.meta.main) {
 }
 
 // CI checks out one commit, so the pinned one is fetched on demand.
-async function fetched(commit: string): Promise<void> {
+async function fetched(commit: string, cwd: string): Promise<void> {
   try {
-    await run("git", ["cat-file", "-e", `${commit}^{commit}`], { cwd: root });
+    await run("git", ["cat-file", "-e", `${commit}^{commit}`], { cwd });
   } catch {
-    await run("git", ["fetch", "--quiet", "--depth=1", "origin", commit], { cwd: root });
+    await run("git", ["fetch", "--quiet", "--depth=1", "origin", commit], { cwd });
   }
 }
 

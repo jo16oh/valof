@@ -31,7 +31,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function isCodeNode(value: unknown): value is CodeNode {
-  return isRecord(value) && value.type === "code" && typeof value.value === "string";
+  return isRecord(value) && value["type"] === "code" && typeof value["value"] === "string";
 }
 
 function codeNodes(node: unknown, found: CodeNode[] = []): CodeNode[] {
@@ -39,7 +39,7 @@ function codeNodes(node: unknown, found: CodeNode[] = []): CodeNode[] {
     return found;
   }
 
-  const children = node.children;
+  const children = node["children"];
   if (isCodeNode(node)) {
     found.push(node);
   }

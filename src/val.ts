@@ -1,6 +1,6 @@
 // Type-only, so nothing from enum.ts crosses at run time. The phantom stays in enum.ts, beside
 // the declaration that carries it.
-import type { AnyEnum } from "./enum.ts";
+import type { AnyEnum, NameOf } from "./enum.ts";
 import type {
   AnyImpl,
   AnyTrait,
@@ -96,7 +96,21 @@ export type Invalid<Msg extends string> = { readonly [InvalidKey]: Msg };
 export type Refused<Msg extends string> = { readonly [RefusedKey]: Msg };
 
 /** Distributes, so each constituent is compared against the whole: they differ only in a union. */
-export type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : false;
+// The whole is assignable to a constituent the others are assignable to, so that constituent gives
+// `false` and the results together are `boolean`: `Dollar | { amount: number }`. `true extends`
+// reads any `true` among them. Two objects can each be assignable to the other, as
+// `{ a: number } | { a: number; b?: string }`, so the keys are compared too.
+export type IsUnion<T, U = T> = true extends (
+  T extends unknown
+    ? [U] extends [T]
+      ? [keyof T] extends [keyof U]
+        ? false
+        : true
+      : true
+    : false
+)
+  ? true
+  : false;
 
 /** `true` for one string literal, and `false` for a union, `string`, a template, `any` or `never`. */
 // `{}` fits a record keyed by `string` or a template, and none keyed by a literal. The values are
@@ -140,58 +154,98 @@ type IsRec<T> = string extends keyof T
  * payload is declared for, read at the root alone.
  */
 type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = "Val"> =
-  IsRec<T> extends true
-    ? T
+  // Vals of different types with the same fields hold the same payload, so `equals` and a JSON
+  // round trip cannot distinguish them. A Val with a boolean payload is a union of two types with
+  // one brand, and an enum a union of variants with one name, so the check compares brands, or enum
+  // names. `IsRec` reads a `Rec` by its keys, so the check compares the `Rec`s themselves.
+  (IsRec<T> extends true ? 1 : [T] extends [AnyVal] ? 1 : 0) extends 1
+    ? IsUnion<Kinds<T>> extends true
+      ? Invalid<"only null can share a field with a Val; declare an Enum">
+      : T
+    : Rest<T, Root, Owner>;
+
+type HoldsVal<T> = T extends unknown
+  ? IsRec<T> extends true
+    ? true
     : [T] extends [AnyVal]
-      ? T
-      : // Below the root, a union of `Impl`, like a union of Vals, is a union of values rather than
-        // of objects to merge. Each one's fields are still checked. That rejects a `Dyn` box,
-        // because its trait members are functions.
-        [T] extends [AnyImpl]
-        ? Root extends true
-          ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
-          : T extends unknown
-            ? ValidateFields<T>
-            : never
-        : [T] extends [AnyTrait]
-          ? Root extends true
-            ? Owner extends "Val"
-              ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
-              : Invalid<"a payload cannot declare a trait">
-            : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
-          : [T] extends [Invalid<infer M>]
-            ? Refused<M>
-            : [T] extends [Refused<infer M>]
-              ? Invalid<M>
-              : unknown extends T
-                ? Invalid<"`unknown` is not a plain value; write the type">
-                : Root extends true
-                  ? null extends T
-                    ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-                    : ValidateValue<T, true>
-                  : ValidateValue<T>;
+      ? true
+      : false
+  : never;
+
+// What tells the types in a union apart: an enum's name, a Val's brand, or a `Rec` itself.
+type Kinds<T> = T extends AnyEnum
+  ? EnumName<NameOf<T>>
+  : T extends Phantom<infer B, unknown>
+    ? ValBrand<B>
+    : T;
+
+// Labelled by kind, since a Val may take an enum's name as its brand.
+type EnumName<K> = { readonly enum: K };
+type ValBrand<B> = { readonly val: B };
+
+// A field typed `Impl` holds any Val implementing the trait, which is the same problem.
+type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extends [AnyImpl]
+  ? Root extends true
+    ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
+    : Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">
+  : [T] extends [AnyTrait]
+    ? Root extends true
+      ? Owner extends "Val"
+        ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+        : Invalid<"a payload cannot declare a trait">
+      : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+    : [T] extends [Invalid<infer M>]
+      ? Refused<M>
+      : [T] extends [Refused<infer M>]
+        ? Invalid<M>
+        : unknown extends T
+          ? Invalid<"`unknown` is not a plain value; write the type">
+          : Root extends true
+            ? null extends T
+              ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+              : ValidateValue<T, true>
+            : ValidateValue<T>;
 
 type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
-  ? T
+  ? // A Val with a primitive payload extends `Primitive` too.
+    [Extract<T, AnyVal>] extends [never]
+    ? T
+    : Beside<T, Root>
   : [T] extends [ReadonlyArray<unknown>]
-    ? number extends T["length"]
-      ? { [I in keyof T]: Validate<T[I], false> }
-      : // A `never` element satisfies whatever it is mapped to, so the tuple is rejected whole.
-        true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
-        ? Invalid<"no value fits a tuple element">
-        : {
-            // An optional element is the tuple's form of an optional key: absent, it round trips.
-            // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
-            [I in keyof T]: undefined extends Required<T>[I]
-              ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
-              : Validate<Exclude<T[I], undefined>, false>;
-          }
+    ? // Arrays are replaced whole, so a union of them passes unless their elements together break
+      // a rule about Vals.
+      [
+        IsUnion<T> extends true
+          ? [Extract<T, AnyVal>] extends [never]
+            ? Extract<
+                Validate<T[number], false>,
+                | Invalid<"only null can share a field with a Val; declare an Enum">
+                | Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
+              >
+            : Invalid<"only null can share a field with a Val; declare an Enum">
+          : never,
+      ] extends [infer M]
+      ? [M] extends [never]
+        ? number extends T["length"]
+          ? { [I in keyof T]: Validate<T[I], false> }
+          : // A `never` element satisfies whatever it is mapped to, so the tuple is rejected whole.
+            true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
+            ? Invalid<"no value fits a tuple element">
+            : {
+                // An optional element is the tuple's form of an optional key: absent, it round trips.
+                // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+                [I in keyof T]: undefined extends Required<T>[I]
+                  ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
+                  : Validate<Exclude<T[I], undefined>, false>;
+              }
+        : M
+      : never
     : // oxlint-disable-next-line no-unsafe-function-type
       [T] extends [Function]
       ? Invalid<"functions are not allowed">
       : [T] extends [object]
         ? IsUnion<T> extends true
-          ? Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+          ? Clash<T>
           : // `keyof` a string index signature is `string | number`.
             [Exclude<keyof T, string | (string extends keyof T ? number : never)>] extends [never]
             ? Root extends true
@@ -202,15 +256,97 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
               ? Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
               : Invalid<"not a plain value">
         : [Extract<T, bigint>] extends [never]
-          ? // Below the root, a field may hold `null` or a primitive beside one other kind. `patch`
-            // replaces such a field whole, see `PatchValue`.
-            [Root, Extract<T, Primitive>, Exclude<T, Primitive | undefined>] extends
-              | [true, unknown, unknown]
-              | [boolean, never, unknown]
-              | [boolean, unknown, never]
-            ? Invalid<"not a plain value">
-            : Extract<T, Primitive> | Validate<Exclude<T, Primitive>, false>
+          ? Beside<T, Root>
           : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
+
+/**
+ * Checks a field that holds `null` or a primitive beside one other kind, which `patch` replaces
+ * whole. The root rejects it.
+ */
+// A Val stands beside `null` alone: JSON cannot tell it from a value its payload could be.
+type Beside<
+  T,
+  Root,
+  P = Extract<Exclude<T, AnyVal>, Primitive>,
+  O = Exclude<T, AnyVal | P | undefined> | Extract<T, AnyVal>,
+> = [Root, P, O] extends
+  | [true, unknown, unknown]
+  | [boolean, never, unknown]
+  | [boolean, unknown, never]
+  ? Invalid<"not a plain value">
+  : [Exclude<P, null>] extends [never]
+    ? P | Validate<O, false>
+    : true extends HoldsVal<O>
+      ? Invalid<"only null can share a field with a Val; declare an Enum">
+      : P | Validate<O, false>;
+
+/**
+ * Each broken constituent's message, else the Enum message where two objects hold a value in
+ * common, else the `patch` message.
+ */
+type Clash<T, E = T extends unknown ? Validate<T, false> : never> =
+  true extends HoldsVal<T>
+    ? Invalid<"only null can share a field with a Val; declare an Enum">
+    : [Extract<E, Invalid<string>>] extends [never]
+      ? true extends Collides<Exclude<T, ReadonlyArray<unknown>>>
+        ? Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
+        : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+      : Extract<E, Invalid<string>>;
+
+/** `true` where two constituents hold a value in common once each Val is read as its payload. */
+type Collides<N, A = N> = N extends unknown
+  ? Exclude<A, N> extends infer O
+    ? O extends unknown
+      ? Overlaps<Erased<O>, Erased<N>>
+      : never
+    : never
+  : never;
+
+// `true` where the two hold a value in common, which `equals` cannot attribute to either. An enum
+// is read variant by variant. Two arrays hold one unless both are tuples, since an empty array fits
+// both. Two tuples are compared by the union of their elements. Two `Rec`s count as holding one,
+// and a `Rec` beside anything else as holding none, since opening one is circular for a type that
+// references itself.
+type Overlaps<A, B> = A extends unknown ? (B extends unknown ? Meets<A, B> : never) : never;
+
+type Meets<A, B> = [IsRec<A>, IsRec<B>] extends [false, false]
+  ? Opens<A, B>
+  : [IsRec<A>, IsRec<B>] extends [true, true]
+    ? true
+    : never;
+
+type Opens<A, B> = [A, B] extends [Primitive, Primitive]
+  ? [A & B] extends [never]
+    ? never
+    : true
+  : [A, B] extends [infer X extends ReadonlyArray<unknown>, infer Y extends ReadonlyArray<unknown>]
+    ? number extends X["length"] | Y["length"]
+      ? true
+      : Overlaps<X[number], Y[number]>
+    : [A | B] extends [object]
+      ? [Lacks<A, B> | Lacks<B, A> | Apart<A, B>] extends [never]
+        ? true
+        : never
+      : never;
+
+// A key `A` requires and `B` lacks.
+type Lacks<A, B> = Exclude<keyof A, OptionalKeys<A> | keyof B>;
+
+// A key that both contain and at least one requires, where the two value types hold no value in common.
+type Apart<A, B> = {
+  [K in keyof A & keyof B]-?: [K] extends [OptionalKeys<A> & OptionalKeys<B>]
+    ? never
+    : true extends Overlaps<A[K], B[K]>
+      ? never
+      : K;
+}[keyof A & keyof B];
+
+/** Each nested Val read as its payload. */
+type Erased<T> = [T] extends [AnyVal]
+  ? Erased<Declared<T>>
+  : [T] extends [Primitive]
+    ? T
+    : { [K in keyof T]: Erased<T[K]> };
 
 // oxlint-disable-next-line no-unsafe-function-type
 type MethodKeys<T> = { [K in keyof T]-?: T[K] extends Function ? K : never }[keyof T];
@@ -278,10 +414,7 @@ export type DeepReadonly<T, Arg extends Position = false> =
 /** Not an argument, the payload an argument takes, or a part of that payload. */
 type Position = boolean | "field";
 
-/**
- * Recursion stops at a nested Val, because it is already deep-readonly. A field typed with `Impl`
- * holds a Val, so a `Dyn` box does not fit.
- */
+/** Recursion stops at a nested Val, because it is already deep-readonly. */
 type DeepReadonlyValue<
   T,
   Arg extends Position,
@@ -289,35 +422,33 @@ type DeepReadonlyValue<
   Inner extends Position = Arg extends false ? false : "field",
 > = [T] extends [AnyVal]
   ? T
-  : [T] extends [AnyImpl]
-    ? T & Phantom<string, unknown>
-    : [T] extends [Primitive]
-      ? T
-      : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
-        // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
-        // still being declared. Only an array or a string payload has a numeric key.
-        number extends keyof T
-        ? [T] extends [object]
-          ? number extends Extract<T, readonly unknown[]>["length"]
-            ? ReadonlyArray<DeepReadonly<T[number], Inner>>
-            : { readonly [I in keyof T]: DeepReadonly<T[I], Inner> }
-          : Mixed<T, Arg, Split>
-        : [T] extends [object]
-          ? [keyof T] extends [never]
-            ? Arg extends true
-              ? EmptyField | AnyVal
-              : Arg extends "field"
-                ? EmptyField
-                : Record<never, never>
-            : {
-                // An optional key carries `undefined` in its type, and a union stops the walk one
-                // level short: a `Rec` inside it would never open. The value never holds the
-                // `undefined` either way, since an optional key is absent or set.
-                readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Inner>;
-              }
-          : [Extract<T, Primitive>] extends [never]
-            ? T
-            : Mixed<T, Arg, Split>;
+  : [T] extends [Primitive]
+    ? T
+    : // The numeric key, not `[T] extends [ReadonlyArray<unknown>]`: that reads a property named
+      // after an array member, `entries` or `values`, and a `Rec` in one would resolve the type
+      // still being declared. Only an array or a string payload has a numeric key.
+      number extends keyof T
+      ? [T] extends [object]
+        ? number extends Extract<T, readonly unknown[]>["length"]
+          ? ReadonlyArray<DeepReadonly<T[number], Inner>>
+          : { readonly [I in keyof T]: DeepReadonly<T[I], Inner> }
+        : Mixed<T, Arg, Split>
+      : [T] extends [object]
+        ? [keyof T] extends [never]
+          ? Arg extends true
+            ? EmptyField | AnyVal
+            : Arg extends "field"
+              ? EmptyField
+              : Record<never, never>
+          : {
+              // An optional key carries `undefined` in its type, and a union stops the walk one
+              // level short: a `Rec` inside it would never open. The value never holds the
+              // `undefined` either way, since an optional key is absent or set.
+              readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Inner>;
+            }
+        : [Extract<T, Primitive>] extends [never]
+          ? T
+          : Mixed<T, Arg, Split>;
 
 /**
  * `null` or a primitive beside one other kind, which only a field can hold. The rest is not split
@@ -433,6 +564,7 @@ type Disagreement<T, S, R = DeepReadonly<Checked<T>>> = {
 }[keyof S & string];
 
 // Spelled without an escaped backtick, which the declaration bundler drops the whole file over.
+// oxlint-disable-next-line typescript/no-unnecessary-template-expression -- see above
 export type Code<S extends string> = `${"`"}${S}${"`"}`;
 
 // Distributes over the union to collect one parameter position per member, which infers as their
@@ -513,6 +645,9 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
  *
  * The rules cannot check a type parameter, so `Payload<{ left: T }>` inside a generic type is a type error.
  *
+ * valof-lint's `data-type-outside-valof` allows a type marked this way inside a Valof type and in
+ * the function passed to `implSeal` or `implCreate`, and reports any other named data type.
+ *
  * Not {@link PayloadOf}, which extracts the payload from a Val.
  */
 export type Payload<T extends Allowed<T, "Payload">> = Validate<T, true, "Payload">;
@@ -524,8 +659,9 @@ export type Payload<T extends Allowed<T, "Payload">> = Validate<T, true, "Payloa
 // One mapped type covers an array and a tuple both: homomorphic over either, it keeps the length,
 // the positions and the mutability. {@link DeepReadonly} needs the two apart only because it
 // rewrites them.
-type Opened<T> =
-  IsRec<T> extends true
+type Opened<T> = [T] extends [never]
+  ? never
+  : IsRec<T> extends true
     ? T extends Rec<infer V>
       ? Opened<Declared<V>>
       : T
@@ -611,9 +747,18 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * missing `y` that the type still calls a `Point`. Spread the current value to keep the rest:
  * `{ at: { ...point, x: 1 } }`.
  */
+export type Patch<T, X extends PropertyKey = never> = [T] extends [AnyVal]
+  ? [T] extends [never]
+    ? never
+    : 0 extends 1 & T
+      ? Patching<T, X>
+      : Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">
+  : Patching<T, X>;
+
+// `Patch`, but `never` for a Val. `PatchValue` reads that `never` as "replace the field whole".
 // One mapped type rather than an intersection, because TypeScript rejects a variable sharing no
 // key with a weak type, and skips that check on an intersection where one side has no keys.
-export type Patch<T, X extends PropertyKey = never> = T extends object
+export type Patching<T, X extends PropertyKey = never> = T extends object
   ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
     : {
@@ -638,9 +783,9 @@ export type Patch<T, X extends PropertyKey = never> = T extends object
 // A Val declares the brand key private, and the public optional key added here rejects it from
 // the patch. Only the second member takes a Val, so a plain object still meets the first alone.
 type PatchValue<T> = [T] extends [object]
-  ? [Patch<T>] extends [never]
+  ? [Patching<T>] extends [never]
     ? T
-    : Patch<T, typeof PhantomBrand> | (T & AnyVal)
+    : Patching<T, typeof PhantomBrand> | (T & AnyVal)
   : T;
 
 export type AnyFn = (...args: never[]) => unknown;
@@ -795,7 +940,7 @@ type WithoutDefaultSeal<F> = F extends (...args: infer A) => infer R
   : F;
 
 /** Type-only carrier for {@link Unpatchable}. */
-declare class UnpatchablePhantom<K extends string> {
+export declare class UnpatchablePhantom<K extends string> {
   private readonly [UnpatchableKey]: K;
   /** Declaration emit erases private field types; protected keeps the keys recoverable. */
   protected readonly [UnpatchableTypes]: K;
@@ -845,7 +990,13 @@ export declare class PrivateCreate {
  * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>().build();
  * ```
  */
-export type Unpatchable<K extends string> = UnpatchablePhantom<K>;
+// `any` satisfies every constraint, so the type itself reports it. It reads the key through
+// `infer`, because against the constraint, `1 & K` resolves to `never` before `K` is known.
+export type Unpatchable<K extends string> = [K] extends [infer X]
+  ? 0 extends 1 & X
+    ? Invalid<"`Unpatchable` takes key names, not `any`">
+    : UnpatchablePhantom<K>
+  : never;
 
 /** What the list after the Val in `Val.companion<V, […]>` takes. */
 type CompanionOption<V extends AnyVal> =
@@ -1143,6 +1294,14 @@ type PayloadKeys<V> = V extends unknown
 
 export const isObject = (v: unknown): v is object => typeof v === "object" && v !== null;
 
+/** Returns the object it is given, so a subclass's private field is defined on that object. */
+// oxlint-disable-next-line typescript/no-extraneous-class -- the class exists for its constructor
+class Stamp {
+  constructor(value: object) {
+    return value;
+  }
+}
+
 const isObjectShaped = (v: unknown): v is Record<string, unknown> =>
   isObject(v) && !Array.isArray(v);
 
@@ -1211,17 +1370,29 @@ const equalsUnknown = equals as (a: unknown, b: unknown) => boolean;
  * The nodes this module built. Subtrees are immutable, so recognizing one lets a derivation
  * copy only the path down to what changed and share everything below it.
  *
- * Leaves are recorded too. A record costs about 20x a lookup and never earns that back in
+ * Leaves are recorded too. A record costs about 4x a lookup and never earns that back in
  * copying time, but frameworks compare identity: without it every small nested Val gets a new
  * identity on each `patch`, and a memoized component re-renders for a change it never saw.
  *
- * Missing a node costs a copy, never correctness, so the set can be lost across a
+ * Missing a node costs a copy, never correctness, so the mark can be lost across a
  * `structuredClone` or a JSON round trip with nothing to repair.
+ *
+ * The mark is a private field on the node itself. A spread does not copy it, nothing outside
+ * this module can read or forge it, and the node stays a plain object. A non-extensible node
+ * gets no mark, so a copy that reaches it copies it.
  */
-const owned = new WeakSet<object>();
+class Owned extends Stamp {
+  // oxlint-disable-next-line no-unused-private-class-members -- read through `in`
+  #owned = true;
+  static has = (value: object): boolean => #owned in value;
+}
 
 /** Roots adopted by production `nocopy`. Their descendants are indexed only if a copy needs it. */
-const adopted = new WeakSet<object>();
+class Adopted extends Stamp {
+  // oxlint-disable-next-line no-unused-private-class-members -- read through `in`
+  #adopted = true;
+  static has = (value: object): boolean => #adopted in value;
+}
 
 const unsnapshotable = Symbol("unsnapshotable seal input");
 type SealSnapshot = Primitive | bigint | undefined | object | typeof unsnapshotable;
@@ -1243,11 +1414,13 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
         ? unsnapshotable
         : (value as Primitive | bigint | undefined);
     }
+    // Sealed already, so frozen, and the same node before and after.
+    if (Owned.has(value)) return value;
     if (active.has(value)) return unsnapshotable;
 
     const array = Array.isArray(value);
     if (!array) {
-      const prototype = Object.getPrototypeOf(value);
+      const prototype: unknown = Object.getPrototypeOf(value);
       if (prototype !== Object.prototype && prototype !== null) return unsnapshotable;
     }
 
@@ -1296,38 +1469,35 @@ export const notFixedPoint = (): never => {
 const deepCopy = (owning: boolean) => {
   const copy = <T>(value: T): T => {
     if (!isObject(value)) return value;
-    if (owning && adopted.has(value)) {
+    if (owning && Owned.has(value)) return value;
+    if (owning && Adopted.has(value)) {
       indexAdopted(value);
       return value;
     }
-    if (owning && owned.has(value)) return value;
 
     let out: unknown;
 
     if (Array.isArray(value)) {
-      out = (value as unknown[]).map((element) => copy(element));
+      out = (value as unknown[]).map(copy);
     } else {
       const source = value as Record<string, unknown>;
 
       if (development) assertPlainObject(source);
 
-      const target: Record<string, unknown> = {};
-      for (const key of Object.keys(source)) {
-        const copied = copy(source[key]);
-        // Plain assignment would invoke the `__proto__` setter on that one key, moving it into
-        // the prototype instead of copying it. Defining it keeps it an own property, and only
-        // that key pays for the slower path.
-        if (key === "__proto__") {
-          define(target, key, copied);
-        } else {
-          target[key] = copied;
-        }
+      // A spread clones the whole level at once, which V8 does far faster than key by key. It
+      // defines `__proto__` as an own key, so assigning that key below writes the own key, not the
+      // prototype. Each child that is an object is then copied.
+      const target: Record<string, unknown> = { ...source };
+      for (const key of Object.keys(target)) {
+        const child = target[key];
+        if (isObject(child)) target[key] = copy(child);
       }
       out = target;
     }
 
     if (owning) {
-      owned.add(out as object);
+      // oxlint-disable-next-line no-new -- the new instance is `out`, now marked
+      new Owned(out as object);
       if (development) Object.freeze(out);
     }
     return out as T;
@@ -1350,51 +1520,60 @@ const own = deepCopy(true);
  * This is intentionally deferred: `nocopy` itself remains O(1) in production.
  */
 const indexAdopted = (root: object): void => {
-  if (!adopted.has(root)) return;
-  const seen = new WeakSet<object>();
+  // A field cannot be removed, so the root keeps its `Adopted` mark. Its `Owned` mark shows that it
+  // is indexed already.
+  if (!Adopted.has(root)) return;
+  const seen = new Set<object>();
+  // A marked node's descendants are marked already, except non-extensible ones, which cannot carry
+  // a mark, so the walk stops there.
   const visit = (value: unknown): void => {
-    if (!isObject(value) || seen.has(value)) return;
+    if (!isObject(value) || Owned.has(value) || seen.has(value)) return;
     seen.add(value);
-    owned.add(value);
+    // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
+    if (Object.isExtensible(value)) new Owned(value);
     for (const key of Object.keys(value)) visit((value as Record<string, unknown>)[key]);
   };
   visit(root);
-  adopted.delete(root);
 };
 
 /** Adopt a caller-owned payload. Development validates and freezes every node before returning. */
 const adopt = <T>(value: T): T => {
   if (!isObject(value)) return value;
-  if (owned.has(value)) return value;
+  if (Owned.has(value)) return value;
 
-  if (!development) {
-    adopted.add(value);
-    return value;
+  if (development) {
+    const active = new WeakSet<object>();
+    const done = new WeakSet<object>();
+    const visit = (node: unknown): void => {
+      if (!isObject(node) || Owned.has(node) || done.has(node)) return;
+      if (active.has(node)) throw new TypeError("a Val payload cannot contain a cycle");
+      active.add(node);
+      try {
+        if (!Array.isArray(node)) assertPlainObject(node);
+        for (const key of Reflect.ownKeys(node)) {
+          const descriptor = Object.getOwnPropertyDescriptor(node, key);
+          if (!descriptor || "get" in descriptor || "set" in descriptor) {
+            throw new TypeError("a Val payload cannot contain accessor properties");
+          }
+          visit(descriptor.value);
+        }
+        // oxlint-disable-next-line no-new -- the new instance is `node`, now marked
+        if (Object.isExtensible(node)) new Owned(node);
+        Object.freeze(node);
+        done.add(node);
+      } finally {
+        active.delete(node);
+      }
+    };
+    visit(value);
   }
 
-  const active = new WeakSet<object>();
-  const done = new WeakSet<object>();
-  const visit = (node: unknown): void => {
-    if (!isObject(node) || owned.has(node) || done.has(node)) return;
-    if (active.has(node)) throw new TypeError("a Val payload cannot contain a cycle");
-    active.add(node);
-    try {
-      if (!Array.isArray(node)) assertPlainObject(node);
-      for (const key of Reflect.ownKeys(node)) {
-        const descriptor = Object.getOwnPropertyDescriptor(node, key);
-        if (!descriptor || "get" in descriptor || "set" in descriptor) {
-          throw new TypeError("a Val payload cannot contain accessor properties");
-        }
-        visit(descriptor.value);
-      }
-      owned.add(node);
-      Object.freeze(node);
-      done.add(node);
-    } finally {
-      active.delete(node);
-    }
-  };
-  visit(value);
+  // A non-extensible payload cannot carry a mark, so `own` copies it once, and derivations share
+  // the copy's nodes. This runs after the checks above, so a frozen payload throws the same errors
+  // as an unfrozen one.
+  if (!Object.isExtensible(value)) return own(value);
+  // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
+  if (!development && !Adopted.has(value)) new Adopted(value);
   return value;
 };
 
@@ -1476,7 +1655,7 @@ const patched = (
     kept++;
     const before = base[key];
     const child =
-      isObjectShaped(before) && isObjectShaped(value) && !owned.has(value)
+      isObjectShaped(before) && isObjectShaped(value) && !Owned.has(value)
         ? patched(before, value)
         : value;
     merged[key] = child;
@@ -1548,15 +1727,15 @@ export const attach = (registered: Registered): Record<string, unknown> => {
     const [copying, adopting] = noseal ? [unsealed(own), unsealed(adopt)] : [seal, nocopy];
     const created = (...args: never[]) => copying(create(...args));
     created.nocopy = (...args: never[]) => adopting(create(...args));
-    target.create = created;
+    target["create"] = created;
   }
   // Without a custom seal, `seal` is the copy itself, and this gives it the `nocopy` `Val.of` has.
   define(seal, "nocopy", nocopy);
-  target.seal = seal;
+  target["seal"] = seal;
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
-  target.patch = dual((value: unknown, patch: Record<string, unknown>) => {
+  target["patch"] = dual((value: unknown, patch: Record<string, unknown>) => {
     // The type leaves `patch` off a primitive or array Val, so reaching this takes a cast.
     // Still throws in production: without the guard the spread seals an object, turning a
     // number into `{}` and a string into a character map. Only the message is development-only.
@@ -1577,7 +1756,7 @@ export const attach = (registered: Registered): Record<string, unknown> => {
   const traits = Object.assign(
     {},
     ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
-  );
+  ) as Record<string, unknown>;
   (target as Record<symbol, unknown>)[Traits] = traits;
   return Object.assign(
     target,
@@ -1592,7 +1771,10 @@ export const attach = (registered: Registered): Record<string, unknown> => {
  * the value.
  */
 export const associated = (assoc: Members[] = [], supplied: object): Record<string, unknown> =>
-  Object.assign({}, ...assoc.map((fns) => createMembers(fns(supplied), true)));
+  Object.assign({}, ...assoc.map((fns) => createMembers(fns(supplied), true))) as Record<
+    string,
+    unknown
+  >;
 
 /**
  * The steps on a builder, each handing what it registers to `grow`. `registered` is what the steps
@@ -1632,9 +1814,9 @@ type NotEnum<V> = [V] extends [AnyEnum]
 // The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
 // with a boolean payload is a union of two types with one brand, so the check compares brands.
 type OneVal<V, M extends string> = {
-  readonly [K in M as IsUnion<V extends Phantom<infer B, unknown> ? B : never> extends true
-    ? K
-    : never]: never;
+  readonly [
+    K in M as IsUnion<V extends Phantom<infer B, unknown> ? B : never> extends true ? K : never
+  ]: never;
 };
 
 /** Nothing, or the reason a union of option lists is rejected. */

@@ -1,3 +1,4 @@
+import { Val } from "valof";
 import * as a from "./a.ts";
 import * as b from "./b.ts";
 

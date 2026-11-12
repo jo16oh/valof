@@ -2,51 +2,79 @@
 
 ## Design Memo
 
-`notes/design.md` holds every design decision and the alternatives rejected along the way. Its index
-is at the top. Read the sections it points you to before proposing anything about equality, copying,
-wrapper types, the linter, or new API. §9 lists the open questions. New deliberation goes there.
+`notes/design/` holds every design decision and the alternatives rejected along the way. Each
+section has a file of its own. `notes/design/README.md` is the index. Read the files it lists before
+proposing anything about equality, copying, wrapper types, the linter, or new API. Before changing a
+file, read the sections the index's "Code to memo" table lists for its path. Before proposing an
+alternative, search for it with the command the index gives. §9 lists the open questions. New
+deliberation goes in §9. A new section gets a file of its own and a line in the index.
+
+## Writing Code with Valof
+
+Model the domain as you would in Rust. A named data type is a Val (a struct or a newtype) or an
+Enum. A Trait is a Rust trait. Behaviour goes in the companion. `.impl` holds the methods, which
+take the Val first as `self`, and `.implAssoc` holds the associated functions. `.implTrait` is
+`impl Trait for Type`. A Val is plain data with no methods, so call a member through the companion:
+`User.displayName(user)`, not `user.displayName()`.
+
+## Code Style
+
+`pipe` (`scripts/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them
+where a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
+`User.seal(parse(text))`. Fold a variable used once into the chain. Keep it as a local, next to its
+use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
+where a step needs a value from outside the chain.
+
+Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
+where the next step starts. Declare a variable in the paragraph that uses it, right before its first
+use. Put a call that returns a Result and its failure check on adjacent lines. A line that only
+unwraps the Result's `.value` stays with them, and the blank line goes after it.
+
+Gather the guard clauses at the top of the function, and put a blank line before the main work. Put
+a blank line before the final `return`, unless the whole body is one paragraph.
+
+Put a Val's type and its companion on adjacent lines, with a blank line before and after the pair.
+
+Place a helper used only inside its module at the end of the file. Declare it with `function`, so
+hoisting makes the order safe.
+
+A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
+a connection, so `new` at the call site shows where state lives. Do not use `extends`. Keep state in
+`#private` fields, and write plain methods rather than arrow-function fields. A class is not
+hoisted, so it cannot come after top-level code that uses it. Give it a file of its own instead.
+
+A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
+it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
+companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
+
+New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
+`class X extends ErrorFactory({ message, fields }) {}`. Leave out `name`. It defaults to the class
+name, and `instanceof` narrows.
 
 ## Bundle Size and Type Cost
 
-Run `vp run check-dist` after changing runtime code or a type. It builds `dist` once and checks it
-as a user receives it. `--size`, `--types` and `--compat` select the checks to run. With none, all
-three run.
-
-- `--size` measures what a user ships against its budgets, and checks the bundle-size claims.
-- `--types` compiles the fixtures in `scripts/check-dist/types/` against the published declarations,
-  and budgets the instantiation count and the size of the declarations that `import "valof"` loads.
-- `--compat` typechecks the book's blocks, the fixtures in `scripts/check-dist/compat/fixtures/` and
-  the scripts against `dist` on every TypeScript line. It also fails where a declaration changes the
-  type of an export in the blocks or the fixtures.
-
-The bundle-size claim in `docs/src/introduction.md` follows the current branch. Update it with
-`vp run check-dist --size --write`; regular CI checks it. The claims in `README.md` and the
-`package.json` description describe the latest release instead. `--release` checks them too, and
-fails unless the commit the scripts' `#valof` points at builds the same `dist` as the branch.
-`vp run bump-version` updates them in the release commit, and CI checks them on the release PR.
-After the merge, the release workflow checks all three claims again before it creates the tag.
+Run `vp run check-dist` after changing runtime code or a type. `--size`, `--types` and `--compat`
+select the checks. With none, all three run. Update the bundle-size claim in
+`docs/src/introduction.md` with `vp run check-dist --size --write`. Leave the claims in `README.md`
+and `package.json` to `vp run bump-version`.
 
 Neither `vp check` nor `vp test` runs `check-dist`.
 
 ## Testing
 
 Audit the tests every time you write or change one (`/test-audit` in Claude Code, where a Stop hook
-enforces it). It reports tests to delete or merge, behaviour the diff changes with no test covering
-it, and tests that pass whatever the source does. `skills/test-audit/SKILL.md` holds the three
-passes.
+enforces it). Elsewhere, follow `skills/test-audit/SKILL.md`.
 
-A separate agent runs it, on the same model, and reports back. Apply the cuts yourself, on a
-go-ahead.
+A separate agent runs it, on the same model, and reports back. Apply the clear findings yourself,
+and ask me about the ones you doubt.
 
-Never commit an implementation before writing the tests that cover it. A later test cannot audit the
-implementation commit that required it.
+Never commit an implementation before writing the tests that cover it.
 
-## Committing and Pushing
+## Committing
 
-Commit or amend only on an explicit go-ahead. Draft the message, show it, and wait.
-
-Never push, and never open a PR. I do both myself, opening the PR from the web UI. Hand me the PR
-title and body as a draft and stop there.
+Commit without waiting for a go-ahead. Keep tests, implementation and docs in separate commits. When
+the pre-commit `vp check` rejects tests that do not type-check yet, commit them with `--no-verify`.
+Do not skip the hook for the implementation commit.
 
 ## Releasing
 
@@ -55,27 +83,24 @@ title and body as a draft and stop there.
    PR body.
 2. In a PR of its own, run `vp run pin-valof origin/main`, which points the scripts' `#valof` at
    that commit, and fix the scripts where `vp check` or `vp run check-dist` fails. Report what
-   breaks, and where the new API is awkward to use in the scripts. A user encounters both when
-   upgrading. If a problem is serious, stop the release and rework the design. CI fails the release
-   PR while the pinned commit builds a different `dist` from the release.
+   breaks, and where the new API is awkward to use in the scripts. If a problem is serious, stop the
+   release and rework the design.
 3. Run `vp run bump-version --release <type> --yes`, where `<type>` is the release type I give, such
    as `patch`. Add `--body-file notes.md` when step 1 wrote one. The script updates the bundle-size
    claims, pushes a release branch, and opens its PR. Options other than `--body-file` go to bumpp.
 4. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
    release, and publishes the book.
 
-Step 3 pushes and opens a PR. It is the only exception to "Never push, and never open a PR" above.
-Run it only on my explicit go-ahead.
+Step 3 pushes and opens a PR. Run it only on my explicit go-ahead.
 
 ## Writing Style
 
-Code and prose go in separate turns. Finish the code, then edit the `.md` in a turn of its own, and
-run `/proofread` over what changed there before showing it or proposing a commit.
+Run `/proofread` over the changed `.md` files before committing them. A separate agent runs it, on
+the same model, and reports back. Apply the clear findings yourself, and ask me about the ones you
+doubt.
 
-Remember how limited humans are, especially me, since English isn't my first language. We don't have
-a large context window like you do, and we can't read as fast as you can. Reducing redundant
-expressions really matters, and it helps you save context too. Keep only the essential parts. Keep
-it brief.
+Decide what to leave out before choosing words. Say one thing per sentence. Where a fact does not
+change what the reader does, drop it rather than compressing it into a clause.
 
 The repo is English: README, source comments, commit messages, PRs.
 
@@ -103,18 +128,17 @@ resolved type, assign it to an impossible target (`const x: 0 = value`) and read
 
 ### Docs
 
-Keep only what changes the reader's behaviour. That cuts machinery they never touch, the reasoning
-behind a choice defended against an alternative nobody proposed, and prose restating the example
-above it. `notes/` is the exception: a rejected alternative stays there, since that record is what
-stops the idea coming back.
+Cut machinery the reader never touches, the reasoning behind a choice defended against an
+alternative nobody proposed, and prose restating the example above it. `notes/` is the exception: a
+rejected alternative stays there, since that record is what stops the idea coming back.
 
 The README carries what a reader needs before writing code. What they need only once they get it
 wrong goes in the JSDoc of the thing it describes, where the hover arrives together with the type
 error that raised the question.
 
-A GitHub callout needs `<!-- prettier-ignore -->` above it. `proseWrap: "always"` joins the marker
-into the paragraph, and `> [!NOTE] the text` renders as a plain quote in GitHub and in the book
-alike. The comment exempts that block alone, so the rest of the file still wraps.
+Do not name an example type `Box`. Valof reserves it for a planned built-in type.
+
+A GitHub callout needs `<!-- prettier-ignore -->` above it:
 
 ```md
 <!-- prettier-ignore -->
@@ -128,9 +152,6 @@ Conventional Commits, lowercase subject. Stay imperative in the body and the PR 
 alone is the default. Write a body only where the diff cannot carry the intent, the same test a
 comment has to pass. Bullets, as brief as they go, fragments rather than full sentences.
 
-Local commits are working history. Squash merge takes the PR title as the subject and the PR body as
-the body, so what lands on `main` is the PR, not these messages.
-
 Do not add a `Co-Authored-By: Claude ...` trailer. The `main` ruleset requires an extra approval for
 unattributed changes, and an `noreply@anthropic.com` co-author trips that rule, blocking merges.
 
@@ -139,13 +160,12 @@ unattributed changes, and an `noreply@anthropic.com` co-author trips that rule, 
 Bullets, one line each, saying what changed. Lead with the problem where the change does not explain
 itself, and show it in a code block rather than a paragraph.
 
-Use `## Why` and `## What changed` once the body is long enough to need navigation. A short one
-reads better without them.
+Use `## Why` and `## What changed` once the body is long enough to need navigation.
 
-Include a label from `.github/release.yml` in the draft. The release notes group PRs by it.
+Include a label from `.github/release.yml`.
 
-Leave `notes/*.md` out of the body. It is the working record, not something the reviewer acts on.
-Where a memo correction drove the code change, say what the code does now.
+Leave `notes/` out of the body. Where a memo correction drove the code change, say what the code
+does now.
 
 No `Generated with Claude Code` footer, for the same reason as the commit trailer.
 
@@ -167,6 +187,13 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 `vite.config.ts` task. Scripts cannot overwrite built-ins, so `vp dev` and `vp run dev` may do
 different things. Check `package.json` and `vite.config.ts` first, and run `vp run <name>` when the
 project defines a script or task with that name.
+
+## Running Scripts
+
+Run TypeScript and JavaScript files with `vpx <file>`, for example
+`vpx ./scripts/seed.ts --dry-run`. It handles enums, decorators, JSX, and tsconfig `paths`, so do
+not add `tsx` or `ts-node` to run scripts. `vpx --watch <file>` reruns the file when a file it uses
+changes, in place of `tsx watch`. `vp node <file>` runs plain Node.js.
 
 ## Tool Versions
 

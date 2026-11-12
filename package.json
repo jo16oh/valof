@@ -37,7 +37,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./internal/*": "./dist/*.js",
-    "./eslint-plugin": "./dist/eslint-plugin.mjs",
+    "./eslint-plugin": "./dist/eslint-plugin/index.mjs",
     "./lint": "./dist/lint.mjs",
     "./package.json": "./package.json"
   },
@@ -59,14 +59,14 @@
   "devDependencies": {
     "@praha/byethrow": "^0.13.0",
     "@praha/error-factory": "^1.4.1",
-    "@types/node": "^26.5.0",
-    "bumpp": "^11.1.0",
-    "eslint": "^10.10.0",
-    "handlebars": "^4.7.9",
-    "mdast-util-from-markdown": "^2.0.3",
-    "oxc-parser": "^0.148.0",
-    "oxlint": "1.82.0",
-    "shiki": "^4.4.3",
+    "@types/node": "^26.6.6",
+    "bumpp": "^12.3.0",
+    "eslint": "^10.14.0",
+    "handlebars": "^4.7.10",
+    "mdast-util-from-markdown": "^2.1.0",
+    "oxc-parser": "^0.157.0",
+    "oxlint": "1.92.0",
+    "shiki": "^4.6.0",
     "twoslash": "^0.3.9",
     "typescript": "^7.0.2",
     "typescript-5": "npm:typescript@^5.9.3",
@@ -86,9 +86,13 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "11.25.0",
+      "version": "12.18.0",
       "onFail": "download"
     }
+  },
+  "inlinedDependencies": {
+    "@praha/byethrow": "0.13.0",
+    "@praha/error-factory": "1.4.1"
   },
   "valof-pinned-for-scripts-commit": "8560432d25e3cd72e436b4dfcbfc0a06aa8694ba"
 }

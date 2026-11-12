@@ -74,8 +74,8 @@ inside a Val, so use `.nocopy` only where profiling shows the copy is a bottlene
 <!-- prettier-ignore -->
 > [!WARNING]
 > `.nocopy` is an explicit escape hatch. You must ensure the value and everything inside it is
-> stable plain data with no mutable aliases. If that is wrong, another reference can change a Val
-> in production.
+> stable plain data with no mutable aliases. Otherwise, another reference can change a Val in
+> production.
 > Prefer the default copy whenever there is doubt.
 
 Only when you can make that guarantee, use `.nocopy`:

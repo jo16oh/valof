@@ -1,0 +1,47 @@
+{
+  $schema: "https://docs.renovatebot.com/renovate-schema.json",
+  extends: ["config:recommended", "group:allNonMajor", ":semanticCommitTypeAll(chore)"],
+  timezone: "Asia/Tokyo",
+  schedule: ["before 9am on monday"],
+  // Gives a registry time to remove a compromised release before a PR installs it.
+  minimumReleaseAge: "3 days",
+  commitMessageAction: "bump",
+  labels: ["skip-changelog"],
+  rangeStrategy: "bump",
+  lockFileMaintenance: { enabled: true },
+  packageRules: [
+    {
+      // The peer ranges set the oldest versions valof supports, so Renovate must not raise them.
+      matchDepTypes: ["peerDependencies"],
+      enabled: false,
+    },
+    {
+      // Each alias is one line `vp run check-dist --compat` checks, so it stays on its major.
+      matchDepNames: ["typescript-5"],
+      allowedVersions: "<6",
+    },
+    {
+      matchDepNames: ["typescript-6"],
+      allowedVersions: "<7",
+    },
+    {
+      // Keeps out the nightlies, which are `7.1.0-dev.*` prereleases.
+      matchDepNames: ["typescript-7.1"],
+      allowedVersions: "/^7\\.1\\.\\d+(-(beta|rc)(\\.\\d+)?)?$/",
+    },
+    {
+      // The catalog's `vite` is `@voidzero-dev/vite-plus-core`, released together with vite-plus.
+      // A minor or patch already goes into the group of all non-major updates.
+      matchPackageNames: ["vite-plus", "@voidzero-dev/vite-plus-core"],
+      matchUpdateTypes: ["major"],
+      groupName: "vite-plus",
+    },
+    {
+      // Renovate offers a new major to the workflows' `node-version` but not to mise.toml, so a
+      // major is updated by hand.
+      matchDepNames: ["node"],
+      matchUpdateTypes: ["major"],
+      enabled: false,
+    },
+  ],
+}

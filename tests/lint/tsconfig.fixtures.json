@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // A fixture's companion is the subject of a rule, not something the fixture reads, and nothing is
+    // emitted. A member's parameters and how it is read are the subject too.
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "noPropertyAccessFromIndexSignature": false,
+    "declaration": false,
+    "paths": { "valof": ["../../src/index.ts"] }
+  },
+  "include": ["**/fixtures/**/*.ts"],
+  "exclude": []
+}

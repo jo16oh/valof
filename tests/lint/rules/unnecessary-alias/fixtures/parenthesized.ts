@@ -1,3 +1,4 @@
+import { Trait, Val } from "valof";
 type User = Val<"User", { id: string }>;
 type Greetable = Trait<"Greetable", { name: string }>;
 
