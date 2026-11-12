@@ -175,7 +175,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | `Impl<Tr>`           | a value implementing the trait                      |
 | `Self`               | the implementing Val, as a member's first parameter |
 | `Final<F>`           | marks a member no Val may replace                   |
-| `Dyn<Tr>`            | a boxed value, with the concrete type gone          |
+| `Dyn<Tr>`            | a boxed value, without its concrete type            |
 | `AnyTrait`           | a constraint over any trait                         |
 | `Members`            | the members a trait declares                        |
 | `TraitBuilder<Tr>`   | a trait's builder, with the steps it can still take |

@@ -169,7 +169,8 @@ function draw(shape: Shape) {
 A triangle draws nothing, and no type says so. You write the check yourself: `assertNever(shape)`
 under a `default`, and a `break` closing every case. `strict` reports neither a missing case nor a
 missing `break`. `noFallthroughCasesInSwitch` catches the second, and the lint rule
-`typescript/switch-exhaustiveness-check` catches the first, once you enable both.
+`switch-exhaustiveness-check` (typescript-eslint and Oxlint) catches the first, once you enable
+both.
 
 Declare variants in `Enum<...>` and create their companion with `Enum.companion<E>().build()`.
 `companion.match(value, handlers)` requires a handler for every variant, or `_` for the rest.

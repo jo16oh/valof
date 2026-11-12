@@ -179,7 +179,7 @@ const Yen = Val.companion<Yen>()
   }))
   .build();
 
-Yen.parse("¥120"); // Ok
+Yen.parse("¥120"); // Ok(…)
 Yen.parse("¥99999999999999999"); // Err("must be a non-negative safe integer")
 Yen.sum(yens); // Result<Yen>
 ```
@@ -216,8 +216,8 @@ User.patch(user, { id: "forged" }); // type error
 ```
 
 `PrivateCreate` removes `create` from the companion. Use it when callers should build the type
-through `seal` or other functions, not `create`. It protects no field, because the payload `create`
-returns passes the seal.
+through `seal` or other functions, not `create`. It protects no field, because callers can still
+pass every field to `seal`.
 
 The function passed to `.impl`, [`.implTrait`](traits.md#implement-it-on-a-val) and `.implAssoc`
 still receives `seal` and `create`, so the companion's own members can build the type.
@@ -271,10 +271,10 @@ const Interval = Val.companion<Interval>()
   }))
   .build();
 
-Interval.parse("1..10"); // Ok
+Interval.parse("1..10"); // Ok(…)
 Interval.parse("1-10"); // Err("expected min..max")
 Interval.parse("10..1"); // Err("min must not exceed max")
-Interval.create(5); // Ok
+Interval.create(5); // Ok(…)
 Interval.patch(interval, { max: -1 }); // Err("min must not exceed max")
 ```
 

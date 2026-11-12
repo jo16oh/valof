@@ -100,7 +100,7 @@ const copy: PayloadOf<Post> = Val.unwrap(post);
 
 `PayloadOf` and `Val.unwrap` both remove the brand of a nested Val.
 
-Persistence helpers can create the same hole.
+Persistence helpers have the same problem.
 [Jotai's `atomWithStorage`](https://github.com/pmndrs/jotai/blob/main/docs/utilities/storage.mdx),
 for example, parses stored JSON and returns it as the type inferred from its initial value. Store a
 `PayloadOf<User>`, then seal it after reading.

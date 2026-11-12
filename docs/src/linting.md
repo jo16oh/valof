@@ -29,16 +29,17 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `unused-disable`              | a disable comment naming a rule that reports nothing there                         | warning |
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two
-types the checker stops distinguishing, or a name that has to agree with another and does not.
-`incomplete-disable` errors for a reason of its own. A comment naming no rule silences every one, a
-rule added next year included.
+types the checker stops distinguishing, a name that has to agree with another and does not, or a
+member that its type promises but that runs differently or is missing. `incomplete-disable` errors
+for a reason of its own. A comment naming no rule silences every one, a rule added next year
+included.
 
 The severity is what the [plugin](linting.md#plugin-for-eslint-and-oxlint) sets, and a project can
 give any rule its own. The [command](linting.md#cli) prints every finding the same way and exits 1
 on any of them.
 
-A member registered with `.impl(() => ({…}))` is not tree-shaken, and knip does not report it when
-it becomes unused.
+`unused-member` reports what other tools miss. A member registered with `.impl(() => ({…}))` is not
+tree-shaken, and knip does not report it when it becomes unused.
 
 ## Enforcing Valof for data types
 

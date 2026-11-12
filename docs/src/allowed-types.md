@@ -43,8 +43,8 @@ Val.unwrap(post).tags.sort(); // ✓ returns a mutable `string[]`
 
 ## Classes and functions
 
-Neither a class instance nor a function can be a payload. `Date`, `Temporal`, `Map` and `Set` are
-all classes. See [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
+Neither a class instance nor a function can be a payload. `Date`, the `Temporal` types, `Map` and
+`Set` are all classes. See [Dates](patterns.md#dates) and [Map / Set](patterns.md#map--set) instead.
 
 A class of plain fields is the one TypeScript cannot distinguish from an object, and sealing one
 throws in development.

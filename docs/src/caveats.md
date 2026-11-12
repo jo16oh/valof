@@ -52,9 +52,9 @@ payload to `User.seal`.
 
 ## A `__proto__` key survives sealing
 
-Sealing keeps a `__proto__` key as an own property, because it is a legal JSON key. That is inert
-inside a value, but not in code that merges a payload with `Object.assign` or a recursive merge.
-There, assigning the key sets a prototype instead of copying it. Sanitize untrusted input yourself.
+Sealing keeps a `__proto__` key as an own property, because it is a legal JSON key. Inside a value
+the key does nothing. In code that merges a payload with `Object.assign` or a recursive merge,
+assigning the key sets a prototype instead of copying it. Sanitize untrusted input yourself.
 
 ## Deeply nested payloads can overflow the stack
 
