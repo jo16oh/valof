@@ -1039,15 +1039,19 @@ describe("Val", () => {
       expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
     });
 
-    // `never` satisfies the constraint, and opening it once recursed past the checker's depth limit.
-    test("PayloadOf<never> is never", () => {
+    // `never` satisfies the constraint, and opening it without a guard recurses past the checker's
+    // depth limit (TS2589).
+    test("PayloadOf<never> resolves to never", () => {
       expectTypeOf<PayloadOf<never>>().toBeNever();
     });
 
     test("Patch takes a payload, not a Val", () => {
-      expectTypeOf<Patch<User>>().toEqualTypeOf<
-        Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">
-      >();
+      type Fault = Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">;
+      expectTypeOf<Patch<User>>().toEqualTypeOf<Fault>();
+      // `never` and `any` satisfy the check for a Val, and keep what they gave before it.
+      expectTypeOf<Patch<never>>().toBeNever();
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      expectTypeOf<Patch<any>>().not.toEqualTypeOf<Fault>();
     });
 
     test("does not exist at runtime", () => {
@@ -2988,7 +2992,6 @@ describe("building", () => {
       Val.companion<Account, [Unpatchable<"nope">]>().build();
     });
 
-    // `any` satisfies every constraint, so the type itself reports it.
     test("takes no `any`", () => {
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = Unpatchable<any>;
