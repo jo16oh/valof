@@ -302,11 +302,18 @@ type Collides<N, A = N> = N extends unknown
     : never
   : never;
 
-// `true` where some value fits both, which `equals` finds equal to itself. An enum is read variant
-// by variant, and an empty array fits any two arrays.
+// `true` where some value fits both. `equals` cannot tell which of the two holds it. It reads an
+// enum variant by variant. An empty array fits two arrays unless both are tuples. Two `Rec`s count
+// as holding a value in common, since opening one is circular for a type that references itself.
 type Overlaps<A, B> = A extends unknown ? (B extends unknown ? Meets<A, B> : never) : never;
 
-type Meets<A, B> = [A, B] extends [Primitive, Primitive]
+type Meets<A, B> = [IsRec<A>, IsRec<B>] extends [false, false]
+  ? Opens<A, B>
+  : [IsRec<A>, IsRec<B>] extends [true, true]
+    ? true
+    : never;
+
+type Opens<A, B> = [A, B] extends [Primitive, Primitive]
   ? [A & B] extends [never]
     ? never
     : true
@@ -323,11 +330,11 @@ type Meets<A, B> = [A, B] extends [Primitive, Primitive]
 // A key `A` requires and `B` lacks.
 type Lacks<A, B> = Exclude<keyof A, OptionalKeys<A> | keyof B>;
 
-// A key both hold, one of them requiring it, whose values have nothing in common.
+// A key that both hold and at least one requires, where the two value types have nothing in common.
 type Apart<A, B> = {
   [K in keyof A & keyof B]-?: [K] extends [OptionalKeys<A> & OptionalKeys<B>]
     ? never
-    : true extends Overlaps<Exclude<A[K], undefined>, Exclude<B[K], undefined>>
+    : true extends Overlaps<A[K], B[K]>
       ? never
       : K;
 }[keyof A & keyof B];
