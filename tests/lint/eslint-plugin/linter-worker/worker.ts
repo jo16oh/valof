@@ -3,7 +3,11 @@ import { renameSync, writeFileSync } from "node:fs";
 import { Result as R } from "@praha/byethrow";
 
 import { Position } from "../../../../src/lint/ast.ts";
-import { LinterWorker, type Reply } from "../../../../src/lint/eslint-plugin/linter-worker.ts";
+import {
+  LinterWorker,
+  WorkerFailure,
+  type Reply,
+} from "../../../../src/lint/eslint-plugin/linter-worker.ts";
 import { FilePath } from "../../../../src/lint/files.ts";
 import { Finding, Kind } from "../../../../src/lint/rules/index.ts";
 
@@ -45,5 +49,5 @@ LinterWorker.serve(
     }
     return says(file, `answered ${file} ${text}`.trim());
   },
-  (error) => R.fail(`failed: ${String(error)}`),
+  (error) => R.fail(WorkerFailure.seal({ message: `failed: ${String(error)}` })),
 );
