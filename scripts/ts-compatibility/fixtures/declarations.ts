@@ -95,8 +95,8 @@ export const Blank: TraitCompanion<Greetable> = Greetable;
 export const members = { greet: (self: Self) => String(self) } satisfies Members;
 export type ShapeParts = [TagOf<Shape>, SharedOf<Shape>, VariantsOf<Shape>];
 
-// Fields the union rules read, on types that reference themselves. Comparing them while emitting a
-// declaration recursed without end before (TS2615, TS2321).
+// Types that reference themselves, with fields the union rules compare. Emitting and re-reading
+// their declarations raised TS2615 until `Meets` stopped opening a pair of `Rec`s.
 export type Chain = Enum<"Chain", { Link: { head: number; tail: Rec<Chain> }; End: { end: true } }>;
 export type Ledger = Val<
   "Ledger",

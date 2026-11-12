@@ -729,7 +729,7 @@ describe("Val", () => {
       expectTypeOf<Arrays>().toExtend<AnyVal>();
     });
 
-    test("an enum's variants and shared fields, a trait's shape and an optional key follow the rule", () => {
+    test("a Val shares a field with null alone in an enum's variants and shared fields, a trait's shape and an optional key", () => {
       type Dollar = Val<"UnionElsewhereDollar", { amount: number }>;
       type Yen = Val<"UnionElsewhereYen", { amount: number }>;
       type Mode = Val<"UnionElsewhereMode", "on" | "off">;
@@ -783,12 +783,11 @@ describe("Val", () => {
       type Odd = Val<
         "UnionOdd",
         // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
-        { a: { x: Ring } | { x: Loop }; b: { x: List } | { x: Chain }; k?: Rec<Odd> }
+        { a: { x: Ring } | { x: Loop }; b: { x: List } | { x: Chain } }
       >;
       expectTypeOf<VerdictOf<Odd>>().toEqualTypeOf<{
         a: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
         b: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
-        k?: Rec<Odd>;
       }>();
       type Apart = Val<
         "UnionRecApart",
