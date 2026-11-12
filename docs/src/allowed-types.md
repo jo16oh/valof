@@ -73,7 +73,7 @@ root.children[0]; // Tree
 `Rec` is erased. The value holds a `Tree`, and the constructor takes one. It exists for the
 declaration alone.
 
-Without it the declaration compiles and the first use of the type fails.
+Without it, the declaration is a type error.
 
 ```ts
 // @errors: 2615
@@ -81,6 +81,4 @@ import { Val } from "valof";
 
 // ---cut---
 type Tree = Val<"Tree", { value: number; children: Tree[] }>;
-
-const Tree = Val.companion<Tree>().build();
 ```
