@@ -16,17 +16,16 @@ export const Parser = Val.companion<Parser>()
      * above the caller's own error handling once bundled, turning a missing install into a stack
      * trace instead of an instruction. See {@link MissingParserError}.
      */
-    load: (): Promise<R.Result<Parser, MissingParserError>> =>
-      R.try({
-        try: async () => {
-          oxc = await import("oxc-parser");
-          return Parser.fromModule(oxc);
-        },
-        catch: (error) => {
-          if ((error as { code?: string }).code !== "ERR_MODULE_NOT_FOUND") throw error;
-          return new MissingParserError({ cause: error });
-        },
-      }),
+    load: async (): R.ResultAsync<Parser, MissingParserError> => {
+      try {
+        oxc = await import("oxc-parser");
+      } catch (error) {
+        if ((error as { code?: string }).code !== "ERR_MODULE_NOT_FOUND") throw error;
+        return R.fail(new MissingParserError({ cause: error }));
+      }
+
+      return R.succeed(Parser.fromModule(oxc));
+    },
     /** The parser that oxc-parser's module makes. */
     fromModule: (module: typeof import("oxc-parser")): Parser =>
       seal({ visitorKeys: module.visitorKeys }),
