@@ -189,7 +189,30 @@ excluded with `?: never` then accepts it too, so `U.patch(u, { id: undefined })`
 deletes a required key passed as `undefined`. A user may leave the option off, though the docs
 recommend it. Report what changes without it, and mark what the docs already describe.
 
-### 12. The cost of the fix
+### 12. Two types that `equals` cannot distinguish
+
+`equals` compares structure, and a JSON round trip keeps only the structure. Probe each field that
+can hold a Val, in a Val, an enum variant, an enum's shared fields, a trait's shape and a `Payload`,
+with two types whose values can have the same payload. Probe each field also inside an array, a
+record, a tuple, an optional key and `| null`. These must be rejected:
+
+- two Vals with the same fields (`Dollar | Yen`)
+- a union of two enums, and of an enum and a Val
+- `Rec<Dollar> | Rec<Yen>`
+- an `Impl`, alone or in a union
+- a `Dyn`
+
+Pattern 7 applies too. These must pass: a field holding one enum, a field holding a Val with a
+`boolean` payload (`V<true> | V<false>` under one brand), and `Impl` as the type of a variable or a
+parameter.
+
+**What breaks.** The declaration passes, and `equals` finds a `Dollar` of 1 equal to a `Yen` of 1. A
+value read back from JSON holds nothing that distinguishes the two types.
+
+**Fix.** Reject the field, and suggest an enum in the message, because an enum's tag distinguishes
+its variants.
+
+### 13. The cost of the fix
 
 Measure each proposed fix with `vp run type-perf`.
 
