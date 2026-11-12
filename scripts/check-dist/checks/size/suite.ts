@@ -3,8 +3,8 @@ import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "./bundle.ts";
 import { flow, pipe } from "../../../../src/shared/pipe/index.ts";
-import { Budget } from "../../budget.ts";
-import { align } from "../../report.ts";
+import { Budget } from "../budget.ts";
+import { align } from "../report.ts";
 import {
   BuildResult,
   BundleSize,

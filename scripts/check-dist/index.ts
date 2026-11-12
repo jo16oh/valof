@@ -4,7 +4,7 @@ import { Result as R } from "@praha/byethrow";
 
 import { CompatCheck } from "./checks/compat/index.ts";
 import { pack } from "./pack.ts";
-import { Check } from "./check.ts";
+import { Check } from "./checks/check.ts";
 import { runChecks } from "./run.ts";
 import { Selection } from "./selection.ts";
 import { Bundle, Imports } from "./checks/size/bundle.ts";

@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 import { Val, type Dyn } from "#valof";
 
-import type { Check } from "./check.ts";
+import type { Check } from "./checks/check.ts";
 
 /** Whether a check passed, as the summary prints it. */
 type Outcome = Val<"Outcome", { name: string; failed: boolean }>;

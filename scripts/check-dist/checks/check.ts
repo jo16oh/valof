@@ -1,9 +1,9 @@
 import type { Result as R } from "@praha/byethrow";
 import { Trait, type Dyn, type Self } from "#valof";
 
-import type { CompatError } from "./checks/compat/index.ts";
-import type { SizeError } from "./checks/size/index.ts";
-import type { TypesError } from "./checks/types/index.ts";
+import type { CompatError } from "./compat/index.ts";
+import type { SizeError } from "./size/index.ts";
+import type { TypesError } from "./types/index.ts";
 import type { Report } from "./report.ts";
 
 /** What any check fails with. */
