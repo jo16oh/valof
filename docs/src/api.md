@@ -23,7 +23,8 @@
 | `.build()`               | ends the chain, and returns the companion                     |
 
 Write `implSeal` first, then `implCreate`. `impl`, `implTrait` and `implAssoc` come next, in any
-order. `implSeal`, `implCreate` and `impl` are written once, and the other two any number of times.
+order. `implSeal`, `implCreate` and `impl` are written once, `implTrait` once per trait, and
+`implAssoc` any number of times.
 
 The function passed to `impl`, `implTrait` and `implAssoc` receives `seal`, `create` and `patch`,
 including the ones `PrivateSeal` and `PrivateCreate` remove from the companion. It receives `create`

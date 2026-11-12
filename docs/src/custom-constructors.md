@@ -286,5 +286,4 @@ into practice. They return a validated, canonical Val instead of returning facts
 Parsing includes validation, but preserves its result in a more precise type. In Takuto Wada's
 words,
 [parse, don't **(just)** validate](https://speakerdeck.com/twada/growing-reliable-code-php-conference-fukuoka-2025?slide=101).
-The `Interval` type can now represent only valid intervals. `create` and `patch` reuse the same
-parser.
+The `Interval` type can now represent only valid intervals.

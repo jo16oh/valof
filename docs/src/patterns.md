@@ -78,7 +78,7 @@ declare const res: { json(): Promise<PayloadOf<User>> };
 // ---cut---
 const plain = await res.json(); // the generated client types this as PayloadOf<User>
 const bad: User = plain; // type error: the brand is missing
-const user = User.seal(plain); // sealed, and now it is one
+const user = User.seal(plain); // sealed, and now it is a User
 ```
 
 `PayloadOf<V>` removes the brand from the type, not from the value, so it costs nothing at run time.
