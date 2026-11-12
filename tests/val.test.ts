@@ -20,6 +20,7 @@ import type {
   CallBuildFirst,
   CompanionMembers,
   Invalid,
+  Patching,
   Refused,
   Takes,
   Verdict,
@@ -1051,7 +1052,7 @@ describe("Val", () => {
       // `never` and `any` satisfy the check for a Val, and keep what they gave before it.
       expectTypeOf<Patch<never>>().toBeNever();
       // oxlint-disable-next-line no-explicit-any -- the case under test
-      expectTypeOf<Patch<any>>().not.toEqualTypeOf<Fault>();
+      expectTypeOf<Patch<any>>().toEqualTypeOf<Patching<any>>();
     });
 
     test("does not exist at runtime", () => {
