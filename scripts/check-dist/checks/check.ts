@@ -6,7 +6,7 @@ import type { SizeError } from "./size/index.ts";
 import type { TypesError } from "./types/index.ts";
 import type { Report } from "./report.ts";
 
-/** What any check fails with. */
+/** What a check fails with where it cannot report, as on a measurement that breaks. */
 export type CheckError = SizeError | TypesError | CompatError;
 
 /**

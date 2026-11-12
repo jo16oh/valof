@@ -1,4 +1,3 @@
-import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 
 import { bytes, count } from "./report.ts";
@@ -13,21 +12,12 @@ export const Budget = Val.companion<Budget>()
     over: (budget): boolean => budget.used > budget.limit,
     amount: (budget, value: number): string =>
       budget.unit === "bytes" ? bytes(value) : count(value),
+    /** The line a report prints for a budget it is over. */
+    overLine: (budget): string =>
+      `over budget: ${budget.name} is ${Budget.amount(budget, budget.used)}, budget ${Budget.amount(budget, budget.limit)}`,
     left: (budget): string =>
       Budget.over(budget)
         ? `${Budget.amount(budget, budget.used - budget.limit)} over`
         : `${Budget.amount(budget, budget.limit - budget.used)} left (${Math.round((1 - budget.used / budget.limit) * 100)}%)`,
   }))
   .build();
-
-export class OverBudgetError extends ErrorFactory({
-  name: "OverBudgetError",
-  message: ({ over }) =>
-    over
-      .map(
-        (budget) =>
-          `over budget: ${budget.name} is ${Budget.amount(budget, budget.used)}, budget ${Budget.amount(budget, budget.limit)}`,
-      )
-      .join("\n"),
-  fields: ErrorFactory.fields<{ over: Budget[] }>(),
-}) {}

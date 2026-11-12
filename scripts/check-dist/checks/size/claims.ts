@@ -35,23 +35,6 @@ export class ClaimCountError extends ErrorFactory({
   fields: ErrorFactory.fields<{ file: string; found: number }>(),
 }) {}
 
-export class StaleClaimError extends ErrorFactory({
-  name: "StaleClaimError",
-  message: ({ stale, size, rerun }) =>
-    stale
-      .map(
-        ({ file, found }) =>
-          `stale claim: ${file.path} says ${found}, measured ${size}. Rerun with ${rerun}.`,
-      )
-      .join("\n"),
-  fields: ErrorFactory.fields<{
-    stale: Claim[];
-    size: string;
-    /** The flags that rewrite these claims. */
-    rerun: string;
-  }>(),
-}) {}
-
 export type Claim = Val<
   "Claim",
   { file: ClaimedFile; text: string; found: string; stale: boolean }
@@ -123,17 +106,18 @@ export const Claims = Val.companion<Claims>()
         ),
       ].join("\n");
     },
-    /** Fails on a stale claim that `write` did not rewrite. */
-    verdict: (
+    /** A line for each stale claim that `write` did not rewrite, with the flags that would. */
+    problems: (
       { size, claims },
       { release, write }: { release: boolean; write: boolean },
-    ): R.Result<void, StaleClaimError> => {
-      const stale = claims.filter((claim) => claim.stale);
-      return write || stale.length === 0
-        ? R.succeed()
-        : R.fail(
-            new StaleClaimError({ stale, size, rerun: release ? "--write --release" : "--write" }),
-          );
-    },
+    ): string[] =>
+      write
+        ? []
+        : claims
+            .filter((claim) => claim.stale)
+            .map(
+              ({ file, found }) =>
+                `stale claim: ${file.path} says ${found}, measured ${size}. Rerun with ${release ? "--write --release" : "--write"}.`,
+            ),
   }))
   .build();

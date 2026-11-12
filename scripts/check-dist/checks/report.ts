@@ -1,16 +1,13 @@
-import type { Result as R } from "@praha/byethrow";
 import { Trait, type Self } from "#valof";
 
-import type { CheckError } from "./check.ts";
-
-/** What a check found, printed whole and then judged. */
+/** What a check found. A report that did not pass names why in what it renders. */
 export type Report = Trait<
   "Report",
   Record<never, never>,
   {
     render: (self: Self) => string;
-    /** Fails where what the check found is over a budget, stale or incompatible. */
-    verdict: (self: Self) => R.Result<void, CheckError>;
+    /** False where what the check found is over a budget, stale or incompatible. */
+    passed: (self: Self) => boolean;
   }
 >;
 export const Report = Trait.companion<Report>().build();
@@ -35,4 +32,9 @@ export function align(
     return cells.map((cell) => (side === "left" ? cell.padEnd(width) : cell.padStart(width)));
   });
   return rows.map((_, index) => columns.map((cells) => cells[index] ?? ""));
+}
+
+/** The lines a report ends with when it did not pass, after a blank line. */
+export function problemLines(problems: readonly string[]): string[] {
+  return problems.length === 0 ? [] : ["", ...problems];
 }

@@ -9,7 +9,7 @@ import { docBlocks } from "../../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../../pin-valof/index.ts";
 import { output, root, writeJson } from "../../../shared/repository.ts";
 import { aliases, tsc, version } from "../../../shared/typescript-lines.ts";
-import { Report } from "../report.ts";
+import { problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
 
@@ -23,14 +23,7 @@ export class StalePinError extends ErrorFactory({
   fields: ErrorFactory.fields<{ pin: string }>(),
 }) {}
 
-export class IncompatibleError extends ErrorFactory({
-  name: "IncompatibleError",
-  message: ({ failed }) =>
-    `the declarations do not typecheck, or change a type, on ${failed.join(", ")}`,
-  fields: ErrorFactory.fields<{ failed: string[] }>(),
-}) {}
-
-export type CompatError = StalePinError | IncompatibleError;
+export type CompatError = StalePinError;
 
 /** One TypeScript line's failure messages, empty where it passes. */
 export type LineResult = Val<"LineResult", { version: string; failures: string[] }>;
@@ -51,8 +44,9 @@ export type CompatReport = Val<
 >;
 export const CompatReport = Val.companion<CompatReport>()
   .implTrait(Report, () => ({
-    render: ({ blocks, fixtures, pin, scripts, lines }) =>
-      [
+    render: (report): string => {
+      const { blocks, fixtures, pin, scripts, lines } = report;
+      return [
         `  ${blocks} blocks from the book, ${fixtures} fixtures`,
         scripts === undefined
           ? `  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`
@@ -61,13 +55,21 @@ export const CompatReport = Val.companion<CompatReport>()
           `  typescript@${version}  ${failures.length === 0 ? "pass" : "fail"}`,
           ...failures,
         ]),
+        ...problemLines(CompatReport.problems(report)),
         "",
-      ].join("\n"),
-    verdict: ({ lines }): R.Result<void, CompatError> => {
+      ].join("\n");
+    },
+    passed: (report): boolean => CompatReport.problems(report).length === 0,
+  }))
+  .impl(() => ({
+    /** A line naming the TypeScript lines that failed. */
+    problems: ({ lines }): string[] => {
       const failed = lines
         .filter(({ failures }) => failures.length > 0)
         .map(({ version }) => version);
-      return failed.length === 0 ? R.succeed() : R.fail(new IncompatibleError({ failed }));
+      return failed.length === 0
+        ? []
+        : [`the declarations do not typecheck, or change a type, on ${failed.join(", ")}`];
     },
   }))
   .build();

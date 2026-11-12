@@ -1,16 +1,16 @@
 import { Result as R } from "@praha/byethrow";
 import { Val, type Dyn } from "#valof";
 
-import { Budget, OverBudgetError } from "../budget.ts";
-import { Report } from "../report.ts";
+import { Budget } from "../budget.ts";
+import { problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
 import { repository } from "../../../shared/repository.ts";
 
-import { Claims, type ClaimedFile, type ClaimCountError, type StaleClaimError } from "./claims.ts";
+import { Claims, type ClaimedFile, type ClaimCountError } from "./claims.ts";
 import { BundleSize } from "./measure/index.ts";
 import { Measurement, Suite, type MeasureError } from "./suite.ts";
 
-export type SizeError = MeasureError | OverBudgetError | ClaimCountError | StaleClaimError;
+export type SizeError = MeasureError | ClaimCountError;
 
 /** What the size check found: each bundle's sizes and budget, then the claims. */
 export type SizeReport = Val<
@@ -20,15 +20,21 @@ export type SizeReport = Val<
 >;
 export const SizeReport = Val.companion<SizeReport>()
   .implTrait(Report, () => ({
-    render: ({ measurement, claims, write }) =>
-      `${Measurement.render(measurement)}\n\n${Claims.render(claims, write)}`,
-    // An over-budget bundle fails first. The claims printed above show a stale one beside it.
-    verdict: ({ measurement, claims, release, write }): R.Result<void, SizeError> => {
-      const over = measurement.bundles.map(BundleSize.budget).filter(Budget.over);
-      return over.length > 0
-        ? R.fail(new OverBudgetError({ over }))
-        : Claims.verdict(claims, { release, write });
-    },
+    render: (report): string =>
+      [
+        Measurement.render(report.measurement),
+        "",
+        Claims.render(report.claims, report.write),
+        ...problemLines(SizeReport.problems(report)),
+      ].join("\n"),
+    passed: (report): boolean => SizeReport.problems(report).length === 0,
+  }))
+  .impl(() => ({
+    /** Each bundle over its budget, then each stale claim. */
+    problems: ({ measurement, claims, release, write }): string[] => [
+      ...measurement.bundles.map(BundleSize.budget).filter(Budget.over).map(Budget.overLine),
+      ...Claims.problems(claims, { release, write }),
+    ],
   }))
   .build();
 

@@ -2,10 +2,16 @@ import { Result as R } from "@praha/byethrow";
 import { Val, type Dyn } from "#valof";
 
 import type { Check } from "./checks/check.ts";
+import type { Report } from "./checks/report.ts";
 
 /** Whether a check passed, as the summary prints it. */
 type Outcome = Val<"Outcome", { name: string; failed: boolean }>;
 const Outcome = Val.companion<Outcome>()
+  .implAssoc(({ seal }) => ({
+    /** Failed where the check could not report (`undefined`), or reported that it did not pass. */
+    of: (name: string, report: Dyn<Report> | undefined): Outcome =>
+      seal({ name, failed: !report?.passed() }),
+  }))
   .impl(() => ({
     line: ({ name, failed }): string => `  ${name.padEnd(6)}  ${failed ? "fail" : "pass"}`,
   }))
@@ -23,10 +29,8 @@ export async function runChecks(checks: readonly Dyn<Check>[]): Promise<number> 
     const result = await R.try({ try: () => check.run(), catch: (error) => error as Error });
     const report = R.isFailure(result) ? result : result.value;
     if (R.isSuccess(report)) console.log(report.value.render());
-
-    const judged = R.isSuccess(report) ? report.value.verdict() : report;
-    if (R.isFailure(judged)) console.error(`\n${judged.error.message}`);
-    outcomes.push(Outcome.seal({ name: check.name, failed: R.isFailure(judged) }));
+    else console.error(`\n${report.error.message}`);
+    outcomes.push(Outcome.of(check.name, R.isSuccess(report) ? report.value : undefined));
   }
 
   console.log();

@@ -8,8 +8,8 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val, type Dyn, type VariantsOf } from "#valof";
 
-import { Budget, OverBudgetError } from "../budget.ts";
-import { align, count, Report } from "../report.ts";
+import { Budget } from "../budget.ts";
+import { align, count, problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
 
 import { output, repository, writeJson } from "../../../shared/repository.ts";
@@ -86,8 +86,9 @@ export type TypesReport = Val<
 export const TypesReport = Val.companion<TypesReport>()
   .implTrait(Report, () => ({
     /** The counts, then the budgets, then what each column means. */
-    render: ({ typescript, baseline, fixtures, budgets }): string =>
-      [
+    render: (report): string => {
+      const { typescript, baseline, fixtures, budgets } = report;
+      return [
         `typescript@${typescript}, over a baseline of ${count(baseline.types)} types`,
         "",
         table(
@@ -116,11 +117,14 @@ export const TypesReport = Val.companion<TypesReport>()
         "types: distinct types the checker made. printed only, and it tracks the first.",
         "index.d.ts: the published declarations, in bytes. what every consumer parses.",
         "eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.",
-      ].join("\n"),
-    verdict: ({ budgets }): R.Result<void, TypesError> => {
-      const over = budgets.filter(Budget.over);
-      return over.length === 0 ? R.succeed() : R.fail(new OverBudgetError({ over }));
+        ...problemLines(TypesReport.problems(report)),
+      ].join("\n");
     },
+    passed: (report): boolean => TypesReport.problems(report).length === 0,
+  }))
+  .impl(() => ({
+    /** Each budget over its limit. */
+    problems: ({ budgets }): string[] => budgets.filter(Budget.over).map(Budget.overLine),
   }))
   .build();
 
@@ -130,7 +134,7 @@ export class FixtureError extends ErrorFactory({
   fields: ErrorFactory.fields<{ fixture: string; output: string }>(),
 }) {}
 
-export type TypesError = FixtureError | OverBudgetError;
+export type TypesError = FixtureError;
 
 export type TypesCheck = Val<"TypesCheck", { name: string; budgets: TypesBudgets }, Check>;
 export const TypesCheck = Val.companion<TypesCheck>()
