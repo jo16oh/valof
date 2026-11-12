@@ -6,7 +6,14 @@ import { pathToFileURL } from "node:url";
 import { Result as R } from "@praha/byethrow";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { Claims } from "./claims.ts";
+import { ClaimedFile, Claims } from "./claims.ts";
+
+// The same files the size check reads.
+const files = [
+  ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
+  ClaimedFile.Markdown.create({ path: "README.md", release: true }),
+  ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
+];
 
 let root: URL;
 let directory: string;
@@ -35,7 +42,7 @@ async function check(
   gzip: number,
   { release, write }: { release: boolean; write: boolean },
 ): Promise<string | undefined> {
-  const claims = await Claims.read(gzip, release, root);
+  const claims = await Claims.read(files, gzip, release, root);
   if (R.isFailure(claims)) return claims.error.message;
 
   if (write) await Claims.rewrite(claims.value, root);
@@ -84,7 +91,7 @@ describe("Claims", () => {
 
   test("prints each claim's state, and what --write rewrote", async () => {
     await writeFile(join(directory, "docs/src/introduction.md"), intro("9 B gzipped"));
-    const claims = R.unwrap(await Claims.read(965, true, root));
+    const claims = R.unwrap(await Claims.read(files, 965, true, root));
     expect(Claims.render(claims, false)).toBe(
       [
         "claims  965 B gzipped",

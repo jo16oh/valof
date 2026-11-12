@@ -7,7 +7,7 @@ import { Result as R } from "@praha/byethrow";
 import { afterAll, beforeAll, expect, test } from "vite-plus/test";
 
 import { Bundle, Imports } from "./bundle.ts";
-import { Claims } from "./claims.ts";
+import { ClaimedFile, Claims } from "./claims.ts";
 import { SizeReport } from "./index.ts";
 import { Build, BuildResult, BundleSize, Sizes } from "./measure/index.ts";
 import { Measurement } from "./suite.ts";
@@ -24,8 +24,9 @@ beforeAll(async () => {
     "<!-- valof-minimal-bundle-size -->1000 B gzipped<!-- /valof-minimal-bundle-size -->\n",
   );
   const root = pathToFileURL(`${directory}/`);
-  fresh = R.unwrap(await Claims.read(1000, false, root));
-  stale = R.unwrap(await Claims.read(900, false, root));
+  const files = [ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false })];
+  fresh = R.unwrap(await Claims.read(files, 1000, false, root));
+  stale = R.unwrap(await Claims.read(files, 900, false, root));
 });
 
 afterAll(async () => {
