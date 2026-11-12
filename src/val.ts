@@ -172,7 +172,8 @@ type HoldsVal<T> = T extends unknown
       : false
   : never;
 
-type Kinds<T> = T extends AnyEnum ? NameOf<T> : T extends Phantom<infer B, unknown> ? B : T;
+// An enum's name is wrapped, since a Val may take it as its brand.
+type Kinds<T> = T extends AnyEnum ? [NameOf<T>] : T extends Phantom<infer B, unknown> ? B : T;
 
 // A field typed `Impl` holds any Val implementing the trait, which is the same problem.
 type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extends [AnyImpl]
@@ -211,7 +212,7 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
             ? Extract<
                 Validate<T[number], false>,
                 | Invalid<"only null can share a field with a Val; declare an Enum">
-                | Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+                | Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">
               >
             : Invalid<"only null can share a field with a Val; declare an Enum">
           : never,
@@ -280,7 +281,7 @@ type Clash<T, E = T extends unknown ? Validate<T, false> : never> =
     ? Invalid<"only null can share a field with a Val; declare an Enum">
     : [Extract<E, Invalid<string>>] extends [never]
       ? true extends Collides<Exclude<T, ReadonlyArray<unknown>>>
-        ? Invalid<"a field cannot hold Vals of different types; declare an Enum of them">
+        ? Invalid<"a field cannot hold objects `equals` cannot tell apart; declare an Enum of them">
         : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
       : Extract<E, Invalid<string>>;
 
