@@ -9,8 +9,7 @@ import { ErrorFactory } from "@praha/error-factory";
 import { Enum, Val, type Dyn, type VariantsOf } from "#valof";
 
 import { Budget, OverBudgetError } from "../budget.ts";
-import { align, count } from "../format.ts";
-import { Report } from "../report.ts";
+import { align, count, Report } from "../report.ts";
 import { Check } from "../run.ts";
 
 import { output, repository, writeJson } from "../../shared/repository.ts";
@@ -141,7 +140,7 @@ export const TypesCheck = Val.companion<TypesCheck>()
      * Measures the fixtures and the declarations against their budgets. Expects `dist` to be
      * built.
      */
-    run: async ({ budgets: limits }): R.ResultAsync<Dyn<Report>, TypesError> => {
+    run: async ({ budgets }): R.ResultAsync<Dyn<Report>, TypesError> => {
       /**
        * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
        * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
@@ -157,12 +156,12 @@ export const TypesCheck = Val.companion<TypesCheck>()
         FixtureCounts.seal({ name, counts: Counts.above(counted.value[index]!, baseline.value) }),
       );
 
-      const budgets = [
-        ...measured.map((fixture) => FixtureCounts.budget(fixture, limits)),
+      const checked = [
+        ...measured.map((fixture) => FixtureCounts.budget(fixture, budgets)),
         Budget.seal({
           name: "index.d.ts",
           used: await declarationBytes(new URL("dist/index.d.ts", repository)),
-          limit: limits.declarations,
+          limit: budgets.declarations,
           unit: "bytes",
         }),
         Budget.seal({
@@ -171,7 +170,7 @@ export const TypesCheck = Val.companion<TypesCheck>()
             await readFile(new URL("dist/eslint-plugin/index.d.mts", repository), "utf8"),
             "utf8",
           ),
-          limit: limits.plugin,
+          limit: budgets.plugin,
           unit: "bytes",
         }),
       ];
@@ -182,7 +181,7 @@ export const TypesCheck = Val.companion<TypesCheck>()
             typescript: version(floor),
             baseline: baseline.value,
             fixtures: measured,
-            budgets,
+            budgets: checked,
           }),
         ),
       );

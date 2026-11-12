@@ -1,7 +1,7 @@
 import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 
-import { bytes, count } from "./format.ts";
+import { bytes, count } from "./report.ts";
 
 /** One measurement against its budget. */
 export type Budget = Val<
