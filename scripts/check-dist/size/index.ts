@@ -5,55 +5,9 @@ import { Budget, OverBudgetError } from "../report.ts";
 import { Check, Report } from "../run.ts";
 import { repository } from "../../shared/repository.ts";
 
-import { ClaimedFile, Claims, type ClaimCountError, type StaleClaimError } from "./claims.ts";
+import { Claims, type ClaimedFile, type ClaimCountError, type StaleClaimError } from "./claims.ts";
 import { BundleSize } from "./measure/index.ts";
-import { Bundle, Imports } from "./bundle.ts";
 import { Measurement, Suite, type MeasureError } from "./suite.ts";
-
-const suite = Suite.seal([
-  Bundle.seal({
-    name: "Val",
-    base: true,
-    imports: Imports.seal({ "./dist/index.js": ["Val.companion"] }),
-    budget: 1024,
-  }),
-  Bundle.seal({
-    name: "Equals",
-    imports: Imports.seal({ "./dist/index.js": ["equals"] }),
-    budget: 256,
-  }),
-  Bundle.seal({
-    name: "Trait",
-    imports: Imports.seal({ "./dist/index.js": ["Trait.companion"] }),
-    budget: 256,
-  }),
-  Bundle.seal({
-    name: "Enum",
-    imports: Imports.seal({ "./dist/index.js": ["Enum.companion"] }),
-    budget: 640,
-  }),
-  Bundle.seal({
-    name: "Equals + Enum + Trait",
-    imports: Imports.seal({
-      "./dist/index.js": ["equals", "Enum.companion", "Trait.companion"],
-    }),
-    budget: 1024,
-  }),
-  Bundle.seal({
-    name: "All",
-    imports: Imports.seal({
-      "./dist/index.js": ["equals", "Val.of", "Val.unwrap", "Enum.companion", "Trait.companion"],
-    }),
-    budget: 1024,
-  }),
-]);
-
-/** The files that state the base bundle's size. */
-const claimed = [
-  ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
-  ClaimedFile.Markdown.create({ path: "README.md", release: true }),
-  ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
-];
 
 export type SizeError = MeasureError | OverBudgetError | ClaimCountError | StaleClaimError;
 
@@ -77,19 +31,24 @@ export const SizeReport = Val.companion<SizeReport>()
   }))
   .build();
 
-export type SizeCheck = Val<"SizeCheck", { name: string; release: boolean; write: boolean }, Check>;
+export type SizeCheck = Val<
+  "SizeCheck",
+  { name: string; suite: Suite; claimed: ClaimedFile[]; release: boolean; write: boolean },
+  Check
+>;
 export const SizeCheck = Val.companion<SizeCheck>()
-  .implCreate(({ release, write }: { release: boolean; write: boolean }) => ({
-    name: "size",
-    release,
-    write,
-  }))
+  .implCreate(
+    (options: { suite: Suite; claimed: ClaimedFile[]; release: boolean; write: boolean }) => ({
+      name: "size",
+      ...options,
+    }),
+  )
   .implTrait(Check, () => ({
     /**
      * Measures every bundle, then reads the claims against the base bundle's size and rewrites the
      * stale ones with `write`. Expects `dist` to be built.
      */
-    run: async ({ release, write }): R.ResultAsync<Dyn<Report>, SizeError> => {
+    run: async ({ suite, claimed, release, write }): R.ResultAsync<Dyn<Report>, SizeError> => {
       const measured = await Suite.measure(suite);
       if (R.isFailure(measured)) return measured;
       const measurement = measured.value;
