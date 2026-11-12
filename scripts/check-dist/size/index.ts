@@ -49,28 +49,6 @@ const suite = Suite.seal([
 
 export type SizeError = MeasureError | OverBudgetError | ClaimCountError | StaleClaimError;
 
-/**
- * Measures every bundle against its budget, then the claims against the base bundle's size.
- * Expects `dist` to be built.
- */
-export async function checkSize(options: {
-  release: boolean;
-  write: boolean;
-}): R.ResultAsync<void, SizeError> {
-  const measured = await Suite.measure(suite);
-  if (R.isFailure(measured)) return measured;
-  console.log(Report.render(measured.value));
-
-  const over = measured.value.bundles.map(BundleSize.budget).filter(Budget.over);
-  // The claims are read even when a bundle is over budget, so a stale claim shows together
-  // with the over-budget error.
-  console.log();
-  const base = measured.value.bundles.find(({ bundle }) => bundle.base);
-  const claimed = await claims(base?.build.production.sizes.gzip ?? Number.NaN, options);
-  if (over.length > 0) return R.fail(new OverBudgetError({ over }));
-  return claimed;
-}
-
 export type SizeCheck = Val<"SizeCheck", { name: string; release: boolean; write: boolean }, Check>;
 export const SizeCheck = Val.companion<SizeCheck>()
   .implCreate(({ release, write }: { release: boolean; write: boolean }) => ({
@@ -78,5 +56,24 @@ export const SizeCheck = Val.companion<SizeCheck>()
     release,
     write,
   }))
-  .implTrait(Check, () => ({ run: (check) => checkSize(check) }))
+  .implTrait(Check, () => ({
+    /**
+     * Measures every bundle against its budget, then the claims against the base bundle's size.
+     * Expects `dist` to be built.
+     */
+    run: async (check): R.ResultAsync<void, SizeError> => {
+      const measured = await Suite.measure(suite);
+      if (R.isFailure(measured)) return measured;
+      console.log(Report.render(measured.value));
+
+      const over = measured.value.bundles.map(BundleSize.budget).filter(Budget.over);
+      // The claims are read even when a bundle is over budget, so a stale claim shows together
+      // with the over-budget error.
+      console.log();
+      const base = measured.value.bundles.find(({ bundle }) => bundle.base);
+      const claimed = await claims(base?.build.production.sizes.gzip ?? Number.NaN, check);
+      if (over.length > 0) return R.fail(new OverBudgetError({ over }));
+      return claimed;
+    },
+  }))
   .build();

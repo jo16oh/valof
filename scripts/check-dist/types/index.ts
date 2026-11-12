@@ -187,61 +187,64 @@ export class FixtureError extends ErrorFactory({
 
 export type TypesError = FixtureError | OverBudgetError;
 
-/** Measures the fixtures and the declarations against their budgets. Expects `dist` to be built. */
-export async function checkTypes(): R.ResultAsync<void, TypesError> {
-  /**
-   * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
-   * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
-   * --compat` still typechecks every line.
-   */
-  const compile = tsc(floor);
-  const baseline = await measure(compile, "baseline");
-  if (R.isFailure(baseline)) return baseline;
-
-  const counted = await R.sequence(fixtures.map((name) => measure(compile, name)));
-  if (R.isFailure(counted)) return counted;
-  const measured = fixtures.map((name, index) =>
-    FixtureCounts.seal({ name, counts: Counts.above(counted.value[index]!, baseline.value) }),
-  );
-
-  const budgets = [
-    ...measured.map(FixtureCounts.budget),
-    Budget.seal({
-      name: "index.d.ts",
-      used: await declarationBytes(new URL("dist/index.d.ts", repository)),
-      limit: declarationsBudget,
-      unit: "bytes",
-    }),
-    Budget.seal({
-      name: "eslint-plugin.d.mts",
-      used: Buffer.byteLength(
-        await readFile(new URL("dist/eslint-plugin/index.d.mts", repository), "utf8"),
-        "utf8",
-      ),
-      limit: pluginBudget,
-      unit: "bytes",
-    }),
-  ];
-  pipe(
-    TypesReport.seal({
-      typescript: version(floor),
-      baseline: baseline.value,
-      fixtures: measured,
-      budgets,
-    }),
-    TypesReport.render,
-    (report) => console.log(report),
-  );
-
-  const over = budgets.filter(Budget.over);
-
-  return over.length === 0 ? R.succeed() : R.fail(new OverBudgetError({ over }));
-}
-
 export type TypesCheck = Val<"TypesCheck", { name: string }, Check>;
 export const TypesCheck = Val.companion<TypesCheck>()
   .implCreate(() => ({ name: "types" }))
-  .implTrait(Check, () => ({ run: (_check) => checkTypes() }))
+  .implTrait(Check, () => ({
+    /**
+     * Measures the fixtures and the declarations against their budgets. Expects `dist` to be
+     * built.
+     */
+    run: async (_check): R.ResultAsync<void, TypesError> => {
+      /**
+       * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
+       * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
+       * --compat` still typechecks every line.
+       */
+      const compile = tsc(floor);
+      const baseline = await measure(compile, "baseline");
+      if (R.isFailure(baseline)) return baseline;
+
+      const counted = await R.sequence(fixtures.map((name) => measure(compile, name)));
+      if (R.isFailure(counted)) return counted;
+      const measured = fixtures.map((name, index) =>
+        FixtureCounts.seal({ name, counts: Counts.above(counted.value[index]!, baseline.value) }),
+      );
+
+      const budgets = [
+        ...measured.map(FixtureCounts.budget),
+        Budget.seal({
+          name: "index.d.ts",
+          used: await declarationBytes(new URL("dist/index.d.ts", repository)),
+          limit: declarationsBudget,
+          unit: "bytes",
+        }),
+        Budget.seal({
+          name: "eslint-plugin.d.mts",
+          used: Buffer.byteLength(
+            await readFile(new URL("dist/eslint-plugin/index.d.mts", repository), "utf8"),
+            "utf8",
+          ),
+          limit: pluginBudget,
+          unit: "bytes",
+        }),
+      ];
+      pipe(
+        TypesReport.seal({
+          typescript: version(floor),
+          baseline: baseline.value,
+          fixtures: measured,
+          budgets,
+        }),
+        TypesReport.render,
+        (report) => console.log(report),
+      );
+
+      const over = budgets.filter(Budget.over);
+
+      return over.length === 0 ? R.succeed() : R.fail(new OverBudgetError({ over }));
+    },
+  }))
   .build();
 
 async function measure(tsc: Tsc, name: string): R.ResultAsync<Counts, FixtureError> {

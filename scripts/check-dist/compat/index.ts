@@ -31,63 +31,59 @@ export class IncompatibleError extends ErrorFactory({
 
 export type CompatError = StalePinError | IncompatibleError;
 
-/**
- * Typechecks the book's blocks, the fixtures and the scripts against `dist` on every TypeScript
- * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin builds
- * this same `dist`.
- */
-export async function checkCompat({
-  release,
-}: {
-  release: boolean;
-}): R.ResultAsync<void, CompatError> {
-  const pin = await pinned();
-  const current = await matches(pin);
-  if (!current && release) return R.fail(new StalePinError({ pin }));
-
-  await install();
-  const blocks = await writeBlocks();
-  const fixtures = await copyFixtures();
-  await writeConfigs();
-  const importers = current ? await copyScripts() : [];
-
-  /**
-   * Each export of the book's blocks and the fixtures, compared with the type its declaration
-   * gives a consumer. A declaration can lose a type without an error. Up to 7.0, TypeScript
-   * truncates a type nested beyond the printer's depth limit to `/*elided*\/ any` (7.1 reports
-   * TS7056 instead, microsoft/TypeScript#64461).
-   *
-   * The scripts are only searched for `/*elided*\/`. TypeScript expands the aliases of other
-   * packages in their declarations, such as the base class of `ErrorFactory`, and the comparison
-   * counts that as a change.
-   */
-  const exports = SourceExports.read(directory, [...blocks, ...fixtures]);
-
-  console.log(`  ${blocks.length} blocks from the book, ${fixtures.length} fixtures`);
-  console.log(
-    current
-      ? `  ${importers.length} scripts on valof ${pin.slice(0, 7)}`
-      : `  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`,
-  );
-
-  // The TypeScript lines run concurrently, each emitting to directories of its own, and report in
-  // the order of `aliases`.
-  const reports = await Promise.all(aliases.map((alias) => check(alias, exports, current)));
-  for (const [i, alias] of aliases.entries()) {
-    const report = reports[i]!;
-    console.log(`  typescript@${version(alias)}  ${report.length === 0 ? "pass" : "fail"}`);
-    for (const line of report) console.log(line);
-  }
-  const failed = aliases.filter((_, i) => reports[i]!.length > 0).map(version);
-  console.log();
-
-  return failed.length === 0 ? R.succeed() : R.fail(new IncompatibleError({ failed }));
-}
-
 export type CompatCheck = Val<"CompatCheck", { name: string; release: boolean }, Check>;
 export const CompatCheck = Val.companion<CompatCheck>()
   .implCreate(({ release }: { release: boolean }) => ({ name: "compat", release }))
-  .implTrait(Check, () => ({ run: (check) => checkCompat(check) }))
+  .implTrait(Check, () => ({
+    /**
+     * Typechecks the book's blocks, the fixtures and the scripts against `dist` on every TypeScript
+     * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin
+     * builds this same `dist`.
+     */
+    run: async ({ release }): R.ResultAsync<void, CompatError> => {
+      const pin = await pinned();
+      const current = await matches(pin);
+      if (!current && release) return R.fail(new StalePinError({ pin }));
+
+      await install();
+      const blocks = await writeBlocks();
+      const fixtures = await copyFixtures();
+      await writeConfigs();
+      const importers = current ? await copyScripts() : [];
+
+      /**
+       * Each export of the book's blocks and the fixtures, compared with the type its declaration
+       * gives a consumer. A declaration can lose a type without an error. Up to 7.0, TypeScript
+       * truncates a type nested beyond the printer's depth limit to `/*elided*\/ any` (7.1 reports
+       * TS7056 instead, microsoft/TypeScript#64461).
+       *
+       * The scripts are only searched for `/*elided*\/`. TypeScript expands the aliases of other
+       * packages in their declarations, such as the base class of `ErrorFactory`, and the
+       * comparison counts that as a change.
+       */
+      const exports = SourceExports.read(directory, [...blocks, ...fixtures]);
+
+      console.log(`  ${blocks.length} blocks from the book, ${fixtures.length} fixtures`);
+      console.log(
+        current
+          ? `  ${importers.length} scripts on valof ${pin.slice(0, 7)}`
+          : `  scripts skipped: valof ${pin.slice(0, 7)} builds a different dist`,
+      );
+
+      // The TypeScript lines run concurrently, each emitting to directories of its own, and report
+      // in the order of `aliases`.
+      const reports = await Promise.all(aliases.map((alias) => check(alias, exports, current)));
+      for (const [i, alias] of aliases.entries()) {
+        const report = reports[i]!;
+        console.log(`  typescript@${version(alias)}  ${report.length === 0 ? "pass" : "fail"}`);
+        for (const line of report) console.log(line);
+      }
+      const failed = aliases.filter((_, i) => reports[i]!.length > 0).map(version);
+      console.log();
+
+      return failed.length === 0 ? R.succeed() : R.fail(new IncompatibleError({ failed }));
+    },
+  }))
   .build();
 
 /**
