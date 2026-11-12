@@ -3,13 +3,15 @@ import { expect, test } from "vite-plus/test";
 import { Bundle, Imports } from "../bundle.ts";
 import { Build, BuildResult, BundleSize, Sizes } from "./index.ts";
 
+// Development is twice the size, so a budget read from it shows.
 const build = (gzip: number) => {
-  const mode = Build.seal({ sizes: Sizes.seal({ minified: 0, gzip, brotli: 0 }), library: 0 });
+  const mode = (gzip: number) =>
+    Build.seal({ sizes: Sizes.seal({ minified: 0, gzip, brotli: 0 }), library: 0 });
   return BuildResult.seal({
     imports: Imports.seal({}),
     readsNodeEnv: false,
-    production: mode,
-    development: mode,
+    production: mode(gzip),
+    development: mode(gzip * 2),
   });
 };
 

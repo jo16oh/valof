@@ -22,6 +22,7 @@ describe("Budget", () => {
 
   test("prints what is left, in the budget's unit", () => {
     expect(Budget.left(instantiations(9340))).toBe("660 left (7%)");
+    expect(Budget.left(instantiations(9386))).toBe("614 left (6%)");
     expect(Budget.left(declarations(1024))).toBe("1.00 kB left (50%)");
   });
 
