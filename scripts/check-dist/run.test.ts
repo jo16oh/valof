@@ -66,8 +66,9 @@ describe("runChecks", () => {
       `\n${new IncompatibleError({ failed: ["size report"] }).message}`,
       "\n# types\n",
     ]);
-    expect(logged).toContain(`\n${new IncompatibleError({ failed: ["types"] }).message}`);
-    expect(logged).not.toContain("types report");
+    expect(logged.slice(logged.indexOf("\n# types\n") + 1, logged.indexOf("\n# compat\n"))).toEqual(
+      [`\n${new IncompatibleError({ failed: ["types"] }).message}`],
+    );
     expect(logged).toContain("\ncompat crashed");
     expect(logged).toContain("pack report");
     expect(logged.slice(-4)).toEqual([
