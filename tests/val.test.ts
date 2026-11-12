@@ -659,6 +659,9 @@ describe("Val", () => {
     test("objects that differ only in the Vals they hold, or in a Val and its payload, are rejected", () => {
       type Dollar = Val<"UnionHeldDollar", { amount: number }>;
       type Yen = Val<"UnionHeldYen", { amount: number }>;
+      type Money = Enum<"UnionHeldMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
+      // Its payload is that of `Money`'s `Dollar` variant.
+      type Other = Val<"UnionHeldOther", { amount: number; _tag: "Dollar" }>;
       type Held = Val<
         "UnionHeld",
         // @ts-expect-error a union cannot hold objects `equals` cannot tell apart
@@ -667,6 +670,9 @@ describe("Val", () => {
           b: { x: Dollar }[] | { x: Yen }[];
           c: Record<string, Dollar>[] | Record<string, Yen>[];
           d: { x: Dollar } | { x: { amount: number } };
+          e: { x: Money } | { x: Other };
+          f: { x: Money }[] | { x: Other }[];
+          g: { x: Dollar } | { x: { amount: number; memo?: string } };
         }
       >;
       expectTypeOf<VerdictOf<Held>>().toEqualTypeOf<{
@@ -674,15 +680,17 @@ describe("Val", () => {
         b: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
         c: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
         d: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        e: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        f: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
+        g: Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">;
       }>();
-      // @ts-expect-error a payload cannot either
+      // @ts-expect-error a union cannot hold objects `equals` cannot tell apart, at the root too
       type Rooted = Val<"UnionHeldRoot", { x: Dollar } | { x: Yen }>;
       expectTypeOf<VerdictOf<Rooted>>().toEqualTypeOf<
         Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
       >();
-      // Objects `equals` tells apart get the `patch` message, and arrays of them pass, though one
+      // Objects `equals` tells apart get the `patch` message, and arrays of them pass, even where one
       // holds every field of the other.
-      type Money = Enum<"UnionHeldMoney", { Dollar: { amount: number }; Yen: { amount: number } }>;
       type Apart = Val<
         "UnionApart",
         // @ts-expect-error an object payload cannot be a union
