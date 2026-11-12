@@ -9,7 +9,7 @@ export default defineConfig({
   settings: {
     valof: {
       project: ["src/**/*.ts", "scripts/**/*.ts", "!**/fixtures/**"],
-      // An override cannot carry settings. The rule is on for the linter alone, below.
+      // An override cannot carry settings. The rule is on for the linter and check-dist, below.
       "data-type-outside-valof": { constraints: true, extraction: true },
     },
   },
@@ -78,8 +78,8 @@ export default defineConfig({
   overrides: [
     { files: ["src/**/*.ts", "scripts/**/*.ts"], rules: valof.configs.recommended.rules },
     {
-      // The linter keeps state in classes, and builds its errors as classes.
-      files: ["src/lint/**/*.ts"],
+      // Both build their errors as classes, and the linter keeps state in classes.
+      files: ["src/lint/**/*.ts", "scripts/check-dist/**/*.ts"],
       rules: { "valof/data-type-outside-valof": "error" },
     },
     {
