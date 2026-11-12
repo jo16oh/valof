@@ -1039,6 +1039,17 @@ describe("Val", () => {
       expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
     });
 
+    // `never` satisfies the constraint, and opening it once recursed past the checker's depth limit.
+    test("PayloadOf<never> is never", () => {
+      expectTypeOf<PayloadOf<never>>().toBeNever();
+    });
+
+    test("Patch takes a payload, not a Val", () => {
+      expectTypeOf<Patch<User>>().toEqualTypeOf<
+        Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">
+      >();
+    });
+
     test("does not exist at runtime", () => {
       const user = User.seal({ id: "a", name: "bob" });
       expect(Object.keys(user)).toEqual(["id", "name"]);
@@ -2975,6 +2986,15 @@ describe("building", () => {
     test("keys must exist on the payload", () => {
       // @ts-expect-error there is no such field
       Val.companion<Account, [Unpatchable<"nope">]>().build();
+    });
+
+    // `any` satisfies every constraint, so the type itself reports it.
+    test("takes no `any`", () => {
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = Unpatchable<any>;
+      expectTypeOf<Loose>().toEqualTypeOf<Invalid<"`Unpatchable` takes key names, not `any`">>();
+      // @ts-expect-error `Unpatchable` takes key names
+      Val.companion<Account, [Loose]>().build();
     });
 
     // An intersection of two would collapse to `never` and take nothing out.
