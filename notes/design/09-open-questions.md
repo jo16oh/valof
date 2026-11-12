@@ -762,3 +762,22 @@
       where it is not the type being declared
   - `{ x: Rec<Tree> }[] | { x: Dollar }[]` (§3.7's `Tree`) passes too. `Collides` compares the objects with each Val read as its
     payload, but not a `Rec` read as its Val (2026-11-12, §3.6)
+
+- [ ] **Exported types that take `any`, `never` or a Val silently (2026-11-12, the sixth type hunt).**
+  - **Closed:** `Patch<User>` resolved to `never`, so a parameter typed with it took nothing. It now
+    resolves to "`Patch` takes a payload; write `Patch<SeedOf<V>>`". Internally, `Patching` keeps `never` for a Val, and `PatchValue` reads that `never` as "replace the field whole". `Patch<never>` stays `never`, which `PatchMethod` reads as "no `patch`", and `Patch<any>` stays the object it was
+  - **Closed:** `Unpatchable<any>` made every key unpatchable, and the error appeared only at the `patch` call.
+    It now resolves to a message, which the companion's option list rejects. `UnpatchablePhantom`
+    is exported, since a user's `.d.ts` now references it (§18.4). `Unpatchable` reads the key through `infer`, because against the constraint `K extends string`, `1 & K` resolves to `never` before `K` is known
+  - **Closed:** `PayloadOf<never>` recursed past the checker's depth limit (TS2589), and `PayloadOf<Impl<G>>` raised TS2589 beside the constraint error. `Opened` returns `never` for
+    `never`
+  - **Open: `Impl<any>`, `Impl<never>`, `Dyn<any>` and `Dyn<never>` pass.** Every Val that declares a trait fits `Impl<any>`. §18.6 argues against such a generic over any trait. Making `Impl`
+    a conditional type changed the type of every trait companion when its declaration was emitted and read back (ts-compatibility). A trait's members reference `Impl` of the trait being
+    declared, so the conditional stays unresolved
+  - **Open: `export const of = Val.of` fails the user's declaration emit** (TS4094 on the phantom
+    keys, TS7056 for a generic over `Val.unwrap`). Naming the type of `Val.of` would fix it. Few
+    users re-export it
+  - **Open: `Rec<Impl<G>>`, `Rec<G>` (a trait), `Rec<any>` and `Rec<never>` pass in a field,** as
+    `Rec<Dollar | Yen>` does. Checking a `Rec`'s argument opens it, which is circular for a type
+    that references itself
+  - The two messages take `index.d.ts` from 106.79 to 107.13 kB, inside the 108 kB budget (§3.6)
