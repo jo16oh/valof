@@ -85,11 +85,15 @@ export const Query = Val.companion<Query>()
   .build();
 
 /**
- * What the worker answers: the findings, or the message to throw. A message rather than the error,
- * since an error's class does not survive the copy between threads.
+ * Why the worker has no findings: the message to throw. A message rather than the error, since an
+ * error's class does not survive the copy between threads.
  */
+export type WorkerFailure = Val<"WorkerFailure", { message: string }>;
+export const WorkerFailure = Val.companion<WorkerFailure>().build();
+
+/** What the worker answers: the findings, or why it has none. */
 // valof-lint-disable-next-line data-type-outside-valof -- byethrow's Result, sent as is
-export type Reply = R.Result<Finding[], string>;
+export type Reply = R.Result<Finding[], WorkerFailure>;
 
 /**
  * The worker that lints, asked from a rule and blocked on until it answers.
@@ -140,7 +144,7 @@ export class LinterWorker {
     const findings = pipe(
       query,
       (asked) => this.#ask(asked),
-      R.mapError((message) => new Error(message)),
+      R.mapError(({ message }) => new Error(message)),
       R.unwrap(),
     );
     if (bufferless) this.#saved = { key, findings };
@@ -228,7 +232,7 @@ import { parentPort, workerData } from "node:worker_threads";
 import(workerData.script).catch((error) => {
   const { port, signal } = workerData;
   parentPort.on("message", () => {
-    port.postMessage({ type: "Failure", error: "valof-lint: the worker did not start: " + String(error) });
+    port.postMessage({ type: "Failure", error: { message: "valof-lint: the worker did not start: " + String(error) } });
     Atomics.store(signal, 0, 1);
     Atomics.notify(signal, 0);
   });

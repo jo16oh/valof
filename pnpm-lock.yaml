@@ -178,6 +178,9 @@ importers:
       '@praha/byethrow':
         specifier: ^0.13.0
         version: 0.13.0(typescript@7.0.2)
+      '@praha/byethrow-oxlint':
+        specifier: ^0.13.0
+        version: 0.13.0(@praha/byethrow@0.13.0(typescript@7.0.2))(oxlint@1.92.0(oxlint-tsgolint@7.0.2006)(vite-plus@1.6.0(@types/node@26.6.6)(@vitest/ui@5.1.0)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)))
       '@praha/error-factory':
         specifier: ^1.4.1
         version: 1.4.1
@@ -853,6 +856,12 @@ packages:
 
   '@polka/url@1.0.0-next.29':
     resolution: {integrity: sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww==}
+
+  '@praha/byethrow-oxlint@0.13.0':
+    resolution: {integrity: sha512-cXbTuQsrC/DVRn6mj7xYTXpIQCCdCBTKabBGU2vPMle2fe+WV1z+GcBKZorJSS3T8h6Q82or4D96JvPYRH0faw==}
+    peerDependencies:
+      '@praha/byethrow': 0.13.0
+      oxlint: ^1.0.0
 
   '@praha/byethrow@0.13.0':
     resolution: {integrity: sha512-YbmTlWzvtwiaK1ZhUOzXleJFju6XvBILxkL3AmvHona7zalABaQsPIGwc6YkugirpwG3n4Sc2iKGSwnTEv/hsQ==}
@@ -2474,6 +2483,12 @@ snapshots:
   '@oxlint/plugins@1.93.0': {}
 
   '@polka/url@1.0.0-next.29': {}
+
+  '@praha/byethrow-oxlint@0.13.0(@praha/byethrow@0.13.0(typescript@7.0.2))(oxlint@1.92.0(oxlint-tsgolint@7.0.2006)(vite-plus@1.6.0(@types/node@26.6.6)(@vitest/ui@5.1.0)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1)))':
+    dependencies:
+      '@oxlint/plugins': 1.93.0
+      '@praha/byethrow': 0.13.0(typescript@7.0.2)
+      oxlint: 1.92.0(oxlint-tsgolint@7.0.2006)(vite-plus@1.6.0(@types/node@26.6.6)(@vitest/ui@5.1.0)(jiti@2.7.0)(typescript@7.0.2)(yaml@2.9.1))
 
   '@praha/byethrow@0.13.0(typescript@7.0.2)':
     dependencies:
