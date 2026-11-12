@@ -43,6 +43,9 @@ export default defineConfig({
     },
   },
   lint,
+  // Keeps no scans on disk, so no test reads the scans another test left in node_modules/.cache.
+  // The store's own tests turn the store back on.
+  test: { env: { VALOF_LINT_CACHE: "0" } },
   fmt: {
     ignorePatterns: ["tests/lint/**/fixtures/**", "**/*.hbs"],
     proseWrap: "always",

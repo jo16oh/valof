@@ -5,7 +5,8 @@ import { Result as R } from "@praha/byethrow";
 import type { MissingParserError } from "./errors.ts";
 import { Context, Kind, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
 import { Parser } from "./parser.ts";
-import { DirectiveMap, Scan } from "./scan/index.ts";
+import { ScanCache } from "./scan-cache.ts";
+import { DirectiveMap } from "./scan/index.ts";
 import { Modules } from "./scan/bindings.ts";
 import { FilePath } from "./files.ts";
 import { Options } from "./options.ts";
@@ -17,11 +18,8 @@ import { Options } from "./options.ts";
 export async function run(
   files: readonly string[],
   options: Options = Options.create(),
+  cache: ScanCache = new ScanCache(),
 ): Promise<R.Result<Finding[], MissingParserError>> {
-  const loaded = await Parser.load();
-  if (R.isFailure(loaded)) return loaded;
-  const parser = loaded.value;
-
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
   const toScan = [
@@ -29,9 +27,10 @@ export async function run(
     ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
   ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
-  const scans = toScan.map((file) =>
-    Scan.walk(file, parser, modules, FilePath.read(file, options.overlay)),
-  );
+  const sources = toScan.map((file) => [file, FilePath.read(file, options.overlay)] as const);
+  const scanned = await cache.scan(() => Parser.load(), sources, modules);
+  if (R.isFailure(scanned)) return scanned;
+  const scans = scanned.value;
 
   const rules = compile(options.enable);
   // An opt-in rule left off is out of the run as much as a skipped one.

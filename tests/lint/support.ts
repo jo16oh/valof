@@ -107,10 +107,17 @@ export function fixtures(url: string): {
 
 type Run = { status: number; stdout: string; stderr: string };
 
-function spawn(node: string[], args: string[], script = `${root}src/lint/cli.ts`, cwd = root): Run {
+function spawn(
+  node: string[],
+  args: string[],
+  script = `${root}src/lint/cli.ts`,
+  cwd = root,
+  env: NodeJS.ProcessEnv = process.env,
+): Run {
   const result = spawnSync(process.execPath, [...node, script, ...args], {
     cwd,
     encoding: "utf8",
+    env,
   });
   if (result.error) throw result.error;
   return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr.trim() };
@@ -121,6 +128,19 @@ export const cli = (...args: string[]): Run => spawn([], args);
 
 /** The same, run from another directory. */
 export const cliIn = (cwd: string, ...args: string[]): Run => spawn([], args, undefined, cwd);
+
+/**
+ * The same, keeping its scans on disk. Every other run here keeps none, so no test reads what
+ * another left behind.
+ */
+export const cliKeepingIn = (cwd: string, ...args: string[]): Run =>
+  spawn([], args, undefined, cwd, keeping());
+
+/** The environment without `VALOF_LINT_CACHE`, so the linter keeps its scans on disk. */
+export function keeping(): NodeJS.ProcessEnv {
+  const { VALOF_LINT_CACHE: _, ...env } = process.env;
+  return env;
+}
 
 /** The same, with a parser that fails to load for another reason. */
 export const cliWithBrokenParser = (...args: string[]): Run =>

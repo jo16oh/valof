@@ -11,6 +11,8 @@ import { Path, type FilePath } from "./files.ts";
 import { RULES, type Finding } from "./rules/index.ts";
 import { Options } from "./options.ts";
 import { run } from "./run.ts";
+import { ScanCache } from "./scan-cache.ts";
+import { ScanStore } from "./scan-store.ts";
 
 /** What `--help` prints. */
 function usage(): string {
@@ -107,6 +109,7 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
   const chosen = Files.glob(args);
   if (R.isFailure(chosen)) return chosen;
   const { scanned, targets, reported } = chosen.value;
+  const store = ScanStore.open();
   const found = await run(
     scanned,
     Options.create({
@@ -114,7 +117,9 @@ async function command(argv: readonly string[]): Promise<R.Result<number, UsageE
       enable: args.enable,
       ...(args.targets.length > 0 ? { targets } : {}),
     }),
+    new ScanCache(store),
   );
+  store.save();
   if (R.isFailure(found)) return found;
   print(found.value, reported.length);
   return R.succeed(found.value.length === 0 ? 0 : 1);

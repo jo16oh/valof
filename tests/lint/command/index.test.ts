@@ -1,9 +1,15 @@
+import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { expect, test } from "vite-plus/test";
 
 import {
   UnusedMember,
   RULES,
   cli,
+  cliKeepingIn,
   cliWithBrokenParser,
   cliWithoutParser,
   cliWithoutTypeScript,
@@ -60,4 +66,18 @@ test("lets another failure to load the parser surface as itself", () => {
   expect(status).toBe(1);
   expect(stderr).toContain("the parser's binding failed to load");
   expect(stderr).not.toContain("pnpm add -D oxc-parser");
+});
+
+test("keeps its scans under node_modules/.cache, and reports the same findings with them", () => {
+  const dir = mkdtempSync(join(tmpdir(), "valof-cli-"));
+  try {
+    cpSync(fileURLToPath(new URL("fixtures/finding.ts", import.meta.url)), join(dir, "finding.ts"));
+    mkdirSync(join(dir, "node_modules"));
+    const first = cliKeepingIn(dir, "*.ts");
+    expect(existsSync(join(dir, "node_modules", ".cache", "valof-lint", "scans.json"))).toBe(true);
+    expect(cliKeepingIn(dir, "*.ts")).toEqual(first);
+    expect(first.stdout).toContain(`${UnusedMember.kind}  Id.shout is never read`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

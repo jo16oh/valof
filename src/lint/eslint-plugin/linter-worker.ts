@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { extname, resolve } from "node:path";
 import {
   MessageChannel,
@@ -12,29 +13,40 @@ import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../../index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
-import type { Project } from "../files.ts";
+import { Project } from "../files.ts";
 import type { Finding } from "../index.ts";
 import { DataTypeSettings } from "../options.ts";
 
-/** What the plugin asks the worker about one file. */
+/**
+ * What the plugin asks the worker: the findings of the whole project, as the host's buffer of one
+ * file has it.
+ */
 export type Query = Val<
   "Query",
   {
-    /** The project files scanned together, absolute. The file being linted joins them, as `text`. */
+    /** The project files scanned together, absolute. */
     project: Project;
-    file: string;
-    text: string;
+    /**
+     * The buffer of the file being linted, keyed by its path, where disk does not hold it or the
+     * project leaves the file out. Empty otherwise, so every file of a batch asks the same.
+     */
+    overlay: Record<string, string>;
     /**
      * The settings of `data-type-outside-valof`. It always runs here, because the host reports it
      * only where the project turned it on.
      */
     model: DataTypeSettings;
+    /**
+     * Whether disk holds the buffer, so the worker may keep its scans for the next process.
+     * A file outside the project is passed as a buffer even when disk holds it.
+     */
+    saved: boolean;
   }
 >;
 export const Query = Val.companion<Query>()
   .implAssoc(({ seal }) => ({
-    /** What to ask about the file the host is linting. */
-    fromContext: (
+    /** What to ask about the file the host is linting. Reads the file, to compare the buffer. */
+    read: (
       {
         filename,
         sourceCode: { text },
@@ -52,18 +64,23 @@ export const Query = Val.companion<Query>()
           | undefined;
       },
       project: Project,
-    ): Query =>
-      seal({
+    ): Query => {
+      const file = resolve(filename);
+      const saved = readSaved(file) === text;
+      const listed = project.some((path) => path === file);
+
+      return seal({
         project,
-        file: resolve(filename),
-        text,
+        overlay: saved && listed ? {} : { [file]: text },
         model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
-      }),
+        saved,
+      });
+    },
   }))
   .impl(() => ({
-    /** The same file, text, project and settings give the same key. */
-    key: ({ file, text, project, model }): string =>
-      `${file}\n${text}\n${project.join("\n")}\n${JSON.stringify(model)}`,
+    /** The same project, buffer and settings give the same key. */
+    key: ({ project, overlay, model }): string =>
+      JSON.stringify([project, Object.entries(overlay), model]),
   }))
   .build();
 
@@ -87,24 +104,26 @@ export type Reply = R.Result<Finding[], string>;
  * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here. The port
  * and the signal go to the worker once, as it starts, so a query is all that each ask sends.
  *
- * The worker starts on the first query and answers the rest. One that does not answer within
+ * The worker starts on the first query, or earlier through {@link LinterWorker.start}, and answers the rest. One that does not answer within
  * `patience` milliseconds is stopped, and the next query starts another: a worker still busy would
  * leave every later query waiting behind it. The default is long enough that no run reaches it,
  * short enough that a wedged worker still says so.
  *
- * One run per file, however many of the rules are on. The host creates every rule for a file
- * before it walks it, so the `Program` handlers run back to back over the same text, and asking
- * blocks the thread: nothing runs in between. So the last answer is kept, and the same query gets
- * it. It is dropped as soon as the stack empties, and not kept for the next pass, because the query
- * says nothing about the rest of the project: a file saved in another editor tab changes what this
- * file's findings are while its own text is unchanged.
+ * One run per project state, however many files and rules ask. Each answer is kept, keyed by the
+ * query and by the path, modification time and size of each project file, so a file saved in
+ * another editor tab still changes the key. Every file of a batch whose buffer disk holds asks the
+ * same query, so the batch costs one run.
+ *
+ * Two answers are kept: the last for a query with no buffer, and the last for one with a buffer.
+ * A file outside the project, or one being edited, then does not replace the answer every other
+ * file shares.
  */
 export class LinterWorker {
   readonly #script: URL;
   readonly #patience: number;
   #worker: { thread: Worker; port: MessagePort; signal: Int32Array } | undefined;
-  #lastKey: string | undefined;
-  #lastFindings: readonly Finding[] = [];
+  #saved: { key: string; findings: readonly Finding[] } | undefined;
+  #edited: { key: string; findings: readonly Finding[] } | undefined;
 
   constructor(beside: string, patience = 60_000) {
     this.#script = new URL(`./worker${extname(beside)}`, beside);
@@ -113,34 +132,49 @@ export class LinterWorker {
 
   /** The findings for the query. Throws the message the worker failed with. */
   lint(query: Query): readonly Finding[] {
-    const key = Query.key(query);
-    if (this.#lastKey === key) return this.#lastFindings;
+    const key = `${Project.stat(query.project)}\n${Query.key(query)}`;
+    const bufferless = Object.keys(query.overlay).length === 0;
+    const kept = bufferless ? this.#saved : this.#edited;
+    if (kept?.key === key) return kept.findings;
 
-    this.#lastFindings = pipe(
+    const findings = pipe(
       query,
       (asked) => this.#ask(asked),
       R.mapError((message) => new Error(message)),
       R.unwrap(),
     );
-    this.#lastKey = key;
-    queueMicrotask(() => (this.#lastKey = undefined));
-    return this.#lastFindings;
+    if (bufferless) this.#saved = { key, findings };
+    else this.#edited = { key, findings };
+
+    return findings;
+  }
+
+  /**
+   * Starts the worker, if it is not running, so it imports the linter while the caller does other
+   * work.
+   */
+  start(): { thread: Worker; port: MessagePort; signal: Int32Array } {
+    if (this.#worker) return this.#worker;
+
+    const { port1, port2 } = new MessageChannel();
+    const signal = new Int32Array(new SharedArrayBuffer(4));
+    const thread = new Worker(START, {
+      workerData: { port: port2, signal, script: this.#script.href },
+      transferList: [port2],
+      // As in the shipped package, which builds the linter with NODE_ENV=production. The linter
+      // declares every Val it builds from the parser's output, so valof's development checks
+      // guard no user code. From source, they take most of the time converting the AST.
+      env: { ...process.env, NODE_ENV: "production" },
+    });
+    // The host decides when it exits. A linter waiting on its own worker would never finish.
+    thread.unref();
+    this.#worker = { thread, port: port1, signal };
+
+    return this.#worker;
   }
 
   #ask(query: Query): Reply {
-    if (!this.#worker) {
-      const { port1, port2 } = new MessageChannel();
-      const signal = new Int32Array(new SharedArrayBuffer(4));
-      const thread = new Worker(START, {
-        workerData: { port: port2, signal, script: this.#script.href },
-        transferList: [port2],
-      });
-      // The host decides when it exits. A linter waiting on its own worker would never finish.
-      thread.unref();
-      this.#worker = { thread, port: port1, signal };
-    }
-
-    const { thread, port, signal } = this.#worker;
+    const { thread, port, signal } = this.start();
     Atomics.store(signal, 0, 0);
     thread.postMessage(query);
     if (Atomics.wait(signal, 0, 0, this.#patience) === "timed-out") {
@@ -201,3 +235,12 @@ import(workerData.script).catch((error) => {
 });
 `)}`,
 );
+
+/** What disk holds of the file, or `undefined` where it holds nothing. */
+function readSaved(file: string): string | undefined {
+  try {
+    return readFileSync(file, "utf8");
+  } catch {
+    return undefined;
+  }
+}

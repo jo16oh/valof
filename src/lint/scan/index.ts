@@ -8,7 +8,7 @@ import type { Reserved } from "../../val.ts";
 import type { FilePath } from "../files.ts";
 
 import { keyName, Lines, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
-import { Parser } from "../parser.ts";
+import type { Parser } from "../parser.ts";
 import {
   Aliases,
   type Alias,
@@ -176,6 +176,11 @@ export type Scan = Val<
     models: Models;
     /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
     directives: Directive[];
+    /**
+     * What each module the file imports or re-exports from resolved to, among the files in the run.
+     * A change to the files in the run affects this scan only where it changes one of these entries.
+     */
+    resolved: Record<string, string>;
   }
 >;
 export const Scan = Val.companion<Scan>()
@@ -269,8 +274,19 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
 }
 
 /** The body of {@link Scan.walk}. */
-function scan(file: FilePath, parser: Parser, modules: Modules, source: string): Scan {
+function scan(
+  file: FilePath,
+  { program, comments }: ReturnType<typeof Parser.exec>,
+  modules: Modules,
+  source: string,
+): Scan {
   const lines = Lines.from(source);
+  const resolved = new Map<string, string>();
+  const resolveModule = (module: string): string => {
+    const found = Modules.resolve(modules, file, module);
+    resolved.set(module, found);
+    return found;
+  };
 
   let bound = Bindings.create();
   const exportedAs = new Map<string, string>();
@@ -435,7 +451,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
       case "ImportDeclaration": {
         const module = stringOf(node.source);
         if (module === undefined) break;
-        const resolved = Modules.resolve(modules, file, module);
+        const resolved = resolveModule(module);
         for (const specifier of node.specifiers) {
           if (
             specifier.type === "ImportNamespaceSpecifier" &&
@@ -461,7 +477,6 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     for (const one of node.children) visit(one);
   };
 
-  const { program, comments } = Parser.exec(parser, file, source);
   visit(program);
 
   // Imports may follow an export declaration. Resolve local exports only after every binding is
@@ -471,8 +486,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
   for (const statement of program.type === "Program" ? program.body : []) {
     if (statement.type !== "ExportNamedDeclaration") continue;
     const from = statement.source && stringOf(statement.source);
-    const module =
-      from === null || from === undefined ? undefined : Modules.resolve(modules, file, from);
+    const module = from === null || from === undefined ? undefined : resolveModule(from);
     for (const specifier of statement.specifiers) {
       if (specifier.type !== "ExportSpecifier") continue;
       const outside = keyName(specifier.exported, false);
@@ -520,6 +534,7 @@ function scan(file: FilePath, parser: Parser, modules: Modules, source: string):
     lifts,
     models: models(file, program, bound, lines),
     directives: directives(comments, source, lines),
+    resolved: Object.fromEntries(resolved),
   });
 }
 

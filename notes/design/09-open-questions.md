@@ -328,6 +328,12 @@
   - **Forms it cannot see.** A function defined elsewhere, as in `.implSeal(hex)`, is not followed, and the rule says nothing
   - The linter currently does not read the body of the `implSeal` function (`CompanionSite.seals` is only a boolean). It comes in a separate PR
 
+- [ ] **A `nocopy` that does not record ownership? On hold, 2026-11-11.** Production `nocopy` spends most of its time adding the payload to `adopted` (§4.1, "What production `nocopy` costs"). An option to skip that, used only with `nocopy` and not tied to hiding `patch`, would halve the time valof-lint takes to convert the AST of `src/val.ts` (4.5 ms → 2–2.5 ms). On an oxlint run over `src` + `scripts` (0.60 s), that saves an estimated 0.03–0.04 s.
+  - **An unrecorded value is never shared by a copy.** A default seal or create given a payload that holds it copies it whole, and `patch` copies even the parts the patch leaves alone. The copy has a new identity
+  - **Copying a graph with shared nodes takes exponential time.** Removing `adopted.add` from production `adopt` took the lint of `src/lint/files.ts` from 15 ms to over 30 s. valof-lint's AST is a DAG. Each child is reachable from a field and from `children`. `Step` in `src/lint/scan/chains.ts` holds nodes and is built with the default seal. Without `adopted.add`, that seal copied the DAG as a tree. One copying seal anywhere above an unrecorded graph makes the run hang rather than fail
+  - **A type argument cannot carry it.** The option changes what runs, so it has to be a step or a call-site form (`create.nocopy.untracked`). The Val budget has 66 B left (958 B of 1.00 kB, 2026-11-11)
+  - Reconsider when a user builds large graphs with `nocopy` and measures what adding them to `adopted` costs
+
 - [ ] **Partial freeze when a development `.nocopy` fails.** If traversing the graph fails on a later node's accessor or on a cycle, only the children checked before that point stay registered as owned and frozen. To undo the side effects on failure, switch to two phases: register and freeze only after checking the whole graph
 - [x] ~~Allow `null` as a top-level payload?~~ No. `null & { __brand: K }` is
       `never`, so a value that stays `null` cannot be told apart by brand. Putting the brand on a union lets a bare `null`
