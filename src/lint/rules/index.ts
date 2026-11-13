@@ -21,7 +21,7 @@ import { DataTypeSettings, type Options } from "../options.ts";
  * Every rule, in the order they run and `--help` lists them.
  *
  * The only enumeration. A rule carries its own kind, so listing it here says nothing twice, and
- * {@link kinds} is read back off this array rather than written again.
+ * {@link KINDS} is read back off this array rather than written again.
  */
 export const RULES = [
   Rule.dyn(UnusedMember, UnusedMember.create()),
@@ -65,10 +65,10 @@ export {
 };
 
 /** What each rule is called, in a `--no-<kind>` flag and in a disable comment alike. */
-export const kinds: readonly Kind[] = RULES.map(({ kind }) => kind);
+export const KINDS: readonly Kind[] = RULES.map(({ kind }) => kind);
 
 /** Every rule's kind, to check a name against. */
-export const ALL_KINDS = KindSet.create(kinds);
+export const ALL_KINDS = KindSet.create(KINDS);
 
 export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";
 

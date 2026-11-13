@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { ClaimedFile, Claims } from "./claims.ts";
 
 // A file every run reads, then a Markdown file and a package.json that only a release reads.
-const files = [
+const FILES = [
   ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
   ClaimedFile.Markdown.create({ path: "README.md", release: true }),
   ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
@@ -42,7 +42,7 @@ async function check(
   gzip: number,
   { release, write }: { release: boolean; write: boolean },
 ): Promise<string | undefined> {
-  const claims = await Claims.read(files, gzip, release, root);
+  const claims = await Claims.read(FILES, gzip, release, root);
   if (R.isFailure(claims)) return claims.error.message;
 
   if (write) {
@@ -93,7 +93,7 @@ describe("Claims", () => {
 
   test("prints each claim's state, and what --write rewrote", async () => {
     await writeFile(join(directory, "docs/src/introduction.md"), intro("9 B gzipped"));
-    const claims = R.unwrap(await Claims.read(files, 965, true, root));
+    const claims = R.unwrap(await Claims.read(FILES, 965, true, root));
     expect(Claims.render(claims, false)).toBe(
       [
         "claims  965 B gzipped",

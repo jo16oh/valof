@@ -48,8 +48,8 @@ const Admin = Val.companion<Admin>()
   }))
   .build();
 
-const user = Val.of<User>({ id: "a", name: "alice" });
-const admin = Val.of<Admin>({ name: "root", level: 9 });
+const USER = Val.of<User>({ id: "a", name: "alice" });
+const ADMIN = Val.of<Admin>({ name: "root", level: 9 });
 
 describe("Trait", () => {
   describe("members", () => {
@@ -549,7 +549,7 @@ describe("Trait", () => {
     });
 
     test("takes a Val and a box alike", () => {
-      expect([Greetable.shout(user), Greetable.shout(Greetable.dyn(User, user))]).toEqual([
+      expect([Greetable.shout(USER), Greetable.shout(Greetable.dyn(User, USER))]).toEqual([
         "ALICE",
         "ALICE",
       ]);
@@ -558,14 +558,14 @@ describe("Trait", () => {
 
   describe("Impl", () => {
     test("is the type of any value implementing the trait", () => {
-      const greeters: Impl<Greetable>[] = [user, admin, Greetable.dyn(User, user)];
+      const greeters: Impl<Greetable>[] = [USER, ADMIN, Greetable.dyn(User, USER)];
       expect(greeters.map((g) => g.name)).toEqual(["alice", "root", "alice"]);
     });
 
     test("the trait itself only declares, and is no value's type", () => {
       // @ts-expect-error write `Impl<Greetable>`
-      const greeter: Greetable = user;
-      expect(greeter).toBe(user);
+      const greeter: Greetable = USER;
+      expect(greeter).toBe(USER);
     });
 
     test("takes several traits as one intersection", () => {
@@ -580,21 +580,21 @@ describe("Trait", () => {
     test("takes no union: one is written as a union of Impl", () => {
       type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
       // @ts-expect-error write `Impl<A> | Impl<B>` for either trait
-      const either: Impl<Greetable | Weighed> = user;
-      const written: Impl<Greetable> | Impl<Weighed> = user;
-      expect([either, written]).toEqual([user, user]);
+      const either: Impl<Greetable | Weighed> = USER;
+      const written: Impl<Greetable> | Impl<Weighed> = USER;
+      expect([either, written]).toEqual([USER, USER]);
     });
   });
 
   test("the brand stays out of `keyof` and of a spread", () => {
     expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name">();
-    expectTypeOf({ ...user }).toEqualTypeOf<{ id: string; name: string }>();
+    expectTypeOf({ ...USER }).toEqualTypeOf<{ id: string; name: string }>();
   });
 });
 
 describe("dyn", () => {
   test("dispatches to the Val's own implementation", () => {
-    const party: Dyn<Greetable>[] = [Greetable.dyn(User, user), Greetable.dyn(Admin, admin)];
+    const party: Dyn<Greetable>[] = [Greetable.dyn(User, USER), Greetable.dyn(Admin, ADMIN)];
     expect(party.map((p) => p.greet())).toEqual(["Hi, alice", "Sir root"]);
     expect(party.map((p) => p.toWire("/"))).toEqual(["a/alice", "admin/root"]);
     expect(party.map((p) => p.shout())).toEqual(["ALICE", "ROOT"]);
@@ -617,13 +617,13 @@ describe("dyn", () => {
     const Crate = Val.companion<Crate>().implTrait(Weighed).build();
     expect(() => {
       // @ts-expect-error `Crate` answers for no member of `Greetable`
-      Greetable.dyn(Crate, user).greet();
+      Greetable.dyn(Crate, USER).greet();
     }).toThrow(TypeError);
   });
 
   test("a box stands in for its value, and types the trait's fields alone", () => {
-    const boxed = Greetable.dyn(User, user);
-    expect(JSON.stringify(boxed)).toBe(JSON.stringify(user));
+    const boxed = Greetable.dyn(User, USER);
+    expect(JSON.stringify(boxed)).toBe(JSON.stringify(USER));
     expect(Object.keys(boxed)).toEqual(["id", "name"]);
     expectTypeOf(boxed.name).toEqualTypeOf<string>();
     expectTypeOf(boxed).not.toHaveProperty("id");
@@ -732,17 +732,17 @@ describe("data-first and data-last", () => {
 
   test("a trait's member takes the value first, or last, on the Val's companion", () => {
     expectTypeOf(User.toWire("/")).toEqualTypeOf<(self: User) => string>();
-    expect([User.toWire(user, "/"), User.toWire("/")(user)]).toEqual(["a/alice", "a/alice"]);
+    expect([User.toWire(USER, "/"), User.toWire("/")(USER)]).toEqual(["a/alice", "a/alice"]);
   });
 
   test("one taking only the value has no form taking it last", () => {
     expectTypeOf(User.shout).toEqualTypeOf<(self: User) => string>();
-    expect(pipe(user, User.shout)).toBe("ALICE");
+    expect(pipe(USER, User.shout)).toBe("ALICE");
   });
 
   test("nor does a Final member on the trait's own companion", () => {
     expectTypeOf(Greetable.shout).toEqualTypeOf<(self: Impl<Greetable>) => string>();
-    expect(pipe(admin, Greetable.shout)).toBe("ROOT");
+    expect(pipe(ADMIN, Greetable.shout)).toBe("ROOT");
   });
 
   test("a member declared with arguments that can be left out is rejected", () => {
@@ -820,7 +820,7 @@ describe("nesting", () => {
       greet: (t) => `Team ${t.name}`,
     }))
     .build();
-  const team = Val.of<Team>({ id: "t", name: "core", lead: user });
+  const team = Val.of<Team>({ id: "t", name: "core", lead: USER });
 
   test("a Val with a trait nests as a payload field", () => {
     expect([Team.greet(team), Team.toWire(team, "/"), User.greet(team.lead)]).toEqual([
@@ -1007,7 +1007,7 @@ describe("building", () => {
           none: () => [],
         }))
         .build();
-      const boxes = [Greeting.dyn(User, user), Greeting.dyn(Admin, admin)];
+      const boxes = [Greeting.dyn(User, USER), Greeting.dyn(Admin, ADMIN)];
       expectTypeOf(Greeting.greetAll(boxes)).toEqualTypeOf<string[]>();
       expect([
         Greeting.greetAll(boxes),
@@ -1055,7 +1055,7 @@ describe("building", () => {
         }))
         .build();
       expectTypeOf(Greeting.PREFIX).toEqualTypeOf<string>();
-      expect([Greeting.PREFIX, Greeting.shoutAll([user])]).toEqual(["Hi", ["ALICE"]]);
+      expect([Greeting.PREFIX, Greeting.shoutAll([USER])]).toEqual(["Hi", ["ALICE"]]);
     });
 
     test("a name is taken once, and the trait's members, `dyn` and the library's are reserved", () => {

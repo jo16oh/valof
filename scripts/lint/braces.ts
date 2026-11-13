@@ -38,7 +38,7 @@ const braces: Rule = {
 
     return {
       IfStatement(node) {
-        if (!guards.has(node.consequent.type) || node.alternate !== null) {
+        if (!GUARDS.has(node.consequent.type) || node.alternate !== null) {
           check(node.consequent);
         }
         if (node.alternate?.type !== "IfStatement") {
@@ -54,7 +54,7 @@ const braces: Rule = {
   },
 };
 
-const guards = new Set([
+const GUARDS = new Set([
   "ReturnStatement",
   "ThrowStatement",
   "ContinueStatement",

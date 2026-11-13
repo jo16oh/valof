@@ -54,7 +54,7 @@ const reporting = (kind: string): Registered => {
 };
 
 /** The package root, which is where the command runs. */
-export const root = fileURLToPath(new URL("../../", import.meta.url));
+export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
 
 /**
  * The fixture tree beside one test file, addressed by the entry names under `fixtures/`.
@@ -110,8 +110,8 @@ type Run = { status: number; stdout: string; stderr: string };
 function spawn(
   node: string[],
   args: string[],
-  script = `${root}src/lint/cli.ts`,
-  cwd = root,
+  script = `${ROOT}src/lint/cli.ts`,
+  cwd = ROOT,
   env: NodeJS.ProcessEnv = process.env,
 ): Run {
   const result = spawnSync(process.execPath, [...node, script, ...args], {

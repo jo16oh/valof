@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import Handlebars from "handlebars";
 
-const template = fileURLToPath(new URL("index.hbs", import.meta.url));
+const TEMPLATE = fileURLToPath(new URL("index.hbs", import.meta.url));
 
 function compare(a: string, b: string): number {
   const parts = (name: string) => {
@@ -36,7 +36,7 @@ export function render(names: string[]): string {
   const sorted = versions(names);
   // `latest/` is a copy of the newest release, so the newest non-prerelease names what it holds.
   const latest = sorted.find((version) => !version.includes("-"));
-  return Handlebars.compile(readFileSync(template, "utf8"))({ versions: sorted, latest });
+  return Handlebars.compile(readFileSync(TEMPLATE, "utf8"))({ versions: sorted, latest });
 }
 
 function main(): void {

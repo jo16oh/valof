@@ -10,7 +10,7 @@ import {
   UnknownSettingError,
 } from "./errors.ts";
 import { Enabled, DataTypeSettings } from "./options.ts";
-import { ALL_KINDS, KindSet, kinds, type Kind } from "./rules/index.ts";
+import { ALL_KINDS, KindSet, KINDS, type Kind } from "./rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
@@ -106,7 +106,7 @@ export const Arguments = Val.companion<Arguments>()
         } else if (argument.startsWith("--no-")) {
           const name = argument.slice("--no-".length);
           const kind = KindSet.find(ALL_KINDS, name);
-          if (!kind) return R.fail(new UnknownRuleError({ kind: name, known: kinds }));
+          if (!kind) return R.fail(new UnknownRuleError({ kind: name, known: KINDS }));
           skip.push(kind);
         } else if (argument.startsWith("-")) {
           return R.fail(new UnknownOptionError({ option: argument.split("=")[0] ?? argument }));

@@ -27,13 +27,13 @@ type Where = { line: number; column: number };
 /** A fixture by its name, or a file elsewhere by its absolute path. */
 const at = (name: string): string =>
   isAbsolute(name) ? name : fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
-const project = at("*.ts");
+const PROJECT = at("*.ts");
 
 const context = (
   name: string,
   text?: string,
   reports: string[] = [],
-  read: string | string[] = project,
+  read: string | string[] = PROJECT,
 ) => ({
   filename: at(name),
   settings: { valof: { project: read } },
@@ -73,12 +73,12 @@ test("takes a list for the project, and leaves out what one entry excludes, howe
   const finding = "6:2-8  Money.format is never read";
   const spelled = (path: string): string => relative(process.cwd(), path);
   // `reader/show.ts` reads the member, so the finding goes only when the list keeps that file.
-  expect(run("money.ts", undefined, [project, at("reader/*.ts")])).toEqual([]);
+  expect(run("money.ts", undefined, [PROJECT, at("reader/*.ts")])).toEqual([]);
   expect(
-    run("money.ts", undefined, [project, spelled(at("reader/*.ts")), `!${at("reader/show.ts")}`]),
+    run("money.ts", undefined, [PROJECT, spelled(at("reader/*.ts")), `!${at("reader/show.ts")}`]),
   ).toEqual([finding]);
   expect(
-    run("money.ts", undefined, [project, at("reader/*.ts"), `!${spelled(at("reader/show.ts"))}`]),
+    run("money.ts", undefined, [PROJECT, at("reader/*.ts"), `!${spelled(at("reader/show.ts"))}`]),
   ).toEqual([finding]);
 });
 

@@ -4,7 +4,7 @@ import { Val, type Dyn } from "#valof";
 import { Budget } from "../budget.ts";
 import { problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
-import { repository } from "../../../shared/repository.ts";
+import { REPOSITORY } from "../../../shared/repository.ts";
 
 import { Claims, type ClaimedFile, type ClaimCountError } from "./claims.ts";
 import { BundleSize } from "./measure/index.ts";
@@ -66,13 +66,13 @@ export const SizeCheck = Val.companion<SizeCheck>()
         claimed,
         base?.build.production.sizes.gzip ?? Number.NaN,
         release,
-        repository,
+        REPOSITORY,
       );
       if (R.isFailure(read)) return read;
       const claims = read.value;
 
       if (write) {
-        await Claims.rewrite(claims, repository);
+        await Claims.rewrite(claims, REPOSITORY);
       }
 
       return R.succeed(

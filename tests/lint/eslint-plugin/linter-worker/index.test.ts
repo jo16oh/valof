@@ -95,11 +95,11 @@ test("keeps the last answer for the same file and text alone", () => {
 });
 
 const at = (name: string): string => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
-const project = Project.seal([at("money.ts"), at("order.ts")].map((file) => FilePath.seal(file)));
+const PROJECT = Project.seal([at("money.ts"), at("order.ts")].map((file) => FilePath.seal(file)));
 
 /** What the plugin asks about `file`, the buffer holding `text`. */
 const read = (file: string, text = readFileSync(file, "utf8")): Query =>
-  Query.read({ filename: file, sourceCode: { text }, settings: undefined }, project);
+  Query.read({ filename: file, sourceCode: { text }, settings: undefined }, PROJECT);
 
 test("leaves out a buffer that disk holds, so the files of a batch ask the same", () => {
   expect(read(at("money.ts")).overlay).toEqual({});

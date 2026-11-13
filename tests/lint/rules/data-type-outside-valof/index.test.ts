@@ -88,19 +88,19 @@ test("leaves a declaration file alone", async () => {
   expect(await reported({}, "declared.d")).toEqual([]);
 });
 
-const under = "tests/lint/rules/data-type-outside-valof/fixtures";
+const UNDER = "tests/lint/rules/data-type-outside-valof/fixtures";
 
 test("is enabled on the command line, with its settings after an equals sign", () => {
-  expect(cli(under, "--data-type-outside-valof").stdout).toContain(
+  expect(cli(UNDER, "--data-type-outside-valof").stdout).toContain(
     "domain.ts:9:13  data-type-outside-valof",
   );
-  const classes = cli(under, "--data-type-outside-valof=classes").stdout;
+  const classes = cli(UNDER, "--data-type-outside-valof=classes").stdout;
   expect(classes).toContain("domain.ts:28:8  data-type-outside-valof");
   expect(classes).not.toContain("domain.ts:29:32");
 });
 
 test("refuses a setting it does not take", () => {
-  const { status, stderr } = cli(under, "--data-type-outside-valof=typo");
+  const { status, stderr } = cli(UNDER, "--data-type-outside-valof=typo");
   expect(status).toBe(2);
   expect(stderr).toBe(
     'valof-lint: no setting called "typo"\n  known settings: classes, constraints, extraction',

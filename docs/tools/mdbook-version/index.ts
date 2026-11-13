@@ -18,7 +18,7 @@ type Book = {
 type PreprocessorInput = [unknown, Book];
 
 // The book is built fresh per tag, so this always names the version being documented.
-const placeholder = "{{valof-version}}";
+const PLACEHOLDER = "{{valof-version}}";
 
 function transformChapters(section: BookItem[], transform: (content: string) => string): void {
   for (const item of section) {
@@ -33,7 +33,7 @@ function transformChapters(section: BookItem[], transform: (content: string) => 
 
 export function preprocess(input: PreprocessorInput, version: string): Book {
   const [, book] = input;
-  transformChapters(book.items, (content) => content.replaceAll(placeholder, version));
+  transformChapters(book.items, (content) => content.replaceAll(PLACEHOLDER, version));
   return book;
 }
 

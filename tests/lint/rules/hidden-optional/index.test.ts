@@ -4,7 +4,7 @@ import { HiddenOptional, cliWithoutTypeScript, fixtures } from "../../support.ts
 
 const { lint, messages } = fixtures(import.meta.url);
 
-const under = "tests/lint/rules/hidden-optional/fixtures";
+const UNDER = "tests/lint/rules/hidden-optional/fixtures";
 
 // The rule gives the same verdict as the development check in `build`: any default or rest
 // parameter, whatever the annotation declares.
@@ -34,7 +34,7 @@ test("reports nothing on a const that no step takes", async () => {
 });
 
 test("needs no TypeScript", () => {
-  const { status, stdout } = cliWithoutTypeScript(`${under}/members`);
+  const { status, stdout } = cliWithoutTypeScript(`${UNDER}/members`);
   expect(status).toBe(1);
   expect(stdout).toContain(`${HiddenOptional.kind}  the annotation on toWire hides this default`);
 });

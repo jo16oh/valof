@@ -5,11 +5,11 @@ import { describe, expect, test } from "vite-plus/test";
 
 import { checkBlock, docBlocks, markdownBlocks } from "./index.ts";
 
-const chapters = fileURLToPath(new URL("../../src", import.meta.url));
-const readme = fileURLToPath(new URL("../../../README.md", import.meta.url));
+const CHAPTERS = fileURLToPath(new URL("../../src", import.meta.url));
+const README = fileURLToPath(new URL("../../../README.md", import.meta.url));
 
 describe("the book's TypeScript blocks", () => {
-  for (const block of docBlocks(chapters)) {
+  for (const block of docBlocks(CHAPTERS)) {
     test.skipIf(block.ignored)(block.name, () => {
       checkBlock(block.code);
     });
@@ -17,7 +17,7 @@ describe("the book's TypeScript blocks", () => {
 });
 
 describe("the README's TypeScript blocks", () => {
-  for (const block of markdownBlocks(readFileSync(readme, "utf8"), "README.md")) {
+  for (const block of markdownBlocks(readFileSync(README, "utf8"), "README.md")) {
     test.skipIf(block.ignored)(block.name, () => {
       checkBlock(block.code);
     });

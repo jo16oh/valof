@@ -12,14 +12,14 @@ import { codeBlocks, isTypeScript } from "../markdown-code/index.ts";
 
 // No trailing separator: Twoslash appends one to build its virtual paths, and the doubled
 // separator stops a diagnostic matching the file it came from, which passes every block.
-const root = fileURLToPath(new URL("../../../", import.meta.url)).replace(/\/$/, "");
+const ROOT = fileURLToPath(new URL("../../../", import.meta.url)).replace(/\/$/, "");
 
 // `@typescript/vfs` takes the lib files from whichever `typescript` it resolves for itself, and
 // that is the native port, which ships no `lib.*.d.ts`. Point it at the one Twoslash runs on.
-const libDirectory = dirname(fileURLToPath(import.meta.resolve("typescript-5")));
+const LIB_DIRECTORY = dirname(fileURLToPath(import.meta.resolve("typescript-5")));
 
 /** A block the fence marked ```ts,ignore. Kept, so the test output says it was left out. */
-export const ignore = "ignore";
+export const IGNORE = "ignore";
 
 export type DocBlock = {
   /** `caveats.md:18`, which is the test's name. */
@@ -30,8 +30,8 @@ export type DocBlock = {
 
 const twoslasher = createTwoslasher({
   tsModule: ts,
-  tsLibDirectory: libDirectory,
-  vfsRoot: root,
+  tsLibDirectory: LIB_DIRECTORY,
+  vfsRoot: ROOT,
   compilerOptions: {
     // The strictness of the root `tsconfig.json`. A block that only typechecks under looser
     // settings is wrong for a reader who copied the repository's own configuration.
@@ -48,10 +48,10 @@ const twoslasher = createTwoslasher({
     // Every subpath the book imports. Without them the checkout's own `package.json` answers,
     // which resolves through `dist`, and that is built here but not in a fresh clone.
     paths: {
-      valof: [join(root, "src/index.ts")],
-      "valof/lint": [join(root, "src/lint/index.ts")],
-      "valof/eslint-plugin": [join(root, "src/lint/eslint-plugin/index.ts")],
-      remeda: [join(root, "docs/tools/twoslash/stubs/remeda.d.ts")],
+      valof: [join(ROOT, "src/index.ts")],
+      "valof/lint": [join(ROOT, "src/lint/index.ts")],
+      "valof/eslint-plugin": [join(ROOT, "src/lint/eslint-plugin/index.ts")],
+      remeda: [join(ROOT, "docs/tools/twoslash/stubs/remeda.d.ts")],
     },
   },
 });
@@ -91,6 +91,6 @@ export function markdownBlocks(markdown: string, name: string): DocBlock[] {
     .map((block) => ({
       name: `${name}:${block.line}`,
       code: block.value,
-      ignored: block.attributes.includes(ignore),
+      ignored: block.attributes.includes(IGNORE),
     }));
 }
