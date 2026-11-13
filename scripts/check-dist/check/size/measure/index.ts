@@ -1,6 +1,5 @@
 import { Val } from "#valof";
 import { Imports, type Bundle } from "../bundle.ts";
-import { pipe } from "../../../../../src/shared/pipe/index.ts";
 import { Budget } from "../../budget.ts";
 import { align, bytes } from "../../report.ts";
 
@@ -43,16 +42,15 @@ export const BuildResult = Val.companion<BuildResult>()
     /** The bundle's imports, over a table of each mode's sizes. */
     render: (build): string => {
       const heads = ["minified", "gzip", "brotli"] as const;
-      return pipe(
-        [
-          ["", ...heads],
-          ...modes.map((mode) => [mode, ...heads.map((head) => bytes(build[mode].sizes[head]))]),
-        ],
-        (rows) => align(rows, ["left", "right", "right", "right"]),
-        (rows) => rows.map((cells) => `  ${cells.join("  ")}`),
-        (lines) => [`bundle  import { ${Imports.names(build.imports).join(", ")} }`, ...lines],
-        (lines) => lines.join("\n"),
+      const rows = [
+        ["", ...heads],
+        ...modes.map((mode) => [mode, ...heads.map((head) => bytes(build[mode].sizes[head]))]),
+      ];
+      const lines = align(rows, ["left", "right", "right", "right"]).map(
+        (cells) => `  ${cells.join("  ")}`,
       );
+
+      return [`bundle  import { ${Imports.names(build.imports).join(", ")} }`, ...lines].join("\n");
     },
   }))
   .build();

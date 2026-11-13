@@ -132,15 +132,15 @@ async function compileEntry(
   file: string,
 ): R.ResultAsync<Compiled, NoChunkError | CompileError> {
   const written = await attempt(mode, "writing the entry", () => {
-    const content = pipe(
-      Object.entries(imports).map(
+    const content = [
+      ...Object.entries(imports).map(
         ([module, names]) =>
           // `Val.companion` imports `Val` and reads one member, leaving the rest to tree-shaking.
           `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, repository)))};`,
       ),
-      (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
-      (lines) => lines.join("\n"),
-    );
+      `console.log(${Imports.names(imports).join(", ")});`,
+      "",
+    ].join("\n");
     return writeFile(file, content);
   });
   if (R.isFailure(written)) return written;

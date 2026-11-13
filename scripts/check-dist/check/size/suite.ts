@@ -2,7 +2,7 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "./bundle.ts";
-import { flow, pipe } from "../../../../src/shared/pipe/index.ts";
+import { flow } from "../../../../src/shared/pipe/index.ts";
 import { Budget } from "../budget.ts";
 import { align } from "../report.ts";
 import { BuildResult, BundleSize } from "./measure/index.ts";
@@ -91,20 +91,18 @@ export const Suite = Val.companion<Suite>()
   .build();
 
 function budgets(bundles: readonly BundleSize[]): string {
-  return pipe(
-    bundles.map((size) => {
-      const budget = BundleSize.budget(size);
-      return [
-        budget.name,
-        BundleSize.amount(size, budget.used),
-        BundleSize.amount(size, budget.limit),
-        Budget.left(budget),
-      ];
-    }),
-    (rows) => align(rows, ["left", "right", "right", "left"]),
-    (rows) =>
-      rows.map(([name, used, limit, left]) => `  ${name}  ${used} / ${limit}  ${left}`.trimEnd()),
-    (lines) => ["budget (production gzip)", ...lines],
-    (lines) => lines.join("\n"),
+  const rows = bundles.map((size) => {
+    const budget = BundleSize.budget(size);
+    return [
+      budget.name,
+      BundleSize.amount(size, budget.used),
+      BundleSize.amount(size, budget.limit),
+      Budget.left(budget),
+    ];
+  });
+  const lines = align(rows, ["left", "right", "right", "left"]).map(([name, used, limit, left]) =>
+    `  ${name}  ${used} / ${limit}  ${left}`.trimEnd(),
   );
+
+  return ["budget (production gzip)", ...lines].join("\n");
 }
