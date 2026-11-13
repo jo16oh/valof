@@ -14,7 +14,7 @@ import { Suite } from "./check/size/suite.ts";
 import { TypesBudgets, TypesCheck, TypesDeclaration, TypesFixture } from "./check/types/index.ts";
 
 /** The bundles the size check measures, each against its budget in bytes of production gzip. */
-const suite = Suite.seal([
+const SUITE = Suite.seal([
   Bundle.seal({
     name: "Val",
     base: true,
@@ -53,7 +53,7 @@ const suite = Suite.seal([
 ]);
 
 /** The files that state the base bundle's size, which the size check compares and rewrites. */
-const claimed = [
+const CLAIMED = [
   ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
   ClaimedFile.Markdown.create({ path: "README.md", release: true }),
   ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
@@ -66,16 +66,16 @@ const claimed = [
  * A line's last release is where its semantics settled, and supporting one from there avoids the
  * edge cases of the versions in between (notes §10.1).
  */
-const lines = ["typescript-5", "typescript-6", "typescript"];
+const LINES = ["typescript-5", "typescript-6", "typescript"];
 
 /**
  * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the fixtures
  * differed by 5 instantiations in 1,677, the checkers' own noise. The compat check still typechecks
  * every line.
  */
-const typesLine = lines[0]!;
+const TYPES_LINE = LINES[0]!;
 
-const typesBudgets = TypesBudgets.seal({
+const TYPES_BUDGETS = TypesBudgets.seal({
   /**
    * Instantiations over the baseline, which is the same lib with none of the library.
    *
@@ -169,9 +169,11 @@ if (R.isFailure(built)) {
 }
 
 process.exitCode = await run([
-  ...(size ? [Check.dyn(SizeCheck, SizeCheck.create({ suite, claimed, release, write }))] : []),
-  ...(types
-    ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: typesBudgets, line: typesLine }))]
+  ...(size
+    ? [Check.dyn(SizeCheck, SizeCheck.create({ suite: SUITE, claimed: CLAIMED, release, write }))]
     : []),
-  ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release, lines }))] : []),
+  ...(types
+    ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: TYPES_BUDGETS, line: TYPES_LINE }))]
+    : []),
+  ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release, lines: LINES }))] : []),
 ]);

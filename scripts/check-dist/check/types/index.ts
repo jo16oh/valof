@@ -15,7 +15,7 @@ import { Check } from "../check.ts";
 import { output, repository, writeJson } from "../../../shared/repository.ts";
 import { tsc, version, type Tsc } from "../../../shared/typescript-lines.ts";
 
-const here = new URL("./", import.meta.url);
+const HERE = new URL("./", import.meta.url);
 
 /** The types check's budgets: instantiations for each fixture, bytes for the declarations. */
 export type TypesBudgets = Val<
@@ -220,8 +220,8 @@ export const TypesCheck = Val.companion<TypesCheck>()
   .build();
 
 async function measure(tsc: Tsc, name: string): R.ResultAsync<Counts, FixtureError> {
-  const config = new URL(`.tsconfig.${name}.json`, here);
-  const base = JSON.parse(await readFile(new URL("tsconfig.base.json", here), "utf8")) as object;
+  const config = new URL(`.tsconfig.${name}.json`, HERE);
+  const base = JSON.parse(await readFile(new URL("tsconfig.base.json", HERE), "utf8")) as object;
   await writeJson(config, { ...base, include: [`fixtures/${name}.ts`] });
 
   // A fixture that stopped compiling measures nothing, so the error is the result.

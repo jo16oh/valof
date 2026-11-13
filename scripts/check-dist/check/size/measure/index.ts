@@ -7,7 +7,7 @@ import { align, bytes } from "../../report.ts";
 // oxlint-disable-next-line valof/data-type-outside-valof -- two modes, never more
 export type Mode = "production" | "development";
 /** Production, then development. */
-export const modes: readonly [Mode, Mode] = ["production", "development"];
+export const MODES: readonly [Mode, Mode] = ["production", "development"];
 
 export type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;
 export const Sizes = Val.companion<Sizes>().build();
@@ -46,7 +46,7 @@ export const BuildResult = Val.companion<BuildResult>()
       return pipe(
         [
           ["", ...heads],
-          ...modes.map((mode) => [mode, ...heads.map((head) => bytes(build[mode].sizes[head]))]),
+          ...MODES.map((mode) => [mode, ...heads.map((head) => bytes(build[mode].sizes[head]))]),
         ],
         (rows) => align(rows, ["left", "right", "right", "right"]),
         (rows) => rows.map((cells) => `  ${cells.join("  ")}`),

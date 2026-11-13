@@ -6,7 +6,7 @@ import { Enum, Val } from "#valof";
 
 import { bytes } from "../report.ts";
 
-const marker = "valof-minimal-bundle-size";
+const MARKER = "valof-minimal-bundle-size";
 
 /** A file that states the bundle size. `release` marks one that only a release checks. */
 export type ClaimedFile = Enum<
@@ -23,7 +23,7 @@ export const ClaimedFile = Enum.companion<ClaimedFile>()
     /** Finds the claim in the file's text. */
     regExp: (file): RegExp =>
       ClaimedFile.match(file, {
-        Markdown: () => new RegExp(`(?<=<!-- ${marker} -->)[\\s\\S]*?(?=<!-- /${marker} -->)`, "g"),
+        Markdown: () => new RegExp(`(?<=<!-- ${MARKER} -->)[\\s\\S]*?(?=<!-- /${MARKER} -->)`, "g"),
         PackageJson: () => /(?<="description": "[^"]*)\d+(?:\.\d+)? [kM]?B gzipped(?=[^"]*")/g,
       }),
   }))
