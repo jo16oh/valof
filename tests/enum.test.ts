@@ -607,7 +607,7 @@ describe("implAssoc", () => {
     });
 
     test("closes the variants' steps and the gates", () => {
-      const assoc = Enum.companion<Shape>().implAssoc(() => ({ SIDES: 4 }));
+      const assoc = Enum.companion<Shape>().implAssoc(() => ({ sides: () => 4 }));
       for (const step of ["Circle", "implSeal", "implCreate"] as const)
         expectTypeOf(assoc).not.toHaveProperty(step);
     });
@@ -627,15 +627,15 @@ describe("implAssoc", () => {
       Enum.companion<Coin>()
         .impl(() => ({ value: (c) => c.n }))
         // @ts-expect-error this name is already taken
-        .implAssoc(() => ({ value: 1 }));
+        .implAssoc(() => ({ value: () => 1 }));
       // @ts-expect-error a trait the enum declares answers to this name
-      Enum.companion<Coin>().implAssoc(() => ({ named: 1 }));
+      Enum.companion<Coin>().implAssoc(() => ({ named: () => 1 }));
       // @ts-expect-error a member cannot cover a variant
-      Enum.companion<Coin>().implAssoc(() => ({ Heads: 1 }));
+      Enum.companion<Coin>().implAssoc(() => ({ Heads: () => 1 }));
       // @ts-expect-error `match` is the library's
-      Enum.companion<Coin>().implAssoc(() => ({ match: 1 }));
+      Enum.companion<Coin>().implAssoc(() => ({ match: () => 1 }));
       // @ts-expect-error `seal` is the library's
-      Enum.companion<Coin>().implAssoc(() => ({ seal: 1 }));
+      Enum.companion<Coin>().implAssoc(() => ({ seal: () => 1 }));
     });
 
     test("a member whose arguments can be left out is rejected", () => {
@@ -667,26 +667,26 @@ describe("implAssoc", () => {
 
     test("is written any number of times, and closes the variant's gates", () => {
       const twice = Enum.companion<Shape>()
-        .Circle.implAssoc(() => ({ PI: 3.14 }))
-        .Circle.implAssoc(() => ({ TAU: 6.28 }));
+        .Circle.implAssoc(() => ({ pi: () => 3.14 }))
+        .Circle.implAssoc(() => ({ tau: () => 6.28 }));
       expectTypeOf(twice.Circle).not.toHaveProperty("implSeal");
       expectTypeOf(twice.Circle).not.toHaveProperty("implCreate");
       const Round = twice.build();
-      expect([Round.Circle.PI, Round.Circle.TAU]).toEqual([3.14, 6.28]);
+      expect([Round.Circle.pi(), Round.Circle.tau()]).toEqual([3.14, 6.28]);
     });
 
     test("a name is taken once, and the library's are reserved", () => {
-      const assoc = Enum.companion<Shape>().Circle.implAssoc(() => ({ unit: 1 }));
+      const assoc = Enum.companion<Shape>().Circle.implAssoc(() => ({ unit: () => 1 }));
       // @ts-expect-error this name is already taken
-      assoc.Circle.implAssoc(() => ({ unit: 2 }));
+      assoc.Circle.implAssoc(() => ({ unit: () => 2 }));
       // @ts-expect-error this name is already taken
       assoc.Circle.impl(() => ({ unit: (c: VariantOf<Shape, "Circle">) => c.r }));
       Enum.companion<Shape>()
         .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
         // @ts-expect-error this name is already taken
-        .Circle.implAssoc(() => ({ diameter: 1 }));
+        .Circle.implAssoc(() => ({ diameter: () => 1 }));
       // @ts-expect-error `seal` is the library's
-      Enum.companion<Shape>().Circle.implAssoc(() => ({ seal: 1 }));
+      Enum.companion<Shape>().Circle.implAssoc(() => ({ seal: () => 1 }));
     });
 
     test("a trait's member names are held against it, the enum's and the variant's own", () => {
@@ -694,7 +694,7 @@ describe("implAssoc", () => {
       const Named = Trait.companion<Named>().build();
       type Coin = Enum<"AssocVariantCoin", { Heads: { n: number }; Tails: { n: number } }, Named>;
       // @ts-expect-error a trait the enum declares answers to this name
-      Enum.companion<Coin>().Heads.implAssoc(() => ({ named: 1 }));
+      Enum.companion<Coin>().Heads.implAssoc(() => ({ named: () => 1 }));
       type Labelled = Trait<
         "AssocLabelled",
         { label: string },
@@ -706,7 +706,7 @@ describe("implAssoc", () => {
         { Book: { pages: number } & Labelled; Pen: { ink: string } }
       >;
       Enum.companion<Item>()
-        .Book.implAssoc(() => ({ labelled: 1 }))
+        .Book.implAssoc(() => ({ labelled: () => 1 }))
         .Book.implTrait(
           // @ts-expect-error another member already answers to one of these names
           Labelled,
@@ -723,11 +723,11 @@ describe("implAssoc", () => {
 
     test("is the variant's alone", () => {
       const Round = Enum.companion<Shape>()
-        .Circle.implAssoc(() => ({ PI: 3.14 }))
+        .Circle.implAssoc(() => ({ pi: () => 3.14 }))
         .build();
-      expectTypeOf(Round).not.toHaveProperty("PI");
-      expectTypeOf(Round.Square).not.toHaveProperty("PI");
-      expect([Object.hasOwn(Round, "PI"), Object.hasOwn(Round.Square, "PI")]).toEqual([
+      expectTypeOf(Round).not.toHaveProperty("pi");
+      expectTypeOf(Round.Square).not.toHaveProperty("pi");
+      expect([Object.hasOwn(Round, "pi"), Object.hasOwn(Round.Square, "pi")]).toEqual([
         false,
         false,
       ]);
@@ -1100,7 +1100,7 @@ describe("a variant may be named after the library's steps and functions", () =>
     .impl.implSeal((v, seal) => seal({ ...v, n: v.n + 1 }))
     .tag.impl(() => ({ twice: (c) => c.n * 2 }))
     .build.impl(() => ({ twice: (c) => c.n * 2 }))
-    .implAssoc.implAssoc(() => ({ ZERO: 0 }))
+    .implAssoc.implAssoc(() => ({ zero: () => 0 }))
     .seal.impl(() => ({ twice: (c) => c.n * 2 }))
     .implCreate(() => ({ _tag: "create" as const, n: 0 }))
     .impl(() => ({ named: (c) => c._tag }))
@@ -1111,7 +1111,7 @@ describe("a variant may be named after the library's steps and functions", () =>
     expect(Cmd.tag.twice(Cmd.tag.create({ n: 2 }))).toBe(4);
     expect(Cmd.build.twice(Cmd.build.create({ n: 3 }))).toBe(6);
     expect(Cmd.named(Cmd.build.create({ n: 3 }))).toBe("build");
-    expect(Cmd.implAssoc.ZERO).toBe(0);
+    expect(Cmd.implAssoc.zero()).toBe(0);
   });
 
   test("`seal`, `create` and `match`, which stay the enum's when called", () => {
@@ -1953,7 +1953,11 @@ describe("the order of the steps", () => {
       .Circle.impl(() => ({ diameter: (c) => c.r * 2 }))
       .Square.impl(() => ({ perimeter: (s) => s.side * 4 }));
     expectTypeOf(squared).not.toHaveProperty("Circle");
-    expect(squared.Square.implAssoc(() => ({ UNIT: 1 })).build().Square.UNIT).toBe(1);
+    expect(
+      squared.Square.implAssoc(() => ({ unit: () => 1 }))
+        .build()
+        .Square.unit(),
+    ).toBe(1);
 
     const unsealed = Enum.companion<Shape>()
       .Circle.implCreate.noseal(() => ({ r: 1 }))
@@ -1971,7 +1975,7 @@ describe("the order of the steps", () => {
     const created = start().Circle.implCreate((r: number) => ({ r }));
     const implemented = start().Circle.impl(() => ({ d: (c) => c.r * 2 }));
     const traited = start().Circle.implTrait(Round, () => ({ area: (c) => c.r * c.r }));
-    const associated = start().Circle.implAssoc(() => ({ UNIT: 1 }));
+    const associated = start().Circle.implAssoc(() => ({ unit: () => 1 }));
     const square = { perimeter: (s: VariantOf<Disc, "Square">) => s.side * 4 };
 
     expectTypeOf(sealed.Square.impl(() => square)).not.toHaveProperty("Circle");
