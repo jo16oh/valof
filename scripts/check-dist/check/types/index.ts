@@ -12,7 +12,7 @@ import { Budget } from "../budget.ts";
 import { align, count, problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
 
-import { output, repository, writeJson } from "../../../shared/repository.ts";
+import { output, REPOSITORY, writeJson } from "../../../shared/repository.ts";
 import { tsc, version, type Tsc } from "../../../shared/typescript-lines.ts";
 
 const HERE = new URL("./", import.meta.url);
@@ -199,7 +199,7 @@ export const TypesCheck = Val.companion<TypesCheck>()
         ...measured.map(({ fixture, counts }) => TypesFixture.budget(fixture, counts)),
         ...(await Promise.all(
           budgets.declarations.map((declaration) =>
-            TypesDeclaration.measure(declaration, repository),
+            TypesDeclaration.measure(declaration, REPOSITORY),
           ),
         )),
       ];

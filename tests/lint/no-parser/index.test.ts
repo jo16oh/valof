@@ -4,7 +4,9 @@ import { expect, test } from "vite-plus/test";
 
 import { cliWithoutParser, withoutParser } from "../support.ts";
 
-const module = (name: string): string => fileURLToPath(new URL(name, import.meta.url));
+function module(name: string): string {
+  return fileURLToPath(new URL(name, import.meta.url));
+}
 
 test("the plugin throws the command's instruction", () => {
   const command = cliWithoutParser("tests/lint/command/fixtures").stderr;

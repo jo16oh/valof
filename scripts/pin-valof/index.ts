@@ -7,32 +7,46 @@ import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { root, run } from "../shared/repository.ts";
+import { ROOT, run } from "../shared/repository.ts";
 
-const field = "valof-pinned-for-scripts-commit";
+async function main(): Promise<void> {
+  const rev = process.argv.slice(2).find((arg) => arg !== "--");
+  if (rev === undefined) {
+    await build(await pinned());
+  } else {
+    const { stdout } = await run("git", ["rev-parse", "--verify", `${rev}^{commit}`], {
+      cwd: ROOT,
+    });
+    const commit = stdout.trim();
+    await build(commit);
+    await pin(commit);
+  }
+}
+
+const FIELD = "valof-pinned-for-scripts-commit";
 
 /** What `devDependencies.valof-pinned-for-scripts` links to. Inside `node_modules`, so tsc skips it. */
-const target = join(root, "node_modules/.valof-pinned-for-scripts");
+const TARGET = join(ROOT, "node_modules/.valof-pinned-for-scripts");
 
 /**
  * What the runtime in `dist` is built from. `package.json` stays out: it holds the pin, and a
  * release bumps its version. Valof has no runtime dependency, so nothing else in it reaches `dist`.
  */
-const inputs = ["src", "tsconfig.json", "tsconfig.build.json"];
+const INPUTS = ["src", "tsconfig.json", "tsconfig.build.json"];
 
 export async function pinned(): Promise<string> {
-  const manifest = JSON.parse(await readFile(join(root, "package.json"), "utf8")) as {
-    [field]?: string;
+  const manifest = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as {
+    [FIELD]?: string;
   };
-  const commit = manifest[field];
-  if (commit === undefined) throw new Error(`package.json has no "${field}"`);
+  const commit = manifest[FIELD];
+  if (commit === undefined) throw new Error(`package.json has no "${FIELD}"`);
   return commit;
 }
 
 /** Whether the working tree builds the `dist` that `commit` builds. */
-export async function matches(commit: string, cwd = root): Promise<boolean> {
+export async function matches(commit: string, cwd = ROOT): Promise<boolean> {
   try {
-    await run("git", ["diff", "--quiet", commit, "--", ...inputs], { cwd });
+    await run("git", ["diff", "--quiet", commit, "--", ...INPUTS], { cwd });
     return true;
   } catch (error) {
     if ((error as { code?: unknown }).code === 1) return false;
@@ -45,7 +59,7 @@ export async function matches(commit: string, cwd = root): Promise<boolean> {
  * root entry alone, so tsc builds it and the linter is left out. The working tree's toolchain then
  * never reads the pinned commit's `vite.config.ts`, which an older toolchain may have written.
  */
-export async function build(commit: string, cwd = root, out = target): Promise<void> {
+export async function build(commit: string, cwd = ROOT, out = TARGET): Promise<void> {
   const stamp = join(out, ".commit");
   const built = await readFile(stamp, "utf8").catch(() => undefined);
   if (built === commit) return;
@@ -57,8 +71,8 @@ export async function build(commit: string, cwd = root, out = target): Promise<v
     await run("git", ["archive", "--output", archive, commit], { cwd });
     await run("tar", ["-xf", archive, "-C", tree]);
     // The toolchain of the working tree builds it. Only the source is the pinned one.
-    await symlink(join(root, "node_modules"), join(tree, "node_modules"));
-    await run(join(root, "node_modules/.bin/tsc"), ["-p", "tsconfig.build.json"], { cwd: tree });
+    await symlink(join(ROOT, "node_modules"), join(tree, "node_modules"));
+    await run(join(ROOT, "node_modules/.bin/tsc"), ["-p", "tsconfig.build.json"], { cwd: tree });
 
     await rm(out, { recursive: true, force: true });
     await mkdir(out);
@@ -69,21 +83,6 @@ export async function build(commit: string, cwd = root, out = target): Promise<v
     await rm(tree, { recursive: true, force: true });
   }
   console.log(`valof ${commit.slice(0, 7)} built for #valof`);
-}
-
-// Only when run as a command. The compat check and the tests import this file for its functions.
-if (import.meta.main) {
-  const rev = process.argv.slice(2).find((arg) => arg !== "--");
-  if (rev === undefined) {
-    await build(await pinned());
-  } else {
-    const { stdout } = await run("git", ["rev-parse", "--verify", `${rev}^{commit}`], {
-      cwd: root,
-    });
-    const commit = stdout.trim();
-    await build(commit);
-    await pin(commit);
-  }
 }
 
 // CI checks out one commit, so the pinned one is fetched on demand.
@@ -97,10 +96,15 @@ async function fetched(commit: string, cwd: string): Promise<void> {
 
 // Rewrites the one line, so the rest of `package.json` keeps its formatting.
 async function pin(commit: string): Promise<void> {
-  const file = join(root, "package.json");
+  const file = join(ROOT, "package.json");
   const text = await readFile(file, "utf8");
-  const line = new RegExp(`("${field}": )"[0-9a-f]*"`);
-  if (!line.test(text)) throw new Error(`package.json has no "${field}"`);
+  const line = new RegExp(`("${FIELD}": )"[0-9a-f]*"`);
+  if (!line.test(text)) throw new Error(`package.json has no "${FIELD}"`);
   await writeFile(file, text.replace(line, `$1"${commit}"`));
   console.log(`pinned valof to ${commit}`);
+}
+
+// Only when run as a command. The compat check and the tests import this file for its functions.
+if (import.meta.main) {
+  await main();
 }

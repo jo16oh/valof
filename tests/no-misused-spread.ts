@@ -7,16 +7,30 @@ import type { Dyn, Enum, Impl, Self, Trait, Val, VariantOf } from "../src/index.
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
 type Greetable = Trait<"Greetable", { name: string }, { greet: (self: Self) => string }>;
 
-export const published = (u: Published<"User", { id: string }>) => ({ ...u });
-export const val = (u: Val<"User", { id: string }>) => ({ ...u });
-export const variant = (c: VariantOf<Shape, "Circle">) => ({ ...c });
-export const traitDeclaring = (p: Val<"Person", { id: string }, Greetable>) => ({ ...p });
+export function published(u: Published<"User", { id: string }>) {
+  return { ...u };
+}
+export function val(u: Val<"User", { id: string }>) {
+  return { ...u };
+}
+export function variant(c: VariantOf<Shape, "Circle">) {
+  return { ...c };
+}
+export function traitDeclaring(p: Val<"Person", { id: string }, Greetable>) {
+  return { ...p };
+}
 
 // Oxlint does not split a union to match it, unlike typescript-eslint.
-// oxlint-disable-next-line typescript/no-misused-spread
-export const union = (s: Shape) => ({ ...s });
-// oxlint-disable-next-line typescript/no-misused-spread
-export const trait = (g: Impl<Greetable>) => ({ ...g });
+export function union(s: Shape) {
+  // oxlint-disable-next-line typescript/no-misused-spread
+  return { ...s };
+}
+export function trait(g: Impl<Greetable>) {
+  // oxlint-disable-next-line typescript/no-misused-spread
+  return { ...g };
+}
 // A box loses its members.
-// oxlint-disable-next-line typescript/no-misused-spread
-export const dyn = (d: Dyn<Greetable>) => ({ ...d });
+export function dyn(d: Dyn<Greetable>) {
+  // oxlint-disable-next-line typescript/no-misused-spread
+  return { ...d };
+}

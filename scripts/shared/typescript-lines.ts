@@ -3,16 +3,15 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { root, run } from "./repository.ts";
+import { ROOT, run } from "./repository.ts";
 
 export function version(alias: string): string {
-  const manifest = join(root, "node_modules", alias, "package.json");
+  const manifest = join(ROOT, "node_modules", alias, "package.json");
   return (JSON.parse(readFileSync(manifest, "utf8")) as { version: string }).version;
 }
 
 export type Tsc = (args: string[], cwd?: string) => Promise<{ stdout: string }>;
 
-export const tsc =
-  (alias: string): Tsc =>
-  (args, cwd = root) =>
-    run(join(root, "node_modules", alias, "bin/tsc"), args, { cwd });
+export function tsc(alias: string): Tsc {
+  return (args, cwd = ROOT) => run(join(ROOT, "node_modules", alias, "bin/tsc"), args, { cwd });
+}

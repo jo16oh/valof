@@ -47,8 +47,9 @@ const Stub = Val.companion<Stub>()
   }))
   .build();
 
-const check = (name: string, outcome: Stub["outcome"]) =>
-  Check.dyn(Stub, Stub.seal({ name, outcome }));
+function check(name: string, outcome: Stub["outcome"]) {
+  return Check.dyn(Stub, Stub.seal({ name, outcome }));
+}
 
 describe("run", () => {
   test("runs every check after one fails, rejects or throws, and exits 1 with the summary", async () => {

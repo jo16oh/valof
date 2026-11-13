@@ -54,12 +54,12 @@ const Silenced = Enum.companion<Silenced>()
  * since silencing would hide the report about the directive itself and leave nobody to hear it.
  * `valof-lint-disable-all-whole-file` is how a file is turned off, and it says so.
  */
-const effect = ({ spelling, kinds }: Directive): Silenced => {
+function effect({ spelling, kinds }: Directive): Silenced {
   if (spelling === "valof-lint-disable-all-whole-file") return Silenced.Every.create({});
   if (spelling === "valof-lint-disable") return named([]);
   if (kinds.length > 0) return named(kinds);
   return spelling === "valof-lint-disable-next-line" ? Silenced.Every.create({}) : named([]);
-};
+}
 
 export const Directive = Val.companion<Directive>()
   .impl(() => ({

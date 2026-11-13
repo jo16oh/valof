@@ -4,7 +4,7 @@ import { Bundle, Imports } from "../bundle.ts";
 import { Build, BuildResult, BundleSize, Sizes } from "./index.ts";
 
 // Development is twice the size, so a budget read from it shows.
-const build = (gzip: number) => {
+function build(gzip: number) {
   const mode = (gzip: number) =>
     Build.seal({ sizes: Sizes.seal({ minified: 0, gzip, brotli: 0 }), library: 0 });
   return BuildResult.seal({
@@ -13,7 +13,7 @@ const build = (gzip: number) => {
     production: mode(gzip),
     development: mode(gzip * 2),
   });
-};
+}
 
 test("budgets a base bundle by its size, and any other by what it adds", () => {
   const base = build(1000);

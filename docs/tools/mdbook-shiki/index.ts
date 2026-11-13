@@ -6,6 +6,22 @@ import { removeTwoslashNotations } from "twoslash/fallback";
 
 import { codeBlocks, isTypeScript } from "../markdown-code/index.ts";
 
+async function main() {
+  if (process.argv[2] === "supports") {
+    process.exitCode = process.argv[3] === "html" ? 0 : 1;
+    return;
+  }
+
+  process.stdin.setEncoding("utf8");
+  let stdin = "";
+  for await (const chunk of process.stdin) {
+    stdin += chunk;
+  }
+
+  const input = JSON.parse(stdin) as PreprocessorInput;
+  process.stdout.write(JSON.stringify(await preprocess(input)));
+}
+
 type Language = BundledLanguage | "text";
 
 type Options = {
@@ -42,24 +58,24 @@ type Context = {
 
 type PreprocessorInput = [Context, Book];
 
-const defaults = {
+const DEFAULTS = {
   lightTheme: "github-light",
   darkTheme: "github-dark",
   fallbackLanguage: "text",
 } satisfies Required<Omit<Options, "onWarning">>;
 
-const languages = ["text", "bash", "javascript", "typescript"] satisfies Language[];
+const LANGUAGES = ["text", "bash", "javascript", "typescript"] satisfies Language[];
 
 export async function createMarkdownHighlighter(options: Options = {}) {
   const settings = {
-    lightTheme: options.lightTheme ?? defaults.lightTheme,
-    darkTheme: options.darkTheme ?? defaults.darkTheme,
-    fallbackLanguage: options.fallbackLanguage ?? defaults.fallbackLanguage,
+    lightTheme: options.lightTheme ?? DEFAULTS.lightTheme,
+    darkTheme: options.darkTheme ?? DEFAULTS.darkTheme,
+    fallbackLanguage: options.fallbackLanguage ?? DEFAULTS.fallbackLanguage,
     onWarning: options.onWarning,
   };
   const highlighter = await createHighlighter({
     themes: [settings.lightTheme, settings.darkTheme],
-    langs: languages,
+    langs: LANGUAGES,
   });
   const loadedLanguages = new Set([...highlighter.getLoadedLanguages(), "text"]);
 
@@ -147,22 +163,6 @@ export async function preprocess(
   } finally {
     markdownHighlighter.dispose();
   }
-}
-
-async function main() {
-  if (process.argv[2] === "supports") {
-    process.exitCode = process.argv[3] === "html" ? 0 : 1;
-    return;
-  }
-
-  process.stdin.setEncoding("utf8");
-  let stdin = "";
-  for await (const chunk of process.stdin) {
-    stdin += chunk;
-  }
-
-  const input = JSON.parse(stdin) as PreprocessorInput;
-  process.stdout.write(JSON.stringify(await preprocess(input)));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

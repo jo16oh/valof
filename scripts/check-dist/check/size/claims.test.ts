@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 import { ClaimedFile, Claims } from "./claims.ts";
 
 // A file every run reads, then a Markdown file and a package.json that only a release reads.
-const files = [
+const FILES = [
   ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
   ClaimedFile.Markdown.create({ path: "README.md", release: true }),
   ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
@@ -18,9 +18,12 @@ const files = [
 let root: URL;
 let directory: string;
 
-const intro = (size: string): string =>
-  `- Starts from <!-- valof-minimal-bundle-size -->${size}<!-- /valof-minimal-bundle-size -->.\n`;
-const manifest = (size: string): string => `{ "description": "Starts from ${size}." }\n`;
+function intro(size: string): string {
+  return `- Starts from <!-- valof-minimal-bundle-size -->${size}<!-- /valof-minimal-bundle-size -->.\n`;
+}
+function manifest(size: string): string {
+  return `{ "description": "Starts from ${size}." }\n`;
+}
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "valof-claims-test-"));
@@ -35,14 +38,16 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-const read = (file: string): Promise<string> => readFile(join(directory, file), "utf8");
+function read(file: string): Promise<string> {
+  return readFile(join(directory, file), "utf8");
+}
 
 // Reads, rewrites with `write`, and judges, as the size check does. The problems found, if any.
 async function check(
   gzip: number,
   { release, write }: { release: boolean; write: boolean },
 ): Promise<string | undefined> {
-  const claims = await Claims.read(files, gzip, release, root);
+  const claims = await Claims.read(FILES, gzip, release, root);
   if (R.isFailure(claims)) return claims.error.message;
 
   if (write) {
@@ -93,7 +98,7 @@ describe("Claims", () => {
 
   test("prints each claim's state, and what --write rewrote", async () => {
     await writeFile(join(directory, "docs/src/introduction.md"), intro("9 B gzipped"));
-    const claims = R.unwrap(await Claims.read(files, 965, true, root));
+    const claims = R.unwrap(await Claims.read(FILES, 965, true, root));
     expect(Claims.render(claims, false)).toBe(
       [
         "claims  965 B gzipped",

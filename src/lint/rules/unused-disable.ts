@@ -19,10 +19,9 @@ export const UnusedDisable = Val.companion<UnusedDisable>()
   .build();
 
 /** What a finding answers for: its own line, and its file as a whole. */
-const answers = ({ file, at: { line }, kind }: Finding): string[] => [
-  `${file}\0${line}\0${kind}`,
-  `${file}\0file\0${kind}`,
-];
+function answers({ file, at: { line }, kind }: Finding): string[] {
+  return [`${file}\0${line}\0${kind}`, `${file}\0file\0${kind}`];
+}
 
 /**
  * Reports every name in a directive that silenced nothing.
