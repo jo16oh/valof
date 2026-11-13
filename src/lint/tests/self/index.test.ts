@@ -8,6 +8,7 @@ import { ROOT } from "../support.ts";
 // The linter and the scripts use the library, so the linter's rules apply to them too.
 test("finds nothing in valof's own source and scripts", async () => {
   const files = globSync(["src/**/*.ts", "scripts/**/*.ts"], { cwd: ROOT, exclude: untested });
+  expect(files).toContain("src/val.ts");
   const findings = await lint(files.map((file) => ROOT + file));
   expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
 });
@@ -15,6 +16,7 @@ test("finds nothing in valof's own source and scripts", async () => {
 // Every setting but `classes`: the linter keeps state in classes, and builds its errors as classes.
 test("finds no data type outside Valof in the linter", async () => {
   const files = globSync("src/lint/**/*.ts", { cwd: ROOT, exclude: untested });
+  expect(files).toContain("src/lint/index.ts");
   const findings = await lint(
     files.map((file) => ROOT + file),
     Options.create({
