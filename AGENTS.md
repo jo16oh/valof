@@ -38,9 +38,9 @@ unwraps the Result's `.value` stays with them, and the blank line goes after it.
 Gather the guard clauses at the top of the function, and put a blank line before the main work. Put
 a blank line before the final `return`, unless the whole body is one paragraph.
 
-Brace the body of every `if`, `else` and loop. A guard clause is the exception: an `if` with no
-`else` whose body is one `return`, `throw`, `continue` or `break`. The `local/braces` rule enforces
-this.
+Outside the library's `src` and the tests, brace the body of every `if`, `else` and loop. A guard
+clause is the exception: an `if` with no `else` whose body is one `return`, `throw`, `continue` or
+`break`. The `local/braces` rule enforces this.
 
 Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
 and after the pair. Export both or neither.

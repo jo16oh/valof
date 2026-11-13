@@ -1119,14 +1119,13 @@ const resolving = (
   rest: (key: string) => unknown,
   members?: object,
 ): object => {
-  for (const key in own) {
+  for (const key in own)
     own[key] = new Proxy(own[key] as object, {
       get: (target, property) => {
         const frame = rest(key) as object;
         return (Object.hasOwn(frame, property) ? frame : target)[property as never];
       },
     });
-  }
   return new Proxy(
     { ...own, ...members },
     {
@@ -1179,9 +1178,7 @@ const frame = (tag: string, name: string, registered: Registered): object => {
     seal: (value, terminal) => {
       // Taken here, so a value this seal builds on the way runs with nothing watching it.
       let watcher: typeof watching;
-      if (development) {
-        [watcher, watching] = [watching, undefined];
-      }
+      if (development) [watcher, watching] = [watching, undefined];
       assertVariantPayload(value);
       const end = (checked: unknown) => {
         const sealed = terminal(checked);
@@ -1207,14 +1204,10 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
   const frames = new Map<string, unknown>();
   const at = (name: string): unknown => {
     let found = frames.get(name);
-    if (found === undefined) {
-      frames.set(name, (found = frame(tag, name, variants[name] ?? {})));
-    }
+    if (found === undefined) frames.set(name, (found = frame(tag, name, variants[name] ?? {})));
     return found;
   };
-  for (const name of Object.keys(variants)) {
-    at(name);
-  }
+  for (const name of Object.keys(variants)) at(name);
   const dispatch = (value: Payload) =>
     (at(value[tag] as string) as { seal: (value: Payload) => unknown }).seal(value);
   const sealing = seal ? (value: Payload) => seal(value, dispatch) : dispatch;
@@ -1229,11 +1222,8 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
       return dispatch(value);
     };
     try {
-      if (seal) {
-        seal(payload, watch);
-      } else {
-        watch(payload);
-      }
+      if (seal) seal(payload, watch);
+      else watch(payload);
     } finally {
       watching = undefined;
     }
