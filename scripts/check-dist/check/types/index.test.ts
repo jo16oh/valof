@@ -37,9 +37,9 @@ test("fails on the budgets over their limit, and names only those", () => {
 
 test("budgets a fixture's instantiations, not its types", () => {
   const counts = Counts.seal({ types: 3, instantiations: 7, check: 0, total: 0 });
-  const fixture = TypesFixture.seal({ name: "core", budget: 10_000 });
+  const fixture = TypesFixture.seal({ name: "fixture", budget: 8 });
 
   expect(TypesFixture.budget(fixture, counts)).toEqual(
-    Budget.seal({ name: "core", used: 7, limit: 10_000, unit: "count" }),
+    Budget.seal({ name: "fixture", used: 7, limit: 8, unit: "count" }),
   );
 });
