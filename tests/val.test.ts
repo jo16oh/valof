@@ -2105,7 +2105,7 @@ describe("building", () => {
       type Held = Val<"Held", { id: string; owner: string }, Owned>;
       const members = Val.companion<Account>().impl(() => ({ owned: (a) => a.owner }));
       const traits = Val.companion<Held>().implTrait(Owned, () => ({ owned: (h) => h.owner }));
-      const assoc = Val.companion<Account>().implAssoc(() => ({ CURRENCY: "JPY" }));
+      const assoc = Val.companion<Account>().implAssoc(() => ({ currency: () => "JPY" }));
       for (const step of ["implSeal", "implCreate"] as const) {
         expectTypeOf(members).not.toHaveProperty(step);
         expectTypeOf(traits).not.toHaveProperty(step);
@@ -2372,12 +2372,12 @@ describe("building", () => {
       expect(Money.zero()).toEqual({ cents: 0 });
     });
 
-    test("a member that is not a function attaches as it is", () => {
-      const Money = Val.companion<Money>()
-        .implAssoc(({ seal }) => ({ ZERO: seal({ cents: 0 }), CURRENCY: "JPY" }))
-        .build();
-      expectTypeOf(Money.ZERO).toEqualTypeOf<Money>();
-      expect([Money.ZERO, Money.CURRENCY]).toEqual([{ cents: 0 }, "JPY"]);
+    // A value would be made when the companion is built, before what the file declares after it.
+    test("a member that is not a function is rejected", () => {
+      Val.companion<Money>().implAssoc(({ seal }) => ({
+        // @ts-expect-error a member is a function
+        zero: seal({ cents: 0 }),
+      }));
     });
 
     describe("a member whose arguments can be left out is rejected", () => {
