@@ -12,8 +12,8 @@ import { FilePath } from "../../../../src/lint/files.ts";
 import { Finding, Kind } from "../../../../src/lint/rules/index.ts";
 
 /** A reply holding one finding that says `message`. */
-const says = (file: string, message: string): Reply =>
-  R.succeed([
+function says(file: string, message: string): Reply {
+  return R.succeed([
     Finding.seal({
       kind: Kind.seal("unused-member"),
       file: FilePath.seal(file),
@@ -21,6 +21,7 @@ const says = (file: string, message: string): Reply =>
       message,
     }),
   ]);
+}
 
 /** How many queries this thread has answered. */
 let asked = 0;

@@ -3,13 +3,14 @@ import { expect, test } from "vite-plus/test";
 import { hidesParameter } from "../../src/dual/parameters.ts";
 
 // Built from strings, since the test transform drops comments and rewrites the source.
-const hides = (member: unknown) =>
-  hidesParameter(
+function hides(member: unknown) {
+  return hidesParameter(
     typeof member === "string"
       ? // oxlint-disable-next-line typescript/no-implied-eval -- the source has to survive the transform
         (new Function(`let key; return ${member}`)() as object)
       : (member as object),
   );
+}
 
 test("a default or a rest at the top level of the parameter list, at any position", () => {
   const hiding = [

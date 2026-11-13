@@ -12,13 +12,13 @@ import * as Rules from "../../src/lint/rules/index.ts";
 type Registered = (typeof RULES)[number];
 
 /** The rule in the registry that a companion creates. */
-const registered = (companion: { create: (settings: never) => { kind: string } }): Registered => {
+function registered(companion: { create: (settings: never) => { kind: string } }): Registered {
   // An opt-in rule's create takes its settings, and none of them changes the kind.
   const { kind } = companion.create({} as never);
   const rule = RULES.find((one) => one.kind === kind);
   if (!rule) throw new Error(`no rule reports ${kind}`);
   return rule;
-};
+}
 
 // Named rather than spelled as a kind: a test that names a rule reads the same object the
 // registry does, so renaming a kind is one edit and no test string follows it.
@@ -47,11 +47,11 @@ export const UnusedMember = registered(Rules.UnusedMember);
  */
 export type Reported = { rule: Registered; at: string };
 
-const reporting = (kind: string): Registered => {
+function reporting(kind: string): Registered {
   const rule = RULES.find((one) => one.kind === kind);
   if (!rule) throw new Error(`no rule reports ${kind}`);
   return rule;
-};
+}
 
 /** The package root, which is where the command runs. */
 export const ROOT = fileURLToPath(new URL("../../", import.meta.url));
@@ -124,17 +124,22 @@ function spawn(
 }
 
 /** The command, for what only the command does. */
-export const cli = (...args: string[]): Run => spawn([], args);
+export function cli(...args: string[]): Run {
+  return spawn([], args);
+}
 
 /** The same, run from another directory. */
-export const cliIn = (cwd: string, ...args: string[]): Run => spawn([], args, undefined, cwd);
+export function cliIn(cwd: string, ...args: string[]): Run {
+  return spawn([], args, undefined, cwd);
+}
 
 /**
  * The same, keeping its scans on disk. Every other run here keeps none, so no test reads what
  * another left behind.
  */
-export const cliKeepingIn = (cwd: string, ...args: string[]): Run =>
-  spawn([], args, undefined, cwd, keeping());
+export function cliKeepingIn(cwd: string, ...args: string[]): Run {
+  return spawn([], args, undefined, cwd, keeping());
+}
 
 /** The environment without `VALOF_LINT_CACHE`, so the linter keeps its scans on disk. */
 export function keeping(): NodeJS.ProcessEnv {
@@ -143,23 +148,26 @@ export function keeping(): NodeJS.ProcessEnv {
 }
 
 /** The same, with a parser that fails to load for another reason. */
-export const cliWithBrokenParser = (...args: string[]): Run =>
-  spawn(["--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))], args);
+export function cliWithBrokenParser(...args: string[]): Run {
+  return spawn(["--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))], args);
+}
 
 /** The same, with the parser out of reach, as it is before anyone installs it. */
-export const cliWithoutParser = (...args: string[]): Run =>
-  spawn(["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))], args);
+export function cliWithoutParser(...args: string[]): Run {
+  return spawn(["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))], args);
+}
 
 /** The same, with TypeScript out of reach. */
-export const cliWithoutTypeScript = (...args: string[]): Run =>
-  spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);
+export function cliWithoutTypeScript(...args: string[]): Run {
+  return spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);
+}
 
 /**
  * Runs a module's default export with the parser out of reach, and prints what it threw. `broken`
  * makes the parser fail to load for another reason than a missing install.
  */
-export const withoutParser = (module: string, broken = false): Run =>
-  spawn(
+export function withoutParser(module: string, broken = false): Run {
+  return spawn(
     [
       "--import",
       fileURLToPath(new URL(broken ? "broken-oxc-parser.ts" : "no-oxc-parser.ts", import.meta.url)),
@@ -167,3 +175,4 @@ export const withoutParser = (module: string, broken = false): Run =>
     [module],
     fileURLToPath(new URL("no-parser/run.ts", import.meta.url)),
   );
+}

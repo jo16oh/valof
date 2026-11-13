@@ -18,9 +18,12 @@ const FILES = [
 let root: URL;
 let directory: string;
 
-const intro = (size: string): string =>
-  `- Starts from <!-- valof-minimal-bundle-size -->${size}<!-- /valof-minimal-bundle-size -->.\n`;
-const manifest = (size: string): string => `{ "description": "Starts from ${size}." }\n`;
+function intro(size: string): string {
+  return `- Starts from <!-- valof-minimal-bundle-size -->${size}<!-- /valof-minimal-bundle-size -->.\n`;
+}
+function manifest(size: string): string {
+  return `{ "description": "Starts from ${size}." }\n`;
+}
 
 beforeEach(async () => {
   directory = await mkdtemp(join(tmpdir(), "valof-claims-test-"));
@@ -35,7 +38,9 @@ afterEach(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-const read = (file: string): Promise<string> => readFile(join(directory, file), "utf8");
+function read(file: string): Promise<string> {
+  return readFile(join(directory, file), "utf8");
+}
 
 // Reads, rewrites with `write`, and judges, as the size check does. The problems found, if any.
 async function check(

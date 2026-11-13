@@ -25,35 +25,38 @@ import { keeping } from "../support.ts";
 type Where = { line: number; column: number };
 
 /** A fixture by its name, or a file elsewhere by its absolute path. */
-const at = (name: string): string =>
-  isAbsolute(name) ? name : fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
+function at(name: string): string {
+  return isAbsolute(name) ? name : fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
+}
 const PROJECT = at("*.ts");
 
-const context = (
+function context(
   name: string,
   text?: string,
   reports: string[] = [],
   read: string | string[] = PROJECT,
-) => ({
-  filename: at(name),
-  settings: { valof: { project: read } },
-  sourceCode: { text: text ?? readFileSync(at(name), "utf8") },
-  report: ({ loc, message }: { loc: { start: Where; end: Where }; message: string }) =>
-    void reports.push(`${loc.start.line}:${loc.start.column}-${loc.end.column}  ${message}`),
-});
+) {
+  return {
+    filename: at(name),
+    settings: { valof: { project: read } },
+    sourceCode: { text: text ?? readFileSync(at(name), "utf8") },
+    report: ({ loc, message }: { loc: { start: Where; end: Where }; message: string }) =>
+      void reports.push(`${loc.start.line}:${loc.start.column}-${loc.end.column}  ${message}`),
+  };
+}
 
 /** Every rule over one file, as a host runs them. */
-const run = (name: string, text?: string, read?: string | string[]): string[] => {
+function run(name: string, text?: string, read?: string | string[]): string[] {
   const reports: string[] = [];
   const one = context(name, text, reports, read);
   for (const rule of Object.values(plugin.rules)) {
     rule.create(one).Program();
   }
   return reports;
-};
+}
 
 /** The same in a host process of its own, started in `cwd`. */
-const host = (cwd: string, name: string, env = process.env) => {
+function host(cwd: string, name: string, env = process.env) {
   const script = fileURLToPath(new URL("host.ts", import.meta.url));
   const { status, stdout, stderr } = spawnSync(process.execPath, [script, name], {
     cwd,
@@ -63,7 +66,7 @@ const host = (cwd: string, name: string, env = process.env) => {
     timeout: 10_000,
   });
   return { status, stdout, stderr };
-};
+}
 
 test("reports on the file it was called for, having read the whole project", () => {
   expect(run("money.ts")).toEqual(["6:2-8  Money.format is never read"]);

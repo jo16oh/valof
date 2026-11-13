@@ -8,10 +8,13 @@ import { UnusedMember } from "../support.ts";
 
 // What an editor sends: the buffer being typed in, which disk does not have yet.
 
-const at = (name: string): string => fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
+function at(name: string): string {
+  return fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
+}
 
-const dead = (name: string): string =>
-  `const ${name} = Val.companion<${name}>().impl(() => ({\n  shout: (v) => v.toUpperCase(),\n})).build();\n`;
+function dead(name: string): string {
+  return `const ${name} = Val.companion<${name}>().impl(() => ({\n  shout: (v) => v.toUpperCase(),\n})).build();\n`;
+}
 
 test("scans a file the buffer is the only copy of", async () => {
   const findings = await lint([], Options.create({ overlay: [[at("unsaved.ts"), dead("Id")]] }));

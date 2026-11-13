@@ -27,18 +27,19 @@ const B = FilePath.seal("/project/b.ts");
 const C = FilePath.seal("/project/c.ts");
 const MODULES = Modules.create([A, B]);
 
-const scanOf = (file: FilePath, text: string, files = MODULES): Scan =>
-  Scan.walk(file, Parser.exec(parser, file, text), files, text);
+function scanOf(file: FilePath, text: string, files = MODULES): Scan {
+  return Scan.walk(file, Parser.exec(parser, file, text), files, text);
+}
 
 /** Runs `act` in a fresh directory, and deletes the directory afterwards. */
-const inDirectory = (act: (dir: string) => void): void => {
+function inDirectory(act: (dir: string) => void): void {
   const dir = mkdtempSync(join(tmpdir(), "valof-scan-store-"));
   try {
     act(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-};
+}
 
 test("returns a saved scan for the same file and text to a store opened later", () => {
   inDirectory((dir) => {

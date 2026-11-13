@@ -15,12 +15,12 @@ const C = FilePath.seal("/project/c.ts");
 let loads = 0;
 
 /** The scans `cache` returns for `files`, counting in {@link loads} each time it asks for the parser. */
-const scanned = async (
+async function scanned(
   cache: ScanCache,
   files: readonly (readonly [FilePath, string])[],
   modules: Modules,
-) =>
-  R.unwrap(
+) {
+  return R.unwrap(
     await cache.scan(
       async () => {
         loads++;
@@ -30,12 +30,15 @@ const scanned = async (
       modules,
     ),
   );
+}
 
 // `a` imports `./c`, which resolves to `c.ts` only while the run includes `c.ts`.
-const sources = (text = 'import { x } from "./c";\n'): [FilePath, string][] => [
-  [A, text],
-  [B, "export {};\n"],
-];
+function sources(text = 'import { x } from "./c";\n'): [FilePath, string][] {
+  return [
+    [A, text],
+    [B, "export {};\n"],
+  ];
+}
 
 test("walks a file again when its text changes, and keeps the others", async () => {
   const cache = new ScanCache();

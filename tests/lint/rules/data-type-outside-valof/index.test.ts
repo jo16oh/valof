@@ -5,18 +5,23 @@ import { DataTypeOutsideValof, cli, fixtures } from "../../support.ts";
 
 const { files, lint: run } = fixtures(import.meta.url);
 
-const reported = async (
+async function reported(
   settings: { classes?: boolean; constraints?: boolean; extraction?: boolean },
   file = "domain",
-): Promise<string[]> =>
-  (await lint(files(file), Options.create({ enable: { "data-type-outside-valof": settings } })))
+): Promise<string[]> {
+  return (
+    await lint(files(file), Options.create({ enable: { "data-type-outside-valof": settings } }))
+  )
     .filter(({ kind }) => kind === DataTypeOutsideValof.kind)
     .map(({ at: { line, column }, message }) => `${line}:${column} ${message}`);
+}
 
-const data = (name: string): string =>
-  `${name} declares a data type outside Valof; model it as a Val, an Enum or a Trait`;
-const primitive = (name: string): string =>
-  `${name} names a primitive type outside Valof; make it a Val, or Payload<…> for a payload`;
+function data(name: string): string {
+  return `${name} declares a data type outside Valof; model it as a Val, an Enum or a Trait`;
+}
+function primitive(name: string): string {
+  return `${name} names a primitive type outside Valof; make it a Val, or Payload<…> for a payload`;
+}
 
 test("runs only when enabled", async () => {
   expect((await run("domain")).filter(({ rule }) => rule === DataTypeOutsideValof)).toEqual([]);

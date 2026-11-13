@@ -15,13 +15,13 @@ const PATIENCE = 2000;
  * What `worker.ts` beside this file says to a query whose overlay names `file`, over the files in
  * `project`. A failure is thrown.
  */
-const say = (
+function say(
   worker: LinterWorker,
   file: string,
   text = "",
   project: readonly string[] = [],
-): string | undefined =>
-  worker.lint(
+): string | undefined {
+  return worker.lint(
     Query.seal({
       project: Project.seal(project.map((path) => FilePath.seal(path))),
       overlay: { [file]: text },
@@ -29,6 +29,7 @@ const say = (
       saved: false,
     }),
   )[0]?.message;
+}
 
 test("asks once for the same query over an unchanged project, however many ticks pass", async () => {
   const worker = new LinterWorker(import.meta.url, PATIENCE);
@@ -94,12 +95,15 @@ test("keeps the last answer for the same file and text alone", () => {
   expect(say(worker, "b.ts", "after")).toBe("answered b.ts after");
 });
 
-const at = (name: string): string => fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
+function at(name: string): string {
+  return fileURLToPath(new URL(`../fixtures/${name}`, import.meta.url));
+}
 const PROJECT = Project.seal([at("money.ts"), at("order.ts")].map((file) => FilePath.seal(file)));
 
 /** What the plugin asks about `file`, the buffer holding `text`. */
-const read = (file: string, text = readFileSync(file, "utf8")): Query =>
-  Query.read({ filename: file, sourceCode: { text }, settings: undefined }, PROJECT);
+function read(file: string, text = readFileSync(file, "utf8")): Query {
+  return Query.read({ filename: file, sourceCode: { text }, settings: undefined }, PROJECT);
+}
 
 test("leaves out a buffer that disk holds, so the files of a batch ask the same", () => {
   expect(read(at("money.ts")).overlay).toEqual({});
@@ -171,10 +175,11 @@ test("throws what the worker makes of a failure, in the answer or in sending it"
   expect(thrown(() => say(worker, "uncloneable")).message).toMatch(/^failed: DataCloneError/);
 });
 
-const pause = () =>
-  new Promise((done) => {
+function pause() {
+  return new Promise((done) => {
     setTimeout(done, 200);
   });
+}
 
 /** The error `act` throws. A host reads the message off an `Error`, so anything else fails. */
 function thrown(act: () => unknown): Error {
