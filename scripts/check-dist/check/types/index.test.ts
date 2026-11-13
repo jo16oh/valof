@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { Budget } from "../budget.ts";
-import { Counts, TypesFixture, TypesReport } from "./index.ts";
+import { Counts, TypesDeclaration, TypesFixture, TypesReport } from "./index.ts";
 
 test("reads the counts tsc prints, over a baseline", () => {
   const counts = Counts.fromDiagnostics(
@@ -23,7 +23,13 @@ test("fails on the budgets over their limit, and names only those", () => {
   const over = Budget.seal({ name: "core", used: 10_001, limit: 10_000, unit: "count" });
   const within = Budget.seal({ name: "index.d.ts", used: 1, limit: 2, unit: "bytes" });
   const report = (budgets: Budget[]) =>
-    TypesReport.seal({ typescript: "5.9.3", baseline: counts, fixtures: [], budgets });
+    TypesReport.seal({
+      typescript: "5.9.3",
+      baseline: counts,
+      fixtures: [],
+      declarations: [],
+      budgets,
+    });
   const named = (budgets: Budget[]) =>
     TypesReport.render(report(budgets))
       .split("\n")
@@ -42,4 +48,23 @@ test("budgets a fixture's instantiations, not its types", () => {
   expect(TypesFixture.budget(fixture, counts)).toEqual(
     Budget.seal({ name: "fixture", used: 7, limit: 8, unit: "count" }),
   );
+});
+
+test("explains each declaration file it measured", () => {
+  const counts = Counts.seal({ types: 0, instantiations: 0, check: 0, total: 0 });
+  const declaration = TypesDeclaration.seal({
+    name: "x.d.ts",
+    path: "dist/x.d.ts",
+    description: "what x exports",
+    budget: 1,
+  });
+  const report = TypesReport.seal({
+    typescript: "5.9.3",
+    baseline: counts,
+    fixtures: [],
+    declarations: [declaration],
+    budgets: [],
+  });
+
+  expect(TypesReport.render(report).split("\n")).toContain("x.d.ts: what x exports");
 });
