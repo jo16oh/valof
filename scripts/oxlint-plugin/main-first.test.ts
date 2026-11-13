@@ -12,10 +12,17 @@ new RuleTester().run("main-first", mainFirst, {
     "function main() {}\nmain();",
     'export { a } from "a";\nfunction main() {}\nif (import.meta.main) {\n  await main();\n}',
     "const X = 1;\nfunction f() {}",
+    'export * from "a";\nfunction main() {}\nmain();',
+    "function main() {}\nif (x) main();",
   ],
   invalid: [
     { code: "const X = 1;\nfunction main() {}\nmain();", errors: [{ messageId: "first" }] },
     { code: "function main() {}\nconst X = 1;", errors: [{ messageId: "last" }] },
     { code: "function main() {}\nmain();\nconst X = 1;", errors: [{ messageId: "last" }] },
+    { code: "function main() {}\nfoo();", errors: [{ messageId: "last" }] },
+    {
+      code: "function main() {}\nif (x) {\n  setup();\n  main();\n}",
+      errors: [{ messageId: "last" }],
+    },
   ],
 });
