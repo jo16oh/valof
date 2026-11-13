@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 import type { Dyn } from "#valof";
 
-import type { Check } from "../checks/check.ts";
+import type { Check } from "../check/check.ts";
 
 /**
  * Runs the checks one at a time, because types and compat each start `tsc` many times. Every check

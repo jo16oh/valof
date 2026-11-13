@@ -2,9 +2,9 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "#valof";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/test";
 
-import { StalePinError } from "../checks/compat/index.ts";
-import { Report } from "../checks/report.ts";
-import { Check } from "../checks/check.ts";
+import { StalePinError } from "../check/compat/index.ts";
+import { Report } from "../check/report.ts";
+import { Check } from "../check/check.ts";
 import { run } from "./run.ts";
 
 let logged: string[];

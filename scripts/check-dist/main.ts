@@ -2,16 +2,16 @@
 // the checker, and whether they typecheck on every TypeScript line.
 import { Result as R } from "@praha/byethrow";
 
-import { CompatCheck } from "./checks/compat/index.ts";
-import { pack } from "./pack.ts";
-import { Check } from "./checks/check.ts";
+import { CompatCheck } from "./check/compat/index.ts";
+import { build } from "./prepare/build.ts";
+import { Check } from "./check/check.ts";
 import { run } from "./cli/run.ts";
 import { Selection } from "./cli/selection.ts";
-import { Bundle, Imports } from "./checks/size/bundle.ts";
-import { ClaimedFile } from "./checks/size/claims.ts";
-import { SizeCheck } from "./checks/size/index.ts";
-import { Suite } from "./checks/size/suite.ts";
-import { TypesBudgets, TypesCheck } from "./checks/types/index.ts";
+import { Bundle, Imports } from "./check/size/bundle.ts";
+import { ClaimedFile } from "./check/size/claims.ts";
+import { SizeCheck } from "./check/size/index.ts";
+import { Suite } from "./check/size/suite.ts";
+import { TypesBudgets, TypesCheck } from "./check/types/index.ts";
 
 /** The bundles the size check measures, each against its budget in bytes of production gzip. */
 const suite = Suite.seal([
@@ -131,9 +131,9 @@ if (R.isFailure(selected)) {
 }
 const { size, types, compat, release, write } = selected.value;
 
-const packed = await pack();
-if (R.isFailure(packed)) {
-  console.error(packed.error.message);
+const built = await build();
+if (R.isFailure(built)) {
+  console.error(built.error.message);
   process.exit(1);
 }
 

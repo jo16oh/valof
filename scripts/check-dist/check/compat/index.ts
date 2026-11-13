@@ -180,7 +180,7 @@ function writeBlocks(): Promise<string[]> {
 
 /** Exports the book does not show, kept beside this script. */
 async function copyFixtures(): Promise<string[]> {
-  const extras = join(root, "scripts/check-dist/checks/compat/fixtures");
+  const extras = join(root, "scripts/check-dist/check/compat/fixtures");
   return Promise.all(
     (await readdir(extras)).map(async (file) => {
       const copy = join(directory, `fixture-${file}`);
