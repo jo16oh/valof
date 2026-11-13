@@ -48,8 +48,8 @@ export const BuildResult = Val.companion<BuildResult>()
           ["", ...heads],
           ...modes.map((mode) => [mode, ...heads.map((head) => bytes(build[mode].sizes[head]))]),
         ],
-        (rows) =>
-          align(rows, ["left", "right", "right", "right"]).map((cells) => `  ${cells.join("  ")}`),
+        (rows) => align(rows, ["left", "right", "right", "right"]),
+        (rows) => rows.map((cells) => `  ${cells.join("  ")}`),
         (lines) =>
           [`bundle  import { ${Imports.names(build.imports).join(", ")} }`, ...lines].join("\n"),
       );

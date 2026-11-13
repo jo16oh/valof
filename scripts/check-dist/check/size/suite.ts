@@ -101,10 +101,9 @@ function budgets(bundles: readonly BundleSize[]): string {
         Budget.left(budget),
       ];
     }),
+    (rows) => align(rows, ["left", "right", "right", "left"]),
     (rows) =>
-      align(rows, ["left", "right", "right", "left"]).map(([name, used, limit, left]) =>
-        `  ${name}  ${used} / ${limit}  ${left}`.trimEnd(),
-      ),
+      rows.map(([name, used, limit, left]) => `  ${name}  ${used} / ${limit}  ${left}`.trimEnd()),
     (lines) => ["budget (production gzip)", ...lines].join("\n"),
   );
 }
