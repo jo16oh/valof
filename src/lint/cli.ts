@@ -98,7 +98,7 @@ const Files = Val.companion<Files>()
   .build();
 
 /** Runs what the arguments ask for, and returns the status to exit with. */
-async function command(argv: readonly string[]): Promise<R.Result<number, UsageError>> {
+async function command(argv: readonly string[]): R.ResultAsync<number, UsageError> {
   const parsed = Arguments.fromArgv(argv);
   if (R.isFailure(parsed)) return parsed;
   const args = parsed.value;
