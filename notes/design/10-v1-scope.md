@@ -26,7 +26,7 @@ TaggedEnum, Map/Set wrappers, Result, run-time freeze (except in dev), Date/Temp
 
 The minimum is not "the oldest version that works". Measured, **the 4.x line and 5.0.4 both pass**. valof still raises the minimum because nobody would need support for the edge cases a version in the middle of a line brings (half-landed flags, deprecations not yet in effect). A line's last release is where that line's semantics settle. With TS 7 as the latest line, the last release of the line two back is 5.9.3.
 
-CI runs each line with `vp run ts-compatibility` (`scripts/ts-compatibility/`), **against the declarations in the published `dist`**.
+CI runs `vp run check-dist`, and its `--compat` check (`scripts/check-dist/check/compat/`) runs each line **against the declarations in the published `dist`**.
 
 It reads the scripts as fixtures too, but only when the pinned commit builds the same `dist` as now (§19).
 
@@ -42,7 +42,7 @@ Removing `protected readonly __valof_internal_phantom_types` from `Phantom` give
 | `vp test` (285 tests)                       | pass            |
 | doc blocks against `dist` (5.9 / 6.0 / 7.0) | fail in 9 files |
 
-Declaration emit **erases the types** of private fields. In src, `private __brand: K` carries `K`, so `PayloadOf` works. After emit, only the `protected` line keeps the type argument. Removing it makes `patch` disappear and `PayloadOf` become `never` for users, yet checking src with any version stays green. **As long as checks look at src, the emit path goes unchecked**. That one fact is why this command exists.
+Declaration emit **erases the types** of private fields. In src, `private __brand: K` carries `K`, so `PayloadOf` works. After emit, only the `protected` line keeps the type argument. Removing it makes `patch` disappear and `PayloadOf` become `never` for users, yet checking src with any version stays green. **As long as checks look at src, the emit path goes unchecked**. That one fact is why the `--compat` check exists.
 
 ### The fixtures are the book's code blocks
 
@@ -55,7 +55,7 @@ The 8 blocks with `// @errors` are excluded. Which error appears with which code
 |                                               |                                                                              |
 | --------------------------------------------- | ---------------------------------------------------------------------------- |
 | the doc check in `vp test`                    | Does the prose match the current `src`? Expected errors are checked here too |
-| `vp run ts-compatibility`                     | Can users on each line use the published `.d.ts`?                            |
+| `vp run check-dist --compat`                  | Can users on each line use the published `.d.ts`?                            |
 | `tests/val.test.ts` (73 `expectTypeOf` calls) | Type details, in depth, against `src`                                        |
 
 Explicit annotations of the "types you do not write" (`Sealer` / `Sealed` / `CompanionBuilder` / `Companion`) were dropped, and nothing replaces them. `api.md` says there is no reason to import these types yourself, so an example in the book would contradict that chapter, and a test would protect code nobody writes. The doc blocks generate all four implicitly through dist, so if the internals break, those blocks fail.
@@ -77,7 +77,7 @@ When this rule went in, only 6.0.3 failed. The cause was not the library. TS 6 h
 Now `dist` and `package.json` are copied into `node_modules/valof` in the working directory. This is the same layout npm installs, and `exports` decides what declarations can reference. `paths` was removed.
 
 - **The working directory gets its own `package.json`.** Without it, `valof` resolves to this repository by self-reference and skips the copy
-- **Forms the book does not have go in `scripts/ts-compatibility/fixtures/*.ts`.** They run together with the book's code blocks. There are three now: exporting a builder before build (which references `CallBuildFirst`), and companions given `PrivateSeal` and `PrivateCreate`
+- **Forms the book does not have go in `scripts/check-dist/check/compat/fixtures/*.ts`.** They run together with the book's code blocks. `builders.ts` exports every state of every builder, and `declarations.ts` exports forms whose types reference a type or key no entry exports
 - **The fixtures are excluded from oxlint's type checking.** CI runs `vp check` before the build, and the fixtures' `valof` looks for `dist` by self-reference, so it fails with no `dist`
 
 The changes the check catches were measured. With `paths` restored, removing `./internal/*` stays green.
