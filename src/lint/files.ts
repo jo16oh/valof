@@ -104,8 +104,8 @@ export const Patterns = Val.companion<Patterns>()
     ): Patterns =>
       pipe(
         settings?.valof?.project ?? "src/**/*.ts",
-        (given) =>
-          (typeof given === "string" ? [given] : [...given]).map((path) => Path.seal(path)),
+        (given) => (typeof given === "string" ? [given] : [...given]),
+        (given) => given.map((path) => Path.seal(path)),
         seal,
       ),
   }))
