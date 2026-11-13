@@ -15,13 +15,13 @@ import type { AnyVal, CompanionBuilder } from "../../val.ts";
 import { Val, type VariantOf } from "../../index.ts";
 import { Bindings, type SymbolRef } from "./bindings.ts";
 
-/** `K`, which must be a key of every member of `T`. */
-type On<T, K extends keyof T> = K;
-
 /** The entry points a chain grows from. A rename in the library is a type error here. */
 const ENTRY_POINTS: ReadonlySet<string> = new Set([
   "companion" satisfies On<typeof Val | typeof Enum | typeof Trait, "companion">,
 ]);
+
+/** `K`, which must be a key of every member of `T`. */
+type On<T, K extends keyof T> = K;
 
 /** A `Val` / `Trait` / `Enum` companion chain, whatever else it registered. */
 export type CompanionSite = Val<
@@ -59,9 +59,32 @@ export const CompanionSite = Val.companion<CompanionSite>()
   }))
   .build();
 
-/** One step of a builder chain: the name it was called by, and what it was called on. */
-type Step = Val<"Step", { name: string | null; property: Node; receiver: Node }>;
-const Step = Val.companion<Step>().build();
+/**
+ * A `Val.of(…)` call, which brands a payload with the default seal.
+ *
+ * `typeName` is `null` where the call named no type and took one from its target. It sits at the
+ * type argument when there is one, and at `of` when there is not.
+ */
+export type Lift = Val<
+  "Lift",
+  {
+    at: Position;
+    typeName: string | null;
+    typeRef: SymbolRef | null;
+    qualifier: string | null;
+    /**
+     * The variant a `VariantOf<E, "N">` argument named, where the lift named one. `typeName` and
+     * `typeRef` are then the enum's, which is what holds that variant's frame.
+     */
+    variant: string | null;
+  }
+>;
+export const Lift = Val.companion<Lift>()
+  .implAssoc(() => ({
+    /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
+    fromCall: valOf,
+  }))
+  .build();
 
 /** Reads `.implCreate.noseal(f)` as the `implCreate` step. */
 export function stepOf(callee: VariantOf<Node, "MemberExpression">): Step {
@@ -90,10 +113,6 @@ export function variantOf(receiver: Node): NamedVariant | undefined {
   return variant ? NamedVariant.seal({ variant, builder }) : undefined;
 }
 
-/** A variant read off an enum's builder, with that builder. See {@link variantOf}. */
-type NamedVariant = Val<"NamedVariant", { variant: string; builder: Node }>;
-const NamedVariant = Val.companion<NamedVariant>().build();
-
 /** Which entry point a chain grows from, however the name was bound. */
 export function fromRoot(node: Node, bound: Bindings): string | undefined {
   const path = rootPath(node);
@@ -109,31 +128,74 @@ export function fromRoot(node: Node, bound: Bindings): string | undefined {
 }
 
 /**
- * A `Val.of(…)` call, which brands a payload with the default seal.
+ * The name a type reference is written under, with the namespace it was reached through.
  *
- * `typeName` is `null` where the call named no type and took one from its target. It sits at the
- * type argument when there is one, and at `of` when there is not.
+ * `valof.Val<…>` in a type position is the alias walk's job; here the qualifier says the type
+ * was declared in another module, which nothing else about the site records.
  */
-export type Lift = Val<
-  "Lift",
+export function typeReference(written: Node, bound: Bindings): TypeName | undefined {
+  if (written.type === "Identifier") return TypeName.seal({ node: written, qualifier: null });
+  if (written.type !== "TSQualifiedName") return undefined;
+  const { left, right } = written;
+  if (left.type !== "Identifier" || right.type !== "Identifier") return undefined;
+  const qualifier = left.name;
+  return Bindings.hasNamespace(bound, qualifier)
+    ? TypeName.seal({ node: right, qualifier })
+    : undefined;
+}
+
+/**
+ * The entry point of the chain a step is called on, through variants and a builder held in a
+ * variable: `Val.companion<X>().implSeal(f).impl` and `built.Circle.impl` alike.
+ */
+export function chainRoot(
+  callee: VariantOf<Node, "MemberExpression">,
+  bound: Bindings,
+): string | undefined {
+  let { receiver } = stepOf(callee);
+  for (;;) {
+    const inner = variantOf(receiver)?.builder ?? receiver;
+    if (inner.type === "Identifier") return Bindings.builderOf(bound, inner.name);
+    if (inner.type !== "CallExpression" || inner.callee.type !== "MemberExpression")
+      return undefined;
+    const root = fromRoot(inner.callee, bound);
+    if (root) return root;
+    receiver = stepOf(inner.callee).receiver;
+  }
+}
+
+/** One step of a builder chain: the name it was called by, and what it was called on. */
+type Step = Val<"Step", { name: string | null; property: Node; receiver: Node }>;
+const Step = Val.companion<Step>().build();
+
+/** A variant read off an enum's builder, with that builder. See {@link variantOf}. */
+type NamedVariant = Val<"NamedVariant", { variant: string; builder: Node }>;
+const NamedVariant = Val.companion<NamedVariant>().build();
+
+/** The enum a `VariantOf<E, "N">` argument names, with the variant. See {@link variantArgument}. */
+type VariantName = Val<
+  "VariantName",
+  { node: Identifier; qualifier: string | null; variant: string }
+>;
+const VariantName = Val.companion<VariantName>().build();
+
+/** What a chain called, and the type argument at its root. */
+type Chain = Val<
+  "Chain",
   {
-    at: Position;
-    typeName: string | null;
-    typeRef: SymbolRef | null;
-    qualifier: string | null;
-    /**
-     * The variant a `VariantOf<E, "N">` argument named, where the lift named one. `typeName` and
-     * `typeRef` are then the enum's, which is what holds that variant's frame.
-     */
-    variant: string | null;
+    /** The steps called with an argument, by name. */
+    steps: string[];
+    /** The root call's type arguments, or `null` when the chain has no root of ours. */
+    typeArguments: Node | null;
+    /** Which entry point the chain grew from, once it is known to have one. */
+    of: string | null;
   }
 >;
-export const Lift = Val.companion<Lift>()
-  .implAssoc(() => ({
-    /** The lift at this call, or `undefined` when the call is not `Val.of<X>(…)`. */
-    fromCall: valOf,
-  }))
-  .build();
+const Chain = Val.companion<Chain>().build();
+
+/** A type's name as written, and the namespace it was reached through. See {@link typeReference}. */
+type TypeName = Val<"TypeName", { node: Identifier; qualifier: string | null }>;
+const TypeName = Val.companion<TypeName>().build();
 
 /** The body of {@link Lift.fromCall}. */
 function valOf(node: Node, file: FilePath, bound: Bindings, lines: Lines): Lift | undefined {
@@ -191,27 +253,6 @@ function variantArgument(
   return VariantName.seal({ ...held, variant: literal.value });
 }
 
-/** The enum a `VariantOf<E, "N">` argument names, with the variant. See {@link variantArgument}. */
-type VariantName = Val<
-  "VariantName",
-  { node: Identifier; qualifier: string | null; variant: string }
->;
-const VariantName = Val.companion<VariantName>().build();
-
-/** What a chain called, and the type argument at its root. */
-type Chain = Val<
-  "Chain",
-  {
-    /** The steps called with an argument, by name. */
-    steps: string[];
-    /** The root call's type arguments, or `null` when the chain has no root of ours. */
-    typeArguments: Node | null;
-    /** Which entry point the chain grew from, once it is known to have one. */
-    of: string | null;
-  }
->;
-const Chain = Val.companion<Chain>().build();
-
 /**
  * Reads a builder chain from the outside in.
  * `Val.companion<Order>().implSeal(f).impl(() => ({…}))` gives both `implSeal` and `Order`. A
@@ -244,27 +285,6 @@ function readChain(node: Node, bound: Bindings): Chain {
   return Chain.seal({ steps: [...steps], typeArguments, of: of ?? null });
 }
 
-/**
- * The name a type reference is written under, with the namespace it was reached through.
- *
- * `valof.Val<…>` in a type position is the alias walk's job; here the qualifier says the type
- * was declared in another module, which nothing else about the site records.
- */
-export function typeReference(written: Node, bound: Bindings): TypeName | undefined {
-  if (written.type === "Identifier") return TypeName.seal({ node: written, qualifier: null });
-  if (written.type !== "TSQualifiedName") return undefined;
-  const { left, right } = written;
-  if (left.type !== "Identifier" || right.type !== "Identifier") return undefined;
-  const qualifier = left.name;
-  return Bindings.hasNamespace(bound, qualifier)
-    ? TypeName.seal({ node: right, qualifier })
-    : undefined;
-}
-
-/** A type's name as written, and the namespace it was reached through. See {@link typeReference}. */
-export type TypeName = Val<"TypeName", { node: Identifier; qualifier: string | null }>;
-const TypeName = Val.companion<TypeName>().build();
-
 /** The body of {@link CompanionSite.fromChain}. */
 function companionSite(
   node: Node,
@@ -295,24 +315,4 @@ function companionSite(
     qualifier: named.qualifier,
     seals: steps.includes("implSeal"),
   });
-}
-
-/**
- * The entry point of the chain a step is called on, through variants and a builder held in a
- * variable: `Val.companion<X>().implSeal(f).impl` and `built.Circle.impl` alike.
- */
-export function chainRoot(
-  callee: VariantOf<Node, "MemberExpression">,
-  bound: Bindings,
-): string | undefined {
-  let { receiver } = stepOf(callee);
-  for (;;) {
-    const inner = variantOf(receiver)?.builder ?? receiver;
-    if (inner.type === "Identifier") return Bindings.builderOf(bound, inner.name);
-    if (inner.type !== "CallExpression" || inner.callee.type !== "MemberExpression")
-      return undefined;
-    const root = fromRoot(inner.callee, bound);
-    if (root) return root;
-    receiver = stepOf(inner.callee).receiver;
-  }
 }

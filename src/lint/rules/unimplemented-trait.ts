@@ -11,6 +11,7 @@ export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();
+
 /**
  * Reports a declared trait that no `implTrait` answers for.
  *

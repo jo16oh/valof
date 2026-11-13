@@ -1,9 +1,8 @@
 import { Val } from "../../index.ts";
 import type { Finding } from "../index.ts";
 
-/** A point as ESLint counts it: lines from 1, columns from 0. */
-type Point = Val<"Point", { line: number; column: number }>;
-const Point = Val.companion<Point>().build();
+/** A word, for the squiggle to cover. Runs of these are what a finding points at. */
+const WORD = /^[\p{L}\p{N}_$]+/u;
 
 /**
  * What the underline covers, from the point the finding names.
@@ -28,5 +27,6 @@ export const Underline = Val.companion<Underline>()
   }))
   .build();
 
-/** A word, for the squiggle to cover. Runs of these are what a finding points at. */
-const WORD = /^[\p{L}\p{N}_$]+/u;
+/** A point as ESLint counts it: lines from 1, columns from 0. */
+type Point = Val<"Point", { line: number; column: number }>;
+const Point = Val.companion<Point>().build();

@@ -90,6 +90,36 @@ export const RoundTrip = Val.companion<RoundTrip>()
   }))
   .build();
 
+/** The exports of some modules under one directory. */
+export type SourceExports = Val<"SourceExports", { directory: string; modules: ModuleExports[] }>;
+export const SourceExports = Val.companion<SourceExports>()
+  .implAssoc(({ seal }) => ({
+    /**
+     * Reads the exports of `files`, modules under `directory`. Every TypeScript line returns the
+     * same exports, and the 5.x one has the compiler API.
+     */
+    read: (directory: string, files: readonly string[]): SourceExports => {
+      const config = ts.getParsedCommandLineOfConfigFile(
+        join(directory, "tsconfig.json"),
+        undefined,
+        {
+          ...ts.sys,
+          onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
+            throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
+          },
+        },
+      )!;
+      const program = ts.createProgram(files, config.options);
+      const checker = program.getTypeChecker();
+
+      return seal({
+        directory,
+        modules: files.map((file) => ModuleExports.read(program, checker, file)),
+      });
+    },
+  }))
+  .build();
+
 /**
  * One export of module `S${index}`, compared with its declaration in `D${index}`, under `name`,
  * such as `fixture-builders.ts: traitImpl`.
@@ -122,36 +152,6 @@ const Comparison = Val.companion<Comparison>()
     /** The program's line for the comparison at `index`, which fails where the two differ. */
     line: ({ source, declaration }, index: number): string =>
       `export type _${index} = Expect<Equal<${source}, ${declaration}>>;`,
-  }))
-  .build();
-
-/** The exports of some modules under one directory. */
-export type SourceExports = Val<"SourceExports", { directory: string; modules: ModuleExports[] }>;
-export const SourceExports = Val.companion<SourceExports>()
-  .implAssoc(({ seal }) => ({
-    /**
-     * Reads the exports of `files`, modules under `directory`. Every TypeScript line returns the
-     * same exports, and the 5.x one has the compiler API.
-     */
-    read: (directory: string, files: readonly string[]): SourceExports => {
-      const config = ts.getParsedCommandLineOfConfigFile(
-        join(directory, "tsconfig.json"),
-        undefined,
-        {
-          ...ts.sys,
-          onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
-            throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
-          },
-        },
-      )!;
-      const program = ts.createProgram(files, config.options);
-      const checker = program.getTypeChecker();
-
-      return seal({
-        directory,
-        modules: files.map((file) => ModuleExports.read(program, checker, file)),
-      });
-    },
   }))
   .build();
 

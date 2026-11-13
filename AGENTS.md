@@ -42,12 +42,13 @@ Outside the library's `src` and the tests, brace the body of every `if`, `else` 
 clause is the exception: an `if` with no `else` whose body is one `return`, `throw`, `continue` or
 `break`. The `local/braces` rule enforces this.
 
-Put a Val's type and its companion on adjacent lines, with a blank line before and after the pair.
+Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
+and after the pair. Export both or neither.
 
-Place a helper used only inside its module at the end of the file. Declare it with `function`, so
-hoisting makes the order safe.
+Place a helper function used only inside its module at the end of the file. Declare it with
+`function`, so hoisting makes the order safe.
 
-The next three rules cover all code except the library's `src`, the tests, the fixtures, and the
+The next four rules cover all code except the library's `src`, the tests, the fixtures, and the
 configuration files at the root. `src/lint` is covered. The tests include every `*.test.ts` and the
 support files under `tests/`.
 
@@ -61,10 +62,29 @@ Run an entry point from a `main` declared right after its imports, so the file o
 does. Call `main` at the end of the file, because `main` reads constants and companions, which are
 not hoisted. Guard the call where other modules import the file.
 
+Order a module's top-level declarations by kind, after the imports and the re-exports
+(`export { … } from`):
+
+1. `main`, in an entry point
+2. the exported constants, then the rest
+3. the errors
+4. the types without a companion, exported or not
+5. each exported Val, Enum or Trait, with its companion
+6. the exported functions
+7. each helper Val, Enum or Trait, with its companion
+8. the helper functions
+
+The call to `main` and `export default` end the file. A function is hoisted, so a declaration can
+call one further down. A companion is not, so a constant cannot be built from a companion declared
+later in the same file. Write it as a member of that companion's `.implAssoc` that takes no
+arguments, as `zero: () => seal({ cents: 0 })`, called `Money.zero()`. A constant can still be built
+from a companion imported from another file.
+
 A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
-a connection, so `new` at the call site shows where state lives. Do not use `extends`. Keep state in
-`#private` fields, and write plain methods rather than arrow-function fields. A class is not
-hoisted, so it cannot come after top-level code that uses it. Give it a file of its own instead.
+a connection, so `new` at the call site shows where state lives. Do not use `extends`, except on
+`ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
+fields. A class is not hoisted, so it cannot come after top-level code that uses it. Give it a file
+of its own instead.
 
 A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
 it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A

@@ -10,6 +10,40 @@ import {
 import { Bindings } from "./bindings.ts";
 import { stepOf } from "./chains.ts";
 
+/** The types whose arguments Valof checks. */
+const VALOF = new Set(["Val", "Enum", "Trait", "Payload"]);
+
+/** Built-in types that declare data. */
+const DATA = new Set([
+  "Record",
+  "Array",
+  "ReadonlyArray",
+  "Pick",
+  "Omit",
+  "Partial",
+  "Required",
+  "Readonly",
+]);
+
+/** Built-in types that take a type out of a value. */
+const EXTRACTION = new Set([
+  "ReturnType",
+  "Parameters",
+  "Awaited",
+  "InstanceType",
+  "ConstructorParameters",
+]);
+
+/** The keyword types that, written alone, name a primitive. A literal type is one too. */
+const PRIMITIVE = new Set([
+  "TSStringKeyword",
+  "TSNumberKeyword",
+  "TSBooleanKeyword",
+  "TSBigIntKeyword",
+  "TSSymbolKeyword",
+  "TSTemplateLiteralType",
+]);
+
 /** What a {@link Model} found, which decides its message and whether a setting must ask for it. */
 export type Shape = Enum<
   "Shape",
@@ -45,52 +79,6 @@ export type Models = Val<
   }
 >;
 export const Models = Val.companion<Models>().build();
-
-/** The types whose arguments Valof checks. */
-const VALOF = new Set(["Val", "Enum", "Trait", "Payload"]);
-
-/** Built-in types that declare data. */
-const DATA = new Set([
-  "Record",
-  "Array",
-  "ReadonlyArray",
-  "Pick",
-  "Omit",
-  "Partial",
-  "Required",
-  "Readonly",
-]);
-
-/** Built-in types that take a type out of a value. */
-const EXTRACTION = new Set([
-  "ReturnType",
-  "Parameters",
-  "Awaited",
-  "InstanceType",
-  "ConstructorParameters",
-]);
-
-/** The keyword types that, written alone, name a primitive. A literal type is one too. */
-const PRIMITIVE = new Set([
-  "TSStringKeyword",
-  "TSNumberKeyword",
-  "TSBooleanKeyword",
-  "TSBigIntKeyword",
-  "TSSymbolKeyword",
-  "TSTemplateLiteralType",
-]);
-
-function nameOf(node: Node, bound: Bindings): string | undefined {
-  return node.type === "TSTypeReference" && node.typeName.type === "Identifier"
-    ? Bindings.originalName(bound, node.typeName.name)
-    : undefined;
-}
-
-/** The node itself, with parentheses and `readonly` unwrapped, which add no shape of their own. */
-function bare(node: Node | null | undefined): Node | undefined {
-  const inside = unparenthesized(node);
-  return inside?.type === "TSTypeOperator" ? bare(inside.typeAnnotation) : inside;
-}
 
 /**
  * Reads one file for `data-type-outside-valof`. It reads syntax alone. A name is matched to a Val
@@ -249,4 +237,16 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
   };
   visit(program, false);
   return done();
+}
+
+function nameOf(node: Node, bound: Bindings): string | undefined {
+  return node.type === "TSTypeReference" && node.typeName.type === "Identifier"
+    ? Bindings.originalName(bound, node.typeName.name)
+    : undefined;
+}
+
+/** The node itself, with parentheses and `readonly` unwrapped, which add no shape of their own. */
+function bare(node: Node | null | undefined): Node | undefined {
+  const inside = unparenthesized(node);
+  return inside?.type === "TSTypeOperator" ? bare(inside.typeAnnotation) : inside;
 }
