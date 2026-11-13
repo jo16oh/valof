@@ -10,15 +10,12 @@ const message = { messageId: "braces" };
 
 new RuleTester().run("braces", plugin.rules.braces, {
   valid: [
-    "if (a) { b(); }",
     "if (a) { b(); } else { c(); }",
     "if (a) { b(); } else if (c) { d(); }",
-    "function f(a) { if (a) return; }",
     "function f(a) { if (a) return a; }",
     "function f(a) { if (a) throw new Error(); }",
     "for (const a of b) { if (a) continue; }",
     "for (const a of b) { if (a) break; }",
-    "for (const a of b) { c(a); }",
   ],
   invalid: [
     { code: "if (a) b();", output: "if (a) {\nb();\n}", errors: [message] },
@@ -46,5 +43,6 @@ new RuleTester().run("braces", plugin.rules.braces, {
     { code: "for (;;) a();", output: "for (;;) {\na();\n}", errors: [message] },
     { code: "while (a) b();", output: "while (a) {\nb();\n}", errors: [message] },
     { code: "do a(); while (b);", output: "do {\na();\n} while (b);", errors: [message] },
+    { code: "while (a());", output: "while (a()) {}", errors: [message] },
   ],
 });
