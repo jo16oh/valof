@@ -15,7 +15,7 @@ const build = (names: string[], production: Sizes, development: Sizes) =>
 test("prints each build's sizes, then each bundle's budget", () => {
   const base = build(
     ["Val.companion"],
-    Sizes.seal({ minified: 2400, gzip: 1000, brotli: 900 }),
+    Sizes.seal({ minified: 2400, gzip: 900, brotli: 800 }),
     Sizes.seal({ minified: 3100, gzip: 1250, brotli: 1120 }),
   );
   const enumBuild = build(
@@ -34,7 +34,7 @@ test("prints each build's sizes, then each bundle's budget", () => {
   expect(Measurement.render(measurement).split("\n")).toEqual([
     "bundle  import { Val.companion }",
     "               minified     gzip   brotli",
-    "  production    2.34 kB   1000 B    900 B",
+    "  production    2.34 kB    900 B    800 B",
     "  development   3.03 kB  1.22 kB  1.09 kB",
     "",
     "bundle  import { Enum.companion }",
@@ -43,7 +43,7 @@ test("prints each build's sizes, then each bundle's budget", () => {
     "  development   4.10 kB  1.66 kB  1.48 kB",
     "",
     "budget (production gzip)",
-    "  Val            1000 B / 1.00 kB  24 B left (2%)",
-    "  added by Enum  +454 B /  +640 B  186 B left (29%)",
+    "  Val             900 B / 1.00 kB  124 B left (12%)",
+    "  added by Enum  +554 B /  +640 B  86 B left (13%)",
   ]);
 });
