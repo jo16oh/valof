@@ -49,9 +49,7 @@ function context(
 function run(name: string, text?: string, read?: string | string[]): string[] {
   const reports: string[] = [];
   const one = context(name, text, reports, read);
-  for (const rule of Object.values(plugin.rules)) {
-    rule.create(one).Program();
-  }
+  for (const rule of Object.values(plugin.rules)) rule.create(one).Program();
   return reports;
 }
 
