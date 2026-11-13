@@ -3,15 +3,11 @@
 //
 //   vp run pin-valof          builds the pinned commit; `prepare` runs this after `vp install`
 //   vp run pin-valof <rev>    pins <rev>, and builds it
-import { execFile } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { promisify } from "node:util";
 
-import { root } from "../shared/typescript-lines.ts";
-
-const run = promisify(execFile);
+import { root, run } from "../shared/repository.ts";
 
 const field = "valof-pinned-for-scripts-commit";
 
@@ -75,7 +71,7 @@ export async function build(commit: string, cwd = root, out = target): Promise<v
   console.log(`valof ${commit.slice(0, 7)} built for #valof`);
 }
 
-// Only when run as a command. ts-compatibility and the tests import this file for its functions.
+// Only when run as a command. The compat check and the tests import this file for its functions.
 if (import.meta.main) {
   const rev = process.argv.slice(2).find((arg) => arg !== "--");
   if (rev === undefined) {

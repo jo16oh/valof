@@ -20,8 +20,6 @@ export const Imports = Val.companion<Imports>()
 export type Bundle = Val<
   "Bundle",
   {
-    /** The key in the `--json` output, which `replace-bundle-size-claims` reads. */
-    key: string;
     name: string;
     /** A base bundle is capped by its whole size, any other by what it adds to the base. */
     base?: boolean;

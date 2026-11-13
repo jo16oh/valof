@@ -16,7 +16,7 @@
       enabled: false,
     },
     {
-      // Each alias is one line `vp run ts-compatibility` checks, so it stays on its major.
+      // Each alias is one line `vp run check-dist --compat` checks, so it stays on its major.
       matchDepNames: ["typescript-5"],
       allowedVersions: "<6",
     },

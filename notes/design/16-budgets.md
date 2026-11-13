@@ -112,6 +112,8 @@ Now both checks compare sizes, with no dependence on a specific name or string.
 | `DevCodeKeptError` | The bundled source reads `NODE_ENV`, yet the production and development builds have the same minified size     |
 | `AddsNothingError` | A bundle stacked on the base has a library part as long as the base's. The added import is already in the base |
 
+§16.4 turned both into problems the size report lists, in place of these errors.
+
 - **Measure the library part as "chunk length - the entry's `renderedLength`".** The entry passes the
   imported names to `console.log`, so the whole bundles always differ by those names. Each module's
   `renderedLength` is its length before tree-shaking, and was 13,923 with and without `equals`. It
@@ -185,3 +187,54 @@ bundle by hand.
 **Rejected: lower Enum's budget to +512 B.** That leaves 51 B (10%), below §16.1's "each has at
 least 26% headroom". The other reason §16.1 rejected +512 (`match`'s `_`) went away in #91, but the
 headroom criterion remains.
+
+## 16.4 One command checks `dist`, 2026-11-03
+
+`vp run check-dist` replaces `bundle-size`, `replace-bundle-size-claims`, `type-perf` and
+`ts-compatibility`. §16's split, by what is measured and by the kind of budget, stays. Each check
+has its own module (`scripts/check-dist/check/{size,types,compat}`) and its own budgets. Only the
+command (`scripts/check-dist/main.ts` and `scripts/check-dist/cli/`), the build
+(`scripts/check-dist/prepare/build.ts`) and the `Check`, `Report` and `Budget` modules at the top of
+`scripts/check-dist/check/` are shared.
+
+- **The entry point builds `dist` once.** Before, each of the three scripts ran `vp run build`, and
+  the claims script ran bundle-size again in a child process. The claim update now uses the size
+  check's measurements directly
+- **Flags.** `--size`, `--types` and `--compat` select checks. With none, all three run.
+  `--release` adds `README.md` and `package.json` to the files whose claims are checked, and
+  requires the scripts' `#valof` pin to match (§19). `--write` rewrites the claims. `--write`
+  without the size check fails, and so does an unknown flag (`parseArgs` with `strict`)
+- **The declaration round-trip (#118) and the search for `/*elided*/` (#116) moved** from
+  `scripts/ts-compatibility/` to `scripts/check-dist/check/compat/`. The TypeScript lines still
+  run in parallel
+- **Every check runs even after one fails.** Then a summary prints pass or fail for each. With one
+  CI step, the summary still shows which check failed
+- **Each check returns a report, and `run` in `scripts/check-dist/cli/run.ts` prints it.** A
+  `Report` renders what the check found, and `passed()` says whether the check passed. A report that
+  did not pass ends with the problems: each budget a bundle is over, a production build that keeps
+  development code, a bundle that adds nothing to the base, each stale claim, or the TypeScript
+  lines that failed. The two size problems are §16.2's checks, which were the errors
+  `DevCodeKeptError` and `AddsNothingError` before. So the command still prints the table of a
+  bundle over budget. `Check.run` fails only where the check stops before it has a report: a bundle
+  the size check cannot build, a types fixture that does not compile, a stale pin under `--release`,
+  or a file that does not state the size exactly once. The cost is that compat's report prints only
+  after every TypeScript line finishes
+- **Rejected: a `verdict` that fails with an error.** `CheckError` then held both a problem the
+  check found and an error that stopped the check, so the type did not say which one a failure was
+- **Rejected: printing inside each check.** It printed compat's counts before the TypeScript lines
+  ran. But no test could read the output, and each check had to order its `console.log` calls
+  before returning a failure, by hand
+- **CI tests whether a PR is a release in one place.** Before, two `if`s tested
+  `startsWith(github.head_ref, 'chore/release-')`, one for the claim files and one for
+  `--require-pin`. Now the `RELEASE` environment variable only turns on `--release`
+- **The release workflow runs `--release` too,** so it now requires the pin to match. CI on the
+  release PR requires the match, and the `main-ci` ruleset (strict required checks) blocks merging a
+  PR that is behind main. A squash merge produces the tree CI checked, so the pin still matches after
+  the merge (verified 2026-11-07)
+- **Rejected: `--json`.** Its only reader was the claims script, and the claim update now calls the
+  size check directly. `Bundle.key` was removed with it
+- **The name.** All three check the built `dist` from a user's side
+- **Rejected: `bundlecheck`.** It reads as size alone
+- **Rejected: `budget` and `measure`.** They do not fit compat, which only passes or fails
+- **Rejected: `dist:verify` and `dist:test`.** Only `docs:*` uses a colon in a script name, and
+  `test` reads as `vp test`

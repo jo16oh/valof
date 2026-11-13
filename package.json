@@ -50,10 +50,7 @@
     "docs:serve": "mdbook serve docs",
     "test": "vp test",
     "check": "vp check",
-    "bundle-size": "node scripts/bundle-size/index.ts",
-    "replace-bundle-size-claims": "node scripts/replace-bundle-size-claims.ts",
-    "ts-compatibility": "node scripts/ts-compatibility/index.ts",
-    "type-perf": "node scripts/type-perf/index.ts",
+    "check-dist": "node scripts/check-dist/main.ts",
     "prepublishOnly": "vp run build",
     "prepare": "vp config && vp fmt AGENTS.md && node scripts/pin-valof/index.ts",
     "pin-valof": "node scripts/pin-valof/index.ts",
@@ -98,5 +95,5 @@
     "@praha/byethrow": "0.13.0",
     "@praha/error-factory": "1.4.1"
   },
-  "valof-pinned-for-scripts-commit": "8d32b2ae3ab76618b3c577cc19b25da177c4242f"
+  "valof-pinned-for-scripts-commit": "b4e991f778161a8d53a8b0e2ebdf6b9f008c230f"
 }
