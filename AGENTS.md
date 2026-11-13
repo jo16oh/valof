@@ -75,8 +75,10 @@ Order a module's top-level declarations by kind, after the imports and the re-ex
 8. the helper functions
 
 The call to `main` and `export default` end the file. A function is hoisted, so a declaration can
-call one further down. A companion is not, so a constant built from one takes the companion from
-another file.
+call one further down. A companion is not, so a constant cannot be built from a companion declared
+later in the same file. Write it as a member of that companion's `.implAssoc` that takes no
+arguments, as `zero: () => seal({ cents: 0 })`, called `Money.zero()`. A constant can still be built
+from a companion imported from another file.
 
 A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
 a connection, so `new` at the call site shows where state lives. Do not use `extends`, except on
