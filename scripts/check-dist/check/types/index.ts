@@ -22,9 +22,6 @@ type Fixture = Enum<
   { core: Record<never, never>; trait: Record<never, never>; enum: Record<never, never> }
 >;
 const Fixture = Enum.companion<Fixture>().build();
-const fixtures = [Fixture.core.create({}), Fixture.trait.create({}), Fixture.enum.create({})].map(
-  ({ _tag }) => _tag,
-);
 
 /** The types check's budgets: instantiations for each fixture, bytes for the declarations. */
 export type TypesBudgets = Val<
@@ -154,6 +151,11 @@ export const TypesCheck = Val.companion<TypesCheck>()
       const baseline = await measure(compile, "baseline");
       if (R.isFailure(baseline)) return baseline;
 
+      const fixtures = [
+        Fixture.core.create({}),
+        Fixture.trait.create({}),
+        Fixture.enum.create({}),
+      ].map(({ _tag }) => _tag);
       const counted = await R.sequence(fixtures.map((name) => measure(compile, name)));
       if (R.isFailure(counted)) return counted;
       const measured = fixtures.map((name, index) =>
