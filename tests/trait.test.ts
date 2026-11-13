@@ -1026,7 +1026,7 @@ describe("building", () => {
     test("stays on the trait's companion, off every Val that implements it", () => {
       const Greeting = Trait.companion<Greetable>()
         .impl(() => ({ shout: (g) => g.name.toUpperCase() }))
-        .implAssoc(() => ({ VERSION: 1 }))
+        .implAssoc(() => ({ VERSION: () => 1 }))
         .build();
       type Guest = Val<"AssocGuest", { name: string }, Greetable>;
       const Guest = Val.companion<Guest>()
@@ -1041,34 +1041,34 @@ describe("building", () => {
         false,
         undefined,
       ]);
-      expect(Greeting.VERSION).toBe(1);
+      expect(Greeting.VERSION()).toBe(1);
     });
 
     test("is written any number of times, before and after `impl`", () => {
       const Greeting = Trait.companion<Greetable>()
-        .implAssoc(() => ({ PREFIX: "Hi" }))
+        .implAssoc(() => ({ PREFIX: () => "Hi" }))
         .impl(() => ({ shout: (g) => g.name.toUpperCase() }))
         // A member reaching the companion names it and annotates its return type, as in `impl`.
         .implAssoc(() => ({
           shoutAll: (gs: readonly Impl<Greetable>[]): string[] => gs.map((g) => Greeting.shout(g)),
         }))
         .build();
-      expectTypeOf(Greeting.PREFIX).toEqualTypeOf<string>();
-      expect([Greeting.PREFIX, Greeting.shoutAll([user])]).toEqual(["Hi", ["ALICE"]]);
+      expectTypeOf(Greeting.PREFIX).toEqualTypeOf<() => string>();
+      expect([Greeting.PREFIX(), Greeting.shoutAll([user])]).toEqual(["Hi", ["ALICE"]]);
     });
 
     test("a name is taken once, and the trait's members, `dyn` and the library's are reserved", () => {
-      const assoc = Trait.companion<Greetable>().implAssoc(() => ({ total: 1 }));
+      const assoc = Trait.companion<Greetable>().implAssoc(() => ({ total: () => 1 }));
       // @ts-expect-error this name is already taken
-      assoc.implAssoc(() => ({ total: 2 }));
+      assoc.implAssoc(() => ({ total: () => 2 }));
       // @ts-expect-error a member the trait declares, Final or not
-      Trait.companion<Greetable>().implAssoc(() => ({ greet: 1 }));
+      Trait.companion<Greetable>().implAssoc(() => ({ greet: () => 1 }));
       // @ts-expect-error a member the trait declares, Final or not
-      Trait.companion<Greetable>().implAssoc(() => ({ shout: 1 }));
+      Trait.companion<Greetable>().implAssoc(() => ({ shout: () => 1 }));
       // @ts-expect-error the name the trait itself uses
-      Trait.companion<Greetable>().implAssoc(() => ({ dyn: 1 }));
+      Trait.companion<Greetable>().implAssoc(() => ({ dyn: () => 1 }));
       // @ts-expect-error a name the library reserves
-      Trait.companion<Greetable>().implAssoc(() => ({ seal: 1 }));
+      Trait.companion<Greetable>().implAssoc(() => ({ seal: () => 1 }));
     });
 
     test("a member whose arguments can be left out is rejected", () => {
