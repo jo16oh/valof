@@ -42,8 +42,9 @@ export async function run(
   ]);
   // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
   const reported: Finding[] = [];
-  for (const rule of rules.filter(({ kind }) => !KindSet.has(notRun, kind)))
+  for (const rule of rules.filter(({ kind }) => !KindSet.has(notRun, kind))) {
     reported.push(...rule.run(scans, Context.seal({ reported, notRun })));
+  }
 
   const directives = DirectiveMap.from(scans);
 

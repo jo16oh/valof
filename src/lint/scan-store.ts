@@ -147,7 +147,9 @@ function filesUnder(dir: string): string[] {
 function parserManifest(): string {
   try {
     let dir = dirname(fileURLToPath(import.meta.resolve("oxc-parser")));
-    while (!existsSync(join(dir, "package.json")) && dirname(dir) !== dir) dir = dirname(dir);
+    while (!existsSync(join(dir, "package.json")) && dirname(dir) !== dir) {
+      dir = dirname(dir);
+    }
     return join(dir, "package.json");
   } catch {
     return "oxc-parser";
@@ -165,7 +167,9 @@ function removeStale(path: string): void {
     for (const name of readdirSync(dir)) {
       if (!name.startsWith(prefix)) continue;
       const file = join(dir, name);
-      if (Date.now() - statSync(file).mtimeMs > 60_000) rmSync(file, { force: true });
+      if (Date.now() - statSync(file).mtimeMs > 60_000) {
+        rmSync(file, { force: true });
+      }
     }
   } catch {
     // The next save tries again.

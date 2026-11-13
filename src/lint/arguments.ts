@@ -75,8 +75,11 @@ export const Arguments = Val.companion<Arguments>()
 
       const take = (into: Path[], written: string): void => {
         const path = Path.seal(written);
-        if (Path.excludes(path)) excluded.push(Path.seal(path.slice(1)));
-        else into.push(path);
+        if (Path.excludes(path)) {
+          excluded.push(Path.seal(path.slice(1)));
+        } else {
+          into.push(path);
+        }
       };
 
       for (const argument of argv) {

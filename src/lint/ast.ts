@@ -98,8 +98,11 @@ export function fromOxc(
     const children: Node[] = [];
     for (const key of visitorKeys[raw.type] ?? []) {
       const value: unknown = Reflect.get(raw, key);
-      for (const one of Array.isArray(value) ? value : [value])
-        if (isOxcNode(one)) children.push(convert(one));
+      for (const one of Array.isArray(value) ? value : [value]) {
+        if (isOxcNode(one)) {
+          children.push(convert(one));
+        }
+      }
     }
     const node = build(raw, raw.start, children, convert);
     converted.set(raw, node);
@@ -311,8 +314,9 @@ const isOxcNode = (value: unknown): value is import("oxc-parser").Node =>
  */
 export function unparenthesized(node: Node | null | undefined): Node | undefined {
   let current = node ?? undefined;
-  while (current?.type === "TSParenthesizedType" || current?.type === "ParenthesizedExpression")
+  while (current?.type === "TSParenthesizedType" || current?.type === "ParenthesizedExpression") {
     current = current.type === "TSParenthesizedType" ? current.typeAnnotation : current.expression;
+  }
   return current;
 }
 
@@ -349,8 +353,9 @@ export const Lines = Val.companion<Lines>()
     /** Scans the source once for line breaks. */
     from: (source: string): Lines => {
       const starts = [0];
-      for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1))
+      for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1)) {
         starts.push(i + 1);
+      }
       return seal({ starts });
     },
   }))
@@ -361,8 +366,11 @@ export const Lines = Val.companion<Lines>()
       let high = starts.length - 1;
       while (low < high) {
         const mid = (low + high + 1) >> 1;
-        if ((starts[mid] as number) <= offset) low = mid;
-        else high = mid - 1;
+        if ((starts[mid] as number) <= offset) {
+          low = mid;
+        } else {
+          high = mid - 1;
+        }
       }
       return Position.seal({ line: low + 1, column: offset - (starts[low] as number) + 1 });
     },

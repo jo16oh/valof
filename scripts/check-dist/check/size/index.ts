@@ -71,7 +71,9 @@ export const SizeCheck = Val.companion<SizeCheck>()
       if (R.isFailure(read)) return read;
       const claims = read.value;
 
-      if (write) await Claims.rewrite(claims, repository);
+      if (write) {
+        await Claims.rewrite(claims, repository);
+      }
 
       return R.succeed(
         Report.dyn(SizeReport, SizeReport.seal({ measurement, claims, release, write })),

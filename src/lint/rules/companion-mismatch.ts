@@ -41,9 +41,13 @@ function findings({ kind }: CompanionMismatch, scans: readonly Scan[]): Finding[
   const exports = Exports.from(scans);
   /** Every enum whose variants the declaration settled, by the identity its companion shares. */
   const variants = new Map<string, ReadonlySet<string>>();
-  for (const { enumAliases } of scans)
-    for (const { ref, variants: declared } of enumAliases)
-      if (declared) variants.set(Exports.identify(exports, ref), new Set(declared));
+  for (const { enumAliases } of scans) {
+    for (const { ref, variants: declared } of enumAliases) {
+      if (declared) {
+        variants.set(Exports.identify(exports, ref), new Set(declared));
+      }
+    }
+  }
 
   const found: Finding[] = [];
   for (const { file, sites, companionBindings } of scans) {
