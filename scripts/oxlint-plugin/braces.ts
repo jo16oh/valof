@@ -1,5 +1,4 @@
-// The repository's own lint rules, which the published plugin does not carry.
-import type { RuleTester } from "oxlint/plugins-dev";
+import type { Body, Rule } from "./rule.ts";
 
 /**
  * Braces on every `if`, `else` and loop body, except an `if` with no `else` whose body leaves
@@ -7,7 +6,7 @@ import type { RuleTester } from "oxlint/plugins-dev";
  *
  * `curly` has no option that tells a guard clause from the rest.
  */
-const braces: Rule = {
+export const braces: Rule = {
   meta: {
     type: "layout",
     docs: { description: "Require braces, except on a guard clause" },
@@ -56,17 +55,3 @@ const GUARDS = new Set([
   "ContinueStatement",
   "BreakStatement",
 ]);
-
-// Annotated, so the declaration names `Rule` rather than oxlint's own type, which it does not export.
-const plugin: { meta: { name: string }; rules: { braces: Rule } } = {
-  meta: { name: "local" },
-  rules: { braces },
-};
-
-type Rule = Extract<Parameters<RuleTester["run"]>[1], { create: unknown }>;
-
-type Context = Parameters<Rule["create"]>[0];
-
-type Body = Parameters<Context["sourceCode"]["getText"]>[0];
-
-export default plugin;
