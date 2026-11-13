@@ -138,8 +138,7 @@ async function compileEntry(
           // `Val.companion` imports `Val` and reads one member, leaving the rest to tree-shaking.
           `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, repository)))};`,
       ),
-      (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""],
-      (lines) => lines.join("\n"),
+      (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""].join("\n"),
     );
     return writeFile(file, content);
   });

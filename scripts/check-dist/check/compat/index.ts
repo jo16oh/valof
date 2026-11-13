@@ -8,13 +8,13 @@ import { Val, type Dyn } from "#valof";
 import { docBlocks } from "../../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../../pin-valof/index.ts";
 import { output, root, writeJson } from "../../../shared/repository.ts";
-import { aliases, tsc, version } from "../../../shared/typescript-lines.ts";
+import { tsc, version } from "../../../shared/typescript-lines.ts";
 import { problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
 
-const directory = join(root, "docs/.generated/ts-compatibility");
-const scripts = join(directory, "scripts");
+const DIRECTORY = join(root, "docs/.generated/ts-compatibility");
+const SCRIPTS = join(DIRECTORY, "scripts");
 
 export class StalePinError extends ErrorFactory({
   name: "StalePinError",
@@ -74,16 +74,29 @@ export const CompatReport = Val.companion<CompatReport>()
   }))
   .build();
 
-export type CompatCheck = Val<"CompatCheck", { name: string; release: boolean }, Check>;
+export type CompatCheck = Val<
+  "CompatCheck",
+  {
+    name: string;
+    release: boolean;
+    /** The TypeScript lines to typecheck on, by their aliases in `node_modules`. */
+    lines: string[];
+  },
+  Check
+>;
 export const CompatCheck = Val.companion<CompatCheck>()
-  .implCreate(({ release }: { release: boolean }) => ({ name: "compat", release }))
+  .implCreate(({ release, lines }: { release: boolean; lines: string[] }) => ({
+    name: "compat",
+    release,
+    lines,
+  }))
   .implTrait(Check, () => ({
     /**
      * Typechecks the book's blocks, the fixtures and the scripts against `dist` on every TypeScript
      * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin
      * builds this same `dist`.
      */
-    run: async ({ release }): R.ResultAsync<Dyn<Report>, CompatError> => {
+    run: async ({ release, lines }): R.ResultAsync<Dyn<Report>, CompatError> => {
       const pin = await pinned();
       const current = await matches(pin);
       if (!current && release) return R.fail(new StalePinError({ pin }));
@@ -104,11 +117,11 @@ export const CompatCheck = Val.companion<CompatCheck>()
        * packages in their declarations, such as the base class of `ErrorFactory`, and the
        * comparison counts that as a change.
        */
-      const exports = SourceExports.read(directory, [...blocks, ...fixtures]);
+      const exports = SourceExports.read(DIRECTORY, [...blocks, ...fixtures]);
 
       // The TypeScript lines run concurrently, each emitting to directories of its own.
-      const lines = await Promise.all(
-        aliases.map(async (alias) =>
+      const results = await Promise.all(
+        lines.map(async (alias) =>
           LineResult.seal({
             version: version(alias),
             failures: await typecheck(alias, exports, current),
@@ -124,7 +137,7 @@ export const CompatCheck = Val.companion<CompatCheck>()
             fixtures: fixtures.length,
             pin,
             ...(current ? { scripts: importers.length } : {}),
-            lines,
+            lines: results,
           }),
         ),
       );
@@ -137,14 +150,14 @@ export const CompatCheck = Val.companion<CompatCheck>()
  * A path to `dist` would let it reach a module the package does not export.
  */
 async function install(): Promise<void> {
-  await rm(directory, { recursive: true, force: true });
-  await mkdir(directory, { recursive: true });
+  await rm(DIRECTORY, { recursive: true, force: true });
+  await mkdir(DIRECTORY, { recursive: true });
 
-  const installed = join(directory, "node_modules/valof");
+  const installed = join(DIRECTORY, "node_modules/valof");
   await cp(join(root, "dist"), join(installed, "dist"), { recursive: true });
   await copyFile(join(root, "package.json"), join(installed, "package.json"));
   // A package of its own, or `valof` resolves to this repository by self-reference.
-  await writeJson(join(directory, "package.json"), { private: true, type: "module" });
+  await writeJson(join(DIRECTORY, "package.json"), { private: true, type: "module" });
 }
 
 /**
@@ -171,7 +184,7 @@ function writeBlocks(): Promise<string[]> {
     docBlocks(join(root, "docs/src"))
       .filter((block) => !block.ignored && !block.code.includes("// @errors:"))
       .map(async (block) => {
-        const file = join(directory, `${block.name.replace(/\.md:/, "-")}.ts`);
+        const file = join(DIRECTORY, `${block.name.replace(/\.md:/, "-")}.ts`);
         await writeFile(file, exported(isolated(block.code)));
         return file;
       }),
@@ -180,10 +193,10 @@ function writeBlocks(): Promise<string[]> {
 
 /** Exports the book does not show, kept beside this script. */
 async function copyFixtures(): Promise<string[]> {
-  const extras = join(root, "scripts/check-dist/checks/compat/fixtures");
+  const extras = join(root, "scripts/check-dist/check/compat/fixtures");
   return Promise.all(
     (await readdir(extras)).map(async (file) => {
-      const copy = join(directory, `fixture-${file}`);
+      const copy = join(DIRECTORY, `fixture-${file}`);
       await copyFile(join(extras, file), copy);
       return copy;
     }),
@@ -197,7 +210,7 @@ async function copyFixtures(): Promise<string[]> {
  * the one line `export const Shape = Enum.companion<Shape>()`.
  */
 async function writeConfigs(): Promise<void> {
-  await writeJson(join(directory, "tsconfig.json"), {
+  await writeJson(join(DIRECTORY, "tsconfig.json"), {
     compilerOptions: {
       target: "es2022",
       lib: ["es2023"],
@@ -212,7 +225,7 @@ async function writeConfigs(): Promise<void> {
     },
     include: ["*.ts"],
   });
-  await writeJson(join(directory, "tsconfig.declaration.json"), {
+  await writeJson(join(DIRECTORY, "tsconfig.declaration.json"), {
     extends: "./tsconfig.json",
     compilerOptions: {
       noEmit: false,
@@ -235,16 +248,16 @@ async function writeConfigs(): Promise<void> {
 async function copyScripts(): Promise<string[]> {
   const importers = await valofImporters();
   // Without the tests, which `vp test` would otherwise pick up here too.
-  await cp(join(root, "scripts"), scripts, {
+  await cp(join(root, "scripts"), SCRIPTS, {
     recursive: true,
     filter: (source) => !source.endsWith(".test.ts"),
   });
-  await writeJson(join(scripts, "package.json"), {
+  await writeJson(join(SCRIPTS, "package.json"), {
     private: true,
     type: "module",
     imports: { "#valof": "valof" },
   });
-  await writeJson(join(scripts, "tsconfig.json"), {
+  await writeJson(join(SCRIPTS, "tsconfig.json"), {
     extends: join(root, "tsconfig.json"),
     compilerOptions: { noEmit: false, emitDeclarationOnly: true, outDir: "dts" },
     files: importers,
@@ -259,15 +272,15 @@ async function typecheck(
   current: boolean,
 ): Promise<string[]> {
   const run = tsc(alias);
-  const dts = join(directory, "dts", alias);
-  const own = join(scripts, "dts", alias);
+  const dts = join(DIRECTORY, "dts", alias);
+  const own = join(SCRIPTS, "dts", alias);
   try {
-    await run(["-p", directory]);
-    await run(["-p", join(directory, "tsconfig.declaration.json"), "--outDir", dts]);
+    await run(["-p", DIRECTORY]);
+    await run(["-p", join(DIRECTORY, "tsconfig.declaration.json"), "--outDir", dts]);
     if (current) {
-      await run(["-p", scripts, "--outDir", own]);
+      await run(["-p", SCRIPTS, "--outDir", own]);
     }
-    const trip = await RoundTrip.write(exports, dts, join(directory, "round-trip", alias));
+    const trip = await RoundTrip.write(exports, dts, join(DIRECTORY, "round-trip", alias));
     const changed = await RoundTrip.differs(trip, run);
     const cut = current ? await elided(own) : [];
     return [

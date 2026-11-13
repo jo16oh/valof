@@ -2,18 +2,19 @@
 // the checker, and whether they typecheck on every TypeScript line.
 import { Result as R } from "@praha/byethrow";
 
-import { CompatCheck } from "./checks/compat/index.ts";
-import { pack } from "./pack.ts";
-import { Check } from "./checks/check.ts";
-import { Selection } from "./selection.ts";
-import { Bundle, Imports } from "./checks/size/bundle.ts";
-import { ClaimedFile } from "./checks/size/claims.ts";
-import { SizeCheck } from "./checks/size/index.ts";
-import { Suite } from "./checks/size/suite.ts";
-import { TypesBudgets, TypesCheck } from "./checks/types/index.ts";
+import { CompatCheck } from "./check/compat/index.ts";
+import { build } from "./prepare/build.ts";
+import { Check } from "./check/check.ts";
+import { run } from "./cli/run.ts";
+import { Selection } from "./cli/selection.ts";
+import { Bundle, Imports } from "./check/size/bundle.ts";
+import { ClaimedFile } from "./check/size/claims.ts";
+import { SizeCheck } from "./check/size/index.ts";
+import { Suite } from "./check/size/suite.ts";
+import { TypesBudgets, TypesCheck, TypesDeclaration, TypesFixture } from "./check/types/index.ts";
 
 /** The bundles the size check measures, each against its budget in bytes of production gzip. */
-const suite = Suite.seal([
+const SUITE = Suite.seal([
   Bundle.seal({
     name: "Val",
     base: true,
@@ -52,13 +53,29 @@ const suite = Suite.seal([
 ]);
 
 /** The files that state the base bundle's size, which the size check compares and rewrites. */
-const claimed = [
+const CLAIMED = [
   ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
   ClaimedFile.Markdown.create({ path: "README.md", release: true }),
   ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
 ];
 
-const typesBudgets = TypesBudgets.seal({
+/**
+ * The oldest line supported, the line above it, and the current one, each installed under an alias.
+ * Read from `node_modules`, so a new major enters this check when someone adds its alias.
+ *
+ * A line's last release is where its semantics settled, and supporting one from there avoids the
+ * edge cases of the versions in between (notes §10.1).
+ */
+const LINES = ["typescript-5", "typescript-6", "typescript"];
+
+/**
+ * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the fixtures
+ * differed by 5 instantiations in 1,677, the checkers' own noise. The compat check still typechecks
+ * every line.
+ */
+const TYPES_LINE = LINES[0]!;
+
+const TYPES_BUDGETS = TypesBudgets.seal({
   /**
    * Instantiations over the baseline, which is the same lib with none of the library.
    *
@@ -93,34 +110,49 @@ const typesBudgets = TypesBudgets.seal({
    * the wrapper removed, `core` and `trait` exceed their budgets. `enum` stays within its own, so the
    * comments at its steps are the only record.
    */
-  core: 10_000,
-  trait: 25_000,
-  enum: 90_000,
+  fixtures: [
+    TypesFixture.seal({ name: "core", budget: 10_000 }),
+    TypesFixture.seal({ name: "trait", budget: 25_000 }),
+    TypesFixture.seal({ name: "enum", budget: 90_000 }),
+  ],
   /**
-   * The published declarations, in bytes. Deterministic like the counts above, and budgeted the
-   * same way: an alarm, not a ratchet.
-   *
-   * The entry plus every file it imports, which is what a consumer downloads for `import "valof"`.
+   * Declaration files, in bytes. Deterministic like the counts above, and budgeted the same way: an
+   * alarm, not a ratchet.
    *
    * Here rather than in the size check because it is a type cost. It never reaches a user's bundle;
    * what it costs is the download and every parse of it, and a run away shows as a type graph the
    * declarations drag in whole. `Finding` derived from `RULES` took `lint`'s declarations to
    * 14.9 kB that way, which is the size of the accident this catches. Creep is a few hundred bytes
    * a feature: read the printed number for that.
-   *
-   * `tsc` indents with four spaces where tsdown wrote a tab, which took the same types from 64.1 to
-   * 64.7 kB.
-   *
-   * The budget went from 96 to 104 kB for the checks on a broken declaration: their messages, and
-   * the constraints that report them where the type is declared. It went to 108 kB for the checks
-   * that reject a union of two types `equals` cannot tell apart.
    */
-  declarations: 108 * 1024,
-  /**
-   * The plugin's declarations, which a config file in TypeScript loads. Its export is annotated by
-   * hand: inferred, it carries ESLint's types, which took it to 93.7 kB.
-   */
-  plugin: 2 * 1024,
+  declarations: [
+    /**
+     * What a consumer downloads for `import "valof"`.
+     *
+     * `tsc` indents with four spaces where tsdown wrote a tab, which took the same types from 64.1
+     * to 64.7 kB.
+     *
+     * The budget went from 96 to 104 kB for the checks on a broken declaration: their messages, and
+     * the constraints that report them where the type is declared. It went to 108 kB for the checks
+     * that reject a union of two types `equals` cannot tell apart.
+     */
+    TypesDeclaration.seal({
+      name: "index.d.ts",
+      path: "dist/index.d.ts",
+      description: "the published declarations, in bytes. what every consumer parses.",
+      budget: 108 * 1024,
+    }),
+    /**
+     * The plugin's declarations, which a config file in TypeScript loads. Its export is annotated by
+     * hand: inferred, it carries ESLint's types, which took it to 93.7 kB.
+     */
+    TypesDeclaration.seal({
+      name: "eslint-plugin.d.mts",
+      path: "dist/eslint-plugin/index.d.mts",
+      description: "the plugin's, in bytes. what a typed config file parses.",
+      budget: 2 * 1024,
+    }),
+  ],
 });
 
 const selected = Selection.fromArgv(process.argv.slice(2));
@@ -130,41 +162,18 @@ if (R.isFailure(selected)) {
 }
 const { size, types, compat, release, write } = selected.value;
 
-const packed = await pack();
-if (R.isFailure(packed)) {
-  console.error(packed.error.message);
+const built = await build();
+if (R.isFailure(built)) {
+  console.error(built.error.message);
   process.exit(1);
 }
 
-const checks = [
-  ...(size ? [Check.dyn(SizeCheck, SizeCheck.create({ suite, claimed, release, write }))] : []),
-  ...(types ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: typesBudgets }))] : []),
-  ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release }))] : []),
-];
-
-// One at a time, because types and compat each start `tsc` many times. Every check runs even
-// after one fails, so the summary says which failed.
-const summary: string[] = [];
-for (const check of checks) {
-  console.log(`\n# ${check.name}\n`);
-  // oxlint-disable-next-line no-await-in-loop -- one at a time, see above
-  const result = await R.try({ try: () => check.run(), catch: (error) => error as Error });
-  const report = R.isFailure(result) ? result : result.value;
-  if (R.isSuccess(report)) {
-    console.log(report.value.render());
-  } else {
-    console.error(`\n${report.error.message}`);
-  }
-
-  // A check that could not report failed too.
-  const passed = R.isSuccess(report) && report.value.passed();
-  if (!passed) {
-    process.exitCode = 1;
-  }
-  summary.push(`  ${check.name.padEnd(6)}  ${passed ? "pass" : "fail"}`);
-}
-
-console.log();
-for (const line of summary) {
-  console.log(line);
-}
+process.exitCode = await run([
+  ...(size
+    ? [Check.dyn(SizeCheck, SizeCheck.create({ suite: SUITE, claimed: CLAIMED, release, write }))]
+    : []),
+  ...(types
+    ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: TYPES_BUDGETS, line: TYPES_LINE }))]
+    : []),
+  ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release, lines: LINES }))] : []),
+]);
