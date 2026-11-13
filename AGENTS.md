@@ -19,16 +19,18 @@ take the Val first as `self`, and `.implAssoc` holds the associated functions. `
 
 ## Code Style
 
+### All code but the tests and the fixtures
+
 `pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. They replace
 nested calls, so the steps read from top to bottom. Use them where a call nests in another call's
 first argument: `pipe(text, parse, User.seal)`, not `User.seal(parse(text))`. Fold a variable used
 once into the chain. Keep it as a local, next to its use, where the chain would be a later argument,
 as `content` is in `writeFile(file, content)`, or where a step needs a value from outside the chain.
 
-Fold a step that only calls a method taking no callback, such as `.join`, into the step before it:
-`(lines) => [head, ...lines].join("\n")`, not `(lines) => [head, ...lines]` followed by
-`(lines) => lines.join("\n")`. A step that calls a method taking a callback, such as `.map`, stays
-apart from the step before it.
+Fold a step into the step before it where none of its calls takes an arrow function, such as
+`.join("\n")` or `.filter(Boolean)`: `(lines) => [head, ...lines].join("\n")`, not
+`(lines) => [head, ...lines]` followed by `(lines) => lines.join("\n")`. A step with a call that
+takes an arrow function, as `.map((line) => …)` does, stays apart from the step before it.
 
 Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
 where the next step starts. Declare a variable in the paragraph that uses it, right before its first
@@ -38,19 +40,32 @@ unwraps the Result's `.value` stays with them, and the blank line goes after it.
 Gather the guard clauses at the top of the function, and put a blank line before the main work. Put
 a blank line before the final `return`, unless the whole body is one paragraph.
 
-Outside the library's `src` and the tests, brace the body of every `if`, `else` and loop. A guard
-clause is the exception: an `if` with no `else` whose body is one `return`, `throw`, `continue` or
-`break`. The `local/braces` rule enforces this.
-
 Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
 and after the pair. Export both or neither.
+
+Name a companion's members in camelCase.
 
 Place a helper function used only inside its module at the end of the file. Declare it with
 `function`, so hoisting makes the order safe.
 
-The next four rules cover all code except the library's `src`, the tests, the fixtures, and the
-configuration files at the root. `src/lint` is covered, except its tests. The tests include every
-`*.test.ts` and the support files under `src/lint/integration/`.
+A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
+a connection, so `new` at the call site shows where state lives. Do not use `extends`, except on
+`ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
+fields. A class is not hoisted, so it cannot come after top-level code that uses it. Give it a file
+of its own instead.
+
+A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
+it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
+companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
+
+### Outside the library
+
+These rules add to the ones above. They cover all code except the library's `src`, the tests, the
+fixtures, and the configuration files at the root. `src/lint` is covered.
+
+Brace the body of every `if`, `else` and loop. A guard clause is the exception: an `if` with no
+`else` whose body is one `return`, `throw`, `continue` or `break`. The `local/braces` rule enforces
+this.
 
 Write a top-level function as a `function` declaration, not as an arrow function in a `const`.
 
@@ -80,20 +95,16 @@ later in the same file. Write it as a member of that companion's `.implAssoc` th
 arguments, as `zero: () => seal({ cents: 0 })`, called `Money.zero()`. A constant can still be built
 from a companion imported from another file.
 
-A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
-a connection, so `new` at the call site shows where state lives. Do not use `extends`, except on
-`ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
-fields. A class is not hoisted, so it cannot come after top-level code that uses it. Give it a file
-of its own instead.
-
-A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
-it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
-companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
-
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
 Without the `name` option, the error's `name` property is typed `string`, and a union of errors
 cannot narrow on it.
+
+### Tests
+
+No rule in Code Style applies to the tests or the fixtures. The tests are every `*.test.ts` and the
+support files under `src/lint/integration/`. Two naming rules still apply to the tests. A top-level
+constant in a test is in SCREAMING_SNAKE_CASE, and a companion's members are in camelCase.
 
 ## Bundle Size and Type Cost
 
