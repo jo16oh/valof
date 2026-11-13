@@ -2055,9 +2055,8 @@ describe("building", () => {
         .implCreate((name: string) => ({ id: "a", name }))
         .impl(() => ({ greet: (u) => u.name }));
       expectTypeOf(builder).not.toHaveProperty("greet");
-      for (const name of ["seal", "create", "patch", "greet", Traits]) {
+      for (const name of ["seal", "create", "patch", "greet", Traits])
         expect(name in builder).toBe(false);
-      }
     });
 
     test("a builder used as the companion says to call `.build()`", () => {
@@ -2618,9 +2617,7 @@ describe("building", () => {
       let tree = Tree.seal({ kids: [] });
       const started = performance.now();
       // Each level holds the one below twice, so walking into it doubles the work per level.
-      for (let depth = 0; depth < 20; depth++) {
-        tree = Tree.seal({ kids: [tree, tree] });
-      }
+      for (let depth = 0; depth < 20; depth++) tree = Tree.seal({ kids: [tree, tree] });
       expect(performance.now() - started).toBeLessThan(100);
     });
 

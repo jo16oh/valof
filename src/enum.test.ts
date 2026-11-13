@@ -608,9 +608,8 @@ describe("implAssoc", () => {
 
     test("closes the variants' steps and the gates", () => {
       const assoc = Enum.companion<Shape>().implAssoc(() => ({ sides: () => 4 }));
-      for (const step of ["Circle", "implSeal", "implCreate"] as const) {
+      for (const step of ["Circle", "implSeal", "implCreate"] as const)
         expectTypeOf(assoc).not.toHaveProperty(step);
-      }
     });
 
     test("a name is taken once, and a variant's, `match` and the library's are reserved", () => {
@@ -1809,9 +1808,8 @@ describe("the companion's options", () => {
 describe("build", () => {
   test("closes the chain: the companion has no step left", () => {
     // Type alone: the proxy reads any other key as a variant.
-    for (const step of ["impl", "implTrait", "implAssoc", "build"] as const) {
+    for (const step of ["impl", "implTrait", "implAssoc", "build"] as const)
       expectTypeOf(Shape).not.toHaveProperty(step);
-    }
     expectTypeOf(Shape.Square).not.toHaveProperty("implSeal");
     expectTypeOf(Shape.Circle).not.toHaveProperty("impl");
     expectTypeOf(Shape.Circle).not.toHaveProperty("implAssoc");
@@ -1822,9 +1820,7 @@ describe("build", () => {
     const builder = varied.impl(() => ({ sides: (s) => (s._tag === "Circle" ? 0 : 4) }));
     expectTypeOf(varied.Circle).not.toHaveProperty("diameter");
     expectTypeOf(builder).not.toHaveProperty("sides");
-    for (const name of ["sides", "seal", "match", Tag]) {
-      expect(name in builder).toBe(false);
-    }
+    for (const name of ["sides", "seal", "match", Tag]) expect(name in builder).toBe(false);
   });
 
   test("a builder used as the companion says to call `.build()`", () => {

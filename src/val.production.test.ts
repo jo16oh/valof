@@ -10,11 +10,8 @@ const previousNodeEnv = vi.hoisted(() => {
 import { Enum, Val } from "./index.ts";
 
 afterAll(() => {
-  if (previousNodeEnv === undefined) {
-    delete process.env["NODE_ENV"];
-  } else {
-    process.env["NODE_ENV"] = previousNodeEnv;
-  }
+  if (previousNodeEnv === undefined) delete process.env["NODE_ENV"];
+  else process.env["NODE_ENV"] = previousNodeEnv;
 });
 
 describe("Val nocopy in production", () => {

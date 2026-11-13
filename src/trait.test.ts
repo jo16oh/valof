@@ -429,9 +429,8 @@ describe("Trait", () => {
       const bare = Trait.companion<Greetable>();
       const builder = bare.impl(() => ({ shout: (g) => g.name.toUpperCase() }));
       expectTypeOf(builder).not.toHaveProperty("shout");
-      for (const name of ["shout", "dyn", Shared]) {
+      for (const name of ["shout", "dyn", Shared])
         expect([name in bare, name in builder]).toEqual([false, false]);
-      }
     });
 
     test("a builder used as the companion says to call `.build()`", () => {

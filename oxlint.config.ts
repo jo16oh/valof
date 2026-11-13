@@ -88,6 +88,9 @@ export default defineConfig({
   },
   overrides: [
     { files: ["src/**/*.ts", "scripts/**/*.ts"], rules: valof.configs.recommended.rules },
+    // The repository's coding rules cover all code but the library's `src` and the tests.
+    { files: ["src/**/*.ts"], rules: { "local/braces": "off" } },
+    { files: ["src/lint/**/*.ts"], rules: { "local/braces": "error" } },
     {
       // Both build their errors as classes, and the linter keeps state in classes.
       files: ["src/lint/**/*.ts", "scripts/check-dist/**/*.ts"],
@@ -110,6 +113,7 @@ export default defineConfig({
         "typescript/no-extraneous-class": "off",
         // A matcher cannot give back the value a test unwraps to set itself up.
         "byethrow/prefer-result-matchers": "off",
+        "local/braces": "off",
       },
     },
   ],
