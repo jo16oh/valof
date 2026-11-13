@@ -1,13 +1,13 @@
 import type { Rule } from "./rule.ts";
 
-/** A top-level function is a `function` declaration, not a function expression in a `const`. */
+/** A top-level function is a `function` declaration, not an arrow function or a function expression in a `const`. */
 export const functionDeclaration: Rule = {
   meta: {
     type: "suggestion",
     docs: { description: "Declare a top-level function with `function`" },
     messages: {
       function:
-        "Declare a top-level function with `function`, not as a function expression in a `const`.",
+        "Declare a top-level function as a `function` declaration, not as an arrow function or a function expression in a `const`.",
     },
   },
   create(context) {

@@ -2,8 +2,8 @@ import type { Context, Rule } from "./rule.ts";
 
 /**
  * A module's top-level declarations in the order AGENTS.md gives, after the imports and the
- * re-exports. A function is hoisted and a companion is not, so the order also keeps a constant from
- * reading a companion declared further down.
+ * re-exports. A function is hoisted and a companion is not, so a constant cannot be built from a
+ * companion declared further down.
  */
 export const declarationOrder: Rule = {
   meta: {
@@ -11,7 +11,7 @@ export const declarationOrder: Rule = {
     docs: { description: "Order a module's top-level declarations by kind" },
     messages: {
       order:
-        "Move {{kind}} above {{after}}. The order: main, the exported constants, the other constants, the errors, the types, the exported Vals, the exported functions, the helper Vals, the helper functions, then the call to main.",
+        "Move {{kind}} above {{after}}. The order: `main`, the exported constants, the other constants, the errors, the types without a companion, the exported Vals, Enums and Traits with their companions, the exported functions, the helper Vals, Enums and Traits, the helper functions, then the call to `main` and `export default`.",
     },
   },
   create(context) {
@@ -38,21 +38,22 @@ export const declarationOrder: Rule = {
 };
 
 const KINDS = [
-  "main",
+  "`main`",
   "an exported constant",
   "a constant",
   "an error",
-  "a type",
-  "an exported Val",
+  "a type without a companion",
+  "an exported Val, Enum or Trait",
   "an exported function",
-  "a helper Val",
+  "a helper Val, Enum or Trait",
   "a helper function",
-  "the call to main",
+  "the call to `main` or `export default`",
 ];
 
 type Statement = Parameters<NonNullable<ReturnType<Rule["create"]>["Program"]>>[0]["body"][number];
 
-// Each companion in the file, by name, and whether it is exported. Its type goes where it goes.
+// Each companion in the file, by name, and whether it is exported. A Val's type sorts with its
+// companion.
 function exportedCompanions(body: readonly Statement[], context: Context): Map<string, boolean> {
   const companions = new Map<string, boolean>();
   for (const statement of body) {
@@ -64,7 +65,7 @@ function exportedCompanions(body: readonly Statement[], context: Context): Map<s
   return companions;
 }
 
-// The index into KINDS, or nothing for an import, a re-export, or anything the order leaves alone.
+// The index into KINDS, or nothing for an import, a re-export, or anything the order does not cover.
 function kindOf(
   statement: Statement,
   companions: Map<string, boolean>,
