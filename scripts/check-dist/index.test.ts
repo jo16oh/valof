@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vite-plus/tes
 import { StalePinError } from "./checks/compat/index.ts";
 import { Report } from "./checks/report.ts";
 import { Check } from "./checks/check.ts";
-import { runChecks } from "./run.ts";
+import { runChecks } from "./index.ts";
 
 let logged: string[];
 let ran: string[];

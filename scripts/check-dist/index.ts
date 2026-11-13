@@ -1,11 +1,12 @@
 // Checks the built `dist` as a user receives it: what it costs to ship, what its declarations cost
 // the checker, and whether they typecheck on every TypeScript line.
 import { Result as R } from "@praha/byethrow";
+import { Val, type Dyn } from "#valof";
 
 import { CompatCheck } from "./checks/compat/index.ts";
 import { pack } from "./pack.ts";
 import { Check } from "./checks/check.ts";
-import { runChecks } from "./run.ts";
+import type { Report } from "./checks/report.ts";
 import { Selection } from "./selection.ts";
 import { Bundle, Imports } from "./checks/size/bundle.ts";
 import { ClaimedFile } from "./checks/size/claims.ts";
@@ -124,21 +125,58 @@ const typesBudgets = TypesBudgets.seal({
   plugin: 2 * 1024,
 });
 
-const selected = Selection.fromArgv(process.argv.slice(2));
-if (R.isFailure(selected)) {
-  console.error(selected.error.message);
-  process.exit(2);
-}
-const { size, types, compat, release, write } = selected.value;
+/** Whether a check passed, as the summary prints it. */
+type Outcome = Val<"Outcome", { name: string; failed: boolean }>;
+const Outcome = Val.companion<Outcome>()
+  .implAssoc(({ seal }) => ({
+    /** Failed where the check could not report (`undefined`), or reported that it did not pass. */
+    of: (name: string, report: Dyn<Report> | undefined): Outcome =>
+      seal({ name, failed: !report?.passed() }),
+  }))
+  .impl(() => ({
+    line: ({ name, failed }): string => `  ${name.padEnd(6)}  ${failed ? "fail" : "pass"}`,
+  }))
+  .build();
 
-const packed = await pack();
-if (R.isFailure(packed)) {
-  console.error(packed.error.message);
-  process.exit(1);
+/**
+ * Runs the checks one at a time, because types and compat each start `tsc` many times. Every check
+ * runs even after one fails, so the summary says which failed. Returns the exit code.
+ */
+export async function runChecks(checks: readonly Dyn<Check>[]): Promise<number> {
+  const outcomes: Outcome[] = [];
+  for (const check of checks) {
+    console.log(`\n# ${check.name}\n`);
+    // oxlint-disable-next-line no-await-in-loop -- one at a time, see above
+    const result = await R.try({ try: () => check.run(), catch: (error) => error as Error });
+    const report = R.isFailure(result) ? result : result.value;
+    if (R.isSuccess(report)) console.log(report.value.render());
+    else console.error(`\n${report.error.message}`);
+    outcomes.push(Outcome.of(check.name, R.isSuccess(report) ? report.value : undefined));
+  }
+
+  console.log();
+  for (const outcome of outcomes) console.log(Outcome.line(outcome));
+  return outcomes.some(({ failed }) => failed) ? 1 : 0;
 }
 
-process.exitCode = await runChecks([
-  ...(size ? [Check.dyn(SizeCheck, SizeCheck.create({ suite, claimed, release, write }))] : []),
-  ...(types ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: typesBudgets }))] : []),
-  ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release }))] : []),
-]);
+// Only when run as a command. The tests import this file for `runChecks`.
+if (import.meta.main) {
+  const selected = Selection.fromArgv(process.argv.slice(2));
+  if (R.isFailure(selected)) {
+    console.error(selected.error.message);
+    process.exit(2);
+  }
+  const { size, types, compat, release, write } = selected.value;
+
+  const packed = await pack();
+  if (R.isFailure(packed)) {
+    console.error(packed.error.message);
+    process.exit(1);
+  }
+
+  process.exitCode = await runChecks([
+    ...(size ? [Check.dyn(SizeCheck, SizeCheck.create({ suite, claimed, release, write }))] : []),
+    ...(types ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: typesBudgets }))] : []),
+    ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release }))] : []),
+  ]);
+}
