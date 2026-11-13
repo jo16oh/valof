@@ -1,7 +1,7 @@
 import byethrow from "@praha/byethrow-oxlint";
 import { defineConfig } from "oxlint";
 
-import local from "./scripts/lint/index.ts";
+import local from "./scripts/oxlint-plugin/index.ts";
 import valof from "./src/lint/eslint-plugin/index.ts";
 
 // The repository's coding rules, on for all code but the library's `src`, the tests, the fixtures
@@ -13,7 +13,7 @@ export default defineConfig({
   plugins: ["typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
   // The plugin from source, so the linter checks the library, the scripts and itself as it stands.
   // The second holds the rules this repository keeps for itself.
-  jsPlugins: ["./src/lint/eslint-plugin/index.ts", "./scripts/lint/index.ts"],
+  jsPlugins: ["./src/lint/eslint-plugin/index.ts", "./scripts/oxlint-plugin/index.ts"],
   settings: {
     valof: {
       project: [
