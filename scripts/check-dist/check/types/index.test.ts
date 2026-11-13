@@ -1,3 +1,8 @@
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
+
 import { expect, test } from "vite-plus/test";
 
 import { Budget } from "../budget.ts";
@@ -67,4 +72,27 @@ test("explains each declaration file it measured", () => {
   });
 
   expect(TypesReport.render(report).split("\n")).toContain("x.d.ts: what x exports");
+});
+
+test("measures a declaration file with the files it imports, under its name", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "valof-types-"));
+  const root = pathToFileURL(`${directory}/`);
+  await mkdir(new URL("dist/", root));
+  // 24 bytes, then 19.
+  await writeFile(new URL("dist/x.d.ts", root), 'export * from "./a.ts";\n');
+  await writeFile(new URL("dist/a.d.ts", root), "export type A = 1;\n");
+  const declaration = TypesDeclaration.seal({
+    name: "x.d.ts",
+    path: "dist/x.d.ts",
+    description: "",
+    budget: 64,
+  });
+
+  try {
+    expect(await TypesDeclaration.measure(declaration, root)).toEqual(
+      Budget.seal({ name: "x.d.ts", used: 43, limit: 64, unit: "bytes" }),
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
