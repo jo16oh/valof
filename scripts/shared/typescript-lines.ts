@@ -12,7 +12,6 @@ export function version(alias: string): string {
 
 export type Tsc = (args: string[], cwd?: string) => Promise<{ stdout: string }>;
 
-export const tsc =
-  (alias: string): Tsc =>
-  (args, cwd = ROOT) =>
-    run(join(ROOT, "node_modules", alias, "bin/tsc"), args, { cwd });
+export function tsc(alias: string): Tsc {
+  return (args, cwd = ROOT) => run(join(ROOT, "node_modules", alias, "bin/tsc"), args, { cwd });
+}
