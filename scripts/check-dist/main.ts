@@ -5,7 +5,8 @@ import { Result as R } from "@praha/byethrow";
 import { CompatCheck } from "./checks/compat/index.ts";
 import { pack } from "./pack.ts";
 import { Check } from "./checks/check.ts";
-import { Selection } from "./selection.ts";
+import { run } from "./cli/run.ts";
+import { Selection } from "./cli/selection.ts";
 import { Bundle, Imports } from "./checks/size/bundle.ts";
 import { ClaimedFile } from "./checks/size/claims.ts";
 import { SizeCheck } from "./checks/size/index.ts";
@@ -136,28 +137,8 @@ if (R.isFailure(packed)) {
   process.exit(1);
 }
 
-const checks = [
+process.exitCode = await run([
   ...(size ? [Check.dyn(SizeCheck, SizeCheck.create({ suite, claimed, release, write }))] : []),
   ...(types ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: typesBudgets }))] : []),
   ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release }))] : []),
-];
-
-// One at a time, because types and compat each start `tsc` many times. Every check runs even
-// after one fails, so the summary says which failed.
-const summary: string[] = [];
-for (const check of checks) {
-  console.log(`\n# ${check.name}\n`);
-  // oxlint-disable-next-line no-await-in-loop -- one at a time, see above
-  const result = await R.try({ try: () => check.run(), catch: (error) => error as Error });
-  const report = R.isFailure(result) ? result : result.value;
-  if (R.isSuccess(report)) console.log(report.value.render());
-  else console.error(`\n${report.error.message}`);
-
-  // A check that could not report failed too.
-  const passed = R.isSuccess(report) && report.value.passed();
-  if (!passed) process.exitCode = 1;
-  summary.push(`  ${check.name.padEnd(6)}  ${passed ? "pass" : "fail"}`);
-}
-
-console.log();
-for (const line of summary) console.log(line);
+]);
