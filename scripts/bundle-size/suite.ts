@@ -18,7 +18,10 @@ import {
   type PackError,
 } from "./measure/toolchain.ts";
 
-export class NoBaseError extends ErrorFactory({ message: "no bundle sets base" }) {}
+export class NoBaseError extends ErrorFactory({
+  name: "NoBaseError",
+  message: "no bundle sets base",
+}) {}
 
 export type Report = Val<
   "Report",
