@@ -14,7 +14,7 @@ export default defineConfig({
     entry: {
       lint: "src/lint/index.ts",
       "eslint-plugin/index": "src/lint/eslint-plugin/index.ts",
-      "lint-cli": "src/lint/cli.ts",
+      "lint-cli": "src/lint/main.ts",
       "eslint-plugin/worker": "src/lint/eslint-plugin/worker.ts",
     },
     dts: {
@@ -38,7 +38,7 @@ export default defineConfig({
         ...exports,
       }),
       bin: {
-        "valof-lint": "./src/lint/cli.ts",
+        "valof-lint": "./src/lint/main.ts",
       },
     },
   },

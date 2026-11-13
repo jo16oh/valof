@@ -110,7 +110,7 @@ type Run = { status: number; stdout: string; stderr: string };
 function spawn(
   node: string[],
   args: string[],
-  script = `${ROOT}src/lint/cli.ts`,
+  script = `${ROOT}src/lint/main.ts`,
   cwd = ROOT,
   env: NodeJS.ProcessEnv = process.env,
 ): Run {

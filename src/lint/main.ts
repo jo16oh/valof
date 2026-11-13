@@ -14,6 +14,14 @@ import { run } from "./run.ts";
 import { ScanCache } from "./scan-cache.ts";
 import { ScanStore } from "./scan-store.ts";
 
+async function main(): Promise<void> {
+  const status = await command(process.argv.slice(2));
+  if (R.isFailure(status)) {
+    console.error(status.error.message);
+  }
+  process.exit(R.isFailure(status) ? 2 : status.value);
+}
+
 /** What `--help` prints. */
 function usage(): string {
   const width = Math.max(...RULES.map(({ kind }) => kind.length));
@@ -155,8 +163,4 @@ function print(findings: readonly Finding[], reported: number): void {
   );
 }
 
-const status = await command(process.argv.slice(2));
-if (R.isFailure(status)) {
-  console.error(status.error.message);
-}
-process.exit(R.isFailure(status) ? 2 : status.value);
+await main();
