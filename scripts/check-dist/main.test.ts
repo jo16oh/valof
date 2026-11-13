@@ -6,7 +6,7 @@ describe("check-dist", () => {
   // An option it does not know stops it before `pack`, so the test runs no build.
   test("runs as a command", async () => {
     const ran = await run(process.execPath, [
-      new URL("index.ts", import.meta.url).pathname,
+      new URL("main.ts", import.meta.url).pathname,
       "--bogus",
     ]).catch((error: unknown) => error as { code: number; stderr: string });
 
