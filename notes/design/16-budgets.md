@@ -191,9 +191,9 @@ headroom criterion remains.
 ## 16.4 One command checks `dist`, 2026-11-03
 
 `vp run check-dist` replaces `bundle-size`, `replace-bundle-size-claims`, `type-perf` and
-`ts-compatibility`. §16's split, by what is measured and by the kind of budget, stays. Each check has
-its own module (`scripts/check-dist/checks/{size,types,compat}`) and its own budgets. Only the entry
-point and the build are shared.
+`ts-compatibility`. §16's split, by what is measured and by the kind of budget, stays. Each check
+has its own module (`scripts/check-dist/checks/{size,types,compat}`) and its own budgets. Only the
+command (`scripts/check-dist/main.ts` and `scripts/check-dist/cli/`) and the build are shared.
 
 - **The entry point builds `dist` once.** Before, each of the three scripts ran `vp run build`, and
   the claims script ran bundle-size again in a child process. The claim update now uses the size
@@ -207,15 +207,16 @@ point and the build are shared.
   run in parallel
 - **Every check runs even after one fails.** Then a summary prints pass or fail for each. With one
   CI step, the summary still shows which check failed
-- **Each check returns a report, and the entry point prints it.** A `Report` renders what the check
-  found, and `passed()` says whether the check passed. A report that did not pass ends with the
-  problems: each budget a bundle is over, a production build that keeps development code, a bundle
-  that adds nothing to the base, each stale claim, or the TypeScript lines that failed. The two size
-  problems are §16.2's checks, which were the errors `DevCodeKeptError` and `AddsNothingError`
-  before. So the entry point still prints the table of a bundle over budget. `Check.run` fails only
-  where the check stops before it has a report: a bundle the size check cannot build, a types fixture that does not
-  compile, a stale pin under `--release`, or a file that does not state the size exactly once. The
-  cost is that compat's report prints only after every TypeScript line finishes
+- **Each check returns a report, and `run` in `scripts/check-dist/cli/run.ts` prints it.** A
+  `Report` renders what the check found, and `passed()` says whether the check passed. A report that
+  did not pass ends with the problems: each budget a bundle is over, a production build that keeps
+  development code, a bundle that adds nothing to the base, each stale claim, or the TypeScript
+  lines that failed. The two size problems are §16.2's checks, which were the errors
+  `DevCodeKeptError` and `AddsNothingError` before. So the command still prints the table of a
+  bundle over budget. `Check.run` fails only where the check stops before it has a report: a bundle
+  the size check cannot build, a types fixture that does not compile, a stale pin under `--release`,
+  or a file that does not state the size exactly once. The cost is that compat's report prints only
+  after every TypeScript line finishes
 - **Rejected: a `verdict` that fails with an error.** `CheckError` then held both a problem the
   check found and an error that stopped the check, so the type did not say which one a failure was
 - **Rejected: printing inside each check.** It printed compat's counts before the TypeScript lines
