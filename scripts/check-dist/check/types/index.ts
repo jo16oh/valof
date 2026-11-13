@@ -63,7 +63,7 @@ export const TypesFixture = Val.companion<TypesFixture>()
   .build();
 
 /** A fixture's counts over the baseline. */
-type FixtureCounts = Val<"FixtureCounts", { name: string; counts: Counts }>;
+type FixtureCounts = Val<"FixtureCounts", { fixture: TypesFixture; counts: Counts }>;
 const FixtureCounts = Val.companion<FixtureCounts>().build();
 
 /** What the types check measured, against the budgets. */
@@ -88,8 +88,8 @@ export const TypesReport = Val.companion<TypesReport>()
         "",
         table(
           ["", "instantiations", "types", "check (s)", "total (s)"],
-          fixtures.map(({ name, counts }) => [
-            name,
+          fixtures.map(({ fixture, counts }) => [
+            fixture.name,
             count(counts.instantiations),
             count(counts.types),
             seconds(counts.check),
@@ -151,14 +151,15 @@ export const TypesCheck = Val.companion<TypesCheck>()
 
       const counted = await R.sequence(budgets.fixtures.map(({ name }) => measure(compile, name)));
       if (R.isFailure(counted)) return counted;
-      const measured = budgets.fixtures.map(({ name }, index) =>
-        FixtureCounts.seal({ name, counts: Counts.above(counted.value[index]!, baseline.value) }),
+      const measured = budgets.fixtures.map((fixture, index) =>
+        FixtureCounts.seal({
+          fixture,
+          counts: Counts.above(counted.value[index]!, baseline.value),
+        }),
       );
 
       const checked = [
-        ...budgets.fixtures.map((fixture, index) =>
-          TypesFixture.budget(fixture, measured[index]!.counts),
-        ),
+        ...measured.map(({ fixture, counts }) => TypesFixture.budget(fixture, counts)),
         Budget.seal({
           name: "index.d.ts",
           used: await declarationBytes(new URL("dist/index.d.ts", repository)),
