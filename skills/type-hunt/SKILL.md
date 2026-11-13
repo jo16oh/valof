@@ -150,7 +150,7 @@ that property's type, which has no alias, so the `.d.ts` writes the type out in 
 members included.
 
 To check against the installed package, copy the probe into
-`scripts/check-dist/checks/compat/fixtures/` and run `vp run check-dist --compat`.
+`scripts/check-dist/check/compat/fixtures/` and run `vp run check-dist --compat`.
 
 ### 9. Another check's message
 

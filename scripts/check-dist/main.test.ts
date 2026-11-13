@@ -3,10 +3,10 @@ import { describe, expect, test } from "vite-plus/test";
 import { output, run } from "../shared/repository.ts";
 
 describe("check-dist", () => {
-  // An option it does not know stops it before `pack`, so the test runs no build.
+  // An option it does not know stops it before `build`, so the test builds nothing.
   test("runs as a command", async () => {
     const ran = await run(process.execPath, [
-      new URL("index.ts", import.meta.url).pathname,
+      new URL("main.ts", import.meta.url).pathname,
       "--bogus",
     ]).catch((error: unknown) => error as { code: number; stderr: string });
 

@@ -1,21 +1,9 @@
-// Shared by the types and compat checks of `vp run check-dist`: which TypeScript releases to run,
-// and how to get a `tsc` for each one.
+// Shared by the types and compat checks of `vp run check-dist`: how to get a `tsc` for a TypeScript
+// line, by its alias in `node_modules`.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { root, run } from "./repository.ts";
-
-/**
- * The oldest line supported, the line above it, and the current one, each installed under an
- * alias. Read from `node_modules`, so a new major enters this check when someone adds its alias.
- *
- * A line's last release is where its semantics settled, and supporting one from there avoids the
- * edge cases of the versions in between (notes §10.1).
- */
-export const aliases = ["typescript-5", "typescript-6", "typescript"];
-
-/** The floor, which is the alias the types check measures on. */
-export const floor = aliases[0]!;
 
 export function version(alias: string): string {
   const manifest = join(root, "node_modules", alias, "package.json");

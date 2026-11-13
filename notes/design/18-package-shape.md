@@ -168,9 +168,9 @@ inferred type. If declaration output changes an export's type, the check fails t
 (§10.1 "Declaration round trip"). At first the check searched the `.d.ts` for the string
 `/*elided*/`.
 
-**7.1 stays out of the ts-compatibility lines.** It is in beta. Once a stable release ships, it goes
-into `aliases` as the latest version (§10.1). The spots that 7.1 turns into TS7056 appear as
-`/*elided*/` on the earlier lines, so the check above catches them.
+**7.1 stays out of the ts-compatibility lines.** It is in beta. Once a stable release ships, the
+`typescript` devDependency moves to it as the current line (§10.1). The spots that 7.1 turns into
+TS7056 appear as `/*elided*/` on the earlier lines, so the check above catches them.
 
 ## 18.6 `AnyVal`, `AnyEnum` and `AnyTrait` are no longer exported from the entry, 2026-11-12
 

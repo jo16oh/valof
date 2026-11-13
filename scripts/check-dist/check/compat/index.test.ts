@@ -27,7 +27,7 @@ vi.mock(import("node:fs/promises"), async (original) => {
 });
 
 test("a release fails on a pin that builds a different dist, before it copies dist", async () => {
-  const result = await CompatCheck.run(CompatCheck.create({ release: true }));
+  const result = await CompatCheck.run(CompatCheck.create({ release: true, lines: [] }));
   expect(R.isFailure(result) && result.error.message).toBe(
     "valof 8d32b2a builds a different dist; run `vp run pin-valof origin/main`",
   );
