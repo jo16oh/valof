@@ -42,11 +42,11 @@ Brace the body of every `if`, `else` and loop. A guard clause is the exception: 
 `else` whose body is one `return`, `throw`, `continue` or `break`. The `local/braces` rule enforces
 this.
 
-Put a Val's type and its companion on adjacent lines, with a blank line before and after the pair.
-Export both or neither.
+Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
+and after the pair. Export both or neither.
 
-Place a helper used only inside its module at the end of the file. Declare it with `function`, so
-hoisting makes the order safe.
+Place a helper function used only inside its module at the end of the file. Declare it with
+`function`, so hoisting makes the order safe.
 
 The next four rules cover all code except the library's `src`, the tests, the fixtures, and the
 configuration files at the root. `src/lint` is covered. The tests include every `*.test.ts` and the
