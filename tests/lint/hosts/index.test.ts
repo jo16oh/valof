@@ -10,10 +10,10 @@ import valof from "../../../src/lint/eslint-plugin/index.ts";
 // What a host does with the plugin is beyond what a type can check, so both are run for real, over
 // a fixture holding one finding each.
 
-const cwd = fileURLToPath(new URL("fixtures/", import.meta.url));
+const CWD = fileURLToPath(new URL("fixtures/", import.meta.url));
 
 function run(bin: string, args: string[]): string {
-  const { stdout, stderr, error } = spawnSync(bin, args, { cwd, encoding: "utf8" });
+  const { stdout, stderr, error } = spawnSync(bin, args, { cwd: CWD, encoding: "utf8" });
   if (error) throw error;
   return `${stdout}${stderr}`;
 }

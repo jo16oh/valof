@@ -12,7 +12,7 @@ import {
 
 const { lint } = fixtures(import.meta.url);
 
-const glob = "tests/lint/skip/fixtures/mixed/**/*.ts";
+const GLOB = "tests/lint/skip/fixtures/mixed/**/*.ts";
 
 test("leaves out the kind the flag names, and only that one", async () => {
   expect(await lint("mixed")).toEqual([
@@ -60,20 +60,20 @@ test("leaves out a rule about the disable comments, like any other", async () =>
 // The list read off the registry, not written again: which rules exist is what `--help` names,
 // and that is the command's own test.
 test("names the known rules when the flag names none of them", () => {
-  const { status, stderr } = cli("--no-typo", glob);
+  const { status, stderr } = cli("--no-typo", GLOB);
   expect(status).toBe(2);
   expect(stderr).toBe('valof-lint: no rule called "typo"\n' + `  known rules: ${kinds.join(", ")}`);
 });
 
 test("passes the flag through to the run", () => {
-  const { stdout } = cli("--no-duplicate-brand", glob);
+  const { stdout } = cli("--no-duplicate-brand", GLOB);
   expect(stdout).toBe(
     `tests/lint/skip/fixtures/mixed/users.ts:6:3  ${UnusedMember.kind}  User.shout is never read\n`,
   );
 });
 
 test("takes more than one flag", () => {
-  const { status, stdout, stderr } = cli("--no-duplicate-brand", "--no-unused-member", glob);
+  const { status, stdout, stderr } = cli("--no-duplicate-brand", "--no-unused-member", GLOB);
   expect(stdout).toBe("");
   expect(status).toBe(0);
   expect(stderr).toBe("valof-lint: nothing to report in 2 file(s)");
