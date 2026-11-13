@@ -47,14 +47,19 @@ Put a Val's type and its companion on adjacent lines, with a blank line before a
 Place a helper used only inside its module at the end of the file. Declare it with `function`, so
 hoisting makes the order safe.
 
-Outside `src` and the fixtures, write a top-level function as a `function` declaration, not as an
-arrow function in a `const`.
+The next three rules cover all code except the library's `src`, the tests, the fixtures, and the
+configuration files at the root. `src/lint` is covered. The tests include every `*.test.ts` and the
+support files under `tests/`.
+
+Write a top-level function as a `function` declaration, not as an arrow function in a `const`.
 
 Name a constant at a module's top level in SCREAMING_SNAKE_CASE: a value set when the module loads,
-such as a path, a list or a budget. A function, a companion, and a lint plugin and its rules keep
-camelCase. So does a value a module gets when it runs, by reading, opening or building something,
-such as its arguments, a store or a build. The rule does not apply to the library's `src`, except
-`src/lint`, or to the fixtures.
+such as a path, a list or a budget. A function, and a lint plugin and its rules, keep camelCase. A
+companion keeps the name of its type.
+
+Run an entry point from a `main` declared right after its imports, so the file opens with what it
+does. Call `main` at the end of the file, because `main` reads constants and companions, which are
+not hoisted. Guard the call where other modules import the file.
 
 A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
 a connection, so `new` at the call site shows where state lives. Do not use `extends`. Keep state in
