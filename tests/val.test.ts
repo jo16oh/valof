@@ -2105,7 +2105,7 @@ describe("building", () => {
       type Held = Val<"Held", { id: string; owner: string }, Owned>;
       const members = Val.companion<Account>().impl(() => ({ owned: (a) => a.owner }));
       const traits = Val.companion<Held>().implTrait(Owned, () => ({ owned: (h) => h.owner }));
-      const assoc = Val.companion<Account>().implAssoc(() => ({ CURRENCY: () => "JPY" }));
+      const assoc = Val.companion<Account>().implAssoc(() => ({ currency: () => "JPY" }));
       for (const step of ["implSeal", "implCreate"] as const) {
         expectTypeOf(members).not.toHaveProperty(step);
         expectTypeOf(traits).not.toHaveProperty(step);
@@ -2376,7 +2376,7 @@ describe("building", () => {
     test("a member that is not a function is rejected", () => {
       Val.companion<Money>().implAssoc(({ seal }) => ({
         // @ts-expect-error a member is a function
-        ZERO: seal({ cents: 0 }),
+        zero: seal({ cents: 0 }),
       }));
     });
 

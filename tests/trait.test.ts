@@ -1026,7 +1026,7 @@ describe("building", () => {
     test("stays on the trait's companion, off every Val that implements it", () => {
       const Greeting = Trait.companion<Greetable>()
         .impl(() => ({ shout: (g) => g.name.toUpperCase() }))
-        .implAssoc(() => ({ VERSION: () => 1 }))
+        .implAssoc(() => ({ version: () => 1 }))
         .build();
       type Guest = Val<"AssocGuest", { name: string }, Greetable>;
       const Guest = Val.companion<Guest>()
@@ -1036,25 +1036,25 @@ describe("building", () => {
         }))
         .build();
       const guest = Guest.seal({ name: "g" });
-      expectTypeOf(Guest).not.toHaveProperty("VERSION");
-      expect(["VERSION" in Guest, Reflect.get(Greeting.dyn(Guest, guest), "VERSION")]).toEqual([
+      expectTypeOf(Guest).not.toHaveProperty("version");
+      expect(["version" in Guest, Reflect.get(Greeting.dyn(Guest, guest), "version")]).toEqual([
         false,
         undefined,
       ]);
-      expect(Greeting.VERSION()).toBe(1);
+      expect(Greeting.version()).toBe(1);
     });
 
     test("is written any number of times, before and after `impl`", () => {
       const Greeting = Trait.companion<Greetable>()
-        .implAssoc(() => ({ PREFIX: () => "Hi" }))
+        .implAssoc(() => ({ prefix: () => "Hi" }))
         .impl(() => ({ shout: (g) => g.name.toUpperCase() }))
         // A member reaching the companion names it and annotates its return type, as in `impl`.
         .implAssoc(() => ({
           shoutAll: (gs: readonly Impl<Greetable>[]): string[] => gs.map((g) => Greeting.shout(g)),
         }))
         .build();
-      expectTypeOf(Greeting.PREFIX).toEqualTypeOf<() => string>();
-      expect([Greeting.PREFIX(), Greeting.shoutAll([user])]).toEqual(["Hi", ["ALICE"]]);
+      expectTypeOf(Greeting.prefix).toEqualTypeOf<() => string>();
+      expect([Greeting.prefix(), Greeting.shoutAll([user])]).toEqual(["Hi", ["ALICE"]]);
     });
 
     test("a name is taken once, and the trait's members, `dyn` and the library's are reserved", () => {
