@@ -1,7 +1,7 @@
 import { expect, test } from "vite-plus/test";
 
 import { Budget } from "../budget.ts";
-import { Counts, TypesReport } from "./index.ts";
+import { Counts, TypesFixture, TypesReport } from "./index.ts";
 
 test("reads the counts tsc prints, over a baseline", () => {
   const counts = Counts.fromDiagnostics(
@@ -33,4 +33,13 @@ test("fails on the budgets over their limit, and names only those", () => {
   expect(named([over, within])).toEqual([Budget.overLine(over)]);
   expect(TypesReport.passed(report([within]))).toBe(true);
   expect(named([within])).toEqual([]);
+});
+
+test("budgets a fixture's instantiations, not its types", () => {
+  const counts = Counts.seal({ types: 3, instantiations: 7, check: 0, total: 0 });
+  const fixture = TypesFixture.seal({ name: "core", budget: 10_000 });
+
+  expect(TypesFixture.budget(fixture, counts)).toEqual(
+    Budget.seal({ name: "core", used: 7, limit: 10_000, unit: "count" }),
+  );
 });
