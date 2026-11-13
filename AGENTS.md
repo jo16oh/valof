@@ -19,11 +19,16 @@ take the Val first as `self`, and `.implAssoc` holds the associated functions. `
 
 ## Code Style
 
-`pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them where
-a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
-`User.seal(parse(text))`. Fold a variable used once into the chain. Keep it as a local, next to its
-use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
-where a step needs a value from outside the chain.
+`pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. They replace
+nested calls, so the steps read from top to bottom. Use them where a call nests in another call's
+first argument: `pipe(text, parse, User.seal)`, not `User.seal(parse(text))`. Fold a variable used
+once into the chain. Keep it as a local, next to its use, where the chain would be a later argument,
+as `content` is in `writeFile(file, content)`, or where a step needs a value from outside the chain.
+
+Fold a step that only calls a method taking no callback, such as `.join`, into the step before it:
+`(lines) => [head, ...lines].join("\n")`, not `(lines) => [head, ...lines]` followed by
+`(lines) => lines.join("\n")`. A step that calls a method taking a callback, such as `.map`, stays
+apart from the step before it.
 
 Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
 where the next step starts. Declare a variable in the paragraph that uses it, right before its first
