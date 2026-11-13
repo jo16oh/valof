@@ -38,7 +38,9 @@ describe("Twoslash.check", () => {
   });
 
   test("checks with the strictness of the root tsconfig.json", () => {
-    expect(() => twoslash.check("const optional: { a?: number } = { a: undefined };")).toThrow("2375");
+    expect(() => twoslash.check("const optional: { a?: number } = { a: undefined };")).toThrow(
+      "2375",
+    );
     expect(() => twoslash.check("const first: number = [1][0];")).toThrow("2322");
   });
 

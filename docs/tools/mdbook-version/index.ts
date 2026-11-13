@@ -2,6 +2,16 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+function main(): void {
+  if (process.argv[2] === "supports") {
+    process.exitCode = process.argv[3] === "html" ? 0 : 1;
+    return;
+  }
+
+  const input = JSON.parse(readFileSync(0, "utf8")) as PreprocessorInput;
+  process.stdout.write(JSON.stringify(preprocess(input, packageVersion())));
+}
+
 type Chapter = {
   content: string;
   sub_items: BookItem[];
@@ -40,16 +50,6 @@ export function preprocess(input: PreprocessorInput, version: string): Book {
 function packageVersion(): string {
   const path = fileURLToPath(new URL("../../../package.json", import.meta.url));
   return (JSON.parse(readFileSync(path, "utf8")) as { version: string }).version;
-}
-
-function main(): void {
-  if (process.argv[2] === "supports") {
-    process.exitCode = process.argv[3] === "html" ? 0 : 1;
-    return;
-  }
-
-  const input = JSON.parse(readFileSync(0, "utf8")) as PreprocessorInput;
-  process.stdout.write(JSON.stringify(preprocess(input, packageVersion())));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

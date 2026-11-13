@@ -3,6 +3,18 @@ import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import Handlebars from "handlebars";
 
+function main(): void {
+  // The site root of the published book: one directory per tag, plus `latest`.
+  const root = process.argv[2];
+  if (root === undefined) throw new Error("usage: node index.ts <site-root>");
+
+  const names = readdirSync(root, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name);
+
+  writeFileSync(join(root, "index.html"), render(names));
+}
+
 const TEMPLATE = fileURLToPath(new URL("index.hbs", import.meta.url));
 
 function compare(a: string, b: string): number {
@@ -37,18 +49,6 @@ export function render(names: string[]): string {
   // `latest/` is a copy of the newest release, so the newest non-prerelease names what it holds.
   const latest = sorted.find((version) => !version.includes("-"));
   return Handlebars.compile(readFileSync(TEMPLATE, "utf8"))({ versions: sorted, latest });
-}
-
-function main(): void {
-  // The site root of the published book: one directory per tag, plus `latest`.
-  const root = process.argv[2];
-  if (root === undefined) throw new Error("usage: node index.ts <site-root>");
-
-  const names = readdirSync(root, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name);
-
-  writeFileSync(join(root, "index.html"), render(names));
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {

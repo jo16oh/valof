@@ -9,6 +9,20 @@ import { join } from "node:path";
 
 import { ROOT, run } from "../shared/repository.ts";
 
+async function main(): Promise<void> {
+  const rev = process.argv.slice(2).find((arg) => arg !== "--");
+  if (rev === undefined) {
+    await build(await pinned());
+  } else {
+    const { stdout } = await run("git", ["rev-parse", "--verify", `${rev}^{commit}`], {
+      cwd: ROOT,
+    });
+    const commit = stdout.trim();
+    await build(commit);
+    await pin(commit);
+  }
+}
+
 const FIELD = "valof-pinned-for-scripts-commit";
 
 /** What `devDependencies.valof-pinned-for-scripts` links to. Inside `node_modules`, so tsc skips it. */
@@ -71,21 +85,6 @@ export async function build(commit: string, cwd = ROOT, out = TARGET): Promise<v
   console.log(`valof ${commit.slice(0, 7)} built for #valof`);
 }
 
-// Only when run as a command. The compat check and the tests import this file for its functions.
-if (import.meta.main) {
-  const rev = process.argv.slice(2).find((arg) => arg !== "--");
-  if (rev === undefined) {
-    await build(await pinned());
-  } else {
-    const { stdout } = await run("git", ["rev-parse", "--verify", `${rev}^{commit}`], {
-      cwd: ROOT,
-    });
-    const commit = stdout.trim();
-    await build(commit);
-    await pin(commit);
-  }
-}
-
 // CI checks out one commit, so the pinned one is fetched on demand.
 async function fetched(commit: string, cwd: string): Promise<void> {
   try {
@@ -103,4 +102,9 @@ async function pin(commit: string): Promise<void> {
   if (!line.test(text)) throw new Error(`package.json has no "${FIELD}"`);
   await writeFile(file, text.replace(line, `$1"${commit}"`));
   console.log(`pinned valof to ${commit}`);
+}
+
+// Only when run as a command. The compat check and the tests import this file for its functions.
+if (import.meta.main) {
+  await main();
 }
