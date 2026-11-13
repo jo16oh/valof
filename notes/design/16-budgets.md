@@ -112,7 +112,7 @@ Now both checks compare sizes, with no dependence on a specific name or string.
 | `DevCodeKeptError` | The bundled source reads `NODE_ENV`, yet the production and development builds have the same minified size     |
 | `AddsNothingError` | A bundle stacked on the base has a library part as long as the base's. The added import is already in the base |
 
-§16.4 made both problem lines of the size report, in place of these errors.
+§16.4 turned both into problems the size report lists, in place of these errors.
 
 - **Measure the library part as "chunk length - the entry's `renderedLength`".** The entry passes the
   imported names to `console.log`, so the whole bundles always differ by those names. Each module's
@@ -207,13 +207,13 @@ point and the build are shared.
   run in parallel
 - **Every check runs even after one fails.** Then a summary prints pass or fail for each. With one
   CI step, the summary still shows which check failed
-- **Each check returns a report, and `runChecks` prints it.** A `Report` renders what the check
+- **Each check returns a report, and the entry point prints it.** A `Report` renders what the check
   found, and `passed()` says whether the check passed. A report that did not pass ends with the
   problems: each budget a bundle is over, a production build that keeps development code, a bundle
   that adds nothing to the base, each stale claim, or the TypeScript lines that failed. The two size
   problems are §16.2's checks, which were the errors `DevCodeKeptError` and `AddsNothingError`
-  before. So `runChecks` still prints the table of a bundle over budget. `Check.run` fails only
-  where the check stops before it has a report: a build that fails, a types fixture that does not
+  before. So the entry point still prints the table of a bundle over budget. `Check.run` fails only
+  where the check stops before it has a report: a bundle the size check cannot build, a types fixture that does not
   compile, a stale pin under `--release`, or a file that does not state the size exactly once. The
   cost is that compat's report prints only after every TypeScript line finishes
 - **Rejected: a `verdict` that fails with an error.** `CheckError` then held both a problem the
