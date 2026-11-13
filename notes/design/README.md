@@ -76,7 +76,7 @@ Before changing the code on the left, read the sections on the right. A path mat
 | `src/lint/`                                                              | §14.1–14.7                 |
 | `src/lint/rules/`, `src/lint/scan/`                                      | §14.8, §14.12–14.27, §15.1 |
 | `src/lint/eslint-plugin/`                                                | §14.9, §14.19–14.20        |
-| `tests/lint/`                                                            | §14.10–14.11               |
+| `src/lint/integration/`, the `*.test.ts` files under `src/lint/`         | §14.10–14.11               |
 | `scripts/check-dist/`                                                    | §16, §18                   |
 | `scripts/check-dist/check/compat/`, `scripts/shared/typescript-lines.ts` | §10.1, §18.5               |
 | `scripts/pin-valof/`                                                     | §19                        |

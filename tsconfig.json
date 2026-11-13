@@ -27,5 +27,5 @@
     "skipLibCheck": true,
     "paths": { "typescript": ["./node_modules/typescript-5/lib/typescript.d.ts"] }
   },
-  "exclude": ["tests/lint/**/fixtures"]
+  "exclude": ["src/lint/**/fixtures"]
 }

@@ -1,0 +1,6 @@
+{
+  "jsPlugins": ["../../../eslint-plugin/index.ts"],
+  "rules": {
+    "valof/unused-member": "error"
+  }
+}

@@ -11,7 +11,13 @@ export default defineConfig({
   jsPlugins: ["./src/lint/eslint-plugin/index.ts", "./scripts/lint/braces.ts"],
   settings: {
     valof: {
-      project: ["src/**/*.ts", "scripts/**/*.ts", "!**/fixtures/**"],
+      project: [
+        "src/**/*.ts",
+        "scripts/**/*.ts",
+        "!**/fixtures/**",
+        "!**/*.test.ts",
+        "!src/lint/integration/**",
+      ],
       // An override cannot carry settings. The rule is on for the linter and check-dist, below.
       "data-type-outside-valof": { constraints: true, extraction: true },
     },
@@ -91,9 +97,14 @@ export default defineConfig({
       rules: { "valof/data-type-outside-valof": "error" },
     },
     {
-      // A test passes a value the types reject, and builds the class a Val must refuse.
-      files: ["tests/**", "**/*.test.ts"],
+      // A test passes a value the types reject, and builds the class a Val must refuse. It also
+      // declares the misuses valof-lint reports, so the Valof rules stay off.
+      files: ["src/lint/integration/**", "**/*.test.ts"],
       rules: {
+        ...Object.fromEntries(
+          Object.keys(valof.configs.recommended.rules).map((rule) => [rule, "off"]),
+        ),
+        "valof/data-type-outside-valof": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-call": "off",
@@ -107,7 +118,7 @@ export default defineConfig({
     },
   ],
   ignorePatterns: [
-    "tests/lint/**/fixtures/**",
+    "src/lint/**/fixtures/**",
     "scripts/check-dist/check/types/fixtures/*.ts",
     "scripts/check-dist/check/compat/fixtures/*.ts",
   ],
