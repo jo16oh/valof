@@ -72,7 +72,7 @@ export type Omission<F> = F extends (...args: infer P) => unknown
  * Makes each function a {@link Dual}, and leaves every other `impl` member as it is. One taking one
  * argument or none has no second form, so it is bound to `undefined` rather than wrapped. `this`
  * is then `undefined`, as in a wrapped member. `loose` marks members that do not take the value.
- * Such a member may take no argument, and development throws on one that is not a function.
+ * Such a member may take no argument.
  *
  * Development throws on a member whose source shows a default or a rest parameter. A type
  * annotation can hide one from {@link Arity}, and `length` stops counting at it, so a data-last
@@ -85,11 +85,6 @@ export function createMembers(
   const out: Record<string, unknown> = {};
   for (const key of Object.keys(members)) {
     const f = members[key];
-    if (development && loose && typeof f !== "function") {
-      throw new TypeError(
-        "`implAssoc` holds only functions, so write a value as a function that takes no argument.",
-      );
-    }
     if (development && typeof f === "function") {
       if (hidesParameter(f)) {
         throw new TypeError(
