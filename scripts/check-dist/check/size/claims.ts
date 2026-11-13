@@ -91,10 +91,7 @@ export const Claims = Val.companion<Claims>()
   }))
   .build();
 
-export type Claim = Val<
-  "Claim",
-  { file: ClaimedFile; text: string; found: string; stale: boolean }
->;
+type Claim = Val<"Claim", { file: ClaimedFile; text: string; found: string; stale: boolean }>;
 const Claim = Val.companion<Claim>()
   .implAssoc(({ seal }) => ({
     /** The one claim `text` makes, compared with `size`. Fails unless `text` makes exactly one. */

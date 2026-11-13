@@ -194,7 +194,7 @@ type Chain = Val<
 const Chain = Val.companion<Chain>().build();
 
 /** A type's name as written, and the namespace it was reached through. See {@link typeReference}. */
-export type TypeName = Val<"TypeName", { node: Identifier; qualifier: string | null }>;
+type TypeName = Val<"TypeName", { node: Identifier; qualifier: string | null }>;
 const TypeName = Val.companion<TypeName>().build();
 
 /** The body of {@link Lift.fromCall}. */

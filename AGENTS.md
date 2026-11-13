@@ -43,6 +43,7 @@ Brace the body of every `if`, `else` and loop. A guard clause is the exception: 
 this.
 
 Put a Val's type and its companion on adjacent lines, with a blank line before and after the pair.
+Export both or neither.
 
 Place a helper used only inside its module at the end of the file. Declare it with `function`, so
 hoisting makes the order safe.
@@ -68,9 +69,9 @@ Order a module's top-level declarations by kind, after the imports and the re-ex
 2. the exported constants, then the rest
 3. the errors
 4. the types without a companion, exported or not
-5. each Val, Enum or Trait whose companion is exported, with that companion
+5. each exported Val, Enum or Trait, with its companion
 6. the exported functions
-7. each other Val, Enum or Trait, with its companion
+7. each helper Val, Enum or Trait, with its companion
 8. the helper functions
 
 The call to `main` and `export default` end the file. A function is hoisted, so a declaration can
