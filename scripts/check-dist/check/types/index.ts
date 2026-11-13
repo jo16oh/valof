@@ -78,7 +78,18 @@ export type TypesDeclaration = Val<
     budget: number;
   }
 >;
-export const TypesDeclaration = Val.companion<TypesDeclaration>().build();
+export const TypesDeclaration = Val.companion<TypesDeclaration>()
+  .impl(() => ({
+    /** Reads the file, and every file it imports, under `root`. */
+    measure: async ({ name, path, budget }, root: URL): Promise<Budget> =>
+      Budget.seal({
+        name,
+        used: await declarationBytes(new URL(path, root)),
+        limit: budget,
+        unit: "bytes",
+      }),
+  }))
+  .build();
 
 /** A fixture's counts over the baseline. */
 type FixtureCounts = Val<"FixtureCounts", { fixture: TypesFixture; counts: Counts }>;
@@ -187,13 +198,8 @@ export const TypesCheck = Val.companion<TypesCheck>()
       const checked = [
         ...measured.map(({ fixture, counts }) => TypesFixture.budget(fixture, counts)),
         ...(await Promise.all(
-          budgets.declarations.map(async ({ name, path, budget }) =>
-            Budget.seal({
-              name,
-              used: await declarationBytes(new URL(path, repository)),
-              limit: budget,
-              unit: "bytes",
-            }),
+          budgets.declarations.map((declaration) =>
+            TypesDeclaration.measure(declaration, repository),
           ),
         )),
       ];
