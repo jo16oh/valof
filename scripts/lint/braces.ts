@@ -61,4 +61,10 @@ const guards = new Set([
   "BreakStatement",
 ]);
 
-export default { meta: { name: "local" }, rules: { braces } };
+// Annotated, so the declaration names `Rule` rather than oxlint's own type, which it does not export.
+const plugin: { meta: { name: string }; rules: { braces: Rule } } = {
+  meta: { name: "local" },
+  rules: { braces },
+};
+
+export default plugin;
