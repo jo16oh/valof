@@ -28,7 +28,11 @@ const braces: Rule = {
       context.report({
         node: body,
         messageId: "braces",
-        fix: (fixer) => fixer.replaceText(body, `{\n${context.sourceCode.getText(body)}\n}`),
+        fix: (fixer) =>
+          fixer.replaceText(
+            body,
+            body.type === "EmptyStatement" ? " {}" : `{\n${context.sourceCode.getText(body)}\n}`,
+          ),
       });
     };
 
