@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { HiddenOptional, cliWithoutTypeScript, fixtures } from "../tests/support.ts";
+import { HiddenOptional, cliWithoutTypeScript, fixtures } from "../integration/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 

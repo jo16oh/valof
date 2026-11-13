@@ -1,6 +1,11 @@
 import { expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, UnimplementedTrait, UnusedMember, fixtures } from "../tests/support.ts";
+import {
+  CompanionMismatch,
+  UnimplementedTrait,
+  UnusedMember,
+  fixtures,
+} from "../integration/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 

@@ -50,7 +50,7 @@ Place a helper function used only inside its module at the end of the file. Decl
 
 The next four rules cover all code except the library's `src`, the tests, the fixtures, and the
 configuration files at the root. `src/lint` is covered, except its tests. The tests include every
-`*.test.ts` and the support files under `src/lint/tests/`.
+`*.test.ts` and the support files under `src/lint/integration/`.
 
 Write a top-level function as a `function` declaration, not as an arrow function in a `const`.
 

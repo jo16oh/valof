@@ -9,7 +9,7 @@ function module(name: string): string {
 }
 
 test("the plugin throws the command's instruction", () => {
-  const command = cliWithoutParser("src/lint/tests/command/fixtures").stderr;
+  const command = cliWithoutParser("src/lint/integration/command/fixtures").stderr;
   expect(withoutParser(module("plugin.ts")).stdout).toBe(`Error ${command}\n`);
 });
 

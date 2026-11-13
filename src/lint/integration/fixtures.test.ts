@@ -10,7 +10,7 @@ import { ROOT } from "./support.ts";
 test("type-checks every fixture against the library", () => {
   const { status, stdout } = spawnSync(
     `${ROOT}node_modules/.bin/tsc`,
-    ["-p", "src/lint/tests/tsconfig.fixtures.json", "--noEmit"],
+    ["-p", "src/lint/integration/tsconfig.fixtures.json", "--noEmit"],
     { cwd: ROOT, encoding: "utf8" },
   );
   expect(stdout).toBe("");
