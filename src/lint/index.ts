@@ -13,7 +13,9 @@ export { DataTypeSettings, Options } from "./options.ts";
  *
  * Throws {@link MissingParserError} when oxc-parser is not installed.
  */
-export const lint = async (
+export async function lint(
   files: readonly string[],
   options: Options = Options.create(),
-): Promise<Finding[]> => R.unwrap(await run(files, options));
+): Promise<Finding[]> {
+  return R.unwrap(await run(files, options));
+}

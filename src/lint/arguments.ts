@@ -24,8 +24,9 @@ const SETTINGS = [
   "extraction",
 ] as const satisfies readonly (keyof DataTypeSettings)[];
 
-const isSetting = (name: string): name is (typeof SETTINGS)[number] =>
-  (SETTINGS as readonly string[]).includes(name);
+function isSetting(name: string): name is (typeof SETTINGS)[number] {
+  return (SETTINGS as readonly string[]).includes(name);
+}
 
 /** What the command was asked to do, before any file is read. */
 export type Arguments = Val<

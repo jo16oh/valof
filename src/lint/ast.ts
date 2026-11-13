@@ -83,8 +83,9 @@ export function annotationOf(member: Node): Node | null {
 }
 
 /** The type arguments a `<…>` holds, none when it is absent. */
-export const typeParams = (args: Node | null): readonly Node[] =>
-  args?.type === "TSTypeParameterInstantiation" ? args.params : [];
+export function typeParams(args: Node | null): readonly Node[] {
+  return args?.type === "TSTypeParameterInstantiation" ? args.params : [];
+}
 
 /** oxc-parser's tree as {@link Node}s, reaching each node's children through `visitorKeys`. */
 export function fromOxc(
@@ -305,8 +306,11 @@ function build(
   }
 }
 
-const isOxcNode = (value: unknown): value is import("oxc-parser").Node =>
-  typeof value === "object" && value !== null && "type" in value && typeof value.type === "string";
+function isOxcNode(value: unknown): value is import("oxc-parser").Node {
+  return (
+    typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
+  );
+}
 
 /**
  * Removes syntax-only parentheses around a type or an expression, however many were written.

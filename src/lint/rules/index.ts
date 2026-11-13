@@ -76,7 +76,7 @@ export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";
  * The rules a run uses: every rule on by default, and each opt-in rule `enable` names, with its
  * settings.
  */
-export const compile = (enable: Options["enable"]): Dyn<Rule>[] => {
+export function compile(enable: Options["enable"]): Dyn<Rule>[] {
   const model = enable["data-type-outside-valof"];
   return RULES.flatMap((rule) =>
     rule.optIn !== true
@@ -85,4 +85,4 @@ export const compile = (enable: Options["enable"]): Dyn<Rule>[] => {
         ? [Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(model))]
         : [],
   );
-};
+}

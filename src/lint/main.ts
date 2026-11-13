@@ -140,10 +140,9 @@ async function command(argv: readonly string[]): R.ResultAsync<number, UsageErro
  * honored with the latter winning. Each stream is judged on its own, so piping the findings still
  * leaves the summary on a terminal colored. No library improves on this.
  */
-const paint =
-  (stream: NodeJS.WriteStream) =>
-  (style: InspectColor, text: string): string =>
-    styleText(style, text, { stream });
+function paint(stream: NodeJS.WriteStream) {
+  return (style: InspectColor, text: string): string => styleText(style, text, { stream });
+}
 
 function print(findings: readonly Finding[], reported: number): void {
   const out = paint(process.stdout);

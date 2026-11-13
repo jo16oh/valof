@@ -262,10 +262,13 @@ const RESERVED = reserved(["patch", "seal", "create"]);
  * An enum's `.impl` rejects `match` as well, and a trait's rejects `dyn`. An enum's variant names
  * are left to the rule, which reads every file.
  */
-const rejected = (member: string, root?: string): boolean =>
-  RESERVED.test(member) ||
-  (root === "Enum" && member === ("match" satisfies keyof EnumCompanion<Sample>)) ||
-  (root === "Trait" && member === ("dyn" satisfies keyof TraitCompanion<AnyTrait>));
+function rejected(member: string, root?: string): boolean {
+  return (
+    RESERVED.test(member) ||
+    (root === "Enum" && member === ("match" satisfies keyof EnumCompanion<Sample>)) ||
+    (root === "Trait" && member === ("dyn" satisfies keyof TraitCompanion<AnyTrait>))
+  );
+}
 
 function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   let set = map.get(key);
@@ -778,8 +781,11 @@ function stepState(node: Node, bound: Bindings): { step: string; start: number }
 }
 
 /** The parameters of a function node, none for anything else. */
-const paramsOf = (fn: Node | undefined): readonly Node[] =>
-  fn?.type === "ArrowFunctionExpression" || fn?.type === "FunctionExpression" ? fn.params : [];
+function paramsOf(fn: Node | undefined): readonly Node[] {
+  return fn?.type === "ArrowFunctionExpression" || fn?.type === "FunctionExpression"
+    ? fn.params
+    : [];
+}
 
 /** A function's first default or rest parameter, and which it is. */
 function optional(fn: Node | null | undefined): { rest: boolean; start: number } | undefined {

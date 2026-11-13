@@ -224,8 +224,11 @@ function topLevelAliases(program: Node): VariantOf<Node, "TSTypeAliasDeclaration
 }
 
 /** The namespace a `ns.Name` reference was reached through. */
-const qualifierOf = (name: Node): string | undefined =>
-  name.type === "TSQualifiedName" && name.left.type === "Identifier" ? name.left.name : undefined;
+function qualifierOf(name: Node): string | undefined {
+  return name.type === "TSQualifiedName" && name.left.type === "Identifier"
+    ? name.left.name
+    : undefined;
+}
 
 /**
  * The variants an Enum declaration spells, or `undefined` where the syntax does not settle them.
