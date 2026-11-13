@@ -11,7 +11,7 @@ import { Bundle, Imports } from "./check/size/bundle.ts";
 import { ClaimedFile } from "./check/size/claims.ts";
 import { SizeCheck } from "./check/size/index.ts";
 import { Suite } from "./check/size/suite.ts";
-import { TypesBudgets, TypesCheck } from "./check/types/index.ts";
+import { TypesBudgets, TypesCheck, TypesFixture } from "./check/types/index.ts";
 
 /** The bundles the size check measures, each against its budget in bytes of production gzip. */
 const suite = Suite.seal([
@@ -94,9 +94,11 @@ const typesBudgets = TypesBudgets.seal({
    * the wrapper removed, `core` and `trait` exceed their budgets. `enum` stays within its own, so the
    * comments at its steps are the only record.
    */
-  core: 10_000,
-  trait: 25_000,
-  enum: 90_000,
+  fixtures: [
+    TypesFixture.seal({ name: "core", budget: 10_000 }),
+    TypesFixture.seal({ name: "trait", budget: 25_000 }),
+    TypesFixture.seal({ name: "enum", budget: 90_000 }),
+  ],
   /**
    * The published declarations, in bytes. Deterministic like the counts above, and budgeted the
    * same way: an alarm, not a ratchet.

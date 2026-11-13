@@ -6,7 +6,7 @@ import { readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
-import { Enum, Val, type Dyn, type VariantsOf } from "#valof";
+import { Val, type Dyn } from "#valof";
 
 import { Budget } from "../budget.ts";
 import { align, count, problemLines, Report } from "../report.ts";
@@ -17,16 +17,10 @@ import { floor, tsc, version, type Tsc } from "../../../shared/typescript-lines.
 
 const here = new URL("./", import.meta.url);
 
-type Fixture = Enum<
-  "Fixture",
-  { core: Record<never, never>; trait: Record<never, never>; enum: Record<never, never> }
->;
-const Fixture = Enum.companion<Fixture>().build();
-
 /** The types check's budgets: instantiations for each fixture, bytes for the declarations. */
 export type TypesBudgets = Val<
   "TypesBudgets",
-  { core: number; trait: number; enum: number; declarations: number; plugin: number }
+  { fixtures: TypesFixture[]; declarations: number; plugin: number }
 >;
 export const TypesBudgets = Val.companion<TypesBudgets>().build();
 
@@ -59,14 +53,18 @@ export const Counts = Val.companion<Counts>()
   }))
   .build();
 
-/** A fixture's counts over the baseline. */
-type FixtureCounts = Val<"FixtureCounts", { name: keyof VariantsOf<Fixture>; counts: Counts }>;
-const FixtureCounts = Val.companion<FixtureCounts>()
+/** A fixture in `fixtures/<name>.ts`, and its budget in instantiations over the baseline. */
+export type TypesFixture = Val<"TypesFixture", { name: string; budget: number }>;
+export const TypesFixture = Val.companion<TypesFixture>()
   .impl(() => ({
-    budget: ({ name, counts }, budgets: TypesBudgets): Budget =>
-      Budget.seal({ name, used: counts.instantiations, limit: budgets[name], unit: "count" }),
+    budget: ({ name, budget }, counts: Counts): Budget =>
+      Budget.seal({ name, used: counts.instantiations, limit: budget, unit: "count" }),
   }))
   .build();
+
+/** A fixture's counts over the baseline. */
+type FixtureCounts = Val<"FixtureCounts", { name: string; counts: Counts }>;
+const FixtureCounts = Val.companion<FixtureCounts>().build();
 
 /** What the types check measured, against the budgets. */
 export type TypesReport = Val<
@@ -151,19 +149,16 @@ export const TypesCheck = Val.companion<TypesCheck>()
       const baseline = await measure(compile, "baseline");
       if (R.isFailure(baseline)) return baseline;
 
-      const fixtures = [
-        Fixture.core.create({}),
-        Fixture.trait.create({}),
-        Fixture.enum.create({}),
-      ].map(({ _tag }) => _tag);
-      const counted = await R.sequence(fixtures.map((name) => measure(compile, name)));
+      const counted = await R.sequence(budgets.fixtures.map(({ name }) => measure(compile, name)));
       if (R.isFailure(counted)) return counted;
-      const measured = fixtures.map((name, index) =>
+      const measured = budgets.fixtures.map(({ name }, index) =>
         FixtureCounts.seal({ name, counts: Counts.above(counted.value[index]!, baseline.value) }),
       );
 
       const checked = [
-        ...measured.map((fixture) => FixtureCounts.budget(fixture, budgets)),
+        ...budgets.fixtures.map((fixture, index) =>
+          TypesFixture.budget(fixture, measured[index]!.counts),
+        ),
         Budget.seal({
           name: "index.d.ts",
           used: await declarationBytes(new URL("dist/index.d.ts", repository)),
