@@ -24,10 +24,6 @@ const SETTINGS = [
   "extraction",
 ] as const satisfies readonly (keyof DataTypeSettings)[];
 
-function isSetting(name: string): name is (typeof SETTINGS)[number] {
-  return (SETTINGS as readonly string[]).includes(name);
-}
-
 /** What the command was asked to do, before any file is read. */
 export type Arguments = Val<
   "Arguments",
@@ -45,7 +41,6 @@ export type Arguments = Val<
     help: boolean;
   }
 >;
-
 export const Arguments = Val.companion<Arguments>()
   .implAssoc(({ seal }) => ({
     /**
@@ -132,3 +127,7 @@ export const Arguments = Val.companion<Arguments>()
     },
   }))
   .build();
+
+function isSetting(name: string): name is (typeof SETTINGS)[number] {
+  return (SETTINGS as readonly string[]).includes(name);
+}

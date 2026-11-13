@@ -89,22 +89,6 @@ export type VariantTraits = Val<"VariantTraits", { variant: string; traits: Decl
 export const VariantTraits = Val.companion<VariantTraits>().build();
 
 /**
- * The name a type reference is written under, or `undefined` when it is not a plain one.
- *
- * `Val<…>` gives `Val`, and `valof.Val<…>` through a namespace import gives the same, since the
- * namespace only says where the name came from. The caller still resolves the result against the
- * file's import aliases, which is what tells `Val` apart from something else bound to that name.
- */
-function valName(typeName: Node, bound: Bindings): string | undefined {
-  if (typeName.type === "Identifier") return typeName.name;
-  if (typeName.type !== "TSQualifiedName") return undefined;
-  const { left, right } = typeName;
-  if (left.type !== "Identifier" || !Bindings.hasNamespace(bound, left.name)) return undefined;
-  // Qualified by a namespace import, so the name is already the exporting module's own.
-  return right.type === "Identifier" ? right.name : undefined;
-}
-
-/**
  * Top-level Val and Trait aliases, and the brands they claim.
  *
  * Only a top-level alias can be imported and assigned somewhere else, which is the collision the
@@ -127,6 +111,22 @@ export const Aliases = Val.companion<Aliases>()
     fromProgram: valAliases,
   }))
   .build();
+
+/**
+ * The name a type reference is written under, or `undefined` when it is not a plain one.
+ *
+ * `Val<…>` gives `Val`, and `valof.Val<…>` through a namespace import gives the same, since the
+ * namespace only says where the name came from. The caller still resolves the result against the
+ * file's import aliases, which is what tells `Val` apart from something else bound to that name.
+ */
+function valName(typeName: Node, bound: Bindings): string | undefined {
+  if (typeName.type === "Identifier") return typeName.name;
+  if (typeName.type !== "TSQualifiedName") return undefined;
+  const { left, right } = typeName;
+  if (left.type !== "Identifier" || !Bindings.hasNamespace(bound, left.name)) return undefined;
+  // Qualified by a namespace import, so the name is already the exporting module's own.
+  return right.type === "Identifier" ? right.name : undefined;
+}
 
 /** The body of {@link Aliases.fromProgram}. */
 function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines): Aliases {

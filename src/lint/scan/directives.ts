@@ -25,42 +25,6 @@ export type Directive = Val<
     spelling: string;
   }
 >;
-
-/**
- * The names one disable comment lists, as a set. A name is what the author wrote, which no rule may
- * have: `unused-disable` reports such a name, so it is kept rather than checked against the rules.
- */
-type NameSet = Val<"NameSet", Record<string, true>>;
-const NameSet = Val.companion<NameSet>()
-  .implCreate((names: Iterable<string>) =>
-    Object.fromEntries([...names].map((name) => [name, true as const])),
-  )
-  .impl(() => ({ has: (names, name: string) => Object.hasOwn(names, name) }))
-  .build();
-
-/** What a directive silences: the names it listed, or every kind there is. */
-type Silenced = Enum<"Silenced", { Every: {}; Named: { names: NameSet } }>;
-const Silenced = Enum.companion<Silenced>()
-  .impl(() => ({
-    has: (silenced, kind: string) => silenced._tag === "Every" || NameSet.has(silenced.names, kind),
-  }))
-  .build();
-
-/**
- * What one directive silences, which is not always what it named.
- *
- * Naming no rule on a line means every kind there: a directive that silenced nothing would bury
- * the finding it was written to hold back. Naming none over a whole file means nothing at all,
- * since silencing would hide the report about the directive itself and leave nobody to hear it.
- * `valof-lint-disable-all-whole-file` is how a file is turned off, and it says so.
- */
-function effect({ spelling, kinds }: Directive): Silenced {
-  if (spelling === "valof-lint-disable-all-whole-file") return Silenced.Every.create({});
-  if (spelling === "valof-lint-disable") return named([]);
-  if (kinds.length > 0) return named(kinds);
-  return spelling === "valof-lint-disable-next-line" ? Silenced.Every.create({}) : named([]);
-}
-
 export const Directive = Val.companion<Directive>()
   .impl(() => ({
     /**
@@ -74,49 +38,26 @@ export const Directive = Val.companion<Directive>()
   }))
   .build();
 
-/** A directive as its comment writes it, before the line it covers is known. */
-type DirectiveComment = Val<
-  "DirectiveComment",
-  { at: Position; spelling: string; kinds: string[] }
->;
-const DirectiveComment = Val.companion<DirectiveComment>()
+/**
+ * The directives of each file in a run, by the path the file was scanned under.
+ *
+ * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
+ * brand is still reported, since silencing it is its own line's decision.
+ */
+export type DirectiveMap = Val<"DirectiveMap", Record<FilePath, Directive[]>>;
+export const DirectiveMap = Val.companion<DirectiveMap>()
   .implAssoc(({ seal }) => ({
-    /**
-     * What one comment carries, or `undefined` when it carries no directive.
-     *
-     * More than one name goes on a line, separated by a space or a comma alike, since a reader
-     * writing a list will reach for either. Nothing but a space may follow a spelling, so a
-     * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
-     */
-    parse: (text: string, at: Position): DirectiveComment | undefined => {
-      const match =
-        /(?:^|\s)valof-lint-disable(-next-line|-all-whole-file|-whole-file)?(?![-\w])(?:[^\S\n]+([^\n]*))?/.exec(
-          text,
-        );
-      if (!match) return undefined;
-      return seal({
-        at,
-        spelling: `valof-lint-disable${match[1] ?? ""}`,
-        kinds: pipe(
-          // Everything after `--` is a note for the reader, the way other linters spell it.
-          (match[2] ?? "").split("--")[0] ?? "",
-          (listed) => listed.split(/[\s,]+/).filter(Boolean),
-          (names) => [...new Set(names)],
-        ),
-      });
-    },
+    from: (scans: readonly Scan[]): DirectiveMap =>
+      seal(Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives]))),
+  }))
+  .impl(() => ({
+    /** Whether a directive in the file silences a finding of `kind` on `line`. */
+    silences: (map, file: FilePath, line: number, kind: string) =>
+      ((Object.hasOwn(map, file) ? map[file] : undefined) ?? []).some((directive) =>
+        Directive.silences(directive, line, kind),
+      ),
   }))
   .build();
-
-/** Whether nothing but whitespace precedes `start` on its line. */
-function ownLine(source: string, start: number): boolean {
-  for (let index = start - 1; index >= 0; index--) {
-    const character = source[index];
-    if (character === "\n") return true;
-    if (character !== " " && character !== "\t" && character !== "\r") return false;
-  }
-  return true;
-}
 
 /**
  * Every directive in one file, at its own comment rather than the line it covers.
@@ -178,25 +119,83 @@ export function directives(
 }
 
 /**
- * The directives of each file in a run, by the path the file was scanned under.
- *
- * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
- * brand is still reported, since silencing it is its own line's decision.
+ * The names one disable comment lists, as a set. A name is what the author wrote, which no rule may
+ * have: `unused-disable` reports such a name, so it is kept rather than checked against the rules.
  */
-export type DirectiveMap = Val<"DirectiveMap", Record<FilePath, Directive[]>>;
-export const DirectiveMap = Val.companion<DirectiveMap>()
-  .implAssoc(({ seal }) => ({
-    from: (scans: readonly Scan[]): DirectiveMap =>
-      seal(Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives]))),
-  }))
+type NameSet = Val<"NameSet", Record<string, true>>;
+const NameSet = Val.companion<NameSet>()
+  .implCreate((names: Iterable<string>) =>
+    Object.fromEntries([...names].map((name) => [name, true as const])),
+  )
+  .impl(() => ({ has: (names, name: string) => Object.hasOwn(names, name) }))
+  .build();
+
+/** What a directive silences: the names it listed, or every kind there is. */
+type Silenced = Enum<"Silenced", { Every: {}; Named: { names: NameSet } }>;
+const Silenced = Enum.companion<Silenced>()
   .impl(() => ({
-    /** Whether a directive in the file silences a finding of `kind` on `line`. */
-    silences: (map, file: FilePath, line: number, kind: string) =>
-      ((Object.hasOwn(map, file) ? map[file] : undefined) ?? []).some((directive) =>
-        Directive.silences(directive, line, kind),
-      ),
+    has: (silenced, kind: string) => silenced._tag === "Every" || NameSet.has(silenced.names, kind),
   }))
   .build();
+
+/** A directive as its comment writes it, before the line it covers is known. */
+type DirectiveComment = Val<
+  "DirectiveComment",
+  { at: Position; spelling: string; kinds: string[] }
+>;
+const DirectiveComment = Val.companion<DirectiveComment>()
+  .implAssoc(({ seal }) => ({
+    /**
+     * What one comment carries, or `undefined` when it carries no directive.
+     *
+     * More than one name goes on a line, separated by a space or a comma alike, since a reader
+     * writing a list will reach for either. Nothing but a space may follow a spelling, so a
+     * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
+     */
+    parse: (text: string, at: Position): DirectiveComment | undefined => {
+      const match =
+        /(?:^|\s)valof-lint-disable(-next-line|-all-whole-file|-whole-file)?(?![-\w])(?:[^\S\n]+([^\n]*))?/.exec(
+          text,
+        );
+      if (!match) return undefined;
+      return seal({
+        at,
+        spelling: `valof-lint-disable${match[1] ?? ""}`,
+        kinds: pipe(
+          // Everything after `--` is a note for the reader, the way other linters spell it.
+          (match[2] ?? "").split("--")[0] ?? "",
+          (listed) => listed.split(/[\s,]+/).filter(Boolean),
+          (names) => [...new Set(names)],
+        ),
+      });
+    },
+  }))
+  .build();
+
+/**
+ * What one directive silences, which is not always what it named.
+ *
+ * Naming no rule on a line means every kind there: a directive that silenced nothing would bury
+ * the finding it was written to hold back. Naming none over a whole file means nothing at all,
+ * since silencing would hide the report about the directive itself and leave nobody to hear it.
+ * `valof-lint-disable-all-whole-file` is how a file is turned off, and it says so.
+ */
+function effect({ spelling, kinds }: Directive): Silenced {
+  if (spelling === "valof-lint-disable-all-whole-file") return Silenced.Every.create({});
+  if (spelling === "valof-lint-disable") return named([]);
+  if (kinds.length > 0) return named(kinds);
+  return spelling === "valof-lint-disable-next-line" ? Silenced.Every.create({}) : named([]);
+}
+
+/** Whether nothing but whitespace precedes `start` on its line. */
+function ownLine(source: string, start: number): boolean {
+  for (let index = start - 1; index >= 0; index--) {
+    const character = source[index];
+    if (character === "\n") return true;
+    if (character !== " " && character !== "\t" && character !== "\r") return false;
+  }
+  return true;
+}
 
 function named(names: Iterable<string>): Silenced {
   return Silenced.Named.create({ names: NameSet.create(names) });

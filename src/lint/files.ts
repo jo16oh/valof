@@ -4,6 +4,9 @@ import { dirname, join, resolve } from "node:path";
 import { Val } from "../index.ts";
 import { pipe } from "../shared/pipe/index.ts";
 
+/** What a directory holds, for a caller who names one instead of writing the glob out. */
+const UNDER = "**/*.{ts,tsx,mts,cts}";
+
 /** A file in a run, spelled as it was given to the run, which is how a finding prints it. */
 export type FilePath = Val<"FilePath", string>;
 export const FilePath = Val.companion<FilePath>()
@@ -18,9 +21,6 @@ export const FilePath = Val.companion<FilePath>()
     },
   }))
   .build();
-
-/** What a directory holds, for a caller who names one instead of writing the glob out. */
-const UNDER = "**/*.{ts,tsx,mts,cts}";
 
 /** A path or a glob, as the user wrote it. */
 export type Path = Val<"Path", string>;
