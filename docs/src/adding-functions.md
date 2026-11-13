@@ -81,9 +81,6 @@ The function passed to `.implAssoc` receives the same `seal`, `create` and `patc
 to `.impl`, so its members can build the Val. A member that builds the Val is a constructor. See
 [Define other constructors with `implAssoc`](custom-constructors.md#define-other-constructors-with-implassoc).
 
-Every `.implAssoc` member is a function. A fixed value, such as a guest user, is a function that
-takes no argument: `guest: () => seal({ id: "guest", name: "guest" })`, called as `User.guest()`.
-
 ## Call a member with the value last
 
 Vals are plain data, so their members cannot be chained like methods. Instead, a member taking more
