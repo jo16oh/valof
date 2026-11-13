@@ -1,11 +1,15 @@
 import { Result as R } from "@praha/byethrow";
-import { expect, test } from "vite-plus/test";
+import { beforeAll, expect, test } from "vite-plus/test";
 
 import { FilePath } from "../../../src/lint/files.ts";
 import { ParseCache } from "../../../src/lint/parse-cache.ts";
 import { Parser } from "../../../src/lint/parser.ts";
 
-const parser = R.unwrap(await Parser.load());
+let parser: Parser;
+
+beforeAll(async () => {
+  parser = R.unwrap(await Parser.load());
+});
 const A = FilePath.seal("/project/a.ts");
 const B = FilePath.seal("/project/b.ts");
 
