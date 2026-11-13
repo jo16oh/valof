@@ -127,6 +127,6 @@ package cannot be made to print by name.
 **Cost.** ts-compatibility went from 4.4 s to 9.1 s (locally). The round-trip tsc takes 2.4 s per line on 5.9, and
 1.1 s on 7.0. Most of it is comparing the enum builder. `variantStart` alone takes 620,000 instantiations.
 
-**The lines run in parallel.** Each line writes to `dts/<alias>` and `round-trip/<alias>`, and the report comes out in the order of `aliases`. 9.1 s
+**The lines run in parallel.** Each line writes to `dts/<alias>` and `round-trip/<alias>`, and the report comes out in the order of the lines. 9.1 s
 became 5.2 s. Nothing checks that each line reads its own output. Every known way to break it fails all 3 lines at once, so
 reading another line's `.d.ts` would still pass.
