@@ -828,7 +828,7 @@ export type CompanionMembers<V> = Rejected & {
   [key: string]: ((value: V, ...rest: any[]) => unknown) | NonFn;
 };
 
-/** The members `.implAssoc` accepts: anything but a name the library reserves. */
+/** The members `.implAssoc` accepts: functions, under any name but one the library reserves. */
 export type AssocMembers = Rejected & Record<string, unknown>;
 
 /**
