@@ -8,7 +8,7 @@ import { Val, type Dyn } from "#valof";
 import { docBlocks } from "../../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../../pin-valof/index.ts";
 import { output, root, writeJson } from "../../../shared/repository.ts";
-import { aliases, tsc, version } from "../../../shared/typescript-lines.ts";
+import { tsc, version } from "../../../shared/typescript-lines.ts";
 import { problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
@@ -74,16 +74,29 @@ export const CompatReport = Val.companion<CompatReport>()
   }))
   .build();
 
-export type CompatCheck = Val<"CompatCheck", { name: string; release: boolean }, Check>;
+export type CompatCheck = Val<
+  "CompatCheck",
+  {
+    name: string;
+    release: boolean;
+    /** The TypeScript lines to typecheck on, by their aliases in `node_modules`. */
+    lines: string[];
+  },
+  Check
+>;
 export const CompatCheck = Val.companion<CompatCheck>()
-  .implCreate(({ release }: { release: boolean }) => ({ name: "compat", release }))
+  .implCreate(({ release, lines }: { release: boolean; lines: string[] }) => ({
+    name: "compat",
+    release,
+    lines,
+  }))
   .implTrait(Check, () => ({
     /**
      * Typechecks the book's blocks, the fixtures and the scripts against `dist` on every TypeScript
      * line. Expects `dist` to be built. With `release`, fails unless the commit the scripts pin
      * builds this same `dist`.
      */
-    run: async ({ release }): R.ResultAsync<Dyn<Report>, CompatError> => {
+    run: async ({ release, lines }): R.ResultAsync<Dyn<Report>, CompatError> => {
       const pin = await pinned();
       const current = await matches(pin);
       if (!current && release) return R.fail(new StalePinError({ pin }));
@@ -107,8 +120,8 @@ export const CompatCheck = Val.companion<CompatCheck>()
       const exports = SourceExports.read(directory, [...blocks, ...fixtures]);
 
       // The TypeScript lines run concurrently, each emitting to directories of its own.
-      const lines = await Promise.all(
-        aliases.map(async (alias) =>
+      const results = await Promise.all(
+        lines.map(async (alias) =>
           LineResult.seal({
             version: version(alias),
             failures: await typecheck(alias, exports, current),
@@ -124,7 +137,7 @@ export const CompatCheck = Val.companion<CompatCheck>()
             fixtures: fixtures.length,
             pin,
             ...(current ? { scripts: importers.length } : {}),
-            lines,
+            lines: results,
           }),
         ),
       );

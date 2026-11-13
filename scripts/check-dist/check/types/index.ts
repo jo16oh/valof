@@ -13,14 +13,14 @@ import { align, count, problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
 
 import { output, repository, writeJson } from "../../../shared/repository.ts";
-import { floor, tsc, version, type Tsc } from "../../../shared/typescript-lines.ts";
+import { tsc, version, type Tsc } from "../../../shared/typescript-lines.ts";
 
 const here = new URL("./", import.meta.url);
 
 /** The types check's budgets: instantiations for each fixture, bytes for the declarations. */
 export type TypesBudgets = Val<
   "TypesBudgets",
-  { fixtures: TypesFixture[]; declarations: number; plugin: number }
+  { fixtures: TypesFixture[]; declarations: TypesDeclaration[] }
 >;
 export const TypesBudgets = Val.companion<TypesBudgets>().build();
 
@@ -62,6 +62,24 @@ export const TypesFixture = Val.companion<TypesFixture>()
   }))
   .build();
 
+/**
+ * A declaration file, and its budget in bytes. The bytes add up every file it imports, which is what
+ * a consumer downloads.
+ */
+export type TypesDeclaration = Val<
+  "TypesDeclaration",
+  {
+    /** What the budget table calls it. */
+    name: string;
+    /** From the repository root. */
+    path: string;
+    /** Printed under the tables, after the name. */
+    description: string;
+    budget: number;
+  }
+>;
+export const TypesDeclaration = Val.companion<TypesDeclaration>().build();
+
 /** A fixture's counts over the baseline. */
 type FixtureCounts = Val<"FixtureCounts", { fixture: TypesFixture; counts: Counts }>;
 const FixtureCounts = Val.companion<FixtureCounts>().build();
@@ -74,6 +92,7 @@ export type TypesReport = Val<
     typescript: string;
     baseline: Counts;
     fixtures: FixtureCounts[];
+    declarations: TypesDeclaration[];
     budgets: Budget[];
   },
   Report
@@ -82,7 +101,7 @@ export const TypesReport = Val.companion<TypesReport>()
   .implTrait(Report, () => ({
     /** The counts, then the budgets, then what each column means. */
     render: (report): string => {
-      const { typescript, baseline, fixtures, budgets } = report;
+      const { typescript, baseline, fixtures, declarations, budgets } = report;
       return [
         `typescript@${typescript}, over a baseline of ${count(baseline.types)} types`,
         "",
@@ -110,8 +129,7 @@ export const TypesReport = Val.companion<TypesReport>()
         // A reader meets this table years after the last person who chose what to put in it.
         "instantiations: type arguments applied, where a conditional running away shows.",
         "types: distinct types the checker made. printed only, and it tracks the first.",
-        "index.d.ts: the published declarations, in bytes. what every consumer parses.",
-        "eslint-plugin.d.mts: the plugin's, in bytes. what a typed config file parses.",
+        ...declarations.map(({ name, description }) => `${name}: ${description}`),
         ...problemLines(TypesReport.problems(report)),
       ].join("\n");
     },
@@ -131,21 +149,29 @@ export class FixtureError extends ErrorFactory({
 
 export type TypesError = FixtureError;
 
-export type TypesCheck = Val<"TypesCheck", { name: string; budgets: TypesBudgets }, Check>;
+export type TypesCheck = Val<
+  "TypesCheck",
+  {
+    name: string;
+    budgets: TypesBudgets;
+    /** The TypeScript line the counts come from, by its alias in `node_modules`. */
+    line: string;
+  },
+  Check
+>;
 export const TypesCheck = Val.companion<TypesCheck>()
-  .implCreate(({ budgets }: { budgets: TypesBudgets }) => ({ name: "types", budgets }))
+  .implCreate(({ budgets, line }: { budgets: TypesBudgets; line: string }) => ({
+    name: "types",
+    budgets,
+    line,
+  }))
   .implTrait(Check, () => ({
     /**
      * Measures the fixtures and the declarations against their budgets. Expects `dist` to be
      * built.
      */
-    run: async ({ budgets }): R.ResultAsync<Dyn<Report>, TypesError> => {
-      /**
-       * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the
-       * fixtures differed by 5 instantiations in 1,677, the checkers' own noise. `vp run check-dist
-       * --compat` still typechecks every line.
-       */
-      const compile = tsc(floor);
+    run: async ({ budgets, line }): R.ResultAsync<Dyn<Report>, TypesError> => {
+      const compile = tsc(line);
       const baseline = await measure(compile, "baseline");
       if (R.isFailure(baseline)) return baseline;
 
@@ -160,29 +186,25 @@ export const TypesCheck = Val.companion<TypesCheck>()
 
       const checked = [
         ...measured.map(({ fixture, counts }) => TypesFixture.budget(fixture, counts)),
-        Budget.seal({
-          name: "index.d.ts",
-          used: await declarationBytes(new URL("dist/index.d.ts", repository)),
-          limit: budgets.declarations,
-          unit: "bytes",
-        }),
-        Budget.seal({
-          name: "eslint-plugin.d.mts",
-          used: Buffer.byteLength(
-            await readFile(new URL("dist/eslint-plugin/index.d.mts", repository), "utf8"),
-            "utf8",
+        ...(await Promise.all(
+          budgets.declarations.map(async ({ name, path, budget }) =>
+            Budget.seal({
+              name,
+              used: await declarationBytes(new URL(path, repository)),
+              limit: budget,
+              unit: "bytes",
+            }),
           ),
-          limit: budgets.plugin,
-          unit: "bytes",
-        }),
+        )),
       ];
       return R.succeed(
         Report.dyn(
           TypesReport,
           TypesReport.seal({
-            typescript: version(floor),
+            typescript: version(line),
             baseline: baseline.value,
             fixtures: measured,
+            declarations: budgets.declarations,
             budgets: checked,
           }),
         ),
