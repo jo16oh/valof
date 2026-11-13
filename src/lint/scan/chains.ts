@@ -234,7 +234,9 @@ function readChain(node: Node, bound: Bindings): Chain {
       of = fromRoot(callee, bound);
       return of ? current.typeArguments : null;
     }
-    if (name !== null && current.arguments.length > 0) steps.add(name);
+    if (name !== null && current.arguments.length > 0) {
+      steps.add(name);
+    }
     return walk(receiver);
   };
 

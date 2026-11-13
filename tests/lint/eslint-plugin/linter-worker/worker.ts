@@ -35,11 +35,12 @@ LinterWorker.serve(
     const [file = "", text = ""] = Object.entries(overlay)[0] ?? [];
     asked++;
     if (file === "count" || file === "") return says(file, `asked ${asked}`);
-    if (file === "wedge")
+    if (file === "wedge") {
       for (let count = 1; ; count++) {
         writeFileSync(`${text}.next`, String(count));
         renameSync(`${text}.next`, text);
       }
+    }
     if (file === "env") return says(file, String(process.env["NODE_ENV"]));
     if (file === "reject") throw new Error("rejected");
     // A function cannot be cloned, even as a property of the list, which is what this one is for.

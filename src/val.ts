@@ -1432,8 +1432,11 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
       for (const key of Object.keys(value)) {
         const child = snapshot((value as Record<string, unknown>)[key]);
         if (child === unsnapshotable) return unsnapshotable;
-        if (key === "__proto__") define(out, key, child);
-        else (out as Record<string, unknown>)[key] = child;
+        if (key === "__proto__") {
+          define(out, key, child);
+        } else {
+          (out as Record<string, unknown>)[key] = child;
+        }
       }
       return out;
     } finally {
@@ -1482,7 +1485,9 @@ const deepCopy = (owning: boolean) => {
     } else {
       const source = value as Record<string, unknown>;
 
-      if (development) assertPlainObject(source);
+      if (development) {
+        assertPlainObject(source);
+      }
 
       // A spread clones the whole level at once, which V8 does far faster than key by key. It
       // defines `__proto__` as an own key, so assigning that key below writes the own key, not the
@@ -1490,7 +1495,9 @@ const deepCopy = (owning: boolean) => {
       const target: Record<string, unknown> = { ...source };
       for (const key of Object.keys(target)) {
         const child = target[key];
-        if (isObject(child)) target[key] = copy(child);
+        if (isObject(child)) {
+          target[key] = copy(child);
+        }
       }
       out = target;
     }
@@ -1498,7 +1505,9 @@ const deepCopy = (owning: boolean) => {
     if (owning) {
       // oxlint-disable-next-line no-new -- the new instance is `out`, now marked
       new Owned(out as object);
-      if (development) Object.freeze(out);
+      if (development) {
+        Object.freeze(out);
+      }
     }
     return out as T;
   };
@@ -1529,9 +1538,13 @@ const indexAdopted = (root: object): void => {
   const visit = (value: unknown): void => {
     if (!isObject(value) || Owned.has(value) || seen.has(value)) return;
     seen.add(value);
-    // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
-    if (Object.isExtensible(value)) new Owned(value);
-    for (const key of Object.keys(value)) visit((value as Record<string, unknown>)[key]);
+    if (Object.isExtensible(value)) {
+      // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
+      new Owned(value);
+    }
+    for (const key of Object.keys(value)) {
+      visit((value as Record<string, unknown>)[key]);
+    }
   };
   visit(root);
 };
@@ -1549,7 +1562,9 @@ const adopt = <T>(value: T): T => {
       if (active.has(node)) throw new TypeError("a Val payload cannot contain a cycle");
       active.add(node);
       try {
-        if (!Array.isArray(node)) assertPlainObject(node);
+        if (!Array.isArray(node)) {
+          assertPlainObject(node);
+        }
         for (const key of Reflect.ownKeys(node)) {
           const descriptor = Object.getOwnPropertyDescriptor(node, key);
           if (!descriptor || "get" in descriptor || "set" in descriptor) {
@@ -1557,8 +1572,10 @@ const adopt = <T>(value: T): T => {
           }
           visit(descriptor.value);
         }
-        // oxlint-disable-next-line no-new -- the new instance is `node`, now marked
-        if (Object.isExtensible(node)) new Owned(node);
+        if (Object.isExtensible(node)) {
+          // oxlint-disable-next-line no-new -- the new instance is `node`, now marked
+          new Owned(node);
+        }
         Object.freeze(node);
         done.add(node);
       } finally {
@@ -1572,8 +1589,10 @@ const adopt = <T>(value: T): T => {
   // the copy's nodes. This runs after the checks above, so a frozen payload throws the same errors
   // as an unfrozen one.
   if (!Object.isExtensible(value)) return own(value);
-  // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
-  if (!development && !Adopted.has(value)) new Adopted(value);
+  if (!development && !Adopted.has(value)) {
+    // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
+    new Adopted(value);
+  }
   return value;
 };
 
@@ -1591,7 +1610,9 @@ export const assertVariantPayload = (value: unknown): void => {
   if (!isObjectShaped(value)) {
     throw new TypeError(development ? "an enum variant's payload is a plain object" : undefined);
   }
-  if (development) assertPlainObject(value);
+  if (development) {
+    assertPlainObject(value);
+  }
 };
 
 /**
@@ -1659,7 +1680,9 @@ const patched = (
         ? patched(before, value)
         : value;
     merged[key] = child;
-    if (!Object.is(child, before)) same = false;
+    if (!Object.is(child, before)) {
+      same = false;
+    }
   }
   return same && kept === Object.keys(base).length ? base : merged;
 };
@@ -1689,8 +1712,9 @@ export const attach = (registered: Registered): Record<string, unknown> => {
             return custom(value, (candidate) => {
               if (before !== unsnapshotable) {
                 const current = snapshotSealInput(value);
-                if (current !== unsnapshotable && !equalsUnknown(before, current))
+                if (current !== unsnapshotable && !equalsUnknown(before, current)) {
                   changedDuringSeal();
+                }
               }
 
               const candidateBefore = snapshotSealInput(candidate);
@@ -1712,7 +1736,9 @@ export const attach = (registered: Registered): Record<string, unknown> => {
       ? (value) => {
           const result: { sealed?: unknown } = {};
           sealedWith((candidate) => {
-            if (!equalsUnknown(value, candidate)) notFixedPoint();
+            if (!equalsUnknown(value, candidate)) {
+              notFixedPoint();
+            }
             return (result.sealed = terminal(candidate));
           })(value);
           return "sealed" in result ? result.sealed : notFixedPoint();

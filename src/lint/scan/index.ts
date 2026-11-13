@@ -269,7 +269,9 @@ const rejected = (member: string, root?: string): boolean =>
 
 function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
   let set = map.get(key);
-  if (!set) map.set(key, (set = new Set()));
+  if (!set) {
+    map.set(key, (set = new Set()));
+  }
   set.add(value);
 }
 
@@ -344,12 +346,13 @@ function scan(
         const { id, init } = node;
         if (!init) break;
         const site = CompanionSite.fromChain(init, file, Lines.at(lines, init.start), bound, lines);
-        if (site)
+        if (site) {
           sites.push(
             id.type === "Identifier"
               ? CompanionSite.patch(site, { name: id.name, nameAt: Lines.at(lines, id.start) })
               : site,
           );
+        }
         // `const { a, b: c } = X` reads `a` and `b` off `X`.
         if (id.type === "ObjectPattern" && init.type === "Identifier") {
           const from = init.name;
@@ -358,12 +361,14 @@ function scan(
             if (property.type !== "Property") continue;
             const name = keyName(property.key, property.computed);
             if (name) {
-              if (dyn) dynReads.push(DynRead.seal({ ...dyn, member: name }));
-              else {
+              if (dyn) {
+                dynReads.push(DynRead.seal({ ...dyn, member: name }));
+              } else {
                 collect(reads, from, name);
                 const local = property.value;
-                if (local.type === "Identifier")
+                if (local.type === "Identifier") {
                   took(local.name, Lines.at(lines, local.start), from, name);
+                }
               }
             }
           }
@@ -372,23 +377,31 @@ function scan(
         // Destructuring a dyn box is a direct read of its trait member.
         if (id.type === "ObjectPattern") {
           const dyn = dynBox(init, file, bound);
-          if (dyn) followed.add(init);
-          if (dyn)
+          if (dyn) {
+            followed.add(init);
+          }
+          if (dyn) {
             for (const property of id.properties) {
               if (property.type !== "Property") continue;
               const name = keyName(property.key, property.computed);
-              if (name) dynReads.push(DynRead.seal({ ...dyn, member: name }));
+              if (name) {
+                dynReads.push(DynRead.seal({ ...dyn, member: name }));
+              }
             }
+          }
         }
         if (id.type !== "Identifier") break;
         const root = fromRoot(init, bound);
-        if (root) bound = Bindings.patch(bound, { builders: { [id.name]: root } });
+        if (root) {
+          bound = Bindings.patch(bound, { builders: { [id.name]: root } });
+        }
         // `const Round = Shape.Circle` takes the same key the destructuring above takes.
         if (init.type === "MemberExpression") {
           const from = init.object;
           const taken = keyName(init.property, init.computed);
-          if (from.type === "Identifier" && taken && !Bindings.hasNamespace(bound, from.name))
+          if (from.type === "Identifier" && taken && !Bindings.hasNamespace(bound, from.name)) {
             took(id.name, Lines.at(lines, id.start), from.name, taken);
+          }
         }
         members.push(...implMembers(init, id.name, bound, objects, lines));
         break;
@@ -396,13 +409,18 @@ function scan(
       case "CallExpression": {
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
-        if (box) escapedDyns.push(EscapedDyn.seal(box));
+        if (box) {
+          escapedDyns.push(EscapedDyn.seal(box));
+        }
         memberSources.push(...sources(node, file, bound));
         const state = stepState(node, bound);
-        if (state)
+        if (state) {
           stepStates.push(StepState.seal({ at: Lines.at(lines, state.start), step: state.step }));
+        }
         const lift = Lift.fromCall(node, file, bound, lines);
-        if (lift) lifts.push(lift);
+        if (lift) {
+          lifts.push(lift);
+        }
         const implementation = implTrait(node, file, bound, sites, objects, lines);
         if (implementation) {
           traitImplementations.push(implementation);
@@ -423,7 +441,9 @@ function scan(
           collect(reads, object.name, name);
           // A variant bound to a local name is read here and declared under the dotted key.
           const pair = dotted.get(object.name);
-          if (pair) collect(reads, pair, name);
+          if (pair) {
+            collect(reads, pair, name);
+          }
           break;
         }
         const dyn = dynBox(object, file, bound);
@@ -456,16 +476,20 @@ function scan(
           if (
             specifier.type === "ImportNamespaceSpecifier" &&
             specifier.local.type === "Identifier"
-          )
+          ) {
             bound = Bindings.patch(bound, { namespaces: { [specifier.local.name]: resolved } });
-          else if (specifier.type === "ImportSpecifier" && specifier.local.type === "Identifier") {
+          } else if (
+            specifier.type === "ImportSpecifier" &&
+            specifier.local.type === "Identifier"
+          ) {
             const name = keyName(specifier.imported, false);
-            if (name)
+            if (name) {
               bound = Bindings.patch(bound, {
                 imported: ImportMap.patch(bound.imported, {
                   [specifier.local.name]: ImportBinding.seal({ name, module: resolved }),
                 }),
               });
+            }
           }
         }
         break;
@@ -474,7 +498,9 @@ function scan(
         break;
     }
 
-    for (const one of node.children) visit(one);
+    for (const one of node.children) {
+      visit(one);
+    }
   };
 
   visit(program);
@@ -650,14 +676,16 @@ function objectMembers(
   const byName = new Map<string, Member>();
   for (const entry of node.properties) {
     if (entry.type === "SpreadElement") {
-      for (const member of objectMembers(entry.argument, companion, objects, lines, seen))
+      for (const member of objectMembers(entry.argument, companion, objects, lines, seen)) {
         byName.set(member.member, member);
+      }
       continue;
     }
     if (entry.type !== "Property") continue;
     const name = keyName(entry.key, entry.computed);
-    if (name)
+    if (name) {
       byName.set(name, Member.seal({ at: Lines.at(lines, entry.start), companion, member: name }));
+    }
   }
   return [...byName.values()];
 }
@@ -685,9 +713,11 @@ function implMembers(
     const [object] = current.arguments;
     if ((step.name === "impl" || step.name === "implAssoc") && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
-      for (const member of stepMembers(object, owner, objects, lines))
-        if (!rejected(member.member, variant ? undefined : root))
+      for (const member of stepMembers(object, owner, objects, lines)) {
+        if (!rejected(member.member, variant ? undefined : root)) {
           found.set(`${owner}\0${member.member}`, member);
+        }
+      }
     }
     current = receiver;
   }
@@ -776,7 +806,7 @@ function hidden(program: Node, file: FilePath, bound: Bindings, lines: Lines): H
         ref: Bindings.refOf(bound, file, id.name, undefined),
       };
       const own = optional(init);
-      if (own)
+      if (own) {
         found.push(
           HiddenParameter.seal({
             ...base,
@@ -785,12 +815,13 @@ function hidden(program: Node, file: FilePath, bound: Bindings, lines: Lines): H
             rest: own.rest,
           }),
         );
+      }
       if (init.type !== "ObjectExpression") continue;
       for (const entry of init.properties) {
         if (entry.type !== "Property") continue;
         const property = keyName(entry.key, entry.computed);
         const inner = optional(entry.value);
-        if (property && inner)
+        if (property && inner) {
           found.push(
             HiddenParameter.seal({
               ...base,
@@ -799,6 +830,7 @@ function hidden(program: Node, file: FilePath, bound: Bindings, lines: Lines): H
               rest: inner.rest,
             }),
           );
+        }
       }
     }
   }

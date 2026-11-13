@@ -23,6 +23,10 @@ export class ParseCache {
   /** Forgets every file but `files`. */
   keep(files: readonly string[]): void {
     const kept = new Set(files);
-    for (const file of this.#trees.keys()) if (!kept.has(file)) this.#trees.delete(file);
+    for (const file of this.#trees.keys()) {
+      if (!kept.has(file)) {
+        this.#trees.delete(file);
+      }
+    }
   }
 }

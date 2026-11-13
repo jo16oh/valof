@@ -45,7 +45,9 @@ async function check(
   const claims = await Claims.read(files, gzip, release, root);
   if (R.isFailure(claims)) return claims.error.message;
 
-  if (write) await Claims.rewrite(claims.value, root);
+  if (write) {
+    await Claims.rewrite(claims.value, root);
+  }
   const problems = Claims.problems(claims.value, { release, write });
 
   return problems.length > 0 ? problems.join("\n") : undefined;

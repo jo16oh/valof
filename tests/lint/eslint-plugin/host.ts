@@ -11,4 +11,6 @@ const context = {
   sourceCode: { text: readFileSync(file, "utf8") },
   report: ({ message }: { message: string }) => console.log(message),
 };
-for (const rule of Object.values(plugin.rules)) rule.create(context).Program();
+for (const rule of Object.values(plugin.rules)) {
+  rule.create(context).Program();
+}

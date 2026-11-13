@@ -27,26 +27,35 @@ export function hidesParameter(f: object): boolean {
       continue;
     }
     if (c === "`" || (c === "}" && open.at(-1) === "`")) {
-      if (c === "}") open.pop();
+      if (c === "}") {
+        open.pop();
+      }
       while (
         ++i < source.length &&
         (c = source[i]!) !== "`" &&
         !(c === "$" && source[i + 1] === "{")
       ) {
-        if (c === "\\") i++;
+        if (c === "\\") {
+          i++;
+        }
       }
       if (c === "$") {
         open.push("`");
         i++;
         previous = "{";
-      } else previous = "a";
+      } else {
+        previous = "a";
+      }
       continue;
     }
     if (c === '"' || c === "'" || (c === "/" && "(,=:[!&|?{;+-*%<>~^".includes(previous))) {
       // `/` ends a regular expression outside a character class only.
       for (let inClass = false; ++i < source.length && (source[i] !== c || inClass);) {
-        if (source[i] === "\\") i++;
-        else if (c === "/") inClass = source[i] === "[" || (inClass && source[i] !== "]");
+        if (source[i] === "\\") {
+          i++;
+        } else if (c === "/") {
+          inClass = source[i] === "[" || (inClass && source[i] !== "]");
+        }
       }
       previous = "a";
       continue;
@@ -55,7 +64,9 @@ export function hidesParameter(f: object): boolean {
       return true;
     }
     if (c === "(" || c === "[" || c === "{") {
-      if (!open.length && c === "(") list = true;
+      if (!open.length && c === "(") {
+        list = true;
+      }
       open.push(c);
     } else if (c === ")" || c === "]" || c === "}") {
       open.pop();

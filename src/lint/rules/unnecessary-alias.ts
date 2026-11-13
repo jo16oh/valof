@@ -16,13 +16,17 @@ export const UnnecessaryAlias = Val.companion<UnnecessaryAlias>()
 function findings({ kind }: UnnecessaryAlias, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);
   const declarations = new Map<string, string>();
-  for (const { aliases, traitAliases, enumAliases } of scans)
-    for (const { alias, ref } of [...aliases, ...traitAliases, ...enumAliases])
+  for (const { aliases, traitAliases, enumAliases } of scans) {
+    for (const { alias, ref } of [...aliases, ...traitAliases, ...enumAliases]) {
       declarations.set(Exports.identify(exports, ref), alias);
+    }
+  }
   const links = new Map<string, string>();
-  for (const { reAliases } of scans)
-    for (const link of reAliases)
+  for (const { reAliases } of scans) {
+    for (const link of reAliases) {
       links.set(Exports.identify(exports, link.ref), Exports.identify(exports, link.targetRef));
+    }
+  }
   const endsAt = (start: string): string | undefined => {
     const seen = new Set<string>();
     let current = start;

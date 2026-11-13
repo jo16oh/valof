@@ -40,9 +40,12 @@ export const RoundTrip = Val.companion<RoundTrip>()
           `import type * as D${index} from "${relative(project, join(dts, module))}";`,
         );
         for (const { name, value, parameters } of symbols) {
-          if (value) comparisons.push(Comparison.value(path, index, name));
-          if (parameters !== undefined)
+          if (value) {
+            comparisons.push(Comparison.value(path, index, name));
+          }
+          if (parameters !== undefined) {
             comparisons.push(Comparison.type(path, index, name, parameters));
+          }
         }
       }
 

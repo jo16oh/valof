@@ -150,14 +150,21 @@ for (const check of checks) {
   // oxlint-disable-next-line no-await-in-loop -- one at a time, see above
   const result = await R.try({ try: () => check.run(), catch: (error) => error as Error });
   const report = R.isFailure(result) ? result : result.value;
-  if (R.isSuccess(report)) console.log(report.value.render());
-  else console.error(`\n${report.error.message}`);
+  if (R.isSuccess(report)) {
+    console.log(report.value.render());
+  } else {
+    console.error(`\n${report.error.message}`);
+  }
 
   // A check that could not report failed too.
   const passed = R.isSuccess(report) && report.value.passed();
-  if (!passed) process.exitCode = 1;
+  if (!passed) {
+    process.exitCode = 1;
+  }
   summary.push(`  ${check.name.padEnd(6)}  ${passed ? "pass" : "fail"}`);
 }
 
 console.log();
-for (const line of summary) console.log(line);
+for (const line of summary) {
+  console.log(line);
+}

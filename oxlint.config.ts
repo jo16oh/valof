@@ -7,7 +7,8 @@ export default defineConfig({
   extends: [byethrow.recommended],
   plugins: ["typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
   // The plugin from source, so the linter checks the library, the scripts and itself as it stands.
-  jsPlugins: ["./src/lint/eslint-plugin/index.ts"],
+  // The second holds the rules this repository keeps for itself.
+  jsPlugins: ["./src/lint/eslint-plugin/index.ts", "./scripts/lint/braces.ts"],
   settings: {
     valof: {
       project: ["src/**/*.ts", "scripts/**/*.ts", "!**/fixtures/**"],
@@ -18,6 +19,7 @@ export default defineConfig({
   categories: { correctness: "error", suspicious: "error", perf: "error" },
   rules: {
     "byethrow/consistent-namespace": ["error", "R"],
+    "local/braces": "error",
     "typescript/no-explicit-any": "error",
     "typescript/no-unnecessary-condition": "error",
     "typescript/no-unnecessary-type-assertion": "error",
