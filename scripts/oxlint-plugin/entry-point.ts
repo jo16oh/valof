@@ -4,7 +4,7 @@ import type { Rule } from "./rule.ts";
  * An entry point's `main` comes right after the imports, so the file opens with what it does, and
  * the call to it ends the file. Nothing imports an entry point, so it exports nothing.
  */
-export const mainFirst: Rule = {
+export const entryPoint: Rule = {
   meta: {
     type: "suggestion",
     docs: { description: "Declare `main` first, call it last, and export nothing" },
