@@ -75,8 +75,9 @@ companion keeps the name of its type.
 
 Run an entry point from a `main` declared right after its imports, so the file opens with what it
 does. Call `main` at the end of the file, because `main` reads constants and companions, which are
-not hoisted. An entry point exports nothing. Name it `main.ts`, and the module other modules import
-`index.ts`, as `main.rs` and `lib.rs` are in a Rust crate. `local/entry-point` enforces this.
+not hoisted. An entry point exports nothing, and is named `main.ts`. `local/entry-point` enforces
+this. Put what other modules import from it in `index.ts` beside it, as `lib.rs` sits beside
+`main.rs` in a Rust crate.
 
 Order a module's top-level declarations by kind, after the imports and the re-exports
 (`export { … } from`):
