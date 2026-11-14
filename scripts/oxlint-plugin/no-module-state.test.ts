@@ -60,6 +60,7 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
         code: "const RULE: Rule = { meta: {}, create() {} };",
         errors: [{ messageId: "readonly" }],
       },
+      { code: "const NAMES = [] as string[];", errors: [{ messageId: "readonly" }] },
       // A static field lives as long as the module.
       { code: "class Pool {\n  static count = 0;\n}", errors: [{ messageId: "static" }] },
       {
