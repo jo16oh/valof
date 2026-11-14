@@ -225,7 +225,7 @@ jobs:
             *-*) ;;
             *) rm -rf site/latest && cp -r docs/book/html site/latest ;;
           esac
-          node docs/tools/version-index/index.ts site
+          node docs/tools/version-index/main.ts site
           touch site/.nojekyll
 
       # The checkout keeps no credentials, so the token reaches this step alone and not the

@@ -12,7 +12,7 @@ pointed at `valof-release` (0.9.1 on npm), and the scripts caught up only after 
 "valof-pinned-for-scripts-commit": "<sha>"
 ```
 
-- After `vp install`, `prepare` runs `scripts/pin-valof/index.ts`. It extracts the pinned commit with
+- After `vp install`, `prepare` runs `scripts/pin-valof/main.ts`. It extracts the pinned commit with
   `git archive`, runs `tsc -p tsconfig.build.json`, and puts `dist` and `package.json` at the link
   target. It skips all this when the sha is unchanged. It runs `git fetch --depth=1` for a commit
   not present locally (the CI checkout has only one commit)
