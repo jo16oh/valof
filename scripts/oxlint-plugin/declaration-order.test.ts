@@ -50,7 +50,7 @@ new RuleTester({ languageOptions: { sourceType: "module", parserOptions: { lang:
       ].join("\n"),
       // The type follows its companion: exported alone, it still sorts with a helper.
       'export function f() {}\nexport type X = Val<"X", {}>;\nconst X = Val.companion<X>().build();',
-      // An error is a class whose name says so, whatever it extends.
+      // An error is a class whose name contains `Error`, whatever it extends.
       [
         "export class NotFoundError extends ErrorFactory({}) {}",
         "class ParseError extends SyntaxError {}",
@@ -94,7 +94,7 @@ new RuleTester({ languageOptions: { sourceType: "module", parserOptions: { lang:
           order(EXPORTED_TYPE, "an exported function"),
         ],
       },
-      // A class that is not an error comes after the types, as a container of state.
+      // A class that is not an error comes after the types.
       {
         code: "export class Cache {}\nexport type T = string;",
         errors: [order(EXPORTED_TYPE, "an exported class")],
