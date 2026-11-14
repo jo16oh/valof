@@ -9,7 +9,7 @@ the same module.
 
 ```ts
 // src/val.ts
-import * as Val from "./namespace/val.ts"; // export { companion, of, sealer, unwrap } from "../val.ts"
+import * as Val from "./namespace/val.ts"; // export { companion, of, unwrap } from "../val.ts"
 type Val<K extends string, T, Tr extends AnyTrait = never> = /* … */;
 export { Val };
 ```
@@ -49,7 +49,7 @@ The `Enum` and `Trait` increments barely change (-2 B or less), because every me
 same internal function. We aligned them anyway. There is one shape, and members added later cost
 only those who use them.
 
-- **Rejected: `export const Val = ns`.** The namespace materializes as an object, growing to 979 B
+- **Rejected: exporting the namespace as a const (`export const Val = …`).** The namespace materializes as an object, growing to 979 B
 - **Rejected: keep Rolldown, with a plugin that makes `src/namespace/*.ts` separate entries and treats them
   as external.** The type and namespace merge would move to a type alias in `index.ts`, duplicating
   the JSDoc
