@@ -1,10 +1,12 @@
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
+
 import { Val } from "#valof";
-import { Imports, type Bundle } from "./bundle.ts";
+
 import { flow, pipe } from "../../../../src/shared/pipe/index.ts";
 import { Budget } from "../budget.ts";
 import { align } from "../report.ts";
+import { Imports, type Bundle } from "./bundle.ts";
 import { BuildResult, BundleSize } from "./measure/index.ts";
 import {
   measure,

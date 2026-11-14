@@ -7,6 +7,7 @@ import {
   type LooseArity,
   type Looses,
 } from "./dual/index.ts";
+import { development } from "./env.ts";
 import { Shared, Traits } from "./keys.ts";
 import type {
   EnumKey,
@@ -16,6 +17,7 @@ import type {
   VariantOptionsKey,
   VariantOptionsTypes,
 } from "./keys.ts";
+import * as Enum from "./namespace/enum.ts";
 import type {
   AnyImpl,
   AnyTrait,
@@ -28,7 +30,6 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
-import { development } from "./env.ts";
 import {
   assertVariantPayload,
   associated,
@@ -69,7 +70,6 @@ import {
   type Unsealed,
   type Wired,
 } from "./val.ts";
-import * as Enum from "./namespace/enum.ts";
 
 /**
  * The key that holds an enum companion's `match` on a tag string, and its `key`:

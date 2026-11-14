@@ -1,12 +1,10 @@
 import { normalize, resolve } from "node:path";
 
-import { pipe } from "../../shared/pipe/index.ts";
-import { Val } from "../../lib/index.ts";
 import type { Enum, EnumCompanion } from "../../lib/enum.ts";
+import { Val } from "../../lib/index.ts";
 import type { AnyTrait, TraitCompanion } from "../../lib/trait.ts";
 import type { Reserved } from "../../lib/val.ts";
-import type { FilePath } from "../shared/files.ts";
-
+import { pipe } from "../../shared/pipe/index.ts";
 import {
   keyName,
   Lines,
@@ -16,6 +14,7 @@ import {
   type Position,
 } from "../parse/ast.ts";
 import type { Parser } from "../parse/parser.ts";
+import type { FilePath } from "../shared/files.ts";
 import {
   Aliases,
   type Alias,

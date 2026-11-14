@@ -1,4 +1,5 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
+
 import {
   Enum,
   Trait,
@@ -9,10 +10,10 @@ import {
   type Payload,
   type Self,
 } from "./index.ts";
+import { Shared } from "./keys.ts";
+import type { AnyTrait, LoneTrait, OneTrait, VerdictOf } from "./trait.ts";
 // `Wired` is not published from the entry point.
 import type { Allowed, CallBuildFirst, Invalid, Verdict, Wired } from "./val.ts";
-import type { AnyTrait, LoneTrait, OneTrait, VerdictOf } from "./trait.ts";
-import { Shared } from "./keys.ts";
 
 /** What a Val's payload rules make of it: the payload, or the messages in place of what breaks one. */
 type ValVerdictOf<V> = V extends Verdict<infer X> ? X : never;

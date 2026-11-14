@@ -2,6 +2,7 @@ import { parseArgs } from "node:util";
 
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
+
 import { Val } from "#valof";
 
 export class UsageError extends ErrorFactory({

@@ -2,11 +2,11 @@ import { resolve } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 
-import { Context, Kind, KindSet, RULES, compile, type Finding } from "../rules/index.ts";
 import { Parser, type MissingParserError } from "../parse/parser.ts";
+import { Context, Kind, KindSet, RULES, compile, type Finding } from "../rules/index.ts";
+import { Modules } from "../scan/bindings.ts";
 import { ScanCache } from "../scan/cache.ts";
 import { DirectiveMap } from "../scan/index.ts";
-import { Modules } from "../scan/bindings.ts";
 import { FilePath } from "../shared/files.ts";
 import { Options } from "../shared/options.ts";
 

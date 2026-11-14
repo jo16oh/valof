@@ -1,4 +1,6 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
+
+import type { AnyEnum } from "./enum.ts";
 import {
   equals,
   Val,
@@ -21,7 +23,6 @@ import {
   Tag,
   type VariantOf,
 } from "./index.ts";
-import type { AnyEnum } from "./enum.ts";
 import type { CallBuildFirst, Invalid, Verdict } from "./val.ts";
 
 // The verdict is a private field, so it is read through the class rather than by a key.

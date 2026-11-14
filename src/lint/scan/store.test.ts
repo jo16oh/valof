@@ -13,13 +13,13 @@ import { join } from "node:path";
 import { Result as R } from "@praha/byethrow";
 import { beforeAll, expect, test } from "vite-plus/test";
 
-import { FilePath } from "../shared/files.ts";
-import { Parser } from "../parse/parser.ts";
-import { Modules } from "./bindings.ts";
-import { Scan } from "./index.ts";
-import { ScanCache } from "./cache.ts";
-import { ScanStore } from "./store.ts";
 import { keeping } from "../integration-tests/support.ts";
+import { Parser } from "../parse/parser.ts";
+import { FilePath } from "../shared/files.ts";
+import { Modules } from "./bindings.ts";
+import { ScanCache } from "./cache.ts";
+import { Scan } from "./index.ts";
+import { ScanStore } from "./store.ts";
 
 let parser: Parser;
 
