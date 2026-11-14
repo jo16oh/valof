@@ -1,17 +1,3 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
-
-function main(): void {
-  if (process.argv[2] === "supports") {
-    process.exitCode = process.argv[3] === "html" ? 0 : 1;
-    return;
-  }
-
-  const input = JSON.parse(readFileSync(0, "utf8")) as PreprocessorInput;
-  process.stdout.write(JSON.stringify(preprocess(input, packageVersion())));
-}
-
 // The book is built fresh per tag, so this always names the version being documented.
 const PLACEHOLDER = "{{valof-version}}";
 
@@ -28,7 +14,7 @@ type Book = {
   items: BookItem[];
 };
 
-type PreprocessorInput = [unknown, Book];
+export type PreprocessorInput = [unknown, Book];
 
 export function preprocess(input: PreprocessorInput, version: string): Book {
   const [, book] = input;
@@ -45,13 +31,4 @@ function transformChapters(section: BookItem[], transform: (content: string) => 
     chapter.content = transform(chapter.content);
     transformChapters(chapter.sub_items, transform);
   }
-}
-
-function packageVersion(): string {
-  const path = fileURLToPath(new URL("../../../package.json", import.meta.url));
-  return (JSON.parse(readFileSync(path, "utf8")) as { version: string }).version;
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main();
 }

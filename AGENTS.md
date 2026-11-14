@@ -75,8 +75,8 @@ companion keeps the name of its type.
 
 Run an entry point from a `main` declared right after its imports, so the file opens with what it
 does. Call `main` at the end of the file, because `main` reads constants and companions, which are
-not hoisted. Guard the call where other modules import the file. `local/main-first` checks where
-`main` is declared and called.
+not hoisted. An entry point exports nothing. Put what other modules import in a module of its own,
+such as `index.ts` beside `main.ts`. `local/entry-point` enforces this.
 
 Order a module's top-level declarations by kind, after the imports and the re-exports
 (`export { … } from`):
@@ -90,11 +90,12 @@ Order a module's top-level declarations by kind, after the imports and the re-ex
 7. each helper Val, Enum or Trait, with its companion
 8. the helper functions
 
-The call to `main` and `export default` end the file. `local/declaration-order` enforces the order.
-A function is hoisted, so a declaration can call one further down. A companion is not, so a constant
-cannot be built from a companion declared later in the same file. Write it as a member of that
-companion's `.implAssoc` that takes no arguments, as `zero: () => seal({ cents: 0 })`, called
-`Money.zero()`. A constant can still be built from a companion imported from another file.
+The call to `main` ends an entry point, and `export default` ends any other module.
+`local/declaration-order` enforces the order. A function is hoisted, so a declaration can call one
+further down. A companion is not, so a constant cannot be built from a companion declared later in
+the same file. Write it as a member of that companion's `.implAssoc` that takes no arguments, as
+`zero: () => seal({ cents: 0 })`, called `Money.zero()`. A constant can still be built from a
+companion imported from another file.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.

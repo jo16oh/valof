@@ -52,8 +52,8 @@
     "check": "vp check",
     "check-dist": "node scripts/check-dist/main.ts",
     "prepublishOnly": "vp run build",
-    "prepare": "vp config && vp fmt AGENTS.md && node scripts/pin-valof/index.ts",
-    "pin-valof": "node scripts/pin-valof/index.ts",
+    "prepare": "vp config && vp fmt AGENTS.md && node scripts/pin-valof/main.ts",
+    "pin-valof": "node scripts/pin-valof/main.ts",
     "bump-version": "scripts/bump-version.sh"
   },
   "devDependencies": {
