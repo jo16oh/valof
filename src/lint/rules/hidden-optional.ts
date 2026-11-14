@@ -1,4 +1,4 @@
-import { Val } from "../../index.ts";
+import { Val } from "../../lib/index.ts";
 
 import { Exports, type Scan } from "../scan/index.ts";
 import type { SymbolRef } from "../scan/bindings.ts";

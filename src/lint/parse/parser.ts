@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 
-import { Val } from "../../index.ts";
+import { Val } from "../../lib/index.ts";
 import { fromOxc } from "./ast.ts";
 
 /** oxc-parser, once {@link Parser.load} has imported it. */

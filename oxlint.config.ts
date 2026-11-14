@@ -39,7 +39,7 @@ export default defineConfig({
       "error",
       {
         allow: [
-          { from: "file", path: "src/val.ts", name: "Phantom" },
+          { from: "file", path: "src/lib/val.ts", name: "Phantom" },
           // The entry the Linting chapter recommends, for the published package `#valof` resolves to.
           { from: "package", package: "valof", name: "Phantom" },
         ],

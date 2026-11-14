@@ -1,4 +1,4 @@
-import { Val, type VariantOf } from "../../index.ts";
+import { Val, type VariantOf } from "../../lib/index.ts";
 import {
   annotationOf,
   keyName,

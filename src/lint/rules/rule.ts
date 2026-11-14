@@ -1,4 +1,4 @@
-import { Trait, Val, type Self } from "../../index.ts";
+import { Trait, Val, type Self } from "../../lib/index.ts";
 import type { Position } from "../parse/ast.ts";
 import type { FilePath } from "../shared/files.ts";
 import type { Scan } from "../scan/index.ts";

@@ -1,4 +1,4 @@
-import { Enum, Tag, Val, type Rec, type VariantOf } from "../../index.ts";
+import { Enum, Tag, Val, type Rec, type VariantOf } from "../../lib/index.ts";
 
 export type Identifier = VariantOf<Node, "Identifier">;
 
