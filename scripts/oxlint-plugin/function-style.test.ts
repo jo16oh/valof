@@ -43,6 +43,11 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
       { code: "namespace N {\n  export function f() {}\n}", errors: [ARROW] },
       // A function in a class field is a method.
       { code: "class Pool {\n  take = function () {};\n}", errors: [{ messageId: "method" }] },
+      { code: "class Pool {\n  take = () => 1;\n}", errors: [{ messageId: "method" }] },
+      {
+        code: "class Pool {\n  static make = async () => 1;\n}",
+        errors: [{ messageId: "method" }],
+      },
     ],
   },
 );
