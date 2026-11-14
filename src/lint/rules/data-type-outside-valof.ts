@@ -1,8 +1,8 @@
 import { Val } from "../../lib/index.ts";
 import type { Position } from "../parse/ast.ts";
+import type { Scan, Shape } from "../scan/index.ts";
 import type { FilePath } from "../shared/files.ts";
 import type { DataTypeSettings } from "../shared/options.ts";
-import type { Scan, Shape } from "../scan/index.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 
 /** What each shape says, and the setting that has to ask for it. */

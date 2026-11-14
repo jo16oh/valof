@@ -2,12 +2,12 @@ import { resolve } from "node:path";
 
 import type { Rule } from "eslint";
 
+import { RULES } from "../rules/index.ts";
+import { Patterns } from "../shared/files.ts";
+import { LinterWorker, Query } from "./linter-worker.ts";
 import { PassCache } from "./pass-cache.ts";
 import { ProjectCache } from "./project-cache.ts";
 import { Underline } from "./underline.ts";
-import { Patterns } from "../shared/files.ts";
-import { RULES } from "../rules/index.ts";
-import { LinterWorker, Query } from "./linter-worker.ts";
 
 /**
  * The plugin, with the state its rules share.

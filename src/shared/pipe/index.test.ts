@@ -1,5 +1,6 @@
-import { Result as R } from "@praha/byethrow";
 import { readFile } from "node:fs/promises";
+
+import { Result as R } from "@praha/byethrow";
 import { describe, expect, expectTypeOf, test, vi } from "vite-plus/test";
 
 import { generate } from "./generate-tests.ts";
