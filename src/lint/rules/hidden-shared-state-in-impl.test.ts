@@ -1,6 +1,10 @@
 import { expect, test } from "vite-plus/test";
 
-import { CompanionMismatch, HiddenSharedStateInImpl, fixtures } from "../integration/support.ts";
+import {
+  CompanionMismatch,
+  HiddenSharedStateInImpl,
+  fixtures,
+} from "../integration-tests/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 

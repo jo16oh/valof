@@ -29,6 +29,8 @@ test("finds no data type outside Valof in the linter", async () => {
 // The tests and their fixtures declare the misuses the rules report.
 function untested(file: string): boolean {
   return (
-    file.includes("fixtures") || file.endsWith(".test.ts") || file.includes("src/lint/integration")
+    file.includes("fixtures") ||
+    file.endsWith(".test.ts") ||
+    file.includes("src/lint/integration-tests")
   );
 }

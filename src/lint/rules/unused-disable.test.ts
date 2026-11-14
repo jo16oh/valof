@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { UnusedDisable, UnusedMember, fixtures } from "../integration/support.ts";
+import { UnusedDisable, UnusedMember, fixtures } from "../integration-tests/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
