@@ -6,7 +6,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type SplitCompanion = Val<"SplitCompanion", { kind: Kind }, Rule>;
 export const SplitCompanion = Val.companion<SplitCompanion>()
   .implCreate(() => ({
-    kind: Kind.seal("split-companion"),
+    kind: Kind.seal("no-split-companion"),
     description: "a companion for a type that another file declares",
     warns: false,
     optIn: false,

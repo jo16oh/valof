@@ -61,7 +61,7 @@ export type DataTypeOutsideValof = Val<
 >;
 export const DataTypeOutsideValof = Val.companion<DataTypeOutsideValof>()
   .implCreate(({ classes, constraints, extraction }: DataTypeSettings) => ({
-    kind: Kind.seal("data-type-outside-valof"),
+    kind: Kind.seal("no-data-type-outside-valof"),
     description: "a data type declared outside Valof, off by default",
     warns: false,
     optIn: true,

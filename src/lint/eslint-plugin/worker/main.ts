@@ -21,7 +21,7 @@ function main(): void {
         project,
         Options.create({
           overlay: Overlay.entries(overlay),
-          enable: { "data-type-outside-valof": model },
+          enable: { "no-data-type-outside-valof": model },
         }),
         cache,
       );

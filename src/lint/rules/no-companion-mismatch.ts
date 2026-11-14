@@ -9,7 +9,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type CompanionMismatch = Val<"CompanionMismatch", { kind: Kind }, Rule>;
 export const CompanionMismatch = Val.companion<CompanionMismatch>()
   .implCreate(() => ({
-    kind: Kind.seal("companion-mismatch"),
+    kind: Kind.seal("no-companion-mismatch"),
     description: "a companion bound to a name other than the type it is for",
     warns: false,
     optIn: false,
@@ -23,7 +23,7 @@ export const CompanionMismatch = Val.companion<CompanionMismatch>()
  * one name.
  *
  * Names are compared as written, so `import type { User as Account }` passes with
- * `const Account = Val.companion<Account>()`. A type from another file is the split-companion
+ * `const Account = Val.companion<Account>()`. A type from another file is the no-split-companion
  * rule's finding. A builder held in a variable is reported, since the chain is already the
  * companion. `const Round = Shape.Circle` is reported, because the name no longer says which enum
  * declared it. `const x = config.value` is not a variant, so it is not reported.

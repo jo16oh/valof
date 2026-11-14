@@ -6,7 +6,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type InferredValOf = Val<"InferredValOf", { kind: Kind }, Rule>;
 export const InferredValOf = Val.companion<InferredValOf>()
   .implCreate(() => ({
-    kind: Kind.seal("inferred-val-of"),
+    kind: Kind.seal("no-inferred-val-of"),
     description: "a `Val.of` that names no type, taking one from its target",
     // The lift itself is sound. What it costs is the name that makes the lift greppable.
     warns: true,
@@ -17,7 +17,7 @@ export const InferredValOf = Val.companion<InferredValOf>()
 
 /**
  * Reports every `Val.of(…)` written without its type argument, which hides the lift from a reader
- * and from the bypassed-companion rule. No type is resolved. The form compiles only where a target
+ * and from the no-bypassed-companion rule. No type is resolved. The form compiles only where a target
  * gives the type, and elsewhere the compiler rejects the call before this rule runs.
  */
 function findings({ kind }: InferredValOf, scans: readonly Scan[]): Finding[] {

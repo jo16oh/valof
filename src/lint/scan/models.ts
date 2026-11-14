@@ -81,7 +81,7 @@ export type Models = Val<
 export const Models = Val.companion<Models>().build();
 
 /**
- * Reads one file for `data-type-outside-valof`. It reads syntax alone. A name is matched to a Val
+ * Reads one file for `no-data-type-outside-valof`. It reads syntax alone. A name is matched to a Val
  * by spelling, the way the other rules match one. A `.d.ts` and the body of `declare global` /
  * `declare module` describe someone else's code, and are skipped.
  */

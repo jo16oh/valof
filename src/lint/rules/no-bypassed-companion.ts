@@ -6,7 +6,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type BypassedCompanion = Val<"BypassedCompanion", { kind: Kind }, Rule>;
 export const BypassedCompanion = Val.companion<BypassedCompanion>()
   .implCreate(() => ({
-    kind: Kind.seal("bypassed-companion"),
+    kind: Kind.seal("no-bypassed-companion"),
     description: "a `Val.of` for a type whose companion is how it is built",
     // The value that comes out is a well-formed Val. What it went around is the type's own way in.
     warns: true,
@@ -26,7 +26,7 @@ function instead(site: CompanionSite, type: string, variant: string | null): str
 /**
  * Reports every `Val.of<X>(…)` where a companion for `X` is in the scanned files, reached through a
  * renamed import, a namespace import or a re-export too. A `Val.of` with no type argument is left
- * to the inferred-val-of rule.
+ * to the no-inferred-val-of rule.
  */
 function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);
@@ -42,7 +42,7 @@ function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[
   const found: Finding[] = [];
   for (const { file, lifts } of scans) {
     for (const { typeName, typeRef, variant, at } of lifts) {
-      // A lift naming no type is the inferred-val-of rule's finding. Which companion it goes
+      // A lift naming no type is the no-inferred-val-of rule's finding. Which companion it goes
       // around, if any, is not written anywhere here.
       if (typeName === null || typeRef === null) continue;
       const site = companions.get(Exports.identify(exports, typeRef));

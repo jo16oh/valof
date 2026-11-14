@@ -24,7 +24,7 @@ export default defineConfig({
         "!src/lint/integration-tests/**",
       ],
       // An override cannot carry settings. The rule is on for the linter and check-dist, below.
-      "data-type-outside-valof": { constraints: true, extraction: true },
+      "no-data-type-outside-valof": { constraints: true, extraction: true },
     },
   },
   categories: { correctness: "error", suspicious: "error", perf: "error" },
@@ -106,7 +106,7 @@ export default defineConfig({
     {
       // Both build their errors as classes, and the linter keeps state in classes.
       files: ["src/lint/**/*.ts", "scripts/check-dist/**/*.ts"],
-      rules: { "valof/data-type-outside-valof": "error" },
+      rules: { "valof/no-data-type-outside-valof": "error" },
     },
     {
       // A test passes a value the types reject, and builds the class a Val must refuse. It also
@@ -116,7 +116,7 @@ export default defineConfig({
         ...Object.fromEntries(
           Object.keys(valof.configs.recommended.rules).map((rule) => [rule, "off"]),
         ),
-        "valof/data-type-outside-valof": "off",
+        "valof/no-data-type-outside-valof": "off",
         "typescript/no-unsafe-argument": "off",
         "typescript/no-unsafe-assignment": "off",
         "typescript/no-unsafe-call": "off",

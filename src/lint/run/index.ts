@@ -39,7 +39,7 @@ export async function run(
       ({ value: { kind } }) => kind,
     ),
   ]);
-  // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
+  // Each rule sees what the rules before it reported, which is what `no-unused-disable` checks.
   const reported: Finding[] = [];
   for (const rule of rules.filter(({ value: { kind } }) => !KindSet.has(notRun, kind))) {
     reported.push(...rule.run(scans, Context.seal({ reported, notRun })));

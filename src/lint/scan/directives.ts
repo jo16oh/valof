@@ -111,7 +111,7 @@ export function directives(
 
 /**
  * The names one disable comment lists, as a set. A name is what the author wrote, which no rule may
- * have: `unused-disable` reports such a name, so it is kept rather than checked against the rules.
+ * have: `no-unused-disable` reports such a name, so it is kept rather than checked against the rules.
  */
 type NameSet = Val.Record<"NameSet", string, true>;
 const NameSet = Val.Record.companion<NameSet>().build();
