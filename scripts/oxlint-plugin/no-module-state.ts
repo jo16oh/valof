@@ -91,9 +91,6 @@ function checkValue(value: Node, annotation: Annotation | null, context: Context
     inner = inner.expression;
   }
 
-  if (inner.type === "ClassExpression") {
-    checkStatics(inner.body.body, context);
-  }
   const kind =
     inner.type === "NewExpression" && inner.callee.type === "Identifier"
       ? inner.callee.name
@@ -123,13 +120,11 @@ function checkStatics(members: readonly ClassMember[], context: Context): void {
  * `checked` is the `Set` or `Map` that {@link checkValue} has already checked.
  */
 function checkNew(node: Node, checked: Node | null, context: Context): void {
+  if (node.type === "ArrowFunctionExpression" || node.type === "FunctionExpression") return;
   // A class expression's static fields are checked as a class declaration's, and its other members
   // belong to each instance.
-  if (
-    node.type === "ArrowFunctionExpression" ||
-    node.type === "FunctionExpression" ||
-    node.type === "ClassExpression"
-  ) {
+  if (node.type === "ClassExpression") {
+    checkStatics(node.body.body, context);
     return;
   }
 
