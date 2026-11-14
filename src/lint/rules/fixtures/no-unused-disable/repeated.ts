@@ -1,6 +1,6 @@
 import { Val } from "valof";
 const User = Val.companion<User>().impl(() => ({
-  // valof-lint-disable-next-line unused-member, unused-member
+  // valof-lint-disable-next-line no-unused-member, no-unused-member
   shout: (u) => u.toUpperCase(),
 })).build();
 

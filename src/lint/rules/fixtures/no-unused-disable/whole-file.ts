@@ -1,9 +1,9 @@
 import { Val } from "valof";
+// valof-lint-disable-whole-file no-duplicate-brand
+
 const User = Val.companion<User>().impl(() => ({
-  // valof-lint-disable-next-line unused-member
+  // valof-lint-disable-next-line no-unused-member
   shout: (u) => u.toUpperCase(),
 })).build();
-
-User.shout;
 
 type User = Val<"User", string>;

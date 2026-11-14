@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { BrandMismatch, IncompleteDisable, fixtures } from "../integration-tests/support.ts";
+import { BrandMismatch, VagueDisable, fixtures } from "../integration-tests/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
@@ -13,7 +13,7 @@ test("asks a directive that names no rule to name the ones it silences", async (
 test("asks a whole-file directive for its rules, or for the spelling that means every one", async () => {
   expect(await lint("whole-file")).toEqual([
     {
-      rule: IncompleteDisable,
+      rule: VagueDisable,
       at: "whole-file.ts:2:1",
     },
     {
