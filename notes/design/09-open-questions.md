@@ -634,7 +634,7 @@
     a brand could be forged by hand, it would appear in `keyof`, and the reservation of `__valof_` would come back. These are the reasons §2.1, "2026-10-26: back to symbol keys", rejected the symbol-key version
   - **Rejected: intersecting the whole enum with `Phantom` as well.** TypeScript distributes `(A | B) & P` into `(A & P) | (B & P)`, so
     the type stays a union, and oxlint still warns (probed)
-  - **Enabled in this repo too.** It allows two: `Phantom` from `src/val.ts` (the tests import from `src`), and the same
+  - **Enabled in this repo too.** It allows two: `Phantom` from `src/lib/val.ts` (the tests import from `src/lib`), and the same
     package specifier as the docs (`#valof` is named `valof`). `tests/no-misused-spread.ts` pins each form where the warning disappears or stays, one per line. An unused disable comment is an error, so the test fails whichever way the rule's behavior changes.
     The three disable comments in the tests that silenced spreading a Val are no longer needed
 - [x] ~~**Spreading a `Dyn` lies about the type.**~~ Treated as misuse, left to the `no-misused-spread` warning, 2026-11-03.

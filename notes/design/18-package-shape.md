@@ -57,7 +57,7 @@ only those who use them.
   the library's source would be checked under the user's settings. valof's types assume
   `exactOptionalPropertyTypes` (§3.5). Node's type stripping refuses `.ts` in `node_modules`
 
-**The library moved to `src/lib`, 2026-11-14.** `src` holds the library, the linter and
+**The library moved to `src/lib`, 2026-11-14.** `src` holds `src/lib` (the library), `src/lint` (the linter) and
 `src/shared`, as `lib.rs` and `main.rs` sit side by side in a Rust crate. `tsconfig.build.json`
 takes `rootDir: "src/lib"`, so `dist` keeps its layout. `dist/index.js` and the `internal/*` paths
 that users' declaration output references do not move.

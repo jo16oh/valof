@@ -58,7 +58,7 @@ A function with side effects may be a member of a companion, `.implAssoc` includ
 it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
 companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
 
-### Outside the library
+### Outside the library and `src/shared`
 
 These rules add to the ones above. They cover all code except the library in `src/lib`,
 `src/shared`, the tests, the fixtures, and the configuration files at the root.
