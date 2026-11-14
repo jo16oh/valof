@@ -131,7 +131,7 @@ const TYPES_BUDGETS = TypesBudgets.seal({
    * Every node of `DeepReadonly` checks for such a field, and every payload for a field no value fits.
    *
    * Each fixture has a step whose function takes what the step passes, as `impl(({ seal }) => …)`. A
-   * function that takes nothing skips the cost `NoInfer` removes (`Supplied` in `src/val.ts`). With
+   * function that takes nothing skips the cost `NoInfer` removes (`Supplied` in `src/lib/val.ts`). With
    * the wrapper removed, `core` and `trait` exceed their budgets. `enum` stays within its own, so the
    * comments at its steps are the only record.
    */
