@@ -12,8 +12,8 @@ import { DataTypeSettings } from "../../../shared/options.ts";
 const PATIENCE = 2000;
 
 /**
- * What `worker/main.ts` beside this file says to a query whose overlay names `file`, over the files in
- * `project`. A failure is thrown.
+ * What `worker/main.ts` beside this file says to a query whose overlay names `file`, over the files
+ * in `project`. A failure is thrown.
  */
 function say(
   worker: LinterWorker,

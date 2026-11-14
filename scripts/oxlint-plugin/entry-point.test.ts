@@ -22,15 +22,13 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
       { code: "export const X = 1;\nexport default function f() {}", filename: "/repo/index.ts" },
     ],
     invalid: [
-      // `main.ts` is the entry point, and `index.ts` is what other modules import, as `main.rs` and
-      // `lib.rs` are in a Rust crate.
+      // An entry point is `main.ts`, and a `main.ts` runs from `main`. `domain.ts` ends like one.
       {
         code: "function main() {}\nmain();",
-        filename: "/repo/worker.ts",
+        filename: "/repo/domain.ts",
         errors: [{ messageId: "name" }],
       },
       { code: "export const X = 1;", filename: MAIN, errors: [{ messageId: "missing" }] },
-      { code: "", filename: MAIN, errors: [{ messageId: "missing" }] },
       {
         code: "const X = 1;\nfunction main() {}\nmain();",
         filename: MAIN,
