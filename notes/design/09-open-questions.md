@@ -342,7 +342,7 @@
 - [ ] Whether TS 7.1 (beta 2026-10-06, stable 2026-11-24) ships an in-process LS API (§14.5). If it does, the 7.x LSP client can move to it and fold into the same path as 5.x / 6.x. **No hurry.** `tsc --lsp` works from 7.0, so this is a chance to simplify, not a prerequisite
   - 2026-11-11: 7.1.0-dev.20261110.1 exports `typescript/sync` and `typescript/async`. Its `Checker` has
     `getSymbolAtPosition` and `getTypeOfSymbol`. Whether it runs in-process is unconfirmed
-- [ ] Editor integration (§14.9). The implementation is in (`Options.overlay`, `valof/lint`, `valof/eslint-plugin`). What remains is the README recipe and checking it in real editors
+- [ ] Editor integration (§14.9). The implementation is in (`Options.overlay`, `valof/eslint-plugin`; `valof/lint` was removed 2026-11-14, §14.9). What remains is the README recipe and checking it in real editors
 - [x] ~~**Editors do not show a member's JSDoc. Go to definition on a custom `seal` / `create` jumps into valof.**~~
       Members are fixed in TS 7.1. `seal` / `create` are given up (2026-11-11)
   - **A member's JSDoc is a TS 7.0.2 bug.** Passing through a bare mapped type such as `{ [K in keyof T]: T[K] }` is
