@@ -2,11 +2,14 @@ import { spawnSync } from "node:child_process";
 import { globSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { Options as LintOptions, RULES, lint as run } from "../index.ts";
+import { Result as R } from "@praha/byethrow";
+
+import { Options as LintOptions } from "../options.ts";
+import * as Rules from "../rules/index.ts";
+import { RULES, type Finding } from "../rules/index.ts";
+import { run } from "../run.ts";
 
 export { RULES };
-
-import * as Rules from "../rules/index.ts";
 
 /** One of the rules in the registry. */
 type Registered = (typeof RULES)[number];
@@ -56,6 +59,14 @@ function reporting(kind: string): Registered {
 /** The package root, which is where the command runs. */
 export const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
+/** One run in process, as the command makes it. Throws when oxc-parser is not installed. */
+export async function lint(
+  files: readonly string[],
+  options: LintOptions = LintOptions.create(),
+): Promise<Finding[]> {
+  return R.unwrap(await run(files, options));
+}
+
 /**
  * The fixture tree beside one test file, addressed by the entry names under `fixtures/`. A test
  * other than `index.test.ts` keeps its tree under `fixtures/<name>/`, so tests that sit side by side
@@ -65,7 +76,7 @@ export const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
  * paths relative to `fixtures/`, so every expectation names the fixture it came from.
  *
  * In process, so a run costs no `node` start. The command itself is covered by {@link cli}: what
- * it adds over `lint` is argument parsing and the shape of a line.
+ * it adds over {@link lint} is argument parsing and the shape of a line.
  */
 type Options = {
   skip?: readonly Registered[];
@@ -88,7 +99,7 @@ export function fixtures(url: string): {
     globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
 
   const found = async (fixture: string, { skip = [], overlay, enable }: Options = {}) =>
-    run(
+    lint(
       files(fixture),
       LintOptions.create({
         overlay: overlay ?? [],
