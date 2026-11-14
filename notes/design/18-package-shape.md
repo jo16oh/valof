@@ -9,7 +9,7 @@ the same module.
 
 ```ts
 // src/val.ts
-import * as Val from "./ns/val.ts"; // export { companion, of, sealer, unwrap } from "../val.ts"
+import * as Val from "./namespace/val.ts"; // export { companion, of, sealer, unwrap } from "../val.ts"
 type Val<K extends string, T, Tr extends AnyTrait = never> = /* … */;
 export { Val };
 ```
@@ -17,7 +17,7 @@ export { Val };
 - **`export * as Val` and `export type { Val }` cannot coexist.** TS2300
 - **`export type Val` and `import * as Val` do not merge either.** TS2395. Make it a local
   declaration and export it with `export { Val }`
-- **`val.ts` and `ns/val.ts` import each other circularly.** Namespace members are read only at call
+- **`val.ts` and `namespace/val.ts` import each other circularly.** Namespace members are read only at call
   time, so evaluation order causes no problem
 
 ## 18.1 tsc emits the runtime entries file by file
@@ -50,7 +50,7 @@ same internal function. We aligned them anyway. There is one shape, and members 
 only those who use them.
 
 - **Rejected: `export const Val = ns`.** The namespace materializes as an object, growing to 979 B
-- **Rejected: keep Rolldown, with a plugin that makes `src/ns/*.ts` separate entries and treats them
+- **Rejected: keep Rolldown, with a plugin that makes `src/namespace/*.ts` separate entries and treats them
   as external.** The type and namespace merge would move to a type alias in `index.ts`, duplicating
   the JSDoc
 - **Rejected: ship `.ts` instead of emitting `.d.ts`.** `skipLibCheck` does not apply to `.ts`, so
