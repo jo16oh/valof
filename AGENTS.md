@@ -100,10 +100,11 @@ companion imported from another file.
 
 Keep state out of a module's top level. Declare a top-level binding with `const`, and create an
 instance of a class where it is used. Make a top-level array or object readonly, with `as const` or
-a readonly annotation such as `readonly string[]` or `Readonly<T>`. Annotate a `Set` or a `Map` as
-`ReadonlySet` or `ReadonlyMap`. Make a static field `readonly`, and give it a value a top-level
-constant could hold. An instance of `URL` or `RegExp` holds a value, not state, so it can stay at
-the top level. `local/no-module-state` enforces this.
+a readonly annotation such as `readonly string[]` or `Readonly<T>`. Annotate a top-level `Set` or
+`Map` as `ReadonlySet` or `ReadonlyMap`, and keep one out of an array or object. Make a static field
+`readonly`, and give it only a value that a top-level constant may hold. An instance of `URL` or
+`RegExp` holds a value, not state, so it can stay at the top level. `local/no-module-state` enforces
+this.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
