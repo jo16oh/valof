@@ -48,6 +48,10 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
       { code: "class Pool {\n  take = () => 1;\n}", errors: [{ messageId: "method" }] },
       { code: "class Pool {\n  accessor take = () => 1;\n}", errors: [{ messageId: "method" }] },
       {
+        code: "class Pool {\n  accessor take = function () {};\n}",
+        errors: [{ messageId: "method" }],
+      },
+      {
         code: "class Pool {\n  static make = async () => 1;\n}",
         errors: [{ messageId: "method" }],
       },
