@@ -20,9 +20,6 @@ const ENTRY_POINTS: ReadonlySet<string> = new Set([
   "companion" satisfies On<typeof Val | typeof Enum | typeof Trait, "companion">,
 ]);
 
-/** `K`, which must be a key of every member of `T`. */
-type On<T, K extends keyof T> = K;
-
 /** A `Val` / `Trait` / `Enum` companion chain, whatever else it registered. */
 export type CompanionSite = Val<
   "CompanionSite",
@@ -163,6 +160,9 @@ export function chainRoot(
     receiver = stepOf(inner.callee).receiver;
   }
 }
+
+/** `K`, which must be a key of every member of `T`. */
+type On<T, K extends keyof T> = K;
 
 /** One step of a builder chain: the name it was called by, and what it was called on. */
 type Step = Val<"Step", { name: string | null; property: Node; receiver: Node }>;

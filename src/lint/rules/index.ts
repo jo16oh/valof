@@ -64,7 +64,7 @@ export const RULES = [
   Rule.dyn(DetachedVariant, DetachedVariant.create()),
   Rule.dyn(IncompleteDisable, IncompleteDisable.create()),
   Rule.dyn(UnusedDisable, UnusedDisable.create()),
-];
+] as const;
 
 /** What each rule is called, in a `--no-<kind>` flag and in a disable comment alike. */
 export const KINDS: readonly Kind[] = RULES.map(({ kind }) => kind);

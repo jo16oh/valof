@@ -29,12 +29,17 @@ async function main(): Promise<void> {
 
   process.exitCode = await run([
     ...(size
-      ? [Check.dyn(SizeCheck, SizeCheck.create({ suite: SUITE, claimed: CLAIMED, release, write }))]
+      ? [
+          Check.dyn(
+            SizeCheck,
+            SizeCheck.create({ suite: SUITE, claimed: [...CLAIMED], release, write }),
+          ),
+        ]
       : []),
     ...(types
       ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: TYPES_BUDGETS, line: TYPES_LINE }))]
       : []),
-    ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release, lines: LINES }))] : []),
+    ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release, lines: [...LINES] }))] : []),
   ]);
 }
 
@@ -78,7 +83,7 @@ const SUITE = Suite.seal([
 ]);
 
 /** The files that state the base bundle's size, which the size check compares and rewrites. */
-const CLAIMED = [
+const CLAIMED: readonly ClaimedFile[] = [
   ClaimedFile.Markdown.create({ path: "docs/src/introduction.md", release: false }),
   ClaimedFile.Markdown.create({ path: "README.md", release: true }),
   ClaimedFile.PackageJson.create({ path: "package.json", release: true }),
@@ -91,7 +96,7 @@ const CLAIMED = [
  * A line's last release is where its semantics settled, and supporting one from there avoids the
  * edge cases of the versions in between (notes §10.1).
  */
-const LINES = ["typescript-5", "typescript-6", "typescript"];
+const LINES: readonly string[] = ["typescript-5", "typescript-6", "typescript"];
 
 /**
  * The floor alone. Every line above it says the same thing: across 5.9, 6.0 and 7.0 the fixtures

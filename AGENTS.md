@@ -51,8 +51,7 @@ Place a helper function used only inside its module at the end of the file. Decl
 A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
 a connection, so `new` at the call site shows where state lives. Do not use `extends`, except on
 `ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
-fields. A class is not hoisted, so it cannot come after top-level code that uses it. Give it a file
-of its own instead.
+fields.
 
 A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
 it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
@@ -84,12 +83,13 @@ Order a module's top-level declarations by kind, after the imports and the re-ex
 
 1. `main`, in an entry point
 2. the exported constants, then the rest
-3. the errors
-4. the types without a companion, exported or not
-5. each exported Val, Enum or Trait, with its companion
+3. the errors (the classes whose name contains `Error`)
+4. the exported types, and each exported Val, Enum or Trait with its companion
+5. the exported classes
 6. the exported functions
-7. each helper Val, Enum or Trait, with its companion
-8. the helper functions
+7. the helper types, and each helper Val, Enum or Trait with its companion
+8. the helper classes
+9. the helper functions
 
 The call to `main` ends an entry point, and `export default` ends any other module.
 `local/declaration-order` enforces the order. A function is hoisted, so a declaration can call one
@@ -97,6 +97,14 @@ further down. A companion is not, so a constant cannot be built from a companion
 the same file. Write it as a member of that companion's `.implAssoc` that takes no arguments, as
 `zero: () => seal({ cents: 0 })`, called `Money.zero()`. A constant can still be built from a
 companion imported from another file.
+
+Keep state out of a module's top level. Declare a top-level binding with `const`, and create an
+instance of a class where it is used. Make a top-level array or object readonly, with `as const` or
+a readonly annotation such as `readonly string[]` or `Readonly<T>`. Annotate a top-level `Set` or
+`Map` as `ReadonlySet` or `ReadonlyMap`, and keep one out of an array or object. Make a static field
+`readonly`, and give it only a value that a top-level constant may hold. An instance of `URL` or
+`RegExp` holds a value, not state, so it can stay at the top level. `local/no-module-state` enforces
+this.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.

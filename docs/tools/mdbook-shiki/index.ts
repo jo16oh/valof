@@ -8,43 +8,14 @@ const DEFAULTS = {
   lightTheme: "github-light",
   darkTheme: "github-dark",
   fallbackLanguage: "text",
-} satisfies Required<Omit<Options, "onWarning">>;
+} as const satisfies Required<Omit<Options, "onWarning">>;
 
-const LANGUAGES = ["text", "bash", "javascript", "typescript"] satisfies Language[];
-
-type Language = BundledLanguage | "text";
-
-type Options = {
-  lightTheme?: BundledTheme | undefined;
-  darkTheme?: BundledTheme | undefined;
-  fallbackLanguage?: Language | undefined;
-  onWarning?: ((message: string) => void) | undefined;
-};
-
-type Chapter = {
-  content: string;
-  sub_items: BookItem[];
-};
-
-type BookItem = {
-  Chapter?: Chapter;
-};
-
-type Book = {
-  items: BookItem[];
-};
-
-type Context = {
-  config?: {
-    preprocessor?: {
-      shiki?: {
-        "light-theme"?: BundledTheme;
-        "dark-theme"?: BundledTheme;
-        "fallback-language"?: Language;
-      };
-    };
-  };
-};
+const LANGUAGES = [
+  "text",
+  "bash",
+  "javascript",
+  "typescript",
+] as const satisfies readonly Language[];
 
 export type PreprocessorInput = [Context, Book];
 
@@ -57,7 +28,7 @@ export async function createMarkdownHighlighter(options: Options = {}) {
   };
   const highlighter = await createHighlighter({
     themes: [settings.lightTheme, settings.darkTheme],
-    langs: LANGUAGES,
+    langs: [...LANGUAGES],
   });
   const loadedLanguages = new Set([...highlighter.getLoadedLanguages(), "text"]);
 
@@ -134,6 +105,40 @@ export async function preprocess(
     markdownHighlighter.dispose();
   }
 }
+
+type Language = BundledLanguage | "text";
+
+type Options = {
+  lightTheme?: BundledTheme | undefined;
+  darkTheme?: BundledTheme | undefined;
+  fallbackLanguage?: Language | undefined;
+  onWarning?: ((message: string) => void) | undefined;
+};
+
+type Chapter = {
+  content: string;
+  sub_items: BookItem[];
+};
+
+type BookItem = {
+  Chapter?: Chapter;
+};
+
+type Book = {
+  items: BookItem[];
+};
+
+type Context = {
+  config?: {
+    preprocessor?: {
+      shiki?: {
+        "light-theme"?: BundledTheme;
+        "dark-theme"?: BundledTheme;
+        "fallback-language"?: Language;
+      };
+    };
+  };
+};
 
 function transformChapters(section: BookItem[], transform: (markdown: string) => string): void {
   for (const item of section) {

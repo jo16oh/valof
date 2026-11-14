@@ -15,7 +15,7 @@ const TARGET = join(ROOT, "node_modules/.valof-pinned-for-scripts");
  * What the runtime in `dist` is built from. `package.json` stays out: it holds the pin, and a
  * release bumps its version. Valof has no runtime dependency, so nothing else in it reaches `dist`.
  */
-const INPUTS = ["src", "tsconfig.json", "tsconfig.build.json"];
+const INPUTS: readonly string[] = ["src", "tsconfig.json", "tsconfig.build.json"];
 
 export async function pinned(): Promise<string> {
   const manifest = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as {

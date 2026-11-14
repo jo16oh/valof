@@ -16,16 +16,6 @@ export type CodeBlock = {
   end: number;
 };
 
-type CodeNode = {
-  type: "code";
-  value: string;
-  lang?: string | null;
-  position?: {
-    start: { offset?: number; line?: number };
-    end: { offset?: number };
-  };
-};
-
 /** Shiki accepts either spelling, and the book writes ```ts. */
 export function isTypeScript(language: string): boolean {
   return language === "ts" || language === "typescript";
@@ -55,6 +45,16 @@ export function codeBlocks(markdown: string): CodeBlock[] {
 
   return blocks;
 }
+
+type CodeNode = {
+  type: "code";
+  value: string;
+  lang?: string | null;
+  position?: {
+    start: { offset?: number; line?: number };
+    end: { offset?: number };
+  };
+};
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
