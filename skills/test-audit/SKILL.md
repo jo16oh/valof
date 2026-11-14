@@ -105,7 +105,7 @@ A test that passes whatever the source does. Break the source it covers, run it,
 red:
 
 ```sh
-vp test src/val.test.ts
+vp test src/lib/val.test.ts
 ```
 
 What to look for first:
