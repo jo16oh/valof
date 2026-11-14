@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { expect, test } from "vite-plus/test";
 
-import { Options } from "../../options.ts";
+import { Options } from "../../shared/options.ts";
 import { lint, UnusedMember } from "../support.ts";
 
 // What an editor sends: the buffer being typed in, which disk does not have yet.

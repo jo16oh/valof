@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { Options } from "../options.ts";
+import { Options } from "../shared/options.ts";
 import { DataTypeOutsideValof, cli, fixtures, lint } from "../integration-tests/support.ts";
 
 const { files, lint: run } = fixtures(import.meta.url);

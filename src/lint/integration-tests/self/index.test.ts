@@ -2,7 +2,7 @@ import { globSync } from "node:fs";
 
 import { expect, test } from "vite-plus/test";
 
-import { Options } from "../../options.ts";
+import { Options } from "../../shared/options.ts";
 import { lint, ROOT } from "../support.ts";
 
 // The linter and the scripts use the library, so the linter's rules apply to them too.

@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "vite-plus/test";
 
 import { LinterWorker, Query } from "../../../eslint-plugin/linter-worker.ts";
-import { FilePath, Project } from "../../../files.ts";
-import { DataTypeSettings } from "../../../options.ts";
+import { FilePath, Project } from "../../../shared/files.ts";
+import { DataTypeSettings } from "../../../shared/options.ts";
 
 const PATIENCE = 2000;
 
