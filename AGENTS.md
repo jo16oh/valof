@@ -105,8 +105,8 @@ cannot narrow on it.
 ### Tests
 
 No rule in Code Style applies to the tests or the fixtures. The tests are every `*.test.ts` and the
-support files under `src/lint/integration/`. Two naming rules still apply to the tests. A top-level
-constant in a test is in SCREAMING_SNAKE_CASE, and a companion's members are in camelCase.
+support files under `src/lint/integration-tests/`. Two naming rules still apply to the tests. A
+top-level constant in a test is in SCREAMING_SNAKE_CASE, and a companion's members are in camelCase.
 
 ## Bundle Size and Type Cost
 

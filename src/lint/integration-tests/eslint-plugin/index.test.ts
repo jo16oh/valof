@@ -19,7 +19,7 @@ import plugin from "../../eslint-plugin/index.ts";
 import { kinds } from "../../index.ts";
 import { keeping } from "../support.ts";
 
-// The rules are called here with a context holding only what they read. `src/lint/integration/hosts` runs
+// The rules are called here with a context holding only what they read. `src/lint/integration-tests/hosts` runs
 // them in ESLint and oxlint.
 
 type Where = { line: number; column: number };

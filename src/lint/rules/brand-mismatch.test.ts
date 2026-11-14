@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { BrandMismatch, fixtures } from "../integration/support.ts";
+import { BrandMismatch, fixtures } from "../integration-tests/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 

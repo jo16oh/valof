@@ -1,6 +1,6 @@
 import plugin from "../../eslint-plugin/index.ts";
 
-const file = "src/lint/integration/command/fixtures/clean.ts";
+const file = "src/lint/integration-tests/command/fixtures/clean.ts";
 
 export default () =>
   plugin.rules["unused-member"]!.create({
