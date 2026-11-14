@@ -25,7 +25,7 @@ new RuleTester({ languageOptions: { sourceType: "module", parserOptions: { lang:
         "function main() {}",
         "export const A = 1;",
         "const B = 2;",
-        "class E extends ErrorFactory({}) {}",
+        "class BadError extends ErrorFactory({}) {}",
         "export type T = string;",
         'export type V = Val<"V", {}>;',
         "export const V = Val.companion<V>().build();",
@@ -50,11 +50,11 @@ new RuleTester({ languageOptions: { sourceType: "module", parserOptions: { lang:
       ].join("\n"),
       // The type follows its companion: exported alone, it still sorts with a helper.
       'export function f() {}\nexport type X = Val<"X", {}>;\nconst X = Val.companion<X>().build();',
-      // An error is a class that extends an error, by its name.
+      // An error is a class whose name says so, whatever it extends.
       [
-        "export class A extends Error {}",
-        "class B extends TypeError {}",
-        "export class C extends errors.BaseError {}",
+        "export class NotFoundError extends ErrorFactory({}) {}",
+        "class ParseError extends SyntaxError {}",
+        "export class ErrorList {}",
         "export type T = string;",
       ].join("\n"),
     ],
@@ -68,11 +68,11 @@ new RuleTester({ languageOptions: { sourceType: "module", parserOptions: { lang:
         errors: [order("a constant", "an exported function")],
       },
       {
-        code: "export type T = string;\nclass E extends ErrorFactory({}) {}",
+        code: "export type T = string;\nclass MissingError extends ErrorFactory({}) {}",
         errors: [order("an error", EXPORTED_TYPE)],
       },
       {
-        code: "export type T = string;\nclass E extends Error {}",
+        code: "export type T = string;\nclass LimitError {}",
         errors: [order("an error", EXPORTED_TYPE)],
       },
       {
