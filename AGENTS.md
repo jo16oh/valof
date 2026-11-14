@@ -65,8 +65,10 @@ These rules add to the ones above. They cover all code except the library in `sr
 Brace the body of every `if`, `else` and loop. A guard clause is the exception: an `if` with no
 `else` whose body is one `return`, `throw`, `continue` or `break`. `local/braces` enforces this.
 
-Write a top-level function as a `function` declaration, not as an arrow function in a `const`.
-`local/function-declaration` enforces this.
+Write a top-level function as a `function` declaration, not as an arrow function in a `const`. Write
+every other function as an arrow function. A method keeps its own syntax, in an object and in a
+class, and a generator is the exception, since it has no arrow form. `local/function-style` enforces
+this.
 
 Name a constant at a module's top level in SCREAMING_SNAKE_CASE: a value set when the module loads,
 such as a path, a list or a budget. A function, and a lint plugin and its rules, keep camelCase. A
