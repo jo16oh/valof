@@ -98,6 +98,15 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
         code: "const Pool = class {\n  static readonly ITEMS = new Cache();\n};",
         errors: [{ messageId: "new" }],
       },
+      // A class nested in a value has its static fields checked too.
+      {
+        code: "const O = { P: class {\n  static readonly C = new Cache();\n} } as const;",
+        errors: [{ messageId: "new" }],
+      },
+      {
+        code: "const O = { P: class {\n  static count = 0;\n} } as const;",
+        errors: [{ messageId: "static" }],
+      },
       {
         code: "class Pool {\n  static readonly ITEMS = new Map();\n}",
         errors: [{ messageId: "readonly" }],
