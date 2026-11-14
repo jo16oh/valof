@@ -11,10 +11,10 @@ import { Bindings } from "./bindings.ts";
 import { stepOf } from "./chains.ts";
 
 /** The types whose arguments Valof checks. */
-const VALOF = new Set(["Val", "Enum", "Trait", "Payload"]);
+const VALOF: ReadonlySet<string> = new Set(["Val", "Enum", "Trait", "Payload"]);
 
 /** Built-in types that declare data. */
-const DATA = new Set([
+const DATA: ReadonlySet<string> = new Set([
   "Record",
   "Array",
   "ReadonlyArray",
@@ -26,7 +26,7 @@ const DATA = new Set([
 ]);
 
 /** Built-in types that take a type out of a value. */
-const EXTRACTION = new Set([
+const EXTRACTION: ReadonlySet<string> = new Set([
   "ReturnType",
   "Parameters",
   "Awaited",
@@ -35,7 +35,7 @@ const EXTRACTION = new Set([
 ]);
 
 /** The keyword types that, written alone, name a primitive. A literal type is one too. */
-const PRIMITIVE = new Set([
+const PRIMITIVE: ReadonlySet<string> = new Set([
   "TSStringKeyword",
   "TSNumberKeyword",
   "TSBooleanKeyword",

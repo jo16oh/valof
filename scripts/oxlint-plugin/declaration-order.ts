@@ -11,7 +11,7 @@ export const declarationOrder: Rule = {
     docs: { description: "Order a module's top-level declarations by kind" },
     messages: {
       order:
-        "Move {{kind}} above {{after}}. The order: `main`, the exported constants, the other constants, the errors, the types without a companion, the exported Vals, Enums and Traits with their companions, the exported functions, the helper Vals, Enums and Traits, the helper functions, then the call to `main` and `export default`.",
+        "Move {{kind}} above {{after}}. The order: `main`, the exported constants, the other constants, the errors, the exported types, Vals, Enums and Traits with their companions, the exported classes, the exported functions, the helper types, Vals, Enums and Traits, the helper classes, the helper functions, then the call to `main` and `export default`.",
     },
   },
   create(context) {
@@ -42,10 +42,11 @@ const KINDS = [
   "an exported constant",
   "a constant",
   "an error",
-  "a type without a companion",
-  "an exported Val, Enum or Trait",
+  "an exported type, Val, Enum or Trait",
+  "an exported class",
   "an exported function",
-  "a helper Val, Enum or Trait",
+  "a helper type, Val, Enum or Trait",
+  "a helper class",
   "a helper function",
   "the call to `main` or `export default`",
 ];
@@ -78,24 +79,24 @@ function kindOf(
   switch (declaration.type) {
     case "FunctionDeclaration":
       if (declaration.id?.name === "main") return 0;
-      return exported ? 6 : 8;
+      return exported ? 6 : 9;
     case "VariableDeclaration": {
       const companion = companionName(statement, context);
-      if (companion !== undefined) return exported ? 5 : 7;
+      if (companion !== undefined) return exported ? 4 : 7;
       return exported ? 1 : 2;
     }
     case "ClassDeclaration":
-      return 3;
+      if (declaration.id?.name.includes("Error")) return 3;
+      return exported ? 5 : 8;
     case "TSTypeAliasDeclaration":
     case "TSInterfaceDeclaration": {
-      const companionExported = companions.get(declaration.id.name);
-      if (companionExported === undefined) return 4;
-      return companionExported ? 5 : 7;
+      const companionExported = companions.get(declaration.id.name) ?? exported;
+      return companionExported ? 4 : 7;
     }
     case "ExpressionStatement":
     case "IfStatement":
     case "ExportDefaultDeclaration":
-      return 9;
+      return 10;
     default:
       return undefined;
   }

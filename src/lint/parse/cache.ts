@@ -8,14 +8,14 @@ import { Parser } from "./parser.ts";
  * worker does, re-parses only the files whose text changed.
  */
 export class ParseCache {
-  #trees = new Map<string, { source: string; parsed: ReturnType<typeof Parser.exec> }>();
+  #trees = new Map<string, { source: string; parsed: ReturnType<Parser["exec"]> }>();
 
   /** The file's tree, parsed again only once its text changes. */
-  tree(parser: Parser, file: FilePath, source: string): ReturnType<typeof Parser.exec> {
+  tree(parser: Parser, file: FilePath, source: string): ReturnType<Parser["exec"]> {
     const found = this.#trees.get(file);
     if (found?.source === source) return found.parsed;
 
-    const parsed = Parser.exec(parser, file, source);
+    const parsed = parser.exec(file, source);
     this.#trees.set(file, { source, parsed });
     return parsed;
   }

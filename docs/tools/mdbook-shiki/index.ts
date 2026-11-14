@@ -12,40 +12,6 @@ const DEFAULTS = {
 
 const LANGUAGES = ["text", "bash", "javascript", "typescript"] satisfies Language[];
 
-type Language = BundledLanguage | "text";
-
-type Options = {
-  lightTheme?: BundledTheme | undefined;
-  darkTheme?: BundledTheme | undefined;
-  fallbackLanguage?: Language | undefined;
-  onWarning?: ((message: string) => void) | undefined;
-};
-
-type Chapter = {
-  content: string;
-  sub_items: BookItem[];
-};
-
-type BookItem = {
-  Chapter?: Chapter;
-};
-
-type Book = {
-  items: BookItem[];
-};
-
-type Context = {
-  config?: {
-    preprocessor?: {
-      shiki?: {
-        "light-theme"?: BundledTheme;
-        "dark-theme"?: BundledTheme;
-        "fallback-language"?: Language;
-      };
-    };
-  };
-};
-
 export type PreprocessorInput = [Context, Book];
 
 export async function createMarkdownHighlighter(options: Options = {}) {
@@ -134,6 +100,40 @@ export async function preprocess(
     markdownHighlighter.dispose();
   }
 }
+
+type Language = BundledLanguage | "text";
+
+type Options = {
+  lightTheme?: BundledTheme | undefined;
+  darkTheme?: BundledTheme | undefined;
+  fallbackLanguage?: Language | undefined;
+  onWarning?: ((message: string) => void) | undefined;
+};
+
+type Chapter = {
+  content: string;
+  sub_items: BookItem[];
+};
+
+type BookItem = {
+  Chapter?: Chapter;
+};
+
+type Book = {
+  items: BookItem[];
+};
+
+type Context = {
+  config?: {
+    preprocessor?: {
+      shiki?: {
+        "light-theme"?: BundledTheme;
+        "dark-theme"?: BundledTheme;
+        "fallback-language"?: Language;
+      };
+    };
+  };
+};
 
 function transformChapters(section: BookItem[], transform: (markdown: string) => string): void {
   for (const item of section) {

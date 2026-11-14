@@ -49,7 +49,7 @@ export const braces: Rule = {
   },
 };
 
-const GUARDS = new Set([
+const GUARDS: ReadonlySet<string> = new Set([
   "ReturnStatement",
   "ThrowStatement",
   "ContinueStatement",
