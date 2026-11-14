@@ -10,7 +10,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type DuplicateBrand = Val<"DuplicateBrand", { kind: Kind }, Rule>;
 export const DuplicateBrand = Val.companion<DuplicateBrand>()
   .implCreate(() => ({
-    kind: Kind.seal("duplicate-brand"),
+    kind: Kind.seal("no-duplicate-brand"),
     description: "a brand string claimed by more than one type alias",
     warns: false,
   }))

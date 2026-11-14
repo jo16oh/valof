@@ -645,7 +645,7 @@ export type PayloadOf<V extends AnyVal> = Opened<Declared<V>>;
  *
  * The rules cannot check a type parameter, so `Payload<{ left: T }>` inside a generic type is a type error.
  *
- * valof-lint's `data-type-outside-valof` allows a type marked this way inside a Valof type and in
+ * valof-lint's `no-data-type-outside-valof` allows a type marked this way inside a Valof type and in
  * the function passed to `implSeal` or `implCreate`, and reports any other named data type.
  *
  * Not {@link PayloadOf}, which extracts the payload from a Val.

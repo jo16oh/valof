@@ -5,8 +5,9 @@ import { ALL_KINDS, KindSet, KINDS, type Kind } from "../rules/index.ts";
 import { Path } from "../shared/files.ts";
 import { Enabled, DataTypeSettings } from "../shared/options.ts";
 import {
-  MissingPathError,
+  MissingValueError,
   NotAProjectError,
+  NotOptInError,
   UnknownOptionError,
   UnknownRuleError,
   UnknownSettingError,
@@ -15,9 +16,13 @@ import {
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;
 
-const MODEL = "--data-type-outside-valof";
+/** The flags that take a value, after a space or an equals sign. */
+const FLAGS = ["project", "skip", "enable"] as const;
 
-/** What `--data-type-outside-valof=` takes, separated by commas. */
+/** The one rule off by default, which `--enable` turns on. */
+const OPT_IN = "no-data-type-outside-valof";
+
+/** What `--enable no-data-type-outside-valof=` takes, separated by commas. */
 const SETTINGS = [
   "classes",
   "constraints",
@@ -34,9 +39,9 @@ export type Arguments = Val<
     targets: Path[];
     /** Paths written with a leading `!`, removed from the run and the report alike. */
     excluded: Path[];
-    /** Kinds left out with `--no-<kind>`. */
+    /** Kinds left out with `--skip <kind>`. */
     skip: Kind[];
-    /** Rules off by default that `--<kind>` turned on, with the settings after `=`. */
+    /** Rules off by default that `--enable <kind>` turned on, with the settings after `=`. */
     enable: Enabled;
     help: boolean;
   }
@@ -55,9 +60,10 @@ export const Arguments = Val.companion<Arguments>()
     ): R.Result<
       Arguments,
       | UnknownRuleError
+      | NotOptInError
       | UnknownSettingError
       | UnknownOptionError
-      | MissingPathError
+      | MissingValueError
       | NotAProjectError
     > => {
       const projects: Path[] = [];
@@ -67,7 +73,7 @@ export const Arguments = Val.companion<Arguments>()
       const skip: Kind[] = [];
       let model: DataTypeSettings | undefined;
       let help = false;
-      let pending = false;
+      let pending: (typeof FLAGS)[number] | undefined;
 
       const take = (into: Path[], written: string): void => {
         const path = Path.seal(written);
@@ -78,32 +84,45 @@ export const Arguments = Val.companion<Arguments>()
         }
       };
 
+      const given = (
+        flag: (typeof FLAGS)[number],
+        value: string,
+      ): UnknownRuleError | NotOptInError | UnknownSettingError | undefined => {
+        if (flag === "project") {
+          take(projects, value);
+          return undefined;
+        }
+        if (flag === "skip") {
+          const kind = KindSet.find(ALL_KINDS, value);
+          if (!kind) return new UnknownRuleError({ kind: value, known: KINDS });
+          skip.push(kind);
+          return undefined;
+        }
+        const [name = "", ...rest] = value.split("=");
+        if (name !== OPT_IN) return new NotOptInError({ kind: name, known: [OPT_IN] });
+        const settings: { -readonly [K in (typeof SETTINGS)[number]]?: boolean } = {};
+        for (const setting of rest.join("=").split(",").filter(Boolean)) {
+          if (!isSetting(setting)) return new UnknownSettingError({ setting, known: SETTINGS });
+          settings[setting] = true;
+        }
+        model = DataTypeSettings.create(settings);
+        return undefined;
+      };
+
       for (const argument of argv) {
+        const flag = FLAGS.find((name) => argument === `--${name}`);
+        const assigned = FLAGS.find((name) => argument.startsWith(`--${name}=`));
         if (pending) {
-          take(projects, argument);
-          pending = false;
+          const failed = given(pending, argument);
+          if (failed) return R.fail(failed);
+          pending = undefined;
         } else if (argument === "--help" || argument === "-h") {
           help = true;
-        } else if (argument === "--project") {
-          pending = true;
-        } else if (argument.startsWith("--project=")) {
-          take(projects, argument.slice("--project=".length));
-        } else if (argument === MODEL || argument.startsWith(`${MODEL}=`)) {
-          const settings: { -readonly [K in (typeof SETTINGS)[number]]?: boolean } = {};
-          for (const setting of argument
-            .slice(MODEL.length + 1)
-            .split(",")
-            .filter(Boolean)) {
-            if (!isSetting(setting))
-              return R.fail(new UnknownSettingError({ setting, known: SETTINGS }));
-            settings[setting] = true;
-          }
-          model = DataTypeSettings.create(settings);
-        } else if (argument.startsWith("--no-")) {
-          const name = argument.slice("--no-".length);
-          const kind = KindSet.find(ALL_KINDS, name);
-          if (!kind) return R.fail(new UnknownRuleError({ kind: name, known: KINDS }));
-          skip.push(kind);
+        } else if (flag) {
+          pending = flag;
+        } else if (assigned) {
+          const failed = given(assigned, argument.slice(`--${assigned}=`.length));
+          if (failed) return R.fail(failed);
         } else if (argument.startsWith("-")) {
           return R.fail(new UnknownOptionError({ option: argument.split("=")[0] ?? argument }));
         } else {
@@ -111,9 +130,16 @@ export const Arguments = Val.companion<Arguments>()
         }
       }
 
-      const enable = Enabled.create(model ? { "data-type-outside-valof": model } : {});
+      const enable = Enabled.create(model ? { [OPT_IN]: model } : {});
       if (help) return R.succeed(seal({ projects, targets, excluded, skip, enable, help }));
-      if (pending) return R.fail(new MissingPathError({ flag: "project" }));
+      if (pending) {
+        return R.fail(
+          new MissingValueError({
+            flag: pending,
+            value: pending === "project" ? "a path" : "a rule",
+          }),
+        );
+      }
 
       // The first loose path is the project, unless `--project` gave one.
       const first = projects.length === 0 ? loose.shift() : undefined;
@@ -123,6 +149,7 @@ export const Arguments = Val.companion<Arguments>()
         projects.push(first);
       }
       targets.push(...loose);
+
       return R.succeed(seal({ projects, targets, excluded, skip, enable, help }));
     },
   }))

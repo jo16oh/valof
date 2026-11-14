@@ -10,7 +10,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type BrandMismatch = Val<"BrandMismatch", { kind: Kind }, Rule>;
 export const BrandMismatch = Val.companion<BrandMismatch>()
   .implCreate(() => ({
-    kind: Kind.seal("brand-mismatch"),
+    kind: Kind.seal("no-brand-mismatch"),
     description: "a brand whose last segment is not the name of the type it brands",
     warns: false,
   }))

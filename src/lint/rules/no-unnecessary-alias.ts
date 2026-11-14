@@ -6,7 +6,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type UnnecessaryAlias = Val<"UnnecessaryAlias", { kind: Kind }, Rule>;
 export const UnnecessaryAlias = Val.companion<UnnecessaryAlias>()
   .implCreate(() => ({
-    kind: Kind.seal("unnecessary-alias"),
+    kind: Kind.seal("no-unnecessary-alias"),
     description: "a type alias that is a second name for a Val, a Trait or an Enum",
     warns: false,
   }))

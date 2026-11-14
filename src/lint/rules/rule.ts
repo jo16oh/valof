@@ -21,7 +21,7 @@ export type Finding = Val<
 >;
 export const Finding = Val.companion<Finding>().build();
 
-/** A rule's name, as a finding, a `--no-<kind>` flag and `--help` spell it. */
+/** A rule's name, as a finding, a `--skip` flag and `--help` spell it. */
 export type Kind = Val<"Kind", string>;
 export const Kind = Val.companion<Kind>().build();
 
@@ -52,7 +52,7 @@ export type Context = Val<
      */
     reported: Finding[];
     /**
-     * Kinds left out of this run with `--no-<kind>`, which report nothing however the code reads.
+     * Kinds left out of this run with `--skip <kind>`, which report nothing however the code reads.
      */
     notRun: KindSet;
   }
@@ -69,7 +69,7 @@ export const Context = Val.companion<Context>().build();
 export type Rule = Trait<
   "Rule",
   {
-    /** The name that names it everywhere: `--no-<kind>`, the disable comment, and `--help`. */
+    /** The name that names it everywhere: `--skip <kind>`, the disable comment, and `--help`. */
     kind: Kind;
     /** The line `--help` prints, after the kind. */
     description: string;

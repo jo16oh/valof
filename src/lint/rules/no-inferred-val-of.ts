@@ -6,7 +6,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type InferredValOf = Val<"InferredValOf", { kind: Kind }, Rule>;
 export const InferredValOf = Val.companion<InferredValOf>()
   .implCreate(() => ({
-    kind: Kind.seal("inferred-val-of"),
+    kind: Kind.seal("no-inferred-val-of"),
     description: "a `Val.of` that names no type, taking one from its target",
     // The lift itself is sound. What it costs is the name that makes the lift greppable.
     warns: true,
@@ -18,7 +18,7 @@ export const InferredValOf = Val.companion<InferredValOf>()
  * Reports every `Val.of(…)` written without its type argument.
  *
  * The type argument is what makes a lift visible: `Val.of<User>(payload)` is greppable, and the
- * bypassed-companion rule reads that name to say what the lift went around. Without it, the same
+ * no-bypassed-companion rule reads that name to say what the lift went around. Without it, the same
  * lift reads as an ordinary call and neither a reader nor that rule sees it.
  *
  * No type is resolved. TypeScript infers the type from the target, so the form only compiles

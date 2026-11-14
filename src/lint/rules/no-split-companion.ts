@@ -6,7 +6,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type SplitCompanion = Val<"SplitCompanion", { kind: Kind }, Rule>;
 export const SplitCompanion = Val.companion<SplitCompanion>()
   .implCreate(() => ({
-    kind: Kind.seal("split-companion"),
+    kind: Kind.seal("no-split-companion"),
     description: "a companion for a type that another file declares",
     warns: false,
   }))
@@ -21,7 +21,7 @@ export const SplitCompanion = Val.companion<SplitCompanion>()
  * file give one `User` that is the type, the constructor and the namespace at once. Split over
  * two files, the same pair does not compile: TypeScript answers TS2395 when both are exported
  * and TS2323 when the second file re-exports the type beside its companion. What is left is a
- * companion under another name, which the companion-mismatch rule reports, or one nobody can
+ * companion under another name, which the no-companion-mismatch rule reports, or one nobody can
  * import under the type's name.
  *
  * An import is the whole test, so no type resolution is needed. A type declared here through a

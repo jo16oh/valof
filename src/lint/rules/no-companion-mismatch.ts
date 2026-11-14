@@ -9,7 +9,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type CompanionMismatch = Val<"CompanionMismatch", { kind: Kind }, Rule>;
 export const CompanionMismatch = Val.companion<CompanionMismatch>()
   .implCreate(() => ({
-    kind: Kind.seal("companion-mismatch"),
+    kind: Kind.seal("no-companion-mismatch"),
     description: "a companion bound to a name other than the type it is for",
     warns: false,
   }))
@@ -25,7 +25,7 @@ export const CompanionMismatch = Val.companion<CompanionMismatch>()
  * namespace at once. Two names split that, and the reader has to know both to find either.
  *
  * Compared as written, so `import type { User as Account }` passes with `const Account =
- * Val.companion<Account>()`. The type belonging to another file is the split-companion
+ * Val.companion<Account>()`. The type belonging to another file is the no-split-companion
  * rule's finding, not this one's.
  *
  * The chain is where the name is required, not the `.impl` on it, so holding a builder in a

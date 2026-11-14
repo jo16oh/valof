@@ -15,7 +15,7 @@ import { Finding, Kind, Rule } from "./rule.ts";
 export type HiddenOptional = Val<"HiddenOptional", { kind: Kind }, Rule>;
 export const HiddenOptional = Val.companion<HiddenOptional>()
   .implCreate(() => ({
-    kind: Kind.seal("hidden-optional"),
+    kind: Kind.seal("no-hidden-optional"),
     description: "a default or rest parameter that a member's type annotation hides",
     warns: false,
   }))

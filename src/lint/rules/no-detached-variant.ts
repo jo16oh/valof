@@ -10,14 +10,14 @@ import { Finding, Kind, Rule } from "./rule.ts";
 export type DetachedVariant = Val<"DetachedVariant", { kind: Kind }, Rule>;
 export const DetachedVariant = Val.companion<DetachedVariant>()
   .implCreate(() => ({
-    kind: Kind.seal("detached-variant"),
+    kind: Kind.seal("no-detached-variant"),
     description: "a variant bound to a local name without the name of its enum",
     warns: true,
   }))
   .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
   .build();
 
-/** Reports each such binding. companion-mismatch reports one under another name. */
+/** Reports each such binding. no-companion-mismatch reports one under another name. */
 function findings({ kind }: DetachedVariant, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);
   const identity = (ref: SymbolRef): string => Exports.identify(exports, ref);

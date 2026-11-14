@@ -8,7 +8,7 @@ import { Imports, type Bundle } from "../bundle.ts";
 /** Production, then development. */
 export const MODES: readonly [Mode, Mode] = ["production", "development"];
 
-// oxlint-disable-next-line valof/data-type-outside-valof -- two modes, never more
+// oxlint-disable-next-line valof/no-data-type-outside-valof -- two modes, never more
 export type Mode = "production" | "development";
 
 export type Sizes = Val<"Sizes", { minified: number; gzip: number; brotli: number }>;

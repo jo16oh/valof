@@ -2,7 +2,7 @@ import { ErrorFactory } from "@praha/error-factory";
 
 import type { MissingParserError } from "../parse/parser.ts";
 
-/** `--no-<kind>` with a kind no rule has. */
+/** `--skip <kind>` with a kind no rule has. */
 export class UnknownRuleError extends ErrorFactory({
   name: "UnknownRuleError",
   message: ({ kind, known }) =>
@@ -10,7 +10,15 @@ export class UnknownRuleError extends ErrorFactory({
   fields: ErrorFactory.fields<{ kind: string; known: readonly string[] }>(),
 }) {}
 
-/** A setting after `--data-type-outside-valof=` that the rule does not take. */
+/** `--enable` with a rule that is not off by default, or that no rule has. */
+export class NotOptInError extends ErrorFactory({
+  name: "NotOptInError",
+  message: ({ kind, known }) =>
+    `valof-lint: no rule off by default called ${JSON.stringify(kind)}\n  rules off by default: ${known.join(", ")}`,
+  fields: ErrorFactory.fields<{ kind: string; known: readonly string[] }>(),
+}) {}
+
+/** A setting after `--enable no-data-type-outside-valof=` that the rule does not take. */
 export class UnknownSettingError extends ErrorFactory({
   name: "UnknownSettingError",
   message: ({ setting, known }) =>
@@ -18,11 +26,11 @@ export class UnknownSettingError extends ErrorFactory({
   fields: ErrorFactory.fields<{ setting: string; known: readonly string[] }>(),
 }) {}
 
-/** `--project` as the last argument. */
-export class MissingPathError extends ErrorFactory({
-  name: "MissingPathError",
-  message: ({ flag }) => `valof-lint: --${flag} needs a path`,
-  fields: ErrorFactory.fields<{ flag: string }>(),
+/** A flag that takes a value, such as `--project`, as the last argument. */
+export class MissingValueError extends ErrorFactory({
+  name: "MissingValueError",
+  message: ({ flag, value }) => `valof-lint: --${flag} needs ${value}`,
+  fields: ErrorFactory.fields<{ flag: string; value: string }>(),
 }) {}
 
 /** An argument starting with `-` that the command does not take, rather than a path read as one. */
@@ -53,8 +61,9 @@ export class NoFilesMatchedError extends ErrorFactory({
 export type UsageError =
   | MissingParserError
   | UnknownRuleError
+  | NotOptInError
   | UnknownSettingError
   | UnknownOptionError
-  | MissingPathError
+  | MissingValueError
   | NotAProjectError
   | NoFilesMatchedError;

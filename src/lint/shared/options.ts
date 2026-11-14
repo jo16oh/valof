@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { Val } from "../../lib/index.ts";
 import { KindSet, type Kind } from "../rules/rule.ts";
 
-/** What `data-type-outside-valof` reports beyond what it always reports. */
+/** What `no-data-type-outside-valof` reports beyond what it always reports. */
 export type DataTypeSettings = Val<
   "DataTypeSettings",
   {
@@ -30,13 +30,13 @@ export const DataTypeSettings = Val.companion<DataTypeSettings>()
   .build();
 
 /** The rules that are off unless named here, with their settings. */
-export type Enabled = Val<"Enabled", { "data-type-outside-valof"?: DataTypeSettings }>;
+export type Enabled = Val<"Enabled", { "no-data-type-outside-valof"?: DataTypeSettings }>;
 export const Enabled = Val.companion<Enabled>()
   .implCreate(
     ({
-      "data-type-outside-valof": model,
-    }: { "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0] } = {}) =>
-      model ? { "data-type-outside-valof": DataTypeSettings.create(model) } : {},
+      "no-data-type-outside-valof": model,
+    }: { "no-data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0] } = {}) =>
+      model ? { "no-data-type-outside-valof": DataTypeSettings.create(model) } : {},
   )
   .build();
 
@@ -54,7 +54,7 @@ export type Options = Val<
      * Three rules need a second file to say anything: a duplicate brand needs the other alias, a
      * second name needs the Val alias, and a member is read from wherever it is read. Narrowing the
      * run instead of the report turns those into silence, and turns a directive that is doing its
-     * job into an `unused-disable`.
+     * job into an `no-unused-disable`.
      */
     targets: Record<string, true> | null;
     /**
