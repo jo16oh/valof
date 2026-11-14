@@ -1,4 +1,4 @@
-import { Val } from "../../index.ts";
+import { Val } from "../../lib/index.ts";
 import type { Finding } from "../rules/index.ts";
 
 /** A word, for the squiggle to cover. Runs of these are what a finding points at. */

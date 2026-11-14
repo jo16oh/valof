@@ -9,10 +9,10 @@ import {
   type Position,
 } from "../parse/ast.ts";
 import type { FilePath } from "../shared/files.ts";
-import type { Enum } from "../../enum.ts";
-import type { Trait } from "../../trait.ts";
-import type { AnyVal, CompanionBuilder } from "../../val.ts";
-import { Val, type VariantOf } from "../../index.ts";
+import type { Enum } from "../../lib/enum.ts";
+import type { Trait } from "../../lib/trait.ts";
+import type { AnyVal, CompanionBuilder } from "../../lib/val.ts";
+import { Val, type VariantOf } from "../../lib/index.ts";
 import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** The entry points a chain grows from. A rename in the library is a type error here. */

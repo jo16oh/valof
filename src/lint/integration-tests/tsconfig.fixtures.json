@@ -7,7 +7,7 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false,
     "declaration": false,
-    "paths": { "valof": ["../../index.ts"] }
+    "paths": { "valof": ["../../lib/index.ts"] }
   },
   "include": ["../**/fixtures/**/*.ts"],
   "exclude": []

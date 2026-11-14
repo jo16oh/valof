@@ -11,7 +11,7 @@ import {
 
 import { Result as R } from "@praha/byethrow";
 
-import { Val } from "../../index.ts";
+import { Val } from "../../lib/index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
 import { Project } from "../shared/files.ts";
 import type { Finding } from "../rules/index.ts";

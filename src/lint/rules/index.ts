@@ -8,7 +8,7 @@ import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
 import { DuplicateBrand } from "./duplicate-brand.ts";
-import type { Dyn } from "../../index.ts";
+import type { Dyn } from "../../lib/index.ts";
 import { KindSet, Rule, type Kind } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
 import { InferredValOf } from "./inferred-val-of.ts";

@@ -1,4 +1,4 @@
-import { Enum, Val, type VariantOf } from "../../index.ts";
+import { Enum, Val, type VariantOf } from "../../lib/index.ts";
 import {
   annotationOf,
   Lines,

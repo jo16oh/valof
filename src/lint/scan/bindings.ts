@@ -1,6 +1,6 @@
 import { dirname, extname, normalize, resolve } from "node:path";
 
-import { Val } from "../../index.ts";
+import { Val } from "../../lib/index.ts";
 import type { FilePath } from "../shared/files.ts";
 
 /** What an import binds a local name to: the exporting module and the name it exports. */

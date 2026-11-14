@@ -57,7 +57,7 @@ grep -rnE '^#+ .*(Rejected|Withdrawn)|^ *(- )?\*\*(Rejected|Withdrawn)' notes/de
   - **15.4 Callback form of `.impl`** ([15.4-impl-callback.md](15.4-impl-callback.md)) Referencing its own companion breaks inference (TS7022). Measuring that contextual typing works through a callback, `implTrait` takes a callback too, budgets, the rejected currying of members and the idea of blocking downstream `.impl` with types. **The chain closed on 2026-09-18** (`impl` stopped closing it on 2026-10-21, §6.12) (only once, siblings called through annotations, naming the receiver of a Trait implementation `Tr`, the rejected type-level guidance and lint rule). **On 2026-10-26, every step argument became a function** (the annotation tax does not change)
 - **§16 Budget responsibilities** ([16-budgets.md](16-budgets.md)) Splitting bundle and type budgets into separate scripts. Moving declaration bytes to type-perf, why the budget went up to 64 kB, 16.1 measuring the bundle increment from the measured core, 16.2 the production check compares sizes, 16.3 trimming Enum's production gzip (shared steps, the rejected +512 B budget), 16.4 one command checks `dist` (`check-dist`, the rejected `--json` and names)
 - **§17 Effect v4 investigation** ([17-effect-v4.md](17-effect-v4.md)) The typeclass and HKT layers Effect dropped (the basis for §15.3), placing equality inside the value, the hole that structural comparison of classes opens, what Effect has and valof does not
-- **§18 Distribution shape** ([18-package-shape.md](18-package-shape.md)) Making `Val` / `Enum` / `Trait` namespaces so tree shaking drops unused members. Exporting under the same name as the type, why tsc emits the runtime entry file by file (Rolldown's `__exportAll` and type names in `.d.ts`), the bundle-size base, raising the declaration budget to 96 kB. The rejected `.ts` distribution and `.d.ts` minification. 18.4 the `internal/*` that consumers' declaration emit references (the rejected export from the entry, `PrivateSeal` / `PrivateCreate` made into classes), 18.5 keeping declaration emit from cutting types to `any` (builders printed by name, the decision to keep TypeScript 7.1 out of the ts-compatibility lines), 18.6 `AnyVal`, `AnyEnum` and `AnyTrait` are no longer exported from the entry (no user code needs a Val without knowing which one)
+- **§18 Distribution shape** ([18-package-shape.md](18-package-shape.md)) Making `Val` / `Enum` / `Trait` namespaces so tree shaking drops unused members. Exporting under the same name as the type, why tsc emits the runtime entry file by file (Rolldown's `__exportAll` and type names in `.d.ts`), the bundle-size base, raising the declaration budget to 96 kB. Moving the library to `src/lib` (`dist` keeps its layout). The rejected `.ts` distribution and `.d.ts` minification. 18.4 the `internal/*` that consumers' declaration emit references (the rejected export from the entry, `PrivateSeal` / `PrivateCreate` made into classes), 18.5 keeping declaration emit from cutting types to `any` (builders printed by name, the decision to keep TypeScript 7.1 out of the ts-compatibility lines), 18.6 `AnyVal`, `AnyEnum` and `AnyTrait` are no longer exported from the entry (no user code needs a Val without knowing which one)
 - **§19 Pinning the valof the scripts use** ([19-pinning-valof.md](19-pinning-valof.md)) Pointing `#valof` at a commit's build. How a match is detected, requiring a match only on the release PR, ts-compatibility copying the scripts and reading them, why the hash goes in `package.json` (`optimisticRepeatInstall`), the rejected git dependency, pkg.pr.new and reading in place. The dual members and lint issues found while updating the scripts
 
 ## Code to memo
@@ -66,13 +66,13 @@ Before changing the code on the left, read the sections on the right. A path mat
 
 | Code                                                                     | Sections                   |
 | ------------------------------------------------------------------------ | -------------------------- |
-| `src/val.ts`, `src/namespace/val.ts`                                     | §2–6, §11                  |
-| `src/keys.ts`                                                            | §2.1, §11                  |
-| `src/env.ts`                                                             | §6.11, §7.1                |
-| `src/dual/`                                                              | §6.11, §6.13               |
-| `src/trait.ts`, `src/namespace/trait.ts`                                 | §15.1, §15.4               |
-| `src/enum.ts`, `src/namespace/enum.ts`                                   | §15.2                      |
-| `src/index.ts`                                                           | §18                        |
+| `src/lib/val.ts`, `src/lib/namespace/val.ts`                             | §2–6, §11                  |
+| `src/lib/keys.ts`                                                        | §2.1, §11                  |
+| `src/lib/env.ts`                                                         | §6.11, §7.1                |
+| `src/lib/dual/`                                                          | §6.11, §6.13               |
+| `src/lib/trait.ts`, `src/lib/namespace/trait.ts`                         | §15.1, §15.4               |
+| `src/lib/enum.ts`, `src/lib/namespace/enum.ts`                           | §15.2                      |
+| `src/lib/index.ts`                                                       | §18                        |
 | `src/lint/`                                                              | §14.1–14.7                 |
 | `src/lint/rules/`, `src/lint/scan/`                                      | §14.8, §14.12–14.27, §15.1 |
 | `src/lint/eslint-plugin/`                                                | §14.9, §14.19–14.20        |
