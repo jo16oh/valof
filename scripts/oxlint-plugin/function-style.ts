@@ -46,7 +46,7 @@ export const functionStyle: Readonly<Rule> = {
         context.report({ node, messageId: "arrow" });
       },
       ArrowFunctionExpression(node) {
-        if (node.parent.type === "PropertyDefinition") {
+        if (node.parent.type === "PropertyDefinition" || node.parent.type === "AccessorProperty") {
           context.report({ node, messageId: "method" });
         }
       },
@@ -57,7 +57,7 @@ export const functionStyle: Readonly<Rule> = {
         // A method: `m() {}` or `get m() {}` in an object, or any method in a class.
         if (parent.type === "Property" && (parent.method || parent.kind !== "init")) return;
         if (parent.type === "MethodDefinition") return;
-        if (parent.type === "PropertyDefinition") {
+        if (parent.type === "PropertyDefinition" || parent.type === "AccessorProperty") {
           context.report({ node, messageId: "method" });
           return;
         }
