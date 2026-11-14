@@ -12,7 +12,7 @@ test("reports the directive when the rule it names finds nothing there", async (
     },
   ]);
   expect(await messages("unused")).toEqual([
-    "valof-lint-disable-next-line names unused-member, which reports nothing here",
+    "valof-lint-disable-next-line names no-unused-member, which reports nothing here",
   ]);
 });
 
@@ -24,13 +24,13 @@ test("names the one that silenced nothing, not the whole directive", async () =>
     },
   ]);
   expect(await messages("partly-used")).toEqual([
-    "valof-lint-disable-next-line names duplicate-brand, which reports nothing here",
+    "valof-lint-disable-next-line names no-duplicate-brand, which reports nothing here",
   ]);
 });
 
 test("reports a name written twice once", async () => {
   expect(await messages("repeated")).toEqual([
-    "valof-lint-disable-next-line names unused-member, which reports nothing here",
+    "valof-lint-disable-next-line names no-unused-member, which reports nothing here",
   ]);
 });
 
@@ -42,7 +42,7 @@ test("says a whole-file directive reports nothing in the file, not here", async 
     },
   ]);
   expect(await messages("whole-file")).toEqual([
-    "valof-lint-disable-whole-file names duplicate-brand, which reports nothing in this file",
+    "valof-lint-disable-whole-file names no-duplicate-brand, which reports nothing in this file",
   ]);
 });
 
@@ -52,7 +52,7 @@ test("blames no rule that was left out of the run", async () => {
 
 test("blames an opt-in rule only when the run turned it on", async () => {
   expect(await lint("opt-in")).toEqual([]);
-  expect(await lint("opt-in-unused", { enable: { "data-type-outside-valof": {} } })).toEqual([
+  expect(await lint("opt-in-unused", { enable: { "no-data-type-outside-valof": {} } })).toEqual([
     { rule: UnusedDisable, at: "opt-in-unused.ts:1:1" },
   ]);
 });

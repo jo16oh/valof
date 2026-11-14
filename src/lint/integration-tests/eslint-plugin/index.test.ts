@@ -179,16 +179,16 @@ test("takes the buffer over the file, so a fix lands before the save", () => {
 test("carries one kind each, so a project turns a rule off by leaving it out", () => {
   const reports: string[] = [];
   const one = context("money.ts", undefined, reports);
-  plugin.rules["unused-member"]!.create(one).Program();
+  plugin.rules["no-unused-member"]!.create(one).Program();
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
-  plugin.rules["duplicate-brand"]!.create(one).Program();
+  plugin.rules["no-duplicate-brand"]!.create(one).Program();
   expect(reports).toEqual(["6:2-8  Money.format is never read"]);
 });
 
 test("underlines the whole directive, which has no name to point at", () => {
   // A directive begins with `//`, which is no word, so the comment itself is underlined.
   expect(run("silenced.ts")).toEqual([
-    "5:0-72  valof-lint-disable-next-line names unused-member, which reports nothing here",
+    "5:0-75  valof-lint-disable-next-line names no-unused-member, which reports nothing here",
   ]);
 });
 
@@ -196,35 +196,35 @@ test("names every rule, under the plugin's own name", () => {
   expect(Object.keys(plugin.rules)).toEqual([...KINDS]);
   expect(plugin.configs.recommended.rules).toEqual({
     // The members work, but what the step declares gives them state they share and no reader sees.
-    "valof/hidden-shared-state-in-impl": "warn",
-    "valof/hidden-optional": "error",
-    "valof/detached-variant": "warn",
-    "valof/unnecessary-alias": "error",
-    "valof/unimplemented-trait": "error",
-    "valof/brand-mismatch": "error",
+    "valof/no-hidden-shared-state-in-impl": "warn",
+    "valof/no-hidden-optional": "error",
+    "valof/no-detached-variant": "warn",
+    "valof/no-unnecessary-alias": "error",
+    "valof/no-unimplemented-trait": "error",
+    "valof/no-brand-mismatch": "error",
     // The value it makes is well formed; what it went around is the type's own way in.
-    "valof/bypassed-companion": "warn",
-    "valof/companion-mismatch": "error",
-    "valof/duplicate-brand": "error",
-    "valof/incomplete-disable": "error",
-    "valof/split-companion": "error",
+    "valof/no-bypassed-companion": "warn",
+    "valof/no-companion-mismatch": "error",
+    "valof/no-duplicate-brand": "error",
+    "valof/no-vague-disable": "error",
+    "valof/no-split-companion": "error",
     // The lift is sound; what it costs is the name that makes it greppable.
-    "valof/inferred-val-of": "warn",
+    "valof/no-inferred-val-of": "warn",
     // Dead weight, not a defect: the code around either of these works.
-    "valof/unused-disable": "warn",
-    "valof/unused-member": "warn",
+    "valof/no-unused-disable": "warn",
+    "valof/no-unused-member": "warn",
   });
 });
 
-test("runs data-type-outside-valof with the settings under its name, and not from an older run's", () => {
+test("runs no-data-type-outside-valof with the settings under its name, and not from an older run's", () => {
   const file = at("model/row.ts");
   const text = readFileSync(file, "utf8");
   const reported = (model?: { classes: boolean }): string[] => {
     const reports: string[] = [];
-    plugin.rules["data-type-outside-valof"]!.create({
+    plugin.rules["no-data-type-outside-valof"]!.create({
       filename: file,
       settings: {
-        valof: { project: file, ...(model ? { "data-type-outside-valof": model } : {}) },
+        valof: { project: file, ...(model ? { "no-data-type-outside-valof": model } : {}) },
       },
       sourceCode: { text },
       report: ({ loc, message }: { loc: { start: Where }; message: string }) =>

@@ -40,7 +40,7 @@ test("oxlint runs the plugin, and puts the finding where the finding says", () =
   };
   expect(diagnostics).toEqual([
     expect.objectContaining({
-      code: "valof(unused-member)",
+      code: "valof(no-unused-member)",
       message: "Id.shout is never read",
       filename: "src/app.js",
       labels: [{ span: expect.objectContaining({ line: 3, column: 3 }) }],
@@ -60,7 +60,7 @@ test("eslint runs the same plugin", () => {
   const [file] = JSON.parse(output) as { messages: Record<string, unknown>[] }[];
   expect(file?.messages).toEqual([
     expect.objectContaining({
-      ruleId: "valof/unused-member",
+      ruleId: "valof/no-unused-member",
       message: "Id.shout is never read",
       line: 3,
       column: 3,

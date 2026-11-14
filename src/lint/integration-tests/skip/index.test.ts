@@ -3,7 +3,7 @@ import { expect, test } from "vite-plus/test";
 import { KINDS } from "../../rules/index.ts";
 import {
   DuplicateBrand,
-  IncompleteDisable,
+  VagueDisable,
   UnusedDisable,
   UnusedMember,
   cli,
@@ -46,7 +46,7 @@ test("leaves out the kind the flag names, and only that one", async () => {
 test("leaves out a rule about the disable comments, like any other", async () => {
   expect(await lint("guarded")).toEqual([
     {
-      rule: IncompleteDisable,
+      rule: VagueDisable,
       at: "guarded.ts:2:1",
     },
     {
@@ -54,27 +54,38 @@ test("leaves out a rule about the disable comments, like any other", async () =>
       at: "guarded.ts:4:1",
     },
   ]);
-  expect(await lint("guarded", { skip: [IncompleteDisable, UnusedDisable] })).toEqual([]);
+  expect(await lint("guarded", { skip: [VagueDisable, UnusedDisable] })).toEqual([]);
 });
 
 // The list read off the registry, not written again: which rules exist is what `--help` names,
 // and that is the command's own test.
 test("names the known rules when the flag names none of them", () => {
-  const { status, stderr } = cli("--no-typo", GLOB);
+  const { status, stderr } = cli("--skip", "typo", GLOB);
   expect(status).toBe(2);
   expect(stderr).toBe('valof-lint: no rule called "typo"\n' + `  known rules: ${KINDS.join(", ")}`);
 });
 
 test("passes the flag through to the run", () => {
-  const { stdout } = cli("--no-duplicate-brand", GLOB);
+  const { stdout } = cli("--skip", "no-duplicate-brand", GLOB);
   expect(stdout).toBe(
     `src/lint/integration-tests/skip/fixtures/mixed/users.ts:6:3  ${UnusedMember.kind}  User.shout is never read\n`,
   );
 });
 
-test("takes more than one flag", () => {
-  const { status, stdout, stderr } = cli("--no-duplicate-brand", "--no-unused-member", GLOB);
+test("takes more than one flag, with or without an equals sign", () => {
+  const { status, stdout, stderr } = cli(
+    "--skip",
+    "no-duplicate-brand",
+    "--skip=no-unused-member",
+    GLOB,
+  );
   expect(stdout).toBe("");
   expect(status).toBe(0);
   expect(stderr).toBe("valof-lint: nothing to report in 2 file(s)");
+});
+
+test("says so when the flag is given no rule", () => {
+  const { status, stderr } = cli(GLOB, "--skip");
+  expect(status).toBe(2);
+  expect(stderr).toBe("valof-lint: --skip needs a rule");
 });
