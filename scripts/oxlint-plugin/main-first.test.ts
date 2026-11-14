@@ -46,7 +46,7 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
       },
       {
         code: 'import { a } from "a";\nexport * from "a";\nfunction main() {}\nmain();',
-        errors: [{ messageId: "first" }, { messageId: "export" }],
+        errors: [{ messageId: "export" }, { messageId: "first" }],
       },
     ],
   },
