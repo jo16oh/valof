@@ -13,7 +13,6 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
     valid: [
       'import { a } from "a";\nasync function main() {}\nconst X = 1;\nawait main();',
       "function main() {}\nmain();",
-      "const X = 1;\nfunction f() {}",
       // A module without `main` is not an entry point, and exports what it likes.
       "export const X = 1;\nexport default function f() {}",
     ],
@@ -27,7 +26,16 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
         code: "function main() {}\nif (import.meta.main) {\n  main();\n}",
         errors: [{ messageId: "last" }],
       },
+      {
+        code: "function main() {}\nif (import.meta.main) main();",
+        errors: [{ messageId: "last" }],
+      },
       { code: "export function main() {}\nmain();", errors: [{ messageId: "export" }] },
+      { code: "function main() {}\nexport = 1;\nmain();", errors: [{ messageId: "export" }] },
+      {
+        code: 'export { a } from "a";\nfunction main() {}\nmain();',
+        errors: [{ messageId: "export" }, { messageId: "first" }],
+      },
       {
         code: "function main() {}\nexport const X = 1;\nmain();",
         errors: [{ messageId: "export" }],
