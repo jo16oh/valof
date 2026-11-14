@@ -35,6 +35,10 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
       // A readonly static field holds a value, and an instance field belongs to each instance.
       "class Pool {\n  static readonly SIZE = 4;\n  #items = new Map();\n}",
       "class Pool {\n  static readonly NAMES: readonly string[] = [];\n}",
+      "const Pool = class {\n  #items = new Map();\n};",
+      // The type is the annotation's, or else the outermost `as`.
+      "const NAMES = [] as string[] as readonly string[];",
+      "const NAMES: readonly string[] = [] as string[];",
     ],
     invalid: [
       { code: "let parser;", errors: [{ messageId: "let" }] },
@@ -71,10 +75,18 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
       },
       { code: "const NAMES = [] as string[];", errors: [{ messageId: "readonly" }] },
       { code: "const NAMES = [] as unknown as string[];", errors: [{ messageId: "readonly" }] },
-      // A readonly type inside the annotation leaves the array itself open to change.
+      // A readonly type inside the annotation leaves the array or object itself open to change.
       { code: "const ITEMS: Array<Readonly<Item>> = [];", errors: [{ messageId: "readonly" }] },
       {
-        code: "const TABLE: Record<string, readonly string[]> = {};",
+        code: "const TABLE: Record<string, Readonly<Item>> = {};",
+        errors: [{ messageId: "readonly" }],
+      },
+      {
+        code: "const S: Set<ReadonlySet<string>> = new Set();",
+        errors: [{ messageId: "readonly" }],
+      },
+      {
+        code: "const M: Map<string, ReadonlyMap<string, number>> = new Map();",
         errors: [{ messageId: "readonly" }],
       },
       { code: 'export default ["a"];', errors: [{ messageId: "readonly" }] },
@@ -82,6 +94,10 @@ new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
       { code: "class Pool {\n  static count = 0;\n}", errors: [{ messageId: "static" }] },
       { code: "export default class {\n  static count = 0;\n}", errors: [{ messageId: "static" }] },
       { code: "const Pool = class {\n  static count = 0;\n};", errors: [{ messageId: "static" }] },
+      {
+        code: "const Pool = class {\n  static readonly ITEMS = new Cache();\n};",
+        errors: [{ messageId: "new" }],
+      },
       {
         code: "class Pool {\n  static readonly ITEMS = new Map();\n}",
         errors: [{ messageId: "readonly" }],
