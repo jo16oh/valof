@@ -5,13 +5,13 @@ import type { Context, Rule } from "./rule.ts";
  * re-exports. A function is hoisted and a companion is not, so a constant cannot be built from a
  * companion declared further down.
  */
-export const declarationOrder: Rule = {
+export const declarationOrder: Readonly<Rule> = {
   meta: {
     type: "suggestion",
     docs: { description: "Order a module's top-level declarations by kind" },
     messages: {
       order:
-        "Move {{kind}} above {{after}}. The order: `main`, the exported constants, the other constants, the errors, the exported types, Vals, Enums and Traits with their companions, the exported classes, the exported functions, the helper types, Vals, Enums and Traits, the helper classes, the helper functions, then the call to `main` and `export default`.",
+        "Move {{kind}} above {{after}}. The order: `main`; the exported constants; the other constants; the errors; the exported types, Vals, Enums and Traits with their companions; the exported classes; the exported functions; the helper types, Vals, Enums and Traits with their companions; the helper classes; the helper functions; then the call to `main` and `export default`.",
     },
   },
   create(context) {
@@ -37,7 +37,7 @@ export const declarationOrder: Rule = {
   },
 };
 
-const KINDS = [
+const KINDS: readonly string[] = [
   "`main`",
   "an exported constant",
   "a constant",
@@ -94,7 +94,6 @@ function kindOf(
       return companionExported ? 4 : 7;
     }
     case "ExpressionStatement":
-    case "IfStatement":
     case "ExportDefaultDeclaration":
       return 10;
     default:

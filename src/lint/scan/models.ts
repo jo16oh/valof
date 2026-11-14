@@ -11,10 +11,10 @@ import { Bindings } from "./bindings.ts";
 import { stepOf } from "./chains.ts";
 
 /** The types whose arguments Valof checks. */
-const VALOF: ReadonlySet<string> = new Set(["Val", "Enum", "Trait", "Payload"]);
+const VALOF: readonly string[] = ["Val", "Enum", "Trait", "Payload"];
 
 /** Built-in types that declare data. */
-const DATA: ReadonlySet<string> = new Set([
+const DATA: readonly string[] = [
   "Record",
   "Array",
   "ReadonlyArray",
@@ -23,26 +23,26 @@ const DATA: ReadonlySet<string> = new Set([
   "Partial",
   "Required",
   "Readonly",
-]);
+];
 
 /** Built-in types that take a type out of a value. */
-const EXTRACTION: ReadonlySet<string> = new Set([
+const EXTRACTION: readonly string[] = [
   "ReturnType",
   "Parameters",
   "Awaited",
   "InstanceType",
   "ConstructorParameters",
-]);
+];
 
 /** The keyword types that, written alone, name a primitive. A literal type is one too. */
-const PRIMITIVE: ReadonlySet<string> = new Set([
+const PRIMITIVE: readonly string[] = [
   "TSStringKeyword",
   "TSNumberKeyword",
   "TSBooleanKeyword",
   "TSBigIntKeyword",
   "TSSymbolKeyword",
   "TSTemplateLiteralType",
-]);
+];
 
 /** What a {@link Model} found, which decides its message and whether a setting must ask for it. */
 export type Shape = Enum<
@@ -108,8 +108,8 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
     )
       return inside;
     const name = nameOf(inside, bound);
-    if (name && VALOF.has(name)) return undefined;
-    if (name && DATA.has(name)) return inside;
+    if (name && VALOF.includes(name)) return undefined;
+    if (name && DATA.includes(name)) return inside;
     for (const one of inside.children) {
       const hit = data(one);
       if (hit) return hit;
@@ -122,8 +122,8 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
     if (!inside) return false;
     if (inside.type === "TSTypeQuery") return true;
     const name = nameOf(inside, bound);
-    if (name && VALOF.has(name)) return false;
-    if (name && EXTRACTION.has(name)) return true;
+    if (name && VALOF.includes(name)) return false;
+    if (name && EXTRACTION.includes(name)) return true;
     return inside.children.some(extracts);
   };
 
@@ -132,7 +132,7 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
     if (!inside) return false;
     if (inside.type === "TSUnionType") return inside.types.every(primitive);
     if (inside.type === "TSLiteralType") return true;
-    return inside.type === "Other" && PRIMITIVE.has(inside.nodeType);
+    return inside.type === "Other" && PRIMITIVE.includes(inside.nodeType);
   };
 
   /** An object below the top of a payload: `Val<"A", { total: { amount: number } }>`. */
@@ -172,7 +172,7 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
       }
       return;
     }
-    if (valof && VALOF.has(valof)) return;
+    if (valof && VALOF.includes(valof)) return;
     if (primitive(rhs)) return report("Primitive", name, id);
     if (extracts(rhs)) {
       report("Extraction", name, id);
@@ -209,7 +209,7 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
       case "TSTypeReference": {
         const name = nameOf(node, bound);
         // Inside a Valof type is where a payload type goes.
-        if (name && VALOF.has(name)) return;
+        if (name && VALOF.includes(name)) return;
         const written = node.typeName;
         if (!allowed && written.type === "Identifier") {
           outside.push(TypeUse.seal({ at: Lines.at(lines, written.start), name: written.name }));

@@ -7,7 +7,7 @@ import { noModuleState } from "./no-module-state.ts";
 import type { Rule } from "./rule.ts";
 
 // Annotated, so the emitted declaration references {@link Rule} rather than oxlint's own type.
-const plugin: { meta: { name: string }; rules: Record<string, Rule> } = {
+const plugin: Readonly<{ meta: { name: string }; rules: Record<string, Rule> }> = {
   meta: { name: "local" },
   rules: {
     braces,

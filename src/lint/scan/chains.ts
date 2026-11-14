@@ -16,9 +16,9 @@ import type { FilePath } from "../shared/files.ts";
 import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** The entry points a chain grows from. A rename in the library is a type error here. */
-const ENTRY_POINTS: ReadonlySet<string> = new Set([
+const ENTRY_POINTS: readonly string[] = [
   "companion" satisfies On<typeof Val | typeof Enum | typeof Trait, "companion">,
-]);
+];
 
 /** A `Val` / `Trait` / `Enum` companion chain, whatever else it registered. */
 export type CompanionSite = Val<
@@ -120,7 +120,7 @@ export function fromRoot(node: Node, bound: Bindings): string | undefined {
   const qualified = Bindings.hasNamespace(bound, first);
   const name = qualified ? second : Bindings.originalName(bound, first);
   const step = qualified ? third : second;
-  if (step === undefined || !ENTRY_POINTS.has(step)) return undefined;
+  if (step === undefined || !ENTRY_POINTS.includes(step)) return undefined;
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
 }
 

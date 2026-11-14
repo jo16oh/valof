@@ -8,9 +8,14 @@ const DEFAULTS = {
   lightTheme: "github-light",
   darkTheme: "github-dark",
   fallbackLanguage: "text",
-} satisfies Required<Omit<Options, "onWarning">>;
+} as const satisfies Required<Omit<Options, "onWarning">>;
 
-const LANGUAGES = ["text", "bash", "javascript", "typescript"] satisfies Language[];
+const LANGUAGES = [
+  "text",
+  "bash",
+  "javascript",
+  "typescript",
+] as const satisfies readonly Language[];
 
 export type PreprocessorInput = [Context, Book];
 
@@ -23,7 +28,7 @@ export async function createMarkdownHighlighter(options: Options = {}) {
   };
   const highlighter = await createHighlighter({
     themes: [settings.lightTheme, settings.darkTheme],
-    langs: LANGUAGES,
+    langs: [...LANGUAGES],
   });
   const loadedLanguages = new Set([...highlighter.getLoadedLanguages(), "text"]);
 

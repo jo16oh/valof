@@ -6,7 +6,7 @@ import type { Body, Rule } from "./rule.ts";
  *
  * `curly` has no option that tells a guard clause from the rest.
  */
-export const braces: Rule = {
+export const braces: Readonly<Rule> = {
   meta: {
     type: "layout",
     docs: { description: "Require braces, except on a guard clause" },
@@ -33,7 +33,7 @@ export const braces: Rule = {
 
     return {
       IfStatement(node) {
-        if (!GUARDS.has(node.consequent.type) || node.alternate !== null) {
+        if (!GUARDS.includes(node.consequent.type) || node.alternate !== null) {
           check(node.consequent);
         }
         if (node.alternate?.type !== "IfStatement") {
@@ -49,9 +49,9 @@ export const braces: Rule = {
   },
 };
 
-const GUARDS: ReadonlySet<string> = new Set([
+const GUARDS: readonly string[] = [
   "ReturnStatement",
   "ThrowStatement",
   "ContinueStatement",
   "BreakStatement",
-]);
+];

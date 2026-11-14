@@ -74,6 +74,8 @@ export default defineConfig({
     "typescript/no-unnecessary-type-parameters": "off",
     // `_` is the name `match` gives the handler for the rest.
     "no-underscore-dangle": "off",
+    // A top-level lookup table is a readonly array, since a `Set` is state (`local/no-module-state`).
+    "unicorn/prefer-set-has": "off",
     // Merging members into a new object is the point, and the records hold a few keys.
     "oxc/no-map-spread": "off",
     // `Record<never, never>` is the empty set of members a builder starts from.
