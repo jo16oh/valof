@@ -99,9 +99,10 @@ the same file. Write it as a member of that companion's `.implAssoc` that takes 
 companion imported from another file.
 
 Keep state out of a module's top level. Declare a top-level binding with `const`, and create an
-instance of a class where it is used. Annotate a `Set` or `Map` bound to a top-level constant as
-`ReadonlySet` or `ReadonlyMap`, so the types keep it from changing. An instance of `URL` or `RegExp`
-holds a value, not state, so it can stay at the top level. `local/no-module-state` enforces this.
+instance of a class where it is used. Make a top-level array or object readonly, with `as const` or
+a `readonly` annotation, and use one in place of a `Set` or a `Map`. Make a static field `readonly`.
+An instance of `URL` or `RegExp` holds a value, not state, so it can stay at the top level.
+`local/no-module-state` enforces this.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
