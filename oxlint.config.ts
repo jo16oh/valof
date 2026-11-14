@@ -94,7 +94,13 @@ export default defineConfig({
   overrides: [
     { files: ["src/**/*.ts", "scripts/**/*.ts"], rules: valof.configs.recommended.rules },
     {
-      files: ["src/lib/**/*.ts", "src/shared/**/*.ts", "oxlint.config.ts", "vite.config.ts"],
+      files: [
+        "src/lib/**/*.ts",
+        "src/shared/**/*.ts",
+        "oxfmt.config.ts",
+        "oxlint.config.ts",
+        "vite.config.ts",
+      ],
       rules: Object.fromEntries(CODING_RULES.map((rule) => [rule, "off"])),
     },
     {

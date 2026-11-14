@@ -1,5 +1,6 @@
 import { defineConfig } from "vite-plus";
 
+import fmt from "./oxfmt.config.ts";
 import lint from "./oxlint.config.ts";
 
 export default defineConfig({
@@ -47,16 +48,5 @@ export default defineConfig({
   // Keeps no scans on disk, so no test reads the scans another test left in node_modules/.cache.
   // The store's own tests turn the store back on.
   test: { env: { VALOF_LINT_CACHE: "0" } },
-  fmt: {
-    ignorePatterns: ["src/lint/**/fixtures/**", "**/*.hbs"],
-    proseWrap: "always",
-    overrides: [
-      {
-        // Japanese has no spaces between words, so the only break opportunities are the
-        // ones around inline code, and wrapping there strands particles at line starts.
-        files: ["notes/**/*.md"],
-        options: { proseWrap: "preserve" },
-      },
-    ],
-  },
+  fmt,
 });
