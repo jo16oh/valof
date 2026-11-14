@@ -1,11 +1,17 @@
 import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
 
-import { Val } from "../index.ts";
+import { Val } from "../../index.ts";
 import { fromOxc } from "./ast.ts";
-import { MissingParserError } from "./errors.ts";
 
 /** oxc-parser, once {@link Parser.load} has imported it. */
 let oxc: typeof import("oxc-parser") | undefined;
+
+/** oxc-parser is an optional peer dependency, so a run can start without it. */
+export class MissingParserError extends ErrorFactory({
+  name: "MissingParserError",
+  message: `valof-lint needs oxc-parser, which valof does not install for you.\n  pnpm add -D oxc-parser`,
+}) {}
 
 /** oxc-parser, loaded. Only {@link Parser.load} makes one. */
 export type Parser = Val<"Parser", { visitorKeys: Record<string, string[]> }>;

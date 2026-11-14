@@ -5,10 +5,17 @@ import { Val } from "../../index.ts";
 import type { Enum, EnumCompanion } from "../../enum.ts";
 import type { AnyTrait, TraitCompanion } from "../../trait.ts";
 import type { Reserved } from "../../val.ts";
-import type { FilePath } from "../files.ts";
+import type { FilePath } from "../shared/files.ts";
 
-import { keyName, Lines, typeParams, unparenthesized, type Node, type Position } from "../ast.ts";
-import type { Parser } from "../parser.ts";
+import {
+  keyName,
+  Lines,
+  typeParams,
+  unparenthesized,
+  type Node,
+  type Position,
+} from "../parse/ast.ts";
+import type { Parser } from "../parse/parser.ts";
 import {
   Aliases,
   type Alias,

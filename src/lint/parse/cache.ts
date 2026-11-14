@@ -1,4 +1,4 @@
-import type { FilePath } from "./files.ts";
+import type { FilePath } from "../shared/files.ts";
 import { Parser } from "./parser.ts";
 
 /**

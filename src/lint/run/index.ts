@@ -2,14 +2,13 @@ import { resolve } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 
-import type { MissingParserError } from "./errors.ts";
-import { Context, Kind, KindSet, RULES, compile, type Finding } from "./rules/index.ts";
-import { Parser } from "./parser.ts";
-import { ScanCache } from "./scan-cache.ts";
-import { DirectiveMap } from "./scan/index.ts";
-import { Modules } from "./scan/bindings.ts";
-import { FilePath } from "./files.ts";
-import { Options } from "./options.ts";
+import { Context, Kind, KindSet, RULES, compile, type Finding } from "../rules/index.ts";
+import { Parser, type MissingParserError } from "../parse/parser.ts";
+import { ScanCache } from "../scan/cache.ts";
+import { DirectiveMap } from "../scan/index.ts";
+import { Modules } from "../scan/bindings.ts";
+import { FilePath } from "../shared/files.ts";
+import { Options } from "../shared/options.ts";
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
 // Every file is walked once, by `scan`, and each rule runs over what it collected. There is no
