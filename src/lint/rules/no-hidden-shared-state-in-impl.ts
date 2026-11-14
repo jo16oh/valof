@@ -6,7 +6,7 @@ import { Finding, Kind, Rule } from "./rule.ts";
 export type HiddenSharedStateInImpl = Val<"HiddenSharedStateInImpl", { kind: Kind }, Rule>;
 export const HiddenSharedStateInImpl = Val.companion<HiddenSharedStateInImpl>()
   .implCreate(() => ({
-    kind: Kind.seal("hidden-shared-state-in-impl"),
+    kind: Kind.seal("no-hidden-shared-state-in-impl"),
     description: "state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`",
     warns: true,
   }))

@@ -31,7 +31,7 @@ test("follows a chain of them, so fixing one does not uncover the next", async (
   ]);
 });
 
-// The companion sits beside the second name, so split-companion sees a local type and says
+// The companion sits beside the second name, so no-split-companion sees a local type and says
 // nothing. This is the rule that covers that hole.
 test("reports the local alias a companion was built on", async () => {
   expect(await lint("companion")).toEqual([

@@ -10,7 +10,7 @@ async function reported(
   file = "domain",
 ): Promise<string[]> {
   return (
-    await lint(files(file), Options.create({ enable: { "data-type-outside-valof": settings } }))
+    await lint(files(file), Options.create({ enable: { "no-data-type-outside-valof": settings } }))
   )
     .filter(({ kind }) => kind === DataTypeOutsideValof.kind)
     .map(({ at: { line, column }, message }) => `${line}:${column} ${message}`);
@@ -93,19 +93,36 @@ test("leaves a declaration file alone", async () => {
   expect(await reported({}, "declared.d")).toEqual([]);
 });
 
-const UNDER = "src/lint/rules/fixtures/data-type-outside-valof";
+const UNDER = "src/lint/rules/fixtures/no-data-type-outside-valof";
 
 test("is enabled on the command line, with its settings after an equals sign", () => {
-  expect(cli(UNDER, "--data-type-outside-valof").stdout).toContain(
-    "domain.ts:9:13  data-type-outside-valof",
+  expect(cli(UNDER, "--enable", "no-data-type-outside-valof").stdout).toContain(
+    "domain.ts:9:13  no-data-type-outside-valof",
   );
-  const classes = cli(UNDER, "--data-type-outside-valof=classes").stdout;
-  expect(classes).toContain("domain.ts:28:8  data-type-outside-valof");
+  const classes = cli(UNDER, "--enable=no-data-type-outside-valof=classes").stdout;
+  expect(classes).toContain("domain.ts:28:8  no-data-type-outside-valof");
   expect(classes).not.toContain("domain.ts:29:32");
 });
 
+test.each(["no-unused-member", "typo"])(
+  "refuses to enable a rule not off by default: %s",
+  (name) => {
+    const { status, stderr } = cli(UNDER, "--enable", name);
+    expect(status).toBe(2);
+    expect(stderr).toBe(
+      `valof-lint: no rule off by default called "${name}"\n  rules off by default: no-data-type-outside-valof`,
+    );
+  },
+);
+
+test("says so when the flag is given no rule", () => {
+  const { status, stderr } = cli(UNDER, "--enable");
+  expect(status).toBe(2);
+  expect(stderr).toBe("valof-lint: --enable needs a rule");
+});
+
 test("refuses a setting it does not take", () => {
-  const { status, stderr } = cli(UNDER, "--data-type-outside-valof=typo");
+  const { status, stderr } = cli(UNDER, "--enable", "no-data-type-outside-valof=typo");
   expect(status).toBe(2);
   expect(stderr).toBe(
     'valof-lint: no setting called "typo"\n  known settings: classes, constraints, extraction',

@@ -5,7 +5,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type UnimplementedTrait = Val<"UnimplementedTrait", { kind: Kind }, Rule>;
 export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
   .implCreate(() => ({
-    kind: Kind.seal("unimplemented-trait"),
+    kind: Kind.seal("no-unimplemented-trait"),
     description: "a Trait declared by a Val or an Enum that its companion does not implement",
     warns: false,
   }))

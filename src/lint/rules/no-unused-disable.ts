@@ -10,7 +10,7 @@ import { Kind, Finding, KindSet, Rule, type Context } from "./rule.ts";
 export type UnusedDisable = Val<"UnusedDisable", { kind: Kind }, Rule>;
 export const UnusedDisable = Val.companion<UnusedDisable>()
   .implCreate(() => ({
-    kind: Kind.seal("unused-disable"),
+    kind: Kind.seal("no-unused-disable"),
     description: "a disable comment naming a rule that reports nothing there",
     // A directive that silences nothing changes nothing about the code.
     warns: true,
@@ -27,10 +27,10 @@ function answers({ file, at: { line }, kind }: Finding): string[] {
  * Reports every name in a directive that silenced nothing.
  *
  * One finding per name, so a directive whose other names still do their job says which one to
- * drop. A bare directive is left to the incomplete-disable rule: it names nothing to blame, and the
+ * drop. A bare directive is left to the no-vague-disable rule: it names nothing to blame, and the
  * two findings would ask for the same edit.
  *
- * A kind left out of the run is not blamed: `--no-<kind>` leaves a directive naming it looking
+ * A kind left out of the run is not blamed: `--skip <kind>` leaves a directive naming it looking
  * unused, which is not the directive's fault. What a partial glob hides is not covered, though:
  * a duplicate brand needs the other file in the run, so linting one file at a time can report a
  * directive that is doing its job in the whole project.
@@ -43,7 +43,7 @@ function findings(
   const used = new Set(reported.flatMap(answers));
   return scans.flatMap(({ file, directives }) =>
     directives.flatMap(({ at, covers, kinds, spelling }) =>
-      // One naming no scope silences nothing whatever it lists, which is incomplete-disable's to say.
+      // One naming no scope silences nothing whatever it lists, which is no-vague-disable's to say.
       spelling === "valof-lint-disable"
         ? []
         : [...kinds]

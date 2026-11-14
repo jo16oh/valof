@@ -20,7 +20,7 @@ test("finds no data type outside Valof in the linter", async () => {
   const findings = await lint(
     files.map((file) => ROOT + file),
     Options.create({
-      enable: { "data-type-outside-valof": { constraints: true, extraction: true } },
+      enable: { "no-data-type-outside-valof": { constraints: true, extraction: true } },
     }),
   );
   expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);

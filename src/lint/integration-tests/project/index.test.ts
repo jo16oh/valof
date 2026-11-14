@@ -17,36 +17,38 @@ test("reports nothing on a file whose finding another file in the project silenc
 test("still reports the file it was asked about", () => {
   const { stdout } = cli("--project", `${UNDER}/*.ts`, `${UNDER}/orders.ts`);
   expect(stdout).toBe(
-    `${UNDER}/orders.ts:2:13  duplicate-brand  Id claims the brand "Id", and so does another type\n`,
+    `${UNDER}/orders.ts:2:13  no-duplicate-brand  Id claims the brand "Id", and so does another type\n`,
   );
 });
 
 test("takes the glob joined by an equals sign too", () => {
   const { stdout } = cli(`--project=${UNDER}/*.ts`, `${UNDER}/orders.ts`);
   expect(stdout).toBe(
-    `${UNDER}/orders.ts:2:13  duplicate-brand  Id claims the brand "Id", and so does another type\n`,
+    `${UNDER}/orders.ts:2:13  no-duplicate-brand  Id claims the brand "Id", and so does another type\n`,
   );
 });
 
 test("reads src/**/*.ts when no project is named", () => {
   const { stdout } = cliIn(`${ROOT}${UNDER}/default`);
   expect(stdout).toBe(
-    'src/billing.ts:2:13  duplicate-brand  Ref claims the brand "Ref", and so does another type\n' +
-      'src/orders.ts:2:13  duplicate-brand  Ref claims the brand "Ref", and so does another type\n',
+    'src/billing.ts:2:13  no-duplicate-brand  Ref claims the brand "Ref", and so does another type\n' +
+      'src/orders.ts:2:13  no-duplicate-brand  Ref claims the brand "Ref", and so does another type\n',
   );
 });
 
 test("calls a live directive unused where the project is narrowed with it", () => {
   const { stdout } = cli(`${UNDER}/billing.*`);
   expect(stdout).toBe(
-    `${UNDER}/billing.ts:2:1  unused-disable  ` +
-      "valof-lint-disable-next-line names duplicate-brand, which reports nothing here\n",
+    `${UNDER}/billing.ts:2:1  no-unused-disable  ` +
+      "valof-lint-disable-next-line names no-duplicate-brand, which reports nothing here\n",
   );
 });
 
 test("scans a file it was asked about even where the project glob misses it", () => {
   const { stdout } = cli("--project", `${UNDER}/*.ts`, `${UNDER}/outside/fresh.ts`);
-  expect(stdout).toBe(`${UNDER}/outside/fresh.ts:3:3  unused-member  User.shout is never read\n`);
+  expect(stdout).toBe(
+    `${UNDER}/outside/fresh.ts:3:3  no-unused-member  User.shout is never read\n`,
+  );
 });
 
 test.each([
@@ -77,7 +79,7 @@ test("refuses a file where the project goes, since that narrows the run and not 
 test("takes a directory as the project, and reads the TypeScript under it", () => {
   const { stdout } = cli(UNDER, `${UNDER}/orders.ts`);
   expect(stdout).toBe(
-    `${UNDER}/orders.ts:2:13  duplicate-brand  Id claims the brand "Id", and so does another type\n`,
+    `${UNDER}/orders.ts:2:13  no-duplicate-brand  Id claims the brand "Id", and so does another type\n`,
   );
 });
 
@@ -91,7 +93,7 @@ test("leaves node_modules out of a directory, which a project of `.` would walk"
 test("takes the project by name after the files to report on", () => {
   const { stdout } = cli(`${UNDER}/orders.ts`, "--project", UNDER);
   expect(stdout).toBe(
-    `${UNDER}/orders.ts:2:13  duplicate-brand  Id claims the brand "Id", and so does another type\n`,
+    `${UNDER}/orders.ts:2:13  no-duplicate-brand  Id claims the brand "Id", and so does another type\n`,
   );
 });
 
@@ -131,6 +133,6 @@ test("takes an excluded file off the report too, where it was named as a target"
     `!${UNDER}/outside/fresh.ts`,
   );
   expect(stdout).toBe(
-    `${UNDER}/orders.ts:2:13  duplicate-brand  Id claims the brand "Id", and so does another type\n`,
+    `${UNDER}/orders.ts:2:13  no-duplicate-brand  Id claims the brand "Id", and so does another type\n`,
   );
 });

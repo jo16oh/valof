@@ -196,7 +196,7 @@ export type Scan = Val<
     companionBindings: CompanionBinding[];
     /** `Val.of<X>(…)` calls. */
     lifts: Lift[];
-    /** What `data-type-outside-valof` reads. */
+    /** What `no-data-type-outside-valof` reads. */
     models: Models;
     /** Every `valof-lint-disable-next-line` that takes effect, at its own comment. */
     directives: Directive[];
@@ -259,7 +259,7 @@ export const Exports = Val.companion<Exports>()
  * Matches a whole name against the patterns. A {@link Reserved} name without a pattern, or a
  * pattern that is not one, is a type error.
  */
-// valof-lint-disable-next-line data-type-outside-valof -- a list of Vals, not a new shape
+// valof-lint-disable-next-line no-data-type-outside-valof -- a list of Vals, not a new shape
 export function reserved<const N extends readonly Reserved[]>(
   patterns: N &
     ([Unlisted<N[number]>] extends [never] ? unknown : { unlisted: Unlisted<N[number]> }),

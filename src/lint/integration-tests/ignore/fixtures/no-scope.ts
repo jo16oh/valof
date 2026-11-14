@@ -1,5 +1,5 @@
 import { Val } from "valof";
-// valof-lint-disable unused-member
+// valof-lint-disable no-unused-member
 
 const User = Val.companion<User>().impl(() => ({
   shout: (u) => u.toUpperCase(),

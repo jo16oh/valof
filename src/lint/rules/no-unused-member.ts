@@ -6,7 +6,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
 export type UnusedMember = Val<"UnusedMember", { kind: Kind }, Rule>;
 export const UnusedMember = Val.companion<UnusedMember>()
   .implCreate(() => ({
-    kind: Kind.seal("unused-member"),
+    kind: Kind.seal("no-unused-member"),
     description: "members registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads",
     // A member nothing reads is dead weight, and the code around it works.
     warns: true,

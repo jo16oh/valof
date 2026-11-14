@@ -42,7 +42,7 @@ import(workerData.script).catch((error) => {
 );
 
 /** What the worker answers: the findings, or why it has none. */
-// valof-lint-disable-next-line data-type-outside-valof -- byethrow's Result, sent as is
+// valof-lint-disable-next-line no-data-type-outside-valof -- byethrow's Result, sent as is
 export type Reply = R.Result<Finding[], WorkerFailure>;
 
 /**
@@ -60,7 +60,7 @@ export type Query = Val<
      */
     overlay: Record<string, string>;
     /**
-     * The settings of `data-type-outside-valof`. It always runs here, because the host reports it
+     * The settings of `no-data-type-outside-valof`. It always runs here, because the host reports it
      * only where the project turned it on.
      */
     model: DataTypeSettings;
@@ -86,7 +86,7 @@ export const Query = Val.companion<Query>()
         settings:
           | {
               valof?: {
-                "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0];
+                "no-data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0];
               };
             }
           | undefined;
@@ -100,7 +100,7 @@ export const Query = Val.companion<Query>()
       return seal({
         project,
         overlay: saved && listed ? {} : { [file]: text },
-        model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
+        model: DataTypeSettings.create(settings?.valof?.["no-data-type-outside-valof"]),
         saved,
       });
     },

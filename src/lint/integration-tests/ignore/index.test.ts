@@ -3,7 +3,7 @@ import { expect, test } from "vite-plus/test";
 import {
   BrandMismatch,
   DuplicateBrand,
-  IncompleteDisable,
+  VagueDisable,
   UnusedDisable,
   UnusedMember,
   fixtures,
@@ -14,7 +14,7 @@ const { lint, messages } = fixtures(import.meta.url);
 test("silences every kind when the directive lists none", async () => {
   expect(await lint("whole-line")).toEqual([
     {
-      rule: IncompleteDisable,
+      rule: VagueDisable,
       at: "whole-line.ts:3:3",
     },
     { rule: UnusedMember, at: "whole-line.ts:5:3" },
@@ -62,17 +62,17 @@ test("reads the whole comment block, not only the comment touching the line", as
 test("lets a directive for every kind cover one naming a kind in the same block, in either order", async () => {
   expect(await lint("every-widens")).toEqual([
     { rule: UnusedDisable, at: "every-widens.ts:3:3" },
-    { rule: IncompleteDisable, at: "every-widens.ts:4:3" },
-    { rule: IncompleteDisable, at: "every-widens.ts:6:3" },
+    { rule: VagueDisable, at: "every-widens.ts:4:3" },
+    { rule: VagueDisable, at: "every-widens.ts:6:3" },
     { rule: UnusedDisable, at: "every-widens.ts:7:3" },
   ]);
 });
 
 test("silences a duplicate brand, and only at the alias that asked", async () => {
-  expect(await lint("duplicate-brand")).toEqual([
+  expect(await lint("no-duplicate-brand")).toEqual([
     {
       rule: DuplicateBrand,
-      at: "duplicate-brand/orders.ts:2:13",
+      at: "no-duplicate-brand/orders.ts:2:13",
     },
   ]);
 });
@@ -84,7 +84,7 @@ test("silences the whole file, its own report with it, when the directive says s
 test("silences nothing when the directive names no scope, and says which to write", async () => {
   expect(await lint("no-scope")).toEqual([
     {
-      rule: IncompleteDisable,
+      rule: VagueDisable,
       at: "no-scope.ts:2:1",
     },
     { rule: UnusedMember, at: "no-scope.ts:5:3" },
@@ -118,7 +118,7 @@ test("takes no spelling that something touches, which is a typo and not a direct
 test("stops at a blank line, which starts a block of its own", async () => {
   expect(await lint("not-a-block")).toEqual([
     {
-      rule: IncompleteDisable,
+      rule: VagueDisable,
       at: "not-a-block.ts:3:3",
     },
     { rule: UnusedMember, at: "not-a-block.ts:6:3" },
@@ -127,7 +127,7 @@ test("stops at a blank line, which starts a block of its own", async () => {
 
 test("stops a comment block when code follows a comment", async () => {
   expect(await lint("code-breaks-block")).toEqual([
-    { rule: IncompleteDisable, at: "code-breaks-block.ts:3:3" },
+    { rule: VagueDisable, at: "code-breaks-block.ts:3:3" },
     { rule: UnusedMember, at: "code-breaks-block.ts:3:38" },
     { rule: UnusedMember, at: "code-breaks-block.ts:5:3" },
   ]);

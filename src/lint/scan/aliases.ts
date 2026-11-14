@@ -305,7 +305,7 @@ function traitNames(
       return;
     }
     // A local `type Greetable = Trait<…>` names Greetable, not the `Trait` constructor inside it.
-    // A bare alias chain is expanded too; unnecessary-alias reports that spelling separately.
+    // A bare alias chain is expanded too; no-unnecessary-alias reports that spelling separately.
     if (alias?.type === "TSTypeReference") {
       const target = valName(alias.typeName, bound);
       if (target && Bindings.originalName(bound, target) !== "Trait") {

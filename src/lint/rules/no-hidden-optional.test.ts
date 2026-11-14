@@ -4,7 +4,7 @@ import { HiddenOptional, cliWithoutTypeScript, fixtures } from "../integration-t
 
 const { lint, messages } = fixtures(import.meta.url);
 
-const UNDER = "src/lint/rules/fixtures/hidden-optional";
+const UNDER = "src/lint/rules/fixtures/no-hidden-optional";
 
 // The rule gives the same verdict as the development check in `build`: any default or rest
 // parameter, whatever the annotation declares.
