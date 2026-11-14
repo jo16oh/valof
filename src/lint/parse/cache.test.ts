@@ -1,8 +1,8 @@
 import { Result as R } from "@praha/byethrow";
 import { beforeAll, expect, test } from "vite-plus/test";
 
-import { FilePath } from "./files.ts";
-import { ParseCache } from "./parse-cache.ts";
+import { FilePath } from "../shared/files.ts";
+import { ParseCache } from "./cache.ts";
 import { Parser } from "./parser.ts";
 
 let parser: Parser;

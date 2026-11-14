@@ -13,9 +13,9 @@ import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../../index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
-import { Project } from "../files.ts";
-import type { Finding } from "../index.ts";
-import { DataTypeSettings } from "../options.ts";
+import { Project } from "../shared/files.ts";
+import type { Finding } from "../rules/index.ts";
+import { DataTypeSettings } from "../shared/options.ts";
 
 /**
  * Starts the worker on its script, and answers every query with why when the script does not load.

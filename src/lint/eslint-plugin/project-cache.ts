@@ -1,4 +1,4 @@
-import { Directories, Patterns, type Project } from "../files.ts";
+import { Directories, Patterns, type Project } from "../shared/files.ts";
 
 /**
  * Each project, globbed again only once a file is added to or deleted from it.
