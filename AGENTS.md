@@ -76,7 +76,7 @@ companion keeps the name of its type.
 Run an entry point from a `main` declared right after its imports, so the file opens with what it
 does. Call `main` at the end of the file, because `main` reads constants and companions, which are
 not hoisted. An entry point exports nothing. Put what other modules import in a module of its own,
-such as `index.ts` beside `main.ts`. `local/main-first` enforces this.
+such as `index.ts` beside `main.ts`. `local/entry-point` enforces this.
 
 Order a module's top-level declarations by kind, after the imports and the re-exports
 (`export { … } from`):
