@@ -1,19 +1,22 @@
 import type { Rule } from "./rule.ts";
 
 /**
- * A top-level function is a `function` declaration, and a function anywhere else is an arrow
- * function. A method keeps its own syntax, and a generator, which has no arrow form, is left alone.
+ * A top-level function is a `function` declaration, and any function that is not a top-level
+ * declaration is an arrow function. A method keeps the method syntax, and the rule skips a
+ * generator, which has no arrow form.
  */
 export const functionStyle: Readonly<Rule> = {
   meta: {
     type: "suggestion",
     docs: {
-      description: "Declare a top-level function with `function`, and any other as an arrow",
+      description:
+        "Write a top-level function as a `function` declaration, and any other as an arrow function",
     },
     messages: {
       declaration:
         "Declare a top-level function as a `function` declaration, not as an arrow function or a function expression in a `const`.",
-      arrow: "Write a function below the top level as an arrow function.",
+      arrow: "Write a function that is not a top-level declaration as an arrow function.",
+      method: "Write a function in a class as a method, not as a field.",
     },
   },
   create(context) {
@@ -46,11 +49,14 @@ export const functionStyle: Readonly<Rule> = {
         if (node.generator) return;
 
         const parent = node.parent;
-        // A method: `m() {}`, `get m() {}`, or a class's.
+        // A method: `m() {}` or `get m() {}` in an object, or any method in a class.
         if (parent.type === "Property" && (parent.method || parent.kind !== "init")) return;
-        if (parent.type === "MethodDefinition" || parent.type === "TSAbstractMethodDefinition")
+        if (parent.type === "MethodDefinition") return;
+        if (parent.type === "PropertyDefinition") {
+          context.report({ node, messageId: "method" });
           return;
-        // A top-level `const` reports it as `declaration`.
+        }
+        // The `Program` visitor reports a function in a top-level `const` as `declaration`.
         if (parent.type === "VariableDeclarator") {
           const holder = parent.parent.parent;
           if (holder === null || holder.type === "Program" || holder.parent.type === "Program")
