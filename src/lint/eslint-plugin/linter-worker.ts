@@ -14,7 +14,7 @@ import { Result as R } from "@praha/byethrow";
 import { Val } from "../../index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
 import { Project } from "../files.ts";
-import type { Finding } from "../index.ts";
+import type { Finding } from "../rules/index.ts";
 import { DataTypeSettings } from "../options.ts";
 
 /**
