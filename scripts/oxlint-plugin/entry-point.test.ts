@@ -1,14 +1,14 @@
 import { RuleTester } from "oxlint/plugins-dev";
 import { describe, it } from "vite-plus/test";
 
-import { mainFirst } from "./main-first.ts";
+import { entryPoint } from "./entry-point.ts";
 
 RuleTester.describe = describe;
 RuleTester.it = it;
 
 new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
-  "main-first",
-  mainFirst,
+  "entry-point",
+  entryPoint,
   {
     valid: [
       'import { a } from "a";\nasync function main() {}\nconst X = 1;\nawait main();',
