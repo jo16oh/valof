@@ -610,7 +610,7 @@
   - Array hashes depend on order. Effect's `structure` folds with XOR, so permutations get the same hash (its authors call this a
     gotcha themselves). §5 requires order independence only for object keys
 - [x] ~~Does the Mutable ↔ DeepReadonly round trip work smoothly with type inference?~~ Yes. A property's `readonly` does not affect assignability, and a mutable array is assignable to `ReadonlyArray`, so with `SeedOf<V>` as the argument type a mutable input can be passed as is
-- [ ] **Imports in `.d.ts` keep the `.ts` extension (§18).** `dist/val.d.ts` contains `from "./ns/val.ts"`,
+- [ ] **Imports in `.d.ts` keep the `.ts` extension (§18).** `dist/val.d.ts` contains `from "./namespace/val.ts"`,
       but `dist` has no `val.ts`. `rewriteRelativeImportExtensions` rewrites only JS. tsc resolves it to the
       `.d.ts`, so it works on 5.9 / 7.0, with or without `skipLibCheck`. Revisit once a tool that reads the path literally
       breaks on it

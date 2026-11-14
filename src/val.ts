@@ -37,7 +37,7 @@ import type {
 } from "./keys.ts";
 import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual/index.ts";
 import { development } from "./env.ts";
-import * as Val from "./ns/val.ts";
+import * as Val from "./namespace/val.ts";
 
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
 type Primitive = string | number | boolean | null;
