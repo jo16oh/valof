@@ -2,7 +2,7 @@
 import { braces } from "./braces.ts";
 import { declarationOrder } from "./declaration-order.ts";
 import { entryPoint } from "./entry-point.ts";
-import { functionDeclaration } from "./function-declaration.ts";
+import { functionStyle } from "./function-style.ts";
 import { noModuleState } from "./no-module-state.ts";
 import type { Rule } from "./rule.ts";
 
@@ -13,7 +13,7 @@ const plugin: Readonly<{ meta: { name: string }; rules: Record<string, Rule> }> 
     braces,
     "declaration-order": declarationOrder,
     "entry-point": entryPoint,
-    "function-declaration": functionDeclaration,
+    "function-style": functionStyle,
     "no-module-state": noModuleState,
   },
 };
