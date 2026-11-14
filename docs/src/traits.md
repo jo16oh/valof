@@ -68,8 +68,8 @@ A trait adds the fields it requires to the payload, so the `User` payload includ
 listing it. A payload may list one of them again with the same or a narrower type. A conflicting
 type is a type error.
 
-The `unimplemented-trait` rule in [valof-lint](linting.md) reports a Val that declared a trait and
-never implemented it.
+The `no-unimplemented-trait` rule in [valof-lint](linting.md) reports a Val that declared a trait
+and never implemented it.
 
 ## Give a default implementation
 
