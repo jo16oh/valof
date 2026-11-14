@@ -45,6 +45,11 @@ export const functionStyle: Readonly<Rule> = {
         if (parent.type === "Program" || (exported && parent.parent.type === "Program")) return;
         context.report({ node, messageId: "arrow" });
       },
+      ArrowFunctionExpression(node) {
+        if (node.parent.type === "PropertyDefinition") {
+          context.report({ node, messageId: "method" });
+        }
+      },
       FunctionExpression(node) {
         if (node.generator) return;
 
