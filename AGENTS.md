@@ -51,8 +51,7 @@ Place a helper function used only inside its module at the end of the file. Decl
 A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
 a connection, so `new` at the call site shows where state lives. Do not use `extends`, except on
 `ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
-fields. A class is not hoisted, so it cannot come after top-level code that uses it. Give it a file
-of its own instead.
+fields.
 
 A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
 it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
@@ -84,19 +83,26 @@ Order a module's top-level declarations by kind, after the imports and the re-ex
 
 1. `main`, in an entry point
 2. the exported constants, then the rest
-3. the errors
-4. the types without a companion, exported or not
-5. each exported Val, Enum or Trait, with its companion
+3. the errors, the classes whose name contains `Error`
+4. the exported types, and each exported Val, Enum or Trait with its companion
+5. the exported classes
 6. the exported functions
-7. each helper Val, Enum or Trait, with its companion
-8. the helper functions
+7. the helper types, and each helper Val, Enum or Trait with its companion
+8. the helper classes
+9. the helper functions
 
 The call to `main` ends an entry point, and `export default` ends any other module.
 `local/declaration-order` enforces the order. A function is hoisted, so a declaration can call one
 further down. A companion is not, so a constant cannot be built from a companion declared later in
 the same file. Write it as a member of that companion's `.implAssoc` that takes no arguments, as
 `zero: () => seal({ cents: 0 })`, called `Money.zero()`. A constant can still be built from a
-companion imported from another file.
+companion imported from another file. A class is not hoisted either, and a constant never creates
+one, since a class holds state.
+
+Keep state out of a module's top level. Declare a top-level binding with `const`, and create an
+instance of a class where it is used. A `Set` or `Map` at the top level is annotated `ReadonlySet`
+or `ReadonlyMap`, so the types keep it from changing. `URL` and `RegExp` hold values, and need
+neither. `local/no-module-state` enforces this.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
