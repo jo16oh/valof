@@ -6,23 +6,48 @@ import { mainFirst } from "./main-first.ts";
 RuleTester.describe = describe;
 RuleTester.it = it;
 
-new RuleTester().run("main-first", mainFirst, {
-  valid: [
-    'import { a } from "a";\nasync function main() {}\nconst X = 1;\nawait main();',
-    "function main() {}\nmain();",
-    'export { a } from "a";\nfunction main() {}\nif (import.meta.main) {\n  await main();\n}',
-    "const X = 1;\nfunction f() {}",
-    'export * from "a";\nfunction main() {}\nmain();',
-    "function main() {}\nif (x) main();",
-  ],
-  invalid: [
-    { code: "const X = 1;\nfunction main() {}\nmain();", errors: [{ messageId: "first" }] },
-    { code: "function main() {}\nconst X = 1;", errors: [{ messageId: "last" }] },
-    { code: "function main() {}\nmain();\nconst X = 1;", errors: [{ messageId: "last" }] },
-    { code: "function main() {}\nfoo();", errors: [{ messageId: "last" }] },
-    {
-      code: "function main() {}\nif (x) {\n  setup();\n  main();\n}",
-      errors: [{ messageId: "last" }],
-    },
-  ],
-});
+new RuleTester({ languageOptions: { parserOptions: { lang: "ts" } } }).run(
+  "main-first",
+  mainFirst,
+  {
+    valid: [
+      'import { a } from "a";\nasync function main() {}\nconst X = 1;\nawait main();',
+      "function main() {}\nmain();",
+      "const X = 1;\nfunction f() {}",
+      // A module without `main` is not an entry point, and exports what it likes.
+      "export const X = 1;\nexport default function f() {}",
+    ],
+    invalid: [
+      { code: "const X = 1;\nfunction main() {}\nmain();", errors: [{ messageId: "first" }] },
+      { code: "function main() {}\nconst X = 1;", errors: [{ messageId: "last" }] },
+      { code: "function main() {}\nmain();\nconst X = 1;", errors: [{ messageId: "last" }] },
+      { code: "function main() {}\nfoo();", errors: [{ messageId: "last" }] },
+      // Nothing imports an entry point, so nothing needs to guard its call.
+      {
+        code: "function main() {}\nif (import.meta.main) {\n  main();\n}",
+        errors: [{ messageId: "last" }],
+      },
+      { code: "export function main() {}\nmain();", errors: [{ messageId: "export" }] },
+      {
+        code: "function main() {}\nexport const X = 1;\nmain();",
+        errors: [{ messageId: "export" }],
+      },
+      {
+        code: "function main() {}\nexport type T = 1;\nmain();",
+        errors: [{ messageId: "export" }],
+      },
+      {
+        code: "function main() {}\nexport default function f() {}\nmain();",
+        errors: [{ messageId: "export" }],
+      },
+      {
+        code: "function main() {}\nconst X = 1;\nexport { X };\nmain();",
+        errors: [{ messageId: "export" }],
+      },
+      {
+        code: 'import { a } from "a";\nexport * from "a";\nfunction main() {}\nmain();',
+        errors: [{ messageId: "first" }, { messageId: "export" }],
+      },
+    ],
+  },
+);
