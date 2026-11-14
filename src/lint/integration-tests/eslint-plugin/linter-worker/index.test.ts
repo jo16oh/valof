@@ -12,7 +12,7 @@ import { DataTypeSettings } from "../../../shared/options.ts";
 const PATIENCE = 2000;
 
 /**
- * What `worker.ts` beside this file says to a query whose overlay names `file`, over the files in
+ * What `worker/main.ts` beside this file says to a query whose overlay names `file`, over the files in
  * `project`. A failure is thrown.
  */
 function say(
@@ -145,7 +145,7 @@ test("says why the worker did not start, rather than wait out its patience", () 
   const beside = new URL("missing/index.mjs", import.meta.url).href;
   const error = thrown(() => say(new LinterWorker(beside, PATIENCE), "after"));
   expect(error.message).toMatch(/^valof-lint: the worker did not start: /);
-  expect(error.message).toContain("missing/worker.mjs");
+  expect(error.message).toContain("missing/worker/main.mjs");
 });
 
 test("stops a wedged worker, and asks a new one next", async () => {

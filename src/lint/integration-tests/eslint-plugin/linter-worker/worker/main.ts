@@ -2,10 +2,14 @@ import { renameSync, writeFileSync } from "node:fs";
 
 import { Result as R } from "@praha/byethrow";
 
-import { Position } from "../../../parse/ast.ts";
-import { LinterWorker, WorkerFailure, type Reply } from "../../../eslint-plugin/linter-worker.ts";
-import { FilePath } from "../../../shared/files.ts";
-import { Finding, Kind } from "../../../rules/index.ts";
+import { Position } from "../../../../parse/ast.ts";
+import {
+  LinterWorker,
+  WorkerFailure,
+  type Reply,
+} from "../../../../eslint-plugin/linter-worker.ts";
+import { FilePath } from "../../../../shared/files.ts";
+import { Finding, Kind } from "../../../../rules/index.ts";
 
 function main(): void {
   /** How many queries this thread has answered. */
