@@ -4,8 +4,8 @@ import { defineConfig } from "oxlint";
 import local from "./scripts/oxlint-plugin/index.ts";
 import valof from "./src/lint/eslint-plugin/index.ts";
 
-// The repository's coding rules, on for all code but the library's `src`, the tests, the fixtures
-// and the root configuration files. `src/lint` is covered.
+// The repository's coding rules, on for all code but the library, `src/shared`, the tests, the
+// fixtures and the root configuration files.
 const CODING_RULES = Object.keys(local.rules).map((rule) => `local/${rule}`);
 
 export default defineConfig({
@@ -94,12 +94,8 @@ export default defineConfig({
   overrides: [
     { files: ["src/**/*.ts", "scripts/**/*.ts"], rules: valof.configs.recommended.rules },
     {
-      files: ["src/**/*.ts", "oxlint.config.ts", "vite.config.ts"],
+      files: ["src/lib/**/*.ts", "src/shared/**/*.ts", "oxlint.config.ts", "vite.config.ts"],
       rules: Object.fromEntries(CODING_RULES.map((rule) => [rule, "off"])),
-    },
-    {
-      files: ["src/lint/**/*.ts"],
-      rules: Object.fromEntries(CODING_RULES.map((rule) => [rule, "error"])),
     },
     {
       // Both build their errors as classes, and the linter keeps state in classes.
