@@ -33,7 +33,7 @@ export const braces: Readonly<Rule> = {
 
     return {
       IfStatement(node) {
-        if (!GUARDS.includes(node.consequent.type) || node.alternate !== null) {
+        if (!GUARDS.has(node.consequent.type) || node.alternate !== null) {
           check(node.consequent);
         }
         if (node.alternate?.type !== "IfStatement") {
@@ -49,9 +49,9 @@ export const braces: Readonly<Rule> = {
   },
 };
 
-const GUARDS: readonly string[] = [
+const GUARDS: ReadonlySet<string> = new Set([
   "ReturnStatement",
   "ThrowStatement",
   "ContinueStatement",
   "BreakStatement",
-];
+]);

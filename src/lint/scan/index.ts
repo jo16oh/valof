@@ -61,14 +61,18 @@ export type { Model, Models, Shape, TypeUse } from "./models.ts";
 const RESERVED = reserved(["patch", "seal", "create"]);
 
 /** The steps that take the members, and which argument holds their function. */
-const MEMBER_STEPS: Readonly<Record<string, number>> = { impl: 0, implTrait: 1, implAssoc: 0 };
+const MEMBER_STEPS: ReadonlyMap<string, number> = new Map([
+  ["impl", 0],
+  ["implTrait", 1],
+  ["implAssoc", 0],
+]);
 
 /** What a function body may declare: each is state the members share. */
-const DECLARATIONS: readonly string[] = [
+const DECLARATIONS: ReadonlySet<string> = new Set([
   "VariableDeclaration",
   "FunctionDeclaration",
   "ClassDeclaration",
-];
+]);
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
 export type Member = Val<"Member", { at: Position; companion: string; member: string }>;
@@ -770,7 +774,7 @@ function memberStep(
 ): { step: string; fn: Node | undefined } | undefined {
   if (node.type !== "CallExpression" || node.callee.type !== "MemberExpression") return undefined;
   const step = stepOf(node.callee).name;
-  const index = step !== null && Object.hasOwn(MEMBER_STEPS, step) ? MEMBER_STEPS[step] : undefined;
+  const index = step === null ? undefined : MEMBER_STEPS.get(step);
   if (step === null || index === undefined || !chainRoot(node.callee, bound)) return undefined;
   return { step, fn: node.arguments[index] };
 }
@@ -787,7 +791,7 @@ function stepState(node: Node, bound: Bindings): { step: string; start: number }
       ? fn.body
       : undefined;
   const declares =
-    body?.type === "BlockStatement" && body.children.some((one) => DECLARATIONS.includes(one.type));
+    body?.type === "BlockStatement" && body.children.some((one) => DECLARATIONS.has(one.type));
   return found && fn && declares ? { step: found.step, start: fn.start } : undefined;
 }
 
