@@ -5,7 +5,7 @@ import type { Rule } from "./rule.ts";
 /**
  * An entry point is `main.ts`, and its `main` comes right after the imports, so the file opens with
  * what it does, and the call to it ends the file. Nothing imports an entry point, so it exports
- * nothing. What other modules import is `index.ts`, as `main.rs` and `lib.rs` are in a Rust crate.
+ * nothing.
  */
 export const entryPoint: Rule = {
   meta: {
@@ -14,7 +14,7 @@ export const entryPoint: Rule = {
       description: "Run `main.ts` from `main`, declared first and called last, and export nothing",
     },
     messages: {
-      name: "Move `main` to an entry point of its own, `main.ts`.",
+      name: "Name the file `main.ts`, or move `main` to a `main.ts` of its own.",
       missing: "Run `main.ts` from a function `main`.",
       first: "Declare `main` right after the imports.",
       last: "End the file with the call to `main`.",
