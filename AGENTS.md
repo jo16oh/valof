@@ -13,7 +13,10 @@ deliberation goes in §9. A new section gets a file of its own and a line in the
 
 Code Style leaves out the tests and the fixtures. The tests are every `*.test.ts` and the support
 files under `src/lint/integration-tests/`. The fixtures are the files under a `fixtures/` directory.
-[Tests](#tests) lists the rules that still apply to the tests.
+[Naming](#naming) applies to every test, in `src/lib` and `src/shared` too.
+
+The tooling is all code but `src/lib`, `src/shared`, and the configuration files at the root. Some
+rules below apply to the tooling alone.
 
 ### Modeling with Valof
 
@@ -26,8 +29,6 @@ take the Val first as `self`, and `.implAssoc` holds the associated functions. `
 Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
 and after the pair. Export both or neither.
 
-Name a companion's members in camelCase.
-
 Name a companion member with side effects by what it does (`read`, `build`, `write`), never `from*`
 or `parse*`, which read as a pure conversion. A companion is bundled whole, so a Val shared with the
 browser has no member that imports `node:*`.
@@ -36,6 +37,14 @@ A class is a container that encapsulates state, not data. Use a class for a cach
 so `new` at the call site shows where state lives. Do not use `extends`, except to extend
 `ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
 fields.
+
+### Naming
+
+Name a companion's members in camelCase.
+
+In the tooling, name a top-level constant (a value set when the module loads, such as a path, a list
+or a budget) in SCREAMING_SNAKE_CASE. A function, and a lint plugin and its rules, keep camelCase. A
+companion keeps the name of its type.
 
 ### Functions
 
@@ -61,12 +70,14 @@ a blank line before the final `return`, unless the whole body is one paragraph.
 Place a helper function used only inside its module at the end of the file. Declare it with
 `function`, so hoisting makes the order safe.
 
-### Outside the library and `src/shared`
+In the tooling, use `@praha/byethrow` for Results and `@praha/error-factory` for errors:
+`class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
+Without the `name` option, the error's `name` is typed `string`, and a union of errors cannot narrow
+on it.
 
-These rules apply to all code but `src/lib`, `src/shared`, and the configuration files at the root.
+### Linting
 
-The rules in `scripts/oxlint-plugin` enforce most of them, and their messages say what to change.
-The rules:
+The rules in `scripts/oxlint-plugin` check the tooling. Their messages say what to change.
 
 - `local/braces`: braces around every `if`, `else` and loop body but a guard clause
 - `local/function-style`: `function` declarations at the top level, arrow functions elsewhere, and
@@ -76,27 +87,13 @@ The rules:
   class whose name contains `Error`
 - `local/no-module-state`: no state at a module's top level
 
-Put what other modules would import from an entry point in `index.ts` beside it, as `lib.rs` sits
-beside `main.rs` in a Rust crate.
+`local/entry-point` keeps `main.ts` from exporting. Put what other modules would import in
+`index.ts` beside it, as `lib.rs` sits beside `main.rs` in a Rust crate.
 
 `local/declaration-order` requires the constants above the companions, and a companion is not
 hoisted, so a constant cannot be built from a companion declared in the same file. Make that
 constant a member of the companion's `.implAssoc` that takes no arguments, as
 `zero: () => seal({ cents: 0 })`, called `Money.zero()`.
-
-Name a top-level constant, a value set when the module loads such as a path, a list or a budget, in
-SCREAMING_SNAKE_CASE. A function, and a lint plugin and its rules, keep camelCase. A companion keeps
-the name of its type.
-
-Use `@praha/byethrow` for Results and `@praha/error-factory` for errors:
-`class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
-Without the `name` option, the error's `name` is typed `string`, and a union of errors cannot narrow
-on it.
-
-### Tests
-
-Two naming rules still apply to the tests. A top-level constant in a test is in
-SCREAMING_SNAKE_CASE, and a companion's members are in camelCase.
 
 ## Bundle Size and Type Cost
 
