@@ -56,10 +56,10 @@ a call nests in another call's first argument: `pipe(text, parse, User.seal)`, n
 use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
 where a step needs a value from outside the chain.
 
-Fold a step into the step before it where none of its calls takes an arrow function, as with
-`.join("\n")` or `.filter(Boolean)`: `(lines) => [head, ...lines].join("\n")`, not
-`(lines) => [head, ...lines]` followed by `(lines) => lines.join("\n")`. A step with a call such as
-`.map((line) => …)` stays apart.
+Fold a step into the step before it: `(lines) => [head, ...lines].join("\n")`, not
+`(lines) => [head, ...lines]` followed by `(lines) => lines.join("\n")`. A step stays whole where
+the formatter breaks it only before a `.`. Where the formatter breaks a line inside a call's
+parentheses, start a new step at that call, as with a `.map` whose callback spans several lines.
 
 Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
 where the next step starts. Declare a variable in the paragraph that uses it, right before its first
