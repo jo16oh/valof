@@ -969,8 +969,7 @@ export declare class PrivateSeal {
  * Takes `create` off the companion, whether `.implCreate` registered it or an enum's variant has it
  * by default. `seal` and `patch` stay.
  *
- * For a type built through other functions alone. It shapes what the companion offers and guards
- * no invariant: a `create` passes the seal like every other gate.
+ * For a type built through other functions alone.
  *
  * ```ts
  * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate).build();
