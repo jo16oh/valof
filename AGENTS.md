@@ -88,7 +88,7 @@ Name a top-level constant, a value set when the module loads such as a path, a l
 SCREAMING_SNAKE_CASE. A function, and a lint plugin and its rules, keep camelCase. A companion keeps
 the name of its type.
 
-New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
+Use `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
 Without the `name` option, the error's `name` is typed `string`, and a union of errors cannot narrow
 on it.
