@@ -65,48 +65,28 @@ Place a helper function used only inside its module at the end of the file. Decl
 
 These rules apply to all code but `src/lib`, `src/shared`, and the configuration files at the root.
 
-Brace the body of every `if`, `else` and loop. A guard clause is the exception: an `if` with no
-`else` whose body is one `return`, `throw`, `continue` or `break`. `local/braces` enforces this.
+The rules in `scripts/oxlint-plugin` enforce most of them, and their messages say what to change.
+The rules:
 
-Write a top-level function as a `function` declaration, and every other function as an arrow
-function. A method keeps the method syntax, in an object and in a class, and a generator stays a
-`function`, since it has no arrow form. `local/function-style` enforces this.
+- `local/braces`: braces around every `if`, `else` and loop body but a guard clause
+- `local/function-style`: `function` declarations at the top level, arrow functions elsewhere, and
+  methods in an object or a class
+- `local/entry-point`: an entry point named `main.ts`, run from a `main`, that exports nothing
+- `local/declaration-order`: the order of a module's top-level declarations, where an error is a
+  class whose name contains `Error`
+- `local/no-module-state`: no state at a module's top level
+
+Put what other modules would import from an entry point in `index.ts` beside it, as `lib.rs` sits
+beside `main.rs` in a Rust crate.
+
+`local/declaration-order` requires the constants above the companions, and a companion is not
+hoisted, so a constant cannot be built from a companion declared in the same file. Make that
+constant a member of the companion's `.implAssoc` that takes no arguments, as
+`zero: () => seal({ cents: 0 })`, called `Money.zero()`.
 
 Name a top-level constant, a value set when the module loads such as a path, a list or a budget, in
 SCREAMING_SNAKE_CASE. A function, and a lint plugin and its rules, keep camelCase. A companion keeps
 the name of its type.
-
-Run an entry point from a `main` declared right after its imports, and call `main` at the end of the
-file. Name an entry point `main.ts`, and export nothing from it. `local/entry-point` enforces this.
-Put what other modules import from it in `index.ts` beside it, as `lib.rs` sits beside `main.rs` in
-a Rust crate.
-
-Order a module's top-level declarations by kind, after the imports and the re-exports
-(`export { … } from`):
-
-1. `main`, in an entry point
-2. the exported constants, then the rest
-3. the errors (the classes whose name contains `Error`)
-4. the exported types, and each exported Val, Enum or Trait with its companion
-5. the exported classes
-6. the exported functions
-7. the helper types, and each helper Val, Enum or Trait with its companion
-8. the helper classes
-9. the helper functions
-
-The call to `main` ends an entry point, and `export default` ends any other module.
-`local/declaration-order` enforces the order. A companion is not hoisted, so a constant cannot be
-built from a companion declared below it in the same file. Make that constant a member of the
-companion's `.implAssoc` that takes no arguments, as `zero: () => seal({ cents: 0 })`, called
-`Money.zero()`.
-
-Keep state out of a module's top level. Declare a top-level binding with `const`, and create an
-instance of a class where it is used. An instance of `URL` or `RegExp` holds a value, not state, so
-it may stay at the top level. Make a top-level array or object readonly, with `as const` or a
-readonly annotation such as `readonly string[]` or `Readonly<T>`. Annotate a top-level `Set` or
-`Map` as `ReadonlySet` or `ReadonlyMap`, and keep one out of an array or object. Make a static field
-`readonly`, and give it only a value a top-level constant may hold. `local/no-module-state` enforces
-this.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
