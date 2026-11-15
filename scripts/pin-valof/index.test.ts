@@ -4,11 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
+import { Result as R } from "@praha/byethrow";
 import { afterEach, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { build, matches } from "./index.ts";
+import { build, matches, pin as pinTo, pinned } from "./index.ts";
 
 const run = promisify(execFile);
+
+const FIELD = "valof-pinned-for-scripts-commit";
 
 let repo: string;
 let pin: string;
@@ -53,6 +56,34 @@ describe("matches", () => {
 
   test("throws when the pinned commit is not in the repository", async () => {
     await expect(matches("0".repeat(40), repo)).rejects.toThrow(/bad object|unknown revision/);
+  });
+});
+
+describe("pinned", () => {
+  test("reads the pinned commit from `package.json`", async () => {
+    await writeFile(join(repo, "package.json"), JSON.stringify({ [FIELD]: pin }));
+    expect(await pinned(repo)).toEqual(R.succeed(pin));
+  });
+
+  test("fails on a `package.json` with no pin", async () => {
+    const result = await pinned(repo);
+    expect(R.isFailure(result) && result.error.message).toBe(`package.json has no "${FIELD}"`);
+  });
+});
+
+describe("pin", () => {
+  test("rewrites the pin alone, keeping the rest of `package.json` as it was", async () => {
+    await writeFile(join(repo, "package.json"), `{\n  "name": "x",\n  "${FIELD}": "abc"\n}\n`);
+    expect(await pinTo(pin, repo)).toEqual(R.succeed(undefined));
+    expect(await readFile(join(repo, "package.json"), "utf8")).toBe(
+      `{\n  "name": "x",\n  "${FIELD}": "${pin}"\n}\n`,
+    );
+  });
+
+  test("fails on a `package.json` with no pin, and leaves it as it was", async () => {
+    const result = await pinTo(pin, repo);
+    expect(R.isFailure(result) && result.error.message).toBe(`package.json has no "${FIELD}"`);
+    expect(await readFile(join(repo, "package.json"), "utf8")).toBe("{}\n");
   });
 });
 
