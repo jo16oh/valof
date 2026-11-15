@@ -11,12 +11,14 @@ deliberation goes in §9. A new section gets a file of its own and a line in the
 
 ## Code Style
 
-Code Style leaves out the tests and the fixtures. The tests are every `*.test.ts` and the support
-files under `src/lint/integration-tests/`. The fixtures are the files under a `fixtures/` directory.
-[Naming](#naming) applies to every test, in `src/lib` and `src/shared` too.
+### Scope
 
-The tooling is all code but `src/lib`, `src/shared`, and the configuration files at the root. Some
-rules below apply to the tooling alone.
+One or more tags, followed by `·`, at the head of a paragraph name the scopes that its rules, and a
+list that follows it, apply to. The rules in a paragraph with no tag apply to `code`.
+
+- `code`: every source file but the tests and the files under a `fixtures/` directory
+- `tooling`: `code` but `src/lib`, `src/shared`, and the configuration files at the root
+- `tests`: every `*.test.ts`, and the support files under `src/lint/integration-tests/`
 
 ### Modeling with Valof
 
@@ -40,11 +42,11 @@ fields.
 
 ### Naming
 
-Name a companion's members in camelCase.
+`code` `tests` · Name a companion's members in camelCase.
 
-In the tooling, name a top-level constant (a value set when the module loads, such as a path, a list
-or a budget) in SCREAMING_SNAKE_CASE. A function, and a lint plugin and its rules, keep camelCase. A
-companion keeps the name of its type.
+`tooling` `tests` · Name a top-level constant (a value set when the module loads, such as a path, a
+list or a budget) in SCREAMING_SNAKE_CASE. A function, and a lint plugin and its rules, keep
+camelCase. A companion keeps the name of its type.
 
 ### Functions
 
@@ -70,14 +72,15 @@ a blank line before the final `return`, unless the whole body is one paragraph.
 Place a helper function used only inside its module at the end of the file. Declare it with
 `function`, so hoisting makes the order safe.
 
-In the tooling, use `@praha/byethrow` for Results and `@praha/error-factory` for errors:
+`tooling` · Use `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
 Without the `name` option, the error's `name` is typed `string`, and a union of errors cannot narrow
 on it.
 
 ### Linting
 
-The rules in `scripts/oxlint-plugin` check the tooling. Their messages say what to change.
+`tooling` · The rules below, in `scripts/oxlint-plugin`, check the code. Their messages say what to
+change.
 
 - `local/braces`: braces around every `if`, `else` and loop body but a guard clause
 - `local/function-style`: `function` declarations at the top level, arrow functions elsewhere, and
@@ -87,11 +90,11 @@ The rules in `scripts/oxlint-plugin` check the tooling. Their messages say what 
   class whose name contains `Error`
 - `local/no-module-state`: no state at a module's top level
 
-`local/entry-point` keeps `main.ts` from exporting. Put what other modules would import in
-`index.ts` beside it, as `lib.rs` sits beside `main.rs` in a Rust crate.
+`tooling` · `local/entry-point` keeps `main.ts` from exporting. Put what other modules would import
+in `index.ts` beside it, as `lib.rs` sits beside `main.rs` in a Rust crate.
 
-`local/declaration-order` requires the constants above the companions, and a companion is not
-hoisted, so a constant cannot be built from a companion declared in the same file. Make that
+`tooling` · `local/declaration-order` requires the constants above the companions, and a companion
+is not hoisted, so a constant cannot be built from a companion declared in the same file. Make that
 constant a member of the companion's `.implAssoc` that takes no arguments, as
 `zero: () => seal({ cents: 0 })`, called `Money.zero()`.
 
