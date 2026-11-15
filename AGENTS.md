@@ -9,7 +9,13 @@ file, read the sections the index's "Code to memo" table lists for its path. Bef
 alternative, search for it with the command the index gives. §9 lists the open questions. New
 deliberation goes in §9. A new section gets a file of its own and a line in the index.
 
-## Writing Code with Valof
+## Code Style
+
+Code Style covers all code but the tests and the fixtures. The tests are every `*.test.ts` and the
+support files under `src/lint/integration-tests/`. The fixtures are the files under a `fixtures/`
+directory. [Tests](#tests) lists the rules that still apply to the tests.
+
+### Modeling with Valof
 
 Model the domain as you would in Rust. A named data type is a Val (a struct or a newtype) or an
 Enum. A Trait is a Rust trait. Behaviour goes in the companion. `.impl` holds the methods, which
@@ -17,9 +23,21 @@ take the Val first as `self`, and `.implAssoc` holds the associated functions. `
 `impl Trait for Type`. A Val is plain data with no methods, so call a member through the companion:
 `User.displayName(user)`, not `user.displayName()`.
 
-## Code Style
+Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
+and after the pair. Export both or neither.
 
-### All code but the tests and the fixtures
+Name a companion's members in camelCase.
+
+A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
+it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
+companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
+
+A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
+a connection, so `new` at the call site shows where state lives. Do not use `extends`, except to
+extend `ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than
+arrow-function fields.
+
+### Functions
 
 `pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. They replace
 nested calls, so the steps read from top to bottom. Use them where a call nests in another call's
@@ -40,27 +58,14 @@ unwraps the Result's `.value` stays with them, and the blank line goes after it.
 Gather the guard clauses at the top of the function, and put a blank line before the main work. Put
 a blank line before the final `return`, unless the whole body is one paragraph.
 
-Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
-and after the pair. Export both or neither.
-
-Name a companion's members in camelCase.
-
 Place a helper function used only inside its module at the end of the file. Declare it with
 `function`, so hoisting makes the order safe.
 
-A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
-a connection, so `new` at the call site shows where state lives. Do not use `extends`, except on
-`ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
-fields.
-
-A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
-it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
-companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
-
 ### Outside the library and `src/shared`
 
-These rules add to the ones above. They cover all code except the library in `src/lib`,
-`src/shared`, the tests, the fixtures, and the configuration files at the root.
+These rules add to the ones in [Modeling with Valof](#modeling-with-valof) and
+[Functions](#functions). They cover all code except the library in `src/lib`, `src/shared`, and the
+configuration files at the root.
 
 Brace the body of every `if`, `else` and loop. A guard clause is the exception: an `if` with no
 `else` whose body is one `return`, `throw`, `continue` or `break`. `local/braces` enforces this.
@@ -115,9 +120,8 @@ cannot narrow on it.
 
 ### Tests
 
-No rule in Code Style applies to the tests or the fixtures. The tests are every `*.test.ts` and the
-support files under `src/lint/integration-tests/`. Two naming rules still apply to the tests. A
-top-level constant in a test is in SCREAMING_SNAKE_CASE, and a companion's members are in camelCase.
+Two naming rules still apply to the tests. A top-level constant in a test is in
+SCREAMING_SNAKE_CASE, and a companion's members are in camelCase.
 
 ## Bundle Size and Type Cost
 
