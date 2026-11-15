@@ -900,11 +900,7 @@ export type VariantSteps<
     ? unknown
     : {
         /**
-         * Collects the members taking this variant, which the function returns, in one call. A
-         * member taking more than one argument can be called with the value first or last. None can
-         * have an optional, a default or a rest parameter.
-         *
-         * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
+         * Collects the members taking this variant, which the function returns, in one call. A member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}.
          */
         impl: <G extends CompanionMembers<VariantOf<E, N>>>(
           fns: (
@@ -1037,13 +1033,9 @@ export type EnumBuilder<
          *
          * The function receives `seal`, and `create` where `.implCreate` registered one. A member
          * reaching the companion for anything else (`match`, a variant or a sibling) references it
-         * and annotates its return type. Referencing a declaration inside its own initializer is a
-         * circularity, which TypeScript reports as TS7023.
+         * and annotates its return type.
          *
-         * `match`, `[Tag].match` and a member taking more than one argument can be called with the
-         * value first or last. A member cannot have an optional, a default or a rest parameter.
-         *
-         * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
+         * `match`, `[Tag].match` and a member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}.
          */
         impl: <G extends UnionMembers<E>>(
           fns: (
