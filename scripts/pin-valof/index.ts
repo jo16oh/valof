@@ -4,6 +4,9 @@ import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/pr
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
+
 import { ROOT, run } from "../shared/repository.ts";
 
 const FIELD = "valof-pinned-for-scripts-commit";
@@ -17,13 +20,19 @@ const TARGET = join(ROOT, "node_modules/.valof-pinned-for-scripts");
  */
 const INPUTS: readonly string[] = ["src", "tsconfig.json", "tsconfig.build.json"];
 
-export async function pinned(): Promise<string> {
-  const manifest = JSON.parse(await readFile(join(ROOT, "package.json"), "utf8")) as {
+export class MissingPinError extends ErrorFactory({
+  name: "MissingPinError",
+  message: `package.json has no "${FIELD}"`,
+}) {}
+
+export async function pinned(cwd = ROOT): R.ResultAsync<string, MissingPinError> {
+  const manifest = JSON.parse(await readFile(join(cwd, "package.json"), "utf8")) as {
     [FIELD]?: string;
   };
   const commit = manifest[FIELD];
-  if (commit === undefined) throw new Error(`package.json has no "${FIELD}"`);
-  return commit;
+  if (commit === undefined) return R.fail(new MissingPinError());
+
+  return R.succeed(commit);
 }
 
 /** Whether the working tree builds the `dist` that `commit` builds. */
@@ -69,13 +78,15 @@ export async function build(commit: string, cwd = ROOT, out = TARGET): Promise<v
 }
 
 /** Rewrites the one line, so the rest of `package.json` keeps its formatting. */
-export async function pin(commit: string): Promise<void> {
-  const file = join(ROOT, "package.json");
+export async function pin(commit: string, cwd = ROOT): R.ResultAsync<void, MissingPinError> {
+  const file = join(cwd, "package.json");
   const text = await readFile(file, "utf8");
   const line = new RegExp(`("${FIELD}": )"[0-9a-f]*"`);
-  if (!line.test(text)) throw new Error(`package.json has no "${FIELD}"`);
+  if (!line.test(text)) return R.fail(new MissingPinError());
+
   await writeFile(file, text.replace(line, `$1"${commit}"`));
   console.log(`pinned valof to ${commit}`);
+  return R.succeed();
 }
 
 // CI checks out one commit, so the pinned one is fetched on demand.
