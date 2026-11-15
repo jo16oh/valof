@@ -162,9 +162,9 @@ fact. Keep the finding that shaped the code, drop the reasoning that reached it.
 at the canonical site, and `{@link}` it from elsewhere.
 
 `/**` on an exported symbol is the reader's hover, so type-level mechanics belong in a `//` comment.
-Do not convert a non-exported symbol's JSDoc to `//`: `{@link}` resolves only inside JSDoc, and
-maintainers hover internals too. Phrase what stays in the user's terms: "a payload taken from an
-existing value fits", not "would not type-check".
+Keep JSDoc on a non-exported symbol too: `{@link}` resolves only inside JSDoc, and maintainers hover
+internals. Phrase a comment in the user's terms: "a payload taken from an existing value fits", not
+"would not type-check".
 
 Prefer a test to a comment, but check that the test can fail: mutate the source and see whether
 anything goes red. When nothing can, the comment is the only record.
