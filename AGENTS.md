@@ -130,11 +130,11 @@ Do not skip the hook for the implementation commit.
    PR body.
 2. In a PR of its own, run `vp run pin-valof origin/main`, which points the scripts' `#valof` at
    that commit, and fix the scripts where `vp check` or `vp run check-dist` fails. Report what
-   breaks, and where the new API is awkward to use in the scripts. If a problem is serious, stop the
-   release and rework the design.
+   breaks, and where the API added since the last release is awkward to use in the scripts. If a
+   problem is serious, stop the release and rework the design.
 3. Run `vp run bump-version --release <type> --yes`, where `<type>` is the release type I give, such
    as `patch`. Add `--body-file notes.md` when step 1 wrote one. The script updates the bundle-size
-   claims, pushes a release branch, and opens its PR. Options other than `--body-file` go to bumpp.
+   claims, pushes a release branch, and opens its PR.
 4. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
    release, and publishes the book.
 
@@ -196,11 +196,11 @@ A GitHub callout needs `<!-- prettier-ignore -->` above it:
 ### Commit Messages
 
 Conventional Commits, lowercase subject. Stay imperative in the body and the PR too. The subject
-alone is the default. Write a body only where the diff cannot carry the intent, the same test a
-comment has to pass. Bullets, as brief as they go, fragments rather than full sentences.
+alone is the default. Write a body only where the diff cannot carry the intent. Bullets, as brief as
+they go, fragments rather than full sentences.
 
 Do not add a `Co-Authored-By: Claude ...` trailer. The `main` ruleset requires an extra approval for
-unattributed changes, and an `noreply@anthropic.com` co-author trips that rule, blocking merges.
+unattributed changes, and a `noreply@anthropic.com` co-author trips that rule, blocking merges.
 
 ### Pull Requests
 
