@@ -11,9 +11,9 @@ deliberation goes in §9. A new section gets a file of its own and a line in the
 
 ## Code Style
 
-Code Style covers all code but the tests and the fixtures. The tests are every `*.test.ts` and the
-support files under `src/lint/integration-tests/`. The fixtures are the files under a `fixtures/`
-directory. [Tests](#tests) lists the rules that still apply to the tests.
+Code Style leaves out the tests and the fixtures. The tests are every `*.test.ts` and the support
+files under `src/lint/integration-tests/`. The fixtures are the files under a `fixtures/` directory.
+[Tests](#tests) lists the rules that still apply to the tests.
 
 ### Modeling with Valof
 
@@ -32,23 +32,23 @@ A function with side effects may be a member of a companion, `.implAssoc` includ
 it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
 companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
 
-A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
-a connection, so `new` at the call site shows where state lives. Do not use `extends`, except to
-extend `ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than
-arrow-function fields.
+A class is a container that encapsulates state, not data. Use a class for a cache or a connection,
+so `new` at the call site shows where state lives. Do not use `extends`, except to extend
+`ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
+fields.
 
 ### Functions
 
-`pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. They replace
-nested calls, so the steps read from top to bottom. Use them where a call nests in another call's
-first argument: `pipe(text, parse, User.seal)`, not `User.seal(parse(text))`. Fold a variable used
-once into the chain. Keep it as a local, next to its use, where the chain would be a later argument,
-as `content` is in `writeFile(file, content)`, or where a step needs a value from outside the chain.
+`pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them where
+a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
+`User.seal(parse(text))`. Fold a variable used once into the chain. Keep it as a local, next to its
+use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
+where a step needs a value from outside the chain.
 
-Fold a step into the step before it where none of its calls takes an arrow function, such as
+Fold a step into the step before it where none of its calls takes an arrow function, as with
 `.join("\n")` or `.filter(Boolean)`: `(lines) => [head, ...lines].join("\n")`, not
-`(lines) => [head, ...lines]` followed by `(lines) => lines.join("\n")`. A step with a call that
-takes an arrow function, as `.map((line) => …)` does, stays apart from the step before it.
+`(lines) => [head, ...lines]` followed by `(lines) => lines.join("\n")`. A step with a call such as
+`.map((line) => …)` stays apart.
 
 Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
 where the next step starts. Declare a variable in the paragraph that uses it, right before its first
@@ -63,27 +63,23 @@ Place a helper function used only inside its module at the end of the file. Decl
 
 ### Outside the library and `src/shared`
 
-These rules add to the ones in [Modeling with Valof](#modeling-with-valof) and
-[Functions](#functions). They cover all code except the library in `src/lib`, `src/shared`, and the
-configuration files at the root.
+These rules apply to all code but `src/lib`, `src/shared`, and the configuration files at the root.
 
 Brace the body of every `if`, `else` and loop. A guard clause is the exception: an `if` with no
 `else` whose body is one `return`, `throw`, `continue` or `break`. `local/braces` enforces this.
 
-Write a top-level function as a `function` declaration, not as an arrow function or a function
-expression in a `const`. Write every other function as an arrow function. A method keeps its own
-syntax, in an object and in a class, and a generator is the exception, since it has no arrow form.
-`local/function-style` enforces this.
+Write a top-level function as a `function` declaration, and every other function as an arrow
+function. A method keeps the method syntax, in an object and in a class, and a generator stays a
+`function`, since it has no arrow form. `local/function-style` enforces this.
 
-Name a constant at a module's top level in SCREAMING_SNAKE_CASE: a value set when the module loads,
-such as a path, a list or a budget. A function, and a lint plugin and its rules, keep camelCase. A
-companion keeps the name of its type.
+Name a top-level constant, a value set when the module loads such as a path, a list or a budget, in
+SCREAMING_SNAKE_CASE. A function, and a lint plugin and its rules, keep camelCase. A companion keeps
+the name of its type.
 
-Run an entry point from a `main` declared right after its imports, so the file opens with what it
-does. Call `main` at the end of the file, because `main` reads constants and companions, which are
-not hoisted. An entry point exports nothing, and is named `main.ts`. `local/entry-point` enforces
-this. Put what other modules import from it in `index.ts` beside it, as `lib.rs` sits beside
-`main.rs` in a Rust crate.
+Run an entry point from a `main` declared right after its imports, and call `main` at the end of the
+file. Name an entry point `main.ts`, and export nothing from it. `local/entry-point` enforces this.
+Put what other modules import from it in `index.ts` beside it, as `lib.rs` sits beside `main.rs` in
+a Rust crate.
 
 Order a module's top-level declarations by kind, after the imports and the re-exports
 (`export { … } from`):
@@ -99,24 +95,23 @@ Order a module's top-level declarations by kind, after the imports and the re-ex
 9. the helper functions
 
 The call to `main` ends an entry point, and `export default` ends any other module.
-`local/declaration-order` enforces the order. A function is hoisted, so a declaration can call one
-further down. A companion is not, so a constant cannot be built from a companion declared later in
-the same file. Write it as a member of that companion's `.implAssoc` that takes no arguments, as
-`zero: () => seal({ cents: 0 })`, called `Money.zero()`. A constant can still be built from a
-companion imported from another file.
+`local/declaration-order` enforces the order. A companion is not hoisted, so a constant cannot be
+built from a companion declared below it in the same file. Make that constant a member of the
+companion's `.implAssoc` that takes no arguments, as `zero: () => seal({ cents: 0 })`, called
+`Money.zero()`.
 
 Keep state out of a module's top level. Declare a top-level binding with `const`, and create an
-instance of a class where it is used. Make a top-level array or object readonly, with `as const` or
-a readonly annotation such as `readonly string[]` or `Readonly<T>`. Annotate a top-level `Set` or
+instance of a class where it is used. An instance of `URL` or `RegExp` holds a value, not state, so
+it may stay at the top level. Make a top-level array or object readonly, with `as const` or a
+readonly annotation such as `readonly string[]` or `Readonly<T>`. Annotate a top-level `Set` or
 `Map` as `ReadonlySet` or `ReadonlyMap`, and keep one out of an array or object. Make a static field
-`readonly`, and give it only a value that a top-level constant may hold. An instance of `URL` or
-`RegExp` holds a value, not state, so it can stay at the top level. `local/no-module-state` enforces
+`readonly`, and give it only a value a top-level constant may hold. `local/no-module-state` enforces
 this.
 
 New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
-Without the `name` option, the error's `name` property is typed `string`, and a union of errors
-cannot narrow on it.
+Without the `name` option, the error's `name` is typed `string`, and a union of errors cannot narrow
+on it.
 
 ### Tests
 
