@@ -41,10 +41,8 @@ export const SymbolRef = Val.companion<SymbolRef>()
   .build();
 
 /**
- * How one file bound the names it uses.
- *
- * File-local, all of them: a name imported here says nothing about the same name elsewhere. The
- * walk fills these in as it goes, so anything reading them must run inside or after it.
+ * How one file bound the names it uses. The walk fills these in as it goes, so anything reading them
+ * runs inside or after it.
  */
 export type Bindings = Val<
   "Bindings",

@@ -134,11 +134,8 @@ async function command(argv: readonly string[]): R.ResultAsync<number, UsageErro
 }
 
 /**
- * Color, or not, as the stream warrants.
- *
- * `styleText` decides: a TTY gets color, a pipe does not, and `NO_COLOR` and `FORCE_COLOR` are
- * honored with the latter winning. Each stream is judged on its own, so piping the findings still
- * leaves the summary on a terminal colored. No library improves on this.
+ * Color, or not, as `styleText` judges each stream: a TTY gets color, a pipe does not, and
+ * `NO_COLOR` and `FORCE_COLOR` are honored, the latter winning.
  */
 function paint(stream: NodeJS.WriteStream) {
   return (style: InspectColor, text: string): string => styleText(style, text, { stream });

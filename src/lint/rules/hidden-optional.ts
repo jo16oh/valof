@@ -10,7 +10,7 @@ import { Finding, Kind, Rule } from "./rule.ts";
  * parameters at run time, where a default and a rest do not count, and picks the wrong form.
  *
  * The rule reports every such parameter, whatever the annotation declares. The development check in
- * `build` rejects every one too.
+ * `build` rejects every such member too.
  */
 export type HiddenOptional = Val<"HiddenOptional", { kind: Kind }, Rule>;
 export const HiddenOptional = Val.companion<HiddenOptional>()

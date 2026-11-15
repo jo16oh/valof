@@ -44,11 +44,8 @@ export type Arguments = Val<
 export const Arguments = Val.companion<Arguments>()
   .implAssoc(({ seal }) => ({
     /**
-     * Reads the command line.
-     *
-     * A path joins the list it was written for, unless it starts with `!`. An exclusion joins
-     * neither list. It is removed from the run and the report alike, so a generated tree written
-     * once leaves no findings, however it was reached.
+     * Reads the command line. A path joins the list it was written for. One that starts with `!` is
+     * removed from the run and the report alike, however it was reached.
      */
     fromArgv: (
       argv: readonly string[],

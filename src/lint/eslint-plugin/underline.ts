@@ -5,12 +5,9 @@ import type { Finding } from "../rules/index.ts";
 const WORD = /^[\p{L}\p{N}_$]+/u;
 
 /**
- * What the underline covers, from the point the finding names.
- *
- * A finding carries one position, and a report drawn from one position underlines one character.
- * So the name at that position is measured here: the linter points at `label`, `Val` or an alias,
- * and the editor should underline the whole of it. Where the position is not on a word, which is
- * the disable comments, the rest of the line stands in.
+ * What the underline covers. A finding carries one position, which would underline one character.
+ * The underline covers the whole name at that position, such as `label`, `Val` or an alias, or the
+ * rest of the line where the position is not on a word, as on a disable comment.
  */
 export type Underline = Val<"Underline", { start: Point; end: Point }>;
 export const Underline = Val.companion<Underline>()

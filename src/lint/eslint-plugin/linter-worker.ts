@@ -19,13 +19,10 @@ import { DataTypeSettings } from "../shared/options.ts";
 
 /**
  * Starts the worker on its script, and answers every query with why when the script does not load.
- *
- * Without it, a script that fails to load leaves the caller waiting out its patience: the caller's
- * thread is blocked, so it cannot hear the worker's `error` event, and nothing else answers. The
- * failure is what `R.fail` makes, written out because this runs as source in the worker.
- *
- * A module rather than `eval`, because an `eval` worker skips the `--import` preloads the host was
- * started with, and so the loaders they register.
+ * The caller's thread is blocked, so it never hears the worker's `error` event, and would wait out
+ * its patience. The failure is what `R.fail` makes, written out because this runs as source in the
+ * worker. It is a module rather than `eval`, because an `eval` worker skips the host's `--import`
+ * preloads and the loaders they register.
  */
 const START = new URL(
   `data:text/javascript,${encodeURIComponent(`
@@ -120,31 +117,20 @@ export type WorkerFailure = Val<"WorkerFailure", { message: string }>;
 export const WorkerFailure = Val.companion<WorkerFailure>().build();
 
 /**
- * The worker that lints, asked from a rule and blocked on until it answers.
+ * The worker that lints, asked from a rule and blocked on until it answers, because a visitor
+ * cannot be async and `lint` is. The caller passes its own `import.meta.url`, since this file lands
+ * in whichever chunk the build picks. The worker is `worker/main` beside the caller, with the
+ * caller's extension.
  *
- * `lint` is async, and a rule is not: `create` returns a visitor, and a visitor cannot be async. So
- * the run happens in a worker, `worker/main` beside the caller, which answers with
- * {@link LinterWorker.serve}. The caller passes its own `import.meta.url`, since this file is in
- * whichever chunk the build puts it in, and its own URL says nothing about where the worker is.
- * The worker has the caller's extension: the source tree runs as `.ts` and the package ships `.mjs`.
+ * The thread blocks on `Atomics.wait`, and `receiveMessageOnPort` reads the answer without the event
+ * loop. The worker starts on the first query, or earlier through {@link LinterWorker.start}. One that
+ * does not answer within `patience` milliseconds is stopped, and the next query starts another,
+ * since a busy worker would hold every later query behind it.
  *
- * The thread blocks on `Atomics.wait` until the answer is in the port's queue, and
- * `receiveMessageOnPort` reads it without the event loop, which never gets a turn here. The port
- * and the signal go to the worker once, as it starts, so a query is all that each ask sends.
- *
- * The worker starts on the first query, or earlier through {@link LinterWorker.start}, and answers the rest. One that does not answer within
- * `patience` milliseconds is stopped, and the next query starts another: a worker still busy would
- * leave every later query waiting behind it. The default is long enough that no run reaches it,
- * short enough that a wedged worker still says so.
- *
- * One run per project state, however many files and rules ask. Each answer is kept, keyed by the
- * query and by the path, modification time and size of each project file, so a file saved in
- * another editor tab still changes the key. Every file of a batch whose buffer disk holds asks the
- * same query, so the batch costs one run.
- *
- * Two answers are kept: the last for a query with no buffer, and the last for one with a buffer.
- * A file outside the project, or one being edited, then does not replace the answer every other
- * file shares.
+ * An answer is kept under the query and the path, modification time and size of each project file.
+ * Every file of a batch whose buffer disk holds asks the same query, so the batch costs one run. The
+ * last answer with a buffer is kept apart from the last without, so a file being edited does not
+ * replace the answer every other file shares.
  */
 export class LinterWorker {
   readonly #script: URL;
@@ -220,10 +206,8 @@ export class LinterWorker {
   }
 
   /**
-   * Answers what a `LinterWorker` asks, in the worker.
-   *
-   * `fail` makes the answer when `respond` throws, or when its answer cannot be sent: whatever
-   * happened, the thread waiting on this has to receive something.
+   * Answers what a `LinterWorker` asks, in the worker. `fail` makes the answer when `respond` throws
+   * or its answer cannot be sent, since the waiting thread has to receive something.
    */
   static serve(respond: (query: Query) => Promise<Reply>, fail: (error: unknown) => Reply): void {
     const { port, signal } = workerData as { port: MessagePort; signal: Int32Array };

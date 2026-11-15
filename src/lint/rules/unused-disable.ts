@@ -24,16 +24,11 @@ function answers({ file, at: { line }, kind }: Finding): string[] {
 }
 
 /**
- * Reports every name in a directive that silenced nothing.
+ * Reports every name in a directive that silenced nothing, one finding per name. A bare directive
+ * is left to the incomplete-disable rule, and a kind left out of the run is not blamed.
  *
- * One finding per name, so a directive whose other names still do their job says which one to
- * drop. A bare directive is left to the incomplete-disable rule: it names nothing to blame, and the
- * two findings would ask for the same edit.
- *
- * A kind left out of the run is not blamed: `--no-<kind>` leaves a directive naming it looking
- * unused, which is not the directive's fault. What a partial glob hides is not covered, though:
- * a duplicate brand needs the other file in the run, so linting one file at a time can report a
- * directive that is doing its job in the whole project.
+ * A partial glob is not covered, because a duplicate brand needs the other file in the run. Linting
+ * one file at a time can report a directive that is doing its job in the whole project.
  */
 function findings(
   { kind }: UnusedDisable,

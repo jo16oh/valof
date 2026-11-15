@@ -23,13 +23,9 @@ function instead(site: CompanionSite, type: string, variant: string | null): str
 }
 
 /**
- * Reports every `Val.of<X>(…)` where a companion for `X` is in the scanned files.
- *
- * Resolution keeps the source module through a renamed import, namespace import or re-export.
- * The display name stays separate from that identity.
- *
- * `Val.of` spelling no type argument is left to the inferred-val-of rule. That form takes the type
- * from the target it is assigned to, and there is no name here to key it by.
+ * Reports every `Val.of<X>(…)` where a companion for `X` is in the scanned files, reached through a
+ * renamed import, a namespace import or a re-export too. A `Val.of` with no type argument is left
+ * to the inferred-val-of rule.
  */
 function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);

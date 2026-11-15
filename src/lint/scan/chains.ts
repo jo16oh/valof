@@ -254,12 +254,9 @@ function variantArgument(
 }
 
 /**
- * Reads a builder chain from the outside in.
- * `Val.companion<Order>().implSeal(f).impl(() => ({…}))` gives both `implSeal` and `Order`. A
- * variant's step, `.Circle.implSeal(f)`, counts as the step.
- *
- * A call whose receiver is not itself a call is the root, which is what tells
- * `Val.companion<X>()` apart from the steps chained onto it.
+ * Reads a builder chain from the outside in: `Val.companion<Order>().implSeal(f)` gives `implSeal`
+ * and `Order`, and a variant's `.Circle.implSeal(f)` counts as the step. A call whose receiver is
+ * not a call is the root.
  */
 function readChain(node: Node, bound: Bindings): Chain {
   const steps = new Set<string>();

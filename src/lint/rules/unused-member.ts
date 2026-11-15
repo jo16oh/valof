@@ -17,23 +17,17 @@ export const UnusedMember = Val.companion<UnusedMember>()
 /**
  * Reports a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads.
  *
- * A declaration is kept per site rather than per name, because two modules may each declare a
- * companion called `User`; reads stay keyed by name alone, so a read anywhere counts for both.
- * That is the safe direction: the reads side over-approximates and the declarations side does
- * not lose one.
+ * A declaration is kept per site, since two modules may each declare a `User`, and a read is keyed
+ * by name alone, so it counts for both. A read is followed by name across files, through a plain,
+ * renamed or namespace import and an `export { X as Y }` rename.
  *
- * Resolution is by name, not by type. A read is followed across files through a plain import, a
- * renamed one, a namespace import and an `export { X as Y }` rename.
- *
- * An enum's variant is declared and read under a dotted name, `Shape.Circle`, which is what makes
- * `Shape.Circle.diameter` and a destructured `Circle.diameter` meet. That name does not pass
- * through the `export { X as Y }` walk below, so an enum companion renamed on the way out loses
- * its variants' reads and its members are reported although they are used.
- *
- * Two ways it is wrong, in opposite directions. A read that spells no name, `User[method]` or a
- * companion reached through a default export, is not seen, so the member is reported although it
- * is used. A spread whose value is not a local const object contributes no keys, so those members
- * are never reported however dead they are.
+ * Where it is wrong:
+ * - An enum companion renamed on export loses its variants' reads, which are keyed by the dotted
+ *   name `Shape.Circle`, so their members are reported although they are used.
+ * - A read that spells no name, `User[method]` or one through a default export, is not seen, so
+ *   the member is reported although it is used.
+ * - A spread whose value is not a local const object contributes no keys, so those members are
+ *   never reported.
  */
 function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);

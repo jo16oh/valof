@@ -18,15 +18,9 @@ export const BrandMismatch = Val.companion<BrandMismatch>()
   .build();
 
 /**
- * Reports every alias whose brand ends in something other than its own name.
- *
- * Only the last segment is compared, so a namespace prefix is free: `Val<"billing/BillingId">`
- * passes and nothing is required of `billing/`. What comes before the last `/` is the user's,
- * and this rule makes no convention for it.
- *
- * Renaming is where the drift comes from. An LSP rename leaves string literals alone, so
- * `OrderId` becomes `PurchaseOrderId` while the brand stays `"OrderId"`, and the assignability
- * error a reader opens then names a type that no longer exists.
+ * Reports every alias whose brand ends in something other than its own name. Only the last segment
+ * is compared, so `Val<"billing/BillingId">` passes. An LSP rename does not change the string
+ * literal, so the brand stops matching the name.
  */
 function findings({ kind }: BrandMismatch, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];

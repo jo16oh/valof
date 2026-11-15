@@ -8,12 +8,9 @@ import { Scan } from "./index.ts";
 import type { ScanStore } from "./store.ts";
 
 /**
- * Each file's scan, kept for as long as its text stays the same and its imports and re-exports
- * resolve to the same files.
- *
- * A scan resolves the file's imports against the files in the run. When a file joins or leaves the
- * run, the cache walks again only the files with an import that now resolves elsewhere, and
- * {@link ParseCache} keeps the trees.
+ * Each file's scan, kept while its text stays the same and its imports and re-exports resolve to
+ * the same files. When a file joins or leaves the run, only the files whose imports now resolve
+ * elsewhere are walked again.
  */
 export class ScanCache {
   readonly #parses = new ParseCache();

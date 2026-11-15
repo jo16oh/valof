@@ -67,23 +67,18 @@ export async function lint(
   return R.unwrap(await run(files, options));
 }
 
-/**
- * The fixture tree beside one test file, addressed by the entry names under `fixtures/`. A test
- * other than `index.test.ts` keeps its tree under `fixtures/<name>/`, so tests that sit side by side
- * keep theirs apart.
- *
- * A fixture is one file, `dead-member`, or a directory of them, `plain`. Findings come back with
- * paths relative to `fixtures/`, so every expectation names the fixture it came from.
- *
- * In process, so a run costs no `node` start. The command itself is covered by {@link cli}: what
- * it adds over {@link lint} is argument parsing and the shape of a line.
- */
 type Options = {
   skip?: readonly Registered[];
   overlay?: Map<string, string>;
   enable?: NonNullable<Parameters<typeof LintOptions.create>[0]>["enable"];
 };
 
+/**
+ * The fixture tree beside one test file: `fixtures/` for `index.test.ts`, `fixtures/<name>/` for
+ * any other. A fixture is one file or a directory of them, and findings come back with paths
+ * relative to `fixtures/`. Lints in process, so a run starts no `node`. {@link cli} covers the
+ * command.
+ */
 export function fixtures(url: string): {
   all: () => string[];
   files: (fixture: string) => string[];

@@ -49,20 +49,14 @@ export type Options = Val<
     skip: KindSet;
     /**
      * The files to report on, or `null` for every file scanned. Everything else in `files` is still
-     * scanned.
-     *
-     * Three rules need a second file to say anything: a duplicate brand needs the other alias, a
-     * second name needs the Val alias, and a member is read from wherever it is read. Narrowing the
-     * run instead of the report turns those into silence, and turns a directive that is doing its
-     * job into an `unused-disable`.
+     * scanned. A duplicate brand needs the other alias, a second name needs the Val alias, and a
+     * member's read may be in any file. Narrowing the run instead would silence them and make a working
+     * directive look unused.
      */
     targets: Record<string, true> | null;
     /**
-     * Source to read instead of the file on disk, keyed by path.
-     *
-     * For an editor: the buffer the user is typing in has not been saved, and a run over what disk
-     * holds reports on the file as it was. A path here that is not in `files` is scanned all the
-     * same, and the file need not exist.
+     * Source to read instead of the file on disk, keyed by path, for an editor's unsaved buffer. A path
+     * here that is not in `files` is scanned all the same, and need not exist.
      */
     overlay: Record<string, string>;
   }

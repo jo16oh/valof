@@ -42,12 +42,7 @@ export {
 
 export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";
 
-/**
- * Every rule, in the order they run and `--help` lists them.
- *
- * The only enumeration. A rule carries its own kind, so listing it here says nothing twice, and
- * {@link KINDS} is read back off this array rather than written again.
- */
+/** Every rule, in the order they run and `--help` lists them. {@link KINDS} is read off it. */
 export const RULES = [
   Rule.dyn(UnusedMember, UnusedMember.create()),
   Rule.dyn(DuplicateBrand, DuplicateBrand.create()),

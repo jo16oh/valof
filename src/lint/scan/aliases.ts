@@ -89,12 +89,9 @@ export type VariantTraits = Val<"VariantTraits", { variant: string; traits: Decl
 export const VariantTraits = Val.companion<VariantTraits>().build();
 
 /**
- * Top-level Val and Trait aliases, and the brands they claim.
- *
- * Only a top-level alias can be imported and assigned somewhere else, which is the collision the
- * brand rule reports. A `type Point` inside a `describe` block collides with nothing.
+ * The Valof aliases one file declares, and the brands they claim. Only a top-level alias counts,
+ * since only a top-level alias can be imported and collide with another.
  */
-/** The Valof aliases one file declares, and the brands they claim. */
 export type Aliases = Val<
   "Aliases",
   {
@@ -114,10 +111,8 @@ export const Aliases = Val.companion<Aliases>()
 
 /**
  * The name a type reference is written under, or `undefined` when it is not a plain one.
- *
- * `Val<…>` gives `Val`, and `valof.Val<…>` through a namespace import gives the same, since the
- * namespace only says where the name came from. The caller still resolves the result against the
- * file's import aliases, which is what tells `Val` apart from something else bound to that name.
+ * `valof.Val<…>` gives `Val` too. The caller resolves it against the file's import aliases, to
+ * tell `Val` apart from another binding of that name.
  */
 function valName(typeName: Node, bound: Bindings): string | undefined {
   if (typeName.type === "Identifier") return typeName.name;

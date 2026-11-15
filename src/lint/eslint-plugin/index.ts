@@ -10,11 +10,8 @@ import { ProjectCache } from "./project-cache.ts";
 import { Underline } from "./underline.ts";
 
 /**
- * The plugin, with the state its rules share.
- *
- * The host creates every rule once per file, so whatever outlives one file, or is shared by the
- * rules of one file, lives here: the worker, the answer a file's rules share, and the globbed
- * projects.
+ * The plugin, with the state that outlives one file or that a file's rules share: the worker, the
+ * answer a file's rules share, and the globbed projects. The host creates every rule once per file.
  */
 // What a config file needs of the plugin, written out so ESLint's types stay out of the declaration.
 function valof(): {
