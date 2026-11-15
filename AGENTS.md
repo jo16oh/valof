@@ -28,9 +28,9 @@ and after the pair. Export both or neither.
 
 Name a companion's members in camelCase.
 
-A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
-it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
-companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
+Name a companion member with side effects by what it does (`read`, `build`, `write`), never `from*`
+or `parse*`, which read as a pure conversion. A companion is bundled whole, so a Val shared with the
+browser has no member that imports `node:*`.
 
 A class is a container that encapsulates state, not data. Use a class for a cache or a connection,
 so `new` at the call site shows where state lives. Do not use `extends`, except to extend
