@@ -8,6 +8,7 @@ import type {
   PrivateSeal,
   Rec,
   Draft,
+  MapOf,
   SeedOf,
   Unpatchable,
 } from "./index.ts";
@@ -22,7 +23,6 @@ import type {
   CallBuildFirst,
   CompanionMembers,
   Invalid,
-  NotVal,
   Refused,
   Takes,
   Verdict,
@@ -39,7 +39,7 @@ type VerdictOf<V> = V extends Verdict<infer X> ? X : never;
 type User = Val<"app/User", { id: string; name: string; nickname: string | undefined }>;
 type Age = Val<"Age", number>;
 type ArticleId = Val<"ArticleId", string>;
-type Tags = Val<"Tags", Record<string, true>>;
+type Tags = Val.Set<"Tags", string>;
 type Grid = Val<"Grid", number[][]>;
 
 const User = Val.companion<User>().build();
@@ -273,13 +273,6 @@ describe("Val", () => {
       expectTypeOf(id).toExtend<string>();
     });
 
-    test("a Record works as a Set", () => {
-      const Tags = Val.companion<Tags>().build();
-      const t = Tags.seal({ a: true, b: true });
-      expect(t["a"]).toBe(true);
-      expect(t["c"]).toBeUndefined();
-    });
-
     test("a key typed `T | undefined` is allowed, and keeps `undefined` in the value", () => {
       type Allowed = Val<
         "Allowed",
@@ -295,11 +288,29 @@ describe("Val", () => {
       Allowed.seal({ at: undefined });
     });
 
-    test("a record keyed by a pattern or a branded string is not read as optional", () => {
+    // A variable whose type lists fewer entries can hold anything under the rest.
+    test("a record keyed by any string is rejected, for a `Val.Map` or a `Val.Set`", () => {
+      type Fault =
+        Invalid<"a record keyed by any string can hide entries; declare a `Val.Map` or a `Val.Set`">;
+      // @ts-expect-error a record can hide entries
+      type Rows = Val<"Rows", { rows: Record<string, number> }>;
+      expectTypeOf<VerdictOf<Rows>>().toEqualTypeOf<{ rows: { [x: string]: Fault } }>();
+      // @ts-expect-error so can an index signature at the root
+      type Root = Val<"Root", { [key: string]: number }>;
+      // @ts-expect-error so can a record keyed by a pattern
       type Pattern = Val<"Pattern", { tags: Record<`t${string}`, number> }>;
+      // @ts-expect-error or by a branded string
       type Branded = Val<"Branded", { by: Record<ArticleId, number> }>;
-      expectTypeOf<Pattern>().toExtend<AnyVal>();
-      expectTypeOf<Branded>().toExtend<AnyVal>();
+      expectTypeOf<Root>().not.toExtend<AnyVal>();
+      expectTypeOf<Pattern>().not.toExtend<AnyVal>();
+      expectTypeOf<Branded>().not.toExtend<AnyVal>();
+      // A map is a Val of its own, never a field's shape.
+      // @ts-expect-error a map or a set is a Val of its own
+      type Inline = Val<"Inline", { m: MapOf<string, number> }>;
+      expectTypeOf<Inline>().not.toExtend<AnyVal>();
+      // Literal keys list every entry.
+      type Fixed = Val<"Fixed", Record<"a" | "b", number>>;
+      expectTypeOf<Fixed>().toExtend<AnyVal>();
     });
 
     // A variable typed without the key could hide any value there, and the seal would take it.
@@ -354,14 +365,13 @@ describe("Val", () => {
       >();
     });
 
-    test("Vals, arrays, records and primitives are allowed", () => {
+    test("Vals, arrays, objects and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
       expectTypeOf<Val<"C", string[]>>().toExtend<AnyVal>();
-      expectTypeOf<Val<"D", Record<string, true>>>().toExtend<AnyVal>();
       expectTypeOf<Val<"E", { at: Val<"A", string>; n: number | null }>>().toExtend<AnyVal>();
     });
 
-    test("a field may hold null or a primitive beside an array, a tuple, a record or a Val", () => {
+    test("a field may hold null or a primitive beside an array, a tuple or a Val", () => {
       type Node = Val<"Node", { value: number; next: Rec<Node> | null }>;
       const Node = Val.companion<Node>().build();
       const list = Node.seal({ value: 1, next: Node.seal({ value: 2, next: null }) });
@@ -373,14 +383,12 @@ describe("Val", () => {
         {
           tags: string[] | null;
           at: [number, number] | null;
-          rows: Record<string, number> | null;
           names: string | string[];
         }
       >;
       expectTypeOf<SeedOf<Loose>>().toEqualTypeOf<{
         readonly tags: readonly string[] | null;
         readonly at: readonly [number, number] | null;
-        readonly rows: ({ readonly [x: string]: number } & NotVal) | null;
         readonly names: string | readonly string[];
       }>();
     });
@@ -403,11 +411,6 @@ describe("Val", () => {
       expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<{
         s: null | Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
       }>();
-    });
-
-    test("an explicit string index signature is a record", () => {
-      type Nested = Val<"Nested", { rows: { [key: string]: number } }>;
-      expectTypeOf<Nested>().toExtend<AnyVal>();
     });
 
     test("a tuple keeps its positions, its length and its labels", () => {
@@ -908,10 +911,6 @@ describe("Val", () => {
       >();
       expectTypeOf<Never | Clash | Both>().not.toBeNever();
       expectTypeOf<VerdictOf<Deep>>().toEqualTypeOf<{ m: Invalid<"no value fits `b`"> }>();
-
-      // An empty record never has an entry.
-      type Absent = Val<"Absent", { rows: Record<string, never> }>;
-      expectTypeOf<Absent>().toExtend<AnyVal>();
     });
 
     test("a field named like the rejection marker is plain data", () => {
@@ -938,18 +937,6 @@ describe("Val", () => {
       type NumberKey = Val<"Bad", { 1: string }>;
       expectTypeOf<NumberKey>().not.toExtend<AnyVal>();
     });
-
-    test("an index signature's entry may not be undefined", () => {
-      // @ts-expect-error an index signature's entry may not be undefined
-      type Bad = Val<"Bad", { rows: Record<string, string | undefined> }>;
-      expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{
-        rows: { [x: string]: Invalid<"not a plain value"> };
-      }>();
-      expectTypeOf<Bad>().not.toExtend<AnyVal>();
-
-      type Ok = Val<"Ok", { rows: Record<string, string> }>;
-      expectTypeOf<Ok>().toExtend<AnyVal>();
-    });
   });
 
   describe("Payload", () => {
@@ -966,7 +953,6 @@ describe("Val", () => {
         age: number | undefined;
       }
       expectTypeOf<Payload<Profile>>().toEqualTypeOf<Profile>();
-      expectTypeOf<Payload<Record<string, number>>>().toEqualTypeOf<Record<string, number>>();
     });
 
     test("a payload that breaks a rule is reported at the type argument", () => {
@@ -1161,15 +1147,16 @@ describe("Val", () => {
       expectTypeOf<PayloadOf<Chain>>().toEqualTypeOf<{ links: readonly PayloadOf<Chain>[] }>();
     });
 
-    test("Rec reaches through a record and a nested object", () => {
-      type Dir = Val<"app/Dir", { name: string; entries: Record<string, Rec<Dir>> }>;
+    test("Rec reaches through a map and a nested object", () => {
+      type Entries = Val.Map<"app/Entries", string, Rec<Dir>>;
+      type Dir = Val<"app/Dir", { name: string; entries: Entries }>;
+      const Entries = Val.Map.companion<Entries>().build();
       const Dir = Val.companion<Dir>().build();
-      const leaf = Dir.seal({ name: "leaf", entries: {} });
+      const leaf = Dir.seal({ name: "leaf", entries: Entries.seal([]) });
 
-      expectTypeOf<SeedOf<Dir>["entries"]>().toEqualTypeOf<
-        { readonly [x: string]: Dir } & NotVal
-      >();
-      expect(Dir.seal({ name: "root", entries: { a: leaf } }).entries["a"]).toBe(leaf);
+      const entries = Entries.seal([["a", leaf]]);
+      expectTypeOf(entries["a"]).toEqualTypeOf<Dir | undefined>();
+      expect(Dir.seal({ name: "root", entries }).entries["a"]).toBe(leaf);
 
       type Cell = Val<"app/Cell", { value: number; prev: { at: Rec<Cell> } | undefined }>;
       const Cell = Val.companion<Cell>().build();
@@ -1180,14 +1167,11 @@ describe("Val", () => {
     });
 
     test("a payload key named after an array member still opens its Rec", () => {
-      type Index = Val<
-        "app/Index",
-        { entries: Record<string, Rec<Index>>; name: string | undefined }
-      >;
+      type Index = Val<"app/Index", { entries: Rec<Index>[]; name: string | undefined }>;
       const Index = Val.companion<Index>().build();
-      const leaf = Index.seal({ entries: {}, name: undefined });
+      const leaf = Index.seal({ entries: [], name: undefined });
 
-      expect(Index.seal({ entries: { a: leaf }, name: "root" }).entries["a"]).toBe(leaf);
+      expect(Index.seal({ entries: [leaf], name: "root" }).entries[0]).toBe(leaf);
     });
 
     test("the companion's members take the recursive type", () => {
@@ -1370,11 +1354,10 @@ describe("copying", () => {
     });
 
     test("a `__proto__` key stays an own property", () => {
-      const Tags = Val.companion<Tags>().build();
-      const tags = Tags.seal(JSON.parse('{"a":true,"__proto__":{"isAdmin":true}}'));
+      const Tags = Val.Set.companion<Tags>().build();
+      const tags = Tags.seal(["a", "__proto__"]);
       expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
       expect(Object.getPrototypeOf(tags)).toBe(Object.prototype);
-      expect((tags as Record<string, unknown>)["isAdmin"]).toBeUndefined();
       expect(JSON.parse(JSON.stringify(tags))).toEqual(
         JSON.parse(JSON.stringify(Val.unwrap(tags))),
       );
@@ -1391,10 +1374,11 @@ describe("copying", () => {
     });
 
     test("a null-prototype object is allowed, and comes back plain", () => {
-      const source = Object.assign(Object.create(null) as Record<string, true>, { a: true });
-      const tags = Val.of<Tags>(source);
-      expect(Object.getPrototypeOf(tags)).toBe(Object.prototype);
-      expect(tags["a"]).toBe(true);
+      type Flags = Val<"Flags", { a: boolean }>;
+      const source = Object.assign(Object.create(null) as { a: boolean }, { a: true });
+      const flags = Val.of<Flags>(source);
+      expect(Object.getPrototypeOf(flags)).toBe(Object.prototype);
+      expect(flags.a).toBe(true);
     });
 
     test("the seal copies through Val.of, not by copying its argument itself", () => {
@@ -1622,9 +1606,9 @@ describe("equals", () => {
   });
 
   test("tells an own `__proto__` key from a different key", () => {
-    const Tags = Val.companion<Tags>().build();
-    const proto = Tags.seal(JSON.parse('{"__proto__":{}}'));
-    expect(equals(proto, Tags.seal({ a: true }))).toBe(false);
+    const Tags = Val.Set.companion<Tags>().build();
+    const proto = Tags.seal(["__proto__"]);
+    expect(equals(proto, Tags.seal(["a"]))).toBe(false);
   });
 
   test("treats NaN as equal to NaN, and -0 as equal to 0", () => {
@@ -1668,6 +1652,9 @@ describe("patch", () => {
   type City = Val<"City", { name: string; zip: string | undefined }>;
   const City = Val.companion<City>().build();
 
+  type Staff = Val.Map<"Staff", string, { role: string }>;
+  const Staff = Val.Map.companion<Staff>().build();
+
   type Shop = Val<
     "Shop",
     {
@@ -1676,7 +1663,7 @@ describe("patch", () => {
       city: City;
       home: { x: number; y: number } | null;
       tags: string[];
-      staff: Record<string, { role: string }>;
+      staff: Staff;
     }
   >;
   const Shop = Val.companion<Shop>().build();
@@ -1687,7 +1674,10 @@ describe("patch", () => {
       city: City.seal({ name: "Kyoto", zip: "600" }),
       home: null,
       tags: ["a"],
-      staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
+      staff: Staff.seal([
+        ["u1", { role: "cook" }],
+        ["u2", { role: "waiter" }],
+      ]),
     });
 
   test("assigns fields at any depth, and leaves the rest", () => {
@@ -1800,30 +1790,10 @@ describe("patch", () => {
     });
   });
 
-  test("a record entry is set or added by assignment, and a delete throws", () => {
-    const after = Shop.patch(shop(), (s) => {
-      s.staff["u1"] = { role: "chef" };
-      s.staff["u3"] = { role: "host" };
-    });
-    expect(after.staff).toEqual({
-      u1: { role: "chef" },
-      u2: { role: "waiter" },
-      u3: { role: "host" },
-    });
-    // The added entry is listed while the recipe runs too.
-    Shop.patch(shop(), (s) => {
-      s.staff["u3"] = { role: "host" };
-      expect("u3" in s.staff).toBe(true);
-      expect(Object.keys(s.staff)).toEqual(["u1", "u2", "u3"]);
-      expect({ ...s.staff }).toEqual({
-        u1: { role: "cook" },
-        u2: { role: "waiter" },
-        u3: { role: "host" },
-      });
-    });
+  test("a delete on a draft throws", () => {
     expect(() =>
       Shop.patch(shop(), (s) => {
-        delete s.staff["u2"];
+        delete (s.owner as { name?: string }).name;
       }),
     ).toThrow(TypeError);
   });
@@ -1932,7 +1902,7 @@ describe("patch", () => {
     expectTypeOf(Val.companion<Val<"Pair", [number, string]>>().build()).not.toHaveProperty(
       "patch",
     );
-    expectTypeOf(Val.companion<Tags>().build()).toHaveProperty("patch");
+    expectTypeOf(Val.companion<User>().build()).toHaveProperty("patch");
   });
 
   test("still guards at runtime, for callers without types", () => {
@@ -2001,6 +1971,173 @@ describe("patch", () => {
 
       expect(UnixEpoch.plus(Val.of<UnixEpoch>(1_756_771_200), 60.5)).toBe(1_756_771_260);
     });
+  });
+});
+
+describe("Val.Map", () => {
+  type Money = Val<"MapMoney", { amount: number }>;
+  const Money = Val.companion<Money>().build();
+  type Prices = Val.Map<"Prices", string, Money>;
+  const Prices = Val.Map.companion<Prices>().build();
+  const apple = Money.seal({ amount: 1 });
+  const fig = Money.seal({ amount: 2 });
+
+  test("seals entries from any iterable, the later of two equal keys winning", () => {
+    const prices = Prices.seal([["apple", apple]]);
+    expect(prices).toEqual({ apple });
+    expect(prices["apple"]).toBe(apple);
+    expectTypeOf(prices["apple"]).toEqualTypeOf<Money | undefined>();
+    expect(Prices.seal(new Map([["fig", fig]]))).toEqual({ fig });
+    expect(
+      Prices.seal([
+        ["apple", apple],
+        ["apple", fig],
+      ]),
+    ).toEqual({ apple: fig });
+    expect(Object.isFrozen(prices)).toBe(true);
+  });
+
+  // A record typed with fewer entries could hold anything under the rest.
+  test("takes no plain object, and checks each entry's value", () => {
+    const listed: { apple: Money } = { apple };
+    // @ts-expect-error a plain object can hide entries
+    Prices.seal(listed);
+    // @ts-expect-error an unsealed object is not a Money
+    Prices.seal([["fig", { amount: 2 }]]);
+  });
+
+  test("`set`, `delete` and `has` derive a map, or return it where nothing changes", () => {
+    const prices = Prices.seal([["apple", apple]]);
+    const more = Prices.set(prices, "fig", fig);
+    expect(more).toEqual({ apple, fig });
+    expect(Prices.set(prices, "apple", apple)).toBe(prices);
+    expect(Prices.set(prices, "apple", fig)).toEqual({ apple: fig });
+    expect(Prices.delete(more, "apple")).toEqual({ fig });
+    expect(Prices.delete(prices, "fig")).toBe(prices);
+    expect([Prices.has(more, "fig"), Prices.has(prices, "fig")]).toEqual([true, false]);
+    // A key `Object.prototype` holds is no entry.
+    expect(Prices.has(prices, "toString")).toBe(false);
+    expect(Prices.set("fig", fig)(prices)).toEqual(more);
+    // @ts-expect-error the value must be a Money
+    Prices.set(prices, "fig", { amount: 2 });
+  });
+
+  test("holds any payload type as a value", () => {
+    type Overlay = Val.Map<"MapOverlay", string, string>;
+    const Overlay = Val.Map.companion<Overlay>().build();
+    expect(Overlay.seal([["a.ts", "text"]])).toEqual({ "a.ts": "text" });
+    // The declaration is generic, so the rule is read where the map is used.
+    type Bad = Val.Map<"MapBad", string, () => void>;
+    expectTypeOf<Bad>().not.toExtend<AnyVal>();
+    // @ts-expect-error functions are not allowed
+    Val.Map.companion<Bad>();
+  });
+
+  test("goes through a custom seal on every path", () => {
+    const Capped = Val.Map.companion<Prices>()
+      .implSeal((entries, seal) => {
+        const prices = seal(entries);
+        return Object.keys(prices).length > 2 ? new RangeError("at most two") : prices;
+      })
+      .build();
+    const two = Capped.seal([
+      ["apple", apple],
+      ["fig", fig],
+    ]);
+    expect(two).toEqual({ apple, fig });
+    expect(Capped.set(two as Prices, "kiwi", apple)).toBeInstanceOf(RangeError);
+
+    const Kept = Val.Map.companion<Prices>()
+      .implSeal((entries, seal) => {
+        const prices = seal(entries);
+        return Object.keys(prices).length === 0 ? new RangeError("never empty") : prices;
+      })
+      .build();
+    const one = Kept.seal([["apple", apple]]) as Prices;
+    expect(Kept.delete(one, "apple")).toBeInstanceOf(RangeError);
+  });
+
+  test("is built by its own companion, and has no `patch`", () => {
+    // @ts-expect-error a map is built by `Val.Map.companion`
+    Val.companion<Prices>();
+    // @ts-expect-error `Val.Map.companion` builds a `Val.Map`
+    Val.Map.companion<Money>();
+    // @ts-expect-error nor does `Val.of` build one
+    Val.of<Prices>([["apple", apple]]);
+    expectTypeOf(Prices).not.toHaveProperty("patch");
+    Val.Map.companion<Prices>().impl(() => ({
+      // @ts-expect-error the companion's own `has`
+      has: (p: Prices) => Object.keys(p).length > 0,
+    }));
+  });
+
+  test("a map is a field of another Val, and a recipe replaces it", () => {
+    type Shop = Val<"MapShop", { prices: Prices }>;
+    const Shop = Val.companion<Shop>().build();
+    const shop = Shop.seal({ prices: Prices.seal([["apple", apple]]) });
+    const after = Shop.patch(shop, (s) => {
+      s.prices = Prices.set(s.prices, "fig", fig);
+    });
+    expect(after.prices).toEqual({ apple, fig });
+    expectTypeOf(Val.unwrap(after).prices).toEqualTypeOf<{
+      [x: string]: { amount: number } | undefined;
+    }>();
+  });
+});
+
+describe("Val.Set", () => {
+  type Tags = Val.Set<"SetTags", string>;
+  const Tags = Val.Set.companion<Tags>().build();
+
+  test("seals keys from any iterable, and compares as a set", () => {
+    const tags = Tags.seal(["a", "b", "a"]);
+    expect(tags).toEqual({ a: true, b: true });
+    expectTypeOf(tags["a"]).toEqualTypeOf<true | undefined>();
+    expect(equals(tags, Tags.seal(new Set(["b", "a"])))).toBe(true);
+    // @ts-expect-error a plain object can hide keys
+    Tags.seal({ a: true });
+  });
+
+  test("`add`, `delete` and `has` derive a set, or return it where nothing changes", () => {
+    const tags = Tags.seal(["a"]);
+    expect(Tags.add(tags, "b")).toEqual({ a: true, b: true });
+    expect(Tags.add(tags, "a")).toBe(tags);
+    expect(Tags.delete(tags, "a")).toEqual({});
+    expect(Tags.delete(tags, "b")).toBe(tags);
+    expect([Tags.has(tags, "a"), Tags.has(tags, "b")]).toEqual([true, false]);
+  });
+
+  test("is built by its own companion", () => {
+    // @ts-expect-error a set is built by `Val.Set.companion`
+    Val.companion<Tags>();
+    type Money = Val<"SetMoney", { amount: number }>;
+    // @ts-expect-error `Val.Set.companion` builds a `Val.Set`
+    Val.Set.companion<Money>();
+  });
+
+  test("`add` goes through a custom seal, and takes a key `Object.prototype` holds", () => {
+    const Capped = Val.Set.companion<Tags>()
+      .implSeal((keys, seal) => {
+        const tags = seal(keys);
+        return Object.keys(tags).length > 1 ? new RangeError("at most one") : tags;
+      })
+      .build();
+    expect(Capped.add(Capped.seal(["a"]) as Tags, "b")).toBeInstanceOf(RangeError);
+    expect(Tags.add(Tags.seal([]), "constructor")).toEqual({ constructor: true });
+  });
+
+  test("opens to a plain object of `true`", () => {
+    type Post = Val<"SetPost", { tags: Tags }>;
+    expectTypeOf<PayloadOf<Post>["tags"]>().toEqualTypeOf<{ [x: string]: true | undefined }>();
+  });
+
+  test("takes a key type of its own", () => {
+    type Keys = Val.Set<"SetKeys", ArticleId>;
+    const Keys = Val.Set.companion<Keys>().build();
+    const id = Val.of<ArticleId>("x");
+    expect(Keys.has(Keys.seal([id]), id)).toBe(true);
+    // @ts-expect-error a plain string is not an ArticleId
+    Keys.seal(["x"]);
   });
 });
 
@@ -2693,10 +2830,10 @@ describe("building", () => {
     });
 
     test("keeps a `__proto__` key an own property", () => {
-      const Tags = Val.companion<Tags>()
+      const Tags = Val.Set.companion<Tags>()
         .implSeal((t, seal) => seal(t))
         .build();
-      const tags = Tags.seal(JSON.parse('{"a":true,"__proto__":{"x":true}}'));
+      const tags = Tags.seal(["a", "__proto__"]);
       expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
     });
 
