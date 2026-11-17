@@ -1697,7 +1697,6 @@ type Implementation = [trait: { [Shared]: Record<string, unknown> }, fns?: Membe
 
 /** What a builder's steps registered: a Val's, an enum's, or one of its variants'. */
 export type Registered<P = unknown> = {
-  collection?: Collector;
   seal?: (value: P, seal: (value: P) => unknown) => unknown;
   create?: AnyFn;
   noseal?: boolean;
@@ -1794,22 +1793,19 @@ export const attach = (registered: Registered): Record<string, unknown> => {
     members: fns,
     traits: implemented = [],
     assoc,
-    collection,
   } = registered;
-  const gather = (value: unknown): unknown => (collection ? collection.gather(value) : value);
   const sealedWith = (terminal: (value: unknown) => unknown): ((value: unknown) => unknown) =>
     custom
       ? development
         ? (value) => {
             const before = snapshotSealInput(value);
-            return custom(value, (given) => {
+            return custom(value, (candidate) => {
               if (before !== unsnapshotable) {
                 const current = snapshotSealInput(value);
                 if (current !== unsnapshotable && !equalsUnknown(before, current))
                   changedDuringSeal();
               }
 
-              const candidate = gather(given);
               const candidateBefore = snapshotSealInput(candidate);
               const sealed = terminal(candidate);
               if (candidateBefore !== unsnapshotable && !equalsUnknown(candidateBefore, sealed)) {
@@ -1818,8 +1814,8 @@ export const attach = (registered: Registered): Record<string, unknown> => {
               return sealed;
             });
           }
-        : (value) => custom(value, (given) => terminal(gather(given)))
-      : (value) => terminal(gather(value));
+        : (value) => custom(value, terminal)
+      : terminal;
   const seal = sealedWith(own);
   const nocopy = sealedWith(adopt);
   // Development runs the seal anyway, and throws unless it calls the default seal with an
@@ -1849,8 +1845,6 @@ export const attach = (registered: Registered): Record<string, unknown> => {
   // Without a custom seal, `seal` is the copy itself, and this gives it the `nocopy` `Val.of` has.
   define(seal, "nocopy", nocopy);
   target["seal"] = seal;
-
-  Object.assign(target, collection?.members(seal, keep));
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
@@ -1945,41 +1939,44 @@ type NotCollection<V> = [Declared<V>] extends [never]
     : unknown;
 
 /**
- * What a record's companion adds: a seal input of entries, and the members that derive one. Only
- * `Val.Record.companion` builds one, so a bundle without it leaves it out.
+ * A record's builder. Its seal gathers the entries into the object the value is, ahead of a custom
+ * seal's own, and its companion carries the members that derive one. Only `Val.Record.companion`
+ * reaches it, so a bundle without it leaves it out.
  */
-type Collector = {
-  gather: (value: unknown) => unknown;
-  members: (
-    seal: (value: unknown) => unknown,
-    keep: (value: unknown) => unknown,
-  ) => Record<string, unknown>;
-};
-
-const collector: Collector = {
-  // A value already sealed is no iterable and passes as it is, as `keep` and a custom seal need.
-  gather: (value) =>
-    isObject(value) && Symbol.iterator in value
-      ? Object.fromEntries(value as Iterable<readonly [string, unknown]>)
-      : value,
-  members: (seal, keep) => {
+const recordBuilder = (registered: Registered): object => ({
+  ...steps(registered, (change) => recordBuilder({ ...registered, ...change })),
+  build: () => {
+    const { seal: custom } = registered;
+    // A value already sealed is no iterable, and passes as it is.
+    const gather = (value: unknown): unknown =>
+      isObject(value) && Symbol.iterator in value
+        ? Object.fromEntries(value as Iterable<readonly [string, unknown]>)
+        : value;
+    const target = attach({
+      ...registered,
+      seal: (value, seal) =>
+        custom ? custom(value, (candidate) => seal(gather(candidate))) : seal(gather(value)),
+    });
+    const seal = target["seal"] as (value: unknown) => unknown;
     const has = (from: object, key: string): boolean => Object.hasOwn(from, key);
-    return {
+    return Object.assign(target, {
       has: dual(has),
       delete: dual((from: Record<string, unknown>, key: string) =>
-        has(from, key) ? seal(Object.entries(from).filter(([k]) => k !== key)) : keep(from),
+        seal(has(from, key) ? Object.entries(from).filter(([k]) => k !== key) : from),
       ),
       keys: Object.keys,
       values: Object.values,
       entries: Object.entries,
       set: dual((from: Record<string, unknown>, key: string, value: unknown) =>
-        has(from, key) && Object.is(from[key], value)
-          ? keep(from)
-          : seal([...Object.entries(from), [key, value]]),
+        seal(
+          has(from, key) && Object.is(from[key], value)
+            ? from
+            : [...Object.entries(from), [key, value]],
+        ),
       ),
-    };
+    });
   },
-};
+});
 
 /** Accepts a {@link ValRecord} only. */
 type IsValRecord<V> = [Declared<V>] extends [Collection]
@@ -1991,7 +1988,7 @@ export const recordCompanion = <
   V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val">,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
 >(): CompanionBuilder<V, undefined, undefined, O> =>
-  builder({ collection: collector }) as CompanionBuilder<V, undefined, undefined, O>;
+  recordBuilder({}) as CompanionBuilder<V, undefined, undefined, O>;
 
 // The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
 // with a boolean payload is a union of two types with one brand, so the check compares brands.
