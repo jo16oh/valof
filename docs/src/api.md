@@ -14,6 +14,8 @@
 | Step                     | Description                                                   |
 | ------------------------ | ------------------------------------------------------------- |
 | `Val.companion<V, O?>()` | starts a companion, with the default seal and the options `O` |
+| `Val.Map.companion<M>()` | starts a `Val.Map`'s companion                                |
+| `Val.Set.companion<S>()` | starts a `Val.Set`'s companion                                |
 | `.implSeal(f)`           | registers a custom seal                                       |
 | `.implCreate(f)`         | registers a function that creates a payload                   |
 | `.implCreate.noseal(f)`  | the same, bypassing the seal for a payload it always accepts  |
@@ -54,6 +56,17 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | `User.[member](first, ...rest)` | runs a member registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                |
 | `User.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument               |
 
+The companion of a `Val.Map` or a `Val.Set` takes the same steps, and has no `patch`. Its seal takes
+an iterable of entries, or of keys. `Prices` stands for a `Val.Map`'s companion, and `Tags` for a
+`Val.Set`'s. Each has these members:
+
+| API                           | Description                                                    |
+| ----------------------------- | -------------------------------------------------------------- |
+| `Prices.set(map, key, value)` | returns the map with the value under the key, through the seal |
+| `Tags.add(set, key)`          | returns the set with the key, through the seal                 |
+| `Prices.delete(map, key)`     | returns the map or the set without the key, through the seal   |
+| `Prices.has(map, key)`        | whether the map or the set holds the key                       |
+
 ## Val Types
 
 | Type                  | Description                                                                       |
@@ -65,6 +78,8 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | `Patch<T>`            | the recipe `patch` accepts for a payload                                          |
 | `Draft<T>`            | the writable stand-in for the payload that a recipe assigns to                    |
 | `Rec<V>`              | a Val's reference to itself, in its own payload                                   |
+| `Val.Map<K, Key, V>`  | a Val holding a value `V` under each key `Key`                                    |
+| `Val.Set<K, Key>`     | a Val holding a set of keys of type `Key`                                         |
 | `CompanionBuilder<V>` | a companion's builder, with the steps it can still take                           |
 | `Companion<V, M>`     | the companion `.build()` returns                                                  |
 

@@ -114,39 +114,37 @@ build the server is running, and that seal may be older than yours.
 
 ## Map / Set
 
-Use an object's properties.
-
-```ts
-import { Val } from "valof";
-
-type Money = Val<"Money", { amount: number; currency: string }>;
-// ---cut---
-type Tags = Val<"Tags", Record<string, true>>; // a Set
-type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
-```
-
-Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test.
-[`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
-
-In a table of Vals such as `PriceTable`, `patch` sets an entry by assignment. To remove an entry,
-call `seal` to rebuild the whole table.
+Declare a `Val.Map` or a `Val.Set`, each with a companion of its own. A record keyed by any string
+is a type error in a payload, because a variable whose type lists fewer entries can hold unchecked
+values under the keys it leaves out.
 
 ```ts
 import { Val } from "valof";
 
 type Money = Val<"Money", { amount: number; currency: string }>;
 const Money = Val.companion<Money>().build();
-type PriceTable = Val<"PriceTable", Record<string, Money>>;
-const PriceTable = Val.companion<PriceTable>().build();
-
-declare const table: PriceTable;
 // ---cut---
-PriceTable.patch(table, (t) => {
-  t["apple"] = Money.seal({ amount: 120, currency: "JPY" });
-});
+type PriceTable = Val.Map<"PriceTable", string, Money>;
+const PriceTable = Val.Map.companion<PriceTable>().build();
 
-PriceTable.seal(Object.fromEntries(Object.entries(table).filter(([, m]) => m.amount < 500)));
+const table = PriceTable.seal([["apple", Money.seal({ amount: 120, currency: "JPY" })]]);
+table["apple"]; // Money | undefined
+const priced = PriceTable.set(table, "fig", Money.seal({ amount: 300, currency: "JPY" }));
+const figs = PriceTable.delete(priced, "apple");
+
+type Tags = Val.Set<"Tags", string>;
+const Tags = Val.Set.companion<Tags>().build();
+
+const tags = Tags.seal(["new", "sale"]);
+Tags.has(tags, "new"); // true
+const more = Tags.add(tags, "rare");
 ```
+
+The seal takes an iterable of entries, or of keys: an array, a JS `Map` or `Set`, or
+`Object.entries(…)` of data you checked. It takes no plain object. A later entry replaces an earlier
+one with the same key. `set`, `add` and `delete` pass a new value to the seal and return what it
+returns, or return the value itself where nothing changes. The value is a plain object keyed by its
+keys, so `equals` and JSON treat it as a plain object.
 
 ## Dates
 

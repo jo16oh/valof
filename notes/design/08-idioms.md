@@ -4,6 +4,10 @@ These need no extra implementation in the library. The docs only show them.
 
 ## 8.1 Map / Set
 
+**Replaced by `Val.Map` and `Val.Set`, 2026-11-17** (§3 "No index signature"). A record keyed by any string is a type error
+in a payload. The value is still a plain object keyed by what it holds, so `true` marks a set's key and equality is set
+equality, as below. The rest of this section is the earlier record.
+
 ```ts
 // Set
 type Tags = Val<"Tags", Readonly<Record<string, true>>>;

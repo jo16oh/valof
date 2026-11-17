@@ -16,16 +16,15 @@
     107.02 kB. The trait budget went from 25,000 to 26,000, by the 2026-11-06 rule that a budget goes up when exceeded.
     The fixtures changed to the function form, so the type numbers include that
 
-- [ ] **An unsealed object under a hidden key.** A narrower static type hides a key, and the object it holds is placed where the
-      value holds nothing to merge into, such as an absent optional key, in `seal` or `patch`. No Val's seal receives it. The hole
-      exists on `main` too
+- [x] ~~**An unsealed object under a hidden key.**~~ Closed, 2026-11-17, by the three changes below. A narrower static type hides
+      a key, and the object it holds is placed where the value holds nothing to merge into, such as an absent optional key, in
+      `seal` or `patch`. No Val's seal received it. `Object.assign` on a draft remains (below)
   - **The plan, 2026-11-17 (user).** Three changes close it in types alone, with no runtime schema
     1. **Every key is required** (§3.5). Done. A narrowed variable can no longer hide a key from `seal`
     2. **`patch` takes a recipe that assigns to a draft** (§6.2). Done. A patch argument is partial by nature, so any key can
        hide in it. An assignment is checked key by key, and a draft has no object argument to hide a key in
-    3. **No index signature.** A record's type admits keys it does not list. A built-in map replaces it. Its entries pass one at a
-       time through typed positions. Until then, `{ staff: { u1: undefined } }` leaves an entry holding `undefined`. A patch type
-       marks an index signature optional, which adds `undefined` to its entries
+    3. **No index signature** (§3). Done. A record's type admits keys it does not list. `Val.Map` and `Val.Set` replace it,
+       and their entries pass one at a time through typed positions
 
   ```ts
   const full = { name: "s", home: { name: "kyoto", zip: "600" } };
@@ -33,7 +32,7 @@
   Shop.seal(narrow); // home is typed City, and City.seal never ran
   ```
   - TypeScript has no exact types, and the runtime does not know which fields hold a Val
-  - Closing it takes a runtime schema. The companion references the Val each field holds (`Val.companion<Shop>({ home: City })`),
+  - ~~Closing it takes a runtime schema.~~ Not needed (the plan below). The companion references the Val each field holds (`Val.companion<Shop>({ home: City })`),
     and the seal checks that each field holds a value that Val's seal returned. The root mark records only that some seal returned
     a node. The schema puts which Val a field holds into the runtime, which §2.1 keeps in the type alone
 

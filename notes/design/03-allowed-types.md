@@ -229,6 +229,43 @@ A required key cannot be left out of the static type, so no key can be hidden fr
 - **Cost.** Val 1.04 → 1.01 kB gzipped (`patch` no longer deletes). core 9,724 → 9,598, trait 25,024 → 24,966, enum
   47,475 → 46,751 instantiations
 
+### No index signature, 2026-11-17
+
+A record keyed by any string (`Record<string, V>`, a pattern, a branded string, `{ [k: string]: V }`) is a type error in
+a payload, whose message names `Val.Map` and `Val.Set`. A record with literal keys lists every entry, and stays.
+
+**An index signature lets a narrowed variable hide entries.** It claims a `V` under keys it never lists, and TypeScript
+assigns a type listing some entries to it. The seal took the hidden ones unchecked, at any depth, the root included.
+
+```ts
+type PriceTable = Val<"PriceTable", Record<string, Money>>;
+const known: { apple: Money } = full; // full also holds fig: { amount: "raw" }
+PriceTable.seal(known); // fig is typed Money, and Money.seal never ran
+```
+
+**`Val.Map<B, K, V>` and `Val.Set<B, K>` replace it.** Each is a Val whose companion comes from `Val.Map.companion` or
+`Val.Set.companion`, since types are erased, and at run time a map's input looks like an array Val's.
+
+- **The seal takes an iterable of entries or keys, never a plain object.** An entry is a `readonly [K, V]` tuple, and a
+  tuple has no hidden elements, so every value is checked against `V`. A later entry with the same key wins, as in
+  `new Map` and `Object.fromEntries`
+- **The value is a frozen plain object keyed by `K`.** Reading `prices[key]` gives `V | undefined`. `equals`, JSON and
+  `structuredClone` treat it as any object. A set holds `true` under each key (§8.1)
+- **`set`, `add`, `delete` and `has` are the companion's members**, reserved only on a map's or a set's companion. Each goes through the seal, and
+  returns the value itself where nothing changes. There is no `patch`. `set` and `delete` change an entry
+- **`V` is any payload type** (user, 2026-11-17). Restricting it to Vals guarded nothing more once the seal took entries,
+  and the linter's own tables of strings and arrays would each have needed a newtype
+- **`Val.companion` and `Val.of` reject a map or a set**, whose value they would build from the wrong input
+- **Rejected: the root alone holds a record, and `patch` does not merge it.** A narrowed variable reaches the root `seal`
+  too
+- **Rejected: a runtime check that each value is a sealed Val.** Typed entries already check each value
+- **Rejected: a `fromEntries` member.** It repeats the seal and reserves another name. A `fromObject` would reopen the hole
+- **Breaking change.** A payload's `Record<string, V>` becomes a `Val.Map` or a `Val.Set`. valof-lint recognizes both
+  declarations and companions, and its own tables moved to them
+- **Cost.** Val 1.25 → 1.27 kB gzipped: the map and set code is in `Val.Map.companion` and `Val.Set.companion`, so a
+  bundle without them leaves it out. The rules cost core 9,288 → 9,727 instantiations, and the fixture's map another 1,726
+  (11,453), so the core budget went from 10,000 to 12,000. `index.d.ts` 105.65 → 111.21 kB, budget 108 → 112 kB
+
 ## 3.6 Forbid unions of objects
 
 `patch` merges into the node that already exists. With a different variant, there is nothing to merge into, and the old variant's keys remain.
