@@ -1852,6 +1852,19 @@ describe("patch", () => {
     });
   });
 
+  test("a recipe's parameter is the draft itself", () => {
+    // A narrower type would let it write a key the draft keeps readonly.
+    const rename = (s: { id: string }) => {
+      s.id = "t";
+    };
+    // @ts-expect-error a recipe's parameter is the draft
+    Shop.patch(shop(), rename);
+    const typed: Patch<SeedOf<Shop>> = (s) => {
+      s.id = "t";
+    };
+    expect([Shop.patch(shop(), typed).id, Shop.patch(shop(), () => {}).id]).toEqual(["t", "s"]);
+  });
+
   test("a plain object field holds no Val", () => {
     type Pin = Val<"Pin", { at: { x: number; y: number } }>;
     const Pin = Val.companion<Pin>().build();
