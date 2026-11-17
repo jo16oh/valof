@@ -5,13 +5,30 @@
   - **The mark said where a node came from, not what the field holds.** A cloned Val merged into a nested Val without passing the nested Val's seal.
     A subtree whose type leaves keys out replaced the field, and dropped required keys
   - **The 2026-11-06 premise was wrong.** "Replacing and merging give the same result" fails where the replacement leaves out
-    an optional key. The 2026-11-06 item ("`patch` cannot pass a Val to a plain object field") no longer applies: a Val
-    in a plain object field merges, and needs no `?: never` key
+    an optional key. The 2026-11-06 items on a Val in a plain object field (through `seal`, and "`patch` cannot pass a Val to a
+    plain object field") are reversed. A plain object field takes no Val, in a `seal` argument or a patch (user, 2026-11-17)
+  - **A merge into a Val throws.** A key that a narrower static type hid carried an object into a nested Val (type-hunt, 2026-11-17).
+    A seal marks the root it returns, and a merge that reaches a marked root throws (§6.2)
   - **Breaking change.** A nested Val, and an object in an optional key, a `Record` entry or a field that may be `null`, take
     `() => value`. valof-lint's scan and the check-dist fixtures changed
-  - **Cost.** Val 1,002 → 1,020 B gzipped. core 9,398 → 9,565, trait 24,826 → 24,903, enum 47,202 → 47,308,
-    `index.d.ts` 105.80 → 106.67 kB. The fixtures changed to the function form, so the type numbers include that. Without a fast path
-    for a field that holds no object, core reached 10,376, over its 10,000 budget
+  - **Cost.** Val 1,002 → 1,067 B gzipped, so its budget went from 1.00 to 1.10 kB (user): the function form +18 B, the root mark and
+    the top-level copy of a shared node +32 B, the throw +15 B. core 9,398 → 9,724, trait 24,826 → 25,024, enum 47,202 → 47,475, `index.d.ts` 105.80 →
+    107.02 kB. The trait budget went from 25,000 to 26,000, by the 2026-11-06 rule that a budget goes up when exceeded.
+    The fixtures changed to the function form, so the type numbers include that
+
+- [ ] **An unsealed object under a hidden key.** A narrower static type hides a key, and the object it holds is placed where the
+      value holds nothing to merge into, such as an absent optional key, in `seal` or `patch`. No Val's seal receives it. The hole
+      exists on `main` too
+
+  ```ts
+  const full = { name: "s", home: { name: "kyoto", zip: "600" } };
+  const narrow: { name: string } = full;
+  Shop.seal(narrow); // home is typed City, and City.seal never ran
+  ```
+  - TypeScript has no exact types, and the runtime does not know which fields hold a Val
+  - Closing it takes a runtime schema. The companion references the Val each field holds (`Val.companion<Shop>({ home: City })`),
+    and the seal checks that each field holds a value that Val's seal returned. The root mark records only that some seal returned
+    a node. The schema puts which Val a field holds into the runtime, which §2.1 keeps in the type alone
 
 - [x] ~~**The hole in a patch passed as a variable (investigated in #125).**~~ Closed, 2026-11-05. Items 1-3 of `hunt-findings.md`. A non-literal
       argument gets no excess property check, and the patch type was an intersection (`{…} & {…}`), so it got no weak type check either
@@ -115,11 +132,12 @@
   - A record payload, and a trait whose shape is a primitive: `Agrees` only looked at field disagreements
   - A tuple element of `never`: mapping the element to anything satisfies the constraint, so the whole tuple gets "no value fits a tuple element"
   - **Not handled.** Passing a Val to a plain object field through `seal`. A Val is also a plain object, so this is fine
-    semantically (user, 2026-11-06). `any` in a field, `Impl<any>` and `any` in a companion's options stay unhandled, per the 2026-11-04 policy
+    semantically (user, 2026-11-06). → Reversed, 2026-11-17 (top item). `any` in a field, `Impl<any>` and `any` in a companion's options stay unhandled, per the 2026-11-04 policy
   - The type budgets (975 B left for `index.d.ts`, 332 left for trait) stay for now, and go up the next time one is exceeded (user,
     2026-11-06)
 
-- [x] ~~**`patch` cannot pass a Val to a plain object field.**~~ Accepted when the Val has every key of the field, 2026-11-06
+- [x] ~~**`patch` cannot pass a Val to a plain object field.**~~ Accepted when the Val has every key of the field, 2026-11-06.
+      → Reversed, 2026-11-17 (top item)
   - #130 made `PhantomBrand` `?: never` and rejected every Val. The reason was that the type of a field in `patch` is
     partial, but at run time an `owned` node (a Val, an existing value) replaces the field whole instead of merging. Accepting a Val with missing keys
     would leave the field without those keys while the type still claims them

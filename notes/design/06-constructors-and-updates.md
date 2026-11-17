@@ -178,11 +178,22 @@ Shop.patch(shop, { tags: (tags) => [...tags, "new"] }); // from the current valu
 - A nested Val, and an object in an optional key, a `Record` entry or a field that may be `null`, take a function only. The type adds an `Invalid` member, so the error message shows the fix, `() => value`
 - A primitive and an array take a value or a function. The same operation gets two forms, which "Rejected options" below once ruled out. The function form is accepted as the way to build a value from the current one (user)
 - An optional key's function receives `undefined` where the key is absent, and returning `undefined` deletes the key
-- A Val passed to a plain object field is now a partial patch, and merges. The `?: never` on `PhantomBrand` that rejected it (§9, 2026-11-05) existed only because a Val replaced the field
-- **It closes** both holes above. It also closes the inner optional keys that an optional key's replacement could not remove, and the cost "a nested object cannot shrink" below
-- **It costs** a breaking change. A Val passed as it is to a Val field is a type error. Setting a Val field to a value built elsewhere takes `() =>`: valof-lint's `CompanionSite.patch(site, { nameAt: () => Lines.at(lines, id.start) })`
+- **The function form closes** both holes above. It also closes the inner optional keys that an optional key's replacement could not remove, and the cost "a nested object cannot shrink" below
+- **The function form costs** a breaking change. A Val passed as it is to a Val field is a type error. Setting a Val field to a value built elsewhere takes `() =>`: valof-lint's `CompanionSite.patch(site, { nameAt: () => Lines.at(lines, id.start) })`
+- A plain object field takes no Val, in a `seal` argument or a patch (`NotVal`, a `?: never` on `PhantomBrand`). This reverses §9's 2026-11-06 items (user, 2026-11-17). A payload that needs a Val in a plain field is modelled wrong, and copying the Val's fields into a plain object costs little
 
-**Rejected: a mark only on a Val's root** (2026-11-16). It replaces only a node that a seal returned, so a subtree merges. A Val's root holds every key its own type declares, but not every key the field declares. A Val upcast to a partial plain type still replaces, so the second hole stays open. A seal that receives a subtree returns that node unchanged, so the root mark would be set on a shared node, or on none where the development build has frozen the node. Development and production then disagree. Every seal paid +10 to 20 ns for the extra private field (Node 26, production: seal 180 → 200 ns, nocopy 29 → 41 ns).
+**Adopted: a mark on a Val's root, as a safety net** (2026-11-17). A seal marks what it returns. A merge that reaches a marked node throws. The types reject a patch that merges an object into a Val, so only a path the types missed reaches the throw: a key that a narrower static type hid, or a Val held in a plain field after an upcast.
+
+```ts
+const view: { name: string } = other.owner; // owner.city: City is hidden
+Shop.patch(shop, { owner: view }); // the merge reaches owner.city, and throws
+```
+
+The mark no longer chooses between merging and replacing, so the upcast that kept the second hole open below does not matter. It cannot tell a hidden key from a Val held in a plain field, so a plain object field takes no Val (above). A seal that receives a node another value holds copies the node's top level, so the mark is never set on a shared node. Development and production then agree.
+
+One hole remains. A hidden key can still put an unsealed object where the value holds nothing to merge into, such as an absent optional key. `seal` has the same hole. The runtime does not know which fields hold a Val, so closing it takes a runtime schema (§9).
+
+**Rejected: a mark on a Val's root, choosing between merging and replacing** (2026-11-16). It replaces only a node that a seal returned, so a subtree merges. A Val's root holds every key its own type declares, but not every key the field declares. A Val upcast to a partial plain type still replaces, so the second hole stays open. A seal that receives a subtree returns that node unchanged, so the root mark would be set on a shared node, or on none where the development build has frozen the node. Development and production then disagree. Every seal paid +10 to 20 ns for the extra private field (Node 26, production: seal 180 → 200 ns, nocopy 29 → 41 ns).
 
 **Rejected: a lens** (`Settings.lens(s).theme.replace(t)`, `.connection.patch(p)`). It closes the same holes, but only if each `patch` is shallow. Otherwise `patch` must again choose between merging and replacing, one level down. That undoes "A patch reaches any depth". It also seals once per field, so an invariant across two fields fails between the calls, and its `patch` and `replace` can collide with field names.
 
