@@ -516,6 +516,12 @@ describe("Trait", () => {
         .build();
     });
 
+    test("nor an index signature: each member has a name", () => {
+      // @ts-expect-error a trait's members are named
+      type Open = Trait<"Open", { name: string }, { [k: string]: (self: Self) => string }>;
+      expectTypeOf<Open>().not.toBeNever();
+    });
+
     test("but may take `then`", () => {
       type Awaited = Trait<"Awaited", { name: string }, { then: (self: Self) => string }>;
       Trait.companion<Awaited>()
@@ -653,11 +659,31 @@ describe("dyn", () => {
     // @ts-expect-error another Val's value
     Crate.dyn<Weighed>(USER);
     expect(Crate.dyn<Weighed>(crate).heavy()).toBe(true);
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    type Loose = any;
+    // @ts-expect-error a trait, not `any`
+    Crate.dyn<Loose>(crate);
+    // Declared, but no `implTrait` yet: the companion holds no implementation to box.
+    const Bare = Val.companion<Crate>().build();
+    expectTypeOf(Bare).not.toHaveProperty("dyn");
+    expect("dyn" in Bare).toBe(false);
     // A companion with no trait has no `dyn`.
     type Plain = Val<"DynPlain", { n: number }>;
     const Plain = Val.companion<Plain>().build();
     expectTypeOf(Plain).not.toHaveProperty("dyn");
     expect("dyn" in Plain).toBe(false);
+  });
+
+  test("a box keeps the prototype's members its type shows", () => {
+    const boxed = User.dyn<Greetable>(USER);
+    expect([boxed.hasOwnProperty("value"), typeof boxed.toString()]).toEqual([false, "string"]);
+  });
+
+  test("a box's traits cannot disagree on a member's signature", () => {
+    type Loud = Trait<"Loud", { name: string }, { greet: (self: Self) => number }>;
+    // @ts-expect-error `greet` would need to return a string and a number
+    type Clash = Dyn<Greetable & Loud>;
+    expectTypeOf<Clash>().not.toBeNever();
   });
 
   test("passes as a function, with the trait named", () => {

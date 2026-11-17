@@ -305,11 +305,13 @@ describe("Val", () => {
       expectTypeOf<Branded>().not.toExtend<AnyVal>();
       // @ts-expect-error a `Patch` takes keys of the payload
       type Typo = Patch<{ id: string }, "idd">;
+      // @ts-expect-error and so does a `Draft`
+      type DraftTypo = Draft<{ id: string }, "idd">;
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = any;
       // @ts-expect-error the options cannot be `any`
       Val.companion<User, Loose>().build();
-      expectTypeOf<Typo>().not.toBeNever();
+      expectTypeOf<Typo | DraftTypo>().not.toBeNever();
       // Literal keys list every entry.
       type Fixed = Val<"Fixed", Record<"a" | "b", number>>;
       expectTypeOf<Fixed>().toExtend<AnyVal>();
@@ -1877,6 +1879,32 @@ describe("patch", () => {
       t.n = 3;
     };
     expect([typed, fewer].map((f) => Ticket.patch(ticket, f).n)).toEqual([2, 3]);
+  });
+
+  test("a recipe's parameter keeps each key as the draft has it", () => {
+    type Spot = Val<"RecipeSpot", { x: number }>;
+    type Card = Val<
+      "RecipeCard",
+      { id: string; at: Spot; tags: string[]; note: string | undefined }
+    >;
+    const Card = Val.companion<Card, [Unpatchable<"id">]>().build();
+    const card = Card.seal({ id: "c", at: Val.of<Spot>({ x: 1 }), tags: [], note: "n" });
+    // @ts-expect-error a nested Val is read-only in the draft
+    Card.patch(card, (c: { at: { x: number } }) => {
+      c.at.x = 2;
+    });
+    // @ts-expect-error a required key stays required, so `delete` cannot drop it
+    Card.patch(card, (c: { note?: string }) => {
+      delete c.note;
+    });
+    // @ts-expect-error each member of a union is checked
+    Card.patch(card, (c: { note: string | undefined } | { id: string }) => {
+      if ("id" in c) c.id = "x";
+    });
+    const both = (c: { note: string | undefined; tags: readonly string[] }) => {
+      c.note = undefined;
+    };
+    expect(Card.patch(card, both).note).toBeUndefined();
   });
 
   test("a plain object field holds no Val", () => {

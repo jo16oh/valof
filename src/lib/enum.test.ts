@@ -1056,6 +1056,18 @@ describe("traits", () => {
       >();
       // @ts-expect-error the enum declares this trait, so box it through the enum
       Mixed.A.dyn<Counted>(a);
+      type Other = Trait<"Other", Record<never, never>, { other: (self: Self) => number }>;
+      expectTypeOf<Parameters<typeof Mixed.dyn<Other>>[0]>().toEqualTypeOf<
+        Invalid<"this type does not declare the trait">
+      >();
+      expectTypeOf<Parameters<typeof Mixed.A.dyn<Named & Counted>>[0]>().toEqualTypeOf<
+        Invalid<"the enum and the variant each hold one of these traits; box them separately">
+      >();
+      // Declared but not implemented on the variant: its companion has nothing to box.
+      const Bare = Enum.companion<Mixed>()
+        .implTrait(Counted, () => ({ counted: (m) => m._tag.length }))
+        .build();
+      expectTypeOf(Bare.A).not.toHaveProperty("dyn");
     });
 
     test("is implemented on the variant, and boxes through its frame", () => {
