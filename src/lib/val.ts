@@ -232,11 +232,13 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
             true extends { [I in keyof T]: [T[I]] extends [never] ? true : false }[number]
             ? Invalid<"no value fits a tuple element">
             : {
-                // An optional element is the tuple's form of an optional key: absent, it round trips.
-                // `Required<T>` tells the two apart, since only the optional one loses its `undefined`.
+                // `Required<T>` tells an optional element from one typed `undefined`, since only the
+                // optional one loses its `undefined`. JSON writes `undefined` in an array as `null`.
                 [I in keyof T]: undefined extends Required<T>[I]
-                  ? Invalid<"a tuple element cannot be undefined; use null or make it optional">
-                  : Validate<Exclude<T[I], undefined>, false>;
+                  ? Invalid<"a tuple element cannot be undefined; use null">
+                  : undefined extends T[I]
+                    ? Invalid<"a tuple element cannot be optional; declare a union of tuples">
+                    : Validate<T[I], false>;
               }
         : M
       : never
@@ -373,17 +375,16 @@ type Fitting<T, Then> = [Unfit<T>] extends [never]
  */
 type ValidateFields<T> = {
   // An index signature satisfies `Record<never, never> extends Pick<T, K>`, so `OptionalKeys`
-  // counts it as optional. Its entries are not optional: reading one is unchecked, and widening
-  // it with `undefined` breaks `Object.values`.
-  [K in keyof T]: string extends K
+  // counts it as optional, and it is checked first.
+  // `{}` fits a record only when its key is not a literal: `string`, a pattern or a branded string.
+  [K in keyof T]: Record<never, never> extends Record<K, unknown>
     ? Validate<T[K], false>
-    : K extends OptionalKeys<T>
-      ? Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>
-      : undefined extends T[K]
-        ? unknown extends T[K]
-          ? Validate<T[K], false>
-          : Invalid<"required property cannot be undefined; use null or make it optional">
-        : Validate<T[K], false>;
+    : // A variable typed without the key can hide any value there, so every key is required.
+      K extends OptionalKeys<T>
+      ? Invalid<"a key cannot be optional; write `k: T | undefined`">
+      : unknown extends T[K]
+        ? Validate<T[K], false>
+        : Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>;
 };
 
 /**
@@ -441,10 +442,11 @@ type DeepReadonlyValue<
               ? EmptyField
               : Record<never, never>
           : {
-              // An optional key carries `undefined` in its type, and a union stops the walk one
-              // level short: a `Rec` inside it would never open. The value never holds the
-              // `undefined` either way, since an optional key is absent or set.
-              readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Inner>;
+              // A union stops the walk one level short, so a `Rec` beside `undefined` would never
+              // open. `undefined` is split off first.
+              readonly [K in keyof T]:
+                | DeepReadonly<Exclude<T[K], undefined>, Inner>
+                | Extract<T[K], undefined>;
             } & (Arg extends "field" ? NotVal : unknown)
         : [Extract<T, Primitive>] extends [never]
           ? T
@@ -679,7 +681,7 @@ type Opened<T> = [T] extends [never]
         : number extends keyof T
           ? { [I in keyof T]: Opened<T[I]> }
           : [T] extends [object]
-            ? { [K in keyof T]: Opened<Exclude<T[K], undefined>> }
+            ? { [K in keyof T]: Opened<Exclude<T[K], undefined>> | Extract<T[K], undefined> }
             : [Extract<T, Primitive>] extends [never]
               ? T
               : Extract<T, Primitive> | Opened<Exclude<T, Primitive>>;
@@ -702,8 +704,7 @@ type ReadonlyKey<T, K extends keyof T> = Equal<Pick<T, K>, Readonly<Pick<T, K>>>
  * `nocopy` accepts only evidence that is immutable all the way down. This cannot prove there is
  * no mutable alias: a readonly view can still have one.
  *
- * Optional properties and tuple positions exclude only the `undefined` introduced by their
- * optional marker. The payload validator separately rejects explicit `undefined` values.
+ * A field typed `T | undefined` is checked as `T`.
  */
 type IsNocopyable<T> = [T] extends [AnyVal]
   ? true
@@ -724,7 +725,7 @@ type IsNocopyable<T> = [T] extends [AnyVal]
       : [T] extends [object]
         ? false extends {
             [K in keyof T]-?: ReadonlyKey<T, K> extends true
-              ? IsNocopyable<K extends OptionalKeys<T> ? Exclude<T[K], undefined> : T[K]>
+              ? IsNocopyable<Exclude<T[K], undefined>>
               : false;
           }[keyof T]
           ? false
@@ -743,17 +744,17 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * fields. `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
  *
  * - omit the key → leave it unchanged
- * - `{ k: undefined }` → delete it (under `exactOptionalPropertyTypes`, for an optional key only)
+ * - `{ k: undefined }` → set it to `undefined`, for a field typed `T | undefined`
  * - `{ k: value }` → set it, for a primitive or an array
  * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required plain object
  * - `{ k: (current) => value }` → replace `k` with what the function returns
  *
  * `X` lists keys the patch rejects, as `Patch<Fields, "id">` for an `Unpatchable` id.
  *
- * A nested Val, and an object in an optional key, a `Record` entry or a field that may be `null`,
- * is replaced through a function only. Merging into a Val would build a payload its own seal never
- * saw, and the others may have nothing to merge into: `{ at: { x: 1 } }` onto an absent `at`
- * would leave a value missing `y` that the type still calls a `Point`.
+ * A nested Val, and an object in a `Record` entry or a field that may be `null` or `undefined`, is
+ * replaced through a function only. Merging into a Val would build a payload its own seal never
+ * saw, and the others may have nothing to merge into: `{ at: { x: 1 } }` onto an `at` that is
+ * `null` would leave a value missing `y` that the type still calls a `Point`.
  */
 export type Patch<T, X extends PropertyKey = never> = [T] extends [AnyVal]
   ? [T] extends [never]
@@ -771,8 +772,12 @@ export type Patching<T, X extends PropertyKey = never> = T extends object
     ? never
     : {
         [K in keyof T | X]?: K extends keyof T
-          ? K extends OptionalKeys<T>
-            ? Replaceable<T[K] | undefined>
+          ? // An entry of a record may be absent, so an object replaces it, and the function
+            // receives `undefined` there. Neither sets `undefined`, which the entry's type lacks.
+            Record<never, never> extends Record<K, unknown>
+            ?
+                | Exclude<Replaceable<T[K] | undefined>, undefined | AnyFn>
+                | ((current: T[K] | undefined) => T[K])
             : PatchValue<T[K]>
           : never;
       }
@@ -794,8 +799,7 @@ type PatchValue<T> = [T] extends [object]
   : Replaceable<T>;
 
 /**
- * Replaces a field in a {@link Patch} with what it returns. It receives the field's current value,
- * which is `undefined` where an optional key is absent, and returning `undefined` deletes the key.
+ * Replaces a field in a {@link Patch} with what it returns. It receives the field's current value.
  */
 export type Replacer<T> = (current: T) => T;
 
@@ -1058,9 +1062,8 @@ type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<Derivable<V, O
        * Derives by sealing, so it returns whatever the seal returns: `patch` cannot bypass a smart
        * constructor.
        *
-       * A nested object merges, so a patch cannot shrink one. `{ staff: { u1: undefined } }`
-       * drops one entry; passing a whole smaller object leaves the rest in place. To
-       * replace it outright, build the whole payload again through the constructor or `seal`.
+       * A nested object merges, so a patch cannot shrink one: passing a whole smaller object
+       * leaves the rest in place. Replace it through a function, as `{ staff: () => staff }`.
        * See {@link Patch}.
        */
       patch: Derive<V, F, Patch<Derivable<V, O>, UnpatchableKeys<O>>>;
@@ -1677,20 +1680,11 @@ const patched = (
 ): Record<string, unknown> => {
   const merged: Record<string, unknown> = { ...base, ...patch };
   let same = true;
-  let kept = 0;
   for (const key of Object.keys(merged)) {
     const before = base[key];
     const given = merged[key];
     const replaced = typeof given === "function";
     const value: unknown = replaced ? (given as (current: unknown) => unknown)(before) : given;
-    // A deletion needs no flag of its own: it shows up in the count. `kept` rises only for a
-    // surviving key, and a key added in place of the deleted one cannot match the base's absent
-    // one, so `same` is already false there.
-    if (value === undefined) {
-      delete merged[key];
-      continue;
-    }
-    kept++;
     // A key the patch left out holds the base's own child, which needs no walk.
     const merging =
       !replaced && !Object.is(value, before) && isObjectShaped(before) && isObjectShaped(value);
@@ -1707,7 +1701,7 @@ const patched = (
     merged[key] = child;
     if (!Object.is(child, before)) same = false;
   }
-  return same && kept === Object.keys(base).length ? base : merged;
+  return same ? base : merged;
 };
 
 /**

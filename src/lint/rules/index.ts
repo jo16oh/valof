@@ -74,7 +74,7 @@ export const ALL_KINDS = KindSet.create(KINDS);
 export function compile(enable: Options["enable"]): Dyn<Rule>[] {
   const model = enable["data-type-outside-valof"];
   return RULES.flatMap((rule) =>
-    rule.optIn !== true
+    !rule.optIn
       ? [rule]
       : rule.kind === "data-type-outside-valof" && model
         ? [Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(model))]

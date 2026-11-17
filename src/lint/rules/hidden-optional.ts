@@ -18,6 +18,7 @@ export const HiddenOptional = Val.companion<HiddenOptional>()
     kind: Kind.seal("hidden-optional"),
     description: "a default or rest parameter that a member's type annotation hides",
     warns: false,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
   .build();

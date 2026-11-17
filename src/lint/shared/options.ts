@@ -30,13 +30,14 @@ export const DataTypeSettings = Val.companion<DataTypeSettings>()
   .build();
 
 /** The rules that are off unless named here, with their settings. */
-export type Enabled = Val<"Enabled", { "data-type-outside-valof"?: DataTypeSettings }>;
+export type Enabled = Val<"Enabled", { "data-type-outside-valof": DataTypeSettings | undefined }>;
 export const Enabled = Val.companion<Enabled>()
   .implCreate(
     ({
       "data-type-outside-valof": model,
-    }: { "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0] } = {}) =>
-      model ? { "data-type-outside-valof": DataTypeSettings.create(model) } : {},
+    }: { "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0] } = {}) => ({
+      "data-type-outside-valof": model && DataTypeSettings.create(model),
+    }),
   )
   .build();
 

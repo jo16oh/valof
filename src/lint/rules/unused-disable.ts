@@ -14,6 +14,7 @@ export const UnusedDisable = Val.companion<UnusedDisable>()
     description: "a disable comment naming a rule that reports nothing there",
     // A directive that silences nothing changes nothing about the code.
     warns: true,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();

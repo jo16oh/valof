@@ -12,6 +12,7 @@ export const CompanionMismatch = Val.companion<CompanionMismatch>()
     kind: Kind.seal("companion-mismatch"),
     description: "a companion bound to a name other than the type it is for",
     warns: false,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();

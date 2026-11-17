@@ -13,6 +13,7 @@ export const DuplicateBrand = Val.companion<DuplicateBrand>()
     kind: Kind.seal("duplicate-brand"),
     description: "a brand string claimed by more than one type alias",
     warns: false,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();
