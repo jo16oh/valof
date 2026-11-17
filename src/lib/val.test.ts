@@ -22,6 +22,7 @@ import type {
   CallBuildFirst,
   CompanionMembers,
   Invalid,
+  NotVal,
   Patching,
   Refused,
   Takes,
@@ -355,7 +356,7 @@ describe("Val", () => {
       expectTypeOf<SeedOf<Loose>>().toEqualTypeOf<{
         readonly tags: readonly string[] | null;
         readonly at: readonly [number, number] | null;
-        readonly rows: { readonly [x: string]: number } | null;
+        readonly rows: ({ readonly [x: string]: number } & NotVal) | null;
         readonly names: string | readonly string[];
       }>();
     });
@@ -1133,7 +1134,9 @@ describe("Val", () => {
       const Dir = Val.companion<Dir>().build();
       const leaf = Dir.seal({ name: "leaf", entries: {} });
 
-      expectTypeOf<SeedOf<Dir>["entries"]>().toEqualTypeOf<{ readonly [x: string]: Dir }>();
+      expectTypeOf<SeedOf<Dir>["entries"]>().toEqualTypeOf<
+        { readonly [x: string]: Dir } & NotVal
+      >();
       expect(Dir.seal({ name: "root", entries: { a: leaf } }).entries["a"]).toBe(leaf);
 
       type Cell = Val<"app/Cell", { value: number; prev?: { at: Rec<Cell> } }>;
@@ -1582,12 +1585,20 @@ describe("equals", () => {
 });
 
 describe("patch", () => {
-  test("a Val in place of a nested plain object merges into it, like a patch written in place", () => {
+  test("a plain object field holds no Val, through seal or patch", () => {
     type Pin = Val<"Pin", { at: { x: number; y: number } }>;
     const Pin = Val.companion<Pin>().build();
-    type Edge = Val<"Edge", { x: number }>;
+    type Spot = Val<"Spot", { x: number; y: number }>;
+    const spot = Val.of<Spot>({ x: 1, y: 2 });
     const pin = Pin.seal({ at: { x: 0, y: 0 } });
-    expect(Pin.patch(pin, { at: Val.of<Edge>({ x: 1 }) }).at).toEqual({ x: 1, y: 0 });
+    // @ts-expect-error a Val where the payload declares a plain object
+    Pin.seal({ at: spot });
+    // @ts-expect-error nor as a patch
+    Pin.patch(pin, { at: spot });
+    // @ts-expect-error nor as what a function returns
+    Pin.patch(pin, { at: () => spot });
+    // The root takes a Val, so sealing a value again type-checks.
+    Val.companion<Spot>().build().seal(spot);
     const stray = { z: 1 };
     // @ts-expect-error no key in common with the field
     Pin.patch(pin, { at: stray });
@@ -1772,10 +1783,12 @@ describe("patch", () => {
       expectTypeOf<NonNullable<Patch<SeedOf<Shop>>["city"]>>().toEqualTypeOf<
         Invalid<"a Val is replaced, never merged: write `() => value`"> | Replacer<City>
       >();
-      // @ts-expect-error a Val takes a function, not a patch
-      Shop.patch(shop(), { city: { name: "Osaka" } });
-      // @ts-expect-error nor a Val as it is
-      Shop.patch(shop(), { city: City.seal({ name: "Osaka" }) });
+      // @ts-expect-error a Val takes a function, not a patch, and the merge throws
+      expect(() => Shop.patch(shop(), { city: { name: "Osaka" } })).toThrow(
+        /cannot merge into the Val at "city"/,
+      );
+      // @ts-expect-error nor a Val as it is, which merges too
+      expect(() => Shop.patch(shop(), { city: City.seal({ name: "Osaka" }) })).toThrow(TypeError);
       // The same holds where the Val may be absent or null.
       type Stall = Val<"Stall", { city?: City; home: City | null }>;
       expectTypeOf<NonNullable<Patch<SeedOf<Stall>>["city"]>>().toEqualTypeOf<
@@ -1789,6 +1802,51 @@ describe("patch", () => {
       const after = Shop.patch(before, { city: () => City.seal({ name: "Osaka" }) });
       expect(Object.hasOwn(after.city, "zip")).toBe(false);
       expect(after.city).not.toBe(before.city);
+    });
+
+    test("an object whose type hides a nested Val cannot merge into it", () => {
+      type Owned = Val<"Owned", { owner: { name: string; city: City } }>;
+      const Owned = Val.companion<Owned>().build();
+      const owned = (city: string) =>
+        Owned.seal({ owner: { name: city, city: City.seal({ name: city, zip: "600" }) } });
+      const view: { name: string } = owned("Nara").owner;
+      expect(() => Owned.patch(owned("Kyoto"), { owner: view })).toThrow(
+        /cannot merge into the Val at "city"/,
+      );
+    });
+
+    test("sealing a subtree another value holds gives the Val a root of its own", () => {
+      type Theme = Val<"Theme", { color: string; font: string }>;
+      type Settings = Val<"Settings", { theme: { color: string; font: string } }>;
+      const Settings = Val.companion<Settings>().build();
+      const settings = Settings.seal({ theme: { color: "red", font: "serif" } });
+
+      const Theme = Val.companion<Theme>().build();
+      expect(Theme.seal(settings.theme)).not.toBe(settings.theme);
+      // The subtree stays plain, so a patch still merges into it.
+      expect(Settings.patch(settings, { theme: { color: "blue" } }).theme).toEqual({
+        color: "blue",
+        font: "serif",
+      });
+
+      // `nocopy` does the same, and the copy is a root a merge cannot enter.
+      const adopted = Theme.seal.nocopy(settings.theme);
+      expect(adopted).not.toBe(settings.theme);
+      type Holder = Val<"Holder", { theme: Theme }>;
+      const Holder = Val.companion<Holder>().build();
+      const holder = Holder.seal({ theme: adopted });
+      // @ts-expect-error a Val takes a function, and the merge throws
+      expect(() => Holder.patch(holder, { theme: { color: "blue" } })).toThrow(TypeError);
+    });
+
+    test("every element of an array is a plain subtree, whatever its index", () => {
+      type List = Val<"List", { list: { a: number }[] }>;
+      type At = Val<"At", { at: { a: number } }>;
+      const list = Val.companion<List>()
+        .build()
+        .seal({ list: [{ a: 1 }, { a: 2 }] });
+      const At = Val.companion<At>().build();
+      expect(At.patch(At.seal({ at: list.list[1]! }), { at: { a: 3 } }).at).toEqual({ a: 3 });
     });
 
     test("deriving the nested Val in the function is how you reach inside one", () => {
@@ -1860,7 +1918,7 @@ describe("patch", () => {
 
       expectTypeOf<NonNullable<Patch<SeedOf<Place>>["at"]>>().toEqualTypeOf<
         | Invalid<"the field may be absent, so an object replaces it: write `() => value`">
-        | Replacer<{ readonly x: number; readonly y: number } | undefined>
+        | Replacer<({ readonly x: number; readonly y: number } & NotVal) | undefined>
       >();
       // @ts-expect-error `at` may be absent, and a merge into nothing would drop `y`
       Place.patch(place, { at: { x: 1, y: 2 } });

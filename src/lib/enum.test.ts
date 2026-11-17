@@ -747,10 +747,12 @@ describe("patch", () => {
       expectTypeOf<NonNullable<Parameters<typeof Holder.patch>[1]["shape"]>>().toEqualTypeOf<
         Invalid<"a Val is replaced, never merged: write `() => value`"> | Replacer<Shape>
       >();
-      // @ts-expect-error a patch cannot reach into a nested variant
-      Holder.patch(holder, { shape: { r: 3 } });
-      // @ts-expect-error nor take a variant as it is
-      Holder.patch(holder, { shape: SQUARE });
+      // @ts-expect-error a patch cannot reach into a nested variant, and the merge throws
+      expect(() => Holder.patch(holder, { shape: { r: 3 } })).toThrow(
+        /cannot merge into the Val at "shape"/,
+      );
+      // @ts-expect-error nor take a variant as it is, which merges too
+      expect(() => Holder.patch(holder, { shape: SQUARE })).toThrow(TypeError);
       expect(Holder.patch(holder, { shape: () => SQUARE }).shape).toEqual({
         side: 3,
         _tag: "Square",
