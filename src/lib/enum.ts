@@ -511,9 +511,9 @@ declare class VariantOptionsPhantom<N extends string, L> {
  * tag. {@link PrivateCreate} may be set on one variant.
  */
 // `any` and `never` satisfy every constraint, so the type itself reports them, as `Unpatchable` does.
-export type VariantOptions<N extends string, L extends Options> = [N] extends [Unnamed]
-  ? Invalid<"`VariantOptions` takes a variant's name">
-  : VariantOptionsPhantom<N, L>;
+// A conditional here would make the declarations write the phantom out in full, which a consumer's
+// `declaration: true` cannot name. `Enum.companion` reports `any` and `never` instead.
+export type VariantOptions<N extends string, L extends Options> = VariantOptionsPhantom<N, L>;
 
 /** Every key some variant's seal takes. */
 type AnyKey<E extends AnyEnum> = {
@@ -1305,8 +1305,23 @@ type OneEnum<E> = {
 export const companion = <
   E extends NotVal<E> & AnyEnum & OneEnum<E>,
   const O extends readonly EnumOption<E>[] & OneList<O> = [],
->(): Listed<O | Lists<O>, Start<E, O>> =>
-  builder("_tag", {}, {}) as Listed<O | Lists<O>, Start<E, O>>;
+>(): NamesVariants<O, Listed<O | Lists<O>, Start<E, O>>> =>
+  builder("_tag", {}, {}) as NamesVariants<O, Listed<O | Lists<O>, Start<E, O>>>;
+
+/** Nothing new, or the reason a `VariantOptions` names no variant. */
+type NamesVariants<O, Then> = true extends (
+  O extends readonly unknown[]
+    ? O[number] extends infer X
+      ? X extends VariantOptionsPhantom<infer N, Options>
+        ? [N] extends [Unnamed]
+          ? true
+          : false
+        : false
+      : false
+    : false
+)
+  ? Invalid<"`VariantOptions` takes a variant's name">
+  : Then;
 
 /** The variants' own option lists, which `any` satisfies as it does the enum's. */
 type Lists<O> = O extends readonly unknown[]

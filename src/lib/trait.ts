@@ -183,10 +183,7 @@ type OneMembers<M, Shape> = [M] extends [infer X extends Members]
  * one intersection, `Impl<Greetable & Serializable>`, as in a Val's declaration. A trait's member
  * may take one after {@link Self}.
  */
-// `any` and `never` satisfy every constraint, so the type itself reports them.
-export type Impl<Tr extends OneTrait<Tr>> = [Tr] extends [Unnamed]
-  ? Invalid<"name the trait: `Impl<Trait>`">
-  : ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>;
+export type Impl<Tr extends OneTrait<Tr>> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>;
 
 /** A trait, or several intersected, but not a union of them. */
 export type OneTrait<Tr> = Kind<Tr> & AnyTrait & Single<Tr>;
@@ -374,9 +371,7 @@ type Declarable<Shape, M extends Members> = {
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends OneTrait<Tr> & Agreeing<Tr>> = [Tr] extends [Unnamed]
-  ? Invalid<"name the trait: `Dyn<Trait>`">
-  : Boxed<Tr>;
+export type Dyn<Tr extends OneTrait<Tr> & Agreeing<Tr>> = Boxed<Tr>;
 
 type Boxed<Tr extends OneTrait<Tr>> = Bound<UnionToIntersection<MembersOf<Tr>>> & {
   /** The value the box holds. */
