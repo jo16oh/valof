@@ -54,7 +54,7 @@ export type LooseArity<M> = {
     ? P extends []
       ? unknown
       : Omission<M[K]>
-    : // An `Invalid` rather than the message alone, which a primitive intersects to `never`.
+    : // An `Invalid` rather than a bare message, because the message intersected with a primitive constant resolves to `never`.
       Invalid<"`implAssoc` holds only functions, so write a value as a function that takes no argument">;
 };
 

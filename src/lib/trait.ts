@@ -356,7 +356,7 @@ type Declarable<Shape, M extends Members> = {
                         : Omission<M[K]> extends string
                           ? Invalid<Omission<M[K]> & string>
                           : M[K]
-                    : Invalid<"a trait member takes `Self` as its first parameter">
+                    : Invalid<"a trait member must take `Self` as its first parameter">
                   : M[K];
 };
 

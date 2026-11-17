@@ -1327,7 +1327,7 @@ export type CompanionBuilder<
       }) & {
     /**
      * Collects the members the function returns that do not take the Val first: `fromRow`,
-     * `parse`, a constant as `zero: () => …`. Write it any number of times.
+     * `parse`, a constant, written as `zero: () => …`. Write it any number of times.
      *
      * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
      * an object payload. A member reaching the companion for anything else (a sibling or another
@@ -2076,10 +2076,10 @@ export const of = /* @__PURE__ */ Object.assign(own as Of, {
   nocopy: adopt as Of,
 });
 
-// `any` and `never` satisfy every constraint, so the argument reports them. `never` is also a `V`
-// left out, since `NoInfer` keeps the argument from naming one.
+// `any` and `never` satisfy every constraint, so the argument reports them. `V` is also `never`
+// when left out: the argument names no Val to infer it from.
 type Of = <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val"> = never>(
-  value: NoInfer<[V] extends [Unnamed] ? Invalid<"name the Val: `Val.of<V>(value)`"> : SeedOf<V>>,
+  value: [V] extends [Unnamed] ? Invalid<"name the Val: `Val.of<V>(value)`"> : SeedOf<V>,
 ) => V;
 
 /**
