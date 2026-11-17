@@ -2626,13 +2626,11 @@ describe("building", () => {
         .build();
     });
 
-    // `dyn` is the one name a trait member may not take that a Val companion may: `Trait`'s
-    // `dyn` reads a symbol key, never the companion's own `dyn`.
-    test("`dyn` is not among them: a Val companion has none to shadow", () => {
-      const Boxed = Val.companion<User>()
-        .impl(() => ({ dyn: (u) => u.name }))
-        .build();
-      expect(Boxed.dyn(Boxed.seal({ id: "a", name: "bob", nickname: undefined }))).toBe("bob");
+    test("nor `dyn`, which boxes a value", () => {
+      Val.companion<User>().impl(() => ({
+        // @ts-expect-error `dyn` is the companion's own
+        dyn: (u: User) => u.name,
+      }));
     });
 
     // The three tests above name one `Wired` member each. This one fails if the union grows a
@@ -3773,10 +3771,9 @@ describe("building", () => {
         expect(Half.greet(crate)).toBe("Hi, box");
         expectTypeOf(Half).not.toHaveProperty("heavy");
         expect("heavy" in Half).toBe(false);
-        expect(() => {
-          // @ts-expect-error nor can a box reach one
-          Half.dyn<Weighed>(crate).heavy();
-        }).toThrow(TypeError);
+        // The declaration lets a box name it, and valof-lint's `unimplemented-trait` reports the
+        // missing step.
+        expect(() => Half.dyn<Weighed>(crate).heavy()).toThrow(TypeError);
       });
 
       test("but the same trait cannot be implemented twice", () => {

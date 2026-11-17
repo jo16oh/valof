@@ -4,6 +4,7 @@ const Id = Val.companion<Id>().impl(() => ({
   equals: (a, b) => a === b,
   update: (i) => i,
   match: (i) => i,
+  // @ts-expect-error -- a name the library reserves
   dyn: (i) => i,
   Square: (i) => i,
   dispatch: (i) => i,
@@ -21,6 +22,7 @@ const Shape = Enum.companion<Shape>()
   }))
   .impl(() => ({
     sides: (s) => 4,
+    // @ts-expect-error -- a name the library reserves
     dyn: (s) => s,
     // @ts-expect-error -- a name the library reserves
     match: (s) => s,
@@ -39,7 +41,7 @@ type Named = Trait<
 const Named = Trait.companion<Named>().impl(() => ({
   greet: (n) => n.name,
   match: (n) => 0,
-  // @ts-expect-error -- the name the trait itself uses
+  // @ts-expect-error -- a name the library reserves
   dyn: () => 0,
   // @ts-expect-error -- not a member the trait declares
   then: () => 0,
