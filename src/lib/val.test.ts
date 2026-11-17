@@ -1787,12 +1787,11 @@ describe("patch", () => {
     });
   });
 
-  test("a delete on a draft throws", () => {
-    expect(() =>
-      Shop.patch(shop(), (s) => {
-        delete (s.owner as { name?: string }).name;
-      }),
-    ).toThrow(TypeError);
+  test("a delete on a draft is a type error, since every key is required", () => {
+    Shop.patch(shop(), (s) => {
+      // @ts-expect-error the operand of `delete` must be optional
+      delete s.owner.name;
+    });
   });
 
   test("a spread of a draft keeps sharing what it did not change", () => {
