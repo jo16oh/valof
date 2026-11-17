@@ -93,7 +93,7 @@ export const nested = [
   Floor.label(floor, "/"),
   Floor.scaled(floor, 2),
   Room.describe(floor.main),
-  Floor.patch(floor, { main: floor.main }),
+  Floor.patch(floor, { main: (main) => main }),
   Named.dyn(Floor, floor).greet(),
 ];
 export const direct = [

@@ -737,15 +737,16 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  *
  * - omit the key → leave it unchanged
  * - `{ k: undefined }` → delete it (under `exactOptionalPropertyTypes`, for an optional key only)
- * - `{ k: value }` → set it
- * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required `k` only
+ * - `{ k: value }` → set it, for a primitive or an array
+ * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required plain object
+ * - `{ k: (current) => value }` → replace `k` with what the function returns
  *
  * `X` lists keys the patch rejects, as `Patch<Fields, "id">` for an `Unpatchable` id.
  *
- * An optional key and a `Record` entry take the whole value. There may be nothing there to merge
- * with, and the type cannot tell: `{ at: { x: 1 } }` onto an absent `at` would leave a value
- * missing `y` that the type still calls a `Point`. Spread the current value to keep the rest:
- * `{ at: { ...point, x: 1 } }`.
+ * A nested Val, and an object in an optional key, a `Record` entry or a field that may be `null`,
+ * is replaced through a function only. Merging into a Val would build a payload its own seal never
+ * saw, and the others may have nothing to merge into: `{ at: { x: 1 } }` onto an absent `at`
+ * would leave a value missing `y` that the type still calls a `Point`.
  */
 export type Patch<T, X extends PropertyKey = never> = [T] extends [AnyVal]
   ? [T] extends [never]
@@ -755,7 +756,7 @@ export type Patch<T, X extends PropertyKey = never> = [T] extends [AnyVal]
       : Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">
   : Patching<T, X>;
 
-// `Patch`, but `never` for a Val. `PatchValue` reads that `never` as "replace the field whole".
+// `Patch`, but `never` for a Val. `PatchValue` reads that `never` as "replace only".
 // One mapped type rather than an intersection, because TypeScript rejects a variable sharing no
 // key with a weak type, and skips that check on an intersection where one side has no keys.
 export type Patching<T, X extends PropertyKey = never> = T extends object
@@ -764,29 +765,50 @@ export type Patching<T, X extends PropertyKey = never> = T extends object
     : {
         [K in keyof T | X]?: K extends keyof T
           ? K extends OptionalKeys<T>
-            ? T[K] | undefined
+            ? Replaceable<T[K] | undefined>
             : PatchValue<T[K]>
           : never;
       }
   : never;
 
 /**
- * A nested plain object is patched in turn. Everything else is replaced whole, including a field
- * that may be `null` or a primitive, since there may be no object to merge into.
+ * A nested plain object is patched in turn, or replaced through a function. Everything else is
+ * set, or replaced through a function, including a field that may be `null` or a primitive.
  *
  * The stop at a Val is what keeps {@link Companion.seal} the only gate: a patch reaching into a
  * nested value would build a payload its own seal never saw, and the outer `patch` seals the
- * outer value alone. Replace it with one built by its constructor.
- *
- * A Val in place of a nested plain object replaces it whole too, so it has to hold every key.
+ * outer value alone. Replace it with one its own `patch` or constructor built:
+ * `{ city: (c) => City.patch(c, { name: "Osaka" }) }`.
  */
-// A Val declares the brand key private, and the public optional key added here rejects it from
-// the patch. Only the second member takes a Val, so a plain object still meets the first alone.
 type PatchValue<T> = [T] extends [object]
   ? [Patching<T>] extends [never]
-    ? T
-    : Patching<T, typeof PhantomBrand> | (T & AnyVal)
-  : T;
+    ? Replaceable<T>
+    : Patching<T> | Replacer<T>
+  : Replaceable<T>;
+
+/**
+ * Replaces a field in a {@link Patch} with what it returns. It receives the field's current value,
+ * which is `undefined` where an optional key is absent, and returning `undefined` deletes the key.
+ */
+export type Replacer<T> = (current: T) => T;
+
+// A primitive or an array is set as it is, and an object only through a `Replacer`. The `Invalid`
+// member puts the fix in the error. The conditional keeps the union from printing under this
+// alias's name, which would hide it. Its first branch takes a field holding no object, as most
+// fields are, without the `Exclude` and `Extract` below: the core fixture's instantiations went
+// from 10,376 to 9,565.
+type Replaceable<T> = [T] extends [Primitive | undefined | ReadonlyArray<unknown>]
+  ? T | Replacer<T>
+  :
+      | Settable<T>
+      | Replacer<T>
+      | ([Exclude<T, Settable<T> | undefined>] extends [never]
+          ? never
+          : [Extract<T, AnyVal>] extends [never]
+            ? Invalid<"the field may be absent, so an object replaces it: write `() => value`">
+            : Invalid<"a Val is replaced, never merged: write `() => value`">);
+
+type Settable<T> = T extends object ? (T extends ReadonlyArray<unknown> ? T : never) : T;
 
 export type AnyFn = (...args: never[]) => unknown;
 
@@ -1612,10 +1634,9 @@ export type Registered<P = unknown> = {
  * applies the patch reports whether anything changed, per level, which is what lets an untouched
  * subtree keep its identity all the way up to the root.
  *
- * An owned node is a value, not a patch, so it replaces rather than merges. That is the runtime
- * form of {@link PatchValue} stopping at a Val: the brand is a phantom, and a node's origin is
- * the only thing left to read. Losing the record costs a wrong merge on a nested value that
- * dropped an optional key, so a payload that crossed `structuredClone` should be re-sealed.
+ * A function replaces the field with what it returns, and an object merges. The caller says which,
+ * because the runtime cannot: the brand is a phantom, and where a node came from says nothing
+ * about the type of the field it is passed to. See {@link Replacer}.
  */
 const patched = (
   base: Record<string, unknown>,
@@ -1625,7 +1646,10 @@ const patched = (
   let same = true;
   let kept = 0;
   for (const key of Object.keys(merged)) {
-    const value = merged[key];
+    const before = base[key];
+    const given = merged[key];
+    const replaced = typeof given === "function";
+    const value: unknown = replaced ? (given as (current: unknown) => unknown)(before) : given;
     // A deletion needs no flag of its own: it shows up in the count. `kept` rises only for a
     // surviving key, and a key added in place of the deleted one cannot match the base's absent
     // one, so `same` is already false there.
@@ -1634,9 +1658,9 @@ const patched = (
       continue;
     }
     kept++;
-    const before = base[key];
+    // A key the patch left out holds the base's own child, which needs no walk.
     const child =
-      isObjectShaped(before) && isObjectShaped(value) && !Owned.has(value)
+      !replaced && !Object.is(value, before) && isObjectShaped(before) && isObjectShaped(value)
         ? patched(before, value)
         : value;
     merged[key] = child;

@@ -97,7 +97,7 @@ export const derived = [
   Shape.Circle.patch(circle, { r: 3 }),
   Shape.Poly.patch(Shape.Poly.create({ id: "p", at: [[0, 0]] }), { at: [[1, 1]] }),
   // A variant is a patch boundary: the nested one is replaced, never merged into.
-  Frame.patch(frame, { shape: Shape.Square.create({ id: "s", side: 1 }) }),
+  Frame.patch(frame, { shape: () => Shape.Square.create({ id: "s", side: 1 }) }),
   Frame.patch(frame, patch),
 ];
 
