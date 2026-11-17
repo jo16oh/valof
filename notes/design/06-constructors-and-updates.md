@@ -197,8 +197,8 @@ argument to hide a key in.
 - **Only the changed path is rebuilt.** A recipe that changed nothing returns the value itself. A draft inside an assigned
   value, as from `{ ...s.street }`, is swapped for the node it stands for, so an unchanged subtree stays shared
 - **A draft is revoked after the recipe.** `delete` on one is a type error, since every key is required. A `delete` past a
-  cast does nothing: the draft carries no trap for it, which saved 10 B (user, 2026-11-18). valof-lint is to report it
-  with the other writes that bypass the draft's types (§9)
+  cast does nothing: the draft carries no trap for it, which saved 10 B (user, 2026-11-18). A cast that breaks a value is
+  outside what Valof guarantees, so neither the runtime nor valof-lint checks it (user, 2026-11-18)
 - **An async recipe is a type error.** Its writes after an `await` would land on a revoked draft. The recipe is a type
   parameter `F`, and `F & Invalid<…>` where it returns a `PromiseLike`. `Dual` cannot carry a generic function, so `patch` is
   written as two overloads (`PatchFn`). Rejected: a return type of `undefined` (rejects a named function returning `void`),

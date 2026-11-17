@@ -39,8 +39,9 @@
 - [ ] **valof-lint reports `Object.assign` on a draft.** TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
   - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report
-    passing it, assigning it, putting it in an array or object, `Object.assign`, `Reflect.set` and `delete`. A spread
-    stays. `Unpatchable` keys and the tag sit at the top level alone, so this closes the aliased writes to them. A
+    passing it, assigning it, putting it in an array or object, `Object.assign` and `Reflect.set`. A spread stays.
+    `delete` is left out: it takes a cast, and a cast that breaks a value is outside what Valof guarantees (user,
+    2026-11-18). `Unpatchable` keys and the tag sit at the top level alone, so this closes the aliased writes to them. A
     recipe that branches on the value reads the Val it patches, or passes single fields
   - A named function passed as the recipe is out of the lint's reach. `PatchFn` is to require its parameter type to be
     the draft's own, which also rejects `(d: { _tag?: string }) => …`
