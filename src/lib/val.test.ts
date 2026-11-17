@@ -3448,9 +3448,9 @@ describe("building", () => {
       // @ts-expect-error same
       Val.companion<Account, [Empty]>().build();
       // A payload with no keys takes no `Unpatchable`, so the message does not pass as one.
-      type Age = Val<"UnpatchableAge", number>;
+      type Bare = Val<"UnpatchableBare", Record<never, never>>;
       // @ts-expect-error `Unpatchable` takes key names
-      Val.companion<Age, [Empty]>().build();
+      Val.companion<Bare, [Empty]>().build();
     });
 
     // An intersection of two would collapse to `never` and take nothing out.
