@@ -445,7 +445,7 @@ type DeepReadonlyValue<
               // level short: a `Rec` inside it would never open. The value never holds the
               // `undefined` either way, since an optional key is absent or set.
               readonly [K in keyof T]: DeepReadonly<Exclude<T[K], undefined>, Inner>;
-            }
+            } & (Arg extends "field" ? NotVal : unknown)
         : [Extract<T, Primitive>] extends [never]
           ? T
           : Mixed<T, Arg, Split>;
@@ -471,6 +471,13 @@ type Mixed<T, Arg extends Position, Split> = Split extends true
  * any Val.
  */
 type EmptyField = { readonly [key: string]: never };
+
+/**
+ * Rejects a Val where a payload declares a plain object below the root. A Val declares the brand
+ * key private, so it does not fit this public one. A plain object field holds no Val, and a merge
+ * that reaches a Val throws (see `patched`).
+ */
+export type NotVal = { readonly [PhantomBrand]?: never };
 
 /** The payload, or the annotated version of it when it breaks the allowed-type rules. */
 export type Checked<T> = [T] extends [Validate<T>] ? T : Validate<T>;
@@ -1390,6 +1397,19 @@ class Owned extends Stamp {
   static has = (value: object): boolean => #owned in value;
 }
 
+/**
+ * The nodes a seal returned: the roots of Vals. A patch that would merge into one throws, because
+ * the merge would build a payload that Val's seal never received.
+ *
+ * A seal that receives a node this module owns but that is no root copies its top level, so the
+ * mark never lands on a node another value shares as a plain subtree.
+ */
+class Root extends Stamp {
+  // oxlint-disable-next-line no-unused-private-class-members -- read through `in`
+  #root = true;
+  static has = (value: object): boolean => #root in value;
+}
+
 /** Roots adopted by production `nocopy`. Their descendants are indexed only if a copy needs it. */
 class Adopted extends Stamp {
   // oxlint-disable-next-line no-unused-private-class-members -- read through `in`
@@ -1470,10 +1490,10 @@ export const notFixedPoint = (): never => {
  * and buys nothing at run time, so production skips it.
  */
 const deepCopy = (owning: boolean) => {
-  const copy = <T>(value: T): T => {
+  const copy = <T>(value: T, root = false): T => {
     if (!isObject(value)) return value;
-    if (owning && Owned.has(value)) return value;
-    if (owning && Adopted.has(value)) {
+    // An adopted root carries `Root` too, and is indexed on first reuse.
+    if (owning && (Root.has(value) || (!root && Owned.has(value)))) {
       indexAdopted(value);
       return value;
     }
@@ -1481,7 +1501,7 @@ const deepCopy = (owning: boolean) => {
     let out: unknown;
 
     if (Array.isArray(value)) {
-      out = (value as unknown[]).map(copy);
+      out = (value as unknown[]).map((child) => copy(child));
     } else {
       const source = value as Record<string, unknown>;
 
@@ -1501,6 +1521,8 @@ const deepCopy = (owning: boolean) => {
     if (owning) {
       // oxlint-disable-next-line no-new -- the new instance is `out`, now marked
       new Owned(out as object);
+      // oxlint-disable-next-line no-new -- the new instance is `out`, now marked
+      if (root) new Root(out as object);
       if (development) Object.freeze(out);
     }
     return out as T;
@@ -1516,7 +1538,8 @@ const deepCopy = (owning: boolean) => {
  * root, so a list of 200 Vals would get a new array on every derive, at 10x the cost and with a
  * new identity for anything memoized on it.
  */
-const own = deepCopy(true);
+const owned = deepCopy(true);
+const own = <T>(value: T): T => owned(value, true);
 
 /**
  * Gives a production-adopted graph the same ownership index a copied graph gets eagerly.
@@ -1542,7 +1565,7 @@ const indexAdopted = (root: object): void => {
 /** Adopt a caller-owned payload. Development validates and freezes every node before returning. */
 const adopt = <T>(value: T): T => {
   if (!isObject(value)) return value;
-  if (Owned.has(value)) return value;
+  if (Owned.has(value)) return own(value);
 
   if (development) {
     const active = new WeakSet<object>();
@@ -1560,8 +1583,12 @@ const adopt = <T>(value: T): T => {
           }
           visit(descriptor.value);
         }
-        // oxlint-disable-next-line no-new -- the new instance is `node`, now marked
-        if (Object.isExtensible(node)) new Owned(node);
+        if (Object.isExtensible(node)) {
+          // oxlint-disable-next-line no-new -- the new instance is `node`, now marked
+          new Owned(node);
+          // oxlint-disable-next-line no-new -- the new instance is `node`, now marked
+          if (node === value) new Root(node);
+        }
         Object.freeze(node);
         done.add(node);
       } finally {
@@ -1575,8 +1602,12 @@ const adopt = <T>(value: T): T => {
   // the copy's nodes. This runs after the checks above, so a frozen payload throws the same errors
   // as an unfrozen one.
   if (!Object.isExtensible(value)) return own(value);
-  // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
-  if (!development && !Adopted.has(value)) new Adopted(value);
+  if (!development && !Adopted.has(value)) {
+    // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
+    new Adopted(value);
+    // oxlint-disable-next-line no-new -- the new instance is `value`, now marked
+    new Root(value);
+  }
   return value;
 };
 
@@ -1637,6 +1668,8 @@ export type Registered<P = unknown> = {
  * A function replaces the field with what it returns, and an object merges. The caller says which,
  * because the runtime cannot: the brand is a phantom, and where a node came from says nothing
  * about the type of the field it is passed to. See {@link Replacer}.
+ *
+ * A merge that reaches a {@link Root} throws, so no patch builds a Val its own seal never received.
  */
 const patched = (
   base: Record<string, unknown>,
@@ -1659,10 +1692,18 @@ const patched = (
     }
     kept++;
     // A key the patch left out holds the base's own child, which needs no walk.
-    const child =
-      !replaced && !Object.is(value, before) && isObjectShaped(before) && isObjectShaped(value)
-        ? patched(before, value)
-        : value;
+    const merging =
+      !replaced && !Object.is(value, before) && isObjectShaped(before) && isObjectShaped(value);
+    // The types send a Val only through a function. An object reaches one through a key its
+    // static type hid, or through a Val held in a plain object field.
+    if (merging && Root.has(before)) {
+      throw new TypeError(
+        development
+          ? `A patch cannot merge into the Val at "${key}": write \`{ ${key}: () => value }\` to replace it.`
+          : undefined,
+      );
+    }
+    const child = merging ? patched(before, value) : value;
     merged[key] = child;
     if (!Object.is(child, before)) same = false;
   }
