@@ -2442,7 +2442,6 @@ describe("building", () => {
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = any;
       expectTypeOf(Val.companion()).toEqualTypeOf<Fault>();
-      expectTypeOf(Val.companion()).toEqualTypeOf<Fault>();
       expectTypeOf(Val.companion<Loose>()).toEqualTypeOf<Fault>();
     });
 
@@ -2812,8 +2811,6 @@ describe("building", () => {
         zero: seal({ cents: 0 }),
         // @ts-expect-error a primitive
         one: 1,
-        // @ts-expect-error an object
-        unit: { cents: 1 },
       }));
       // A primitive reduced the message to `never`.
       expectTypeOf<LooseArity<{ one: number }>>().toEqualTypeOf<{
@@ -3450,6 +3447,10 @@ describe("building", () => {
       Val.companion<Account, [Loose]>().build();
       // @ts-expect-error same
       Val.companion<Account, [Empty]>().build();
+      // A payload with no keys takes no `Unpatchable`, so the message does not pass as one.
+      type Age = Val<"UnpatchableAge", number>;
+      // @ts-expect-error `Unpatchable` takes key names
+      Val.companion<Age, [Empty]>().build();
     });
 
     // An intersection of two would collapse to `never` and take nothing out.

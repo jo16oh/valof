@@ -663,6 +663,9 @@ describe("dyn", () => {
     type Loose = any;
     // @ts-expect-error a trait, not `any`
     Crate.dyn<Loose>(crate);
+    expectTypeOf<Parameters<typeof Crate.dyn<Loose>>[0]>().toEqualTypeOf<
+      Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
+    >();
     // Declared, but no `implTrait` yet: the companion holds no implementation to box.
     const Bare = Val.companion<Crate>().build();
     expectTypeOf(Bare).not.toHaveProperty("dyn");
@@ -791,7 +794,7 @@ describe("dyn", () => {
     });
 
     test("a member takes `Self` first", () => {
-      // @ts-expect-error a trait member takes `Self` as its first parameter
+      // @ts-expect-error a trait member must take `Self` as its first parameter
       type Counted = Trait<"Counted", { x: string }, { f: (n: number) => string }>;
       // @ts-expect-error same, for a first parameter that does not take every Val
       type Named = Trait<"Named", { x: string }, { f: (self: string) => string }>;
@@ -1057,7 +1060,6 @@ describe("building", () => {
       type Fault = Invalid<"name the trait: `Trait.companion<Trait>()`">;
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = any;
-      expectTypeOf(Trait.companion()).toEqualTypeOf<Fault>();
       expectTypeOf(Trait.companion()).toEqualTypeOf<Fault>();
       expectTypeOf(Trait.companion<Loose>()).toEqualTypeOf<Fault>();
     });
