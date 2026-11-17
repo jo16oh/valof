@@ -43,9 +43,12 @@ type Room = Val<
 const Room = Val.companion<Room>()
   .implCreate((name: string) => ({ id: name, name, size: { w: 1, h: 1 } }))
   .implTrait(Named, ({ patch }) => ({
-    label: (r, sep) => `${r.id}${sep}${patch(r, (d) => {
-        d.name = r.name.trim();
-      }).name}`,
+    label: (r, sep) =>
+      `${r.id}${sep}${
+        patch(r, (d) => {
+          d.name = r.name.trim();
+        }).name
+      }`,
   }))
   .implTrait(Sized, () => ({ scaled: (r, by) => r.size.w * by }))
   .impl(() => ({

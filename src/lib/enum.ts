@@ -2,7 +2,6 @@ import {
   createMembers,
   dual,
   type Arity,
-  type Dual,
   type Duals,
   type LooseArity,
   type Looses,
@@ -60,6 +59,7 @@ import {
   type Options,
   type Passes,
   type Patch,
+  type PatchFn,
   type PrivateCreate,
   type PrivateSeal,
   type Registered as Steps,
@@ -612,18 +612,7 @@ type VariantSeal<E extends AnyEnum, N extends keyof VariantsOf<E>, R> = {
 
 type VariantPatch<E extends AnyEnum, N extends keyof VariantsOf<E>, R, U> = {
   /** Derives through the same seal. See {@link Patch}. */
-  patch: Dual<
-    (
-      value: VariantOf<E, N>,
-      // The tag and the other variants' fields are listed as keys only to be rejected, so a variable holding
-      // another variant fails as a literal would.
-      patch: Patch<
-        [U] extends [never] ? SeedFor<E, N> : Omit<SeedFor<E, N>, U & keyof SeedFor<E, N>>,
-        (U | Exclude<VariantFields<E> | TagOf<E>, keyof SeedFor<E, N>>) & PropertyKey
-      >,
-    ) => R,
-    VariantOf<E, N>
-  >;
+  patch: PatchFn<VariantOf<E, N>, R, Patch<SeedFor<E, N>, U & PropertyKey>>;
 };
 
 /** What a variant's step's function receives: its `seal`, `create` and `patch`, private or not. */

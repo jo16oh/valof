@@ -1,5 +1,5 @@
 import { createMembers, dual } from "./dual/index.ts";
-import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual/index.ts";
+import type { Arity, Duals, LooseArity, Looses } from "./dual/index.ts";
 // Type-only, so nothing from enum.ts crosses at run time. The phantom stays in enum.ts, beside
 // the declaration that carries it.
 import type { AnyEnum, NameOf } from "./enum.ts";
@@ -292,7 +292,7 @@ type Clash<T, E = T extends unknown ? Validate<T, false> : never> =
     : [Extract<E, Invalid<string>>] extends [never]
       ? true extends Collides<Exclude<T, ReadonlyArray<unknown>>>
         ? Invalid<"a union cannot hold objects `equals` cannot tell apart; declare an Enum of them">
-        : Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+        : Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">
       : Extract<E, Invalid<string>>;
 
 /** `true` where two constituents hold a value in common once each Val is read as its payload. */
@@ -476,8 +476,7 @@ type EmptyField = { readonly [key: string]: never };
 
 /**
  * Rejects a Val where a payload declares a plain object below the root. A Val declares the brand
- * key private, so it does not fit this public one. A plain object field holds no Val, and a merge
- * that reaches a Val throws (see `patched`).
+ * key private, so it does not fit this public one.
  */
 export type NotVal = { readonly [PhantomBrand]?: never };
 
@@ -738,88 +737,66 @@ type NocopyArgument<T> =
 type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArgument<T>) => V;
 
 /**
- * The patch accepted by `patch`, at every depth.
+ * The recipe `patch` takes: a function that assigns to a {@link Draft} of the payload.
+ *
+ * `(d) => { d.name = "b"; d.street.no = 2; }` sets two fields and leaves the rest. Only an
+ * assignment changes the value, and each one is checked against its field's type.
  *
  * Taken over a payload rather than a Val, so a member calling `patch` can accept a subset of the
- * fields. `Patch<Omit<SeedOf<V>, "id">>` keeps a generated id out.
- *
- * - omit the key → leave it unchanged
- * - `{ k: undefined }` → set it to `undefined`, for a field typed `T | undefined`
- * - `{ k: value }` → set it, for a primitive or an array
- * - `{ k: { j: value } }` → set `j` and leave the rest of `k` alone, for a required plain object
- * - `{ k: (current) => value }` → replace `k` with what the function returns
- *
- * `X` lists keys the patch rejects, as `Patch<Fields, "id">` for an `Unpatchable` id.
- *
- * A nested Val, and an object in a `Record` entry or a field that may be `null` or `undefined`, is
- * replaced through a function only. Merging into a Val would build a payload its own seal never
- * saw, and the others may have nothing to merge into: `{ at: { x: 1 } }` onto an `at` that is
- * `null` would leave a value missing `y` that the type still calls a `Point`.
+ * fields. `Patch<Omit<SeedOf<V>, "id">>` leaves a generated id out of the draft. `X` lists keys the
+ * draft holds read-only, as `Patch<Fields, "id">` for an `Unpatchable` id.
  */
 export type Patch<T, X extends PropertyKey = never> = [T] extends [AnyVal]
   ? [T] extends [never]
     ? never
     : 0 extends 1 & T
-      ? Patching<T, X>
+      ? Recipe<T, X>
       : Invalid<"`Patch` takes a payload; write `Patch<SeedOf<V>>`">
-  : Patching<T, X>;
+  : Recipe<T, X>;
 
-// `Patch`, but `never` for a Val. `PatchValue` reads that `never` as "replace only".
-// One mapped type rather than an intersection, because TypeScript rejects a variable sharing no
-// key with a weak type, and skips that check on an intersection where one side has no keys.
-export type Patching<T, X extends PropertyKey = never> = T extends object
+// `never` for an array or a primitive, which `patch` leaves out.
+type Recipe<T, X extends PropertyKey> = T extends object
   ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
-    : {
-        [K in keyof T | X]?: K extends keyof T
-          ? // An entry of a record may be absent, so an object replaces it, and the function
-            // receives `undefined` there. Neither sets `undefined`, which the entry's type lacks.
-            Record<never, never> extends Record<K, unknown>
-            ?
-                | Exclude<Replaceable<T[K] | undefined>, undefined | AnyFn>
-                | ((current: T[K] | undefined) => T[K])
-            : PatchValue<T[K]>
-          : never;
-      }
+    : (draft: Draft<T, X>) => void
   : never;
 
 /**
- * A nested plain object is patched in turn, or replaced through a function. Everything else is
- * set, or replaced through a function, including a field that may be `null` or a primitive.
+ * The payload a {@link Patch} recipe assigns to. A plain object field is a draft too. A Val and an
+ * array are read-only: assign a new one, built by its own constructor or `patch`.
  *
- * The stop at a Val is what keeps {@link Companion.seal} the only gate: a patch reaching into a
- * nested value would build a payload its own seal never saw, and the outer `patch` seals the
- * outer value alone. Replace it with one its own `patch` or constructor built:
- * `{ city: (c) => City.patch(c, { name: "Osaka" }) }`.
+ * The draft stands for the value only while the recipe runs. Inside it, a draft is not the node
+ * it stands for, so `d.street === value.street` is false.
  */
-type PatchValue<T> = [T] extends [object]
-  ? [Patching<T>] extends [never]
-    ? Replaceable<T>
-    : Patching<T> | Replacer<T>
-  : Replaceable<T>;
+export type Draft<T, X extends PropertyKey = never> = [X & keyof T] extends [never]
+  ? { -readonly [K in keyof T]: Drafted<T[K]> }
+  : { -readonly [K in Exclude<keyof T, X>]: Drafted<T[K]> } & {
+      readonly [K in X & keyof T]: T[K];
+    };
+
+type Drafted<T> = T extends AnyVal | ReadonlyArray<unknown> ? T : T extends object ? Draft<T> : T;
 
 /**
- * Replaces a field in a {@link Patch} with what it returns. It receives the field's current value.
+ * `patch`, data-first and data-last. The recipe is a type parameter so its return type can be
+ * read: an async recipe would write to its draft after `patch` returned.
  */
-export type Replacer<T> = (current: T) => T;
+export type PatchFn<V, R, P> = P extends (draft: infer D) => void
+  ? {
+      <F extends (draft: D) => unknown>(recipe: F & Sync<F>): (self: V) => R;
+      <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F>): R;
+    }
+  : never;
 
-// A primitive or an array is set as it is, and an object only through a `Replacer`. The `Invalid`
-// member puts the fix in the error. The conditional keeps the union from printing under this
-// alias's name, which would hide it. Its first branch takes a field holding no object, as most
-// fields are, without the `Exclude` and `Extract` below: the core fixture's instantiations went
-// from 10,376 to 9,565.
-type Replaceable<T> = [T] extends [Primitive | undefined | ReadonlyArray<unknown>]
-  ? T | Replacer<T>
-  :
-      | Settable<T>
-      | Replacer<T>
-      | ([Exclude<T, Settable<T> | undefined>] extends [never]
-          ? never
-          : [Extract<T, AnyVal>] extends [never]
-            ? Invalid<"the field may be absent, so an object replaces it: write `() => value`">
-            : Invalid<"a Val is replaced, never merged: write `() => value`">);
-
-type Settable<T> = T extends object ? (T extends ReadonlyArray<unknown> ? T : never) : T;
+// `never` is a recipe that only throws.
+type Sync<F> = F extends (...args: never[]) => infer T
+  ? unknown extends T
+    ? unknown
+    : [T] extends [void]
+      ? unknown
+      : [T] extends [PromiseLike<unknown>]
+        ? Invalid<"a recipe runs synchronously: await before `patch`, not inside the recipe">
+        : Invalid<"a recipe assigns to its draft and returns nothing">
+  : unknown;
 
 export type AnyFn = (...args: never[]) => unknown;
 
@@ -960,7 +937,6 @@ type SealMethod<V extends AnyVal, F> = {
  * `patch` derives by sealing the new payload. With a custom seal it propagates whatever the seal
  * returns. Without one the default seal is the copy, so it returns the Val.
  */
-type Derive<V extends AnyVal, F, Arg> = Dual<(value: V, arg: Arg) => Constructed<V, F>, V>;
 
 /**
  * Drops the trailing default-seal parameter from a registered seal: callers pass the payload and
@@ -1046,27 +1022,20 @@ export type UnpatchableKeys<O extends Options> = O[number] extends infer E
     : never
   : never;
 
-type Derivable<V extends AnyVal, O extends Options> = [UnpatchableKeys<O>] extends [never]
-  ? SeedOf<V>
-  : Omit<SeedOf<V>, UnpatchableKeys<O> & keyof SeedOf<V>>;
-
 /**
  * `patch` exists only when there is something to patch: `Patch` is `never` for primitives and
  * arrays, so for those the function is left out of the type. Write a named derivation of your
  * own instead, and seal inside it.
  */
-type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<Derivable<V, O>>] extends [never]
+type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<SeedOf<V>>] extends [never]
   ? Record<never, never>
   : {
       /**
-       * Derives by sealing, so it returns whatever the seal returns: `patch` cannot bypass a smart
-       * constructor.
-       *
-       * A nested object merges, so a patch cannot shrink one: passing a whole smaller object
-       * leaves the rest in place. Replace it through a function, as `{ staff: () => staff }`.
-       * See {@link Patch}.
+       * Runs a recipe on a draft and seals the result, so it returns whatever the seal returns:
+       * `patch` cannot bypass a smart constructor. Returns the value itself where the recipe
+       * changed nothing. See {@link Patch}.
        */
-      patch: Derive<V, F, Patch<Derivable<V, O>, UnpatchableKeys<O>>>;
+      patch: PatchFn<V, Constructed<V, F>, Patch<SeedOf<V>, UnpatchableKeys<O>>>;
     };
 
 /**
@@ -1401,8 +1370,8 @@ class Owned extends Stamp {
 }
 
 /**
- * The nodes a seal returned: the roots of Vals. A patch that would merge into one throws, because
- * the merge would build a payload that Val's seal never received.
+ * The nodes a seal returned: the roots of Vals. A {@link Draft} stops at one, so a recipe assigns a
+ * Val its own seal built rather than editing one.
  *
  * A seal that receives a node this module owns but that is no root copies its top level, so the
  * mark never lands on a node another value shares as a plain subtree.
@@ -1662,46 +1631,76 @@ export type Registered<P = unknown> = {
 };
 
 /**
- * Merges a patch onto a value node, and returns the node itself when nothing changed.
- *
- * Nodes are shared and never mutated, so identical children mean equal subtrees. The walk that
- * applies the patch reports whether anything changed, per level, which is what lets an untouched
- * subtree keep its identity all the way up to the root.
- *
- * A function replaces the field with what it returns, and an object merges. The caller says which,
- * because the runtime cannot: the brand is a phantom, and where a node came from says nothing
- * about the type of the field it is passed to. See {@link Replacer}.
- *
- * A merge that reaches a {@link Root} throws, so no patch builds a Val its own seal never received.
+ * Runs a recipe on a draft of `base`, and returns the changed tree, or `base` itself when the
+ * recipe changed nothing. A plain object child is drafted when first read. A Val, an array and a
+ * primitive are returned as they are, so the recipe replaces them by assignment.
  */
-const patched = (
+const drafted = (
   base: Record<string, unknown>,
-  patch: Record<string, unknown>,
-): Record<string, unknown> => {
-  const merged: Record<string, unknown> = { ...base, ...patch };
-  let same = true;
-  for (const key of Object.keys(merged)) {
-    const before = base[key];
-    const given = merged[key];
-    const replaced = typeof given === "function";
-    const value: unknown = replaced ? (given as (current: unknown) => unknown)(before) : given;
-    // A key the patch left out holds the base's own child, which needs no walk.
-    const merging =
-      !replaced && !Object.is(value, before) && isObjectShaped(before) && isObjectShaped(value);
-    // The types send a Val only through a function. An object reaches one through a key its
-    // static type hid, or through a Val held in a plain object field.
-    if (merging && Root.has(before)) {
-      throw new TypeError(
-        development
-          ? `A patch cannot merge into the Val at "${key}": write \`{ ${key}: () => value }\` to replace it.`
-          : undefined,
-      );
+  recipe: (draft: unknown) => void,
+  revokes: (() => void)[],
+): unknown => {
+  const finishers = new Map<unknown, () => unknown>();
+  // An assigned value may hold drafts, as a spread of one does. Each is swapped for the node it
+  // stands for, so an unchanged subtree stays shared.
+  const finish = (value: unknown): unknown => {
+    if (finishers.has(value)) return finishers.get(value)!();
+    // Only the root draft exists, so no assigned value can hold one.
+    if (finishers.size < 2 || !isObject(value) || Owned.has(value)) return value;
+    let out = value as Record<string, unknown>;
+    for (const key of Object.keys(value)) {
+      const child = (value as Record<string, unknown>)[key];
+      const done = finish(child);
+      if (Object.is(done, child)) continue;
+      if (out === value)
+        out = (Array.isArray(value) ? [...(value as unknown[])] : { ...value }) as never;
+      out[key] = done;
     }
-    const child = merging ? patched(before, value) : value;
-    merged[key] = child;
-    if (!Object.is(child, before)) same = false;
-  }
-  return same ? base : merged;
+    return out;
+  };
+  const draft = (node: Record<string, unknown>): object => {
+    const own = new Map<PropertyKey, unknown>();
+    const read = (key: PropertyKey): unknown => {
+      if (own.has(key)) return own.get(key);
+      const value = node[key as string];
+      if (!isObjectShaped(value) || Root.has(value)) return value;
+      const child = draft(value);
+      own.set(key, child);
+      return child;
+    };
+    const { proxy, revoke } = Proxy.revocable(
+      {},
+      {
+        get: (_, key) => read(key),
+        set: (_, key, value) => (own.set(key, value), true),
+        // Every key is required. A false return makes `delete` throw rather than do nothing.
+        deleteProperty: () => false,
+        // A key the recipe added, as a record's new entry, is listed beside the node's own.
+        has: (_, key) => own.has(key) || key in node,
+        ownKeys: () =>
+          [...new Set([...Reflect.ownKeys(node), ...own.keys()])] as (string | symbol)[],
+        getOwnPropertyDescriptor: (_, key) =>
+          own.has(key) || key in node
+            ? { value: read(key), writable: true, enumerable: true, configurable: true }
+            : undefined,
+      },
+    );
+    revokes.push(revoke);
+    finishers.set(proxy, () => {
+      let next = node;
+      for (const [key, given] of own) {
+        const value = finish(given);
+        if (Object.is(value, node[key as string])) continue;
+        if (next === node) next = { ...node };
+        next[key as string] = value;
+      }
+      return next;
+    });
+    return proxy;
+  };
+  const root = draft(base);
+  recipe(root);
+  return finish(root);
 };
 
 /**
@@ -1775,7 +1774,7 @@ export const attach = (registered: Registered): Record<string, unknown> => {
 
   // Same idea for a registered derivation, which cannot reach the companion it is being
   // defined on: the seal arrives as its third argument.
-  target["patch"] = dual((value: unknown, patch: Record<string, unknown>) => {
+  target["patch"] = dual((value: unknown, recipe: (draft: unknown) => void) => {
     // The type leaves `patch` off a primitive or array Val, so reaching this takes a cast.
     // Still throws in production: without the guard the spread seals an object, turning a
     // number into `{}` and a string into a character map. Only the message is development-only.
@@ -1785,8 +1784,14 @@ export const attach = (registered: Registered): Record<string, unknown> => {
       );
     }
     indexAdopted(value);
-    const merged = patched(value, patch);
-    return Object.is(merged, value) ? keep(value) : seal(merged);
+    // Revoked even where the recipe throws, so no draft outlives it.
+    const revokes: (() => void)[] = [];
+    try {
+      const next = drafted(value, recipe, revokes);
+      return Object.is(next, value) ? keep(value) : seal(next);
+    } finally {
+      for (const revoke of revokes) revoke();
+    }
   });
 
   // The steps' functions run once the gates they receive exist. A trait's members join the
