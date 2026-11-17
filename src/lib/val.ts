@@ -37,6 +37,7 @@ import type {
   TraitCompanion,
   TraitHost,
   DynStep,
+  ImplementedOf,
   TraitsOf,
   Unbound,
 } from "./trait.ts";
@@ -827,7 +828,7 @@ export type Patch<T, X extends keyof T = never> = [T] extends [AnyVal]
   : Recipe<T, X>;
 
 // `never` for an array or a primitive, which `patch` leaves out.
-type Recipe<T, X extends PropertyKey> = T extends object
+type Recipe<T, X extends keyof T> = T extends object
   ? T extends ReadonlyArray<unknown> | AnyVal
     ? never
     : (draft: Draft<T, X>) => void
@@ -840,7 +841,7 @@ type Recipe<T, X extends PropertyKey> = T extends object
  * The draft stands for the value only while the recipe runs. Inside it, a draft is not the node
  * it stands for, so `d.street === value.street` is false.
  */
-export type Draft<T, X extends PropertyKey = never> = [X & keyof T] extends [never]
+export type Draft<T, X extends keyof T = never> = [X & keyof T] extends [never]
   ? { -readonly [K in keyof T]: Drafted<T[K]> }
   : { -readonly [K in Exclude<keyof T, X>]: Drafted<T[K]> } & {
       readonly [K in X & keyof T]: T[K];
@@ -855,8 +856,8 @@ type Drafted<T> = T extends AnyVal | ReadonlyArray<unknown> ? T : T extends obje
 export type PatchFn<V, R, T, X extends keyof T> =
   Patch<T, X> extends (draft: infer D) => void
     ? {
-        <F extends (draft: D) => unknown>(recipe: F & Sync<F> & Drafts<F, T, X>): (self: V) => R;
-        <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F> & Drafts<F, T, X>): R;
+        <F extends (draft: D) => unknown>(recipe: F & Sync<F> & Drafts<F, D>): (self: V) => R;
+        <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F> & Drafts<F, D>): R;
       }
     : never;
 
@@ -871,26 +872,27 @@ type Sync<F> = F extends (...args: never[]) => infer T
         : Invalid<"a recipe assigns to its draft and returns nothing">
   : unknown;
 
-// A parameter typed to make a key writable that the draft keeps readonly or lacks, such as
-// `(d: { _tag?: string })`, would write that key. One holding fewer keys writes less, so it fits.
-type Drafts<F, T, X extends keyof T> = F extends (...args: infer A) => unknown
+// A parameter typed with a key the draft lacks, or with a key made writable or optional, would let
+// the recipe write past the draft: the tag, an `Unpatchable` key, a nested Val. Each member of a
+// union is checked. One holding fewer keys, each as the draft has it, fits.
+type Drafts<F, D> = F extends (...args: infer A) => unknown
   ? A extends []
     ? unknown
-    : [Exclude<keyof A[0], keyof T> | Writable<Pick<A[0], X & keyof A[0]>>] extends [never]
-      ? unknown
-      : Invalid<"a recipe's parameter is the draft; leave its type to inference">
+    : true extends (
+          A[0] extends unknown
+            ? Same<Homomorphic<A[0]>, Pick<D, keyof A[0] & keyof D>> extends true
+              ? never
+              : true
+            : never
+        )
+      ? Invalid<"a recipe's parameter is the draft; leave its type to inference">
+      : unknown
   : unknown;
 
-// The keys a type lets a recipe assign to.
-type Writable<T> = {
-  [K in keyof T]-?: (<Y>() => Y extends Pick<T, K> ? 1 : 2) extends <Y>() => Y extends {
-    -readonly [Q in K]: T[Q];
-  }
-    ? 1
-    : 2
-    ? K
-    : never;
-}[keyof T];
+type Homomorphic<P> = { [K in keyof P]: P[K] };
+
+type Same<A, B> =
+  (<Y>() => Y extends A ? 1 : 2) extends <Y>() => Y extends B ? 1 : 2 ? true : false;
 
 export type AnyFn = (...args: never[]) => unknown;
 
@@ -1162,7 +1164,15 @@ export type Companion<
   PatchMethod<V, F, O> &
   CollectionMethods<V, F> &
   TraitHost &
-  ([TraitsOf<V>] extends [never] ? unknown : { readonly dyn: DynStep<V> });
+  ([ImplementedOf<V, M>] extends [never]
+    ? unknown
+    : {
+        readonly dyn: DynStep<
+          V,
+          ImplementedOf<V, M>,
+          "the companion does not implement this trait: add `.implTrait(Trait)`"
+        >;
+      });
 
 /** The members a {@link ValRecord} companion carries. Each goes through the seal. */
 type CollectionMethods<V extends AnyVal, F> =

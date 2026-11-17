@@ -178,6 +178,8 @@ export type Scan = Val<
     stepStates: StepState[];
     /** Where a `patch` recipe uses its draft other than to reach a field or to spread it. */
     draftAliases: Position[];
+    /** `patch` recipes declaring type parameters, whose draft no type checks. */
+    genericRecipes: Position[];
     /** Keys read off a local name, each a set. */
     reads: KeySets;
     /** Keys read through a namespace, already named as the exporting module names them. */
@@ -328,6 +330,7 @@ function scan(
   const escapedDyns: EscapedDyn[] = [];
   const stepStates: StepState[] = [];
   const draftAliases: Position[] = [];
+  const genericRecipes: Position[] = [];
   const memberSources: SymbolRef[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
@@ -455,6 +458,10 @@ function scan(
         }
         for (const start of draftUses(node)) {
           draftAliases.push(Lines.at(lines, start));
+        }
+        const generic = genericRecipe(node);
+        if (generic !== undefined) {
+          genericRecipes.push(Lines.at(lines, generic));
         }
         const lift = Lift.fromCall(node, file, bound, lines);
         if (lift) {
@@ -590,6 +597,7 @@ function scan(
     escapedDyns,
     stepStates,
     draftAliases,
+    genericRecipes,
     hiddenParameters: hidden(program, file, bound, lines),
     memberSources,
     reads: sets(reads),
@@ -867,6 +875,17 @@ function draftUses(node: Node): number[] {
   }
 
   return found;
+}
+
+/** Where a `.patch(…, recipe)` call's recipe declares type parameters. */
+function genericRecipe(node: Node): number | undefined {
+  if (node.type !== "CallExpression" || node.callee.type !== "MemberExpression") return undefined;
+  if (keyName(node.callee.property, node.callee.computed) !== "patch") return undefined;
+  const recipe = node.arguments.at(-1);
+  const generic = recipe?.children.some(
+    (one) => one.type === "Other" && one.nodeType === "TSTypeParameterDeclaration",
+  );
+  return recipe && generic && paramsOf(recipe).length ? recipe.start : undefined;
 }
 
 /** Whether an identifier is the object of a member access, a spread, or a name that is no reference. */
