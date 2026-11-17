@@ -275,7 +275,7 @@ erased, and at run time a record's input looks like an array Val's.
   `Val.Record`
 - **Breaking change.** A payload's `Record<string, V>` becomes a `Val.Record`. valof-lint recognizes its declarations and
   companions, and its own tables moved to it
-- **Cost.** Val 1.25 → 1.23 kB gzipped: the record code is in `Val.Record.companion`'s own builder, so a bundle without it leaves it
+- **Cost.** Val 1.25 → 1.22 kB gzipped (with the draft's delete trap removed, §6.2): the record code is in `Val.Record.companion`'s own builder, so a bundle without it leaves it
   out. The rules cost core 9,288 → 9,727 instantiations, and the fixture's record another 1,687 (11,414), so the core
   budget went from 10,000 to 12,000. `index.d.ts` 105.65 → 109.85 kB, budget 108 → 112 kB
 
