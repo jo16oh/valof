@@ -63,13 +63,13 @@
   - A named function passed as the recipe is out of the lint's reach. `PatchFn` is to require its parameter type to be
     the draft's own, which also rejects `(d: { _tag?: string }) => …`
   - Done: `PatchFn` rejects a parameter type holding a key the payload lacks, or making an `Unpatchable` key writable.
-    One holding fewer keys fits, as `Patch<Omit<SeedOf<V>, "id">>` does. Requiring the draft's type exactly rejected that
+    One holding fewer keys fits, as `Patch<Omit<SeedOf<V>, "id">>` does. Requiring the draft's exact type, as the item above planned, rejected that
     form too. The check costs core 11,583 → 12,556 instantiations (+8%), so its budget went from 12,000 to 13,000. Most
-    of it is the second intersection on the recipe; folding the check into `Sync` cost as much, and a conditional with
-    `infer` over the parameters broke the recipe's contextual typing
+    of it comes from intersecting the recipe's type with a second check beside `Sync`. Folding the check into `Sync`
+    cost as much, and a conditional with `infer` over the parameters broke the recipe's contextual typing
   - The rule finds a recipe by syntax: the last argument of any `.patch(…)` call, when it is a function. Another
-    library's `patch` taking a callback would be reported too. Resolving the callee to a companion was left out until a
-    false report turns up
+    library's `patch` taking a callback would be reported too. Resolving the callee to a companion is left out until a
+    false report appears
 
 - [x] ~~**The hole in a patch passed as a variable (investigated in #125).**~~ Closed, 2026-11-05. Items 1-3 of `hunt-findings.md`. A non-literal
       argument gets no excess property check, and the patch type was an intersection (`{…} & {…}`), so it got no weak type check either

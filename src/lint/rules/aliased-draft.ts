@@ -7,7 +7,8 @@ export type AliasedDraft = Val<"AliasedDraft", { kind: Kind }, Rule>;
 export const AliasedDraft = Val.companion<AliasedDraft>()
   .implCreate(() => ({
     kind: Kind.seal("aliased-draft"),
-    description: "a recipe's draft passed, bound, or put in an array or an object",
+    description:
+      "a recipe's draft passed to a function, bound to a name, or put in an array or an object",
     warns: false,
     optIn: false,
   }))
