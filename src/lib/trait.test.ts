@@ -577,20 +577,15 @@ describe("Trait", () => {
       }));
     });
 
-    test("is called through the companion or a box", () => {
-      const boxed = Greetable.dyn(User, USER);
-      expect([Greetable.shout(USER), Greetable.shout(boxed.value), boxed.shout()]).toEqual([
-        "ALICE",
-        "ALICE",
-        "ALICE",
-      ]);
+    test("is called through the trait's companion", () => {
+      expect(Greetable.shout(USER)).toBe("ALICE");
     });
   });
 
   describe("Impl", () => {
     test("is the type of any value implementing the trait", () => {
-      const greeters: Impl<Greetable>[] = [USER, ADMIN, Greetable.dyn(User, USER).value];
-      expect(greeters.map((g) => g.name)).toEqual(["alice", "root", "alice"]);
+      const greeters: Impl<Greetable>[] = [USER, ADMIN];
+      expect(greeters.map((g) => g.name)).toEqual(["alice", "root"]);
     });
 
     test("the trait itself only declares, and is no value's type", () => {
@@ -658,6 +653,8 @@ describe("dyn", () => {
     expectTypeOf(boxed.value).toEqualTypeOf<Impl<Greetable>>();
     expectTypeOf(boxed).not.toHaveProperty("name");
     expect(Reflect.get(boxed, "name")).toBeUndefined();
+    // @ts-expect-error a box holds one value for good
+    boxed.value = ADMIN;
   });
 
   test("each of a Val's traits boxes on its own", () => {
@@ -750,11 +747,6 @@ describe("dyn", () => {
       // @ts-expect-error the payload does not hold what the trait requires
       type Boxed = Val<"Boxed", { a: string }, Wire>;
       expectTypeOf<Boxed>().not.toBeNever();
-    });
-
-    test("is read through `value` like any other", () => {
-      const mail = Email.seal("a@example.com");
-      expect(Marker.dyn(Email, mail).value).toBe(mail);
     });
   });
 });

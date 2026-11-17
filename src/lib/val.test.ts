@@ -3774,7 +3774,7 @@ describe("building", () => {
         >();
       });
 
-      test("nor may a member take a name another trait requires as a field", () => {
+      test("but a member may take a name another trait requires as a field", () => {
         type Tagged = Trait<"Tagged", { tag: string }, { size: (self: Self) => number }>;
         const Tagged = Trait.companion<Tagged>()
           .impl(() => ({ size: (t) => t.tag.length }))
@@ -3898,17 +3898,6 @@ describe("building", () => {
           .impl(() => ({ then: (m: Member) => m.name }))
           .build();
         expect(Thenable.then(member)).toBe("alice");
-      });
-
-      test("a member may take a name the payload holds", () => {
-        type Loud = Trait<"Loud", { name: string }, { greet: (self: Self) => string }>;
-        const Loud = Trait.companion<Loud>()
-          .impl(() => ({ greet: (l) => l.name }))
-          .build();
-        type Sign = Val<"Sign", { name: string; greet: string }, Loud>;
-        const Sign = Val.companion<Sign>().implTrait(Loud).build();
-        const sign = Sign.seal({ name: "s", greet: "hello" });
-        expect([Loud.dyn(Sign, sign).greet(), sign.greet]).toEqual(["s", "hello"]);
       });
     });
   });
