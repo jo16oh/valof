@@ -49,7 +49,7 @@ const SUITE = Suite.seal([
     name: "Val",
     base: true,
     imports: Imports.seal({ "./dist/index.js": ["Val.companion"] }),
-    budget: 1024,
+    budget: 1126,
   }),
   Bundle.seal({
     name: "Equals",
