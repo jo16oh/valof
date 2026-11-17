@@ -44,28 +44,29 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 
 `User` stands for the companion that belongs to the `User` type.
 
-| API                             | Description                                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `User.seal(value)`              | applies the seal registered with `.implSeal(f)`, or the default one. Removed by `PrivateSeal`    |
-| `User.seal.nocopy(value)`       | the same, without copying the payload                                                            |
-| `User.create(...args)`          | creates a payload with the function registered with `.implCreate(f)`, then passes it to the seal |
-| `User.create.nocopy(...args)`   | the same, without copying the payload                                                            |
-| `User.patch(user, patch)`       | deeply merges the patch, then seals it. Only for an object payload                               |
-| `User.[member](first, ...rest)` | runs a member registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                |
-| `User.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument               |
+| API                             | Description                                                                                                                                          |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `User.seal(value)`              | applies the seal registered with `.implSeal(f)`, or the default one. Removed by `PrivateSeal`                                                        |
+| `User.seal.nocopy(value)`       | the same, without copying the payload                                                                                                                |
+| `User.create(...args)`          | creates a payload with the function registered with `.implCreate(f)`, then passes it to the seal                                                     |
+| `User.create.nocopy(...args)`   | the same, without copying the payload                                                                                                                |
+| `User.patch(user, patch)`       | deeply merges the patch, replaces each field whose patch value is a function with what it returns, then seals the result. Only for an object payload |
+| `User.[member](first, ...rest)` | runs a member registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                                                                    |
+| `User.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument                                                                   |
 
 ## Val Types
 
-| Type                  | Description                                                                       |
-| --------------------- | --------------------------------------------------------------------------------- |
-| `Val<K, T>`           | a branded value type                                                              |
-| `SeedOf<V>`           | the payload accepted by seals                                                     |
-| `PayloadOf<V>`        | the payload, with the brand removed at every depth                                |
-| `Payload<T>`          | marks a type as meant for a payload, and checks it against the allowed-type rules |
-| `Patch<T>`            | the patch accepted for a payload                                                  |
-| `Rec<V>`              | a Val's reference to itself, in its own payload                                   |
-| `CompanionBuilder<V>` | a companion's builder, with the steps it can still take                           |
-| `Companion<V, M>`     | the companion `.build()` returns                                                  |
+| Type                  | Description                                                                             |
+| --------------------- | --------------------------------------------------------------------------------------- |
+| `Val<K, T>`           | a branded value type                                                                    |
+| `SeedOf<V>`           | the payload accepted by seals                                                           |
+| `PayloadOf<V>`        | the payload, with the brand removed at every depth                                      |
+| `Payload<T>`          | marks a type as meant for a payload, and checks it against the allowed-type rules       |
+| `Patch<T>`            | the patch accepted for a payload                                                        |
+| `Replacer<T>`         | a function in a patch that receives a field's current value and returns its replacement |
+| `Rec<V>`              | a Val's reference to itself, in its own payload                                         |
+| `CompanionBuilder<V>` | a companion's builder, with the steps it can still take                                 |
+| `Companion<V, M>`     | the companion `.build()` returns                                                        |
 
 You never write the builder and companion types, here or for an enum or a trait. They are exported
 so that your own `.d.ts` can reference them when you re-export a companion.
