@@ -178,7 +178,7 @@ export type Scan = Val<
     stepStates: StepState[];
     /** Where a `patch` recipe uses its draft other than to reach a field or to spread it. */
     draftAliases: Position[];
-    /** `patch` recipes declaring type parameters, whose draft no type checks. */
+    /** `patch` recipes declaring type parameters, whose draft the types do not check. */
     genericRecipes: Position[];
     /** Keys read off a local name, each a set. */
     reads: KeySets;

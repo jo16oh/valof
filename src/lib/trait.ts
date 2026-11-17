@@ -335,7 +335,7 @@ type Declarable<Shape, M extends Members> = {
     : [Shape] extends [never]
       ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
       : string extends K
-        ? Invalid<"a trait's members are named; write each one">
+        ? Invalid<"a trait lists its members by name; write each one">
         : K extends "value"
           ? Invalid<"a trait member cannot take `value`, which a box reads its value through">
           : K extends Reserved
@@ -374,11 +374,11 @@ type Agreeing<Tr> = [Tr] extends [infer X]
   ? X extends AnyTrait
     ? [Disagreeing<X>] extends [never]
       ? unknown
-      : Invalid<"the traits declare a member of one name with different signatures">
+      : Invalid<"two of the traits declare a member of the same name with different signatures">
     : unknown
   : never;
 
-/** A member name two of the traits intersected declare with different signatures. */
+/** A member name that two of the intersected traits declare with different signatures. */
 type Disagreeing<Tr extends AnyTrait> = {
   [K in keyof UnionToIntersection<MembersOf<Tr>>]: IsUnion<
     MembersOf<Tr> extends infer M
@@ -431,8 +431,9 @@ export type TraitCompanion<
  * Boxes a value of this companion's type with its implementation of the traits in the type
  * argument, as Rust's `value as &dyn Trait` does. See {@link Dyn}.
  */
-// `Held` names the traits this companion holds an implementation of. `Elsewhere` says where the rest
-// are, and `Split` where the traits named lie in two companions, as an enum's and a variant's can.
+// `Held` names the traits this companion holds an implementation of. `Elsewhere` is the message when
+// another companion holds the traits named, and `Split` the message when two companions each hold
+// some of them, as an enum's and a variant's can.
 export type DynStep<V, Held, Elsewhere extends string, Split extends string = Elsewhere> = <
   Tr extends OneTrait<Tr> = never,
 >(
@@ -452,8 +453,7 @@ export type DynStep<V, Held, Elsewhere extends string, Split extends string = El
 ) => Boxed<Tr>;
 
 /**
- * The traits of `V` whose every member `T` holds: those `implTrait` registered. A companion boxes
- * these alone.
+ * The traits of `V` whose every member `T` holds: those `implTrait` registered. A companion boxes only these.
  */
 export type ImplementedOf<V, T> =
   V extends TraitPhantom<infer B>
@@ -555,8 +555,8 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
     new Proxy(
       {},
       {
-        // A key the record lacks reads the target's, which is what `Object.prototype` gives the
-        // box's type.
+        // A key the record lacks is read from the target, so it returns what `Object.prototype`
+        // holds, as the box's type shows.
         get(target, key) {
           const members = companion[Traits] as unknown as Record<PropertyKey, AnyFn>;
           const member = Object.hasOwn(members, key) && members[key];

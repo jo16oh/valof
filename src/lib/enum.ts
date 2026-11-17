@@ -620,7 +620,7 @@ type VariantDyn<V, Own> = [Own] extends [never]
         V,
         Own,
         "the enum declares this trait, so box it through the enum: `Enum.dyn<Trait>(value)`",
-        "the enum and the variant each hold one of these traits; box them separately"
+        "the enum and the variant each declare some of these traits; box them separately"
       >;
     };
 
@@ -772,7 +772,7 @@ export type EnumCompanion<
           E,
           Extract<ImplementedOf<E, M>, TraitNames<DeclaredTraits<E>>>,
           "a variant declares this trait, so box it through the variant: `Enum.[Variant].dyn<Trait>(value)`",
-          "the enum and the variant each hold one of these traits; box them separately"
+          "the enum and the variant each declare some of these traits; box them separately"
         >;
       });
 

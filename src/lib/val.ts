@@ -873,21 +873,22 @@ type Sync<F> = F extends (...args: never[]) => infer T
   : unknown;
 
 // A parameter typed with a key the draft lacks, or with a key made writable or optional, would let
-// the recipe write past the draft: the tag, an `Unpatchable` key, a nested Val. Each member of a
-// union is checked. One holding fewer keys, each as the draft has it, fits.
+// the recipe write keys the draft does not allow: the tag, an `Unpatchable` key, a nested Val. Each
+// member of a union is checked. One holding fewer keys, each as the draft has it, fits.
 type Drafts<F, D> = F extends (...args: infer A) => unknown
-  ? A extends []
-    ? unknown
-    : true extends (
-          A[0] extends unknown
-            ? Same<Homomorphic<A[0]>, Pick<D, keyof A[0] & keyof D>> extends true
-              ? never
-              : true
-            : never
-        )
+  ? A extends [infer P, ...unknown[]]
+    ? true extends Mismatch<P, D>
       ? Invalid<"a recipe's parameter is the draft; leave its type to inference">
       : unknown
+    : unknown
   : unknown;
+
+// Distributes over a union, so each member is compared on its own.
+type Mismatch<P, D> = P extends unknown
+  ? Same<Homomorphic<P>, Pick<D, keyof P & keyof D>> extends true
+    ? never
+    : true
+  : never;
 
 type Homomorphic<P> = { [K in keyof P]: P[K] };
 
@@ -1170,7 +1171,7 @@ export type Companion<
         readonly dyn: DynStep<
           V,
           ImplementedOf<V, M>,
-          "the companion does not implement this trait: add `.implTrait(Trait)`"
+          "the companion does not implement this trait; add `.implTrait(Trait)`"
         >;
       });
 
