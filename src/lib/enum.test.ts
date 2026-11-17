@@ -1051,6 +1051,9 @@ describe("traits", () => {
       expect([Mixed.dyn<Counted>(a).counted(), Mixed.A.dyn<Named>(a).named()]).toEqual([1, "a"]);
       // @ts-expect-error a variant declares this trait, so box it through the variant
       Mixed.dyn<Named>(a);
+      expectTypeOf<Parameters<typeof Mixed.dyn<Named>>[0]>().toEqualTypeOf<
+        Invalid<"a variant declares this trait, so box it through the variant: `Enum.[Variant].dyn<Trait>(value)`">
+      >();
       // @ts-expect-error the enum declares this trait, so box it through the enum
       Mixed.A.dyn<Counted>(a);
     });
