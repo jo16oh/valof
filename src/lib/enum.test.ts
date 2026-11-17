@@ -1316,6 +1316,18 @@ describe("a broken declaration", () => {
     expectTypeOf<Wrapped>().not.toBeNever();
   });
 
+  test("a variant's payload and the shared fields keyed by any string name `Val.Record`", () => {
+    // @ts-expect-error a variant's payload cannot be keyed by any string
+    type Rows = Enum<"Rows", { A: Record<string, number>; B: { b: string } }>;
+    expectTypeOf<NameOf<Rows & AnyEnum>>().toEqualTypeOf<
+      Invalid<"a variant's payload cannot be keyed by any string; hold a `Val.Record` in a field"> &
+        string
+    >();
+    // @ts-expect-error nor the shared fields
+    type Shared = Enum<"Shared", { A: { a: number }; B: { b: string } }, Record<string, number>>;
+    expectTypeOf<Shared>().not.toExtend<AnyEnum>();
+  });
+
   test("the variants are keys, not an index signature", () => {
     // @ts-expect-error a variant's name must be one string literal
     type Open = Enum<"Open", Record<string, { a: number }>>;
@@ -1844,6 +1856,14 @@ describe("the companion's options", () => {
     Enum.companion<Order, [VariantOptions<"Pending", [Unpatchable<"shippedAt">]>]>();
     // @ts-expect-error `Order.seal` reaches every variant, so only the enum hides it
     Enum.companion<Order, [VariantOptions<"Pending", [PrivateSeal]>]>();
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    type Loose = any;
+    // @ts-expect-error the options cannot be `any`, which the next step reports
+    Enum.companion<Order, [VariantOptions<"Pending", Loose>]>().build();
+    // @ts-expect-error nor hold `any`
+    Enum.companion<Order, [VariantOptions<"Pending", [Loose]>]>().build();
+    // @ts-expect-error the enum's options cannot be `any` either, which the next step reports
+    Enum.companion<Order, Loose>().build();
   });
 });
 
