@@ -53,6 +53,21 @@
     overflow), not a clear message. A check would cost bytes for a mistake the throw already stops
   - **Cost.** trait 25,699 → 26,345 instantiations, so its budget went from 26,000 to 27,000
 
+- [ ] **What the second type hunt (2026-11-18) left open, all already on 0.12.** Fixed in the same PR: `any`, `never` and
+      a missing type argument at `Trait.companion`, `Val.companion`, `Val.of` and `.dyn`; trait members that are optional,
+      symbol-keyed, `never` or take something other than `Self` first; `VariantOptions` and `Unpatchable` naming no key or
+      variant; `Val<…, any>`'s message; an `implAssoc` constant's message. Left open:
+  - **`Impl<any>`, `Impl<never>`, `Dyn<any>`, `Dyn<never>`.** Making either a conditional type writes the trait's
+    phantom out in full in a consumer's declarations, so a re-read type differs (`check-dist --compat`). A box built with
+    `.dyn` still rejects them
+  - **A field of an object type intersected with a primitive** (`{ n: Spot & number }`, and an enum's shared field
+    clashing that way with a variant's). Checking it cost about 480 B of `index.d.ts`, core +16 and enum +150
+  - **A union element in an options list** (`[Unpatchable<"id"> | PrivateSeal]`). Core +48 and about 110 B
+  - **`Val.Record` with an `any` or `never` key, or a `never` value, at the companion.** Core +24 and about 240 B
+  - **Not attempted:** an overloaded or generic trait member (no way to read either from the type), a class instance
+    passed to `seal` (it throws), a union of two Vals passed to `equals` (the caller wrote it), a `Rec` in a trait's
+    shape (circular, TS2456), `Patch<User>` written for a Val (reported where it is used)
+
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
   - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report
