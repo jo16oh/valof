@@ -213,9 +213,10 @@ Item.Book.named(Item.Book.create({ label: "Dune", pages: 412 })); // "Dune, 412 
 
 ## Hold values of different types together
 
-`dyn` pairs a value with one Val's implementation, so values of different types share an array. The
-box `dyn` returns drops the concrete type and keeps only the trait. This is inspired by Rust's
-`Box<dyn Trait>`:
+A companion's `dyn` pairs a value with the companion's implementation of a trait, so values of
+different types share an array. `dyn` takes the trait as its type argument, as in
+`User.dyn<Greetable>(user)`. The box it returns drops the concrete type and keeps only the trait.
+This is inspired by Rust's `Box<dyn Trait>`:
 
 ```ts
 import { Trait, Val, type Dyn, type Self } from "valof";
@@ -260,15 +261,14 @@ be named `value`.
 
 A box is not a Val. It has no `patch`, and a payload cannot hold one.
 
-The companion passed to `dyn` has to match the value's own type, so another Val's companion is
-rejected.
+`dyn` takes only a value of the companion's own type, and only a trait that type declares. A
+companion whose type declares no trait has no `dyn`. Neither `.impl` nor `implTrait` can register a
+member named `dyn`.
 
-An enum boxes the same way, through its own companion:
-`Cmd.dyn<Describable>(Cmd.Add.create({ id: "c1", n: 2 }))`.
-
-`dyn` selects the implementation from the companion passed to it. If an enum and its variant both
-declared a trait, `Item.dyn<Named>(book)` and `Item.Book.dyn<Named>(book)` would call different
-implementations, so a variant cannot declare a trait that the enum already declares.
+An enum boxes a trait it declares through its own companion:
+`Cmd.dyn<Describable>(Cmd.Add.create({ id: "c1", n: 2 }))`. A trait one variant declares is boxed
+through that variant: `Item.Book.dyn<Named>(book)`. A variant cannot declare a trait that the enum
+already declares, so each trait has one implementation to box.
 
 A function over boxes is registered on the trait's companion, with `.implAssoc`. `implTrait` does
 not copy it onto a Val.
@@ -301,5 +301,6 @@ Crate.dyn<Weighed>(crate).heavy(); // true
 Write `&`, not `|`, inside `Impl`. `Impl<Greetable & Weighed>` accepts a value implementing both.
 `Impl<Greetable> | Impl<Weighed>` accepts a value implementing either.
 
-`dyn` boxes a value for one trait at a time. No two traits on one Val may declare the same member
-name.
+Intersect the traits in `dyn`'s type argument to box a value for several at once.
+`Crate.dyn<Greetable & Weighed>(crate)` has the members of both, and is assignable to a
+`Dyn<Greetable>`. No two traits on one Val may declare the same member name.
