@@ -118,6 +118,8 @@ function valName(typeName: Node, bound: Bindings): string | undefined {
   if (typeName.type === "Identifier") return typeName.name;
   if (typeName.type !== "TSQualifiedName") return undefined;
   const { left, right } = typeName;
+  // `Val.Map<…>` and `Val.Set<…>` declare a Val.
+  if (collectionOf(typeName, bound)) return (left as { name: string }).name;
   if (left.type !== "Identifier" || !Bindings.hasNamespace(bound, left.name)) return undefined;
   // Qualified by a namespace import, so the name is already the exporting module's own.
   return right.type === "Identifier" ? right.name : undefined;
@@ -162,7 +164,10 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
       aliases.push(
         Alias.seal({
           ...declared,
-          traits: traitNames(params[2], file, bound, locals, lines),
+          // A map's third argument is its value type, and neither declares a trait.
+          traits: collectionOf(typeName, bound)
+            ? []
+            : traitNames(params[2], file, bound, locals, lines),
         }),
       );
     } else if (kind === "Trait") {
@@ -342,4 +347,16 @@ function variantTraits(
     const traits = traitNames(payload, file, bound, aliases, lines);
     return traits.length > 0 ? [VariantTraits.seal({ variant, traits })] : [];
   });
+}
+
+/** Whether a type reference is `Val.Map` or `Val.Set`. */
+function collectionOf(typeName: Node, bound: Bindings): boolean {
+  if (typeName.type !== "TSQualifiedName") return false;
+  const { left, right } = typeName;
+  return (
+    left.type === "Identifier" &&
+    right.type === "Identifier" &&
+    (right.name === "Map" || right.name === "Set") &&
+    Bindings.originalName(bound, left.name) === "Val"
+  );
 }

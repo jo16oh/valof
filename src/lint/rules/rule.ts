@@ -24,14 +24,12 @@ export type Kind = Val<"Kind", string>;
 export const Kind = Val.companion<Kind>().build();
 
 /** Rule kinds, as a set. */
-export type KindSet = Val<"KindSet", Record<Kind, true>>;
-export const KindSet = Val.companion<KindSet>()
-  .implCreate((kinds: Iterable<Kind>) =>
-    Object.fromEntries([...kinds].map((kind) => [kind, true as const])),
-  )
+export type KindSet = Val.Set<"KindSet", Kind>;
+export const KindSet = Val.Set.companion<KindSet>()
+  .implCreate((kinds: Iterable<Kind>) => kinds)
   .impl(() => ({
     /** Whether `name` is in the set. A disable comment's name, which no rule may have, is checked too. */
-    has: (kinds, name: string) => Object.hasOwn(kinds, name),
+    holds: (kinds, name: string) => Object.hasOwn(kinds, name),
     /** The kind `name` spells, or `undefined` when it is not in the set. */
     find: (kinds, name: string): Kind | undefined =>
       Object.hasOwn(kinds, name) ? Kind.seal(name) : undefined,

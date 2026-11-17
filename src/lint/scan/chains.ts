@@ -119,7 +119,10 @@ export function fromRoot(node: Node, bound: Bindings): string | undefined {
   // `valof.Val.companion`: step past the namespace, which only says where the name came from.
   const qualified = Bindings.hasNamespace(bound, first);
   const name = qualified ? second : Bindings.originalName(bound, first);
-  const step = qualified ? third : second;
+  const named = qualified ? third : second;
+  // `Val.Map.companion` and `Val.Set.companion` build a Val as `Val.companion` does.
+  const step =
+    name === "Val" && (named === "Map" || named === "Set") ? path[qualified ? 3 : 2] : named;
   if (step === undefined || !ENTRY_POINTS.has(step)) return undefined;
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
 }

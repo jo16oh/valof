@@ -12,15 +12,18 @@ export const ImportBinding = Val.companion<ImportBinding>().build();
  *
  * Looked up by own key, since a local name can be `constructor` or `toString`.
  */
-export type ImportMap = Val<"ImportMap", Record<string, ImportBinding>>;
-export const ImportMap = Val.companion<ImportMap>()
+export type ImportMap = Val.Map<"ImportMap", string, ImportBinding>;
+export const ImportMap = Val.Map.companion<ImportMap>()
   .impl(() => ({
-    has: (imports, local: string) => Object.hasOwn(imports, local),
     get: (imports, local: string) => own(imports, local),
     /** The name the exporting module uses, or the local one when the file did not import it. */
     nameOf: (imports, local: string) => own(imports, local)?.name ?? local,
   }))
   .build();
+
+/** Names keyed by names: a local name's module, or an export's name at its declaration. */
+export type Names = Val.Map<"Names", string, string>;
+export const Names = Val.Map.companion<Names>().build();
 
 /** A Val or Trait name together with its comparison identity. */
 export type SymbolRef = Val<
@@ -49,16 +52,20 @@ export type Bindings = Val<
   {
     imported: ImportMap;
     /** `import * as ns`: local namespace name -> exporting module. */
-    namespaces: Record<string, string>;
+    namespaces: Names;
     /**
      * Locals holding a builder, under the root it grew from, so `const built =
      * Val.companion<X>(); built.impl(() => ({…}))` is seen.
      */
-    builders: Record<string, string>;
+    builders: Names;
   }
 >;
 export const Bindings = Val.companion<Bindings>()
-  .implCreate(() => ({ imported: ImportMap.seal({}), namespaces: {}, builders: {} }))
+  .implCreate(() => ({
+    imported: ImportMap.seal([]),
+    namespaces: Names.seal([]),
+    builders: Names.seal([]),
+  }))
   .impl(() => ({
     hasNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
     builderOf: (bound, local: string) => own(bound.builders, local),
@@ -84,10 +91,10 @@ export const Bindings = Val.companion<Bindings>()
   .build();
 
 /** The files in this lint run, which a relative module specifier resolves against. */
-export type Modules = Val<"Modules", { known: Record<string, true> }>;
+export type Modules = Val<"Modules", { known: KnownFiles }>;
 export const Modules = Val.companion<Modules>()
   .implCreate((files: readonly string[]) => ({
-    known: Object.fromEntries(files.map((file) => [normalize(resolve(file)), true as const])),
+    known: KnownFiles.seal(files.map((file) => normalize(resolve(file)))),
   }))
   .impl(() => ({
     /** The module `source` names from `file`: a file in the run, or a package. */
@@ -114,7 +121,11 @@ export const Modules = Val.companion<Modules>()
   }))
   .build();
 
+/** The resolved paths of the files in a run. */
+type KnownFiles = Val.Set<"KnownFiles", string>;
+const KnownFiles = Val.Set.companion<KnownFiles>().build();
+
 /** An own entry of a record, never one inherited from `Object.prototype`. */
-function own<T>(record: Readonly<Record<string, T>>, key: string): T | undefined {
+function own<T>(record: Readonly<Partial<Record<string, T>>>, key: string): T | undefined {
   return Object.hasOwn(record, key) ? record[key] : undefined;
 }

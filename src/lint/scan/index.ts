@@ -23,7 +23,7 @@ import {
   type ReAlias,
   type TraitAlias,
 } from "./aliases.ts";
-import { Bindings, ImportBinding, ImportMap, Modules, SymbolRef } from "./bindings.ts";
+import { Bindings, ImportBinding, ImportMap, Modules, Names, SymbolRef } from "./bindings.ts";
 import {
   CompanionSite,
   chainRoot,
@@ -144,6 +144,18 @@ export type CompanionBinding = Val<
 >;
 export const CompanionBinding = Val.companion<CompanionBinding>().build();
 
+/** Keys read off one name. */
+export type Keys = Val.Set<"Keys", string>;
+export const Keys = Val.Set.companion<Keys>().build();
+
+/** The keys read off each name. */
+export type KeySets = Val.Map<"KeySets", string, Keys>;
+export const KeySets = Val.Map.companion<KeySets>().build();
+
+/** Export name -> the local or source-module symbol it exposes. */
+export type Refs = Val.Map<"Refs", string, SymbolRef>;
+export const Refs = Val.Map.companion<Refs>().build();
+
 /**
  * What one file says about itself: syntactic facts, named for what they are rather than for the
  * rule that reads them.
@@ -166,13 +178,13 @@ export type Scan = Val<
     /** Member steps whose function declares something in its body. */
     stepStates: StepState[];
     /** Keys read off a local name, each a set. */
-    reads: Record<string, Record<string, true>>;
+    reads: KeySets;
     /** Keys read through a namespace, already named as the exporting module names them. */
-    namespaceReads: Record<string, Record<string, true>>;
+    namespaceReads: KeySets;
     /** `export { A as B }`: the name outside -> the name at the declaration. */
-    exportedAs: Record<string, string>;
+    exportedAs: Names;
     /** Export name -> the local or source-module symbol it exposes. */
-    exportedRefs: Record<string, SymbolRef>;
+    exportedRefs: Refs;
     /** Top-level `type X = Val<…>`. */
     aliases: Alias[];
     /** Top-level `type X = Trait<…>` declarations. */
@@ -197,7 +209,7 @@ export type Scan = Val<
      * What each module the file imports or re-exports from resolved to, among the files in the run.
      * A change to the files in the run affects this scan only where it changes one of these entries.
      */
-    resolved: Record<string, string>;
+    resolved: Names;
   }
 >;
 export const Scan = Val.companion<Scan>()
@@ -214,19 +226,17 @@ export const Scan = Val.companion<Scan>()
  * What each module of a run exports, keyed by the reference an export makes: a re-export points on
  * to the symbol it exposes.
  */
-export type Exports = Val<"Exports", Record<string, SymbolRef>>;
-export const Exports = Val.companion<Exports>()
+export type Exports = Val.Map<"Exports", string, SymbolRef>;
+export const Exports = Val.Map.companion<Exports>()
   .implAssoc(({ seal }) => ({
     from: (scans: readonly Scan[]): Exports =>
       pipe(
         scans.flatMap(({ file, exportedRefs }) => {
           const module = normalize(resolve(file));
-          return Object.entries(exportedRefs).map(([name, target]) => [
-            SymbolRef.fromExport(module, name).key,
-            target,
-          ]);
+          return Object.entries(exportedRefs).map(
+            ([name, target]) => [SymbolRef.fromExport(module, name).key, target!] as const,
+          );
         }),
-        Object.fromEntries,
         seal,
       ),
   }))
@@ -415,7 +425,7 @@ function scan(
         if (root) {
           const name = id.name;
           bound = Bindings.patch(bound, (b) => {
-            b.builders[name] = root;
+            b.builders = Names.set(b.builders, name, root);
           });
         }
         // `const Round = Shape.Circle` takes the same key the destructuring above takes.
@@ -502,7 +512,7 @@ function scan(
           ) {
             const local = specifier.local.name;
             bound = Bindings.patch(bound, (b) => {
-              b.namespaces[local] = resolved;
+              b.namespaces = Names.set(b.namespaces, local, resolved);
             });
           } else if (
             specifier.type === "ImportSpecifier" &&
@@ -512,9 +522,11 @@ function scan(
             const local = specifier.local.name;
             if (name) {
               bound = Bindings.patch(bound, (b) => {
-                b.imported = ImportMap.patch(b.imported, (m) => {
-                  m[local] = ImportBinding.seal({ name, module: resolved });
-                });
+                b.imported = ImportMap.set(
+                  b.imported,
+                  local,
+                  ImportBinding.seal({ name, module: resolved }),
+                );
               });
             }
           }
@@ -575,8 +587,8 @@ function scan(
     memberSources,
     reads: sets(reads),
     namespaceReads: sets(namespaceReads),
-    exportedAs: Object.fromEntries(exportedAs),
-    exportedRefs: Object.fromEntries(exportedRefs),
+    exportedAs: Names.seal(exportedAs),
+    exportedRefs: Refs.seal(exportedRefs),
     aliases,
     traitAliases,
     enumAliases,
@@ -587,7 +599,7 @@ function scan(
     lifts,
     models: models(file, program, bound, lines),
     directives: directives(comments, source, lines),
-    resolved: Object.fromEntries(resolved),
+    resolved: Names.seal(resolved),
   });
 }
 
@@ -751,14 +763,9 @@ function implMembers(
   return [...found.values()];
 }
 
-/** Each set as an object with the member as key, the way a payload holds one. */
-function sets(map: ReadonlyMap<string, ReadonlySet<string>>): Record<string, Record<string, true>> {
-  return Object.fromEntries(
-    [...map].map(([key, members]) => [
-      key,
-      Object.fromEntries([...members].map((one) => [one, true])),
-    ]),
-  );
+/** Each set of keys under its name. */
+function sets(map: ReadonlyMap<string, ReadonlySet<string>>): KeySets {
+  return KeySets.seal([...map].map(([key, members]) => [key, Keys.seal(members)] as const));
 }
 
 /** The string a literal node spells, or `undefined` for any other node. */

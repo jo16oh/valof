@@ -20,7 +20,9 @@ function main(): void {
       const ran = await run(
         project,
         Options.create({
-          overlay: Object.entries(overlay),
+          overlay: Object.entries(overlay).flatMap(([file, text]) =>
+            text === undefined ? [] : [[file, text] as const],
+          ),
           enable: { "data-type-outside-valof": model },
         }),
         cache,

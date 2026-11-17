@@ -41,6 +41,14 @@ export const Enabled = Val.companion<Enabled>()
   )
   .build();
 
+/** The resolved paths a run reports on. */
+export type Targets = Val.Set<"Targets", string>;
+export const Targets = Val.Set.companion<Targets>().build();
+
+/** Source to read in place of the file on disk, keyed by resolved path. */
+export type Overlay = Val.Map<"Overlay", string, string>;
+export const Overlay = Val.Map.companion<Overlay>().build();
+
 /** How a run reads and reports. Paths are resolved, so any spelling of a file finds it. */
 export type Options = Val<
   "Options",
@@ -54,12 +62,12 @@ export type Options = Val<
      * member's read may be in any file. Narrowing the run instead would silence them and make a working
      * directive look unused.
      */
-    targets: Record<string, true> | null;
+    targets: Targets | null;
     /**
      * Source to read instead of the file on disk, keyed by path, for an editor's unsaved buffer. A path
      * here that is not in `files` is scanned all the same, and need not exist.
      */
-    overlay: Record<string, string>;
+    overlay: Overlay;
   }
 >;
 export const Options = Val.companion<Options>()
@@ -77,10 +85,8 @@ export const Options = Val.companion<Options>()
     } = {}) => ({
       enable: Enabled.create(enable),
       skip: KindSet.create(skip),
-      targets: targets
-        ? Object.fromEntries([...targets].map((file) => [resolve(file), true as const]))
-        : null,
-      overlay: Object.fromEntries([...overlay].map(([file, text]) => [resolve(file), text])),
+      targets: targets ? Targets.seal([...targets].map((file) => resolve(file))) : null,
+      overlay: Overlay.seal([...overlay].map(([file, text]) => [resolve(file), text] as const)),
     }),
   )
   .build();

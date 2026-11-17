@@ -36,6 +36,7 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   const exportedAs = new Map<string, string>();
   for (const scan of scans) {
     for (const [outside, inside] of Object.entries(scan.exportedAs)) {
+      if (inside === undefined) continue;
       exportedAs.set(outside, inside);
     }
   }
@@ -69,13 +70,13 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   for (const scan of scans) {
     for (const [local, keys] of Object.entries(scan.reads)) {
       const name = ImportMap.nameOf(scan.imported, local);
-      for (const key of Object.keys(keys)) {
+      for (const key of Object.keys(keys ?? {})) {
         note(name, key);
       }
     }
     // Already named as the exporting module names them, so this file's aliases do not apply.
     for (const [name, keys] of Object.entries(scan.namespaceReads)) {
-      for (const key of Object.keys(keys)) {
+      for (const key of Object.keys(keys ?? {})) {
         note(name, key);
       }
     }
@@ -108,7 +109,7 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   const anywhere = new Set<string>();
   for (const scan of scans) {
     for (const keys of [...Object.values(scan.reads), ...Object.values(scan.namespaceReads)]) {
-      for (const key of Object.keys(keys)) {
+      for (const key of Object.keys(keys ?? {})) {
         anywhere.add(key);
       }
     }

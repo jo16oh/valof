@@ -8,6 +8,9 @@ const City = Val.companion<City>().build();
 type Money = Val<"Money", { amount: number; currency: string }>;
 const Money = Val.companion<Money>().build();
 
+type Totals = Val.Map<"Totals", string, Money>;
+const Totals = Val.Map.companion<Totals>().build();
+
 type Line = Val<"Line", { sku: string; qty: number; unit: Money; tags: readonly string[] }>;
 const Line = Val.companion<Line>().build();
 
@@ -27,7 +30,7 @@ type Order = Val<
     id: string;
     ship: Address;
     lines: readonly Line[];
-    totals: Readonly<Record<string, Money>>;
+    totals: Totals;
     note: string | undefined;
   }
 >;
@@ -37,8 +40,8 @@ const Order = Val.companion<Order, [Unpatchable<"id">]>()
   .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
   .implAssoc(({ seal, create }) => ({
     fromShip: (id: string, ship: Address) =>
-      seal({ id, ship, lines: [], totals: {}, note: undefined }),
-    blank: (ship: Address) => create({ ship, lines: [], totals: {}, note: undefined }),
+      seal({ id, ship, lines: [], totals: Totals.seal([]), note: undefined }),
+    blank: (ship: Address) => create({ ship, lines: [], totals: Totals.seal([]), note: undefined }),
   }))
   .impl(({ seal }) => ({
     label(o) {
@@ -65,7 +68,7 @@ export const derived = [
     a.street.unit = { floor: 2, door: "b" };
   }),
   Order.patch(order, (o) => {
-    o.totals["vat"] = Money.seal({ amount: 1, currency: "JPY" });
+    o.totals = Totals.set(o.totals, "vat", Money.seal({ amount: 1, currency: "JPY" }));
     o.note = undefined;
   }),
   Order.patch(order, patch),
@@ -86,7 +89,7 @@ export const derived = [
         tags: ["x"],
       }),
     ],
-    totals: {},
+    totals: Totals.seal([["vat", Money.seal({ amount: 1, currency: "JPY" })]]),
     note: undefined,
   }),
   Val.of<Order>(order),

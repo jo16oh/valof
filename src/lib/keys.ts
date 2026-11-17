@@ -5,6 +5,8 @@ export const Shared: unique symbol = Symbol();
 
 // Type-only keys.
 export declare const RecKey: unique symbol;
+export declare const MapKey: unique symbol;
+export declare const SetKey: unique symbol;
 export declare const NoSeal: unique symbol;
 export declare const Unbuilt: unique symbol;
 export declare const InvalidKey: unique symbol;

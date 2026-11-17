@@ -15,7 +15,7 @@ import { Val } from "../../lib/index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
 import type { Finding } from "../rules/index.ts";
 import { Project } from "../shared/files.ts";
-import { DataTypeSettings } from "../shared/options.ts";
+import { DataTypeSettings, Overlay } from "../shared/options.ts";
 
 /**
  * Starts the worker on its script, and answers every query with why when the script does not load.
@@ -55,7 +55,7 @@ export type Query = Val<
      * The buffer of the file being linted, keyed by its path, where disk does not hold it or the
      * project leaves the file out. Empty otherwise, so every file of a batch asks the same.
      */
-    overlay: Record<string, string>;
+    overlay: Overlay;
     /**
      * The settings of `data-type-outside-valof`. It always runs here, because the host reports it
      * only where the project turned it on.
@@ -96,7 +96,7 @@ export const Query = Val.companion<Query>()
 
       return seal({
         project,
-        overlay: saved && listed ? {} : { [file]: text },
+        overlay: Overlay.seal(saved && listed ? [] : [[file, text]]),
         model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
         saved,
       });
