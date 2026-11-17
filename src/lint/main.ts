@@ -64,8 +64,10 @@ const Files = Val.companion<Files>()
 
 /** What `--help` prints. */
 function usage(): string {
-  const width = Math.max(...RULES.map(({ kind }) => kind.length));
-  const listed = RULES.map(({ kind, description }) => `  ${kind.padEnd(width)}  ${description}`);
+  const width = Math.max(...RULES.map(({ value: { kind } }) => kind.length));
+  const listed = RULES.map(
+    ({ value: { kind, description } }) => `  ${kind.padEnd(width)}  ${description}`,
+  );
   return [
     "valof-lint [--no-<rule>...] [project] [file...]",
     "",

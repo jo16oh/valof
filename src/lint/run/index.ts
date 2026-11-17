@@ -35,13 +35,13 @@ export async function run(
   // An opt-in rule left off is out of the run as much as a skipped one.
   const notRun = KindSet.create([
     ...Object.keys(options.skip).map((kind) => Kind.seal(kind)),
-    ...RULES.filter(({ kind }) => !rules.some((rule) => rule.kind === kind)).map(
-      ({ kind }) => kind,
+    ...RULES.filter(({ value: { kind } }) => !rules.some((rule) => rule.value.kind === kind)).map(
+      ({ value: { kind } }) => kind,
     ),
   ]);
   // Each rule sees what the rules before it reported, which is what `unused-disable` checks.
   const reported: Finding[] = [];
-  for (const rule of rules.filter(({ kind }) => !KindSet.has(notRun, kind))) {
+  for (const rule of rules.filter(({ value: { kind } }) => !KindSet.has(notRun, kind))) {
     reported.push(...rule.run(scans, Context.seal({ reported, notRun })));
   }
 

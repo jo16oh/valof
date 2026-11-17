@@ -1196,9 +1196,7 @@ export type Takes<V, Tr extends AnyTrait, T, Ok> =
     ? "pass the trait's companion, then the members it leaves open"
     : [NamesOf<Tr>] extends [TraitsOf<V>]
       ? [keyof MembersOf<Tr> & keyof T] extends [never]
-        ? [keyof MembersOf<Tr> & PayloadKeys<V>] extends [never]
-          ? Ok
-          : "a member cannot take the name of a field the payload holds"
+        ? Ok
         : "another member already answers to one of these names"
       : "the type does not declare this trait";
 
@@ -1365,18 +1363,6 @@ type FirstHalf<V extends AnyVal, N, F, O extends Options, D extends Taken> = ("i
           ) => CompanionBuilder<V, Unsealed, F, O, Record<never, never>, D | "implCreate">;
         };
       });
-
-/**
- * The payload's own keys, which a trait member may not shadow: a box forwards everything but a
- * member to the value, and a frozen field a member shadowed would break the proxy's invariant.
- *
- * Distributes: `keyof` over an enum's payloads would keep the shared fields alone.
- */
-type PayloadKeys<V> = V extends unknown
-  ? Declared<V> extends object
-    ? keyof Declared<V>
-    : never
-  : never;
 
 export const isObject = (v: unknown): v is object => typeof v === "object" && v !== null;
 

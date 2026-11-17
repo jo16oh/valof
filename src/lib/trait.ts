@@ -11,7 +11,6 @@ import type { InvalidKey, RefusedKey, TraitBrands, TraitTypes } from "./keys.ts"
 import * as Trait from "./namespace/trait.ts";
 import {
   associated,
-  isObject,
   type AnyVal,
   type AssocMembers,
   type CallBuildFirst,
@@ -335,10 +334,10 @@ type Declarable<Shape, M extends Members> = {
     ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
     : [Shape] extends [never]
       ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
-      : K extends keyof DeepReadonly<Checked<Shape>>
-        ? Invalid<"a trait member cannot take a field's name">
-        : K extends "dyn"
-          ? Invalid<"a trait member cannot take the name the trait itself uses">
+      : K extends "dyn"
+        ? Invalid<"a trait member cannot take the name the trait itself uses">
+        : K extends "value"
+          ? Invalid<"a trait member cannot take `value`, which a box reads its value through">
           : K extends Reserved
             ? Invalid<"a trait member cannot take a name the library reserves">
             : M[K] extends (self: never, ...args: infer A) => infer R
@@ -363,7 +362,10 @@ type Declarable<Shape, M extends Members> = {
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends LoneTrait<Tr>> = Impl<Tr> & Bound<MembersOf<Tr>>;
+export type Dyn<Tr extends LoneTrait<Tr>> = Bound<MembersOf<Tr>> & {
+  /** The value the box holds. */
+  readonly value: Impl<Tr>;
+};
 
 /**
  * Where a companion records every member `implTrait` registered. Read by
@@ -497,21 +499,20 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   // now. Only the finals are named on the type, so the rest are unreachable without a cast.
   ...createMembers(impls),
   [Shared]: impls,
-  // A proxy rather than a built object: a member is bound when it is called, and everything
-  // else is the value's own. Nothing is copied, so the box costs one allocation whatever the
-  // trait holds.
-  //
-  // A primitive cannot be a proxy's target, so an empty object is used as the target. Nothing is
-  // lost: a trait a primitive Val can declare has no fields to read.
+  // A proxy rather than a built object: a member is bound when it is called. Nothing is copied, so
+  // the box costs one allocation whatever the trait holds.
   dyn: (companion: TraitHost, value: unknown) =>
-    new Proxy(isObject(value) ? value : {}, {
-      get(_, key) {
-        const member = (companion[Traits] as unknown as Record<string, AnyFn>)[key as string];
-        return member
-          ? (...args: never[]) => member(value as never, ...args)
-          : (value as Record<string, unknown>)[key as string];
+    new Proxy(
+      {},
+      {
+        get(_, key) {
+          const member = (companion[Traits] as unknown as Record<string, AnyFn>)[key as string];
+          return key === "value"
+            ? value
+            : member && ((...args: never[]) => member(value as never, ...args));
+        },
       },
-    }),
+    ),
 });
 
 /**
