@@ -18,11 +18,11 @@ reports on a line away from the declaration.
 
 ## Scope
 
-The types the diff adds or changes that a user writes against: a type argument of `Val`, `Trait`,
-`Enum` or `Tag`, a companion's type arguments and options, the arguments of a companion's members
-(the payload of `seal` and `create`, the patch of `patch`, the handlers of `match`, the companion
-and value of `dyn`), and an exported type such as `Patch` or `Impl`. The user can name a type
-instead.
+The types the diff adds or changes that a user writes against: a type argument of `Val`,
+`Val.Record`, `Trait`, `Enum` or `Tag`, a companion's type arguments and options, the arguments of a
+companion's members (the payload of `seal` and `create`, the recipe of `patch`, the handlers of
+`match`, the companion and value of `dyn`), and an exported type such as `Patch` or `Impl`. The user
+can name a type instead.
 
 ## Run it in a separate agent
 
@@ -51,12 +51,15 @@ finding, but say so.
 
 These are by design. Do not report them as holes:
 
-- A Val is a plain object too. Where the type expects a plain object, as the argument of `seal` or a
-  field of a patch, a Val fits as that object would, extra keys included. In a patch it merges like
-  an object literal. To drop the extra keys, as a JSON round trip needs, write a custom seal.
-- In a patch, a function replaces the field and an object merges. The runtime checks only whether
-  the value is a function, so a field that cannot be merged into accepts an object only as a
-  function's return value (pattern 13).
+- `seal` accepts a Val as its whole argument, since sealing a Val again returns it. Below the root,
+  a field declared as a plain object accepts no Val, in a `seal` argument or a recipe.
+- In a recipe's draft, every plain object field is writable, at any depth. A nested Val and an array
+  are read-only in it, and a recipe replaces them by assigning a new value.
+- A cast and an upcast are outside what Valof guarantees. A write through `as`, a `delete` through a
+  cast, and a write through a variable of a wider type, such as a nested Val held as a plain object,
+  are not holes.
+- Valof does not check a key that reaches the prototype, such as `__proto__`. Such a key is not a
+  finding.
 
 ## Patterns
 
@@ -183,16 +186,17 @@ cannot reach the declaration. Move it to the private field that every use reads.
 Run the probes again without `--exactOptionalPropertyTypes`.
 
 **What breaks.** Without `exactOptionalPropertyTypes`, an optional key accepts `undefined`. A key
-excluded with `?: never` then accepts it too, so `U.patch(u, { id: undefined })` passes, and `patch`
-deletes a required key passed as `undefined`. A user may leave the option off, though the docs
-recommend it. Report what changes without it, and mark what the docs already describe.
+excluded with `?: never` then accepts it too, as a `Final` member set to `undefined` in `implTrait`
+does. A payload declares no optional key, so a check that uses `-?` gives the same verdict with or
+without the option. A user may leave the option off, though the docs recommend it. Report what
+changes without it, and mark what the docs already describe.
 
 ### 12. Two types that `equals` cannot distinguish
 
 `equals` compares structure, and a JSON round trip keeps only the structure. Probe each field that
 can hold a Val, in a Val, an enum variant, an enum's shared fields, a trait's shape and a `Payload`,
 with two types whose values can have the same payload. Probe each field also inside an array, a
-record, a tuple, an optional key and `| null`. These must be rejected:
+`Val.Record`'s value, a tuple, a `T | undefined` field and `| null`. These must be rejected:
 
 - two Vals with the same fields (`Dollar | Yen`)
 - a union of two enums, and of an enum and a Val
@@ -210,31 +214,28 @@ value read back from JSON holds nothing that distinguishes the two types.
 **Fix.** Reject the field, and suggest an enum in the message, because an enum's tag distinguishes
 its variants.
 
-### 13. A patch that merges where it must replace
+### 13. A recipe that writes past its draft
 
-`patch` merges an object into the field's current value, and replaces the field when given a
-function. Try every field kind in a patch: a nested Val, an enum, a `Val | null`, an optional key, a
-`Record` entry, a tuple, a `Rec` that references the Val itself, and a field of a variant's own
-`patch`. Pass each one these values:
+`patch` passes a draft of the payload to the recipe, and `patch` builds the new value from the
+writes to the draft. Try every kind of `patch`: a Val's, a variant's, one with `Unpatchable` keys,
+and one whose payload has a `Val.Record` field. Give each one these recipes:
 
-- an object literal, and the same object through a variable
-- a Val as it is, one copied by `structuredClone`, and one assigned to a plain type that leaves keys
-  out (`const t: { color?: string } = theme`)
-- a subtree read from another value whose type leaves keys out
-- a function, reading its parameter without a check for `undefined` or `null`
-- a function returning a partial object, a value of another Val, or what a custom seal returns (a
-  `Result`)
-- a patch the user types as `Patch<SeedOf<V>>`, and one passed last (`V.patch(p)(v)`)
+- one whose parameter is annotated: a type with a key the payload lacks (the tag), one making an
+  `Unpatchable` key writable, `any`, `Patch<SeedOf<V>>`, and a type with fewer keys
+- each recipe as a named function, and passed before the value (`V.patch(recipe)(v)`)
+- writes into the draft: a Val into a plain object field, an object into a nested Val's field, an
+  element of an array, a field of a nested Val, and a key of a `Val.Record` field
+- an async recipe, one that returns a value, and one that only throws
+- the draft under another name: bound to a variable, passed to a function, put in an array or an
+  object, given to `Object.assign` or `Reflect.set`
 
-**What breaks.** An object that merges into a nested Val builds a payload its seal never receives.
-An object that merges into a field with no current value becomes that value unchanged, missing
-required keys. A function whose parameter type excludes `undefined` throws on an absent key. A
-runtime that chooses between merging and replacing by anything other than `typeof` (a private mark
-on the value, a reference comparison) treats some values differently from the type.
+**What breaks.** A write that the draft's type accepts reaches a key that `patch` excludes, or
+replaces a nested Val with a value its seal never checked. Under another name, the draft's type no
+longer keeps a key read-only.
 
-**Fix.** Type a field that cannot be merged into as a `Replacer` only, with an `Invalid` member
-whose message states the fix. Keep the runtime reading `typeof value === "function"` and nothing
-else.
+**Fix.** Keep the draft's own type strict, and check the recipe in `PatchFn`. valof-lint's
+`aliased-draft` rule reports a write that the draft's type cannot reject, such as a write through
+the draft under another name. Say which of the two fixes each finding.
 
 ### 14. The cost of the fix
 
