@@ -177,6 +177,8 @@ export type Scan = Val<
     memberSources: SymbolRef[];
     /** Member steps whose function declares something in its body. */
     stepStates: StepState[];
+    /** Where a `patch` recipe uses its draft other than to reach a field or to spread it. */
+    draftAliases: Position[];
     /** Keys read off a local name, each a set. */
     reads: KeySets;
     /** Keys read through a namespace, already named as the exporting module names them. */
@@ -325,6 +327,7 @@ function scan(
   const dynReads: DynRead[] = [];
   const escapedDyns: EscapedDyn[] = [];
   const stepStates: StepState[] = [];
+  const draftAliases: Position[] = [];
   const memberSources: SymbolRef[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
@@ -449,6 +452,9 @@ function scan(
         const state = stepState(node, bound);
         if (state) {
           stepStates.push(StepState.seal({ at: Lines.at(lines, state.start), step: state.step }));
+        }
+        for (const start of draftUses(node)) {
+          draftAliases.push(Lines.at(lines, start));
         }
         const lift = Lift.fromCall(node, file, bound, lines);
         if (lift) {
@@ -583,6 +589,7 @@ function scan(
     dynReads,
     escapedDyns,
     stepStates,
+    draftAliases,
     hiddenParameters: hidden(program, file, bound, lines),
     memberSources,
     reads: sets(reads),
@@ -804,6 +811,54 @@ function stepState(node: Node, bound: Bindings): { step: string; start: number }
   const declares =
     body?.type === "BlockStatement" && body.children.some((one) => DECLARATIONS.has(one.type));
   return found && fn && declares ? { step: found.step, start: fn.start } : undefined;
+}
+
+/**
+ * Where a `.patch(…, recipe)` call's recipe uses its draft as a value. A field access and a spread
+ * are the uses left; a nested function that names its own parameter the same is skipped.
+ */
+function draftUses(node: Node): number[] {
+  if (node.type !== "CallExpression" || node.callee.type !== "MemberExpression") return [];
+  if (keyName(node.callee.property, node.callee.computed) !== "patch") return [];
+  const recipe = node.arguments.at(-1);
+  const draft = paramsOf(recipe)[0];
+  if (!recipe || draft?.type !== "Identifier") return [];
+  const name = draft.name;
+  const found: number[] = [];
+  const walk = (one: Node, parent: Node): void => {
+    if (one.type === "Identifier" && one.name === name && !reachesField(one, parent)) {
+      found.push(one.start);
+    }
+    if (one !== recipe && paramsOf(one).some((p) => p.type === "Identifier" && p.name === name)) {
+      return;
+    }
+    for (const child of one.children) {
+      walk(child, one);
+    }
+  };
+  const body =
+    recipe.type === "ArrowFunctionExpression" || recipe.type === "FunctionExpression"
+      ? recipe.body
+      : null;
+  if (body) {
+    walk(body, recipe);
+  }
+
+  return found;
+}
+
+/** Whether an identifier is the object of a member access, a spread, or a name that is no reference. */
+function reachesField(one: Node, parent: Node): boolean {
+  switch (parent.type) {
+    case "MemberExpression":
+      return parent.object === one || (parent.property === one && !parent.computed);
+    case "SpreadElement":
+      return true;
+    case "Property":
+      return parent.key === one && !parent.computed;
+    default:
+      return false;
+  }
 }
 
 /** The parameters of a function node, none for anything else. */
