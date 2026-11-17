@@ -1,11 +1,8 @@
 // The namespace `Val` exports, so a bundler drops the members a caller never reads.
-import type { ValMap, ValSet } from "../val.ts";
+import type { ValRecord } from "../val.ts";
 
 export { companion, of, unwrap } from "../val.ts";
-export * as Map from "./map.ts";
-export * as Set from "./set.ts";
+export * as Record from "./record.ts";
 
-/** {@link ValMap} */
-export type Map<B extends string, K extends string, V> = ValMap<B, K, V>;
-/** {@link ValSet} */
-export type Set<B extends string, K extends string> = ValSet<B, K>;
+/** {@link ValRecord} */
+export type Record<B extends string, K extends string, V> = ValRecord<B, K, V>;

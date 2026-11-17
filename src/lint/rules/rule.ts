@@ -24,9 +24,9 @@ export type Kind = Val<"Kind", string>;
 export const Kind = Val.companion<Kind>().build();
 
 /** Rule kinds, as a set. */
-export type KindSet = Val.Set<"KindSet", Kind>;
-export const KindSet = Val.Set.companion<KindSet>()
-  .implCreate((kinds: Iterable<Kind>) => kinds)
+export type KindSet = Val.Record<"KindSet", Kind, true>;
+export const KindSet = Val.Record.companion<KindSet>()
+  .implCreate((kinds: Iterable<Kind>) => [...kinds].map((kind) => [kind, true] as const))
   .impl(() => ({
     /** Whether `name` is in the set. A disable comment's name, which no rule may have, is checked too. */
     holds: (kinds, name: string) => Object.hasOwn(kinds, name),

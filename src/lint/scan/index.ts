@@ -145,16 +145,16 @@ export type CompanionBinding = Val<
 export const CompanionBinding = Val.companion<CompanionBinding>().build();
 
 /** Keys read off one name. */
-export type Keys = Val.Set<"Keys", string>;
-export const Keys = Val.Set.companion<Keys>().build();
+export type Keys = Val.Record<"Keys", string, true>;
+export const Keys = Val.Record.companion<Keys>().build();
 
 /** The keys read off each name. */
-export type KeySets = Val.Map<"KeySets", string, Keys>;
-export const KeySets = Val.Map.companion<KeySets>().build();
+export type KeySets = Val.Record<"KeySets", string, Keys>;
+export const KeySets = Val.Record.companion<KeySets>().build();
 
 /** Export name -> the local or source-module symbol it exposes. */
-export type Refs = Val.Map<"Refs", string, SymbolRef>;
-export const Refs = Val.Map.companion<Refs>().build();
+export type Refs = Val.Record<"Refs", string, SymbolRef>;
+export const Refs = Val.Record.companion<Refs>().build();
 
 /**
  * What one file says about itself: syntactic facts, named for what they are rather than for the
@@ -226,15 +226,15 @@ export const Scan = Val.companion<Scan>()
  * What each module of a run exports, keyed by the reference an export makes: a re-export points on
  * to the symbol it exposes.
  */
-export type Exports = Val.Map<"Exports", string, SymbolRef>;
-export const Exports = Val.Map.companion<Exports>()
+export type Exports = Val.Record<"Exports", string, SymbolRef>;
+export const Exports = Val.Record.companion<Exports>()
   .implAssoc(({ seal }) => ({
     from: (scans: readonly Scan[]): Exports =>
       pipe(
         scans.flatMap(({ file, exportedRefs }) => {
           const module = normalize(resolve(file));
-          return Object.entries(exportedRefs).map(
-            ([name, target]) => [SymbolRef.fromExport(module, name).key, target!] as const,
+          return Refs.entries(exportedRefs).map(
+            ([name, target]) => [SymbolRef.fromExport(module, name).key, target] as const,
           );
         }),
         seal,
@@ -765,7 +765,12 @@ function implMembers(
 
 /** Each set of keys under its name. */
 function sets(map: ReadonlyMap<string, ReadonlySet<string>>): KeySets {
-  return KeySets.seal([...map].map(([key, members]) => [key, Keys.seal(members)] as const));
+  return KeySets.seal(
+    [...map].map(
+      ([key, members]) =>
+        [key, Keys.seal([...members].map((one) => [one, true] as const))] as const,
+    ),
+  );
 }
 
 /** The string a literal node spells, or `undefined` for any other node. */

@@ -12,8 +12,8 @@ export const ImportBinding = Val.companion<ImportBinding>().build();
  *
  * Looked up by own key, since a local name can be `constructor` or `toString`.
  */
-export type ImportMap = Val.Map<"ImportMap", string, ImportBinding>;
-export const ImportMap = Val.Map.companion<ImportMap>()
+export type ImportMap = Val.Record<"ImportMap", string, ImportBinding>;
+export const ImportMap = Val.Record.companion<ImportMap>()
   .impl(() => ({
     get: (imports, local: string) => own(imports, local),
     /** The name the exporting module uses, or the local one when the file did not import it. */
@@ -22,8 +22,8 @@ export const ImportMap = Val.Map.companion<ImportMap>()
   .build();
 
 /** Names keyed by names: a local name's module, or an export's name at its declaration. */
-export type Names = Val.Map<"Names", string, string>;
-export const Names = Val.Map.companion<Names>().build();
+export type Names = Val.Record<"Names", string, string>;
+export const Names = Val.Record.companion<Names>().build();
 
 /** A Val or Trait name together with its comparison identity. */
 export type SymbolRef = Val<
@@ -94,7 +94,7 @@ export const Bindings = Val.companion<Bindings>()
 export type Modules = Val<"Modules", { known: KnownFiles }>;
 export const Modules = Val.companion<Modules>()
   .implCreate((files: readonly string[]) => ({
-    known: KnownFiles.seal(files.map((file) => normalize(resolve(file)))),
+    known: KnownFiles.seal(files.map((file) => [normalize(resolve(file)), true] as const)),
   }))
   .impl(() => ({
     /** The module `source` names from `file`: a file in the run, or a package. */
@@ -122,8 +122,8 @@ export const Modules = Val.companion<Modules>()
   .build();
 
 /** The resolved paths of the files in a run. */
-type KnownFiles = Val.Set<"KnownFiles", string>;
-const KnownFiles = Val.Set.companion<KnownFiles>().build();
+type KnownFiles = Val.Record<"KnownFiles", string, true>;
+const KnownFiles = Val.Record.companion<KnownFiles>().build();
 
 /** An own entry of a record, never one inherited from `Object.prototype`. */
 function own<T>(record: Readonly<Partial<Record<string, T>>>, key: string): T | undefined {

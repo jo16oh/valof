@@ -8,8 +8,8 @@ const City = Val.companion<City>().build();
 type Money = Val<"Money", { amount: number; currency: string }>;
 const Money = Val.companion<Money>().build();
 
-type Totals = Val.Map<"Totals", string, Money>;
-const Totals = Val.Map.companion<Totals>().build();
+type Totals = Val.Record<"Totals", string, Money>;
+const Totals = Val.Record.companion<Totals>().build();
 
 type Line = Val<"Line", { sku: string; qty: number; unit: Money; tags: readonly string[] }>;
 const Line = Val.companion<Line>().build();

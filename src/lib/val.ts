@@ -14,8 +14,7 @@ import type {
   PrivateCreateKey,
   PrivateSealKey,
   RecKey,
-  MapKey,
-  SetKey,
+  RecordKey,
   RefusedKey,
   Unbuilt,
   UnpatchableKey,
@@ -84,32 +83,24 @@ export interface Rec<V> {
   readonly [RecKey]: V;
 }
 
-/** The payload of a {@link ValMap}: a value `V` under each key `K`. */
-export interface MapOf<K extends string, V> {
-  readonly [MapKey]: readonly [K, V];
+/** The payload of a {@link ValRecord}: a value `V` under each key `K`. */
+interface RecordOf<K extends string, V> {
+  readonly [RecordKey]: readonly [K, V];
 }
 
-/** The payload of a {@link ValSet}: the keys `K` it holds. */
-export interface SetOf<K extends string> {
-  readonly [SetKey]: K;
-}
-
-type Collection = MapOf<string, unknown> | SetOf<string>;
+type Collection = RecordOf<string, unknown>;
 
 /**
- * A Val that maps keys to values, built from entries: `type Prices = Val.Map<"Prices", string, Money>`,
- * then `Val.Map.companion<Prices>()`. Its seal takes an iterable of `[key, value]`, so each value
- * is checked against `V` on the way in. Read an entry as `prices[key]`, and change one with the
- * companion's `set` and `delete`.
+ * A Val holding a value `V` under each key `K`, as a plain object:
+ * `type Prices = Val.Record<"Prices", string, Money>`, then `Val.Record.companion<Prices>()`. A set
+ * holds `true`: `Val.Record<"Tags", string, true>`. Its seal takes an iterable of `[key, value]`
+ * entries, so each value is checked against `V`. Read an entry as `prices[key]`, and change one
+ * with the companion's `set` and `delete`.
+ *
+ * A record holding itself goes through a Val: `type Node = Val<"Node", { kids: Kids }>` and
+ * `type Kids = Val.Record<"Kids", string, Rec<Node>>`.
  */
-export type ValMap<B extends string, K extends string, V> = UncheckedVal<B, MapOf<K, V>>;
-
-/**
- * A Val that holds a set of keys, built from an iterable of keys: `type Tags = Val.Set<"Tags", string>`,
- * then `Val.Set.companion<Tags>()`. Test a key with `tags[key]` or the companion's `has`, and change
- * the set with `add` and `delete`.
- */
-export type ValSet<B extends string, K extends string> = UncheckedVal<B, SetOf<K>>;
+export type ValRecord<B extends string, K extends string, V> = UncheckedVal<B, RecordOf<K, V>>;
 
 /**
  * Marker surfaced in the type when a declaration violates the allowed-type rules. Its key is a
@@ -213,15 +204,14 @@ type EnumName<K> = { readonly enum: K };
 type ValBrand<B> = { readonly val: B };
 
 // A field typed `Impl` holds any Val implementing the trait, which is the same problem.
+// Only `Val.Record` declares the payload of a record, at its root.
 type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extends [Collection]
-  ? Root extends true
-    ? // Each entry passes the seal as a typed `[key, value]`, so no value hides in it.
-      T extends MapOf<infer K, infer E>
-      ? [E] extends [Validate<E, false>]
-        ? T
-        : MapOf<K, Validate<E, false>>
-      : T
-    : Invalid<"a map or a set is a Val of its own; declare it with `Val.Map` or `Val.Set`, and hold that Val">
+  ? // Each entry passes the seal as a typed `[key, value]`, so no value hides in it.
+    T extends RecordOf<infer K, infer E>
+    ? [E] extends [Validate<E, false>]
+      ? T
+      : RecordOf<K, Validate<E, false>>
+    : T
   : [T] extends [AnyImpl]
     ? Root extends true
       ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
@@ -421,7 +411,7 @@ type ValidateFields<T> = {
   [K in keyof T]: K extends number
     ? Validate<T[K], false>
     : Record<never, never> extends Record<K, unknown>
-      ? Invalid<"a record keyed by any string can hide entries; declare a `Val.Map` or a `Val.Set`">
+      ? Invalid<"a record keyed by any string can hide entries; declare a `Val.Record`">
       : // A variable typed without the key can hide any value there, so every key is required.
         K extends OptionalKeys<T>
         ? Invalid<"a key cannot be optional; write `k: T | undefined`">
@@ -458,21 +448,13 @@ export type DeepReadonly<T, Arg extends Position = false> =
 /** Not an argument, the payload an argument takes, or a part of that payload. */
 type Position = boolean | "field";
 
-/** The value of a {@link ValMap} or a {@link ValSet}: an object keyed by what it holds. */
+/** The value of a {@link ValRecord}: an object keyed by its keys. */
 type Collected<T> =
-  T extends MapOf<infer K, infer V>
-    ? { readonly [P in K]?: DeepReadonly<V> }
-    : T extends SetOf<infer K>
-      ? { readonly [P in K]?: true }
-      : never;
+  T extends RecordOf<infer K, infer V> ? { readonly [P in K]?: DeepReadonly<V> } : never;
 
-/** What the seal of a {@link ValMap} or a {@link ValSet} takes: entries, or keys. */
+/** What the seal of a {@link ValRecord} takes: entries. */
 type Gathered<T> =
-  T extends MapOf<infer K, infer V>
-    ? Iterable<readonly [K, DeepReadonly<V, "field">]>
-    : T extends SetOf<infer K>
-      ? Iterable<K>
-      : never;
+  T extends RecordOf<infer K, infer V> ? Iterable<readonly [K, DeepReadonly<V, "field">]> : never;
 
 /** Recursion stops at a nested Val, because it is already deep-readonly. */
 type DeepReadonlyValue<
@@ -734,11 +716,9 @@ export type Payload<T extends Allowed<T, "Payload">> = Validate<T, true, "Payloa
 type Opened<T> = [T] extends [never]
   ? never
   : [T] extends [Collection]
-    ? T extends MapOf<infer K, infer V>
+    ? T extends RecordOf<infer K, infer V>
       ? { [P in K]?: Opened<V> }
-      : T extends SetOf<infer K>
-        ? { [P in K]?: true }
-        : never
+      : never
     : IsRec<T> extends true
       ? T extends Rec<infer V>
         ? Opened<Declared<V>>
@@ -898,9 +878,9 @@ export type Reserved = keyof Rejected;
  * `V` is unconstrained so an enum's variant, which is a Val behind a second phantom, can name it.
  */
 export type CompanionMembers<V> = Rejected &
-  // A map's and a set's own members.
+  // A record's own members.
   (Declared<V> extends Collection
-    ? Partial<Record<"set" | "add" | "delete" | "has", never>>
+    ? Partial<Record<"set" | "delete" | "has" | "keys" | "values" | "entries", never>>
     : unknown) & {
     /**
      * One callable member only. This is the contextual type for the Val parameter, and TypeScript
@@ -1135,25 +1115,23 @@ export type Companion<
   CollectionMethods<V, F> &
   TraitHost;
 
-/** The members a {@link ValMap} or a {@link ValSet} companion carries. Each goes through the seal. */
+/** The members a {@link ValRecord} companion carries. Each goes through the seal. */
 type CollectionMethods<V extends AnyVal, F> =
-  Declared<V> extends MapOf<infer K, infer E>
+  Declared<V> extends RecordOf<infer K, infer E>
     ? {
-        /** Sets the value under a key. Returns the map itself where it already holds that value. */
-        set: Dual<(map: V, key: K, value: DeepReadonly<E, "field">) => Constructed<V, F>, V>;
-        /** Removes a key. Returns the map itself where it lacks the key. */
-        delete: Dual<(map: V, key: K) => Constructed<V, F>, V>;
-        has: Dual<(map: V, key: K) => boolean, V>;
+        /** Sets the value under a key. Returns the record itself where it already holds that value. */
+        set: Dual<(record: V, key: K, value: DeepReadonly<E, "field">) => Constructed<V, F>, V>;
+        /** Removes a key. Returns the record itself where it lacks the key. */
+        delete: Dual<(record: V, key: K) => Constructed<V, F>, V>;
+        has: Dual<(record: V, key: K) => boolean, V>;
+        /** The keys, typed `K`, in the order `Object.keys` gives. */
+        keys: (record: V) => readonly K[];
+        /** The values, in the order `Object.values` gives. */
+        values: (record: V) => readonly DeepReadonly<E>[];
+        /** The entries, typed `[K, V]`, in the order `Object.entries` gives. */
+        entries: (record: V) => readonly (readonly [K, DeepReadonly<E>])[];
       }
-    : Declared<V> extends SetOf<infer K>
-      ? {
-          /** Adds a key. Returns the set itself where it already holds the key. */
-          add: Dual<(set: V, key: K) => Constructed<V, F>, V>;
-          /** Removes a key. Returns the set itself where it lacks the key. */
-          delete: Dual<(set: V, key: K) => Constructed<V, F>, V>;
-          has: Dual<(set: V, key: K) => boolean, V>;
-        }
-      : Record<never, never>;
+    : Record<never, never>;
 
 /**
  * What `.impl` accepts once a name is taken: anything but a name a trait already uses, its shared
@@ -1958,20 +1936,17 @@ type NotEnum<V> = [V] extends [AnyEnum]
   ? Invalid<"a variant is built by its enum's companion">
   : NotCollection<V>;
 
-/** Rejects a {@link ValMap} and a {@link ValSet}, whose seal builds the value from entries. */
+/** Rejects a {@link ValRecord}, whose seal builds the value from entries. */
 // `never` is a `V` inferred from nothing, which reads no payload.
 type NotCollection<V> = [Declared<V>] extends [never]
   ? unknown
-  : [Declared<V>] extends [MapOf<string, unknown>]
-    ? Invalid<"a map is built by `Val.Map.companion`">
-    : [Declared<V>] extends [SetOf<string>]
-      ? Invalid<"a set is built by `Val.Set.companion`">
-      : unknown;
+  : [Declared<V>] extends [Collection]
+    ? Invalid<"a record is built by `Val.Record.companion`">
+    : unknown;
 
 /**
- * What a map's or a set's companion adds: a seal input of entries or keys, and the members that
- * derive one. Only `Val.Map.companion` and `Val.Set.companion` build one, so a bundle without
- * them leaves it out.
+ * What a record's companion adds: a seal input of entries, and the members that derive one. Only
+ * `Val.Record.companion` builds one, so a bundle without it leaves it out.
  */
 type Collector = {
   gather: (value: unknown) => unknown;
@@ -1981,67 +1956,42 @@ type Collector = {
   ) => Record<string, unknown>;
 };
 
-const collector = (map: boolean): Collector => ({
+const collector: Collector = {
   // A value already sealed is no iterable and passes as it is, as `keep` and a custom seal need.
   gather: (value) =>
     isObject(value) && Symbol.iterator in value
-      ? Object.fromEntries(
-          map
-            ? (value as Iterable<readonly [string, unknown]>)
-            : [...(value as Iterable<string>)].map((key) => [key, true]),
-        )
+      ? Object.fromEntries(value as Iterable<readonly [string, unknown]>)
       : value,
   members: (seal, keep) => {
     const has = (from: object, key: string): boolean => Object.hasOwn(from, key);
-    const remaining = (from: Record<string, unknown>, key: string) =>
-      Object.keys(from)
-        .filter((k) => k !== key)
-        .map((k) => (map ? [k, from[k]] : k));
     return {
       has: dual(has),
       delete: dual((from: Record<string, unknown>, key: string) =>
-        has(from, key) ? seal(remaining(from, key)) : keep(from),
+        has(from, key) ? seal(Object.entries(from).filter(([k]) => k !== key)) : keep(from),
       ),
-      ...(map
-        ? {
-            set: dual((from: Record<string, unknown>, key: string, value: unknown) =>
-              has(from, key) && Object.is(from[key], value)
-                ? keep(from)
-                : seal([...Object.entries(from), [key, value]]),
-            ),
-          }
-        : {
-            add: dual((from: object, key: string) =>
-              has(from, key) ? keep(from) : seal([...Object.keys(from), key]),
-            ),
-          }),
+      keys: Object.keys,
+      values: Object.values,
+      entries: Object.entries,
+      set: dual((from: Record<string, unknown>, key: string, value: unknown) =>
+        has(from, key) && Object.is(from[key], value)
+          ? keep(from)
+          : seal([...Object.entries(from), [key, value]]),
+      ),
     };
   },
-});
+};
 
-/** Accepts a {@link ValMap} only. */
-type IsMap<V> = [Declared<V>] extends [MapOf<string, unknown>]
+/** Accepts a {@link ValRecord} only. */
+type IsValRecord<V> = [Declared<V>] extends [Collection]
   ? unknown
-  : Invalid<"`Val.Map.companion` builds a `Val.Map`">;
+  : Invalid<"`Val.Record.companion` builds a `Val.Record`">;
 
-/** Accepts a {@link ValSet} only. */
-type IsSet<V> = [Declared<V>] extends [SetOf<string>]
-  ? unknown
-  : Invalid<"`Val.Set.companion` builds a `Val.Set`">;
-
-/** Bundles a {@link ValMap}'s `seal`, `set`, `delete`, `has` and members. See {@link companion}. */
-export const mapCompanion = <
-  V extends AnyVal & IsMap<V> & OneVal<V, "a companion builds one Val">,
+/** Bundles a {@link ValRecord}'s `seal`, `set`, `delete`, `has` and members. See {@link companion}. */
+export const recordCompanion = <
+  V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val">,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
 >(): CompanionBuilder<V, undefined, undefined, O> =>
-  builder({ collection: collector(true) }) as CompanionBuilder<V, undefined, undefined, O>;
-
-/** Bundles a {@link ValSet}'s `seal`, `add`, `delete`, `has` and members. See {@link companion}. */
-export const setCompanion = <
-  V extends AnyVal & IsSet<V> & OneVal<V, "a companion builds one Val">,
-  const O extends readonly CompanionOption<V>[] & OneList<O> = [],
->(): CompanionBuilder<V, undefined, undefined, O> =>
-  builder({ collection: collector(false) }) as CompanionBuilder<V, undefined, undefined, O>;
+  builder({ collection: collector }) as CompanionBuilder<V, undefined, undefined, O>;
 
 // The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
 // with a boolean payload is a union of two types with one brand, so the check compares brands.

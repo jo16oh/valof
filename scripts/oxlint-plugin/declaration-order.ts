@@ -110,7 +110,5 @@ function companionName(statement: Statement, context: Context): string | undefin
   const [declarator] = declaration.declarations;
   if (declarator?.id.type !== "Identifier" || !declarator.init) return undefined;
   const text = context.sourceCode.getText(declarator.init);
-  return /^(?:Val(?:\.Map|\.Set)?|Enum|Trait)\.companion</.test(text)
-    ? declarator.id.name
-    : undefined;
+  return /^(?:Val(?:\.Record)?|Enum|Trait)\.companion</.test(text) ? declarator.id.name : undefined;
 }

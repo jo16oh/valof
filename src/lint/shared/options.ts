@@ -42,12 +42,12 @@ export const Enabled = Val.companion<Enabled>()
   .build();
 
 /** The resolved paths a run reports on. */
-export type Targets = Val.Set<"Targets", string>;
-export const Targets = Val.Set.companion<Targets>().build();
+export type Targets = Val.Record<"Targets", string, true>;
+export const Targets = Val.Record.companion<Targets>().build();
 
 /** Source to read in place of the file on disk, keyed by resolved path. */
-export type Overlay = Val.Map<"Overlay", string, string>;
-export const Overlay = Val.Map.companion<Overlay>().build();
+export type Overlay = Val.Record<"Overlay", string, string>;
+export const Overlay = Val.Record.companion<Overlay>().build();
 
 /** How a run reads and reports. Paths are resolved, so any spelling of a file finds it. */
 export type Options = Val<
@@ -85,7 +85,9 @@ export const Options = Val.companion<Options>()
     } = {}) => ({
       enable: Enabled.create(enable),
       skip: KindSet.create(skip),
-      targets: targets ? Targets.seal([...targets].map((file) => resolve(file))) : null,
+      targets: targets
+        ? Targets.seal([...targets].map((file) => [resolve(file), true] as const))
+        : null,
       overlay: Overlay.seal([...overlay].map(([file, text]) => [resolve(file), text] as const)),
     }),
   )

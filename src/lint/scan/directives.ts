@@ -39,8 +39,8 @@ export const Directive = Val.companion<Directive>()
  * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
  * brand is still reported, since silencing it is its own line's decision.
  */
-export type DirectiveMap = Val.Map<"DirectiveMap", FilePath, Directive[]>;
-export const DirectiveMap = Val.Map.companion<DirectiveMap>()
+export type DirectiveMap = Val.Record<"DirectiveMap", FilePath, Directive[]>;
+export const DirectiveMap = Val.Record.companion<DirectiveMap>()
   .implAssoc(({ seal }) => ({
     from: (scans: readonly Scan[]): DirectiveMap =>
       seal(scans.map((scanned) => [scanned.file, scanned.directives] as const)),
@@ -113,8 +113,8 @@ export function directives(
  * The names one disable comment lists, as a set. A name is what the author wrote, which no rule may
  * have: `unused-disable` reports such a name, so it is kept rather than checked against the rules.
  */
-type NameSet = Val.Set<"NameSet", string>;
-const NameSet = Val.Set.companion<NameSet>().build();
+type NameSet = Val.Record<"NameSet", string, true>;
+const NameSet = Val.Record.companion<NameSet>().build();
 
 /** What a directive silences: the names it listed, or every kind there is. */
 type Silenced = Enum<"Silenced", { Every: {}; Named: { names: NameSet } }>;
@@ -180,5 +180,7 @@ function ownLine(source: string, start: number): boolean {
 }
 
 function named(names: Iterable<string>): Silenced {
-  return Silenced.Named.create({ names: NameSet.seal(names) });
+  return Silenced.Named.create({
+    names: NameSet.seal([...names].map((name) => [name, true] as const)),
+  });
 }

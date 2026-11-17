@@ -243,12 +243,12 @@ function nameOf(node: Node, bound: Bindings): string | undefined {
   if (node.type !== "TSTypeReference") return undefined;
   const { typeName } = node;
   if (typeName.type === "Identifier") return Bindings.originalName(bound, typeName.name);
-  // `Val.Map<…>` and `Val.Set<…>` declare a Val, whose arguments hold no payload literal.
+  // `Val.Record<…>` declares a Val, whose arguments hold no payload literal.
   if (typeName.type !== "TSQualifiedName") return undefined;
   const { left, right } = typeName;
   return left.type === "Identifier" &&
     right.type === "Identifier" &&
-    (right.name === "Map" || right.name === "Set") &&
+    right.name === "Record" &&
     Bindings.originalName(bound, left.name) === "Val"
     ? "Val"
     : undefined;
