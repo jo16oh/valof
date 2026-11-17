@@ -6,7 +6,7 @@ import {
   type Looses,
   type Omission,
 } from "./dual/index.ts";
-import { Shared, Traits } from "./keys.ts";
+import { Boxes, Shared, Traits } from "./keys.ts";
 import type { InvalidKey, RefusedKey, TraitBrands, TraitTypes } from "./keys.ts";
 import * as Trait from "./namespace/trait.ts";
 import {
@@ -334,21 +334,19 @@ type Declarable<Shape, M extends Members> = {
     ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
     : [Shape] extends [never]
       ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
-      : K extends "dyn"
-        ? Invalid<"a trait member cannot take the name the trait itself uses">
-        : K extends "value"
-          ? Invalid<"a trait member cannot take `value`, which a box reads its value through">
-          : K extends Reserved
-            ? Invalid<"a trait member cannot take a name the library reserves">
-            : M[K] extends (self: never, ...args: infer A) => infer R
-              ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-                ? Invalid<"Self can only be a member's first parameter">
-                : HasSelf<R> extends true
-                  ? Invalid<"a trait member cannot return Self">
-                  : Omission<M[K]> extends string
-                    ? Invalid<Omission<M[K]> & string>
-                    : M[K]
-              : M[K];
+      : K extends "value"
+        ? Invalid<"a trait member cannot take `value`, which a box reads its value through">
+        : K extends Reserved
+          ? Invalid<"a trait member cannot take a name the library reserves">
+          : M[K] extends (self: never, ...args: infer A) => infer R
+            ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
+              ? Invalid<"Self can only be a member's first parameter">
+              : HasSelf<R> extends true
+                ? Invalid<"a trait member cannot return Self">
+                : Omission<M[K]> extends string
+                  ? Invalid<Omission<M[K]> & string>
+                  : M[K]
+            : M[K];
 };
 
 /**
@@ -362,7 +360,7 @@ type Declarable<Shape, M extends Members> = {
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends LoneTrait<Tr>> = Bound<MembersOf<Tr>> & {
+export type Dyn<Tr extends OneTrait<Tr>> = Bound<UnionToIntersection<MembersOf<Tr>>> & {
   /** The value the box holds. */
   readonly value: Impl<Tr>;
 };
@@ -397,17 +395,29 @@ export type TraitCompanion<
   Looses<A> & {
     /** Everything the trait implemented, which `implTrait` copies onto the Val. */
     readonly [Shared]: G;
-    /**
-     * Boxes a value with one Val's implementation. See {@link Dyn}.
-     *
-     * The two arguments are tied together: the companion has to match the value's own type,
-     * which is what keeps another Val's companion out.
-     */
-    readonly dyn: <W extends Impl<Tr>>(
-      companion: TraitHost & Unbound<MembersOf<Tr>, W>,
-      value: W,
-    ) => Dyn<Tr>;
+    /** Builds a box, for the companions that implement the trait. */
+    readonly [Boxes]: (companion: TraitHost, value: unknown) => unknown;
   };
+
+/**
+ * Boxes a value of this companion's type with its implementation of the traits named: Rust's
+ * `value as &dyn Trait`. See {@link Dyn}.
+ */
+// `E` is a variant's enum: a trait the enum declares for every variant is boxed by the enum's own
+// companion, which holds its implementation.
+export type DynStep<V, E = never> = <Tr extends OneTrait<Tr> = never>(
+  value: [Tr] extends [never]
+    ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
+    : [E] extends [never]
+      ? Boxable<V, Tr>
+      : [E] extends [Impl<Tr>]
+        ? Invalid<"the enum boxes a trait every variant declares: `Enum.dyn<Trait>(value)`">
+        : Boxable<V, Tr>,
+) => Dyn<Tr>;
+
+type Boxable<V, Tr extends OneTrait<Tr>> = [V] extends [Impl<Tr>]
+  ? V
+  : Invalid<"this type does not declare the trait">;
 
 /**
  * What the trait implements itself: its own members, over the trait.
@@ -488,9 +498,8 @@ export interface TraitImplStep<Tr extends LoneTrait<Tr>, G, A> extends TraitStep
   ) => TraitBuilder<Tr, G & H, false, A>;
 }
 
-/** What `.implAssoc` accepts: anything but a member's name, `dyn` and a name the library reserves. */
-type TraitAssoc<Tr extends AnyTrait> = AssocMembers &
-  Partial<Record<"dyn" | keyof MembersOf<Tr>, never>>;
+/** What `.implAssoc` accepts: anything but a member's name and a name the library reserves. */
+type TraitAssoc<Tr extends AnyTrait> = AssocMembers & Partial<Record<keyof MembersOf<Tr>, never>>;
 
 type AnyFn = (...args: never[]) => unknown;
 
@@ -501,7 +510,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   [Shared]: impls,
   // A proxy rather than a built object: a member is bound when it is called. Nothing is copied, so
   // the box costs one allocation whatever the trait holds.
-  dyn: (companion: TraitHost, value: unknown) =>
+  [Boxes]: (companion: TraitHost, value: unknown) =>
     new Proxy(
       {},
       {

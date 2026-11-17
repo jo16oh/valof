@@ -4,7 +4,7 @@ import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual/index.ts";
 // the declaration that carries it.
 import type { AnyEnum, NameOf } from "./enum.ts";
 import { development } from "./env.ts";
-import { Shared, Traits } from "./keys.ts";
+import { Boxes, Shared, Traits } from "./keys.ts";
 import type {
   InvalidKey,
   NoSeal,
@@ -36,6 +36,7 @@ import type {
   TraitBrand,
   TraitCompanion,
   TraitHost,
+  DynStep,
   TraitsOf,
   Unbound,
 } from "./trait.ts";
@@ -907,7 +908,7 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
  * derivation with different rules deserves its own name, and can seal inside it. Use `.implSeal` /
  * `.implCreate`.
  */
-export type Wired = "patch" | "seal" | "create";
+export type Wired = "patch" | "seal" | "create" | "dyn";
 
 /** The names every `.impl` rejects. */
 type Rejected = Partial<Record<Wired, never>>;
@@ -1160,7 +1161,8 @@ export type Companion<
   ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
   PatchMethod<V, F, O> &
   CollectionMethods<V, F> &
-  TraitHost;
+  TraitHost &
+  ([TraitsOf<V>] extends [never] ? unknown : { readonly dyn: DynStep<V> });
 
 /** The members a {@link ValRecord} companion carries. Each goes through the seal. */
 type CollectionMethods<V extends AnyVal, F> =
@@ -1726,7 +1728,13 @@ export const define = <T extends object>(target: T, key: string, value: unknown)
 type Members = (supplied: object) => Record<string, unknown>;
 
 /** A trait and the function that implements it. */
-type Implementation = [trait: { [Shared]: Record<string, unknown> }, fns?: Members];
+type Implementation = [
+  trait: {
+    [Shared]: Record<string, unknown>;
+    [Boxes]: (companion: object, value: unknown) => unknown;
+  },
+  fns?: Members,
+];
 
 /** What a builder's steps registered: a Val's, an enum's, or one of its variants'. */
 export type Registered<P = unknown> = {
@@ -1908,6 +1916,8 @@ export const attach = (registered: Registered): Record<string, unknown> => {
     ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
   ) as Record<string, unknown>;
   (target as Record<symbol, unknown>)[Traits] = traits;
+  const trait = implemented[0]?.[0];
+  if (trait) target["dyn"] = (value: unknown) => trait[Boxes](target, value);
   return Object.assign(
     target,
     createMembers(traits),

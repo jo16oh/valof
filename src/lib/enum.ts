@@ -7,7 +7,7 @@ import {
   type Looses,
 } from "./dual/index.ts";
 import { development } from "./env.ts";
-import { Shared, Traits } from "./keys.ts";
+import { Boxes, Shared, Traits } from "./keys.ts";
 import type {
   EnumKey,
   EnumTypes,
@@ -26,6 +26,7 @@ import type {
   LoneTrait,
   FieldsOf,
   TraitHost,
+  DynStep,
   TraitsOf,
   Unbound,
 } from "./trait.ts";
@@ -604,7 +605,10 @@ type Framed<
   (NoCreate<O, N> extends true ? unknown : CreateMethod<E, N, C, R>) &
   (Hidden<O> extends true ? unknown : VariantSeal<E, N, R>) &
   VariantPatch<E, N, R, U> &
-  TraitHost;
+  TraitHost &
+  ([TraitsOf<VariantOf<E, N>>] extends [never]
+    ? unknown
+    : { readonly dyn: DynStep<VariantOf<E, N>, E> });
 
 type VariantSeal<E extends AnyEnum, N extends keyof VariantsOf<E>, R> = {
   /**
@@ -746,7 +750,8 @@ export type EnumCompanion<
     // it to the first handler and reject the rest.
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
-  } & TraitHost;
+  } & TraitHost &
+  ([TraitsOf<E>] extends [never] ? unknown : { readonly dyn: DynStep<E> });
 
 type EnumSeal<E extends AnyEnum, VM, F> = {
   /**
@@ -1233,6 +1238,8 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
     ...traits.map(([trait, fns]) => ({ ...trait[Shared], ...fns?.(gates) })),
   ) as Record<string, unknown>;
   gates[Traits] = implemented;
+  const trait = traits[0]?.[0];
+  if (trait) gates["dyn"] = (value: unknown) => trait[Boxes](gates, value);
   return resolving(
     gates,
     at,
