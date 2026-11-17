@@ -29,7 +29,7 @@ grep -rnE '^#+ .*(Rejected|Withdrawn)|^ *(- )?\*\*(Rejected|Withdrawn)' notes/de
 - **§5 Equality** ([05-equality.md](05-equality.md)) A named `equals` that compares structure only. The principle of constructing in canonical form. The record of the withdrawn companion `equals`, `implEquals` and spec. The rejected runtime brand that `equals` compares (2026-11-12)
 - **§6 Smart constructors and updates**
   - **6.1–6.10** ([06-constructors-and-updates.md](06-constructors-and-updates.md))
-    - **6.1** A constructor is determined by its origin / **6.2** `patch`, `undefined` in a patch, patch at any depth, merging only into nodes that already exist / **6.3** independent of Result / **6.4** remove `update`
+    - **6.1** A constructor is determined by its origin / **6.2** `patch`, `undefined` in a patch, patch at any depth, merging only into nodes that already exist, a function replaces and an object merges (2026-11-17), the withdrawn `owned` boundary, the rejected root mark, lens and wrapper / **6.3** independent of Result / **6.4** remove `update`
     - **6.5** contextual typing that fixes `.impl`'s first parameter to the Val / **6.6** do not let `patch` be overridden
     - **6.7** separate seal (idempotent) from create (construction); seal returns synchronously / **6.8** make seal the only gate. Copies per path
     - **6.9** how the name became `seal` / **6.10** `fixed` (moved to the `Unpatchable` type argument on 2026-10-22, §6.12) and the excess property check

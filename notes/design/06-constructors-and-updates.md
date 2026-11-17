@@ -113,17 +113,17 @@ React state updates do this every day, so a library that advertises interop has 
 type PatchValue<T> = [Patch<T>] extends [never] ? T : Patch<T>;
 ```
 
-**A type with nothing to patch (a Val, an array, a primitive) is replaced whole.** The optional / required split applies at every level through the recursion, so the guard against accidental deletion and the excess property check work the same at depth. No extra machinery was needed.
+**A type with nothing to patch (a Val, an array, a primitive) is not merged.** An array or a primitive takes a value or a function, and a Val is replaced through a function (see "A function replaces", 2026-11-17). The optional / required split applies at every level through the recursion, so the guard against accidental deletion and the excess property check work the same at depth. No extra machinery was needed.
 
 **Stopping the recursion at a Val follows from §6.8.** If a patch reached inside a nested value, it would produce a payload that the nested value's seal never received. The outer `patch` seals only the outer value.
 
 The writer loses nothing. A nested value can be derived with its own type's `patch`, which goes through its own seal and keeps the references of untouched subtrees.
 
 ```ts
-Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
+Shop.patch(shop, { city: (city) => City.patch(city, { name: "Osaka" }) });
 ```
 
-From the outside, this is "a node a constructor built", so the owned rule in §6.2 replaces it. It reaches the same result as a deep patch without skipping a single seal.
+The function returns the new value, and `patch` puts it in place without merging. It reaches the same result as a deep patch without skipping a single seal.
 
 ### Only an existing node can be merged
 
@@ -136,15 +136,17 @@ Place.patch(place, { at: { x: 1 } }); // at is optional and currently absent
 
 A missing `Record` entry is the same. A node can be missing in three ways, and the discriminated union (§3.6) was one of them.
 
-An optional key and a `Record` entry take **the whole value**. The type does not know whether the node exists, so it errs on the safe side.
+An optional key and a `Record` entry take **the whole value, through a function** (2026-11-17). The type does not know whether the node exists, so it errs on the safe side.
 
 ```ts
-type Patch<T> = … & { [K in OptionalKeys<T>]?: T[K] | undefined };
+Place.patch(place, { at: (at) => ({ ...at, x: 1, y: at?.y ?? 0 }) });
 ```
 
-`OptionalKeys` classifies a `Record` key as optional (`{}` is assignable to an index signature), so one place closes both cases. A required key always has a node, so it merges as before. The cost: a partial update of an existing node writes the whole value too (`{ at: { ...point, x: 1 } }`).
+`OptionalKeys` classifies a `Record` key as optional (`{}` is assignable to an index signature), so one place closes both cases. A required key always has a node, so it merges as before. The cost is that a partial update of an existing node writes the whole value too.
 
-### The run-time boundary is `owned`
+Until 2026-11-17 the type took the whole value as a plain object, and the runtime merged it into the node when one existed. A replacement that left out an inner optional key kept the old one, and under `exactOptionalPropertyTypes` nothing could remove it. The function makes the replacement explicit, so the runtime no longer merges there.
+
+### The run-time boundary is `owned`. Withdrawn 2026-11-17
 
 The brand is a phantom, so the runtime cannot read "this is a Val". It can read only where a node came from, and the copy in §4.1 already records that.
 
@@ -152,7 +154,43 @@ The brand is a phantom, so the runtime cannot read "this is a Val". It can read 
 
 In a payload that lost its record (one that went through `structuredClone` or a JSON round trip), a nested value falls back to a merge. The only breakage is "a replacement that leaves behind optional keys it should have removed", and correctness otherwise holds. The right fix is to seal the payload again before passing it.
 
-### Cost: a nested object cannot shrink
+**Withdrawn, because the mark records where a node came from, not the type of the field it is passed to.** This left two holes.
+
+- **A merge into a nested Val.** A Val cloned by `structuredClone` has no mark, so it merged into the Val already there. The result is a payload the nested Val's seal never received, which breaks §6.8. "Correctness otherwise holds" above was wrong
+- **A replacement by a partial subtree.** A subtree taken from another value has the mark, so it replaced the field. Where that subtree's type leaves keys out, required keys disappear while the type still declares them
+
+```ts
+type Settings = Val<"Settings", { theme: { color: string; font: string } }>;
+type Overrides = Val<"Overrides", { theme: { color?: string; font?: string } }>;
+Settings.patch(settings, { theme: overrides.theme }); // {"theme":{"color":"blue"}}: font is missing
+```
+
+### A function replaces, 2026-11-17
+
+**The caller says which operation it wants. A function receives the field's current value, and `patch` replaces the field with what it returns. An object merges.** The runtime checks `typeof value === "function"`, and reads no mark. A payload never holds a function (§3), so the two cannot be confused.
+
+```ts
+Shop.patch(shop, { city: (city) => City.patch(city, { name: "Osaka" }) }); // a nested Val
+Shop.patch(shop, { staff: () => computed }); // shrinks the object
+Shop.patch(shop, { tags: (tags) => [...tags, "new"] }); // from the current value
+```
+
+- A nested Val, and an object in an optional key, a `Record` entry or a field that may be `null`, take a function only. The type adds an `Invalid` member, so the error message shows the fix, `() => value`
+- A primitive and an array take a value or a function. The same operation gets two forms, which "Rejected options" below once ruled out. The function form is accepted as the way to build a value from the current one (user)
+- An optional key's function receives `undefined` where the key is absent, and returning `undefined` deletes the key
+- A Val passed to a plain object field is now a partial patch, and merges. The `?: never` on `PhantomBrand` that rejected it (§9, 2026-11-05) existed only because a Val replaced the field
+- **It closes** both holes above. It also closes the inner optional keys that an optional key's replacement could not remove, and the cost "a nested object cannot shrink" below
+- **It costs** a breaking change. A Val passed as it is to a Val field is a type error. Setting a Val field to a value built elsewhere takes `() =>`: valof-lint's `CompanionSite.patch(site, { nameAt: () => Lines.at(lines, id.start) })`
+
+**Rejected: a mark only on a Val's root** (2026-11-16). It replaces only a node that a seal returned, so a subtree merges. A Val's root holds every key its own type declares, but not every key the field declares. A Val upcast to a partial plain type still replaces, so the second hole stays open. A seal that receives a subtree returns that node unchanged, so the root mark would be set on a shared node, or on none where the development build has frozen the node. Development and production then disagree. Every seal paid +10 to 20 ns for the extra private field (Node 26, production: seal 180 → 200 ns, nocopy 29 → 41 ns).
+
+**Rejected: a lens** (`Settings.lens(s).theme.replace(t)`, `.connection.patch(p)`). It closes the same holes, but only if each `patch` is shallow. Otherwise `patch` must again choose between merging and replacing, one level down. That undoes "A patch reaches any depth". It also seals once per field, so an invariant across two fields fails between the calls, and its `patch` and `replace` can collide with field names.
+
+**Rejected: a wrapper** (`{ city: Val.replace(city) }`). It reads as an operation run in place rather than a mark on the value, and it is longer than `() =>`.
+
+### Cost: a nested object cannot shrink. Closed 2026-11-17
+
+A function replaces the object (`{ staff: () => computed }`, see "A function replaces").
 
 With merge as the default, an object cannot be replaced with one that has fewer keys. The Record-as-Map pattern in §8 suffers most.
 
@@ -192,7 +230,7 @@ This option shows immutability in the name.
 
 ### Rejected options
 
-- **An updater function as a patch value** (`{ profile: (p) => ... }`). The sugar works for one level only, and the same operation gets two forms
+- **An updater function as a patch value** (`{ profile: (p) => ... }`). The sugar works for one level only, and the same operation gets two forms. Adopted on 2026-11-17 as the only way to replace an object (see "A function replaces")
 - **A path API** (`patch(u, "profile.name", x)`). Template literal types slow type checking and use up the d.ts budget, and the API grows. A v2 candidate
 
 ### Cost

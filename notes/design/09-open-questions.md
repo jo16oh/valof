@@ -1,5 +1,18 @@
 # 9. Open questions / to confirm
 
+- [x] ~~**`patch` decided between merging and replacing by a node's mark.**~~ Closed, 2026-11-17. A function in a patch replaces,
+      and an object merges (§6.2 "A function replaces")
+  - **The mark said where a node came from, not what the field holds.** A cloned Val merged into a nested Val without passing the nested Val's seal.
+    A subtree whose type leaves keys out replaced the field, and dropped required keys
+  - **The 2026-11-06 premise was wrong.** "Replacing and merging give the same result" fails where the replacement leaves out
+    an optional key. The 2026-11-06 item ("`patch` cannot pass a Val to a plain object field") no longer applies: a Val
+    in a plain object field merges, and needs no `?: never` key
+  - **Breaking change.** A nested Val, and an object in an optional key, a `Record` entry or a field that may be `null`, take
+    `() => value`. valof-lint's scan and the check-dist fixtures changed
+  - **Cost.** Val 1,002 → 1,020 B gzipped. core 9,398 → 9,565, trait 24,826 → 24,903, enum 47,202 → 47,308,
+    `index.d.ts` 105.80 → 106.67 kB. The fixtures changed to the function form, so the type numbers include that. Without a fast path
+    for a field that holds no object, core reached 10,376, over its 10,000 budget
+
 - [x] ~~**The hole in a patch passed as a variable (investigated in #125).**~~ Closed, 2026-11-05. Items 1-3 of `hunt-findings.md`. A non-literal
       argument gets no excess property check, and the patch type was an intersection (`{…} & {…}`), so it got no weak type check either
   - **Make `Patch` one mapped type.** The weak type check then rejects a variable that shares no key (`{ foo: 1 }`).
