@@ -11,10 +11,10 @@ Order.patch(order, (d) => {
   kept.total = 1;
 });
 Order.patch(order, (d) => {
-  audit(d);
+  Object.assign(d, { id: "x" });
 });
 Order.patch(order, (d) => {
-  Object.assign(d, { id: "x" });
+  [1].forEach(() => audit(d));
 });
 Order.patch(order, function (d) {
   const both = [d, { d }];
