@@ -1906,7 +1906,9 @@ describe("the companion's options", () => {
     // oxlint-disable-next-line no-explicit-any -- the case under test
     type Every = VariantOptions<any, [PrivateCreate]>;
     type None = VariantOptions<never, [PrivateCreate]>;
-    expectTypeOf<Every>().toEqualTypeOf<Invalid<"`VariantOptions` takes a variant's name">>();
+    expectTypeOf(Enum.companion<Order, [Every]>()).toEqualTypeOf<
+      Invalid<"`VariantOptions` takes a variant's name">
+    >();
     // @ts-expect-error `VariantOptions` takes a variant's name
     Enum.companion<Order, [Every]>().build();
     // @ts-expect-error same

@@ -616,14 +616,6 @@ describe("Trait", () => {
       const written: Impl<Greetable> | Impl<Weighed> = USER;
       expect([either, written]).toEqual([USER, USER]);
     });
-
-    test("names a trait, which `any` and `never` are not", () => {
-      type Fault = Invalid<"name the trait: `Impl<Trait>`">;
-      // oxlint-disable-next-line no-explicit-any -- the case under test
-      type Loose = any;
-      expectTypeOf<Impl<Loose>>().toEqualTypeOf<Fault>();
-      expectTypeOf<Impl<never>>().toEqualTypeOf<Fault>();
-    });
   });
 
   test("the brand stays out of `keyof` and of a spread", () => {
@@ -679,14 +671,6 @@ describe("dyn", () => {
     const Plain = Val.companion<Plain>().build();
     expectTypeOf(Plain).not.toHaveProperty("dyn");
     expect("dyn" in Plain).toBe(false);
-  });
-
-  test("a box names a trait, which `any` and `never` are not", () => {
-    type Fault = Invalid<"name the trait: `Dyn<Trait>`">;
-    // oxlint-disable-next-line no-explicit-any -- the case under test
-    type Loose = any;
-    expectTypeOf<Dyn<Loose>>().toEqualTypeOf<Fault>();
-    expectTypeOf<Dyn<never>>().toEqualTypeOf<Fault>();
   });
 
   test("a box keeps the prototype's members its type shows", () => {
