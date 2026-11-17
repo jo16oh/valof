@@ -22,7 +22,7 @@ test("spares a field read, a field write, a spread, and a name the recipe shadow
 
 test("reports a recipe with type parameters, whose draft the types cannot check", async () => {
   expect(await lint("generic")).toEqual(
-    ["8:20", "11:20"].map((at) => ({ rule: AliasedDraft, at: `generic.ts:${at}` })),
+    ["8:20", "11:20", "14:13"].map((at) => ({ rule: AliasedDraft, at: `generic.ts:${at}` })),
   );
   expect((await messages("generic"))[0]).toBe(
     "a recipe takes no type parameters; leave the draft's type to inference",

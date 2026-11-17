@@ -1899,6 +1899,10 @@ describe("patch", () => {
       Card.patch(card, (c: { note?: string }) => {
         delete c.note;
       }),
+      // @ts-expect-error nor optional, whatever its type
+      Card.patch(card, (c: { tags?: readonly string[] }) => {
+        delete c.tags;
+      }),
       // @ts-expect-error each member of a union is checked
       Card.patch(card, (c: { note: string | undefined } | { id: string }) => {
         if ("id" in c) c.id = "x";
@@ -1908,7 +1912,13 @@ describe("patch", () => {
     const both = (c: { note: string | undefined; tags: readonly string[] }) => {
       c.note = undefined;
     };
-    expect(Card.patch(card, both).note).toBeUndefined();
+    const either = (c: { note: string | undefined } | { tags: readonly string[] }) => {
+      if ("note" in c) c.note = undefined;
+    };
+    expect([Card.patch(card, both).note, Card.patch(card, either).note]).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 
   test("a plain object field holds no Val", () => {
@@ -3805,6 +3815,9 @@ describe("building", () => {
         expect("heavy" in Half).toBe(false);
         // @ts-expect-error the companion does not implement this trait
         Half.dyn<Weighed>(crate);
+        expectTypeOf<Parameters<typeof Half.dyn<Weighed>>[0]>().toEqualTypeOf<
+          Invalid<"the companion does not implement this trait; add `.implTrait(Trait)`">
+        >();
       });
 
       test("but the same trait cannot be implemented twice", () => {
