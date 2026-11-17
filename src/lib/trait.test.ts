@@ -309,11 +309,11 @@ describe("Trait", () => {
       // @ts-expect-error functions are not allowed
       Trait.companion<BadFn>().build();
 
-      // @ts-expect-error required property cannot be undefined
-      type BadUndefined = Trait<"BadUndefined", { nickname: string | undefined }>;
-      expectTypeOf<BadUndefined>().not.toExtend<AnyTrait>();
-      // @ts-expect-error required property cannot be undefined
-      Trait.companion<BadUndefined>().build();
+      // @ts-expect-error a key cannot be optional
+      type BadOptional = Trait<"BadOptional", { nickname?: string }>;
+      expectTypeOf<BadOptional>().not.toExtend<AnyTrait>();
+      // @ts-expect-error a key cannot be optional
+      Trait.companion<BadOptional>().build();
 
       // @ts-expect-error keys must be strings
       type BadKey = Trait<"BadKey", Readonly<Record<symbol, string>>>;
