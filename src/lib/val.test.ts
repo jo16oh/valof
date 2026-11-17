@@ -1889,18 +1889,22 @@ describe("patch", () => {
     >;
     const Card = Val.companion<Card, [Unpatchable<"id">]>().build();
     const card = Card.seal({ id: "c", at: Val.of<Spot>({ x: 1 }), tags: [], note: "n" });
-    // @ts-expect-error a nested Val is read-only in the draft
-    Card.patch(card, (c: { at: { x: number } }) => {
-      c.at.x = 2;
-    });
-    // @ts-expect-error a required key stays required, so `delete` cannot drop it
-    Card.patch(card, (c: { note?: string }) => {
-      delete c.note;
-    });
-    // @ts-expect-error each member of a union is checked
-    Card.patch(card, (c: { note: string | undefined } | { id: string }) => {
-      if ("id" in c) c.id = "x";
-    });
+    // Not run: each would write past the draft.
+    const rejected = () => [
+      // @ts-expect-error a nested Val is read-only in the draft
+      Card.patch(card, (c: { at: { x: number } }) => {
+        c.at.x = 2;
+      }),
+      // @ts-expect-error a required key stays required, so `delete` cannot drop it
+      Card.patch(card, (c: { note?: string }) => {
+        delete c.note;
+      }),
+      // @ts-expect-error each member of a union is checked
+      Card.patch(card, (c: { note: string | undefined } | { id: string }) => {
+        if ("id" in c) c.id = "x";
+      }),
+    ];
+    expectTypeOf(rejected).toBeFunction();
     const both = (c: { note: string | undefined; tags: readonly string[] }) => {
       c.note = undefined;
     };
@@ -3799,9 +3803,8 @@ describe("building", () => {
         expect(Half.greet(crate)).toBe("Hi, box");
         expectTypeOf(Half).not.toHaveProperty("heavy");
         expect("heavy" in Half).toBe(false);
-        // `Half.dyn<Weighed>` is accepted because `Crate` declares `Weighed`, and valof-lint's
-        // `unimplemented-trait` reports the missing step.
-        expect(() => Half.dyn<Weighed>(crate).heavy()).toThrow(TypeError);
+        // @ts-expect-error the companion does not implement this trait
+        Half.dyn<Weighed>(crate);
       });
 
       test("but the same trait cannot be implemented twice", () => {

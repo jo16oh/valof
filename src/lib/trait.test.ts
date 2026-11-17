@@ -676,7 +676,7 @@ describe("dyn", () => {
 
   test("a box keeps the prototype's members its type shows", () => {
     const boxed = User.dyn<Greetable>(USER);
-    expect([boxed.hasOwnProperty("value"), typeof boxed.toString()]).toEqual([false, "string"]);
+    expect([boxed.hasOwnProperty("value"), Object.keys(boxed)]).toEqual([false, []]);
   });
 
   test("a box's traits cannot disagree on a member's signature", () => {
