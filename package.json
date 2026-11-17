@@ -64,11 +64,11 @@
     "@praha/error-factory": "^1.4.1",
     "@types/node": "^26.6.6",
     "bumpp": "^12.3.0",
-    "eslint": "^10.14.0",
+    "eslint": "^10.15.0",
     "handlebars": "^4.7.10",
     "mdast-util-from-markdown": "^2.1.0",
-    "oxc-parser": "^0.157.0",
-    "oxlint": "1.92.0",
+    "oxc-parser": "^0.158.0",
+    "oxlint": "1.93.0",
     "shiki": "^4.6.0",
     "twoslash": "^0.3.9",
     "typescript": "^7.0.2",
@@ -89,7 +89,7 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.18.0",
+      "version": "12.21.0",
       "onFail": "download"
     }
   },
