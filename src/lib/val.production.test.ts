@@ -32,7 +32,9 @@ describe("Val nocopy in production", () => {
     // This is also a guard that the test loaded val.ts through its production branch.
     expect(Object.isFrozen(seed)).toBe(false);
 
-    const changed = Document.patch(document, { note: "after" });
+    const changed = Document.patch(document, (d) => {
+      d.note = "after";
+    });
     expect(changed.metadata).toBe(metadata);
 
     // `patch` indexed `item` as an already-owned nested Val. A normal seal can now reuse it.
@@ -47,7 +49,9 @@ describe("Val nocopy in production", () => {
     });
     const external = { version: 2 } as const;
 
-    const changed = Document.patch(document, { metadata: external });
+    const changed = Document.patch(document, (d) => {
+      d.metadata = external;
+    });
     expect(changed.metadata).toEqual(external);
     expect(changed.metadata).not.toBe(external);
   });
@@ -73,7 +77,11 @@ describe("Val nocopy in production", () => {
 
     expect(document).not.toBe(seed);
     expect(document).toEqual(seed);
-    expect(Document.patch(document, { note: "after" }).metadata).toBe(document.metadata);
+    expect(
+      Document.patch(document, (d) => {
+        d.note = "after";
+      }).metadata,
+    ).toBe(document.metadata);
   });
 
   test("indexes an adopted graph holding a value sealed elsewhere, and keeps that value", () => {
@@ -84,7 +92,11 @@ describe("Val nocopy in production", () => {
     const product = Product.seal({ label: "kept" });
     const cart = Cart.seal.nocopy({ product, count: 1 } as const);
 
-    expect(Cart.patch(cart, { count: 2 }).product).toBe(product);
+    expect(
+      Cart.patch(cart, (d) => {
+        d.count = 2;
+      }).product,
+    ).toBe(product);
   });
 
   test("finishes indexing an adopted graph containing a cycle", () => {
@@ -94,7 +106,9 @@ describe("Val nocopy in production", () => {
     seed.self = seed;
     const counter = Counter.seal.nocopy(seed as never);
 
-    const changed = Counter.patch(counter, { count: 2 });
+    const changed = Counter.patch(counter, (d) => {
+      d.count = 2;
+    });
     expect(changed.count).toBe(2);
   });
 });
@@ -106,20 +120,7 @@ describe("patch in production", () => {
     const ProductionId = Val.companion<ProductionId>().build() as unknown as {
       patch: (...args: unknown[]) => unknown;
     };
-    expect(() => ProductionId.patch("a1b2c3", {})).toThrow(TypeError);
-  });
-
-  type City = Value<"ProductionCity", { name: string }>;
-  const City = Val.companion<City>().build();
-  type Shop = Value<"ProductionShop", { owner: { name: string; city: City } }>;
-  const Shop = Val.companion<Shop>().build();
-
-  test("throws on an object that would merge into a nested Val that nocopy adopted", () => {
-    const view: { name: string } = Shop.seal({
-      owner: { name: "b", city: City.seal({ name: "Nara" }) },
-    }).owner;
-    const adopted = Shop.seal({ owner: { name: "a", city: City.seal.nocopy({ name: "Kyoto" }) } });
-    expect(() => Shop.patch(adopted, { owner: view })).toThrow(TypeError);
+    expect(() => ProductionId.patch("a1b2c3", () => {})).toThrow(TypeError);
   });
 
   test("lets a nested node of an adopted value be reused once a seal has indexed it", () => {

@@ -7,7 +7,7 @@ import type {
   PrivateCreate,
   PrivateSeal,
   Rec,
-  Replacer,
+  Draft,
   SeedOf,
   Unpatchable,
 } from "./index.ts";
@@ -23,7 +23,6 @@ import type {
   CompanionMembers,
   Invalid,
   NotVal,
-  Patching,
   Refused,
   Takes,
   Verdict,
@@ -177,7 +176,11 @@ describe("Val", () => {
       expect(point).not.toBe(raw);
       expect(point).toEqual(raw);
       // The copy carries the mark, so a derivation shares the nodes it leaves unchanged.
-      expect(Point.patch(point, { x: 2 }).tags).toBe(point.tags);
+      expect(
+        Point.patch(point, (d) => {
+          d.x = 2;
+        }).tags,
+      ).toBe(point.tags);
     });
 
     test("freezes children stored in non-enumerable data properties", () => {
@@ -398,7 +401,7 @@ describe("Val", () => {
       expectTypeOf<VerdictOf<Root>>().toEqualTypeOf<Invalid<"not a plain value">>();
       expectTypeOf<VerdictOf<Symbolic>>().toEqualTypeOf<{ s: Invalid<"not a plain value"> }>();
       expectTypeOf<VerdictOf<Either>>().toEqualTypeOf<{
-        s: null | Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        s: null | Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
       }>();
     });
 
@@ -741,11 +744,11 @@ describe("Val", () => {
         }
       >;
       expectTypeOf<VerdictOf<Apart>>().toEqualTypeOf<{
-        a: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
-        b: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
-        c: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
-        d: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
-        e: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        a: Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
+        b: Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
+        c: Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
+        d: Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
+        e: Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
       }>();
       type Arrays = Val<
         "UnionArrays",
@@ -824,7 +827,7 @@ describe("Val", () => {
         { k: { x: Rec<Apart>; t: 1 } | { x: string; t: 1 } }
       >;
       expectTypeOf<VerdictOf<Apart>>().toEqualTypeOf<{
-        k: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        k: Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
       }>();
     });
 
@@ -853,7 +856,7 @@ describe("Val", () => {
       // @ts-expect-error an object payload cannot be a union
       type Bad = Val<"Bad", { kind: "a"; a: number } | { kind: "b"; b: string }>;
       expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<
-        Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">
+        Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">
       >();
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
       // @ts-expect-error patch merges, so it cannot switch variants
@@ -867,7 +870,7 @@ describe("Val", () => {
       // @ts-expect-error an object payload cannot be a union
       type Nested = Val<"Nested", { state: State; name: string }>;
       expectTypeOf<VerdictOf<Nested>>().toEqualTypeOf<{
-        state: Invalid<"an object payload cannot be a union; patch merges, so it cannot switch variants">;
+        state: Invalid<"an object payload cannot be a union; patch sets one field at a time, so it cannot switch variants">;
         name: string;
       }>();
       expectTypeOf<Nested>().not.toExtend<AnyVal>();
@@ -1084,7 +1087,7 @@ describe("Val", () => {
       // `never` and `any` satisfy the check for a Val, and keep what they gave before it.
       expectTypeOf<Patch<never>>().toBeNever();
       // oxlint-disable-next-line no-explicit-any -- the case under test
-      expectTypeOf<Patch<any>>().toEqualTypeOf<Patching<any>>();
+      expectTypeOf<Patch<any>>().toEqualTypeOf<(draft: Draft<any>) => void>();
     });
 
     test("does not exist at runtime", () => {
@@ -1356,9 +1359,12 @@ describe("copying", () => {
 
     test("a patch handed to `patch` is copied as well", () => {
       const total = { amount: 100, currency: "JPY" };
-      const order = Order.patch(Order.seal({ id: "o", total: { amount: 1, currency: "JPY" } }), {
-        total,
-      });
+      const order = Order.patch(
+        Order.seal({ id: "o", total: { amount: 1, currency: "JPY" } }),
+        (d) => {
+          d.total = total;
+        },
+      );
       total.amount = 999;
       expect(order.total.amount).toBe(100);
     });
@@ -1430,7 +1436,9 @@ describe("copying", () => {
 
     test("`patch` keeps the subtrees it did not touch", () => {
       const before = order();
-      const after = Order.patch(before, { note: "changed" });
+      const after = Order.patch(before, (d) => {
+        d.note = "changed";
+      });
       expect(after).not.toBe(before);
       expect(after.lines).toBe(before.lines);
       expect(after.lines[0]).toBe(before.lines[0]);
@@ -1441,12 +1449,18 @@ describe("copying", () => {
       // is identity: without this, changing `note` would hand `total` a new one and a memoised
       // component reading it would re-render for a change it never saw.
       const before = order();
-      expect(Order.patch(before, { note: "changed" }).total).toBe(before.total);
+      expect(
+        Order.patch(before, (d) => {
+          d.note = "changed";
+        }).total,
+      ).toBe(before.total);
     });
 
     test("a subtree arriving through a patch is copied, not adopted", () => {
       const foreign = [{ sku: "s", qty: 2 }];
-      const after = Order.patch(order(), { lines: foreign as unknown as readonly Line[] });
+      const after = Order.patch(order(), (d) => {
+        d.lines = foreign as unknown as readonly Line[];
+      });
       foreign[0]!.qty = 999;
       expect(after.lines[0]!.qty).toBe(2);
     });
@@ -1470,7 +1484,9 @@ describe("copying", () => {
     });
 
     test("`Val.unwrap` shares nothing, including with a value built by reuse", () => {
-      const derived = Order.patch(order(), { note: "changed" });
+      const derived = Order.patch(order(), (d) => {
+        d.note = "changed";
+      });
       const raw = Val.unwrap(derived);
       expect(raw.lines).not.toBe(derived.lines);
       expect(raw.lines[0]).not.toBe(derived.lines[0]);
@@ -1489,7 +1505,9 @@ describe("copying", () => {
     test("a write into a reused node is caught in development", () => {
       // The reason the freeze earns its keep: without it this write would land in both values.
       const before = order();
-      const after = Order.patch(before, { note: "changed" });
+      const after = Order.patch(before, (d) => {
+        d.note = "changed";
+      });
       expect(after.lines).toBe(before.lines);
       expect(() => {
         (after.lines[0] as unknown as { qty: number }).qty = 999;
@@ -1499,15 +1517,25 @@ describe("copying", () => {
 
     test("a patch that changes nothing gives back the value itself", () => {
       const before = order();
-      expect(Order.patch(before, { note: "n" })).toBe(before);
-      expect(Order.patch(before, {})).toBe(before);
+      expect(
+        Order.patch(before, (d) => {
+          d.note = "n";
+        }),
+      ).toBe(before);
+      expect(Order.patch(before, () => {})).toBe(before);
     });
 
     test("`undefined` sets the field and keeps its key, and is no change where it is already set", () => {
       const user = User.seal({ id: "a", name: "bob", nickname: undefined });
-      expect(User.patch(user, { nickname: undefined })).toBe(user);
       expect(
-        User.patch(User.seal({ id: "a", name: "bob", nickname: "b" }), { nickname: undefined }),
+        User.patch(user, (d) => {
+          d.nickname = undefined;
+        }),
+      ).toBe(user);
+      expect(
+        User.patch(User.seal({ id: "a", name: "bob", nickname: "b" }), (d) => {
+          d.nickname = undefined;
+        }),
       ).toStrictEqual({ id: "a", name: "bob", nickname: undefined });
     });
 
@@ -1515,7 +1543,9 @@ describe("copying", () => {
       // It went through a constructor, so a new instance is what the caller asked for.
       const before = order();
       expect(
-        Order.patch(before, { total: () => Money.seal({ amount: 1, currency: "JPY" }) }),
+        Order.patch(before, (d) => {
+          d.total = Money.seal({ amount: 1, currency: "JPY" });
+        }),
       ).not.toBe(before);
     });
 
@@ -1531,16 +1561,27 @@ describe("copying", () => {
       const tenure = Tenure.seal({ years: 30 }).ok;
       seen.length = 0;
 
-      const same = Tenure.patch(tenure, { years: 30 });
+      const same = Tenure.patch(tenure, (d) => {
+        d.years = 30;
+      });
       expect(seen).toEqual([30]); // the seal ran: it owns the return shape
       expect(same.ok).toBe(tenure); // and the copy inside it handed the value back
     });
 
     test("reuse does not change what `equals` answers", () => {
       const a = order();
-      const b = Order.patch(a, { note: "changed" });
+      const b = Order.patch(a, (d) => {
+        d.note = "changed";
+      });
       expect(equals(a, b)).toBe(false);
-      expect(equals(b, Order.patch(a, { note: "changed" }))).toBe(true);
+      expect(
+        equals(
+          b,
+          Order.patch(a, (d) => {
+            d.note = "changed";
+          }),
+        ),
+      ).toBe(true);
       expect(equals(a.lines[0]!, b.lines[0]!)).toBe(true);
     });
   });
@@ -1624,41 +1665,243 @@ describe("equals", () => {
 });
 
 describe("patch", () => {
-  test("a plain object field holds no Val, through seal or patch", () => {
+  type City = Val<"City", { name: string; zip: string | undefined }>;
+  const City = Val.companion<City>().build();
+
+  type Shop = Val<
+    "Shop",
+    {
+      id: string;
+      owner: { name: string; contact: { email: string; phone: string | undefined } };
+      city: City;
+      home: { x: number; y: number } | null;
+      tags: string[];
+      staff: Record<string, { role: string }>;
+    }
+  >;
+  const Shop = Val.companion<Shop>().build();
+  const shop = () =>
+    Shop.seal({
+      id: "s",
+      owner: { name: "bob", contact: { email: "b@example.com", phone: "1" } },
+      city: City.seal({ name: "Kyoto", zip: "600" }),
+      home: null,
+      tags: ["a"],
+      staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
+    });
+
+  test("assigns fields at any depth, and leaves the rest", () => {
+    const before = shop();
+    const after = Shop.patch(before, (s) => {
+      s.id = "t";
+      s.owner.contact.email = "c@example.com";
+    });
+    expect(after).toEqual({
+      ...before,
+      id: "t",
+      owner: { name: "bob", contact: { email: "c@example.com", phone: "1" } },
+    });
+    expect(before.id).toBe("s");
+  });
+
+  test("rebuilds only the path down to a change", () => {
+    const before = shop();
+    const after = Shop.patch(before, (s) => {
+      s.owner.contact.email = "c@example.com";
+    });
+    expect(after.owner).not.toBe(before.owner);
+    expect(after.city).toBe(before.city);
+    expect(after.tags).toBe(before.tags);
+    expect(after.staff).toBe(before.staff);
+  });
+
+  test("gives back the value itself where the recipe changes nothing", () => {
+    const before = shop();
+    expect(Shop.patch(before, () => {})).toBe(before);
+    expect(Shop.patch(before, (s) => void s.owner.contact.email)).toBe(before);
+    expect(
+      Shop.patch(before, (s) => {
+        s.owner.name = "bob";
+        s.city = before.city;
+      }),
+    ).toBe(before);
+  });
+
+  test("a read inside the recipe sees an earlier assignment", () => {
+    const after = Shop.patch(shop(), (s) => {
+      s.owner.name = "sue";
+      s.id = s.owner.name;
+    });
+    expect(after.id).toBe("sue");
+  });
+
+  test("checks each assignment against its field's type", () => {
+    Shop.patch(shop(), (s) => {
+      // @ts-expect-error `name` is a string
+      s.owner.name = 1;
+      // @ts-expect-error `name` cannot hold `undefined`
+      s.owner.name = undefined;
+      s.owner.contact.phone = undefined;
+      // @ts-expect-error the payload has no `fax`
+      s.owner.contact.fax = "1";
+    });
+  });
+
+  test("a nested Val is no draft: assign one its own constructor or `patch` built", () => {
+    const before = shop();
+    const after = Shop.patch(before, (s) => {
+      // The recipe reads the Val itself, not a draft of it.
+      expect(s.city).toBe(before.city);
+      s.city = City.patch(s.city, (c) => {
+        c.name = "Osaka";
+      });
+    });
+    expect(after.city).toEqual({ name: "Osaka", zip: "600" });
+    expect(after.owner).toBe(before.owner);
+
+    // Development freezes the Val, so the write throws too.
+    expect(() =>
+      Shop.patch(before, (s) => {
+        // @ts-expect-error a Val is read-only, since its own seal never saw the change
+        s.city.name = "Osaka";
+      }),
+    ).toThrow(TypeError);
+    Shop.patch(before, (s) => {
+      // @ts-expect-error an unsealed object is not a City
+      s.city = { name: "Osaka", zip: undefined };
+    });
+  });
+
+  test("an array is no draft: assign a new one", () => {
+    const after = Shop.patch(shop(), (s) => {
+      s.tags = [...s.tags, "b"];
+    });
+    expect(after.tags).toEqual(["a", "b"]);
+    expect(() =>
+      Shop.patch(shop(), (s) => {
+        // @ts-expect-error the array is read-only, and development freezes it
+        s.tags.push("b");
+      }),
+    ).toThrow(TypeError);
+  });
+
+  test("a field that may be null takes a whole object, and is a draft once it holds one", () => {
+    const placed = Shop.patch(shop(), (s) => {
+      s.home = { x: 1, y: 2 };
+    });
+    expect(placed.home).toEqual({ x: 1, y: 2 });
+    const moved = Shop.patch(placed, (s) => {
+      if (s.home) s.home.x = 3;
+    });
+    expect(moved.home).toEqual({ x: 3, y: 2 });
+    Shop.patch(shop(), (s) => {
+      // @ts-expect-error a whole object is needed where there is nothing to edit
+      s.home = { x: 1 };
+    });
+  });
+
+  test("a record entry is set or added by assignment, and a delete throws", () => {
+    const after = Shop.patch(shop(), (s) => {
+      s.staff["u1"] = { role: "chef" };
+      s.staff["u3"] = { role: "host" };
+    });
+    expect(after.staff).toEqual({
+      u1: { role: "chef" },
+      u2: { role: "waiter" },
+      u3: { role: "host" },
+    });
+    // The added entry is listed while the recipe runs too.
+    Shop.patch(shop(), (s) => {
+      s.staff["u3"] = { role: "host" };
+      expect("u3" in s.staff).toBe(true);
+      expect(Object.keys(s.staff)).toEqual(["u1", "u2", "u3"]);
+      expect({ ...s.staff }).toEqual({
+        u1: { role: "cook" },
+        u2: { role: "waiter" },
+        u3: { role: "host" },
+      });
+    });
+    expect(() =>
+      Shop.patch(shop(), (s) => {
+        delete s.staff["u2"];
+      }),
+    ).toThrow(TypeError);
+  });
+
+  test("a spread of a draft keeps sharing what it did not change", () => {
+    type Deep = Val<"Deep", { a: { b: { c: number }; d: number } }>;
+    const Deep = Val.companion<Deep>().build();
+    const before = Deep.seal({ a: { b: { c: 1 }, d: 2 } });
+    const after = Deep.patch(before, (x) => {
+      x.a = { ...x.a, d: 3 };
+    });
+    expect(after.a).toEqual({ b: { c: 1 }, d: 3 });
+    expect(after.a.b).toBe(before.a.b);
+  });
+
+  test("a draft placed in an array stands for its node", () => {
+    type Team = Val<"Team", { lead: { name: string }; members: { name: string }[] }>;
+    const Team = Val.companion<Team>().build();
+    const after = Team.patch(Team.seal({ lead: { name: "a" }, members: [] }), (t) => {
+      t.lead.name = "b";
+      t.members = [t.lead];
+    });
+    expect(after.members).toEqual([{ name: "b" }]);
+    expect(Array.isArray(after.members)).toBe(true);
+  });
+
+  test("a draft kept past the recipe is revoked", () => {
+    let kept: { id: string } | undefined;
+    Shop.patch(shop(), (s) => {
+      kept = s;
+    });
+    expect(() => kept!.id).toThrow(TypeError);
+
+    let thrown: { id: string } | undefined;
+    expect(() =>
+      Shop.patch(shop(), (s) => {
+        thrown = s;
+        throw new RangeError("stop");
+      }),
+    ).toThrow(RangeError);
+    expect(() => thrown!.id).toThrow(TypeError);
+  });
+
+  test("a recipe returns nothing, and runs synchronously", () => {
+    // @ts-expect-error a recipe assigns to its draft and returns nothing
+    Shop.patch(shop(), (s) => ({ ...s, id: "t" }));
+    // @ts-expect-error a recipe runs synchronously
+    Shop.patch(shop(), async (s) => {
+      s.id = "t";
+    });
+  });
+
+  test("a plain object field holds no Val", () => {
     type Pin = Val<"Pin", { at: { x: number; y: number } }>;
     const Pin = Val.companion<Pin>().build();
     type Spot = Val<"Spot", { x: number; y: number }>;
     const spot = Val.of<Spot>({ x: 1, y: 2 });
-    const pin = Pin.seal({ at: { x: 0, y: 0 } });
     // @ts-expect-error a Val where the payload declares a plain object
     Pin.seal({ at: spot });
-    // @ts-expect-error nor as a patch
-    Pin.patch(pin, { at: spot });
-    // @ts-expect-error nor as what a function returns
-    Pin.patch(pin, { at: () => spot });
+    Pin.patch(Pin.seal({ at: { x: 0, y: 0 } }), (p) => {
+      // @ts-expect-error nor through a draft
+      p.at = spot;
+    });
     // The root takes a Val, so sealing a value again type-checks.
     Val.companion<Spot>().build().seal(spot);
-    const stray = { z: 1 };
-    // @ts-expect-error no key in common with the field
-    Pin.patch(pin, { at: stray });
   });
 
-  test("omitting a key leaves it unchanged", () => {
-    const u = User.seal({ id: "a", name: "bob", nickname: "bo" });
-    expect(User.patch(u, { name: "sue" })).toEqual({
-      id: "a",
-      name: "sue",
-      nickname: "bo",
+  test("an `Unpatchable` key is read-only in the draft, and still readable", () => {
+    const Order = Val.companion<Shop, [Unpatchable<"id">]>().build();
+    const after = Order.patch(shop(), (s) => {
+      s.owner.name = s.id;
+      // @ts-expect-error `id` is unpatchable
+      s.id = "t";
     });
+    expect(after.owner.name).toBe("s");
   });
 
-  test("does not mutate the original value", () => {
-    const u = User.seal({ id: "a", name: "bob", nickname: undefined });
-    User.patch(u, { name: "sue" });
-    expect(u.name).toBe("bob");
-  });
-
-  test("goes through a custom seal when one is defined", () => {
+  test("goes through a custom seal, which sees the assembled payload", () => {
     type Account = Val<"Account", { id: string; balance: number }>;
     const Account = Val.companion<Account>()
       .implSeal((a: { id: string; balance: number }, seal): Result<Account> =>
@@ -1669,25 +1912,21 @@ describe("patch", () => {
       .build();
 
     const acc = Val.of<Account>({ id: "a", balance: 100 });
-    expect(Account.patch(acc, { balance: 50 })).toEqual({
-      ok: true,
-      value: { id: "a", balance: 50 },
-    });
-    expect(Account.patch(acc, { balance: -1 })).toEqual({
-      ok: false,
-      error: "balance must not be negative",
-    });
-
-    expectTypeOf(Account.patch(acc, { balance: 1 })).toEqualTypeOf<Result<Account>>();
-  });
-
-  test("returns the Val itself when the seal is the default", () => {
-    const u = User.seal({ id: "a", name: "bob", nickname: undefined });
-    expectTypeOf(User.patch(u, { name: "x" })).toEqualTypeOf<User>();
+    expect(
+      Account.patch(acc, (a) => {
+        a.balance = 50;
+      }),
+    ).toEqual({ ok: true, value: { id: "a", balance: 50 } });
+    expect(
+      Account.patch(acc, (a) => {
+        a.balance = -1;
+      }),
+    ).toEqual({ ok: false, error: "balance must not be negative" });
+    expectTypeOf(Account.patch(acc, () => {})).toEqualTypeOf<Result<Account>>();
   });
 
   test("is not offered at all on a non-object Val", () => {
-    // Only what deep-merges carries it. Everything else is rebuilt through the constructor.
+    // Only an object payload has fields to assign. Everything else is rebuilt through the constructor.
     expectTypeOf(Val.companion<ArticleId>().build()).not.toHaveProperty("patch");
     expectTypeOf(Val.companion<Grid>().build()).not.toHaveProperty("patch");
     expectTypeOf(Val.companion<Val<"Pair", [number, string]>>().build()).not.toHaveProperty(
@@ -1700,326 +1939,41 @@ describe("patch", () => {
     const ArticleId = Val.companion<ArticleId>().build() as unknown as {
       patch: (...args: unknown[]) => unknown;
     };
-    expect(() => ArticleId.patch("a1b2c3", {})).toThrow(/object-shaped/);
+    expect(() => ArticleId.patch("a1b2c3", () => {})).toThrow(/object-shaped/);
     const Grid = Val.companion<Grid>().build() as unknown as {
       patch: (...args: unknown[]) => unknown;
     };
-    expect(() => Grid.patch([[1]], {})).toThrow(/object-shaped/);
+    expect(() => Grid.patch([[1]], () => {})).toThrow(/object-shaped/);
   });
 
-  test("with routes through the seal, whatever the seal returns", () => {
-    type Box = Val<"Box", { n: number }>;
-    const box = Val.companion<Box>().build();
-    const Box = Val.companion<Box>()
-      .implSeal((b: { n: number }) => ({ tagged: box.seal(b) }))
+  test("routes through the seal, whatever the seal returns", () => {
+    type Wrapped = Val<"Wrapped", { n: number }>;
+    const plain = Val.companion<Wrapped>().build();
+    const Wrapped = Val.companion<Wrapped>()
+      .implSeal((w: { n: number }) => ({ tagged: plain.seal(w) }))
       .build();
-    const out = Box.patch(Val.of<Box>({ n: 1 }), { n: 2 });
-    expectTypeOf(out).toEqualTypeOf<{ tagged: Box }>();
+    const out = Wrapped.patch(Val.of<Wrapped>({ n: 1 }), (w) => {
+      w.n = 2;
+    });
+    expectTypeOf(out).toEqualTypeOf<{ tagged: Wrapped }>();
     expect(out).toEqual({ tagged: { n: 2 } });
   });
 
-  test("undefined on a field that cannot hold it is a type error", () => {
-    const u = User.seal({ id: "a", name: "bob", nickname: undefined });
-    // @ts-expect-error `name` is not typed `string | undefined`
-    User.patch(u, { name: undefined });
-    User.patch(u, { nickname: undefined });
-  });
+  test("sealing a subtree another value holds gives the Val a root of its own", () => {
+    type Theme = Val<"Theme", { color: string; font: string }>;
+    type Settings = Val<"Settings", { theme: { color: string; font: string } }>;
+    const Settings = Val.companion<Settings>().build();
+    const settings = Settings.seal({ theme: { color: "red", font: "serif" } });
 
-  describe("nested", () => {
-    type City = Val<"City", { name: string; zip: string | undefined }>;
-    const City = Val.companion<City>().build();
-
-    type Shop = Val<
-      "Shop",
-      {
-        id: string;
-        owner: { name: string; contact: { email: string; phone: string | undefined } };
-        city: City;
-        tags: string[];
-        staff: Record<string, { role: string }>;
-      }
-    >;
-    const Shop = Val.companion<Shop>().build();
-    const shop = () =>
-      Shop.seal({
-        id: "s",
-        owner: { name: "bob", contact: { email: "b@example.com", phone: "1" } },
-        city: City.seal({ name: "Kyoto", zip: "600" }),
-        tags: ["a"],
-        staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
-      });
-
-    // Where the field is null there is nothing to merge into.
-    test("a field that may be null or a primitive takes an object through a function only", () => {
-      type Pin = Val<
-        "Pin",
-        { at: { x: number; y: number } | null; label: string | { text: string } }
-      >;
-      const Pin = Val.companion<Pin>().build();
-      const pin = Pin.seal({ at: null, label: "a" });
-      expect(Pin.patch(pin, { at: () => ({ x: 1, y: 2 }), label: "b" })).toEqual({
-        at: { x: 1, y: 2 },
-        label: "b",
-      });
-      // @ts-expect-error a merge into null would omit `y`
-      Pin.patch(pin, { at: { x: 1, y: 2 } });
-      // @ts-expect-error a merge into a string would leave `text` out
-      Pin.patch(pin, { label: { text: "b" } });
+    const Theme = Val.companion<Theme>().build();
+    expect(Theme.seal(settings.theme)).not.toBe(settings.theme);
+    // The subtree stays plain, so the draft still reaches into it.
+    const recoloured = Settings.patch(settings, (s) => {
+      s.theme.color = "blue";
     });
-
-    test("patches a nested object at any depth, leaving its other keys alone", () => {
-      expect(Shop.patch(shop(), { owner: { contact: { email: "c@example.com" } } })).toEqual({
-        id: "s",
-        owner: { name: "bob", contact: { email: "c@example.com", phone: "1" } },
-        city: { name: "Kyoto", zip: "600" },
-        tags: ["a"],
-        staff: { u1: { role: "cook" }, u2: { role: "waiter" } },
-      });
-    });
-
-    test("undefined sets a field at depth too", () => {
-      const next = Shop.patch(shop(), { owner: { contact: { phone: undefined } } });
-      expect(next.owner.contact).toStrictEqual({ email: "b@example.com", phone: undefined });
-    });
-
-    test("undefined on a field that cannot hold it is a type error at depth too", () => {
-      // @ts-expect-error `email` is not typed `string | undefined`, however deep it sits
-      Shop.patch(shop(), { owner: { contact: { email: undefined } } });
-    });
-
-    test("an unknown key is a type error at depth too", () => {
-      // @ts-expect-error excess-property checking reaches the nested literal
-      Shop.patch(shop(), { owner: { contact: { fax: "1" } } });
-    });
-
-    test("only the path down to the change is rebuilt", () => {
-      const before = shop();
-      const after = Shop.patch(before, { owner: { contact: { email: "c@example.com" } } });
-      expect(after.owner).not.toBe(before.owner);
-      expect(after.owner.contact).not.toBe(before.owner.contact);
-      expect(after.city).toBe(before.city);
-      expect(after.tags).toBe(before.tags);
-      expect(after.staff).toBe(before.staff);
-    });
-
-    test("a patch that changes nothing at depth gives back the value itself", () => {
-      const before = shop();
-      expect(Shop.patch(before, { owner: { contact: { email: "b@example.com" } } })).toBe(before);
-      expect(Shop.patch(before, { owner: {} })).toBe(before);
-    });
-
-    test("a nested Val is replaced through a function, never merged", () => {
-      // Merging into it would build a payload its own seal never saw.
-      expectTypeOf<NonNullable<Patch<SeedOf<Shop>>["city"]>>().toEqualTypeOf<
-        Invalid<"a Val is replaced, never merged: write `() => value`"> | Replacer<City>
-      >();
-      // @ts-expect-error a Val takes a function, not a patch, and the merge throws
-      expect(() => Shop.patch(shop(), { city: { name: "Osaka" } })).toThrow(
-        /cannot merge into the Val at "city"/,
-      );
-      expect(() =>
-        // @ts-expect-error nor a Val as it is, which merges too
-        Shop.patch(shop(), { city: City.seal({ name: "Osaka", zip: undefined }) }),
-      ).toThrow(TypeError);
-      // The same holds where the Val may be absent or null.
-      type Stall = Val<"Stall", { city: City | undefined; home: City | null }>;
-      expectTypeOf<NonNullable<Patch<SeedOf<Stall>>["city"]>>().toEqualTypeOf<
-        Invalid<"a Val is replaced, never merged: write `() => value`"> | Replacer<City | undefined>
-      >();
-      expectTypeOf<NonNullable<Patch<SeedOf<Stall>>["home"]>>().toEqualTypeOf<
-        Invalid<"a Val is replaced, never merged: write `() => value`"> | Replacer<City | null>
-      >();
-
-      const before = shop();
-      const after = Shop.patch(before, {
-        city: () => City.seal({ name: "Osaka", zip: undefined }),
-      });
-      expect(after.city).toStrictEqual({ name: "Osaka", zip: undefined });
-      expect(after.city).not.toBe(before.city);
-    });
-
-    test("an object whose type hides a nested Val cannot merge into it", () => {
-      type Owned = Val<"Owned", { owner: { name: string; city: City } }>;
-      const Owned = Val.companion<Owned>().build();
-      const owned = (city: string) =>
-        Owned.seal({ owner: { name: city, city: City.seal({ name: city, zip: "600" }) } });
-      const view: { name: string } = owned("Nara").owner;
-      expect(() => Owned.patch(owned("Kyoto"), { owner: view })).toThrow(
-        /cannot merge into the Val at "city"/,
-      );
-    });
-
-    test("sealing a subtree another value holds gives the Val a root of its own", () => {
-      type Theme = Val<"Theme", { color: string; font: string }>;
-      type Settings = Val<"Settings", { theme: { color: string; font: string } }>;
-      const Settings = Val.companion<Settings>().build();
-      const settings = Settings.seal({ theme: { color: "red", font: "serif" } });
-
-      const Theme = Val.companion<Theme>().build();
-      expect(Theme.seal(settings.theme)).not.toBe(settings.theme);
-      // The subtree stays plain, so a patch still merges into it.
-      expect(Settings.patch(settings, { theme: { color: "blue" } }).theme).toEqual({
-        color: "blue",
-        font: "serif",
-      });
-
-      // `nocopy` does the same, and the copy is a root a merge cannot enter.
-      const adopted = Theme.seal.nocopy(settings.theme);
-      expect(adopted).not.toBe(settings.theme);
-      type Holder = Val<"Holder", { theme: Theme }>;
-      const Holder = Val.companion<Holder>().build();
-      const holder = Holder.seal({ theme: adopted });
-      // @ts-expect-error a Val takes a function, and the merge throws
-      expect(() => Holder.patch(holder, { theme: { color: "blue" } })).toThrow(TypeError);
-    });
-
-    test("every element of an array is a plain subtree, whatever its index", () => {
-      type List = Val<"List", { list: { a: number }[] }>;
-      type At = Val<"At", { at: { a: number } }>;
-      const list = Val.companion<List>()
-        .build()
-        .seal({ list: [{ a: 1 }, { a: 2 }] });
-      const At = Val.companion<At>().build();
-      expect(At.patch(At.seal({ at: list.list[1]! }), { at: { a: 3 } }).at).toEqual({ a: 3 });
-    });
-
-    test("deriving the nested Val in the function is how you reach inside one", () => {
-      const before = shop();
-      const after = Shop.patch(before, { city: (c) => City.patch(c, { name: "Osaka" }) });
-      expect(after.city).toEqual({ name: "Osaka", zip: "600" }); // its own `patch` kept the zip
-      expect(after.owner).toBe(before.owner);
-    });
-
-    test("the function returns the whole value, in the field's own type", () => {
-      type Account = Val<"Account", { balance: number }>;
-      const Account = Val.companion<Account>()
-        .implSeal((a: { balance: number }, seal): Result<Account> =>
-          a.balance >= 0 ? { ok: true, value: seal(a) } : { ok: false, error: "negative" },
-        )
-        .build();
-      type Wallet = Val<"Wallet", { owner: { name: string; age: number }; account: Account }>;
-      const Wallet = Val.companion<Wallet>().build();
-      const wallet = Wallet.seal({
-        owner: { name: "bob", age: 30 },
-        account: Val.of<Account>({ balance: 1 }),
-      });
-
-      // @ts-expect-error `age` is missing, and a replacement keeps nothing of the old value
-      Wallet.patch(wallet, { owner: () => ({ name: "sue" }) });
-      // @ts-expect-error the seal returns a Result, which has to be unwrapped first
-      Wallet.patch(wallet, { account: (a) => Account.patch(a, { balance: 2 }) });
-    });
-
-    test("a subtree taken from another value merges, and takes a function to replace", () => {
-      const other = Shop.seal({
-        id: "o",
-        owner: { name: "sue", contact: { email: "s@example.com", phone: undefined } },
-        city: City.seal({ name: "Nara", zip: undefined }),
-        tags: [],
-        staff: {},
-      });
-      expect(Shop.patch(shop(), { owner: other.owner }).owner).toStrictEqual({
-        name: "sue",
-        contact: { email: "s@example.com", phone: undefined },
-      });
-      expect(Shop.patch(shop(), { owner: () => other.owner }).owner).toBe(other.owner);
-    });
-
-    test("an array is set, not merged, and a function builds it from the current one", () => {
-      const before = Shop.patch(shop(), { tags: ["a", "b"] });
-      expect(Shop.patch(before, { tags: ["c"] }).tags).toEqual(["c"]);
-      expect(Shop.patch(before, { tags: (tags) => [...tags, "c"] }).tags).toEqual(["a", "b", "c"]);
-
-      const other = Shop.patch(before, { tags: ["d"] });
-      expect(Shop.patch(before, { tags: other.tags }).tags).toBe(other.tags);
-    });
-
-    test("a function that returns the current value is not a change", () => {
-      const before = shop();
-      expect(Shop.patch(before, { city: (c) => c, owner: (o) => o })).toBe(before);
-    });
-
-    test("a record of values replaces one entry and leaves the rest", () => {
-      const next = Shop.patch(shop(), { staff: { u1: () => ({ role: "chef" }) } });
-      expect(next.staff).toEqual({ u1: { role: "chef" }, u2: { role: "waiter" } });
-    });
-
-    // The entry's type lacks `undefined`, and a key holding it would still be listed.
-    test("a function cannot set a record entry to undefined", () => {
-      // @ts-expect-error an entry holds a `{ role }`
-      Shop.patch(shop(), { staff: { u3: () => undefined } });
-    });
-
-    test("a field that may be undefined, and a record entry, take an object through a function only", () => {
-      type Place = Val<"Place", { name: string; at: { x: number; y: number } | undefined }>;
-      const Place = Val.companion<Place>().build();
-      const place = Place.seal({ name: "p", at: undefined });
-
-      expectTypeOf<NonNullable<Patch<SeedOf<Place>>["at"]>>().toEqualTypeOf<
-        | Invalid<"the field may be absent, so an object replaces it: write `() => value`">
-        | Replacer<({ readonly x: number; readonly y: number } & NotVal) | undefined>
-      >();
-      // @ts-expect-error `at` may be undefined, and a merge into nothing would drop `y`
-      Place.patch(place, { at: { x: 1, y: 2 } });
-      // @ts-expect-error an entry the record does not hold yet is the same case
-      Shop.patch(shop(), { staff: { u3: { role: "host" } } });
-
-      expect(Place.patch(place, { at: () => ({ x: 1, y: 2 }) }).at).toEqual({ x: 1, y: 2 });
-      expect(Shop.patch(shop(), { staff: { u3: () => ({ role: "host" }) } }).staff["u3"]).toEqual({
-        role: "host",
-      });
-    });
-
-    test("a function receives the field's current value, undefined included", () => {
-      type Place = Val<
-        "Place",
-        { name: string; at: { x: number; y: number; label: string | undefined } | undefined }
-      >;
-      const Place = Val.companion<Place>().build();
-      const seen: unknown[] = [];
-      const moved = (at: Place["at"]) => {
-        seen.push(at);
-        return { x: (at?.x ?? 0) + 1, y: 0, label: undefined };
-      };
-
-      const placed = Place.patch(Place.seal({ name: "p", at: undefined }), { at: moved });
-      const labelled = Place.patch(placed, { at: () => ({ x: 1, y: 0, label: "l" }) });
-      expect(Place.patch(labelled, { at: moved }).at).toStrictEqual({
-        x: 2,
-        y: 0,
-        label: undefined,
-      });
-      expect(seen).toEqual([undefined, { x: 1, y: 0, label: "l" }]);
-      // @ts-expect-error `at` may be undefined
-      Place.patch(placed, { at: (at) => ({ x: at.x, y: 0 }) });
-      // @ts-expect-error so may a record entry
-      Shop.patch(shop(), { staff: { u1: (entry) => ({ role: entry.role }) } });
-    });
-
-    test("a function returning undefined sets the field to undefined", () => {
-      const nicked = User.seal({ id: "a", name: "bob", nickname: "bo" });
-      expect(User.patch(nicked, { nickname: () => undefined })).toStrictEqual({
-        id: "a",
-        name: "bob",
-        nickname: undefined,
-      });
-    });
-
-    test("a nested object merges, so a function is how to shrink one", () => {
-      const before = shop();
-      const staff = { u3: { role: "host" } };
-      expect(Shop.patch(before, { staff: () => staff }).staff).toEqual(staff);
-    });
-
-    test("goes through the seal, which sees the merged payload", () => {
-      type Box = Val<"Box", { inner: { n: number; seen: number } }>;
-      const Box = Val.companion<Box>()
-        .implSeal((b, seal) => seal({ inner: { ...b.inner, seen: b.inner.seen + 1 } }))
-        .build();
-      // `Val.of` skips the seal, so `seen` counts the calls `patch` made: one, at the root.
-      const box = Val.of<Box>({ inner: { n: 1, seen: 0 } });
-      expect(Box.patch(box, { inner: { n: 2 } })).toEqual({ inner: { n: 2, seen: 1 } });
-    });
+    expect(recoloured.theme).toEqual({ color: "blue", font: "serif" });
+    // `nocopy` does the same.
+    expect(Theme.seal.nocopy(settings.theme)).not.toBe(settings.theme);
   });
 
   describe("a derivation of your own", () => {
@@ -2055,8 +2009,14 @@ describe("data-first and data-last", () => {
   const Named = Val.companion<User>()
     .impl(() => ({
       greet: (u) => `Hi, ${u.name}`,
-      renamed: (u, name: string): User => Named.patch(u, { name }),
-      noted: (u, nickname: string | undefined): User => Named.patch(u, { nickname }),
+      renamed: (u, name: string): User =>
+        Named.patch(u, (d) => {
+          d.name = name;
+        }),
+      noted: (u, nickname: string | undefined): User =>
+        Named.patch(u, (d) => {
+          d.nickname = nickname;
+        }),
     }))
     .build();
   const bob = Named.seal({ id: "a", name: "bob", nickname: undefined });
@@ -2076,12 +2036,27 @@ describe("data-first and data-last", () => {
   });
 
   test("so does `patch`", () => {
-    expectTypeOf(Named.patch({ name: "sue" })).toEqualTypeOf<(self: User) => User>();
-    expect(Named.patch({ name: "sue" })(bob)).toEqual(sue);
+    expectTypeOf(
+      Named.patch((d) => {
+        d.name = "sue";
+      }),
+    ).toEqualTypeOf<(self: User) => User>();
+    expect(
+      Named.patch((d) => {
+        d.name = "sue";
+      })(bob),
+    ).toEqual(sue);
   });
 
-  test("a function in a patch taken last still receives the field's type", () => {
-    const upper = Named.patch({ name: (name) => name.toUpperCase() });
+  test("a recipe taken last still types its draft", () => {
+    const upper = Named.patch((d) => {
+      d.name = d.name.toUpperCase();
+    });
+    // Taken last and never applied, so it only type-checks.
+    Named.patch((d) => {
+      // @ts-expect-error `name` is a string
+      d.name = 1;
+    });
     expect(upper(bob).name).toBe("BOB");
   });
 
@@ -2093,7 +2068,9 @@ describe("data-first and data-last", () => {
   });
 
   test("`undefined` counts as an argument", () => {
-    const nicked = Named.patch(bob, { nickname: "b" });
+    const nicked = Named.patch(bob, (d) => {
+      d.nickname = "b";
+    });
     expect([Named.noted(nicked, undefined), Named.noted(undefined)(nicked)]).toStrictEqual([
       { id: "a", name: "bob", nickname: undefined },
       { id: "a", name: "bob", nickname: undefined },
@@ -2353,7 +2330,10 @@ describe("building", () => {
     test("a member reaching `patch` or a sibling names the companion, and annotates", () => {
       const Loud = Val.companion<User>()
         .impl(() => ({
-          renamed: (u, name: string): User => Loud.patch(u, { name }),
+          renamed: (u, name: string): User =>
+            Loud.patch(u, (d) => {
+              d.name = name;
+            }),
           shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
         }))
         .build();
@@ -2410,7 +2390,10 @@ describe("building", () => {
         .implSeal((u, seal) => (u.name ? seal(u) : new RangeError("name must not be empty")))
         .implCreate((name: string) => ({ id: "n1", name, nickname: undefined }))
         .impl(({ seal, create, patch }) => ({
-          renamed: (u, name: string) => patch(u, { name }),
+          renamed: (u, name: string) =>
+            patch(u, (d) => {
+              d.name = name;
+            }),
           resealed: (u, name: string) => seal({ id: u.id, name, nickname: u.nickname }),
           another: (u) => create(u.name),
         }))
@@ -2675,7 +2658,11 @@ describe("building", () => {
 
       const s = Score.seal({ points: 3 });
       expect(Score.double(s)).toBe(6);
-      expectTypeOf(Score.patch(s, { points: 1 })).toEqualTypeOf<Score>();
+      expectTypeOf(
+        Score.patch(s, (d) => {
+          d.points = 1;
+        }),
+      ).toEqualTypeOf<Score>();
     });
 
     test("the default seal comes in as a second parameter, so Val.of is not needed", () => {
@@ -2985,7 +2972,11 @@ describe("building", () => {
       const p = Point.create(1, 2);
       expect(p).toEqual({ x: 1, y: 2 });
       expectTypeOf(p).toEqualTypeOf<Point>();
-      expect(Point.patch(p, { x: 3 })).toEqual({ x: 3, y: 2 });
+      expect(
+        Point.patch(p, (d) => {
+          d.x = 3;
+        }),
+      ).toEqual({ x: 3, y: 2 });
     });
 
     test("what create returns is sealed: it is not a way past the seal", () => {
@@ -3055,7 +3046,9 @@ describe("building", () => {
       const m = Member.create({ name: "bob" });
       expect(m).toEqual({ id: "id-1", name: "bob" });
 
-      const renamed = Member.patch(m, { name: "sue" });
+      const renamed = Member.patch(m, (d) => {
+        d.name = "sue";
+      });
       expect(renamed).toEqual({ id: "id-1", name: "sue" });
       expect(created).toBe(1);
       expectTypeOf(renamed).toEqualTypeOf<Member>();
@@ -3141,25 +3134,19 @@ describe("building", () => {
       expect(a.id).toBe("id-1");
 
       // still `id-1`, so neither path re-ran create
-      const b = Account.patch(a, { owner: " SUE " });
+      const b = Account.patch(a, (d) => {
+        d.owner = " SUE ";
+      });
       expect(b).toEqual({ id: "id-1", owner: "sue", note: "" }); // normalised by the seal
     });
 
-    test("the id is not reachable through the patch path", () => {
+    test("the id is read-only in the draft", () => {
       const Account = account();
       const a = Account.create({ owner: "bob", note: "" });
-      expectTypeOf<Parameters<typeof Account.patch>>().toEqualTypeOf<
-        [Account, Patch<Fields, "id">]
-      >();
-      // @ts-expect-error id is not patchable
-      Account.patch(a, { id: "forged" });
-      // A variable gets no excess property check.
-      const forged = { id: "forged", owner: "eve" };
-      // @ts-expect-error same, through a variable
-      Account.patch(a, forged);
-      const stray = { title: "x" };
-      // @ts-expect-error no key in common with the payload
-      Account.patch(a, stray);
+      Account.patch(a, (d) => {
+        // @ts-expect-error id is not patchable
+        d.id = "forged";
+      });
     });
 
     test("keys must exist on the payload", () => {
@@ -3176,11 +3163,15 @@ describe("building", () => {
     });
 
     // An intersection of two would collapse to `never` and take nothing out.
-    test("the keys of every `Unpatchable` in the list are taken out", () => {
+    test("the keys of every `Unpatchable` in the list are read-only", () => {
       const Account = Val.companion<Account, [Unpatchable<"id">, Unpatchable<"owner">]>().build();
-      expectTypeOf<Parameters<typeof Account.patch>>().toEqualTypeOf<
-        [Account, Patch<Pick<SeedOf<Account>, "note">, "id" | "owner">]
-      >();
+      Account.patch(Account.seal({ id: "a", owner: "bob", note: "" }), (d) => {
+        d.note = "n";
+        // @ts-expect-error id is not patchable
+        d.id = "b";
+        // @ts-expect-error nor is owner
+        d.owner = "sue";
+      });
     });
 
     test("anything but the markers is rejected", () => {
@@ -3218,7 +3209,12 @@ describe("building", () => {
 
     test("`create` and `patch` still go through the seal", () => {
       const a = Account.create(" bob ");
-      expect([a, Account.patch(a, { owner: " sue " })]).toEqual([
+      expect([
+        a,
+        Account.patch(a, (d) => {
+          d.owner = " sue ";
+        }),
+      ]).toEqual([
         { id: "a1", owner: "bob" },
         { id: "a1", owner: "sue" },
       ]);
@@ -3242,7 +3238,6 @@ describe("building", () => {
     const Owned = Trait.companion<Owned>().build();
     type Held = Val<"OptionHeld", { id: string; owner: string }, Owned>;
     const held = () => Val.companion<Held, [PrivateSeal, Unpatchable<"id">]>();
-    type Patched = Parameters<ReturnType<ReturnType<typeof held>["build"]>["patch"]>;
 
     // Each step builds the companion's type again, so each has to pass the list on.
     test("hold through every later step", () => {
@@ -3255,10 +3250,14 @@ describe("building", () => {
       const created = held()
         .implCreate.noseal(() => ({ id: "h1", owner: "bob" }))
         .build();
-      expectTypeOf<Patched>().toEqualTypeOf<[Held, Patch<{ owner: string }, "id">]>();
-      expectTypeOf<Parameters<typeof members.patch>>().toEqualTypeOf<Patched>();
-      expectTypeOf<Parameters<typeof traits.patch>>().toEqualTypeOf<Patched>();
-      expectTypeOf<Parameters<typeof created.patch>>().toEqualTypeOf<Patched>();
+      const first = held().build();
+      expectTypeOf(members.patch).toEqualTypeOf(first.patch);
+      expectTypeOf(traits.patch).toEqualTypeOf(first.patch);
+      expectTypeOf(created.patch).toEqualTypeOf(first.patch);
+      members.patch(created.create(), (h) => {
+        // @ts-expect-error `id` is unpatchable
+        h.id = "h2";
+      });
       expectTypeOf(members).not.toHaveProperty("seal");
     });
   });
@@ -3351,7 +3350,10 @@ describe("building", () => {
     test("the function receives the same `seal`, `create` and `patch`", () => {
       const Patched = Val.companion<Member>()
         .implTrait(Greetable, ({ patch }) => ({
-          toWire: (m, sep) => patch(m, { name: sep }).name,
+          toWire: (m, sep) =>
+            patch(m, (d) => {
+              d.name = sep;
+            }).name,
         }))
         .build();
       expect(Patched.toWire(Patched.seal({ id: "a", name: "alice" }), ":")).toBe(":");
@@ -3447,11 +3449,13 @@ describe("building", () => {
         .implTrait(Greetable, () => ({ toWire: (t, sep) => `${t.id}${sep}${t.name}` }))
         .build();
       const t = Ticket.create("alice");
-      expect([t.id, Ticket.greet(t), Ticket.patch(t, { name: "bob" }).name]).toEqual([
-        "t1",
-        "Hi, alice",
-        "bob",
-      ]);
+      expect([
+        t.id,
+        Ticket.greet(t),
+        Ticket.patch(t, (d) => {
+          d.name = "bob";
+        }).name,
+      ]).toEqual(["t1", "Hi, alice", "bob"]);
     });
 
     test("equals stays the structural default", () => {
