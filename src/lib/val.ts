@@ -100,7 +100,25 @@ type Collection = RecordOf<string, unknown>;
  * A record holding itself goes through a Val: `type Node = Val<"Node", { kids: Kids }>` and
  * `type Kids = Val.Record<"Kids", string, Rec<Node>>`.
  */
-export type ValRecord<B extends string, K extends string, V> = UncheckedVal<B, RecordOf<K, V>>;
+export type ValRecord<
+  B extends OneLiteral<B, "a Val's brand must be one string literal">,
+  K extends string,
+  V extends RecordValue<V>,
+> = UncheckedVal<B, RecordOf<K, V>>;
+
+/**
+ * What a {@link ValRecord}'s value may be: any payload type. `undefined` is not one, since a key
+ * holding it would still be listed. Leave the key out instead.
+ */
+export type RecordValue<V> = [V] extends [infer X]
+  ? unknown extends X
+    ? Invalid<"`any` and `unknown` are not plain values; write the type">
+    : undefined extends X
+      ? Invalid<"a record's value cannot be undefined; leave the key out">
+      : [X] extends [Validate<X, false>]
+        ? unknown
+        : Validate<X, false>
+  : never;
 
 /**
  * Marker surfaced in the type when a declaration violates the allowed-type rules. Its key is a
@@ -207,10 +225,10 @@ type ValBrand<B> = { readonly val: B };
 // Only `Val.Record` declares the payload of a record, at its root.
 type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extends [Collection]
   ? // Each entry passes the seal as a typed `[key, value]`, so no value hides in it.
-    T extends RecordOf<infer K, infer E>
-    ? [E] extends [Validate<E, false>]
-      ? T
-      : RecordOf<K, Validate<E, false>>
+    T extends RecordOf<string, infer E>
+    ? [RecordValue<E>] extends [Invalid<string>]
+      ? RecordValue<E>
+      : T
     : T
   : [T] extends [AnyImpl]
     ? Root extends true
@@ -408,9 +426,12 @@ type ValidateFields<T> = {
   // Such a record claims a value under keys it never lists, and a variable whose type lists fewer
   // can hold anything there.
   // An array's elements map under `number`.
-  [K in keyof T]: K extends number
+  // `-?` keeps an optional key's `Invalid` required: without `exactOptionalPropertyTypes`, an
+  // optional `Invalid` takes `undefined`, and `{ a?: undefined }` would fit it.
+  [K in keyof T]-?: K extends number
     ? Validate<T[K], false>
-    : Record<never, never> extends Record<K, unknown>
+    : // `never` rather than `unknown`: `{}` has a `toString`, which a field may be named too.
+      Record<never, never> extends Record<K, never>
       ? Invalid<"a record keyed by any string can hide entries; declare a `Val.Record`">
       : // A variable typed without the key can hide any value there, so every key is required.
         K extends OptionalKeys<T>
@@ -796,7 +817,7 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * fields. `Patch<Omit<SeedOf<V>, "id">>` leaves a generated id out of the draft. `X` lists keys the
  * draft holds read-only, as `Patch<Fields, "id">` for an `Unpatchable` id.
  */
-export type Patch<T, X extends PropertyKey = never> = [T] extends [AnyVal]
+export type Patch<T, X extends keyof T = never> = [T] extends [AnyVal]
   ? [T] extends [never]
     ? never
     : 0 extends 1 & T
@@ -879,9 +900,7 @@ export type Reserved = keyof Rejected;
  */
 export type CompanionMembers<V> = Rejected &
   // A record's own members.
-  (Declared<V> extends Collection
-    ? Partial<Record<"set" | "delete" | "has" | "keys" | "values" | "entries", never>>
-    : unknown) & {
+  RecordMembers<V> & {
     /**
      * One callable member only. This is the contextual type for the Val parameter, and TypeScript
      * takes one from a union only while a single constituent has a call signature. `NonFn` has
@@ -894,6 +913,12 @@ export type CompanionMembers<V> = Rejected &
 
 /** The members `.implAssoc` accepts: functions with names the library does not reserve. */
 export type AssocMembers = Rejected & Record<string, unknown>;
+
+/** The names a record's companion takes for its own members. */
+export type RecordMembers<V> =
+  Declared<V> extends Collection
+    ? Partial<Record<"set" | "delete" | "has" | "keys" | "values" | "entries", never>>
+    : unknown;
 
 /**
  * What the seal produces, propagated verbatim. The library never inspects it, so `Result` and
@@ -1091,7 +1116,11 @@ type PatchMethod<V extends AnyVal, F, O extends Options> = [Declared<V>] extends
          * `patch` cannot bypass a smart constructor. Returns the value itself where the recipe
          * changed nothing. See {@link Patch}.
          */
-        patch: PatchFn<V, Constructed<V, F>, Patch<SeedOf<V>, UnpatchableKeys<O>>>;
+        patch: PatchFn<
+          V,
+          Constructed<V, F>,
+          Patch<SeedOf<V>, UnpatchableKeys<O> & keyof SeedOf<V>>
+        >;
       };
 
 /**
@@ -1278,7 +1307,7 @@ export type CompanionBuilder<
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
      * `Money.scaled(2)(5)`. A member taking one argument or none has no second form.
      */
-    implAssoc: <M extends AssocMembers>(
+    implAssoc: <M extends AssocMembers & RecordMembers<V>>(
       fns: (
         supplied: NoInfer<Supplied<V, N, F, O>>,
       ) => Grown<keyof T | keyof A, M> & LooseArity<M> & ThisType<undefined>,
@@ -1985,8 +2014,8 @@ type IsValRecord<V> = [Declared<V>] extends [Collection]
 export const recordCompanion = <
   V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val">,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
->(): CompanionBuilder<V, undefined, undefined, O> =>
-  recordBuilder({}) as CompanionBuilder<V, undefined, undefined, O>;
+>(): Listed<O, CompanionBuilder<V, undefined, undefined, O>> =>
+  recordBuilder({}) as Listed<O, CompanionBuilder<V, undefined, undefined, O>>;
 
 // The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
 // with a boolean payload is a union of two types with one brand, so the check compares brands.
@@ -1997,8 +2026,16 @@ type OneVal<V, M extends string> = {
 };
 
 /** Nothing, or the reason a union of option lists is rejected. */
+// `any` satisfies this constraint, so {@link Listed} reports it at the next step.
 export type OneList<O> =
   IsUnion<O> extends true ? Invalid<"the options cannot be a union of lists"> : unknown;
+
+/** Whether a list is `any`, or holds `any`, which every option's constraint accepts. */
+export type HasAny<L> = 0 extends 1 & L
+  ? true
+  : true extends { [I in keyof L]: 0 extends 1 & L[I] ? true : false }[keyof L & number]
+    ? true
+    : false;
 
 /**
  * The default seal, with the type named explicitly: brand the payload and copy it. `seal` on a
@@ -2015,7 +2052,7 @@ export const of = /* @__PURE__ */ Object.assign(
      */
     // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
     // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
-    nocopy: adopt as <V extends AnyVal & OneVal<V, "`Val.of` builds one Val">>(
+    nocopy: adopt as <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val">>(
       value: SeedOf<V>,
     ) => V,
   },
@@ -2039,5 +2076,13 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 export const companion = <
   V extends AnyVal & NotEnum<V> & OneVal<V, "a companion builds one Val">,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
->(): CompanionBuilder<V, undefined, undefined, O> =>
-  builder({}) as CompanionBuilder<V, undefined, undefined, O>;
+>(): Listed<O, CompanionBuilder<V, undefined, undefined, O>> =>
+  builder({}) as Listed<O, CompanionBuilder<V, undefined, undefined, O>>;
+
+/**
+ * The builder, or the fault where the option list is `any`, which every constraint accepts. The
+ * next step then reports it.
+ */
+export type Listed<O, Then> = true extends (O extends unknown ? HasAny<O> : never)
+  ? Invalid<"the options cannot be `any`; list them">
+  : Then;

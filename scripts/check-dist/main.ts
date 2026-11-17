@@ -106,7 +106,7 @@ const TYPES_BUDGETS = TypesBudgets.seal({
    */
   fixtures: [
     TypesFixture.seal({ name: "core", budget: 12_000 }),
-    TypesFixture.seal({ name: "trait", budget: 26_000 }),
+    TypesFixture.seal({ name: "trait", budget: 27_000 }),
     TypesFixture.seal({ name: "enum", budget: 90_000 }),
   ],
   /** Declaration files, in bytes. An alarm too, not a ratchet. */

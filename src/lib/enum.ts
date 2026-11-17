@@ -51,6 +51,7 @@ import {
   type Unfit,
   type DeepReadonly,
   type Grown,
+  type Listed,
   type Invalid,
   type IsOneLiteral,
   type OneLiteral,
@@ -179,11 +180,13 @@ type SharedFault<X, S, Tr extends AnyTrait, Tg extends string> =
 type SharedFaults<X, S, Tr extends AnyTrait, Tg extends string> =
   | (IsUnion<X> extends true ? "the shared fields cannot be a union" : never)
   | (IsOneLiteral<Tg> extends false ? "the tag's name must be one string literal" : never)
-  | (IsOneLiteral<Tg> extends true
-      ? Tg extends keyof S
-        ? "the tag cannot take the name of a shared field"
-        : never
-      : never)
+  | (string extends keyof S
+      ? "the shared fields cannot be keyed by any string; hold a `Val.Record` in a field"
+      : IsOneLiteral<Tg> extends true
+        ? Tg extends keyof S
+          ? "the tag cannot take the name of a shared field"
+          : never
+        : never)
   | ("match" extends MemberNames<Tr> ? "a trait member cannot take the name `match`" : never);
 
 /** The faults of the variants, read against what the third type argument declares. */
@@ -204,11 +207,13 @@ type VariantsFault<D, Tr extends AnyTrait, Tg extends string> =
             : [D[N]] extends [object]
               ? [D[N]] extends [ReadonlyArray<unknown>]
                 ? "a variant's payload must be a record of fields"
-                : IsOneLiteral<Tg> extends true
-                  ? Tg extends keyof FieldsIn<D[N]>
-                    ? "the tag cannot take the name of a field the payload holds"
+                : string extends keyof D[N]
+                  ? "a variant's payload cannot be keyed by any string; hold a `Val.Record` in a field"
+                  : IsOneLiteral<Tg> extends true
+                    ? Tg extends keyof FieldsIn<D[N]>
+                      ? "the tag cannot take the name of a field the payload holds"
+                      : VariantTraitFault<D[N], Tr>
                     : VariantTraitFault<D[N], Tr>
-                  : VariantTraitFault<D[N], Tr>
               : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
   // The companion reads a member first, so the type would show the library's and run the member.
@@ -612,7 +617,7 @@ type VariantSeal<E extends AnyEnum, N extends keyof VariantsOf<E>, R> = {
 
 type VariantPatch<E extends AnyEnum, N extends keyof VariantsOf<E>, R, U> = {
   /** Derives through the same seal. See {@link Patch}. */
-  patch: PatchFn<VariantOf<E, N>, R, Patch<SeedFor<E, N>, U & PropertyKey>>;
+  patch: PatchFn<VariantOf<E, N>, R, Patch<SeedFor<E, N>, U & keyof SeedFor<E, N>>>;
 };
 
 /** What a variant's step's function receives: its `seal`, `create` and `patch`, private or not. */
@@ -1267,4 +1272,14 @@ type OneEnum<E> = {
 export const companion = <
   E extends NotVal<E> & AnyEnum & OneEnum<E>,
   const O extends readonly EnumOption<E>[] & OneList<O> = [],
->(): Start<E, O> => builder("_tag", {}, {}) as Start<E, O>;
+>(): Listed<O | Lists<O>, Start<E, O>> =>
+  builder("_tag", {}, {}) as Listed<O | Lists<O>, Start<E, O>>;
+
+/** The variants' own option lists, which `any` satisfies as it does the enum's. */
+type Lists<O> = O extends readonly unknown[]
+  ? O[number] extends infer X
+    ? X extends VariantOptionsPhantom<string, infer L>
+      ? L
+      : never
+    : never
+  : never;
