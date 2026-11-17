@@ -53,19 +53,17 @@
     overflow), not a clear message. A check would cost bytes for a mistake the throw already stops
   - **Cost.** trait 25,699 → 26,345 instantiations, so its budget went from 26,000 to 27,000
 
-- [ ] **What the second type hunt (2026-11-18) left open, all already on 0.12.** Fixed in the same PR: `any`, `never` and
+- [ ] **What the second type hunt (2026-11-18) left open, all present in 0.12.** Fixed in the PR that records them: `any`, `never` and
       a missing type argument at `Trait.companion`, `Val.companion`, `Val.of` and `.dyn`; trait members that are optional,
-      symbol-keyed, `never` or take something other than `Self` first; `VariantOptions` and `Unpatchable` naming no key or
-      variant; `Val<…, any>`'s message; an `implAssoc` constant's message. Left open:
-  - **`Impl<any>`, `Impl<never>`, `Dyn<any>`, `Dyn<never>`.** Making either a conditional type writes the trait's
-    phantom out in full in a consumer's declarations, so a re-read type differs (`check-dist --compat`). A box built with
-    `.dyn` still rejects them
+      symbol-keyed, `never` or take something other than `Self` first; `Unpatchable` naming no key and `VariantOptions` naming no variant; the message for `any` as a Val's traits; the message for a constant in `implAssoc`. Left open:
+  - **`Impl<any>`, `Impl<never>`, `Dyn<any>`, `Dyn<never>`.** Still open, for the reason the sixth type hunt's item
+    records: a conditional `Impl` or `Dyn` changes the type a consumer's declarations read back. `.dyn` still rejects them
   - **A field of an object type intersected with a primitive** (`{ n: Spot & number }`, and an enum's shared field
-    clashing that way with a variant's). Checking it cost about 480 B of `index.d.ts`, core +16 and enum +150
-  - **A union element in an options list** (`[Unpatchable<"id"> | PrivateSeal]`). Core +48 and about 110 B
-  - **`Val.Record` with an `any` or `never` key, or a `never` value, at the companion.** Core +24 and about 240 B
+    clashing that way with a variant's). Checking it cost about 480 B of `index.d.ts`, 16 instantiations in core and 150 in enum
+  - **A union element in an options list** (`[Unpatchable<"id"> | PrivateSeal]`). Checking it cost 48 instantiations in core and about 110 B of `index.d.ts`
+  - **`Val.Record` with an `any` or `never` key, or a `never` value, at the companion.** Checking it cost 24 instantiations in core and about 240 B of `index.d.ts`
   - **Not attempted:** an overloaded or generic trait member (no way to read either from the type), a class instance
-    passed to `seal` (it throws), a union of two Vals passed to `equals` (the caller wrote it), a `Rec` in a trait's
+    passed to `seal` (it throws), a union of two Vals passed to `equals` (the caller wrote the union), a `Rec` in a trait's
     shape (circular, TS2456), `Patch<User>` written for a Val (reported where it is used)
 
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
@@ -857,7 +855,7 @@
     resolves to "`Patch` takes a payload; write `Patch<SeedOf<V>>`". Internally, `Patching` keeps `never` for a Val, and `PatchValue` reads that `never` as "replace the field whole". `Patch<never>` stays `never`, which `PatchMethod` reads as "no `patch`", and `Patch<any>` stays the object it was
   - **Closed:** `Unpatchable<any>` made every key unpatchable, and the error appeared only at the `patch` call.
     It now resolves to a message, which the companion's option list rejects. `UnpatchablePhantom`
-    is exported, since a user's `.d.ts` now references it (§18.4). `Unpatchable` reads the key through `infer`, because against the constraint `K extends string`, `1 & K` resolves to `never` before `K` is known
+    is exported, since a user's `.d.ts` now references it (§18.4). `Unpatchable` now checks the key against `Unnamed`, which `any` and `never` both extend (2026-11-18)
   - **Closed:** `PayloadOf<never>` recursed past the checker's depth limit (TS2589), and `PayloadOf<Impl<G>>` raised TS2589 beside the constraint error. `Opened` returns `never` for
     `never`
   - **Open: `Impl<any>`, `Impl<never>`, `Dyn<any>` and `Dyn<never>` pass.** Every Val that declares a trait fits `Impl<any>`. §18.6 argues against such a generic over any trait. Making `Impl`
