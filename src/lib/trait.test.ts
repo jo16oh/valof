@@ -153,7 +153,7 @@ describe("Trait", () => {
       >();
       expect([
         Meter.same(meter, gauge),
-        Meter.same(meter, Same.dyn(Gauge, gauge)),
+        Meter.same(meter, Same.dyn(Gauge, gauge).value),
         Same.dyn(Gauge, gauge).same(meter),
       ]).toEqual([true, true, true]);
 
@@ -164,6 +164,8 @@ describe("Trait", () => {
       Meter.same(meter, Val.of<Plain>({ n: 1 }));
       // @ts-expect-error same through a box
       Same.dyn(Gauge, gauge).same({ n: 1 });
+      // @ts-expect-error a box is not the value it holds
+      Meter.same(meter, Same.dyn(Gauge, gauge));
     });
 
     test("Impl may appear anywhere in a member, and name another trait", () => {
@@ -336,8 +338,7 @@ describe("Trait", () => {
       // oxlint-disable-next-line no-explicit-any -- the case under test
       expectTypeOf<VerdictOf<Trait<"Loose", any>>>().toEqualTypeOf<{ readonly Loose: Fault }>();
       expectTypeOf<VerdictOf<Trait<"Empty", never>>>().toEqualTypeOf<{ readonly Empty: Fault }>();
-      // The members' constraint reads the shape, so it reports it where the trait is declared, and
-      // must not report a member taking a field's name.
+      // The members' constraint reads the shape, so it reports it where the trait is declared.
       type Loose = Trait<
         "Loose",
         // oxlint-disable-next-line no-explicit-any -- the case under test
@@ -449,11 +450,24 @@ describe("Trait", () => {
   });
 
   describe("rejected names", () => {
-    test("a member may not take a field's name from its own shape", () => {
-      // @ts-expect-error a trait member cannot take a field's name
-      type SelfClash = Trait<"SelfClash", { size: number }, { size: (self: Self) => number }>;
-      // @ts-expect-error a trait member cannot take a field's name
-      Trait.companion<SelfClash>().build();
+    test("a member may take a field's name, since a box holds the value apart", () => {
+      type Sized = Trait<"Sized", { size: number }, { size: (self: Self) => number }>;
+      const Sized = Trait.companion<Sized>()
+        .impl(() => ({ size: (s) => s.size * 2 }))
+        .build();
+      type Crate = Val<"SizedCrate", { size: number }, Sized>;
+      const Crate = Val.companion<Crate>().implTrait(Sized).build();
+      const boxed = Sized.dyn(Crate, Crate.seal({ size: 3 }));
+      expect([boxed.size(), boxed.value.size]).toEqual([6, 3]);
+    });
+
+    test("a member may not be named `value`, which a box reads its value through", () => {
+      type Valued = Trait<"Valued", { n: number }, { value: (self: Self) => number }>;
+      expectTypeOf<VerdictOf<Valued>>().toEqualTypeOf<{
+        readonly Valued: {
+          value: Invalid<"a trait member cannot take `value`, which a box reads its value through">;
+        };
+      }>();
     });
 
     test("but may take a step's name: no companion holds a step", () => {
@@ -562,8 +576,10 @@ describe("Trait", () => {
       }));
     });
 
-    test("takes a Val and a box alike", () => {
-      expect([Greetable.shout(USER), Greetable.shout(Greetable.dyn(User, USER))]).toEqual([
+    test("is called through the companion or a box", () => {
+      const boxed = Greetable.dyn(User, USER);
+      expect([Greetable.shout(USER), Greetable.shout(boxed.value), boxed.shout()]).toEqual([
+        "ALICE",
         "ALICE",
         "ALICE",
       ]);
@@ -572,7 +588,7 @@ describe("Trait", () => {
 
   describe("Impl", () => {
     test("is the type of any value implementing the trait", () => {
-      const greeters: Impl<Greetable>[] = [USER, ADMIN, Greetable.dyn(User, USER)];
+      const greeters: Impl<Greetable>[] = [USER, ADMIN, Greetable.dyn(User, USER).value];
       expect(greeters.map((g) => g.name)).toEqual(["alice", "root", "alice"]);
     });
 
@@ -635,12 +651,12 @@ describe("dyn", () => {
     }).toThrow(TypeError);
   });
 
-  test("a box stands in for its value, and types the trait's fields alone", () => {
+  test("a box holds the value under `value`, typed as the trait alone", () => {
     const boxed = Greetable.dyn(User, USER);
-    expect(JSON.stringify(boxed)).toBe(JSON.stringify(USER));
-    expect(Object.keys(boxed)).toEqual(["id", "name"]);
-    expectTypeOf(boxed.name).toEqualTypeOf<string>();
-    expectTypeOf(boxed).not.toHaveProperty("id");
+    expect(boxed.value).toBe(USER);
+    expectTypeOf(boxed.value).toEqualTypeOf<Impl<Greetable>>();
+    expectTypeOf(boxed).not.toHaveProperty("name");
+    expect(Reflect.get(boxed, "name")).toBeUndefined();
   });
 
   test("each of a Val's traits boxes on its own", () => {
@@ -735,8 +751,9 @@ describe("dyn", () => {
       expectTypeOf<Boxed>().not.toBeNever();
     });
 
-    test("is the one box that does not stand in for its value", () => {
-      expect(JSON.stringify(Marker.dyn(Email, Email.seal("a@example.com")))).toBe("{}");
+    test("is read through `value` like any other", () => {
+      const mail = Email.seal("a@example.com");
+      expect(Marker.dyn(Email, mail).value).toBe(mail);
     });
   });
 });
