@@ -6,7 +6,7 @@ const { lint, messages } = fixtures(import.meta.url);
 
 test("reports a recipe's draft bound, passed, or put in an array or an object", async () => {
   expect(await lint("aliases")).toEqual(
-    ["10:17", "14:9", "17:17", "20:17", "20:23", "24:9"].map((at) => ({
+    ["10:16", "14:9", "17:17", "20:17", "20:22", "24:9"].map((at) => ({
       rule: AliasedDraft,
       at: `aliases.ts:${at}`,
     })),
