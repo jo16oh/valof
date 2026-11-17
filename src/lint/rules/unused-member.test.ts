@@ -172,6 +172,17 @@ describe("Trait members", () => {
     expect(await messages("followed-dyn")).toEqual(["A.explain is never read"]);
   });
 
+  test("credits a box over several traits to each of them, read where it is made or escaped", async () => {
+    expect(await messages("intersected-dyn")).toEqual([
+      "A.run is never read",
+      "B.run is never read",
+    ]);
+  });
+
+  test("reads the form valof 0.12 and earlier accept, `Trait.dyn(Val, value)`", async () => {
+    expect(await messages("legacy-dyn")).toEqual(["A.explain is never read"]);
+  });
+
   test("resolves const objects and recursive spreads", async () => {
     expect(await lint("resolved-overrides")).toEqual([
       { rule: UnusedMember, at: "resolved-overrides.ts:3:62" },

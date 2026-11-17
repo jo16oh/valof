@@ -507,10 +507,10 @@ describe("Trait", () => {
       ]).toEqual(["kay", "kay", "Hi, kay"]);
     });
 
-    test("nor the name the trait itself uses", () => {
-      // @ts-expect-error a trait member cannot take the name the trait itself uses
+    test("nor `dyn`, which a Val's companion boxes through", () => {
+      // @ts-expect-error a trait member cannot take a name the library reserves
       type Boxed = Trait<"Boxed", { name: string }, { dyn: Final<(self: Self) => string> }>;
-      // @ts-expect-error a trait member cannot take the name the trait itself uses
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Boxed>()
         .impl(() => ({}))
         .build();
@@ -647,12 +647,17 @@ describe("dyn", () => {
     Crate.dyn<Greetable>(crate);
     // @ts-expect-error name the trait to box as
     Crate.dyn(crate);
+    expectTypeOf<Parameters<typeof Crate.dyn<never>>[0]>().toEqualTypeOf<
+      Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
+    >();
     // @ts-expect-error another Val's value
     Crate.dyn<Weighed>(USER);
     expect(Crate.dyn<Weighed>(crate).heavy()).toBe(true);
     // A companion with no trait has no `dyn`.
     type Plain = Val<"DynPlain", { n: number }>;
-    expectTypeOf(Val.companion<Plain>().build()).not.toHaveProperty("dyn");
+    const Plain = Val.companion<Plain>().build();
+    expectTypeOf(Plain).not.toHaveProperty("dyn");
+    expect("dyn" in Plain).toBe(false);
   });
 
   test("passes as a function, with the trait named", () => {
@@ -1108,7 +1113,7 @@ describe("building", () => {
       expect([Greeting.prefix(), Greeting.shoutAll([USER])]).toEqual(["Hi", ["ALICE"]]);
     });
 
-    test("a name is taken once, and the trait's members, `dyn` and the library's are reserved", () => {
+    test("a name is taken once, and the trait's members and the library's are reserved", () => {
       const assoc = Trait.companion<Greetable>().implAssoc(() => ({ total: () => 1 }));
       // @ts-expect-error this name is already taken
       assoc.implAssoc(() => ({ total: () => 2 }));
@@ -1116,7 +1121,7 @@ describe("building", () => {
       Trait.companion<Greetable>().implAssoc(() => ({ greet: () => 1 }));
       // @ts-expect-error a member the trait declares, Final or not
       Trait.companion<Greetable>().implAssoc(() => ({ shout: () => 1 }));
-      // @ts-expect-error the name the trait itself uses
+      // @ts-expect-error a name the library reserves, which a Val's companion boxes through
       Trait.companion<Greetable>().implAssoc(() => ({ dyn: () => 1 }));
       // @ts-expect-error a name the library reserves
       Trait.companion<Greetable>().implAssoc(() => ({ seal: () => 1 }));

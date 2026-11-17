@@ -1039,8 +1039,8 @@ describe("traits", () => {
 
     test("is not the union's", () => {
       expectTypeOf(Item).not.toHaveProperty("named");
-      // @ts-expect-error the union does not implement it, so it has no `dyn`
-      expect(() => Item.dyn<Named>(book)).toThrow(TypeError);
+      expectTypeOf(Item).not.toHaveProperty("dyn");
+      expect("dyn" in Item).toBe(false);
       Enum.companion<Item>()
         // @ts-expect-error a variant declares this trait, so it implements the trait itself
         .implTrait(Named, () => ({ named: (i) => i._tag }))
@@ -1952,8 +1952,10 @@ describe("build", () => {
       const heads = Coin.Heads.create({ id: "h", n: 2 });
       expect([Coin.named(heads), Coin.double(heads), Coin.Heads.heads(heads)]).toEqual(["h", 4, 2]);
       expect(Coin.dyn<Named>(heads).named()).toBe("h");
+      // Not called: the variant implements no trait of its own, so it holds no `dyn`.
       // @ts-expect-error the enum boxes a trait it declares for every variant
-      expect(() => Coin.Heads.dyn<Named>(heads)).toThrow(TypeError);
+      const viaVariant = () => Coin.Heads.dyn<Named>(heads);
+      expect(["dyn" in Coin.Heads, typeof viaVariant]).toEqual([false, "function"]);
     });
   });
 

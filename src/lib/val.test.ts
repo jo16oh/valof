@@ -2628,12 +2628,12 @@ describe("building", () => {
 
     test("nor `dyn`, which boxes a value", () => {
       Val.companion<User>().impl(() => ({
-        // @ts-expect-error `dyn` is the companion's own
+        // @ts-expect-error the companion reserves `dyn`
         dyn: (u: User) => u.name,
       }));
     });
 
-    // The three tests above name one `Wired` member each. This one fails if the union grows a
+    // The four tests above name one `Wired` member each. This one fails if the union grows a
     // name `.impl` still accepts, which is how the two drifted apart before.
     test("no name in `Wired` is accepted", () => {
       type Accepted = {
@@ -3771,8 +3771,8 @@ describe("building", () => {
         expect(Half.greet(crate)).toBe("Hi, box");
         expectTypeOf(Half).not.toHaveProperty("heavy");
         expect("heavy" in Half).toBe(false);
-        // The declaration lets a box name it, and valof-lint's `unimplemented-trait` reports the
-        // missing step.
+        // `Half.dyn<Weighed>` is accepted because `Crate` declares `Weighed`, and valof-lint's
+        // `unimplemented-trait` reports the missing step.
         expect(() => Half.dyn<Weighed>(crate).heavy()).toThrow(TypeError);
       });
 
