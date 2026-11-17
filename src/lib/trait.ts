@@ -400,18 +400,18 @@ export type TraitCompanion<
   };
 
 /**
- * Boxes a value of this companion's type with its implementation of the traits named: Rust's
- * `value as &dyn Trait`. See {@link Dyn}.
+ * Boxes a value of this companion's type with its implementation of the traits in the type
+ * argument, as Rust's `value as &dyn Trait` does. See {@link Dyn}.
  */
-// `E` is a variant's enum: a trait the enum declares for every variant is boxed by the enum's own
-// companion, which holds its implementation.
+// `E` is a variant's enum. The enum's own companion boxes a trait the enum declares for every
+// variant, because it holds the implementation.
 export type DynStep<V, E = never> = <Tr extends OneTrait<Tr> = never>(
   value: [Tr] extends [never]
     ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
     : [E] extends [never]
       ? Boxable<V, Tr>
       : [E] extends [Impl<Tr>]
-        ? Invalid<"the enum boxes a trait every variant declares: `Enum.dyn<Trait>(value)`">
+        ? Invalid<"the enum declares this trait, so box it through the enum: `Enum.dyn<Trait>(value)`">
         : Boxable<V, Tr>,
 ) => Dyn<Tr>;
 

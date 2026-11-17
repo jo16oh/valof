@@ -291,7 +291,7 @@ function rejected(member: string, root?: string): boolean {
   );
 }
 
-/** One read of a box's member, under each trait the box names. */
+/** A read of a box's member, recorded once for each trait the box was made for. */
 function readsOf({ traits, val }: DynBox, member: string): DynRead[] {
   return traits.map((trait) => DynRead.seal({ trait, val, member }));
 }
@@ -616,7 +616,7 @@ function dynBox(node: Node, file: FilePath, bound: Bindings): DynBox | undefined
   const { callee } = node;
   if (callee.type !== "MemberExpression" || keyName(callee.property, callee.computed) !== "dyn")
     return undefined;
-  // `Trait.dyn(Val, value)`, the form valof 0.12 and earlier take. The scripts
+  // `Trait.dyn(Val, value)`, the form valof 0.12 and earlier accept. The scripts
   // pinned to an older valof still write it.
   const [first, second] = node.arguments;
   if (first && second) {

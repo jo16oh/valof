@@ -751,7 +751,14 @@ export type EnumCompanion<
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
   } & TraitHost &
-  ([TraitsOf<E>] extends [never] ? unknown : { readonly dyn: DynStep<E> });
+  ([SharedTraits<E>] extends [never] ? unknown : { readonly dyn: DynStep<E> });
+
+/** The traits every variant declares: those the enum declares itself. */
+type SharedTraits<E> = (E extends unknown ? (traits: TraitsOf<E>) => void : never) extends (
+  traits: infer K,
+) => void
+  ? K
+  : never;
 
 type EnumSeal<E extends AnyEnum, VM, F> = {
   /**
