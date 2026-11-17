@@ -53,7 +53,7 @@
     overflow), not a clear message. A check would cost bytes for a mistake the throw already stops
   - **Cost.** trait 25,699 → 26,345 instantiations, so its budget went from 26,000 to 27,000
 
-- [ ] **valof-lint reports `Object.assign` on a draft.** TypeScript types `Object.assign`'s source as anything, so
+- [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
   - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report
     passing it, assigning it, putting it in an array or object, `Object.assign` and `Reflect.set`. A spread stays.
@@ -62,6 +62,14 @@
     recipe that branches on the value reads the Val it patches, or passes single fields
   - A named function passed as the recipe is out of the lint's reach. `PatchFn` is to require its parameter type to be
     the draft's own, which also rejects `(d: { _tag?: string }) => …`
+  - Done: `PatchFn` rejects a parameter type holding a key the payload lacks, or making an `Unpatchable` key writable.
+    One holding fewer keys fits, as `Patch<Omit<SeedOf<V>, "id">>` does. Requiring the draft's type exactly rejected that
+    form too. The check costs core 11,583 → 12,556 instantiations (+8%), so its budget went from 12,000 to 13,000. Most
+    of it is the second intersection on the recipe; folding the check into `Sync` cost as much, and a conditional with
+    `infer` over the parameters broke the recipe's contextual typing
+  - The rule finds a recipe by syntax: the last argument of any `.patch(…)` call, when it is a function. Another
+    library's `patch` taking a callback would be reported too. Resolving the callee to a companion was left out until a
+    false report turns up
 
 - [x] ~~**The hole in a patch passed as a variable (investigated in #125).**~~ Closed, 2026-11-05. Items 1-3 of `hunt-findings.md`. A non-literal
       argument gets no excess property check, and the patch type was an intersection (`{…} & {…}`), so it got no weak type check either

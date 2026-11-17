@@ -22,6 +22,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `bypassed-companion`          | a `Val.of` for a type whose companion is how it is built                           | warning |
 | `inferred-val-of`             | a `Val.of` that names no type, taking one from its target                          | warning |
 | `hidden-shared-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`       | warning |
+| `aliased-draft`               | a recipe's draft passed, bound, or put in an array or an object                    | error   |
 | `detached-variant`            | a variant bound to a local name without the name of its enum                       | warning |
 | `hidden-optional`             | a default or rest parameter that a member's type annotation hides                  | error   |
 | `data-type-outside-valof`     | a data type declared outside Valof                                                 | off     |
