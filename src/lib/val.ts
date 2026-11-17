@@ -1748,8 +1748,6 @@ const drafted = (
       {
         get: (_, key) => read(key),
         set: (_, key, value) => (own.set(key, value), true),
-        // Every key is required. A false return makes `delete` throw rather than do nothing.
-        deleteProperty: () => false,
         // A payload's keys are all required and listed, so the node's own are the draft's.
         has: (_, key) => key in node,
         ownKeys: () => Reflect.ownKeys(node),
