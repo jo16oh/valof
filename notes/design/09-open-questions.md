@@ -23,8 +23,8 @@
     1. **Every key is required** (§3.5). Done. A narrowed variable can no longer hide a key from `seal`
     2. **`patch` takes a recipe that assigns to a draft** (§6.2). Done. A patch argument is partial by nature, so any key can
        hide in it. An assignment is checked key by key, and a draft has no object argument to hide a key in
-    3. **No index signature** (§3). Done. A record's type admits keys it does not list. `Val.Map` and `Val.Set` replace it,
-       and their entries pass one at a time through typed positions
+    3. **No index signature** (§3). Done. A record's type admits keys it does not list. `Val.Record` replaces it,
+       and its entries pass one at a time through typed positions
 
   ```ts
   const full = { name: "s", home: { name: "kyoto", zip: "600" } };
@@ -519,10 +519,11 @@
     every other rule is named after what it reports (user). The CLI flag, the plugin's setting and the key in
     `Options.enable` follow, and `ModelSettings` became `DataTypeSettings`. Rejected: `type-outside-valof`. The
     rule leaves out function types and `Payload<…>` aliases, so "type" claims more than it reports
-- [ ] **The book's Map / Set gets membership wrong for inherited keys.** Found while turning valof-lint's Scan into
+- [x] ~~**The book's Map / Set gets membership wrong for inherited keys.**~~ Closed, 2026-11-18. The book tests membership
+      with `has`, which reads own keys. Valof does not guard the prototype (§15.2, §16). Found while turning valof-lint's Scan into
       Records, 2026-11-07. `docs/src/patterns.md` says "`if (tags[key])` is the membership test", but
       `tags["constructor"]` and `tags["toString"]` are truthy too (probed). The book lacks §8.1's note to check with
-      `Object.hasOwn`. `__proto__` stays an own key through `Object.fromEntries` and `seal`. Not fixed
+      `Object.hasOwn`. `__proto__` stays an own key through `Object.fromEntries` and `seal`. Not fixed in the book's text then
 - [x] ~~**A mistake in `<W extends Rule>` gives no pointer to `Impl`.**~~ Not fixed, 2026-11-07. The release notes
       are enough. A check that gives the pointer adds type cost (user). `Rule` became a trait declaration (#125), so
       `Rule.dyn<W>` prints `TraitDeclaration<…>` in full with TS2344, and all it says is "Property 'kind' is missing"

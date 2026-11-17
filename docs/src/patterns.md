@@ -114,9 +114,9 @@ build the server is running, and that seal may be older than yours.
 
 ## Map / Set
 
-Declare a `Val.Map` or a `Val.Set`, each with a companion of its own. A record keyed by any string
-is a type error in a payload, because a variable whose type lists fewer entries can hold unchecked
-values under the keys it leaves out.
+Declare a `Val.Record` with a companion of its own. A record keyed by any string is a type error in
+a payload, because a variable whose type lists fewer entries can hold unchecked values under the
+keys it leaves out. For a set, hold `true` under each key.
 
 ```ts
 import { Val } from "valof";
@@ -124,27 +124,40 @@ import { Val } from "valof";
 type Money = Val<"Money", { amount: number; currency: string }>;
 const Money = Val.companion<Money>().build();
 // ---cut---
-type PriceTable = Val.Map<"PriceTable", string, Money>;
-const PriceTable = Val.Map.companion<PriceTable>().build();
+type PriceTable = Val.Record<"PriceTable", string, Money>;
+const PriceTable = Val.Record.companion<PriceTable>().build();
 
 const table = PriceTable.seal([["apple", Money.seal({ amount: 120, currency: "JPY" })]]);
 table["apple"]; // Money | undefined
 const priced = PriceTable.set(table, "fig", Money.seal({ amount: 300, currency: "JPY" }));
 const figs = PriceTable.delete(priced, "apple");
+PriceTable.keys(figs); // readonly string[]
 
-type Tags = Val.Set<"Tags", string>;
-const Tags = Val.Set.companion<Tags>().build();
+type Tags = Val.Record<"Tags", string, true>;
+const Tags = Val.Record.companion<Tags>().build();
 
-const tags = Tags.seal(["new", "sale"]);
+const tags = Tags.seal(["new", "sale"].map((tag) => [tag, true] as const));
 Tags.has(tags, "new"); // true
-const more = Tags.add(tags, "rare");
+const more = Tags.set(tags, "rare", true);
 ```
 
-The seal takes an iterable of entries, or of keys: an array, a JS `Map` or `Set`, or
-`Object.entries(…)` of data you checked. It takes no plain object. A later entry replaces an earlier
-one with the same key. `set`, `add` and `delete` pass a new value to the seal and return what it
-returns, or return the value itself where nothing changes. The value is a plain object keyed by its
-keys, so `equals` and JSON treat it as a plain object.
+The seal takes an iterable of entries: an array, a JS `Map`, or `Object.entries(…)` of data you
+checked. It takes no plain object. A later entry replaces an earlier one with the same key. `set`
+and `delete` pass a new value to the seal and return what it returns, or return the value itself
+where nothing changes. The value is a plain object keyed by its keys, so `equals` and JSON treat it
+as a plain object. Read it with `keys`, `values` and `entries`, which keep the key and value types
+that `Object.keys`, `Object.values` and `Object.entries` lose.
+
+A record cannot reference itself with `Rec`. Put the record in a Val's field, and reference that
+Val:
+
+```ts
+import { Val, type Rec } from "valof";
+
+// ---cut---
+type Node = Val<"Node", { kids: Kids }>;
+type Kids = Val.Record<"Kids", string, Rec<Node>>;
+```
 
 ## Dates
 

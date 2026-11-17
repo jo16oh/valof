@@ -9,7 +9,7 @@ Only three things can be a payload:
 | Objects    | `{ k: allowed }`, with every key listed                        |
 
 A record keyed by any string, such as `Record<string, Money>`, is not a payload. Declare a
-[`Val.Map` or a `Val.Set`](patterns.md#map--set) for it.
+[`Val.Record`](patterns.md#map--set) for it.
 
 A Val is itself one of these, so Vals nest. A Val may share a field only with `null`, as
 `User | null`. [`equals`](utilities.md#equals) compares structurally, so in a field of
