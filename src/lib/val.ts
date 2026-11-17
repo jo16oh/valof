@@ -853,8 +853,8 @@ type Drafted<T> = T extends AnyVal | ReadonlyArray<unknown> ? T : T extends obje
  */
 export type PatchFn<V, R, P> = P extends (draft: infer D) => void
   ? {
-      <F extends (draft: D) => unknown>(recipe: F & Sync<F>): (self: V) => R;
-      <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F>): R;
+      <F extends (draft: D) => unknown>(recipe: F & Sync<F> & Drafts<F, D>): (self: V) => R;
+      <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F> & Drafts<F, D>): R;
     }
   : never;
 
@@ -867,6 +867,16 @@ type Sync<F> = F extends (...args: never[]) => infer T
       : [T] extends [PromiseLike<unknown>]
         ? Invalid<"a recipe runs synchronously: await before `patch`, not inside the recipe">
         : Invalid<"a recipe assigns to its draft and returns nothing">
+  : unknown;
+
+// A parameter wider than the draft, such as `(d: { _tag?: string })`, would write a key the draft
+// keeps readonly. A recipe that takes no parameter writes nothing.
+type Drafts<F, D> = F extends (...args: infer A) => unknown
+  ? A extends []
+    ? unknown
+    : (<X>() => X extends A[0] ? 1 : 2) extends <X>() => X extends D ? 1 : 2
+      ? unknown
+      : Invalid<"a recipe's parameter is the draft; leave its type to inference">
   : unknown;
 
 export type AnyFn = (...args: never[]) => unknown;
