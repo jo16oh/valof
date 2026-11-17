@@ -21,10 +21,10 @@ test("reports every alias when three claim the same brand", async () => {
   ]);
 });
 
-test("reads a `Val.Map` as a Val claiming its brand", async () => {
-  expect(await lint("map-and-val", { skip: [BrandMismatch] })).toEqual([
-    { rule: DuplicateBrand, at: "map-and-val.ts:2:13" },
-    { rule: DuplicateBrand, at: "map-and-val.ts:3:13" },
+test("reads a `Val.Record` as a Val claiming its brand", async () => {
+  expect(await lint("record-and-val", { skip: [BrandMismatch] })).toEqual([
+    { rule: DuplicateBrand, at: "record-and-val.ts:2:13" },
+    { rule: DuplicateBrand, at: "record-and-val.ts:3:13" },
   ]);
 });
 

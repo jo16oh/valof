@@ -40,17 +40,15 @@ new RuleTester({ languageOptions: { sourceType: "module", parserOptions: { lang:
         "main();",
         "export default f;",
       ].join("\n"),
-      // An Enum's, a Trait's, a map's and a set's companion sort as a Val's does.
+      // An Enum's, a Trait's and a record's companion sort as a Val's does.
       [
         "export function f() {}",
         "type E = Enum<'E', { A: {} }>;",
         "const E = Enum.companion<E>().build();",
         "type R = Trait<'R', {}>;",
         "const R = Trait.companion<R>().build();",
-        "type M = Val.Map<'M', string, number>;",
-        "const M = Val.Map.companion<M>().build();",
-        "type S = Val.Set<'S', string>;",
-        "const S = Val.Set.companion<S>().build();",
+        "type M = Val.Record<'M', string, number>;",
+        "const M = Val.Record.companion<M>().build();",
       ].join("\n"),
       // The type follows its companion: exported alone, it still sorts with a helper.
       'export function f() {}\nexport type X = Val<"X", {}>;\nconst X = Val.companion<X>().build();',

@@ -14,8 +14,10 @@ describe("what the rule finds", () => {
     expect(await lint("dead-member")).toEqual([{ rule: UnusedMember, at: "dead-member.ts:4:3" }]);
   });
 
-  test("reads a `Val.Map.companion` chain as a companion", async () => {
-    expect(await lint("map-member")).toEqual([{ rule: UnusedMember, at: "map-member.ts:4:3" }]);
+  test("reads a `Val.Record.companion` chain as a companion", async () => {
+    expect(await lint("record-member")).toEqual([
+      { rule: UnusedMember, at: "record-member.ts:4:3" },
+    ]);
   });
 
   test("does not count a name `.impl` rejects as a member", async () => {

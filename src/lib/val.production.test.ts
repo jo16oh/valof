@@ -134,10 +134,10 @@ describe("patch in production", () => {
   });
 });
 
-describe("a map's custom seal in production", () => {
-  test("receives entries, and builds the map from what it passes on", () => {
-    type Tally = Value.Map<"ProductionTally", string, number>;
-    const Tally = Val.Map.companion<Tally>()
+describe("a record's custom seal in production", () => {
+  test("receives entries, and builds the record from what it passes on", () => {
+    type Tally = Value.Record<"ProductionTally", string, number>;
+    const Tally = Val.Record.companion<Tally>()
       .implSeal((entries, seal) => seal(entries))
       .build();
     expect(Tally.seal([["a", 1]])).toEqual({ a: 1 });

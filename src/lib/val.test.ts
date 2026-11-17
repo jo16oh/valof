@@ -8,7 +8,6 @@ import type {
   PrivateSeal,
   Rec,
   Draft,
-  MapOf,
   SeedOf,
   Unpatchable,
 } from "./index.ts";
@@ -39,7 +38,7 @@ type VerdictOf<V> = V extends Verdict<infer X> ? X : never;
 type User = Val<"app/User", { id: string; name: string; nickname: string | undefined }>;
 type Age = Val<"Age", number>;
 type ArticleId = Val<"ArticleId", string>;
-type Tags = Val.Set<"Tags", string>;
+type Tags = Val.Record<"Tags", string, true>;
 type Grid = Val<"Grid", number[][]>;
 
 const User = Val.companion<User>().build();
@@ -289,9 +288,8 @@ describe("Val", () => {
     });
 
     // A variable whose type lists fewer entries can hold anything under the rest.
-    test("a record keyed by any string is rejected, for a `Val.Map` or a `Val.Set`", () => {
-      type Fault =
-        Invalid<"a record keyed by any string can hide entries; declare a `Val.Map` or a `Val.Set`">;
+    test("a record keyed by any string is rejected, for a `Val.Record`", () => {
+      type Fault = Invalid<"a record keyed by any string can hide entries; declare a `Val.Record`">;
       // @ts-expect-error a record can hide entries
       type Rows = Val<"Rows", { rows: Record<string, number> }>;
       expectTypeOf<VerdictOf<Rows>>().toEqualTypeOf<{ rows: { [x: string]: Fault } }>();
@@ -304,10 +302,6 @@ describe("Val", () => {
       expectTypeOf<Root>().not.toExtend<AnyVal>();
       expectTypeOf<Pattern>().not.toExtend<AnyVal>();
       expectTypeOf<Branded>().not.toExtend<AnyVal>();
-      // A map is a Val of its own, never a field's shape.
-      // @ts-expect-error a map or a set is a Val of its own
-      type Inline = Val<"Inline", { m: MapOf<string, number> }>;
-      expectTypeOf<Inline>().not.toExtend<AnyVal>();
       // Literal keys list every entry.
       type Fixed = Val<"Fixed", Record<"a" | "b", number>>;
       expectTypeOf<Fixed>().toExtend<AnyVal>();
@@ -1147,10 +1141,10 @@ describe("Val", () => {
       expectTypeOf<PayloadOf<Chain>>().toEqualTypeOf<{ links: readonly PayloadOf<Chain>[] }>();
     });
 
-    test("Rec reaches through a map and a nested object", () => {
-      type Entries = Val.Map<"app/Entries", string, Rec<Dir>>;
+    test("Rec reaches through a record and a nested object", () => {
+      type Entries = Val.Record<"app/Entries", string, Rec<Dir>>;
       type Dir = Val<"app/Dir", { name: string; entries: Entries }>;
-      const Entries = Val.Map.companion<Entries>().build();
+      const Entries = Val.Record.companion<Entries>().build();
       const Dir = Val.companion<Dir>().build();
       const leaf = Dir.seal({ name: "leaf", entries: Entries.seal([]) });
 
@@ -1354,8 +1348,11 @@ describe("copying", () => {
     });
 
     test("a `__proto__` key stays an own property", () => {
-      const Tags = Val.Set.companion<Tags>().build();
-      const tags = Tags.seal(["a", "__proto__"]);
+      const Tags = Val.Record.companion<Tags>().build();
+      const tags = Tags.seal([
+        ["a", true],
+        ["__proto__", true],
+      ]);
       expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
       expect(Object.getPrototypeOf(tags)).toBe(Object.prototype);
       expect(JSON.parse(JSON.stringify(tags))).toEqual(
@@ -1606,9 +1603,9 @@ describe("equals", () => {
   });
 
   test("tells an own `__proto__` key from a different key", () => {
-    const Tags = Val.Set.companion<Tags>().build();
-    const proto = Tags.seal(["__proto__"]);
-    expect(equals(proto, Tags.seal(["a"]))).toBe(false);
+    const Tags = Val.Record.companion<Tags>().build();
+    const proto = Tags.seal([["__proto__", true]]);
+    expect(equals(proto, Tags.seal([["a", true]]))).toBe(false);
   });
 
   test("treats NaN as equal to NaN, and -0 as equal to 0", () => {
@@ -1652,8 +1649,8 @@ describe("patch", () => {
   type City = Val<"City", { name: string; zip: string | undefined }>;
   const City = Val.companion<City>().build();
 
-  type Staff = Val.Map<"Staff", string, { role: string }>;
-  const Staff = Val.Map.companion<Staff>().build();
+  type Staff = Val.Record<"Staff", string, { role: string }>;
+  const Staff = Val.Record.companion<Staff>().build();
 
   type Shop = Val<
     "Shop",
@@ -1974,11 +1971,11 @@ describe("patch", () => {
   });
 });
 
-describe("Val.Map", () => {
-  type Money = Val<"MapMoney", { amount: number }>;
+describe("Val.Record", () => {
+  type Money = Val<"RecordMoney", { amount: number }>;
   const Money = Val.companion<Money>().build();
-  type Prices = Val.Map<"Prices", string, Money>;
-  const Prices = Val.Map.companion<Prices>().build();
+  type Prices = Val.Record<"Prices", string, Money>;
+  const Prices = Val.Record.companion<Prices>().build();
   const apple = Money.seal({ amount: 1 });
   const fig = Money.seal({ amount: 2 });
 
@@ -2006,7 +2003,7 @@ describe("Val.Map", () => {
     Prices.seal([["fig", { amount: 2 }]]);
   });
 
-  test("`set`, `delete` and `has` derive a map, or return it where nothing changes", () => {
+  test("`set`, `delete` and `has` derive a record, or return it where nothing changes", () => {
     const prices = Prices.seal([["apple", apple]]);
     const more = Prices.set(prices, "fig", fig);
     expect(more).toEqual({ apple, fig });
@@ -2023,18 +2020,18 @@ describe("Val.Map", () => {
   });
 
   test("holds any payload type as a value", () => {
-    type Overlay = Val.Map<"MapOverlay", string, string>;
-    const Overlay = Val.Map.companion<Overlay>().build();
+    type Overlay = Val.Record<"RecordOverlay", string, string>;
+    const Overlay = Val.Record.companion<Overlay>().build();
     expect(Overlay.seal([["a.ts", "text"]])).toEqual({ "a.ts": "text" });
     // The declaration is generic, so the rule is read where the map is used.
-    type Bad = Val.Map<"MapBad", string, () => void>;
+    type Bad = Val.Record<"RecordBad", string, () => void>;
     expectTypeOf<Bad>().not.toExtend<AnyVal>();
     // @ts-expect-error functions are not allowed
-    Val.Map.companion<Bad>();
+    Val.Record.companion<Bad>();
   });
 
   test("goes through a custom seal on every path", () => {
-    const Capped = Val.Map.companion<Prices>()
+    const Capped = Val.Record.companion<Prices>()
       .implSeal((entries, seal) => {
         const prices = seal(entries);
         return Object.keys(prices).length > 2 ? new RangeError("at most two") : prices;
@@ -2047,7 +2044,21 @@ describe("Val.Map", () => {
     expect(two).toEqual({ apple, fig });
     expect(Capped.set(two as Prices, "kiwi", apple)).toBeInstanceOf(RangeError);
 
-    const Kept = Val.Map.companion<Prices>()
+    // A derivation that changes nothing still runs the seal, and returns the value itself.
+    let sealed = 0;
+    const Counted = Val.Record.companion<Prices>()
+      .implSeal((entries, seal) => {
+        sealed += 1;
+        return seal(entries);
+      })
+      .build();
+    const counted = Counted.seal([["apple", apple]]);
+    sealed = 0;
+    expect(Counted.set(counted, "apple", apple)).toBe(counted);
+    expect(Counted.delete(counted, "kiwi")).toBe(counted);
+    expect(sealed).toBe(2);
+
+    const Kept = Val.Record.companion<Prices>()
       .implSeal((entries, seal) => {
         const prices = seal(entries);
         return Object.keys(prices).length === 0 ? new RangeError("never empty") : prices;
@@ -2058,21 +2069,72 @@ describe("Val.Map", () => {
   });
 
   test("is built by its own companion, and has no `patch`", () => {
-    // @ts-expect-error a map is built by `Val.Map.companion`
+    // @ts-expect-error a record is built by `Val.Record.companion`
     Val.companion<Prices>();
-    // @ts-expect-error `Val.Map.companion` builds a `Val.Map`
-    Val.Map.companion<Money>();
+    // @ts-expect-error `Val.Record.companion` builds a `Val.Record`
+    Val.Record.companion<Money>();
     // @ts-expect-error nor does `Val.of` build one
     Val.of<Prices>([["apple", apple]]);
     expectTypeOf(Prices).not.toHaveProperty("patch");
-    Val.Map.companion<Prices>().impl(() => ({
+    Val.Record.companion<Prices>().impl(() => ({
       // @ts-expect-error the companion's own `has`
       has: (p: Prices) => Object.keys(p).length > 0,
     }));
+    Val.Record.companion<Prices>().impl(() => ({
+      // @ts-expect-error the companion's own `keys`
+      keys: (p: Prices) => Object.keys(p),
+      // @ts-expect-error and `values`
+      values: (p: Prices) => Object.values(p),
+      // @ts-expect-error and `entries`
+      entries: (p: Prices) => Object.entries(p),
+    }));
+    // A name no record member takes stays free.
+    Val.Record.companion<Prices>().impl(() => ({ add: (p: Prices) => p }));
   });
 
-  test("a map is a field of another Val, and a recipe replaces it", () => {
-    type Shop = Val<"MapShop", { prices: Prices }>;
+  test("`keys`, `values` and `entries` read the record in its own types", () => {
+    type Ranks = Val.Record<"RecordRanks", ArticleId, number>;
+    const Ranks = Val.Record.companion<Ranks>().build();
+    const a = Val.of<ArticleId>("a");
+    const b = Val.of<ArticleId>("b");
+    const ranks = Ranks.seal([
+      [a, 1],
+      [b, 2],
+    ]);
+    expect(Ranks.keys(ranks)).toEqual(["a", "b"]);
+    expect(Ranks.values(ranks)).toEqual([1, 2]);
+    expect(Ranks.entries(ranks)).toEqual([
+      ["a", 1],
+      ["b", 2],
+    ]);
+    expectTypeOf(Ranks.keys(ranks)).toEqualTypeOf<readonly ArticleId[]>();
+    expectTypeOf(Ranks.values(ranks)).toEqualTypeOf<readonly number[]>();
+    expectTypeOf(Ranks.entries(ranks)).toEqualTypeOf<readonly (readonly [ArticleId, number])[]>();
+
+    type Lists = Val.Record<"RecordLists", string, { a: number[] }>;
+    const Lists = Val.Record.companion<Lists>().build();
+    expectTypeOf(Lists.values(Lists.seal([]))).toEqualTypeOf<
+      readonly { readonly a: readonly number[] }[]
+    >();
+  });
+
+  test("takes a key type of its own", () => {
+    type Keys = Val.Record<"RecordKeys", ArticleId, true>;
+    const Keys = Val.Record.companion<Keys>().build();
+    Keys.seal([[Val.of<ArticleId>("x"), true]]);
+    // @ts-expect-error a plain string is not an ArticleId
+    Keys.seal([["x", true]]);
+  });
+
+  test("`set` compares with `Object.is`", () => {
+    type Counts = Val.Record<"RecordCounts", string, number>;
+    const Counts = Val.Record.companion<Counts>().build();
+    const counts = Counts.seal([["a", Number.NaN]]);
+    expect(Counts.set(counts, "a", Number.NaN)).toBe(counts);
+  });
+
+  test("a record is a field of another Val, and a recipe replaces it", () => {
+    type Shop = Val<"RecordShop", { prices: Prices }>;
     const Shop = Val.companion<Shop>().build();
     const shop = Shop.seal({ prices: Prices.seal([["apple", apple]]) });
     const after = Shop.patch(shop, (s) => {
@@ -2082,62 +2144,6 @@ describe("Val.Map", () => {
     expectTypeOf(Val.unwrap(after).prices).toEqualTypeOf<{
       [x: string]: { amount: number } | undefined;
     }>();
-  });
-});
-
-describe("Val.Set", () => {
-  type Tags = Val.Set<"SetTags", string>;
-  const Tags = Val.Set.companion<Tags>().build();
-
-  test("seals keys from any iterable, and compares as a set", () => {
-    const tags = Tags.seal(["a", "b", "a"]);
-    expect(tags).toEqual({ a: true, b: true });
-    expectTypeOf(tags["a"]).toEqualTypeOf<true | undefined>();
-    expect(equals(tags, Tags.seal(new Set(["b", "a"])))).toBe(true);
-    // @ts-expect-error a plain object can hide keys
-    Tags.seal({ a: true });
-  });
-
-  test("`add`, `delete` and `has` derive a set, or return it where nothing changes", () => {
-    const tags = Tags.seal(["a"]);
-    expect(Tags.add(tags, "b")).toEqual({ a: true, b: true });
-    expect(Tags.add(tags, "a")).toBe(tags);
-    expect(Tags.delete(tags, "a")).toEqual({});
-    expect(Tags.delete(tags, "b")).toBe(tags);
-    expect([Tags.has(tags, "a"), Tags.has(tags, "b")]).toEqual([true, false]);
-  });
-
-  test("is built by its own companion", () => {
-    // @ts-expect-error a set is built by `Val.Set.companion`
-    Val.companion<Tags>();
-    type Money = Val<"SetMoney", { amount: number }>;
-    // @ts-expect-error `Val.Set.companion` builds a `Val.Set`
-    Val.Set.companion<Money>();
-  });
-
-  test("`add` goes through a custom seal, and takes a key `Object.prototype` holds", () => {
-    const Capped = Val.Set.companion<Tags>()
-      .implSeal((keys, seal) => {
-        const tags = seal(keys);
-        return Object.keys(tags).length > 1 ? new RangeError("at most one") : tags;
-      })
-      .build();
-    expect(Capped.add(Capped.seal(["a"]) as Tags, "b")).toBeInstanceOf(RangeError);
-    expect(Tags.add(Tags.seal([]), "constructor")).toEqual({ constructor: true });
-  });
-
-  test("opens to a plain object of `true`", () => {
-    type Post = Val<"SetPost", { tags: Tags }>;
-    expectTypeOf<PayloadOf<Post>["tags"]>().toEqualTypeOf<{ [x: string]: true | undefined }>();
-  });
-
-  test("takes a key type of its own", () => {
-    type Keys = Val.Set<"SetKeys", ArticleId>;
-    const Keys = Val.Set.companion<Keys>().build();
-    const id = Val.of<ArticleId>("x");
-    expect(Keys.has(Keys.seal([id]), id)).toBe(true);
-    // @ts-expect-error a plain string is not an ArticleId
-    Keys.seal(["x"]);
   });
 });
 
@@ -2830,10 +2836,13 @@ describe("building", () => {
     });
 
     test("keeps a `__proto__` key an own property", () => {
-      const Tags = Val.Set.companion<Tags>()
+      const Tags = Val.Record.companion<Tags>()
         .implSeal((t, seal) => seal(t))
         .build();
-      const tags = Tags.seal(["a", "__proto__"]);
+      const tags = Tags.seal([
+        ["a", true],
+        ["__proto__", true],
+      ]);
       expect(Object.keys(tags)).toEqual(["a", "__proto__"]);
     });
 
