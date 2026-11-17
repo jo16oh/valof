@@ -142,11 +142,12 @@ const more = Tags.set(tags, "rare", true);
 ```
 
 The seal takes an iterable of entries: an array, a JS `Map`, or `Object.entries(…)` of data you
-checked. It takes no plain object. A later entry replaces an earlier one with the same key. `set`
-and `delete` pass a new value to the seal and return what it returns, or return the value itself
-where nothing changes. The value is a plain object keyed by its keys, so `equals` and JSON treat it
-as a plain object. Read it with `keys`, `values` and `entries`, which keep the key and value types
-that `Object.keys`, `Object.values` and `Object.entries` lose.
+checked. It takes no plain object. An entry's value cannot be `undefined`. Leave the key out
+instead. A later entry replaces an earlier one with the same key. `set` and `delete` pass a new
+value to the seal and return what it returns, or return the value itself where nothing changes. The
+value is a plain object keyed by its keys, so `equals` and JSON treat it as a plain object. Read it
+with `keys`, `values` and `entries`, which keep the key and value types that `Object.keys`,
+`Object.values` and `Object.entries` lose.
 
 A record cannot reference itself with `Rec`. Put the record in a Val's field, and reference that
 Val:
