@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 
+import type { LooseArity } from "./dual/index.ts";
 import type {
   Patch,
   Payload,
@@ -65,6 +66,22 @@ describe("Val", () => {
       const user = Val.of.nocopy<User>(raw);
       expect(user).toBe(raw);
       expect(Object.isFrozen(raw)).toBe(true);
+    });
+
+    // Inferred from the payload alone, `V` would carry no brand.
+    test("names the Val it builds", () => {
+      const raw = { id: "a", name: "alice", nickname: undefined };
+      // @ts-expect-error name the Val
+      Val.of(raw);
+      // @ts-expect-error same, without the copy
+      Val.of.nocopy(raw);
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = any;
+      // @ts-expect-error a Val, not `any`
+      Val.of<Loose>(raw);
+      expectTypeOf<Parameters<typeof Val.of<never>>[0]>().toEqualTypeOf<
+        Invalid<"name the Val: `Val.of<V>(value)`">
+      >();
     });
   });
 
@@ -2413,6 +2430,22 @@ describe("building", () => {
       Val.companion<User, [PrivateSeal] | [Unpatchable<"id">]>();
     });
 
+    test("takes no `never` as its options", () => {
+      expectTypeOf(Val.companion<User, never>()).toEqualTypeOf<
+        Invalid<"the options cannot be `never`; list them">
+      >();
+    });
+
+    // `any` and `never` satisfy every constraint, and `never` is what a left-out argument infers.
+    test("names the Val it builds", () => {
+      type Fault = Invalid<"name the Val: `Val.companion<V>()`">;
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = any;
+      expectTypeOf(Val.companion()).toEqualTypeOf<Fault>();
+      expectTypeOf(Val.companion()).toEqualTypeOf<Fault>();
+      expectTypeOf(Val.companion<Loose>()).toEqualTypeOf<Fault>();
+    });
+
     test("a step does not change the builder it was taken on", () => {
       const bare = Val.companion<Age>();
       bare.impl(() => ({ label: (a) => `${a}` }));
@@ -2777,7 +2810,15 @@ describe("building", () => {
       Val.companion<Money>().implAssoc(({ seal }) => ({
         // @ts-expect-error a member is a function
         zero: seal({ cents: 0 }),
+        // @ts-expect-error a primitive
+        one: 1,
+        // @ts-expect-error an object
+        unit: { cents: 1 },
       }));
+      // A primitive reduced the message to `never`.
+      expectTypeOf<LooseArity<{ one: number }>>().toEqualTypeOf<{
+        one: Invalid<"`implAssoc` holds only functions, so write a value as a function that takes no argument">;
+      }>();
     });
 
     describe("a member whose arguments can be left out is rejected", () => {
@@ -3400,12 +3441,15 @@ describe("building", () => {
       Val.companion<Account, [Unpatchable<"nope">]>().build();
     });
 
-    test("takes no `any`", () => {
+    test("takes no `any` or `never`", () => {
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = Unpatchable<any>;
-      expectTypeOf<Loose>().toEqualTypeOf<Invalid<"`Unpatchable` takes key names, not `any`">>();
+      type Empty = Unpatchable<never>;
+      expectTypeOf<Loose>().toEqualTypeOf<Invalid<"`Unpatchable` takes key names">>();
       // @ts-expect-error `Unpatchable` takes key names
       Val.companion<Account, [Loose]>().build();
+      // @ts-expect-error same
+      Val.companion<Account, [Empty]>().build();
     });
 
     // An intersection of two would collapse to `never` and take nothing out.
@@ -3542,6 +3586,17 @@ describe("building", () => {
 
     const member = Val.of<Member>({ id: "a", name: "alice" });
     const admin = Val.of<Admin>({ name: "root", level: 9 });
+
+    test("a Val's traits are named, not `any`", () => {
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = any;
+      type Untraited = Val<"Untraited", { name: string }, Loose>;
+      expectTypeOf<VerdictOf<Untraited>>().toEqualTypeOf<
+        Invalid<"a Val's traits cannot be `any`; name them">
+      >();
+      // @ts-expect-error a Val's traits cannot be `any`
+      Val.companion<Untraited>().build();
+    });
 
     test("a member without a default is the Val's own", () => {
       expect(Member.toWire(member, ":")).toBe("a:alice");

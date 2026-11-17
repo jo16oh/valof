@@ -1901,6 +1901,17 @@ describe("the companion's options", () => {
     // @ts-expect-error the enum's options cannot be `any` either, which the next step reports
     Enum.companion<Order, Loose>().build();
   });
+
+  test("`VariantOptions` names a variant, which `any` and `never` are not", () => {
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    type Every = VariantOptions<any, [PrivateCreate]>;
+    type None = VariantOptions<never, [PrivateCreate]>;
+    expectTypeOf<Every>().toEqualTypeOf<Invalid<"`VariantOptions` takes a variant's name">>();
+    // @ts-expect-error `VariantOptions` takes a variant's name
+    Enum.companion<Order, [Every]>().build();
+    // @ts-expect-error same
+    Enum.companion<Order, [None]>().build();
+  });
 });
 
 describe("build", () => {

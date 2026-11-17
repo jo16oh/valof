@@ -616,6 +616,14 @@ describe("Trait", () => {
       const written: Impl<Greetable> | Impl<Weighed> = USER;
       expect([either, written]).toEqual([USER, USER]);
     });
+
+    test("names a trait, which `any` and `never` are not", () => {
+      type Fault = Invalid<"name the trait: `Impl<Trait>`">;
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = any;
+      expectTypeOf<Impl<Loose>>().toEqualTypeOf<Fault>();
+      expectTypeOf<Impl<never>>().toEqualTypeOf<Fault>();
+    });
   });
 
   test("the brand stays out of `keyof` and of a spread", () => {
@@ -671,6 +679,14 @@ describe("dyn", () => {
     const Plain = Val.companion<Plain>().build();
     expectTypeOf(Plain).not.toHaveProperty("dyn");
     expect("dyn" in Plain).toBe(false);
+  });
+
+  test("a box names a trait, which `any` and `never` are not", () => {
+    type Fault = Invalid<"name the trait: `Dyn<Trait>`">;
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    type Loose = any;
+    expectTypeOf<Dyn<Loose>>().toEqualTypeOf<Fault>();
+    expectTypeOf<Dyn<never>>().toEqualTypeOf<Fault>();
   });
 
   test("a box keeps the prototype's members its type shows", () => {
@@ -768,20 +784,43 @@ describe("dyn", () => {
       expectTypeOf<VerdictOf<Trait<"Empty", { x: string }, never>>>().toEqualTypeOf<Fault>();
     });
 
-    // `any` satisfies the members' constraint, so the verdict alone reports it.
-    test("a member cannot be `any`", () => {
-      type Fault = Invalid<"a trait member cannot be `any`; write its signature">;
+    // `any` and `never` satisfy the members' constraint, so the verdict alone reports them.
+    test("a member cannot be `any` or `never`", () => {
+      type Fault = Invalid<"a trait member cannot be `any` or `never`; write its signature">;
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = Trait<"Loose", { x: string }, { f: any }>;
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Sealed = Trait<"Sealed", { x: string }, { f: Final<any> }>;
+      type Empty = Trait<"Empty", { x: string }, { f: never }>;
+      type Closed = Trait<"Closed", { x: string }, { f: Final<never> }>;
       expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
       expectTypeOf<VerdictOf<Sealed>>().toEqualTypeOf<{ readonly Sealed: Fault }>();
-      // An optional member carries `undefined`, which is not `any`.
+      expectTypeOf<VerdictOf<Empty>>().toEqualTypeOf<{ readonly Empty: Fault }>();
+      expectTypeOf<VerdictOf<Closed>>().toEqualTypeOf<{ readonly Closed: Fault }>();
+    });
+
+    // `implTrait` requires every member, so an optional one could never be implemented.
+    test("a member cannot be optional", () => {
+      // @ts-expect-error a trait member cannot be optional; declare it required
       type Optional = Trait<"Optional", { x: string }, { f?: (self: Self) => string }>;
-      expectTypeOf<VerdictOf<Optional>>().toEqualTypeOf<{
-        readonly Optional: { f?: (self: Self) => string };
-      }>();
+      expectTypeOf<Optional>().not.toExtend<AnyTrait>();
+    });
+
+    test("a member takes `Self` first", () => {
+      // @ts-expect-error a trait member takes `Self` as its first parameter
+      type Counted = Trait<"Counted", { x: string }, { f: (n: number) => string }>;
+      // @ts-expect-error same, for a first parameter that does not take every Val
+      type Named = Trait<"Named", { x: string }, { f: (self: string) => string }>;
+      expectTypeOf<Counted | Named>().not.toExtend<AnyTrait>();
+      type Wide = Trait<"Wide", { x: string }, { f: (self: Self | number) => string }>;
+      expectTypeOf<Wide>().toExtend<AnyTrait>();
+    });
+
+    test("a member is named by a string", () => {
+      const key: unique symbol = Symbol();
+      // @ts-expect-error a trait member's name must be a string
+      type Keyed = Trait<"Keyed", { x: string }, { [key]: (self: Self) => string }>;
+      expectTypeOf<Keyed>().not.toBeNever();
     });
   });
 
@@ -1027,6 +1066,16 @@ describe("building", () => {
       Trait.companion<Greetable & Weighed>();
       // @ts-expect-error a companion implements one trait
       Trait.companion<Greetable | Weighed>();
+    });
+
+    // `any` and `never` satisfy every constraint, and `never` is what a left-out argument infers.
+    test("names its trait", () => {
+      type Fault = Invalid<"name the trait: `Trait.companion<Trait>()`">;
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = any;
+      expectTypeOf(Trait.companion()).toEqualTypeOf<Fault>();
+      expectTypeOf(Trait.companion()).toEqualTypeOf<Fault>();
+      expectTypeOf(Trait.companion<Loose>()).toEqualTypeOf<Fault>();
     });
 
     test("a shape written with a rejected Payload is caught", () => {
