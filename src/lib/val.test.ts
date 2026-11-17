@@ -3908,10 +3908,7 @@ describe("building", () => {
         type Sign = Val<"Sign", { name: string; greet: string }, Loud>;
         const Sign = Val.companion<Sign>().implTrait(Loud).build();
         const sign = Sign.seal({ name: "s", greet: "hello" });
-        expect([Loud.dyn(Sign, sign).greet(), Loud.dyn(Sign, sign).value.greet]).toEqual([
-          "s",
-          "hello",
-        ]);
+        expect([Loud.dyn(Sign, sign).greet(), sign.greet]).toEqual(["s", "hello"]);
       });
     });
   });

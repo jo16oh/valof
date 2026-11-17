@@ -36,5 +36,7 @@ test("reports nothing on a const that no step takes", async () => {
 test("needs no TypeScript", () => {
   const { status, stdout } = cliWithoutTypeScript(`${UNDER}/members`);
   expect(status).toBe(1);
-  expect(stdout).toContain(`${HiddenOptional.kind}  the annotation on toWire hides this default`);
+  expect(stdout).toContain(
+    `${HiddenOptional.value.kind}  the annotation on toWire hides this default`,
+  );
 });

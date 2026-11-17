@@ -462,6 +462,7 @@ describe("Trait", () => {
     });
 
     test("a member may not be named `value`, which a box reads its value through", () => {
+      // @ts-expect-error a trait member cannot take `value`
       type Valued = Trait<"Valued", { n: number }, { value: (self: Self) => number }>;
       expectTypeOf<VerdictOf<Valued>>().toEqualTypeOf<{
         readonly Valued: {
@@ -1034,7 +1035,7 @@ describe("building", () => {
         .implAssoc(() => ({
           greetAll: (boxes: readonly Dyn<Greetable>[]) => boxes.map((b) => b.greet()),
           joined: (sep: string, boxes: readonly Dyn<Greetable>[]) =>
-            boxes.map((b) => b.name).join(sep),
+            boxes.map((b) => b.value.name).join(sep),
           none: () => [],
         }))
         .build();

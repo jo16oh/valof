@@ -12,7 +12,7 @@ async function reported(
   return (
     await lint(files(file), Options.create({ enable: { "data-type-outside-valof": settings } }))
   )
-    .filter(({ kind }) => kind === DataTypeOutsideValof.kind)
+    .filter(({ kind }) => kind === DataTypeOutsideValof.value.kind)
     .map(({ at: { line, column }, message }) => `${line}:${column} ${message}`);
 }
 
