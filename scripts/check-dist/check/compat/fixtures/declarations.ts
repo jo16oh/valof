@@ -40,7 +40,7 @@ export type User = Val<"User", { id: string; name: string }, Greetable>;
 export const userBuilder = Val.companion<User>().implTrait(Greetable);
 export const User = userBuilder.build();
 export const user = User.seal({ id: "a", name: "alice" });
-export const boxed = Greetable.dyn(User, user);
+export const boxed = User.dyn<Greetable>(user);
 export const partial = (u: User): Partial<User> => u;
 
 export type Session = Val<"Session", { id: string; token: string }>;

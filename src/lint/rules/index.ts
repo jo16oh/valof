@@ -46,22 +46,22 @@ export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";
 
 /** Every rule, in the order they run and `--help` lists them. {@link KINDS} is read off it. */
 export const RULES = [
-  Rule.dyn(UnusedMember, UnusedMember.create()),
-  Rule.dyn(DuplicateBrand, DuplicateBrand.create()),
-  Rule.dyn(BrandMismatch, BrandMismatch.create()),
-  Rule.dyn(UnnecessaryAlias, UnnecessaryAlias.create()),
-  Rule.dyn(UnimplementedTrait, UnimplementedTrait.create()),
-  Rule.dyn(CompanionMismatch, CompanionMismatch.create()),
-  Rule.dyn(SplitCompanion, SplitCompanion.create()),
-  Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
-  Rule.dyn(InferredValOf, InferredValOf.create()),
-  Rule.dyn(HiddenSharedStateInImpl, HiddenSharedStateInImpl.create()),
-  Rule.dyn(AliasedDraft, AliasedDraft.create()),
-  Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(DataTypeSettings.create())),
-  Rule.dyn(HiddenOptional, HiddenOptional.create()),
-  Rule.dyn(DetachedVariant, DetachedVariant.create()),
-  Rule.dyn(IncompleteDisable, IncompleteDisable.create()),
-  Rule.dyn(UnusedDisable, UnusedDisable.create()),
+  UnusedMember.dyn<Rule>(UnusedMember.create()),
+  DuplicateBrand.dyn<Rule>(DuplicateBrand.create()),
+  BrandMismatch.dyn<Rule>(BrandMismatch.create()),
+  UnnecessaryAlias.dyn<Rule>(UnnecessaryAlias.create()),
+  UnimplementedTrait.dyn<Rule>(UnimplementedTrait.create()),
+  CompanionMismatch.dyn<Rule>(CompanionMismatch.create()),
+  SplitCompanion.dyn<Rule>(SplitCompanion.create()),
+  BypassedCompanion.dyn<Rule>(BypassedCompanion.create()),
+  InferredValOf.dyn<Rule>(InferredValOf.create()),
+  HiddenSharedStateInImpl.dyn<Rule>(HiddenSharedStateInImpl.create()),
+  AliasedDraft.dyn<Rule>(AliasedDraft.create()),
+  DataTypeOutsideValof.dyn<Rule>(DataTypeOutsideValof.create(DataTypeSettings.create())),
+  HiddenOptional.dyn<Rule>(HiddenOptional.create()),
+  DetachedVariant.dyn<Rule>(DetachedVariant.create()),
+  IncompleteDisable.dyn<Rule>(IncompleteDisable.create()),
+  UnusedDisable.dyn<Rule>(UnusedDisable.create()),
 ] as const;
 
 /** What each rule is called, in a `--no-<kind>` flag and in a disable comment alike. */
@@ -80,7 +80,7 @@ export function compile(enable: Options["enable"]): Dyn<Rule>[] {
     !rule.value.optIn
       ? [rule]
       : rule.value.kind === "data-type-outside-valof" && model
-        ? [Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(model))]
+        ? [DataTypeOutsideValof.dyn<Rule>(DataTypeOutsideValof.create(model))]
         : [],
   );
 }

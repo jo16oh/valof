@@ -12,7 +12,7 @@ const B = Val.companion<B>()
   .implTrait(Rule, () => ({ run: (b) => b.kind, explain: (b) => b.kind }))
   .build();
 
-const rules = [Rule.dyn(A, a)];
+const rules = [A.dyn<Rule>(a)];
 for (const rule of rules) rule.run();
 
 declare const a: A;

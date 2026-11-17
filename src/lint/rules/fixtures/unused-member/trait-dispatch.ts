@@ -18,9 +18,9 @@ const Greetable = Trait.companion<Greetable>().impl(() => ({
 type User = Val<"User", { name: string }, Greetable>;
 const User = Val.companion<User>().implTrait(Greetable, () => ({ greet: (u) => u.name })).build();
 
-Greetable.dyn(User, user).greet;
-const boxed = Greetable.dyn(User, user);
+User.dyn<Greetable>(user).greet;
+const boxed = User.dyn<Greetable>(user);
 boxed.wave;
-const { nod } = Greetable.dyn(User, user);
+const { nod } = User.dyn<Greetable>(user);
 
 declare const user: User;

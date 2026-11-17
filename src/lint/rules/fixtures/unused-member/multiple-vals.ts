@@ -8,6 +8,6 @@ const User = Val.companion<User>().implTrait(Greetable, () => ({ greet: (u) => u
 type Admin = Val<"Admin", { name: string }, Greetable>;
 const Admin = Val.companion<Admin>().implTrait(Greetable, () => ({ greet: (a) => a.name })).build();
 
-Greetable.dyn(User, user).greet;
+User.dyn<Greetable>(user).greet;
 
 declare const user: User;

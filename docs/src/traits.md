@@ -245,8 +245,8 @@ const Admin = Val.companion<Admin>()
   .build();
 // ---cut---
 const party: Dyn<Greetable>[] = [
-  Greetable.dyn(User, User.seal({ id: "a", name: "alice" })),
-  Greetable.dyn(Admin, Admin.seal({ name: "root", level: 9 })),
+  User.dyn<Greetable>(User.seal({ id: "a", name: "alice" })),
+  Admin.dyn<Greetable>(Admin.seal({ name: "root", level: 9 })),
 ];
 
 party.map((p) => p.greet()); // ["Hi, alice", "Sir root"]
@@ -264,10 +264,10 @@ The companion passed to `dyn` has to match the value's own type, so another Val'
 rejected.
 
 An enum boxes the same way, through its own companion:
-`Describable.dyn(Cmd, Cmd.Add.create({ id: "c1", n: 2 }))`.
+`Cmd.dyn<Describable>(Cmd.Add.create({ id: "c1", n: 2 }))`.
 
 `dyn` selects the implementation from the companion passed to it. If an enum and its variant both
-declared a trait, `Named.dyn(Item, book)` and `Named.dyn(Item.Book, book)` would call different
+declared a trait, `Item.dyn<Named>(book)` and `Item.Book.dyn<Named>(book)` would call different
 implementations, so a variant cannot declare a trait that the enum already declares.
 
 A function over boxes is registered on the trait's companion, with `.implAssoc`. `implTrait` does
@@ -294,8 +294,8 @@ type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;
 const Crate = Val.companion<Crate>().implTrait(Greetable).implTrait(Weighed).build();
 
 const crate = Crate.seal({ name: "box", kg: 20 });
-Greetable.dyn(Crate, crate).greet(); // "Hi, box"
-Weighed.dyn(Crate, crate).heavy(); // true
+Crate.dyn<Greetable>(crate).greet(); // "Hi, box"
+Crate.dyn<Weighed>(crate).heavy(); // true
 ```
 
 Write `&`, not `|`, inside `Impl`. `Impl<Greetable & Weighed>` accepts a value implementing both.

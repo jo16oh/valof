@@ -113,6 +113,6 @@ export const byTag = Event[Tag].match(Math.random() > 0.5 ? "Key" : "Click", {
   Click: () => Event.Click.create({ id: "e", x: 0, y: 0 }),
 });
 
-export const boxed: Dyn<Named>[] = [Named.dyn(Event, frame.last)];
+export const boxed: Dyn<Named>[] = [Event.dyn<Named>(frame.last)];
 export const labels = boxed.map((b) => b.label("/"));
 export const named: VariantOf<Shape, "Circle"> = circle;

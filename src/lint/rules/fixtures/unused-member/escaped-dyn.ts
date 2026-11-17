@@ -18,5 +18,5 @@ const Unused = Val.companion<Unused>()
 
 const box = <W extends Impl<Rule>>(companion: Parameters<typeof Rule.dyn<W>>[0], value: W) =>
   Rule.dyn(companion, value);
-const RULES = [box(Dead, Dead.seal({ kind: "dead" })), Rule.dyn(Unused, Unused.seal({ kind: "unused" }))];
+const RULES = [box(Dead, Dead.seal({ kind: "dead" })), Unused.dyn<Rule>(Unused.seal({ kind: "unused" }))];
 for (const rule of RULES) rule.run();

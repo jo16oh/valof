@@ -839,8 +839,8 @@ describe("traits", () => {
       .implTrait(Describable, () => ({ describe: (u) => `user ${u.id}` }))
       .build();
     const party: Dyn<Describable>[] = [
-      Describable.dyn(Cmd, add),
-      Describable.dyn(User, User.seal({ id: "u1" })),
+      Cmd.dyn<Describable>(add),
+      User.dyn<Describable>(User.seal({ id: "u1" })),
     ];
     expect(party.map((p) => p.describe())).toEqual(["add 2", "user u1"]);
   });
@@ -1029,7 +1029,7 @@ describe("traits", () => {
 
     test("is implemented on the variant, and boxes through its frame", () => {
       expect(Item.Book.named(book)).toBe("Dune, 412 pages");
-      expect(Named.dyn(Item.Book, book).named()).toBe("Dune, 412 pages");
+      expect(Item.Book.dyn<Named>(book).named()).toBe("Dune, 412 pages");
     });
 
     test("makes that variant alone an Impl of it", () => {
@@ -1040,7 +1040,7 @@ describe("traits", () => {
     test("is not the union's", () => {
       expectTypeOf(Item).not.toHaveProperty("named");
       // @ts-expect-error the union does not implement it
-      Named.dyn(Item, book);
+      Item.dyn<Named>(book);
       Enum.companion<Item>()
         // @ts-expect-error a variant declares this trait, so it implements the trait itself
         .implTrait(Named, () => ({ named: (i) => i._tag }))
@@ -1055,7 +1055,7 @@ describe("traits", () => {
         .Book.implTrait(Paged, () => ({ pages: (b) => b.pages * 2 }))
         .build();
       const book = Shelf.Book.create({ pages: 10 });
-      expect([Paged.dyn(Shelf.Book, book).pages(), book.pages]).toEqual([20, 10]);
+      expect([Shelf.Book.dyn<Paged>(book).pages(), book.pages]).toEqual([20, 10]);
     });
 
     test("it ends the variant's gates, and holds its names against `impl`", () => {
@@ -1076,7 +1076,7 @@ describe("traits", () => {
     });
 
     // Both would hold their own implementation, and `dyn` picks one by the companion it is passed,
-    // so `Named.dyn(Shape, c)` and `Named.dyn(Shape.Circle, c)` would disagree.
+    // so `Shape.dyn<Named>(c)` and `Shape.Circle.dyn<Named>(c)` would disagree.
     test("a trait the enum declares cannot be declared again on a variant", () => {
       // @ts-expect-error a variant cannot declare a trait the enum declares
       type Twice = Enum<"Twice", { A: { n: number } & Named; B: { s: string } }, Named>;
@@ -1929,7 +1929,7 @@ describe("build", () => {
         .implTrait(Counted, () => ({ counted: (b) => b.n }))
         .build();
       const one = Both.One.create({ id: "o", n: 1 });
-      expect([Named.dyn(Both, one).named(), Counted.dyn(Both, one).counted()]).toEqual(["o", 1]);
+      expect([Both.dyn<Named>(one).named(), Both.dyn<Counted>(one).counted()]).toEqual(["o", 1]);
 
       type Each = Enum<"Each", { One: { n: number } & Named & Counted; Two: { s: string } }>;
       const Each = Enum.companion<Each>()
@@ -1937,7 +1937,7 @@ describe("build", () => {
         .One.implTrait(Counted, () => ({ counted: (o) => o.n }))
         .build();
       const each = Each.One.create({ id: "e", n: 2 });
-      expect([Named.dyn(Each.One, each).named(), Counted.dyn(Each.One, each).counted()]).toEqual([
+      expect([Each.One.dyn<Named>(each).named(), Each.One.dyn<Counted>(each).counted()]).toEqual([
         "e",
         2,
       ]);
@@ -1951,7 +1951,9 @@ describe("build", () => {
         .build();
       const heads = Coin.Heads.create({ id: "h", n: 2 });
       expect([Coin.named(heads), Coin.double(heads), Coin.Heads.heads(heads)]).toEqual(["h", 4, 2]);
-      expect(Named.dyn(Coin, heads).named()).toBe("h");
+      expect(Coin.dyn<Named>(heads).named()).toBe("h");
+      // @ts-expect-error the enum boxes a trait it declares for every variant
+      Coin.Heads.dyn<Named>(heads);
     });
   });
 

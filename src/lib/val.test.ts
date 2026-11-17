@@ -3775,7 +3775,7 @@ describe("building", () => {
         expect("heavy" in Half).toBe(false);
         expect(() => {
           // @ts-expect-error nor can a box reach one
-          Weighed.dyn(Half, crate).heavy();
+          Half.dyn<Weighed>(crate).heavy();
         }).toThrow(TypeError);
       });
 
@@ -3814,7 +3814,7 @@ describe("building", () => {
         // A field's name is free: the box holds the value apart from the members.
         const Parcel = Val.companion<Parcel>().implTrait(Tagged).implTrait(Labelled).build();
         const parcel = Parcel.seal({ name: "p", tag: "fragile" });
-        expect([Parcel.tag(parcel), Labelled.dyn(Parcel, parcel).tag()]).toEqual(["p", "p"]);
+        expect([Parcel.tag(parcel), Parcel.dyn<Labelled>(parcel).tag()]).toEqual(["p", "p"]);
         expectTypeOf<Takes<Parcel, Labelled, { size: unknown }, "ok">>().toEqualTypeOf<"ok">();
       });
 
@@ -3893,7 +3893,7 @@ describe("building", () => {
           .implTrait(Greetable, () => ({ toWire: (m, sep) => `${m.id}${sep}` }))
           .impl(() => ({ __valof_traits: (m) => m.name }))
           .build();
-        expect([Kept.__valof_traits(member), Greetable.dyn(Kept, member).greet()]).toEqual([
+        expect([Kept.__valof_traits(member), Kept.dyn<Greetable>(member).greet()]).toEqual([
           "alice",
           "Hi, alice",
         ]);
