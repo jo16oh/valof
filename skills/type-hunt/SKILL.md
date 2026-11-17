@@ -52,9 +52,11 @@ finding, but say so.
 These are by design. Do not report them as holes:
 
 - A Val is a plain object too. Where the type expects a plain object, as the argument of `seal` or a
-  field of a patch, a Val with every key of that object fits, extra keys included. A value that
-  replaces the whole field must have every key of the field. To drop the extra keys, as a JSON round
-  trip needs, write a custom seal.
+  field of a patch, a Val fits as that object would, extra keys included. In a patch it merges like
+  an object literal. To drop the extra keys, as a JSON round trip needs, write a custom seal.
+- In a patch, a function replaces the field and an object merges. The runtime checks only whether
+  the value is a function, so a field that cannot be merged into accepts an object only as a
+  function's return value (pattern 13).
 
 ## Patterns
 
@@ -121,10 +123,6 @@ cannot be decided there. This is intended. Share a shape with `Payload`, not wit
   `T & Record<never, never>`. **Fix.** Write the parameter as one mapped type.
 - A class instance where the type is `{}` or `object`. **Fix.** An index signature, which a class
   instance does not have.
-- A Val passed for a plain-object field of a patch, which replaces the field rather than merging
-  into it. A Val missing a key of the field should be rejected, and one holding every key, extra
-  keys included, accepted. **Fix.** Add `T & AnyVal` to the union, beside the `Patch` that excludes
-  the brand key.
 
 ### 6. Silently dropped
 
@@ -212,7 +210,33 @@ value read back from JSON holds nothing that distinguishes the two types.
 **Fix.** Reject the field, and suggest an enum in the message, because an enum's tag distinguishes
 its variants.
 
-### 13. The cost of the fix
+### 13. A patch that merges where it must replace
+
+`patch` merges an object into the field's current value, and replaces the field when given a
+function. Try every field kind in a patch: a nested Val, an enum, a `Val | null`, an optional key, a
+`Record` entry, a tuple, a `Rec` that references the Val itself, and a field of a variant's own
+`patch`. Pass each one these values:
+
+- an object literal, and the same object through a variable
+- a Val as it is, one copied by `structuredClone`, and one assigned to a plain type that leaves keys
+  out (`const t: { color?: string } = theme`)
+- a subtree read from another value whose type leaves keys out
+- a function, reading its parameter without a check for `undefined` or `null`
+- a function returning a partial object, a value of another Val, or what a custom seal returns (a
+  `Result`)
+- a patch the user types as `Patch<SeedOf<V>>`, and one passed last (`V.patch(p)(v)`)
+
+**What breaks.** An object that merges into a nested Val builds a payload its seal never receives.
+An object that merges into a field with no current value becomes that value unchanged, missing
+required keys. A function whose parameter type excludes `undefined` throws on an absent key. A
+runtime that chooses between merging and replacing by anything other than `typeof` (a private mark
+on the value, a reference comparison) treats some values differently from the type.
+
+**Fix.** Type a field that cannot be merged into as a `Replacer` only, with an `Invalid` member
+whose message states the fix. Keep the runtime reading `typeof value === "function"` and nothing
+else.
+
+### 14. The cost of the fix
 
 Measure each proposed fix with `vp run check-dist --types`.
 
