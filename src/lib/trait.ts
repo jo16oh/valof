@@ -23,6 +23,7 @@ import {
   type OneLiteral,
   type IsUnion,
   type Reserved,
+  type Unnamed,
   type Unfit,
   type UnionToIntersection,
   type Wired,
@@ -138,12 +139,12 @@ type Trait<
                     : [Shape] extends [AnyTrait]
                       ? Invalid<"a trait's shape cannot be a trait; write its fields">
                       : [Shape] extends [Checked<Shape>]
-                        ? // An `any` member satisfies the check below too.
+                        ? // An `any` or `never` member satisfies the check below too.
                           [AnyMembers<M>] extends [never]
                           ? [M] extends [Declarable<Shape, M>]
                             ? M
                             : Declarable<Shape, M>
-                          : Invalid<"a trait member cannot be `any`; write its signature">
+                          : Invalid<"a trait member cannot be `any` or `never`; write its signature">
                         : Checked<Shape>;
             }
           : Invalid<"a trait's members must be one object type, not a union">;
@@ -167,7 +168,9 @@ type DeclarableShape<Shape> = [Shape] extends [infer S]
         : Checked<S>
   : unknown;
 
-type AnyMembers<M> = { [K in keyof M]-?: 0 extends 1 & M[K] ? K : never }[keyof M];
+type AnyMembers<M> = {
+  [K in keyof M]-?: 0 extends 1 & M[K] ? K : [M[K]] extends [never] ? K : never;
+}[keyof M];
 
 type OneMembers<M, Shape> = [M] extends [infer X extends Members]
   ? IsUnion<X> extends true
@@ -180,7 +183,10 @@ type OneMembers<M, Shape> = [M] extends [infer X extends Members]
  * one intersection, `Impl<Greetable & Serializable>`, as in a Val's declaration. A trait's member
  * may take one after {@link Self}.
  */
-export type Impl<Tr extends OneTrait<Tr>> = ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>;
+// `any` and `never` satisfy every constraint, so the type itself reports them.
+export type Impl<Tr extends OneTrait<Tr>> = [Tr] extends [Unnamed]
+  ? Invalid<"name the trait: `Impl<Trait>`">
+  : ShapeOf<Tr> & TraitPhantom<BrandsOf<Tr>>;
 
 /** A trait, or several intersected, but not a union of them. */
 export type OneTrait<Tr> = Kind<Tr> & AnyTrait & Single<Tr>;
@@ -340,15 +346,21 @@ type Declarable<Shape, M extends Members> = {
           ? Invalid<"a trait member cannot take `value`, which a box reads its value through">
           : K extends Reserved
             ? Invalid<"a trait member cannot take a name the library reserves">
-            : M[K] extends (self: never, ...args: infer A) => infer R
-              ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-                ? Invalid<"Self can only be a member's first parameter">
-                : HasSelf<R> extends true
-                  ? Invalid<"a trait member cannot return Self">
-                  : Omission<M[K]> extends string
-                    ? Invalid<Omission<M[K]> & string>
-                    : M[K]
-              : M[K];
+            : K extends symbol
+              ? Invalid<"a trait member's name must be a string">
+              : Record<never, never> extends Pick<M, K>
+                ? Invalid<"a trait member cannot be optional; declare it required">
+                : M[K] extends (self: infer S, ...args: infer A) => infer R
+                  ? [Self] extends [S]
+                    ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
+                      ? Invalid<"Self can only be a member's first parameter">
+                      : HasSelf<R> extends true
+                        ? Invalid<"a trait member cannot return Self">
+                        : Omission<M[K]> extends string
+                          ? Invalid<Omission<M[K]> & string>
+                          : M[K]
+                    : Invalid<"a trait member takes `Self` as its first parameter">
+                  : M[K];
 };
 
 /**
@@ -362,7 +374,9 @@ type Declarable<Shape, M extends Members> = {
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends OneTrait<Tr> & Agreeing<Tr>> = Boxed<Tr>;
+export type Dyn<Tr extends OneTrait<Tr> & Agreeing<Tr>> = [Tr] extends [Unnamed]
+  ? Invalid<"name the trait: `Dyn<Trait>`">
+  : Boxed<Tr>;
 
 type Boxed<Tr extends OneTrait<Tr>> = Bound<UnionToIntersection<MembersOf<Tr>>> & {
   /** The value the box holds. */
@@ -437,19 +451,17 @@ export type TraitCompanion<
 export type DynStep<V, Held, Elsewhere extends string, Split extends string = Elsewhere> = <
   Tr extends OneTrait<Tr> = never,
 >(
-  value: 0 extends 1 & Tr
-    ? Invalid<"box as a trait, not `any`">
-    : [Tr] extends [never]
-      ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
-      : [NamesOf<Tr>] extends [TraitsOf<V>]
-        ? [NamesOf<Tr>] extends [Held]
-          ? [V] extends [Impl<Tr>]
-            ? V
-            : Invalid<"this type does not declare the trait">
-          : [Extract<NamesOf<Tr>, Held>] extends [never]
-            ? Invalid<Elsewhere>
-            : Invalid<Split>
-        : Invalid<"this type does not declare the trait">,
+  value: [Tr] extends [Unnamed]
+    ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
+    : [NamesOf<Tr>] extends [TraitsOf<V>]
+      ? [NamesOf<Tr>] extends [Held]
+        ? [V] extends [Impl<Tr>]
+          ? V
+          : Invalid<"this type does not declare the trait">
+        : [Extract<NamesOf<Tr>, Held>] extends [never]
+          ? Invalid<Elsewhere>
+          : Invalid<Split>
+      : Invalid<"this type does not declare the trait">,
 ) => Boxed<Tr>;
 
 /**
@@ -573,7 +585,9 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
 /**
  * Declares a trait's runtime side: what every Val implementing it shares.
  */
-export const companion = <Tr extends LoneTrait<Tr>>(): TraitBuilder<Tr> => builder() as never;
+export const companion = <Tr extends LoneTrait<Tr> = never>(): [Tr] extends [Unnamed]
+  ? Invalid<"name the trait: `Trait.companion<Trait>()`">
+  : TraitBuilder<Tr> => builder() as never;
 
 type Step = () => Record<string, unknown>;
 

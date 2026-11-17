@@ -597,11 +597,13 @@ type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? fa
  */
 export type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true
-  : [Tr] extends [UnionToIntersection<Tr>]
-    ? [Overlap<BrandsOf<Tr>>] extends [never]
-      ? Agrees<T, Tr>
-      : `two traits declare a member named ${Code<Overlap<BrandsOf<Tr>> & string>}`
-    : "declare several traits with `&`, not `|`";
+  : 0 extends 1 & Tr
+    ? "a Val's traits cannot be `any`; name them"
+    : [Tr] extends [UnionToIntersection<Tr>]
+      ? [Overlap<BrandsOf<Tr>>] extends [never]
+        ? Agrees<T, Tr>
+        : `two traits declare a member named ${Code<Overlap<BrandsOf<Tr>> & string>}`
+      : "declare several traits with `&`, not `|`";
 
 // As a constraint, so the type argument reports it. Read through `infer`, as a name's constraint is:
 // passing `Tr` itself to a conditional in its own constraint is circular (TS2313).
@@ -1103,19 +1105,17 @@ export declare class PrivateCreate {
  * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>().build();
  * ```
  */
-// `any` satisfies every constraint, so the type itself reports it. It reads the key through
-// `infer`, because against the constraint, `1 & K` resolves to `never` before `K` is known.
-export type Unpatchable<K extends string> = [K] extends [infer X]
-  ? 0 extends 1 & X
-    ? Invalid<"`Unpatchable` takes key names, not `any`">
-    : UnpatchablePhantom<K>
-  : never;
+// `any` and `never` satisfy every constraint, so the type itself reports them.
+export type Unpatchable<K extends string> = [K] extends [Unnamed]
+  ? Invalid<"`Unpatchable` takes key names">
+  : UnpatchablePhantom<K>;
 
 /** What the list after the Val in `Val.companion<V, […]>` takes. */
+// The phantom rather than `Unpatchable`, which is an `Invalid` for a payload with no key.
 type CompanionOption<V extends AnyVal> =
   | PrivateSeal
   | PrivateCreate
-  | Unpatchable<keyof SeedOf<V> & string>;
+  | UnpatchablePhantom<keyof SeedOf<V> & string>;
 
 // A list, not an intersection: two `Unpatchable`s intersected collapse to `never`, which satisfies
 // every constraint and would read as no option at all.
@@ -1327,7 +1327,7 @@ export type CompanionBuilder<
       }) & {
     /**
      * Collects the members the function returns that do not take the Val first: `fromRow`,
-     * `parse`, a constant. Write it any number of times.
+     * `parse`, a constant as `zero: () => …`. Write it any number of times.
      *
      * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
      * an object payload. A member reaching the companion for anything else (a sibling or another
@@ -2051,7 +2051,7 @@ type OneVal<V, M extends string> = {
 };
 
 /** Nothing, or the reason a union of option lists is rejected. */
-// `any` satisfies this constraint, so {@link Listed} reports it at the next step.
+// `any` and `never` satisfy this constraint, so {@link Listed} reports them at the next step.
 export type OneList<O> =
   IsUnion<O> extends true ? Invalid<"the options cannot be a union of lists"> : unknown;
 
@@ -2067,21 +2067,20 @@ export type HasAny<L> = 0 extends 1 & L
  * companion without `.implSeal`, and the seal passed to a custom one, do the same thing; only the
  * type differs.
  */
-export const of = /* @__PURE__ */ Object.assign(
-  own as <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val">>(
-    value: SeedOf<V>,
-  ) => V,
-  {
-    /**
-     * Uses a payload without copying it. The caller must ensure it will not change.
-     */
-    // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
-    // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
-    nocopy: adopt as <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val">>(
-      value: SeedOf<V>,
-    ) => V,
-  },
-);
+export const of = /* @__PURE__ */ Object.assign(own as Of, {
+  /**
+   * Uses a payload without copying it. The caller must ensure it will not change.
+   */
+  // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
+  // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
+  nocopy: adopt as Of,
+});
+
+// `any` and `never` satisfy every constraint, so the argument reports them. `never` is also a `V`
+// left out, since `NoInfer` keeps the argument from naming one.
+type Of = <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val"> = never>(
+  value: NoInfer<[V] extends [Unnamed] ? Invalid<"name the Val: `Val.of<V>(value)`"> : SeedOf<V>>,
+) => V;
 
 /**
  * A plain, mutable copy of the payload, for code that does not know about `readonly`.
@@ -2099,15 +2098,21 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 // Constructors get their own steps rather than sitting in `.impl`, which fixes every function's
 // first parameter to the Val. A constructor does not fit that shape.
 export const companion = <
-  V extends AnyVal & NotEnum<V> & OneVal<V, "a companion builds one Val">,
+  V extends AnyVal & NotEnum<V> & OneVal<V, "a companion builds one Val"> = never,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
->(): Listed<O, CompanionBuilder<V, undefined, undefined, O>> =>
-  builder({}) as Listed<O, CompanionBuilder<V, undefined, undefined, O>>;
+>(): [V] extends [Unnamed]
+  ? Invalid<"name the Val: `Val.companion<V>()`">
+  : Listed<O, CompanionBuilder<V, undefined, undefined, O>> => builder({}) as never;
+
+/** What `any` and `never` extend, and no named type does. */
+export type Unnamed = Invalid<string>;
 
 /**
- * The builder, or the fault where the option list is `any`, which every constraint accepts. The
- * next step then reports it.
+ * The builder, or the fault where the option list is `any` or `never`, which every constraint
+ * accepts. The next step then reports it.
  */
-export type Listed<O, Then> = true extends (O extends unknown ? HasAny<O> : never)
-  ? Invalid<"the options cannot be `any`; list them">
-  : Then;
+export type Listed<O, Then> = [O] extends [never]
+  ? Invalid<"the options cannot be `never`; list them">
+  : true extends (O extends unknown ? HasAny<O> : never)
+    ? Invalid<"the options cannot be `any`; list them">
+    : Then;

@@ -67,8 +67,9 @@ import {
   type Registered as Steps,
   type Synchronous,
   type Takes,
-  type Unpatchable,
+  type UnpatchablePhantom,
   type UnpatchableKeys,
+  type Unnamed,
   type Unsealed,
   type Wired,
 } from "./val.ts";
@@ -509,7 +510,10 @@ declare class VariantOptionsPhantom<N extends string, L> {
  * {@link PrivateSeal} is set on the enum alone, because `Order.seal` builds any variant from its
  * tag. {@link PrivateCreate} may be set on one variant.
  */
-export type VariantOptions<N extends string, L extends Options> = VariantOptionsPhantom<N, L>;
+// `any` and `never` satisfy every constraint, so the type itself reports them, as `Unpatchable` does.
+export type VariantOptions<N extends string, L extends Options> = [N] extends [Unnamed]
+  ? Invalid<"`VariantOptions` takes a variant's name">
+  : VariantOptionsPhantom<N, L>;
 
 /** Every key some variant's seal takes. */
 type AnyKey<E extends AnyEnum> = {
@@ -521,11 +525,11 @@ type AnyKey<E extends AnyEnum> = {
 type EnumOption<E extends AnyEnum> =
   | PrivateSeal
   | PrivateCreate
-  | Unpatchable<AnyKey<E>>
+  | UnpatchablePhantom<AnyKey<E>>
   | {
-      [N in keyof VariantsOf<E>]: VariantOptions<
+      [N in keyof VariantsOf<E>]: VariantOptionsPhantom<
         N & string,
-        readonly (PrivateCreate | Unpatchable<keyof SeedFor<E, N> & string>)[]
+        readonly (PrivateCreate | UnpatchablePhantom<keyof SeedFor<E, N> & string>)[]
       >;
     }[keyof VariantsOf<E>];
 

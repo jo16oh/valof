@@ -1,4 +1,5 @@
 import { development } from "../env.ts";
+import type { Invalid } from "../val.ts";
 import { hidesParameter } from "./parameters.ts";
 
 /**
@@ -53,7 +54,8 @@ export type LooseArity<M> = {
     ? P extends []
       ? unknown
       : Omission<M[K]>
-    : "`implAssoc` holds only functions, so write a value as a function that takes no argument";
+    : // An `Invalid` rather than the message alone, which a primitive intersects to `never`.
+      Invalid<"`implAssoc` holds only functions, so write a value as a function that takes no argument">;
 };
 
 /** Why {@link Arity} rejects a member, or `unknown` where it does not. */
