@@ -7,7 +7,7 @@ import {
   type Looses,
 } from "./dual/index.ts";
 import { development } from "./env.ts";
-import { Boxes, Shared, Traits } from "./keys.ts";
+import { Shared, Traits } from "./keys.ts";
 import type {
   EnumKey,
   EnumTypes,
@@ -1239,7 +1239,7 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
   ) as Record<string, unknown>;
   gates[Traits] = implemented;
   const trait = traits[0]?.[0];
-  if (trait) gates["dyn"] = (value: unknown) => trait[Boxes](gates, value);
+  if (trait) gates["dyn"] = (value: unknown) => trait[Traits](gates, value);
   return resolving(
     gates,
     at,

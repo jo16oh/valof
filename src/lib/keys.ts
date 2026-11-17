@@ -2,7 +2,6 @@
 // of completions. `Tag` sits in `enum.ts` beside its type.
 export const Traits: unique symbol = Symbol();
 export const Shared: unique symbol = Symbol();
-export const Boxes: unique symbol = Symbol();
 
 // Type-only keys.
 export declare const RecKey: unique symbol;

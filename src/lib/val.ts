@@ -4,7 +4,7 @@ import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual/index.ts";
 // the declaration that carries it.
 import type { AnyEnum, NameOf } from "./enum.ts";
 import { development } from "./env.ts";
-import { Boxes, Shared, Traits } from "./keys.ts";
+import { Shared, Traits } from "./keys.ts";
 import type {
   InvalidKey,
   NoSeal,
@@ -1731,7 +1731,7 @@ type Members = (supplied: object) => Record<string, unknown>;
 type Implementation = [
   trait: {
     [Shared]: Record<string, unknown>;
-    [Boxes]: (companion: object, value: unknown) => unknown;
+    [Traits]: (companion: object, value: unknown) => unknown;
   },
   fns?: Members,
 ];
@@ -1917,7 +1917,7 @@ export const attach = (registered: Registered): Record<string, unknown> => {
   ) as Record<string, unknown>;
   (target as Record<symbol, unknown>)[Traits] = traits;
   const trait = implemented[0]?.[0];
-  if (trait) target["dyn"] = (value: unknown) => trait[Boxes](target, value);
+  if (trait) target["dyn"] = (value: unknown) => trait[Traits](target, value);
   return Object.assign(
     target,
     createMembers(traits),

@@ -6,7 +6,7 @@ import {
   type Looses,
   type Omission,
 } from "./dual/index.ts";
-import { Boxes, Shared, Traits } from "./keys.ts";
+import { Shared, Traits } from "./keys.ts";
 import type { InvalidKey, RefusedKey, TraitBrands, TraitTypes } from "./keys.ts";
 import * as Trait from "./namespace/trait.ts";
 import {
@@ -396,7 +396,7 @@ export type TraitCompanion<
     /** Everything the trait implemented, which `implTrait` copies onto the Val. */
     readonly [Shared]: G;
     /** Builds a box, for the companions that implement the trait. */
-    readonly [Boxes]: (companion: TraitHost, value: unknown) => unknown;
+    readonly [Traits]: (companion: TraitHost, value: unknown) => unknown;
   };
 
 /**
@@ -510,7 +510,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
   [Shared]: impls,
   // A proxy rather than a built object: a member is bound when it is called. Nothing is copied, so
   // the box costs one allocation whatever the trait holds.
-  [Boxes]: (companion: TraitHost, value: unknown) =>
+  [Traits]: (companion: TraitHost, value: unknown) =>
     new Proxy(
       {},
       {
