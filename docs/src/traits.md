@@ -250,15 +250,15 @@ const party: Dyn<Greetable>[] = [
 ];
 
 party.map((p) => p.greet()); // ["Hi, alice", "Sir root"]
-party.map((p) => p.name); // ["alice", "root"]: a trait field, read from the box
+party.map((p) => p.value.name); // ["alice", "root"]: the value, typed as the trait
 ```
 
-A box already holds the value, so its members take only the arguments after it. The trait's fields
-are readable on it, and a parameter typed `Impl<Greetable>` accepts one. The Val's own fields are
-not. `p.id` is a type error, because `dyn` drops the concrete type.
+A box already holds the value, so its members take only the arguments after it. `p.value` returns
+the value, typed `Impl<Greetable>`. The trait's fields are readable on it, and the Val's own fields
+are not. `p.value.id` is a type error, because `dyn` drops the concrete type. A trait member cannot
+be named `value`.
 
-A box is a proxy over its value, not a Val. It has its own identity, and it has no `patch`. A
-payload cannot hold one.
+A box is not a Val. It has no `patch`, and a payload cannot hold one.
 
 The companion passed to `dyn` has to match the value's own type, so another Val's companion is
 rejected.
