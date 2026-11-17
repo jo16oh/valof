@@ -67,6 +67,7 @@
     form too. The check costs core 11,583 → 12,556 instantiations (+8%), so its budget went from 12,000 to 13,000. Most
     of it comes from intersecting the recipe's type with a second check beside `Sync`. Folding the check into `Sync`
     cost as much, and a conditional with `infer` over the parameters broke the recipe's contextual typing
+  - The second type hunt (2026-11-18) passed a union, a generic, a nested Val made writable, and a required key made optional. The check now compares each key the parameter holds with the draft's, readonly and optional included, for each member of a union. A generic recipe is instantiated with the draft before the check sees it, so valof-lint's `aliased-draft` reports it
   - The rule finds a recipe by syntax: the last argument of any `.patch(…)` call, when it is a function. Another
     library's `patch` taking a callback would be reported too. Resolving the callee to a companion is left out until a
     false report appears
