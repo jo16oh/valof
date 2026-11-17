@@ -48,13 +48,13 @@ An important use case (§8.2).
 
 ## 3.5 `null` and `undefined`
 
-|                        | Verdict                                         |
-| ---------------------- | ----------------------------------------------- |
-| Nested `null`          | Allowed                                         |
-| Top-level `null`       | **Forbidden**                                   |
-| `?` (absent key)       | Allowed                                         |
-| `undefined` as a value | **Forbidden**                                   |
-| `undefined` in a patch | Reserved to mean **delete the property** (§6.2) |
+|                        | Verdict                                                                        |
+| ---------------------- | ------------------------------------------------------------------------------ |
+| Nested `null`          | Allowed                                                                        |
+| Top-level `null`       | **Forbidden**                                                                  |
+| `?` (absent key)       | ~~Allowed~~ **Forbidden**, 2026-11-17 (below)                                  |
+| `undefined` as a value | ~~Forbidden~~ **Allowed on a required key**, 2026-11-17 (below)                |
+| `undefined` in a patch | ~~Reserved to mean **delete the property**~~ sets the field, 2026-11-17 (§6.2) |
 
 ### Why "no `undefined` as a value" rather than "no `undefined`"
 
@@ -186,6 +186,45 @@ If both `null` and `undefined` were allowed as values, this sentinel would not w
 In this library, updating a value always creates a new object, so "assign `undefined` to a property" never happens in the first place. Removing `undefined` from the value space loses no expressiveness.
 
 Likewise, deep equals never faces the awkward question of whether `{ a: undefined }` equals `{}`.
+
+### Every key is required, 2026-11-17
+
+Reverses this section's verdict on `?` and on `undefined` as a value. A key cannot be optional, and a required key may be typed
+`T | undefined`. The value keeps the key holding `undefined`.
+
+**An optional key let a hidden key through `seal`.** TypeScript has no exact types. A variable whose static type leaves a key
+out is assignable to a payload where that key is optional, and the value it holds there reaches the seal unchecked (type-hunt,
+2026-11-17).
+
+```ts
+type Shop = Val<"Shop", { name: string; home?: City }>;
+const full = { name: "s", home: { name: "kyoto" } };
+const narrow: { name: string } = full;
+Shop.seal(narrow); // home is typed City, and City.seal never ran
+```
+
+A required key cannot be left out of the static type, so no key can be hidden from the seal. Every field's value is checked against its type.
+
+- **A key holding `undefined` is better than a type that does not match the value.** `Object.keys` lists the key and `in` finds it, which matches
+  the type. With the key absent, `"k" in v` would narrow to `never` on the branch the runtime takes (user, 2026-11-17)
+- **The `JSON.stringify` and `structuredClone` disagreement above stays.** `equals` already reads a key holding `undefined` as
+  absent (§5), so two values on either side of a JSON round trip still compare equal
+- **An array element and a tuple element still cannot be `undefined`.** JSON writes one as `null`. An optional tuple element is
+  rejected too (§4.2). A union of tuples, `readonly [number, number] | readonly [number, number, number]`, writes the same JSON
+- **The whole payload cannot be `undefined`**, as before
+- **A record's key is not optional.** `Record<never, never> extends Pick<T, K>` is true for an index signature as well, so a key
+  that is not a literal (`string`, a pattern, a branded string) is read as an index signature first
+- **Rejected: `Val.Option<T>`.** A marker type, required in the type, whose `undefined` the seal drops so the key is absent. Once
+  `T | undefined` is allowed, the marker adds a name and no behaviour, since the runtime drops by value, not by field. The probe
+  cost core +852, trait +1,282 and enum +2,607 instantiations
+- **Rejected: `?:` in the value and a required key in the seal's input.** `in` would match the type, but `Shop.seal({ ...shop })`,
+  `Shop.seal(shop)` and a `Replacer` returning its argument would all be type errors
+- **Rejected: a sentinel such as `Val.Option.Undefined`.** Every boundary would convert `undefined` to it, and `nocopy` would
+  leave it in the value
+- **Breaking change.** A payload with `k?: T` is a type error whose message gives the fix. valof-lint's own `Rule.optIn` and `Enabled` now type the
+  field `T | undefined` or required
+- **Cost.** Val 1.04 → 1.01 kB gzipped (`patch` no longer deletes). core 9,724 → 9,598, trait 25,024 → 24,966, enum
+  47,475 → 46,751 instantiations
 
 ## 3.6 Forbid unions of objects
 

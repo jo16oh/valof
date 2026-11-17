@@ -11,7 +11,7 @@ Valof collects the constructor and functions under a value with the same name as
 import { Val } from "valof";
 
 // ---cut---
-type User = Val<"User", { id: string; name: string; nickname?: string }>;
+type User = Val<"User", { id: string; name: string; nickname: string | undefined }>;
 
 const User = Val.companion<User>()
   .impl(() => ({
@@ -40,7 +40,7 @@ The companion exposes `seal` and the members:
 ```ts
 import { Val } from "valof";
 
-type User = Val<"User", { id: string; name: string; nickname?: string }>;
+type User = Val<"User", { id: string; name: string; nickname: string | undefined }>;
 const User = Val.companion<User>()
   .impl(() => ({
     displayName(user) {
@@ -52,7 +52,7 @@ const User = Val.companion<User>()
   }))
   .build();
 // ---cut---
-const user = User.seal({ id: "a", name: "bob" });
+const user = User.seal({ id: "a", name: "bob", nickname: undefined });
 
 User.displayName(user);
 User.formatLabel(user, ": ");
@@ -91,7 +91,7 @@ taking only the value is passed as it is:
 import { Val } from "valof";
 
 declare function pipe<A, B, C>(a: A, ab: (a: A) => B, bc: (b: B) => C): C;
-type User = Val<"User", { id: string; name: string; nickname?: string }>;
+type User = Val<"User", { id: string; name: string; nickname: string | undefined }>;
 const User = Val.companion<User>()
   .impl(() => ({
     displayName(user) {
@@ -102,7 +102,7 @@ const User = Val.companion<User>()
     },
   }))
   .build();
-const user = User.seal({ id: "a", name: "bob" });
+const user = User.seal({ id: "a", name: "bob", nickname: undefined });
 // ---cut---
 User.formatLabel(user, ": "); // "a: bob"
 User.formatLabel(": ")(user); // "a: bob"

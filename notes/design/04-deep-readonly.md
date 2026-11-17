@@ -408,6 +408,9 @@ Tuple payloads used to be flattened by `DeepReadonly`. `ReadonlyArray<infer E>` 
 
 ### Optional elements and `undefined`
 
+**Optional elements are rejected, 2026-11-17.** A key cannot be optional either (§3.5 "Every key is required"). A union of
+tuples writes the same JSON. The rest of this subsection is the earlier record.
+
 Optional tuple elements (`readonly [string, number?]`) are allowed on the same footing as optional object keys. A missing element just makes the array shorter, and it round-trips through JSON. `readonly [string | undefined, number]`, on the other hand, is like putting `undefined` on a required key, so it is rejected (§3.5). An `undefined` in an array becomes `null` under `JSON.stringify`, which silently changes the value.
 
 `Required<T>` tells the two apart inside the mapped type. Only optional elements lose `undefined`.

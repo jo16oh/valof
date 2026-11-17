@@ -17,6 +17,20 @@ rejected, and so is a field holding an [`Impl`](traits.md#implement-it-on-a-val)
 positions and its length. Valof treats one with a rest element (`[string, ...number[]]`) as an array
 instead, since a fixed length is what distinguishes the two.
 
+Every key is required. Type a field that may hold nothing as `T | undefined` or `T | null`. The
+value keeps the key. `JSON.stringify` leaves out a key holding `undefined`. An array element cannot
+be `undefined`, since JSON writes it as `null`. For a tuple whose last elements may be missing,
+declare a union of tuples, as `[number, number] | [number, number, number]`.
+
+```ts
+// @errors: 2344
+import { Val } from "valof";
+
+// ---cut---
+type Profile = Val<"Profile", { name: string; bio: string | undefined }>; // ✓
+type Draft = Val<"Draft", { name: string; bio?: string }>; // a key cannot be optional
+```
+
 A payload cannot contain a type parameter, and a Val's brand cannot be one. To declare several Vals
 with the same payload, share it with `Payload`:
 
