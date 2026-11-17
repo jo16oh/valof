@@ -194,11 +194,11 @@ Options in the second type argument of `Val.companion` restrict what the compani
 Any of them can be combined.
 
 `create` can generate an id. `PrivateSeal` removes `seal` from the companion, so a caller cannot
-pass an id of their own. `Unpatchable` excludes keys from `patch`, so an id keeps the value `create`
-generated:
+pass an id of their own. `Unpatchable` makes keys read-only in the draft `patch` passes, so an id
+keeps the value `create` generated:
 
 ```ts
-// @errors: 2339 2322
+// @errors: 2339 2540
 import { Val, type PrivateSeal, type Unpatchable } from "valof";
 
 declare const user: User;
@@ -211,8 +211,10 @@ const User = Val.companion<User, [PrivateSeal, Unpatchable<"id">]>()
 
 User.create("sue"); // User
 User.seal({ id: "forged", name: "sue" }); // type error
-User.patch(user, { name: "sue" }); // OK
-User.patch(user, { id: "forged" }); // type error
+User.patch(user, (u) => {
+  u.name = "sue"; // OK
+  u.id = "forged"; // type error
+});
 ```
 
 `PrivateCreate` removes `create` from the companion. Use it when callers should build the type
@@ -275,7 +277,9 @@ Interval.parse("1..10"); // Ok(…)
 Interval.parse("1-10"); // Err("expected min..max")
 Interval.parse("10..1"); // Err("min must not exceed max")
 Interval.create(5); // Ok(…)
-Interval.patch(interval, { max: -1 }); // Err("min must not exceed max")
+Interval.patch(interval, (i) => {
+  i.max = -1;
+}); // Err("min must not exceed max")
 ```
 
 Once a value has been successfully sealed as an `Interval`, its type guarantees that it is validated

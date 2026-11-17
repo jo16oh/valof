@@ -47,7 +47,7 @@ It enforces the conventions through types and linting.
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
   [Linting](linting.md) shows the setup.
 
-- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->1.01 kB
+- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->1.25 kB
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 > For background on individual features, see
@@ -75,7 +75,10 @@ const Task = Val.companion<Task>()
     task.title.trim() === "" ? { err: "empty title" } : { ok: seal(task) },
   )
   .impl(({ patch }) => ({
-    complete: (task, at: string) => patch(task, { status: () => Status.Done.create({ at }) }),
+    complete: (task, at: string) =>
+      patch(task, (t) => {
+        t.status = Status.Done.create({ at });
+      }),
   }))
   .implTrait(Summarizable, () => ({
     summarize: (t): string =>

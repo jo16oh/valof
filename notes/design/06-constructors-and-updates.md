@@ -169,7 +169,58 @@ type Overrides = Val<"Overrides", { theme: { color?: string; font?: string } }>;
 Settings.patch(settings, { theme: overrides.theme }); // {"theme":{"color":"blue"}}: font is missing
 ```
 
-### A function replaces, 2026-11-17
+### A recipe assigns to a draft, 2026-11-17
+
+Replaces the patch object below ("A function replaces", "A patch reaches any depth", "Only an existing node can be merged").
+`patch` takes a function that assigns to a draft of the payload, and seals what it assembled.
+
+```ts
+Shop.patch(shop, (s) => {
+  s.owner.contact.email = "e@example.com";
+  s.city = City.patch(s.city, (c) => {
+    c.name = "Osaka";
+  });
+});
+```
+
+**A patch object could hide a key, and an assignment cannot.** A patch argument is partial by nature, so every key of the
+payload is optional in its type, and a variable whose type leaves a key out can carry any value there. `rename(shop, input)`
+forwarding `input: { name: string }` passed a hidden `city: { name: "raw" }` into a field typed `City`, and no seal of City
+ran. Required keys (§3.5) close the hole in `seal` alone. An assignment is checked key by key, and the draft takes no object
+argument to hide a key in.
+
+- **A plain object field is a draft**, made when the recipe first reads it. A nested Val, an array and a primitive are
+  returned as they are, and are read-only in the type. Assigning is the only way to change a value inside a recipe, which
+  reads more plainly than a draft that also takes `push` (user)
+- **A Val is no draft.** Its own seal never saw an edit inside it. The draft stops at a node the `Root` mark marks, and a
+  write into it throws in development, where the node is frozen
+- **Only the changed path is rebuilt.** A recipe that changed nothing returns the value itself. A draft inside an assigned
+  value, as from `{ ...s.street }`, is swapped for the node it stands for, so an unchanged subtree stays shared
+- **A draft is revoked after the recipe**, and `delete` on one throws. Every key is required, so nothing is left to delete
+- **An async recipe is a type error.** Its writes after an `await` would land on a revoked draft. The recipe is a type
+  parameter `F`, and `F & Invalid<…>` where it returns a `PromiseLike`. `Dual` cannot carry a generic function, so `patch` is
+  written as two overloads (`PatchFn`). Rejected: a return type of `undefined` (rejects a named function returning `void`),
+  `void & { then?: never }` (rejects a block body), and `R extends void` (accepts an async function)
+- **`Unpatchable` keys are read-only in the draft**, and still readable
+- **`Object.assign(draft, data)` is not checked.** TypeScript types its source as anything. valof-lint is to report it (§9)
+- **A union of objects stays rejected.** A recipe sets one field at a time, so it could leave a value that is neither variant
+- **`exactOptionalPropertyTypes` is no longer recommended.** It only mattered for `{ k: undefined }` in a patch object
+- **Cost.** Val 1.01 → 1.25 kB gzipped, so its budget went from 1.10 to 1.30 kB. core 9,598 → 9,288, trait 24,966
+  → 24,966, enum 46,751 → 45,666 instantiations, `index.d.ts` 106.82 → 105.65 kB. Proxy access is slower than the spread
+  merge: a shallow patch 209 → 272 ns, one level down 324 → 642 ns (Node 26, production). For a hot path, `seal` a spread of the value
+- Writes are recorded in a `Map`. A null-prototype object was slower, and `{}` with `Object.hasOwn` was no faster. Sharing
+  one handler across drafts saved about 5% for +40 B
+- **Rejected: a function per field only** (`{ name: () => "b" }`). A spread of data beside a function (`{ ...extra, name: () => "b" }`)
+  and a narrowed variable mixing both still hide a key, so the runtime still needs a check. A function hidden in a key runs
+- **Rejected: a key passed as an argument** (`Shop.patch(shop, "name", () => "b")`). It closes the hole too, but seals once per
+  field, and a deep change takes nested calls
+- **Rejected: `patch` detached from the companion** (`Val.patch(shop, recipe)`, `patch(Shop, shop, recipe)`). The Val's type
+  carries neither `Unpatchable` nor the custom seal's return type, and a value `Val.of` built has no record of its seal. The
+  bundle would save only the draft (user, 2026-11-17)
+
+### A function replaces, 2026-11-17. Withdrawn 2026-11-17
+
+Replaced by "A recipe assigns to a draft" above.
 
 **The caller says which operation it wants. A function receives the field's current value, and `patch` replaces the field with what it returns. An object merges.** The runtime checks `typeof value === "function"`, and reads no mark. A payload never holds a function (§3), so the two cannot be confused.
 

@@ -53,7 +53,9 @@ type Profile = Val<"Profile", { name: string; address: { city: string } }>;
 const Profile = Val.companion<Profile>().build();
 
 const profile = Profile.seal({ name: "alice", address: { city: "Osaka" } });
-const changed = Profile.patch(profile, { address: { city: "Tokyo" } });
+const changed = Profile.patch(profile, (p) => {
+  p.address.city = "Tokyo";
+});
 ```
 
 ## Companion objects
