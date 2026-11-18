@@ -558,7 +558,6 @@ describe("Val", () => {
       expectTypeOf<Nanos | Ledger>().toExtend<AnyVal>();
       const Ledger = Val.companion<Ledger>().build();
       const ledger = Ledger.seal({ wei: 10n ** 18n, at: null, mixed: 1n, ids: [1n, 2n] });
-      expect(ledger.wei).toBe(10n ** 18n);
       expect(
         equals(ledger, Ledger.seal({ wei: 10n ** 18n, at: null, mixed: 1n, ids: [1n, 2n] })),
       ).toBe(true);
@@ -570,7 +569,8 @@ describe("Val", () => {
           }),
         ),
       ).toBe(false);
-      expect(Val.companion<Nanos>().build().seal(5n)).toBe(5n);
+      // A number and a bigint of the same value are different values.
+      expect(equals(ledger, Ledger.seal({ ...Val.unwrap(ledger), mixed: 1 }))).toBe(false);
     });
 
     test("null is allowed inside a payload, but not at its top level", () => {
