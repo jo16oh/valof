@@ -39,7 +39,7 @@ Crossing JSON is not a criterion. Whether a value crosses a boundary depends on 
 
 1. **Lower inference cost.** The DeepReadonly recursion stops after one level (children are already readonly Vals). Conditional types stay shallow, so `tsc` stays fast
 2. **Structural equality is well-defined.** There are no prototypes or cycles to consider
-3. **Values always pass serialization boundaries.** `structuredClone` / JSON are always safe
+3. **Data crosses serialization boundaries.** JSON and `structuredClone` carry a payload intact, and the receiver seals it again. A clone within one thread is outside the guarantees (§1)
 4. **It pushes the design the right way.** Composing Vals is mandatory, which leads to a sound DDD-style structure
 
 `ReadonlyArray` and `Record` are defined recursively. Without that, `readonly string[][]` (matrices, grids) and `Readonly<Record<string, Val>>` (ID indexes) could not be written. Each node is shallow, so the recursion does not make the cost blow up.
@@ -272,14 +272,35 @@ PriceTable.seal(known); // fig is typed Money, and Money.seal never ran
 **`Val.Record<B, K, V>` replaces it.** It is a Val whose companion comes from `Val.Record.companion`, since types are
 erased, and at run time a record's input looks like an array Val's.
 
-- **The seal takes an iterable of entries, never a plain object.** An entry is a `readonly [K, V]` tuple, and a tuple has
-  no hidden elements, so every value is checked against `V`. A later entry with the same key wins, as in `new Map` and
-  `Object.fromEntries`
+- **`fromEntries` takes an iterable of entries, never a plain object.** An entry is a `readonly [K, V]` tuple, and a tuple has
+  no hidden elements. A later entry with the same key wins, as in `new Map` and `Object.fromEntries`
+  - **`Object.entries` of a narrowed variable hides entries again** (user, 2026-11-18). lib types `Object.entries(o)` by the
+    implicit index signature of `o`'s type, so the entries of `const b: { a: string } = { a: "a", b: 1 }` are typed
+    `[string, string][]` and hold `["b", 1]`. An interface type gives `[string, any][]`. Either reaches `fromEntries` with no
+    error. The types cannot distinguish these entries from checked ones. The book points to arrays, a JS `Map` and another record's
+    `entries` instead. A lint rule is open in §9
+- **The companion has no `seal`, and builds a record through `fromEntries`** (user, 2026-11-18). A seal checks a payload and
+  brands it, and returns the value itself for its own payload (§6.7). A seal that took entries changed its argument, and
+  `seal(the payload of v)` was rejected. A public seal that took the object would reopen the hole above
+  - `.implSeal` stays. The function it registers receives the object the entries fold into, so a check counts a repeated key
+    once. `fromEntries`, `create`, `set` and `delete` go through it
+  - `.implCreate`'s function returns entries, and `create` folds them. Returning an object would reopen the hole
+  - `fromEntries` and `create` coexist. `create` runs the function the type's author registers, and `fromEntries` is a fixed
+    conversion. Both pass their result to the seal
+  - The only option is `PrivateCreate`. A record has no `seal` for `PrivateSeal` to hide, and no `patch` for `Unpatchable`
+    to restrict. Hiding `fromEntries` is open in §9
+  - The steps' functions receive `fromEntries` in place of `seal` and `patch`. `attach` puts it on the companion before
+    it calls them, so destructuring it works
+  - **Rejected: the companion's seal takes the object, typed by the record's payload marker.** Only a record's own value
+    would fit, so the hole would stay closed. A seal no caller can use with a new object has no reason to be public
+  - **Rejected: `.implFromEntries` in place of `.implSeal`.** Its function would receive entries, and count a repeated key
+    twice. A seal over the folded object keeps one meaning of `implSeal` across Vals
 - **The value is a frozen plain object keyed by `K`.** Reading `prices[key]` gives `V | undefined`. `equals`, JSON and
   `structuredClone` treat it as any object
 - **A set is a `Val.Record` of `true`** (`Val.Record<"Tags", string, true>`, §8.1)
-- **`set`, `delete` and `has` are the companion's members**, reserved only on a record's companion. Each goes through the
-  seal, and returns the value itself where nothing changes. There is no `patch`. `set` and `delete` change an entry
+- **`fromEntries`, `set`, `delete` and `has` are the companion's members**, reserved only on a record's companion, in
+  both `impl` and `implAssoc`. Each except `has` goes through the seal, and `set` and `delete` return the value itself where
+  nothing changes. There is no `patch`. `set` and `delete` change an entry
 - **`keys`, `values` and `entries` return its keys and values typed `K` and `V`** (user, 2026-11-18). `Object.keys` gives `string[]` and loses
   a branded `K`, and `Object.values` and `Object.entries` add `undefined` from the optional value type. They return
   readonly arrays in `Object.keys`'s order. Not added: `size`, `get` and `forEach`, which `Object.keys(r).length`, `r[key]`
@@ -296,7 +317,8 @@ erased, and at run time a record's input looks like an array Val's.
 - **Rejected: the root alone holds a record, and `patch` does not merge it.** A narrowed variable reaches the root `seal`
   too
 - **Rejected: a runtime check that each value is a sealed Val.** Typed entries already check each value
-- **Rejected: a `fromEntries` member.** It repeats the seal and reserves another name. A `fromObject` would reopen the hole
+- ~~**Rejected: a `fromEntries` member.** It repeats the seal and reserves another name.~~ Adopted, 2026-11-18, once the
+  seal stopped taking entries (above). A `fromObject` would still reopen the hole
 - **Rejected: exporting the payload marker** (`RecordOf`, first `MapOf`), which let `Val<"X", MapOf<…>>` declare a record outside
   `Val.Record`
 - **Breaking change.** A payload's `Record<string, V>` becomes a `Val.Record`. valof-lint recognizes its declarations and
@@ -304,6 +326,10 @@ erased, and at run time a record's input looks like an array Val's.
 - **Cost.** Val 1.25 → 1.22 kB gzipped (with the draft's delete trap removed, §6.2): the record code is in `Val.Record.companion`'s own builder, so a bundle without it leaves it
   out. The rules cost core 9,288 → 9,727 instantiations, and the fixture's record another 1,687 (11,414), so the core
   budget went from 10,000 to 12,000. `index.d.ts` 105.65 → 109.85 kB, budget 108 → 112 kB
+  - **2026-11-18, `fromEntries`.** Val 1.22 → 1.24 kB gzipped: `attach` adds the record's members before it calls the steps.
+    core 11,414 → 11,459, trait 25,699 → 25,970 (budget 26,000), enum 47,790 → 48,040. `index.d.ts` 109.48 → 111.06 kB.
+    The record branch is one conditional in `Supplied` and one in `Companion`. Testing for a record separately in each of
+    `SealMethod`, `PatchMethod` and `FromEntriesMethod` put trait at 26,113, over its budget
 
 ## 3.6 Forbid unions of objects
 
