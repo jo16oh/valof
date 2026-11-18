@@ -2319,6 +2319,10 @@ describe("Val.Record", () => {
     expect(prices).toEqual({ apple });
     expect(Stock.renamed(prices, "apple", "fig")).toEqual({ fig: apple });
     expectTypeOf(Stock.renamed(prices, "apple", "fig")).toEqualTypeOf<Prices>();
+    // The step's readers are typed apart from the companion's.
+    expectTypeOf(Stock.amounts).returns.toEqualTypeOf<number[]>();
+    expectTypeOf(Stock.names).returns.toEqualTypeOf<readonly string[]>();
+    expectTypeOf(Stock.pairs).returns.toEqualTypeOf<readonly (readonly [string, Money])[]>();
     // @ts-expect-error a record's steps receive no `seal`
     Val.Record.companion<Prices>().implAssoc(({ seal }) => ({ sealed: () => seal }));
   });
