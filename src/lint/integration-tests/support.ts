@@ -41,6 +41,7 @@ export const SplitCompanion = registered(Rules.SplitCompanion);
 export const InferredValOf = registered(Rules.InferredValOf);
 export const UnusedDisable = registered(Rules.UnusedDisable);
 export const UnusedMember = registered(Rules.UnusedMember);
+export const ReadonlyPayload = registered(Rules.ReadonlyPayload);
 
 /**
  * A finding as a test names it: which rule reported it, and where.
