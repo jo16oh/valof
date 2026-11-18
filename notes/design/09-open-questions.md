@@ -46,6 +46,21 @@
   - A named function passed as the recipe is out of the lint's reach. `PatchFn` is to require its parameter type to be
     the draft's own, which also rejects `(d: { _tag?: string }) => …`
 
+- [ ] **valof-lint reports `Object.entries` passed to `fromEntries`.** TypeScript's lib types the entries by the
+      object's implicit index signature, so a narrowed variable hides entries from a record again (§3 "No index signature")
+  - Plan (user, 2026-11-18): without type information, report every `Object.entries` result that reaches a record's
+    `fromEntries`. From a narrowed variable, the entries are typed as its listed values. From an interface or `any`,
+    they are typed `any`. Either way, the entries the type leaves out reach `fromEntries` unchecked. An object literal
+    has no reason to go through `Object.entries`, and a record has its own `entries`
+  - The rule tracks the result syntactically: the direct argument, a method chain on it, a `const` in the same
+    function, `new Map(…)`, and a `fromEntries` destructured from what `impl`, `implTrait` or `implAssoc` passes its
+    function. A value passed through a function's parameter or return, or pushed into an array, is out of its reach.
+    `pipe` is not tracked, since it is this repository's helper and no user writes it (user, 2026-11-18)
+
+- [ ] **A way to hide a record's `fromEntries`.** `PrivateSeal` removes the path that takes a payload directly, and a
+      record's `fromEntries` is that path (§3). No record has needed `create` to generate a key a caller must not pass, so
+      `Val.Record.companion` accepts only `PrivateCreate` until one does (2026-11-18)
+
 - [x] ~~**The hole in a patch passed as a variable (investigated in #125).**~~ Closed, 2026-11-05. Items 1-3 of `hunt-findings.md`. A non-literal
       argument gets no excess property check, and the patch type was an intersection (`{…} & {…}`), so it got no weak type check either
   - **Make `Patch` one mapped type.** The weak type check then rejects a variable that shares no key (`{ foo: 1 }`).

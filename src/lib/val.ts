@@ -93,9 +93,12 @@ type Collection = RecordOf<string, unknown>;
 /**
  * A Val holding a value `V` under each key `K`, as a plain object:
  * `type Prices = Val.Record<"Prices", string, Money>`, then `Val.Record.companion<Prices>()`. A set
- * holds `true`: `Val.Record<"Tags", string, true>`. Its seal takes an iterable of `[key, value]`
- * entries, so each value is checked against `V`. Read an entry as `prices[key]`, and change one
- * with the companion's `set` and `delete`.
+ * holds `true`: `Val.Record<"Tags", string, true>`. Build one with the companion's `fromEntries`,
+ * which takes an iterable of `[key, value]` entries, so each value is checked against `V`. Read an
+ * entry as `prices[key]`, and change one with the companion's `set` and `delete`.
+ *
+ * The companion has no `seal`: an object typed with fewer keys could hide entries. A seal
+ * registered with `.implSeal` receives the object the entries fold into.
  *
  * A record holding itself goes through a Val: `type Node = Val<"Node", { kids: Kids }>` and
  * `type Kids = Val.Record<"Kids", string, Rec<Node>>`.
@@ -448,11 +451,11 @@ export type DeepReadonly<T, Arg extends Position = false> =
 /** Not an argument, the payload an argument takes, or a part of that payload. */
 type Position = boolean | "field";
 
-/** The value of a {@link ValRecord}: an object keyed by its keys. */
-type Collected<T> =
-  T extends RecordOf<infer K, infer V> ? { readonly [P in K]?: DeepReadonly<V> } : never;
+/** The value of a {@link ValRecord}, or the payload its seal takes: an object keyed by its keys. */
+type Collected<T, Inner extends Position> =
+  T extends RecordOf<infer K, infer V> ? { readonly [P in K]?: DeepReadonly<V, Inner> } : never;
 
-/** What the seal of a {@link ValRecord} takes: entries. */
+/** What a {@link ValRecord}'s `fromEntries` takes, and its `create` function returns: entries. */
 type Gathered<T> =
   T extends RecordOf<infer K, infer V> ? Iterable<readonly [K, DeepReadonly<V, "field">]> : never;
 
@@ -476,10 +479,7 @@ type DeepReadonlyValue<
           : { readonly [I in keyof T]: DeepReadonly<T[I], Inner> }
         : Mixed<T, Arg, Split>
       : [T] extends [Collection]
-        ? // A plain object could hide entries, so the seal takes entries or keys only.
-          Arg extends true
-          ? Gathered<T>
-          : Collected<T>
+        ? Collected<T, Inner>
         : [T] extends [object]
           ? [keyof T] extends [never]
             ? Arg extends true
@@ -878,10 +878,7 @@ export type Reserved = keyof Rejected;
  * `V` is unconstrained so an enum's variant, which is a Val behind a second phantom, can name it.
  */
 export type CompanionMembers<V> = Rejected &
-  // A record's own members.
-  (Declared<V> extends Collection
-    ? Partial<Record<"set" | "delete" | "has" | "keys" | "values" | "entries", never>>
-    : unknown) & {
+  Partial<Record<RecordNames<V>, never>> & {
     /**
      * One callable member only. This is the contextual type for the Val parameter, and TypeScript
      * takes one from a union only while a single constituent has a call signature. `NonFn` has
@@ -891,6 +888,12 @@ export type CompanionMembers<V> = Rejected &
     // oxlint-disable-next-line no-explicit-any -- `never[]` would type unannotated extra parameters as `never`
     [key: string]: ((value: V, ...rest: any[]) => unknown) | NonFn;
   };
+
+/** The names a {@link ValRecord}'s companion carries, which its steps may not register. */
+type RecordNames<V> =
+  Declared<V> extends Collection
+    ? "set" | "delete" | "has" | "keys" | "values" | "entries" | "fromEntries"
+    : never;
 
 /** The members `.implAssoc` accepts: functions with names the library does not reserve. */
 export type AssocMembers = Rejected & Record<string, unknown>;
@@ -934,7 +937,15 @@ export type Synchronous<G extends (...args: never[]) => unknown, Checked> =
  * What `create` must be: any arguments, a payload out. The result is not a value yet. The type's
  * seal closes it, so `create` cannot bypass the seal.
  */
-type CreateImpl<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
+type CreateImpl<V extends AnyVal> = (...args: never[]) => SourceOf<V>;
+
+/**
+ * What `create` returns: the payload, or the entries of a {@link ValRecord}, since a plain object
+ * could hide entries.
+ */
+type SourceOf<V extends AnyVal> = [Declared<V>] extends [Collection]
+  ? Gathered<Declared<V>>
+  : SeedOf<V>;
 
 /** Marks a `create` registered by `.implCreate.noseal`. */
 export type Unsealed = { readonly [NoSeal]: true };
@@ -1060,11 +1071,13 @@ export type Unpatchable<K extends string> = [K] extends [infer X]
     : UnpatchablePhantom<K>
   : never;
 
-/** What the list after the Val in `Val.companion<V, […]>` takes. */
-type CompanionOption<V extends AnyVal> =
-  | PrivateSeal
-  | PrivateCreate
-  | Unpatchable<keyof SeedOf<V> & string>;
+/**
+ * What the list after the Val in `Val.companion<V, […]>` takes. A {@link ValRecord} has no `seal`
+ * to hide and no `patch` to restrict.
+ */
+type CompanionOption<V extends AnyVal> = [Declared<V>] extends [Collection]
+  ? PrivateCreate
+  : PrivateSeal | PrivateCreate | Unpatchable<keyof SeedOf<V> & string>;
 
 // A list, not an intersection: two `Unpatchable`s intersected collapse to `never`, which satisfies
 // every constraint and would read as no option at all.
@@ -1081,18 +1094,16 @@ export type UnpatchableKeys<O extends Options> = O[number] extends infer E
  * arrays, so for those the function is left out of the type. Write a named derivation of your
  * own instead, and seal inside it.
  */
-type PatchMethod<V extends AnyVal, F, O extends Options> = [Declared<V>] extends [Collection]
+type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<SeedOf<V>>] extends [never]
   ? Record<never, never>
-  : [Patch<SeedOf<V>>] extends [never]
-    ? Record<never, never>
-    : {
-        /**
-         * Runs a recipe on a draft and seals the result, so it returns whatever the seal returns:
-         * `patch` cannot bypass a smart constructor. Returns the value itself where the recipe
-         * changed nothing. See {@link Patch}.
-         */
-        patch: PatchFn<V, Constructed<V, F>, Patch<SeedOf<V>, UnpatchableKeys<O>>>;
-      };
+  : {
+      /**
+       * Runs a recipe on a draft and seals the result, so it returns whatever the seal returns:
+       * `patch` cannot bypass a smart constructor. Returns the value itself where the recipe
+       * changed nothing. See {@link Patch}.
+       */
+      patch: PatchFn<V, Constructed<V, F>, Patch<SeedOf<V>, UnpatchableKeys<O>>>;
+    };
 
 /**
  * A type's members, its `seal`, and the `create` and `patch` that go through it. Not callable: a
@@ -1110,15 +1121,26 @@ export type Companion<
 > = Duals<Omit<M, Wired>, V> &
   Looses<A> &
   ([Extract<O[number], PrivateCreate>] extends [never] ? CreateMethod<V, N, F> : unknown) &
-  ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
-  PatchMethod<V, F, O> &
-  CollectionMethods<V, F> &
+  // A record's companion has no `seal`: a caller could pass an object typed with fewer keys.
+  ([Declared<V>] extends [Collection]
+    ? CollectionMethods<V, F>
+    : ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
+        PatchMethod<V, F, O>) &
   TraitHost;
+
+/** Builds a {@link ValRecord} from entries. */
+type FromEntriesMethod<V extends AnyVal, F> = {
+  /**
+   * Folds the entries into an object and seals it, so it returns whatever the seal returns. A
+   * later entry replaces an earlier one with the same key.
+   */
+  fromEntries: (entries: Gathered<Declared<V>>) => Constructed<V, F>;
+};
 
 /** The members a {@link ValRecord} companion carries. Each goes through the seal. */
 type CollectionMethods<V extends AnyVal, F> =
   Declared<V> extends RecordOf<infer K, infer E>
-    ? {
+    ? FromEntriesMethod<V, F> & {
         /** Sets the value under a key. Returns the record itself where it already holds that value. */
         set: Dual<(record: V, key: K, value: DeepReadonly<E, "field">) => Constructed<V, F>, V>;
         /** Removes a key. Returns the record itself where it lacks the key. */
@@ -1199,8 +1221,9 @@ export type Passes<Tr extends AnyTrait, G, I, S> =
  * inside this alias, the parameter's hover shows the expanded type instead of `Supplied<…>`.
  */
 type Supplied<V extends AnyVal, N, F, O extends Options> = CreateMethod<V, N, F> &
-  SealMethod<V, F> &
-  PatchMethod<V, F, O>;
+  ([Declared<V>] extends [Collection]
+    ? FromEntriesMethod<V, F>
+    : SealMethod<V, F> & PatchMethod<V, F, O>);
 
 /** The steps a companion has taken. The first two are the first half of the chain. */
 type Taken = "implSeal" | "implCreate" | "impl" | "implTrait" | "implAssoc";
@@ -1252,7 +1275,8 @@ export type CompanionBuilder<
          * has its own step.
          *
          * The function receives `seal`, `create` where `.implCreate` registered one, and `patch`
-         * for an object payload. A member reaching the companion for anything else (a trait's
+         * for an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
+         * `patch`. A member reaching the companion for anything else (a trait's
          * member or a sibling) references it and annotates its return type.
          *
          * A member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}. Called with the value last, a generic member loses its type parameters. To keep them, call it with the value first inside a function: `pipe(u, (v) => User.pick(v, "name"))`.
@@ -1272,7 +1296,8 @@ export type CompanionBuilder<
      * `parse`, a constant. Write it any number of times.
      *
      * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
-     * an object payload. A member reaching the companion for anything else (a sibling or another
+     * an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
+     * `patch`. A member reaching the companion for anything else (a sibling or another
      * step's member) references it and annotates its return type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
@@ -1281,7 +1306,7 @@ export type CompanionBuilder<
     implAssoc: <M extends AssocMembers>(
       fns: (
         supplied: NoInfer<Supplied<V, N, F, O>>,
-      ) => Grown<keyof T | keyof A, M> & LooseArity<M> & ThisType<undefined>,
+      ) => Grown<keyof T | keyof A | RecordNames<V>, M> & LooseArity<M> & ThisType<undefined>,
     ) => CompanionBuilder<V, N, F, O, T, D | "implAssoc", A & M>;
     /**
      * Implements a trait the type declares. A function passed as the second argument returns the
@@ -1332,7 +1357,7 @@ type FirstHalf<V extends AnyVal, N, F, O extends Options, D extends Taken> = ("i
            * throws if it rejects the payload or if normalization changes it.
            */
           noseal: <G extends AnyFn>(
-            create: Argumentless<SeedOf<V>, G>,
+            create: Argumentless<SourceOf<V>, G>,
           ) => CompanionBuilder<V, Unsealed, F, O, Record<never, never>, D | "implCreate">;
         };
       });
@@ -1781,8 +1806,14 @@ const drafted = (
  * Everything that produces a value goes through `seal`: the registered one, or a copy when the
  * type did not replace it. Nothing is copied before that. The one deep copy happens in the
  * default seal that a custom one returns through.
+ *
+ * `gates` replaces `seal` and `patch` with the members it builds from the seal, ahead of the
+ * steps' functions, which receive them.
  */
-export const attach = (registered: Registered): Record<string, unknown> => {
+export const attach = (
+  registered: Registered,
+  gates?: (seal: (value: unknown) => unknown) => Record<string, unknown>,
+): Record<string, unknown> => {
   const target: Record<string, unknown> = {};
   const {
     create,
@@ -1840,6 +1871,33 @@ export const attach = (registered: Registered): Record<string, unknown> => {
     created.nocopy = (...args: never[]) => adopting(create(...args));
     target["create"] = created;
   }
+  if (gates) Object.assign(target, gates(seal));
+  else attachGates(target, seal, nocopy, keep);
+
+  // The steps' functions run once the gates they receive exist. A trait's members join the
+  // type's own, so they grow the same way. The Val's own go on last, the type having kept every
+  // `Final` one out of them. The record is what `Trait`'s `dyn` reads, and keeping it here means
+  // `val.ts` never imports `trait.ts`.
+  const traits = Object.assign(
+    {},
+    ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
+  ) as Record<string, unknown>;
+  (target as Record<symbol, unknown>)[Traits] = traits;
+  return Object.assign(
+    target,
+    createMembers(traits),
+    createMembers({ ...fns?.(target) }),
+    associated(assoc, target),
+  );
+};
+
+/** Puts `seal` and `patch` on a companion. */
+const attachGates = (
+  target: Record<string, unknown>,
+  seal: (value: unknown) => unknown,
+  nocopy: (value: unknown) => unknown,
+  keep: (value: unknown) => unknown,
+): void => {
   // Without a custom seal, `seal` is the copy itself, and this gives it the `nocopy` `Val.of` has.
   define(seal, "nocopy", nocopy);
   target["seal"] = seal;
@@ -1865,22 +1923,6 @@ export const attach = (registered: Registered): Record<string, unknown> => {
       for (const revoke of revokes) revoke();
     }
   });
-
-  // The steps' functions run once the gates they receive exist. A trait's members join the
-  // type's own, so they grow the same way. The Val's own go on last, the type having kept every
-  // `Final` one out of them. The record is what `Trait`'s `dyn` reads, and keeping it here means
-  // `val.ts` never imports `trait.ts`.
-  const traits = Object.assign(
-    {},
-    ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
-  ) as Record<string, unknown>;
-  (target as Record<symbol, unknown>)[Traits] = traits;
-  return Object.assign(
-    target,
-    createMembers(traits),
-    createMembers({ ...fns?.(target) }),
-    associated(assoc, target),
-  );
 };
 
 /**
@@ -1928,7 +1970,7 @@ type NotEnum<V> = [V] extends [AnyEnum]
   ? Invalid<"a variant is built by its enum's companion">
   : NotCollection<V>;
 
-/** Rejects a {@link ValRecord}, whose seal builds the value from entries. */
+/** Rejects a {@link ValRecord}, whose `fromEntries` builds the value from entries. */
 // `never` is a `V` inferred from nothing, which reads no payload.
 type NotCollection<V> = [Declared<V>] extends [never]
   ? unknown
@@ -1937,42 +1979,42 @@ type NotCollection<V> = [Declared<V>] extends [never]
     : unknown;
 
 /**
- * A record's builder. Its seal gathers the entries into the object the value is, ahead of a custom
- * seal's own, and its companion carries the members that derive one. Only `Val.Record.companion`
- * reaches it, so a bundle without it leaves it out.
+ * A record's builder. Its companion trades `seal` and `patch` for `fromEntries` and the members that
+ * derive a record, each going through the seal. Only `Val.Record.companion` reaches it, so a bundle
+ * without it leaves it out.
  */
 const recordBuilder = (registered: Registered): object => ({
   ...steps(registered, (change) => recordBuilder({ ...registered, ...change })),
   build: () => {
-    const { seal: custom } = registered;
-    // A value already sealed is no iterable, and passes as it is.
-    const gather = (value: unknown): unknown =>
-      isObject(value) && Symbol.iterator in value
-        ? Object.fromEntries(value as Iterable<readonly [string, unknown]>)
-        : value;
-    const target = attach({
-      ...registered,
-      seal: (value, seal) =>
-        custom ? custom(value, (candidate) => seal(gather(candidate))) : seal(gather(value)),
-    });
-    const seal = target["seal"] as (value: unknown) => unknown;
+    const { create } = registered;
     const has = (from: object, key: string): boolean => Object.hasOwn(from, key);
-    return Object.assign(target, {
-      has: dual(has),
-      delete: dual((from: Record<string, unknown>, key: string) =>
-        seal(has(from, key) ? Object.entries(from).filter(([k]) => k !== key) : from),
-      ),
-      keys: Object.keys,
-      values: Object.values,
-      entries: Object.entries,
-      set: dual((from: Record<string, unknown>, key: string, value: unknown) =>
-        seal(
-          has(from, key) && Object.is(from[key], value)
-            ? from
-            : [...Object.entries(from), [key, value]],
+    return attach(
+      {
+        ...registered,
+        ...(create && {
+          create: (...args: never[]) =>
+            Object.fromEntries(create(...args) as Iterable<readonly [string, unknown]>),
+        }),
+      },
+      (seal) => ({
+        fromEntries: (entries: Iterable<readonly [string, unknown]>) =>
+          seal(Object.fromEntries(entries)),
+        has: dual(has),
+        delete: dual((from: Record<string, unknown>, key: string) =>
+          seal(
+            has(from, key)
+              ? Object.fromEntries(Object.entries(from).filter(([k]) => k !== key))
+              : from,
+          ),
         ),
-      ),
-    });
+        keys: Object.keys,
+        values: Object.values,
+        entries: Object.entries,
+        set: dual((from: Record<string, unknown>, key: string, value: unknown) =>
+          seal(has(from, key) && Object.is(from[key], value) ? from : { ...from, [key]: value }),
+        ),
+      }),
+    );
   },
 });
 
@@ -1981,7 +2023,7 @@ type IsValRecord<V> = [Declared<V>] extends [Collection]
   ? unknown
   : Invalid<"`Val.Record.companion` builds a `Val.Record`">;
 
-/** Bundles a {@link ValRecord}'s `seal`, `set`, `delete`, `has` and members. See {@link companion}. */
+/** Bundles a {@link ValRecord}'s `fromEntries`, `set`, `delete`, `has` and members. See {@link companion}. */
 export const recordCompanion = <
   V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val">,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
