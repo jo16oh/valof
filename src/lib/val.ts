@@ -255,7 +255,7 @@ type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extend
         ? Owner extends "Val"
           ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
           : Invalid<"a payload cannot declare a trait">
-        : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+        : Invalid<"a field cannot hold a trait; declare an Enum of the types it may hold">
       : [T] extends [Invalid<infer M>]
         ? Refused<M>
         : [T] extends [Refused<infer M>]
@@ -485,7 +485,28 @@ type Position = boolean | "field";
 
 /** The value of a {@link ValRecord}, or the payload its seal takes: an object keyed by its keys. */
 type Collected<T, Inner extends Position> =
-  T extends RecordOf<infer K, infer V> ? { readonly [P in K]?: DeepReadonly<V, Inner> } : never;
+  T extends RecordOf<infer K, infer V>
+    ? Inner extends false
+      ? { readonly [P in K]?: DeepReadonly<V, Inner> }
+      : Keyed<K, DeepReadonly<V, Inner>>
+    : never;
+
+/**
+ * An argument keyed by `K`. A listed key may be left out. A key such as `string` or `` `x-${string}` ``
+ * takes no `undefined`, which `?` would add to its value.
+ */
+type Keyed<K extends string, X> = [Extract<Patterns<K>, false>] extends [never]
+  ? { readonly [P in K]: X }
+  : [Extract<Patterns<K>, true>] extends [never]
+    ? { readonly [P in K]?: X }
+    : { readonly [P in K as Pattern<P> extends true ? never : P]?: X } & {
+        readonly [P in K as Pattern<P> extends true ? P : never]: X;
+      };
+
+type Patterns<K extends string> = K extends unknown ? Pattern<K> : never;
+
+/** Whether `K` is a key such as `string`, so that `{}` fits a `Record` keyed by it. */
+type Pattern<K extends string> = {} extends Record<K, 1> ? true : false;
 
 /** What a {@link ValRecord}'s `fromEntries` takes, and its `create` function returns: entries. */
 type Gathered<T> =
@@ -2120,10 +2141,11 @@ type IsValRecord<V> = [Declared<V>] extends [Collection]
 
 /** Bundles a {@link ValRecord}'s `fromEntries`, `set`, `delete`, `has` and members. See {@link companion}. */
 export const recordCompanion = <
-  V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val">,
+  V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val"> = never,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
->(): Listed<O, CompanionBuilder<V, undefined, undefined, O>> =>
-  recordBuilder({}) as Listed<O, CompanionBuilder<V, undefined, undefined, O>>;
+>(): [V] extends [never]
+  ? Invalid<"name the record: `Val.Record.companion<R>()`">
+  : Listed<O, CompanionBuilder<V, undefined, undefined, O>> => recordBuilder({}) as never;
 
 // The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
 // with a boolean payload is a union of two types with one brand, so the check compares brands.
