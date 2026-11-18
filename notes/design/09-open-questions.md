@@ -69,13 +69,21 @@
       budget went from 13,000 to 13,100
     - **Not fixed, though probed, by decision (user, 2026-11-18):** a class instance passed to `seal` stays unchecked by
       the types (it throws at run time); a union of two Vals passed to `equals` is accepted (the caller wrote the union)
-    - **Not fixed yet, though probed:** a `Rec` in a trait's shape (circular, TS2456), `Patch<User>` written for a Val
-      (reported where it is used)
+    - **Not fixed yet, though probed:** `Patch<User>` written for a Val (reported where it is used)
     - **Fixed (2026-11-18):**
       - **A generic trait member is rejected,** as Rust keeps generic methods out of a `dyn` trait. `infer` reads the
         member with its type parameters filled in, and the member does not accept that type back. A constrained
         parameter reads as its constraint, so `<T extends string>(self: Self, t: T) => number` passes as
         `(self: Self, t: string) => number`. An overloaded member is still read by its last signature
+      - **A trait's shape may hold the Val or the enum that declares it through `Rec`.** Two causes: the payload and
+        the shape intersected over a key both declare, which the checker reduces by reading that key; and an enum
+        checked its traits against `AnyTrait` while being declared, which computes the trait's verdict and reads the
+        shape. `Holding` and the enum's `FieldsIn` and `SharedIn` leave the payload's keys out of the shape's fields,
+        and the enum tests against `LooseTrait`, whose verdict is not computed
+    - **Still open:** a variant and the enum's shared fields both writing a key that holds a `Rec` is circular, with or
+      without a trait. Leaving the variant's keys out of the shared fields fixes it, but loses the check that a variant
+      field contradicting a shared one is rejected. And with an enum-level trait, `Node.seal({ _tag: "Leaf", … })` is
+      rejected ("Leaf" is not assignable to "Branch"); `Node.Leaf.seal` works
 
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
