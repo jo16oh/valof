@@ -326,7 +326,8 @@ describe("Val", () => {
       type Loose = any;
       // @ts-expect-error the options cannot be `any`
       Val.companion<User, Loose>().build();
-      expectTypeOf<Typo | DraftTypo | Exported>().not.toBeNever();
+      expectTypeOf<Typo | DraftTypo>().not.toBeNever();
+      expectTypeOf<Exported>().toBeAny();
       // Literal keys list every entry.
       type Fixed = Val<"Fixed", Record<"a" | "b", number>>;
       expectTypeOf<Fixed>().toExtend<AnyVal>();
