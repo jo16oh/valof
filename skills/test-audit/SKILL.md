@@ -29,8 +29,8 @@ Give it the three passes below, the scope, and the diff. It reads the tests and 
 cover, runs the mutation checks, and returns the report. The test bodies stay out of the launching
 session that way.
 
-For `all`, launch one agent per directory (`tests/`, `tests/lint/`, `docs/tools/`) so no agent reads
-the whole suite.
+For `all`, launch one agent per directory (`src/` except `src/lint/`, `src/lint/`, `scripts/`,
+`docs/tools/`) so no agent reads the whole suite.
 
 In Claude Code that is the `general-purpose` agent, which inherits the parent model on its own.
 Other harnesses name their own agents, so check that the one you pick runs on the parent's model.
@@ -105,7 +105,7 @@ A test that passes whatever the source does. Break the source it covers, run it,
 red:
 
 ```sh
-vp test tests/val.test.ts
+vp test src/val.test.ts
 ```
 
 What to look for first:

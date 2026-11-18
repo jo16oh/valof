@@ -1,0 +1,183 @@
+import { spawnSync } from "node:child_process";
+import { globSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+
+import { Options as LintOptions, RULES, lint as run } from "../index.ts";
+
+export { RULES };
+
+import * as Rules from "../rules/index.ts";
+
+/** One of the rules in the registry. */
+type Registered = (typeof RULES)[number];
+
+/** The rule in the registry that a companion creates. */
+function registered(companion: { create: (settings: never) => { kind: string } }): Registered {
+  // An opt-in rule's create takes its settings, and none of them changes the kind.
+  const { kind } = companion.create({} as never);
+  const rule = RULES.find((one) => one.kind === kind);
+  if (!rule) throw new Error(`no rule reports ${kind}`);
+  return rule;
+}
+
+// Named rather than spelled as a kind: a test that names a rule reads the same object the
+// registry does, so renaming a kind is one edit and no test string follows it.
+export const HiddenSharedStateInImpl = registered(Rules.HiddenSharedStateInImpl);
+export const DataTypeOutsideValof = registered(Rules.DataTypeOutsideValof);
+export const HiddenOptional = registered(Rules.HiddenOptional);
+export const DetachedVariant = registered(Rules.DetachedVariant);
+export const UnnecessaryAlias = registered(Rules.UnnecessaryAlias);
+export const UnimplementedTrait = registered(Rules.UnimplementedTrait);
+export const BrandMismatch = registered(Rules.BrandMismatch);
+export const BypassedCompanion = registered(Rules.BypassedCompanion);
+export const CompanionMismatch = registered(Rules.CompanionMismatch);
+export const DuplicateBrand = registered(Rules.DuplicateBrand);
+export const IncompleteDisable = registered(Rules.IncompleteDisable);
+export const SplitCompanion = registered(Rules.SplitCompanion);
+export const InferredValOf = registered(Rules.InferredValOf);
+export const UnusedDisable = registered(Rules.UnusedDisable);
+export const UnusedMember = registered(Rules.UnusedMember);
+
+/**
+ * A finding as a test names it: which rule reported it, and where.
+ *
+ * The rule is the object, not its kind. The location keeps the fixture-relative path so an
+ * expectation still says which file it came from. What it said is {@link fixtures}' `messages`,
+ * asked for by the tests whose subject is the wording.
+ */
+export type Reported = { rule: Registered; at: string };
+
+function reporting(kind: string): Registered {
+  const rule = RULES.find((one) => one.kind === kind);
+  if (!rule) throw new Error(`no rule reports ${kind}`);
+  return rule;
+}
+
+/** The package root, which is where the command runs. */
+export const ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+
+/**
+ * The fixture tree beside one test file, addressed by the entry names under `fixtures/`. A test
+ * other than `index.test.ts` keeps its tree under `fixtures/<name>/`, so tests that sit side by side
+ * keep theirs apart.
+ *
+ * A fixture is one file, `dead-member`, or a directory of them, `plain`. Findings come back with
+ * paths relative to `fixtures/`, so every expectation names the fixture it came from.
+ *
+ * In process, so a run costs no `node` start. The command itself is covered by {@link cli}: what
+ * it adds over `lint` is argument parsing and the shape of a line.
+ */
+type Options = {
+  skip?: readonly Registered[];
+  overlay?: Map<string, string>;
+  enable?: NonNullable<Parameters<typeof LintOptions.create>[0]>["enable"];
+};
+
+export function fixtures(url: string): {
+  all: () => string[];
+  files: (fixture: string) => string[];
+  lint: (fixture: string, options?: Options) => Promise<Reported[]>;
+  /** The same run, as what each finding said. For a message that is the test's subject. */
+  messages: (fixture: string, options?: Options) => Promise<string[]>;
+} {
+  const name = /([^/]+)\.test\.ts$/.exec(url)?.[1];
+  const directory = fileURLToPath(
+    new URL(name === undefined || name === "index" ? "fixtures/" : `fixtures/${name}/`, url),
+  );
+  const files = (fixture: string): string[] =>
+    globSync([`${directory}${fixture}.ts`, `${directory}${fixture}/**/*.ts`]);
+
+  const found = async (fixture: string, { skip = [], overlay, enable }: Options = {}) =>
+    run(
+      files(fixture),
+      LintOptions.create({
+        overlay: overlay ?? [],
+        skip: skip.map(({ kind }) => kind),
+        ...(enable ? { enable } : {}),
+      }),
+    );
+
+  return {
+    all: () => globSync(`${directory}**/*.ts`),
+    files,
+    lint: async (fixture, options) =>
+      (await found(fixture, options)).map(({ file, at: { line, column }, kind }) => ({
+        rule: reporting(kind),
+        at: `${file.replace(directory, "")}:${line}:${column}`,
+      })),
+    messages: async (fixture, options) =>
+      (await found(fixture, options)).map(({ message }) => message),
+  };
+}
+
+type Run = { status: number; stdout: string; stderr: string };
+
+function spawn(
+  node: string[],
+  args: string[],
+  script = `${ROOT}src/lint/main.ts`,
+  cwd = ROOT,
+  env: NodeJS.ProcessEnv = process.env,
+): Run {
+  const result = spawnSync(process.execPath, [...node, script, ...args], {
+    cwd,
+    encoding: "utf8",
+    env,
+  });
+  if (result.error) throw result.error;
+  return { status: result.status ?? -1, stdout: result.stdout, stderr: result.stderr.trim() };
+}
+
+/** The command, for what only the command does. */
+export function cli(...args: string[]): Run {
+  return spawn([], args);
+}
+
+/** The same, run from another directory. */
+export function cliIn(cwd: string, ...args: string[]): Run {
+  return spawn([], args, undefined, cwd);
+}
+
+/**
+ * The same, keeping its scans on disk. Every other run here keeps none, so no test reads what
+ * another left behind.
+ */
+export function cliKeepingIn(cwd: string, ...args: string[]): Run {
+  return spawn([], args, undefined, cwd, keeping());
+}
+
+/** The environment without `VALOF_LINT_CACHE`, so the linter keeps its scans on disk. */
+export function keeping(): NodeJS.ProcessEnv {
+  const { VALOF_LINT_CACHE: _, ...env } = process.env;
+  return env;
+}
+
+/** The same, with a parser that fails to load for another reason. */
+export function cliWithBrokenParser(...args: string[]): Run {
+  return spawn(["--import", fileURLToPath(new URL("broken-oxc-parser.ts", import.meta.url))], args);
+}
+
+/** The same, with the parser out of reach, as it is before anyone installs it. */
+export function cliWithoutParser(...args: string[]): Run {
+  return spawn(["--import", fileURLToPath(new URL("no-oxc-parser.ts", import.meta.url))], args);
+}
+
+/** The same, with TypeScript out of reach. */
+export function cliWithoutTypeScript(...args: string[]): Run {
+  return spawn(["--import", fileURLToPath(new URL("no-typescript.ts", import.meta.url))], args);
+}
+
+/**
+ * Runs a module's default export with the parser out of reach, and prints what it threw. `broken`
+ * makes the parser fail to load for another reason than a missing install.
+ */
+export function withoutParser(module: string, broken = false): Run {
+  return spawn(
+    [
+      "--import",
+      fileURLToPath(new URL(broken ? "broken-oxc-parser.ts" : "no-oxc-parser.ts", import.meta.url)),
+    ],
+    [module],
+    fileURLToPath(new URL("no-parser/run.ts", import.meta.url)),
+  );
+}
