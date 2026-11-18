@@ -1233,7 +1233,7 @@ type EntriesFor<V extends AnyVal, F> = F extends (value: infer P, ...rest: never
     : Gathered<Declared<V>>
   : Gathered<Declared<V>>;
 
-/** The members a {@link ValRecord} companion carries. Each goes through the seal. */
+/** The members a {@link ValRecord} companion carries. Each that builds a record goes through the seal. */
 type CollectionMethods<V extends AnyVal, F> =
   Declared<V> extends RecordOf<infer K, infer E>
     ? FromEntriesMethod<V, F> & {
@@ -1241,6 +1241,11 @@ type CollectionMethods<V extends AnyVal, F> =
         set: Dual<(record: V, key: K, value: DeepReadonly<E, "field">) => Constructed<V, F>, V>;
         /** Removes a key. Returns the record itself where it lacks the key. */
         delete: Dual<(record: V, key: K) => Constructed<V, F>, V>;
+        /**
+         * Whether the record holds a key. To check a string from outside, call
+         * `Object.hasOwn(record, key)`. `key in record` is also true for a key the record inherits,
+         * such as `toString`.
+         */
         has: Dual<(record: V, key: K) => boolean, V>;
         /** The keys, typed `K`, in the order `Object.keys` gives. */
         keys: (record: V) => readonly K[];
