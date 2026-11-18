@@ -3305,27 +3305,28 @@ describe("building", () => {
           .build();
       });
 
+      // Each reads the message. Without the wire-format check, `unknown` and `{}` on an object payload
+      // would still be rejected, for reading each value as `any`.
       test("a parameter that also accepts a string is rejected", () => {
-        Val.companion<User>()
-          // @ts-expect-error a seal takes the payload, not a wire format
-          .implSeal((u: unknown, seal) => seal(u as SeedOf<User>))
-          .build();
-        Val.companion<User>()
-          // @ts-expect-error `{}` accepts a string too
-          .implSeal((u: {}, seal) => seal(u as SeedOf<User>))
-          .build();
-        Val.companion<Age>()
-          // @ts-expect-error a primitive payload has nothing to parse
-          .implSeal((n: unknown, seal) => seal(n as number))
-          .build();
-        Val.companion<Age>()
-          // @ts-expect-error widening to include a string is the same hole
-          .implSeal((n: number | string, seal) => seal(n as number))
-          .build();
-        Val.companion<Val<"Marker", {}>>()
-          // @ts-expect-error an empty payload is an object too, not a string
-          .implSeal((m: unknown, seal) => seal(m as {}))
-          .build();
+        type Wire = Invalid<"a seal takes the payload, not a wire format; decode before sealing">;
+        type Marker = Val<"Marker", {}>;
+        const user = Val.companion<User>();
+        const age = Val.companion<Age>();
+        const marker = Val.companion<Marker>();
+        type ForUser<P> = (u: P, seal: (u: SeedOf<User>) => User) => User;
+        type ForAge<P> = (n: P, seal: (n: number) => Age) => Age;
+        expectTypeOf<Parameters<typeof user.implSeal<ForUser<unknown>>>[0]>().toEqualTypeOf<Wire>();
+        // `{}` accepts a string too.
+        expectTypeOf<Parameters<typeof user.implSeal<ForUser<{}>>>[0]>().toEqualTypeOf<Wire>();
+        // A primitive payload has nothing to parse.
+        expectTypeOf<Parameters<typeof age.implSeal<ForAge<unknown>>>[0]>().toEqualTypeOf<Wire>();
+        // Widening to include a string is the same hole.
+        expectTypeOf<
+          Parameters<typeof age.implSeal<ForAge<number | string>>>[0]
+        >().toEqualTypeOf<Wire>();
+        // An empty payload is an object too, not a string.
+        type ForMarker = (m: unknown, seal: (m: SeedOf<Marker>) => Marker) => Marker;
+        expectTypeOf<Parameters<typeof marker.implSeal<ForMarker>>[0]>().toEqualTypeOf<Wire>();
       });
 
       test("a payload that is a string is exempt", () => {
