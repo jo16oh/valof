@@ -595,8 +595,7 @@ type Checks<T, Tr extends AnyTrait, Fit extends boolean> = [T] extends [Validate
 type Holding<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? T
   : IsRecord<T> extends true
-    ? // A payload that redeclares a trait's field is rejected, and leaves the field to the payload
-      // here: the two would resolve each other where both hold a `Rec`.
+    ? // A payload that redeclares a trait's field is rejected. Here the payload's declaration of the field replaces the trait's, because the two would resolve each other where both hold a `Rec`.
       [keyof T & keyof FieldsOf<Tr>] extends [never]
       ? T & FieldsOf<Tr>
       : T & Omit<FieldsOf<Tr>, keyof T>
@@ -642,8 +641,7 @@ type Overlap<B> = {
   [N in keyof B]: keyof B[N] & { [O in Exclude<keyof B, N>]: keyof B[O] }[Exclude<keyof B, N>];
 }[keyof B];
 
-// Decided by the keys alone: reading a field that holds a `Rec` would resolve the Val being
-// declared.
+// Reads the keys alone, because reading a field that holds a `Rec` would resolve the Val being declared.
 type Redeclared<T, Tr extends AnyTrait> = [keyof T & keyof FieldsOf<Tr>] extends [never]
   ? [Contradicted<FieldsOf<Tr>>] extends [never]
     ? true

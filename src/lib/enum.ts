@@ -231,16 +231,14 @@ type VariantsFault<D, Tr extends AnyTrait, Tg extends string, Held extends Prope
       ? never
       : "a trait member cannot take a variant's name");
 
-// A narrower type belongs under a key of its own. Decided by the keys alone: reading a shared
-// field that holds a `Rec` would resolve the enum being declared.
+// A narrower type belongs under a key of its own. It reads the keys alone, because reading a shared field that holds a `Rec` would resolve the enum being declared.
 type SharedRedeclared<P, Tr extends AnyTrait, Held extends PropertyKey> = [keyof P & Held] extends [
   never,
 ]
   ? VariantTraitFault<P, Tr>
-  : `a variant cannot redeclare the shared field ${Code<(keyof P & Held) & string>}; give it another key`;
+  : `a variant cannot redeclare the shared field ${Code<(keyof P & Held) & string>}; give the variant's field another key`;
 
-// `P` without the keys `Held` names, where it declares them. A declaration that redeclares a field
-// is rejected, and this keeps one declaration of the field: two would resolve each other where both
+// `P` without the keys in `Held`, where it declares them. A declaration that redeclares a field is rejected. This keeps one declaration of the field, because two would resolve each other where both
 // hold a `Rec`.
 type Unshared<P, Held extends PropertyKey> = [keyof P & Held] extends [never] ? P : Omit<P, Held>;
 
@@ -261,8 +259,7 @@ type VariantTraitFault<P, Tr extends AnyTrait> = [
 // and `never`, which satisfy every constraint. Each reads its argument through `infer`, as
 // `OneLiteral` does: passing it to a conditional in its own constraint is circular (TS2313).
 // The payload rules apply to each variant's fields and to the shared fields, as `Val`'s constraint
-// applies them to a payload. The variants are read against the shared fields and the traits once
-// neither argument has a fault, which its own argument reports.
+// applies them to a payload. The variants are read against the shared fields and the traits only where neither argument has a fault. Each argument reports its own fault.
 type DeclarableVariants<D, X> = [D] extends [infer V]
   ? [SharedArg<X>] extends [infer Y]
     ? Faulted<
@@ -343,8 +340,7 @@ type Enum<
 > = {
   [N in VariantKeys<Built<D>>]: UncheckedVal<
     Literal<`${K}.${N}`>,
-    // Built as `VariantOf` builds it, and without the fields the traits add, which the verdict
-    // would read as redeclared.
+    // Built as `VariantOf` builds it. The fields the traits add are left out, because the check would report them as redeclared.
     Unshared<
       FieldsIn<Unshared<Built<D>[N], SharedKeys<SharedArg<X>>>> & SharedIn<SharedArg<X>>,
       KeysOf<FieldsOf<Joined<TraitsIn<SharedArg<X>>, TraitsIn<Built<D>[N]>>>>
