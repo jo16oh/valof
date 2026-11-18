@@ -8,7 +8,7 @@ const Named = Trait.companion<Named>()
   })
   .build();
 
-type User = Val<"User", { name: string }, Named>;
+type User = Val<"User", Record<never, never>, Named>;
 const User = Val.companion<User>()
   .implSeal((user, seal) => {
     const name = user.name.trim();

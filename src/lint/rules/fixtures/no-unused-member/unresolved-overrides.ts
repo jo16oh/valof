@@ -5,6 +5,6 @@ const Greetable = Trait.companion<Greetable>().impl(() => ({ greet: (g) => g.nam
 declare const condition: boolean;
 const selected = condition ? { greet: (u: User) => u.name } : {};
 
-type User = Val<"User", { name: string }, Greetable>;
+type User = Val<"User", Record<never, never>, Greetable>;
 const User = Val.companion<User>().implTrait(Greetable, () => selected).build();
 User.greet;

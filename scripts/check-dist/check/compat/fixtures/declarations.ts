@@ -36,7 +36,7 @@ export const greetableBuilder = Trait.companion<Greetable>().impl(() => ({
 }));
 export const Greetable = greetableBuilder.build();
 
-export type User = Val<"User", { id: string; name: string }, Greetable>;
+export type User = Val<"User", { id: string }, Greetable>;
 export const userBuilder = Val.companion<User>().implTrait(Greetable);
 export const User = userBuilder.build();
 export const user = User.seal({ id: "a", name: "alice" });

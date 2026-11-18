@@ -15,7 +15,7 @@ const Greetable = Trait.companion<Greetable>().impl(() => ({
   nod: (g) => g.name,
 })).build();
 
-type User = Val<"User", { name: string }, Greetable>;
+type User = Val<"User", Record<never, never>, Greetable>;
 const User = Val.companion<User>().implTrait(Greetable, () => ({ greet: (u) => u.name })).build();
 
 User.dyn<Greetable>(user).greet;

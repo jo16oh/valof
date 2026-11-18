@@ -21,7 +21,7 @@ const traitAssocImpl = traitAssoc
 export const Greetable = traitAssocImpl.build();
 export const Plain = Trait.companion<Plain>().build();
 
-export type User = Val<"User", { id: string; name: string }, Greetable & Plain>;
+export type User = Val<"User", { id: string }, Greetable & Plain>;
 export const valStart = Val.companion<User>();
 export const valSeal = valStart.implSeal((u, seal) => seal(u));
 export const valCreate = valSeal.implCreate(() => ({ id: "a", name: "b" }));

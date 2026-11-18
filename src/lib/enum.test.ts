@@ -423,11 +423,7 @@ describe("members", () => {
     const Named = Trait.companion<Named>().build();
     type Coded = Trait<"Coded", { n: number }, { code: (self: Self) => number }>;
     const Coded = Trait.companion<Coded>().build();
-    type Card = Enum<
-      "Card",
-      { A: { n: number } & Coded; B: { s: string } },
-      { id: string } & Named
-    >;
+    type Card = Enum<"Card", { A: Coded; B: { s: string } }, Named>;
     Enum.companion<Card>()
       .A.implTrait(Coded, () => ({
         code(a) {
@@ -449,11 +445,7 @@ describe("members", () => {
     const Named = Trait.companion<Named>().build();
     type Coded = Trait<"Coded", { n: number }, { code: (self: Self) => number }>;
     const Coded = Trait.companion<Coded>().build();
-    type Card = Enum<
-      "Card",
-      { A: { n: number } & Coded; B: { s: string } },
-      { id: string } & Named
-    >;
+    type Card = Enum<"Card", { A: Coded; B: { s: string } }, Named>;
     const Card = Enum.companion<Card>()
       .A.impl(({ patch }) => ({
         next: (a) =>
@@ -801,20 +793,20 @@ describe("recursion", () => {
   test("the enum's trait may hold the enum in its shape", () => {
     type Sized = Trait<"Sized", { kids: Rec<Node>[] }, { size: (self: Self) => number }>;
     const Sized = Trait.companion<Sized>().build();
-    type Node = Enum<"Node", { Branch: { kids: Rec<Node>[] }; Leaf: { v: number } }, Sized>;
+    type Node = Enum<"Node", { Branch: { open: boolean }; Leaf: { v: number } }, Sized>;
     const Node = Enum.companion<Node>()
       .implTrait(Sized, () => ({ size: (n) => n.kids.length }))
       .build();
 
     const leaf = Node.Leaf.seal({ _tag: "Leaf", kids: [], v: 1 });
-    const branch = Node.Branch.seal({ _tag: "Branch", kids: [leaf, leaf] });
+    const branch = Node.Branch.seal({ _tag: "Branch", kids: [leaf, leaf], open: true });
     expect(Node.dyn<Sized>(branch).size()).toBe(2);
   });
 
   test("a variant's trait may hold the enum in its shape", () => {
     type Sized = Trait<"Sized", { kids: Rec<Tree>[] }, { size: (self: Self) => number }>;
     const Sized = Trait.companion<Sized>().build();
-    type Tree = Enum<"Tree", { Branch: { kids: Rec<Tree>[] } & Sized; Leaf: { v: number } }>;
+    type Tree = Enum<"Tree", { Branch: Sized; Leaf: { v: number } }>;
     const Tree = Enum.companion<Tree>()
       .Branch.implTrait(Sized, () => ({ size: (b) => b.kids.length }))
       .build();
@@ -822,6 +814,19 @@ describe("recursion", () => {
     const leaf = Tree.Leaf.seal({ _tag: "Leaf", v: 1 });
     const branch = Tree.Branch.seal({ _tag: "Branch", kids: [leaf, leaf] });
     expect(Tree.Branch.dyn<Sized>(branch).size()).toBe(2);
+  });
+
+  test("a variant and the shared fields may hold the enum under keys of their own", () => {
+    type Node = Enum<
+      "Node",
+      { Branch: { children: Rec<Node>[] }; Leaf: { v: number } },
+      { kids: Rec<Node>[] }
+    >;
+    const Node = Enum.companion<Node>().build();
+
+    const leaf = Node.Leaf.seal({ _tag: "Leaf", kids: [], v: 1 });
+    const branch = Node.Branch.seal({ _tag: "Branch", kids: [leaf], children: [leaf, leaf] });
+    expect([branch.kids.length, branch.children.length]).toEqual([1, 2]);
   });
 });
 
@@ -838,7 +843,7 @@ describe("traits", () => {
   type Describable = Trait<"Describable", { id: string }, { describe: (self: Self) => string }>;
   const Describable = Trait.companion<Describable>().build();
 
-  type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, { id: string } & Describable>;
+  type Cmd = Enum<"Cmd", { Add: { n: number }; Del: { at: number } }, Describable>;
   const Cmd = Enum.companion<Cmd>()
     .implTrait(Describable, () => ({
       describe: (c): string =>
@@ -860,7 +865,7 @@ describe("traits", () => {
   });
 
   test("a variant goes into a box like any other Val", () => {
-    type User = Val<"User", { id: string }, Describable>;
+    type User = Val<"User", Record<never, never>, Describable>;
     const User = Val.companion<User>()
       .implTrait(Describable, () => ({ describe: (u) => `user ${u.id}` }))
       .build();
@@ -914,10 +919,13 @@ describe("traits", () => {
     expectTypeOf<Generic<string>>().not.toBeNever();
   });
 
-  test("a shared field that contradicts the trait is rejected", () => {
-    // @ts-expect-error no value fits every declaration of `id`
+  test("a shared field cannot redeclare a field the trait requires, whatever its type", () => {
+    // @ts-expect-error the shared fields cannot redeclare the trait's field `id`
+    type Same = Enum<"Same", { A: { n: number }; B: { s: string } }, { id: string } & Describable>;
+    // @ts-expect-error the shared fields cannot redeclare the trait's field `id`
     type Bad = Enum<"Bad", { A: { n: number }; B: { s: string } }, { id: number } & Describable>;
-    // @ts-expect-error no value fits every declaration of `id`
+    expectTypeOf<Same>().not.toBeNever();
+    // @ts-expect-error the shared fields cannot redeclare the trait's field `id`
     Enum.companion<Bad>().build();
   });
 
@@ -931,7 +939,7 @@ describe("traits", () => {
   describe("a trait that implements nothing of its own", () => {
     type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
     const Wired = Trait.companion<Wired>().build();
-    type Row = Enum<"Row", { Head: { n: number }; Body: { s: string } }, { id: string } & Wired>;
+    type Row = Enum<"Row", { Head: { n: number }; Body: { s: string } }, Wired>;
 
     test("is implemented through its companion", () => {
       const Row = Enum.companion<Row>()
@@ -978,7 +986,7 @@ describe("traits", () => {
         "Both",
         // @ts-expect-error two traits declare a member named `size`
         { A: { n: number }; B: { s: string } },
-        { id: string } & Sized & Wide
+        Sized & Wide
       >;
       // The declaration is rejected, since no companion could implement both.
       expectTypeOf<VerdictOf<Both>>().toEqualTypeOf<
@@ -1023,7 +1031,7 @@ describe("traits", () => {
         { id: string },
         { stamp: Final<(self: Self) => string>; note: (self: Self) => string }
       >;
-      type Card = Enum<"Card", { A: { n: number }; B: { s: string } }, { id: string } & Fixed>;
+      type Card = Enum<"Card", { A: { n: number }; B: { s: string } }, Fixed>;
       Enum.companion<Card>()
         .implTrait(
           // @ts-expect-error this trait's companion has not implemented every member declared Final
@@ -1298,26 +1306,39 @@ describe("a broken declaration", () => {
     expectTypeOf<Own | Both>().not.toBeNever();
   });
 
-  test("a variant's field wider than the enum's trait requires is rejected where the enum is declared", () => {
-    type Id = Trait<"WideId", { id: string }, { show: (self: Self) => string }>;
-    // @ts-expect-error the payload and the trait declare `id` with conflicting types
-    type Wide = Enum<"Wide", { X: { id: string | number }; Y: { n: number } }, Id>;
-    expectTypeOf<Wide>().not.toBeNever();
+  test("a variant cannot declare a shared field, whatever its type", () => {
+    // @ts-expect-error a variant cannot redeclare the shared field `id`
+    type Same = Enum<"Same", { One: { id: string }; Two: { n: number } }, { id: string }>;
+    // @ts-expect-error a variant cannot redeclare the shared field `id`
+    type Narrow = Enum<"Narrow", { One: { id: "a" }; Two: { n: number } }, { id: string }>;
+    // @ts-expect-error a variant cannot redeclare the shared field `id`
+    type Contrary = Enum<"Contrary", { One: { id: number }; Two: { n: number } }, { id: string }>;
+    expectTypeOf<Same | Narrow>().not.toBeNever();
+    // @ts-expect-error a variant cannot redeclare the shared field `id`
+    Enum.companion<Contrary>().build();
   });
 
-  test("a variant field that contradicts a shared one is rejected", () => {
-    // @ts-expect-error no value fits `id`
-    type Keyed = Enum<"Keyed", { One: { id: number }; Two: { n: number } }, { id: string }>;
-    expectTypeOf<VerdictOf<VariantOf<Keyed & AnyEnum, "One">>>().toEqualTypeOf<
-      Invalid<"no value fits `id`">
-    >();
-    // `VariantOf` rebuilds the variant, so the declaration is read at the companion too.
-    // @ts-expect-error no value fits `id`
-    Enum.companion<Keyed>().build();
-    type Spot = Val<"Spot", { x: number }>;
-    // @ts-expect-error no value fits `n`, a Val holding an object and a number
-    type Hollow = Enum<"Hollow", { X: { n: Spot }; Y: { s: string } }, { n: number }>;
-    expectTypeOf<Hollow>().not.toBeNever();
+  test("nor a field the enum's trait requires, which every variant holds too", () => {
+    type Id = Trait<"WideId", { id: string }, { show: (self: Self) => string }>;
+    // @ts-expect-error a variant cannot redeclare the shared field `id`
+    type Wide = Enum<"Wide", { X: { id: string | number }; Y: { n: number } }, Id>;
+    // @ts-expect-error a variant cannot redeclare the shared field `id`
+    type Same = Enum<"Same", { X: { id: string }; Y: { n: number } }, Id>;
+    expectTypeOf<Wide | Same>().not.toBeNever();
+  });
+
+  // Reading both fields to intersect them would resolve the enum while it is being declared.
+  test("a variant and the shared fields holding the enum under one key report the key", () => {
+    // @ts-expect-error a variant cannot redeclare the shared field `kids`
+    type Node = Enum<"Node", { A: { kids: Rec<Node>[] }; B: { v: number } }, { kids: Rec<Node>[] }>;
+    expectTypeOf<Node>().not.toBeAny();
+  });
+
+  test("a variant cannot declare a field its own trait requires", () => {
+    type Named = Trait<"OwnNamed", { label: string }, { named: (self: Self) => string }>;
+    // @ts-expect-error a payload cannot redeclare the trait's field `label`
+    type Own = Enum<"Own", { A: { label: string } & Named; B: { n: number } }>;
+    expectTypeOf<Own>().not.toBeNever();
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {
@@ -2007,7 +2028,11 @@ describe("build", () => {
     test("a trait, through a second `implTrait`, on the union and on a variant", () => {
       type Counted = Trait<"Counted", { n: number }, { counted: (self: Self) => number }>;
       const Counted = Trait.companion<Counted>().build();
-      type Both = Enum<"Both", { One: { n: number }; Two: { n: number } }, Named & Counted>;
+      type Both = Enum<
+        "Both",
+        { One: Record<never, never>; Two: Record<never, never> },
+        Named & Counted
+      >;
       const Both = Enum.companion<Both>()
         .implTrait(Named, () => ({ named: (b) => b.id }))
         .implTrait(Counted, () => ({ counted: (b) => b.n }))
@@ -2015,7 +2040,7 @@ describe("build", () => {
       const one = Both.One.create({ id: "o", n: 1 });
       expect([Both.dyn<Named>(one).named(), Both.dyn<Counted>(one).counted()]).toEqual(["o", 1]);
 
-      type Each = Enum<"Each", { One: { n: number } & Named & Counted; Two: { s: string } }>;
+      type Each = Enum<"Each", { One: Named & Counted; Two: { s: string } }>;
       const Each = Enum.companion<Each>()
         .One.implTrait(Named, () => ({ named: (o) => o.id }))
         .One.implTrait(Counted, () => ({ counted: (o) => o.n }))
@@ -2064,7 +2089,7 @@ describe("the order of the steps", () => {
   test("`impl` is written once, and `implTrait` may follow it", () => {
     type Labelled = Trait<"Labelled", { at: number }, { label: (self: Self) => string }>;
     const Labelled = Trait.companion<Labelled>().build();
-    type Tile = Enum<"Tile", { Floor: { at: number }; Wall: { at: number } }, Labelled>;
+    type Tile = Enum<"Tile", { Floor: Record<never, never>; Wall: Record<never, never> }, Labelled>;
     const implemented = Enum.companion<Tile>()
       .Wall.impl(() => ({ solid: (_w) => true }))
       .impl(() => ({ at: (t) => t.at }));
@@ -2109,7 +2134,7 @@ describe("the order of the steps", () => {
   test("whichever step a variant took, another variant's step removes it", () => {
     type Round = Trait<"Round", { r: number }, { area: (self: Self) => number }>;
     const Round = Trait.companion<Round>().build();
-    type Disc = Enum<"Disc", { Circle: { r: number } & Round; Square: { side: number } }>;
+    type Disc = Enum<"Disc", { Circle: Round; Square: { side: number } }>;
     const start = () => Enum.companion<Disc>();
     const sealed = start().Circle.implSeal((c, seal) => seal(c));
     const created = start().Circle.implCreate((r: number) => ({ r }));

@@ -6,6 +6,6 @@ export const Labelled = Trait.companion<Labelled>().impl(() => ({ label: (l) => 
 export type Shape = Enum<
   "Shape",
   { Circle: { r: number }; Square: { side: number } },
-  Labelled & { id: string }
+  Labelled
 >;
 export const Shape = Enum.companion<Shape>().implTrait(Labelled).build();

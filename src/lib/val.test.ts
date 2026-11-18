@@ -1212,7 +1212,7 @@ describe("Val", () => {
 
     test("a trait a recursive type declares is checked as any other", () => {
       type Sized = Trait<"app/Sized", { value: number }, { size: (self: Self) => number }>;
-      type Counted = Val<"app/Counted", { value: number; next: Rec<Counted> | undefined }, Sized>;
+      type Counted = Val<"app/Counted", { next: Rec<Counted> | undefined }, Sized>;
       const Sized = Trait.companion<Sized>().build();
       const Counted = Val.companion<Counted>()
         .implTrait(Sized, () => ({ size: (c) => c.value }))
@@ -1231,18 +1231,10 @@ describe("Val", () => {
       type Clashing = Val<
         "app/Clashing",
         { value: string; next: Rec<Clashing> | undefined },
-        // @ts-expect-error the payload and the trait declare `value` with conflicting types
+        // @ts-expect-error a payload cannot redeclare the trait's field `value`
         Sized
       >;
       expectTypeOf<Clashing>().not.toExtend<AnyVal>();
-    });
-
-    test("the trait check reads the payload with its Rec opened", () => {
-      type Leaf = Val<"app/Leaf", { n: number }>;
-      type Held = Trait<"app/Held", { at: Leaf }>;
-      type Slot = Val<"app/Slot", { at: Rec<Leaf> }, Held>;
-
-      expectTypeOf<Slot>().toExtend<AnyVal>();
     });
 
     test("a Rec in a tuple opens at its position", () => {
@@ -2489,7 +2481,7 @@ describe("building", () => {
     test("a step keeps what the steps before it registered", () => {
       type Named = Trait<"BuiltNamed", { name: string }, { named: (self: Self) => string }>;
       const Named = Trait.companion<Named>().build();
-      type Tagged = Val<"BuiltTagged", { name: string }, Named>;
+      type Tagged = Val<"BuiltTagged", Record<never, never>, Named>;
       const Tagged = Val.companion<Tagged>()
         .implTrait(Named, () => ({ named: (t) => t.name }))
         .impl(() => ({ upper: (t) => t.name.toUpperCase() }))
@@ -2522,7 +2514,7 @@ describe("building", () => {
     test("`impl`, `implTrait` and `implAssoc` close the first half", () => {
       type Owned = Trait<"Owned", { owner: string }, { owned: (self: Self) => string }>;
       const Owned = Trait.companion<Owned>().build();
-      type Held = Val<"Held", { id: string; owner: string }, Owned>;
+      type Held = Val<"Held", { id: string }, Owned>;
       const members = Val.companion<Account>().impl(() => ({ owned: (a) => a.owner }));
       const traits = Val.companion<Held>().implTrait(Owned, () => ({ owned: (h) => h.owner }));
       const assoc = Val.companion<Account>().implAssoc(() => ({ currency: () => "JPY" }));
@@ -2619,7 +2611,7 @@ describe("building", () => {
     test("is written once, and `implTrait` may follow it", () => {
       type Yelling = Trait<"Yelling", { name: string }, { yell: (self: Self) => string }>;
       const Yelling = Trait.companion<Yelling>().build();
-      type Crier = Val<"Crier", { name: string }, Yelling>;
+      type Crier = Val<"Crier", Record<never, never>, Yelling>;
       const implemented = Val.companion<Crier>().impl(() => ({ greet: (c) => c.name }));
       const Crier = implemented
         .implTrait(Yelling, () => ({ yell: (c) => c.name.toUpperCase() }))
@@ -2848,7 +2840,7 @@ describe("building", () => {
     test("is written any number of times, before and after `impl` and `implTrait`", () => {
       type Priced = Trait<"AssocPriced", { cents: number }, { price: (self: Self) => string }>;
       const Priced = Trait.companion<Priced>().build();
-      type Item = Val<"AssocItem", { cents: number }, Priced>;
+      type Item = Val<"AssocItem", Record<never, never>, Priced>;
       const Item = Val.companion<Item>()
         .implAssoc(({ seal }) => ({ fromCents: (cents: number) => seal({ cents }) }))
         .implTrait(Priced, () => ({ price: (i) => `${i.cents}` }))
@@ -2871,7 +2863,7 @@ describe("building", () => {
     test("a name is taken once, across `impl`, `implTrait` and `implAssoc`", () => {
       type Priced = Trait<"AssocTaken", { cents: number }, { price: (self: Self) => string }>;
       const Priced = Trait.companion<Priced>().build();
-      type Item = Val<"AssocTakenItem", { cents: number }, Priced>;
+      type Item = Val<"AssocTakenItem", Record<never, never>, Priced>;
       const priced = Val.companion<Item>().implTrait(Priced, () => ({
         price: (i) => `${i.cents}`,
       }));
@@ -3514,7 +3506,7 @@ describe("building", () => {
   describe("PrivateSeal and Unpatchable together", () => {
     type Owned = Trait<"OptionOwned", { owner: string }, { owned: (self: Self) => string }>;
     const Owned = Trait.companion<Owned>().build();
-    type Held = Val<"OptionHeld", { id: string; owner: string }, Owned>;
+    type Held = Val<"OptionHeld", { id: string }, Owned>;
     const held = () => Val.companion<Held, [PrivateSeal, Unpatchable<"id">]>();
 
     // Each step builds the companion's type again, so each has to pass the list on.
@@ -3557,14 +3549,14 @@ describe("building", () => {
       }))
       .build();
 
-    type Member = Val<"Member", { id: string; name: string }, Greetable>;
+    type Member = Val<"Member", { id: string }, Greetable>;
     const Member = Val.companion<Member>()
       .implTrait(Greetable, () => ({
         toWire: (m, sep) => `${m.id}${sep}${m.name}`,
       }))
       .build();
 
-    type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
+    type Admin = Val<"Admin", { level: number }, Greetable>;
     const Admin = Val.companion<Admin>()
       .implTrait(Greetable, () => ({
         toWire: (a, sep) => `admin${sep}${a.name}`,
@@ -3614,7 +3606,7 @@ describe("building", () => {
       const Hello = Trait.companion<Hello>()
         .impl(() => ({ hello: (h) => h.name }))
         .build();
-      type Guest = Val<"Guest", { name: string }, Hello>;
+      type Guest = Val<"Guest", Record<never, never>, Hello>;
       Val.companion<Guest>()
         .implTrait(Hello, () => ({
           hello(g) {
@@ -3686,14 +3678,16 @@ describe("building", () => {
       Post.seal({ id: "p", tags: [], owner });
     });
 
-    test("the payload may narrow a field the trait requires, but not contradict it", () => {
-      expectTypeOf<Val<"Root", { name: "root" }, Greetable>>().toExtend<AnyVal>();
-
-      // @ts-expect-error the payload and the trait declare `name` with conflicting types
-      type Bad = Val<"Bad", { name: number }, Greetable>;
-      expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<
-        Invalid<"the payload and the trait declare `name` with conflicting types">
-      >();
+    test("the payload cannot declare a field the trait requires, whatever its type", () => {
+      type Redeclared =
+        Invalid<"a payload cannot redeclare the trait's field `name`; the trait already adds it">;
+      // @ts-expect-error a payload cannot redeclare the trait's field `name`
+      type Same = Val<"Same", { name: string }, Greetable>;
+      // @ts-expect-error a payload cannot redeclare the trait's field `name`
+      type Narrow = Val<"Narrow", { name: "root" }, Greetable>;
+      // @ts-expect-error a payload cannot redeclare the trait's field `name`
+      type Contrary = Val<"Contrary", { name: number }, Greetable>;
+      expectTypeOf<VerdictOf<Same | Narrow | Contrary>>().toEqualTypeOf<Redeclared>();
     });
 
     test("a payload that is not a record cannot hold the fields", () => {
@@ -3715,12 +3709,12 @@ describe("building", () => {
       // @ts-expect-error declare several traits with `&`, not `|`
       Val.companion<Either>().build();
 
-      type Both = Val<"Both", { name: string; kg: number }, Greetable & Weighed>;
+      type Both = Val<"Both", Record<never, never>, Greetable & Weighed>;
       expectTypeOf<Both>().toExtend<AnyVal>();
     });
 
     test("create, seal and patch keep working beside a trait", () => {
-      type Ticket = Val<"Ticket", { id: string; name: string }, Greetable>;
+      type Ticket = Val<"Ticket", { id: string }, Greetable>;
       const Ticket = Val.companion<Ticket>()
         .implSeal((seed, seal) => seal(seed))
         .implCreate((name: string) => ({ id: "t1", name, nickname: undefined }))
@@ -3743,7 +3737,7 @@ describe("building", () => {
     describe("a trait that implements nothing of its own", () => {
       type Wired = Trait<"Wired", { id: string }, { toWire: (self: Self, sep: string) => string }>;
       const Wired = Trait.companion<Wired>().build();
-      type Row = Val<"Row", { id: string; n: number }, Wired>;
+      type Row = Val<"Row", { n: number }, Wired>;
 
       test("is implemented through its companion all the same", () => {
         const Row = Val.companion<Row>()
@@ -3817,7 +3811,7 @@ describe("building", () => {
       const Weighed = Trait.companion<Weighed>()
         .impl(() => ({ heavy: (w) => w.kg > 10 }))
         .build();
-      type Crate = Val<"Crate", { id: string; name: string; kg: number }, Greetable & Weighed>;
+      type Crate = Val<"Crate", { id: string }, Greetable & Weighed>;
       const Crate = Val.companion<Crate>()
         .implTrait(Greetable, () => ({ toWire: (c, sep) => `${c.id}${sep}${c.name}` }))
         .implTrait(Weighed)
@@ -3883,7 +3877,7 @@ describe("building", () => {
         const Labelled = Trait.companion<Labelled>()
           .impl(() => ({ tag: (l) => l.name }))
           .build();
-        type Parcel = Val<"Parcel", { name: string; tag: string }, Tagged & Labelled>;
+        type Parcel = Val<"Parcel", Record<never, never>, Tagged & Labelled>;
         // A field's name is free: the box holds the value apart from the members.
         const Parcel = Val.companion<Parcel>().implTrait(Tagged).implTrait(Labelled).build();
         const parcel = Parcel.seal({ name: "p", tag: "fragile" });
@@ -3905,7 +3899,7 @@ describe("building", () => {
         const Weighing = Trait.companion<Weighing>()
           .impl(() => ({ kilos: (_w) => 0 }))
           .build();
-        type Parcel = Val<"Parcel", { id: string; name: string }, Greetable & Weighing>;
+        type Parcel = Val<"Parcel", { id: string }, Greetable & Weighing>;
         const Parcel = Val.companion<Parcel>()
           .implTrait(Greetable, () => ({ toWire: (p, sep) => `${p.id}${sep}` }))
           .implTrait(Weighing)

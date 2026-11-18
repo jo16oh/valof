@@ -52,7 +52,7 @@ const Named = Trait.companion<Named>().build();
 type Event = Enum<
   "Event",
   { Click: { x: number; y: number }; Key: { code: string } },
-  Tag<"kind"> & { id: string } & Named
+  Tag<"kind"> & Named
 >;
 const Event = Enum.companion<Event>()
   .tag("kind")
