@@ -45,6 +45,7 @@ export type Node = Enum<
     TSTypeParameter: { constraint: Rec<Node> | null };
     TSInterfaceDeclaration: { id: Rec<Node> };
     TSMappedType: {};
+    /** `elementTypes` holds each element's type, unwrapped from a label or `...`. */
     TSTupleType: { elementTypes: Rec<Node>[] };
     TSTypeQuery: {};
     TSModuleDeclaration: {};
@@ -293,7 +294,18 @@ function build(
     case "TSMappedType":
       return Node.TSMappedType.create.nocopy(shared);
     case "TSTupleType":
-      return Node.TSTupleType.create.nocopy({ ...shared, elementTypes: raw.elementTypes.map(at) });
+      return Node.TSTupleType.create.nocopy({
+        ...shared,
+        elementTypes: raw.elementTypes.map((element) =>
+          at(
+            element.type === "TSNamedTupleMember"
+              ? element.elementType
+              : element.type === "TSRestType"
+                ? element.typeAnnotation
+                : element,
+          ),
+        ),
+      });
     case "TSTypeQuery":
       return Node.TSTypeQuery.create.nocopy(shared);
     case "TSModuleDeclaration":
