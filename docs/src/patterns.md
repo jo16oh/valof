@@ -160,25 +160,8 @@ object keyed by its keys, so `equals` and JSON treat it as a plain object. Read 
 
 To take data from outside, register a seal that takes a `Record<string, unknown>` or an `object`, as
 on a Val ([Validate in the seal](custom-constructors.md#validate-in-the-seal)). `fromEntries` then
-takes entries with any string key and any value, and the seal checks each value:
-
-```ts
-import { Val, type SeedOf } from "valof";
-
-type Money = Val<"Money", { amount: number; currency: string }>;
-declare function isMoney(value: unknown): value is Money;
-declare const text: string;
-// ---cut---
-type Prices = Val.Record<"Prices", string, Money>;
-const Prices = Val.Record.companion<Prices>()
-  .implSeal((input: Record<string, unknown>, seal) =>
-    Object.values(input).every(isMoney) ? seal(input as SeedOf<Prices>) : undefined,
-  )
-  .build();
-
-const json: Record<string, unknown> = JSON.parse(text);
-const prices = Prices.fromEntries(Object.entries(json)); // Prices | undefined
-```
+takes entries with any string key and any value, and the seal has to check each value. Where the
+record's key type is narrower than `string`, the seal has to check each key too.
 
 A record cannot reference itself with `Rec`. Put the record in a Val's field, and reference that
 Val:
