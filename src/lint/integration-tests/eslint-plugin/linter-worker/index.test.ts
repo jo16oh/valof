@@ -24,7 +24,7 @@ function say(
   return worker.lint(
     Query.seal({
       project: Project.seal(project.map((path) => FilePath.seal(path))),
-      overlay: Overlay.seal([[file, text]]),
+      overlay: Overlay.fromEntries([[file, text]]),
       model: DataTypeSettings.create(),
       saved: false,
     }),
@@ -72,7 +72,7 @@ test("keeps the answer for the buffers disk holds while another buffer is edited
     worker.lint(
       Query.seal({
         project: Project.seal([]),
-        overlay: Overlay.seal([]),
+        overlay: Overlay.fromEntries([]),
         model: DataTypeSettings.create(),
         saved: true,
       }),
