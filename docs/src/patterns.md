@@ -182,34 +182,26 @@ export const UnixEpochMs = Val.companion<UnixEpochMs>()
 
 ## Large integers
 
-Keep an integer outside the safe range of `number` as a decimal string, since `JSON.stringify`
-throws on a `bigint`. Compare and compute through `BigInt()` in members, because `"10" < "9"`.
+A payload may hold a `bigint`. `JSON.stringify` throws on one, so on a JSON route the response body
+holds a decimal string in its place.
 
 ```ts
-import { Val } from "valof";
+import { Val, type PayloadOf } from "valof";
 
+declare const app: {
+  get(path: string, handler: (c: { json(body: unknown): Response }) => Response): void;
+};
+declare const account: Account;
 // ---cut---
-type BigInteger = Val<"BigInteger", string>;
+type Account = Val<"Account", { owner: string; balanceWei: bigint }>;
 
-const BigInteger = Val.companion<BigInteger>()
-  .implSeal((n: string | bigint, seal) => {
-    const s = String(n);
-    // One string per integer, for `equals`.
-    // `BigInt("010")` is 10n, so only the pattern rejects "010".
-    if (!/^(0|-?[1-9]\d*)$/.test(s)) throw new RangeError(`not an integer: ${s}`);
-    return seal(s);
-  })
-  .impl(() => ({
-    add(a, b: BigInteger): BigInteger {
-      return BigInteger.seal(BigInt(a) + BigInt(b));
-    },
-    compare(a, b: BigInteger): -1 | 0 | 1 {
-      const x = BigInt(a);
-      const y = BigInt(b);
-      return x < y ? -1 : x > y ? 1 : 0;
-    },
-  }))
-  .build();
+type AccountJson = Omit<PayloadOf<Account>, "balanceWei"> & { balanceWei: string };
 
-BigInteger.add(BigInteger.seal(1n), BigInteger.seal("9007199254740993"));
+app.get("/account/:id", (c) => {
+  const body: AccountJson = { ...Val.unwrap(account), balanceWei: String(account.balanceWei) };
+  return c.json(body);
+});
 ```
+
+The receiver converts the string back with `BigInt()` before it seals the payload. RSC, Nuxt and
+SvelteKit carry a `bigint` in page data without the conversion.

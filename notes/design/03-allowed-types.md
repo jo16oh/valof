@@ -3,14 +3,37 @@
 The constructor and `Val.of` accept only the following types.
 
 ```ts
-type Primitive = string | number | boolean;
+type Primitive = string | number | boolean | bigint;
 ```
 
-`undefined` is not allowed as a value (§3.5). Neither is `bigint` (§7.8).
+`undefined` is allowed only as a field's value (§3.5). `bigint` was removed on 2026-10-28 and allowed again on 2026-11-18 (§7.8).
 `null` is allowed inside objects and arrays but not at the top level (§9), because its intersection with the brand
 is `never`, so it cannot be told apart as a distinct Val.
 
 **Plain nested objects are forbidden. Nesting must always be a Val.**
+
+### Criteria for an allowed type, 2026-11-18
+
+A type is allowed if it meets both criteria.
+
+1. **It is immutable.** A value that changes after the seal breaks `equals` and the ownership record (§4.1)
+2. **valof can see its value.** It is a primitive, or an object that holds its data in its own properties, so valof's copy and `equals` work on it
+
+| Type                                             | 1. Immutable | 2. Value visible             | Verdict                |
+| ------------------------------------------------ | ------------ | ---------------------------- | ---------------------- |
+| bigint                                           | ✓            | ✓ (a primitive)              | Allowed (§7.8)         |
+| `ArrayBuffer`, typed arrays, `SharedArrayBuffer` | ✗            | ✓                            | Forbidden              |
+| `Blob`                                           | ✓            | ✗ (read only asynchronously) | Forbidden              |
+| Temporal                                         | ✓            | ✗ (held in internal slots)   | Forbidden              |
+| `Date`, `Map`, `Set`, `URL`, `RegExp`            | ✗            | ✗                            | Forbidden (§7.2, §7.3) |
+| symbol                                           | ✓            | ✓                            | Forbidden (below)      |
+
+Crossing JSON is not a criterion. Whether a value crosses a boundary depends on the route, not on its type (§1).
+
+- **Binary types.** Another worker can write to a `SharedArrayBuffer`, so `equals(a, b)` changes over time. Copying it in the seal removes the sharing, and not copying it breaks the ownership record. `Object.freeze` throws on a typed array, so the development freeze breaks. **Rejected: a wrapper type.** WebGL, WebGPU, wasm and codecs take the raw buffer, so the wrapper protects nothing once the buffer is passed. Keep a buffer in a class, and model what it means, and the messages that carry it, as Vals
+- **Temporal.** It has no own properties, so `equals` reads every Temporal value as `{}` and returns `true`, and the seal's spread copies it to `{}`. `structuredClone` throws, and RSC turns it into a string whose type is still a Temporal. Allowing it would need a branch per type in the copy and `equals`. §8.2 stays the recommendation
+- **Blob.** It is immutable and `structuredClone` carries it, but its content is read asynchronously, and it has no own properties to compare
+- **symbol stays forbidden.** `equals` compares a symbol by identity, and `Symbol("k")` is not equal to the original after any boundary. `structuredClone` throws on it. `Symbol.for("k")` stays equal, but it gains nothing over the string `"k"`, and RSC carries it only from the server to the client
 
 ## Why this restriction
 
@@ -215,6 +238,7 @@ A required key cannot be left out of the static type, so no key can be hidden fr
 - **An array element and a tuple element still cannot be `undefined`.** JSON writes one as `null`. An optional tuple element is
   rejected too (§4.2). A union of tuples, `readonly [number, number] | readonly [number, number, number]`, writes the same JSON
 - **The whole payload cannot be `undefined`**, as before
+- **Both reasons stand after §1 was re-based (2026-11-18).** The JSON round trip is no longer guaranteed, but JSON rewrites an `undefined` element to `null` without an error, and the receiver seals a value its type does not describe. A bigint makes `JSON.stringify` throw instead (§7.8). The whole payload is rejected for the reason a top-level `null` is: its intersection with the brand is `never`
 - **A record's key is not optional.** `Record<never, never> extends Pick<T, K>` is true for an index signature as well, so a key
   that is not a literal (`string`, a pattern, a branded string) is read as an index signature first
 - **Rejected: `Val.Option<T>`.** A marker type, required in the type, whose `undefined` the seal drops so the key is absent. Once

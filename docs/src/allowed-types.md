@@ -2,11 +2,14 @@
 
 Only three things can be a payload:
 
-|            |                                                                |
-| ---------- | -------------------------------------------------------------- |
-| Primitives | `string` / `number` / `boolean` / `null` (below the top level) |
-| Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                  |
-| Objects    | `{ k: allowed }`, with every key listed                        |
+|            |                                                                           |
+| ---------- | ------------------------------------------------------------------------- |
+| Primitives | `string` / `number` / `boolean` / `bigint` / `null` (below the top level) |
+| Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                             |
+| Objects    | `{ k: allowed }`, with every key listed                                   |
+
+`JSON.stringify` throws on a `bigint`. [Large integers](patterns.md#large-integers) shows how to
+return one from a JSON route.
 
 A record keyed by any string, such as `Record<string, Money>`, is not a payload. Declare a
 [`Val.Record`](patterns.md#map--set) for it.

@@ -126,7 +126,9 @@ measures the non-reactive SSR build (no proxies, and writes pass straight throug
 
 ## 8.6 Integers beyond 2^53
 
-This replaces bigint, which §7.8 removed. As in §8.2, wrap a string and enforce its form in the seal.
+Since 2026-11-18, a payload may hold a `bigint` (§7.8), and a JSON route converts it to a decimal string in the response body. Where the value is a decimal integer string everywhere, as an ID that only crosses JSON, wrap a string as in §8.2 and enforce its form in the seal.
+
+~~This replaces bigint, which §7.8 removed.~~ Withdrawn 2026-11-18. This is now one form beside bigint, not a replacement.
 
 ```ts
 export type BigInteger = Val<"BigInteger", string>;

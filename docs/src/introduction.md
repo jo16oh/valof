@@ -23,8 +23,9 @@ It enforces the conventions through types and linting.
 - **Nominal-ish typing with a phantom brand**: TypeScript distinguishes one Val type from another,
   with nothing to pay at runtime.
 
-- **Values as plain data**: Vals stay objects, arrays and primitives. They serialize without
-  adapters and fit directly into React and other framework state. No classes, no prototypes.
+- **Values as plain data**: Vals stay objects, arrays and primitives. Sealing data that crossed JSON
+  or `structuredClone` intact gives an equal Val again, and Vals fit directly into React and other
+  framework state. No classes, no prototypes.
 
 - **Immutability**: Vals are immutable. Their types are deeply readonly, and `seal` copies its
   input, so an original reference cannot mutate them.
