@@ -1879,6 +1879,8 @@ describe("patch", () => {
   test("a recipe returns nothing, and runs synchronously", () => {
     // @ts-expect-error a recipe assigns to its draft and returns nothing
     Shop.patch(shop(), (s) => ({ ...s, id: "t" }));
+    // @ts-expect-error a return typed `unknown` is a value too
+    Shop.patch(shop(), (s): unknown => s);
     // @ts-expect-error a recipe runs synchronously
     Shop.patch(shop(), async (s) => {
       s.id = "t";
@@ -1950,6 +1952,29 @@ describe("patch", () => {
       undefined,
       undefined,
     ]);
+  });
+
+  test("a recipe's parameter may keep a key read-only, and holds at least one key of the draft", () => {
+    type Memo = Val<"RecipeMemo", { id: string; note: string }>;
+    const Memo = Val.companion<Memo, [Unpatchable<"id">]>().build();
+    const memo = Memo.seal({ id: "m", note: "a" });
+    const reading = (_m: { readonly id: string; readonly note: string }) => {};
+    Memo.patch(memo, reading);
+    // oxlint-disable-next-line no-explicit-any -- a return typed `any` says nothing, so it passes
+    const untyped: (m: unknown) => any = () => undefined;
+    Memo.patch(memo, (m) => untyped(m));
+    type Mark = Val<"RecipeMark", {}>;
+    const Mark = Val.companion<Mark>().build();
+    // A draft with no keys takes any parameter, since none can write.
+    Mark.patch(Mark.seal({}), (_d) => {});
+    // Not run: neither can reach a field.
+    const rejected = () => [
+      // @ts-expect-error a parameter with no key of the draft
+      Memo.patch(memo, (_: unknown) => {}),
+      // @ts-expect-error `{}` holds none either
+      Memo.patch(memo, (_: {}) => {}),
+    ];
+    expectTypeOf(rejected).toBeFunction();
   });
 
   test("a plain object field holds no Val", () => {
@@ -2330,6 +2355,14 @@ describe("Val.Record", () => {
     Val.of.nocopy<Prices>([["apple", apple]]);
     // A name no record member takes stays free.
     Val.Record.companion<Prices>().impl(() => ({ add: (p: Prices) => p }));
+  });
+
+  test("`has` takes any string, on a record with listed keys too", () => {
+    type Flags = Val.Record<"RecordFlags", "a" | "b", boolean>;
+    const Flags = Val.Record.companion<Flags>().build();
+    const flags = Flags.fromEntries([["a", true]]);
+    const asked: string = "c";
+    Flags.has(flags, asked);
   });
 
   test("`keys`, `values` and `entries` read the record in its own types", () => {
