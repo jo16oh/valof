@@ -230,7 +230,7 @@ export const Scan = Val.companion<Scan>()
  */
 export type Exports = Val.Record<"Exports", string, SymbolRef>;
 export const Exports = Val.Record.companion<Exports>()
-  .implAssoc(({ seal }) => ({
+  .implAssoc(({ fromEntries }) => ({
     from: (scans: readonly Scan[]): Exports =>
       pipe(
         scans.flatMap(({ file, exportedRefs }) => {
@@ -239,7 +239,7 @@ export const Exports = Val.Record.companion<Exports>()
             ([name, target]) => [SymbolRef.fromExport(module, name).key, target] as const,
           );
         }),
-        seal,
+        fromEntries,
       ),
   }))
   .impl(() => ({
@@ -594,8 +594,8 @@ function scan(
     memberSources,
     reads: sets(reads),
     namespaceReads: sets(namespaceReads),
-    exportedAs: Names.seal(exportedAs),
-    exportedRefs: Refs.seal(exportedRefs),
+    exportedAs: Names.fromEntries(exportedAs),
+    exportedRefs: Refs.fromEntries(exportedRefs),
     aliases,
     traitAliases,
     enumAliases,
@@ -606,7 +606,7 @@ function scan(
     lifts,
     models: models(file, program, bound, lines),
     directives: directives(comments, source, lines),
-    resolved: Names.seal(resolved),
+    resolved: Names.fromEntries(resolved),
   });
 }
 
@@ -772,10 +772,10 @@ function implMembers(
 
 /** Each set of keys under its name. */
 function sets(map: ReadonlyMap<string, ReadonlySet<string>>): KeySets {
-  return KeySets.seal(
+  return KeySets.fromEntries(
     [...map].map(
       ([key, members]) =>
-        [key, Keys.seal([...members].map((one) => [one, true] as const))] as const,
+        [key, Keys.fromEntries([...members].map((one) => [one, true] as const))] as const,
     ),
   );
 }
