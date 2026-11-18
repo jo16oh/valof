@@ -25,7 +25,6 @@ describe("what the rule finds", () => {
       "Id.equals is never read",
       "Id.update is never read",
       "Id.match is never read",
-      "Id.dyn is never read",
       "Id.Square is never read",
       "Id.dispatch is never read",
       "Id.thenable is never read",
@@ -34,7 +33,6 @@ describe("what the rule finds", () => {
       "Shape.Circle.match is never read",
       "Shape.Circle.Square is never read",
       "Shape.sides is never read",
-      "Shape.dyn is never read",
       "Named.greet is never read",
       "Named.match is never read",
       "Named.then is never read",
@@ -180,6 +178,17 @@ describe("Trait members", () => {
 
   test("follows a box read where it is made, so a key read elsewhere does not count", async () => {
     expect(await messages("followed-dyn")).toEqual(["A.explain is never read"]);
+  });
+
+  test("credits a box over several traits to each of them, read where it is made or escaped", async () => {
+    expect(await messages("intersected-dyn")).toEqual([
+      "A.run is never read",
+      "B.run is never read",
+    ]);
+  });
+
+  test("reads the form valof 0.12 and earlier accept, `Trait.dyn(Val, value)`", async () => {
+    expect(await messages("legacy-dyn")).toEqual(["A.explain is never read"]);
   });
 
   test("resolves const objects and recursive spreads", async () => {

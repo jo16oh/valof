@@ -129,7 +129,7 @@ describe("Trait", () => {
       expect([
         Meter.same(meter, gauge),
         Meter.same(meter, { n: 2 }),
-        Same.dyn(Gauge, gauge).same(meter),
+        Gauge.dyn<Same>(gauge).same(meter),
       ]).toEqual([true, false, true]);
     });
 
@@ -153,8 +153,8 @@ describe("Trait", () => {
       >();
       expect([
         Meter.same(meter, gauge),
-        Meter.same(meter, Same.dyn(Gauge, gauge).value),
-        Same.dyn(Gauge, gauge).same(meter),
+        Meter.same(meter, Gauge.dyn<Same>(gauge).value),
+        Gauge.dyn<Same>(gauge).same(meter),
       ]).toEqual([true, true, true]);
 
       type Plain = Val<"Plain", { n: number }>;
@@ -163,9 +163,9 @@ describe("Trait", () => {
       // @ts-expect-error a Val that does not declare the trait
       Meter.same(meter, Val.of<Plain>({ n: 1 }));
       // @ts-expect-error same through a box
-      Same.dyn(Gauge, gauge).same({ n: 1 });
+      Gauge.dyn<Same>(gauge).same({ n: 1 });
       // @ts-expect-error a box is not the value it holds
-      Meter.same(meter, Same.dyn(Gauge, gauge));
+      Meter.same(meter, Gauge.dyn<Same>(gauge));
     });
 
     test("Impl may appear anywhere in a member, and name another trait", () => {
@@ -457,7 +457,7 @@ describe("Trait", () => {
         .build();
       type Crate = Val<"SizedCrate", { size: number }, Sized>;
       const Crate = Val.companion<Crate>().implTrait(Sized).build();
-      const boxed = Sized.dyn(Crate, Crate.seal({ size: 3 }));
+      const boxed = Crate.dyn<Sized>(Crate.seal({ size: 3 }));
       expect([boxed.size(), boxed.value.size]).toEqual([6, 3]);
     });
 
@@ -503,14 +503,14 @@ describe("Trait", () => {
       expect([
         Kept.__valof_shared(keeper),
         Keeper.__valof_shared(keeper),
-        Kept.dyn(Keeper, keeper).greet(),
+        Keeper.dyn<Kept>(keeper).greet(),
       ]).toEqual(["kay", "kay", "Hi, kay"]);
     });
 
-    test("nor the name the trait itself uses", () => {
-      // @ts-expect-error a trait member cannot take the name the trait itself uses
+    test("nor `dyn`, which a Val's companion boxes through", () => {
+      // @ts-expect-error a trait member cannot take a name the library reserves
       type Boxed = Trait<"Boxed", { name: string }, { dyn: Final<(self: Self) => string> }>;
-      // @ts-expect-error a trait member cannot take the name the trait itself uses
+      // @ts-expect-error a trait member cannot take a name the library reserves
       Trait.companion<Boxed>()
         .impl(() => ({}))
         .build();
@@ -620,7 +620,7 @@ describe("Trait", () => {
 
 describe("dyn", () => {
   test("dispatches to the Val's own implementation", () => {
-    const party: Dyn<Greetable>[] = [Greetable.dyn(User, USER), Greetable.dyn(Admin, ADMIN)];
+    const party: Dyn<Greetable>[] = [User.dyn<Greetable>(USER), Admin.dyn<Greetable>(ADMIN)];
     expect(party.map((p) => p.greet())).toEqual(["Hi, alice", "Sir root"]);
     expect(party.map((p) => p.toWire("/"))).toEqual(["a/alice", "admin/root"]);
     expect(party.map((p) => p.shout())).toEqual(["ALICE", "ROOT"]);
@@ -630,25 +630,44 @@ describe("dyn", () => {
     const loose = { name: "duck" };
     // @ts-expect-error a trait is a contract between Vals, and this is not one of them
     Greetable.shout(loose);
-    // @ts-expect-error the same for the value a box stands in for
-    Greetable.dyn(User, loose);
+    // @ts-expect-error the same for the value a box holds
+    User.dyn<Greetable>(loose);
+    expectTypeOf(Greetable).not.toHaveProperty("dyn");
   });
 
-  test("nor may the box take another Val's companion", () => {
+  test("boxes only a trait the Val declares, named, and only its own value", () => {
     type Weighed = Trait<"Weighed", { name: string }, { heavy: (self: Self) => boolean }>;
     const Weighed = Trait.companion<Weighed>()
       .impl(() => ({ heavy: (w) => w.name.length > 3 }))
       .build();
     type Crate = Val<"Crate", { name: string }, Weighed>;
     const Crate = Val.companion<Crate>().implTrait(Weighed).build();
-    expect(() => {
-      // @ts-expect-error `Crate` answers for no member of `Greetable`
-      Greetable.dyn(Crate, USER).greet();
-    }).toThrow(TypeError);
+    const crate = Crate.seal({ name: "crate" });
+    // @ts-expect-error `Crate` does not declare `Greetable`
+    Crate.dyn<Greetable>(crate);
+    // @ts-expect-error name the trait to box as
+    Crate.dyn(crate);
+    expectTypeOf<Parameters<typeof Crate.dyn<never>>[0]>().toEqualTypeOf<
+      Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
+    >();
+    // @ts-expect-error another Val's value
+    Crate.dyn<Weighed>(USER);
+    expect(Crate.dyn<Weighed>(crate).heavy()).toBe(true);
+    // A companion with no trait has no `dyn`.
+    type Plain = Val<"DynPlain", { n: number }>;
+    const Plain = Val.companion<Plain>().build();
+    expectTypeOf(Plain).not.toHaveProperty("dyn");
+    expect("dyn" in Plain).toBe(false);
+  });
+
+  test("passes as a function, with the trait named", () => {
+    const boxes = [USER].map(User.dyn<Greetable>);
+    expectTypeOf(boxes).toEqualTypeOf<Dyn<Greetable>[]>();
+    expect(boxes.map((b) => b.greet())).toEqual(["Hi, alice"]);
   });
 
   test("a box holds the value under `value`, typed as the trait alone", () => {
-    const boxed = Greetable.dyn(User, USER);
+    const boxed = User.dyn<Greetable>(USER);
     expect(boxed.value).toBe(USER);
     expectTypeOf(boxed.value).toEqualTypeOf<Impl<Greetable>>();
     expectTypeOf(boxed).not.toHaveProperty("name");
@@ -668,19 +687,31 @@ describe("dyn", () => {
       .implTrait(Weighed)
       .build();
     const c = Val.of<Crate>({ name: "box", kg: 20 });
-    expect([Greetable.dyn(Crate, c).greet(), Weighed.dyn(Crate, c).heavy()]).toEqual([
+    expect([Crate.dyn<Greetable>(c).greet(), Crate.dyn<Weighed>(c).heavy()]).toEqual([
       "Hi, box",
       true,
     ]);
   });
 
-  test("takes one trait", () => {
+  test("takes several traits intersected, not a union", () => {
     type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
-    // @ts-expect-error a box takes one trait
-    const both = null as unknown as Dyn<Greetable & Weighed>;
-    // @ts-expect-error a box takes one trait
+    const Weighed = Trait.companion<Weighed>()
+      .impl(() => ({ heavy: (w) => w.kg > 10 }))
+      .build();
+    type Crate = Val<"BothCrate", { name: string; kg: number }, Greetable & Weighed>;
+    const Crate = Val.companion<Crate>()
+      .implTrait(Greetable, () => ({ toWire: (c, sep) => `${c.name}${sep}${c.kg}` }))
+      .implTrait(Weighed)
+      .build();
+    const both = Crate.dyn<Greetable & Weighed>(Crate.seal({ name: "c", kg: 20 }));
+    expect([both.greet(), both.heavy(), both.value.kg]).toEqual(["Hi, c", true, 20]);
+    const one: Dyn<Greetable> = both;
+    expect(one.greet()).toBe("Hi, c");
+    // @ts-expect-error a box takes traits intersected, not a union
     const either = null as unknown as Dyn<Greetable | Weighed>;
-    expect([both, either]).toEqual([null, null]);
+    // @ts-expect-error `User` declares `Greetable` alone
+    User.dyn<Greetable & Weighed>(USER);
+    expect(either).toBeNull();
   });
 
   test("takes a trait, not a Val", () => {
@@ -739,7 +770,7 @@ describe("dyn", () => {
 
     test("gets an empty target to stand behind", () => {
       const mail = Email.seal("a@example.com");
-      expect([Email.wire(mail), Marker.dyn(Email, mail).wire()]).toEqual(["marked", "marked"]);
+      expect([Email.wire(mail), Email.dyn<Marker>(mail).wire()]).toEqual(["marked", "marked"]);
     });
 
     test("a primitive shape needs a primitive payload", () => {
@@ -855,8 +886,8 @@ describe("nesting", () => {
   });
 
   test("the nested one boxes on its own", () => {
-    expect(Greetable.dyn(User, team.lead).greet()).toBe("Hi, alice");
-    expect(Greetable.dyn(Team, team).greet()).toBe("Team core");
+    expect(User.dyn<Greetable>(team.lead).greet()).toBe("Hi, alice");
+    expect(Team.dyn<Greetable>(team).greet()).toBe("Team core");
   });
 
   test("a field cannot hold an Impl, alone, in a union or beside null, and points to an Enum", () => {
@@ -1031,7 +1062,7 @@ describe("building", () => {
           none: () => [],
         }))
         .build();
-      const boxes = [Greeting.dyn(User, USER), Greeting.dyn(Admin, ADMIN)];
+      const boxes = [User.dyn<Greetable>(USER), Admin.dyn<Greetable>(ADMIN)];
       expectTypeOf(Greeting.greetAll(boxes)).toEqualTypeOf<string[]>();
       expect([
         Greeting.greetAll(boxes),
@@ -1062,7 +1093,7 @@ describe("building", () => {
         .build();
       const guest = Guest.seal({ name: "g" });
       expectTypeOf(Guest).not.toHaveProperty("version");
-      expect(["version" in Guest, Reflect.get(Greeting.dyn(Guest, guest), "version")]).toEqual([
+      expect(["version" in Guest, Reflect.get(Guest.dyn<Greetable>(guest), "version")]).toEqual([
         false,
         undefined,
       ]);
@@ -1082,7 +1113,7 @@ describe("building", () => {
       expect([Greeting.prefix(), Greeting.shoutAll([USER])]).toEqual(["Hi", ["ALICE"]]);
     });
 
-    test("a name is taken once, and the trait's members, `dyn` and the library's are reserved", () => {
+    test("a name is taken once, and the trait's members and the library's are reserved", () => {
       const assoc = Trait.companion<Greetable>().implAssoc(() => ({ total: () => 1 }));
       // @ts-expect-error this name is already taken
       assoc.implAssoc(() => ({ total: () => 2 }));
@@ -1090,7 +1121,7 @@ describe("building", () => {
       Trait.companion<Greetable>().implAssoc(() => ({ greet: () => 1 }));
       // @ts-expect-error a member the trait declares, Final or not
       Trait.companion<Greetable>().implAssoc(() => ({ shout: () => 1 }));
-      // @ts-expect-error the name the trait itself uses
+      // @ts-expect-error a name the library reserves, which a Val's companion boxes through
       Trait.companion<Greetable>().implAssoc(() => ({ dyn: () => 1 }));
       // @ts-expect-error a name the library reserves
       Trait.companion<Greetable>().implAssoc(() => ({ seal: () => 1 }));

@@ -2,7 +2,6 @@ import { normalize, resolve } from "node:path";
 
 import type { Enum, EnumCompanion } from "../../lib/enum.ts";
 import { Val } from "../../lib/index.ts";
-import type { AnyTrait, TraitCompanion } from "../../lib/trait.ts";
 import type { Companion, Reserved } from "../../lib/val.ts";
 import { pipe } from "../../shared/pipe/index.ts";
 import {
@@ -58,7 +57,7 @@ export { Directive, DirectiveMap } from "./directives.ts";
 export type { Model, Models, Shape, TypeUse } from "./models.ts";
 
 /** The names every `.impl` rejects. The type reports one, so it is not a member to report. */
-const RESERVED = reserved(["patch", "seal", "create"]);
+const RESERVED = reserved(["patch", "seal", "create", "dyn"]);
 
 /** The names a record's companion carries, which its `.impl` and `.implAssoc` reject as well. */
 const RECORD_NAMES: ReadonlySet<string> = new Set([
@@ -295,21 +294,25 @@ type Unlisted<N extends string> = Reserved extends infer R
     : never
   : never;
 
-/** A `Trait.dyn(Val, value)` box: the Trait, and the Val it holds. */
-type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
+/** A `Val.dyn<Trait>(value)` box: the Traits it names, and the Val it holds. */
+type DynBox = Val<"DynBox", { traits: SymbolRef[]; val: SymbolRef }>;
 const DynBox = Val.companion<DynBox>().build();
 
 /**
- * An enum's `.impl` rejects `match` as well, a trait's rejects `dyn`, and a record's rejects its
- * companion's own names. An enum's variant names are left to the rule, which reads every file.
+ * An enum's `.impl` rejects `match` as well, and a record's rejects its companion's own names. An
+ * enum's variant names are left to the rule, which reads every file.
  */
 function rejected(member: string, root?: string, record = false): boolean {
   return (
     RESERVED.test(member) ||
     (record && RECORD_NAMES.has(member)) ||
-    (root === "Enum" && member === ("match" satisfies keyof EnumCompanion<Sample>)) ||
-    (root === "Trait" && member === ("dyn" satisfies keyof TraitCompanion<AnyTrait>))
+    (root === "Enum" && member === ("match" satisfies keyof EnumCompanion<Sample>))
   );
+}
+
+/** A read of a box's member, recorded once for each trait the box was made for. */
+function readsOf({ traits, val }: DynBox, member: string): DynRead[] {
+  return traits.map((trait) => DynRead.seal({ trait, val, member }));
 }
 
 function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
@@ -411,7 +414,7 @@ function scan(
             const name = keyName(property.key, property.computed);
             if (name) {
               if (dyn) {
-                dynReads.push(DynRead.seal({ ...dyn, member: name }));
+                dynReads.push(...readsOf(dyn, name));
               } else {
                 collect(reads, from, name);
                 const local = property.value;
@@ -434,7 +437,7 @@ function scan(
               if (property.type !== "Property") continue;
               const name = keyName(property.key, property.computed);
               if (name) {
-                dynReads.push(DynRead.seal({ ...dyn, member: name }));
+                dynReads.push(...readsOf(dyn, name));
               }
             }
           }
@@ -462,7 +465,7 @@ function scan(
         // Visited after whatever contains it, so a box read where it is made is already followed.
         const box = followed.has(node) ? undefined : dynBox(node, file, bound);
         if (box) {
-          escapedDyns.push(EscapedDyn.seal(box));
+          escapedDyns.push(...box.traits.map((trait) => EscapedDyn.seal({ trait, val: box.val })));
         }
         memberSources.push(...sources(node, file, bound));
         const state = stepState(node, bound);
@@ -490,7 +493,7 @@ function scan(
         if (object.type === "Identifier") {
           const dyn = dynBindings.get(object.name);
           if (dyn) {
-            dynReads.push(DynRead.seal({ ...dyn, member: name }));
+            dynReads.push(...readsOf(dyn, name));
             break;
           }
           collect(reads, object.name, name);
@@ -504,7 +507,7 @@ function scan(
         const dyn = dynBox(object, file, bound);
         if (dyn) {
           followed.add(object);
-          dynReads.push(DynRead.seal({ ...dyn, member: name }));
+          dynReads.push(...readsOf(dyn, name));
           break;
         }
         // `ns.User.greet`: the companion is the middle name, and it is the exporting module's
@@ -626,16 +629,38 @@ function scan(
   });
 }
 
-/** The uncomplicated `Trait.dyn(Val, value)` form.  Escaping the box is deliberately not traced. */
+/** The uncomplicated `Val.dyn<Trait>(value)` form. Escaping the box is deliberately not traced. */
 function dynBox(node: Node, file: FilePath, bound: Bindings): DynBox | undefined {
   if (node.type !== "CallExpression") return undefined;
   const { callee } = node;
   if (callee.type !== "MemberExpression" || keyName(callee.property, callee.computed) !== "dyn")
     return undefined;
-  const args = node.arguments;
-  const trait = valueReference(callee.object, file, bound);
-  const val = args[0] && valueReference(args[0], file, bound);
-  return trait && val ? DynBox.seal({ trait, val }) : undefined;
+  // `Trait.dyn(Val, value)`, the form valof 0.12 and earlier accept. The scripts
+  // pinned to an older valof still write it.
+  const [first, second] = node.arguments;
+  if (first && second) {
+    const trait = valueReference(callee.object, file, bound);
+    const held = valueReference(first, file, bound);
+    return trait && held ? DynBox.seal({ traits: [trait], val: held }) : undefined;
+  }
+  const val = valueReference(callee.object, file, bound);
+  const traits = typeParams(node.typeArguments)
+    .flatMap((one) => (one.type === "TSIntersectionType" ? one.types : [one]))
+    .map((one) => traitReference(one, file, bound))
+    .filter((one) => one !== undefined);
+  return val && traits.length ? DynBox.seal({ traits, val }) : undefined;
+}
+
+/** The trait a type reference names, `Rule` or `ns.Rule`, by the companion it shares a name with. */
+function traitReference(node: Node, file: FilePath, bound: Bindings): SymbolRef | undefined {
+  if (node.type !== "TSTypeReference") return undefined;
+  const { typeName } = node;
+  if (typeName.type === "Identifier") return Bindings.refOf(bound, file, typeName.name, undefined);
+  if (typeName.type !== "TSQualifiedName" || typeName.left.type !== "Identifier") return undefined;
+  const name = keyName(typeName.right, false);
+  return name && Bindings.hasNamespace(bound, typeName.left.name)
+    ? Bindings.refOf(bound, file, name, typeName.left.name)
+    : undefined;
 }
 
 /** A runtime companion reference with its exporting module retained. */

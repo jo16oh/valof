@@ -87,12 +87,12 @@ declare const floor: Floor;
 declare const room: Room;
 declare const tag: Tag;
 
-export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
+export const boxed: Dyn<Named>[] = [Room.dyn<Named>(room), Tag.dyn<Named>(tag)];
 export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()} ${Named.shout(b.value)}`);
 export const labelled = [Named.labelled(":", boxed), Named.labelled(boxed)(":")];
 // A final reaches every path a member does, and the trait namespace besides.
-export const shouted = [Room.shout(room), Named.shout(tag), Named.dyn(Tag, tag).shout()];
-export const same = [Room.same(room, tag), Named.dyn(Tag, tag).same(floor)];
+export const shouted = [Room.shout(room), Named.shout(tag), Tag.dyn<Named>(tag).shout()];
+export const same = [Room.same(room, tag), Tag.dyn<Named>(tag).same(floor)];
 export const point = Point.seal({ name: "o", size: { w: 1, h: 2 } });
 export const nested = [
   Floor.label(floor, "/"),
@@ -101,7 +101,7 @@ export const nested = [
   Floor.patch(floor, (d) => {
     d.main = floor.main;
   }),
-  Named.dyn(Floor, floor).greet(),
+  Floor.dyn<Named>(floor).greet(),
 ];
 export const direct = [
   Room.label(room, "/"),

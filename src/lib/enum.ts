@@ -26,6 +26,7 @@ import type {
   LoneTrait,
   FieldsOf,
   TraitHost,
+  DynStep,
   TraitsOf,
   Unbound,
 } from "./trait.ts";
@@ -604,7 +605,19 @@ type Framed<
   (NoCreate<O, N> extends true ? unknown : CreateMethod<E, N, C, R>) &
   (Hidden<O> extends true ? unknown : VariantSeal<E, N, R>) &
   VariantPatch<E, N, R, U> &
-  TraitHost;
+  TraitHost &
+  VariantDyn<VariantOf<E, N>, Exclude<TraitsOf<VariantOf<E, N>>, TraitNames<DeclaredTraits<E>>>>;
+
+/** A variant's `dyn`, for the traits it declares on its own. The enum's companion boxes the rest. */
+type VariantDyn<V, Own> = [Own] extends [never]
+  ? unknown
+  : {
+      readonly dyn: DynStep<
+        V,
+        Own,
+        "the enum declares this trait, so box it through the enum: `Enum.dyn<Trait>(value)`"
+      >;
+    };
 
 type VariantSeal<E extends AnyEnum, N extends keyof VariantsOf<E>, R> = {
   /**
@@ -746,7 +759,16 @@ export type EnumCompanion<
     // it to the first handler and reject the rest.
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
-  } & TraitHost;
+  } & TraitHost &
+  ([TraitNames<DeclaredTraits<E>>] extends [never]
+    ? unknown
+    : {
+        readonly dyn: DynStep<
+          E,
+          TraitNames<DeclaredTraits<E>>,
+          "a variant declares this trait, so box it through the variant: `Enum.[Variant].dyn<Trait>(value)`"
+        >;
+      });
 
 type EnumSeal<E extends AnyEnum, VM, F> = {
   /**
@@ -1233,6 +1255,8 @@ const assemble = (tag: string, variants: Variants, own: Registered): object => {
     ...traits.map(([trait, fns]) => ({ ...trait[Shared], ...fns?.(gates) })),
   ) as Record<string, unknown>;
   gates[Traits] = implemented;
+  const trait = traits[0]?.[0];
+  if (trait) gates["dyn"] = (value: unknown) => trait[Traits](gates, value);
   return resolving(
     gates,
     at,

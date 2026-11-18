@@ -2724,16 +2724,14 @@ describe("building", () => {
         .build();
     });
 
-    // `dyn` is the one name a trait member may not take that a Val companion may: `Trait`'s
-    // `dyn` reads a symbol key, never the companion's own `dyn`.
-    test("`dyn` is not among them: a Val companion has none to shadow", () => {
-      const Boxed = Val.companion<User>()
-        .impl(() => ({ dyn: (u) => u.name }))
-        .build();
-      expect(Boxed.dyn(Boxed.seal({ id: "a", name: "bob", nickname: undefined }))).toBe("bob");
+    test("nor `dyn`, which boxes a value", () => {
+      Val.companion<User>().impl(() => ({
+        // @ts-expect-error the companion reserves `dyn`
+        dyn: (u: User) => u.name,
+      }));
     });
 
-    // The three tests above name one `Wired` member each. This one fails if the union grows a
+    // The four tests above name one `Wired` member each. This one fails if the union grows a
     // name `.impl` still accepts, which is how the two drifted apart before.
     test("no name in `Wired` is accepted", () => {
       type Accepted = {
@@ -3871,10 +3869,9 @@ describe("building", () => {
         expect(Half.greet(crate)).toBe("Hi, box");
         expectTypeOf(Half).not.toHaveProperty("heavy");
         expect("heavy" in Half).toBe(false);
-        expect(() => {
-          // @ts-expect-error nor can a box reach one
-          Weighed.dyn(Half, crate).heavy();
-        }).toThrow(TypeError);
+        // `Half.dyn<Weighed>` is accepted because `Crate` declares `Weighed`, and valof-lint's
+        // `unimplemented-trait` reports the missing step.
+        expect(() => Half.dyn<Weighed>(crate).heavy()).toThrow(TypeError);
       });
 
       test("but the same trait cannot be implemented twice", () => {
@@ -3912,7 +3909,7 @@ describe("building", () => {
         // A field's name is free: the box holds the value apart from the members.
         const Parcel = Val.companion<Parcel>().implTrait(Tagged).implTrait(Labelled).build();
         const parcel = Parcel.seal({ name: "p", tag: "fragile" });
-        expect([Parcel.tag(parcel), Labelled.dyn(Parcel, parcel).tag()]).toEqual(["p", "p"]);
+        expect([Parcel.tag(parcel), Parcel.dyn<Labelled>(parcel).tag()]).toEqual(["p", "p"]);
         expectTypeOf<Takes<Parcel, Labelled, { size: unknown }, "ok">>().toEqualTypeOf<"ok">();
       });
 
@@ -3991,7 +3988,7 @@ describe("building", () => {
           .implTrait(Greetable, () => ({ toWire: (m, sep) => `${m.id}${sep}` }))
           .impl(() => ({ __valof_traits: (m) => m.name }))
           .build();
-        expect([Kept.__valof_traits(member), Greetable.dyn(Kept, member).greet()]).toEqual([
+        expect([Kept.__valof_traits(member), Kept.dyn<Greetable>(member).greet()]).toEqual([
           "alice",
           "Hi, alice",
         ]);

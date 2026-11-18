@@ -47,7 +47,7 @@ It enforces the conventions through types and linting.
 - **Built-in linter**: Catch convention violations through ESLint, Oxlint or the standalone command.
   [Linting](linting.md) shows the setup.
 
-- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->1.24 kB
+- **Lightweight**: Starts from <!-- valof-minimal-bundle-size -->1.27 kB
   gzipped<!-- /valof-minimal-bundle-size -->, with no runtime dependencies.
 
 > For background on individual features, see
@@ -114,8 +114,8 @@ function main() {
 
   // Dynamic dispatch, as in Rust's `Box<dyn Trait>`. Each item calls its own type's `summarize`.
   const board: Dyn<Summarizable>[] = [
-    Summarizable.dyn(Task, task),
-    Summarizable.dyn(Note, Note.seal({ title: "Ideas", text: "..." })),
+    Task.dyn<Summarizable>(task),
+    Note.dyn<Summarizable>(Note.seal({ title: "Ideas", text: "..." })),
   ];
   board.map((item) => item.summarize()).forEach((s) => console.log(s)); // "Write the README (due 10-31)", "Ideas"
 }

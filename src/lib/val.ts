@@ -36,6 +36,7 @@ import type {
   TraitBrand,
   TraitCompanion,
   TraitHost,
+  DynStep,
   TraitsOf,
   Unbound,
 } from "./trait.ts";
@@ -907,7 +908,7 @@ type NonFn = Primitive | undefined | readonly unknown[] | Record<string, unknown
  * derivation with different rules deserves its own name, and can seal inside it. Use `.implSeal` /
  * `.implCreate`.
  */
-export type Wired = "patch" | "seal" | "create";
+export type Wired = "patch" | "seal" | "create" | "dyn";
 
 /** The names every `.impl` rejects. */
 type Rejected = Partial<Record<Wired, never>>;
@@ -1173,7 +1174,8 @@ export type Companion<
     ? CollectionMethods<V, F>
     : ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
         PatchMethod<V, F, O>) &
-  TraitHost;
+  TraitHost &
+  ([TraitsOf<V>] extends [never] ? unknown : { readonly dyn: DynStep<V> });
 
 /** Builds a {@link ValRecord} from entries. */
 type FromEntriesMethod<V extends AnyVal, F> = {
@@ -1762,7 +1764,13 @@ export const define = <T extends object>(target: T, key: string, value: unknown)
 type Members = (supplied: object) => Record<string, unknown>;
 
 /** A trait and the function that implements it. */
-type Implementation = [trait: { [Shared]: Record<string, unknown> }, fns?: Members];
+type Implementation = [
+  trait: {
+    [Shared]: Record<string, unknown>;
+    [Traits]: (companion: object, value: unknown) => unknown;
+  },
+  fns?: Members,
+];
 
 /** What a builder's steps registered: a Val's, an enum's, or one of its variants'. */
 export type Registered<P = unknown> = {
@@ -1927,6 +1935,8 @@ export const attach = (
     ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
   ) as Record<string, unknown>;
   (target as Record<symbol, unknown>)[Traits] = traits;
+  const trait = implemented[0]?.[0];
+  if (trait) target["dyn"] = (value: unknown) => trait[Traits](target, value);
   return Object.assign(
     target,
     createMembers(traits),

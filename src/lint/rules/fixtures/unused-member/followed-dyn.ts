@@ -7,10 +7,10 @@ const A = Val.companion<A>()
   .implTrait(Rule, () => ({ run: (a) => a.kind, explain: (a) => a.kind }))
   .build();
 
-Rule.dyn(A, a).run();
-const boxed = Rule.dyn(A, a);
+A.dyn<Rule>(a).run();
+const boxed = A.dyn<Rule>(a);
 boxed.run();
-const { run } = Rule.dyn(A, a);
+const { run } = A.dyn<Rule>(a);
 
 const unrelated = { explain: 1 };
 unrelated.explain;
