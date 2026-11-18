@@ -59,7 +59,6 @@ import {
   type OneList,
   type Options,
   type Passes,
-  type Patch,
   type PatchFn,
   type PrivateCreate,
   type PrivateSeal,
@@ -617,7 +616,7 @@ type VariantSeal<E extends AnyEnum, N extends keyof VariantsOf<E>, R> = {
 
 type VariantPatch<E extends AnyEnum, N extends keyof VariantsOf<E>, R, U> = {
   /** Derives through the same seal. See {@link Patch}. */
-  patch: PatchFn<VariantOf<E, N>, R, Patch<SeedFor<E, N>, U & keyof SeedFor<E, N>>>;
+  patch: PatchFn<VariantOf<E, N>, R, SeedFor<E, N>, U & keyof SeedFor<E, N>>;
 };
 
 /** What a variant's step's function receives: its `seal`, `create` and `patch`, private or not. */

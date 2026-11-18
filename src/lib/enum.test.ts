@@ -330,6 +330,10 @@ describe("the tag", () => {
       // @ts-expect-error nor write another variant's field
       d.side = 1;
     });
+    // @ts-expect-error nor through a parameter typed to hold the tag
+    Circle.patch(CIRCLE, (d: { r: number; _tag?: string }) => {
+      d._tag = "Square";
+    });
   });
 
   describe("a name of your own", () => {

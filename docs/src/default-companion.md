@@ -89,7 +89,10 @@ Shop.patch(shop, (s) => {
 ```
 
 The recipe runs synchronously. Once it returns, reading or writing the draft throws. An async recipe
-is a type error.
+is a type error. So is a recipe whose parameter type makes writable a key the draft keeps read-only,
+such as `(d: { id: string }) => …` where `id` is
+[`Unpatchable`](custom-constructors.md#restrict-the-companion-with-options). Leave the parameter
+type to inference.
 
 Like [`seal`](immutability.md#vals-are-immutable), `patch` reuses what is already inside the Val. It
 copies only the path to what changed, and untouched branches keep their reference identity:

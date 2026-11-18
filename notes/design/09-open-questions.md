@@ -62,6 +62,11 @@
     recipe that branches on the value reads the Val it patches, or passes single fields
   - A named function passed as the recipe is out of the lint's reach. `PatchFn` is to require its parameter type to be
     the draft's own, which also rejects `(d: { _tag?: string }) => …`
+  - Done: `PatchFn` rejects a parameter type holding a key the payload lacks, or making an `Unpatchable` key writable.
+    One holding fewer keys fits, as `Patch<Omit<SeedOf<V>, "id">>` does. Requiring the draft's exact type, as the item above planned, rejected that
+    form too. The check costs core 11,583 → 12,556 instantiations (+8%), so its budget went from 12,000 to 13,000. Most
+    of it comes from intersecting the recipe's type with a second check beside `Sync`. Folding the check into `Sync`
+    cost as much, and a conditional with `infer` over the parameters broke the recipe's contextual typing
 
 - [x] ~~**valof-lint reports `Object.entries` passed to `fromEntries`.**~~ Rejected, 2026-11-18. The book warns instead. TypeScript's lib types the entries by the
       object's implicit index signature, so a narrowed variable hides entries from a record again (§3 "No index signature")
