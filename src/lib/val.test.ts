@@ -2208,11 +2208,17 @@ describe("Val.Record", () => {
       // @ts-expect-error and `entries`
       entries: (p: Prices) => Object.entries(p),
     }));
+    Val.Record.companion<Prices>().impl(() => ({
+      // @ts-expect-error the companion's own `fromEntries`
+      fromEntries: (p: Prices) => p,
+    }));
     Val.Record.companion<Prices>().implAssoc(() => ({
       // @ts-expect-error nor may `.implAssoc` take a record's member name
       set: (x: string) => x,
-      // @ts-expect-error the companion's own `fromEntries`
-      fromEntries: () => Prices.fromEntries([]),
+    }));
+    Val.Record.companion<Prices>().implAssoc(() => ({
+      // @ts-expect-error nor `fromEntries`
+      fromEntries: (x: string) => x,
     }));
     // @ts-expect-error `Val.of.nocopy` builds no record either
     Val.of.nocopy<Prices>([["apple", apple]]);
