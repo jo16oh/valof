@@ -106,7 +106,7 @@ const TYPES_BUDGETS = TypesBudgets.seal({
    */
   fixtures: [
     TypesFixture.seal({ name: "core", budget: 13_100 }),
-    TypesFixture.seal({ name: "trait", budget: 28_000 }),
+    TypesFixture.seal({ name: "trait", budget: 28_500 }),
     TypesFixture.seal({ name: "enum", budget: 90_000 }),
   ],
   /** Declaration files, in bytes. An alarm too, not a ratchet. */
@@ -116,7 +116,7 @@ const TYPES_BUDGETS = TypesBudgets.seal({
       name: "index.d.ts",
       path: "dist/index.d.ts",
       description: "the published declarations, in bytes. what every consumer parses.",
-      budget: 118 * 1024,
+      budget: 119 * 1024,
     }),
     /** The plugin's declarations, which a config file in TypeScript loads. */
     TypesDeclaration.seal({

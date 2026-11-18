@@ -40,8 +40,9 @@ const Order = Val.companion<Order, [Unpatchable<"id">]>()
   .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
   .implAssoc(({ seal, create }) => ({
     fromShip: (id: string, ship: Address) =>
-      seal({ id, ship, lines: [], totals: Totals.seal([]), note: undefined }),
-    blank: (ship: Address) => create({ ship, lines: [], totals: Totals.seal([]), note: undefined }),
+      seal({ id, ship, lines: [], totals: Totals.fromEntries([]), note: undefined }),
+    blank: (ship: Address) =>
+      create({ ship, lines: [], totals: Totals.fromEntries([]), note: undefined }),
   }))
   .impl(({ seal }) => ({
     label(o) {
@@ -89,7 +90,7 @@ export const derived = [
         tags: ["x"],
       }),
     ],
-    totals: Totals.seal([["vat", Money.seal({ amount: 1, currency: "JPY" })]]),
+    totals: Totals.fromEntries([["vat", Money.seal({ amount: 1, currency: "JPY" })]]),
     note: undefined,
   }),
   Val.of<Order>(order),
