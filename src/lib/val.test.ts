@@ -7,16 +7,16 @@ import type {
   PrivateCreate,
   PrivateSeal,
   Rec,
-  Draft,
   SeedOf,
   Unpatchable,
 } from "./index.ts";
 import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "./index.ts";
 import { Traits } from "./keys.ts";
 import type { VerdictOf as TraitVerdictOf } from "./trait.ts";
-// `AnyVal`, `BrandOf` and `Patch` are not published from the entry point.
+// `AnyVal`, `BrandOf`, `Patch` and `Draft` are not published from the entry point.
 import type {
   Patch,
+  Draft,
   Allowed,
   AnyVal,
   BrandOf,
@@ -1329,6 +1329,8 @@ describe("the entry point", () => {
     expectTypeOf<import("./index.ts").AnyTrait>();
     // @ts-expect-error nor Patch: a recipe's type is inferred
     expectTypeOf<import("./index.ts").Patch<{ id: string }>>();
+    // @ts-expect-error nor Draft: a recipe goes inline in the `patch` call
+    expectTypeOf<import("./index.ts").Draft<{ id: string }>>();
   });
 });
 
