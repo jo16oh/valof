@@ -46,6 +46,15 @@
   - A named function passed as the recipe is out of the lint's reach. `PatchFn` is to require its parameter type to be
     the draft's own, which also rejects `(d: { _tag?: string }) => …`
 
+- [ ] **valof-lint reports `Object.entries` of a narrowed variable passed to `fromEntries`.** lib types the entries by the
+      object's implicit index signature, so a narrowed variable hides entries from a record again (§3 "No index signature").
+      Detecting a type without an index signature needs type information, which valof-lint's scan does not have. Not
+      started (2026-11-18)
+
+- [ ] **A way to hide a record's `fromEntries`.** `PrivateSeal` removes the path that takes a payload directly, and a
+      record's `fromEntries` is that path (§3). No record has needed `create` to generate a key a caller must not pass, so
+      `Val.Record.companion` accepts only `PrivateCreate` until one does (2026-11-18)
+
 - [x] ~~**The hole in a patch passed as a variable (investigated in #125).**~~ Closed, 2026-11-05. Items 1-3 of `hunt-findings.md`. A non-literal
       argument gets no excess property check, and the patch type was an intersection (`{…} & {…}`), so it got no weak type check either
   - **Make `Patch` one mapped type.** The weak type check then rejects a variable that shares no key (`{ foo: 1 }`).
