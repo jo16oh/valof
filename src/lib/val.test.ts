@@ -3305,7 +3305,7 @@ describe("building", () => {
         expect(Email.seal("a@b.com")).toBe("a@b.com");
       });
 
-      test("a payload narrower than `string` is exempt too", () => {
+      test("a payload narrower than `string`, or holding one in a union, is exempt too", () => {
         type Color = Val<"Color", "red" | "blue">;
         const Color = Val.companion<Color>()
           .implSeal((c: string, seal) => seal(c === "red" ? "red" : "blue"))
@@ -3314,8 +3314,13 @@ describe("building", () => {
         const Hex = Val.companion<Hex>()
           .implSeal((h: string, seal) => seal(`#${h.replace(/^#/, "")}`))
           .build();
+        type Code = Val<"Code", string | number>;
+        const Code = Val.companion<Code>()
+          .implSeal((c: string | number, seal) => seal(typeof c === "string" ? c.trim() : c))
+          .build();
         expect(Color.seal("red")).toBe("red");
         expect(Hex.seal("#fff")).toBe("#fff");
+        expect(Code.seal(" a ")).toBe("a");
       });
 
       test("an array payload takes `readonly unknown[]`, and rejects `object`", () => {
