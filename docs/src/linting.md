@@ -21,6 +21,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `no-split-companion`             | a companion for a type that another file declares                                                                                                | error   |
 | `no-bypassed-companion`          | a `Val.of` for a type whose companion is how it is built                                                                                         | warning |
 | `no-inferred-val-of`             | a `Val.of` that names no type, taking one from its target                                                                                        | warning |
+| `no-internal-import`             | an import or a re-export from `valof/internal/*`                                                                                                 | warning |
 | `no-hidden-shared-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`                                                                     | warning |
 | `no-aliased-draft`               | a recipe's draft passed to a function, bound to a name, put in an array or an object, or copied by a rest element; a recipe with type parameters | error   |
 | `no-detached-variant`            | a variant bound to a local name without the name of its enum                                                                                     | warning |
