@@ -88,6 +88,24 @@
       bring in the shape too"). The declaration reports the key instead of TS2456. `Node.seal({ _tag: "Leaf", … })`
       passes with the trait's `Rec` field written only in the shape (probe)
 
+- [ ] **What the third type hunt (2026-11-18, over the whole surface on feat/seal-record-param) found.** The first three are fixed in the PR that records them:
+  - **A record's seal took an `undefined` value.** `?` in `Collected` adds `undefined` to an index signature, so
+    `seal({ ...counts, extra: undefined })` passed on `Val.Record<"C", string, number>`, and `values` returned
+    `undefined` where its type says `number`. A seal's argument (`Keyed`) leaves `?` off a key such as `string` or `` `x-${string}` ``
+    and keeps it on a listed key. A record's value keeps `?`, so a read by key may be `undefined`. Without
+    `exactOptionalPropertyTypes`, a listed key still takes `undefined` (pattern 11)
+  - **`Val.Record.companion()` with no type argument** returns an `Invalid` that asks for the record's type argument, as `Val.companion()` does for the Val's
+  - **A field typed with a trait** got advice to use `Impl<Trait>`, which a field cannot hold either. It now advises an
+    Enum, for an array element and a record's value too. A variable or parameter typed with a trait keeps the
+    `Impl<Trait>` advice
+  - **Not fixed, by decision (user, 2026-11-18): an overloaded named recipe.** `Drafts` reads the last overload, so an
+    earlier one can write an `Unpatchable` key. Writing the overloads is as deliberate as a cast
+  - **Open: `Draft` written with a Val.** `Draft<User>` maps the Val's fields, which matches the draft `patch` passes
+    where that draft has no read-only key. Where one is, as an `Unpatchable` key, the recipe is rejected with "leave its type to
+    inference", which does not name the fault. `Patch<User>` said "write `Patch<SeedOf<V>>`" before `Draft` replaced it
+  - **Cost.** core 13,161 → 13,166 instantiations, trait 26,227 → 27,117, enum 57,408 → 58,308, `index.d.ts` 119.99 →
+    120.84 kB. The declaration budget went from 120 to 128 kB (user)
+
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
   - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report
