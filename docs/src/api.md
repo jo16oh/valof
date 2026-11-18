@@ -59,9 +59,9 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 A `Val.Record`'s builder takes the same steps, and its companion has no `seal` and no `patch`. The
 seal registered with `.implSeal` receives the object the entries fold into, and the function passed
 to `.implCreate` returns entries. `Val.Record.companion` accepts only `PrivateCreate`, in its second
-type argument. The function passed to `impl`, `implTrait` and `implAssoc` receives `fromEntries`,
-and `create` where `implCreate` registered one. `Prices` stands for a `Val.Record`'s companion. It
-has these members:
+type argument. The function passed to `impl` and `implAssoc` receives the members below, and
+`create` where `implCreate` registered one. `Prices` stands for a `Val.Record`'s companion. It has
+these members:
 
 | API                              | Description                                                       |
 | -------------------------------- | ----------------------------------------------------------------- |
@@ -81,7 +81,6 @@ has these members:
 | `SeedOf<V>`             | the payload accepted by seals                                                     |
 | `PayloadOf<V>`          | the payload, with the brand removed at every depth                                |
 | `Payload<T>`            | marks a type as meant for a payload, and checks it against the allowed-type rules |
-| `Draft<T>`              | the writable stand-in for the payload that a recipe assigns to                    |
 | `Rec<V>`                | a Val's reference to itself, in its own payload                                   |
 | `Val.Record<K, Key, V>` | a Val holding a value `V` under each key `Key`, as a plain object                 |
 | `CompanionBuilder<V>`   | a companion's builder, with the steps it can still take                           |

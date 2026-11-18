@@ -1028,18 +1028,19 @@ describe("nesting", () => {
   });
 
   test("a field cannot be typed with the trait itself", () => {
-    // @ts-expect-error a trait is only a declaration
+    // @ts-expect-error a field cannot hold a trait
     type Desk = Val<"Desk", { owner: Greetable }>;
-    // @ts-expect-error a trait is only a declaration
+    // @ts-expect-error a field cannot hold a trait
     type Seat = Payload<{ owner: Greetable }>;
     expectTypeOf<Desk>().not.toBeNever();
-    // Below the root, the root's message would suggest Val's third type argument for a field's trait.
+    // Below the root, the root's message would suggest Val's third type argument for a field's trait,
+    // and `Impl<Trait>` is rejected in a field too.
     expectTypeOf<Seat>().toEqualTypeOf<{
-      owner: Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">;
+      owner: Invalid<"a field cannot hold a trait; declare an Enum of the types it may hold">;
     }>();
-    // @ts-expect-error a trait is only a declaration
+    // @ts-expect-error a field cannot hold a trait
     type Office = Enum<"Office", { Open: { owner: Greetable }; Shut: { at: number } }>;
-    // @ts-expect-error a trait is only a declaration
+    // @ts-expect-error a field cannot hold a trait
     Enum.companion<Office>().build();
   });
 });

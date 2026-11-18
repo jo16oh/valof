@@ -7,16 +7,16 @@ import type {
   PrivateCreate,
   PrivateSeal,
   Rec,
-  Draft,
   SeedOf,
   Unpatchable,
 } from "./index.ts";
 import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "./index.ts";
 import { Traits } from "./keys.ts";
 import type { VerdictOf as TraitVerdictOf } from "./trait.ts";
-// `AnyVal`, `BrandOf` and `Patch` are not published from the entry point.
+// `AnyVal`, `BrandOf`, `Patch` and `Draft` are not published from the entry point.
 import type {
   Patch,
+  Draft,
   Allowed,
   AnyVal,
   BrandOf,
@@ -1329,6 +1329,8 @@ describe("the entry point", () => {
     expectTypeOf<import("./index.ts").AnyTrait>();
     // @ts-expect-error nor Patch: a recipe's type is inferred
     expectTypeOf<import("./index.ts").Patch<{ id: string }>>();
+    // @ts-expect-error nor Draft: a recipe goes inline in the `patch` call
+    expectTypeOf<import("./index.ts").Draft<{ id: string }>>();
   });
 });
 
@@ -2161,7 +2163,7 @@ describe("Val.Record", () => {
     let received: unknown;
     const Capped = Val.Record.companion<Prices>()
       .implSeal((prices, seal) => {
-        expectTypeOf(prices).toEqualTypeOf<{ readonly [x: string]: Money | undefined }>();
+        expectTypeOf(prices).toEqualTypeOf<{ readonly [x: string]: Money }>();
         received = prices;
         return Object.keys(prices).length > 2 ? new RangeError("at most two") : seal(prices);
       })
@@ -2208,6 +2210,31 @@ describe("Val.Record", () => {
     });
   });
 
+  test("a record's seal takes no `undefined` value, and leaves a listed key out", () => {
+    type Counts = Val.Record<"RecordSealedCounts", string, number>;
+    type Prefixed = Val.Record<"RecordSealedPrefixed", `x-${string}`, number>;
+    type Listed = Val.Record<"RecordSealedListed", "a" | "b", number>;
+    // A read by key may still miss.
+    expectTypeOf<Counts["missing"]>().toEqualTypeOf<number | undefined>();
+    Val.Record.companion<Counts>().implSeal((counts, seal) => {
+      // @ts-expect-error `values` would read it as a number
+      seal({ ...counts, extra: undefined });
+      return seal(counts);
+    });
+    Val.Record.companion<Prefixed>().implSeal((prefixed, seal) => {
+      // @ts-expect-error a template key is the same
+      seal({ ...prefixed, "x-extra": undefined });
+      return seal(prefixed);
+    });
+    Val.Record.companion<Listed>().implSeal((listed, seal) => seal({ a: listed.a ?? 0 }));
+    type Mixed = Val.Record<"RecordSealedMixed", "a" | `x-${string}`, number>;
+    Val.Record.companion<Mixed>().implSeal((mixed, seal) => {
+      // @ts-expect-error a template key beside a listed one is the same
+      seal({ "x-extra": undefined });
+      return seal({ "x-extra": mixed["x-extra"] ?? 0 });
+    });
+  });
+
   test("`fromEntries` takes any string-keyed entries where the seal takes any string-keyed object", () => {
     const Checked = Val.Record.companion<Prices>()
       .implSeal((input: Record<string, unknown>, seal) => seal(input as SeedOf<Prices>))
@@ -2249,13 +2276,26 @@ describe("Val.Record", () => {
     Val.Record.companion<Tags>().implCreate.noseal(() => listed);
   });
 
-  test("a member reaches `fromEntries` through what its step receives", () => {
+  test("a member reaches the record's members through what its step receives", () => {
     const Doubled = Val.Record.companion<Prices>()
+      .impl(({ set, delete: remove, has, keys, values, entries }) => ({
+        amounts: (p) => values(p).map((money) => money.amount),
+        names: (p) => keys(p),
+        pairs: (p) => entries(p),
+        renamed: (p, from: string, to: string) => {
+          const money = p[from];
+          return money && !has(p, to) ? remove(set(p, to, money), from) : p;
+        },
+      }))
       .implAssoc(({ fromEntries }) => ({
         of: (money: Money) => fromEntries([["apple", money]]),
       }))
       .build();
-    expect(Doubled.of(apple)).toEqual({ apple });
+    const prices = Doubled.of(apple);
+    expect(prices).toEqual({ apple });
+    expect(Doubled.renamed(prices, "apple", "fig")).toEqual({ fig: apple });
+    expectTypeOf(Doubled.amounts).returns.toEqualTypeOf<number[]>();
+    expectTypeOf(Doubled.renamed(prices, "apple", "fig")).toEqualTypeOf<Prices>();
     // @ts-expect-error a record's steps receive no `seal`
     Val.Record.companion<Prices>().implAssoc(({ seal }) => ({ sealed: () => seal }));
   });
@@ -2534,6 +2574,9 @@ describe("building", () => {
     // A left-out argument infers `never`.
     test("names the Val it builds", () => {
       expectTypeOf(Val.companion()).toEqualTypeOf<Invalid<"name the Val: `Val.companion<V>()`">>();
+      expectTypeOf(Val.Record.companion()).toEqualTypeOf<
+        Invalid<"name the record: `Val.Record.companion<R>()`">
+      >();
     });
 
     test("a step does not change the builder it was taken on", () => {
@@ -3303,6 +3346,50 @@ describe("building", () => {
           .implSeal((e: unknown, seal) => seal(e as string))
           .build();
         expect(Email.seal("a@b.com")).toBe("a@b.com");
+      });
+
+      test("a payload narrower than `string`, or holding one in a union, is exempt too", () => {
+        type Color = Val<"Color", "red" | "blue">;
+        const Color = Val.companion<Color>()
+          .implSeal((c: string, seal) => seal(c === "red" ? "red" : "blue"))
+          .build();
+        type Hex = Val<"Hex", `#${string}`>;
+        const Hex = Val.companion<Hex>()
+          .implSeal((h: string, seal) => seal(`#${h.replace(/^#/, "")}`))
+          .build();
+        type Code = Val<"Code", string | number>;
+        const Code = Val.companion<Code>()
+          .implSeal((c: string | number, seal) => seal(typeof c === "string" ? c.trim() : c))
+          .build();
+        expect(Color.seal("red")).toBe("red");
+        expect(Hex.seal("#fff")).toBe("#fff");
+        expect(Code.seal(" a ")).toBe("a");
+      });
+
+      test("an array payload takes `readonly unknown[]`, and rejects `object`", () => {
+        type Scores = Val<"Scores", number[]>;
+        type Pair = Val<"Pair", [number, string]>;
+        const Scores = Val.companion<Scores>()
+          .implSeal((s: readonly unknown[], seal) => seal(s.map(Number)))
+          .build();
+        Val.companion<Pair>()
+          .implSeal((p: readonly unknown[], seal) => seal([Number(p[0]), String(p[1])]))
+          .build();
+        const builder = Val.companion<Scores>();
+        type Reading = (s: object, seal: (s: SeedOf<Scores>) => Scores) => Scores;
+        // `Record<string, unknown>` does not take an array, so the message names what does.
+        expectTypeOf<Parameters<typeof builder.implSeal<Reading>>[0]>().toEqualTypeOf<
+          Invalid<"type the parameter `readonly unknown[]`, so each value reads as `unknown`">
+        >();
+        expect(Scores.seal([1, 2])).toEqual([1, 2]);
+      });
+
+      test("an empty payload takes `object`, since it has no value to read", () => {
+        type Marker = Val<"SealMarker", {}>;
+        const Marker = Val.companion<Marker>()
+          .implSeal((m: object, seal) => seal(m as SeedOf<Marker>))
+          .build();
+        expect(Marker.seal({})).toEqual({});
       });
     });
 

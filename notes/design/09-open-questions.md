@@ -79,7 +79,7 @@
         checked its traits against `AnyTrait` while being declared, which computes the trait's verdict and reads the
         shape. `Holding` and the enum's `FieldsIn` and `SharedIn` leave the payload's keys out of the shape's fields,
         and the enum tests against `LooseTrait`, whose verdict is not computed
-      - **`Patch` is internal.** A recipe's type is inferred; one declared apart from the `patch` call types its parameter with `Draft`
+      - **`Patch` is internal.** A recipe's type is inferred; one declared apart from the `patch` call types its parameter with `Draft` (`Draft` withdrawn 2026-11-18, §6.2 "A recipe goes inline")
     - ~~**Still open:** a variant and the enum's shared fields both writing a key that holds a `Rec` is circular, with or
       without a trait. Leaving the variant's keys out of the shared fields fixes it, but loses the check that a variant
       field contradicting a shared one is rejected. And with an enum-level trait, `Node.seal({ _tag: "Leaf", … })` is
@@ -87,6 +87,24 @@
       longer declare a shared key, nor a payload a key its traits declare (§15.2 "4. Shared fields work", §15.1 "Vals
       bring in the shape too"). The declaration reports the key instead of TS2456. `Node.seal({ _tag: "Leaf", … })`
       passes with the trait's `Rec` field written only in the shape (probe)
+
+- [x] ~~**What the third type hunt (2026-11-18, over the whole surface on feat/seal-record-param) found.**~~ Closed, 2026-11-18. The first three are fixed in the PR that records them:
+  - **A record's seal took an `undefined` value.** `?` in `Collected` adds `undefined` to an index signature, so
+    `seal({ ...counts, extra: undefined })` passed on `Val.Record<"C", string, number>`, and `values` returned
+    `undefined` where its type says `number`. A seal's argument (`Keyed`) leaves `?` off a key such as `string` or `` `x-${string}` ``
+    and keeps it on a listed key. A record's value keeps `?`, so a read by key may be `undefined`. Without
+    `exactOptionalPropertyTypes`, a listed key still takes `undefined` (pattern 11)
+  - **`Val.Record.companion()` with no type argument** returns an `Invalid` that asks for the record's type argument, as `Val.companion()` does for the Val's
+  - **A field typed with a trait** got advice to use `Impl<Trait>`, which a field cannot hold either. It now advises an
+    Enum, for an array element and a record's value too. A variable or parameter typed with a trait keeps the
+    `Impl<Trait>` advice
+  - **Not fixed, by decision (user, 2026-11-18): an overloaded named recipe.** `Drafts` reads the last overload, so an
+    earlier one can write an `Unpatchable` key. Writing the overloads is as deliberate as a cast
+  - **`Draft` written with a Val.** `Draft<User>` mapped the Val's fields, which matched the draft `patch` passes
+    where that draft had no read-only key. Where one was, as an `Unpatchable` key, the recipe was rejected with "leave its type to
+    inference", which did not name the fault. Closed by not exporting `Draft` (user, §6.2 "A recipe goes inline")
+  - **Cost.** core 13,161 → 13,166 instantiations, trait 26,227 → 27,117, enum 57,408 → 58,308, `index.d.ts` 119.99 →
+    120.84 kB. The declaration budget went from 120 to 128 kB (user)
 
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
@@ -159,6 +177,8 @@
   - **A variant's name is a string.** In `{ A; B; 404 }`, `VariantKeys` (`Extract<keyof D, string>`) silently dropped `404`,
     and `match` counted as exhaustive without `404`. If every name was a number, the enum became `never`, and the companion was still accepted.
     `VariantKeys` now includes `number`, and `Fault` rejects it with "a variant's name must be a string"
+    - **A symbol key was dropped the same way (type-hunt, 2026-11-18).** `{ A; B; [key]: … }` and `{ A; B; [Symbol.iterator]: … }` were
+      accepted by the declaration, by the companion, and by a `match` with no arm for the symbol key. `Fault` rejects a symbol key with the same message
   - **The name, the tag name and the shared fields cannot be unions.** A value of `Enum<"E" | "F", …>` is not assignable to `Val<"E.A", …>`.
     `Tag<"k" | "t">` was accepted with `.tag("k")` (`Tag<"k"> & Tag<"t">` was already rejected). For shared fields of
     `{ id } | { key }`, the `Pick` in `SharedIn` kept only the common keys, and `create({ n: 1 })` was accepted with neither `id` nor `key`.
@@ -938,7 +958,8 @@
     encodes the JSON twice without an error, and the client types the response as `string`. It would check `NaN` reliably,
     since checking and serializing are one function. Propose that separately from bigint, if at all
 
-- [ ] **The steps of a record's companion receive `fromEntries` but not `keys`, `values` and `entries` (2026-11-18, §3.5, §15.4).**
+- [x] ~~**The steps of a record's companion receive `fromEntries` and no other member (2026-11-18, §3.5, §15.4).**~~
+      Closed, 2026-11-18. They receive `fromEntries`, `set`, `delete`, `has`, `keys`, `values` and `entries` (§3.5).
       A member that reads the record through a companion member, such as `Imports.values`, references its own companion.
       Without a return type annotation, the companion is typed `any` (TS7022), as in §15.4. `Object.values` references no
       companion, but it returns values typed with `undefined` (§3.5 "No index signature")
@@ -946,7 +967,7 @@
   ```ts
   export type Imports = Val.Record<"Imports", string, string[]>;
   export const Imports = Val.Record.companion<Imports>()
-    // Receives `fromEntries`, not `values`
+    // Received `fromEntries`, not `values`, before 2026-11-18
     .impl(({ fromEntries }) => ({
       // Without `: string[]`, TS7022 on `Imports` and TS7023 on `names`
       names: (imports): string[] => Imports.values(imports).flat(),
@@ -955,16 +976,16 @@
   ```
   - Found while pinning the scripts to the top of the stack. `scripts/check-dist/check/size/bundle.ts` annotates the
     return types of `names` and of `merge`, which reads `Imports.entries`
-  - **Candidate: the steps' functions receive every member of the record's companion.** `attach` already passes
-    them that object at run time, so the change is to `Supplied` alone, which would take `CollectionMethods` in place
-    of `FromEntriesMethod`. In a probe that destructures `values` and `entries`, neither `names` nor `merge` needs a
+  - **Adopted: the steps' functions receive every member the library gives a record's companion** (user, 2026-11-18). `attach`
+    already passed them that object at run time, so the change is to `Supplied` alone, which takes `CollectionMethods`
+    in place of `FromEntriesMethod`. In a probe that destructures `values` and `entries`, neither `names` nor `merge` needs a
     return type annotation, and `names` is typed `(imports: Imports) => string[]`
   - **No new reserved name.** `keys`, `values`, `entries`, `has`, `set` and `delete` are reserved in `.impl` and
     `.implAssoc` already (§3.5)
   - **Cost.** No runtime bytes. The check-dist fixtures call no step on a record, so the instantiations of core, trait
-    and enum stay at 13,121, 26,227 and 57,353, and `index.d.ts` at 119.68 kB. A probe with an `.impl` and an
-    `.implAssoc` on a record went from 67,799 to 67,840 instantiations. The JSDoc of `.impl` and `.implAssoc` says the
-    steps receive `fromEntries` in place of `seal` and `patch`, so it needs new wording. The `index.d.ts` budget has
-    331 B left for it
-  - **Undecided: whether the steps' functions receive `set` and `delete` too.** Leaving them out needs a `Pick`, whose
-    cost the probe did not measure
+    and enum stay at 13,121, 26,227 and 57,353. A probe with an `.impl` and an
+    `.implAssoc` on a record went from 67,799 to 67,840 instantiations. The JSDoc of `.impl`, `.implAssoc` and `Supplied`
+    lists the members. The listing took `index.d.ts` from 119.68 to 119.94 kB, 66 B under its budget
+  - **Rejected: the steps' functions receive only `keys`, `values`, `entries` and `has`** (user, 2026-11-18). A Val's
+    steps receive `patch`, which changes the value through the seal. `set` and `delete` change a record through the
+    seal too. Leaving them out needs a `Pick`. Passing every member needs none
