@@ -8,17 +8,18 @@ import { ProjectCache } from "../../../../src/lint/eslint-plugin/project-cache.t
 import { Path, Patterns } from "../../../../src/lint/files.ts";
 
 /** Runs `act` in a fresh directory, and deletes the directory afterwards. */
-const inDirectory = (act: (dir: string) => void): void => {
+function inDirectory(act: (dir: string) => void): void {
   const dir = mkdtempSync(join(tmpdir(), "valof-project-cache-"));
   try {
     act(dir);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-};
+}
 
-const names = (files: readonly string[], dir: string): string[] =>
-  files.map((file) => file.slice(dir.length + 1)).sort();
+function names(files: readonly string[], dir: string): string[] {
+  return files.map((file) => file.slice(dir.length + 1)).sort();
+}
 
 test.each([
   ["a glob", (dir: string) => `${dir}/**/*.ts`],

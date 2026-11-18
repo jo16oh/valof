@@ -33,7 +33,7 @@ afterAll(async () => {
   await rm(directory, { recursive: true, force: true });
 });
 
-const build = (gzip: number) => {
+function build(gzip: number) {
   const mode = Build.seal({ sizes: Sizes.seal({ minified: 0, gzip, brotli: 0 }), library: 0 });
   return BuildResult.seal({
     imports: Imports.seal({}),
@@ -41,9 +41,9 @@ const build = (gzip: number) => {
     production: mode,
     development: mode,
   });
-};
+}
 
-const report = (gzip: number, claims: Claims, write = false) => {
+function report(gzip: number, claims: Claims, write = false) {
   const base = build(gzip);
   const val = Bundle.seal({ name: "Val", base: true, imports: Imports.seal({}), budget: 1024 });
   return SizeReport.seal({
@@ -56,7 +56,7 @@ const report = (gzip: number, claims: Claims, write = false) => {
     release: false,
     write,
   });
-};
+}
 
 test("fails on a bundle over its budget and on a stale claim, naming each", () => {
   const named = (gzip: number, claims: Claims) =>

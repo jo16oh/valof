@@ -80,16 +80,17 @@ const PRIMITIVE = new Set([
   "TSTemplateLiteralType",
 ]);
 
-const nameOf = (node: Node, bound: Bindings): string | undefined =>
-  node.type === "TSTypeReference" && node.typeName.type === "Identifier"
+function nameOf(node: Node, bound: Bindings): string | undefined {
+  return node.type === "TSTypeReference" && node.typeName.type === "Identifier"
     ? Bindings.originalName(bound, node.typeName.name)
     : undefined;
+}
 
 /** The node itself, with parentheses and `readonly` unwrapped, which add no shape of their own. */
-const bare = (node: Node | null | undefined): Node | undefined => {
+function bare(node: Node | null | undefined): Node | undefined {
   const inside = unparenthesized(node);
   return inside?.type === "TSTypeOperator" ? bare(inside.typeAnnotation) : inside;
-};
+}
 
 /**
  * Reads one file for `data-type-outside-valof`. It reads syntax alone. A name is matched to a Val

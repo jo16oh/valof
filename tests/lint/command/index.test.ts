@@ -15,7 +15,9 @@ import {
   cliWithoutTypeScript,
 } from "../support.ts";
 
-const under = (fixture: string): string => `tests/lint/command/fixtures/${fixture}`;
+function under(fixture: string): string {
+  return `tests/lint/command/fixtures/${fixture}`;
+}
 
 test("prints a finding's location and kind, and exits 1 with a summary", () => {
   const { status, stdout, stderr } = cli(under("*.ts"), under("finding.ts"));

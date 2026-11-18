@@ -25,33 +25,36 @@ import { keeping } from "../support.ts";
 type Where = { line: number; column: number };
 
 /** A fixture by its name, or a file elsewhere by its absolute path. */
-const at = (name: string): string =>
-  isAbsolute(name) ? name : fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
-const project = at("*.ts");
+function at(name: string): string {
+  return isAbsolute(name) ? name : fileURLToPath(new URL(`fixtures/${name}`, import.meta.url));
+}
+const PROJECT = at("*.ts");
 
-const context = (
+function context(
   name: string,
   text?: string,
   reports: string[] = [],
-  read: string | string[] = project,
-) => ({
-  filename: at(name),
-  settings: { valof: { project: read } },
-  sourceCode: { text: text ?? readFileSync(at(name), "utf8") },
-  report: ({ loc, message }: { loc: { start: Where; end: Where }; message: string }) =>
-    void reports.push(`${loc.start.line}:${loc.start.column}-${loc.end.column}  ${message}`),
-});
+  read: string | string[] = PROJECT,
+) {
+  return {
+    filename: at(name),
+    settings: { valof: { project: read } },
+    sourceCode: { text: text ?? readFileSync(at(name), "utf8") },
+    report: ({ loc, message }: { loc: { start: Where; end: Where }; message: string }) =>
+      void reports.push(`${loc.start.line}:${loc.start.column}-${loc.end.column}  ${message}`),
+  };
+}
 
 /** Every rule over one file, as a host runs them. */
-const run = (name: string, text?: string, read?: string | string[]): string[] => {
+function run(name: string, text?: string, read?: string | string[]): string[] {
   const reports: string[] = [];
   const one = context(name, text, reports, read);
   for (const rule of Object.values(plugin.rules)) rule.create(one).Program();
   return reports;
-};
+}
 
 /** The same in a host process of its own, started in `cwd`. */
-const host = (cwd: string, name: string, env = process.env) => {
+function host(cwd: string, name: string, env = process.env) {
   const script = fileURLToPath(new URL("host.ts", import.meta.url));
   const { status, stdout, stderr } = spawnSync(process.execPath, [script, name], {
     cwd,
@@ -61,7 +64,7 @@ const host = (cwd: string, name: string, env = process.env) => {
     timeout: 10_000,
   });
   return { status, stdout, stderr };
-};
+}
 
 test("reports on the file it was called for, having read the whole project", () => {
   expect(run("money.ts")).toEqual(["6:2-8  Money.format is never read"]);
@@ -71,12 +74,12 @@ test("takes a list for the project, and leaves out what one entry excludes, howe
   const finding = "6:2-8  Money.format is never read";
   const spelled = (path: string): string => relative(process.cwd(), path);
   // `reader/show.ts` reads the member, so the finding goes only when the list keeps that file.
-  expect(run("money.ts", undefined, [project, at("reader/*.ts")])).toEqual([]);
+  expect(run("money.ts", undefined, [PROJECT, at("reader/*.ts")])).toEqual([]);
   expect(
-    run("money.ts", undefined, [project, spelled(at("reader/*.ts")), `!${at("reader/show.ts")}`]),
+    run("money.ts", undefined, [PROJECT, spelled(at("reader/*.ts")), `!${at("reader/show.ts")}`]),
   ).toEqual([finding]);
   expect(
-    run("money.ts", undefined, [project, at("reader/*.ts"), `!${spelled(at("reader/show.ts"))}`]),
+    run("money.ts", undefined, [PROJECT, at("reader/*.ts"), `!${spelled(at("reader/show.ts"))}`]),
   ).toEqual([finding]);
 });
 

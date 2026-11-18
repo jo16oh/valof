@@ -33,12 +33,12 @@ const Shape = Enum.companion<Shape>()
   .build();
 const { Circle, Square } = Shape;
 
-const circle = Circle.create({ r: 2 });
-const square = Square.create({ side: 3 });
+const CIRCLE = Circle.create({ r: 2 });
+const SQUARE = Square.create({ side: 3 });
 
 describe("the declaration", () => {
   test("derives one branded Val per variant", () => {
-    expectTypeOf(circle).toEqualTypeOf<VariantOf<Shape, "Circle">>();
+    expectTypeOf(CIRCLE).toEqualTypeOf<VariantOf<Shape, "Circle">>();
     expectTypeOf<VariantOf<Shape, "Circle"> | VariantOf<Shape, "Square">>().toEqualTypeOf<Shape>();
   });
 
@@ -58,12 +58,12 @@ describe("the declaration", () => {
   test("`create` takes the fields, and the value carries the tag it writes", () => {
     expectTypeOf<SeedFor<Shape, "Circle">>().toEqualTypeOf<{ readonly r: number }>();
     expectTypeOf(Circle.create).parameter(0).toEqualTypeOf<SeedFor<Shape, "Circle">>();
-    expect(circle).toEqual({ r: 2, _tag: "Circle" });
+    expect(CIRCLE).toEqual({ r: 2, _tag: "Circle" });
   });
 
   test("the brand is derived from the enum's name", () => {
     type Named = Val<"Shape.Circle", { r: number; _tag: "Circle" }>;
-    expectTypeOf(circle).toExtend<Named>();
+    expectTypeOf(CIRCLE).toExtend<Named>();
   });
 
   test("the payload is deep-copied, like any other Val, and `nocopy` adopts it on both gates", () => {
@@ -103,7 +103,7 @@ describe("the declaration", () => {
 
 describe("match", () => {
   test("narrows the handler's argument and is exhaustive", () => {
-    const area = Shape.match(circle, {
+    const area = Shape.match(CIRCLE, {
       Circle: (c) => {
         expectTypeOf(c).toEqualTypeOf<VariantOf<Shape, "Circle">>();
         return Math.PI * c.r * c.r;
@@ -111,27 +111,27 @@ describe("match", () => {
       Square: (s) => s.side * s.side,
     });
     expectTypeOf(area).toEqualTypeOf<number>();
-    expect(Shape.match(square, { Circle: (c) => c.r, Square: (s) => s.side })).toBe(3);
+    expect(Shape.match(SQUARE, { Circle: (c) => c.r, Square: (s) => s.side })).toBe(3);
   });
 
   test("the return type is the handlers' union, not the first one", () => {
-    const read = Shape.match(circle, { Circle: (c) => c.r, Square: (s) => `${s.side}` });
+    const read = Shape.match(CIRCLE, { Circle: (c) => c.r, Square: (s) => `${s.side}` });
     expectTypeOf(read).toEqualTypeOf<string | number>();
   });
 
   test("a missing variant is a type error", () => {
     // @ts-expect-error Property 'Square' is missing
-    Shape.match(circle, { Circle: (c) => c.r });
+    Shape.match(CIRCLE, { Circle: (c) => c.r });
   });
 
   test("so is a key that names no variant", () => {
-    Shape.match(circle, {
+    Shape.match(CIRCLE, {
       Circle: (c) => c.r,
       Square: (s) => s.side,
       // @ts-expect-error this enum has no such variant
       Triangle: () => 0,
     });
-    Shape.match(circle, {
+    Shape.match(CIRCLE, {
       Circle: (c) => c.r,
       _: () => 0,
       // @ts-expect-error this enum has no such variant
@@ -149,11 +149,11 @@ describe("match", () => {
         },
       });
     expectTypeOf(read).returns.toEqualTypeOf<number | string>();
-    expect([read(circle), read(square)]).toEqual([2, "3"]);
+    expect([read(CIRCLE), read(SQUARE)]).toEqual([2, "3"]);
   });
 
   test("`_` beside a handler for every variant is a type error", () => {
-    Shape.match(circle, {
+    Shape.match(CIRCLE, {
       Circle: (c) => c.r,
       Square: (s) => s.side,
       // @ts-expect-error every variant has a handler, so `_` never runs
@@ -170,14 +170,14 @@ describe("match", () => {
           return `${rest.side}`;
         },
       });
-    expect([read(circle), read(square)]).toEqual([2, "3"]);
-    Shape.match(circle, {
+    expect([read(CIRCLE), read(SQUARE)]).toEqual([2, "3"]);
+    Shape.match(CIRCLE, {
       Circle: (c) => c.r,
       Square: (s) => s.side,
       // @ts-expect-error every variant has a handler, so `[Otherwise]` never runs
       [Otherwise]: () => 0,
     });
-    Shape.match(circle, {
+    Shape.match(CIRCLE, {
       Circle: (c) => c.r,
       [Otherwise]: () => 0,
       // @ts-expect-error `[Otherwise]` handles the rest already
@@ -189,7 +189,7 @@ describe("match", () => {
   // `Otherwise`.
   test("a symbol other than `Otherwise` is rejected", () => {
     // @ts-expect-error this enum has no such variant
-    Shape.match(circle, { Circle: (c) => c.r, [Symbol.for("valof.otherwise")]: () => 0 });
+    Shape.match(CIRCLE, { Circle: (c) => c.r, [Symbol.for("valof.otherwise")]: () => 0 });
   });
 });
 
@@ -203,7 +203,7 @@ describe("match on a tag alone", () => {
         Square: () => `square`,
       });
     expectTypeOf(build).returns.toEqualTypeOf<VariantOf<Shape, "Circle"> | string>();
-    expect([build("round"), build("box")]).toEqual([circle, "square"]);
+    expect([build("round"), build("box")]).toEqual([CIRCLE, "square"]);
   });
 
   test("needs a handler for every tag the argument can hold, and no other", () => {
@@ -284,15 +284,15 @@ describe("the tag", () => {
       expectTypeOf(shape).toEqualTypeOf<VariantOf<Shape, "Square">>();
       return shape.side;
     };
-    expect([read(circle), read(square)]).toEqual([2, 3]);
+    expect([read(CIRCLE), read(SQUARE)]).toEqual([2, 3]);
   });
 
   test("a variant's seal takes the payload a value holds, tag included", () => {
     type Held = { readonly r: number; readonly _tag: "Circle" };
     expectTypeOf<Held>().toExtend<Parameters<typeof Circle.seal>[0]>();
     expectTypeOf<Parameters<typeof Circle.seal>[0]>().toExtend<Held>();
-    expect(Circle.seal(Val.unwrap(circle))).toEqual(circle);
-    expect(Circle.seal(JSON.parse(JSON.stringify(circle)))).toEqual(circle);
+    expect(Circle.seal(Val.unwrap(CIRCLE))).toEqual(CIRCLE);
+    expect(Circle.seal(JSON.parse(JSON.stringify(CIRCLE)))).toEqual(CIRCLE);
     // @ts-expect-error the tag is part of the payload
     Circle.seal({ r: 1 });
     // @ts-expect-error and it names this variant
@@ -324,14 +324,14 @@ describe("the tag", () => {
 
   test("and `patch` cannot reach it", () => {
     // @ts-expect-error a patch cannot switch variants
-    Circle.patch(circle, { _tag: "Square" });
+    Circle.patch(CIRCLE, { _tag: "Square" });
     // A variable gets no excess property check.
     const both = { r: 2, side: 1 };
     // @ts-expect-error another variant's field, through a variable
-    Circle.patch(circle, both);
+    Circle.patch(CIRCLE, both);
     const retagged = { _tag: "Square" as const, r: 3 };
     // @ts-expect-error a patch cannot switch variants, through a variable
-    Circle.patch(circle, retagged);
+    Circle.patch(CIRCLE, retagged);
   });
 
   describe("a name of your own", () => {
@@ -658,7 +658,7 @@ describe("implAssoc", () => {
         .build();
       const unit = Sized.Circle.unit();
       expectTypeOf(unit).toEqualTypeOf<VariantOf<Shape, "Circle"> | undefined>();
-      expect([unit, Sized.Circle.fromRadius(-1), Sized.Circle.grown(circle)(1)]).toEqual([
+      expect([unit, Sized.Circle.fromRadius(-1), Sized.Circle.grown(CIRCLE)(1)]).toEqual([
         { _tag: "Circle", r: 1 },
         undefined,
         { _tag: "Circle", r: 3 },
@@ -739,7 +739,7 @@ describe("patch", () => {
   describe("a nested variant", () => {
     type Holder = Val<"Holder", { id: string; shape: Shape }>;
     const Holder = Val.companion<Holder>().build();
-    const holder = Holder.seal({ id: "h", shape: circle });
+    const holder = Holder.seal({ id: "h", shape: CIRCLE });
 
     test("is replaced whole, never merged", () => {
       expectTypeOf<
@@ -747,7 +747,7 @@ describe("patch", () => {
       >().toEqualTypeOf<Shape>();
       // @ts-expect-error a patch cannot reach into a nested variant
       Holder.patch(holder, { shape: { r: 3 } });
-      expect(Holder.patch(holder, { shape: square }).shape).toEqual({ side: 3, _tag: "Square" });
+      expect(Holder.patch(holder, { shape: SQUARE }).shape).toEqual({ side: 3, _tag: "Square" });
     });
 
     test("unwraps to the payload of each variant", () => {
@@ -784,7 +784,7 @@ describe("equals", () => {
   test("compares payloads, tag included", () => {
     type Step = Enum<"Step", { Up: { n: number }; Down: { n: number } }>;
     const Step = Enum.companion<Step>().build();
-    expect(equals(circle, Circle.create({ r: 2 }))).toBe(true);
+    expect(equals(CIRCLE, Circle.create({ r: 2 }))).toBe(true);
     expect(equals<Step>(Step.Up.create({ n: 1 }), Step.Down.create({ n: 1 }))).toBe(false);
   });
 });
@@ -1474,7 +1474,7 @@ describe("a variant's seal", () => {
     const Twinned = Enum.companion<Shape>()
       .Circle.impl(() => ({ twin: (c): Shape => Twinned.Square.create({ side: c.r }) }))
       .build();
-    expect(Twinned.Circle.twin(circle)).toEqual({ side: 2, _tag: "Square" });
+    expect(Twinned.Circle.twin(CIRCLE)).toEqual({ side: 2, _tag: "Square" });
   });
 });
 
@@ -1906,7 +1906,7 @@ describe("build", () => {
     const Stepped = Enum.companion<Shape>()
       .impl(() => ({ impl: (s) => s._tag, build: (s) => s._tag }))
       .build();
-    expect([Stepped.impl(circle), Stepped.build(square)]).toEqual(["Circle", "Square"]);
+    expect([Stepped.impl(CIRCLE), Stepped.build(SQUARE)]).toEqual(["Circle", "Square"]);
   });
 });
 
@@ -2018,14 +2018,14 @@ describe("data-first and data-last", () => {
 
   test("a union member takes the value first, or last", () => {
     expectTypeOf(Sized.sides(0)).toEqualTypeOf<(self: Shape) => number>();
-    expect([Sized.sides(circle, 7), Sized.sides(7)(circle)]).toEqual([7, 7]);
+    expect([Sized.sides(CIRCLE, 7), Sized.sides(7)(CIRCLE)]).toEqual([7, 7]);
   });
 
   test("so do a variant's member and `patch`", () => {
     type Circle = VariantOf<Shape, "Circle">;
     expectTypeOf(Sized.Circle.grown(1)).toEqualTypeOf<(self: Circle) => number>();
     expectTypeOf(Sized.Circle.patch({ r: 5 })).toEqualTypeOf<(self: Circle) => Circle>();
-    expect([Sized.Circle.grown(1)(circle), Sized.Circle.patch({ r: 5 })(circle)]).toEqual([
+    expect([Sized.Circle.grown(1)(CIRCLE), Sized.Circle.patch({ r: 5 })(CIRCLE)]).toEqual([
       3,
       { r: 5, _tag: "Circle" },
     ]);
@@ -2033,7 +2033,7 @@ describe("data-first and data-last", () => {
 
   test("`match` takes the handlers alone, narrowing each one and exhaustive", () => {
     const side = pipe(
-      square as Shape,
+      SQUARE as Shape,
       Shape.match({
         Circle: (c) => {
           expectTypeOf(c).toEqualTypeOf<VariantOf<Shape, "Circle">>();
@@ -2054,7 +2054,7 @@ describe("data-first and data-last", () => {
     });
     const size = Shape.match({ Circle: (c) => c.r, _: (rest) => `${rest.side}` });
     expectTypeOf(size).toEqualTypeOf<(value: Shape) => number | string>();
-    expect([size(circle), size(square)]).toEqual([2, "3"]);
+    expect([size(CIRCLE), size(SQUARE)]).toEqual([2, "3"]);
   });
 
   test("so does `[Tag].match`", () => {

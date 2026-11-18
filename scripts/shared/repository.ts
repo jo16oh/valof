@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 /** The repository's root, which every path the scripts read is relative to. */
-export const repository = new URL("../../", import.meta.url);
-export const root = fileURLToPath(repository);
+export const REPOSITORY = new URL("../../", import.meta.url);
+export const ROOT = fileURLToPath(REPOSITORY);
 
 export const run = promisify(execFile);
 

@@ -3,10 +3,10 @@ import { describe, expect, test } from "vite-plus/test";
 
 import { Selection } from "./selection.ts";
 
-const parsed = (...argv: string[]) => {
+function parsed(...argv: string[]) {
   const result = Selection.fromArgv(argv);
   return R.isSuccess(result) ? result.value : result.error.message;
-};
+}
 
 describe("Selection.fromArgv", () => {
   test("runs every check when none is named", () => {

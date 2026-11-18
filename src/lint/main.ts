@@ -14,6 +14,14 @@ import { run } from "./run.ts";
 import { ScanCache } from "./scan-cache.ts";
 import { ScanStore } from "./scan-store.ts";
 
+async function main(): Promise<void> {
+  const status = await command(process.argv.slice(2));
+  if (R.isFailure(status)) {
+    console.error(status.error.message);
+  }
+  process.exit(R.isFailure(status) ? 2 : status.value);
+}
+
 /** What `--help` prints. */
 function usage(): string {
   const width = Math.max(...RULES.map(({ kind }) => kind.length));
@@ -132,10 +140,9 @@ async function command(argv: readonly string[]): R.ResultAsync<number, UsageErro
  * honored with the latter winning. Each stream is judged on its own, so piping the findings still
  * leaves the summary on a terminal colored. No library improves on this.
  */
-const paint =
-  (stream: NodeJS.WriteStream) =>
-  (style: InspectColor, text: string): string =>
-    styleText(style, text, { stream });
+function paint(stream: NodeJS.WriteStream) {
+  return (style: InspectColor, text: string): string => styleText(style, text, { stream });
+}
 
 function print(findings: readonly Finding[], reported: number): void {
   const out = paint(process.stdout);
@@ -155,8 +162,4 @@ function print(findings: readonly Finding[], reported: number): void {
   );
 }
 
-const status = await command(process.argv.slice(2));
-if (R.isFailure(status)) {
-  console.error(status.error.message);
-}
-process.exit(R.isFailure(status) ? 2 : status.value);
+await main();

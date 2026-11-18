@@ -4,13 +4,14 @@ import { Bundle, Imports } from "./bundle.ts";
 import { Build, BuildResult, BundleSize, Sizes } from "./measure/index.ts";
 import { Measurement } from "./suite.ts";
 
-const build = (names: string[], production: Sizes, development: Sizes) =>
-  BuildResult.seal({
+function build(names: string[], production: Sizes, development: Sizes) {
+  return BuildResult.seal({
     imports: Imports.seal({ "./dist/index.js": names }),
     readsNodeEnv: true,
     production: Build.seal({ sizes: production, library: 0 }),
     development: Build.seal({ sizes: development, library: 0 }),
   });
+}
 
 test("prints each build's sizes, then each bundle's budget", () => {
   const base = build(

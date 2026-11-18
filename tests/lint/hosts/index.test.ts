@@ -10,17 +10,18 @@ import valof from "../../../src/lint/eslint-plugin/index.ts";
 // What a host does with the plugin is beyond what a type can check, so both are run for real, over
 // a fixture holding one finding each.
 
-const cwd = fileURLToPath(new URL("fixtures/", import.meta.url));
+const CWD = fileURLToPath(new URL("fixtures/", import.meta.url));
 
-const run = (bin: string, args: string[]): string => {
-  const { stdout, stderr, error } = spawnSync(bin, args, { cwd, encoding: "utf8" });
+function run(bin: string, args: string[]): string {
+  const { stdout, stderr, error } = spawnSync(bin, args, { cwd: CWD, encoding: "utf8" });
   if (error) throw error;
   return `${stdout}${stderr}`;
-};
+}
 
 /** Both are pinned in `devDependencies`, so the version a finding is asserted against is fixed. */
-const bin = (name: string): string =>
-  fileURLToPath(new URL(`../../../node_modules/.bin/${name}`, import.meta.url));
+function bin(name: string): string {
+  return fileURLToPath(new URL(`../../../node_modules/.bin/${name}`, import.meta.url));
+}
 
 // Asked for as JSON, like ESLint below: what the default reporter draws is the terminal's, and
 // the same finding comes out as one line here and as a framed excerpt there.

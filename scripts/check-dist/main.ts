@@ -13,6 +13,31 @@ import { SizeCheck } from "./check/size/index.ts";
 import { Suite } from "./check/size/suite.ts";
 import { TypesBudgets, TypesCheck, TypesDeclaration, TypesFixture } from "./check/types/index.ts";
 
+async function main(): Promise<void> {
+  const selected = Selection.fromArgv(process.argv.slice(2));
+  if (R.isFailure(selected)) {
+    console.error(selected.error.message);
+    process.exit(2);
+  }
+  const { size, types, compat, release, write } = selected.value;
+
+  const built = await build();
+  if (R.isFailure(built)) {
+    console.error(built.error.message);
+    process.exit(1);
+  }
+
+  process.exitCode = await run([
+    ...(size
+      ? [Check.dyn(SizeCheck, SizeCheck.create({ suite: SUITE, claimed: CLAIMED, release, write }))]
+      : []),
+    ...(types
+      ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: TYPES_BUDGETS, line: TYPES_LINE }))]
+      : []),
+    ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release, lines: LINES }))] : []),
+  ]);
+}
+
 /** The bundles the size check measures, each against its budget in bytes of production gzip. */
 const SUITE = Suite.seal([
   Bundle.seal({
@@ -155,25 +180,4 @@ const TYPES_BUDGETS = TypesBudgets.seal({
   ],
 });
 
-const selected = Selection.fromArgv(process.argv.slice(2));
-if (R.isFailure(selected)) {
-  console.error(selected.error.message);
-  process.exit(2);
-}
-const { size, types, compat, release, write } = selected.value;
-
-const built = await build();
-if (R.isFailure(built)) {
-  console.error(built.error.message);
-  process.exit(1);
-}
-
-process.exitCode = await run([
-  ...(size
-    ? [Check.dyn(SizeCheck, SizeCheck.create({ suite: SUITE, claimed: CLAIMED, release, write }))]
-    : []),
-  ...(types
-    ? [Check.dyn(TypesCheck, TypesCheck.create({ budgets: TYPES_BUDGETS, line: TYPES_LINE }))]
-    : []),
-  ...(compat ? [Check.dyn(CompatCheck, CompatCheck.create({ release, lines: LINES }))] : []),
-]);
+await main();

@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 
-import { output, root, run } from "../../shared/repository.ts";
+import { output, ROOT, run } from "../../shared/repository.ts";
 
 export class BuildError extends ErrorFactory({
   name: "BuildError",
@@ -15,7 +15,7 @@ export class BuildError extends ErrorFactory({
 export function build(): R.ResultAsync<void, BuildError> {
   return R.try({
     try: async () => {
-      await run(join(root, "node_modules/.bin/vp"), ["run", "build"], { cwd: root });
+      await run(join(ROOT, "node_modules/.bin/vp"), ["run", "build"], { cwd: ROOT });
     },
     catch: (cause) => new BuildError({ output: output(cause), cause }),
   });

@@ -9,7 +9,7 @@ import { minifySync, build, type Rolldown } from "vite";
 import { Val } from "#valof";
 import { Imports } from "../bundle.ts";
 import { flow, pipe } from "../../../../../src/shared/pipe/index.ts";
-import { repository } from "../../../../shared/repository.ts";
+import { REPOSITORY } from "../../../../shared/repository.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class NoChunkError extends ErrorFactory({
@@ -136,7 +136,7 @@ async function compileEntry(
       Object.entries(imports).map(
         ([module, names]) =>
           // `Val.companion` imports `Val` and reads one member, leaving the rest to tree-shaking.
-          `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, repository)))};`,
+          `import { ${[...new Set(names.map((name) => name.split(".")[0]))].join(", ")} } from ${JSON.stringify(fileURLToPath(new URL(module, REPOSITORY)))};`,
       ),
       (lines) => [...lines, `console.log(${Imports.names(imports).join(", ")});`, ""].join("\n"),
     );
@@ -150,7 +150,7 @@ async function compileEntry(
       "the build",
       () =>
         build({
-          root: fileURLToPath(repository),
+          root: fileURLToPath(REPOSITORY),
           logLevel: "silent",
           configFile: false,
           define: { "process.env.NODE_ENV": JSON.stringify(mode) },

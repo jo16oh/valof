@@ -7,13 +7,13 @@ import { Val, type Dyn } from "#valof";
 
 import { docBlocks } from "../../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../../pin-valof/index.ts";
-import { output, root, writeJson } from "../../../shared/repository.ts";
+import { output, ROOT, writeJson } from "../../../shared/repository.ts";
 import { tsc, version } from "../../../shared/typescript-lines.ts";
 import { problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
 
-const DIRECTORY = join(root, "docs/.generated/ts-compatibility");
+const DIRECTORY = join(ROOT, "docs/.generated/ts-compatibility");
 const SCRIPTS = join(DIRECTORY, "scripts");
 
 export class StalePinError extends ErrorFactory({
@@ -154,8 +154,8 @@ async function install(): Promise<void> {
   await mkdir(DIRECTORY, { recursive: true });
 
   const installed = join(DIRECTORY, "node_modules/valof");
-  await cp(join(root, "dist"), join(installed, "dist"), { recursive: true });
-  await copyFile(join(root, "package.json"), join(installed, "package.json"));
+  await cp(join(ROOT, "dist"), join(installed, "dist"), { recursive: true });
+  await copyFile(join(ROOT, "package.json"), join(installed, "package.json"));
   // A package of its own, or `valof` resolves to this repository by self-reference.
   await writeJson(join(DIRECTORY, "package.json"), { private: true, type: "module" });
 }
@@ -181,7 +181,7 @@ function writeBlocks(): Promise<string[]> {
     code.replaceAll(/^(const|type|function) /gm, "export $1 ");
 
   return Promise.all(
-    docBlocks(join(root, "docs/src"))
+    docBlocks(join(ROOT, "docs/src"))
       .filter((block) => !block.ignored && !block.code.includes("// @errors:"))
       .map(async (block) => {
         const file = join(DIRECTORY, `${block.name.replace(/\.md:/, "-")}.ts`);
@@ -193,7 +193,7 @@ function writeBlocks(): Promise<string[]> {
 
 /** Exports the book does not show, kept beside this script. */
 async function copyFixtures(): Promise<string[]> {
-  const extras = join(root, "scripts/check-dist/check/compat/fixtures");
+  const extras = join(ROOT, "scripts/check-dist/check/compat/fixtures");
   return Promise.all(
     (await readdir(extras)).map(async (file) => {
       const copy = join(DIRECTORY, `fixture-${file}`);
@@ -248,7 +248,7 @@ async function writeConfigs(): Promise<void> {
 async function copyScripts(): Promise<string[]> {
   const importers = await valofImporters();
   // Without the tests, which `vp test` would otherwise pick up here too.
-  await cp(join(root, "scripts"), SCRIPTS, {
+  await cp(join(ROOT, "scripts"), SCRIPTS, {
     recursive: true,
     filter: (source) => !source.endsWith(".test.ts"),
   });
@@ -258,7 +258,7 @@ async function copyScripts(): Promise<string[]> {
     imports: { "#valof": "valof" },
   });
   await writeJson(join(SCRIPTS, "tsconfig.json"), {
-    extends: join(root, "tsconfig.json"),
+    extends: join(ROOT, "tsconfig.json"),
     compilerOptions: { noEmit: false, emitDeclarationOnly: true, outDir: "dts" },
     files: importers,
   });
@@ -306,10 +306,10 @@ async function elided(directory: string): Promise<string[]> {
 
 async function valofImporters(): Promise<string[]> {
   // The tests stay out of the copy, so out of the program as well.
-  const files = (await readdir(join(root, "scripts"), { recursive: true })).filter(
+  const files = (await readdir(join(ROOT, "scripts"), { recursive: true })).filter(
     (file) => file.endsWith(".ts") && !file.endsWith(".test.ts"),
   );
-  const read = await readAll(join(root, "scripts"), files);
+  const read = await readAll(join(ROOT, "scripts"), files);
   return read
     .filter(({ text }) => /^import\b[^;]*from "#valof"/m.test(text))
     .map(({ file }) => file)

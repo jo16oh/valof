@@ -34,18 +34,18 @@ test("a release fails on a pin that builds a different dist, before it copies di
   expect(writes).toEqual([]);
 });
 
-const pin = "8d32b2ae3ab76618b3c577cc19b25da177c4242f";
-const passing = LineResult.seal({ version: "5.9.3", failures: [] });
-const failing = LineResult.seal({ version: "6.0.3", failures: ["    the declaration changes x"] });
+const PIN = "8d32b2ae3ab76618b3c577cc19b25da177c4242f";
+const PASSING = LineResult.seal({ version: "5.9.3", failures: [] });
+const FAILING = LineResult.seal({ version: "6.0.3", failures: ["    the declaration changes x"] });
 
 test("fails on a TypeScript line with a failure, naming its version", () => {
-  const report = CompatReport.seal({ blocks: 1, fixtures: 1, pin, lines: [passing, failing] });
+  const report = CompatReport.seal({ blocks: 1, fixtures: 1, pin: PIN, lines: [PASSING, FAILING] });
   expect(CompatReport.passed(report)).toBe(false);
   expect(CompatReport.render(report).split("\n")).toContain(
     "the declarations do not typecheck, or change a type, on 6.0.3",
   );
   expect(
-    CompatReport.passed(CompatReport.seal({ blocks: 1, fixtures: 1, pin, lines: [passing] })),
+    CompatReport.passed(CompatReport.seal({ blocks: 1, fixtures: 1, pin: PIN, lines: [PASSING] })),
   ).toBe(true);
 });
 
@@ -55,9 +55,9 @@ test("says whether it checked the scripts, or skipped them on a pin that builds 
       CompatReport.seal({
         blocks: 68,
         fixtures: 2,
-        pin,
+        pin: PIN,
         ...(scripts === undefined ? {} : { scripts }),
-        lines: [failing],
+        lines: [FAILING],
       }),
     );
   expect(report(3).split("\n").slice(0, 4)).toEqual([
