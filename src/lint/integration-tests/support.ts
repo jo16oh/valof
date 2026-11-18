@@ -39,6 +39,7 @@ export const DuplicateBrand = registered(Rules.DuplicateBrand);
 export const VagueDisable = registered(Rules.VagueDisable);
 export const SplitCompanion = registered(Rules.SplitCompanion);
 export const InferredValOf = registered(Rules.InferredValOf);
+export const InternalImport = registered(Rules.InternalImport);
 export const UnusedDisable = registered(Rules.UnusedDisable);
 export const UnusedMember = registered(Rules.UnusedMember);
 export const ReadonlyPayload = registered(Rules.ReadonlyPayload);

@@ -211,6 +211,7 @@ test("names every rule, under the plugin's own name", () => {
     "valof/no-duplicate-brand": "error",
     "valof/no-vague-disable": "error",
     "valof/no-split-companion": "error",
+    "valof/no-internal-import": "error",
     // The lift is sound; what it costs is the name that makes it greppable.
     "valof/no-inferred-val-of": "warn",
     // Dead weight, not a defect: the code around either of these works.

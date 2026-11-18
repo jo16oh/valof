@@ -21,6 +21,7 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `no-split-companion`             | a companion for a type that another file declares                                                                                                | error   |
 | `no-bypassed-companion`          | a `Val.of` for a type whose companion is how it is built                                                                                         | warning |
 | `no-inferred-val-of`             | a `Val.of` that names no type, taking one from its target                                                                                        | warning |
+| `no-internal-import`             | an import or a re-export from `valof/internal/*`                                                                                                 | error   |
 | `no-hidden-shared-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`                                                                     | warning |
 | `no-aliased-draft`               | a recipe's draft passed to a function, bound to a name, put in an array or an object, or copied by a rest element; a recipe with type parameters | error   |
 | `no-detached-variant`            | a variant bound to a local name without the name of its enum                                                                                     | warning |
@@ -34,6 +35,8 @@ A rule warns where the code around the finding still works, and errors where a V
 types the checker stops distinguishing, a name that has to agree with another and does not, or a
 member that the types promise but that runs differently or is missing. `no-vague-disable` errors for
 a reason of its own. A comment naming no rule silences every one, a rule added next year included.
+`no-internal-import` errors for a reason of its own too. Code a project writes never needs
+`valof/internal/*`, and an import from it can break in any release.
 
 The severity is what the [plugin](linting.md#plugin-for-eslint-and-oxlint) sets, and a project can
 give any rule its own. The [command](linting.md#cli) prints every finding the same way and exits 1

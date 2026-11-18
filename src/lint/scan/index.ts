@@ -196,6 +196,8 @@ export type Scan = Val<
     genericRecipes: Position[];
     /** Rest elements that copy a `patch` recipe's draft. */
     restDrafts: Position[];
+    /** Where each import and re-export from `valof/internal/*` names its module. */
+    internalImports: Position[];
     /** Keys read off a local name, each a set. */
     reads: KeySets;
     /** Keys read through a namespace, already named as the exporting module names them. */
@@ -357,6 +359,7 @@ function scan(
   const draftAliases: Position[] = [];
   const genericRecipes: Position[] = [];
   const restDrafts: Position[] = [];
+  const internalImports: Position[] = [];
   const memberSources: SymbolRef[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
@@ -544,9 +547,21 @@ function scan(
         collect(reads, `${Bindings.originalName(bound, namespace.name)}.${through}`, name);
         break;
       }
+      case "ExportNamedDeclaration":
+      case "ExportAllDeclaration": {
+        const { source } = node;
+        const module = source ? stringOf(source) : undefined;
+        if (source && module !== undefined && isInternal(module)) {
+          internalImports.push(Lines.at(lines, source.start));
+        }
+        break;
+      }
       case "ImportDeclaration": {
         const module = stringOf(node.source);
         if (module === undefined) break;
+        if (isInternal(module)) {
+          internalImports.push(Lines.at(lines, node.source.start));
+        }
         const resolved = resolveModule(module);
         for (const specifier of node.specifiers) {
           if (
@@ -625,6 +640,7 @@ function scan(
     draftAliases,
     genericRecipes,
     restDrafts,
+    internalImports,
     hiddenParameters: hidden(program, file, bound, lines),
     memberSources,
     reads: sets(reads),
@@ -914,6 +930,11 @@ function genericRecipe(node: Node): number | undefined {
     (one) => one.type === "Other" && one.nodeType === "TSTypeParameterDeclaration",
   );
   return recipe && generic && paramsOf(recipe).length ? recipe.start : undefined;
+}
+
+/** Whether a module name is a path under `valof/internal/`. */
+function isInternal(module: string): boolean {
+  return module.startsWith("valof/internal/");
 }
 
 /** Where a `.patch(…, recipe)` call's recipe copies its draft with a rest element. */
