@@ -77,6 +77,7 @@ const Held = held
   .impl(() => ({
     // @ts-expect-error -- a record's own member
     has: (t: Held) => true,
+    size: (t: Held) => 0,
   }))
   .build();
 
@@ -85,7 +86,12 @@ const Spelled = valof.Val.Record.companion<Spelled>()
   .impl(() => ({
     // @ts-expect-error -- a record's own member
     keys: (t: Spelled) => [],
+    size: (t: Spelled) => 0,
   }))
   .build();
+
+type Plain = Val<"Plain", string>;
+const plain = Val.companion<Plain>();
+const Plain = plain.impl(() => ({ set: (p: Plain) => p })).build();
 
 type Id = Val<"Id", string>;

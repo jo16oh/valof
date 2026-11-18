@@ -39,8 +39,12 @@ describe("what the rule finds", () => {
       "Named.match is never read",
       "Named.then is never read",
       "Tags.count is never read",
-      // A builder held in a variable is reported for its name, and its record names still left out.
+      // no-companion-mismatch reports a builder held under another name.
       "held is the companion for Held, and should be named Held",
+      "Held.size is never read",
+      "Spelled.size is never read",
+      "plain is the companion for Plain, and should be named Plain",
+      "Plain.set is never read",
     ]);
   });
 
