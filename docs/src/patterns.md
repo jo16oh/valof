@@ -149,11 +149,13 @@ value is a plain object keyed by its keys, so `equals` and JSON treat it as a pl
 with `keys`, `values` and `entries`, which keep the key and value types that `Object.keys`,
 `Object.values` and `Object.entries` lose.
 
-`Object.entries` returns every entry an object holds, including those its static type leaves out.
-Its return type gives every entry the type of the listed values, or `any` for an interface, so the
-unlisted entries reach `fromEntries` unchecked. Build the entries with `.map` over a list, from a
-`Map`, or from another record's `entries`, and check each entry of `unknown` data, such as parsed
-JSON.
+<!-- prettier-ignore -->
+> [!WARNING]
+> `Object.entries` and `Object.values` return every property an object holds, including those its
+> static type leaves out, and give every value the type of the listed values, or `any` for an
+> interface. A record built from either can hold values its type does not describe, whatever calls
+> come between, `new Map(…)` included. Build the entries from sealed values, such as another record's
+> `entries`, and check each entry of data from outside, such as parsed JSON.
 
 A record cannot reference itself with `Rec`. Put the record in a Val's field, and reference that
 Val:
