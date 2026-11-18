@@ -81,7 +81,6 @@ has these members:
 | `SeedOf<V>`             | the payload accepted by seals                                                     |
 | `PayloadOf<V>`          | the payload, with the brand removed at every depth                                |
 | `Payload<T>`            | marks a type as meant for a payload, and checks it against the allowed-type rules |
-| `Draft<T>`              | the writable stand-in for the payload that a recipe assigns to                    |
 | `Rec<V>`                | a Val's reference to itself, in its own payload                                   |
 | `Val.Record<K, Key, V>` | a Val holding a value `V` under each key `Key`, as a plain object                 |
 | `CompanionBuilder<V>`   | a companion's builder, with the steps it can still take                           |
