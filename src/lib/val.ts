@@ -978,12 +978,17 @@ type SealImpl<V extends AnyVal> = (value: SeedOf<V>, seal: (value: SeedOf<V>) =>
  */
 type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = Synchronous<
   G,
-  [string] extends [SeedOf<V>]
+  [SeedOf<V>] extends [string]
     ? G
     : [string] extends [Parameters<G>[0]]
       ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
       : ReadsAny<Parameters<G>[0]> extends true
-        ? Invalid<"type the parameter `Record<string, unknown>`, so each value reads as `unknown`">
+        ? // Each message recommends a parameter type the payload fits. An empty payload has no value to read, so its seal passes.
+          [SeedOf<V>] extends [Record<string, unknown>]
+          ? Invalid<"type the parameter `Record<string, unknown>`, so each value reads as `unknown`">
+          : [SeedOf<V>] extends [readonly unknown[]]
+            ? Invalid<"type the parameter `readonly unknown[]`, so each value reads as `unknown`">
+            : G
         : G
 >;
 
