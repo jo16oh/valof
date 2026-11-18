@@ -70,7 +70,8 @@ const User = Val.companion<User>()
 ```
 
 Type the parameter `Record<string, unknown>`, so each value read from it is `unknown` until the seal
-checks it. It cannot be `unknown`. A seal takes the payload, not a wire format.
+checks it. It cannot be `unknown`, because a seal takes the payload, not a wire format. Nor can it
+be `object`, because each value read from it is `any`.
 
 The schema runs on every derivation, not just the first parse. Reject unknown keys yourself. A patch
 is merged as given, so an undeclared key survives unless the seal removes it.
