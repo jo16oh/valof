@@ -526,9 +526,9 @@ A Val whose payload is itself a `string` (`Val<"Email", string>`) is exempt. The
 
 - **An array or a tuple.** `Record<string, unknown>` does not take `readonly number[]`, so the recommended parameter failed `SealImpl`'s lower bound. The message recommends `readonly unknown[]` for an array payload
 - **An empty payload.** Its seed is `EmptyField | AnyVal`, and `AnyVal` has no index signature, so `Record<string, unknown>` failed too. An empty payload has no value to read, so the check does not run for it, and a parameter typed `object` passes, as it did before the `ReadsAny` check
-- **A literal union or a template literal type.** For `Val<"Color", "red" | "blue">`, `CheckedSeal` rejected `(c: string, seal)` as a wire format. Every payload assignable to `string` is exempt now, not only `string` itself. A primitive payload has no `patch`, so no derived value reaches the seal
+- **A literal union or a template literal type.** For `Val<"Color", "red" | "blue">`, `CheckedSeal` rejected `(c: string, seal)` as a wire format. Every payload whose type has a string member is exempt now: `string`, a string literal type or a template literal type, alone or in a union. The first version of this fix exempted only a payload assignable to `string`. It rejected the seal of `Val<"Code", string | number>`, which the check before it, `[string] extends [SeedOf<V>]`, had exempted (type-hunt). A primitive payload has no `patch`, so no derived value reaches the seal
 
-Cost: core 13,121 → 13,144 instantiations, `index.d.ts` about +280 B, leaving 48 B of the 120 kB budget.
+Cost: core 13,121 → 13,161 instantiations, `index.d.ts` about +300 B, leaving 11 B of the 120 kB budget.
 
 ### A seal returns synchronously, 2026-10-14
 
