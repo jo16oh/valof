@@ -213,6 +213,8 @@ test("names every rule, under the plugin's own name", () => {
     "valof/no-split-companion": "error",
     // The lift is sound; what it costs is the name that makes it greppable.
     "valof/no-inferred-val-of": "warn",
+    // The import works today; what it reaches can change in any release.
+    "valof/no-internal-import": "warn",
     // Dead weight, not a defect: the code around either of these works.
     "valof/no-unused-disable": "warn",
     "valof/no-unused-member": "warn",
