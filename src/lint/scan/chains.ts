@@ -119,9 +119,22 @@ export function fromRoot(node: Node, bound: Bindings): string | undefined {
   // `valof.Val.companion`: step past the namespace, which only says where the name came from.
   const qualified = Bindings.hasNamespace(bound, first);
   const name = qualified ? second : Bindings.originalName(bound, first);
-  const step = qualified ? third : second;
+  const named = qualified ? third : second;
+  // `Val.Record.companion` builds a Val as `Val.companion` does.
+  const step = name === "Val" && named === "Record" ? path[qualified ? 3 : 2] : named;
   if (step === undefined || !ENTRY_POINTS.has(step)) return undefined;
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
+}
+
+/** Whether a chain grows from `Val.Record.companion`. */
+export function fromRecord(node: Node, bound: Bindings): boolean {
+  const path = rootPath(node);
+  if (!path) return false;
+  const [first, second, third] = path as [string, string?, string?];
+  if (Bindings.builderOf(bound, first) !== undefined) return Bindings.holdsRecord(bound, first);
+  return Bindings.hasNamespace(bound, first)
+    ? second === "Val" && third === "Record"
+    : Bindings.originalName(bound, first) === "Val" && second === "Record";
 }
 
 /**

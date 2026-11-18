@@ -39,11 +39,11 @@ export const Directive = Val.companion<Directive>()
  * A directive silences the report, not the fact behind it: the other alias claiming a duplicate
  * brand is still reported, since silencing it is its own line's decision.
  */
-export type DirectiveMap = Val<"DirectiveMap", Record<FilePath, Directive[]>>;
-export const DirectiveMap = Val.companion<DirectiveMap>()
-  .implAssoc(({ seal }) => ({
+export type DirectiveMap = Val.Record<"DirectiveMap", FilePath, Directive[]>;
+export const DirectiveMap = Val.Record.companion<DirectiveMap>()
+  .implAssoc(({ fromEntries }) => ({
     from: (scans: readonly Scan[]): DirectiveMap =>
-      seal(Object.fromEntries(scans.map((scanned) => [scanned.file, scanned.directives]))),
+      fromEntries(scans.map((scanned) => [scanned.file, scanned.directives] as const)),
   }))
   .impl(() => ({
     /** Whether a directive in the file silences a finding of `kind` on `line`. */
@@ -113,13 +113,8 @@ export function directives(
  * The names one disable comment lists, as a set. A name is what the author wrote, which no rule may
  * have: `unused-disable` reports such a name, so it is kept rather than checked against the rules.
  */
-type NameSet = Val<"NameSet", Record<string, true>>;
-const NameSet = Val.companion<NameSet>()
-  .implCreate((names: Iterable<string>) =>
-    Object.fromEntries([...names].map((name) => [name, true as const])),
-  )
-  .impl(() => ({ has: (names, name: string) => Object.hasOwn(names, name) }))
-  .build();
+type NameSet = Val.Record<"NameSet", string, true>;
+const NameSet = Val.Record.companion<NameSet>().build();
 
 /** What a directive silences: the names it listed, or every kind there is. */
 type Silenced = Enum<"Silenced", { Every: {}; Named: { names: NameSet } }>;
@@ -185,5 +180,7 @@ function ownLine(source: string, start: number): boolean {
 }
 
 function named(names: Iterable<string>): Silenced {
-  return Silenced.Named.create({ names: NameSet.create(names) });
+  return Silenced.Named.create({
+    names: NameSet.fromEntries([...names].map((name) => [name, true] as const)),
+  });
 }

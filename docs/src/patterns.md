@@ -114,38 +114,63 @@ build the server is running, and that seal may be older than yours.
 
 ## Map / Set
 
-Use an object's properties.
-
-```ts
-import { Val } from "valof";
-
-type Money = Val<"Money", { amount: number; currency: string }>;
-// ---cut---
-type Tags = Val<"Tags", Record<string, true>>; // a Set
-type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
-```
-
-Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test.
-[`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
-
-In a table of Vals such as `PriceTable`, `patch` sets an entry by assignment. To remove an entry,
-call `seal` to rebuild the whole table.
+Declare a `Val.Record` with a companion of its own. A record keyed by any string is a type error in
+a payload, because a variable whose type lists fewer entries can hold unchecked values under the
+keys it leaves out. For a set, hold `true` under each key.
 
 ```ts
 import { Val } from "valof";
 
 type Money = Val<"Money", { amount: number; currency: string }>;
 const Money = Val.companion<Money>().build();
-type PriceTable = Val<"PriceTable", Record<string, Money>>;
-const PriceTable = Val.companion<PriceTable>().build();
-
-declare const table: PriceTable;
 // ---cut---
-PriceTable.patch(table, (t) => {
-  t["apple"] = Money.seal({ amount: 120, currency: "JPY" });
-});
+type PriceTable = Val.Record<"PriceTable", string, Money>;
+const PriceTable = Val.Record.companion<PriceTable>().build();
 
-PriceTable.seal(Object.fromEntries(Object.entries(table).filter(([, m]) => m.amount < 500)));
+const table = PriceTable.fromEntries([["apple", Money.seal({ amount: 120, currency: "JPY" })]]);
+table["apple"]; // Money | undefined
+const priced = PriceTable.set(table, "fig", Money.seal({ amount: 300, currency: "JPY" }));
+const figs = PriceTable.delete(priced, "apple");
+PriceTable.keys(figs); // readonly string[]
+
+type Tags = Val.Record<"Tags", string, true>;
+const Tags = Val.Record.companion<Tags>().build();
+
+const tags = Tags.fromEntries(["new", "sale"].map((tag) => [tag, true] as const));
+Tags.has(tags, "new"); // true
+const more = Tags.set(tags, "rare", true);
+```
+
+`fromEntries` takes an iterable of entries, such as an array or a JS `Map`, not a plain object. A
+later entry replaces an earlier one with the same key. A record's companion has no `seal`. A seal
+registered with `.implSeal` receives the object the entries fold into. `set` and `delete` pass a new
+value to the seal and return what it returns, or return the value itself where nothing changes. The
+value is a plain object keyed by its keys, so `equals` and JSON treat it as a plain object. Read it
+with `keys`, `values` and `entries`, which keep the key and value types that `Object.keys`,
+`Object.values` and `Object.entries` lose.
+
+<!-- prettier-ignore -->
+> [!WARNING]
+> `Object.entries` and `Object.values` return every property an object holds, including those its
+> static type leaves out, and give every value the type of the listed values, or `any` for an
+> interface. A record built from either can hold values its type does not describe, whatever calls
+> come between, `new Map(…)` included. Build the entries from sealed values, such as another record's
+> `entries`, and check each entry of data from outside, such as parsed JSON.
+
+To take data from outside, register a seal that takes a `Record<string, unknown>` or an `object`, as
+on a Val ([Validate in the seal](custom-constructors.md#validate-in-the-seal)). `fromEntries` then
+takes entries with any string key and any value, and the seal has to check each value. Where the
+record's key type is narrower than `string`, the seal has to check each key too.
+
+A record cannot reference itself with `Rec`. Put the record in a Val's field, and reference that
+Val:
+
+```ts
+import { Val, type Rec } from "valof";
+
+// ---cut---
+type Node = Val<"Node", { kids: Kids }>;
+type Kids = Val.Record<"Kids", string, Rec<Node>>;
 ```
 
 ## Dates

@@ -1,5 +1,5 @@
 import { createMembers, dual } from "./dual/index.ts";
-import type { Arity, Duals, LooseArity, Looses } from "./dual/index.ts";
+import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual/index.ts";
 // Type-only, so nothing from enum.ts crosses at run time. The phantom stays in enum.ts, beside
 // the declaration that carries it.
 import type { AnyEnum, NameOf } from "./enum.ts";
@@ -14,6 +14,7 @@ import type {
   PrivateCreateKey,
   PrivateSealKey,
   RecKey,
+  RecordKey,
   RefusedKey,
   Unbuilt,
   UnpatchableKey,
@@ -81,6 +82,28 @@ export type AnyVal = Phantom<string, unknown> & Verdict<true>;
 export interface Rec<V> {
   readonly [RecKey]: V;
 }
+
+/** The payload of a {@link ValRecord}: a value `V` under each key `K`. */
+interface RecordOf<K extends string, V> {
+  readonly [RecordKey]: readonly [K, V];
+}
+
+type Collection = RecordOf<string, unknown>;
+
+/**
+ * A Val holding a value `V` under each key `K`, as a plain object:
+ * `type Prices = Val.Record<"Prices", string, Money>`, then `Val.Record.companion<Prices>()`. A set
+ * holds `true`: `Val.Record<"Tags", string, true>`. Build one with the companion's `fromEntries`,
+ * which takes an iterable of `[key, value]` entries, so each value is checked against `V`. Read an
+ * entry as `prices[key]`, and change one with the companion's `set` and `delete`.
+ *
+ * The companion has no `seal`: an object typed with fewer keys could hide entries. A seal
+ * registered with `.implSeal` receives the object the entries fold into.
+ *
+ * A record holding itself goes through a Val: `type Node = Val<"Node", { kids: Kids }>` and
+ * `type Kids = Val.Record<"Kids", string, Rec<Node>>`.
+ */
+export type ValRecord<B extends string, K extends string, V> = UncheckedVal<B, RecordOf<K, V>>;
 
 /**
  * Marker surfaced in the type when a declaration violates the allowed-type rules. Its key is a
@@ -184,27 +207,35 @@ type EnumName<K> = { readonly enum: K };
 type ValBrand<B> = { readonly val: B };
 
 // A field typed `Impl` holds any Val implementing the trait, which is the same problem.
-type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extends [AnyImpl]
-  ? Root extends true
-    ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
-    : Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">
-  : [T] extends [AnyTrait]
+// Only `Val.Record` declares the payload of a record, at its root.
+type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extends [Collection]
+  ? // Each entry passes the seal as a typed `[key, value]`, so no value hides in it.
+    T extends RecordOf<infer K, infer E>
+    ? [E] extends [Validate<E, false>]
+      ? T
+      : RecordOf<K, Validate<E, false>>
+    : T
+  : [T] extends [AnyImpl]
     ? Root extends true
-      ? Owner extends "Val"
-        ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
-        : Invalid<"a payload cannot declare a trait">
-      : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
-    : [T] extends [Invalid<infer M>]
-      ? Refused<M>
-      : [T] extends [Refused<infer M>]
-        ? Invalid<M>
-        : unknown extends T
-          ? Invalid<"`unknown` is not a plain value; write the type">
-          : Root extends true
-            ? null extends T
-              ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
-              : ValidateValue<T, true>
-            : ValidateValue<T>;
+      ? Invalid<"a payload cannot be an `Impl`; write its fields, and declare the trait instead">
+      : Invalid<"a field cannot hold an `Impl`; declare an Enum of the types it may hold">
+    : [T] extends [AnyTrait]
+      ? Root extends true
+        ? Owner extends "Val"
+          ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
+          : Invalid<"a payload cannot declare a trait">
+        : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+      : [T] extends [Invalid<infer M>]
+        ? Refused<M>
+        : [T] extends [Refused<infer M>]
+          ? Invalid<M>
+          : unknown extends T
+            ? Invalid<"`unknown` is not a plain value; write the type">
+            : Root extends true
+              ? null extends T
+                ? Invalid<"a top-level payload cannot include null; null cannot carry a Val brand">
+                : ValidateValue<T, true>
+              : ValidateValue<T>;
 
 type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
   ? // A Val with a primitive payload extends `Primitive` too.
@@ -377,14 +408,19 @@ type ValidateFields<T> = {
   // An index signature satisfies `Record<never, never> extends Pick<T, K>`, so `OptionalKeys`
   // counts it as optional, and it is checked first.
   // `{}` fits a record only when its key is not a literal: `string`, a pattern or a branded string.
-  [K in keyof T]: Record<never, never> extends Record<K, unknown>
+  // Such a record claims a value under keys it never lists, and a variable whose type lists fewer
+  // can hold anything there.
+  // An array's elements map under `number`.
+  [K in keyof T]: K extends number
     ? Validate<T[K], false>
-    : // A variable typed without the key can hide any value there, so every key is required.
-      K extends OptionalKeys<T>
-      ? Invalid<"a key cannot be optional; write `k: T | undefined`">
-      : unknown extends T[K]
-        ? Validate<T[K], false>
-        : Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>;
+    : Record<never, never> extends Record<K, unknown>
+      ? Invalid<"a record keyed by any string can hide entries; declare a `Val.Record`">
+      : // A variable typed without the key can hide any value there, so every key is required.
+        K extends OptionalKeys<T>
+        ? Invalid<"a key cannot be optional; write `k: T | undefined`">
+        : unknown extends T[K]
+          ? Validate<T[K], false>
+          : Validate<Exclude<T[K], undefined>, false> | Extract<T[K], undefined>;
 };
 
 /**
@@ -415,6 +451,14 @@ export type DeepReadonly<T, Arg extends Position = false> =
 /** Not an argument, the payload an argument takes, or a part of that payload. */
 type Position = boolean | "field";
 
+/** The value of a {@link ValRecord}, or the payload its seal takes: an object keyed by its keys. */
+type Collected<T, Inner extends Position> =
+  T extends RecordOf<infer K, infer V> ? { readonly [P in K]?: DeepReadonly<V, Inner> } : never;
+
+/** What a {@link ValRecord}'s `fromEntries` takes, and its `create` function returns: entries. */
+type Gathered<T> =
+  T extends RecordOf<infer K, infer V> ? Iterable<readonly [K, DeepReadonly<V, "field">]> : never;
+
 /** Recursion stops at a nested Val, because it is already deep-readonly. */
 type DeepReadonlyValue<
   T,
@@ -434,23 +478,25 @@ type DeepReadonlyValue<
           ? ReadonlyArray<DeepReadonly<T[number], Inner>>
           : { readonly [I in keyof T]: DeepReadonly<T[I], Inner> }
         : Mixed<T, Arg, Split>
-      : [T] extends [object]
-        ? [keyof T] extends [never]
-          ? Arg extends true
-            ? EmptyField | AnyVal
-            : Arg extends "field"
-              ? EmptyField
-              : Record<never, never>
-          : {
-              // A union stops the walk one level short, so a `Rec` beside `undefined` would never
-              // open. `undefined` is split off first.
-              readonly [K in keyof T]:
-                | DeepReadonly<Exclude<T[K], undefined>, Inner>
-                | Extract<T[K], undefined>;
-            } & (Arg extends "field" ? NotVal : unknown)
-        : [Extract<T, Primitive>] extends [never]
-          ? T
-          : Mixed<T, Arg, Split>;
+      : [T] extends [Collection]
+        ? Collected<T, Inner>
+        : [T] extends [object]
+          ? [keyof T] extends [never]
+            ? Arg extends true
+              ? EmptyField | AnyVal
+              : Arg extends "field"
+                ? EmptyField
+                : Record<never, never>
+            : {
+                // A union stops the walk one level short, so a `Rec` beside `undefined` would never
+                // open. `undefined` is split off first.
+                readonly [K in keyof T]:
+                  | DeepReadonly<Exclude<T[K], undefined>, Inner>
+                  | Extract<T[K], undefined>;
+              } & (Arg extends "field" ? NotVal : unknown)
+          : [Extract<T, Primitive>] extends [never]
+            ? T
+            : Mixed<T, Arg, Split>;
 
 /**
  * `null` or a primitive beside one other kind, which only a field can hold. The rest is not split
@@ -669,21 +715,25 @@ export type Payload<T extends Allowed<T, "Payload">> = Validate<T, true, "Payloa
 // rewrites them.
 type Opened<T> = [T] extends [never]
   ? never
-  : IsRec<T> extends true
-    ? T extends Rec<infer V>
-      ? Opened<Declared<V>>
-      : T
-    : [T] extends [AnyVal]
-      ? Opened<Declared<T>>
-      : [T] extends [Primitive]
-        ? T
-        : number extends keyof T
-          ? { [I in keyof T]: Opened<T[I]> }
-          : [T] extends [object]
-            ? { [K in keyof T]: Opened<Exclude<T[K], undefined>> | Extract<T[K], undefined> }
-            : [Extract<T, Primitive>] extends [never]
-              ? T
-              : Extract<T, Primitive> | Opened<Exclude<T, Primitive>>;
+  : [T] extends [Collection]
+    ? T extends RecordOf<infer K, infer V>
+      ? { [P in K]?: Opened<V> }
+      : never
+    : IsRec<T> extends true
+      ? T extends Rec<infer V>
+        ? Opened<Declared<V>>
+        : T
+      : [T] extends [AnyVal]
+        ? Opened<Declared<T>>
+        : [T] extends [Primitive]
+          ? T
+          : number extends keyof T
+            ? { [I in keyof T]: Opened<T[I]> }
+            : [T] extends [object]
+              ? { [K in keyof T]: Opened<Exclude<T[K], undefined>> | Extract<T[K], undefined> }
+              : [Extract<T, Primitive>] extends [never]
+                ? T
+                : Extract<T, Primitive> | Opened<Exclude<T, Primitive>>;
 
 /**
  * The payload as constructors, `Val.of` and a custom seal accept it.
@@ -827,16 +877,23 @@ export type Reserved = keyof Rejected;
  *
  * `V` is unconstrained so an enum's variant, which is a Val behind a second phantom, can name it.
  */
-export type CompanionMembers<V> = Rejected & {
-  /**
-   * One callable member only. This is the contextual type for the Val parameter, and TypeScript
-   * takes one from a union only while a single constituent has a call signature. `NonFn` has
-   * none. A second function type would, and the parameter then falls back to implicit `any`
-   * with no error.
-   */
-  // oxlint-disable-next-line no-explicit-any -- `never[]` would type unannotated extra parameters as `never`
-  [key: string]: ((value: V, ...rest: any[]) => unknown) | NonFn;
-};
+export type CompanionMembers<V> = Rejected &
+  Partial<Record<RecordNames<V>, never>> & {
+    /**
+     * One callable member only. This is the contextual type for the Val parameter, and TypeScript
+     * takes one from a union only while a single constituent has a call signature. `NonFn` has
+     * none. A second function type would, and the parameter then falls back to implicit `any`
+     * with no error.
+     */
+    // oxlint-disable-next-line no-explicit-any -- `never[]` would type unannotated extra parameters as `never`
+    [key: string]: ((value: V, ...rest: any[]) => unknown) | NonFn;
+  };
+
+/** The names a {@link ValRecord}'s companion carries, which its steps may not register. */
+type RecordNames<V> =
+  Declared<V> extends Collection
+    ? "set" | "delete" | "has" | "keys" | "values" | "entries" | "fromEntries"
+    : never;
 
 /** The members `.implAssoc` accepts: functions with names the library does not reserve. */
 export type AssocMembers = Rejected & Record<string, unknown>;
@@ -880,7 +937,15 @@ export type Synchronous<G extends (...args: never[]) => unknown, Checked> =
  * What `create` must be: any arguments, a payload out. The result is not a value yet. The type's
  * seal closes it, so `create` cannot bypass the seal.
  */
-type CreateImpl<V extends AnyVal> = (...args: never[]) => SeedOf<V>;
+type CreateImpl<V extends AnyVal> = (...args: never[]) => SourceOf<V>;
+
+/**
+ * What `create` returns: the payload, or the entries of a {@link ValRecord}, since a plain object
+ * could hide entries.
+ */
+type SourceOf<V extends AnyVal> = [Declared<V>] extends [Collection]
+  ? Gathered<Declared<V>>
+  : SeedOf<V>;
 
 /** Marks a `create` registered by `.implCreate.noseal`. */
 export type Unsealed = { readonly [NoSeal]: true };
@@ -1006,11 +1071,13 @@ export type Unpatchable<K extends string> = [K] extends [infer X]
     : UnpatchablePhantom<K>
   : never;
 
-/** What the list after the Val in `Val.companion<V, […]>` takes. */
-type CompanionOption<V extends AnyVal> =
-  | PrivateSeal
-  | PrivateCreate
-  | Unpatchable<keyof SeedOf<V> & string>;
+/**
+ * What the list after the Val in `Val.companion<V, […]>` takes. A {@link ValRecord} has no `seal`
+ * to hide and no `patch` to restrict.
+ */
+type CompanionOption<V extends AnyVal> = [Declared<V>] extends [Collection]
+  ? PrivateCreate
+  : PrivateSeal | PrivateCreate | Unpatchable<keyof SeedOf<V> & string>;
 
 // A list, not an intersection: two `Unpatchable`s intersected collapse to `never`, which satisfies
 // every constraint and would read as no option at all.
@@ -1054,9 +1121,50 @@ export type Companion<
 > = Duals<Omit<M, Wired>, V> &
   Looses<A> &
   ([Extract<O[number], PrivateCreate>] extends [never] ? CreateMethod<V, N, F> : unknown) &
-  ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
-  PatchMethod<V, F, O> &
+  // A record's companion has no `seal`: a caller could pass an object typed with fewer keys.
+  ([Declared<V>] extends [Collection]
+    ? CollectionMethods<V, F>
+    : ([Extract<O[number], PrivateSeal>] extends [never] ? SealMethod<V, F> : unknown) &
+        PatchMethod<V, F, O>) &
   TraitHost;
+
+/** Builds a {@link ValRecord} from entries. */
+type FromEntriesMethod<V extends AnyVal, F> = {
+  /**
+   * Folds the entries into an object and seals it, so it returns whatever the seal returns. A
+   * later entry replaces an earlier one with the same key.
+   *
+   * Takes entries of any string key and value where the seal registered with `.implSeal` takes
+   * any string-keyed object, as `Record<string, unknown>` or `object`, since that seal checks
+   * each one.
+   */
+  fromEntries: (entries: EntriesFor<V, F>) => Constructed<V, F>;
+};
+
+/** What `fromEntries` takes: the record's entries, or any where the seal takes any object. */
+type EntriesFor<V extends AnyVal, F> = F extends (value: infer P, ...rest: never[]) => unknown
+  ? [Record<string, unknown>] extends [P]
+    ? Iterable<readonly [string, unknown]>
+    : Gathered<Declared<V>>
+  : Gathered<Declared<V>>;
+
+/** The members a {@link ValRecord} companion carries. Each goes through the seal. */
+type CollectionMethods<V extends AnyVal, F> =
+  Declared<V> extends RecordOf<infer K, infer E>
+    ? FromEntriesMethod<V, F> & {
+        /** Sets the value under a key. Returns the record itself where it already holds that value. */
+        set: Dual<(record: V, key: K, value: DeepReadonly<E, "field">) => Constructed<V, F>, V>;
+        /** Removes a key. Returns the record itself where it lacks the key. */
+        delete: Dual<(record: V, key: K) => Constructed<V, F>, V>;
+        has: Dual<(record: V, key: K) => boolean, V>;
+        /** The keys, typed `K`, in the order `Object.keys` gives. */
+        keys: (record: V) => readonly K[];
+        /** The values, in the order `Object.values` gives. */
+        values: (record: V) => readonly DeepReadonly<E>[];
+        /** The entries, typed `[K, V]`, in the order `Object.entries` gives. */
+        entries: (record: V) => readonly (readonly [K, DeepReadonly<E>])[];
+      }
+    : Record<never, never>;
 
 /**
  * What `.impl` accepts once a name is taken: anything but a name a trait already uses, its shared
@@ -1124,8 +1232,9 @@ export type Passes<Tr extends AnyTrait, G, I, S> =
  * inside this alias, the parameter's hover shows the expanded type instead of `Supplied<…>`.
  */
 type Supplied<V extends AnyVal, N, F, O extends Options> = CreateMethod<V, N, F> &
-  SealMethod<V, F> &
-  PatchMethod<V, F, O>;
+  ([Declared<V>] extends [Collection]
+    ? FromEntriesMethod<V, F>
+    : SealMethod<V, F> & PatchMethod<V, F, O>);
 
 /** The steps a companion has taken. The first two are the first half of the chain. */
 type Taken = "implSeal" | "implCreate" | "impl" | "implTrait" | "implAssoc";
@@ -1177,7 +1286,8 @@ export type CompanionBuilder<
          * has its own step.
          *
          * The function receives `seal`, `create` where `.implCreate` registered one, and `patch`
-         * for an object payload. A member reaching the companion for anything else (a trait's
+         * for an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
+         * `patch`. A member reaching the companion for anything else (a trait's
          * member or a sibling) references it and annotates its return type.
          *
          * A member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}. Called with the value last, a generic member loses its type parameters. To keep them, call it with the value first inside a function: `pipe(u, (v) => User.pick(v, "name"))`.
@@ -1197,7 +1307,8 @@ export type CompanionBuilder<
      * `parse`, a constant. Write it any number of times.
      *
      * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
-     * an object payload. A member reaching the companion for anything else (a sibling or another
+     * an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
+     * `patch`. A member reaching the companion for anything else (a sibling or another
      * step's member) references it and annotates its return type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
@@ -1206,7 +1317,7 @@ export type CompanionBuilder<
     implAssoc: <M extends AssocMembers>(
       fns: (
         supplied: NoInfer<Supplied<V, N, F, O>>,
-      ) => Grown<keyof T | keyof A, M> & LooseArity<M> & ThisType<undefined>,
+      ) => Grown<keyof T | keyof A | RecordNames<V>, M> & LooseArity<M> & ThisType<undefined>,
     ) => CompanionBuilder<V, N, F, O, T, D | "implAssoc", A & M>;
     /**
      * Implements a trait the type declares. A function passed as the second argument returns the
@@ -1257,7 +1368,7 @@ type FirstHalf<V extends AnyVal, N, F, O extends Options, D extends Taken> = ("i
            * throws if it rejects the payload or if normalization changes it.
            */
           noseal: <G extends AnyFn>(
-            create: Argumentless<SeedOf<V>, G>,
+            create: Argumentless<SourceOf<V>, G>,
           ) => CompanionBuilder<V, Unsealed, F, O, Record<never, never>, D | "implCreate">;
         };
       });
@@ -1673,14 +1784,11 @@ const drafted = (
       {
         get: (_, key) => read(key),
         set: (_, key, value) => (own.set(key, value), true),
-        // Every key is required. A false return makes `delete` throw rather than do nothing.
-        deleteProperty: () => false,
-        // A key the recipe added, as a record's new entry, is listed beside the node's own.
-        has: (_, key) => own.has(key) || key in node,
-        ownKeys: () =>
-          [...new Set([...Reflect.ownKeys(node), ...own.keys()])] as (string | symbol)[],
+        // A payload's keys are all required and listed, so the node's own are the draft's.
+        has: (_, key) => key in node,
+        ownKeys: () => Reflect.ownKeys(node),
         getOwnPropertyDescriptor: (_, key) =>
-          own.has(key) || key in node
+          key in node
             ? { value: read(key), writable: true, enumerable: true, configurable: true }
             : undefined,
       },
@@ -1709,8 +1817,14 @@ const drafted = (
  * Everything that produces a value goes through `seal`: the registered one, or a copy when the
  * type did not replace it. Nothing is copied before that. The one deep copy happens in the
  * default seal that a custom one returns through.
+ *
+ * `gates` replaces `seal` and `patch` with the members it builds from the seal, ahead of the
+ * steps' functions, which receive them.
  */
-export const attach = (registered: Registered): Record<string, unknown> => {
+export const attach = (
+  registered: Registered,
+  gates?: (seal: (value: unknown) => unknown) => Record<string, unknown>,
+): Record<string, unknown> => {
   const target: Record<string, unknown> = {};
   const {
     create,
@@ -1768,6 +1882,33 @@ export const attach = (registered: Registered): Record<string, unknown> => {
     created.nocopy = (...args: never[]) => adopting(create(...args));
     target["create"] = created;
   }
+  if (gates) Object.assign(target, gates(seal));
+  else attachGates(target, seal, nocopy, keep);
+
+  // The steps' functions run once the gates they receive exist. A trait's members join the
+  // type's own, so they grow the same way. The Val's own go on last, the type having kept every
+  // `Final` one out of them. The record is what `Trait`'s `dyn` reads, and keeping it here means
+  // `val.ts` never imports `trait.ts`.
+  const traits = Object.assign(
+    {},
+    ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
+  ) as Record<string, unknown>;
+  (target as Record<symbol, unknown>)[Traits] = traits;
+  return Object.assign(
+    target,
+    createMembers(traits),
+    createMembers({ ...fns?.(target) }),
+    associated(assoc, target),
+  );
+};
+
+/** Puts `seal` and `patch` on a companion. */
+const attachGates = (
+  target: Record<string, unknown>,
+  seal: (value: unknown) => unknown,
+  nocopy: (value: unknown) => unknown,
+  keep: (value: unknown) => unknown,
+): void => {
   // Without a custom seal, `seal` is the copy itself, and this gives it the `nocopy` `Val.of` has.
   define(seal, "nocopy", nocopy);
   target["seal"] = seal;
@@ -1793,22 +1934,6 @@ export const attach = (registered: Registered): Record<string, unknown> => {
       for (const revoke of revokes) revoke();
     }
   });
-
-  // The steps' functions run once the gates they receive exist. A trait's members join the
-  // type's own, so they grow the same way. The Val's own go on last, the type having kept every
-  // `Final` one out of them. The record is what `Trait`'s `dyn` reads, and keeping it here means
-  // `val.ts` never imports `trait.ts`.
-  const traits = Object.assign(
-    {},
-    ...implemented.map(([trait, impl]) => ({ ...trait[Shared], ...impl?.(target) })),
-  ) as Record<string, unknown>;
-  (target as Record<symbol, unknown>)[Traits] = traits;
-  return Object.assign(
-    target,
-    createMembers(traits),
-    createMembers({ ...fns?.(target) }),
-    associated(assoc, target),
-  );
 };
 
 /**
@@ -1854,7 +1979,67 @@ const builder = (registered: Registered): object => ({
  */
 type NotEnum<V> = [V] extends [AnyEnum]
   ? Invalid<"a variant is built by its enum's companion">
-  : unknown;
+  : NotCollection<V>;
+
+/** Rejects a {@link ValRecord}, whose `fromEntries` builds the value from entries. */
+// `never` is a `V` inferred from nothing, which reads no payload.
+type NotCollection<V> = [Declared<V>] extends [never]
+  ? unknown
+  : [Declared<V>] extends [Collection]
+    ? Invalid<"a record is built by `Val.Record.companion`">
+    : unknown;
+
+/**
+ * A record's builder. Its companion trades `seal` and `patch` for `fromEntries` and the members that
+ * derive a record, each going through the seal. Only `Val.Record.companion` reaches it, so a bundle
+ * without it leaves it out.
+ */
+const recordBuilder = (registered: Registered): object => ({
+  ...steps(registered, (change) => recordBuilder({ ...registered, ...change })),
+  build: () => {
+    const { create } = registered;
+    const has = (from: object, key: string): boolean => Object.hasOwn(from, key);
+    return attach(
+      {
+        ...registered,
+        ...(create && {
+          create: (...args: never[]) =>
+            Object.fromEntries(create(...args) as Iterable<readonly [string, unknown]>),
+        }),
+      },
+      (seal) => ({
+        fromEntries: (entries: Iterable<readonly [string, unknown]>) =>
+          seal(Object.fromEntries(entries)),
+        has: dual(has),
+        delete: dual((from: Record<string, unknown>, key: string) =>
+          seal(
+            has(from, key)
+              ? Object.fromEntries(Object.entries(from).filter(([k]) => k !== key))
+              : from,
+          ),
+        ),
+        keys: Object.keys,
+        values: Object.values,
+        entries: Object.entries,
+        set: dual((from: Record<string, unknown>, key: string, value: unknown) =>
+          seal(has(from, key) && Object.is(from[key], value) ? from : { ...from, [key]: value }),
+        ),
+      }),
+    );
+  },
+});
+
+/** Accepts a {@link ValRecord} only. */
+type IsValRecord<V> = [Declared<V>] extends [Collection]
+  ? unknown
+  : Invalid<"`Val.Record.companion` builds a `Val.Record`">;
+
+/** Bundles a {@link ValRecord}'s `fromEntries`, `set`, `delete`, `has` and members. See {@link companion}. */
+export const recordCompanion = <
+  V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val">,
+  const O extends readonly CompanionOption<V>[] & OneList<O> = [],
+>(): CompanionBuilder<V, undefined, undefined, O> =>
+  recordBuilder({}) as CompanionBuilder<V, undefined, undefined, O>;
 
 // The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
 // with a boolean payload is a union of two types with one brand, so the check compares brands.
@@ -1874,7 +2059,9 @@ export type OneList<O> =
  * type differs.
  */
 export const of = /* @__PURE__ */ Object.assign(
-  own as <V extends AnyVal & OneVal<V, "`Val.of` builds one Val">>(value: SeedOf<V>) => V,
+  own as <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val">>(
+    value: SeedOf<V>,
+  ) => V,
   {
     /**
      * Uses a payload without copying it. The caller must ensure it will not change.

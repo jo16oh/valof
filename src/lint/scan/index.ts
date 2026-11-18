@@ -3,7 +3,7 @@ import { normalize, resolve } from "node:path";
 import type { Enum, EnumCompanion } from "../../lib/enum.ts";
 import { Val } from "../../lib/index.ts";
 import type { AnyTrait, TraitCompanion } from "../../lib/trait.ts";
-import type { Reserved } from "../../lib/val.ts";
+import type { Companion, Reserved } from "../../lib/val.ts";
 import { pipe } from "../../shared/pipe/index.ts";
 import {
   keyName,
@@ -23,10 +23,11 @@ import {
   type ReAlias,
   type TraitAlias,
 } from "./aliases.ts";
-import { Bindings, ImportBinding, ImportMap, Modules, SymbolRef } from "./bindings.ts";
+import { Bindings, ImportBinding, ImportMap, Modules, Names, SymbolRef } from "./bindings.ts";
 import {
   CompanionSite,
   chainRoot,
+  fromRecord,
   fromRoot,
   stepOf,
   variantOf,
@@ -58,6 +59,17 @@ export type { Model, Models, Shape, TypeUse } from "./models.ts";
 
 /** The names every `.impl` rejects. The type reports one, so it is not a member to report. */
 const RESERVED = reserved(["patch", "seal", "create"]);
+
+/** The names a record's companion carries, which its `.impl` and `.implAssoc` reject as well. */
+const RECORD_NAMES: ReadonlySet<string> = new Set([
+  "fromEntries",
+  "set",
+  "delete",
+  "has",
+  "keys",
+  "values",
+  "entries",
+] satisfies (keyof Companion<SampleRecord, Record<never, never>>)[]);
 
 /** The steps that take the members, and which argument holds their function. */
 const MEMBER_STEPS: ReadonlyMap<string, number> = new Map([
@@ -144,6 +156,18 @@ export type CompanionBinding = Val<
 >;
 export const CompanionBinding = Val.companion<CompanionBinding>().build();
 
+/** Keys read off one name. */
+export type Keys = Val.Record<"Keys", string, true>;
+export const Keys = Val.Record.companion<Keys>().build();
+
+/** The keys read off each name. */
+export type KeySets = Val.Record<"KeySets", string, Keys>;
+export const KeySets = Val.Record.companion<KeySets>().build();
+
+/** Export name -> the local or source-module symbol it exposes. */
+export type Refs = Val.Record<"Refs", string, SymbolRef>;
+export const Refs = Val.Record.companion<Refs>().build();
+
 /**
  * What one file says about itself: syntactic facts, named for what they are rather than for the
  * rule that reads them.
@@ -166,13 +190,13 @@ export type Scan = Val<
     /** Member steps whose function declares something in its body. */
     stepStates: StepState[];
     /** Keys read off a local name, each a set. */
-    reads: Record<string, Record<string, true>>;
+    reads: KeySets;
     /** Keys read through a namespace, already named as the exporting module names them. */
-    namespaceReads: Record<string, Record<string, true>>;
+    namespaceReads: KeySets;
     /** `export { A as B }`: the name outside -> the name at the declaration. */
-    exportedAs: Record<string, string>;
+    exportedAs: Names;
     /** Export name -> the local or source-module symbol it exposes. */
-    exportedRefs: Record<string, SymbolRef>;
+    exportedRefs: Refs;
     /** Top-level `type X = Val<…>`. */
     aliases: Alias[];
     /** Top-level `type X = Trait<…>` declarations. */
@@ -197,7 +221,7 @@ export type Scan = Val<
      * What each module the file imports or re-exports from resolved to, among the files in the run.
      * A change to the files in the run affects this scan only where it changes one of these entries.
      */
-    resolved: Record<string, string>;
+    resolved: Names;
   }
 >;
 export const Scan = Val.companion<Scan>()
@@ -214,20 +238,18 @@ export const Scan = Val.companion<Scan>()
  * What each module of a run exports, keyed by the reference an export makes: a re-export points on
  * to the symbol it exposes.
  */
-export type Exports = Val<"Exports", Record<string, SymbolRef>>;
-export const Exports = Val.companion<Exports>()
-  .implAssoc(({ seal }) => ({
+export type Exports = Val.Record<"Exports", string, SymbolRef>;
+export const Exports = Val.Record.companion<Exports>()
+  .implAssoc(({ fromEntries }) => ({
     from: (scans: readonly Scan[]): Exports =>
       pipe(
         scans.flatMap(({ file, exportedRefs }) => {
           const module = normalize(resolve(file));
-          return Object.entries(exportedRefs).map(([name, target]) => [
-            SymbolRef.fromExport(module, name).key,
-            target,
-          ]);
+          return Refs.entries(exportedRefs).map(
+            ([name, target]) => [SymbolRef.fromExport(module, name).key, target] as const,
+          );
         }),
-        Object.fromEntries,
-        seal,
+        fromEntries,
       ),
   }))
   .impl(() => ({
@@ -259,6 +281,9 @@ export function reserved<const N extends readonly Reserved[]>(
 /** An enum to read keys from. `AnyEnum` widens them to `string`. */
 type Sample = Enum<"Sample", { A: { a: 1 } }>;
 
+/** A record to read its companion's keys from. */
+type SampleRecord = Val.Record<"SampleRecord", string, true>;
+
 /** The {@link Reserved} names with no pattern. */
 type Unlisted<N extends string> = Reserved extends infer R
   ? R extends unknown
@@ -273,12 +298,13 @@ type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
 const DynBox = Val.companion<DynBox>().build();
 
 /**
- * An enum's `.impl` rejects `match` as well, and a trait's rejects `dyn`. An enum's variant names
- * are left to the rule, which reads every file.
+ * An enum's `.impl` rejects `match` as well, a trait's rejects `dyn`, and a record's rejects its
+ * companion's own names. An enum's variant names are left to the rule, which reads every file.
  */
-function rejected(member: string, root?: string): boolean {
+function rejected(member: string, root?: string, record = false): boolean {
   return (
     RESERVED.test(member) ||
+    (record && RECORD_NAMES.has(member)) ||
     (root === "Enum" && member === ("match" satisfies keyof EnumCompanion<Sample>)) ||
     (root === "Trait" && member === ("dyn" satisfies keyof TraitCompanion<AnyTrait>))
   );
@@ -415,7 +441,7 @@ function scan(
         if (root) {
           const name = id.name;
           bound = Bindings.patch(bound, (b) => {
-            b.builders[name] = root;
+            b.builders = Names.set(b.builders, name, fromRecord(init, bound) ? "Val.Record" : root);
           });
         }
         // `const Round = Shape.Circle` takes the same key the destructuring above takes.
@@ -502,7 +528,7 @@ function scan(
           ) {
             const local = specifier.local.name;
             bound = Bindings.patch(bound, (b) => {
-              b.namespaces[local] = resolved;
+              b.namespaces = Names.set(b.namespaces, local, resolved);
             });
           } else if (
             specifier.type === "ImportSpecifier" &&
@@ -512,9 +538,11 @@ function scan(
             const local = specifier.local.name;
             if (name) {
               bound = Bindings.patch(bound, (b) => {
-                b.imported = ImportMap.patch(b.imported, (m) => {
-                  m[local] = ImportBinding.seal({ name, module: resolved });
-                });
+                b.imported = ImportMap.set(
+                  b.imported,
+                  local,
+                  ImportBinding.seal({ name, module: resolved }),
+                );
               });
             }
           }
@@ -575,8 +603,8 @@ function scan(
     memberSources,
     reads: sets(reads),
     namespaceReads: sets(namespaceReads),
-    exportedAs: Object.fromEntries(exportedAs),
-    exportedRefs: Object.fromEntries(exportedRefs),
+    exportedAs: Names.fromEntries(exportedAs),
+    exportedRefs: Refs.fromEntries(exportedRefs),
     aliases,
     traitAliases,
     enumAliases,
@@ -587,7 +615,7 @@ function scan(
     lifts,
     models: models(file, program, bound, lines),
     directives: directives(comments, source, lines),
-    resolved: Object.fromEntries(resolved),
+    resolved: Names.fromEntries(resolved),
   });
 }
 
@@ -741,7 +769,7 @@ function implMembers(
     if ((step.name === "impl" || step.name === "implAssoc") && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
       for (const member of stepMembers(object, owner, objects, lines)) {
-        if (!rejected(member.member, variant ? undefined : root)) {
+        if (!rejected(member.member, variant ? undefined : root, fromRecord(receiver, bound))) {
           found.set(`${owner}\0${member.member}`, member);
         }
       }
@@ -751,13 +779,13 @@ function implMembers(
   return [...found.values()];
 }
 
-/** Each set as an object with the member as key, the way a payload holds one. */
-function sets(map: ReadonlyMap<string, ReadonlySet<string>>): Record<string, Record<string, true>> {
-  return Object.fromEntries(
-    [...map].map(([key, members]) => [
-      key,
-      Object.fromEntries([...members].map((one) => [one, true])),
-    ]),
+/** Each set of keys under its name. */
+function sets(map: ReadonlyMap<string, ReadonlySet<string>>): KeySets {
+  return KeySets.fromEntries(
+    [...map].map(
+      ([key, members]) =>
+        [key, Keys.fromEntries([...members].map((one) => [one, true] as const))] as const,
+    ),
   );
 }
 

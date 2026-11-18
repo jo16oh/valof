@@ -229,6 +229,100 @@ A required key cannot be left out of the static type, so no key can be hidden fr
 - **Cost.** Val 1.04 → 1.01 kB gzipped (`patch` no longer deletes). core 9,724 → 9,598, trait 25,024 → 24,966, enum
   47,475 → 46,751 instantiations
 
+### No index signature, 2026-11-17
+
+A record keyed by any string (`Record<string, V>`, a pattern, a branded string, `{ [k: string]: V }`) is a type error in
+a payload, whose message names `Val.Record`. A record with literal keys lists every entry, and stays.
+
+**An index signature lets a narrowed variable hide entries.** It claims a `V` under keys it never lists, and TypeScript
+assigns a type listing some entries to it. The seal took the hidden ones unchecked, at any depth, the root included.
+
+```ts
+type PriceTable = Val<"PriceTable", Record<string, Money>>;
+const known: { apple: Money } = full; // full also holds fig: { amount: "raw" }
+PriceTable.seal(known); // fig is typed Money, and Money.seal never ran
+```
+
+**`Val.Record<B, K, V>` replaces it.** It is a Val whose companion comes from `Val.Record.companion`, since types are
+erased, and at run time a record's input looks like an array Val's.
+
+- **`fromEntries` takes an iterable of entries, never a plain object.** An entry is a `readonly [K, V]` tuple, and a tuple has
+  no hidden elements. A later entry with the same key wins, as in `new Map` and `Object.fromEntries`
+  - **`Object.entries` of a narrowed variable hides entries again** (user, 2026-11-18). lib types `Object.entries(o)` by the
+    implicit index signature of `o`'s type, so the entries of `const b: { a: string } = { a: "a", b: 1 }` are typed
+    `[string, string][]` and hold `["b", 1]`. An interface type gives `[string, any][]`. Either reaches `fromEntries` with no
+    error. The types cannot distinguish these entries from checked ones. `Object.values` types every value the same way.
+    The book warns about both
+  - **The book warns about it, and Valof's types stay as they are** (user, 2026-11-18). The hole is in how TypeScript
+    types `Object.entries` and `Object.values`, not in Valof's types
+  - **Rejected: a lint rule that follows `Object.entries` to `fromEntries`.** Without types it follows the result only
+    within one function: the direct argument, a method chain, a `const`, `new Map(…)`. A value passed through a
+    parameter, a return or an array is out of its reach, and a rule that catches some forms reads as a guarantee (user).
+    Types do not help, because the entries' type does not record where they came from
+  - **Rejected: an opt-in override typing `Object.entries` and `Object.values` as `unknown`.** It closes the hole, but
+    it changes every call in the application. ts-reset does not change the types of `Object.keys` and `Object.entries`,
+    and users of better-typescript-lib, which types `Object.entries` this way, report it as a bug
+    (uhyo/better-typescript-lib#56)
+  - **Rejected: `fromEntries` takes only a `Map`.** `new Map(Object.entries(x))` is typed `Map<string, V>`, so `new Map`
+    carries the same hole
+  - **Rejected: forbidding `Object.entries`.** Data from outside, such as parsed JSON or a parser's nodes, arrives as a
+    plain object, and `Object.entries` of a type with an index signature is sound
+- **The companion has no `seal`, and builds a record through `fromEntries`** (user, 2026-11-18). A seal checks a payload and
+  brands it, and returns the value itself for its own payload (§6.7). A seal that took entries changed its argument, and
+  `seal(the payload of v)` was rejected. A public seal that took the object would reopen the hole above
+  - `.implSeal` stays. The function it registers receives the object the entries fold into, so a check counts a repeated key
+    once. `fromEntries`, `create`, `set` and `delete` go through it
+  - **`fromEntries` takes any string-keyed entries where the seal takes any string-keyed object** (user, 2026-11-18).
+    A seal registered as `(input: Record<string, unknown>, seal) => …` or `(input: object, …)` has to check every value at run time, so `fromEntries` takes `Iterable<readonly [string, unknown]>`, and data from outside reaches that seal with
+    no cast. A Val's public `seal` widens with its registered seal the same way. With the default seal, or one that
+    takes the record's own object, `fromEntries` takes the record's typed entries alone. Keys are typed `string` rather than `K`, because the entries come from outside and the seal checks a branded `K` at run time
+  - `.implCreate`'s function returns entries, and `create` folds them. Returning an object would reopen the hole
+  - `fromEntries` and `create` coexist. `create` runs the function the type's author registers, and `fromEntries` is a fixed
+    conversion. Both pass their result to the seal
+  - The only option is `PrivateCreate`. A record has no `seal` for `PrivateSeal` to hide, and no `patch` for `Unpatchable`
+    to restrict. Hiding `fromEntries` is open in §9
+  - The steps' functions receive `fromEntries` in place of `seal` and `patch`. `attach` puts it on the companion before
+    it calls them, so destructuring it works
+  - **Rejected: the companion's seal takes the object, typed by the record's payload marker.** Only a record's own value
+    would fit, so the hole would stay closed. A seal no caller can use with a new object has no reason to be public
+  - **Rejected: `.implFromEntries` in place of `.implSeal`.** Its function would receive entries, and count a repeated key
+    twice. A seal over the folded object keeps one meaning of `implSeal` across Vals
+- **The value is a frozen plain object keyed by `K`.** Reading `prices[key]` gives `V | undefined`. `equals`, JSON and
+  `structuredClone` treat it as any object
+- **A set is a `Val.Record` of `true`** (`Val.Record<"Tags", string, true>`, §8.1)
+- **`fromEntries`, `set`, `delete` and `has` are the companion's members**, reserved only on a record's companion, in
+  both `impl` and `implAssoc`. Each except `has` goes through the seal, and `set` and `delete` return the value itself where
+  nothing changes. There is no `patch`. `set` and `delete` change an entry
+- **`keys`, `values` and `entries` return its keys and values typed `K` and `V`** (user, 2026-11-18). `Object.keys` gives `string[]` and loses
+  a branded `K`, and `Object.values` and `Object.entries` add `undefined` from the optional value type. They return
+  readonly arrays in `Object.keys`'s order. Not added: `size`, `get` and `forEach`, which `Object.keys(r).length`, `r[key]`
+  and `entries(r).forEach` cover
+- **`V` is any payload type** (user, 2026-11-17). Restricting it to Vals guarded nothing more once the seal took entries,
+  and the linter's own tables of strings and arrays would each have needed a newtype
+- **`Val.companion` and `Val.of` reject a record**, whose value they would build from the wrong input
+- **A record holding itself goes through a Val.** `Val.Record<"Self", string, Rec<Self>>` is circular (TS2456), because a
+  type alias resolves its type arguments first. `Node = Val<"Node", { kids: Kids }>` with
+  `Kids = Val.Record<"Kids", string, Rec<Node>>` works, since `Kids` sits inside `Node`'s object literal
+- **Rejected: `Val.Map` and `Val.Set`** (the first form of this change, renamed 2026-11-18, user). `Record` says the value
+  is a plain object. A set built on one cannot do set operations as fast as a JS `Set`, so a type of its own claimed a speed
+  it did not have
+- **Rejected: the root alone holds a record, and `patch` does not merge it.** A narrowed variable reaches the root `seal`
+  too
+- **Rejected: a runtime check that each value is a sealed Val.** Typed entries already check each value
+- ~~**Rejected: a `fromEntries` member.** It repeats the seal and reserves another name.~~ Adopted, 2026-11-18, once the
+  seal stopped taking entries (above). A `fromObject` would still reopen the hole
+- **Rejected: exporting the payload marker** (`RecordOf`, first `MapOf`), which let `Val<"X", MapOf<…>>` declare a record outside
+  `Val.Record`
+- **Breaking change.** A payload's `Record<string, V>` becomes a `Val.Record`. valof-lint recognizes its declarations and
+  companions, and its own tables moved to it
+- **Cost.** Val 1.25 → 1.22 kB gzipped (with the draft's delete trap removed, §6.2): the record code is in `Val.Record.companion`'s own builder, so a bundle without it leaves it
+  out. The rules cost core 9,288 → 9,727 instantiations, and the fixture's record another 1,687 (11,414), so the core
+  budget went from 10,000 to 12,000. `index.d.ts` 105.65 → 109.85 kB, budget 108 → 112 kB
+  - **2026-11-18, `fromEntries`.** Val 1.22 → 1.24 kB gzipped: `attach` adds the record's members before it calls the steps.
+    core 11,414 → 11,459, trait 25,699 → 25,970 (budget 26,000), enum 47,790 → 48,040. `index.d.ts` 109.48 → 111.06 kB.
+    The record branch is one conditional in `Supplied` and one in `Companion`. Testing for a record separately in each of
+    `SealMethod`, `PatchMethod` and `FromEntriesMethod` put trait at 26,113, over its budget
+
 ## 3.6 Forbid unions of objects
 
 `patch` merges into the node that already exists. With a different variant, there is nothing to merge into, and the old variant's keys remain.

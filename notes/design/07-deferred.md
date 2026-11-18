@@ -31,6 +31,9 @@ Valof freezes in development because the node sharing in §4.1 **widened the dam
 
 ## 7.2 Map / Set
 
+**Adopted as `Val.Record`, 2026-11-17** (§3 "No index signature"). It is not a JS `Map`. A set is a record of `true`. The value is
+a frozen plain object, so the objections below do not apply. Keys are strings.
+
 `ReadonlyMap` / `ReadonlySet` exist only in the types. At run time the value is a plain Map. `Object.freeze` does not stop its mutation, and a Map does not survive JSON.
 
 Wrapping it in a custom immutable type is rejected too.

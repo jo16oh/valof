@@ -14,7 +14,13 @@ describe("what the rule finds", () => {
     expect(await lint("dead-member")).toEqual([{ rule: UnusedMember, at: "dead-member.ts:4:3" }]);
   });
 
-  test("does not count a name `.impl` rejects as a member", async () => {
+  test("reads a `Val.Record.companion` chain as a companion", async () => {
+    expect(await lint("record-member")).toEqual([
+      { rule: UnusedMember, at: "record-member.ts:4:3" },
+    ]);
+  });
+
+  test("does not count a name `.impl` rejects as a member, and a record's own names only on a record", async () => {
     expect(await messages("reserved-names")).toEqual([
       "Id.equals is never read",
       "Id.update is never read",
@@ -24,6 +30,7 @@ describe("what the rule finds", () => {
       "Id.dispatch is never read",
       "Id.thenable is never read",
       "Id.implTrait is never read",
+      "Id.set is never read",
       "Shape.Circle.match is never read",
       "Shape.Circle.Square is never read",
       "Shape.sides is never read",
@@ -31,6 +38,13 @@ describe("what the rule finds", () => {
       "Named.greet is never read",
       "Named.match is never read",
       "Named.then is never read",
+      "Tags.count is never read",
+      // no-companion-mismatch reports a builder held under another name.
+      "held is the companion for Held, and should be named Held",
+      "Held.size is never read",
+      "Spelled.size is never read",
+      "plain is the companion for Plain, and should be named Plain",
+      "Plain.set is never read",
     ]);
   });
 

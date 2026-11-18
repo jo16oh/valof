@@ -1,5 +1,6 @@
 import { Val } from "../../lib/index.ts";
-import { ImportMap, Exports, type Scan } from "../scan/index.ts";
+import { Names } from "../scan/bindings.ts";
+import { ImportMap, Exports, KeySets, Keys, type Scan } from "../scan/index.ts";
 import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
@@ -35,7 +36,7 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
   for (const scan of scans) {
-    for (const [outside, inside] of Object.entries(scan.exportedAs)) {
+    for (const [outside, inside] of Names.entries(scan.exportedAs)) {
       exportedAs.set(outside, inside);
     }
   }
@@ -67,15 +68,15 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
     keys.add(key);
   };
   for (const scan of scans) {
-    for (const [local, keys] of Object.entries(scan.reads)) {
+    for (const [local, keys] of KeySets.entries(scan.reads)) {
       const name = ImportMap.nameOf(scan.imported, local);
-      for (const key of Object.keys(keys)) {
+      for (const key of Keys.keys(keys)) {
         note(name, key);
       }
     }
     // Already named as the exporting module names them, so this file's aliases do not apply.
-    for (const [name, keys] of Object.entries(scan.namespaceReads)) {
-      for (const key of Object.keys(keys)) {
+    for (const [name, keys] of KeySets.entries(scan.namespaceReads)) {
+      for (const key of Keys.keys(keys)) {
         note(name, key);
       }
     }
@@ -107,8 +108,8 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   // trait when that references none.
   const anywhere = new Set<string>();
   for (const scan of scans) {
-    for (const keys of [...Object.values(scan.reads), ...Object.values(scan.namespaceReads)]) {
-      for (const key of Object.keys(keys)) {
+    for (const keys of [...KeySets.values(scan.reads), ...KeySets.values(scan.namespaceReads)]) {
+      for (const key of Keys.keys(keys)) {
         anywhere.add(key);
       }
     }

@@ -7,7 +7,7 @@ import { expect, test } from "vite-plus/test";
 
 import { LinterWorker, Query } from "../../../eslint-plugin/linter-worker.ts";
 import { FilePath, Project } from "../../../shared/files.ts";
-import { DataTypeSettings } from "../../../shared/options.ts";
+import { DataTypeSettings, Overlay } from "../../../shared/options.ts";
 
 const PATIENCE = 2000;
 
@@ -24,7 +24,7 @@ function say(
   return worker.lint(
     Query.seal({
       project: Project.seal(project.map((path) => FilePath.seal(path))),
-      overlay: { [file]: text },
+      overlay: Overlay.fromEntries([[file, text]]),
       model: DataTypeSettings.create(),
       saved: false,
     }),
@@ -72,7 +72,7 @@ test("keeps the answer for the buffers disk holds while another buffer is edited
     worker.lint(
       Query.seal({
         project: Project.seal([]),
-        overlay: {},
+        overlay: Overlay.fromEntries([]),
         model: DataTypeSettings.create(),
         saved: true,
       }),

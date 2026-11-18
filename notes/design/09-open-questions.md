@@ -16,16 +16,15 @@
     107.02 kB. The trait budget went from 25,000 to 26,000, by the 2026-11-06 rule that a budget goes up when exceeded.
     The fixtures changed to the function form, so the type numbers include that
 
-- [ ] **An unsealed object under a hidden key.** A narrower static type hides a key, and the object it holds is placed where the
-      value holds nothing to merge into, such as an absent optional key, in `seal` or `patch`. No Val's seal receives it. The hole
-      exists on `main` too
+- [x] ~~**An unsealed object under a hidden key.**~~ Closed, 2026-11-17, by the three changes below. A narrower static type hides
+      a key, and the object it holds is placed where the value holds nothing to merge into, such as an absent optional key, in
+      `seal` or `patch`. No Val's seal received it. `Object.assign` on a draft remains (below)
   - **The plan, 2026-11-17 (user).** Three changes close it in types alone, with no runtime schema
     1. **Every key is required** (§3.5). Done. A narrowed variable can no longer hide a key from `seal`
     2. **`patch` takes a recipe that assigns to a draft** (§6.2). Done. A patch argument is partial by nature, so any key can
        hide in it. An assignment is checked key by key, and a draft has no object argument to hide a key in
-    3. **No index signature.** A record's type admits keys it does not list. A built-in map replaces it. Its entries pass one at a
-       time through typed positions. Until then, `{ staff: { u1: undefined } }` leaves an entry holding `undefined`. A patch type
-       marks an index signature optional, which adds `undefined` to its entries
+    3. **No index signature** (§3). Done. A record's type admits keys it does not list. `Val.Record` replaces it,
+       and its entries pass one at a time through typed positions
 
   ```ts
   const full = { name: "s", home: { name: "kyoto", zip: "600" } };
@@ -33,12 +32,34 @@
   Shop.seal(narrow); // home is typed City, and City.seal never ran
   ```
   - TypeScript has no exact types, and the runtime does not know which fields hold a Val
-  - Closing it takes a runtime schema. The companion references the Val each field holds (`Val.companion<Shop>({ home: City })`),
+  - ~~Closing it takes a runtime schema.~~ Not needed (the plan below). The companion references the Val each field holds (`Val.companion<Shop>({ home: City })`),
     and the seal checks that each field holds a value that Val's seal returned. The root mark records only that some seal returned
     a node. The schema puts which Val a field holds into the runtime, which §2.1 keeps in the type alone
 
 - [ ] **valof-lint reports `Object.assign` on a draft.** TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
+  - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report
+    passing it, assigning it, putting it in an array or object, `Object.assign` and `Reflect.set`. A spread stays.
+    `delete` is left out: it takes a cast, and a cast that breaks a value is outside what Valof guarantees (user,
+    2026-11-18). `Unpatchable` keys and the tag sit at the top level alone, so this closes the aliased writes to them. A
+    recipe that branches on the value reads the Val it patches, or passes single fields
+  - A named function passed as the recipe is out of the lint's reach. `PatchFn` is to require its parameter type to be
+    the draft's own, which also rejects `(d: { _tag?: string }) => …`
+
+- [x] ~~**valof-lint reports `Object.entries` passed to `fromEntries`.**~~ Rejected, 2026-11-18. The book warns instead. TypeScript's lib types the entries by the
+      object's implicit index signature, so a narrowed variable hides entries from a record again (§3 "No index signature")
+  - Plan (user, 2026-11-18): without type information, report every `Object.entries` result that reaches a record's
+    `fromEntries`. From a narrowed variable, the entries are typed as its listed values. From an interface or `any`,
+    they are typed `any`. Either way, the entries the type leaves out reach `fromEntries` unchecked. An object literal
+    has no reason to go through `Object.entries`, and a record has its own `entries`
+  - The rule tracks the result syntactically: the direct argument, a method chain on it, a `const` in the same
+    function, `new Map(…)`, and a `fromEntries` destructured from what `impl`, `implTrait` or `implAssoc` passes its
+    function. A value passed through a function's parameter or return, or pushed into an array, is out of its reach.
+    `pipe` is not tracked, since it is this repository's helper and no user writes it (user, 2026-11-18)
+
+- [ ] **A way to hide a record's `fromEntries`.** `PrivateSeal` removes the path that takes a payload directly, and a
+      record's `fromEntries` is that path (§3). No record has needed `create` to generate a key a caller must not pass, so
+      `Val.Record.companion` accepts only `PrivateCreate` until one does (2026-11-18)
 
 - [x] ~~**The hole in a patch passed as a variable (investigated in #125).**~~ Closed, 2026-11-05. Items 1-3 of `hunt-findings.md`. A non-literal
       argument gets no excess property check, and the patch type was an intersection (`{…} & {…}`), so it got no weak type check either
@@ -520,10 +541,11 @@
     every other rule is named after what it reports (user). The CLI flag, the plugin's setting and the key in
     `Options.enable` follow, and `ModelSettings` became `DataTypeSettings`. Rejected: `type-outside-valof`. The
     rule leaves out function types and `Payload<…>` aliases, so "type" claims more than it reports
-- [ ] **The book's Map / Set gets membership wrong for inherited keys.** Found while turning valof-lint's Scan into
+- [x] ~~**The book's Map / Set gets membership wrong for inherited keys.**~~ Closed, 2026-11-18. The book tests membership
+      with `has`, which reads own keys. Valof does not guard the prototype (§15.2, §16). Found while turning valof-lint's Scan into
       Records, 2026-11-07. `docs/src/patterns.md` says "`if (tags[key])` is the membership test", but
       `tags["constructor"]` and `tags["toString"]` are truthy too (probed). The book lacks §8.1's note to check with
-      `Object.hasOwn`. `__proto__` stays an own key through `Object.fromEntries` and `seal`. Not fixed
+      `Object.hasOwn`. `__proto__` stays an own key through `Object.fromEntries` and `seal`. Not fixed in the book's text then
 - [x] ~~**A mistake in `<W extends Rule>` gives no pointer to `Impl`.**~~ Not fixed, 2026-11-07. The release notes
       are enough. A check that gives the pointer adds type cost (user). `Rule` became a trait declaration (#125), so
       `Rule.dyn<W>` prints `TraitDeclaration<…>` in full with TS2344, and all it says is "Property 'kind' is missing"

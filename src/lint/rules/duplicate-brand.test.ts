@@ -21,6 +21,13 @@ test("reports every alias when three claim the same brand", async () => {
   ]);
 });
 
+test("reads a `Val.Record` as a Val claiming its brand", async () => {
+  expect(await lint("record-and-val", { skip: [BrandMismatch] })).toEqual([
+    { rule: DuplicateBrand, at: "record-and-val.ts:2:13" },
+    { rule: DuplicateBrand, at: "record-and-val.ts:3:13" },
+  ]);
+});
+
 test("reports colliding aliases in the same file", async () => {
   expect(await lint("same-file", { skip: [BrandMismatch] })).toEqual([
     {

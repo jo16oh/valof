@@ -11,16 +11,17 @@
 
 ## Val Companion Builder
 
-| Step                     | Description                                                   |
-| ------------------------ | ------------------------------------------------------------- |
-| `Val.companion<V, O?>()` | starts a companion, with the default seal and the options `O` |
-| `.implSeal(f)`           | registers a custom seal                                       |
-| `.implCreate(f)`         | registers a function that creates a payload                   |
-| `.implCreate.noseal(f)`  | the same, bypassing the seal for a payload it always accepts  |
-| `.impl(f)`               | adds the members `f` returns                                  |
-| `.implTrait(Tr, f?)`     | implements a trait the type declares                          |
-| `.implAssoc(f)`          | adds the members `f` returns, which do not take the Val first |
-| `.build()`               | ends the chain, and returns the companion                     |
+| Step                            | Description                                                   |
+| ------------------------------- | ------------------------------------------------------------- |
+| `Val.companion<V, O?>()`        | starts a companion, with the default seal and the options `O` |
+| `Val.Record.companion<R, O?>()` | starts a `Val.Record`'s companion                             |
+| `.implSeal(f)`                  | registers a custom seal                                       |
+| `.implCreate(f)`                | registers a function that creates a payload                   |
+| `.implCreate.noseal(f)`         | the same, bypassing the seal for a payload it always accepts  |
+| `.impl(f)`                      | adds the members `f` returns                                  |
+| `.implTrait(Tr, f?)`            | implements a trait the type declares                          |
+| `.implAssoc(f)`                 | adds the members `f` returns, which do not take the Val first |
+| `.build()`                      | ends the chain, and returns the companion                     |
 
 Write `implSeal` first, then `implCreate`. `impl`, `implTrait` and `implAssoc` come next, in any
 order. `implSeal`, `implCreate` and `impl` are written once, `implTrait` once per trait, and
@@ -54,19 +55,37 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 | `User.[member](first, ...rest)` | runs a member registered with `.impl(f)`, `.implTrait(Tr, f?)` or `.implAssoc(f)`                |
 | `User.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument               |
 
+A `Val.Record`'s builder takes the same steps, and its companion has no `seal` and no `patch`. The
+seal registered with `.implSeal` receives the object the entries fold into, and the function passed
+to `.implCreate` returns entries. `Val.Record.companion` accepts only `PrivateCreate`, in its second
+type argument. The function passed to `impl`, `implTrait` and `implAssoc` receives `fromEntries`,
+and `create` where `implCreate` registered one. `Prices` stands for a `Val.Record`'s companion. It
+has these members:
+
+| API                              | Description                                                       |
+| -------------------------------- | ----------------------------------------------------------------- |
+| `Prices.fromEntries(entries)`    | folds the entries into an object, then passes it to the seal      |
+| `Prices.set(record, key, value)` | returns the record with the value under the key, through the seal |
+| `Prices.delete(record, key)`     | returns the record without the key, through the seal              |
+| `Prices.has(record, key)`        | whether the record holds the key                                  |
+| `Prices.keys(record)`            | the keys, typed `Key`                                             |
+| `Prices.values(record)`          | the values, typed `V`                                             |
+| `Prices.entries(record)`         | the entries, typed `[Key, V]`                                     |
+
 ## Val Types
 
-| Type                  | Description                                                                       |
-| --------------------- | --------------------------------------------------------------------------------- |
-| `Val<K, T>`           | a branded value type                                                              |
-| `SeedOf<V>`           | the payload accepted by seals                                                     |
-| `PayloadOf<V>`        | the payload, with the brand removed at every depth                                |
-| `Payload<T>`          | marks a type as meant for a payload, and checks it against the allowed-type rules |
-| `Patch<T>`            | the recipe `patch` accepts for a payload                                          |
-| `Draft<T>`            | the writable stand-in for the payload that a recipe assigns to                    |
-| `Rec<V>`              | a Val's reference to itself, in its own payload                                   |
-| `CompanionBuilder<V>` | a companion's builder, with the steps it can still take                           |
-| `Companion<V, M>`     | the companion `.build()` returns                                                  |
+| Type                    | Description                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------- |
+| `Val<K, T>`             | a branded value type                                                              |
+| `SeedOf<V>`             | the payload accepted by seals                                                     |
+| `PayloadOf<V>`          | the payload, with the brand removed at every depth                                |
+| `Payload<T>`            | marks a type as meant for a payload, and checks it against the allowed-type rules |
+| `Patch<T>`              | the recipe `patch` accepts for a payload                                          |
+| `Draft<T>`              | the writable stand-in for the payload that a recipe assigns to                    |
+| `Rec<V>`                | a Val's reference to itself, in its own payload                                   |
+| `Val.Record<K, Key, V>` | a Val holding a value `V` under each key `Key`, as a plain object                 |
+| `CompanionBuilder<V>`   | a companion's builder, with the steps it can still take                           |
+| `Companion<V, M>`       | the companion `.build()` returns                                                  |
 
 You never write the builder and companion types, here or for an enum or a trait. They are exported
 so that your own `.d.ts` can reference them when you re-export a companion.

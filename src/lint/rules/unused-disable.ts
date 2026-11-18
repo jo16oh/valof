@@ -44,7 +44,7 @@ function findings(
         ? []
         : [...kinds]
             .filter(
-              (named) => !KindSet.has(notRun, named) && !used.has(`${file}\0${covers}\0${named}`),
+              (named) => !KindSet.holds(notRun, named) && !used.has(`${file}\0${covers}\0${named}`),
             )
             .map((named) =>
               Finding.seal({
