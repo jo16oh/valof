@@ -2,7 +2,7 @@
 // because those are where the recursive conditionals run.
 import { equals, Val, type Patch, type SeedOf, type Unpatchable } from "valof";
 
-type City = Val<"City", { name: string; zip?: string }>;
+type City = Val<"City", { name: string; zip: string | undefined }>;
 const City = Val.companion<City>().build();
 
 type Money = Val<"Money", { amount: number; currency: string }>;
@@ -15,7 +15,7 @@ type Address = Val<
   "Address",
   {
     city: City;
-    street: { name: string; number: number; unit?: { floor: number; door: string } };
+    street: { name: string; number: number; unit: { floor: number; door: string } | undefined };
     at: readonly [number, number];
   }
 >;
@@ -28,7 +28,7 @@ type Order = Val<
     ship: Address;
     lines: readonly Line[];
     totals: Readonly<Record<string, Money>>;
-    note?: string;
+    note: string | undefined;
   }
 >;
 
@@ -36,8 +36,9 @@ const Order = Val.companion<Order, [Unpatchable<"id">]>()
   .implSeal((seed, seal) => seal(seed))
   .implCreate((seed: Omit<SeedOf<Order>, "id">) => ({ ...seed, id: "generated" }))
   .implAssoc(({ seal, create }) => ({
-    fromShip: (id: string, ship: Address) => seal({ id, ship, lines: [], totals: {} }),
-    blank: (ship: Address) => create({ ship, lines: [], totals: {} }),
+    fromShip: (id: string, ship: Address) =>
+      seal({ id, ship, lines: [], totals: {}, note: undefined }),
+    blank: (ship: Address) => create({ ship, lines: [], totals: {}, note: undefined }),
   }))
   .impl(({ seal }) => ({
     label(o) {
@@ -65,8 +66,8 @@ export const derived = [
   Order.blank(order.ship),
   Order.create({
     ship: Address.seal({
-      city: City.seal({ name: "Kyoto" }),
-      street: { name: "Karasuma", number: 1 },
+      city: City.seal({ name: "Kyoto", zip: undefined }),
+      street: { name: "Karasuma", number: 1, unit: undefined },
       at: [35, 135],
     }),
     lines: [
@@ -78,6 +79,7 @@ export const derived = [
       }),
     ],
     totals: {},
+    note: undefined,
   }),
   Val.of<Order>(order),
   Val.unwrap<Order>(order),

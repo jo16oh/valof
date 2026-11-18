@@ -10,6 +10,7 @@ export const UnusedMember = Val.companion<UnusedMember>()
     description: "members registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads",
     // A member nothing reads is dead weight, and the code around it works.
     warns: true,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();

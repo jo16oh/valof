@@ -9,6 +9,7 @@ export const HiddenSharedStateInImpl = Val.companion<HiddenSharedStateInImpl>()
     kind: Kind.seal("hidden-shared-state-in-impl"),
     description: "state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`",
     warns: true,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
   .build();

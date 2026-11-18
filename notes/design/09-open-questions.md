@@ -19,6 +19,13 @@
 - [ ] **An unsealed object under a hidden key.** A narrower static type hides a key, and the object it holds is placed where the
       value holds nothing to merge into, such as an absent optional key, in `seal` or `patch`. No Val's seal receives it. The hole
       exists on `main` too
+  - **The plan, 2026-11-17 (user).** Three changes close it in types alone, with no runtime schema
+    1. **Every key is required** (§3.5). Done. A narrowed variable can no longer hide a key from `seal`
+    2. **`patch` takes a recipe that assigns to a draft.** A patch argument is partial by nature, so any key can hide in it. An
+       assignment is checked key by key, and a draft has no object argument to hide a key in
+    3. **No index signature.** A record's type admits keys it does not list. A built-in map replaces it. Its entries pass one at a
+       time through typed positions. Until then, `{ staff: { u1: undefined } }` leaves an entry holding `undefined`. A patch type
+       marks an index signature optional, which adds `undefined` to its entries
 
   ```ts
   const full = { name: "s", home: { name: "kyoto", zip: "600" } };

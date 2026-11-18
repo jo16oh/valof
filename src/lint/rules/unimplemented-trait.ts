@@ -8,6 +8,7 @@ export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
     kind: Kind.seal("unimplemented-trait"),
     description: "a Trait declared by a Val or an Enum that its companion does not implement",
     warns: false,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();

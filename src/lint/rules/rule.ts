@@ -77,7 +77,7 @@ export type Rule = Trait<
      */
     warns: boolean;
     /** Set on a rule that runs only where `Options.enable` names it. */
-    optIn?: boolean;
+    optIn: boolean;
   },
   {
     /**

@@ -10,6 +10,7 @@ export const InferredValOf = Val.companion<InferredValOf>()
     description: "a `Val.of` that names no type, taking one from its target",
     // The lift itself is sound. What it costs is the name that makes the lift greppable.
     warns: true,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();

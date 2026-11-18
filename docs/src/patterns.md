@@ -125,8 +125,7 @@ Use `true` rather than `null` for a set, so `if (tags[key])` is the membership t
 [`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
 
 In a table of Vals such as `PriceTable`, `patch` replaces each entry it lists with what the function
-given for it returns, and removes an entry set to `undefined`. Call `seal` to rebuild the whole
-table.
+given for it returns. To remove an entry, call `seal` to rebuild the whole table.
 
 ```ts
 import { Val } from "valof";
@@ -140,7 +139,6 @@ declare const table: PriceTable;
 // ---cut---
 PriceTable.patch(table, {
   apple: () => Money.seal({ amount: 120, currency: "JPY" }),
-  fig: undefined,
 });
 
 PriceTable.seal(Object.fromEntries(Object.entries(table).filter(([, m]) => m.amount < 500)));

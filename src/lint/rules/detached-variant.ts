@@ -13,6 +13,7 @@ export const DetachedVariant = Val.companion<DetachedVariant>()
     kind: Kind.seal("detached-variant"),
     description: "a variant bound to a local name without the name of its enum",
     warns: true,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
   .build();

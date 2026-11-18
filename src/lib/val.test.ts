@@ -37,7 +37,7 @@ type Result<T> = Ok<T> | Err;
 // The verdict is a private field, so it is read through the class rather than by a key.
 type VerdictOf<V> = V extends Verdict<infer X> ? X : never;
 
-type User = Val<"app/User", { id: string; name: string; nickname?: string }>;
+type User = Val<"app/User", { id: string; name: string; nickname: string | undefined }>;
 type Age = Val<"Age", number>;
 type ArticleId = Val<"ArticleId", string>;
 type Tags = Val<"Tags", Record<string, true>>;
@@ -55,14 +55,14 @@ const Age = Val.companion<Age>()
 describe("Val", () => {
   describe("of", () => {
     test("returns an equal value, copied", () => {
-      const raw = { id: "a", name: "alice" };
+      const raw = { id: "a", name: "alice", nickname: undefined };
       const user = Val.of<User>(raw);
       expect(user).toEqual(raw);
       expect(user).not.toBe(raw);
     });
 
     test("can adopt an explicitly-owned payload", () => {
-      const raw = { id: "a", name: "alice" } as const;
+      const raw = { id: "a", name: "alice", nickname: undefined } as const;
       const user = Val.of.nocopy<User>(raw);
       expect(user).toBe(raw);
       expect(Object.isFrozen(raw)).toBe(true);
@@ -106,26 +106,17 @@ describe("Val", () => {
       NocopyUser.seal.nocopy({ id: "a", tags: ["one"], nested: { n: 1 } });
     });
 
-    test("accepts readonly optional properties and tuples", () => {
-      type WithOptional = Val<"WithOptional", { name: string; nickname?: string }>;
-      const WithOptional = Val.companion<WithOptional>().build();
-      const optionalSeed: SeedOf<WithOptional> = { name: "a" };
+    test("accepts a readonly field that may be undefined, and readonly tuples", () => {
+      type WithUndefined = Val<"WithUndefined", { name: string; nickname: string | undefined }>;
+      const WithUndefined = Val.companion<WithUndefined>().build();
+      const undefinedSeed: SeedOf<WithUndefined> = { name: "a", nickname: undefined };
 
-      type WithTuple = Val<
-        "WithTuple",
-        { pair: [string, number]; optionalPair: [string, number?] }
-      >;
+      type WithTuple = Val<"WithTuple", { pair: [string, number] }>;
       const WithTuple = Val.companion<WithTuple>().build();
-      const tupleSeed: SeedOf<WithTuple> = {
-        pair: ["a", 1],
-        optionalPair: ["b"],
-      };
-      const mutableTuple: {
-        readonly pair: [string, number];
-        readonly optionalPair: readonly [string, number?];
-      } = { pair: ["a", 1], optionalPair: ["b"] };
+      const tupleSeed: SeedOf<WithTuple> = { pair: ["a", 1] };
+      const mutableTuple: { readonly pair: [string, number] } = { pair: ["a", 1] };
 
-      WithOptional.seal.nocopy(optionalSeed);
+      WithUndefined.seal.nocopy(undefinedSeed);
       WithTuple.seal.nocopy(tupleSeed);
       // @ts-expect-error mutable tuples are not ownership evidence
       WithTuple.seal.nocopy(mutableTuple);
@@ -286,9 +277,39 @@ describe("Val", () => {
       expect(t["c"]).toBeUndefined();
     });
 
-    test("optional keys are allowed", () => {
-      type Allowed = Val<"Allowed", { nickname?: string }>;
+    test("a key typed `T | undefined` is allowed, and keeps `undefined` in the value", () => {
+      type Allowed = Val<
+        "Allowed",
+        { nickname: string | undefined; at: { x: number } | undefined }
+      >;
       expectTypeOf<Allowed>().toExtend<AnyVal>();
+      expectTypeOf<Allowed["nickname"]>().toEqualTypeOf<string | undefined>();
+
+      const Allowed = Val.companion<Allowed>().build();
+      const allowed = Allowed.seal({ nickname: undefined, at: undefined });
+      expect(Object.keys(allowed)).toEqual(["nickname", "at"]);
+      // @ts-expect-error every key is required, `undefined` or not
+      Allowed.seal({ at: undefined });
+    });
+
+    test("a record keyed by a pattern or a branded string is not read as optional", () => {
+      type Pattern = Val<"Pattern", { tags: Record<`t${string}`, number> }>;
+      type Branded = Val<"Branded", { by: Record<ArticleId, number> }>;
+      expectTypeOf<Pattern>().toExtend<AnyVal>();
+      expectTypeOf<Branded>().toExtend<AnyVal>();
+    });
+
+    // A variable typed without the key could hide any value there, and the seal would take it.
+    test("an optional key is rejected, and the error names the fix", () => {
+      // @ts-expect-error a key cannot be optional
+      type Bad = Val<"Bad", { name: string; nickname?: string }>;
+      expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{
+        name: string;
+        nickname?: Invalid<"a key cannot be optional; write `k: T | undefined`">;
+      }>();
+      // @ts-expect-error a key cannot be optional, at any depth
+      type Deep = Val<"Deep", { at: { label?: string } }>;
+      expectTypeOf<Deep>().not.toExtend<AnyVal>();
     });
 
     // `{}` takes every value but `null` and `undefined`.
@@ -403,11 +424,14 @@ describe("Val", () => {
       Pair.seal({ at: [1, Point.seal("a")] });
     });
 
-    test("an optional element is allowed; a rest element falls back to an array", () => {
+    test("an optional element is rejected for a union of tuples; a rest element falls back to an array", () => {
+      // @ts-expect-error a tuple element cannot be optional
       type Opt = Val<"Opt", { at: [string, number?] }>;
-      expectTypeOf<Opt>().toExtend<AnyVal>();
-      expectTypeOf<SeedOf<Opt>["at"][0]>().toEqualTypeOf<string>();
-      expectTypeOf<SeedOf<Opt>["at"][1]>().toEqualTypeOf<number | undefined>();
+      expectTypeOf<VerdictOf<Opt>>().toEqualTypeOf<{
+        at: [string, Invalid<"a tuple element cannot be optional; declare a union of tuples">?];
+      }>();
+      type Either = Val<"Either", { at: readonly [string] | readonly [string, number] }>;
+      expectTypeOf<Either>().toExtend<AnyVal>();
 
       // A rest element makes `length` plain `number`, which is what tells a tuple from an array,
       // so this one is read as an array. Positions are lost, nothing is unsound.
@@ -486,17 +510,18 @@ describe("Val", () => {
       // @ts-expect-error a tuple element cannot be undefined
       type BadUndefined = Val<"Bad", { at: [string | undefined, number] }>;
       expectTypeOf<Element<BadUndefined>>().toEqualTypeOf<
-        Invalid<"a tuple element cannot be undefined; use null or make it optional">
+        Invalid<"a tuple element cannot be undefined; use null">
       >();
       expectTypeOf<BadUndefined>().not.toExtend<AnyVal>();
     });
 
-    test("undefined as a required key's value is rejected", () => {
-      // @ts-expect-error required property cannot be undefined
-      type Bad = Val<"Bad", { nickname: string | undefined }>;
-      expectTypeOf<Bad>().not.toExtend<AnyVal>();
-      // @ts-expect-error required property cannot be undefined
-      Val.companion<Bad>().build();
+    test("undefined in an array, or as the whole payload, is rejected", () => {
+      // @ts-expect-error an array element cannot be undefined
+      type InArray = Val<"InArray", { tags: (string | undefined)[] }>;
+      // @ts-expect-error a payload cannot be undefined
+      type Root = Val<"Root", string | undefined>;
+      expectTypeOf<InArray>().not.toExtend<AnyVal>();
+      expectTypeOf<Root>().not.toExtend<AnyVal>();
     });
 
     test("bigint is rejected, alone or in a union", () => {
@@ -749,7 +774,7 @@ describe("Val", () => {
       // @ts-expect-error only null can share a field with a Val
       type Shape = Trait<"UnionShape", { m: Mode | "none" }>;
       // @ts-expect-error only null can share a field with a Val
-      type Wallet = Val<"UnionWallet", { money?: Dollar | Yen; m: Money | null }>;
+      type Wallet = Val<"UnionWallet", { money: Dollar | Yen | undefined; m: Money | null }>;
       expectTypeOf<VerdictOf<Variants>>().toEqualTypeOf<
         true | { m: Invalid<"only null can share a field with a Val; declare an Enum">; _tag: "A" }
       >();
@@ -771,7 +796,7 @@ describe("Val", () => {
         };
       }>();
       expectTypeOf<VerdictOf<Wallet>>().toEqualTypeOf<{
-        money?: Invalid<"only null can share a field with a Val; declare an Enum">;
+        money: Invalid<"only null can share a field with a Val; declare an Enum"> | undefined;
         m: Money | null;
       }>();
     });
@@ -858,7 +883,7 @@ describe("Val", () => {
       // @ts-expect-error even where one object holds every key of the other
       type Widened = Val<"Widened", { a: number } | { a: number; b: string }>;
       // @ts-expect-error even where each object is assignable to the other
-      type Optional = Val<"Optional", { s: { a: number } | { a: number; b?: string } }>;
+      type Optional = Val<"Optional", { s: { a: number } | { a: number; b: string | undefined } }>;
       expectTypeOf<Widened | Optional>().not.toExtend<AnyVal>();
     });
 
@@ -881,8 +906,8 @@ describe("Val", () => {
       expectTypeOf<Never | Clash | Both>().not.toBeNever();
       expectTypeOf<VerdictOf<Deep>>().toEqualTypeOf<{ m: Invalid<"no value fits `b`"> }>();
 
-      // An optional key typed `never` is only ever absent, and an empty record never has an entry.
-      type Absent = Val<"Absent", { a?: never; rows: Record<string, never> }>;
+      // An empty record never has an entry.
+      type Absent = Val<"Absent", { rows: Record<string, never> }>;
       expectTypeOf<Absent>().toExtend<AnyVal>();
     });
 
@@ -929,14 +954,13 @@ describe("Val", () => {
       type Fields = {
         tags: string[];
         frozen: readonly number[];
-        nickname?: string;
-        alias?: string | undefined;
+        nickname: string | undefined;
       };
       expectTypeOf<Payload<Fields>>().toEqualTypeOf<Fields>();
 
       interface Profile {
         name: string;
-        age?: number;
+        age: number | undefined;
       }
       expectTypeOf<Payload<Profile>>().toEqualTypeOf<Profile>();
       expectTypeOf<Payload<Record<string, number>>>().toEqualTypeOf<Record<string, number>>();
@@ -945,8 +969,8 @@ describe("Val", () => {
     test("a payload that breaks a rule is reported at the type argument", () => {
       // @ts-expect-error functions are not allowed, at any depth
       expectTypeOf<Payload<{ a: { b: { run: () => void } } }>>();
-      // @ts-expect-error a required property cannot be undefined
-      expectTypeOf<Payload<{ alias: string | undefined }>>();
+      // @ts-expect-error a key cannot be optional
+      expectTypeOf<Payload<{ alias?: string }>>();
       // @ts-expect-error an array root is checked too
       expectTypeOf<Payload<(() => void)[]>>();
     });
@@ -1010,7 +1034,7 @@ describe("Val", () => {
     });
 
     test("object spread drops the brand until the payload is sealed again", () => {
-      const user = User.seal({ id: "a", name: "bob" });
+      const user = User.seal({ id: "a", name: "bob", nickname: undefined });
       const changed = { ...user, name: "sue" };
 
       expectTypeOf(changed).not.toExtend<User>();
@@ -1040,6 +1064,11 @@ describe("Val", () => {
     test("BrandOf / PayloadOf", () => {
       expectTypeOf<BrandOf<User>>().toEqualTypeOf<"app/User">();
       expectTypeOf<PayloadOf<ArticleId>>().toEqualTypeOf<string>();
+      expectTypeOf<PayloadOf<User>>().toEqualTypeOf<{
+        id: string;
+        name: string;
+        nickname: string | undefined;
+      }>();
       expectTypeOf<keyof User>().toEqualTypeOf<"id" | "name" | "nickname">();
     });
 
@@ -1059,11 +1088,11 @@ describe("Val", () => {
     });
 
     test("does not exist at runtime", () => {
-      const user = User.seal({ id: "a", name: "bob" });
-      expect(Object.keys(user)).toEqual(["id", "name"]);
-      expect(Reflect.ownKeys(user)).toEqual(["id", "name"]);
-      expect(JSON.parse(JSON.stringify(user))).toEqual({ id: "a", name: "bob" });
-      expect(structuredClone(user)).toEqual({ id: "a", name: "bob" });
+      const user = User.seal({ id: "a", name: "bob", nickname: "b" });
+      expect(Object.keys(user)).toEqual(["id", "name", "nickname"]);
+      expect(Reflect.ownKeys(user)).toEqual(["id", "name", "nickname"]);
+      expect(JSON.parse(JSON.stringify(user))).toEqual({ id: "a", name: "bob", nickname: "b" });
+      expect(structuredClone(user)).toEqual({ id: "a", name: "bob", nickname: "b" });
     });
   });
 
@@ -1073,7 +1102,7 @@ describe("Val", () => {
     type Tree = Val<"app/Tree", { value: number; children: Rec<Tree>[] }>;
     const Tree = Val.companion<Tree>().build();
 
-    type Node = Val<"app/Node", { value: number; next?: Rec<Node> }>;
+    type Node = Val<"app/Node", { value: number; next: Rec<Node> | undefined }>;
     const Node = Val.companion<Node>().build();
 
     test("a type can name itself through Rec", () => {
@@ -1099,10 +1128,10 @@ describe("Val", () => {
       }>();
       expectTypeOf<SeedOf<Node>>().toEqualTypeOf<{
         readonly value: number;
-        readonly next?: Node;
+        readonly next: Node | undefined;
       }>();
 
-      const node = Node.seal({ value: 1, next: Node.seal({ value: 2 }) });
+      const node = Node.seal({ value: 1, next: Node.seal({ value: 2, next: undefined }) });
       expect(Object.keys(node)).toEqual(["value", "next"]);
     });
 
@@ -1139,18 +1168,21 @@ describe("Val", () => {
       >();
       expect(Dir.seal({ name: "root", entries: { a: leaf } }).entries["a"]).toBe(leaf);
 
-      type Cell = Val<"app/Cell", { value: number; prev?: { at: Rec<Cell> } }>;
+      type Cell = Val<"app/Cell", { value: number; prev: { at: Rec<Cell> } | undefined }>;
       const Cell = Val.companion<Cell>().build();
-      const head = Cell.seal({ value: 1 });
+      const head = Cell.seal({ value: 1, prev: undefined });
       expectTypeOf(Cell.seal({ value: 2, prev: { at: head } }).prev).toEqualTypeOf<
         { readonly at: Cell } | undefined
       >();
     });
 
     test("a payload key named after an array member still opens its Rec", () => {
-      type Index = Val<"app/Index", { entries: Record<string, Rec<Index>>; name?: string }>;
+      type Index = Val<
+        "app/Index",
+        { entries: Record<string, Rec<Index>>; name: string | undefined }
+      >;
       const Index = Val.companion<Index>().build();
-      const leaf = Index.seal({ entries: {} });
+      const leaf = Index.seal({ entries: {}, name: undefined });
 
       expect(Index.seal({ entries: { a: leaf }, name: "root" }).entries["a"]).toBe(leaf);
     });
@@ -1170,24 +1202,28 @@ describe("Val", () => {
 
     test("a trait a recursive type declares is checked as any other", () => {
       type Sized = Trait<"app/Sized", { value: number }, { size: (self: Self) => number }>;
-      type Counted = Val<"app/Counted", { value: number; next?: Rec<Counted> }, Sized>;
+      type Counted = Val<"app/Counted", { value: number; next: Rec<Counted> | undefined }, Sized>;
       const Sized = Trait.companion<Sized>().build();
       const Counted = Val.companion<Counted>()
         .implTrait(Sized, () => ({ size: (c) => c.value }))
         .build();
 
       expectTypeOf<Counted>().toExtend<AnyVal>();
-      expect(Counted.size(Counted.seal({ value: 2 }))).toBe(2);
+      expect(Counted.size(Counted.seal({ value: 2, next: undefined }))).toBe(2);
 
-      type Linked = Val<"app/Linked", { other: string; next?: Rec<Linked> }, Sized>;
+      type Linked = Val<"app/Linked", { other: string; next: Rec<Linked> | undefined }, Sized>;
       expectTypeOf<SeedOf<Linked>>().toEqualTypeOf<{
         readonly other: string;
-        readonly next?: Linked;
+        readonly next: Linked | undefined;
         readonly value: number;
       }>();
 
-      // @ts-expect-error the payload and the trait declare `value` with conflicting types
-      type Clashing = Val<"app/Clashing", { value: string; next?: Rec<Clashing> }, Sized>;
+      type Clashing = Val<
+        "app/Clashing",
+        { value: string; next: Rec<Clashing> | undefined },
+        // @ts-expect-error the payload and the trait declare `value` with conflicting types
+        Sized
+      >;
       expectTypeOf<Clashing>().not.toExtend<AnyVal>();
     });
 
@@ -1217,7 +1253,7 @@ describe("Val", () => {
 
     test("a payload the rules reject is still rejected inside a recursive type", () => {
       // @ts-expect-error functions are not allowed
-      type Bad = Val<"app/Bad", { run: () => void; next?: Rec<Bad> }>;
+      type Bad = Val<"app/Bad", { run: () => void; next: Rec<Bad> | undefined }>;
       expectTypeOf<Bad>().not.toExtend<AnyVal>();
     });
   });
@@ -1259,7 +1295,7 @@ describe("Val", () => {
     });
 
     test("a mutable copy is not frozen", () => {
-      const raw = Val.unwrap(User.seal({ id: "a", name: "bob" }));
+      const raw = Val.unwrap(User.seal({ id: "a", name: "bob", nickname: undefined }));
       expect(Object.isFrozen(raw)).toBe(false);
       raw.name = "sue";
       expect(raw.name).toBe("sue");
@@ -1284,7 +1320,7 @@ describe("copying", () => {
     const Order = Val.companion<Order>().build();
 
     test("mutating the argument afterwards does not reach the value", () => {
-      const raw = { id: "a", name: "alice" };
+      const raw = { id: "a", name: "alice", nickname: undefined };
       const user = User.seal(raw);
       raw.name = "mallory";
       expect(user.name).toBe("alice");
@@ -1467,15 +1503,12 @@ describe("copying", () => {
       expect(Order.patch(before, {})).toBe(before);
     });
 
-    test("removing a key the value does not have is not a change", () => {
-      const user = User.seal({ id: "a", name: "bob" });
+    test("`undefined` sets the field and keeps its key, and is no change where it is already set", () => {
+      const user = User.seal({ id: "a", name: "bob", nickname: undefined });
       expect(User.patch(user, { nickname: undefined })).toBe(user);
       expect(
         User.patch(User.seal({ id: "a", name: "bob", nickname: "b" }), { nickname: undefined }),
-      ).toEqual({
-        id: "a",
-        name: "bob",
-      });
+      ).toStrictEqual({ id: "a", name: "bob", nickname: undefined });
     });
 
     test("a freshly built child counts as a change", () => {
@@ -1521,30 +1554,30 @@ describe("equals", () => {
 
     expect(equals(ArticleId.seal("a"), ArticleId.seal("a"))).toBe(true);
     expect(equals(ArticleId.seal("a"), ArticleId.seal("b"))).toBe(false);
-    expect(equals(User.seal({ id: "a", name: "bob" }), User.seal({ id: "a", name: "bob" }))).toBe(
-      true,
-    );
-    expect(equals(User.seal({ id: "a", name: "bob" }), User.seal({ id: "a", name: "sue" }))).toBe(
-      false,
-    );
+    expect(
+      equals(
+        User.seal({ id: "a", name: "bob", nickname: undefined }),
+        User.seal({ id: "a", name: "bob", nickname: undefined }),
+      ),
+    ).toBe(true);
+    expect(
+      equals(
+        User.seal({ id: "a", name: "bob", nickname: undefined }),
+        User.seal({ id: "a", name: "sue", nickname: undefined }),
+      ),
+    ).toBe(false);
     expect(equals(Numbers.seal([1, 2]), Numbers.seal([1, 2]))).toBe(true);
     expect(equals(Numbers.seal([1, 2]), Numbers.seal([2, 1]))).toBe(false);
     expect(equals(Numbers.seal([1, 2]), Numbers.seal([1, 2, 3]))).toBe(false);
   });
 
-  test("is independent of key order and ignores undefined-valued keys", () => {
-    type Fields = Val<"Fields", { a?: number; b?: number }>;
+  test("is independent of key order, and reads a key holding `undefined` as absent", () => {
+    type Fields = Val<"Fields", { a: number | undefined; b: number | undefined }>;
     const Fields = Val.companion<Fields>().build();
     expect(equals(Fields.seal({ a: 1, b: 2 }), Fields.seal({ b: 2, a: 1 }))).toBe(true);
-    expect(
-      equals(Fields.seal({ a: undefined } as unknown as SeedOf<Fields>), Fields.seal({})),
-    ).toBe(true);
-    expect(
-      equals(
-        Fields.seal({ a: 1, b: undefined } as unknown as SeedOf<Fields>),
-        Fields.seal({ a: 1 }),
-      ),
-    ).toBe(true);
+    // A JSON round trip drops a key holding `undefined`.
+    const sent = Fields.seal({ a: 1, b: undefined });
+    expect(equals(sent, Fields.seal(JSON.parse(JSON.stringify(sent))))).toBe(true);
   });
 
   test("tells an own `__proto__` key from a different key", () => {
@@ -1563,18 +1596,24 @@ describe("equals", () => {
   test("compares nested Vals structurally", () => {
     type Order = Val<"Order", { owner: User; lines: number[] }>;
     const Order = Val.companion<Order>().build();
-    const a = Order.seal({ owner: User.seal({ id: "a", name: "bob" }), lines: [1, 2] });
-    const b = Order.seal({ owner: User.seal({ id: "a", name: "bob" }), lines: [1, 2] });
+    const a = Order.seal({
+      owner: User.seal({ id: "a", name: "bob", nickname: undefined }),
+      lines: [1, 2],
+    });
+    const b = Order.seal({
+      owner: User.seal({ id: "a", name: "bob", nickname: undefined }),
+      lines: [1, 2],
+    });
     expect(equals(a, b)).toBe(true);
   });
 
   test("infers the Val type from the first argument", () => {
     type Account = Val<"Account", { id: string }>;
     const Account = Val.companion<Account>().build();
-    const user = User.seal({ id: "a", name: "bob" });
+    const user = User.seal({ id: "a", name: "bob", nickname: undefined });
     const account = Account.seal({ id: "a" });
 
-    expect(equals(user, User.seal({ id: "a", name: "bob" }))).toBe(true);
+    expect(equals(user, User.seal({ id: "a", name: "bob", nickname: undefined }))).toBe(true);
     const compare: (a: User, b: User) => boolean = equals;
     expect(compare(user, user)).toBe(true);
     // @ts-expect-error the brand differs even when the payload structure is compatible
@@ -1613,15 +1652,8 @@ describe("patch", () => {
     });
   });
 
-  test("undefined deletes the key", () => {
-    const u = User.seal({ id: "a", name: "bob", nickname: "bo" });
-    const next = User.patch(u, { nickname: undefined });
-    expect(Object.hasOwn(next, "nickname")).toBe(false);
-    expect(next).toEqual({ id: "a", name: "bob" });
-  });
-
   test("does not mutate the original value", () => {
-    const u = User.seal({ id: "a", name: "bob" });
+    const u = User.seal({ id: "a", name: "bob", nickname: undefined });
     User.patch(u, { name: "sue" });
     expect(u.name).toBe("bob");
   });
@@ -1650,7 +1682,7 @@ describe("patch", () => {
   });
 
   test("returns the Val itself when the seal is the default", () => {
-    const u = User.seal({ id: "a", name: "bob" });
+    const u = User.seal({ id: "a", name: "bob", nickname: undefined });
     expectTypeOf(User.patch(u, { name: "x" })).toEqualTypeOf<User>();
   });
 
@@ -1686,23 +1718,22 @@ describe("patch", () => {
     expect(out).toEqual({ tagged: { n: 2 } });
   });
 
-  test("undefined on a required key is a type error", () => {
-    const u = User.seal({ id: "a", name: "bob" });
-    // @ts-expect-error a required key cannot be deleted
+  test("undefined on a field that cannot hold it is a type error", () => {
+    const u = User.seal({ id: "a", name: "bob", nickname: undefined });
+    // @ts-expect-error `name` is not typed `string | undefined`
     User.patch(u, { name: undefined });
-    // optional keys can be deleted
     User.patch(u, { nickname: undefined });
   });
 
   describe("nested", () => {
-    type City = Val<"City", { name: string; zip?: string }>;
+    type City = Val<"City", { name: string; zip: string | undefined }>;
     const City = Val.companion<City>().build();
 
     type Shop = Val<
       "Shop",
       {
         id: string;
-        owner: { name: string; contact: { email: string; phone?: string } };
+        owner: { name: string; contact: { email: string; phone: string | undefined } };
         city: City;
         tags: string[];
         staff: Record<string, { role: string }>;
@@ -1746,14 +1777,13 @@ describe("patch", () => {
       });
     });
 
-    test("undefined deletes at depth too", () => {
+    test("undefined sets a field at depth too", () => {
       const next = Shop.patch(shop(), { owner: { contact: { phone: undefined } } });
-      expect(Object.hasOwn(next.owner.contact, "phone")).toBe(false);
-      expect(next.owner.contact.email).toBe("b@example.com");
+      expect(next.owner.contact).toStrictEqual({ email: "b@example.com", phone: undefined });
     });
 
-    test("undefined on a required key is a type error at depth too", () => {
-      // @ts-expect-error a required key cannot be deleted, however deep it sits
+    test("undefined on a field that cannot hold it is a type error at depth too", () => {
+      // @ts-expect-error `email` is not typed `string | undefined`, however deep it sits
       Shop.patch(shop(), { owner: { contact: { email: undefined } } });
     });
 
@@ -1787,10 +1817,12 @@ describe("patch", () => {
       expect(() => Shop.patch(shop(), { city: { name: "Osaka" } })).toThrow(
         /cannot merge into the Val at "city"/,
       );
-      // @ts-expect-error nor a Val as it is, which merges too
-      expect(() => Shop.patch(shop(), { city: City.seal({ name: "Osaka" }) })).toThrow(TypeError);
+      expect(() =>
+        // @ts-expect-error nor a Val as it is, which merges too
+        Shop.patch(shop(), { city: City.seal({ name: "Osaka", zip: undefined }) }),
+      ).toThrow(TypeError);
       // The same holds where the Val may be absent or null.
-      type Stall = Val<"Stall", { city?: City; home: City | null }>;
+      type Stall = Val<"Stall", { city: City | undefined; home: City | null }>;
       expectTypeOf<NonNullable<Patch<SeedOf<Stall>>["city"]>>().toEqualTypeOf<
         Invalid<"a Val is replaced, never merged: write `() => value`"> | Replacer<City | undefined>
       >();
@@ -1799,8 +1831,10 @@ describe("patch", () => {
       >();
 
       const before = shop();
-      const after = Shop.patch(before, { city: () => City.seal({ name: "Osaka" }) });
-      expect(Object.hasOwn(after.city, "zip")).toBe(false);
+      const after = Shop.patch(before, {
+        city: () => City.seal({ name: "Osaka", zip: undefined }),
+      });
+      expect(after.city).toStrictEqual({ name: "Osaka", zip: undefined });
       expect(after.city).not.toBe(before.city);
     });
 
@@ -1879,14 +1913,14 @@ describe("patch", () => {
     test("a subtree taken from another value merges, and takes a function to replace", () => {
       const other = Shop.seal({
         id: "o",
-        owner: { name: "sue", contact: { email: "s@example.com" } },
-        city: City.seal({ name: "Nara" }),
+        owner: { name: "sue", contact: { email: "s@example.com", phone: undefined } },
+        city: City.seal({ name: "Nara", zip: undefined }),
         tags: [],
         staff: {},
       });
-      expect(Shop.patch(shop(), { owner: other.owner }).owner).toEqual({
+      expect(Shop.patch(shop(), { owner: other.owner }).owner).toStrictEqual({
         name: "sue",
-        contact: { email: "s@example.com", phone: "1" },
+        contact: { email: "s@example.com", phone: undefined },
       });
       expect(Shop.patch(shop(), { owner: () => other.owner }).owner).toBe(other.owner);
     });
@@ -1905,22 +1939,27 @@ describe("patch", () => {
       expect(Shop.patch(before, { city: (c) => c, owner: (o) => o })).toBe(before);
     });
 
-    test("a record of values replaces one entry and deletes another", () => {
-      const next = Shop.patch(shop(), { staff: { u1: () => ({ role: "chef" }), u2: undefined } });
-      expect(next.staff).toEqual({ u1: { role: "chef" } });
-      expect(Object.hasOwn(next.staff, "u2")).toBe(false);
+    test("a record of values replaces one entry and leaves the rest", () => {
+      const next = Shop.patch(shop(), { staff: { u1: () => ({ role: "chef" }) } });
+      expect(next.staff).toEqual({ u1: { role: "chef" }, u2: { role: "waiter" } });
     });
 
-    test("an optional key and a record entry take an object through a function only", () => {
-      type Place = Val<"Place", { name: string; at?: { x: number; y: number } }>;
+    // The entry's type lacks `undefined`, and a key holding it would still be listed.
+    test("a function cannot set a record entry to undefined", () => {
+      // @ts-expect-error an entry holds a `{ role }`
+      Shop.patch(shop(), { staff: { u3: () => undefined } });
+    });
+
+    test("a field that may be undefined, and a record entry, take an object through a function only", () => {
+      type Place = Val<"Place", { name: string; at: { x: number; y: number } | undefined }>;
       const Place = Val.companion<Place>().build();
-      const place = Place.seal({ name: "p" });
+      const place = Place.seal({ name: "p", at: undefined });
 
       expectTypeOf<NonNullable<Patch<SeedOf<Place>>["at"]>>().toEqualTypeOf<
         | Invalid<"the field may be absent, so an object replaces it: write `() => value`">
         | Replacer<({ readonly x: number; readonly y: number } & NotVal) | undefined>
       >();
-      // @ts-expect-error `at` may be absent, and a merge into nothing would drop `y`
+      // @ts-expect-error `at` may be undefined, and a merge into nothing would drop `y`
       Place.patch(place, { at: { x: 1, y: 2 } });
       // @ts-expect-error an entry the record does not hold yet is the same case
       Shop.patch(shop(), { staff: { u3: { role: "host" } } });
@@ -1931,30 +1970,39 @@ describe("patch", () => {
       });
     });
 
-    test("an optional key's function receives undefined where the key is absent", () => {
-      type Place = Val<"Place", { name: string; at?: { x: number; y: number; label?: string } }>;
+    test("a function receives the field's current value, undefined included", () => {
+      type Place = Val<
+        "Place",
+        { name: string; at: { x: number; y: number; label: string | undefined } | undefined }
+      >;
       const Place = Val.companion<Place>().build();
       const seen: unknown[] = [];
       const moved = (at: Place["at"]) => {
         seen.push(at);
-        return { x: (at?.x ?? 0) + 1, y: 0 };
+        return { x: (at?.x ?? 0) + 1, y: 0, label: undefined };
       };
 
-      const placed = Place.patch(Place.seal({ name: "p" }), { at: moved });
+      const placed = Place.patch(Place.seal({ name: "p", at: undefined }), { at: moved });
       const labelled = Place.patch(placed, { at: () => ({ x: 1, y: 0, label: "l" }) });
-      // The replacement holds no `label`, so the field drops it, which a merge could not do.
-      expect(Place.patch(labelled, { at: moved }).at).toEqual({ x: 2, y: 0 });
+      expect(Place.patch(labelled, { at: moved }).at).toStrictEqual({
+        x: 2,
+        y: 0,
+        label: undefined,
+      });
       expect(seen).toEqual([undefined, { x: 1, y: 0, label: "l" }]);
-      // @ts-expect-error `at` may be absent
+      // @ts-expect-error `at` may be undefined
       Place.patch(placed, { at: (at) => ({ x: at.x, y: 0 }) });
       // @ts-expect-error so may a record entry
       Shop.patch(shop(), { staff: { u1: (entry) => ({ role: entry.role }) } });
     });
 
-    test("an optional key's function deletes the key by returning undefined", () => {
+    test("a function returning undefined sets the field to undefined", () => {
       const nicked = User.seal({ id: "a", name: "bob", nickname: "bo" });
-      const next = User.patch(nicked, { nickname: () => undefined });
-      expect(Object.hasOwn(next, "nickname")).toBe(false);
+      expect(User.patch(nicked, { nickname: () => undefined })).toStrictEqual({
+        id: "a",
+        name: "bob",
+        nickname: undefined,
+      });
     });
 
     test("a nested object merges, so a function is how to shrink one", () => {
@@ -2011,7 +2059,7 @@ describe("data-first and data-last", () => {
       noted: (u, nickname: string | undefined): User => Named.patch(u, { nickname }),
     }))
     .build();
-  const bob = Named.seal({ id: "a", name: "bob" });
+  const bob = Named.seal({ id: "a", name: "bob", nickname: undefined });
   const sue = { id: "a", name: "sue" };
 
   test("a member takes the value first, or last", () => {
@@ -2046,9 +2094,9 @@ describe("data-first and data-last", () => {
 
   test("`undefined` counts as an argument", () => {
     const nicked = Named.patch(bob, { nickname: "b" });
-    expect([Named.noted(nicked, undefined), Named.noted(undefined)(nicked)]).toEqual([
-      { id: "a", name: "bob" },
-      { id: "a", name: "bob" },
+    expect([Named.noted(nicked, undefined), Named.noted(undefined)(nicked)]).toStrictEqual([
+      { id: "a", name: "bob", nickname: undefined },
+      { id: "a", name: "bob", nickname: undefined },
     ]);
   });
 
@@ -2153,7 +2201,7 @@ describe("building", () => {
   describe("build", () => {
     test("closes the chain: the companion has no step left", () => {
       const Built = Val.companion<User>()
-        .implCreate((name: string) => ({ id: "a", name }))
+        .implCreate((name: string) => ({ id: "a", name, nickname: undefined }))
         .impl(() => ({ greet: (u) => u.name }))
         .build();
       for (const step of [
@@ -2172,7 +2220,7 @@ describe("building", () => {
 
     test("a builder holds the steps alone", () => {
       const builder = Val.companion<User>()
-        .implCreate((name: string) => ({ id: "a", name }))
+        .implCreate((name: string) => ({ id: "a", name, nickname: undefined }))
         .impl(() => ({ greet: (u) => u.name }));
       expectTypeOf(builder).not.toHaveProperty("greet");
       for (const name of ["seal", "create", "patch", "greet", Traits])
@@ -2180,7 +2228,11 @@ describe("building", () => {
     });
 
     test("a builder used as the companion says to call `.build()`", () => {
-      const builder = Val.companion<User>().implCreate((name: string) => ({ id: "a", name }));
+      const builder = Val.companion<User>().implCreate((name: string) => ({
+        id: "a",
+        name,
+        nickname: undefined,
+      }));
       expectTypeOf(builder.seal).toEqualTypeOf<CallBuildFirst>();
       expectTypeOf(builder.create).toEqualTypeOf<CallBuildFirst>();
       expectTypeOf(builder.patch).toEqualTypeOf<CallBuildFirst>();
@@ -2244,7 +2296,9 @@ describe("building", () => {
           },
         }))
         .build();
-      expect(Greeter.greet(Greeter.seal({ id: "a", name: "bob" }))).toBe("BOB");
+      expect(Greeter.greet(Greeter.seal({ id: "a", name: "bob", nickname: undefined }))).toBe(
+        "BOB",
+      );
     });
 
     test("a member that is not a function attaches as it is", () => {
@@ -2260,8 +2314,8 @@ describe("building", () => {
           equals: (a, b: User) => a.id === b.id,
         }))
         .build();
-      const a = SameId.seal({ id: "a", name: "bob" });
-      const b = SameId.seal({ id: "a", name: "sue" });
+      const a = SameId.seal({ id: "a", name: "bob", nickname: undefined });
+      const b = SameId.seal({ id: "a", name: "sue", nickname: undefined });
 
       expect(SameId.equals(a, b)).toBe(true);
       expect(equals(a, b)).toBe(false);
@@ -2303,7 +2357,7 @@ describe("building", () => {
           shouted: (u): User => Loud.renamed(u, u.name.toUpperCase()),
         }))
         .build();
-      const bob = Loud.seal({ id: "a", name: "bob" });
+      const bob = Loud.seal({ id: "a", name: "bob", nickname: undefined });
 
       expect([Loud.renamed(bob, "sue"), Loud.shouted(bob)]).toEqual([
         { id: "a", name: "sue" },
@@ -2345,7 +2399,7 @@ describe("building", () => {
           },
         }))
         .build();
-      const u = Held.seal({ id: "a", name: "alice" });
+      const u = Held.seal({ id: "a", name: "alice", nickname: undefined });
       expectTypeOf(Held.method(u)[0]).toEqualTypeOf<undefined>();
       expectTypeOf(Held.expression(u)[0]).toEqualTypeOf<undefined>();
       expect([Held.method(u)[0], Held.expression(u)[0]]).toEqual([undefined, undefined]);
@@ -2354,14 +2408,14 @@ describe("building", () => {
     test("the function receives `seal`, `create` and `patch`, so a member reaching them needs no annotation", () => {
       const Named = Val.companion<User>()
         .implSeal((u, seal) => (u.name ? seal(u) : new RangeError("name must not be empty")))
-        .implCreate((name: string) => ({ id: "n1", name }))
+        .implCreate((name: string) => ({ id: "n1", name, nickname: undefined }))
         .impl(({ seal, create, patch }) => ({
           renamed: (u, name: string) => patch(u, { name }),
-          resealed: (u, name: string) => seal({ id: u.id, name }),
+          resealed: (u, name: string) => seal({ id: u.id, name, nickname: u.nickname }),
           another: (u) => create(u.name),
         }))
         .build();
-      const u = Named.seal({ id: "a", name: "alice" }) as User;
+      const u = Named.seal({ id: "a", name: "alice", nickname: undefined }) as User;
       expectTypeOf(Named.renamed(u, "bob")).toEqualTypeOf<User | RangeError>();
       expect([Named.renamed(u, "bob"), Named.resealed(u, ""), Named.another(u)]).toEqual([
         { id: "a", name: "bob" },
@@ -2392,7 +2446,7 @@ describe("building", () => {
       const Boxed = Val.companion<User>()
         .impl(() => ({ dyn: (u) => u.name }))
         .build();
-      expect(Boxed.dyn(Boxed.seal({ id: "a", name: "bob" }))).toBe("bob");
+      expect(Boxed.dyn(Boxed.seal({ id: "a", name: "bob", nickname: undefined }))).toBe("bob");
     });
 
     // The three tests above name one `Wired` member each. This one fails if the union grows a
@@ -3346,7 +3400,7 @@ describe("building", () => {
       }>();
 
       const Post = Val.companion<Post>().build();
-      const owner = { id: "u", name: "una" };
+      const owner = { id: "u", name: "una", nickname: undefined };
       Post.seal({ id: "p", tags: [], owner: User.seal(owner) });
       // @ts-expect-error a record is not a User
       Post.seal({ id: "p", tags: [], owner });
@@ -3389,7 +3443,7 @@ describe("building", () => {
       type Ticket = Val<"Ticket", { id: string; name: string }, Greetable>;
       const Ticket = Val.companion<Ticket>()
         .implSeal((seed, seal) => seal(seed))
-        .implCreate((name: string) => ({ id: "t1", name }))
+        .implCreate((name: string) => ({ id: "t1", name, nickname: undefined }))
         .implTrait(Greetable, () => ({ toWire: (t, sep) => `${t.id}${sep}${t.name}` }))
         .build();
       const t = Ticket.create("alice");

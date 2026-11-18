@@ -13,6 +13,7 @@ export const BrandMismatch = Val.companion<BrandMismatch>()
     kind: Kind.seal("brand-mismatch"),
     description: "a brand whose last segment is not the name of the type it brands",
     warns: false,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();

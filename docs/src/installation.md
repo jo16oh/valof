@@ -9,5 +9,5 @@ The recommended compiler options are:
 - `strict` (the default since TypeScript 6)
 - `exactOptionalPropertyTypes`
 
-Without `exactOptionalPropertyTypes`, `{ a?: string }` also accepts `undefined`, even though JSON
-serialization drops that key.
+Without `exactOptionalPropertyTypes`, `patch` accepts `{ k: undefined }` for a field that cannot
+hold `undefined`.

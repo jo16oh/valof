@@ -66,6 +66,10 @@ The wrapped form `[...] extends [never]` stops the conditional type from distrib
 
 ### `undefined` in a patch means "delete"
 
+**Reversed, 2026-11-17.** `{ k: undefined }` and a function returning `undefined` set the field to `undefined`, and the key
+stays. A key cannot be optional, so nothing is left to delete (§3.5 "Every key is required"). An entry of a `Record` is
+removed by replacing the record.
+
 | patch form         | meaning     |
 | ------------------ | ----------- |
 | key left out       | leave as is |

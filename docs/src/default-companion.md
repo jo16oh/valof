@@ -22,7 +22,7 @@ type City = Val<"City", { name: string }>;
 const City = Val.companion<City>().build();
 type Shop = Val<
   "Shop",
-  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
+  { owner: { name: string; contact: { email: string; phone: string | undefined } }; city: City }
 >;
 const Shop = Val.companion<Shop>().build();
 
@@ -49,7 +49,7 @@ type City = Val<"City", { name: string }>;
 const City = Val.companion<City>().build();
 type Shop = Val<
   "Shop",
-  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
+  { owner: { name: string; contact: { email: string; phone: string | undefined } }; city: City }
 >;
 const Shop = Val.companion<Shop>().build();
 
@@ -60,18 +60,17 @@ const changed = Shop.patch(shop, {
 });
 ```
 
-A patch expresses four operations:
+A patch expresses three operations:
 
 - Omit a key to leave it unchanged.
-- Pass `{ k: undefined }` to delete it.
 - Pass `{ k: value }` to set it. An object merges into the one already there.
 - Pass `{ k: (current) => value }` to replace it with what the function returns.
 
-With `exactOptionalPropertyTypes`, `{ k: undefined }` is accepted only for optional keys. Without
-it, TypeScript also accepts it for required keys, and `patch` deletes them at runtime.
+Without `exactOptionalPropertyTypes`, `patch` accepts `{ k: undefined }` for a field that cannot
+hold `undefined`, and sets it.
 
 A patch reaches through nested plain objects. A nested Val takes a function only, and so does an
-object in an optional key, a `Record` entry or a field that may be `null`:
+object in a `Record` entry or in a field that may be `null` or `undefined`:
 
 ```ts
 import { Val } from "valof";
@@ -80,7 +79,7 @@ type City = Val<"City", { name: string }>;
 const City = Val.companion<City>().build();
 type Shop = Val<
   "Shop",
-  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
+  { owner: { name: string; contact: { email: string; phone: string | undefined } }; city: City }
 >;
 const Shop = Val.companion<Shop>().build();
 
@@ -101,7 +100,7 @@ type City = Val<"City", { name: string }>;
 const City = Val.companion<City>().build();
 type Shop = Val<
   "Shop",
-  { owner: { name: string; contact: { email: string; phone?: string } }; city: City }
+  { owner: { name: string; contact: { email: string; phone: string | undefined } }; city: City }
 >;
 const Shop = Val.companion<Shop>().build();
 

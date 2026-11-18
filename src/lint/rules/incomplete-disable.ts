@@ -15,6 +15,7 @@ export const IncompleteDisable = Val.companion<IncompleteDisable>()
     kind: Kind.seal("incomplete-disable"),
     description: "a disable comment leaving out the rules it silences, or its scope",
     warns: false,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();

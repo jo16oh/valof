@@ -9,6 +9,7 @@ export const UnnecessaryAlias = Val.companion<UnnecessaryAlias>()
     kind: Kind.seal("unnecessary-alias"),
     description: "a type alias that is a second name for a Val, a Trait or an Enum",
     warns: false,
+    optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
   .build();
