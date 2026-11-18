@@ -1999,9 +1999,9 @@ describe("patch", () => {
     // Not run: neither can reach a field.
     const rejected = () => [
       // @ts-expect-error a parameter with no key of the draft
-      Memo.patch(memo, (_: unknown) => {}),
+      Memo.patch(memo, (_d: unknown) => {}),
       // @ts-expect-error `{}` holds none either
-      Memo.patch(memo, (_: {}) => {}),
+      Memo.patch(memo, (_d: {}) => {}),
     ];
     expectTypeOf(rejected).toBeFunction();
   });
