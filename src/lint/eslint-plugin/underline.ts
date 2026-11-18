@@ -1,5 +1,5 @@
 import { Val } from "../../index.ts";
-import type { Finding } from "../index.ts";
+import type { Finding } from "../rules/index.ts";
 
 /** A word, for the squiggle to cover. Runs of these are what a finding points at. */
 const WORD = /^[\p{L}\p{N}_$]+/u;

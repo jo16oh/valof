@@ -7,8 +7,8 @@ import {
   unparenthesized,
   type Node,
   type Position,
-} from "../ast.ts";
-import type { FilePath } from "../files.ts";
+} from "../parse/ast.ts";
+import type { FilePath } from "../shared/files.ts";
 import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** One Trait named in a Val's third argument, at the occurrence in the Val declaration. */

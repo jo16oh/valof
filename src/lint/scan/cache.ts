@@ -1,12 +1,11 @@
 import { Result as R } from "@praha/byethrow";
 
-import type { MissingParserError } from "./errors.ts";
-import type { FilePath } from "./files.ts";
-import { ParseCache } from "./parse-cache.ts";
-import type { Parser } from "./parser.ts";
-import { Modules } from "./scan/bindings.ts";
-import { Scan } from "./scan/index.ts";
-import type { ScanStore } from "./scan-store.ts";
+import type { FilePath } from "../shared/files.ts";
+import { ParseCache } from "../parse/cache.ts";
+import type { MissingParserError, Parser } from "../parse/parser.ts";
+import { Modules } from "./bindings.ts";
+import { Scan } from "./index.ts";
+import type { ScanStore } from "./store.ts";
 
 /**
  * Each file's scan, kept for as long as its text stays the same and its imports and re-exports

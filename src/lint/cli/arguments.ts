@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 
-import { Val } from "../index.ts";
-import { Path } from "./files.ts";
+import { Val } from "../../index.ts";
+import { Path } from "../shared/files.ts";
 import {
   MissingPathError,
   NotAProjectError,
@@ -9,8 +9,8 @@ import {
   UnknownRuleError,
   UnknownSettingError,
 } from "./errors.ts";
-import { Enabled, DataTypeSettings } from "./options.ts";
-import { ALL_KINDS, KindSet, KINDS, type Kind } from "./rules/index.ts";
+import { Enabled, DataTypeSettings } from "../shared/options.ts";
+import { ALL_KINDS, KindSet, KINDS, type Kind } from "../rules/index.ts";
 
 /** A path with any of these is a glob, and stands for whatever it matches. */
 const GLOB = /[*?[\]{}]/;

@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { kinds } from "../../index.ts";
+import { KINDS } from "../../rules/index.ts";
 import {
   DuplicateBrand,
   IncompleteDisable,
@@ -62,7 +62,7 @@ test("leaves out a rule about the disable comments, like any other", async () =>
 test("names the known rules when the flag names none of them", () => {
   const { status, stderr } = cli("--no-typo", GLOB);
   expect(status).toBe(2);
-  expect(stderr).toBe('valof-lint: no rule called "typo"\n' + `  known rules: ${kinds.join(", ")}`);
+  expect(stderr).toBe('valof-lint: no rule called "typo"\n' + `  known rules: ${KINDS.join(", ")}`);
 });
 
 test("passes the flag through to the run", () => {

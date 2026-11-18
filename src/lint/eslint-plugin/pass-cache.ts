@@ -1,4 +1,4 @@
-import type { Finding } from "../index.ts";
+import type { Finding } from "../rules/index.ts";
 
 /**
  * The findings of the file the host is linting, shared by its rules until the call stack empties.

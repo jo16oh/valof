@@ -38,7 +38,6 @@ export class Twoslash {
       // which resolves through `dist`, and that is built here but not in a fresh clone.
       paths: {
         valof: [join(ROOT, "src/index.ts")],
-        "valof/lint": [join(ROOT, "src/lint/index.ts")],
         "valof/eslint-plugin": [join(ROOT, "src/lint/eslint-plugin/index.ts")],
         remeda: [join(ROOT, "docs/tools/twoslash/stubs/remeda.d.ts")],
       },

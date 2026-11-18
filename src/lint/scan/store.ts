@@ -12,8 +12,8 @@ import {
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { FilePath, Project } from "./files.ts";
-import { Scan } from "./scan/index.ts";
+import { FilePath, Project } from "../shared/files.ts";
+import { Scan } from "./index.ts";
 
 /**
  * Scans kept on disk between processes, so a new run walks only the files that changed.

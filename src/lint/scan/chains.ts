@@ -7,8 +7,8 @@ import {
   type Node,
   Lines,
   type Position,
-} from "../ast.ts";
-import type { FilePath } from "../files.ts";
+} from "../parse/ast.ts";
+import type { FilePath } from "../shared/files.ts";
 import type { Enum } from "../../enum.ts";
 import type { Trait } from "../../trait.ts";
 import type { AnyVal, CompanionBuilder } from "../../val.ts";

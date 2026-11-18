@@ -5,8 +5,8 @@ import type { Rule } from "eslint";
 import { PassCache } from "./pass-cache.ts";
 import { ProjectCache } from "./project-cache.ts";
 import { Underline } from "./underline.ts";
-import { Patterns } from "../files.ts";
-import { RULES } from "../index.ts";
+import { Patterns } from "../shared/files.ts";
+import { RULES } from "../rules/index.ts";
 import { LinterWorker, Query } from "./linter-worker.ts";
 
 /**

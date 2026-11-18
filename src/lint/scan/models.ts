@@ -6,7 +6,7 @@ import {
   unparenthesized,
   type Node,
   type Position,
-} from "../ast.ts";
+} from "../parse/ast.ts";
 import { Bindings } from "./bindings.ts";
 import { stepOf } from "./chains.ts";
 

@@ -5,14 +5,14 @@ import { styleText, type InspectColor } from "node:util";
 import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../index.ts";
-import { Arguments } from "./arguments.ts";
-import { NoFilesMatchedError, type UsageError } from "./errors.ts";
-import { Path, type FilePath } from "./files.ts";
+import { Arguments } from "./cli/arguments.ts";
+import { NoFilesMatchedError, type UsageError } from "./cli/errors.ts";
+import { Path, type FilePath } from "./shared/files.ts";
 import { RULES, type Finding } from "./rules/index.ts";
-import { Options } from "./options.ts";
-import { run } from "./run.ts";
-import { ScanCache } from "./scan-cache.ts";
-import { ScanStore } from "./scan-store.ts";
+import { Options } from "./shared/options.ts";
+import { run } from "./run/index.ts";
+import { ScanCache } from "./scan/cache.ts";
+import { ScanStore } from "./scan/store.ts";
 
 async function main(): Promise<void> {
   const status = await command(process.argv.slice(2));

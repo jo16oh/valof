@@ -1,10 +1,10 @@
 import { Result as R } from "@praha/byethrow";
 import { beforeAll, expect, test } from "vite-plus/test";
 
-import { FilePath } from "./files.ts";
-import { Parser } from "./parser.ts";
-import { Modules } from "./scan/bindings.ts";
-import { ScanCache } from "./scan-cache.ts";
+import { FilePath } from "../shared/files.ts";
+import { Parser } from "../parse/parser.ts";
+import { Modules } from "./bindings.ts";
+import { ScanCache } from "./cache.ts";
 
 let parser: Parser;
 

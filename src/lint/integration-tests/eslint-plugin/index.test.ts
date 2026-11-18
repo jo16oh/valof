@@ -16,7 +16,7 @@ import { fileURLToPath } from "node:url";
 import { expect, test } from "vite-plus/test";
 
 import plugin from "../../eslint-plugin/index.ts";
-import { kinds } from "../../index.ts";
+import { KINDS } from "../../rules/index.ts";
 import { keeping } from "../support.ts";
 
 // The rules are called here with a context holding only what they read. `src/lint/integration-tests/hosts` runs
@@ -193,7 +193,7 @@ test("underlines the whole directive, which has no name to point at", () => {
 });
 
 test("names every rule, under the plugin's own name", () => {
-  expect(Object.keys(plugin.rules)).toEqual([...kinds]);
+  expect(Object.keys(plugin.rules)).toEqual([...KINDS]);
   expect(plugin.configs.recommended.rules).toEqual({
     // The members work, but what the step declares gives them state they share and no reader sees.
     "valof/hidden-shared-state-in-impl": "warn",

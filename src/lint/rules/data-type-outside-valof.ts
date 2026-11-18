@@ -1,7 +1,7 @@
 import { Val } from "../../index.ts";
-import type { Position } from "../ast.ts";
-import type { FilePath } from "../files.ts";
-import type { DataTypeSettings } from "../options.ts";
+import type { Position } from "../parse/ast.ts";
+import type { FilePath } from "../shared/files.ts";
+import type { DataTypeSettings } from "../shared/options.ts";
 import type { Scan, Shape } from "../scan/index.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 

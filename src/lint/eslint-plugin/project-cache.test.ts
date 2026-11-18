@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { expect, test } from "vite-plus/test";
 
 import { ProjectCache } from "./project-cache.ts";
-import { Path, Patterns } from "../files.ts";
+import { Path, Patterns } from "../shared/files.ts";
 
 /** Runs `act` in a fresh directory, and deletes the directory afterwards. */
 function inDirectory(act: (dir: string) => void): void {

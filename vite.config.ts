@@ -12,7 +12,6 @@ export default defineConfig({
     // The runtime entries come from `tsc` (`tsconfig.build.json`), file per module. A bundled
     // entry turns `Val`'s namespace into an object, and the user's bundler keeps every member.
     entry: {
-      lint: "src/lint/index.ts",
       "eslint-plugin/index": "src/lint/eslint-plugin/index.ts",
       "lint-cli": "src/lint/main.ts",
       "eslint-plugin/worker": "src/lint/eslint-plugin/worker.ts",
@@ -31,10 +30,12 @@ export default defineConfig({
       // The CLI ships as a command, not as an import, so it stays out of the public exports.
       // Naming it here as well: left to auto-detect, the command takes the package's own name.
       exclude: ["lint-cli", "eslint-plugin/worker"],
-      customExports: (exports) => ({
+      // The plugin is the one entry left, which comes in as the package root.
+      customExports: ({ ".": _plugin, ...exports }) => ({
         ".": "./dist/index.js",
         // For a consumer with `declaration: true`.
         "./internal/*": "./dist/*.js",
+        "./eslint-plugin": "./dist/eslint-plugin/index.mjs",
         ...exports,
       }),
       bin: {

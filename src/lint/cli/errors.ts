@@ -1,10 +1,6 @@
 import { ErrorFactory } from "@praha/error-factory";
 
-/** oxc-parser is an optional peer dependency, so a run can start without it. */
-export class MissingParserError extends ErrorFactory({
-  name: "MissingParserError",
-  message: `valof-lint needs oxc-parser, which valof does not install for you.\n  pnpm add -D oxc-parser`,
-}) {}
+import type { MissingParserError } from "../parse/parser.ts";
 
 /** `--no-<kind>` with a kind no rule has. */
 export class UnknownRuleError extends ErrorFactory({

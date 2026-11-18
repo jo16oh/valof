@@ -1,7 +1,7 @@
 import { pipe } from "../../shared/pipe/index.ts";
 import { Enum, Val } from "../../index.ts";
-import { Lines, type Position } from "../ast.ts";
-import type { FilePath } from "../files.ts";
+import { Lines, type Position } from "../parse/ast.ts";
+import type { FilePath } from "../shared/files.ts";
 import type { Scan } from "./index.ts";
 
 /** One disable comment, whole. */

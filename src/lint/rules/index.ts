@@ -15,7 +15,7 @@ import { InferredValOf } from "./inferred-val-of.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
 import { UnimplementedTrait } from "./unimplemented-trait.ts";
-import { DataTypeSettings, type Options } from "../options.ts";
+import { DataTypeSettings, type Options } from "../shared/options.ts";
 
 /**
  * Each rule under its own name, so a caller can name one without spelling its kind.

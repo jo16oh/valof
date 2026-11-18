@@ -330,7 +330,7 @@
 
 - [ ] **A `nocopy` that does not record ownership? On hold, 2026-11-11.** Production `nocopy` spends most of its time adding the payload to `adopted` (§4.1, "What production `nocopy` costs"). An option to skip that, used only with `nocopy` and not tied to hiding `patch`, would halve the time valof-lint takes to convert the AST of `src/val.ts` (4.5 ms → 2–2.5 ms). On an oxlint run over `src` + `scripts` (0.60 s), that saves an estimated 0.03–0.04 s.
   - **An unrecorded value is never shared by a copy.** A default seal or create given a payload that holds it copies it whole, and `patch` copies even the parts the patch leaves alone. The copy has a new identity
-  - **Copying a graph with shared nodes takes exponential time.** Removing `adopted.add` from production `adopt` took the lint of `src/lint/files.ts` from 15 ms to over 30 s. valof-lint's AST is a DAG. Each child is reachable from a field and from `children`. `Step` in `src/lint/scan/chains.ts` holds nodes and is built with the default seal. Without `adopted.add`, that seal copied the DAG as a tree. One copying seal anywhere above an unrecorded graph makes the run hang rather than fail
+  - **Copying a graph with shared nodes takes exponential time.** Removing `adopted.add` from production `adopt` took the lint of `src/lint/shared/files.ts` from 15 ms to over 30 s. valof-lint's AST is a DAG. Each child is reachable from a field and from `children`. `Step` in `src/lint/scan/chains.ts` holds nodes and is built with the default seal. Without `adopted.add`, that seal copied the DAG as a tree. One copying seal anywhere above an unrecorded graph makes the run hang rather than fail
   - **A type argument cannot carry it.** The option changes what runs, so it has to be a step or a call-site form (`create.nocopy.untracked`). The Val budget has 66 B left (958 B of 1.00 kB, 2026-11-11)
   - Reconsider when a user builds large graphs with `nocopy` and measures what adding them to `adopted` costs
   - **2026-11-11: the mark is a private field now (§4.1).** Marking costs 5.9 ns instead of 89.5 ns, and the AST of `src/val.ts` converts in 2.2–2.6 ms. Skipping the record would now save little of what it promised
@@ -342,7 +342,7 @@
 - [ ] Whether TS 7.1 (beta 2026-10-06, stable 2026-11-24) ships an in-process LS API (§14.5). If it does, the 7.x LSP client can move to it and fold into the same path as 5.x / 6.x. **No hurry.** `tsc --lsp` works from 7.0, so this is a chance to simplify, not a prerequisite
   - 2026-11-11: 7.1.0-dev.20261110.1 exports `typescript/sync` and `typescript/async`. Its `Checker` has
     `getSymbolAtPosition` and `getTypeOfSymbol`. Whether it runs in-process is unconfirmed
-- [ ] Editor integration (§14.9). The implementation is in (`Options.overlay`, `valof/lint`, `valof/eslint-plugin`). What remains is the README recipe and checking it in real editors
+- [ ] Editor integration (§14.9). The implementation is in (`Options.overlay`, `valof/eslint-plugin`; `valof/lint` was removed 2026-11-14, §14.9). What remains is the README recipe and checking it in real editors
 - [x] ~~**Editors do not show a member's JSDoc. Go to definition on a custom `seal` / `create` jumps into valof.**~~
       Members are fixed in TS 7.1. `seal` / `create` are given up (2026-11-11)
   - **A member's JSDoc is a TS 7.0.2 bug.** Passing through a bare mapped type such as `{ [K in keyof T]: T[K] }` is

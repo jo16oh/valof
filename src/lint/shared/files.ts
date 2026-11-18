@@ -1,8 +1,8 @@
 import { globSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
-import { Val } from "../index.ts";
-import { pipe } from "../shared/pipe/index.ts";
+import { Val } from "../../index.ts";
+import { pipe } from "../../shared/pipe/index.ts";
 
 /** What a directory holds, for a caller who names one instead of writing the glob out. */
 const UNDER = "**/*.{ts,tsx,mts,cts}";

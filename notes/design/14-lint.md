@@ -67,7 +67,7 @@ So did `.unpatchable` → `.fixed`, and the new `.implEquals` step. The rule in 
 
 ### The cost
 
-- **tarball 32 KB → 39 KB.** This is the growth from shipping `valof/lint`, almost all of it `dist/lint/index.d.mts` (14.9 kB). `Finding` is derived from `RULES`, so the declaration pulls in the rules' whole type graph
+- **tarball 32 KB → 39 KB.** This is the growth from shipping `valof/lint`, almost all of it `dist/lint/index.d.mts` (14.9 kB). `Finding` is derived from `RULES`, so the declaration pulls in the rules' whole type graph. `valof/lint` and its declaration were removed 2026-11-14 (§14.9)
 - **58% of the shipped files are the linter.** The README's "1 kB gzipped" is the **bundle size**, and `scripts/bundle-size.ts` measures only `dist/index.mjs`, so the claim holds. Download size is different. `npm i valof` puts the 36 kB linter into `node_modules`
 - **Release granularity is coupled.** A linter-only fix bumps the library's version. This has not caused a problem yet, because both are still changing
 
