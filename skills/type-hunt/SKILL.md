@@ -57,6 +57,9 @@ These are by design. Do not report them as holes:
   are read-only in it, and a recipe replaces them by assigning a new value.
 - `any` and `never` written as a type are outside what Valof guarantees, as a cast is. A hole that
   only they open is not a finding. Pattern 3 says where they still matter.
+- The types TypeScript's standard library and other libraries declare are outside what Valof
+  guarantees, as a cast is. A value one of them types wrongly is not a finding, such as the entries
+  `Object.entries` returns for a narrowed variable, which can bring unlisted values into a record.
 - A cast and an upcast are outside what Valof guarantees. A write through `as`, a `delete` through a
   cast, and a write through a variable of a wider type, such as a nested Val held as a plain object,
   are not holes.
