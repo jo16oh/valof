@@ -847,7 +847,7 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * `(d) => { d.name = "b"; d.street.no = 2; }` sets two fields and leaves the rest. Only an
  * assignment changes the value, and each one is checked against its field's type.
  *
- * Internal: a recipe's type is inferred, and a recipe declared apart from the `patch` call types its parameter with {@link Draft}. `X` lists the keys the draft holds read-only, the `Unpatchable` ones.
+ * Internal: a recipe goes inline in the `patch` call, where its type is inferred. `X` lists the keys the draft holds read-only, the `Unpatchable` ones.
  */
 export type Patch<T, X extends keyof T = never> = [T] extends [AnyVal]
   ? [T] extends [never]
