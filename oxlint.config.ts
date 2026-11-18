@@ -88,8 +88,12 @@ export default defineConfig({
   },
   overrides: [
     { files: ["src/**/*.ts", "scripts/**/*.ts"], rules: valof.configs.recommended.rules },
-    // The repository's coding rules cover all code but the library's `src` and the tests.
-    { files: ["src/**/*.ts"], rules: { "local/braces": "off" } },
+    // `local/braces` covers all code but the library's `src`, the tests, the fixtures and the root
+    // configuration files. `src/lint` is covered.
+    {
+      files: ["src/**/*.ts", "oxlint.config.ts", "vite.config.ts"],
+      rules: { "local/braces": "off" },
+    },
     { files: ["src/lint/**/*.ts"], rules: { "local/braces": "error" } },
     {
       // Both build their errors as classes, and the linter keeps state in classes.
