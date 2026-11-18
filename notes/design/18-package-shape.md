@@ -168,6 +168,20 @@ would show up in completion, and the error for calling it would no longer say it
 has its `VariantSteps` intersection collapse to one member, so it is printed structurally. The steps
 inside print by name as `EnumBuilder<…>`, so it does not nest, and it passes.
 
+**Members print by name, 2026-11-18.** A member taken off a companion printed structurally. `Nocopy`
+was not exported, so declaration emit could not reference it through `valof/internal/val` and printed its
+recursive check in full. `export const seal = User.seal` emitted 504 kB on 7.0, and failed with TS7056 on 5.9 and 6.0, or
+did not finish in a smaller program (§9). `patch` printed `Sync` and `Drafts` in full too, and changed its type
+on the 7.0 round trip. `Nocopy`, `Sync` and `Drafts` are exported. `export const seal = User.seal` now emits 0.3–0.4 kB on
+every TypeScript line, and a hover still shows the call signatures.
+
+- **Rejected: name the default `seal` and `patch` as interfaces** (`DefaultSeal<V>`, `PatchOverloads<V, R, D>`).
+  Emit passes on every line with them too, but a hover over `User.seal` would show `DefaultSeal<User>` in
+  place of the call signature. Once `Nocopy`, `Sync` and `Drafts` were exported, neither interface was needed
+- **The fixture.** `declarations.ts` exports `User.seal`, `User.seal.nocopy` and `User.patch`. Without the
+  `Nocopy` export, `userSeal` and `userNocopy` fail. Without the `Sync` and `Drafts` exports, `userPatch` fails
+- **Cost.** Instantiations unchanged, `index.d.ts` 121.21 → 121.23 kB
+
 **The check.** ts-compatibility's fixture `builders.ts` exports every state of every builder with its
 inferred type. If declaration output changes an export's type, the check fails that TypeScript line even with no compile error
 (§10.1 "Declaration round trip"). At first the check searched the `.d.ts` for the string

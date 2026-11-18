@@ -123,9 +123,14 @@
       `Object.hasOwn`
     - **Cost.** core 12,892 → 12,917 instantiations. Comparing every key as read-only on every call, before the plain comparison, would have added 1,654 instantiations
 
-- [ ] **An exported seal of a Val that references itself bloats a user's `.d.ts`.** Exporting `Tree.seal` for a Val
-      holding `Rec<Tree>` emitted 511 kB, almost all of it the `nocopy` signature, with `SeedOf<Tree>` expanded in place
-      (export survey, 2026-11-18, TS 7.0.2). ts-compatibility's fixtures export no such seal. Not investigated yet
+- [x] ~~**An exported default `seal` or `seal.nocopy` prints `Nocopy` in full in a user's `.d.ts`.**~~ Closed, 2026-11-18
+      (§18.5 "Members print by name"). First recorded as a `Rec` Val's seal bloating the `.d.ts`. The default seal of any Val
+      without `.implSeal` has it. The text printed in full was `Nocopy`'s recursive `IsNocopyable<T>`, not `SeedOf`
+  - **What broke.** `export const seal = User.seal` emitted 504 kB on 7.0, with `nocopy` returning `any` and its
+    deep-readonly check cut to `/*elided*/ any`. 5.9 and 6.0 reported TS7056, or did not finish in a smaller program. `patch` was written
+    out too, at 2.2 kB
+  - **Why ts-compatibility missed it.** Its fixtures exported companions and builders, which print by name, and never a
+    member taken off a companion
 
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")

@@ -839,7 +839,11 @@ type IsNocopyable<T> = [T] extends [AnyVal]
 type NocopyArgument<T> =
   IsNocopyable<T> extends true ? unknown : Invalid<"nocopy requires a deeply readonly payload">;
 
-type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArgument<T>) => V;
+// Exported, as `Sync` and `Drafts` are, so a user's `.d.ts` references it through `valof/internal/val`.
+// Printed in full, its recursive check is deeper than declaration emit prints.
+export type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(
+  value: T & NocopyArgument<T>,
+) => V;
 
 /**
  * The recipe `patch` takes: a function that assigns to a {@link Draft} of the payload.
@@ -892,7 +896,7 @@ export type PatchFn<V, R, T, X extends keyof T> =
     : never;
 
 // `never` is a recipe that only throws, and `any` fits `void` too.
-type Sync<F> = F extends (...args: never[]) => infer T
+export type Sync<F> = F extends (...args: never[]) => infer T
   ? [T] extends [void]
     ? unknown
     : [T] extends [PromiseLike<unknown>]
@@ -904,7 +908,7 @@ type Sync<F> = F extends (...args: never[]) => infer T
 // the recipe write keys the draft does not allow: the tag, an `Unpatchable` key, a nested Val. Each
 // member of a union is checked. One holding at least one of the draft's keys, each as the draft has
 // it or read-only, fits.
-type Drafts<F, D> = F extends (...args: infer A) => unknown
+export type Drafts<F, D> = F extends (...args: infer A) => unknown
   ? A extends [infer P, ...unknown[]]
     ? true extends Mismatch<P, D>
       ? Invalid<"a recipe's parameter is the draft; leave its type to inference">
