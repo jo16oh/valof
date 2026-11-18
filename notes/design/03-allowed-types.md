@@ -313,6 +313,12 @@ erased, and at run time a record's input looks like an array Val's.
     would fit, so the hole would stay closed. A seal no caller can use with a new object has no reason to be public
   - **Rejected: `.implFromEntries` in place of `.implSeal`.** Its function would receive entries, and count a repeated key
     twice. A seal over the folded object keeps one meaning of `implSeal` across Vals
+  - **Rejected: `set` checks only the value it adds, and `delete` skips the seal** (user, 2026-11-18). A seal that
+    checks each value would still work. A seal that checks the whole record would miss a violation: a cap on the number
+    of entries, a minimum of one entry, or a relation between values. The function `.implSeal` registers receives the
+    whole object, so a check on one entry would need an API of its own. A value type that is a Val keeps `set` cheap.
+    The record's default seal does not check a Val value again, because the Val's own seal checked it when it was made.
+    A custom seal then needs to check only rules that involve more than one entry
   - **Rejected: renaming `fromEntries` to `sealEntries`** (user, 2026-11-18). It would put `seal` in the name of a function that folds its argument, which a seal does not do. `create`, `set` and `delete` go through the seal too, with no `seal` in their names. `fromEntries` keeps the meaning of `Object.fromEntries`
 - **The value is a frozen plain object keyed by `K`.** Reading `prices[key]` gives `V | undefined`. `equals`, JSON and
   `structuredClone` treat it as any object
