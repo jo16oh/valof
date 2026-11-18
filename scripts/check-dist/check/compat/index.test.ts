@@ -3,10 +3,18 @@ import { expect, test, vi } from "vite-plus/test";
 
 import { CompatCheck, CompatReport, LineResult } from "./index.ts";
 
-vi.mock(import("../../../pin-valof/index.ts"), () => ({
-  pinned: async () => "8d32b2ae3ab76618b3c577cc19b25da177c4242f",
-  matches: async () => false,
-}));
+const pinned = vi.hoisted(() => ({ missing: false }));
+vi.mock(import("../../../pin-valof/index.ts"), async (original) => {
+  const { MissingPinError } = await original();
+  return {
+    MissingPinError,
+    pinned: async () =>
+      pinned.missing
+        ? R.fail(new MissingPinError())
+        : R.succeed("8d32b2ae3ab76618b3c577cc19b25da177c4242f"),
+    matches: async () => false,
+  };
+});
 
 // Records each write instead of making it, so a check that reaches `dist` shows here.
 const writes = vi.hoisted((): string[] => []);
@@ -30,6 +38,16 @@ test("a release fails on a pin that builds a different dist, before it copies di
   const result = await CompatCheck.run(CompatCheck.create({ release: true, lines: [] }));
   expect(R.isFailure(result) && result.error.message).toBe(
     "valof 8d32b2a builds a different dist; run `vp run pin-valof origin/main`",
+  );
+  expect(writes).toEqual([]);
+});
+
+test("fails on a `package.json` with no pin, before it copies dist", async () => {
+  pinned.missing = true;
+  const result = await CompatCheck.run(CompatCheck.create({ release: false, lines: [] }));
+  pinned.missing = false;
+  expect(R.isFailure(result) && result.error.message).toBe(
+    'package.json has no "valof-pinned-for-scripts-commit"',
   );
   expect(writes).toEqual([]);
 });

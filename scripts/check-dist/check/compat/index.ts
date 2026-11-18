@@ -7,12 +7,12 @@ import { ErrorFactory } from "@praha/error-factory";
 import { Val, type Dyn } from "#valof";
 
 import { docBlocks } from "../../../../docs/tools/twoslash/index.ts";
-import { matches, pinned } from "../../../pin-valof/index.ts";
+import { matches, type MissingPinError, pinned } from "../../../pin-valof/index.ts";
 import { output, ROOT, writeJson } from "../../../shared/repository.ts";
 import { tsc, version } from "../../../shared/typescript-lines.ts";
 import { Check } from "../check.ts";
 import { problemLines, Report } from "../report.ts";
-import { RoundTrip, SourceExports } from "./round-trip.ts";
+import { RoundTrip, SourceExports, type SourceExportsError } from "./round-trip.ts";
 
 const DIRECTORY = join(ROOT, "docs/.generated/ts-compatibility");
 
@@ -25,7 +25,7 @@ export class StalePinError extends ErrorFactory({
   fields: ErrorFactory.fields<{ pin: string }>(),
 }) {}
 
-export type CompatError = StalePinError;
+export type CompatError = StalePinError | MissingPinError | SourceExportsError;
 
 /** One TypeScript line's failure messages, empty where it passes. */
 export type LineResult = Val<"LineResult", { version: string; failures: string[] }>;
@@ -99,7 +99,10 @@ export const CompatCheck = Val.companion<CompatCheck>()
      * builds this same `dist`.
      */
     run: async ({ release, lines }): R.ResultAsync<Dyn<Report>, CompatError> => {
-      const pin = await pinned();
+      const pinnedTo = await pinned();
+      if (R.isFailure(pinnedTo)) return pinnedTo;
+      const pin = pinnedTo.value;
+
       const current = await matches(pin);
       if (!current && release) return R.fail(new StalePinError({ pin }));
 
@@ -119,7 +122,9 @@ export const CompatCheck = Val.companion<CompatCheck>()
        * packages in their declarations, such as the base class of `ErrorFactory`, and the
        * comparison counts that as a change.
        */
-      const exports = SourceExports.read(DIRECTORY, [...blocks, ...fixtures]);
+      const read = SourceExports.read(DIRECTORY, [...blocks, ...fixtures]);
+      if (R.isFailure(read)) return read;
+      const exports = read.value;
 
       // The TypeScript lines run concurrently, each emitting to directories of its own.
       const results = await Promise.all(

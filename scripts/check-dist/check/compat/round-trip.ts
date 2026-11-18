@@ -1,12 +1,45 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 
+import { Result as R } from "@praha/byethrow";
+import { ErrorFactory } from "@praha/error-factory";
 import * as ts from "typescript-5";
 
 import { Val } from "#valof";
 
+import { pipe } from "../../../../src/shared/pipe/index.ts";
 import { output, writeJson } from "../../../shared/repository.ts";
 import type { Tsc } from "../../../shared/typescript-lines.ts";
+
+/** A `tsconfig.json` TypeScript cannot read, such as a missing one. */
+export class UnreadableConfigError extends ErrorFactory({
+  name: "UnreadableConfigError",
+  message: ({ diagnostic }) => diagnostic,
+  fields: ErrorFactory.fields<{ diagnostic: string }>(),
+}) {}
+
+/** An export that is neither a value nor a type, such as a namespace that holds only types. */
+export class UncomparableExportError extends ErrorFactory({
+  name: "UncomparableExportError",
+  message: ({ file, exported }) => `${file}: cannot compare ${exported}`,
+  fields: ErrorFactory.fields<{ file: string; exported: string }>(),
+}) {}
+
+/**
+ * A type whose parameters have constraints. The comparison declares the parameters without them,
+ * which a constrained parameter rejects.
+ */
+export class ConstrainedExportError extends ErrorFactory({
+  name: "ConstrainedExportError",
+  message: ({ file, exported }) =>
+    `${file}: cannot compare ${exported}, whose type parameters have constraints`,
+  fields: ErrorFactory.fields<{ file: string; exported: string }>(),
+}) {}
+
+export type SourceExportsError =
+  | UnreadableConfigError
+  | UncomparableExportError
+  | ConstrainedExportError;
 
 /** A program comparing each export of some modules with the type their declarations give it. */
 export type RoundTrip = Val<
@@ -99,24 +132,33 @@ export const SourceExports = Val.companion<SourceExports>()
      * Reads the exports of `files`, modules under `directory`. Every TypeScript line returns the
      * same exports, and the 5.x one has the compiler API.
      */
-    read: (directory: string, files: readonly string[]): SourceExports => {
+    read: (
+      directory: string,
+      files: readonly string[],
+    ): R.Result<SourceExports, SourceExportsError> => {
+      const diagnostics: ts.Diagnostic[] = [];
       const config = ts.getParsedCommandLineOfConfigFile(
         join(directory, "tsconfig.json"),
         undefined,
         {
           ...ts.sys,
-          onUnRecoverableConfigFileDiagnostic: (diagnostic) => {
-            throw new Error(ts.flattenDiagnosticMessageText(diagnostic.messageText, "\n"));
-          },
+          onUnRecoverableConfigFileDiagnostic: (diagnostic) => diagnostics.push(diagnostic),
         },
-      )!;
+      );
+      if (config === undefined) {
+        const diagnostic = diagnostics
+          .map(({ messageText }) => ts.flattenDiagnosticMessageText(messageText, "\n"))
+          .join("\n");
+        return R.fail(new UnreadableConfigError({ diagnostic }));
+      }
+
       const program = ts.createProgram(files, config.options);
       const checker = program.getTypeChecker();
 
-      return seal({
-        directory,
-        modules: files.map((file) => ModuleExports.read(program, checker, file)),
-      });
+      return pipe(
+        R.sequence(files.map((file) => ModuleExports.read(program, checker, file))),
+        R.map((modules) => seal({ directory, modules })),
+      );
     },
   }))
   .build();
@@ -160,10 +202,17 @@ type ModuleExports = Val<"ModuleExports", { file: string; symbols: Export[] }>;
 const ModuleExports = Val.companion<ModuleExports>()
   .implAssoc(({ seal }) => ({
     // The checker resolves `export *` and `export { … }` too.
-    read: (program: ts.Program, checker: ts.TypeChecker, file: string): ModuleExports => {
+    read: (
+      program: ts.Program,
+      checker: ts.TypeChecker,
+      file: string,
+    ): R.Result<ModuleExports, SourceExportsError> => {
       const module = checker.getSymbolAtLocation(program.getSourceFile(file)!);
       const exported = module === undefined ? [] : checker.getExportsOfModule(module);
-      return seal({ file, symbols: exported.map((symbol) => Export.read(checker, file, symbol)) });
+      return pipe(
+        R.sequence(exported.map((symbol) => Export.read(checker, file, symbol))),
+        R.map((symbols) => seal({ file, symbols })),
+      );
     },
   }))
   .build();
@@ -179,13 +228,17 @@ type Export = Val<
 >;
 const Export = Val.companion<Export>()
   .implAssoc(({ seal }) => ({
-    /** Throws on an export the round trip cannot compare. */
-    read: (checker: ts.TypeChecker, file: string, exported: ts.Symbol): Export => {
+    read: (
+      checker: ts.TypeChecker,
+      file: string,
+      exported: ts.Symbol,
+    ): R.Result<Export, SourceExportsError> => {
       const symbol =
         exported.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(exported) : exported;
       const value = (symbol.flags & ts.SymbolFlags.Value) !== 0;
       const type = (symbol.flags & ts.SymbolFlags.Type) !== 0;
-      if (!value && !type) throw new Error(`${file}: cannot compare ${exported.name}`);
+      if (!value && !type)
+        return R.fail(new UncomparableExportError({ file, exported: exported.name }));
 
       // Each declaration of a merged type lists the parameters again.
       const declared = (symbol.declarations ?? [])
@@ -196,16 +249,12 @@ const Export = Val.companion<Export>()
             ts.isClassDeclaration(declaration),
         )
         .map((declaration) => declaration.typeParameters ?? []);
-      // The `<T0>() => …` comparison declares the parameters without constraints, which a
-      // constrained parameter rejects.
       if (declared.flat().some((parameter) => parameter.constraint !== undefined)) {
-        throw new Error(
-          `${file}: cannot compare ${exported.name}, whose type parameters have constraints`,
-        );
+        return R.fail(new ConstrainedExportError({ file, exported: exported.name }));
       }
       const parameters = Math.max(0, ...declared.map((list) => list.length));
 
-      return seal({ name: exported.name, value, ...(type ? { parameters } : {}) });
+      return R.succeed(seal({ name: exported.name, value, ...(type ? { parameters } : {}) }));
     },
   }))
   .build();
