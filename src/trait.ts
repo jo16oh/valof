@@ -26,7 +26,7 @@ import {
   type Unfit,
   type UnionToIntersection,
 } from "./val.ts";
-import * as Trait from "./ns/trait.ts";
+import * as Trait from "./namespace/trait.ts";
 
 declare const SelfMark: unique symbol;
 

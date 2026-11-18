@@ -69,7 +69,7 @@ import {
   type Unsealed,
   type Wired,
 } from "./val.ts";
-import * as Enum from "./ns/enum.ts";
+import * as Enum from "./namespace/enum.ts";
 
 /**
  * The key that holds an enum companion's `match` on a tag string, and its `key`:

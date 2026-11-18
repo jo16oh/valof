@@ -66,12 +66,12 @@ Before changing the code on the left, read the sections on the right. A path mat
 
 | Code                                                                     | Sections                   |
 | ------------------------------------------------------------------------ | -------------------------- |
-| `src/val.ts`, `src/ns/val.ts`                                            | §2–6, §11                  |
+| `src/val.ts`, `src/namespace/val.ts`                                     | §2–6, §11                  |
 | `src/keys.ts`                                                            | §2.1, §11                  |
 | `src/env.ts`                                                             | §6.11, §7.1                |
 | `src/dual/`                                                              | §6.11, §6.13               |
-| `src/trait.ts`, `src/ns/trait.ts`                                        | §15.1, §15.4               |
-| `src/enum.ts`, `src/ns/enum.ts`                                          | §15.2                      |
+| `src/trait.ts`, `src/namespace/trait.ts`                                 | §15.1, §15.4               |
+| `src/enum.ts`, `src/namespace/enum.ts`                                   | §15.2                      |
 | `src/index.ts`                                                           | §18                        |
 | `src/lint/`                                                              | §14.1–14.7                 |
 | `src/lint/rules/`, `src/lint/scan/`                                      | §14.8, §14.12–14.27, §15.1 |
