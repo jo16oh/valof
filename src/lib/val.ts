@@ -598,7 +598,9 @@ type Checks<T, Tr extends AnyTrait, Fit extends boolean> = [T] extends [Validate
 type Holding<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? T
   : IsRecord<T> extends true
-    ? T & FieldsOf<Tr>
+    ? // A key both declare would be read to reduce the intersection, and a `Rec` in it would
+      // resolve the Val being declared. `Disagreement` has checked that the payload's type fits.
+      T & Omit<FieldsOf<Tr>, keyof T>
     : T;
 
 /** Reads the keys alone: a field may reference the Val being declared, see {@link Rec}. */
