@@ -47,7 +47,7 @@
   - **Not fixed: a key outside the trait in an implementation.** Checking each key of the returned object added 2,942
     instantiations (+11%) to trait, so only the companion's own names are rejected. Another key is added to the companion as
     an unused member
-  - **Not fixed: a `Final` member set to `undefined` without `exactOptionalPropertyTypes`.** `?: never` takes `undefined`
+  - **Not fixed: a `Final` member set to `undefined` without `exactOptionalPropertyTypes`** (outside the guarantees since 2026-11-18, §1). `?: never` takes `undefined`
     there. Calling the member then throws "is not a function", so no value is broken
   - **Not fixed: a recipe that places the draft inside itself** (`d.self = d`). It throws a `RangeError` (stack
     overflow), not a clear message. A check would cost bytes for a mistake the throw already stops
@@ -93,7 +93,7 @@
     `seal({ ...counts, extra: undefined })` passed on `Val.Record<"C", string, number>`, and `values` returned
     `undefined` where its type says `number`. A seal's argument (`Keyed`) leaves `?` off a key such as `string` or `` `x-${string}` ``
     and keeps it on a listed key. A record's value keeps `?`, so a read by key may be `undefined`. Without
-    `exactOptionalPropertyTypes`, a listed key still takes `undefined` (pattern 11)
+    `exactOptionalPropertyTypes`, a listed key still takes `undefined`, which is outside the guarantees (user, §1)
   - **`Val.Record.companion()` with no type argument** returns an `Invalid` that asks for the record's type argument, as `Val.companion()` does for the Val's
   - **A field typed with a trait** got advice to use `Impl<Trait>`, which a field cannot hold either. It now advises an
     Enum, for an array element and a record's value too. A variable or parameter typed with a trait keeps the
@@ -105,6 +105,23 @@
     inference", which did not name the fault. Closed by not exporting `Draft` (user, §6.2 "A recipe goes inline")
   - **Cost.** core 13,161 → 13,166 instantiations, trait 26,227 → 27,117, enum 57,408 → 58,308, `index.d.ts` 119.99 →
     120.84 kB. The declaration budget went from 120 to 128 kB (user)
+  - **The low-impact findings, fixed too (user, 2026-11-18):**
+    - **A recipe with a return typed `unknown`** passed. `Sync` exempted `unknown` because `F`, constrained to
+      return `unknown`, read as returning `unknown` while it was still being inferred. `F` is now constrained to
+      return `void`, and `Sync` drops the exemption. A return typed `any` still passes, since it fits `void`
+    - **A parameter keeping a key read-only** (`(m: { readonly note: string })`) was rejected, though a recipe writes less
+      through it than through the draft. `Mismatch` compares such a key as read-only. The read-only comparison runs only when the plain
+      comparison fails, so an inferred recipe pays nothing for it
+    - **A parameter with no key of the draft** (`(_: unknown)`, `(_: {})`) passed. It reaches no field, so it is
+      rejected. An empty payload's draft has an index signature, so its recipe takes any parameter. Before, even an
+      untyped recipe (`(d) => {}`) was rejected there
+    - **A rest element in a recipe's parameter** (`({ ...rest }) => { rest.total = 1 }`) copies the draft, so the
+      write changes nothing. valof-lint's `no-aliased-draft` reports it. A plain object field taken by name (`({ note })`) is
+      a draft itself, so it is not reported
+    - **Not fixed, by design (user, 2026-11-18): `has` on a record with listed keys takes only a listed key.** A
+      `string` would let an `OrderId` into a record keyed by `UserId` (§3). A string from outside goes through
+      `Object.hasOwn`
+    - **Cost.** core 12,892 → 12,917 instantiations. Comparing every key as read-only on every call, before the plain comparison, would have added 1,654 instantiations
 
 - [ ] **An exported seal of a Val that references itself bloats a user's `.d.ts`.** Exporting `Tree.seal` for a Val
       holding `Rec<Tree>` emitted 511 kB, almost all of it the `nocopy` signature, with `SeedOf<Tree>` expanded in place
