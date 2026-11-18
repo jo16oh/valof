@@ -59,9 +59,9 @@ only where `implCreate` registered one, and `patch` only for a Val that holds an
 A `Val.Record`'s builder takes the same steps, and its companion has no `seal` and no `patch`. The
 seal registered with `.implSeal` receives the object the entries fold into, and the function passed
 to `.implCreate` returns entries. `Val.Record.companion` accepts only `PrivateCreate`, in its second
-type argument. The function passed to `impl`, `implTrait` and `implAssoc` receives `fromEntries`,
-and `create` where `implCreate` registered one. `Prices` stands for a `Val.Record`'s companion. It
-has these members:
+type argument. The function passed to `impl` and `implAssoc` receives the members below, and
+`create` where `implCreate` registered one. `Prices` stands for a `Val.Record`'s companion. It has
+these members:
 
 | API                              | Description                                                       |
 | -------------------------------- | ----------------------------------------------------------------- |

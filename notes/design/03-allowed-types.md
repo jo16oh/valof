@@ -307,8 +307,10 @@ erased, and at run time a record's input looks like an array Val's.
     conversion. Both pass their result to the seal
   - The only option is `PrivateCreate`. A record has no `seal` for `PrivateSeal` to hide, and no `patch` for `Unpatchable`
     to restrict. Hiding `fromEntries` is open in §9
-  - The steps' functions receive `fromEntries` in place of `seal` and `patch`. `attach` puts it on the companion before
-    it calls them, so destructuring it works
+  - The steps' functions receive `fromEntries`, `set`, `delete`, `has`, `keys`, `values` and `entries` in place of
+    `seal` and `patch` (user, 2026-11-18). `attach` puts them on the companion before it calls the steps' functions, so destructuring
+    them works. A member that reads the record through them references no companion, so it needs no return type
+    annotation (§9, §15.4)
   - **Rejected: the companion's seal takes the object, typed by the record's payload marker.** Only a record's own value
     would fit, so the hole would stay closed. A seal no caller can use with a new object has no reason to be public
   - **Rejected: `.implFromEntries` in place of `.implSeal`.** Its function would receive entries, and count a repeated key

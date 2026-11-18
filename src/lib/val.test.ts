@@ -2296,13 +2296,29 @@ describe("Val.Record", () => {
     Val.Record.companion<Tags>().implCreate.noseal(() => listed);
   });
 
-  test("a member reaches `fromEntries` through what its step receives", () => {
-    const Doubled = Val.Record.companion<Prices>()
+  test("a member reaches the record's members through what its step receives", () => {
+    const Stock = Val.Record.companion<Prices>()
+      .impl(({ set, delete: remove, has, keys, values, entries }) => ({
+        amounts: (p) => values(p).map((money) => money.amount),
+        names: (p) => keys(p),
+        pairs: (p) => entries(p),
+        renamed: (p, from: string, to: string) => {
+          const money = p[from];
+          return money && !has(p, to) ? remove(set(p, to, money), from) : p;
+        },
+      }))
       .implAssoc(({ fromEntries }) => ({
         of: (money: Money) => fromEntries([["apple", money]]),
       }))
       .build();
-    expect(Doubled.of(apple)).toEqual({ apple });
+    const prices = Stock.of(apple);
+    expect(prices).toEqual({ apple });
+    expect(Stock.renamed(prices, "apple", "fig")).toEqual({ fig: apple });
+    expectTypeOf(Stock.renamed(prices, "apple", "fig")).toEqualTypeOf<Prices>();
+    // The step's readers are typed apart from the companion's.
+    expectTypeOf(Stock.amounts).returns.toEqualTypeOf<number[]>();
+    expectTypeOf(Stock.names).returns.toEqualTypeOf<readonly string[]>();
+    expectTypeOf(Stock.pairs).returns.toEqualTypeOf<readonly (readonly [string, Money])[]>();
     // @ts-expect-error a record's steps receive no `seal`
     Val.Record.companion<Prices>().implAssoc(({ seal }) => ({ sealed: () => seal }));
   });

@@ -1354,14 +1354,16 @@ export type Passes<Tr extends AnyTrait, G, I, S> =
 
 /**
  * What a step's function receives: `seal`, `create` where `.implCreate` registered one, and
- * `patch` for an object payload. `PrivateSeal` and `PrivateCreate` do not remove them here.
+ * `patch` for an object payload. A {@link ValRecord}'s receives `fromEntries`, `set`, `delete`,
+ * `has`, `keys`, `values` and `entries` in place of `seal` and `patch`. `PrivateSeal` and
+ * `PrivateCreate` do not remove them here.
  *
  * Each step wraps it in `NoInfer` where it uses it. It holds no type parameter to infer, but unwrapped, inference walks all of it anyway and more than doubles the instantiations (notes §15.4). Wrapped
  * inside this alias, the parameter's hover shows the expanded type instead of `Supplied<…>`.
  */
 type Supplied<V extends AnyVal, N, F, O extends Options> = CreateMethod<V, N, F> &
   ([Declared<V>] extends [Collection]
-    ? FromEntriesMethod<V, F>
+    ? CollectionMethods<V, F>
     : SealMethod<V, F> & PatchMethod<V, F, O>);
 
 /** The steps a companion has taken. The first two are the first half of the chain. */
@@ -1414,9 +1416,10 @@ export type CompanionBuilder<
          * has its own step.
          *
          * The function receives `seal`, `create` where `.implCreate` registered one, and `patch`
-         * for an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
-         * `patch`. A member reaching the companion for anything else (a trait's
-         * member or a sibling) references it and annotates its return type.
+         * for an object payload. A {@link ValRecord}'s receives `fromEntries`, `set`, `delete`,
+         * `has`, `keys`, `values` and `entries` in place of `seal` and `patch`. A member reaching
+         * the companion for anything else (a trait's member or a sibling) references it and
+         * annotates its return type.
          *
          * A member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}. Called with the value last, a generic member loses its type parameters. To keep them, call it with the value first inside a function: `pipe(u, (v) => User.pick(v, "name"))`.
          */
@@ -1435,9 +1438,10 @@ export type CompanionBuilder<
      * `parse`, a constant, written as `zero: () => …`. Write it any number of times.
      *
      * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
-     * an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
-     * `patch`. A member reaching the companion for anything else (a sibling or another
-     * step's member) references it and annotates its return type, as in `.impl`.
+     * an object payload. A {@link ValRecord}'s receives `fromEntries`, `set`, `delete`,
+     * `has`, `keys`, `values` and `entries` in place of `seal` and `patch`. A member reaching the
+     * companion for anything else (a sibling or another step's member) references it and annotates
+     * its return type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
      * `Money.scaled(2)(5)`. A member taking one argument or none has no second form.
