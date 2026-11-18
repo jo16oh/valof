@@ -16,7 +16,7 @@ is `never`, so it cannot be told apart as a distinct Val.
 
 1. **Lower inference cost.** The DeepReadonly recursion stops after one level (children are already readonly Vals). Conditional types stay shallow, so `tsc` stays fast
 2. **Structural equality is well-defined.** There are no prototypes or cycles to consider
-3. **Values always pass serialization boundaries.** `structuredClone` / JSON are always safe
+3. **Data crosses serialization boundaries.** JSON and `structuredClone` carry a payload intact, and the receiver seals it again. A clone within one thread is outside the guarantees (§1)
 4. **It pushes the design the right way.** Composing Vals is mandatory, which leads to a sound DDD-style structure
 
 `ReadonlyArray` and `Record` are defined recursively. Without that, `readonly string[][]` (matrices, grids) and `Readonly<Record<string, Val>>` (ID indexes) could not be written. Each node is shallow, so the recursion does not make the cost blow up.
