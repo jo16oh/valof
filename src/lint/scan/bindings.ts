@@ -69,7 +69,7 @@ export const Bindings = Val.companion<Bindings>()
   }))
   .impl(() => ({
     hasNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
-    /** The root a held builder grew from, with a record's as `Val`. */
+    /** The root a held builder grew from, with a record's as `Val`: one of the three roots. */
     builderOf: (bound, local: string) => {
       const root = own(bound.builders, local);
       return root === "Val.Record" ? "Val" : root;
