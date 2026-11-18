@@ -1334,6 +1334,13 @@ describe("a broken declaration", () => {
     expectTypeOf<Node>().not.toBeAny();
   });
 
+  test("a variant and the enum's trait holding the enum under one key report the key", () => {
+    type Sized = Trait<"RecSized", { kids: Rec<Grown>[] }, { size: (self: Self) => number }>;
+    // @ts-expect-error a variant cannot redeclare the trait's field `kids`
+    type Grown = Enum<"Grown", { A: { kids: Rec<Grown>[] }; B: { v: number } }, Sized>;
+    expectTypeOf<Grown>().not.toBeAny();
+  });
+
   test("a variant cannot declare a field its own trait requires", () => {
     type Named = Trait<"OwnNamed", { label: string }, { named: (self: Self) => string }>;
     // @ts-expect-error a payload cannot redeclare the trait's field `label`

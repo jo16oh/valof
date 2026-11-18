@@ -3690,6 +3690,16 @@ describe("building", () => {
       expectTypeOf<VerdictOf<Same | Narrow | Contrary>>().toEqualTypeOf<Redeclared>();
     });
 
+    // Reading both fields to intersect them would resolve the Val while it is being declared.
+    test("a payload and its trait holding the Val under one key report the key", () => {
+      type Sized = Trait<"RecHolder", { kids: Rec<Holder>[] }, { size: (self: Self) => number }>;
+      // @ts-expect-error a payload cannot redeclare the trait's field `kids`
+      type Holder = Val<"Holder", { kids: Rec<Holder>[]; n: number }, Sized>;
+      expectTypeOf<VerdictOf<Holder>>().toEqualTypeOf<
+        Invalid<"a payload cannot redeclare the trait's field `kids`; the trait already adds it">
+      >();
+    });
+
     test("a payload that is not a record cannot hold the fields", () => {
       type Rejected = Invalid<"the payload does not hold what the trait requires">;
       // @ts-expect-error the payload does not hold what the trait requires
