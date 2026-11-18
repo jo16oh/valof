@@ -1205,7 +1205,7 @@ type FromEntriesMethod<V extends AnyVal, F> = {
    * later entry replaces an earlier one with the same key.
    *
    * Takes entries of any string key and value where the seal registered with `.implSeal` takes
-   * any string-keyed object, as `Record<string, unknown>` or `object`, since that seal checks
+   * any string-keyed object, such as `Record<string, unknown>`, since that seal checks
    * each one.
    */
   fromEntries: (entries: EntriesFor<V, F>) => Constructed<V, F>;
