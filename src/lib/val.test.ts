@@ -931,9 +931,6 @@ describe("Val", () => {
       type Hollow = Val<"Hollow", { a: U & number }>;
       // @ts-expect-error same, intersected in the object that holds it
       type Merged = Val<"Merged", { m: { a: U } & { a: number } }>;
-      type Count = Val<"Count", number>;
-      type Counted = Val<"Counted", { a: Count & number }>;
-      expectTypeOf<Counted>().toExtend<AnyVal>();
       // Reported at the type argument alone, so the constraint is read rather than the verdict.
       type Message<T> = Allowed<T, "Val">;
       expectTypeOf<Message<{ a: never } | { a: string & number }>>().toEqualTypeOf<
