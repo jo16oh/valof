@@ -886,25 +886,24 @@ type Drafted<T> = T extends AnyVal | ReadonlyArray<unknown> ? T : T extends obje
 export type PatchFn<V, R, T, X extends keyof T> =
   Patch<T, X> extends (draft: infer D) => void
     ? {
-        <F extends (draft: D) => unknown>(recipe: F & Sync<F> & Drafts<F, D>): (self: V) => R;
-        <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F> & Drafts<F, D>): R;
+        <F extends (draft: D) => void>(recipe: F & Sync<F> & Drafts<F, D>): (self: V) => R;
+        <F extends (draft: D) => void>(value: V, recipe: F & Sync<F> & Drafts<F, D>): R;
       }
     : never;
 
-// `never` is a recipe that only throws.
+// `never` is a recipe that only throws, and `any` fits `void` too.
 type Sync<F> = F extends (...args: never[]) => infer T
-  ? unknown extends T
+  ? [T] extends [void]
     ? unknown
-    : [T] extends [void]
-      ? unknown
-      : [T] extends [PromiseLike<unknown>]
-        ? Invalid<"a recipe runs synchronously: await before `patch`, not inside the recipe">
-        : Invalid<"a recipe assigns to its draft and returns nothing">
+    : [T] extends [PromiseLike<unknown>]
+      ? Invalid<"a recipe runs synchronously: await before `patch`, not inside the recipe">
+      : Invalid<"a recipe assigns to its draft and returns nothing">
   : unknown;
 
 // A parameter typed with a key the draft lacks, or with a key made writable or optional, would let
 // the recipe write keys the draft does not allow: the tag, an `Unpatchable` key, a nested Val. Each
-// member of a union is checked. One holding fewer keys, each as the draft has it, fits.
+// member of a union is checked. One holding at least one of the draft's keys, each as the draft has
+// it or read-only, fits.
 type Drafts<F, D> = F extends (...args: infer A) => unknown
   ? A extends [infer P, ...unknown[]]
     ? true extends Mismatch<P, D>
@@ -914,11 +913,26 @@ type Drafts<F, D> = F extends (...args: infer A) => unknown
   : unknown;
 
 // Distributes over a union, so each member is compared on its own.
-type Mismatch<P, D> = P extends unknown
-  ? Same<Homomorphic<P>, Pick<D, keyof P & keyof D>> extends true
-    ? never
-    : true
-  : never;
+// A key the parameter keeps read-only is compared as read-only, since the recipe then writes less.
+// A parameter with no key of the draft reaches no field, so it is rejected. An empty payload's
+// draft has an index signature and no field to write, so it takes any parameter.
+type Mismatch<P, D> = string extends keyof D
+  ? never
+  : P extends unknown
+    ? [keyof P & keyof D] extends [never]
+      ? true
+      : Same<Homomorphic<P>, Pick<D, keyof P & keyof D>> extends true
+        ? never
+        : Same<Homomorphic<P>, Homomorphic<AsRead<Pick<D, keyof P & keyof D>, P>>> extends true
+          ? never
+          : true
+    : never;
+
+type AsRead<D, P> = {
+  [K in keyof D as K extends ReadOnly<P> ? never : K]: D[K];
+} & { readonly [K in keyof D as K extends ReadOnly<P> ? K : never]: D[K] };
+
+type ReadOnly<P> = { [K in keyof P]: ReadonlyKey<P, K> extends true ? K : never }[keyof P];
 
 type Homomorphic<P> = { [K in keyof P]: P[K] };
 
