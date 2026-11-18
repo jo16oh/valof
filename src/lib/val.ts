@@ -1193,9 +1193,20 @@ type FromEntriesMethod<V extends AnyVal, F> = {
   /**
    * Folds the entries into an object and seals it, so it returns whatever the seal returns. A
    * later entry replaces an earlier one with the same key.
+   *
+   * Takes entries of any string key and value where the seal registered with `.implSeal` takes
+   * any string-keyed object, as `Record<string, unknown>` or `object`, since that seal checks
+   * each one.
    */
-  fromEntries: (entries: Gathered<Declared<V>>) => Constructed<V, F>;
+  fromEntries: (entries: EntriesFor<V, F>) => Constructed<V, F>;
 };
+
+/** What `fromEntries` takes: the record's entries, or any where the seal takes any object. */
+type EntriesFor<V extends AnyVal, F> = F extends (value: infer P, ...rest: never[]) => unknown
+  ? [Record<string, unknown>] extends [P]
+    ? Iterable<readonly [string, unknown]>
+    : Gathered<Declared<V>>
+  : Gathered<Declared<V>>;
 
 /** The members a {@link ValRecord} companion carries. Each goes through the seal. */
 type CollectionMethods<V extends AnyVal, F> =
