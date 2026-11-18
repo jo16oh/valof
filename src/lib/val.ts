@@ -201,8 +201,22 @@ type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = 
   (IsRec<T> extends true ? 1 : [T] extends [AnyVal] ? 1 : 0) extends 1
     ? IsUnion<Kinds<T>> extends true
       ? Invalid<"only null can share a field with a Val; declare an Enum">
-      : T
+      : [T] extends [Primitive]
+        ? true extends HoldsObject<T>
+          ? Invalid<"no value fits a Val holding an object intersected with a primitive">
+          : T
+        : T
     : Rest<T, Root, Owner>;
+
+/** A key typed as a Val holding an object, intersected with a primitive, which no value fits. */
+export type Hollow<T> = { [K in keyof T]: true extends HoldsObject<T[K]> ? K : never }[keyof T];
+
+// A Val holding a primitive extends `Primitive` too, and a value fits it.
+type HoldsObject<V> = V extends AnyVal & Primitive
+  ? [Declared<V>] extends [Primitive]
+    ? false
+    : true
+  : false;
 
 type HoldsVal<T> = T extends unknown
   ? IsRec<T> extends true
@@ -2053,7 +2067,11 @@ type OneVal<V, M extends string> = {
 /** Nothing, or the reason a union of option lists is rejected. */
 // `any` and `never` satisfy this constraint, so {@link Listed} reports them at the next step.
 export type OneList<O> =
-  IsUnion<O> extends true ? Invalid<"the options cannot be a union of lists"> : unknown;
+  IsUnion<O> extends true
+    ? Invalid<"the options cannot be a union of lists">
+    : true extends { [I in keyof O]: IsUnion<O[I]> }[keyof O & number]
+      ? Invalid<"an option cannot be a union; list each one">
+      : unknown;
 
 /** Whether a list is `any`, or holds `any`, which every option's constraint accepts. */
 export type HasAny<L> = 0 extends 1 & L

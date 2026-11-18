@@ -51,6 +51,7 @@ import {
   type Code,
   type Fits,
   type Unfit,
+  type Hollow,
   type DeepReadonly,
   type Grown,
   type Listed,
@@ -261,13 +262,13 @@ type Disagreeing<D, X> = {
   >;
 }[VariantKeys<D>];
 
-type Disagreement<T, Tr extends AnyTrait> = [Unfit<T>] extends [never]
+type Disagreement<T, Tr extends AnyTrait> = [Unfit<T> | Hollow<T>] extends [never]
   ? Fits<T, Tr> extends infer F
     ? F extends string
       ? F
       : never
     : never
-  : `no value fits ${Code<Unfit<T> & string>}`;
+  : `no value fits ${Code<(Unfit<T> | Hollow<T>) & string>}`;
 
 /** The fields a declaration writes, without the ones its traits add. An `Impl` stays whole, so the rules reject it. */
 type Written<P> = [P] extends [AnyImpl] ? P : [P] extends [AnyTrait] ? Pick<P, keyof P> : P;
