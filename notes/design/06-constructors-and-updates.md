@@ -202,7 +202,9 @@ argument to hide a key in.
 - **An async recipe is a type error.** Its writes after an `await` would land on a revoked draft. The recipe is a type
   parameter `F`, and `F & Invalid<…>` where it returns a `PromiseLike`. `Dual` cannot carry a generic function, so `patch` is
   written as two overloads (`PatchFn`). Rejected: a return type of `undefined` (rejects a named function returning `void`),
-  `void & { then?: never }` (rejects a block body), and `R extends void` (accepts an async function)
+  `void & { then?: never }` (rejects a block body), and `R extends void` (accepts an async function).
+  `F` is constrained to return `void`. The `PromiseLike` check stays, because a function returning a promise still fits
+  that constraint. With `unknown` in the constraint, a return typed `unknown` passed (2026-11-18, §9)
 - **`Unpatchable` keys are read-only in the draft**, and still readable
 - **A recipe goes inline in the `patch` call** (user, 2026-11-18). `Draft` is not exported from the entry, as `Patch` is
   not. A recipe declared apart from the call needs its parameter's type written out, and that type can make writable a
@@ -211,7 +213,8 @@ argument to hide a key in.
   - The type fixtures dropped their recipe declared apart, so core went 13,166 → 12,892 instantiations and enum 58,308 → 58,195
 - **`Object.assign(draft, data)` is not checked.** TypeScript types its source as anything. valof-lint is to report it (§9)
 - **A union of objects stays rejected.** A recipe sets one field at a time, so it could leave a value that is neither variant
-- **`exactOptionalPropertyTypes` is no longer recommended.** It only mattered for `{ k: undefined }` in a patch object
+- **`exactOptionalPropertyTypes` is no longer recommended.** It only mattered for `{ k: undefined }` in a patch object.
+  Recommended again (user, 2026-11-18), because what goes wrong only without it is outside the guarantees (§1)
 - **Cost.** Val 1.01 → 1.25 kB gzipped, so its budget went from 1.10 to 1.30 kB. core 9,598 → 9,288, trait 24,966
   → 24,966, enum 46,751 → 45,666 instantiations, `index.d.ts` 106.82 → 105.65 kB. Proxy access is slower than the spread
   merge: a shallow patch 209 → 272 ns, one level down 324 → 642 ns (Node 26, production). For a hot path, `seal` a spread of the value
