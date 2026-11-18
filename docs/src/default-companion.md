@@ -11,7 +11,7 @@ any order. `.impl` is written once.
 - [Custom Constructors and Invariants](custom-constructors.md) covers `.implSeal` and `.implCreate`.
 - [Traits](traits.md) covers `.implTrait`.
 
-## Patch object values
+## Derive a changed value with `patch`
 
 Without Valof, changing a deeply readonly `shop` means rebuilding every object on the path:
 
