@@ -326,6 +326,12 @@ erased, and at run time a record's input looks like an array Val's.
 - **`fromEntries`, `set`, `delete` and `has` are the companion's members**, reserved only on a record's companion, in
   both `impl` and `implAssoc`. Each except `has` goes through the seal, and `set` and `delete` return the value itself where
   nothing changes. There is no `patch`. `set` and `delete` change an entry
+- **`has` takes a `K`, never a `string`** (user, 2026-11-18). A wider key would accept an `OrderId` in a record keyed by
+  `UserId`, which the brand exists to reject. A string from outside is checked with `Object.hasOwn(record, key)`, and
+  `has`'s JSDoc says so. `key in record` is also true for an inherited key such as `toString`. valof-lint's `KindSet`
+  checks a rule name from a disable comment with a `find` of its own in place of `has`. `find` returns the `Kind`
+  - **Rejected: `has(record, key: string): key is K`.** The guard would brand a string without running the seal. A key
+    the record holds passed the seal once, but a brand is easier to trust when only the seal applies it
 - **`keys`, `values` and `entries` return its keys and values typed `K` and `V`** (user, 2026-11-18). `Object.keys` gives `string[]` and loses
   a branded `K`, and `Object.values` and `Object.entries` add `undefined` from the optional value type. They return
   readonly arrays in `Object.keys`'s order. Not added: `size`, `get` and `forEach`, which `Object.keys(r).length`, `r[key]`
@@ -342,6 +348,12 @@ erased, and at run time a record's input looks like an array Val's.
 - **Rejected: the root alone holds a record, and `patch` does not merge it.** A narrowed variable reaches the root `seal`
   too
 - **Rejected: a runtime check that each value is a sealed Val.** Typed entries already check each value
+- **Rejected: a member that builds an empty record** (user, 2026-11-18). `fromEntries([])` builds one, and valof-lint
+  needs one in three places. Each member of a record's companion reserves its name in `.impl` and `.implAssoc`. `has`
+  is one of them, so valof-lint's `KindSet` could not keep its own `has`, which took any string. An empty record is not
+  valid for every record type, because its seal may require one entry or more. A shared constant would skip that seal, and a member that runs
+  the seal is `fromEntries([])` under another name. An author who wants one registers `.implCreate(() => [])`, and
+  `create()` returns an empty record
 - ~~**Rejected: a `fromEntries` member.** It repeats the seal and reserves another name.~~ Adopted, 2026-11-18, once the
   seal stopped taking entries (above). A `fromObject` would still reopen the hole
 - **Rejected: exporting the payload marker** (`RecordOf`, first `MapOf`), which let `Val<"X", MapOf<…>>` declare a record outside

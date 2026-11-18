@@ -3,12 +3,12 @@ import { resolve } from "node:path";
 import { Result as R } from "@praha/byethrow";
 
 import { Parser, type MissingParserError } from "../parse/parser.ts";
-import { Context, Kind, KindSet, RULES, compile, type Finding } from "../rules/index.ts";
+import { Context, KindSet, RULES, compile, type Finding } from "../rules/index.ts";
 import { Modules } from "../scan/bindings.ts";
 import { ScanCache } from "../scan/cache.ts";
 import { DirectiveMap } from "../scan/index.ts";
 import { FilePath } from "../shared/files.ts";
-import { Options } from "../shared/options.ts";
+import { Options, Overlay } from "../shared/options.ts";
 
 /** What `lint` reports, with a missing parser as a failure rather than a throw. */
 // Every file is walked once, by `scan`, and each rule runs over what it collected. There is no
@@ -23,7 +23,7 @@ export async function run(
   // caller did not list joins them, as itself.
   const toScan = [
     ...files,
-    ...Object.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
+    ...Overlay.keys(options.overlay).filter((key) => !files.some((file) => resolve(file) === key)),
   ].map((file) => FilePath.seal(file));
   const modules = Modules.create(toScan);
   const sources = toScan.map((file) => [file, FilePath.read(file, options.overlay)] as const);
@@ -34,7 +34,7 @@ export async function run(
   const rules = compile(options.enable);
   // An opt-in rule left off is out of the run as much as a skipped one.
   const notRun = KindSet.create([
-    ...Object.keys(options.skip).map((kind) => Kind.seal(kind)),
+    ...KindSet.keys(options.skip),
     ...RULES.filter(({ value: { kind } }) => !rules.some((rule) => rule.value.kind === kind)).map(
       ({ value: { kind } }) => kind,
     ),
