@@ -3,7 +3,7 @@ import { Result as R } from "@praha/byethrow";
 import { ParseCache } from "../parse/cache.ts";
 import type { MissingParserError, Parser } from "../parse/parser.ts";
 import type { FilePath } from "../shared/files.ts";
-import { Modules } from "./bindings.ts";
+import { Modules, Names } from "./bindings.ts";
 import { Scan } from "./index.ts";
 import type { ScanStore } from "./store.ts";
 
@@ -65,7 +65,7 @@ export class ScanCache {
 
 /** Whether every module the scan resolved still resolves to the same thing among `modules`. */
 function resolvesAlike(scan: Scan, file: FilePath, modules: Modules): boolean {
-  return Object.entries(scan.resolved).every(
+  return Names.entries(scan.resolved).every(
     ([module, resolved]) => Modules.resolve(modules, file, module) === resolved,
   );
 }
