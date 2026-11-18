@@ -34,10 +34,13 @@ function instead(site: CompanionSite, type: string, variant: string | null): str
 function findings({ kind }: BypassedCompanion, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);
   const companions = new Map<string, CompanionSite>();
-  for (const { sites } of scans)
-    for (const site of sites)
-      if (!companions.has(Exports.identify(exports, site.typeRef)))
+  for (const { sites } of scans) {
+    for (const site of sites) {
+      if (!companions.has(Exports.identify(exports, site.typeRef))) {
         companions.set(Exports.identify(exports, site.typeRef), site);
+      }
+    }
+  }
 
   const found: Finding[] = [];
   for (const { file, lifts } of scans) {

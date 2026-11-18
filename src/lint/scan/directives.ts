@@ -145,7 +145,9 @@ export function directives(
   let blockEndOffset = 0;
 
   const close = (): void => {
-    for (const carried of block) found.push(Directive.seal({ ...carried, covers: blockEnd + 1 }));
+    for (const carried of block) {
+      found.push(Directive.seal({ ...carried, covers: blockEnd + 1 }));
+    }
     block = [];
   };
 
@@ -159,10 +161,15 @@ export function directives(
       blockEnd !== -1 &&
       lineOf(comment.start) <= blockEnd + 1 &&
       source.slice(blockEndOffset, comment.start).trim() === "";
-    if (!joins) close();
+    if (!joins) {
+      close();
+    }
     const written = DirectiveComment.parse(comment.value, Lines.at(lines, comment.start));
-    if (written?.spelling === "valof-lint-disable-next-line") block.push(written);
-    else if (written) found.push(Directive.seal({ ...written, covers: "file" }));
+    if (written?.spelling === "valof-lint-disable-next-line") {
+      block.push(written);
+    } else if (written) {
+      found.push(Directive.seal({ ...written, covers: "file" }));
+    }
     blockEnd = lineOf(comment.end);
     blockEndOffset = comment.end;
   }

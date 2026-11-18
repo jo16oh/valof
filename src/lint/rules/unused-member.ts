@@ -39,10 +39,11 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);
   /** `export { User as Public }`: the name outside -> the name at the declaration. */
   const exportedAs = new Map<string, string>();
-  for (const scan of scans)
+  for (const scan of scans) {
     for (const [outside, inside] of Object.entries(scan.exportedAs)) {
       exportedAs.set(outside, inside);
     }
+  }
 
   /** Walks `export { A as B }` back to the declared name, tolerating a chain of them. */
   const declaredName = (name: string): string => {
@@ -65,29 +66,38 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
   const note = (name: string, key: string): void => {
     const under = declaredName(name);
     let keys = read.get(under);
-    if (!keys) read.set(under, (keys = new Set()));
+    if (!keys) {
+      read.set(under, (keys = new Set()));
+    }
     keys.add(key);
   };
   for (const scan of scans) {
     for (const [local, keys] of Object.entries(scan.reads)) {
       const name = ImportMap.nameOf(scan.imported, local);
-      for (const key of Object.keys(keys)) note(name, key);
+      for (const key of Object.keys(keys)) {
+        note(name, key);
+      }
     }
     // Already named as the exporting module names them, so this file's aliases do not apply.
-    for (const [name, keys] of Object.entries(scan.namespaceReads))
-      for (const key of Object.keys(keys)) note(name, key);
+    for (const [name, keys] of Object.entries(scan.namespaceReads)) {
+      for (const key of Object.keys(keys)) {
+        note(name, key);
+      }
+    }
   }
 
   const implementations = new Map<string, Scan["traitImplementations"][number]>();
-  for (const scan of scans)
-    for (const implementation of scan.traitImplementations)
+  for (const scan of scans) {
+    for (const implementation of scan.traitImplementations) {
       implementations.set(
         `${Exports.identify(exports, implementation.val)}\0${Exports.identify(exports, implementation.trait)}`,
         implementation,
       );
+    }
+  }
 
   // A dyn read dispatches through the Val's selected implementation.
-  for (const scan of scans)
+  for (const scan of scans) {
     for (const { val, trait, member } of scan.dynReads) {
       const implementation = implementations.get(
         `${Exports.identify(exports, val)}\0${Exports.identify(exports, trait)}`,
@@ -95,15 +105,20 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
       const overridden = implementation?.overrides.some((one) => one.member === member) === true;
       note(overridden ? val.name : trait.name, member);
     }
+  }
 
   // A box that escaped is read off names the walk does not follow, so a key read anywhere may be
   // read off it. It holds the Val its first argument references, or any Val implementing the
   // trait when that references none.
   const anywhere = new Set<string>();
-  for (const scan of scans)
-    for (const keys of [...Object.values(scan.reads), ...Object.values(scan.namespaceReads)])
-      for (const key of Object.keys(keys)) anywhere.add(key);
-  for (const scan of scans)
+  for (const scan of scans) {
+    for (const keys of [...Object.values(scan.reads), ...Object.values(scan.namespaceReads)]) {
+      for (const key of Object.keys(keys)) {
+        anywhere.add(key);
+      }
+    }
+  }
+  for (const scan of scans) {
     for (const { trait, val } of scan.escapedDyns) {
       const implementing = [...implementations.values()].filter(
         (one) => Exports.identify(exports, one.trait) === Exports.identify(exports, trait),
@@ -111,32 +126,41 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
       const named = implementing.filter(
         (one) => Exports.identify(exports, one.val) === Exports.identify(exports, val),
       );
-      for (const implementation of named.length > 0 ? named : implementing)
+      for (const implementation of named.length > 0 ? named : implementing) {
         for (const key of anywhere) {
           const overridden = implementation.overrides.some((one) => one.member === key);
           note(overridden ? implementation.val.name : trait.name, key);
         }
+      }
     }
+  }
 
   // A Val reads a trait's default unless that Val supplied the same key to implTrait.  Unknown
   // object expressions are intentionally conservative: they might override any key, so they
   // keep every default alive rather than issuing a false positive.
-  for (const scan of scans)
+  for (const scan of scans) {
     for (const implementation of scan.traitImplementations) {
       const used = read.get(implementation.val.name);
       if (!used) continue;
       const traitReads = read.get(implementation.trait.name) ?? new Set<string>();
-      for (const key of used)
-        if (!implementation.overrides.some((override) => override.member === key))
+      for (const key of used) {
+        if (!implementation.overrides.some((override) => override.member === key)) {
           traitReads.add(key);
+        }
+      }
       read.set(implementation.trait.name, traitReads);
     }
+  }
 
   /** The variants each enum declared, where its declaration settled them. */
   const variants = new Map<string, ReadonlySet<string>>();
-  for (const { enumAliases } of scans)
-    for (const { ref, variants: declared } of enumAliases)
-      if (declared) variants.set(Exports.identify(exports, ref), new Set(declared));
+  for (const { enumAliases } of scans) {
+    for (const { ref, variants: declared } of enumAliases) {
+      if (declared) {
+        variants.set(Exports.identify(exports, ref), new Set(declared));
+      }
+    }
+  }
 
   return scans.flatMap(({ file, members, sites }) => {
     /**
@@ -146,7 +170,9 @@ function findings({ kind }: UnusedMember, scans: readonly Scan[]): Finding[] {
     const taken = new Map<string, ReadonlySet<string>>();
     for (const site of sites) {
       const declared = variants.get(Exports.identify(exports, site.typeRef));
-      if (site.name !== null && declared) taken.set(site.name, declared);
+      if (site.name !== null && declared) {
+        taken.set(site.name, declared);
+      }
     }
     return members
       .filter(({ companion, member }) => !taken.get(companion)?.has(member))

@@ -51,9 +51,11 @@ function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
       // Each variant derives a Val branded `` `${enum}.${variant}` ``, which a hand-written Val
       // can claim too. The enum's declaration is where that collision is fixed, so the finding
       // sits there rather than at a variant nobody wrote.
-      if (owner === "Enum")
-        for (const variant of declared.get(alias) ?? [])
+      if (owner === "Enum") {
+        for (const variant of declared.get(alias) ?? []) {
           claim(`Val:${brand}.${variant}`, `${brand}.${variant}`, "derives");
+        }
+      }
     }
   }
   const reported = new Set<string>();

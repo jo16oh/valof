@@ -1,0 +1,70 @@
+// The repository's own lint rules, which the published plugin does not carry.
+import type { RuleTester } from "oxlint/plugins-dev";
+
+type Rule = Extract<Parameters<RuleTester["run"]>[1], { create: unknown }>;
+type Context = Parameters<Rule["create"]>[0];
+type Body = Parameters<Context["sourceCode"]["getText"]>[0];
+
+/**
+ * Braces on every `if`, `else` and loop body, except an `if` with no `else` whose body leaves
+ * (`return`, `throw`, `continue` or `break`): a guard clause.
+ *
+ * `curly` has no option that tells a guard clause from the rest.
+ */
+const braces: Rule = {
+  meta: {
+    type: "layout",
+    docs: { description: "Require braces, except on a guard clause" },
+    fixable: "code",
+    messages: {
+      braces:
+        "Add braces. Only an `if` that returns, throws, continues or breaks, with no `else`, goes without.",
+    },
+  },
+  create(context) {
+    const check = (body: (Body & { type: string }) | null): void => {
+      if (body === null || body.type === "BlockStatement") return;
+
+      context.report({
+        node: body,
+        messageId: "braces",
+        fix: (fixer) =>
+          fixer.replaceText(
+            body,
+            body.type === "EmptyStatement" ? " {}" : `{\n${context.sourceCode.getText(body)}\n}`,
+          ),
+      });
+    };
+
+    return {
+      IfStatement(node) {
+        if (!guards.has(node.consequent.type) || node.alternate !== null) {
+          check(node.consequent);
+        }
+        if (node.alternate?.type !== "IfStatement") {
+          check(node.alternate);
+        }
+      },
+      ForStatement: (node) => check(node.body),
+      ForInStatement: (node) => check(node.body),
+      ForOfStatement: (node) => check(node.body),
+      WhileStatement: (node) => check(node.body),
+      DoWhileStatement: (node) => check(node.body),
+    };
+  },
+};
+
+const guards = new Set([
+  "ReturnStatement",
+  "ThrowStatement",
+  "ContinueStatement",
+  "BreakStatement",
+]);
+
+// Annotated, so the declaration names `Rule` rather than oxlint's own type, which it does not export.
+const plugin: { meta: { name: string }; rules: { braces: Rule } } = {
+  meta: { name: "local" },
+  rules: { braces },
+};
+
+export default plugin;

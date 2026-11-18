@@ -147,8 +147,11 @@ export class LinterWorker {
       R.mapError(({ message }) => new Error(message)),
       R.unwrap(),
     );
-    if (bufferless) this.#saved = { key, findings };
-    else this.#edited = { key, findings };
+    if (bufferless) {
+      this.#saved = { key, findings };
+    } else {
+      this.#edited = { key, findings };
+    }
 
     return findings;
   }

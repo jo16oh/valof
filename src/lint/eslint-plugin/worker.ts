@@ -24,7 +24,9 @@ LinterWorker.serve(
       }),
       cache,
     );
-    if (saved) store.save();
+    if (saved) {
+      store.save();
+    }
 
     // The message the command prints, so a user of the plugin gets the same instruction.
     return pipe(

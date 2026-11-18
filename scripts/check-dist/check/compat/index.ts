@@ -277,7 +277,9 @@ async function typecheck(
   try {
     await run(["-p", DIRECTORY]);
     await run(["-p", join(DIRECTORY, "tsconfig.declaration.json"), "--outDir", dts]);
-    if (current) await run(["-p", SCRIPTS, "--outDir", own]);
+    if (current) {
+      await run(["-p", SCRIPTS, "--outDir", own]);
+    }
     const trip = await RoundTrip.write(exports, dts, join(DIRECTORY, "round-trip", alias));
     const changed = await RoundTrip.differs(trip, run);
     const cut = current ? await elided(own) : [];

@@ -156,5 +156,7 @@ function print(findings: readonly Finding[], reported: number): void {
 }
 
 const status = await command(process.argv.slice(2));
-if (R.isFailure(status)) console.error(status.error.message);
+if (R.isFailure(status)) {
+  console.error(status.error.message);
+}
 process.exit(R.isFailure(status) ? 2 : status.value);

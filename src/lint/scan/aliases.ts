@@ -206,8 +206,11 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
 /** Every top-level `type X = …` in the file, which the two syntax-only walks below expand. */
 function localAliases(program: Node): Map<string, Node> {
   const aliases = new Map<string, Node>();
-  for (const { id, typeAnnotation } of topLevelAliases(program))
-    if (id.type === "Identifier") aliases.set(id.name, typeAnnotation);
+  for (const { id, typeAnnotation } of topLevelAliases(program)) {
+    if (id.type === "Identifier") {
+      aliases.set(id.name, typeAnnotation);
+    }
+  }
   return aliases;
 }
 
@@ -280,7 +283,9 @@ function traitNames(
     if (!inside) return;
     if (inside !== one) return visit(inside, occurrence === one ? inside : occurrence);
     if (one.type === "TSIntersectionType") {
-      for (const part of one.types) visit(part, occurrence === one ? part : occurrence);
+      for (const part of one.types) {
+        visit(part, occurrence === one ? part : occurrence);
+      }
       return;
     }
     if (one.type !== "TSTypeReference") return;

@@ -28,7 +28,7 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
       traitAliases.map(({ ref }) => Exports.identify(exports, ref)),
     ),
   );
-  for (const scan of scans)
+  for (const scan of scans) {
     for (const { alias, ref, variant, traits: declared, onlyDeclared } of [
       ...scan.aliases.map(({ alias, ref, traits }) => ({
         alias,
@@ -59,7 +59,7 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
           )
           .map((one) => Exports.identify(exports, one.trait)),
       );
-      for (const trait of declared)
+      for (const trait of declared) {
         if (!implemented.has(Exports.identify(exports, trait.ref))) {
           if (onlyDeclared && !traits.has(Exports.identify(exports, trait.ref))) continue;
           // The declaration's position is deliberate: it points to the promise that is missing.
@@ -72,6 +72,8 @@ function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding
             }),
           );
         }
+      }
     }
+  }
   return found;
 }

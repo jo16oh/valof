@@ -7,7 +7,8 @@ export default defineConfig({
   extends: [byethrow.recommended],
   plugins: ["typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
   // The plugin from source, so the linter checks the library, the scripts and itself as it stands.
-  jsPlugins: ["./src/lint/eslint-plugin/index.ts"],
+  // The second holds the rules this repository keeps for itself.
+  jsPlugins: ["./src/lint/eslint-plugin/index.ts", "./scripts/lint/braces.ts"],
   settings: {
     valof: {
       project: ["src/**/*.ts", "scripts/**/*.ts", "!**/fixtures/**"],
@@ -18,6 +19,7 @@ export default defineConfig({
   categories: { correctness: "error", suspicious: "error", perf: "error" },
   rules: {
     "byethrow/consistent-namespace": ["error", "R"],
+    "local/braces": "error",
     "typescript/no-explicit-any": "error",
     "typescript/no-unnecessary-condition": "error",
     "typescript/no-unnecessary-type-assertion": "error",
@@ -80,6 +82,9 @@ export default defineConfig({
   },
   overrides: [
     { files: ["src/**/*.ts", "scripts/**/*.ts"], rules: valof.configs.recommended.rules },
+    // The repository's coding rules cover all code but the library's `src` and the tests.
+    { files: ["src/**/*.ts"], rules: { "local/braces": "off" } },
+    { files: ["src/lint/**/*.ts"], rules: { "local/braces": "error" } },
     {
       // Both build their errors as classes, and the linter keeps state in classes.
       files: ["src/lint/**/*.ts", "scripts/check-dist/**/*.ts"],
@@ -97,6 +102,7 @@ export default defineConfig({
         "typescript/no-extraneous-class": "off",
         // A matcher cannot give back the value a test unwraps to set itself up.
         "byethrow/prefer-result-matchers": "off",
+        "local/braces": "off",
       },
     },
   ],

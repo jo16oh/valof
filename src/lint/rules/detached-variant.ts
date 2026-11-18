@@ -22,9 +22,13 @@ function findings({ kind }: DetachedVariant, scans: readonly Scan[]): Finding[] 
   const exports = Exports.from(scans);
   const identity = (ref: SymbolRef): string => Exports.identify(exports, ref);
   const variants = new Map<string, ReadonlySet<string>>();
-  for (const { enumAliases } of scans)
-    for (const { ref, variants: declared } of enumAliases)
-      if (declared) variants.set(identity(ref), new Set(declared));
+  for (const { enumAliases } of scans) {
+    for (const { ref, variants: declared } of enumAliases) {
+      if (declared) {
+        variants.set(identity(ref), new Set(declared));
+      }
+    }
+  }
   return scans.flatMap(({ file, companionBindings }) =>
     companionBindings
       .filter(

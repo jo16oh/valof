@@ -155,8 +155,9 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
       for (const member of literal.members) {
         const type = bare(annotationOf(member));
         const element = type?.type === "TSArrayType" ? bare(type.elementType) : type;
-        if (element?.type === "TSTypeLiteral" || element?.type === "TSMappedType")
+        if (element?.type === "TSTypeLiteral" || element?.type === "TSMappedType") {
           report("NestedObject", alias, element);
+        }
       }
     }
   };
@@ -175,15 +176,22 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
     if (valof === "Val") return nested(args[1], name);
     if (valof === "Enum") {
       const record = unparenthesized(args[1]);
-      if (record?.type === "TSTypeLiteral")
-        for (const variant of record.members) nested(annotationOf(variant), name);
+      if (record?.type === "TSTypeLiteral") {
+        for (const variant of record.members) {
+          nested(annotationOf(variant), name);
+        }
+      }
       return;
     }
     if (valof && VALOF.has(valof)) return;
     if (primitive(rhs)) return report("Primitive", name, id);
-    if (extracts(rhs)) report("Extraction", name, id);
+    if (extracts(rhs)) {
+      report("Extraction", name, id);
+    }
     const hit = data(rhs);
-    if (hit) report("Data", name, hit === top ? id : hit);
+    if (hit) {
+      report("Data", name, hit === top ? id : hit);
+    }
   };
 
   const visit = (node: Node, allowed: boolean): void => {
@@ -194,7 +202,9 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
         alias(node);
         break;
       case "TSInterfaceDeclaration":
-        if (node.id.type === "Identifier") report("Interface", node.id.name, node.id);
+        if (node.id.type === "Identifier") {
+          report("Interface", node.id.name, node.id);
+        }
         break;
       case "ClassDeclaration":
       case "ClassExpression":
@@ -202,7 +212,9 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
         break;
       case "TSTypeParameter": {
         const hit = node.constraint && data(node.constraint);
-        if (hit) report("Constraint", "", hit);
+        if (hit) {
+          report("Constraint", "", hit);
+        }
         break;
       }
       case "TSTypeReference": {
@@ -210,8 +222,9 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
         // Inside a Valof type is where a payload type goes.
         if (name && VALOF.has(name)) return;
         const written = node.typeName;
-        if (!allowed && written.type === "Identifier")
+        if (!allowed && written.type === "Identifier") {
           outside.push(TypeUse.seal({ at: Lines.at(lines, written.start), name: written.name }));
+        }
         break;
       }
       case "CallExpression": {
@@ -219,7 +232,9 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
         const step = callee.type === "MemberExpression" ? stepOf(callee).name : null;
         if (step === "implSeal" || step === "implCreate") {
           // The function a seal or a create takes is where a payload type is written.
-          for (const one of node.children) visit(one, node.arguments.includes(one) || allowed);
+          for (const one of node.children) {
+            visit(one, node.arguments.includes(one) || allowed);
+          }
           return;
         }
         break;
@@ -227,7 +242,9 @@ export function models(file: string, program: Node, bound: Bindings, lines: Line
       default:
         break;
     }
-    for (const one of node.children) visit(one, allowed);
+    for (const one of node.children) {
+      visit(one, allowed);
+    }
   };
   visit(program, false);
   return done();
