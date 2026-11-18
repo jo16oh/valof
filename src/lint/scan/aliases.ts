@@ -84,6 +84,16 @@ export type BrandClaim = Val<
 >;
 export const BrandClaim = Val.companion<BrandClaim>().build();
 
+/**
+ * A `readonly`, `Readonly<…>` or `ReadonlyArray<…>` written in a top-level Val's or Enum's
+ * payload, at its first token. `readonly` covers both the type operator and the property modifier.
+ */
+export type ReadonlyWritten = Val<
+  "ReadonlyWritten",
+  { at: Position; spelling: "readonly" | "Readonly" | "ReadonlyArray" }
+>;
+export const ReadonlyWritten = Val.companion<ReadonlyWritten>().build();
+
 /** The traits one variant declares in its payload. */
 export type VariantTraits = Val<"VariantTraits", { variant: string; traits: DeclaredTrait[] }>;
 export const VariantTraits = Val.companion<VariantTraits>().build();
@@ -100,6 +110,7 @@ export type Aliases = Val<
     enumAliases: EnumAlias[];
     brands: BrandClaim[];
     reAliases: ReAlias[];
+    readonlyWritten: ReadonlyWritten[];
   }
 >;
 export const Aliases = Val.companion<Aliases>()
@@ -132,6 +143,7 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
   const enumAliases: EnumAlias[] = [];
   const brands: BrandClaim[] = [];
   const reAliases: ReAlias[] = [];
+  const readonlyWritten: ReadonlyWritten[] = [];
   const locals = localAliases(program);
 
   for (const node of topLevelAliases(program)) {
@@ -161,6 +173,8 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
     const kind = Bindings.originalName(bound, named);
     const declared = { file, alias: id.name, ref: Bindings.refOf(bound, file, id.name, undefined) };
     if (kind === "Val") {
+      // A record's value type is its third argument.
+      readonlyWritten.push(...readonlyIn(params[collectionOf(typeName, bound) ? 2 : 1], lines));
       aliases.push(
         Alias.seal({
           ...declared,
@@ -174,6 +188,12 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
       traitAliases.push(TraitAlias.seal(declared));
     } else if (kind === "Enum") {
       const variants = variantNames(params[1], bound, locals);
+      readonlyWritten.push(
+        ...variantPayloads(params[1]).flatMap((payload) => readonlyIn(payload, lines)),
+      );
+      // The shared fields arrive intersected with the tag and the traits, references the walk
+      // does not follow.
+      readonlyWritten.push(...readonlyIn(params[2], lines));
       enumAliases.push(
         EnumAlias.seal({
           ...declared,
@@ -200,7 +220,7 @@ function valAliases(program: Node, file: FilePath, bound: Bindings, lines: Lines
     );
   }
 
-  return Aliases.seal({ aliases, traitAliases, enumAliases, brands, reAliases });
+  return Aliases.seal({ aliases, traitAliases, enumAliases, brands, reAliases, readonlyWritten });
 }
 
 /** Every top-level `type X = …` in the file, which the two syntax-only walks below expand. */
@@ -347,6 +367,56 @@ function variantTraits(
     const traits = traitNames(payload, file, bound, aliases, lines);
     return traits.length > 0 ? [VariantTraits.seal({ variant, traits })] : [];
   });
+}
+
+/** The payload each variant of a literal variant record declares. */
+function variantPayloads(node: Node | undefined): Node[] {
+  const record = unparenthesized(node);
+  if (record?.type !== "TSTypeLiteral") return [];
+  return record.members.flatMap((member) => {
+    const payload = annotationOf(member);
+    return payload ? [payload] : [];
+  });
+}
+
+/**
+ * Every `readonly`, `Readonly<…>` and `ReadonlyArray<…>` in a payload, through object types,
+ * arrays, tuples, unions and intersections. Another type reference is not followed, so a `readonly`
+ * behind an alias the payload names goes unreported.
+ */
+function readonlyIn(payload: Node | undefined, lines: Lines): ReadonlyWritten[] {
+  const found: ReadonlyWritten[] = [];
+  const report = (start: number, spelling: ReadonlyWritten["spelling"]): void => {
+    found.push(ReadonlyWritten.seal({ at: Lines.at(lines, start), spelling }));
+  };
+  const visit = (node: Node | undefined): void => {
+    const inside = unparenthesized(node);
+    if (!inside) return;
+    if (inside.type === "TSTypeLiteral") {
+      for (const member of inside.members) {
+        if (member.type === "TSPropertySignature" && member.readonly) {
+          report(member.start, "readonly");
+        }
+        visit(annotationOf(member) ?? undefined);
+      }
+    } else if (inside.type === "TSTypeOperator" && inside.operator === "readonly") {
+      report(inside.start, "readonly");
+      visit(inside.typeAnnotation);
+    } else if (inside.type === "TSArrayType") {
+      visit(inside.elementType);
+    } else if (inside.type === "TSTupleType") {
+      inside.elementTypes.forEach(visit);
+    } else if (inside.type === "TSUnionType" || inside.type === "TSIntersectionType") {
+      inside.types.forEach(visit);
+    } else if (inside.type === "TSTypeReference" && inside.typeName.type === "Identifier") {
+      const { name } = inside.typeName;
+      if (name !== "Readonly" && name !== "ReadonlyArray") return;
+      report(inside.start, name);
+      typeParams(inside.typeArguments).forEach(visit);
+    }
+  };
+  visit(payload);
+  return found;
 }
 
 /** Whether a type reference is `Val.Record`. */

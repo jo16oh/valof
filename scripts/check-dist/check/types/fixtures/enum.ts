@@ -20,7 +20,7 @@ type Shape = Enum<
     Circle: { r: number };
     Square: { side: number };
     Rect: { w: number; h: number };
-    Poly: { at: readonly (readonly [number, number])[] };
+    Poly: { at: [number, number][] };
   },
   { id: string }
 >;

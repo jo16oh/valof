@@ -200,6 +200,8 @@ test("names every rule, under the plugin's own name", () => {
     "valof/no-aliased-draft": "error",
     "valof/no-hidden-optional": "error",
     "valof/no-detached-variant": "warn",
+    // The payload is readonly either way; what the spelling costs is the copy `Val.unwrap` returns.
+    "valof/no-readonly-payload": "warn",
     "valof/no-unnecessary-alias": "error",
     "valof/no-unimplemented-trait": "error",
     "valof/no-brand-mismatch": "error",

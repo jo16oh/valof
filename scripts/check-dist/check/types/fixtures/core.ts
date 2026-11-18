@@ -11,7 +11,7 @@ const Money = Val.companion<Money>().build();
 type Totals = Val.Record<"Totals", string, Money>;
 const Totals = Val.Record.companion<Totals>().build();
 
-type Line = Val<"Line", { sku: string; qty: number; unit: Money; tags: readonly string[] }>;
+type Line = Val<"Line", { sku: string; qty: number; unit: Money; tags: string[] }>;
 const Line = Val.companion<Line>().build();
 
 type Address = Val<
@@ -19,7 +19,7 @@ type Address = Val<
   {
     city: City;
     street: { name: string; number: number; unit: { floor: number; door: string } | undefined };
-    at: readonly [number, number];
+    at: [number, number];
   }
 >;
 const Address = Val.companion<Address>().build();
@@ -29,7 +29,7 @@ type Order = Val<
   {
     id: string;
     ship: Address;
-    lines: readonly Line[];
+    lines: Line[];
     totals: Totals;
     note: string | undefined;
   }

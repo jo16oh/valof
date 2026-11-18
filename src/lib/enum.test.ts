@@ -68,9 +68,9 @@ describe("the declaration", () => {
   });
 
   test("the payload is deep-copied, like any other Val, and `nocopy` adopts it on both gates", () => {
-    type Crate = Enum<"Crate", { Full: { items: readonly string[] }; Empty: { at: string } }>;
+    type Crate = Enum<"Crate", { Full: { items: string[] }; Empty: { at: string } }>;
     const Crate = Enum.companion<Crate>()
-      .Full.implCreate((items: readonly string[]) => ({ items }))
+      .Full.implCreate((items: string[]) => ({ items }))
       .build();
     const [created, checked, copied] = [["a"], ["a"], ["a"]];
     Crate.Full.create.nocopy(created);
@@ -1292,7 +1292,7 @@ describe("a broken declaration", () => {
     expectTypeOf<NameOf<Primitive & AnyEnum>>().toEqualTypeOf<Fault & string>();
 
     // @ts-expect-error a variant's payload must be a record of fields
-    type Listed = Enum<"Listed", { Many: readonly string[]; Other: { n: number } }>;
+    type Listed = Enum<"Listed", { Many: string[]; Other: { n: number } }>;
     // @ts-expect-error same, for an array
     Enum.companion<Listed>().build();
     expectTypeOf<NameOf<Listed & AnyEnum>>().toEqualTypeOf<Fault & string>();

@@ -31,15 +31,22 @@ export type Node = Enum<
     /** `generic` says whether the alias takes type parameters. */
     TSTypeAliasDeclaration: { id: Rec<Node>; typeAnnotation: Rec<Node>; generic: boolean };
     TSTypeLiteral: { members: Rec<Node>[] };
-    TSPropertySignature: { key: Rec<Node>; computed: boolean; typeAnnotation: Rec<Node> | null };
+    TSPropertySignature: {
+      key: Rec<Node>;
+      computed: boolean;
+      readonly: boolean;
+      typeAnnotation: Rec<Node> | null;
+    };
     TSTypeAnnotation: { typeAnnotation: Rec<Node> };
     TSUnionType: { types: Rec<Node>[] };
     TSArrayType: { elementType: Rec<Node> };
-    TSTypeOperator: { typeAnnotation: Rec<Node> };
+    /** `operator` is the keyword: `keyof`, `unique` or `readonly`. */
+    TSTypeOperator: { operator: string; typeAnnotation: Rec<Node> };
     TSTypeParameter: { constraint: Rec<Node> | null };
     TSInterfaceDeclaration: { id: Rec<Node> };
     TSMappedType: {};
-    TSTupleType: {};
+    /** `elementTypes` holds each element's type, unwrapped from a label or `...`. */
+    TSTupleType: { elementTypes: Rec<Node>[] };
     TSTypeQuery: {};
     TSModuleDeclaration: {};
     ClassDeclaration: {};
@@ -262,6 +269,7 @@ function build(
         ...shared,
         key: at(raw.key),
         computed: raw.computed,
+        readonly: raw.readonly,
         typeAnnotation: maybe(raw.typeAnnotation),
       });
     case "TSTypeAnnotation":
@@ -276,6 +284,7 @@ function build(
     case "TSTypeOperator":
       return Node.TSTypeOperator.create.nocopy({
         ...shared,
+        operator: raw.operator,
         typeAnnotation: at(raw.typeAnnotation),
       });
     case "TSTypeParameter":
@@ -285,7 +294,10 @@ function build(
     case "TSMappedType":
       return Node.TSMappedType.create.nocopy(shared);
     case "TSTupleType":
-      return Node.TSTupleType.create.nocopy(shared);
+      return Node.TSTupleType.create.nocopy({
+        ...shared,
+        elementTypes: raw.elementTypes.map((element) => at(unlabeled(element))),
+      });
     case "TSTypeQuery":
       return Node.TSTypeQuery.create.nocopy(shared);
     case "TSModuleDeclaration":
@@ -379,4 +391,10 @@ function isOxcNode(value: unknown): value is import("oxc-parser").Node {
   return (
     typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
   );
+}
+
+/** A tuple element's type, unwrapped from `...` and then from a label, as in `...rest: T[]`. */
+function unlabeled(element: import("oxc-parser").TSTupleElement): import("oxc-parser").Node {
+  const inner = element.type === "TSRestType" ? element.typeAnnotation : element;
+  return inner.type === "TSNamedTupleMember" ? inner.elementType : inner;
 }

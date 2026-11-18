@@ -26,3 +26,7 @@ can find it, as it finds a cast. The types still reject them where that is cheap
 `structuredClone<T>(value: T): T`, so a clone has the Val's type. The seal never received it, it is not frozen, and it
 has lost the ownership record (§4.1). Valof does not reject it, just as it does not reject a cast. The allowed types
 happen to pass through it. Valof promises nothing more.
+
+**Types Valof does not declare are outside the guarantees** (user, 2026-11-18). Valof takes the types of TypeScript's
+standard library and of other libraries as they are declared. A value whose declared type is wrong reaches a seal under
+that type, and the seal's types accept it as they would a cast. `Object.entries` and `Object.values` return the properties a narrowed variable hides, and give them the type of its listed values, or `any` for an interface. A record built from them can hold values its type does not describe (§3 "No index signature"). The book warns about this hole. A hole of this kind is in those declarations, not in a type Valof declares, so Valof does not close it.

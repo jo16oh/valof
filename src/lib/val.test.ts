@@ -455,7 +455,7 @@ describe("Val", () => {
       expectTypeOf<VerdictOf<Opt>>().toEqualTypeOf<{
         at: [string, Invalid<"a tuple element cannot be optional; declare a union of tuples">?];
       }>();
-      type Either = Val<"Either", { at: readonly [string] | readonly [string, number] }>;
+      type Either = Val<"Either", { at: [string] | [string, number] }>;
       expectTypeOf<Either>().toExtend<AnyVal>();
 
       // A rest element makes `length` plain `number`, which is what tells a tuple from an array,
@@ -1252,7 +1252,7 @@ describe("Val", () => {
     });
 
     test("a Rec in a tuple opens at its position", () => {
-      type Pair = Val<"app/Pair", { pair: readonly [Rec<Pair>, number] }>;
+      type Pair = Val<"app/Pair", { pair: [Rec<Pair>, number] }>;
 
       expectTypeOf<SeedOf<Pair>>().toEqualTypeOf<{ readonly pair: readonly [Pair, number] }>();
     });

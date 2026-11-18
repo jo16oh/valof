@@ -57,6 +57,8 @@ Val.unwrap(v).tags.sort(); // ✗ readonly string[] has no sort
 
 The purpose of unwrap, "a mutable copy to pass to code that does not know about readonly", is defeated by the `readonly` in the definition. The docs used to recommend `ReadonlyArray` / `Readonly<Record>` in both the allowed-types table and the examples, so both now use the plain form.
 
+Since 2026-11-18, valof-lint's `no-readonly-payload` reports a `readonly` written in a payload (§14.29).
+
 ## Migration friction
 
 Plain nested objects from API responses or existing code cannot be passed as is. The seal has to assemble the child Vals.

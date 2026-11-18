@@ -10,6 +10,7 @@ import { DuplicateBrand } from "./no-duplicate-brand.ts";
 import { HiddenOptional } from "./no-hidden-optional.ts";
 import { HiddenSharedStateInImpl } from "./no-hidden-shared-state-in-impl.ts";
 import { InferredValOf } from "./no-inferred-val-of.ts";
+import { ReadonlyPayload } from "./no-readonly-payload.ts";
 import { SplitCompanion } from "./no-split-companion.ts";
 import { UnimplementedTrait } from "./no-unimplemented-trait.ts";
 import { UnnecessaryAlias } from "./no-unnecessary-alias.ts";
@@ -37,6 +38,7 @@ export {
   VagueDisable,
   SplitCompanion,
   InferredValOf,
+  ReadonlyPayload,
   UnusedDisable,
   UnusedMember,
   UnimplementedTrait,
@@ -60,6 +62,7 @@ export const RULES = [
   DataTypeOutsideValof.dyn<Rule>(DataTypeOutsideValof.create(DataTypeSettings.create())),
   HiddenOptional.dyn<Rule>(HiddenOptional.create()),
   DetachedVariant.dyn<Rule>(DetachedVariant.create()),
+  ReadonlyPayload.dyn<Rule>(ReadonlyPayload.create()),
   VagueDisable.dyn<Rule>(VagueDisable.create()),
   UnusedDisable.dyn<Rule>(UnusedDisable.create()),
 ] as const;

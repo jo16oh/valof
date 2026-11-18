@@ -20,6 +20,7 @@ import {
   type BrandClaim,
   type EnumAlias,
   type ReAlias,
+  type ReadonlyWritten,
   type TraitAlias,
 } from "./aliases.ts";
 import { Bindings, ImportBinding, ImportMap, Modules, Names, SymbolRef } from "./bindings.ts";
@@ -47,6 +48,7 @@ export type {
   DeclaredTrait,
   EnumAlias,
   ReAlias,
+  ReadonlyWritten,
   TraitAlias,
 } from "./aliases.ts";
 
@@ -210,6 +212,8 @@ export type Scan = Val<
     brands: BrandClaim[];
     /** Top-level `type A = B`, which gives `B` a second name. */
     reAliases: ReAlias[];
+    /** Each `readonly` a top-level Val's or Enum's payload writes. */
+    readonlyWritten: ReadonlyWritten[];
     /** Companion chains of all three roots, and what each registered. */
     sites: CompanionSite[];
     /** Keys taken off a companion and bound to a local name. */
@@ -600,12 +604,8 @@ function scan(
   }
 
   // After the walk, which is what collected the imports `Val` is resolved against.
-  const { aliases, traitAliases, enumAliases, brands, reAliases } = Aliases.fromProgram(
-    program,
-    file,
-    bound,
-    lines,
-  );
+  const { aliases, traitAliases, enumAliases, brands, reAliases, readonlyWritten } =
+    Aliases.fromProgram(program, file, bound, lines);
 
   return Scan.seal({
     file,
@@ -628,6 +628,7 @@ function scan(
     enumAliases,
     brands,
     reAliases,
+    readonlyWritten,
     sites,
     companionBindings,
     lifts,
