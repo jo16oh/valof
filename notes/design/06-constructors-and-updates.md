@@ -518,6 +518,8 @@ The subset form (`seal(f: { name: string })`) still passes the `SealImpl<V>` con
 
 `patch` passes the payload back to the seal (§6.8), so a wire-format decoder in the seal breaks the moment a value is derived from another value. The check rejects `unknown` and `{}`. `object` and `Record<string, unknown>` are wide enough for a schema library.
 
+**The book recommends `Record<string, unknown>`, not `object`** (user, 2026-11-18). `Object.entries` of an `object` resolves to lib's overload `entries(o: {}): [string, any][]`, so a value the seal reads is `any` and needs no check to use. From a `Record<string, unknown>` it is `unknown`. Both still pass the check above, and a record's `fromEntries` takes any string-keyed entries for both (§3). The cost is that a Val's public `seal` rejects a value typed by an interface, which has no implicit index signature. A value from `JSON.parse` is `any`, which `seal` accepts, so the cost reaches only a caller that holds an interface-typed value.
+
 A Val whose payload is itself a `string` (`Val<"Email", string>`) is exempt. The types have no way to tell the payload from the wire format.
 
 ### A seal returns synchronously, 2026-10-14
