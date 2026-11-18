@@ -549,14 +549,28 @@ describe("Val", () => {
       expectTypeOf<Root>().not.toExtend<AnyVal>();
     });
 
-    test("bigint is rejected, alone or in a union", () => {
-      // @ts-expect-error JSON.stringify throws on a bigint
-      type Bad = Val<"Bad", { n: bigint; m: number | bigint }>;
-      type Rejected = Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
-      expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{ n: Rejected; m: Rejected }>();
-      expectTypeOf<Bad>().not.toExtend<AnyVal>();
-      // @ts-expect-error JSON.stringify throws on a bigint
-      Val.companion<Bad>().build();
+    test("bigint is allowed, at the top, in a field, in a union and in an array", () => {
+      type Nanos = Val<"Nanos", bigint>;
+      type Ledger = Val<
+        "Ledger",
+        { wei: bigint; at: bigint | null; mixed: number | bigint; ids: bigint[] }
+      >;
+      expectTypeOf<Nanos | Ledger>().toExtend<AnyVal>();
+      const Ledger = Val.companion<Ledger>().build();
+      const ledger = Ledger.seal({ wei: 10n ** 18n, at: null, mixed: 1n, ids: [1n, 2n] });
+      expect(ledger.wei).toBe(10n ** 18n);
+      expect(
+        equals(ledger, Ledger.seal({ wei: 10n ** 18n, at: null, mixed: 1n, ids: [1n, 2n] })),
+      ).toBe(true);
+      expect(
+        equals(
+          ledger,
+          Ledger.patch(ledger, (d) => {
+            d.wei = 1n;
+          }),
+        ),
+      ).toBe(false);
+      expect(Val.companion<Nanos>().build().seal(5n)).toBe(5n);
     });
 
     test("null is allowed inside a payload, but not at its top level", () => {
