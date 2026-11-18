@@ -8,8 +8,9 @@ export const InternalImport = Val.companion<InternalImport>()
   .implCreate(() => ({
     kind: Kind.seal("no-internal-import"),
     description: "an import or a re-export from `valof/internal/*`",
-    // The import works today; what it reaches can change in any release.
-    warns: true,
+    // The import works today, but no code a user writes needs `valof/internal/*`, and the import can
+    // break in any release.
+    warns: false,
     optIn: false,
   }))
   .implTrait(Rule, () => ({ run: findings }))
