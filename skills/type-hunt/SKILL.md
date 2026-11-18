@@ -63,6 +63,7 @@ These are by design. Do not report them as holes:
 - A cast and an upcast are outside what Valof guarantees. A write through `as`, a `delete` through a
   cast, and a write through a variable of a wider type, such as a nested Val held as a plain object,
   are not holes.
+- A project without `exactOptionalPropertyTypes` is outside what Valof guarantees (pattern 11).
 - Valof does not check a key that reaches the prototype, such as `__proto__`. Such a key is not a
   finding.
 
@@ -190,13 +191,9 @@ cannot reach the declaration. Move it to the private field that every use reads.
 
 ### 11. The user's compiler options
 
-Run the probes again without `--exactOptionalPropertyTypes`.
-
-**What breaks.** Without `exactOptionalPropertyTypes`, an optional key accepts `undefined`. A key
-excluded with `?: never` then accepts it too, as a `Final` member set to `undefined` in `implTrait`
-does. A payload declares no optional key, so a check that uses `-?` gives the same verdict with or
-without the option. A user may leave the option off, though the docs recommend it. Report what
-changes without it, and mark what the docs already describe.
+Valof assumes `strict` and `exactOptionalPropertyTypes`, and the probe command above sets both. Do
+not run the probes without them. Without `exactOptionalPropertyTypes`, an optional key accepts
+`undefined`, and no type can reject it. A hole that opens only then is not a finding.
 
 ### 12. Two types that `equals` cannot distinguish
 
