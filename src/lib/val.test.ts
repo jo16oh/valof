@@ -1332,6 +1332,35 @@ describe("the entry point", () => {
     // @ts-expect-error nor Draft: a recipe goes inline in the `patch` call
     expectTypeOf<import("./index.ts").Draft<{ id: string }>>();
   });
+
+  // A user's `.d.ts` names them through `valof/internal/*`.
+  test("does not export the builder and companion types", () => {
+    // @ts-expect-error the entry point does not export Companion
+    expectTypeOf<import("./index.ts").Companion<never, never>>();
+    // @ts-expect-error nor CompanionBuilder
+    expectTypeOf<import("./index.ts").CompanionBuilder<never>>();
+    // @ts-expect-error nor EnumBuilder
+    expectTypeOf<import("./index.ts").EnumBuilder<never>>();
+    // @ts-expect-error nor EnumCompanion
+    expectTypeOf<import("./index.ts").EnumCompanion<never>>();
+    // @ts-expect-error nor TraitBuilder
+    expectTypeOf<import("./index.ts").TraitBuilder<never>>();
+    // @ts-expect-error nor TraitCompanion
+    expectTypeOf<import("./index.ts").TraitCompanion<never>>();
+  });
+
+  test("does not export what only reads a declaration back", () => {
+    // @ts-expect-error the entry point does not export Members
+    expectTypeOf<import("./index.ts").Members>();
+    // @ts-expect-error nor NameOf
+    expectTypeOf<import("./index.ts").NameOf<never>>();
+    // @ts-expect-error nor SharedOf
+    expectTypeOf<import("./index.ts").SharedOf<never>>();
+    // @ts-expect-error nor TagOf
+    expectTypeOf<import("./index.ts").TagOf<never>>();
+    // @ts-expect-error nor SeedFor: `SeedOf<VariantOf<E, N>>` is a variant's seed
+    expectTypeOf<import("./index.ts").SeedFor<never, never>>();
+  });
 });
 
 describe("copying", () => {

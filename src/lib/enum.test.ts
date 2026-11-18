@@ -1,6 +1,6 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 
-import type { AnyEnum } from "./enum.ts";
+import type { AnyEnum, NameOf, SeedFor } from "./enum.ts";
 import {
   equals,
   Val,
@@ -14,9 +14,7 @@ import {
   type Dyn,
   type Final,
   type Impl,
-  type NameOf,
   type VariantOptions,
-  type SeedFor,
   type SealedPayload,
   type Self,
   Otherwise,
