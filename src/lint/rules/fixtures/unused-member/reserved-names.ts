@@ -1,4 +1,6 @@
 import { Enum, Trait, Val, type Self } from "valof";
+import * as valof from "valof";
+import { Val as V } from "valof";
 
 const Id = Val.companion<Id>().impl(() => ({
   equals: (a, b) => a === b,
@@ -51,11 +53,38 @@ const Tags = Val.Record.companion<Tags>()
   .impl(() => ({
     // @ts-expect-error -- a record's own member
     has: (t: Tags) => true,
+    // @ts-expect-error -- a record's own member
+    set: (t: Tags) => t,
+    // @ts-expect-error -- a record's own member
+    delete: (t: Tags) => t,
     count: (t: Tags) => 0,
   }))
   .implAssoc(() => ({
     // @ts-expect-error -- a record's own member
     fromEntries: () => 0,
+    // @ts-expect-error -- a record's own member
+    keys: () => 0,
+    // @ts-expect-error -- a record's own member
+    values: () => 0,
+    // @ts-expect-error -- a record's own member
+    entries: () => 0,
+  }))
+  .build();
+
+type Held = Val.Record<"Held", string, true>;
+const held = V.Record.companion<Held>();
+const Held = held
+  .impl(() => ({
+    // @ts-expect-error -- a record's own member
+    has: (t: Held) => true,
+  }))
+  .build();
+
+type Spelled = Val.Record<"Spelled", string, true>;
+const Spelled = valof.Val.Record.companion<Spelled>()
+  .impl(() => ({
+    // @ts-expect-error -- a record's own member
+    keys: (t: Spelled) => [],
   }))
   .build();
 

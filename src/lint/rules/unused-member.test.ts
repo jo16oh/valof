@@ -39,6 +39,8 @@ describe("what the rule finds", () => {
       "Named.match is never read",
       "Named.then is never read",
       "Tags.count is never read",
+      // A builder held in a variable is reported for its name, and its record names still left out.
+      "held is the companion for Held, and should be named Held",
     ]);
   });
 
