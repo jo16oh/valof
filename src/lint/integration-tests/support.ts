@@ -25,6 +25,7 @@ function registered(companion: { create: (settings: never) => { kind: string } }
 
 // Named rather than spelled as a kind: a test that names a rule reads the same object the
 // registry does, so renaming a kind is one edit and no test string follows it.
+export const AliasedDraft = registered(Rules.AliasedDraft);
 export const HiddenSharedStateInImpl = registered(Rules.HiddenSharedStateInImpl);
 export const DataTypeOutsideValof = registered(Rules.DataTypeOutsideValof);
 export const HiddenOptional = registered(Rules.HiddenOptional);

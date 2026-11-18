@@ -1,5 +1,6 @@
 import type { Dyn } from "../../lib/index.ts";
 import { DataTypeSettings, type Options } from "../shared/options.ts";
+import { AliasedDraft } from "./aliased-draft.ts";
 import { BrandMismatch } from "./brand-mismatch.ts";
 import { BypassedCompanion } from "./bypassed-companion.ts";
 import { CompanionMismatch } from "./companion-mismatch.ts";
@@ -23,6 +24,7 @@ import { UnusedMember } from "./unused-member.ts";
  * {@link RULES} is what the runner reads. This is for naming a single one.
  */
 export {
+  AliasedDraft,
   HiddenSharedStateInImpl,
   DataTypeOutsideValof,
   HiddenOptional,
@@ -54,6 +56,7 @@ export const RULES = [
   Rule.dyn(BypassedCompanion, BypassedCompanion.create()),
   Rule.dyn(InferredValOf, InferredValOf.create()),
   Rule.dyn(HiddenSharedStateInImpl, HiddenSharedStateInImpl.create()),
+  Rule.dyn(AliasedDraft, AliasedDraft.create()),
   Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(DataTypeSettings.create())),
   Rule.dyn(HiddenOptional, HiddenOptional.create()),
   Rule.dyn(DetachedVariant, DetachedVariant.create()),

@@ -53,7 +53,7 @@
     overflow), not a clear message. A check would cost bytes for a mistake the throw already stops
   - **Cost.** trait 25,699 → 26,345 instantiations, so its budget went from 26,000 to 27,000
 
-- [ ] **valof-lint reports `Object.assign` on a draft.** TypeScript types `Object.assign`'s source as anything, so
+- [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
   - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report
     passing it, assigning it, putting it in an array or object, `Object.assign` and `Reflect.set`. A spread stays.
@@ -67,6 +67,9 @@
     form too. The check costs core 11,583 → 12,556 instantiations (+8%), so its budget went from 12,000 to 13,000. Most
     of it comes from intersecting the recipe's type with a second check beside `Sync`. Folding the check into `Sync`
     cost as much, and a conditional with `infer` over the parameters broke the recipe's contextual typing
+  - The rule finds a recipe by syntax: the last argument of any `.patch(…)` call, when it is a function. Another
+    library's `patch` taking a callback would be reported too. Resolving the callee to a companion is left out until a
+    false report appears
 
 - [x] ~~**valof-lint reports `Object.entries` passed to `fromEntries`.**~~ Rejected, 2026-11-18. The book warns instead. TypeScript's lib types the entries by the
       object's implicit index signature, so a narrowed variable hides entries from a record again (§3 "No index signature")
