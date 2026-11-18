@@ -304,11 +304,9 @@ describe("the tag", () => {
   test("a seal sees the tag the payload carries, and nothing rewrites it", () => {
     const seen: unknown[] = [];
     const Checked = Enum.companion<Shape>()
-      .Circle.implSeal((c: object, seal) => {
-        seen.push((c as { _tag?: unknown })._tag);
-        return "_tag" in c && c._tag === "Circle"
-          ? seal(c as never)
-          : new TypeError("not a Circle");
+      .Circle.implSeal((c: Record<string, unknown>, seal) => {
+        seen.push(c["_tag"]);
+        return c["_tag"] === "Circle" ? seal(c as never) : new TypeError("not a Circle");
       })
       .build();
     expect(Checked.Circle.seal(JSON.parse('{ "_tag": "Square", "r": 1 }'))).toBeInstanceOf(
@@ -1382,6 +1380,12 @@ describe("a broken declaration", () => {
     // @ts-expect-error a variant's name must be a string
     type OnlyNumbers = Enum<"OnlyNumbers", { 200: { n: number }; 404: { path: string } }>;
     expectTypeOf<OnlyNumbers>().not.toBeNever();
+    const key: unique symbol = Symbol("key");
+    // @ts-expect-error a variant's name must be a string
+    type Symbolic = Enum<"Symbolic", { A: { n: number }; B: { n: number }; [key]: { s: string } }>;
+    expectTypeOf<NameOf<Symbolic & AnyEnum>>().toEqualTypeOf<
+      Fault<"a variant's name must be a string">
+    >();
     type Variants = { A: { n: number }; B: { m: number } };
     // @ts-expect-error an enum's name must be one string literal
     type Either = Enum<"Left" | "Right", Variants>;
@@ -1605,10 +1609,14 @@ describe("a variant's seal", () => {
       .build();
   });
 
-  test("a seal whose parameter also accepts a string is rejected", () => {
+  test("a seal whose parameter accepts a string, or reads each value as `any`, is rejected", () => {
     Enum.companion<Money>()
       // @ts-expect-error a seal takes the payload, not a wire format
       .Cash.implSeal((p: unknown, seal) => seal(p as never))
+      .build();
+    Enum.companion<Money>()
+      // @ts-expect-error `object` reads each value as `any`
+      .Cash.implSeal((p: object, seal) => seal(p as never))
       .build();
   });
 
@@ -1625,14 +1633,14 @@ describe("the enum's seal", () => {
   type Wire = SealedPayload<Money>;
   const ran: string[] = [];
   // Stands in for a schema library's discriminated union.
-  const known = (input: object): input is Wire =>
-    "_tag" in input && (input._tag === "Cash" || input._tag === "Card");
+  const known = (input: Record<string, unknown>): input is Wire =>
+    input["_tag"] === "Cash" || input["_tag"] === "Card";
   const Money = Enum.companion<Money>()
     .Cash.implSeal((c, seal) => {
       ran.push("Cash");
       return c.yen > 0 ? seal(c) : new RangeError("yen must be positive");
     })
-    .implSeal((input: object, seal) => {
+    .implSeal((input: Record<string, unknown>, seal) => {
       ran.push("enum");
       expectTypeOf(seal).returns.toEqualTypeOf<
         VariantOf<Money, "Cash"> | VariantOf<Money, "Card"> | RangeError
@@ -1654,7 +1662,7 @@ describe("the enum's seal", () => {
   });
 
   test("takes what its parameter takes, and returns what it returns", () => {
-    expectTypeOf(Money.seal).parameters.toEqualTypeOf<[input: object]>();
+    expectTypeOf(Money.seal).parameters.toEqualTypeOf<[input: Record<string, unknown>]>();
     expectTypeOf(Money.seal).returns.toEqualTypeOf<
       VariantOf<Money, "Cash"> | VariantOf<Money, "Card"> | RangeError | TypeError
     >();
@@ -1700,6 +1708,10 @@ describe("the enum's seal", () => {
     Enum.companion<Money>()
       // @ts-expect-error a seal takes the payload, not a wire format
       .implSeal((input: unknown, seal) => seal(input as Wire))
+      .build();
+    Enum.companion<Money>()
+      // @ts-expect-error `object` reads each value as `any`
+      .implSeal((input: object, seal) => seal(input as Wire))
       .build();
     Enum.companion<Money>()
       // @ts-expect-error a seal is synchronous
@@ -2012,8 +2024,8 @@ describe("build", () => {
 
     test("the enum's seal and `create`, through `impl` and `implTrait`", () => {
       const gated = Enum.companion<Coin>()
-        .implSeal((input: object, seal) =>
-          "_tag" in input && input._tag === "Heads" ? seal(input as never) : new TypeError("tag"),
+        .implSeal((input: Record<string, unknown>, seal) =>
+          input["_tag"] === "Heads" ? seal(input as never) : new TypeError("tag"),
         )
         .implCreate(() => ({ _tag: "Tails" as const, id: "t", n: 0 }));
       const members = gated.impl(() => ({ double: (c) => c.n * 2 })).build();

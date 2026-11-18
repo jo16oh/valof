@@ -158,10 +158,10 @@ object keyed by its keys, so `equals` and JSON treat it as a plain object. Read 
 > come between, `new Map(…)` included. Build the entries from sealed values, such as another record's
 > `entries`, and check each entry of data from outside, such as parsed JSON.
 
-To take data from outside, register a seal that takes a `Record<string, unknown>` or an `object`, as
-on a Val ([Validate in the seal](custom-constructors.md#validate-in-the-seal)). `fromEntries` then
-takes entries with any string key and any value, and the seal has to check each value. Where the
-record's key type is narrower than `string`, the seal has to check each key too.
+To take data from outside, register a seal that takes a `Record<string, unknown>`, as on a Val
+([Validate in the seal](custom-constructors.md#validate-in-the-seal)). `fromEntries` then takes
+entries with any string key and any value, and the seal has to check each value. Where the record's
+key type is narrower than `string`, the seal has to check each key too.
 
 A record cannot reference itself with `Rec`. Put the record in a Val's field, and reference that
 Val:

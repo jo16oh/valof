@@ -16,6 +16,15 @@ test("reports a recipe's draft bound, passed, or put in an array or an object", 
   );
 });
 
+test("reports a recipe that gathers its draft into a rest element, whose writes change nothing", async () => {
+  expect(await lint("destructured")).toEqual(
+    ["8:23", "11:27", "14:16"].map((at) => ({ rule: AliasedDraft, at: `destructured.ts:${at}` })),
+  );
+  expect((await messages("destructured"))[0]).toBe(
+    "a rest element copies the draft, so a write to the copy changes nothing; write to the draft (`d.total`)",
+  );
+});
+
 test("spares a field read, a field write, a spread, and a name the recipe shadows", async () => {
   expect(await lint("fields")).toEqual([]);
 });

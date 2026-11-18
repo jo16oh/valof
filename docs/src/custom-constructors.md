@@ -62,15 +62,16 @@ declare const z: {
 const schema = z.object({ id: z.uuid(), name: z.string().min(1), email: z.email().toLowerCase() });
 
 const User = Val.companion<User>()
-  .implSeal((input: object, seal): Result<User> => {
+  .implSeal((input: Record<string, unknown>, seal): Result<User> => {
     const result = schema.safeParse(input);
     return result.success ? ok(seal(result.data)) : err(z.prettifyError(result.error));
   })
   .build();
 ```
 
-The parameter can be typed `object` or `Record<string, unknown>`, but not `unknown`. A seal takes
-the payload, not a wire format.
+Type the parameter `Record<string, unknown>`, so each value read from it is `unknown` until the seal
+checks it. It cannot be `unknown`, because a seal takes the payload, not a wire format. Nor can it
+be `object`, because each value read from it is `any`.
 
 The schema runs on every derivation, not just the first parse. Reject unknown keys yourself. A patch
 is merged as given, so an undeclared key survives unless the seal removes it.

@@ -255,7 +255,7 @@ type Rest<T, Root extends boolean, Owner extends "Val" | "Payload"> = [T] extend
         ? Owner extends "Val"
           ? Invalid<"a payload cannot declare a trait; pass it as Val's third type argument">
           : Invalid<"a payload cannot declare a trait">
-        : Invalid<"a trait is only a declaration; type a value implementing it with `Impl<Trait>`">
+        : Invalid<"a field cannot hold a trait; declare an Enum of the types it may hold">
       : [T] extends [Invalid<infer M>]
         ? Refused<M>
         : [T] extends [Refused<infer M>]
@@ -485,7 +485,28 @@ type Position = boolean | "field";
 
 /** The value of a {@link ValRecord}, or the payload its seal takes: an object keyed by its keys. */
 type Collected<T, Inner extends Position> =
-  T extends RecordOf<infer K, infer V> ? { readonly [P in K]?: DeepReadonly<V, Inner> } : never;
+  T extends RecordOf<infer K, infer V>
+    ? Inner extends false
+      ? { readonly [P in K]?: DeepReadonly<V, Inner> }
+      : Keyed<K, DeepReadonly<V, Inner>>
+    : never;
+
+/**
+ * An argument keyed by `K`. A listed key may be left out. A key such as `string` or `` `x-${string}` ``
+ * takes no `undefined`, which `?` would add to its value.
+ */
+type Keyed<K extends string, X> = [Extract<Patterns<K>, false>] extends [never]
+  ? { readonly [P in K]: X }
+  : [Extract<Patterns<K>, true>] extends [never]
+    ? { readonly [P in K]?: X }
+    : { readonly [P in K as Pattern<P> extends true ? never : P]?: X } & {
+        readonly [P in K as Pattern<P> extends true ? P : never]: X;
+      };
+
+type Patterns<K extends string> = K extends unknown ? Pattern<K> : never;
+
+/** Whether `K` is a key such as `string`, so that `{}` fits a `Record` keyed by it. */
+type Pattern<K extends string> = {} extends Record<K, 1> ? true : false;
 
 /** What a {@link ValRecord}'s `fromEntries` takes, and its `create` function returns: entries. */
 type Gathered<T> =
@@ -826,7 +847,7 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * `(d) => { d.name = "b"; d.street.no = 2; }` sets two fields and leaves the rest. Only an
  * assignment changes the value, and each one is checked against its field's type.
  *
- * Internal: a recipe's type is inferred, and a recipe declared apart from the `patch` call types its parameter with {@link Draft}. `X` lists the keys the draft holds read-only, the `Unpatchable` ones.
+ * Internal: a recipe goes inline in the `patch` call, where its type is inferred. `X` lists the keys the draft holds read-only, the `Unpatchable` ones.
  */
 export type Patch<T, X extends keyof T = never> = [T] extends [AnyVal]
   ? [T] extends [never]
@@ -865,25 +886,24 @@ type Drafted<T> = T extends AnyVal | ReadonlyArray<unknown> ? T : T extends obje
 export type PatchFn<V, R, T, X extends keyof T> =
   Patch<T, X> extends (draft: infer D) => void
     ? {
-        <F extends (draft: D) => unknown>(recipe: F & Sync<F> & Drafts<F, D>): (self: V) => R;
-        <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F> & Drafts<F, D>): R;
+        <F extends (draft: D) => void>(recipe: F & Sync<F> & Drafts<F, D>): (self: V) => R;
+        <F extends (draft: D) => void>(value: V, recipe: F & Sync<F> & Drafts<F, D>): R;
       }
     : never;
 
-// `never` is a recipe that only throws.
+// `never` is a recipe that only throws, and `any` fits `void` too.
 type Sync<F> = F extends (...args: never[]) => infer T
-  ? unknown extends T
+  ? [T] extends [void]
     ? unknown
-    : [T] extends [void]
-      ? unknown
-      : [T] extends [PromiseLike<unknown>]
-        ? Invalid<"a recipe runs synchronously: await before `patch`, not inside the recipe">
-        : Invalid<"a recipe assigns to its draft and returns nothing">
+    : [T] extends [PromiseLike<unknown>]
+      ? Invalid<"a recipe runs synchronously: await before `patch`, not inside the recipe">
+      : Invalid<"a recipe assigns to its draft and returns nothing">
   : unknown;
 
 // A parameter typed with a key the draft lacks, or with a key made writable or optional, would let
 // the recipe write keys the draft does not allow: the tag, an `Unpatchable` key, a nested Val. Each
-// member of a union is checked. One holding fewer keys, each as the draft has it, fits.
+// member of a union is checked. One holding at least one of the draft's keys, each as the draft has
+// it or read-only, fits.
 type Drafts<F, D> = F extends (...args: infer A) => unknown
   ? A extends [infer P, ...unknown[]]
     ? true extends Mismatch<P, D>
@@ -893,11 +913,26 @@ type Drafts<F, D> = F extends (...args: infer A) => unknown
   : unknown;
 
 // Distributes over a union, so each member is compared on its own.
-type Mismatch<P, D> = P extends unknown
-  ? Same<Homomorphic<P>, Pick<D, keyof P & keyof D>> extends true
-    ? never
-    : true
-  : never;
+// A key the parameter keeps read-only is compared as read-only, since the recipe then writes less.
+// A parameter with no key of the draft reaches no field, so it is rejected. An empty payload's
+// draft has an index signature and no field to write, so it takes any parameter.
+type Mismatch<P, D> = string extends keyof D
+  ? never
+  : P extends unknown
+    ? [keyof P & keyof D] extends [never]
+      ? true
+      : Same<Homomorphic<P>, Pick<D, keyof P & keyof D>> extends true
+        ? never
+        : Same<Homomorphic<P>, Homomorphic<AsRead<Pick<D, keyof P & keyof D>, P>>> extends true
+          ? never
+          : true
+    : never;
+
+type AsRead<D, P> = {
+  [K in keyof D as K extends ReadOnly<P> ? never : K]: D[K];
+} & { readonly [K in keyof D as K extends ReadOnly<P> ? K : never]: D[K] };
+
+type ReadOnly<P> = { [K in keyof P]: ReadonlyKey<P, K> extends true ? K : never }[keyof P];
 
 type Homomorphic<P> = { [K in keyof P]: P[K] };
 
@@ -973,17 +1008,37 @@ type SealImpl<V extends AnyVal> = (value: SeedOf<V>, seal: (value: SeedOf<V>) =>
  *
  * {@link SealImpl} fixes the lower bound at `SeedOf<V>`. This is the upper one: the parameter
  * must not accept a string. That rules out `unknown` and `{}`, leaving `object` and
- * `Record<string, unknown>` alone. A string payload cannot be told apart from a wire format, so
- * it is exempt.
+ * `Record<string, unknown>` alone. The types cannot tell a payload with a string member from a
+ * wire format, so its seal is exempt.
  */
 type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = Synchronous<
   G,
-  [string] extends [SeedOf<V>]
-    ? G
-    : [string] extends [Parameters<G>[0]]
+  [Extract<SeedOf<V>, string>] extends [never]
+    ? [string] extends [Parameters<G>[0]]
       ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
-      : G
+      : ReadsAny<Parameters<G>[0]> extends true
+        ? // Each message recommends a parameter type the payload fits. An empty payload has no value to read, so its seal passes.
+          [SeedOf<V>] extends [Record<string, unknown>]
+          ? Invalid<"type the parameter `Record<string, unknown>`, so each value reads as `unknown`">
+          : [SeedOf<V>] extends [readonly unknown[]]
+            ? Invalid<"type the parameter `readonly unknown[]`, so each value reads as `unknown`">
+            : G
+        : G
+    : G
 >;
+
+/**
+ * Whether a seal's parameter accepts every `object` and reads each of its values as `any`, as
+ * `object` and `Record<string, any>` do. `Object.entries` of either gives `any`. A record's own
+ * object accepts every `object` too, but reads each value as the record's value type.
+ */
+export type ReadsAny<P> = [object] extends [P]
+  ? [P] extends [{ readonly [key: string]: infer T }]
+    ? 0 extends 1 & T
+      ? true
+      : false
+    : true
+  : false;
 
 export type Synchronous<G extends (...args: never[]) => unknown, Checked> =
   // `any` is exempt. It matches a promise as it matches everything, so it shows nothing.
@@ -1205,7 +1260,7 @@ type FromEntriesMethod<V extends AnyVal, F> = {
    * later entry replaces an earlier one with the same key.
    *
    * Takes entries of any string key and value where the seal registered with `.implSeal` takes
-   * any string-keyed object, as `Record<string, unknown>` or `object`, since that seal checks
+   * any string-keyed object, such as `Record<string, unknown>`, since that seal checks
    * each one.
    */
   fromEntries: (entries: EntriesFor<V, F>) => Constructed<V, F>;
@@ -2100,10 +2155,11 @@ type IsValRecord<V> = [Declared<V>] extends [Collection]
 
 /** Bundles a {@link ValRecord}'s `fromEntries`, `set`, `delete`, `has` and members. See {@link companion}. */
 export const recordCompanion = <
-  V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val">,
+  V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val"> = never,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
->(): Listed<O, CompanionBuilder<V, undefined, undefined, O>> =>
-  recordBuilder({}) as Listed<O, CompanionBuilder<V, undefined, undefined, O>>;
+>(): [V] extends [never]
+  ? Invalid<"name the record: `Val.Record.companion<R>()`">
+  : Listed<O, CompanionBuilder<V, undefined, undefined, O>> => recordBuilder({}) as never;
 
 // The key is the error message. For a union of Vals, the checker reports the key as missing. A Val
 // with a boolean payload is a union of two types with one brand, so the check compares brands.

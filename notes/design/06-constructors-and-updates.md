@@ -202,11 +202,19 @@ argument to hide a key in.
 - **An async recipe is a type error.** Its writes after an `await` would land on a revoked draft. The recipe is a type
   parameter `F`, and `F & Invalid<…>` where it returns a `PromiseLike`. `Dual` cannot carry a generic function, so `patch` is
   written as two overloads (`PatchFn`). Rejected: a return type of `undefined` (rejects a named function returning `void`),
-  `void & { then?: never }` (rejects a block body), and `R extends void` (accepts an async function)
+  `void & { then?: never }` (rejects a block body), and `R extends void` (accepts an async function).
+  `F` is constrained to return `void`. The `PromiseLike` check stays, because a function returning a promise still fits
+  that constraint. With `unknown` in the constraint, a return typed `unknown` passed (2026-11-18, §9)
 - **`Unpatchable` keys are read-only in the draft**, and still readable
+- **A recipe goes inline in the `patch` call** (user, 2026-11-18). `Draft` is not exported from the entry, as `Patch` is
+  not. A recipe declared apart from the call needs its parameter's type written out, and that type can make writable a
+  key the draft keeps read-only. To reuse a change, write a member that calls `patch` (`.impl(({ patch }) => …)`). A `Draft<User>`
+  written with the Val itself had matched the draft only where no key was read-only, and the error did not name the fault
+  - The type fixtures dropped their recipe declared apart, so core went 13,166 → 12,892 instantiations and enum 58,308 → 58,195
 - **`Object.assign(draft, data)` is not checked.** TypeScript types its source as anything. valof-lint is to report it (§9)
 - **A union of objects stays rejected.** A recipe sets one field at a time, so it could leave a value that is neither variant
-- **`exactOptionalPropertyTypes` is no longer recommended.** It only mattered for `{ k: undefined }` in a patch object
+- **`exactOptionalPropertyTypes` is no longer recommended.** It only mattered for `{ k: undefined }` in a patch object.
+  Recommended again (user, 2026-11-18), because what goes wrong only without it is outside the guarantees (§1)
 - **Cost.** Val 1.01 → 1.25 kB gzipped, so its budget went from 1.10 to 1.30 kB. core 9,598 → 9,288, trait 24,966
   → 24,966, enum 46,751 → 45,666 instantiations, `index.d.ts` 106.82 → 105.65 kB. Proxy access is slower than the spread
   merge: a shallow patch 209 → 272 ns, one level down 324 → 642 ns (Node 26, production). For a hot path, `seal` a spread of the value
@@ -483,7 +491,7 @@ The default `patch` still had a hole the types could not close. "The constructor
 
 `SeedOf<User>` (`{id, name, email}`) is assignable to `Fields` (`{name, email}`), so the types accept `patch`. But what actually runs is `seal({ id, name, email })`, and this function discards the `id` it receives and assigns a new one. **The ID changes on every call, with no type error.**
 
-The structure cannot reject this. Requiring "the argument is exactly the payload" would rule out `seal(input: object)`, a legitimate zod form. `object` and `Fields` are both proper supertypes of `SeedOf<V>`, and nothing tells them apart.
+The structure cannot reject this. Requiring "the argument is exactly the payload" would rule out `seal(input: object)`, a legitimate zod form (`Record<string, unknown>` since 2026-11-18, below). `object` and `Fields` are both proper supertypes of `SeedOf<V>`, and nothing tells them apart.
 
 ### Convention: a seal is idempotent (generation goes to `create`)
 
@@ -513,12 +521,22 @@ The subset form (`seal(f: { name: string })`) still passes the `SealImpl<V>` con
 ```ts
 .implSeal((json: string, seal) => seal(JSON.parse(json))); // type error
 .implSeal((input: unknown, seal) => seal(schema.parse(input))); // type error
-.implSeal((input: object, seal) => seal(schema.parse(input))); // OK
+.implSeal((input: Record<string, unknown>, seal) => seal(schema.parse(input))); // OK
 ```
 
-`patch` passes the payload back to the seal (§6.8), so a wire-format decoder in the seal breaks the moment a value is derived from another value. The check rejects `unknown` and `{}`. `object` and `Record<string, unknown>` are wide enough for a schema library.
+`patch` passes the payload back to the seal (§6.8), so a wire-format decoder in the seal breaks the moment a value is derived from another value. The check rejects `unknown` and `{}`. `Record<string, unknown>` is wide enough for a schema library.
+
+**`object` is rejected too, 2026-11-18** (user). `Object.entries` of an `object` resolves to lib's overload `entries(o: {}): [string, any][]`, so a value the seal reads is `any` and needs no check to use. From a `Record<string, unknown>` it is `unknown`. `CheckedSeal` in both `val.ts` and `enum.ts` rejects a parameter that accepts every `object` and reads each value as `any` (`ReadsAny`). That covers `Record<string, any>` as well. The message recommends `Record<string, unknown>`. The check is guidance, not a guarantee (user, 2026-11-18). `any` written as a type is outside the guarantees, and so are the types Valof does not declare, such as lib's `Object.entries` (§1). The check closes neither hole. A seal that takes `Record<string, unknown>` can still cast a value to `any`, and the check reads only the parameter's type. It steers a seal toward `Record<string, unknown>` because the check is cheap, as §1 has the types reject `any` written as a type where that is cheap. A `Val.Record`'s payload accepts every `object` too, but reads each value as the record's value type, so a seal typed by that payload passes. A type-literal parameter whose keys are all optional passes as well, the subset form this section advises against. An interface parameter whose keys are all optional is rejected, because an interface has no implicit index signature. Its message recommends `Record<string, unknown>` too. No use needs that form, so the check stays as it is (user, 2026-11-18). Accepting every `object` alone was the first version of the check, with an exemption for a payload that every `object` fits. The exemption applied to a `Val.Record`, so its seal could take `object`. It never applied to an empty payload, whose seed is `EmptyField | AnyVal`. The cost is that a Val's public `seal` rejects a value typed by an interface. A value from `JSON.parse` is `any`, which `seal` accepts, so the cost affects only a caller that holds an interface-typed value. The fallback was a lint rule, in case the types could not distinguish `object` from `Record<string, unknown>` (user). `[object] extends [P]` distinguishes them, so no rule is needed.
 
 A Val whose payload is itself a `string` (`Val<"Email", string>`) is exempt. The types have no way to tell the payload from the wire format.
+
+**The exemptions depend on the payload's type, 2026-11-18** (type-hunt). The checks above rejected a parameter that three payloads need:
+
+- **An array or a tuple.** `Record<string, unknown>` does not take `readonly number[]`, so the recommended parameter failed `SealImpl`'s lower bound. The message recommends `readonly unknown[]` for an array payload
+- **An empty payload.** Its seed is `EmptyField | AnyVal`, and `AnyVal` has no index signature, so `Record<string, unknown>` failed too. An empty payload has no value to read, so the check does not run for it, and a parameter typed `object` passes, as it did before the `ReadsAny` check
+- **A literal union or a template literal type.** For `Val<"Color", "red" | "blue">`, `CheckedSeal` rejected `(c: string, seal)` as a wire format. Every payload whose type has a string member is exempt now: `string`, a string literal type or a template literal type, alone or in a union. The first version of this fix exempted only a payload assignable to `string`. It rejected the seal of `Val<"Code", string | number>`, which the check before it, `[string] extends [SeedOf<V>]`, had exempted (type-hunt). A primitive payload has no `patch`, so no derived value reaches the seal
+
+Cost: core 13,121 → 13,161 instantiations, `index.d.ts` about +300 B, leaving 11 B of the 120 kB budget.
 
 ### A seal returns synchronously, 2026-10-14
 
