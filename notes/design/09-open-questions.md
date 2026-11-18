@@ -106,6 +106,10 @@
   - **Cost.** core 13,161 → 13,166 instantiations, trait 26,227 → 27,117, enum 57,408 → 58,308, `index.d.ts` 119.99 →
     120.84 kB. The declaration budget went from 120 to 128 kB (user)
 
+- [ ] **An exported seal of a Val that references itself bloats a user's `.d.ts`.** Exporting `Tree.seal` for a Val
+      holding `Rec<Tree>` emitted 511 kB, almost all of it the `nocopy` signature, with `SeedOf<Tree>` expanded in place
+      (export survey, 2026-11-18, TS 7.0.2). ts-compatibility's fixtures export no such seal. Not investigated yet
+
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
   - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report
