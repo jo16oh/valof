@@ -45,7 +45,7 @@ import(workerData.script).catch((error) => {
  * The worker that lints, asked from a rule and blocked on until it answers.
  *
  * `lint` is async, and a rule is not: `create` returns a visitor, and a visitor cannot be async. So
- * the run happens in a worker, `worker` beside the caller, which answers with
+ * the run happens in a worker, `worker/main` beside the caller, which answers with
  * {@link LinterWorker.serve}. The caller passes its own `import.meta.url`, since this file is in
  * whichever chunk the build puts it in, and its own URL says nothing about where the worker is.
  * The worker has the caller's extension: the source tree runs as `.ts` and the package ships `.mjs`.
@@ -76,7 +76,7 @@ export class LinterWorker {
   #edited: { key: string; findings: readonly Finding[] } | undefined;
 
   constructor(beside: string, patience = 60_000) {
-    this.#script = new URL(`./worker${extname(beside)}`, beside);
+    this.#script = new URL(`./worker/main${extname(beside)}`, beside);
     this.#patience = patience;
   }
 

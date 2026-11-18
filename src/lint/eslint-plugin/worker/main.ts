@@ -1,11 +1,11 @@
 import { Result as R } from "@praha/byethrow";
 
-import { pipe } from "../../shared/pipe/index.ts";
-import { Options } from "../shared/options.ts";
-import { ScanCache } from "../scan/cache.ts";
-import { ScanStore } from "../scan/store.ts";
-import { run } from "../run/index.ts";
-import { LinterWorker, WorkerFailure } from "./linter-worker.ts";
+import { pipe } from "../../../shared/pipe/index.ts";
+import { Options } from "../../shared/options.ts";
+import { ScanCache } from "../../scan/cache.ts";
+import { ScanStore } from "../../scan/store.ts";
+import { run } from "../../run/index.ts";
+import { LinterWorker, WorkerFailure } from "../linter-worker.ts";
 
 // The worker the plugin asks, one project state at a time. Each run walks again only the files
 // whose text changed since the last, unless the files in the run changed. The store keeps the scans

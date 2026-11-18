@@ -14,7 +14,7 @@ export default defineConfig({
     entry: {
       "eslint-plugin/index": "src/lint/eslint-plugin/index.ts",
       "lint-cli": "src/lint/main.ts",
-      "eslint-plugin/worker": "src/lint/eslint-plugin/worker.ts",
+      "eslint-plugin/worker/main": "src/lint/eslint-plugin/worker/main.ts",
     },
     dts: {
       // A config file in TypeScript reads the plugin's type. The linter's API is the CLI and the
@@ -29,7 +29,7 @@ export default defineConfig({
     exports: {
       // The CLI ships as a command, not as an import, so it stays out of the public exports.
       // Naming it here as well: left to auto-detect, the command takes the package's own name.
-      exclude: ["lint-cli", "eslint-plugin/worker"],
+      exclude: ["lint-cli", "eslint-plugin/worker/main"],
       // The plugin is the one entry left, which comes in as the package root.
       customExports: ({ ".": _plugin, ...exports }) => ({
         ".": "./dist/index.js",
