@@ -797,6 +797,32 @@ describe("recursion", () => {
     expect(branch.kids[0]).toBe(leaf);
     expect(Tree.total(Tree.Branch.create({ kids: [branch, leaf] }))).toBe(4);
   });
+
+  test("the enum's trait may hold the enum in its shape", () => {
+    type Sized = Trait<"Sized", { kids: Rec<Node>[] }, { size: (self: Self) => number }>;
+    const Sized = Trait.companion<Sized>().build();
+    type Node = Enum<"Node", { Branch: { kids: Rec<Node>[] }; Leaf: { v: number } }, Sized>;
+    const Node = Enum.companion<Node>()
+      .implTrait(Sized, () => ({ size: (n) => n.kids.length }))
+      .build();
+
+    const leaf = Node.Leaf.seal({ _tag: "Leaf", kids: [], v: 1 });
+    const branch = Node.Branch.seal({ _tag: "Branch", kids: [leaf, leaf] });
+    expect(Node.dyn<Sized>(branch).size()).toBe(2);
+  });
+
+  test("a variant's trait may hold the enum in its shape", () => {
+    type Sized = Trait<"Sized", { kids: Rec<Tree>[] }, { size: (self: Self) => number }>;
+    const Sized = Trait.companion<Sized>().build();
+    type Tree = Enum<"Tree", { Branch: { kids: Rec<Tree>[] } & Sized; Leaf: { v: number } }>;
+    const Tree = Enum.companion<Tree>()
+      .Branch.implTrait(Sized, () => ({ size: (b) => b.kids.length }))
+      .build();
+
+    const leaf = Tree.Leaf.seal({ _tag: "Leaf", v: 1 });
+    const branch = Tree.Branch.seal({ _tag: "Branch", kids: [leaf, leaf] });
+    expect(Tree.Branch.dyn<Sized>(branch).size()).toBe(2);
+  });
 });
 
 describe("equals", () => {
