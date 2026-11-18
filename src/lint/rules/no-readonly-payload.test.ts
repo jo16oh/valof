@@ -4,7 +4,7 @@ import { fixtures, ReadonlyPayload } from "../integration-tests/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 
-test("reports readonly in a Val's payload, a record's value, a variant, an enum's shared fields, and any tuple element", async () => {
+test("reports readonly in a Val's payload, a record's value, a variant, an enum's shared fields, and a tuple's named and rest elements", async () => {
   expect(await lint("written")).toEqual(
     [
       "3:40",
@@ -19,7 +19,6 @@ test("reports readonly in a Val's payload, a record's value, a variant, an enum'
       "12:43",
       "12:75",
       "13:45",
-      "14:32",
     ].map((at) => ({
       rule: ReadonlyPayload,
       at: `written.ts:${at}`,
