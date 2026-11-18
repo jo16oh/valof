@@ -67,6 +67,7 @@ import {
   type PrivateSeal,
   type Registered as Steps,
   type Synchronous,
+  type ReadsAny,
   type Takes,
   type UnpatchablePhantom,
   type UnpatchableKeys,
@@ -523,7 +524,9 @@ type CheckedSeal<G extends (...args: never[]) => unknown> = Synchronous<
   G,
   [string] extends [Parameters<G>[0]]
     ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
-    : G
+    : ReadsAny<Parameters<G>[0]> extends true
+      ? Invalid<"type the parameter `Record<string, unknown>`, so each value reads as `unknown`">
+      : G
 >;
 
 /** A list a variant's options sit in. See {@link VariantOptions}. */

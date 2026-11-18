@@ -982,8 +982,23 @@ type CheckedSeal<V extends AnyVal, G extends SealImpl<V>> = Synchronous<
     ? G
     : [string] extends [Parameters<G>[0]]
       ? Invalid<"a seal takes the payload, not a wire format; decode before sealing">
-      : G
+      : ReadsAny<Parameters<G>[0]> extends true
+        ? Invalid<"type the parameter `Record<string, unknown>`, so each value reads as `unknown`">
+        : G
 >;
+
+/**
+ * Whether a seal's parameter accepts every `object` and reads each of its values as `any`, as
+ * `object` and `Record<string, any>` do. `Object.entries` of either gives `any`. A record's own
+ * object accepts every `object` too, but reads each value as the record's value type.
+ */
+export type ReadsAny<P> = [object] extends [P]
+  ? [P] extends [{ readonly [key: string]: infer T }]
+    ? 0 extends 1 & T
+      ? true
+      : false
+    : true
+  : false;
 
 export type Synchronous<G extends (...args: never[]) => unknown, Checked> =
   // `any` is exempt. It matches a promise as it matches everything, so it shows nothing.
