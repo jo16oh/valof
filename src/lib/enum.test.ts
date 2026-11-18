@@ -778,6 +778,13 @@ describe("patch", () => {
 });
 
 describe("recursion", () => {
+  test("a variant's field wider than the enum's trait requires is rejected where the enum is declared", () => {
+    type Id = Trait<"WideId", { id: string }, { show: (self: Self) => string }>;
+    // @ts-expect-error the payload and the trait declare `id` with conflicting types
+    type Wide = Enum<"Wide", { X: { id: string | number }; Y: { n: number } }, Id>;
+    expectTypeOf<Wide>().not.toBeNever();
+  });
+
   type Tree = Enum<"Tree", { Leaf: { value: number }; Branch: { kids: Rec<Tree>[] } }>;
   const Tree = Enum.companion<Tree>()
     .impl(() => ({

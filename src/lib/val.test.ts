@@ -316,8 +316,6 @@ describe("Val", () => {
       expectTypeOf<Root>().not.toExtend<AnyVal>();
       expectTypeOf<Pattern>().not.toExtend<AnyVal>();
       expectTypeOf<Branded>().not.toExtend<AnyVal>();
-      // @ts-expect-error `Patch` is internal: a recipe's type is inferred
-      type Exported = import("./index.ts").Patch<{ id: string }>;
       // @ts-expect-error a `Patch` takes keys of the payload
       type Typo = Patch<{ id: string }, "idd">;
       // @ts-expect-error and so does a `Draft`
@@ -327,7 +325,6 @@ describe("Val", () => {
       // @ts-expect-error the options cannot be `any`
       Val.companion<User, Loose>().build();
       expectTypeOf<Typo | DraftTypo>().not.toBeNever();
-      expectTypeOf<Exported>().toBeAny();
       // Literal keys list every entry.
       type Fixed = Val<"Fixed", Record<"a" | "b", number>>;
       expectTypeOf<Fixed>().toExtend<AnyVal>();
@@ -1324,6 +1321,8 @@ describe("the entry point", () => {
     expectTypeOf<import("./index.ts").AnyEnum>();
     // @ts-expect-error the entry point does not export AnyTrait
     expectTypeOf<import("./index.ts").AnyTrait>();
+    // @ts-expect-error nor Patch: a recipe's type is inferred
+    expectTypeOf<import("./index.ts").Patch<{ id: string }>>();
   });
 });
 
