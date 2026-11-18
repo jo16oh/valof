@@ -18,11 +18,11 @@ reports on a line away from the declaration.
 
 ## Scope
 
-The types the diff adds or changes that a user writes against: a type argument of `Val`, `Trait`,
-`Enum` or `Tag`, a companion's type arguments and options, the arguments of a companion's members
-(the payload of `seal` and `create`, the patch of `patch`, the handlers of `match`, the companion
-and value of `dyn`), and an exported type such as `Patch` or `Impl`. The user can name a type
-instead.
+The types the diff adds or changes that a user writes against: a type argument of `Val`,
+`Val.Record`, `Trait`, `Enum` or `Tag`, a companion's type arguments and options, the arguments of a
+companion's members (the payload of `seal` and `create`, the recipe of `patch`, the handlers of
+`match`, the companion and value of `dyn`), and an exported type such as `Patch` or `Impl`. The user
+can name a type instead.
 
 ## Run it in a separate agent
 
@@ -51,10 +51,15 @@ finding, but say so.
 
 These are by design. Do not report them as holes:
 
-- A Val is a plain object too. Where the type expects a plain object, as the argument of `seal` or a
-  field of a patch, a Val with every key of that object fits, extra keys included. A value that
-  replaces the whole field must have every key of the field. To drop the extra keys, as a JSON round
-  trip needs, write a custom seal.
+- `seal` accepts a Val as its whole argument, since sealing a Val again returns it. Below the root,
+  a field declared as a plain object accepts no Val, in a `seal` argument or a recipe.
+- In a recipe's draft, every plain object field is writable, at any depth. A nested Val and an array
+  are read-only in it, and a recipe replaces them by assigning a new value.
+- A cast and an upcast are outside what Valof guarantees. A write through `as`, a `delete` through a
+  cast, and a write through a variable of a wider type, such as a nested Val held as a plain object,
+  are not holes.
+- Valof does not check a key that reaches the prototype, such as `__proto__`. Such a key is not a
+  finding.
 
 ## Patterns
 
@@ -121,10 +126,6 @@ cannot be decided there. This is intended. Share a shape with `Payload`, not wit
   `T & Record<never, never>`. **Fix.** Write the parameter as one mapped type.
 - A class instance where the type is `{}` or `object`. **Fix.** An index signature, which a class
   instance does not have.
-- A Val passed for a plain-object field of a patch, which replaces the field rather than merging
-  into it. A Val missing a key of the field should be rejected, and one holding every key, extra
-  keys included, accepted. **Fix.** Add `T & AnyVal` to the union, beside the `Patch` that excludes
-  the brand key.
 
 ### 6. Silently dropped
 
@@ -185,16 +186,17 @@ cannot reach the declaration. Move it to the private field that every use reads.
 Run the probes again without `--exactOptionalPropertyTypes`.
 
 **What breaks.** Without `exactOptionalPropertyTypes`, an optional key accepts `undefined`. A key
-excluded with `?: never` then accepts it too, so `U.patch(u, { id: undefined })` passes, and `patch`
-deletes a required key passed as `undefined`. A user may leave the option off, though the docs
-recommend it. Report what changes without it, and mark what the docs already describe.
+excluded with `?: never` then accepts it too, as a `Final` member set to `undefined` in `implTrait`
+does. A payload declares no optional key, so a check that uses `-?` gives the same verdict with or
+without the option. A user may leave the option off, though the docs recommend it. Report what
+changes without it, and mark what the docs already describe.
 
 ### 12. Two types that `equals` cannot distinguish
 
 `equals` compares structure, and a JSON round trip keeps only the structure. Probe each field that
 can hold a Val, in a Val, an enum variant, an enum's shared fields, a trait's shape and a `Payload`,
 with two types whose values can have the same payload. Probe each field also inside an array, a
-record, a tuple, an optional key and `| null`. These must be rejected:
+`Val.Record`'s value, a tuple, a `T | undefined` field and `| null`. These must be rejected:
 
 - two Vals with the same fields (`Dollar | Yen`)
 - a union of two enums, and of an enum and a Val
@@ -212,7 +214,30 @@ value read back from JSON holds nothing that distinguishes the two types.
 **Fix.** Reject the field, and suggest an enum in the message, because an enum's tag distinguishes
 its variants.
 
-### 13. The cost of the fix
+### 13. A recipe that writes past its draft
+
+`patch` passes a draft of the payload to the recipe, and `patch` builds the new value from the
+writes to the draft. Try every kind of `patch`: a Val's, a variant's, one with `Unpatchable` keys,
+and one whose payload has a `Val.Record` field. Give each one these recipes:
+
+- one whose parameter is annotated: a type with a key the payload lacks (the tag), one making an
+  `Unpatchable` key writable, `any`, `Patch<SeedOf<V>>`, and a type with fewer keys
+- each recipe as a named function, and passed before the value (`V.patch(recipe)(v)`)
+- writes into the draft: a Val into a plain object field, an object into a nested Val's field, an
+  element of an array, a field of a nested Val, and a key of a `Val.Record` field
+- an async recipe, one that returns a value, and one that only throws
+- the draft under another name: bound to a variable, passed to a function, put in an array or an
+  object, given to `Object.assign` or `Reflect.set`
+
+**What breaks.** A write that the draft's type accepts reaches a key that `patch` excludes, or
+replaces a nested Val with a value its seal never checked. Under another name, the draft's type no
+longer keeps a key read-only.
+
+**Fix.** Keep the draft's own type strict, and check the recipe in `PatchFn`. valof-lint's
+`aliased-draft` rule reports a write that the draft's type cannot reject, such as a write through
+the draft under another name. Say which of the two fixes each finding.
+
+### 14. The cost of the fix
 
 Measure each proposed fix with `vp run check-dist --types`.
 
