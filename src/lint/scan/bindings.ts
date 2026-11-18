@@ -55,7 +55,8 @@ export type Bindings = Val<
     namespaces: Names;
     /**
      * Locals holding a builder, under the root it grew from, so `const built =
-     * Val.companion<X>(); built.impl(() => ({…}))` is seen.
+     * Val.companion<X>(); built.impl(() => ({…}))` is seen. A record's builder is held under
+     * `Val.Record`.
      */
     builders: Names;
   }
@@ -68,7 +69,13 @@ export const Bindings = Val.companion<Bindings>()
   }))
   .impl(() => ({
     hasNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
-    builderOf: (bound, local: string) => own(bound.builders, local),
+    /** The root a held builder grew from, with a record's as `Val`: one of the three roots. */
+    builderOf: (bound, local: string) => {
+      const root = own(bound.builders, local);
+      return root === "Val.Record" ? "Val" : root;
+    },
+    /** Whether a local holds a record's builder. */
+    holdsRecord: (bound, local: string) => own(bound.builders, local) === "Val.Record",
     /** The name the exporting module uses, or the local one when it was not imported. */
     originalName: (bound, local: string) => ImportMap.nameOf(bound.imported, local),
     /**
