@@ -307,8 +307,10 @@ erased, and at run time a record's input looks like an array Val's.
     conversion. Both pass their result to the seal
   - The only option is `PrivateCreate`. A record has no `seal` for `PrivateSeal` to hide, and no `patch` for `Unpatchable`
     to restrict. Hiding `fromEntries` is open in §9
-  - The steps' functions receive `fromEntries` in place of `seal` and `patch`. `attach` puts it on the companion before
-    it calls them, so destructuring it works
+  - The steps' functions receive `fromEntries`, `set`, `delete`, `has`, `keys`, `values` and `entries` in place of
+    `seal` and `patch` (user, 2026-11-18). `attach` puts them on the companion before it calls the steps' functions, so destructuring
+    them works. A member that reads the record through them references no companion, so it needs no return type
+    annotation (§9, §15.4)
   - **Rejected: the companion's seal takes the object, typed by the record's payload marker.** Only a record's own value
     would fit, so the hole would stay closed. A seal no caller can use with a new object has no reason to be public
   - **Rejected: `.implFromEntries` in place of `.implSeal`.** Its function would receive entries, and count a repeated key
@@ -326,6 +328,12 @@ erased, and at run time a record's input looks like an array Val's.
 - **`fromEntries`, `set`, `delete` and `has` are the companion's members**, reserved only on a record's companion, in
   both `impl` and `implAssoc`. Each except `has` goes through the seal, and `set` and `delete` return the value itself where
   nothing changes. There is no `patch`. `set` and `delete` change an entry
+- **`has` takes a `K`, never a `string`** (user, 2026-11-18). A wider key would accept an `OrderId` in a record keyed by
+  `UserId`, which the brand exists to reject. A string from outside is checked with `Object.hasOwn(record, key)`, and
+  `has`'s JSDoc says so. `key in record` is also true for an inherited key such as `toString`. valof-lint's `KindSet`
+  checks a rule name from a disable comment with a `find` of its own in place of `has`. `find` returns the `Kind`
+  - **Rejected: `has(record, key: string): key is K`.** The guard would brand a string without running the seal. A key
+    the record holds passed the seal once, but a brand is easier to trust when only the seal applies it
 - **`keys`, `values` and `entries` return its keys and values typed `K` and `V`** (user, 2026-11-18). `Object.keys` gives `string[]` and loses
   a branded `K`, and `Object.values` and `Object.entries` add `undefined` from the optional value type. They return
   readonly arrays in `Object.keys`'s order. Not added: `size`, `get` and `forEach`, which `Object.keys(r).length`, `r[key]`

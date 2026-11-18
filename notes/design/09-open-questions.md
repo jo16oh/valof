@@ -962,7 +962,8 @@
     encodes the JSON twice without an error, and the client types the response as `string`. It would check `NaN` reliably,
     since checking and serializing are one function. Propose that separately from bigint, if at all
 
-- [ ] **The steps of a record's companion receive `fromEntries` but not `keys`, `values` and `entries` (2026-11-18, §3.5, §15.4).**
+- [x] ~~**The steps of a record's companion receive `fromEntries` and no other member (2026-11-18, §3.5, §15.4).**~~
+      Closed, 2026-11-18. They receive `fromEntries`, `set`, `delete`, `has`, `keys`, `values` and `entries` (§3.5).
       A member that reads the record through a companion member, such as `Imports.values`, references its own companion.
       Without a return type annotation, the companion is typed `any` (TS7022), as in §15.4. `Object.values` references no
       companion, but it returns values typed with `undefined` (§3.5 "No index signature")
@@ -970,7 +971,7 @@
   ```ts
   export type Imports = Val.Record<"Imports", string, string[]>;
   export const Imports = Val.Record.companion<Imports>()
-    // Receives `fromEntries`, not `values`
+    // Received `fromEntries`, not `values`, before 2026-11-18
     .impl(({ fromEntries }) => ({
       // Without `: string[]`, TS7022 on `Imports` and TS7023 on `names`
       names: (imports): string[] => Imports.values(imports).flat(),
@@ -979,16 +980,16 @@
   ```
   - Found while pinning the scripts to the top of the stack. `scripts/check-dist/check/size/bundle.ts` annotates the
     return types of `names` and of `merge`, which reads `Imports.entries`
-  - **Candidate: the steps' functions receive every member of the record's companion.** `attach` already passes
-    them that object at run time, so the change is to `Supplied` alone, which would take `CollectionMethods` in place
-    of `FromEntriesMethod`. In a probe that destructures `values` and `entries`, neither `names` nor `merge` needs a
+  - **Adopted: the steps' functions receive every member the library gives a record's companion** (user, 2026-11-18). `attach`
+    already passed them that object at run time, so the change is to `Supplied` alone, which takes `CollectionMethods`
+    in place of `FromEntriesMethod`. In a probe that destructures `values` and `entries`, neither `names` nor `merge` needs a
     return type annotation, and `names` is typed `(imports: Imports) => string[]`
   - **No new reserved name.** `keys`, `values`, `entries`, `has`, `set` and `delete` are reserved in `.impl` and
     `.implAssoc` already (§3.5)
   - **Cost.** No runtime bytes. The check-dist fixtures call no step on a record, so the instantiations of core, trait
-    and enum stay at 13,121, 26,227 and 57,353, and `index.d.ts` at 119.68 kB. A probe with an `.impl` and an
-    `.implAssoc` on a record went from 67,799 to 67,840 instantiations. The JSDoc of `.impl` and `.implAssoc` says the
-    steps receive `fromEntries` in place of `seal` and `patch`, so it needs new wording. The `index.d.ts` budget has
-    331 B left for it
-  - **Undecided: whether the steps' functions receive `set` and `delete` too.** Leaving them out needs a `Pick`, whose
-    cost the probe did not measure
+    and enum stay at 13,121, 26,227 and 57,353. A probe with an `.impl` and an
+    `.implAssoc` on a record went from 67,799 to 67,840 instantiations. The JSDoc of `.impl`, `.implAssoc` and `Supplied`
+    lists the members. The listing took `index.d.ts` from 119.68 to 119.94 kB, 66 B under its budget
+  - **Rejected: the steps' functions receive only `keys`, `values`, `entries` and `has`** (user, 2026-11-18). A Val's
+    steps receive `patch`, which changes the value through the seal. `set` and `delete` change a record through the
+    seal too. Leaving them out needs a `Pick`. Passing every member needs none
