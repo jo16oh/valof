@@ -8,7 +8,7 @@ export const AliasedDraft = Val.companion<AliasedDraft>()
   .implCreate(() => ({
     kind: Kind.seal("aliased-draft"),
     description:
-      "a recipe's draft passed to a function, bound to a name, or put in an array or an object",
+      "a recipe's draft passed to a function, bound to a name, or put in an array or an object; a recipe with type parameters",
     warns: false,
     optIn: false,
   }))
@@ -20,8 +20,8 @@ export const AliasedDraft = Val.companion<AliasedDraft>()
  * the draft's type no longer keeps a key readonly, so a write could reach a key `patch` excludes.
  */
 function findings({ kind }: AliasedDraft, scans: readonly Scan[]): Finding[] {
-  return scans.flatMap(({ file, draftAliases }) =>
-    draftAliases.map((at) =>
+  return scans.flatMap(({ file, draftAliases, genericRecipes }) => [
+    ...draftAliases.map((at) =>
       Finding.seal({
         kind,
         file,
@@ -30,5 +30,13 @@ function findings({ kind }: AliasedDraft, scans: readonly Scan[]): Finding[] {
           "a recipe uses its draft only to reach a field; branch on the Val you patch, or pass the field itself (`d.total`)",
       }),
     ),
-  );
+    ...genericRecipes.map((at) =>
+      Finding.seal({
+        kind,
+        file,
+        at,
+        message: "a recipe takes no type parameters; leave the draft's type to inference",
+      }),
+    ),
+  ]);
 }

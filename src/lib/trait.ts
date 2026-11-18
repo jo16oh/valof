@@ -334,19 +334,21 @@ type Declarable<Shape, M extends Members> = {
     ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
     : [Shape] extends [never]
       ? Invalid<"a trait's shape cannot be `any` or `never`; write its fields">
-      : K extends "value"
-        ? Invalid<"a trait member cannot take `value`, which a box reads its value through">
-        : K extends Reserved
-          ? Invalid<"a trait member cannot take a name the library reserves">
-          : M[K] extends (self: never, ...args: infer A) => infer R
-            ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-              ? Invalid<"Self can only be a member's first parameter">
-              : HasSelf<R> extends true
-                ? Invalid<"a trait member cannot return Self">
-                : Omission<M[K]> extends string
-                  ? Invalid<Omission<M[K]> & string>
-                  : M[K]
-            : M[K];
+      : string extends K
+        ? Invalid<"a trait lists its members by name; write each one">
+        : K extends "value"
+          ? Invalid<"a trait member cannot take `value`, which a box reads its value through">
+          : K extends Reserved
+            ? Invalid<"a trait member cannot take a name the library reserves">
+            : M[K] extends (self: never, ...args: infer A) => infer R
+              ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
+                ? Invalid<"Self can only be a member's first parameter">
+                : HasSelf<R> extends true
+                  ? Invalid<"a trait member cannot return Self">
+                  : Omission<M[K]> extends string
+                    ? Invalid<Omission<M[K]> & string>
+                    : M[K]
+              : M[K];
 };
 
 /**
@@ -360,10 +362,36 @@ type Declarable<Shape, M extends Members> = {
  * Not a Val, and not the value either: it is a proxy, so it has its own identity. It has no
  * `equals` and no `patch`, and a payload cannot hold one.
  */
-export type Dyn<Tr extends OneTrait<Tr>> = Bound<UnionToIntersection<MembersOf<Tr>>> & {
+export type Dyn<Tr extends OneTrait<Tr> & Agreeing<Tr>> = Boxed<Tr>;
+
+type Boxed<Tr extends OneTrait<Tr>> = Bound<UnionToIntersection<MembersOf<Tr>>> & {
   /** The value the box holds. */
   readonly value: Impl<Tr>;
 };
+
+// Read through `infer`: a constraint that passes its own parameter to a conditional is circular.
+type Agreeing<Tr> = [Tr] extends [infer X]
+  ? X extends AnyTrait
+    ? [Disagreeing<X>] extends [never]
+      ? unknown
+      : Invalid<"two of the traits declare a member of the same name with different signatures">
+    : unknown
+  : never;
+
+/** A member name that two of the intersected traits declare with different signatures. */
+type Disagreeing<Tr extends AnyTrait> = {
+  [K in keyof UnionToIntersection<MembersOf<Tr>>]: IsUnion<
+    MembersOf<Tr> extends infer M
+      ? M extends unknown
+        ? K extends keyof M
+          ? M[K]
+          : never
+        : never
+      : never
+  > extends true
+    ? K
+    : never;
+}[keyof UnionToIntersection<MembersOf<Tr>>];
 
 /**
  * Where a companion records every member `implTrait` registered. Read by
@@ -403,21 +431,34 @@ export type TraitCompanion<
  * Boxes a value of this companion's type with its implementation of the traits in the type
  * argument, as Rust's `value as &dyn Trait` does. See {@link Dyn}.
  */
-// `Held` names the traits this companion holds an implementation of, and `Elsewhere` says which
-// companion holds the rest: an enum's and its variants' split the traits between them.
-export type DynStep<V, Held = string, Elsewhere extends string = never> = <
+// `Held` names the traits this companion holds an implementation of. `Elsewhere` is the message when
+// another companion holds the traits named, and `Split` the message when two companions each hold
+// some of them, as an enum's and a variant's can.
+export type DynStep<V, Held, Elsewhere extends string, Split extends string = Elsewhere> = <
   Tr extends OneTrait<Tr> = never,
 >(
-  value: [Tr] extends [never]
-    ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
-    : [NamesOf<Tr>] extends [Held]
-      ? Boxable<V, Tr>
-      : Invalid<Elsewhere>,
-) => Dyn<Tr>;
+  value: 0 extends 1 & Tr
+    ? Invalid<"box as a trait, not `any`">
+    : [Tr] extends [never]
+      ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
+      : [NamesOf<Tr>] extends [TraitsOf<V>]
+        ? [NamesOf<Tr>] extends [Held]
+          ? [V] extends [Impl<Tr>]
+            ? V
+            : Invalid<"this type does not declare the trait">
+          : [Extract<NamesOf<Tr>, Held>] extends [never]
+            ? Invalid<Elsewhere>
+            : Invalid<Split>
+        : Invalid<"this type does not declare the trait">,
+) => Boxed<Tr>;
 
-type Boxable<V, Tr extends OneTrait<Tr>> = [V] extends [Impl<Tr>]
-  ? V
-  : Invalid<"this type does not declare the trait">;
+/**
+ * The traits of `V` whose every member `T` holds: those `implTrait` registered. A companion boxes only these.
+ */
+export type ImplementedOf<V, T> =
+  V extends TraitPhantom<infer B>
+    ? { [K in keyof B]: [keyof B[K]] extends [keyof T] ? K : never }[keyof B]
+    : never;
 
 /**
  * What the trait implements itself: its own members, over the trait.
@@ -514,11 +555,16 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
     new Proxy(
       {},
       {
-        get(_, key) {
-          const member = (companion[Traits] as unknown as Record<string, AnyFn>)[key as string];
+        // A key the record lacks is read from the target, so it returns what `Object.prototype`
+        // holds, as the box's type shows.
+        get(target, key) {
+          const members = companion[Traits] as unknown as Record<PropertyKey, AnyFn>;
+          const member = Object.hasOwn(members, key) && members[key];
           return key === "value"
             ? value
-            : member && ((...args: never[]) => member(value as never, ...args));
+            : member
+              ? (...args: never[]) => member(value as never, ...args)
+              : (Reflect.get(target, key) as unknown);
         },
       },
     ),

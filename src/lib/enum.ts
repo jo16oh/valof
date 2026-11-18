@@ -27,6 +27,7 @@ import type {
   FieldsOf,
   TraitHost,
   DynStep,
+  ImplementedOf,
   TraitsOf,
   Unbound,
 } from "./trait.ts";
@@ -606,7 +607,10 @@ type Framed<
   (Hidden<O> extends true ? unknown : VariantSeal<E, N, R>) &
   VariantPatch<E, N, R, U> &
   TraitHost &
-  VariantDyn<VariantOf<E, N>, Exclude<TraitsOf<VariantOf<E, N>>, TraitNames<DeclaredTraits<E>>>>;
+  VariantDyn<
+    VariantOf<E, N>,
+    Exclude<ImplementedOf<VariantOf<E, N>, T>, TraitNames<DeclaredTraits<E>>>
+  >;
 
 /** A variant's `dyn`, for the traits it declares on its own. The enum's companion boxes the rest. */
 type VariantDyn<V, Own> = [Own] extends [never]
@@ -615,7 +619,8 @@ type VariantDyn<V, Own> = [Own] extends [never]
       readonly dyn: DynStep<
         V,
         Own,
-        "the enum declares this trait, so box it through the enum: `Enum.dyn<Trait>(value)`"
+        "the enum declares this trait, so box it through the enum: `Enum.dyn<Trait>(value)`",
+        "the enum and the variant each declare some of these traits; box them separately"
       >;
     };
 
@@ -760,13 +765,14 @@ export type EnumCompanion<
     match: Match<E>;
     readonly [Tag]: ByTag<E>;
   } & TraitHost &
-  ([TraitNames<DeclaredTraits<E>>] extends [never]
+  ([Extract<ImplementedOf<E, M>, TraitNames<DeclaredTraits<E>>>] extends [never]
     ? unknown
     : {
         readonly dyn: DynStep<
           E,
-          TraitNames<DeclaredTraits<E>>,
-          "a variant declares this trait, so box it through the variant: `Enum.[Variant].dyn<Trait>(value)`"
+          Extract<ImplementedOf<E, M>, TraitNames<DeclaredTraits<E>>>,
+          "a variant declares this trait, so box it through the variant: `Enum.[Variant].dyn<Trait>(value)`",
+          "the enum and the variant each declare some of these traits; box them separately"
         >;
       });
 
