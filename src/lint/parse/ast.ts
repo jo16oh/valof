@@ -58,6 +58,7 @@ export type Node = Enum<
       specifiers: Rec<Node>[];
     };
     ExportSpecifier: { local: Rec<Node>; exported: Rec<Node> };
+    ExportAllDeclaration: { source: Rec<Node> };
     ImportDeclaration: { source: Rec<Node>; specifiers: Rec<Node>[] };
     ImportSpecifier: { local: Rec<Node>; imported: Rec<Node> };
     ImportNamespaceSpecifier: { local: Rec<Node> };
@@ -331,6 +332,8 @@ function build(
         source: maybe(raw.source),
         specifiers: raw.specifiers.map(at),
       });
+    case "ExportAllDeclaration":
+      return Node.ExportAllDeclaration.create.nocopy({ ...shared, source: at(raw.source) });
     case "ExportSpecifier":
       return Node.ExportSpecifier.create.nocopy({
         ...shared,
