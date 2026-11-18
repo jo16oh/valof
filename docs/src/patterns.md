@@ -141,13 +141,14 @@ Tags.has(tags, "new"); // true
 const more = Tags.set(tags, "rare", true);
 ```
 
-`fromEntries` takes an iterable of entries, such as an array or a JS `Map`, not a plain object. A
-later entry replaces an earlier one with the same key. A record's companion has no `seal`. A seal
-registered with `.implSeal` receives the object the entries fold into. `set` and `delete` pass a new
-value to the seal and return what it returns, or return the value itself where nothing changes. The
-value is a plain object keyed by its keys, so `equals` and JSON treat it as a plain object. Read it
-with `keys`, `values` and `entries`, which keep the key and value types that `Object.keys`,
-`Object.values` and `Object.entries` lose.
+`fromEntries` takes an iterable of entries, such as an array or a JS `Map`, not a plain object. An
+entry's value cannot be `undefined`. Leave the key out instead. A later entry replaces an earlier
+one with the same key. A record's companion has no `seal`. A seal registered with `.implSeal`
+receives the object the entries fold into. `set` and `delete` pass a new value to the seal and
+return what it returns, or return the value itself where nothing changes. The value is a plain
+object keyed by its keys, so `equals` and JSON treat it as a plain object. Read it with `keys`,
+`values` and `entries`, which keep the key and value types that `Object.keys`, `Object.values` and
+`Object.entries` lose.
 
 <!-- prettier-ignore -->
 > [!WARNING]

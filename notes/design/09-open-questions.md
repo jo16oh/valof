@@ -36,6 +36,23 @@
     and the seal checks that each field holds a value that Val's seal returned. The root mark records only that some seal returned
     a node. The schema puts which Val a field holds into the runtime, which §2.1 keeps in the type alone
 
+- [x] ~~**Holes the type hunt of 2026-11-17 found in the stacked PRs for required keys, recipes and `Val.Record`.**~~ Closed,
+      2026-11-18. Fixed: `Val.Record` checks its declaration (one literal brand, a valid value and no `undefined`, and the
+      companion rejects an `any` value; a `never` key leaves the record empty, which breaks no seal); `.implAssoc` rejects a record's member names; `Val.of.nocopy` rejects a record;
+      an implementation cannot define a member named `seal`, `patch`, `create` or `match`; `ValidateFields` maps with `-?`, so
+      `{ a?: undefined }` is rejected without `exactOptionalPropertyTypes`; a field named `toString` is no longer read as
+      an index signature (`{}` has a `toString`); `Patch`'s second type argument is constrained to `keyof T`; an option list that is `any`
+      makes the companion an `Invalid`, so the next step reports it; the type error for an enum's payload keyed by any
+      string names `Val.Record`
+  - **Not fixed: a key outside the trait in an implementation.** Checking each key of the returned object added 2,942
+    instantiations (+11%) to trait, so only the companion's own names are rejected. Another key is added to the companion as
+    an unused member
+  - **Not fixed: a `Final` member set to `undefined` without `exactOptionalPropertyTypes`.** `?: never` takes `undefined`
+    there. Calling the member then throws "is not a function", so no value is broken
+  - **Not fixed: a recipe that places the draft inside itself** (`d.self = d`). It throws a `RangeError` (stack
+    overflow), not a clear message. A check would cost bytes for a mistake the throw already stops
+  - **Cost.** trait 25,699 → 26,345 instantiations, so its budget went from 26,000 to 27,000
+
 - [ ] **valof-lint reports `Object.assign` on a draft.** TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
   - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report

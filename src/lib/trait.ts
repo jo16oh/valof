@@ -26,6 +26,7 @@ import {
   type Reserved,
   type Unfit,
   type UnionToIntersection,
+  type Wired,
 } from "./val.ts";
 
 declare const SelfMark: unique symbol;
@@ -429,7 +430,9 @@ export type Shared<Tr extends LoneTrait<Tr>, G> = {
  */
 export type Implement<Tr extends AnyTrait, G, V> = Unbound<Omit<MembersOf<Tr>, keyof G>, V> &
   Partial<Unbound<Pick<MembersOf<Tr>, Exclude<keyof G, FinalsOf<Tr>> & keyof MembersOf<Tr>>, V>> &
-  Partial<Record<FinalsOf<Tr>, never>>;
+  Partial<Record<FinalsOf<Tr>, never>> &
+  // A name the companion takes for its own would replace it.
+  Partial<Record<Exclude<Wired | "match", keyof MembersOf<Tr>>, never>>;
 
 /**
  * What `Trait.companion` returns, which `impl` adds to and `.build()` closes.

@@ -22,6 +22,7 @@ import type {
   CallBuildFirst,
   CompanionMembers,
   Invalid,
+  RecordValue,
   Refused,
   Takes,
   Verdict,
@@ -302,6 +303,13 @@ describe("Val", () => {
       expectTypeOf<Root>().not.toExtend<AnyVal>();
       expectTypeOf<Pattern>().not.toExtend<AnyVal>();
       expectTypeOf<Branded>().not.toExtend<AnyVal>();
+      // @ts-expect-error a `Patch` takes keys of the payload
+      type Typo = Patch<{ id: string }, "idd">;
+      // oxlint-disable-next-line no-explicit-any -- the case under test
+      type Loose = any;
+      // @ts-expect-error the options cannot be `any`
+      Val.companion<User, Loose>().build();
+      expectTypeOf<Typo>().not.toBeNever();
       // Literal keys list every entry.
       type Fixed = Val<"Fixed", Record<"a" | "b", number>>;
       expectTypeOf<Fixed>().toExtend<AnyVal>();
@@ -313,7 +321,7 @@ describe("Val", () => {
       type Bad = Val<"Bad", { name: string; nickname?: string }>;
       expectTypeOf<VerdictOf<Bad>>().toEqualTypeOf<{
         name: string;
-        nickname?: Invalid<"a key cannot be optional; write `k: T | undefined`">;
+        nickname: Invalid<"a key cannot be optional; write `k: T | undefined`">;
       }>();
       // @ts-expect-error a key cannot be optional, at any depth
       type Deep = Val<"Deep", { at: { label?: string } }>;
@@ -361,6 +369,8 @@ describe("Val", () => {
 
     test("Vals, arrays, objects and primitives are allowed", () => {
       expectTypeOf<Val<"A", string>>().toExtend<AnyVal>();
+      // A key named after a member of `Object.prototype` is a field like any other.
+      expectTypeOf<Val<"P", { toString: string; t: { valueOf: number } }>>().toExtend<AnyVal>();
       expectTypeOf<Val<"C", string[]>>().toExtend<AnyVal>();
       expectTypeOf<Val<"E", { at: Val<"A", string>; n: number | null }>>().toExtend<AnyVal>();
     });
@@ -2028,11 +2038,29 @@ describe("Val.Record", () => {
     type Overlay = Val.Record<"RecordOverlay", string, string>;
     const Overlay = Val.Record.companion<Overlay>().build();
     expect(Overlay.fromEntries([["a.ts", "text"]])).toEqual({ "a.ts": "text" });
-    // The declaration is generic, so the rule is read where the map is used.
+    // @ts-expect-error functions are not allowed, on the declaration
     type Bad = Val.Record<"RecordBad", string, () => void>;
     expectTypeOf<Bad>().not.toExtend<AnyVal>();
-    // @ts-expect-error functions are not allowed
-    Val.Record.companion<Bad>();
+    // @ts-expect-error a key holding `undefined` would still be listed
+    type Holey = Val.Record<"RecordHoley", string, number | undefined>;
+    // @ts-expect-error a brand is one string literal
+    type Two = Val.Record<"A" | "B", string, number>;
+    // `any` satisfies every constraint, so the companion reports it.
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    type Anything = any;
+    type Loose = Val.Record<"RecordLoose", string, Anything>;
+    // @ts-expect-error `any` is not a plain value
+    Val.Record.companion<Loose>();
+    expectTypeOf<RecordValue<Anything>>().toEqualTypeOf<
+      Invalid<"`any` and `unknown` are not plain values; write the type">
+    >();
+    // @ts-expect-error the options cannot be `any`, which the next step reports
+    Val.Record.companion<Prices, Anything>().build();
+    expectTypeOf<Holey | Two>().not.toBeNever();
+    // The value names its fault.
+    expectTypeOf<RecordValue<number | undefined>>().toEqualTypeOf<
+      Invalid<"a record's value cannot be undefined; leave the key out">
+    >();
   });
 
   test("goes through a custom seal on every path, which receives the record's object", () => {
@@ -2177,12 +2205,20 @@ describe("Val.Record", () => {
       // @ts-expect-error and `entries`
       entries: (p: Prices) => Object.entries(p),
     }));
-    Val.Record.companion<Prices>().implAssoc(() => ({
+    Val.Record.companion<Prices>().impl(() => ({
       // @ts-expect-error the companion's own `fromEntries`
-      fromEntries: () => Prices.fromEntries([]),
-      // @ts-expect-error and `delete`
-      delete: () => Prices.fromEntries([]),
+      fromEntries: (p: Prices) => p,
     }));
+    Val.Record.companion<Prices>().implAssoc(() => ({
+      // @ts-expect-error nor may `.implAssoc` take a record's member name
+      set: (x: string) => x,
+    }));
+    Val.Record.companion<Prices>().implAssoc(() => ({
+      // @ts-expect-error nor `fromEntries`
+      fromEntries: (x: string) => x,
+    }));
+    // @ts-expect-error `Val.of.nocopy` builds no record either
+    Val.of.nocopy<Prices>([["apple", apple]]);
     // A name no record member takes stays free.
     Val.Record.companion<Prices>().impl(() => ({ add: (p: Prices) => p }));
   });

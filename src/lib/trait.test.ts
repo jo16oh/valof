@@ -548,6 +548,20 @@ describe("Trait", () => {
       expectTypeOf(Greetable).not.toHaveProperty("greet");
     });
 
+    test("an implementation cannot take the companion's own names", () => {
+      type Named = Val<"ExtraNamed", { name: string }, Greetable>;
+      Val.companion<Named>().implTrait(Greetable, () => ({
+        toWire: (n, sep) => n.name + sep,
+        // @ts-expect-error a key the trait does not declare would replace the companion's `seal`
+        seal: (n: Named) => n,
+      }));
+      Val.companion<Named>().implTrait(Greetable, () => ({
+        toWire: (n, sep) => n.name + sep,
+        // @ts-expect-error nor its `match`
+        match: (n: Named) => n,
+      }));
+    });
+
     test("takes a Val and a box alike", () => {
       expect([Greetable.shout(USER), Greetable.shout(Greetable.dyn(User, USER))]).toEqual([
         "ALICE",
