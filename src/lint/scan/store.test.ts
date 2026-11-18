@@ -32,7 +32,7 @@ const C = FilePath.seal("/project/c.ts");
 const MODULES = Modules.create([A, B]);
 
 function scanOf(file: FilePath, text: string, files = MODULES): Scan {
-  return Scan.walk(file, Parser.exec(parser, file, text), files, text);
+  return Scan.walk(file, parser.exec(file, text), files, text);
 }
 
 /** Runs `act` in a fresh directory, and deletes the directory afterwards. */

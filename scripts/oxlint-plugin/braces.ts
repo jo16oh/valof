@@ -6,7 +6,7 @@ import type { Body, Rule } from "./rule.ts";
  *
  * `curly` has no option that tells a guard clause from the rest.
  */
-export const braces: Rule = {
+export const braces: Readonly<Rule> = {
   meta: {
     type: "layout",
     docs: { description: "Require braces, except on a guard clause" },
@@ -49,7 +49,7 @@ export const braces: Rule = {
   },
 };
 
-const GUARDS = new Set([
+const GUARDS: ReadonlySet<string> = new Set([
   "ReturnStatement",
   "ThrowStatement",
   "ContinueStatement",

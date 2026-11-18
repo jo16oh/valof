@@ -7,7 +7,7 @@ import type { Rule } from "./rule.ts";
  * what it does, and the call to it ends the file. Nothing imports an entry point, so it exports
  * nothing.
  */
-export const entryPoint: Rule = {
+export const entryPoint: Readonly<Rule> = {
   meta: {
     type: "suggestion",
     docs: {

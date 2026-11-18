@@ -6,9 +6,11 @@ import type { DataTypeSettings } from "../shared/options.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 
 /** What each shape says, and the setting that has to ask for it. */
-const SAID: Record<
-  Shape["_tag"],
-  { setting?: "classes" | "constraints" | "extraction"; say: (name: string) => string }
+const SAID: Readonly<
+  Record<
+    Shape["_tag"],
+    { setting?: "classes" | "constraints" | "extraction"; say: (name: string) => string }
+  >
 > = {
   Data: {
     say: (name) =>

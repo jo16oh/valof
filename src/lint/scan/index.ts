@@ -68,19 +68,11 @@ const MEMBER_STEPS: ReadonlyMap<string, number> = new Map([
 ]);
 
 /** What a function body may declare: each is state the members share. */
-const DECLARATIONS = new Set(["VariableDeclaration", "FunctionDeclaration", "ClassDeclaration"]);
-
-/** An enum to read keys from. `AnyEnum` widens them to `string`. */
-type Sample = Enum<"Sample", { A: { a: 1 } }>;
-
-/** The {@link Reserved} names with no pattern. */
-type Unlisted<N extends string> = Reserved extends infer R
-  ? R extends unknown
-    ? Extract<N, R> extends never
-      ? R
-      : never
-    : never
-  : never;
+const DECLARATIONS: ReadonlySet<string> = new Set([
+  "VariableDeclaration",
+  "FunctionDeclaration",
+  "ClassDeclaration",
+]);
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
 export type Member = Val<"Member", { at: Position; companion: string; member: string }>;
@@ -275,6 +267,18 @@ export function reserved<const N extends readonly Reserved[]>(
   return new RegExp(`^(?:${patterns.join("|")})$`);
 }
 
+/** An enum to read keys from. `AnyEnum` widens them to `string`. */
+type Sample = Enum<"Sample", { A: { a: 1 } }>;
+
+/** The {@link Reserved} names with no pattern. */
+type Unlisted<N extends string> = Reserved extends infer R
+  ? R extends unknown
+    ? Extract<N, R> extends never
+      ? R
+      : never
+    : never
+  : never;
+
 /** A `Trait.dyn(Val, value)` box: the Trait, and the Val it holds. */
 type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
 const DynBox = Val.companion<DynBox>().build();
@@ -302,7 +306,7 @@ function collect<K, V>(map: Map<K, Set<V>>, key: K, value: V): void {
 /** The body of {@link Scan.walk}. */
 function scan(
   file: FilePath,
-  { program, comments }: ReturnType<typeof Parser.exec>,
+  { program, comments }: ReturnType<Parser["exec"]>,
   modules: Modules,
   source: string,
 ): Scan {
