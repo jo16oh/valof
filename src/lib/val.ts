@@ -611,13 +611,11 @@ type IsRecord<T> = [T] extends [Primitive] ? false : number extends keyof T ? fa
  */
 export type Fits<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? true
-  : 0 extends 1 & Tr
-    ? "a Val's traits cannot be `any`; name them"
-    : [Tr] extends [UnionToIntersection<Tr>]
-      ? [Overlap<BrandsOf<Tr>>] extends [never]
-        ? Agrees<T, Tr>
-        : `two traits declare a member named ${Code<Overlap<BrandsOf<Tr>> & string>}`
-      : "declare several traits with `&`, not `|`";
+  : [Tr] extends [UnionToIntersection<Tr>]
+    ? [Overlap<BrandsOf<Tr>>] extends [never]
+      ? Agrees<T, Tr>
+      : `two traits declare a member named ${Code<Overlap<BrandsOf<Tr>> & string>}`
+    : "declare several traits with `&`, not `|`";
 
 // As a constraint, so the type argument reports it. Read through `infer`, as a name's constraint is:
 // passing `Tr` itself to a conditional in its own constraint is circular (TS2313).
@@ -1119,10 +1117,13 @@ export declare class PrivateCreate {
  * const User = Val.companion<User, [Unpatchable<"id" | "createdAt">]>().build();
  * ```
  */
-// `any` and `never` satisfy every constraint, so the type itself reports them.
-export type Unpatchable<K extends string> = [K] extends [Unnamed]
-  ? Invalid<"`Unpatchable` takes key names">
-  : UnpatchablePhantom<K>;
+// `any` satisfies every constraint, so the type itself reports it. It reads the key through
+// `infer`, because against the constraint, `1 & K` resolves to `never` before `K` is known.
+export type Unpatchable<K extends string> = [K] extends [infer X]
+  ? 0 extends 1 & X
+    ? Invalid<"`Unpatchable` takes key names, not `any`">
+    : UnpatchablePhantom<K>
+  : never;
 
 /** What the list after the Val in `Val.companion<V, […]>` takes. */
 // The phantom rather than `Unpatchable`, which is an `Invalid` for a payload with no key.
@@ -2065,7 +2066,7 @@ type OneVal<V, M extends string> = {
 };
 
 /** Nothing, or the reason a union of option lists is rejected. */
-// `any` and `never` satisfy this constraint, so {@link Listed} reports them at the next step.
+// `any` satisfies this constraint, so {@link Listed} reports it at the next step.
 export type OneList<O> =
   IsUnion<O> extends true
     ? Invalid<"the options cannot be a union of lists">
@@ -2094,10 +2095,9 @@ export const of = /* @__PURE__ */ Object.assign(own as Of, {
   nocopy: adopt as Of,
 });
 
-// `any` and `never` satisfy every constraint, so the argument reports them. `V` is also `never`
-// when left out: the argument names no Val to infer it from.
+// `V` is `never` when left out: the argument names no Val to infer it from.
 type Of = <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val"> = never>(
-  value: [V] extends [Unnamed] ? Invalid<"name the Val: `Val.of<V>(value)`"> : SeedOf<V>,
+  value: [V] extends [never] ? Invalid<"name the Val: `Val.of<V>(value)`"> : SeedOf<V>,
 ) => V;
 
 /**
@@ -2118,19 +2118,14 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 export const companion = <
   V extends AnyVal & NotEnum<V> & OneVal<V, "a companion builds one Val"> = never,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
->(): [V] extends [Unnamed]
+>(): [V] extends [never]
   ? Invalid<"name the Val: `Val.companion<V>()`">
   : Listed<O, CompanionBuilder<V, undefined, undefined, O>> => builder({}) as never;
 
-/** What `any` and `never` extend, and no named type does. */
-export type Unnamed = Invalid<string>;
-
 /**
- * The builder, or the fault where the option list is `any` or `never`, which every constraint
- * accepts. The next step then reports it.
+ * The builder, or the fault where the option list is `any`, which every constraint accepts. The
+ * next step then reports it.
  */
-export type Listed<O, Then> = [O] extends [never]
-  ? Invalid<"the options cannot be `never`; list them">
-  : true extends (O extends unknown ? HasAny<O> : never)
-    ? Invalid<"the options cannot be `any`; list them">
-    : Then;
+export type Listed<O, Then> = true extends (O extends unknown ? HasAny<O> : never)
+  ? Invalid<"the options cannot be `any`; list them">
+  : Then;

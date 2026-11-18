@@ -23,7 +23,6 @@ import {
   type OneLiteral,
   type IsUnion,
   type Reserved,
-  type Unnamed,
   type Unfit,
   type UnionToIntersection,
   type Wired,
@@ -139,12 +138,12 @@ type Trait<
                     : [Shape] extends [AnyTrait]
                       ? Invalid<"a trait's shape cannot be a trait; write its fields">
                       : [Shape] extends [Checked<Shape>]
-                        ? // An `any` or `never` member satisfies the check below too.
+                        ? // An `any` member satisfies the check below too.
                           [AnyMembers<M>] extends [never]
                           ? [M] extends [Declarable<Shape, M>]
                             ? M
                             : Declarable<Shape, M>
-                          : Invalid<"a trait member cannot be `any` or `never`; write its signature">
+                          : Invalid<"a trait member cannot be `any`; write its signature">
                         : Checked<Shape>;
             }
           : Invalid<"a trait's members must be one object type, not a union">;
@@ -168,9 +167,7 @@ type DeclarableShape<Shape> = [Shape] extends [infer S]
         : Checked<S>
   : unknown;
 
-type AnyMembers<M> = {
-  [K in keyof M]-?: 0 extends 1 & M[K] ? K : [M[K]] extends [never] ? K : never;
-}[keyof M];
+type AnyMembers<M> = { [K in keyof M]-?: 0 extends 1 & M[K] ? K : never }[keyof M];
 
 type OneMembers<M, Shape> = [M] extends [infer X extends Members]
   ? IsUnion<X> extends true
@@ -446,7 +443,7 @@ export type TraitCompanion<
 export type DynStep<V, Held, Elsewhere extends string, Split extends string = Elsewhere> = <
   Tr extends OneTrait<Tr> = never,
 >(
-  value: [Tr] extends [Unnamed]
+  value: [Tr] extends [never]
     ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
     : [NamesOf<Tr>] extends [TraitsOf<V>]
       ? [NamesOf<Tr>] extends [Held]
@@ -580,7 +577,7 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
 /**
  * Declares a trait's runtime side: what every Val implementing it shares.
  */
-export const companion = <Tr extends LoneTrait<Tr> = never>(): [Tr] extends [Unnamed]
+export const companion = <Tr extends LoneTrait<Tr> = never>(): [Tr] extends [never]
   ? Invalid<"name the trait: `Trait.companion<Trait>()`">
   : TraitBuilder<Tr> => builder() as never;
 
