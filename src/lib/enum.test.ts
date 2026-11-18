@@ -19,7 +19,9 @@ import {
   type Self,
   Otherwise,
   Tag,
+  type SeedOf,
   type VariantOf,
+  type VariantsOf,
 } from "./index.ts";
 import type { CallBuildFirst, Invalid, Verdict } from "./val.ts";
 
@@ -58,6 +60,15 @@ describe("the declaration", () => {
     expectTypeOf<SeedFor<Shape, "Circle">>().toEqualTypeOf<{ readonly r: number }>();
     expectTypeOf(Circle.create).parameter(0).toEqualTypeOf<SeedFor<Shape, "Circle">>();
     expect(CIRCLE).toEqual({ r: 2, _tag: "Circle" });
+  });
+
+  test("`VariantsOf` lists the variants, and a variant's seed is `SeedOf<VariantOf<E, N>>`", () => {
+    expectTypeOf<keyof VariantsOf<Shape>>().toEqualTypeOf<"Circle" | "Square">();
+    expectTypeOf<SeedOf<VariantOf<Shape, "Circle">>>().toEqualTypeOf<{
+      readonly r: number;
+      readonly _tag: "Circle";
+    }>();
+    expectTypeOf(Circle.seal).parameter(0).toEqualTypeOf<SeedOf<VariantOf<Shape, "Circle">>>();
   });
 
   test("the brand is derived from the enum's name", () => {
