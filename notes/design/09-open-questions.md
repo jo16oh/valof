@@ -67,9 +67,15 @@
     - **A union element in an options list** (`[Unpatchable<"id"> | PrivateSeal]`), for a Val's companion and an enum's
     - **Cost:** core 12,948 → 13,002 instantiations, enum 51,727 → 51,833, `index.d.ts` 115.14 → 115.10 kB with the removals above. The core
       budget went from 13,000 to 13,100
-    - **Not fixed, though probed:** an overloaded or generic trait member (no way to read either from the type), a class instance
-      passed to `seal` (it throws), a union of two Vals passed to `equals` (the caller wrote the union), a `Rec` in a trait's
-      shape (circular, TS2456), `Patch<User>` written for a Val (reported where it is used)
+    - **Not fixed, though probed, by decision (user, 2026-11-18):** a class instance passed to `seal` stays unchecked by
+      the types (it throws at run time); a union of two Vals passed to `equals` is accepted (the caller wrote the union)
+    - **Not fixed yet, though probed:** a `Rec` in a trait's shape (circular, TS2456), `Patch<User>` written for a Val
+      (reported where it is used)
+    - **Fixed (2026-11-18):**
+      - **A generic trait member is rejected,** as Rust keeps generic methods out of a `dyn` trait. `infer` reads the
+        member with its type parameters filled in, and the member does not accept that type back. A constrained
+        parameter reads as its constraint, so `<T extends string>(self: Self, t: T) => number` passes as
+        `(self: Self, t: string) => number`. An overloaded member is still read by its last signature
 
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
