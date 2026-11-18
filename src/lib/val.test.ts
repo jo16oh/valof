@@ -2,7 +2,6 @@ import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 
 import type { LooseArity } from "./dual/index.ts";
 import type {
-  Patch,
   Payload,
   PayloadOf,
   PrivateCreate,
@@ -15,8 +14,9 @@ import type {
 import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "./index.ts";
 import { Traits } from "./keys.ts";
 import type { VerdictOf as TraitVerdictOf } from "./trait.ts";
-// `AnyVal` and `BrandOf` are not published from the entry point.
+// `AnyVal`, `BrandOf` and `Patch` are not published from the entry point.
 import type {
+  Patch,
   Allowed,
   AnyVal,
   BrandOf,
@@ -316,6 +316,8 @@ describe("Val", () => {
       expectTypeOf<Root>().not.toExtend<AnyVal>();
       expectTypeOf<Pattern>().not.toExtend<AnyVal>();
       expectTypeOf<Branded>().not.toExtend<AnyVal>();
+      // @ts-expect-error `Patch` is internal: a recipe's type is inferred
+      type Exported = import("./index.ts").Patch<{ id: string }>;
       // @ts-expect-error a `Patch` takes keys of the payload
       type Typo = Patch<{ id: string }, "idd">;
       // @ts-expect-error and so does a `Draft`
@@ -324,7 +326,7 @@ describe("Val", () => {
       type Loose = any;
       // @ts-expect-error the options cannot be `any`
       Val.companion<User, Loose>().build();
-      expectTypeOf<Typo | DraftTypo>().not.toBeNever();
+      expectTypeOf<Typo | DraftTypo | Exported>().not.toBeNever();
       // Literal keys list every entry.
       type Fixed = Val<"Fixed", Record<"a" | "b", number>>;
       expectTypeOf<Fixed>().toExtend<AnyVal>();

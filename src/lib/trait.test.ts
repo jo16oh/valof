@@ -8,6 +8,7 @@ import {
   type Final,
   type Impl,
   type Payload,
+  type Rec,
   type Self,
 } from "./index.ts";
 import { Shared } from "./keys.ts";
@@ -776,6 +777,27 @@ describe("dyn", () => {
     });
 
     // `implTrait` requires every member, so an optional one could never be implemented.
+    // A box binds each member once, so it has no type argument to give a generic one.
+    test("a member cannot be generic", () => {
+      // @ts-expect-error a trait member cannot be generic
+      type Echo = Trait<"Echo", { n: number }, { echo: <T>(self: Self, t: T) => T }>;
+      // @ts-expect-error same, with the type parameter in the return type alone
+      type Fill = Trait<"Fill", { n: number }, { fill: <T>(self: Self) => T[] }>;
+      // A constrained parameter reads as its constraint, and a generic callback is an argument.
+      type Narrow = Trait<
+        "Narrow",
+        { n: number },
+        { len: <T extends string>(self: Self, t: T) => number }
+      >;
+      type Mapping = Trait<
+        "Mapping",
+        { n: number },
+        { map: (self: Self, f: <U>(u: U) => U) => number }
+      >;
+      expectTypeOf<Echo | Fill>().not.toBeNever();
+      expectTypeOf<Narrow | Mapping>().toExtend<AnyTrait>();
+    });
+
     test("a member cannot be optional", () => {
       // @ts-expect-error a trait member cannot be optional; declare it required
       type Optional = Trait<"Optional", { x: string }, { f?: (self: Self) => string }>;
@@ -908,6 +930,17 @@ describe("data-first and data-last", () => {
 });
 
 describe("nesting", () => {
+  test("a trait's shape may hold the Val that declares it", () => {
+    type Branchy = Trait<"Branchy", { kids: Rec<Tree>[] }, { size: (self: Self) => number }>;
+    const Branchy = Trait.companion<Branchy>().build();
+    type Tree = Val<"BranchyTree", { kids: Rec<Tree>[]; n: number }, Branchy>;
+    const Tree = Val.companion<Tree>()
+      .implTrait(Branchy, () => ({ size: (t) => t.kids.length }))
+      .build();
+    const leaf = Tree.seal({ kids: [], n: 1 });
+    expect(Tree.dyn<Branchy>(Tree.seal({ kids: [leaf], n: 2 })).size()).toBe(1);
+  });
+
   type Team = Val<"Team", { id: string; name: string; lead: User }, Greetable>;
   const Team = Val.companion<Team>()
     .implTrait(Greetable, () => ({
