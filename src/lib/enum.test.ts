@@ -1336,7 +1336,7 @@ describe("a broken declaration", () => {
 
   test("a variant and the enum's trait holding the enum under one key report the key", () => {
     type Sized = Trait<"RecSized", { kids: Rec<Grown>[] }, { size: (self: Self) => number }>;
-    // @ts-expect-error a variant cannot redeclare the trait's field `kids`
+    // @ts-expect-error a variant cannot redeclare the shared field `kids`, which the trait adds
     type Grown = Enum<"Grown", { A: { kids: Rec<Grown>[] }; B: { v: number } }, Sized>;
     expectTypeOf<Grown>().not.toBeAny();
   });
