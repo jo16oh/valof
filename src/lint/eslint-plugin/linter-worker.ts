@@ -96,7 +96,7 @@ export const Query = Val.companion<Query>()
 
       return seal({
         project,
-        overlay: Overlay.seal(saved && listed ? [] : [[file, text]]),
+        overlay: Overlay.fromEntries(saved && listed ? [] : [[file, text]]),
         model: DataTypeSettings.create(settings?.valof?.["no-data-type-outside-valof"]),
         saved,
       });

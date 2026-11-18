@@ -62,9 +62,9 @@ export type Bindings = Val<
 >;
 export const Bindings = Val.companion<Bindings>()
   .implCreate(() => ({
-    imported: ImportMap.seal([]),
-    namespaces: Names.seal([]),
-    builders: Names.seal([]),
+    imported: ImportMap.fromEntries([]),
+    namespaces: Names.fromEntries([]),
+    builders: Names.fromEntries([]),
   }))
   .impl(() => ({
     hasNamespace: (bound, local: string) => Object.hasOwn(bound.namespaces, local),
@@ -94,7 +94,7 @@ export const Bindings = Val.companion<Bindings>()
 export type Modules = Val<"Modules", { known: KnownFiles }>;
 export const Modules = Val.companion<Modules>()
   .implCreate((files: readonly string[]) => ({
-    known: KnownFiles.seal(files.map((file) => [normalize(resolve(file)), true] as const)),
+    known: KnownFiles.fromEntries(files.map((file) => [normalize(resolve(file)), true] as const)),
   }))
   .impl(() => ({
     /** The module `source` names from `file`: a file in the run, or a package. */
