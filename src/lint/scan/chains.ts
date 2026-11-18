@@ -126,6 +126,16 @@ export function fromRoot(node: Node, bound: Bindings): string | undefined {
   return name === "Val" || name === "Trait" || name === "Enum" ? name : undefined;
 }
 
+/** Whether a chain grows from `Val.Record.companion`. */
+export function fromRecord(node: Node, bound: Bindings): boolean {
+  const path = rootPath(node);
+  if (!path || path.length < 2) return false;
+  const [first, second, third] = path as [string, string, string?];
+  return Bindings.hasNamespace(bound, first)
+    ? second === "Val" && third === "Record"
+    : Bindings.originalName(bound, first) === "Val" && second === "Record";
+}
+
 /**
  * The name a type reference is written under, with the namespace it was reached through.
  *
