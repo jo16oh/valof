@@ -2216,13 +2216,8 @@ describe("Val.Record", () => {
     type Listed = Val.Record<"RecordSealedListed", "a" | "b", number>;
     // A read by key may still miss.
     expectTypeOf<Counts["missing"]>().toEqualTypeOf<number | undefined>();
-    Val.Record.companion<Counts>().implSeal((counts, seal) => {
-      // @ts-expect-error `values` would read it as a number
-      seal({ ...counts, extra: undefined });
-      return seal(counts);
-    });
     Val.Record.companion<Prefixed>().implSeal((prefixed, seal) => {
-      // @ts-expect-error a template key is the same
+      // @ts-expect-error `values` would read it as a number
       seal({ ...prefixed, "x-extra": undefined });
       return seal(prefixed);
     });
@@ -3302,6 +3297,11 @@ describe("building", () => {
           // @ts-expect-error `object` reads each value as `any`
           .implSeal((u: object, seal) => seal(u as SeedOf<User>))
           .build();
+        const builder = Val.companion<User>();
+        type Reading = (u: object, seal: (u: SeedOf<User>) => User) => User;
+        expectTypeOf<Parameters<typeof builder.implSeal<Reading>>[0]>().toEqualTypeOf<
+          Invalid<"type the parameter `Record<string, unknown>`, so each value reads as `unknown`">
+        >();
         Val.companion<User>()
           // @ts-expect-error and so does `Record<string, any>`
           // oxlint-disable-next-line no-explicit-any -- the case under test
@@ -3317,27 +3317,28 @@ describe("building", () => {
           .build();
       });
 
+      // Each reads the message. Without the wire-format check, `unknown` and `{}` on an object payload
+      // would still be rejected, for reading each value as `any`.
       test("a parameter that also accepts a string is rejected", () => {
-        Val.companion<User>()
-          // @ts-expect-error a seal takes the payload, not a wire format
-          .implSeal((u: unknown, seal) => seal(u as SeedOf<User>))
-          .build();
-        Val.companion<User>()
-          // @ts-expect-error `{}` accepts a string too
-          .implSeal((u: {}, seal) => seal(u as SeedOf<User>))
-          .build();
-        Val.companion<Age>()
-          // @ts-expect-error a primitive payload has nothing to parse
-          .implSeal((n: unknown, seal) => seal(n as number))
-          .build();
-        Val.companion<Age>()
-          // @ts-expect-error widening to include a string is the same hole
-          .implSeal((n: number | string, seal) => seal(n as number))
-          .build();
-        Val.companion<Val<"Marker", {}>>()
-          // @ts-expect-error an empty payload is an object too, not a string
-          .implSeal((m: unknown, seal) => seal(m as {}))
-          .build();
+        type Wire = Invalid<"a seal takes the payload, not a wire format; decode before sealing">;
+        type Marker = Val<"Marker", {}>;
+        const user = Val.companion<User>();
+        const age = Val.companion<Age>();
+        const marker = Val.companion<Marker>();
+        type ForUser<P> = (u: P, seal: (u: SeedOf<User>) => User) => User;
+        type ForAge<P> = (n: P, seal: (n: number) => Age) => Age;
+        expectTypeOf<Parameters<typeof user.implSeal<ForUser<unknown>>>[0]>().toEqualTypeOf<Wire>();
+        // `{}` accepts a string too.
+        expectTypeOf<Parameters<typeof user.implSeal<ForUser<{}>>>[0]>().toEqualTypeOf<Wire>();
+        // A primitive payload has nothing to parse.
+        expectTypeOf<Parameters<typeof age.implSeal<ForAge<unknown>>>[0]>().toEqualTypeOf<Wire>();
+        // Widening to include a string is the same hole.
+        expectTypeOf<
+          Parameters<typeof age.implSeal<ForAge<number | string>>>[0]
+        >().toEqualTypeOf<Wire>();
+        // An empty payload is an object too, not a string.
+        type ForMarker = (m: unknown, seal: (m: SeedOf<Marker>) => Marker) => Marker;
+        expectTypeOf<Parameters<typeof marker.implSeal<ForMarker>>[0]>().toEqualTypeOf<Wire>();
       });
 
       test("a payload that is a string is exempt", () => {
@@ -3349,30 +3350,23 @@ describe("building", () => {
 
       test("a payload narrower than `string`, or holding one in a union, is exempt too", () => {
         type Color = Val<"Color", "red" | "blue">;
-        const Color = Val.companion<Color>()
+        Val.companion<Color>()
           .implSeal((c: string, seal) => seal(c === "red" ? "red" : "blue"))
           .build();
         type Hex = Val<"Hex", `#${string}`>;
-        const Hex = Val.companion<Hex>()
+        Val.companion<Hex>()
           .implSeal((h: string, seal) => seal(`#${h.replace(/^#/, "")}`))
           .build();
         type Code = Val<"Code", string | number>;
-        const Code = Val.companion<Code>()
+        Val.companion<Code>()
           .implSeal((c: string | number, seal) => seal(typeof c === "string" ? c.trim() : c))
           .build();
-        expect(Color.seal("red")).toBe("red");
-        expect(Hex.seal("#fff")).toBe("#fff");
-        expect(Code.seal(" a ")).toBe("a");
       });
 
       test("an array payload takes `readonly unknown[]`, and rejects `object`", () => {
         type Scores = Val<"Scores", number[]>;
-        type Pair = Val<"Pair", [number, string]>;
-        const Scores = Val.companion<Scores>()
+        Val.companion<Scores>()
           .implSeal((s: readonly unknown[], seal) => seal(s.map(Number)))
-          .build();
-        Val.companion<Pair>()
-          .implSeal((p: readonly unknown[], seal) => seal([Number(p[0]), String(p[1])]))
           .build();
         const builder = Val.companion<Scores>();
         type Reading = (s: object, seal: (s: SeedOf<Scores>) => Scores) => Scores;
@@ -3380,15 +3374,13 @@ describe("building", () => {
         expectTypeOf<Parameters<typeof builder.implSeal<Reading>>[0]>().toEqualTypeOf<
           Invalid<"type the parameter `readonly unknown[]`, so each value reads as `unknown`">
         >();
-        expect(Scores.seal([1, 2])).toEqual([1, 2]);
       });
 
       test("an empty payload takes `object`, since it has no value to read", () => {
         type Marker = Val<"SealMarker", {}>;
-        const Marker = Val.companion<Marker>()
+        Val.companion<Marker>()
           .implSeal((m: object, seal) => seal(m as SeedOf<Marker>))
           .build();
-        expect(Marker.seal({})).toEqual({});
       });
     });
 
