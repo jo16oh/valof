@@ -56,21 +56,20 @@
 - [ ] **What the second type hunt (2026-11-18) left open, all present in 0.12.** Fixed in the PR that records them: a
       missing type argument at `Trait.companion`, `Val.companion`, `Val.of` and `.dyn`; trait members that are optional,
       symbol-keyed or take something other than `Self` first; the message for a constant in `implAssoc`. Then:
-  - **`any` and `never` written as a type argument are outside the guarantees** (user, 2026-11-18; §1). `Impl<any>`,
-    `Dyn<never>`, `Val.Record<"R", any, V>` and the like stay accepted. The checks this PR first added for them were
-    removed: `Unpatchable<never>`, a `VariantOptions` naming no variant, a `never` member, `never` as the options,
+  - **`any` and `never` written as a type are outside the guarantees** (user, 2026-11-18; §1). `Impl<any>`,
+    `Dyn<never>`, `Val.Record<"R", any, V>` and the like stay accepted. The PR removed the checks it first added for them: `Unpatchable<never>`, a `VariantOptions` naming no variant, a `never` member, `never` as the options,
     `any` as a Val's traits, and `any` at `Trait.companion`, `Val.companion`, `Val.of` and `.dyn`. A drafted constraint
-    (`NotAny`) and a check on the record's brand were dropped. Checks from before stay, such as `Unpatchable<any>`
-    and an `any` member, until they are next touched
+    (`NotAny`) and a check on the record's brand were dropped. Checks older than this PR stay, such as `Unpatchable<any>`
+    and an `any` member, until the code around them next changes
   - **Fixed later, in the same PR:**
     - **A field typed as a Val holding an object, intersected with a primitive** (`{ n: Spot & number }`), and an enum's
       shared field clashing that way with a variant's. The Val's check rejects it, and the enum's check reports that no value fits the field
     - **A union element in an options list** (`[Unpatchable<"id"> | PrivateSeal]`), for a Val's companion and an enum's
     - **Cost:** core 12,948 → 13,002 instantiations, enum 51,727 → 51,833, `index.d.ts` 115.14 → 115.10 kB with the removals above. The core
       budget went from 13,000 to 13,100
-  - **Not attempted:** an overloaded or generic trait member (no way to read either from the type), a class instance
-    passed to `seal` (it throws), a union of two Vals passed to `equals` (the caller wrote the union), a `Rec` in a trait's
-    shape (circular, TS2456), `Patch<User>` written for a Val (reported where it is used)
+    - **Not fixed, though probed:** an overloaded or generic trait member (no way to read either from the type), a class instance
+      passed to `seal` (it throws), a union of two Vals passed to `equals` (the caller wrote the union), a `Rec` in a trait's
+      shape (circular, TS2456), `Patch<User>` written for a Val (reported where it is used)
 
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
