@@ -118,8 +118,9 @@
     - **A rest element in a recipe's parameter** (`({ ...rest }) => { rest.total = 1 }`) copies the draft, so the
       write changes nothing. valof-lint's `no-aliased-draft` reports it. A plain object field taken by name (`({ note })`) is
       a draft itself, so it is not reported
-    - **`has` on a record with listed keys** took only a listed key. It takes any string, since it asks whether the
-      key is there
+    - **Not fixed, by design (user, 2026-11-18): `has` on a record with listed keys takes only a listed key.** A
+      `string` would let an `OrderId` into a record keyed by `UserId` (§3). A string from outside goes through
+      `Object.hasOwn`
     - **Cost.** core 12,892 → 12,917 instantiations. Comparing every key as read-only on every call, before the plain comparison, would have added 1,654 instantiations
 
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
