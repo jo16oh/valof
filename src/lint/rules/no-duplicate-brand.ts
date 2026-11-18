@@ -1,0 +1,69 @@
+import { Val } from "../../lib/index.ts";
+import { ImportMap, type Scan } from "../scan/index.ts";
+import { Kind, Finding, Rule } from "./rule.ts";
+
+/**
+ * A brand string that more than one type alias claims. Two Vals with the same brand and the same
+ * payload are silently assignable to each other, which is the whole failure the brand exists to
+ * prevent.
+ */
+export type DuplicateBrand = Val<"DuplicateBrand", { kind: Kind }, Rule>;
+export const DuplicateBrand = Val.companion<DuplicateBrand>()
+  .implCreate(() => ({
+    kind: Kind.seal("no-duplicate-brand"),
+    description: "a brand string claimed by more than one type alias",
+    warns: false,
+    optIn: false,
+  }))
+  .implTrait(Rule, () => ({ run: findings }))
+  .build();
+
+/**
+ * Reports every alias claiming a brand another alias also claims. Only top-level aliases count,
+ * since nothing else can be imported. `Val` is recognized however it was bound.
+ */
+function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
+  const claims = new Map<string, Finding[]>();
+  for (const { file, brands, imported, enumAliases } of scans) {
+    /** The variants each enum in this file declared, for the brands they derive. */
+    const declared = new Map(enumAliases.map(({ alias, variants }) => [alias, variants]));
+    for (const { typeName, brand, alias, at } of brands) {
+      const owner = ImportMap.nameOf(imported, typeName);
+      if (owner !== "Val" && owner !== "Trait" && owner !== "Enum") continue;
+      const claim = (name: string, claimed: string, how: string): void => {
+        const together = claims.get(name) ?? [];
+        together.push(
+          Finding.seal({
+            kind,
+            file,
+            at,
+            message: `${alias} ${how} the brand "${claimed}", and so does another type`,
+          }),
+        );
+        claims.set(name, together);
+      };
+      // A trait's brand gets a key of its own, because no value has a trait as its type. An enum's
+      // name identifies a value's type, as a Val's brand does.
+      claim(`${owner === "Trait" ? "Trait" : "Val"}:${brand}`, brand, "claims");
+      // Each variant derives a Val branded `` `${enum}.${variant}` ``, which a hand-written Val
+      // can claim too. The enum's declaration is where that collision is fixed, so the finding
+      // sits there rather than at a variant nobody wrote.
+      if (owner === "Enum") {
+        for (const variant of declared.get(alias) ?? []) {
+          claim(`Val:${brand}.${variant}`, `${brand}.${variant}`, "derives");
+        }
+      }
+    }
+  }
+  const reported = new Set<string>();
+  return [...claims.values()]
+    .filter((claimed) => claimed.length > 1)
+    .flat()
+    .filter(({ file, at: { line, column } }) => {
+      // One declaration, one finding: an enum claims a brand per variant beside its own.
+      const key = `${file}:${line}:${column}`;
+      if (reported.has(key)) return false;
+      reported.add(key);
+      return true;
+    });
+}

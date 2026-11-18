@@ -1,0 +1,48 @@
+import { Val } from "../../lib/index.ts";
+import type { SymbolRef } from "../scan/bindings.ts";
+import { Exports, type Scan } from "../scan/index.ts";
+import { Finding, Kind, Rule } from "./rule.ts";
+
+/**
+ * A variant read from its enum and bound under its own name: `const { Circle } = Shape` and
+ * `const Circle = Shape.Circle`. A reader of `Circle({ r: 2 })` cannot tell which enum declared it.
+ */
+export type DetachedVariant = Val<"DetachedVariant", { kind: Kind }, Rule>;
+export const DetachedVariant = Val.companion<DetachedVariant>()
+  .implCreate(() => ({
+    kind: Kind.seal("no-detached-variant"),
+    description: "a variant bound to a local name without the name of its enum",
+    warns: true,
+    optIn: false,
+  }))
+  .implTrait(Rule, () => ({ run: (rule, scans) => findings(rule, scans) }))
+  .build();
+
+/** Reports each such binding. no-companion-mismatch reports one under another name. */
+function findings({ kind }: DetachedVariant, scans: readonly Scan[]): Finding[] {
+  const exports = Exports.from(scans);
+  const identity = (ref: SymbolRef): string => Exports.identify(exports, ref);
+  const variants = new Map<string, ReadonlySet<string>>();
+  for (const { enumAliases } of scans) {
+    for (const { ref, variants: declared } of enumAliases) {
+      if (declared) {
+        variants.set(identity(ref), new Set(declared));
+      }
+    }
+  }
+  return scans.flatMap(({ file, companionBindings }) =>
+    companionBindings
+      .filter(
+        ({ name, key, companionRef }) =>
+          name === key && variants.get(identity(companionRef))?.has(key) === true,
+      )
+      .map(({ companion, key, at }) =>
+        Finding.seal({
+          kind,
+          file,
+          at,
+          message: `${key} is ${companion}.${key} without the enum it comes from; call ${companion}.${key}`,
+        }),
+      ),
+  );
+}

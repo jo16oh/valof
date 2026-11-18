@@ -48,7 +48,7 @@ function main(): void {
 function says(file: string, message: string): Reply {
   return R.succeed([
     Finding.seal({
-      kind: Kind.seal("unused-member"),
+      kind: Kind.seal("no-unused-member"),
       file: FilePath.seal(file),
       at: Position.seal({ line: 1, column: 1 }),
       message,

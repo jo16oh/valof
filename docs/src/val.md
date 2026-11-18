@@ -19,7 +19,7 @@ type OrderId = Val<"OrderId", string>;
 The brand is phantom. A `UserId` is still a string at runtime.
 
 Name the brand after the type it brands: `type UserId = Val<"UserId", string>`. The
-[`brand-mismatch`](linting.md#rules) lint rule reports when the names do not match.
+[`no-brand-mismatch`](linting.md#rules) lint rule reports when the names do not match.
 
 ## Construct values
 
@@ -51,5 +51,5 @@ const resealed = User.seal({ ...user, name: "bob" });
 ```
 
 Name the companion after its type: `const UserId = Val.companion<UserId>().build()`. TypeScript lets
-the type and value share a name. The [`companion-mismatch`](linting.md#rules) lint rule reports when
-they do not match.
+the type and value share a name. The [`no-companion-mismatch`](linting.md#rules) lint rule reports
+when they do not match.

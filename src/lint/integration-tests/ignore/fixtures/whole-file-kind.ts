@@ -1,5 +1,5 @@
 import { Val } from "valof";
-// valof-lint-disable-whole-file unused-member
+// valof-lint-disable-whole-file no-unused-member
 
 export type OrderId = Val<"Id", string>;
 

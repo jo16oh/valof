@@ -3,7 +3,7 @@ import { resolve } from "node:path";
 import { Val } from "../../lib/index.ts";
 import { KindSet, type Kind } from "../rules/rule.ts";
 
-/** What `data-type-outside-valof` reports beyond what it always reports. */
+/** What `no-data-type-outside-valof` reports beyond what it always reports. */
 export type DataTypeSettings = Val<
   "DataTypeSettings",
   {
@@ -30,13 +30,16 @@ export const DataTypeSettings = Val.companion<DataTypeSettings>()
   .build();
 
 /** The rules that are off unless named here, with their settings. */
-export type Enabled = Val<"Enabled", { "data-type-outside-valof": DataTypeSettings | undefined }>;
+export type Enabled = Val<
+  "Enabled",
+  { "no-data-type-outside-valof": DataTypeSettings | undefined }
+>;
 export const Enabled = Val.companion<Enabled>()
   .implCreate(
     ({
-      "data-type-outside-valof": model,
-    }: { "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0] } = {}) => ({
-      "data-type-outside-valof": model && DataTypeSettings.create(model),
+      "no-data-type-outside-valof": model,
+    }: { "no-data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0] } = {}) => ({
+      "no-data-type-outside-valof": model && DataTypeSettings.create(model),
     }),
   )
   .build();

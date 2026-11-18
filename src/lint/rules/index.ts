@@ -1,22 +1,22 @@
 import type { Dyn } from "../../lib/index.ts";
 import { DataTypeSettings, type Options } from "../shared/options.ts";
-import { AliasedDraft } from "./aliased-draft.ts";
-import { BrandMismatch } from "./brand-mismatch.ts";
-import { BypassedCompanion } from "./bypassed-companion.ts";
-import { CompanionMismatch } from "./companion-mismatch.ts";
-import { DataTypeOutsideValof } from "./data-type-outside-valof.ts";
-import { DetachedVariant } from "./detached-variant.ts";
-import { DuplicateBrand } from "./duplicate-brand.ts";
-import { HiddenOptional } from "./hidden-optional.ts";
-import { HiddenSharedStateInImpl } from "./hidden-shared-state-in-impl.ts";
-import { IncompleteDisable } from "./incomplete-disable.ts";
-import { InferredValOf } from "./inferred-val-of.ts";
+import { AliasedDraft } from "./no-aliased-draft.ts";
+import { BrandMismatch } from "./no-brand-mismatch.ts";
+import { BypassedCompanion } from "./no-bypassed-companion.ts";
+import { CompanionMismatch } from "./no-companion-mismatch.ts";
+import { DataTypeOutsideValof } from "./no-data-type-outside-valof.ts";
+import { DetachedVariant } from "./no-detached-variant.ts";
+import { DuplicateBrand } from "./no-duplicate-brand.ts";
+import { HiddenOptional } from "./no-hidden-optional.ts";
+import { HiddenSharedStateInImpl } from "./no-hidden-shared-state-in-impl.ts";
+import { InferredValOf } from "./no-inferred-val-of.ts";
+import { SplitCompanion } from "./no-split-companion.ts";
+import { UnimplementedTrait } from "./no-unimplemented-trait.ts";
+import { UnnecessaryAlias } from "./no-unnecessary-alias.ts";
+import { UnusedDisable } from "./no-unused-disable.ts";
+import { UnusedMember } from "./no-unused-member.ts";
+import { VagueDisable } from "./no-vague-disable.ts";
 import { KindSet, Rule, type Kind } from "./rule.ts";
-import { SplitCompanion } from "./split-companion.ts";
-import { UnimplementedTrait } from "./unimplemented-trait.ts";
-import { UnnecessaryAlias } from "./unnecessary-alias.ts";
-import { UnusedDisable } from "./unused-disable.ts";
-import { UnusedMember } from "./unused-member.ts";
 
 /**
  * Each rule under its own name, so a caller can name one without spelling its kind.
@@ -34,7 +34,7 @@ export {
   BypassedCompanion,
   CompanionMismatch,
   DuplicateBrand,
-  IncompleteDisable,
+  VagueDisable,
   SplitCompanion,
   InferredValOf,
   UnusedDisable,
@@ -60,7 +60,7 @@ export const RULES = [
   DataTypeOutsideValof.dyn<Rule>(DataTypeOutsideValof.create(DataTypeSettings.create())),
   HiddenOptional.dyn<Rule>(HiddenOptional.create()),
   DetachedVariant.dyn<Rule>(DetachedVariant.create()),
-  IncompleteDisable.dyn<Rule>(IncompleteDisable.create()),
+  VagueDisable.dyn<Rule>(VagueDisable.create()),
   UnusedDisable.dyn<Rule>(UnusedDisable.create()),
 ] as const;
 
@@ -75,11 +75,11 @@ export const ALL_KINDS = KindSet.create(KINDS);
  * settings.
  */
 export function compile(enable: Options["enable"]): Dyn<Rule>[] {
-  const model = enable["data-type-outside-valof"];
+  const model = enable["no-data-type-outside-valof"];
   return RULES.flatMap((rule) =>
     !rule.value.optIn
       ? [rule]
-      : rule.value.kind === "data-type-outside-valof" && model
+      : rule.value.kind === "no-data-type-outside-valof" && model
         ? [DataTypeOutsideValof.dyn<Rule>(DataTypeOutsideValof.create(model))]
         : [],
   );
