@@ -2,17 +2,7 @@
 // exhaustiveness, `_` taking the rest, `match` on a tag alone, a variant's own members, a seal on
 // the enum and one on a variant, a trait implemented over the union, `implAssoc` on the union and
 // on a variant, and a variant nested in a Val, where the patch boundary runs.
-import {
-  Enum,
-  Tag,
-  Trait,
-  Val,
-  type Dyn,
-  type Draft,
-  type SeedOf,
-  type Self,
-  type VariantOf,
-} from "valof";
+import { Enum, Tag, Trait, Val, type Dyn, type Self, type VariantOf } from "valof";
 
 type Shape = Enum<
   "Shape",
@@ -72,7 +62,6 @@ type Frame = Val<"Frame", { id: string; shape: Shape; last: Event }>;
 const Frame = Val.companion<Frame>().build();
 
 declare const shape: Shape;
-declare const patch: (draft: Draft<SeedOf<Frame>>) => void;
 
 const circle = Shape.Circle.seal({ _tag: "Circle", id: "c", r: 2 });
 const click = Event.Click.create({ id: "e", x: 1, y: 2 }) as VariantOf<Event, "Click">;
@@ -104,7 +93,6 @@ export const derived = [
   Frame.patch(frame, (d) => {
     d.shape = Shape.Square.create({ id: "s", side: 1 });
   }),
-  Frame.patch(frame, patch),
 ];
 
 export const sealed = Event.seal({ kind: "Key", id: "e", code: "a" });

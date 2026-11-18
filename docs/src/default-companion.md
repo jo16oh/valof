@@ -92,7 +92,8 @@ The recipe runs synchronously. Once it returns, reading or writing the draft thr
 is a type error. So is a recipe whose parameter type makes writable a key the draft keeps read-only,
 such as `(d: { id: string }) => …` where `id` is
 [`Unpatchable`](custom-constructors.md#restrict-the-companion-with-options). Leave the parameter
-type to inference.
+type to inference. To reuse a change, write it as a member that calls `patch`, which
+[the function passed to `.impl` receives](adding-functions.md#add-functions-that-take-the-val).
 
 Like [`seal`](immutability.md#vals-are-immutable), `patch` reuses what is already inside the Val. It
 copies only the path to what changed, and untouched branches keep their reference identity:

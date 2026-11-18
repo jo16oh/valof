@@ -129,7 +129,7 @@ declare class EnumPhantom<K, V, S, Tr, Tg, VT> {
 export type AnyEnum = AnyVal &
   EnumPhantom<string, Record<string, object>, object, AnyTrait, string, Record<string, AnyTrait>>;
 
-/** The declaration's own keys, which are the variants and nothing else. A numeric key is rejected, by {@link Fault}. */
+/** The declaration's own keys, which are the variants and nothing else. {@link Fault} rejects a numeric or symbol key. */
 type VariantKeys<D> = Extract<keyof D, string | number>;
 
 /** A variant's fields, with the ones its traits require. */
@@ -208,6 +208,7 @@ type VariantFault<D, Tr extends AnyTrait, Tg extends string, Held extends Proper
 
 type VariantsFault<D, Tr extends AnyTrait, Tg extends string, Held extends PropertyKey> =
   | ([VariantKeys<D>] extends [never] ? "an enum needs a variant" : never)
+  | ([Extract<keyof D, symbol>] extends [never] ? never : "a variant's name must be a string")
   | {
       [N in VariantKeys<D>]: IsOneLiteral<`${N}`> extends false
         ? "a variant's name must be one string literal"
