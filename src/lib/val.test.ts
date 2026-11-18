@@ -2114,6 +2114,30 @@ describe("Val.Record", () => {
     });
   });
 
+  test("`fromEntries` takes any string-keyed entries where the seal takes any string-keyed object", () => {
+    const Checked = Val.Record.companion<Prices>()
+      .implSeal((input: Record<string, unknown>, seal) => seal(input as SeedOf<Prices>))
+      .build();
+    const parsed: Record<string, unknown> = JSON.parse('{"apple":{"amount":1}}');
+    expectTypeOf(Checked.fromEntries)
+      .parameter(0)
+      .toEqualTypeOf<Iterable<readonly [string, unknown]>>();
+
+    const Wide = Val.Record.companion<Prices>()
+      .implSeal((input: object, seal) => seal(input as SeedOf<Prices>))
+      .build();
+    expectTypeOf(Wide.fromEntries)
+      .parameter(0)
+      .toEqualTypeOf<Iterable<readonly [string, unknown]>>();
+
+    // A seal that takes the record's own object keeps the entries typed.
+    const Typed = Val.Record.companion<Prices>()
+      .implSeal((prices, seal) => seal(prices))
+      .build();
+    // @ts-expect-error an unsealed object is not a Money
+    Typed.fromEntries(Object.entries(parsed));
+  });
+
   test("`create` folds the entries its function returns, and seals them", () => {
     type Tags = Val.Record<"RecordCreatedTags", string, true>;
     let sealed = 0;
