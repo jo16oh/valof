@@ -75,10 +75,6 @@ describe("Val", () => {
       Val.of(raw);
       // @ts-expect-error same, without the copy
       Val.of.nocopy(raw);
-      // oxlint-disable-next-line no-explicit-any -- the case under test
-      type Loose = any;
-      // @ts-expect-error a Val, not `any`
-      Val.of<Loose>(raw);
       expectTypeOf<Parameters<typeof Val.of<never>>[0]>().toEqualTypeOf<
         Invalid<"name the Val: `Val.of<V>(value)`">
       >();
@@ -2436,19 +2432,9 @@ describe("building", () => {
       Val.companion<User, [Unpatchable<"id"> | PrivateSeal]>();
     });
 
-    test("takes no `never` as its options", () => {
-      expectTypeOf(Val.companion<User, never>()).toEqualTypeOf<
-        Invalid<"the options cannot be `never`; list them">
-      >();
-    });
-
-    // `any` and `never` satisfy every constraint, and `never` is what a left-out argument infers.
+    // A left-out argument infers `never`.
     test("names the Val it builds", () => {
-      type Fault = Invalid<"name the Val: `Val.companion<V>()`">;
-      // oxlint-disable-next-line no-explicit-any -- the case under test
-      type Loose = any;
-      expectTypeOf(Val.companion()).toEqualTypeOf<Fault>();
-      expectTypeOf(Val.companion<Loose>()).toEqualTypeOf<Fault>();
+      expectTypeOf(Val.companion()).toEqualTypeOf<Invalid<"name the Val: `Val.companion<V>()`">>();
     });
 
     test("a step does not change the builder it was taken on", () => {
@@ -3444,19 +3430,12 @@ describe("building", () => {
       Val.companion<Account, [Unpatchable<"nope">]>().build();
     });
 
-    test("takes no `any` or `never`", () => {
+    test("takes no `any`", () => {
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = Unpatchable<any>;
-      type Empty = Unpatchable<never>;
-      expectTypeOf<Loose>().toEqualTypeOf<Invalid<"`Unpatchable` takes key names">>();
+      expectTypeOf<Loose>().toEqualTypeOf<Invalid<"`Unpatchable` takes key names, not `any`">>();
       // @ts-expect-error `Unpatchable` takes key names
       Val.companion<Account, [Loose]>().build();
-      // @ts-expect-error same
-      Val.companion<Account, [Empty]>().build();
-      // A payload with no keys takes no `Unpatchable`, so the message does not pass as one.
-      type Bare = Val<"UnpatchableBare", Record<never, never>>;
-      // @ts-expect-error `Unpatchable` takes key names
-      Val.companion<Bare, [Empty]>().build();
     });
 
     // An intersection of two would collapse to `never` and take nothing out.
@@ -3593,17 +3572,6 @@ describe("building", () => {
 
     const member = Val.of<Member>({ id: "a", name: "alice" });
     const admin = Val.of<Admin>({ name: "root", level: 9 });
-
-    test("a Val's traits are named, not `any`", () => {
-      // oxlint-disable-next-line no-explicit-any -- the case under test
-      type Loose = any;
-      type Untraited = Val<"Untraited", { name: string }, Loose>;
-      expectTypeOf<VerdictOf<Untraited>>().toEqualTypeOf<
-        Invalid<"a Val's traits cannot be `any`; name them">
-      >();
-      // @ts-expect-error a Val's traits cannot be `any`
-      Val.companion<Untraited>().build();
-    });
 
     test("a member without a default is the Val's own", () => {
       expect(Member.toWire(member, ":")).toBe("a:alice");

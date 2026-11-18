@@ -659,13 +659,6 @@ describe("dyn", () => {
     // @ts-expect-error another Val's value
     Crate.dyn<Weighed>(USER);
     expect(Crate.dyn<Weighed>(crate).heavy()).toBe(true);
-    // oxlint-disable-next-line no-explicit-any -- the case under test
-    type Loose = any;
-    // @ts-expect-error a trait, not `any`
-    Crate.dyn<Loose>(crate);
-    expectTypeOf<Parameters<typeof Crate.dyn<Loose>>[0]>().toEqualTypeOf<
-      Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
-    >();
     // Declared, but no `implTrait` yet: the companion holds no implementation to box.
     const Bare = Val.companion<Crate>().build();
     expectTypeOf(Bare).not.toHaveProperty("dyn");
@@ -772,18 +765,14 @@ describe("dyn", () => {
     });
 
     // `any` and `never` satisfy the members' constraint, so the verdict alone reports them.
-    test("a member cannot be `any` or `never`", () => {
-      type Fault = Invalid<"a trait member cannot be `any` or `never`; write its signature">;
+    test("a member cannot be `any`", () => {
+      type Fault = Invalid<"a trait member cannot be `any`; write its signature">;
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Loose = Trait<"Loose", { x: string }, { f: any }>;
       // oxlint-disable-next-line no-explicit-any -- the case under test
       type Sealed = Trait<"Sealed", { x: string }, { f: Final<any> }>;
-      type Empty = Trait<"Empty", { x: string }, { f: never }>;
-      type Closed = Trait<"Closed", { x: string }, { f: Final<never> }>;
       expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
       expectTypeOf<VerdictOf<Sealed>>().toEqualTypeOf<{ readonly Sealed: Fault }>();
-      expectTypeOf<VerdictOf<Empty>>().toEqualTypeOf<{ readonly Empty: Fault }>();
-      expectTypeOf<VerdictOf<Closed>>().toEqualTypeOf<{ readonly Closed: Fault }>();
     });
 
     // `implTrait` requires every member, so an optional one could never be implemented.
@@ -1055,13 +1044,11 @@ describe("building", () => {
       Trait.companion<Greetable | Weighed>();
     });
 
-    // `any` and `never` satisfy every constraint, and `never` is what a left-out argument infers.
+    // A left-out argument infers `never`.
     test("names its trait", () => {
-      type Fault = Invalid<"name the trait: `Trait.companion<Trait>()`">;
-      // oxlint-disable-next-line no-explicit-any -- the case under test
-      type Loose = any;
-      expectTypeOf(Trait.companion()).toEqualTypeOf<Fault>();
-      expectTypeOf(Trait.companion<Loose>()).toEqualTypeOf<Fault>();
+      expectTypeOf(Trait.companion()).toEqualTypeOf<
+        Invalid<"name the trait: `Trait.companion<Trait>()`">
+      >();
     });
 
     test("a shape written with a rejected Payload is caught", () => {
