@@ -55,13 +55,16 @@
 
 - [ ] **What the second type hunt (2026-11-18) left open, all present in 0.12.** Fixed in the PR that records them: `any`, `never` and
       a missing type argument at `Trait.companion`, `Val.companion`, `Val.of` and `.dyn`; trait members that are optional,
-      symbol-keyed, `never` or take something other than `Self` first; `Unpatchable` naming no key and `VariantOptions` naming no variant; the message for `any` as a Val's traits; the message for a constant in `implAssoc`. Left open:
-  - **`Impl<any>`, `Impl<never>`, `Dyn<any>`, `Dyn<never>`.** Still open, for the reason the sixth type hunt's item
-    records: a conditional `Impl` or `Dyn` changes the type a consumer's declarations read back. `.dyn` still rejects them
-  - **A field of an object type intersected with a primitive** (`{ n: Spot & number }`, and an enum's shared field
-    clashing that way with a variant's). Checking it cost about 480 B of `index.d.ts`, 16 instantiations in core and 150 in enum
-  - **A union element in an options list** (`[Unpatchable<"id"> | PrivateSeal]`). Checking it cost 48 instantiations in core and about 110 B of `index.d.ts`
-  - **`Val.Record` with an `any` or `never` key, or a `never` value, at the companion.** Checking it cost 24 instantiations in core and about 240 B of `index.d.ts`
+      symbol-keyed, `never` or take something other than `Self` first; `Unpatchable` naming no key and `VariantOptions` naming no variant; the message for `any` as a Val's traits; the message for a constant in `implAssoc`. Then:
+  - **`any` and `never` written as a type argument are outside the guarantees** (user, 2026-11-18; §1). `Impl<any>`,
+    `Dyn<never>`, `Val.Record<"R", any, V>` and the like stay accepted. A drafted constraint (`NotAny`) and a check
+    on the record's brand were dropped
+  - **Fixed later, in the same PR:**
+    - **A field typed as a Val holding an object, intersected with a primitive** (`{ n: Spot & number }`), and an enum's
+      shared field clashing that way with a variant's. The Val's check rejects it, and the enum's check reports that no value fits the field
+    - **A union element in an options list** (`[Unpatchable<"id"> | PrivateSeal]`), for a Val's companion and an enum's
+    - **Cost:** core 12,948 → 13,012 instantiations, enum 51,727 → 51,880, `index.d.ts` 115.14 → 115.74 kB. The core
+      budget went from 13,000 to 13,100
   - **Not attempted:** an overloaded or generic trait member (no way to read either from the type), a class instance
     passed to `seal` (it throws), a union of two Vals passed to `equals` (the caller wrote the union), a `Rec` in a trait's
     shape (circular, TS2456), `Patch<User>` written for a Val (reported where it is used)
@@ -187,7 +190,7 @@
   - A record payload, and a trait whose shape is a primitive: `Agrees` only looked at field disagreements
   - A tuple element of `never`: mapping the element to anything satisfies the constraint, so the whole tuple gets "no value fits a tuple element"
   - **Not handled.** Passing a Val to a plain object field through `seal`. A Val is also a plain object, so this is fine
-    semantically (user, 2026-11-06). → Reversed, 2026-11-17 (top item). `any` in a field, `Impl<any>` and `any` in a companion's options stay unhandled, per the 2026-11-04 policy
+    semantically (user, 2026-11-06). → Reversed, 2026-11-17 (top item). `any` in a field, `Impl<any>` and `any` in a companion's options stay unhandled, because `any` written as a type is outside the guarantees (§1)
   - The type budgets (975 B left for `index.d.ts`, 332 left for trait) stay for now, and go up the next time one is exceeded (user,
     2026-11-06)
 
