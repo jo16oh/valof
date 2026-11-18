@@ -7,7 +7,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
  * payload are silently assignable to each other, which is the whole failure the brand exists to
  * prevent.
  */
-export type DuplicateBrand = Val<"DuplicateBrand", { kind: Kind }, Rule>;
+export type DuplicateBrand = Val<"DuplicateBrand", Record<never, never>, Rule>;
 export const DuplicateBrand = Val.companion<DuplicateBrand>()
   .implCreate(() => ({
     kind: Kind.seal("no-duplicate-brand"),

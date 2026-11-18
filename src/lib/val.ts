@@ -208,9 +208,6 @@ type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = 
         : T
     : Rest<T, Root, Owner>;
 
-/** A key typed as a Val holding an object, intersected with a primitive, which no value fits. */
-export type Hollow<T> = { [K in keyof T]: true extends HoldsObject<T[K]> ? K : never }[keyof T];
-
 // A Val holding a primitive extends `Primitive` too, and a value fits it.
 type HoldsObject<V> = V extends AnyVal & Primitive
   ? [Declared<V>] extends [Primitive]
@@ -598,9 +595,11 @@ type Checks<T, Tr extends AnyTrait, Fit extends boolean> = [T] extends [Validate
 type Holding<T, Tr extends AnyTrait> = [Tr] extends [never]
   ? T
   : IsRecord<T> extends true
-    ? // A key both declare would be read to reduce the intersection, and a `Rec` in it would
-      // resolve the Val being declared. `Disagreement` has checked that the payload's type fits.
-      T & Omit<FieldsOf<Tr>, keyof T>
+    ? // A payload that redeclares a trait's field is rejected, and leaves the field to the payload
+      // here: the two would resolve each other where both hold a `Rec`.
+      [keyof T & keyof FieldsOf<Tr>] extends [never]
+      ? T & FieldsOf<Tr>
+      : T & Omit<FieldsOf<Tr>, keyof T>
     : T;
 
 /** Reads the keys alone: a field may reference the Val being declared, see {@link Rec}. */
@@ -635,9 +634,7 @@ type Agrees<T, Tr extends AnyTrait> =
       : "the payload does not hold what the trait requires"
     : // A primitive shape has no field for a record to disagree with.
       [ShapeOf<Tr>] extends [object]
-      ? [Disagreement<T, ShapeOf<Tr>>] extends [never]
-        ? true
-        : Disagreement<T, ShapeOf<Tr>>
+      ? Redeclared<T, Tr>
       : "the payload does not hold what the trait requires";
 
 /** A member name two of the traits declare. A Val registers each name once. */
@@ -645,15 +642,17 @@ type Overlap<B> = {
   [N in keyof B]: keyof B[N] & { [O in Exclude<keyof B, N>]: keyof B[O] }[Exclude<keyof B, N>];
 }[keyof B];
 
-/** A field the payload declares as a type the shape rejects, or one that no value satisfies. */
-type Disagreement<T, S, R = DeepReadonly<Checked<T>>> = {
-  [K in keyof S & string]-?: [K extends keyof R ? R[K] : S[K]] extends [infer F]
-    ? [F] extends [never]
-      ? `no value fits every declaration of ${Code<K>}`
-      : F extends S[K]
-        ? never
-        : `the payload and the trait declare ${Code<K>} with conflicting types`
-    : never;
+// Decided by the keys alone: reading a field that holds a `Rec` would resolve the Val being
+// declared.
+type Redeclared<T, Tr extends AnyTrait> = [keyof T & keyof FieldsOf<Tr>] extends [never]
+  ? [Contradicted<FieldsOf<Tr>>] extends [never]
+    ? true
+    : `no value fits every declaration of ${Code<Contradicted<FieldsOf<Tr>>>}`
+  : `a payload cannot redeclare the trait's field ${Code<(keyof T & keyof FieldsOf<Tr>) & string>}; the trait already adds it`;
+
+/** A field that two traits declare with types no value fits together. */
+type Contradicted<S> = {
+  [K in keyof S & string]-?: [S[K]] extends [never] ? K : never;
 }[keyof S & string];
 
 // Spelled without an escaped backtick, which the declaration bundler drops the whole file over.

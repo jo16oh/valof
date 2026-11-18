@@ -2,7 +2,7 @@ import { Val } from "../../lib/index.ts";
 import { Exports, type Scan } from "../scan/index.ts";
 import { Kind, Finding, Rule } from "./rule.ts";
 
-export type UnimplementedTrait = Val<"UnimplementedTrait", { kind: Kind }, Rule>;
+export type UnimplementedTrait = Val<"UnimplementedTrait", Record<never, never>, Rule>;
 export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
   .implCreate(() => ({
     kind: Kind.seal("no-unimplemented-trait"),

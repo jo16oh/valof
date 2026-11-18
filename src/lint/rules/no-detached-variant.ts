@@ -7,7 +7,7 @@ import { Finding, Kind, Rule } from "./rule.ts";
  * A variant read from its enum and bound under its own name: `const { Circle } = Shape` and
  * `const Circle = Shape.Circle`. A reader of `Circle({ r: 2 })` cannot tell which enum declared it.
  */
-export type DetachedVariant = Val<"DetachedVariant", { kind: Kind }, Rule>;
+export type DetachedVariant = Val<"DetachedVariant", Record<never, never>, Rule>;
 export const DetachedVariant = Val.companion<DetachedVariant>()
   .implCreate(() => ({
     kind: Kind.seal("no-detached-variant"),

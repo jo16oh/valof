@@ -3,7 +3,7 @@ import type { Scan } from "../scan/index.ts";
 import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A `Val.of(…)` that names no type, and takes one from whatever it is assigned to. */
-export type InferredValOf = Val<"InferredValOf", { kind: Kind }, Rule>;
+export type InferredValOf = Val<"InferredValOf", Record<never, never>, Rule>;
 export const InferredValOf = Val.companion<InferredValOf>()
   .implCreate(() => ({
     kind: Kind.seal("no-inferred-val-of"),

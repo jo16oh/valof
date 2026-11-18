@@ -9,7 +9,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
  * hides grows without anyone deciding to. Over a whole file it silences nothing at all, since a
  * whole file is turned off by saying so: `valof-lint-disable-all-whole-file`.
  */
-export type VagueDisable = Val<"VagueDisable", { kind: Kind }, Rule>;
+export type VagueDisable = Val<"VagueDisable", Record<never, never>, Rule>;
 export const VagueDisable = Val.companion<VagueDisable>()
   .implCreate(() => ({
     kind: Kind.seal("no-vague-disable"),

@@ -12,7 +12,7 @@ import { Finding, Kind, Rule } from "./rule.ts";
  * The rule reports every such parameter, whatever the annotation declares. The development check in
  * `build` rejects every such member too.
  */
-export type HiddenOptional = Val<"HiddenOptional", { kind: Kind }, Rule>;
+export type HiddenOptional = Val<"HiddenOptional", Record<never, never>, Rule>;
 export const HiddenOptional = Val.companion<HiddenOptional>()
   .implCreate(() => ({
     kind: Kind.seal("no-hidden-optional"),
