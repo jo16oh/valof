@@ -1,27 +1,10 @@
 // `#valof`, which the scripts import, resolves to a build of the commit `package.json` pins
 // under `valof-pinned-for-scripts-commit`. A half-written `src` then cannot break the scripts.
-//
-//   vp run pin-valof          builds the pinned commit; `prepare` runs this after `vp install`
-//   vp run pin-valof <rev>    pins <rev>, and builds it
 import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { ROOT, run } from "../shared/repository.ts";
-
-async function main(): Promise<void> {
-  const rev = process.argv.slice(2).find((arg) => arg !== "--");
-  if (rev === undefined) {
-    await build(await pinned());
-  } else {
-    const { stdout } = await run("git", ["rev-parse", "--verify", `${rev}^{commit}`], {
-      cwd: ROOT,
-    });
-    const commit = stdout.trim();
-    await build(commit);
-    await pin(commit);
-  }
-}
 
 const FIELD = "valof-pinned-for-scripts-commit";
 
@@ -85,17 +68,8 @@ export async function build(commit: string, cwd = ROOT, out = TARGET): Promise<v
   console.log(`valof ${commit.slice(0, 7)} built for #valof`);
 }
 
-// CI checks out one commit, so the pinned one is fetched on demand.
-async function fetched(commit: string, cwd: string): Promise<void> {
-  try {
-    await run("git", ["cat-file", "-e", `${commit}^{commit}`], { cwd });
-  } catch {
-    await run("git", ["fetch", "--quiet", "--depth=1", "origin", commit], { cwd });
-  }
-}
-
-// Rewrites the one line, so the rest of `package.json` keeps its formatting.
-async function pin(commit: string): Promise<void> {
+/** Rewrites the one line, so the rest of `package.json` keeps its formatting. */
+export async function pin(commit: string): Promise<void> {
   const file = join(ROOT, "package.json");
   const text = await readFile(file, "utf8");
   const line = new RegExp(`("${FIELD}": )"[0-9a-f]*"`);
@@ -104,7 +78,11 @@ async function pin(commit: string): Promise<void> {
   console.log(`pinned valof to ${commit}`);
 }
 
-// Only when run as a command. The compat check and the tests import this file for its functions.
-if (import.meta.main) {
-  await main();
+// CI checks out one commit, so the pinned one is fetched on demand.
+async function fetched(commit: string, cwd: string): Promise<void> {
+  try {
+    await run("git", ["cat-file", "-e", `${commit}^{commit}`], { cwd });
+  } catch {
+    await run("git", ["fetch", "--quiet", "--depth=1", "origin", commit], { cwd });
+  }
 }

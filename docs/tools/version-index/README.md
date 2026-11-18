@@ -5,7 +5,7 @@ directory beside it. The `docs` job in `.github/workflows/release.yml` runs this
 `gh-pages` checkout after copying the new version in:
 
 ```sh
-node docs/tools/version-index/index.ts site
+node docs/tools/version-index/main.ts site
 ```
 
 It reads the directory names, so the list follows what is actually published. A prerelease gets its

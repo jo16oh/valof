@@ -5,11 +5,11 @@ src = "src"
 title = "The Valof Book"
 
 [preprocessor.version]
-command = "node tools/mdbook-version/index.ts"
+command = "node tools/mdbook-version/main.ts"
 renderers = ["html"]
 
 [preprocessor.shiki]
-command = "node tools/mdbook-shiki/index.ts"
+command = "node tools/mdbook-shiki/main.ts"
 renderers = ["html"]
 after = ["links"]
 light-theme = "one-light"
