@@ -89,9 +89,11 @@ export const Options = Val.companion<Options>()
       enable: Enabled.create(enable),
       skip: KindSet.create(skip),
       targets: targets
-        ? Targets.seal([...targets].map((file) => [resolve(file), true] as const))
+        ? Targets.fromEntries([...targets].map((file) => [resolve(file), true] as const))
         : null,
-      overlay: Overlay.seal([...overlay].map(([file, text]) => [resolve(file), text] as const)),
+      overlay: Overlay.fromEntries(
+        [...overlay].map(([file, text]) => [resolve(file), text] as const),
+      ),
     }),
   )
   .build();

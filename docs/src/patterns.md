@@ -127,7 +127,7 @@ const Money = Val.companion<Money>().build();
 type PriceTable = Val.Record<"PriceTable", string, Money>;
 const PriceTable = Val.Record.companion<PriceTable>().build();
 
-const table = PriceTable.seal([["apple", Money.seal({ amount: 120, currency: "JPY" })]]);
+const table = PriceTable.fromEntries([["apple", Money.seal({ amount: 120, currency: "JPY" })]]);
 table["apple"]; // Money | undefined
 const priced = PriceTable.set(table, "fig", Money.seal({ amount: 300, currency: "JPY" }));
 const figs = PriceTable.delete(priced, "apple");
@@ -136,18 +136,25 @@ PriceTable.keys(figs); // readonly string[]
 type Tags = Val.Record<"Tags", string, true>;
 const Tags = Val.Record.companion<Tags>().build();
 
-const tags = Tags.seal(["new", "sale"].map((tag) => [tag, true] as const));
+const tags = Tags.fromEntries(["new", "sale"].map((tag) => [tag, true] as const));
 Tags.has(tags, "new"); // true
 const more = Tags.set(tags, "rare", true);
 ```
 
-The seal takes an iterable of entries: an array, a JS `Map`, or `Object.entries(…)` of data you
-checked. It takes no plain object. An entry's value cannot be `undefined`. Leave the key out
-instead. A later entry replaces an earlier one with the same key. `set` and `delete` pass a new
-value to the seal and return what it returns, or return the value itself where nothing changes. The
-value is a plain object keyed by its keys, so `equals` and JSON treat it as a plain object. Read it
-with `keys`, `values` and `entries`, which keep the key and value types that `Object.keys`,
-`Object.values` and `Object.entries` lose.
+`fromEntries` takes an iterable of entries, such as an array or a JS `Map`, not a plain object. An
+entry's value cannot be `undefined`. Leave the key out instead. A later entry replaces an earlier
+one with the same key. A record's companion has no `seal`. A seal registered with `.implSeal`
+receives the object the entries fold into. `set` and `delete` pass a new value to the seal and
+return what it returns, or return the value itself where nothing changes. The value is a plain
+object keyed by its keys, so `equals` and JSON treat it as a plain object. Read it with `keys`,
+`values` and `entries`, which keep the key and value types that `Object.keys`, `Object.values` and
+`Object.entries` lose.
+
+`Object.entries` returns every entry an object holds, including those its static type leaves out.
+Its return type gives every entry the type of the listed values, or `any` for an interface, so the
+unlisted entries reach `fromEntries` unchecked. Build the entries with `.map` over a list, from a
+`Map`, or from another record's `entries`, and check each entry of `unknown` data, such as parsed
+JSON.
 
 A record cannot reference itself with `Rec`. Put the record in a Val's field, and reference that
 Val:

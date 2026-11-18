@@ -41,9 +41,9 @@ export const Directive = Val.companion<Directive>()
  */
 export type DirectiveMap = Val.Record<"DirectiveMap", FilePath, Directive[]>;
 export const DirectiveMap = Val.Record.companion<DirectiveMap>()
-  .implAssoc(({ seal }) => ({
+  .implAssoc(({ fromEntries }) => ({
     from: (scans: readonly Scan[]): DirectiveMap =>
-      seal(scans.map((scanned) => [scanned.file, scanned.directives] as const)),
+      fromEntries(scans.map((scanned) => [scanned.file, scanned.directives] as const)),
   }))
   .impl(() => ({
     /** Whether a directive in the file silences a finding of `kind` on `line`. */
@@ -181,6 +181,6 @@ function ownLine(source: string, start: number): boolean {
 
 function named(names: Iterable<string>): Silenced {
   return Silenced.Named.create({
-    names: NameSet.seal([...names].map((name) => [name, true] as const)),
+    names: NameSet.fromEntries([...names].map((name) => [name, true] as const)),
   });
 }
