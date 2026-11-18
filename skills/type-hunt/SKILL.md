@@ -55,6 +55,8 @@ These are by design. Do not report them as holes:
   a field declared as a plain object accepts no Val, in a `seal` argument or a recipe.
 - In a recipe's draft, every plain object field is writable, at any depth. A nested Val and an array
   are read-only in it, and a recipe replaces them by assigning a new value.
+- `any` and `never` written as a type are outside what Valof guarantees, as a cast is. A hole that
+  only they open is not a finding. Pattern 3 says where they still matter.
 - A cast and an upcast are outside what Valof guarantees. A write through `as`, a `delete` through a
   cast, and a write through a variable of a wider type, such as a nested Val held as a plain object,
   are not holes.
@@ -90,7 +92,9 @@ value is built.
 
 Each of them in every position pattern 1 tries.
 
-**What breaks.** Both satisfy every constraint, so a constraint alone cannot reject them.
+**What breaks.** Both satisfy every constraint, so a constraint alone cannot reject them. They are
+outside what Valof guarantees (see Principles), so report only where one makes another check's
+message misleading, or where a check that costs little would report the fault.
 
 **Fix.** Check them in the type itself, in the private field that every use reads.
 
