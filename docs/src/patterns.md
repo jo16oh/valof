@@ -157,6 +157,28 @@ with `keys`, `values` and `entries`, which keep the key and value types that `Ob
 > come between, `new Map(…)` included. Build the entries from sealed values, such as another record's
 > `entries`, and check each entry of data from outside, such as parsed JSON.
 
+To take data from outside, register a seal that takes a `Record<string, unknown>` or an `object`, as
+on a Val ([Validate in the seal](custom-constructors.md#validate-in-the-seal)). `fromEntries` then
+takes entries with any string key and any value, and the seal checks each value:
+
+```ts
+import { Val, type SeedOf } from "valof";
+
+type Money = Val<"Money", { amount: number; currency: string }>;
+declare function isMoney(value: unknown): value is Money;
+declare const text: string;
+// ---cut---
+type Prices = Val.Record<"Prices", string, Money>;
+const Prices = Val.Record.companion<Prices>()
+  .implSeal((input: Record<string, unknown>, seal) =>
+    Object.values(input).every(isMoney) ? seal(input as SeedOf<Prices>) : undefined,
+  )
+  .build();
+
+const json: Record<string, unknown> = JSON.parse(text);
+const prices = Prices.fromEntries(Object.entries(json)); // Prices | undefined
+```
+
 A record cannot reference itself with `Rec`. Put the record in a Val's field, and reference that
 Val:
 
