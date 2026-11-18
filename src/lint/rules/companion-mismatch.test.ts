@@ -5,7 +5,7 @@ import {
   SplitCompanion,
   DetachedVariant,
   fixtures,
-} from "../integration/support.ts";
+} from "../integration-tests/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 

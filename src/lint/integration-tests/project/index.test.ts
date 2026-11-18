@@ -6,7 +6,7 @@ import { cli, cliIn, ROOT } from "../support.ts";
 // anything, so a run narrowed to one file loses their findings and calls the directives holding
 // them back unused. The fixture is the smallest of those: two aliases claiming one brand.
 
-const UNDER = "src/lint/integration/project/fixtures";
+const UNDER = "src/lint/integration-tests/project/fixtures";
 
 test("reports nothing on a file whose finding another file in the project silences", () => {
   const { status, stdout } = cli("--project", `${UNDER}/*.ts`, `${UNDER}/billing.ts`);

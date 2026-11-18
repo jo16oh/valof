@@ -12,7 +12,7 @@ import {
 
 const { lint } = fixtures(import.meta.url);
 
-const GLOB = "src/lint/integration/skip/fixtures/mixed/**/*.ts";
+const GLOB = "src/lint/integration-tests/skip/fixtures/mixed/**/*.ts";
 
 test("leaves out the kind the flag names, and only that one", async () => {
   expect(await lint("mixed")).toEqual([
@@ -68,7 +68,7 @@ test("names the known rules when the flag names none of them", () => {
 test("passes the flag through to the run", () => {
   const { stdout } = cli("--no-duplicate-brand", GLOB);
   expect(stdout).toBe(
-    `src/lint/integration/skip/fixtures/mixed/users.ts:6:3  ${UnusedMember.kind}  User.shout is never read\n`,
+    `src/lint/integration-tests/skip/fixtures/mixed/users.ts:6:3  ${UnusedMember.kind}  User.shout is never read\n`,
   );
 });
 

@@ -1,6 +1,6 @@
 import { expect, test } from "vite-plus/test";
 
-import { BypassedCompanion, fixtures } from "../integration/support.ts";
+import { BypassedCompanion, fixtures } from "../integration-tests/support.ts";
 
 const { lint, messages } = fixtures(import.meta.url);
 

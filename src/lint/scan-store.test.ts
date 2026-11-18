@@ -19,7 +19,7 @@ import { Modules } from "./scan/bindings.ts";
 import { Scan } from "./scan/index.ts";
 import { ScanCache } from "./scan-cache.ts";
 import { ScanStore } from "./scan-store.ts";
-import { keeping } from "./integration/support.ts";
+import { keeping } from "./integration-tests/support.ts";
 
 let parser: Parser;
 
