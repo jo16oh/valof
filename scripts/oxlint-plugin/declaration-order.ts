@@ -1,7 +1,7 @@
 import type { Context, Rule } from "./rule.ts";
 
 /**
- * A module's top-level declarations in the order AGENTS.md gives, after the imports and the
+ * A module's top-level declarations in the order the `order` message lists, after the imports and the
  * re-exports. A function is hoisted and a companion is not, so a constant cannot be built from a
  * companion declared further down.
  */

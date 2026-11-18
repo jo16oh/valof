@@ -9,7 +9,18 @@ file, read the sections the index's "Code to memo" table lists for its path. Bef
 alternative, search for it with the command the index gives. §9 lists the open questions. New
 deliberation goes in §9. A new section gets a file of its own and a line in the index.
 
-## Writing Code with Valof
+## Code Style
+
+### Scope
+
+A tag in brackets at the head of a paragraph, such as `[tooling, tests]`, names the scopes that its
+rules, and a list that follows it, apply to. The rules in a paragraph with no tag apply to `[code]`.
+
+- `[code]`: every source file but the tests and the files under a `fixtures/` directory
+- `[tooling]`: `[code]` but `src/lib`, `src/shared`, and the configuration files at the root
+- `[tests]`: every `*.test.ts`, and the support files under `src/lint/integration-tests/`
+
+### Modeling with Valof
 
 Model the domain as you would in Rust. A named data type is a Val (a struct or a newtype) or an
 Enum. A Trait is a Rust trait. Behaviour goes in the companion. `.impl` holds the methods, which
@@ -17,20 +28,38 @@ take the Val first as `self`, and `.implAssoc` holds the associated functions. `
 `impl Trait for Type`. A Val is plain data with no methods, so call a member through the companion:
 `User.displayName(user)`, not `user.displayName()`.
 
-## Code Style
+Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
+and after the pair. Export both or neither.
 
-### All code but the tests and the fixtures
+Name a companion member with side effects by what it does (`read`, `build`, `write`), never `from*`
+or `parse*`, which read as a pure conversion. A companion is bundled whole, so a Val shared with the
+browser has no member that imports `node:*`.
 
-`pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. They replace
-nested calls, so the steps read from top to bottom. Use them where a call nests in another call's
-first argument: `pipe(text, parse, User.seal)`, not `User.seal(parse(text))`. Fold a variable used
-once into the chain. Keep it as a local, next to its use, where the chain would be a later argument,
-as `content` is in `writeFile(file, content)`, or where a step needs a value from outside the chain.
+A class is a container that encapsulates state, not data. Use a class for a cache or a connection,
+so `new` at the call site shows where state lives. Do not use `extends`, except to extend
+`ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
+fields.
 
-Fold a step into the step before it where none of its calls takes an arrow function, such as
-`.join("\n")` or `.filter(Boolean)`: `(lines) => [head, ...lines].join("\n")`, not
-`(lines) => [head, ...lines]` followed by `(lines) => lines.join("\n")`. A step with a call that
-takes an arrow function, as `.map((line) => …)` does, stays apart from the step before it.
+### Naming
+
+[code, tests] Name a companion's members in camelCase.
+
+[tooling, tests] Name a top-level constant (a value set when the module loads, such as a path, a
+list or a budget) in SCREAMING_SNAKE_CASE. A function, and a lint plugin and its rules, keep
+camelCase. A companion keeps the name of its type.
+
+### Functions
+
+`pipe` (`src/shared/pipe`) passes a value through steps, and `flow` awaits each one. Use them where
+a call nests in another call's first argument: `pipe(text, parse, User.seal)`, not
+`User.seal(parse(text))`. Fold a variable used once into the chain. Keep it as a local, next to its
+use, where the chain would be a later argument, as `content` is in `writeFile(file, content)`, or
+where a step needs a value from outside the chain.
+
+Fold a step into the step before it: `(lines) => [head, ...lines].join("\n")`, not
+`(lines) => [head, ...lines]` followed by `(lines) => lines.join("\n")`. A step stays whole where
+the formatter breaks it only before a `.`. Where the formatter breaks a line inside a call's
+parentheses, start a new step at that call, as with a `.map` whose callback spans several lines.
 
 Lay out a function body in paragraphs. Keep the lines of one step together, and put a blank line
 where the next step starts. Declare a variable in the paragraph that uses it, right before its first
@@ -40,84 +69,34 @@ unwraps the Result's `.value` stays with them, and the blank line goes after it.
 Gather the guard clauses at the top of the function, and put a blank line before the main work. Put
 a blank line before the final `return`, unless the whole body is one paragraph.
 
-Put the type of a Val, Enum or Trait and its companion on adjacent lines, with a blank line before
-and after the pair. Export both or neither.
-
-Name a companion's members in camelCase.
-
 Place a helper function used only inside its module at the end of the file. Declare it with
 `function`, so hoisting makes the order safe.
 
-A class is a container that encapsulates state, not data. Data is a Val. Use a class for a cache or
-a connection, so `new` at the call site shows where state lives. Do not use `extends`, except on
-`ErrorFactory`. Keep state in `#private` fields, and write plain methods rather than arrow-function
-fields.
-
-A function with side effects may be a member of a companion, `.implAssoc` included. Name it by what
-it does (`read`, `build`, `write`), never `from*` or `parse*`, which read as a pure conversion. A
-companion is bundled whole, so a Val shared with the browser has no member that imports `node:*`.
-
-### Outside the library and `src/shared`
-
-These rules add to the ones above. They cover all code except the library in `src/lib`,
-`src/shared`, the tests, the fixtures, and the configuration files at the root.
-
-Brace the body of every `if`, `else` and loop. A guard clause is the exception: an `if` with no
-`else` whose body is one `return`, `throw`, `continue` or `break`. `local/braces` enforces this.
-
-Write a top-level function as a `function` declaration, not as an arrow function or a function
-expression in a `const`. Write every other function as an arrow function. A method keeps its own
-syntax, in an object and in a class, and a generator is the exception, since it has no arrow form.
-`local/function-style` enforces this.
-
-Name a constant at a module's top level in SCREAMING_SNAKE_CASE: a value set when the module loads,
-such as a path, a list or a budget. A function, and a lint plugin and its rules, keep camelCase. A
-companion keeps the name of its type.
-
-Run an entry point from a `main` declared right after its imports, so the file opens with what it
-does. Call `main` at the end of the file, because `main` reads constants and companions, which are
-not hoisted. An entry point exports nothing, and is named `main.ts`. `local/entry-point` enforces
-this. Put what other modules import from it in `index.ts` beside it, as `lib.rs` sits beside
-`main.rs` in a Rust crate.
-
-Order a module's top-level declarations by kind, after the imports and the re-exports
-(`export { … } from`):
-
-1. `main`, in an entry point
-2. the exported constants, then the rest
-3. the errors (the classes whose name contains `Error`)
-4. the exported types, and each exported Val, Enum or Trait with its companion
-5. the exported classes
-6. the exported functions
-7. the helper types, and each helper Val, Enum or Trait with its companion
-8. the helper classes
-9. the helper functions
-
-The call to `main` ends an entry point, and `export default` ends any other module.
-`local/declaration-order` enforces the order. A function is hoisted, so a declaration can call one
-further down. A companion is not, so a constant cannot be built from a companion declared later in
-the same file. Write it as a member of that companion's `.implAssoc` that takes no arguments, as
-`zero: () => seal({ cents: 0 })`, called `Money.zero()`. A constant can still be built from a
-companion imported from another file.
-
-Keep state out of a module's top level. Declare a top-level binding with `const`, and create an
-instance of a class where it is used. Make a top-level array or object readonly, with `as const` or
-a readonly annotation such as `readonly string[]` or `Readonly<T>`. Annotate a top-level `Set` or
-`Map` as `ReadonlySet` or `ReadonlyMap`, and keep one out of an array or object. Make a static field
-`readonly`, and give it only a value that a top-level constant may hold. An instance of `URL` or
-`RegExp` holds a value, not state, so it can stay at the top level. `local/no-module-state` enforces
-this.
-
-New code uses `@praha/byethrow` for Results and `@praha/error-factory` for errors:
+[tooling] Use `@praha/byethrow` for Results and `@praha/error-factory` for errors:
 `class X extends ErrorFactory({ name: "X", message, fields }) {}`. Give `name` the class name.
-Without the `name` option, the error's `name` property is typed `string`, and a union of errors
-cannot narrow on it.
+Without the `name` option, the error's `name` is typed `string`, and a union of errors cannot narrow
+on it.
 
-### Tests
+### Linting
 
-No rule in Code Style applies to the tests or the fixtures. The tests are every `*.test.ts` and the
-support files under `src/lint/integration-tests/`. Two naming rules still apply to the tests. A
-top-level constant in a test is in SCREAMING_SNAKE_CASE, and a companion's members are in camelCase.
+[tooling] The rules below, in `scripts/oxlint-plugin`, check the code. Their messages say what to
+change.
+
+- `local/braces`: braces around every `if`, `else` and loop body but a guard clause
+- `local/function-style`: `function` declarations at the top level, arrow functions elsewhere, and
+  methods in an object or a class
+- `local/entry-point`: an entry point named `main.ts`, run from a `main`, that exports nothing
+- `local/declaration-order`: the order of a module's top-level declarations, where an error is a
+  class whose name contains `Error`
+- `local/no-module-state`: no state at a module's top level
+
+[tooling] `local/entry-point` keeps `main.ts` from exporting. Put what other modules would import in
+`index.ts` beside it, as `lib.rs` sits beside `main.rs` in a Rust crate.
+
+[tooling] `local/declaration-order` requires the constants above the companions, and a companion is
+not hoisted, so a constant cannot be built from a companion declared in the same file. Make that
+constant a member of the companion's `.implAssoc` that takes no arguments, as
+`zero: () => seal({ cents: 0 })`, called `Money.zero()`.
 
 ## Bundle Size and Type Cost
 
@@ -151,11 +130,11 @@ Do not skip the hook for the implementation commit.
    PR body.
 2. In a PR of its own, run `vp run pin-valof origin/main`, which points the scripts' `#valof` at
    that commit, and fix the scripts where `vp check` or `vp run check-dist` fails. Report what
-   breaks, and where the new API is awkward to use in the scripts. If a problem is serious, stop the
-   release and rework the design.
+   breaks, and where the API added since the last release is awkward to use in the scripts. If a
+   problem is serious, stop the release and rework the design.
 3. Run `vp run bump-version --release <type> --yes`, where `<type>` is the release type I give, such
    as `patch`. Add `--body-file notes.md` when step 1 wrote one. The script updates the bundle-size
-   claims, pushes a release branch, and opens its PR. Options other than `--body-file` go to bumpp.
+   claims, pushes a release branch, and opens its PR.
 4. I merge the PR. The release workflow tags the merge commit, publishes to npm, creates the GitHub
    release, and publishes the book.
 
@@ -183,9 +162,9 @@ fact. Keep the finding that shaped the code, drop the reasoning that reached it.
 at the canonical site, and `{@link}` it from elsewhere.
 
 `/**` on an exported symbol is the reader's hover, so type-level mechanics belong in a `//` comment.
-Do not convert a non-exported symbol's JSDoc to `//`: `{@link}` resolves only inside JSDoc, and
-maintainers hover internals too. Phrase what stays in the user's terms: "a payload taken from an
-existing value fits", not "would not type-check".
+Keep JSDoc on a non-exported symbol too: `{@link}` resolves only inside JSDoc, and maintainers hover
+internals. Phrase a comment in the user's terms: "a payload taken from an existing value fits", not
+"would not type-check".
 
 Prefer a test to a comment, but check that the test can fail: mutate the source and see whether
 anything goes red. When nothing can, the comment is the only record.
@@ -217,11 +196,11 @@ A GitHub callout needs `<!-- prettier-ignore -->` above it:
 ### Commit Messages
 
 Conventional Commits, lowercase subject. Stay imperative in the body and the PR too. The subject
-alone is the default. Write a body only where the diff cannot carry the intent, the same test a
-comment has to pass. Bullets, as brief as they go, fragments rather than full sentences.
+alone is the default. Write a body only where the diff cannot carry the intent. Bullets, as brief as
+they go, fragments rather than full sentences.
 
 Do not add a `Co-Authored-By: Claude ...` trailer. The `main` ruleset requires an extra approval for
-unattributed changes, and an `noreply@anthropic.com` co-author trips that rule, blocking merges.
+unattributed changes, and a `noreply@anthropic.com` co-author trips that rule, blocking merges.
 
 ### Pull Requests
 
