@@ -2075,6 +2075,15 @@ describe("Val.Record", () => {
       .build();
     const one = Kept.fromEntries([["apple", apple]]) as Prices;
     expect(Kept.delete(one, "apple")).toBeInstanceOf(RangeError);
+
+    type Lists = Val.Record<"RecordSealedLists", string, { a: number[] }>;
+    type List = Val<"RecordSealedList", { a: number[] }>;
+    const list = Val.of<List>({ a: [] });
+    Val.Record.companion<Lists>().implSeal((lists, seal) => {
+      // @ts-expect-error a plain object value takes no Val
+      seal({ k: list });
+      return seal(lists);
+    });
   });
 
   test("`create` folds the entries its function returns, and seals them", () => {
@@ -2092,6 +2101,13 @@ describe("Val.Record", () => {
     const listed: { a: true } = { a: true };
     // @ts-expect-error a plain object can hide entries
     Val.Record.companion<Tags>().implCreate(() => listed);
+
+    const Fixed = Val.Record.companion<Tags>()
+      .implCreate.noseal(() => [["a", true] as const])
+      .build();
+    expect(Fixed.create()).toEqual({ a: true });
+    // @ts-expect-error a plain object can hide entries
+    Val.Record.companion<Tags>().implCreate.noseal(() => listed);
   });
 
   test("a member reaches `fromEntries` through what its step receives", () => {
@@ -2101,6 +2117,8 @@ describe("Val.Record", () => {
       }))
       .build();
     expect(Doubled.of(apple)).toEqual({ apple });
+    // @ts-expect-error a record's steps receive no `seal`
+    Val.Record.companion<Prices>().implAssoc(({ seal }) => ({ sealed: () => seal }));
   });
 
   test("is built by its own companion, and has no `patch`", () => {
@@ -2124,6 +2142,8 @@ describe("Val.Record", () => {
     Val.Record.companion<Prices>().impl(() => ({
       // @ts-expect-error the companion's own `has`
       has: (p: Prices) => Object.keys(p).length > 0,
+      // @ts-expect-error and `set`
+      set: (p: Prices) => p,
     }));
     Val.Record.companion<Prices>().impl(() => ({
       // @ts-expect-error the companion's own `keys`
@@ -2136,6 +2156,8 @@ describe("Val.Record", () => {
     Val.Record.companion<Prices>().implAssoc(() => ({
       // @ts-expect-error the companion's own `fromEntries`
       fromEntries: () => Prices.fromEntries([]),
+      // @ts-expect-error and `delete`
+      delete: () => Prices.fromEntries([]),
     }));
     // A name no record member takes stays free.
     Val.Record.companion<Prices>().impl(() => ({ add: (p: Prices) => p }));

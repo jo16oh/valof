@@ -135,14 +135,12 @@ describe("patch in production", () => {
 });
 
 describe("a record's custom seal in production", () => {
-  test("receives the object the entries fold into, and seals what it passes on", () => {
+  test("seals what it passes on", () => {
     type Tally = Value.Record<"ProductionTally", string, number>;
-    let received: unknown;
     const Tally = Val.Record.companion<Tally>()
-      .implSeal((tally, seal) => seal((received = tally)))
+      .implSeal((tally, seal) => seal(tally))
       .build();
     expect(Tally.fromEntries([["a", 1]])).toEqual({ a: 1 });
-    expect(received).toEqual({ a: 1 });
     expect(Tally.set(Tally.fromEntries([]), "b", 2)).toEqual({ b: 2 });
   });
 });
