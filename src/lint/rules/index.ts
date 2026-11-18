@@ -9,8 +9,13 @@ import { DetachedVariant } from "./no-detached-variant.ts";
 import { DuplicateBrand } from "./no-duplicate-brand.ts";
 import { HiddenOptional } from "./no-hidden-optional.ts";
 import { HiddenSharedStateInImpl } from "./no-hidden-shared-state-in-impl.ts";
-import { VagueDisable } from "./no-vague-disable.ts";
 import { InferredValOf } from "./no-inferred-val-of.ts";
+import { SplitCompanion } from "./no-split-companion.ts";
+import { UnimplementedTrait } from "./no-unimplemented-trait.ts";
+import { UnnecessaryAlias } from "./no-unnecessary-alias.ts";
+import { UnusedDisable } from "./no-unused-disable.ts";
+import { UnusedMember } from "./no-unused-member.ts";
+import { VagueDisable } from "./no-vague-disable.ts";
 import { KindSet, Rule, type Kind } from "./rule.ts";
 
 /**
