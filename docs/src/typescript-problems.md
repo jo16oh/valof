@@ -263,7 +263,7 @@ import { Trait, Val, type Self } from "valof";
 type Describable = Trait<"Describable", { name: string }, { describe: (self: Self) => string }>;
 const Describable = Trait.companion<Describable>().build();
 
-type User = Val<"User", { name: string }, Describable>;
+type User = Val<"User", { id: string }, Describable>;
 const User = Val.companion<User>()
   .implTrait(Describable, () => ({ describe: (user) => user.name }))
   .build();

@@ -80,10 +80,13 @@
         shape. `Holding` and the enum's `FieldsIn` and `SharedIn` leave the payload's keys out of the shape's fields,
         and the enum tests against `LooseTrait`, whose verdict is not computed
       - **`Patch` is internal.** A recipe's type is inferred; one declared apart from the `patch` call types its parameter with `Draft`
-    - **Still open:** a variant and the enum's shared fields both writing a key that holds a `Rec` is circular, with or
+    - ~~**Still open:** a variant and the enum's shared fields both writing a key that holds a `Rec` is circular, with or
       without a trait. Leaving the variant's keys out of the shared fields fixes it, but loses the check that a variant
       field contradicting a shared one is rejected. And with an enum-level trait, `Node.seal({ _tag: "Leaf", … })` is
-      rejected ("Leaf" is not assignable to "Branch"); `Node.Leaf.seal` works
+      rejected ("Leaf" is not assignable to "Branch"); `Node.Leaf.seal` works~~ Closed, 2026-11-18: a variant can no
+      longer declare a shared key, nor a payload a key its traits declare (§15.2 "4. Shared fields work", §15.1 "Vals
+      bring in the shape too"). The declaration reports the key instead of TS2456. `Node.seal({ _tag: "Leaf", … })`
+      passes with the trait's `Rec` field written only in the shape (probe)
 
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")

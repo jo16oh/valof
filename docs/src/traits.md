@@ -67,8 +67,7 @@ implements nothing itself. `implTrait` takes it as the first argument, and a fun
 trait's members as the second.
 
 A trait adds the fields it requires to the payload, so the `User` payload includes `name` without
-listing it. A payload may list one of them again with the same or a narrower type. A conflicting
-type is a type error.
+listing it. A payload cannot list one of them again.
 
 The `no-unimplemented-trait` rule in [valof-lint](linting.md) reports a Val that declared a trait
 and never implemented it.
@@ -91,14 +90,14 @@ const Greetable = Trait.companion<Greetable>()
   .impl(() => ({ greet: (g) => `Hi, ${g.name}` }))
   .build();
 
-type User = Val<"User", { id: string; name: string }, Greetable>;
+type User = Val<"User", { id: string }, Greetable>;
 const User = Val.companion<User>()
   .implTrait(Greetable, () => ({
     toWire: (u, sep) => `${u.id}${sep}${u.name}`,
   }))
   .build();
 
-type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
+type Admin = Val<"Admin", { level: number }, Greetable>;
 const Admin = Val.companion<Admin>()
   .implTrait(Greetable, () => ({
     toWire: (a, sep) => `admin${sep}${a.name}`,
@@ -137,7 +136,7 @@ const Greetable = Trait.companion<Greetable>()
   }))
   .build();
 
-type User = Val<"User", { id: string; name: string }, Greetable>;
+type User = Val<"User", { id: string }, Greetable>;
 const User = Val.companion<User>().implTrait(Greetable).build();
 ```
 
@@ -232,14 +231,14 @@ const Greetable = Trait.companion<Greetable>()
   .impl(() => ({ greet: (g) => `Hi, ${g.name}` }))
   .build();
 
-type User = Val<"User", { id: string; name: string }, Greetable>;
+type User = Val<"User", { id: string }, Greetable>;
 const User = Val.companion<User>()
   .implTrait(Greetable, () => ({
     toWire: (u, sep) => `${u.id}${sep}${u.name}`,
   }))
   .build();
 
-type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
+type Admin = Val<"Admin", { level: number }, Greetable>;
 const Admin = Val.companion<Admin>()
   .implTrait(Greetable, () => ({
     toWire: (a, sep) => `admin${sep}${a.name}`,
@@ -292,7 +291,7 @@ const Weighed = Trait.companion<Weighed>()
   .impl(() => ({ heavy: (w) => w.kg > 10 }))
   .build();
 
-type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;
+type Crate = Val<"Crate", Record<never, never>, Greetable & Weighed>;
 const Crate = Val.companion<Crate>().implTrait(Greetable).implTrait(Weighed).build();
 
 const crate = Crate.seal({ name: "box", kg: 20 });
