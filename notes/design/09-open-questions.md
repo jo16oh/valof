@@ -69,7 +69,7 @@
       budget went from 13,000 to 13,100
     - **Not fixed, though probed, by decision (user, 2026-11-18):** a class instance passed to `seal` stays unchecked by
       the types (it throws at run time); a union of two Vals passed to `equals` is accepted (the caller wrote the union)
-    - **Fixed on fix/trait-generics (2026-11-18):**
+    - **Fixed (2026-11-18):**
       - **A generic trait member is rejected,** as Rust keeps generic methods out of a `dyn` trait. `infer` reads the
         member with its type parameters filled in, and the member does not accept that type back. A constrained
         parameter reads as its constraint, so `<T extends string>(self: Self, t: T) => number` passes as
