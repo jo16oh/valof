@@ -313,6 +313,7 @@ erased, and at run time a record's input looks like an array Val's.
     would fit, so the hole would stay closed. A seal no caller can use with a new object has no reason to be public
   - **Rejected: `.implFromEntries` in place of `.implSeal`.** Its function would receive entries, and count a repeated key
     twice. A seal over the folded object keeps one meaning of `implSeal` across Vals
+  - **Rejected: renaming `fromEntries` to `sealEntries`** (user, 2026-11-18). It would put `seal` in the name of a function that folds its argument, which a seal does not do. `create`, `set` and `delete` go through the seal too, with no `seal` in their names. `fromEntries` keeps the meaning of `Object.fromEntries`
 - **The value is a frozen plain object keyed by `K`.** Reading `prices[key]` gives `V | undefined`. `equals`, JSON and
   `structuredClone` treat it as any object
 - **A set is a `Val.Record` of `true`** (`Val.Record<"Tags", string, true>`, §8.1)
