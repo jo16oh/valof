@@ -3,7 +3,7 @@ import { normalize, resolve } from "node:path";
 import type { Enum, EnumCompanion } from "../../lib/enum.ts";
 import { Val } from "../../lib/index.ts";
 import type { AnyTrait, TraitCompanion } from "../../lib/trait.ts";
-import type { Reserved } from "../../lib/val.ts";
+import type { Companion, Reserved } from "../../lib/val.ts";
 import { pipe } from "../../shared/pipe/index.ts";
 import {
   keyName,
@@ -27,6 +27,7 @@ import { Bindings, ImportBinding, ImportMap, Modules, Names, SymbolRef } from ".
 import {
   CompanionSite,
   chainRoot,
+  fromRecord,
   fromRoot,
   stepOf,
   variantOf,
@@ -58,6 +59,17 @@ export type { Model, Models, Shape, TypeUse } from "./models.ts";
 
 /** The names every `.impl` rejects. The type reports one, so it is not a member to report. */
 const RESERVED = reserved(["patch", "seal", "create"]);
+
+/** The names a record's companion carries, which its `.impl` and `.implAssoc` reject as well. */
+const RECORD_NAMES: ReadonlySet<string> = new Set([
+  "fromEntries",
+  "set",
+  "delete",
+  "has",
+  "keys",
+  "values",
+  "entries",
+] satisfies (keyof Companion<SampleRecord, Record<never, never>>)[]);
 
 /** The steps that take the members, and which argument holds their function. */
 const MEMBER_STEPS: ReadonlyMap<string, number> = new Map([
@@ -269,6 +281,9 @@ export function reserved<const N extends readonly Reserved[]>(
 /** An enum to read keys from. `AnyEnum` widens them to `string`. */
 type Sample = Enum<"Sample", { A: { a: 1 } }>;
 
+/** A record to read its companion's keys from. */
+type SampleRecord = Val.Record<"SampleRecord", string, true>;
+
 /** The {@link Reserved} names with no pattern. */
 type Unlisted<N extends string> = Reserved extends infer R
   ? R extends unknown
@@ -283,12 +298,13 @@ type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
 const DynBox = Val.companion<DynBox>().build();
 
 /**
- * An enum's `.impl` rejects `match` as well, and a trait's rejects `dyn`. An enum's variant names
- * are left to the rule, which reads every file.
+ * An enum's `.impl` rejects `match` as well, a trait's rejects `dyn`, and a record's rejects its
+ * companion's own names. An enum's variant names are left to the rule, which reads every file.
  */
-function rejected(member: string, root?: string): boolean {
+function rejected(member: string, root?: string, record = false): boolean {
   return (
     RESERVED.test(member) ||
+    (record && RECORD_NAMES.has(member)) ||
     (root === "Enum" && member === ("match" satisfies keyof EnumCompanion<Sample>)) ||
     (root === "Trait" && member === ("dyn" satisfies keyof TraitCompanion<AnyTrait>))
   );
@@ -425,7 +441,7 @@ function scan(
         if (root) {
           const name = id.name;
           bound = Bindings.patch(bound, (b) => {
-            b.builders = Names.set(b.builders, name, root);
+            b.builders = Names.set(b.builders, name, fromRecord(init, bound) ? "Val.Record" : root);
           });
         }
         // `const Round = Shape.Circle` takes the same key the destructuring above takes.
@@ -753,7 +769,7 @@ function implMembers(
     if ((step.name === "impl" || step.name === "implAssoc") && root !== undefined && object) {
       const owner = variant ? `${companion}.${variant.variant}` : companion;
       for (const member of stepMembers(object, owner, objects, lines)) {
-        if (!rejected(member.member, variant ? undefined : root)) {
+        if (!rejected(member.member, variant ? undefined : root, fromRecord(receiver, bound))) {
           found.set(`${owner}\0${member.member}`, member);
         }
       }
