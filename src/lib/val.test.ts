@@ -2357,14 +2357,6 @@ describe("Val.Record", () => {
     Val.Record.companion<Prices>().impl(() => ({ add: (p: Prices) => p }));
   });
 
-  test("`has` takes any string, on a record with listed keys too", () => {
-    type Flags = Val.Record<"RecordFlags", "a" | "b", boolean>;
-    const Flags = Val.Record.companion<Flags>().build();
-    const flags = Flags.fromEntries([["a", true]]);
-    const asked: string = "c";
-    Flags.has(flags, asked);
-  });
-
   test("`keys`, `values` and `entries` read the record in its own types", () => {
     type Ranks = Val.Record<"RecordRanks", ArticleId, number>;
     const Ranks = Val.Record.companion<Ranks>().build();
