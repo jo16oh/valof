@@ -133,7 +133,7 @@ export type AnyEnum = AnyVal &
 type VariantKeys<D> = Extract<keyof D, string | number>;
 
 /** A variant's fields, with the ones its traits require. */
-// A key the payload declares is left out of the trait's fields: reading it to reduce the
+// A key the payload declares is left out of the trait's fields, because reading it to reduce the
 // intersection would resolve a `Rec` to the enum being declared.
 type FieldsIn<P> = [P] extends [LooseTrait] ? Pick<P, keyof P> & Omit<FieldsOf<P>, keyof P> : P;
 
@@ -157,7 +157,7 @@ type SharedArg<X> = Loose<X> extends true ? Record<never, never> : X;
 
 /** The fields every variant holds, with the ones the enum's traits require. */
 // An `Impl` stays whole, so that the payload rules see it and reject it.
-// `Held` is the keys the variant declares, which the traits' fields leave out, as in `FieldsIn`.
+// `Held` lists the keys the variant declares, which the traits' fields leave out, as in `FieldsIn`.
 type SharedIn<X, Held extends PropertyKey = never> = ([X] extends [AnyImpl]
   ? X
   : Pick<X, keyof X>) &
@@ -262,7 +262,7 @@ type Faulted<F> = [F] extends [never] ? object : Invalid<F & string>;
  */
 type Disagreeing<D, X> = {
   [N in VariantKeys<D>]: Disagreement<
-    FieldsIn<D[N]> & SharedIn<X>,
+    FieldsIn<D[N]> & SharedIn<X, keyof FieldsIn<D[N]>>,
     Joined<TraitsIn<X>, TraitsIn<D[N]>>
   >;
 }[VariantKeys<D>];

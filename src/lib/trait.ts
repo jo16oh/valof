@@ -98,7 +98,7 @@ export type AnyTrait = TraitDeclaration<{
 }>;
 
 /**
- * A trait, broken or not, told apart without reading its verdict. Checking a trait against
+ * Matches any trait, broken or not, without reading its verdict. Checking a trait against
  * {@link AnyTrait} computes the verdict, which reads the shape, and a `Rec` in the shape resolves
  * the Val still being declared.
  */
@@ -370,7 +370,7 @@ type Declarable<Shape, M extends Members> = {
                                 ((self: S, ...args: A) => R) & { readonly [FinalMark]: true },
                               ] extends [M[K] & { readonly [FinalMark]: true }]
                             ? M[K]
-                            : Invalid<"a trait member cannot be generic; a box binds each member once">
+                            : Invalid<"a trait member cannot be generic, because a box gives each member one signature">
                     : Invalid<"a trait member must take `Self` as its first parameter">
                   : M[K];
 };
