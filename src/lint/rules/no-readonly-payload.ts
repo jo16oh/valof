@@ -11,7 +11,7 @@ const FIXES: Readonly<Record<ReadonlyWritten["spelling"], string>> = {
 
 /**
  * A `readonly`, `Readonly<…>` or `ReadonlyArray<…>` written in a Val's payload. The Val makes the
- * payload readonly anyway, and `Val.unwrap` returns it as written, so the copy it hands out stays
+ * payload readonly anyway, and `Val.unwrap` returns it as written, so the copy it returns stays
  * readonly.
  */
 export type ReadonlyPayload = Val<"ReadonlyPayload", Record<never, never>, Rule>;
