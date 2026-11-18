@@ -1603,10 +1603,14 @@ describe("a variant's seal", () => {
       .build();
   });
 
-  test("a seal whose parameter also accepts a string is rejected", () => {
+  test("a seal whose parameter accepts a string, or reads each value as `any`, is rejected", () => {
     Enum.companion<Money>()
       // @ts-expect-error a seal takes the payload, not a wire format
       .Cash.implSeal((p: unknown, seal) => seal(p as never))
+      .build();
+    Enum.companion<Money>()
+      // @ts-expect-error `object` reads each value as `any`
+      .Cash.implSeal((p: object, seal) => seal(p as never))
       .build();
   });
 
@@ -1698,6 +1702,10 @@ describe("the enum's seal", () => {
     Enum.companion<Money>()
       // @ts-expect-error a seal takes the payload, not a wire format
       .implSeal((input: unknown, seal) => seal(input as Wire))
+      .build();
+    Enum.companion<Money>()
+      // @ts-expect-error `object` reads each value as `any`
+      .implSeal((input: object, seal) => seal(input as Wire))
       .build();
     Enum.companion<Money>()
       // @ts-expect-error a seal is synchronous

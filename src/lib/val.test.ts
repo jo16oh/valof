@@ -2217,13 +2217,6 @@ describe("Val.Record", () => {
       .parameter(0)
       .toEqualTypeOf<Iterable<readonly [string, unknown]>>();
 
-    const Wide = Val.Record.companion<Prices>()
-      .implSeal((input: object, seal) => seal(input as SeedOf<Prices>))
-      .build();
-    expectTypeOf(Wide.fromEntries)
-      .parameter(0)
-      .toEqualTypeOf<Iterable<readonly [string, unknown]>>();
-
     // A seal that takes the record's own object keeps the entries typed.
     const Typed = Val.Record.companion<Prices>()
       .implSeal((prices, seal) => seal(prices))
@@ -3212,7 +3205,7 @@ describe("building", () => {
     test("does not newly reject wider class or cyclic inputs before the custom seal", () => {
       type Reading = Val<"Reading", { n: number }>;
       const Reading = Val.companion<Reading>()
-        .implSeal((r: object, seal) => seal({ n: (r as { n: number }).n }))
+        .implSeal((r: { readonly n: number }, seal) => seal({ n: r.n }))
         .build();
       class Source {
         n = 1;
@@ -3252,7 +3245,7 @@ describe("building", () => {
 
       test("a parameter wider than the payload is fine while it excludes strings", () => {
         const wide = Val.companion<User>()
-          .implSeal((u: object, seal) => seal(u as SeedOf<User>))
+          .implSeal((u: { readonly id: string }, seal) => seal(u as SeedOf<User>))
           .build();
         const record = Val.companion<User>()
           .implSeal((u: Record<string, unknown>, seal) => seal(u as SeedOf<User>))
@@ -3260,6 +3253,26 @@ describe("building", () => {
         const raw = { id: "a", name: "bob" };
         expect(wide.seal(raw)).toEqual(raw);
         expect(record.seal(raw)).toEqual(raw);
+      });
+
+      test("a parameter that reads each value as `any` is rejected, on a record too", () => {
+        Val.companion<User>()
+          // @ts-expect-error `object` reads each value as `any`
+          .implSeal((u: object, seal) => seal(u as SeedOf<User>))
+          .build();
+        Val.companion<User>()
+          // @ts-expect-error and so does `Record<string, any>`
+          // oxlint-disable-next-line no-explicit-any -- the case under test
+          .implSeal((u: Record<string, any>, seal) => seal(u as SeedOf<User>))
+          .build();
+        type Names = Val.Record<"SealNames", string, string>;
+        Val.Record.companion<Names>()
+          // @ts-expect-error a record's own object accepts every `object`, which no exemption lets through
+          .implSeal((n: object, seal) => seal(n as SeedOf<Names>))
+          .build();
+        Val.Record.companion<Names>()
+          .implSeal((n, seal) => seal(n))
+          .build();
       });
 
       test("a parameter that also accepts a string is rejected", () => {
