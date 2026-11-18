@@ -36,7 +36,7 @@ describe("Val nocopy in production", () => {
     expect(changed.metadata).toBe(metadata);
 
     // `patch` indexed `item` as an already-owned nested Val. A normal seal can now reuse it.
-    expect(Val.of<Item>(changed.item)).toBe(item);
+    expect(Document.seal({ ...changed, note: "again" }).item).toBe(item);
   });
 
   test("copies an external object introduced by a patch", () => {
@@ -107,6 +107,29 @@ describe("patch in production", () => {
       patch: (...args: unknown[]) => unknown;
     };
     expect(() => ProductionId.patch("a1b2c3", {})).toThrow(TypeError);
+  });
+
+  type City = Value<"ProductionCity", { name: string }>;
+  const City = Val.companion<City>().build();
+  type Shop = Value<"ProductionShop", { owner: { name: string; city: City } }>;
+  const Shop = Val.companion<Shop>().build();
+
+  test("throws on an object that would merge into a nested Val that nocopy adopted", () => {
+    const view: { name: string } = Shop.seal({
+      owner: { name: "b", city: City.seal({ name: "Nara" }) },
+    }).owner;
+    const adopted = Shop.seal({ owner: { name: "a", city: City.seal.nocopy({ name: "Kyoto" }) } });
+    expect(() => Shop.patch(adopted, { owner: view })).toThrow(TypeError);
+  });
+
+  test("lets a nested node of an adopted value be reused once a seal has indexed it", () => {
+    type Meta = { v: number };
+    type Doc = Value<"ProductionDoc", { meta: Meta }>;
+    const Doc = Val.companion<Doc>().build();
+    type Holder = Value<"ProductionHolder", { doc: Doc }>;
+    const adopted = Doc.seal.nocopy({ meta: { v: 1 } });
+    Val.companion<Holder>().build().seal({ doc: adopted });
+    expect(Doc.seal({ meta: adopted.meta }).meta).toBe(adopted.meta);
   });
 });
 

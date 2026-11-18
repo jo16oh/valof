@@ -60,17 +60,18 @@ const changed = Shop.patch(shop, {
 });
 ```
 
-A patch expresses three operations:
+A patch expresses four operations:
 
 - Omit a key to leave it unchanged.
 - Pass `{ k: undefined }` to delete it.
-- Pass `{ k: value }` to set it.
+- Pass `{ k: value }` to set it. An object merges into the one already there.
+- Pass `{ k: (current) => value }` to replace it with what the function returns.
 
 With `exactOptionalPropertyTypes`, `{ k: undefined }` is accepted only for optional keys. Without
 it, TypeScript also accepts it for required keys, and `patch` deletes them at runtime.
 
-A patch reaches through nested plain objects, but replaces the whole value of a nested Val, an
-array, a primitive, or a field that may be `null` or a primitive:
+A patch reaches through nested plain objects. A nested Val takes a function only, and so does an
+object in an optional key, a `Record` entry or a field that may be `null`:
 
 ```ts
 import { Val } from "valof";
@@ -85,7 +86,7 @@ const Shop = Val.companion<Shop>().build();
 
 declare const shop: Shop;
 // ---cut---
-Shop.patch(shop, { city: City.patch(shop.city, { name: "Osaka" }) });
+Shop.patch(shop, { city: (city) => City.patch(city, { name: "Osaka" }) });
 ```
 
 Derive a nested Val with its own `patch`, so its own seal checks the change.

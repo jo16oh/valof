@@ -49,7 +49,7 @@ const SUITE = Suite.seal([
     name: "Val",
     base: true,
     imports: Imports.seal({ "./dist/index.js": ["Val.companion"] }),
-    budget: 1024,
+    budget: 1126,
   }),
   Bundle.seal({
     name: "Equals",
@@ -106,7 +106,7 @@ const TYPES_BUDGETS = TypesBudgets.seal({
    */
   fixtures: [
     TypesFixture.seal({ name: "core", budget: 10_000 }),
-    TypesFixture.seal({ name: "trait", budget: 25_000 }),
+    TypesFixture.seal({ name: "trait", budget: 26_000 }),
     TypesFixture.seal({ name: "enum", budget: 90_000 }),
   ],
   /** Declaration files, in bytes. An alarm too, not a ratchet. */

@@ -124,8 +124,9 @@ type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test.
 [`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
 
-`patch` sets the entries it lists, and removes an entry set to `undefined`. Call `seal` to rebuild
-the whole table.
+In a table of Vals such as `PriceTable`, `patch` replaces each entry it lists with what the function
+given for it returns, and removes an entry set to `undefined`. Call `seal` to rebuild the whole
+table.
 
 ```ts
 import { Val } from "valof";
@@ -137,7 +138,10 @@ const PriceTable = Val.companion<PriceTable>().build();
 
 declare const table: PriceTable;
 // ---cut---
-PriceTable.patch(table, { apple: Money.seal({ amount: 120, currency: "JPY" }), fig: undefined });
+PriceTable.patch(table, {
+  apple: () => Money.seal({ amount: 120, currency: "JPY" }),
+  fig: undefined,
+});
 
 PriceTable.seal(Object.fromEntries(Object.entries(table).filter(([, m]) => m.amount < 500)));
 ```

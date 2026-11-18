@@ -85,7 +85,7 @@ const Task = Val.companion<Task>()
     task.title.trim() === "" ? { err: "empty title" } : { ok: seal(task) },
   )
   .impl(({ patch }) => ({
-    complete: (task, at: string) => patch(task, { status: Status.Done.create({ at }) }),
+    complete: (task, at: string) => patch(task, { status: () => Status.Done.create({ at }) }),
   }))
   .implTrait(Summarizable, () => ({
     summarize: (t): string =>

@@ -366,7 +366,10 @@ function scan(
         if (site) {
           sites.push(
             id.type === "Identifier"
-              ? CompanionSite.patch(site, { name: id.name, nameAt: Lines.at(lines, id.start) })
+              ? CompanionSite.patch(site, {
+                  name: id.name,
+                  nameAt: () => Lines.at(lines, id.start),
+                })
               : site,
           );
         }
@@ -500,11 +503,13 @@ function scan(
             specifier.local.type === "Identifier"
           ) {
             const name = keyName(specifier.imported, false);
+            const local = specifier.local.name;
             if (name) {
               bound = Bindings.patch(bound, {
-                imported: ImportMap.patch(bound.imported, {
-                  [specifier.local.name]: ImportBinding.seal({ name, module: resolved }),
-                }),
+                imported: (imported) =>
+                  ImportMap.patch(imported, {
+                    [local]: () => ImportBinding.seal({ name, module: resolved }),
+                  }),
               });
             }
           }

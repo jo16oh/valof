@@ -8,6 +8,7 @@ import {
   type PrivateCreate,
   type PrivateSeal,
   type Rec,
+  type Replacer,
   type Unpatchable,
   Enum,
   Trait,
@@ -742,13 +743,20 @@ describe("patch", () => {
     const Holder = Val.companion<Holder>().build();
     const holder = Holder.seal({ id: "h", shape: CIRCLE });
 
-    test("is replaced whole, never merged", () => {
-      expectTypeOf<
-        NonNullable<Parameters<typeof Holder.patch>[1]["shape"]>
-      >().toEqualTypeOf<Shape>();
-      // @ts-expect-error a patch cannot reach into a nested variant
-      Holder.patch(holder, { shape: { r: 3 } });
-      expect(Holder.patch(holder, { shape: SQUARE }).shape).toEqual({ side: 3, _tag: "Square" });
+    test("is replaced through a function, never merged", () => {
+      expectTypeOf<NonNullable<Parameters<typeof Holder.patch>[1]["shape"]>>().toEqualTypeOf<
+        Invalid<"a Val is replaced, never merged: write `() => value`"> | Replacer<Shape>
+      >();
+      // @ts-expect-error a patch cannot reach into a nested variant, and the merge throws
+      expect(() => Holder.patch(holder, { shape: { r: 3 } })).toThrow(
+        /cannot merge into the Val at "shape"/,
+      );
+      // @ts-expect-error nor take a variant as it is, which merges too
+      expect(() => Holder.patch(holder, { shape: SQUARE })).toThrow(TypeError);
+      expect(Holder.patch(holder, { shape: () => SQUARE }).shape).toEqual({
+        side: 3,
+        _tag: "Square",
+      });
     });
 
     test("unwraps to the payload of each variant", () => {
