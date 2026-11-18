@@ -9,6 +9,7 @@ const Id = Val.companion<Id>().impl(() => ({
   dispatch: (i) => i,
   thenable: (i) => i,
   implTrait: (i) => i,
+  set: (i) => i,
 })).build();
 
 type Shape = Enum<"Shape", { Circle: { r: number }; Square: { side: number } }>;
@@ -44,5 +45,18 @@ const Named = Trait.companion<Named>().impl(() => ({
   // @ts-expect-error -- not a member the trait declares
   then: () => 0,
 })).build();
+
+type Tags = Val.Record<"Tags", string, true>;
+const Tags = Val.Record.companion<Tags>()
+  .impl(() => ({
+    // @ts-expect-error -- a record's own member
+    has: (t: Tags) => true,
+    count: (t: Tags) => 0,
+  }))
+  .implAssoc(() => ({
+    // @ts-expect-error -- a record's own member
+    fromEntries: () => 0,
+  }))
+  .build();
 
 type Id = Val<"Id", string>;
