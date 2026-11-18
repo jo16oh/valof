@@ -204,6 +204,11 @@ argument to hide a key in.
   written as two overloads (`PatchFn`). Rejected: a return type of `undefined` (rejects a named function returning `void`),
   `void & { then?: never }` (rejects a block body), and `R extends void` (accepts an async function)
 - **`Unpatchable` keys are read-only in the draft**, and still readable
+- **A recipe goes inline in the `patch` call** (user, 2026-11-18). `Draft` is not exported from the entry, as `Patch` is
+  not. A recipe declared apart from the call needs its parameter's type written out, and that type can make writable a
+  key the draft keeps read-only. To reuse a change, write a member that calls `patch` (`.impl(({ patch }) => …)`). A `Draft<User>`
+  written with the Val itself had matched the draft only where no key was read-only, and the error did not name the fault
+  - The type fixtures dropped their recipe declared apart, so core went 13,166 → 12,892 instantiations and enum 58,308 → 58,195
 - **`Object.assign(draft, data)` is not checked.** TypeScript types its source as anything. valof-lint is to report it (§9)
 - **A union of objects stays rejected.** A recipe sets one field at a time, so it could leave a value that is neither variant
 - **`exactOptionalPropertyTypes` is no longer recommended.** It only mattered for `{ k: undefined }` in a patch object

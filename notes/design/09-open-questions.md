@@ -79,7 +79,7 @@
         checked its traits against `AnyTrait` while being declared, which computes the trait's verdict and reads the
         shape. `Holding` and the enum's `FieldsIn` and `SharedIn` leave the payload's keys out of the shape's fields,
         and the enum tests against `LooseTrait`, whose verdict is not computed
-      - **`Patch` is internal.** A recipe's type is inferred; one declared apart from the `patch` call types its parameter with `Draft`
+      - **`Patch` is internal.** A recipe's type is inferred; one declared apart from the `patch` call types its parameter with `Draft` (`Draft` withdrawn 2026-11-18, §6.2 "A recipe goes inline")
     - ~~**Still open:** a variant and the enum's shared fields both writing a key that holds a `Rec` is circular, with or
       without a trait. Leaving the variant's keys out of the shared fields fixes it, but loses the check that a variant
       field contradicting a shared one is rejected. And with an enum-level trait, `Node.seal({ _tag: "Leaf", … })` is
@@ -88,7 +88,7 @@
       bring in the shape too"). The declaration reports the key instead of TS2456. `Node.seal({ _tag: "Leaf", … })`
       passes with the trait's `Rec` field written only in the shape (probe)
 
-- [ ] **What the third type hunt (2026-11-18, over the whole surface on feat/seal-record-param) found.** The first three are fixed in the PR that records them:
+- [x] ~~**What the third type hunt (2026-11-18, over the whole surface on feat/seal-record-param) found.**~~ Closed, 2026-11-18. The first three are fixed in the PR that records them:
   - **A record's seal took an `undefined` value.** `?` in `Collected` adds `undefined` to an index signature, so
     `seal({ ...counts, extra: undefined })` passed on `Val.Record<"C", string, number>`, and `values` returned
     `undefined` where its type says `number`. A seal's argument (`Keyed`) leaves `?` off a key such as `string` or `` `x-${string}` ``
@@ -100,9 +100,9 @@
     `Impl<Trait>` advice
   - **Not fixed, by decision (user, 2026-11-18): an overloaded named recipe.** `Drafts` reads the last overload, so an
     earlier one can write an `Unpatchable` key. Writing the overloads is as deliberate as a cast
-  - **Open: `Draft` written with a Val.** `Draft<User>` maps the Val's fields, which matches the draft `patch` passes
-    where that draft has no read-only key. Where one is, as an `Unpatchable` key, the recipe is rejected with "leave its type to
-    inference", which does not name the fault. `Patch<User>` said "write `Patch<SeedOf<V>>`" before `Draft` replaced it
+  - **`Draft` written with a Val.** `Draft<User>` mapped the Val's fields, which matched the draft `patch` passes
+    where that draft had no read-only key. Where one was, as an `Unpatchable` key, the recipe was rejected with "leave its type to
+    inference", which did not name the fault. Closed by not exporting `Draft` (user, §6.2 "A recipe goes inline")
   - **Cost.** core 13,161 → 13,166 instantiations, trait 26,227 → 27,117, enum 57,408 → 58,308, `index.d.ts` 119.99 →
     120.84 kB. The declaration budget went from 120 to 128 kB (user)
 
