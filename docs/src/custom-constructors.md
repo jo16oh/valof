@@ -111,7 +111,7 @@ declare const fields: Fields;
 // ---cut---
 const User = Val.companion<User>()
   .implSeal((user): Result<User> => check(user))
-  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }))
+  .implCreate((fields: Fields) => ({ ...fields, id: crypto.randomUUID() }))
   .build();
 
 User.create(fields); // Result<User>
