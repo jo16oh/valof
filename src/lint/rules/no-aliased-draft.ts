@@ -6,7 +6,7 @@ import { Finding, Kind, Rule } from "./rule.ts";
 export type AliasedDraft = Val<"AliasedDraft", { kind: Kind }, Rule>;
 export const AliasedDraft = Val.companion<AliasedDraft>()
   .implCreate(() => ({
-    kind: Kind.seal("aliased-draft"),
+    kind: Kind.seal("no-aliased-draft"),
     description:
       "a recipe's draft passed to a function, bound to a name, or put in an array or an object; a recipe with type parameters",
     warns: false,

@@ -1,6 +1,6 @@
 import type { Dyn } from "../../lib/index.ts";
 import { DataTypeSettings, type Options } from "../shared/options.ts";
-import { AliasedDraft } from "./aliased-draft.ts";
+import { AliasedDraft } from "./no-aliased-draft.ts";
 import { BrandMismatch } from "./no-brand-mismatch.ts";
 import { BypassedCompanion } from "./no-bypassed-companion.ts";
 import { CompanionMismatch } from "./no-companion-mismatch.ts";

@@ -10,8 +10,8 @@ pnpm add -D oxc-parser   # valof does not install it for you
 
 ## Rules
 
-| rule                          | reports                                                                                                                | default |
-| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------- |
+| rule                             | reports                                                                                                                | default |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------- | ------- |
 | `no-unused-member`               | a member registered with `.impl`, `.implTrait` or `.implAssoc` that nothing reads                                      | warning |
 | `no-duplicate-brand`             | a brand string claimed by more than one top-level alias                                                                | error   |
 | `no-brand-mismatch`              | a brand whose last segment is not the name of the type it brands                                                       | error   |
@@ -22,11 +22,11 @@ pnpm add -D oxc-parser   # valof does not install it for you
 | `no-bypassed-companion`          | a `Val.of` for a type whose companion is how it is built                                                               | warning |
 | `no-inferred-val-of`             | a `Val.of` that names no type, taking one from its target                                                              | warning |
 | `no-hidden-shared-state-in-impl` | state declared in a function passed to `.impl`, `.implTrait` or `.implAssoc`                                           | warning |
-| `aliased-draft`               | a recipe's draft passed to a function, bound to a name, or put in an array or an object; a recipe with type parameters | error   |
+| `no-aliased-draft`               | a recipe's draft passed to a function, bound to a name, or put in an array or an object; a recipe with type parameters | error   |
 | `no-detached-variant`            | a variant bound to a local name without the name of its enum                                                           | warning |
 | `no-hidden-optional`             | a default or rest parameter that a member's type annotation hides                                                      | error   |
 | `no-data-type-outside-valof`     | a data type declared outside Valof                                                                                     | off     |
-| `no-vague-disable`          | a disable comment leaving out the rules it silences, or its scope                                                      | error   |
+| `no-vague-disable`               | a disable comment leaving out the rules it silences, or its scope                                                      | error   |
 | `no-unused-disable`              | a disable comment naming a rule that reports nothing there                                                             | warning |
 
 A rule warns where the code around the finding still works, and errors where a Val is broken: two

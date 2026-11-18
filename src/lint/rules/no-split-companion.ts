@@ -19,7 +19,7 @@ export const SplitCompanion = Val.companion<SplitCompanion>()
  * imported by name or reached through a namespace. A declaration merge is file-local. Split over
  * two files, the pair does not compile: TS2395 when both are exported, and TS2323 when the second
  * file re-exports the type beside its companion. What is left is a companion under another name,
- * which the companion-mismatch rule reports, or one nobody can import under the type's name.
+ * which the no-companion-mismatch rule reports, or one nobody can import under the type's name.
  *
  * A type declared here as `type Local = Imported` is not seen, since the name is local. Missing it
  * is safer than a false report.
