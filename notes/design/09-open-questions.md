@@ -905,3 +905,35 @@
     `Rec<Dollar | Yen>` does. Checking a `Rec`'s argument opens it, which is circular for a type
     that references itself
   - The two messages take `index.d.ts` from 106.79 to 107.13 kB, inside the 108 kB budget (§3.6)
+
+- [ ] **What remains open after allowing bigint (2026-11-18, §3, §7.8).**
+  - **Lint candidate: report a Val passed to `structuredClone`.** In the same thread, `structuredClone<T>(value: T): T` keeps the
+    type, so an unsealed, unfrozen copy circulates as the Val, without the ownership record (§4.1). `postMessage` and `JSON.parse`
+    return `any`, so the brand is lost there and the receiver has to seal
+  - **Resealing a Val automatically at a framework boundary.** SvelteKit's `transport` hook and Nuxt's `definePayloadReducer` /
+    `definePayloadReviver` could register a Val and seal it again on the receiving side. Unverified
+  - **Docs candidate: four ways to use bigint outside a Val**, as an extension of §8.6. Gather the operations into one member
+    (`BigInteger.compute([p, q], ([p, q]) => p * q)`, about 3× faster than converting per operation), keep many 64-bit values in a
+    class holding a `BigInt64Array`, represent the value without bigint (`Val<"Nanos", [number, number]>`), or convert only at the
+    boundary. Each of them still converts what a library returns
+  - **Proposals to watch.** Immutable ArrayBuffer (`transferToImmutable`, Stage 3, behind a flag in V8 and SpiderMonkey) meets
+    criterion 1. Criterion 2 needs a decision on how a typed-array view is compared and copied. Composites, the successor of
+    Records & Tuples, would replace much of valof's `equals` and copy if it advances. Decimal, if it arrives as an object as Temporal
+    did, fails criterion 2
+  - **Date stays out.** It fails both criteria, because its mutators write to internal slots, and it has no own properties (§7.3)
+  - Unverified: whether Nuxt's `useAsyncData` types a bigint as `bigint`, and whether a library writes a bigint as an unquoted
+    number that loses precision on the receiving side
+  - **Rejected: `Val.toJSON`, a gate that returns the payload with the brand removed and checks it is JSON-safe.**
+    - The page-data transports (RSC, React Router, Nuxt, SvelteKit, oRPC, superjson) carry bigint. A boundary there needs only
+      the brand removed, which `PayloadOf` and `Val.unwrap` already do
+    - On a JSON route, most frameworks report a bigint as a `never` in the client's type or as an exception. The type decides
+      whether it fails, so one call shows it
+    - Nothing makes a user call it. `c.json(val)` bypasses it, and a lint rule against `JSON.stringify` does not reach
+      `c.json`, `Response.json` or tRPC, which call it inside the library
+    - The name collides with the `toJSON` method that `JSON.stringify` calls
+    - Mapping bigint to a string in a `JsonOf<V>` type and back through `Val.fromJSON` is the dedicated serializer §7.2
+      rejected. valof would own a codec layer. Reconsider when a JSON-route failure is reported
+  - **Rejected: `Val.stringify`, a gate that returns the JSON string.** A typed client (`hc`, tRPC, oRPC, Eden, `useFetch`)
+    derives the response type from the object the handler returns, so a string loses it. In Hono, `c.json(Val.stringify(v))`
+    encodes the JSON twice without an error, and the client types the response as `string`. It would check `NaN` reliably,
+    since checking and serializing are one function. Propose that separately from bigint, if at all

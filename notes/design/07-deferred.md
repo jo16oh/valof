@@ -142,6 +142,8 @@ They did not go to the same place. `equals` moved to `implEquals`. `patch` **wen
 
 ## 7.8 bigint, 2026-10-28
 
+**Allowed again, 2026-11-18** (below). The text up to that heading records the removal.
+
 **Removed from the allowed types.** An integer below 2^53 fits in a `number`. A larger one goes in a Val wrapping a decimal integer string (§8.6).
 
 `JSON.stringify(1n)` throws a TypeError. bigint was the only allowed type that broke the symmetric JSON round trip §1 guarantees. `structuredClone` handles it, so only the JSON boundary breaks, and the exception appears only there. This is the same reason §7.3 removed Date.
@@ -181,3 +183,15 @@ JSON.stringify(N.seal({ a: NaN, xs: new Array<string>(1) })); // {"a":null,"xs":
 - Sparse arrays. `new Array<string>(n)` has the type `string[]`, and its holes are written out as `null`. The literal `[, "x"]` has the type `(string | undefined)[]`, which the types reject
 
 **valof does not guarantee against these.** The types cannot tell them apart, so closing the hole would take a run-time check. Some users deliberately use `Infinity`, as an upper bound for example, so these cannot be removed from the allowed types the way bigint was. `-0` turning into `0` does no harm, because `equals` treats the two as equal (§5).
+
+### Allowed again, 2026-11-18
+
+**bigint is an allowed primitive again.** It meets both criteria for an allowed type (§3): it is immutable, and valof's copy and `equals` see its value as they see a `number`'s. The bigint branch of `ValidateValue` and its message are removed, and `Primitive` gains `bigint`.
+
+- **Libraries return bigint.** `Temporal.Instant.epochNanoseconds`, wasm-bindgen for `i64` / `u64`, protobuf-es for `int64`, viem, Prisma's `BigInt` and `node:sqlite` with `readBigInts`. With bigint rejected, every boundary with one of them converts to and from the §8.6 string. §8.2 recommends Temporal, which returns a bigint itself
+- **The JSON failure is decided by the type.** `JSON.stringify` throws a TypeError on every bigint and never drops one silently, so the first call to an endpoint shows it. `NaN` and sparse arrays (above) fail by value instead. A field typed `bigint | null` or `number | bigint` is the exception: it throws only when it holds a bigint
+- **Page-data transports carry bigint.** RSC, React Router (turbo-stream), Nuxt's payload and SvelteKit's `load` (devalue), oRPC and tRPC with superjson all deliver it as a bigint. The ban constrained their users for a JSON route they do not take. On a JSON route, most frameworks report it, as a `never` in the client's type (Hono, tRPC without a transformer, Nuxt's server API) or as an exception. Elysia with Eden types it as `bigint`, and the server responds with a 500
+- **§1's guarantee was re-based.** The first bullet of "Rejected: keeping it" rested on §1 guaranteeing a symmetric JSON round trip. §1 now guarantees only that data that crosses JSON or `structuredClone` intact seals into an equal Val again. Whether a value crosses depends on the route, not on its type. The comparison with Date (§7.3) no longer holds either, because Date is mutable and keeps its value in internal slots, so it fails both criteria
+- **A JSON route converts it in the response body.** The Val holds the bigint, and the body holds a decimal string in its place. §8.6's string Val stays the form for a value that is a decimal string everywhere, as an ID that only crosses JSON
+
+**Rejected: `Val.toJSON` / `Val.stringify`** as a gate that checks JSON-safety at the boundary. See §9.
