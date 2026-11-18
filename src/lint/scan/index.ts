@@ -441,7 +441,7 @@ function scan(
         if (root) {
           const name = id.name;
           bound = Bindings.patch(bound, (b) => {
-            b.builders = Names.set(b.builders, name, root);
+            b.builders = Names.set(b.builders, name, fromRecord(init, bound) ? "Val.Record" : root);
           });
         }
         // `const Round = Shape.Circle` takes the same key the destructuring above takes.

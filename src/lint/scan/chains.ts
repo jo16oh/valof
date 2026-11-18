@@ -129,8 +129,9 @@ export function fromRoot(node: Node, bound: Bindings): string | undefined {
 /** Whether a chain grows from `Val.Record.companion`. */
 export function fromRecord(node: Node, bound: Bindings): boolean {
   const path = rootPath(node);
-  if (!path || path.length < 2) return false;
-  const [first, second, third] = path as [string, string, string?];
+  if (!path) return false;
+  const [first, second, third] = path as [string, string?, string?];
+  if (Bindings.builderOf(bound, first) !== undefined) return Bindings.holdsRecord(bound, first);
   return Bindings.hasNamespace(bound, first)
     ? second === "Val" && third === "Record"
     : Bindings.originalName(bound, first) === "Val" && second === "Record";
