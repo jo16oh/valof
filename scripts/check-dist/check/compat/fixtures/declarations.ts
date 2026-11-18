@@ -35,6 +35,10 @@ export const User = userBuilder.build();
 export const user = User.seal({ id: "a", name: "alice" });
 export const boxed = User.dyn<Greetable>(user);
 export const partial = (u: User): Partial<User> => u;
+// A member taken off a companion. Its type prints by name only where every alias it uses is exported.
+export const userSeal = User.seal;
+export const userNocopy = User.seal.nocopy;
+export const userPatch = User.patch;
 
 export type Session = Val<"Session", { id: string; token: string }>;
 export const Session = Val.companion<Session, [PrivateSeal, Unpatchable<"id">]>()
