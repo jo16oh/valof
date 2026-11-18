@@ -20,7 +20,11 @@ declare const city: City;
 declare const showMap: (city: City) => void;
 // ---cut---
 const [shop, setShop] = useState(Shop.seal({ owner, city }));
-setShop(Shop.patch(shop, { owner: { email: "e@example.com" } }));
+setShop(
+  Shop.patch(shop, (s) => {
+    s.owner.email = "e@example.com";
+  }),
+);
 
 useEffect(() => showMap(shop.city), [shop.city]); // the patch did not touch `city`: no re-run
 ```
@@ -124,8 +128,8 @@ type PriceTable = Val<"PriceTable", Record<string, Money>>; // a Map
 Use `true` rather than `null` for a set, so `if (tags[key])` is the membership test.
 [`equals`](utilities.md#equals) ignores key order, so comparing two of them is set equality.
 
-In a table of Vals such as `PriceTable`, `patch` replaces each entry it lists with what the function
-given for it returns. To remove an entry, call `seal` to rebuild the whole table.
+In a table of Vals such as `PriceTable`, `patch` sets an entry by assignment. To remove an entry,
+call `seal` to rebuild the whole table.
 
 ```ts
 import { Val } from "valof";
@@ -137,8 +141,8 @@ const PriceTable = Val.companion<PriceTable>().build();
 
 declare const table: PriceTable;
 // ---cut---
-PriceTable.patch(table, {
-  apple: () => Money.seal({ amount: 120, currency: "JPY" }),
+PriceTable.patch(table, (t) => {
+  t["apple"] = Money.seal({ amount: 120, currency: "JPY" });
 });
 
 PriceTable.seal(Object.fromEntries(Object.entries(table).filter(([, m]) => m.amount < 500)));

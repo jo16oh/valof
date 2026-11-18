@@ -144,6 +144,9 @@ but required in type 'AnyVal'.
 
 ### The `exactOptionalPropertyTypes` wall
 
+**No longer recommended, 2026-11-17.** Every key is required (below), and `patch` takes a recipe (§6.2), so neither a
+payload nor a patch holds an optional key for EOPT to check.
+
 With EOPT **off** (the TS default), `{ a?: string }` and `{ a?: string | undefined }` are literally the same type, and the language has no way to tell them apart. So the following cannot be detected.
 
 ```ts

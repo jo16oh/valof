@@ -21,8 +21,8 @@
       exists on `main` too
   - **The plan, 2026-11-17 (user).** Three changes close it in types alone, with no runtime schema
     1. **Every key is required** (§3.5). Done. A narrowed variable can no longer hide a key from `seal`
-    2. **`patch` takes a recipe that assigns to a draft.** A patch argument is partial by nature, so any key can hide in it. An
-       assignment is checked key by key, and a draft has no object argument to hide a key in
+    2. **`patch` takes a recipe that assigns to a draft** (§6.2). Done. A patch argument is partial by nature, so any key can
+       hide in it. An assignment is checked key by key, and a draft has no object argument to hide a key in
     3. **No index signature.** A record's type admits keys it does not list. A built-in map replaces it. Its entries pass one at a
        time through typed positions. Until then, `{ staff: { u1: undefined } }` leaves an entry holding `undefined`. A patch type
        marks an index signature optional, which adds `undefined` to its entries
@@ -36,6 +36,9 @@
   - Closing it takes a runtime schema. The companion references the Val each field holds (`Val.companion<Shop>({ home: City })`),
     and the seal checks that each field holds a value that Val's seal returned. The root mark records only that some seal returned
     a node. The schema puts which Val a field holds into the runtime, which §2.1 keeps in the type alone
+
+- [ ] **valof-lint reports `Object.assign` on a draft.** TypeScript types `Object.assign`'s source as anything, so
+      `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
 
 - [x] ~~**The hole in a patch passed as a variable (investigated in #125).**~~ Closed, 2026-11-05. Items 1-3 of `hunt-findings.md`. A non-literal
       argument gets no excess property check, and the patch type was an intersection (`{…} & {…}`), so it got no weak type check either

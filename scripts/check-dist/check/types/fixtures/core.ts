@@ -55,11 +55,19 @@ declare const order: Order;
 declare const patch: Patch<Omit<SeedOf<Order>, "id">>;
 
 export const derived = [
-  // The patch stops at a nested Val, so the deep one runs inside `Address`.
-  Order.patch(order, { ship: (ship) => Address.patch(ship, { street: { name: "Shijo" } }) }),
-  Address.patch(order.ship, { street: { unit: () => ({ floor: 2, door: "b" }) } }),
-  Order.patch(order, { totals: { vat: () => Money.seal({ amount: 1, currency: "JPY" }) } }),
-  Order.patch(order, { note: undefined }),
+  // The draft stops at a nested Val, so the deep change runs inside `Address`.
+  Order.patch(order, (o) => {
+    o.ship = Address.patch(o.ship, (a) => {
+      a.street.name = "Shijo";
+    });
+  }),
+  Address.patch(order.ship, (a) => {
+    a.street.unit = { floor: 2, door: "b" };
+  }),
+  Order.patch(order, (o) => {
+    o.totals["vat"] = Money.seal({ amount: 1, currency: "JPY" });
+    o.note = undefined;
+  }),
   Order.patch(order, patch),
   Order.fromShip("o", order.ship),
   Order.fromShip(order.ship)("o"),

@@ -40,7 +40,7 @@ const changed = {
 };
 ```
 
-With `patch`, the same update lists only what changes:
+With `patch`, the same update assigns only what changes:
 
 ```ts
 import { Val } from "valof";
@@ -55,22 +55,18 @@ const Shop = Val.companion<Shop>().build();
 
 declare const shop: Shop;
 // ---cut---
-const changed = Shop.patch(shop, {
-  owner: { contact: { email: "e@example.com" } },
+const changed = Shop.patch(shop, (s) => {
+  s.owner.contact.email = "e@example.com";
 });
 ```
 
-A patch expresses three operations:
+`patch` passes a draft of the payload to the recipe, the function it takes. An assignment changes
+that field, and every other field stays as it was. A plain object field is a draft too, so an
+assignment can change a field inside it, as `s.owner.contact.email` does. Each assignment must match
+the field's type.
 
-- Omit a key to leave it unchanged.
-- Pass `{ k: value }` to set it. An object merges into the one already there.
-- Pass `{ k: (current) => value }` to replace it with what the function returns.
-
-Without `exactOptionalPropertyTypes`, `patch` accepts `{ k: undefined }` for a field that cannot
-hold `undefined`, and sets it.
-
-A patch reaches through nested plain objects. A nested Val takes a function only, and so does an
-object in a `Record` entry or in a field that may be `null` or `undefined`:
+A nested Val and an array are read-only in the draft, so assign a new value to their field. Derive a
+nested Val with its own `patch`, so its own seal checks the change:
 
 ```ts
 import { Val } from "valof";
@@ -85,10 +81,15 @@ const Shop = Val.companion<Shop>().build();
 
 declare const shop: Shop;
 // ---cut---
-Shop.patch(shop, { city: (city) => City.patch(city, { name: "Osaka" }) });
+Shop.patch(shop, (s) => {
+  s.city = City.patch(s.city, (c) => {
+    c.name = "Osaka";
+  });
+});
 ```
 
-Derive a nested Val with its own `patch`, so its own seal checks the change.
+The recipe runs synchronously. Once it returns, reading or writing the draft throws. An async recipe
+is a type error.
 
 Like [`seal`](immutability.md#vals-are-immutable), `patch` reuses what is already inside the Val. It
 copies only the path to what changed, and untouched branches keep their reference identity:
@@ -108,7 +109,7 @@ declare const shop: Shop;
 declare const changed: Shop;
 // ---cut---
 changed.city === shop.city; // true
-Shop.patch(shop, {}) === shop; // true
+Shop.patch(shop, () => {}) === shop; // true
 ```
 
 Reference comparisons, such as React dependency arrays, can then skip work when their value did not

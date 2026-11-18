@@ -18,7 +18,9 @@ const Shape = Enum.companion<Shape>().build();
 
 const circle = Shape.Circle.create({ r: 2 }); // { r: 2, _tag: "Circle" }
 
-Shape.Circle.patch(circle, { r: 5 }); // { r: 5, _tag: "Circle" }, the tag stays
+Shape.Circle.patch(circle, (c) => {
+  c.r = 5;
+}); // { r: 5, _tag: "Circle" }, the tag stays
 equals(circle, Shape.Circle.seal({ _tag: "Circle", r: 2 })); // true
 ```
 
@@ -264,7 +266,8 @@ Task.create(Date.now()); // Task
 
 `Enum.companion` takes the same
 [options](custom-constructors.md#restrict-the-companion-with-options) as `Val.companion`, in its
-second type argument. `Unpatchable<"id">` excludes `id` from `patch` on every variant that has it:
+second type argument. `Unpatchable<"id">` makes `id` read-only in `patch` on every variant that has
+it:
 
 ```ts
 import { Enum, type Unpatchable, type VariantOptions } from "valof";

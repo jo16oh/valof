@@ -107,7 +107,13 @@ const user = User.seal({ id: "a", name: "bob", nickname: undefined });
 User.formatLabel(user, ": "); // "a: bob"
 User.formatLabel(": ")(user); // "a: bob"
 
-pipe(user, User.patch({ nickname: "b" }), User.displayName); // "b"
+pipe(
+  user,
+  User.patch((u) => {
+    u.nickname = "b";
+  }),
+  User.displayName,
+); // "b"
 ```
 
 `patch`, a trait's member taking more than one argument, an enum's `match` and `[Tag].match` can be

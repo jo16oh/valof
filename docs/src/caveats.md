@@ -33,8 +33,8 @@ const changed = produce(user, (draft) => {
 }); // User
 ```
 
-The result is still typed as `User`, although its seal never checked the change. Use `User.patch` to
-derive a value instead:
+The result is still typed as `User`, although its seal never checked the change. Use `User.patch`
+instead. It takes the same kind of function and seals the result:
 
 ```ts
 import { Val } from "valof";
@@ -44,7 +44,9 @@ const User = Val.companion<User>().build();
 
 declare const user: User;
 // ---cut---
-const changed = User.patch(user, { name: "mallory" });
+const changed = User.patch(user, (u) => {
+  u.name = "mallory";
+});
 ```
 
 When an API mutates its input, pass it `Val.unwrap(user)`. When it returns a new payload, pass that

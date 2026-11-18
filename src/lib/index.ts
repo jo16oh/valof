@@ -15,7 +15,7 @@ export type {
   PrivateCreate,
   PrivateSeal,
   Rec,
-  Replacer,
+  Draft,
   SeedOf,
   Unpatchable,
 } from "./val.ts";

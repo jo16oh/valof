@@ -366,9 +366,9 @@ function scan(
         if (site) {
           sites.push(
             id.type === "Identifier"
-              ? CompanionSite.patch(site, {
-                  name: id.name,
-                  nameAt: () => Lines.at(lines, id.start),
+              ? CompanionSite.patch(site, (s) => {
+                  s.name = id.name;
+                  s.nameAt = Lines.at(lines, id.start);
                 })
               : site,
           );
@@ -413,7 +413,10 @@ function scan(
         if (id.type !== "Identifier") break;
         const root = fromRoot(init, bound);
         if (root) {
-          bound = Bindings.patch(bound, { builders: { [id.name]: root } });
+          const name = id.name;
+          bound = Bindings.patch(bound, (b) => {
+            b.builders[name] = root;
+          });
         }
         // `const Round = Shape.Circle` takes the same key the destructuring above takes.
         if (init.type === "MemberExpression") {
@@ -497,7 +500,10 @@ function scan(
             specifier.type === "ImportNamespaceSpecifier" &&
             specifier.local.type === "Identifier"
           ) {
-            bound = Bindings.patch(bound, { namespaces: { [specifier.local.name]: resolved } });
+            const local = specifier.local.name;
+            bound = Bindings.patch(bound, (b) => {
+              b.namespaces[local] = resolved;
+            });
           } else if (
             specifier.type === "ImportSpecifier" &&
             specifier.local.type === "Identifier"
@@ -505,11 +511,10 @@ function scan(
             const name = keyName(specifier.imported, false);
             const local = specifier.local.name;
             if (name) {
-              bound = Bindings.patch(bound, {
-                imported: (imported) =>
-                  ImportMap.patch(imported, {
-                    [local]: () => ImportBinding.seal({ name, module: resolved }),
-                  }),
+              bound = Bindings.patch(bound, (b) => {
+                b.imported = ImportMap.patch(b.imported, (m) => {
+                  m[local] = ImportBinding.seal({ name, module: resolved });
+                });
               });
             }
           }

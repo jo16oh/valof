@@ -43,7 +43,12 @@ type Room = Val<
 const Room = Val.companion<Room>()
   .implCreate((name: string) => ({ id: name, name, size: { w: 1, h: 1 } }))
   .implTrait(Named, ({ patch }) => ({
-    label: (r, sep) => `${r.id}${sep}${patch(r, { name: r.name.trim() }).name}`,
+    label: (r, sep) =>
+      `${r.id}${sep}${
+        patch(r, (d) => {
+          d.name = r.name.trim();
+        }).name
+      }`,
   }))
   .implTrait(Sized, () => ({ scaled: (r, by) => r.size.w * by }))
   .impl(() => ({
@@ -93,7 +98,9 @@ export const nested = [
   Floor.label(floor, "/"),
   Floor.scaled(floor, 2),
   Room.describe(floor.main),
-  Floor.patch(floor, { main: (main) => main }),
+  Floor.patch(floor, (d) => {
+    d.main = floor.main;
+  }),
   Named.dyn(Floor, floor).greet(),
 ];
 export const direct = [

@@ -8,7 +8,6 @@ import {
   type PrivateCreate,
   type PrivateSeal,
   type Rec,
-  type Replacer,
   type Unpatchable,
   Enum,
   Trait,
@@ -325,15 +324,12 @@ describe("the tag", () => {
   });
 
   test("and `patch` cannot reach it", () => {
-    // @ts-expect-error a patch cannot switch variants
-    Circle.patch(CIRCLE, { _tag: "Square" });
-    // A variable gets no excess property check.
-    const both = { r: 2, side: 1 };
-    // @ts-expect-error another variant's field, through a variable
-    Circle.patch(CIRCLE, both);
-    const retagged = { _tag: "Square" as const, r: 3 };
-    // @ts-expect-error a patch cannot switch variants, through a variable
-    Circle.patch(CIRCLE, retagged);
+    Circle.patch(CIRCLE, (d) => {
+      // @ts-expect-error a patch cannot switch variants
+      d._tag = "Square";
+      // @ts-expect-error nor write another variant's field
+      d.side = 1;
+    });
   });
 
   describe("a name of your own", () => {
@@ -455,7 +451,12 @@ describe("members", () => {
       { id: string } & Named
     >;
     const Card = Enum.companion<Card>()
-      .A.impl(({ patch }) => ({ next: (a) => patch(a, { n: a.n + 1 }) }))
+      .A.impl(({ patch }) => ({
+        next: (a) =>
+          patch(a, (d) => {
+            d.n = a.n + 1;
+          }),
+      }))
       .A.implTrait(Coded, ({ seal }) => ({
         code: (a) => seal({ _tag: "A", id: a.id, n: a.n * 2 }).n,
       }))
@@ -655,7 +656,10 @@ describe("implAssoc", () => {
         .Circle.implAssoc(({ seal, create, patch }) => ({
           unit: () => create({ r: 1 }),
           fromRadius: (r: number) => seal({ _tag: "Circle", r }),
-          grown: (r: number, c: VariantOf<Shape, "Circle">) => patch(c, { r: c.r + r }),
+          grown: (r: number, c: VariantOf<Shape, "Circle">) =>
+            patch(c, (d) => {
+              d.r = c.r + r;
+            }),
         }))
         .build();
       const unit = Sized.Circle.unit();
@@ -743,17 +747,19 @@ describe("patch", () => {
     const Holder = Val.companion<Holder>().build();
     const holder = Holder.seal({ id: "h", shape: CIRCLE });
 
-    test("is replaced through a function, never merged", () => {
-      expectTypeOf<NonNullable<Parameters<typeof Holder.patch>[1]["shape"]>>().toEqualTypeOf<
-        Invalid<"a Val is replaced, never merged: write `() => value`"> | Replacer<Shape>
-      >();
-      // @ts-expect-error a patch cannot reach into a nested variant, and the merge throws
-      expect(() => Holder.patch(holder, { shape: { r: 3 } })).toThrow(
-        /cannot merge into the Val at "shape"/,
-      );
-      // @ts-expect-error nor take a variant as it is, which merges too
-      expect(() => Holder.patch(holder, { shape: SQUARE })).toThrow(TypeError);
-      expect(Holder.patch(holder, { shape: () => SQUARE }).shape).toEqual({
+    test("is no draft: assign a variant its own constructor built", () => {
+      expect(() =>
+        Holder.patch(holder, (d) => {
+          if (d.shape._tag !== "Circle") return;
+          // @ts-expect-error a variant is read-only in the draft, and development freezes it
+          d.shape.r = 3;
+        }),
+      ).toThrow(TypeError);
+      expect(
+        Holder.patch(holder, (d) => {
+          d.shape = SQUARE;
+        }).shape,
+      ).toEqual({
         side: 3,
         _tag: "Square",
       });
@@ -1460,9 +1466,21 @@ describe("a variant's seal", () => {
 
   test("`patch` derives through the same seal, and an empty one keeps the value", () => {
     const cash = Money.Cash.create({ id: "m1", yen: 100 }) as VariantOf<Money, "Cash">;
-    expect(Money.Cash.patch(cash, { yen: 5 })).toEqual({ id: "m1", yen: 5, _tag: "Cash" });
-    expect(Money.Cash.patch(cash, { yen: -1 })).toBeInstanceOf(RangeError);
-    expect(Money.Cash.patch(cash, { yen: 100 })).toBe(cash);
+    expect(
+      Money.Cash.patch(cash, (d) => {
+        d.yen = 5;
+      }),
+    ).toEqual({ id: "m1", yen: 5, _tag: "Cash" });
+    expect(
+      Money.Cash.patch(cash, (d) => {
+        d.yen = -1;
+      }),
+    ).toBeInstanceOf(RangeError);
+    expect(
+      Money.Cash.patch(cash, (d) => {
+        d.yen = 100;
+      }),
+    ).toBe(cash);
   });
 
   test("a seal whose return can be awaited is rejected", () => {
@@ -1530,7 +1548,9 @@ describe("the enum's seal", () => {
   test("a variant's own gates do not pass through it", () => {
     ran.length = 0;
     const cash = Money.Cash.create({ id: "m", yen: 1 }) as VariantOf<Money, "Cash">;
-    Money.Cash.patch(cash, { yen: 2 });
+    Money.Cash.patch(cash, (d) => {
+      d.yen = 2;
+    });
     expect(ran).toEqual(["Cash", "Cash"]);
   });
 
@@ -1769,14 +1789,19 @@ describe("the companion's options", () => {
   test("`Unpatchable` takes a key off every variant that holds it", () => {
     const Order = Enum.companion<Order, [Unpatchable<"id" | "shippedAt">]>().build();
     const shipped = Order.Shipped.create({ id: "o", note: "n", shippedAt: 1 });
-    // @ts-expect-error `id` is unpatchable
-    Order.Pending.patch(Order.Pending.create({ id: "o", note: "n" }), { id: "x" });
-    // @ts-expect-error same, for a key one variant holds
-    Order.Shipped.patch(shipped, { shippedAt: 2 });
-    const forged = { id: "x", note: "m" };
-    // @ts-expect-error same, through a variable
-    Order.Shipped.patch(shipped, forged);
-    expect(Order.Shipped.patch(shipped, { note: "m" })).toEqual({
+    Order.Pending.patch(Order.Pending.create({ id: "o", note: "n" }), (d) => {
+      // @ts-expect-error `id` is unpatchable
+      d.id = "x";
+    });
+    Order.Shipped.patch(shipped, (d) => {
+      // @ts-expect-error same, for a key one variant holds
+      d.shippedAt = 2;
+    });
+    expect(
+      Order.Shipped.patch(shipped, (d) => {
+        d.note = "m";
+      }),
+    ).toEqual({
       id: "o",
       note: "m",
       shippedAt: 1,
@@ -1791,15 +1816,23 @@ describe("the companion's options", () => {
     >().build();
     const pending = Order.Pending.create({ id: "o", note: "n" });
     const shipped = Order.Shipped.create({ id: "o", note: "n", shippedAt: 1 });
-    expect(Order.Pending.patch(pending, { note: "m" })).toEqual({
+    expect(
+      Order.Pending.patch(pending, (d) => {
+        d.note = "m";
+      }),
+    ).toEqual({
       id: "o",
       note: "m",
       _tag: "Pending",
     });
-    // @ts-expect-error `note` is unpatchable on `Shipped`
-    Order.Shipped.patch(shipped, { note: "m" });
-    // @ts-expect-error and `id` on every variant
-    Order.Shipped.patch(shipped, { id: "x" });
+    Order.Shipped.patch(shipped, (d) => {
+      // @ts-expect-error `note` is unpatchable on `Shipped`
+      d.note = "m";
+    });
+    Order.Shipped.patch(shipped, (d) => {
+      // @ts-expect-error and `id` on every variant
+      d.id = "x";
+    });
   });
 
   test("a key no variant holds, a variant the enum lacks, and `PrivateSeal` per variant are rejected", () => {
@@ -2033,11 +2066,17 @@ describe("data-first and data-last", () => {
   test("so do a variant's member and `patch`", () => {
     type Circle = VariantOf<Shape, "Circle">;
     expectTypeOf(Sized.Circle.grown(1)).toEqualTypeOf<(self: Circle) => number>();
-    expectTypeOf(Sized.Circle.patch({ r: 5 })).toEqualTypeOf<(self: Circle) => Circle>();
-    expect([Sized.Circle.grown(1)(CIRCLE), Sized.Circle.patch({ r: 5 })(CIRCLE)]).toEqual([
-      3,
-      { r: 5, _tag: "Circle" },
-    ]);
+    expectTypeOf(
+      Sized.Circle.patch((d) => {
+        d.r = 5;
+      }),
+    ).toEqualTypeOf<(self: Circle) => Circle>();
+    expect([
+      Sized.Circle.grown(1)(CIRCLE),
+      Sized.Circle.patch((d) => {
+        d.r = 5;
+      })(CIRCLE),
+    ]).toEqual([3, { r: 5, _tag: "Circle" }]);
   });
 
   test("`match` takes the handlers alone, narrowing each one and exhaustive", () => {

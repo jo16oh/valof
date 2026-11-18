@@ -18,8 +18,7 @@
 npm install valof
 ```
 
-The recommended compiler options are `strict` (the default since TypeScript 6) and
-`exactOptionalPropertyTypes`.
+The recommended compiler option is `strict` (the default since TypeScript 6).
 
 ## Why Valof?
 
@@ -85,7 +84,10 @@ const Task = Val.companion<Task>()
     task.title.trim() === "" ? { err: "empty title" } : { ok: seal(task) },
   )
   .impl(({ patch }) => ({
-    complete: (task, at: string) => patch(task, { status: () => Status.Done.create({ at }) }),
+    complete: (task, at: string) =>
+      patch(task, (t) => {
+        t.status = Status.Done.create({ at });
+      }),
   }))
   .implTrait(Summarizable, () => ({
     summarize: (t): string =>
