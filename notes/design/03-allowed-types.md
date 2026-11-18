@@ -275,8 +275,22 @@ erased, and at run time a record's input looks like an array Val's.
   - **`Object.entries` of a narrowed variable hides entries again** (user, 2026-11-18). lib types `Object.entries(o)` by the
     implicit index signature of `o`'s type, so the entries of `const b: { a: string } = { a: "a", b: 1 }` are typed
     `[string, string][]` and hold `["b", 1]`. An interface type gives `[string, any][]`. Either reaches `fromEntries` with no
-    error. The types cannot distinguish these entries from checked ones. The book points to arrays, a JS `Map` and another record's
-    `entries` instead. A lint rule is open in §9
+    error. The types cannot distinguish these entries from checked ones. `Object.values` types every value the same way.
+    The book warns about both
+  - **The book warns about it, and Valof's types stay as they are** (user, 2026-11-18). The hole is in how TypeScript
+    types `Object.entries` and `Object.values`, not in Valof's types
+  - **Rejected: a lint rule that follows `Object.entries` to `fromEntries`.** Without types it follows the result only
+    within one function: the direct argument, a method chain, a `const`, `new Map(…)`. A value passed through a
+    parameter, a return or an array is out of its reach, and a rule that catches some forms reads as a guarantee (user).
+    Types do not help, because the entries' type does not record where they came from
+  - **Rejected: an opt-in override typing `Object.entries` and `Object.values` as `unknown`.** It closes the hole, but
+    it changes every call in the application. ts-reset does not change the types of `Object.keys` and `Object.entries`,
+    and users of better-typescript-lib, which types `Object.entries` this way, report it as a bug
+    (uhyo/better-typescript-lib#56)
+  - **Rejected: `fromEntries` takes only a `Map`.** `new Map(Object.entries(x))` is typed `Map<string, V>`, so `new Map`
+    carries the same hole
+  - **Rejected: forbidding `Object.entries`.** Data from outside, such as parsed JSON or a parser's nodes, arrives as a
+    plain object, and `Object.entries` of a type with an index signature is sound
 - **The companion has no `seal`, and builds a record through `fromEntries`** (user, 2026-11-18). A seal checks a payload and
   brands it, and returns the value itself for its own payload (§6.7). A seal that took entries changed its argument, and
   `seal(the payload of v)` was rejected. A public seal that took the object would reopen the hole above
