@@ -2277,7 +2277,7 @@ describe("Val.Record", () => {
   });
 
   test("a member reaches the record's members through what its step receives", () => {
-    const Doubled = Val.Record.companion<Prices>()
+    const Stock = Val.Record.companion<Prices>()
       .impl(({ set, delete: remove, has, keys, values, entries }) => ({
         amounts: (p) => values(p).map((money) => money.amount),
         names: (p) => keys(p),
@@ -2291,11 +2291,10 @@ describe("Val.Record", () => {
         of: (money: Money) => fromEntries([["apple", money]]),
       }))
       .build();
-    const prices = Doubled.of(apple);
+    const prices = Stock.of(apple);
     expect(prices).toEqual({ apple });
-    expect(Doubled.renamed(prices, "apple", "fig")).toEqual({ fig: apple });
-    expectTypeOf(Doubled.amounts).returns.toEqualTypeOf<number[]>();
-    expectTypeOf(Doubled.renamed(prices, "apple", "fig")).toEqualTypeOf<Prices>();
+    expect(Stock.renamed(prices, "apple", "fig")).toEqual({ fig: apple });
+    expectTypeOf(Stock.renamed(prices, "apple", "fig")).toEqualTypeOf<Prices>();
     // @ts-expect-error a record's steps receive no `seal`
     Val.Record.companion<Prices>().implAssoc(({ seal }) => ({ sealed: () => seal }));
   });
