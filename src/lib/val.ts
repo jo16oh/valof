@@ -204,8 +204,22 @@ type Validate<T, Root extends boolean = true, Owner extends "Val" | "Payload" = 
   (IsRec<T> extends true ? 1 : [T] extends [AnyVal] ? 1 : 0) extends 1
     ? IsUnion<Kinds<T>> extends true
       ? Invalid<"only null can share a field with a Val; declare an Enum">
-      : T
+      : [T] extends [Primitive]
+        ? true extends HoldsObject<T>
+          ? Invalid<"no value fits a Val holding an object intersected with a primitive">
+          : T
+        : T
     : Rest<T, Root, Owner>;
+
+/** A key typed as a Val holding an object, intersected with a primitive, which no value fits. */
+export type Hollow<T> = { [K in keyof T]: true extends HoldsObject<T[K]> ? K : never }[keyof T];
+
+// A Val holding a primitive extends `Primitive` too, and a value fits it.
+type HoldsObject<V> = V extends AnyVal & Primitive
+  ? [Declared<V>] extends [Primitive]
+    ? false
+    : true
+  : false;
 
 type HoldsVal<T> = T extends unknown
   ? IsRec<T> extends true
@@ -1126,9 +1140,10 @@ export type Unpatchable<K extends string> = [K] extends [infer X]
  * What the list after the Val in `Val.companion<V, […]>` takes. A {@link ValRecord} has no `seal`
  * to hide and no `patch` to restrict.
  */
+// The phantom rather than `Unpatchable`, which is an `Invalid` for a payload with no key.
 type CompanionOption<V extends AnyVal> = [Declared<V>] extends [Collection]
   ? PrivateCreate
-  : PrivateSeal | PrivateCreate | Unpatchable<keyof SeedOf<V> & string>;
+  : PrivateSeal | PrivateCreate | UnpatchablePhantom<keyof SeedOf<V> & string>;
 
 // A list, not an intersection: two `Unpatchable`s intersected collapse to `never`, which satisfies
 // every constraint and would read as no option at all.
@@ -1362,7 +1377,7 @@ export type CompanionBuilder<
       }) & {
     /**
      * Collects the members the function returns that do not take the Val first: `fromRow`,
-     * `parse`, a constant. Write it any number of times.
+     * `parse`, a constant, written as `zero: () => …`. Write it any number of times.
      *
      * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
      * an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
@@ -2106,7 +2121,11 @@ type OneVal<V, M extends string> = {
 /** Nothing, or the reason a union of option lists is rejected. */
 // `any` satisfies this constraint, so {@link Listed} reports it at the next step.
 export type OneList<O> =
-  IsUnion<O> extends true ? Invalid<"the options cannot be a union of lists"> : unknown;
+  IsUnion<O> extends true
+    ? Invalid<"the options cannot be a union of lists">
+    : true extends { [I in keyof O]: IsUnion<O[I]> }[keyof O & number]
+      ? Invalid<"an option cannot be a union; list each one">
+      : unknown;
 
 /** Whether a list is `any`, or holds `any`, which every option's constraint accepts. */
 export type HasAny<L> = 0 extends 1 & L
@@ -2120,21 +2139,19 @@ export type HasAny<L> = 0 extends 1 & L
  * companion without `.implSeal`, and the seal passed to a custom one, do the same thing; only the
  * type differs.
  */
-export const of = /* @__PURE__ */ Object.assign(
-  own as <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val">>(
-    value: SeedOf<V>,
-  ) => V,
-  {
-    /**
-     * Uses a payload without copying it. The caller must ensure it will not change.
-     */
-    // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
-    // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
-    nocopy: adopt as <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val">>(
-      value: SeedOf<V>,
-    ) => V,
-  },
-);
+export const of = /* @__PURE__ */ Object.assign(own as Of, {
+  /**
+   * Uses a payload without copying it. The caller must ensure it will not change.
+   */
+  // With an explicit `V`, TypeScript cannot also infer the argument's precise readonlyness, so
+  // this cannot require a deeply readonly payload as the default seal's `nocopy` does.
+  nocopy: adopt as Of,
+});
+
+// `V` is `never` when left out: the argument names no Val to infer it from.
+type Of = <V extends AnyVal & NotCollection<V> & OneVal<V, "`Val.of` builds one Val"> = never>(
+  value: [V] extends [never] ? Invalid<"name the Val: `Val.of<V>(value)`"> : SeedOf<V>,
+) => V;
 
 /**
  * A plain, mutable copy of the payload, for code that does not know about `readonly`.
@@ -2152,10 +2169,11 @@ export const unwrap = detach as <V extends AnyVal>(value: V) => PayloadOf<V>;
 // Constructors get their own steps rather than sitting in `.impl`, which fixes every function's
 // first parameter to the Val. A constructor does not fit that shape.
 export const companion = <
-  V extends AnyVal & NotEnum<V> & OneVal<V, "a companion builds one Val">,
+  V extends AnyVal & NotEnum<V> & OneVal<V, "a companion builds one Val"> = never,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
->(): Listed<O, CompanionBuilder<V, undefined, undefined, O>> =>
-  builder({}) as Listed<O, CompanionBuilder<V, undefined, undefined, O>>;
+>(): [V] extends [never]
+  ? Invalid<"name the Val: `Val.companion<V>()`">
+  : Listed<O, CompanionBuilder<V, undefined, undefined, O>> => builder({}) as never;
 
 /**
  * The builder, or the fault where the option list is `any`, which every constraint accepts. The

@@ -1281,6 +1281,10 @@ describe("a broken declaration", () => {
     // `VariantOf` rebuilds the variant, so the declaration is read at the companion too.
     // @ts-expect-error no value fits `id`
     Enum.companion<Keyed>().build();
+    type Spot = Val<"Spot", { x: number }>;
+    // @ts-expect-error no value fits `n`, a Val holding an object and a number
+    type Hollow = Enum<"Hollow", { X: { n: Spot }; Y: { s: string } }, { n: number }>;
+    expectTypeOf<Hollow>().not.toBeNever();
   });
 
   test("the tag may not take a name a payload or a shared field holds", () => {
@@ -1449,6 +1453,8 @@ describe("a broken declaration", () => {
   test("a companion accepts its options as one list, not a union of lists", () => {
     // @ts-expect-error the options cannot be a union of lists
     Enum.companion<Shape, [PrivateSeal] | [PrivateCreate]>();
+    // @ts-expect-error an option cannot be a union
+    Enum.companion<Shape, [PrivateSeal | PrivateCreate]>();
   });
 
   test("a companion takes one enum, not a union of them", () => {

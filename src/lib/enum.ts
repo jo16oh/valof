@@ -51,6 +51,7 @@ import {
   type Code,
   type Fits,
   type Unfit,
+  type Hollow,
   type DeepReadonly,
   type Grown,
   type Listed,
@@ -67,7 +68,7 @@ import {
   type Registered as Steps,
   type Synchronous,
   type Takes,
-  type Unpatchable,
+  type UnpatchablePhantom,
   type UnpatchableKeys,
   type Unsealed,
   type Wired,
@@ -260,13 +261,13 @@ type Disagreeing<D, X> = {
   >;
 }[VariantKeys<D>];
 
-type Disagreement<T, Tr extends AnyTrait> = [Unfit<T>] extends [never]
+type Disagreement<T, Tr extends AnyTrait> = [Unfit<T> | Hollow<T>] extends [never]
   ? Fits<T, Tr> extends infer F
     ? F extends string
       ? F
       : never
     : never
-  : `no value fits ${Code<Unfit<T> & string>}`;
+  : `no value fits ${Code<(Unfit<T> | Hollow<T>) & string>}`;
 
 /** The fields a declaration writes, without the ones its traits add. An `Impl` stays whole, so the rules reject it. */
 type Written<P> = [P] extends [AnyImpl] ? P : [P] extends [AnyTrait] ? Pick<P, keyof P> : P;
@@ -521,11 +522,11 @@ type AnyKey<E extends AnyEnum> = {
 type EnumOption<E extends AnyEnum> =
   | PrivateSeal
   | PrivateCreate
-  | Unpatchable<AnyKey<E>>
+  | UnpatchablePhantom<AnyKey<E>>
   | {
-      [N in keyof VariantsOf<E>]: VariantOptions<
+      [N in keyof VariantsOf<E>]: VariantOptionsPhantom<
         N & string,
-        readonly (PrivateCreate | Unpatchable<keyof SeedFor<E, N> & string>)[]
+        readonly (PrivateCreate | UnpatchablePhantom<keyof SeedFor<E, N> & string>)[]
       >;
     }[keyof VariantsOf<E>];
 

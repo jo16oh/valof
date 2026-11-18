@@ -659,10 +659,6 @@ describe("dyn", () => {
     // @ts-expect-error another Val's value
     Crate.dyn<Weighed>(USER);
     expect(Crate.dyn<Weighed>(crate).heavy()).toBe(true);
-    // oxlint-disable-next-line no-explicit-any -- the case under test
-    type Loose = any;
-    // @ts-expect-error a trait, not `any`
-    Crate.dyn<Loose>(crate);
     // Declared, but no `implTrait` yet: the companion holds no implementation to box.
     const Bare = Val.companion<Crate>().build();
     expectTypeOf(Bare).not.toHaveProperty("dyn");
@@ -777,11 +773,30 @@ describe("dyn", () => {
       type Sealed = Trait<"Sealed", { x: string }, { f: Final<any> }>;
       expectTypeOf<VerdictOf<Loose>>().toEqualTypeOf<{ readonly Loose: Fault }>();
       expectTypeOf<VerdictOf<Sealed>>().toEqualTypeOf<{ readonly Sealed: Fault }>();
-      // An optional member carries `undefined`, which is not `any`.
+    });
+
+    // `implTrait` requires every member, so an optional one could never be implemented.
+    test("a member cannot be optional", () => {
+      // @ts-expect-error a trait member cannot be optional; declare it required
       type Optional = Trait<"Optional", { x: string }, { f?: (self: Self) => string }>;
-      expectTypeOf<VerdictOf<Optional>>().toEqualTypeOf<{
-        readonly Optional: { f?: (self: Self) => string };
-      }>();
+      expectTypeOf<Optional>().not.toExtend<AnyTrait>();
+    });
+
+    test("a member takes `Self` first", () => {
+      // @ts-expect-error a trait member must take `Self` as its first parameter
+      type Counted = Trait<"Counted", { x: string }, { f: (n: number) => string }>;
+      // @ts-expect-error same, for a first parameter that does not take every Val
+      type Named = Trait<"Named", { x: string }, { f: (self: string) => string }>;
+      expectTypeOf<Counted | Named>().not.toExtend<AnyTrait>();
+      type Wide = Trait<"Wide", { x: string }, { f: (self: Self | number) => string }>;
+      expectTypeOf<Wide>().toExtend<AnyTrait>();
+    });
+
+    test("a member is named by a string", () => {
+      const key: unique symbol = Symbol();
+      // @ts-expect-error a trait member's name must be a string
+      type Keyed = Trait<"Keyed", { x: string }, { [key]: (self: Self) => string }>;
+      expectTypeOf<Keyed>().not.toBeNever();
     });
   });
 
@@ -1027,6 +1042,13 @@ describe("building", () => {
       Trait.companion<Greetable & Weighed>();
       // @ts-expect-error a companion implements one trait
       Trait.companion<Greetable | Weighed>();
+    });
+
+    // A left-out argument infers `never`.
+    test("names its trait", () => {
+      expectTypeOf(Trait.companion()).toEqualTypeOf<
+        Invalid<"name the trait: `Trait.companion<Trait>()`">
+      >();
     });
 
     test("a shape written with a rejected Payload is caught", () => {

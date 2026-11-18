@@ -1,5 +1,6 @@
 import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 
+import type { LooseArity } from "./dual/index.ts";
 import type {
   Patch,
   Payload,
@@ -65,6 +66,18 @@ describe("Val", () => {
       const user = Val.of.nocopy<User>(raw);
       expect(user).toBe(raw);
       expect(Object.isFrozen(raw)).toBe(true);
+    });
+
+    // Inferred from the payload alone, `V` would carry no brand.
+    test("names the Val it builds", () => {
+      const raw = { id: "a", name: "alice", nickname: undefined };
+      // @ts-expect-error name the Val
+      Val.of(raw);
+      // @ts-expect-error same, without the copy
+      Val.of.nocopy(raw);
+      expectTypeOf<Parameters<typeof Val.of<never>>[0]>().toEqualTypeOf<
+        Invalid<"name the Val: `Val.of<V>(value)`">
+      >();
     });
   });
 
@@ -910,12 +923,16 @@ describe("Val", () => {
       type Both = Val<"Both", { a: U & W }>;
       // @ts-expect-error no value fits `b`
       type Deep = Val<"Deep", { m: { b: never } }>;
+      // @ts-expect-error no value fits a Val holding an object intersected with a primitive
+      type Hollow = Val<"Hollow", { a: U & number }>;
+      // @ts-expect-error same, intersected in the object that holds it
+      type Merged = Val<"Merged", { m: { a: U } & { a: number } }>;
       // Reported at the type argument alone, so the constraint is read rather than the verdict.
       type Message<T> = Allowed<T, "Val">;
       expectTypeOf<Message<{ a: never } | { a: string & number }>>().toEqualTypeOf<
         Invalid<"no value fits `a`">
       >();
-      expectTypeOf<Never | Clash | Both>().not.toBeNever();
+      expectTypeOf<Never | Clash | Both | Hollow | Merged>().not.toBeNever();
       expectTypeOf<VerdictOf<Deep>>().toEqualTypeOf<{ m: Invalid<"no value fits `b`"> }>();
     });
 
@@ -2509,6 +2526,13 @@ describe("building", () => {
     test("accepts its options as one list, not a union of lists", () => {
       // @ts-expect-error the options cannot be a union of lists
       Val.companion<User, [PrivateSeal] | [Unpatchable<"id">]>();
+      // @ts-expect-error an option cannot be a union
+      Val.companion<User, [Unpatchable<"id"> | PrivateSeal]>();
+    });
+
+    // A left-out argument infers `never`.
+    test("names the Val it builds", () => {
+      expectTypeOf(Val.companion()).toEqualTypeOf<Invalid<"name the Val: `Val.companion<V>()`">>();
     });
 
     test("a step does not change the builder it was taken on", () => {
@@ -2875,7 +2899,13 @@ describe("building", () => {
       Val.companion<Money>().implAssoc(({ seal }) => ({
         // @ts-expect-error a member is a function
         zero: seal({ cents: 0 }),
+        // @ts-expect-error a primitive
+        one: 1,
       }));
+      // A primitive reduced the message to `never`.
+      expectTypeOf<LooseArity<{ one: number }>>().toEqualTypeOf<{
+        one: Invalid<"`implAssoc` holds only functions, so write a value as a function that takes no argument">;
+      }>();
     });
 
     describe("a member whose arguments can be left out is rejected", () => {

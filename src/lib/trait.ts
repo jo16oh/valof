@@ -340,15 +340,21 @@ type Declarable<Shape, M extends Members> = {
           ? Invalid<"a trait member cannot take `value`, which a box reads its value through">
           : K extends Reserved
             ? Invalid<"a trait member cannot take a name the library reserves">
-            : M[K] extends (self: never, ...args: infer A) => infer R
-              ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
-                ? Invalid<"Self can only be a member's first parameter">
-                : HasSelf<R> extends true
-                  ? Invalid<"a trait member cannot return Self">
-                  : Omission<M[K]> extends string
-                    ? Invalid<Omission<M[K]> & string>
-                    : M[K]
-              : M[K];
+            : K extends symbol
+              ? Invalid<"a trait member's name must be a string">
+              : Record<never, never> extends Pick<M, K>
+                ? Invalid<"a trait member cannot be optional; declare it required">
+                : M[K] extends (self: infer S, ...args: infer A) => infer R
+                  ? [Self] extends [S]
+                    ? true extends { [I in keyof A]: HasSelf<A[I]> }[number]
+                      ? Invalid<"Self can only be a member's first parameter">
+                      : HasSelf<R> extends true
+                        ? Invalid<"a trait member cannot return Self">
+                        : Omission<M[K]> extends string
+                          ? Invalid<Omission<M[K]> & string>
+                          : M[K]
+                    : Invalid<"a trait member must take `Self` as its first parameter">
+                  : M[K];
 };
 
 /**
@@ -437,19 +443,17 @@ export type TraitCompanion<
 export type DynStep<V, Held, Elsewhere extends string, Split extends string = Elsewhere> = <
   Tr extends OneTrait<Tr> = never,
 >(
-  value: 0 extends 1 & Tr
-    ? Invalid<"box as a trait, not `any`">
-    : [Tr] extends [never]
-      ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
-      : [NamesOf<Tr>] extends [TraitsOf<V>]
-        ? [NamesOf<Tr>] extends [Held]
-          ? [V] extends [Impl<Tr>]
-            ? V
-            : Invalid<"this type does not declare the trait">
-          : [Extract<NamesOf<Tr>, Held>] extends [never]
-            ? Invalid<Elsewhere>
-            : Invalid<Split>
-        : Invalid<"this type does not declare the trait">,
+  value: [Tr] extends [never]
+    ? Invalid<"name the trait to box as: `.dyn<Trait>(value)`">
+    : [NamesOf<Tr>] extends [TraitsOf<V>]
+      ? [NamesOf<Tr>] extends [Held]
+        ? [V] extends [Impl<Tr>]
+          ? V
+          : Invalid<"this type does not declare the trait">
+        : [Extract<NamesOf<Tr>, Held>] extends [never]
+          ? Invalid<Elsewhere>
+          : Invalid<Split>
+      : Invalid<"this type does not declare the trait">,
 ) => Boxed<Tr>;
 
 /**
@@ -573,7 +577,9 @@ const make = (impls: Record<string, unknown>): Record<string, unknown> => ({
 /**
  * Declares a trait's runtime side: what every Val implementing it shares.
  */
-export const companion = <Tr extends LoneTrait<Tr>>(): TraitBuilder<Tr> => builder() as never;
+export const companion = <Tr extends LoneTrait<Tr> = never>(): [Tr] extends [never]
+  ? Invalid<"name the trait: `Trait.companion<Trait>()`">
+  : TraitBuilder<Tr> => builder() as never;
 
 type Step = () => Record<string, unknown>;
 

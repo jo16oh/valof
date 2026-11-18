@@ -422,7 +422,7 @@ only null can share a field with a Val; declare an Enum
   Checking every field at the top of `Validate` cost core +450 and enum +1,700 instantiations
 - **Open: `{ x: Rec<Tree> }[] | { x: Dollar }[]` passes (§9).** `Collides` does not read a `Rec` as the Val
   it refers to, since that is circular for a type that references itself
-- **`any` in a field still passes,** per §9's policy (2026-11-04). `Val<"V", { a: any }>` satisfies
+- **`any` in a field still passes,** because `any` written as a type is outside the guarantees (§1). `Val<"V", { a: any }>` satisfies
   `[T] extends [Validate<T>]` whatever `Validate` maps `a` to
 - Cost: core 9,078 → 9,269, trait 24,633 → 24,746, enum 46,754 → 47,105, `index.d.ts` 105.12 → 106.79 kB, over the 106 kB budget. The budget went to 108 kB, which also leaves room for the 0.3 kB the checks on `Patch`, `Unpatchable` and `PayloadOf` add in a separate PR
 
