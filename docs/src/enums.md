@@ -225,7 +225,7 @@ declare const schema: {
 };
 // ---cut---
 const Shape = Enum.companion<Shape>()
-  .implSeal((input: object, seal) => {
+  .implSeal((input: Record<string, unknown>, seal) => {
     const result = schema.safeParse(input);
     return result.success ? seal(result.data) : result.error;
   })
