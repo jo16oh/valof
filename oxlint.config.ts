@@ -1,14 +1,19 @@
 import byethrow from "@praha/byethrow-oxlint";
 import { defineConfig } from "oxlint";
 
+import local from "./scripts/oxlint-plugin/index.ts";
 import valof from "./src/lint/eslint-plugin/index.ts";
+
+// The repository's coding rules, on for all code but the library's `src`, the tests, the fixtures
+// and the root configuration files. `src/lint` is covered.
+const CODING_RULES = Object.keys(local.rules).map((rule) => `local/${rule}`);
 
 export default defineConfig({
   extends: [byethrow.recommended],
   plugins: ["typescript", "unicorn", "oxc", "import", "promise", "node", "vitest"],
   // The plugin from source, so the linter checks the library, the scripts and itself as it stands.
   // The second holds the rules this repository keeps for itself.
-  jsPlugins: ["./src/lint/eslint-plugin/index.ts", "./scripts/lint/braces.ts"],
+  jsPlugins: ["./src/lint/eslint-plugin/index.ts", "./scripts/oxlint-plugin/index.ts"],
   settings: {
     valof: {
       project: [
@@ -25,7 +30,7 @@ export default defineConfig({
   categories: { correctness: "error", suspicious: "error", perf: "error" },
   rules: {
     "byethrow/consistent-namespace": ["error", "R"],
-    "local/braces": "error",
+    ...Object.fromEntries(CODING_RULES.map((rule) => [rule, "error"])),
     "typescript/no-explicit-any": "error",
     "typescript/no-unnecessary-condition": "error",
     "typescript/no-unnecessary-type-assertion": "error",
@@ -88,13 +93,14 @@ export default defineConfig({
   },
   overrides: [
     { files: ["src/**/*.ts", "scripts/**/*.ts"], rules: valof.configs.recommended.rules },
-    // `local/braces` covers all code but the library's `src`, the tests, the fixtures and the root
-    // configuration files. `src/lint` is covered.
     {
       files: ["src/**/*.ts", "oxlint.config.ts", "vite.config.ts"],
-      rules: { "local/braces": "off" },
+      rules: Object.fromEntries(CODING_RULES.map((rule) => [rule, "off"])),
     },
-    { files: ["src/lint/**/*.ts"], rules: { "local/braces": "error" } },
+    {
+      files: ["src/lint/**/*.ts"],
+      rules: Object.fromEntries(CODING_RULES.map((rule) => [rule, "error"])),
+    },
     {
       // Both build their errors as classes, and the linter keeps state in classes.
       files: ["src/lint/**/*.ts", "scripts/check-dist/**/*.ts"],
@@ -117,7 +123,7 @@ export default defineConfig({
         "typescript/no-extraneous-class": "off",
         // A matcher cannot give back the value a test unwraps to set itself up.
         "byethrow/prefer-result-matchers": "off",
-        "local/braces": "off",
+        ...Object.fromEntries(CODING_RULES.map((rule) => [rule, "off"])),
       },
     },
   ],

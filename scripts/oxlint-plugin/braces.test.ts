@@ -1,14 +1,14 @@
 import { RuleTester } from "oxlint/plugins-dev";
 import { describe, it } from "vite-plus/test";
 
-import plugin from "./braces.ts";
+import { braces } from "./braces.ts";
 
 RuleTester.describe = describe;
 RuleTester.it = it;
 
 const MESSAGE = { messageId: "braces" };
 
-new RuleTester().run("braces", plugin.rules.braces, {
+new RuleTester().run("braces", braces, {
   valid: [
     "if (a) { b(); } else { c(); }",
     "if (a) { b(); } else if (c) { d(); }",
