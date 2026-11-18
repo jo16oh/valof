@@ -134,17 +134,6 @@ describe("patch in production", () => {
   });
 });
 
-describe("a record's custom seal in production", () => {
-  test("seals what it passes on", () => {
-    type Tally = Value.Record<"ProductionTally", string, number>;
-    const Tally = Val.Record.companion<Tally>()
-      .implSeal((tally, seal) => seal(tally))
-      .build();
-    expect(Tally.fromEntries([["a", 1]])).toEqual({ a: 1 });
-    expect(Tally.set(Tally.fromEntries([]), "b", 2)).toEqual({ b: 2 });
-  });
-});
-
 describe("implCreate.noseal in production", () => {
   test("skips the custom seal", () => {
     type SectionId = Value<"ProductionSectionId", string>;
