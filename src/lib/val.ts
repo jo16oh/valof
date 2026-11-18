@@ -1281,7 +1281,7 @@ type CollectionMethods<V extends AnyVal, F> =
         set: Dual<(record: V, key: K, value: DeepReadonly<E, "field">) => Constructed<V, F>, V>;
         /** Removes a key. Returns the record itself where it lacks the key. */
         delete: Dual<(record: V, key: K) => Constructed<V, F>, V>;
-        has: Dual<(record: V, key: string) => boolean, V>;
+        has: Dual<(record: V, key: K) => boolean, V>;
         /** The keys, typed `K`, in the order `Object.keys` gives. */
         keys: (record: V) => readonly K[];
         /** The values, in the order `Object.values` gives. */
