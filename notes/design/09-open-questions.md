@@ -46,7 +46,7 @@
   - A named function passed as the recipe is out of the lint's reach. `PatchFn` is to require its parameter type to be
     the draft's own, which also rejects `(d: { _tag?: string }) => …`
 
-- [ ] **valof-lint reports `Object.entries` passed to `fromEntries`.** TypeScript's lib types the entries by the
+- [x] ~~**valof-lint reports `Object.entries` passed to `fromEntries`.**~~ Rejected, 2026-11-18. The book warns instead. TypeScript's lib types the entries by the
       object's implicit index signature, so a narrowed variable hides entries from a record again (§3 "No index signature")
   - Plan (user, 2026-11-18): without type information, report every `Object.entries` result that reaches a record's
     `fromEntries`. From a narrowed variable, the entries are typed as its listed values. From an interface or `any`,
