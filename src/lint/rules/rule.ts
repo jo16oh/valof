@@ -28,8 +28,6 @@ export type KindSet = Val.Record<"KindSet", Kind, true>;
 export const KindSet = Val.Record.companion<KindSet>()
   .implCreate((kinds: Iterable<Kind>) => [...kinds].map((kind) => [kind, true] as const))
   .impl(() => ({
-    /** Whether `name` is in the set. A disable comment's name, which no rule may have, is checked too. */
-    holds: (kinds, name: string) => Object.hasOwn(kinds, name),
     /** The kind `name` spells, or `undefined` when it is not in the set. */
     find: (kinds, name: string): Kind | undefined =>
       Object.hasOwn(kinds, name) ? Kind.seal(name) : undefined,

@@ -105,7 +105,7 @@ export const Query = Val.companion<Query>()
   .impl(() => ({
     /** The same project, buffer and settings give the same key. */
     key: ({ project, overlay, model }): string =>
-      JSON.stringify([project, Object.entries(overlay), model]),
+      JSON.stringify([project, Overlay.entries(overlay), model]),
   }))
   .build();
 
@@ -147,7 +147,7 @@ export class LinterWorker {
   /** The findings for the query. Throws the message the worker failed with. */
   lint(query: Query): readonly Finding[] {
     const key = `${Project.stat(query.project)}\n${Query.key(query)}`;
-    const bufferless = Object.keys(query.overlay).length === 0;
+    const bufferless = Overlay.keys(query.overlay).length === 0;
     const kept = bufferless ? this.#saved : this.#edited;
     if (kept?.key === key) return kept.findings;
 

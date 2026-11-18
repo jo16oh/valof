@@ -1,5 +1,5 @@
 import { copyFile, cp, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
@@ -148,6 +148,24 @@ export const CompatCheck = Val.companion<CompatCheck>()
   }))
   .build();
 
+/**
+ * Points each relative import in the script copied from `scripts/<file>` that leaves `scripts/`
+ * back at the original file. The copy sits deeper in the repository than `scripts/` does.
+ */
+export function redirectImports(code: string, file: string): string {
+  const source = dirname(join(ROOT, "scripts", file));
+  const copy = dirname(join(SCRIPTS, file));
+  return code.replaceAll(
+    /(\bfrom\s+)"(\.\.?\/[^"]*)"/g,
+    (whole, head: string, specifier: string) => {
+      const target = resolve(source, specifier);
+      return relative(join(ROOT, "scripts"), target).startsWith("..")
+        ? `${head}"${relative(copy, target)}"`
+        : whole;
+    },
+  );
+}
+
 /** Installs `dist` the way npm installs it, so `exports` decides what a declaration may reference. */
 async function install(): Promise<void> {
   await rm(DIRECTORY, { recursive: true, force: true });
@@ -236,22 +254,33 @@ async function writeConfigs(): Promise<void> {
  * still reaches its `node_modules`. Returns the scripts that import valof.
  */
 async function copyScripts(): Promise<string[]> {
-  const importers = await valofImporters();
+  const scripts = await readScripts();
   // Without the tests, which `vp test` would otherwise pick up here too.
   await cp(join(ROOT, "scripts"), SCRIPTS, {
     recursive: true,
     filter: (source) => !source.endsWith(".test.ts"),
   });
+  await Promise.all(
+    scripts.map(({ file, text }) => writeFile(join(SCRIPTS, file), redirectImports(text, file))),
+  );
+
   await writeJson(join(SCRIPTS, "package.json"), {
     private: true,
     type: "module",
     imports: { "#valof": "valof" },
   });
+  const importers = scripts
+    .filter(({ text }) => /^import\b[^;]*from "#valof"/m.test(text))
+    .map(({ file }) => file)
+    .sort();
+  // The program reaches the files outside `scripts/` that the scripts import, so the declarations
+  // are laid out from the repository root.
   await writeJson(join(SCRIPTS, "tsconfig.json"), {
     extends: join(ROOT, "tsconfig.json"),
-    compilerOptions: { noEmit: false, emitDeclarationOnly: true, outDir: "dts" },
+    compilerOptions: { noEmit: false, emitDeclarationOnly: true, rootDir: ROOT, outDir: "dts" },
     files: importers,
   });
+
   return importers;
 }
 
@@ -272,7 +301,7 @@ async function typecheck(
     }
     const trip = await RoundTrip.write(exports, dts, join(DIRECTORY, "round-trip", alias));
     const changed = await RoundTrip.differs(trip, run);
-    const cut = current ? await elided(own) : [];
+    const cut = current ? await elided(join(own, relative(ROOT, SCRIPTS))) : [];
     return [
       ...changed.map((name) => `    the declaration changes ${name}`),
       ...(cut.length > 0 ? [`    /*elided*/ in ${cut.join(", ")}`] : []),
@@ -294,16 +323,12 @@ async function elided(directory: string): Promise<string[]> {
     .sort();
 }
 
-async function valofImporters(): Promise<string[]> {
+async function readScripts(): Promise<{ file: string; text: string }[]> {
   // The tests stay out of the copy, so out of the program as well.
   const files = (await readdir(join(ROOT, "scripts"), { recursive: true })).filter(
     (file) => file.endsWith(".ts") && !file.endsWith(".test.ts"),
   );
-  const read = await readAll(join(ROOT, "scripts"), files);
-  return read
-    .filter(({ text }) => /^import\b[^;]*from "#valof"/m.test(text))
-    .map(({ file }) => file)
-    .sort();
+  return readAll(join(ROOT, "scripts"), files);
 }
 
 function readAll(directory: string, files: string[]): Promise<{ file: string; text: string }[]> {

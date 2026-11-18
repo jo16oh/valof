@@ -58,7 +58,7 @@ type User = Val<"User", { id: string; name: string }>;
 type Fields = Payload<Omit<PayloadOf<User>, "id">>;
 
 const User = Val.companion<User>()
-  .implCreate((fields: Fields) => ({ id: crypto.randomUUID(), ...fields }))
+  .implCreate((fields: Fields) => ({ ...fields, id: crypto.randomUUID() }))
   .build();
 ```
 

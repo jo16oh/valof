@@ -24,9 +24,11 @@ positions and its length. Valof treats one with a rest element (`[string, ...num
 instead, since a fixed length is what distinguishes the two.
 
 Every key is required. Type a field that may hold nothing as `T | undefined` or `T | null`. The
-value keeps the key. `JSON.stringify` leaves out a key holding `undefined`. An array element cannot
-be `undefined`, since JSON writes it as `null`. For a tuple whose last elements may be missing,
-declare a union of tuples, as `[number, number] | [number, number, number]`.
+value keeps the key. Where a payload has many `T | undefined` fields that callers usually pass as
+`undefined`, a [`create`](custom-constructors.md#generate-fields-with-create) can set those fields,
+so callers pass only the other fields. `JSON.stringify` leaves out a key holding `undefined`. An
+array element cannot be `undefined`, since JSON writes it as `null`. For a tuple whose last elements
+may be missing, declare a union of tuples, as `[number, number] | [number, number, number]`.
 
 ```ts
 // @errors: 2344

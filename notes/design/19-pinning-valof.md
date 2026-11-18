@@ -53,6 +53,12 @@ match, with `--require-pin`. That makes the scripts catch up before the release.
 - The tsconfig extends the scripts' one (`nodenext`). Together with `bundler` for the book's blocks,
   this covers two resolution modes
 - `*.test.ts` is not copied. `vp test` would pick up the tests in the work directory too
+- **Each relative import that leaves `scripts/` points back at the original file, 2026-11-18.** The
+  copy sits three levels deeper than `scripts/`, so `../../../../src/shared/pipe` does not resolve
+  from the copy. Before the fix, the copy kept these imports unchanged, and every run with a
+  matching pin failed with TS2307
+- The copy's tsconfig sets `rootDir` to the repository root, because the program now includes files
+  outside the copy. Without it, TS 6 and 7 fail with TS5011, and 5.9 fails with TS2209
 
 **Lint is out of scope.** Lint is part of the valof package and imports `src` by relative path.
 `vp check` type-checks it against the current `src`.

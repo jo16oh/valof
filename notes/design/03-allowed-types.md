@@ -342,6 +342,12 @@ erased, and at run time a record's input looks like an array Val's.
 - **Rejected: the root alone holds a record, and `patch` does not merge it.** A narrowed variable reaches the root `seal`
   too
 - **Rejected: a runtime check that each value is a sealed Val.** Typed entries already check each value
+- **Rejected: a member that builds an empty record** (user, 2026-11-18). `fromEntries([])` builds one, and valof-lint
+  needs one in three places. Each member of a record's companion reserves its name in `.impl` and `.implAssoc`. `has`
+  is one of them, so valof-lint's `KindSet` could not keep its own `has`, which took any string. An empty record is not
+  valid for every record type, because its seal may require one entry or more. A shared constant would skip that seal, and a member that runs
+  the seal is `fromEntries([])` under another name. An author who wants one registers `.implCreate(() => [])`, and
+  `create()` returns an empty record
 - ~~**Rejected: a `fromEntries` member.** It repeats the seal and reserves another name.~~ Adopted, 2026-11-18, once the
   seal stopped taking entries (above). A `fromObject` would still reopen the hole
 - **Rejected: exporting the payload marker** (`RecordOf`, first `MapOf`), which let `Val<"X", MapOf<…>>` declare a record outside
