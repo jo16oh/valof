@@ -776,6 +776,27 @@ describe("dyn", () => {
     });
 
     // `implTrait` requires every member, so an optional one could never be implemented.
+    // A box binds each member once, so it has no type argument to give a generic one.
+    test("a member cannot be generic", () => {
+      // @ts-expect-error a trait member cannot be generic
+      type Echo = Trait<"Echo", { n: number }, { echo: <T>(self: Self, t: T) => T }>;
+      // @ts-expect-error same, with the type parameter in the return type alone
+      type Fill = Trait<"Fill", { n: number }, { fill: <T>(self: Self) => T[] }>;
+      // A constrained parameter reads as its constraint, and a generic callback is an argument.
+      type Narrow = Trait<
+        "Narrow",
+        { n: number },
+        { len: <T extends string>(self: Self, t: T) => number }
+      >;
+      type Mapping = Trait<
+        "Mapping",
+        { n: number },
+        { map: (self: Self, f: <U>(u: U) => U) => number }
+      >;
+      expectTypeOf<Echo | Fill>().not.toBeNever();
+      expectTypeOf<Narrow | Mapping>().toExtend<AnyTrait>();
+    });
+
     test("a member cannot be optional", () => {
       // @ts-expect-error a trait member cannot be optional; declare it required
       type Optional = Trait<"Optional", { x: string }, { f?: (self: Self) => string }>;
