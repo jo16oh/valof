@@ -1275,7 +1275,8 @@ export type CompanionBuilder<
          * has its own step.
          *
          * The function receives `seal`, `create` where `.implCreate` registered one, and `patch`
-         * for an object payload. A member reaching the companion for anything else (a trait's
+         * for an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
+         * `patch`. A member reaching the companion for anything else (a trait's
          * member or a sibling) references it and annotates its return type.
          *
          * A member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}. Called with the value last, a generic member loses its type parameters. To keep them, call it with the value first inside a function: `pipe(u, (v) => User.pick(v, "name"))`.
@@ -1295,7 +1296,8 @@ export type CompanionBuilder<
      * `parse`, a constant. Write it any number of times.
      *
      * The function receives `seal`, `create` where `.implCreate` registered one, and `patch` for
-     * an object payload. A member reaching the companion for anything else (a sibling or another
+     * an object payload. A {@link ValRecord}'s receives `fromEntries` in place of `seal` and
+     * `patch`. A member reaching the companion for anything else (a sibling or another
      * step's member) references it and annotates its return type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
@@ -2021,7 +2023,7 @@ type IsValRecord<V> = [Declared<V>] extends [Collection]
   ? unknown
   : Invalid<"`Val.Record.companion` builds a `Val.Record`">;
 
-/** Bundles a {@link ValRecord}'s `seal`, `set`, `delete`, `has` and members. See {@link companion}. */
+/** Bundles a {@link ValRecord}'s `fromEntries`, `set`, `delete`, `has` and members. See {@link companion}. */
 export const recordCompanion = <
   V extends AnyVal & IsValRecord<V> & OneVal<V, "a companion builds one Val">,
   const O extends readonly CompanionOption<V>[] & OneList<O> = [],
