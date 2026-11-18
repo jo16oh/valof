@@ -296,6 +296,10 @@ erased, and at run time a record's input looks like an array Val's.
   `seal(the payload of v)` was rejected. A public seal that took the object would reopen the hole above
   - `.implSeal` stays. The function it registers receives the object the entries fold into, so a check counts a repeated key
     once. `fromEntries`, `create`, `set` and `delete` go through it
+  - **`fromEntries` takes any string-keyed entries where the seal takes any string-keyed object** (user, 2026-11-18).
+    A seal registered as `(input: Record<string, unknown>, seal) => …` or `(input: object, …)` has to check every value at run time, so `fromEntries` takes `Iterable<readonly [string, unknown]>`, and data from outside reaches that seal with
+    no cast. A Val's public `seal` widens with its registered seal the same way. With the default seal, or one that
+    takes the record's own object, `fromEntries` takes the record's typed entries alone. Keys are typed `string` rather than `K`, because the entries come from outside and the seal checks a branded `K` at run time
   - `.implCreate`'s function returns entries, and `create` folds them. Returning an object would reopen the hole
   - `fromEntries` and `create` coexist. `create` runs the function the type's author registers, and `fromEntries` is a fixed
     conversion. Both pass their result to the seal
