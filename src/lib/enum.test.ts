@@ -1380,6 +1380,12 @@ describe("a broken declaration", () => {
     // @ts-expect-error a variant's name must be a string
     type OnlyNumbers = Enum<"OnlyNumbers", { 200: { n: number }; 404: { path: string } }>;
     expectTypeOf<OnlyNumbers>().not.toBeNever();
+    const key: unique symbol = Symbol("key");
+    // @ts-expect-error a variant's name must be a string
+    type Symbolic = Enum<"Symbolic", { A: { n: number }; B: { n: number }; [key]: { s: string } }>;
+    expectTypeOf<NameOf<Symbolic & AnyEnum>>().toEqualTypeOf<
+      Fault<"a variant's name must be a string">
+    >();
     type Variants = { A: { n: number }; B: { m: number } };
     // @ts-expect-error an enum's name must be one string literal
     type Either = Enum<"Left" | "Right", Variants>;
