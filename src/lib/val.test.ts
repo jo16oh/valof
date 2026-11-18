@@ -2161,7 +2161,7 @@ describe("Val.Record", () => {
     let received: unknown;
     const Capped = Val.Record.companion<Prices>()
       .implSeal((prices, seal) => {
-        expectTypeOf(prices).toEqualTypeOf<{ readonly [x: string]: Money | undefined }>();
+        expectTypeOf(prices).toEqualTypeOf<{ readonly [x: string]: Money }>();
         received = prices;
         return Object.keys(prices).length > 2 ? new RangeError("at most two") : seal(prices);
       })
@@ -2205,6 +2205,31 @@ describe("Val.Record", () => {
       // @ts-expect-error a plain object value takes no Val
       seal({ k: list });
       return seal(lists);
+    });
+  });
+
+  test("a record's seal takes no `undefined` value, and leaves a listed key out", () => {
+    type Counts = Val.Record<"RecordSealedCounts", string, number>;
+    type Prefixed = Val.Record<"RecordSealedPrefixed", `x-${string}`, number>;
+    type Listed = Val.Record<"RecordSealedListed", "a" | "b", number>;
+    // A read by key may still miss.
+    expectTypeOf<Counts["missing"]>().toEqualTypeOf<number | undefined>();
+    Val.Record.companion<Counts>().implSeal((counts, seal) => {
+      // @ts-expect-error `values` would read it as a number
+      seal({ ...counts, extra: undefined });
+      return seal(counts);
+    });
+    Val.Record.companion<Prefixed>().implSeal((prefixed, seal) => {
+      // @ts-expect-error a template key is the same
+      seal({ ...prefixed, "x-extra": undefined });
+      return seal(prefixed);
+    });
+    Val.Record.companion<Listed>().implSeal((listed, seal) => seal({ a: listed.a ?? 0 }));
+    type Mixed = Val.Record<"RecordSealedMixed", "a" | `x-${string}`, number>;
+    Val.Record.companion<Mixed>().implSeal((mixed, seal) => {
+      // @ts-expect-error a template key beside a listed one is the same
+      seal({ "x-extra": undefined });
+      return seal({ "x-extra": mixed["x-extra"] ?? 0 });
     });
   });
 
@@ -2534,6 +2559,9 @@ describe("building", () => {
     // A left-out argument infers `never`.
     test("names the Val it builds", () => {
       expectTypeOf(Val.companion()).toEqualTypeOf<Invalid<"name the Val: `Val.companion<V>()`">>();
+      expectTypeOf(Val.Record.companion()).toEqualTypeOf<
+        Invalid<"name the record: `Val.Record.companion<R>()`">
+      >();
     });
 
     test("a step does not change the builder it was taken on", () => {
