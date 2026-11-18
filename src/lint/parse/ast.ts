@@ -296,15 +296,7 @@ function build(
     case "TSTupleType":
       return Node.TSTupleType.create.nocopy({
         ...shared,
-        elementTypes: raw.elementTypes.map((element) =>
-          at(
-            element.type === "TSNamedTupleMember"
-              ? element.elementType
-              : element.type === "TSRestType"
-                ? element.typeAnnotation
-                : element,
-          ),
-        ),
+        elementTypes: raw.elementTypes.map((element) => at(unlabeled(element))),
       });
     case "TSTypeQuery":
       return Node.TSTypeQuery.create.nocopy(shared);
@@ -399,4 +391,10 @@ function isOxcNode(value: unknown): value is import("oxc-parser").Node {
   return (
     typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
   );
+}
+
+/** A tuple element's type, unwrapped from `...` and then from a label, as in `...rest: T[]`. */
+function unlabeled(element: import("oxc-parser").TSTupleElement): import("oxc-parser").Node {
+  const inner = element.type === "TSRestType" ? element.typeAnnotation : element;
+  return inner.type === "TSNamedTupleMember" ? inner.elementType : inner;
 }
