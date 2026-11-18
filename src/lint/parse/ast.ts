@@ -31,15 +31,21 @@ export type Node = Enum<
     /** `generic` says whether the alias takes type parameters. */
     TSTypeAliasDeclaration: { id: Rec<Node>; typeAnnotation: Rec<Node>; generic: boolean };
     TSTypeLiteral: { members: Rec<Node>[] };
-    TSPropertySignature: { key: Rec<Node>; computed: boolean; typeAnnotation: Rec<Node> | null };
+    TSPropertySignature: {
+      key: Rec<Node>;
+      computed: boolean;
+      readonly: boolean;
+      typeAnnotation: Rec<Node> | null;
+    };
     TSTypeAnnotation: { typeAnnotation: Rec<Node> };
     TSUnionType: { types: Rec<Node>[] };
     TSArrayType: { elementType: Rec<Node> };
-    TSTypeOperator: { typeAnnotation: Rec<Node> };
+    /** `operator` is the keyword: `keyof`, `unique` or `readonly`. */
+    TSTypeOperator: { operator: string; typeAnnotation: Rec<Node> };
     TSTypeParameter: { constraint: Rec<Node> | null };
     TSInterfaceDeclaration: { id: Rec<Node> };
     TSMappedType: {};
-    TSTupleType: {};
+    TSTupleType: { elementTypes: Rec<Node>[] };
     TSTypeQuery: {};
     TSModuleDeclaration: {};
     ClassDeclaration: {};
@@ -262,6 +268,7 @@ function build(
         ...shared,
         key: at(raw.key),
         computed: raw.computed,
+        readonly: raw.readonly,
         typeAnnotation: maybe(raw.typeAnnotation),
       });
     case "TSTypeAnnotation":
@@ -276,6 +283,7 @@ function build(
     case "TSTypeOperator":
       return Node.TSTypeOperator.create.nocopy({
         ...shared,
+        operator: raw.operator,
         typeAnnotation: at(raw.typeAnnotation),
       });
     case "TSTypeParameter":
@@ -285,7 +293,7 @@ function build(
     case "TSMappedType":
       return Node.TSMappedType.create.nocopy(shared);
     case "TSTupleType":
-      return Node.TSTupleType.create.nocopy(shared);
+      return Node.TSTupleType.create.nocopy({ ...shared, elementTypes: raw.elementTypes.map(at) });
     case "TSTypeQuery":
       return Node.TSTypeQuery.create.nocopy(shared);
     case "TSModuleDeclaration":
