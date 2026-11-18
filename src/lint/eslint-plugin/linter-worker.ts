@@ -18,82 +18,28 @@ import type { Finding } from "../index.ts";
 import { DataTypeSettings } from "../options.ts";
 
 /**
- * What the plugin asks the worker: the findings of the whole project, as the host's buffer of one
- * file has it.
+ * Starts the worker on its script, and answers every query with why when the script does not load.
+ *
+ * Without it, a script that fails to load leaves the caller waiting out its patience: the caller's
+ * thread is blocked, so it cannot hear the worker's `error` event, and nothing else answers. The
+ * failure is what `R.fail` makes, written out because this runs as source in the worker.
+ *
+ * A module rather than `eval`, because an `eval` worker skips the `--import` preloads the host was
+ * started with, and so the loaders they register.
  */
-export type Query = Val<
-  "Query",
-  {
-    /** The project files scanned together, absolute. */
-    project: Project;
-    /**
-     * The buffer of the file being linted, keyed by its path, where disk does not hold it or the
-     * project leaves the file out. Empty otherwise, so every file of a batch asks the same.
-     */
-    overlay: Record<string, string>;
-    /**
-     * The settings of `data-type-outside-valof`. It always runs here, because the host reports it
-     * only where the project turned it on.
-     */
-    model: DataTypeSettings;
-    /**
-     * Whether disk holds the buffer, so the worker may keep its scans for the next process.
-     * A file outside the project is passed as a buffer even when disk holds it.
-     */
-    saved: boolean;
-  }
->;
-export const Query = Val.companion<Query>()
-  .implAssoc(({ seal }) => ({
-    /** What to ask about the file the host is linting. Reads the file, to compare the buffer. */
-    read: (
-      {
-        filename,
-        sourceCode: { text },
-        settings,
-      }: {
-        filename: string;
-        sourceCode: { text: string };
-        // A host may leave the settings out.
-        settings:
-          | {
-              valof?: {
-                "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0];
-              };
-            }
-          | undefined;
-      },
-      project: Project,
-    ): Query => {
-      const file = resolve(filename);
-      const saved = readSaved(file) === text;
-      const listed = project.some((path) => path === file);
-
-      return seal({
-        project,
-        overlay: saved && listed ? {} : { [file]: text },
-        model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
-        saved,
-      });
-    },
-  }))
-  .impl(() => ({
-    /** The same project, buffer and settings give the same key. */
-    key: ({ project, overlay, model }): string =>
-      JSON.stringify([project, Object.entries(overlay), model]),
-  }))
-  .build();
-
-/**
- * Why the worker has no findings: the message to throw. A message rather than the error, since an
- * error's class does not survive the copy between threads.
- */
-export type WorkerFailure = Val<"WorkerFailure", { message: string }>;
-export const WorkerFailure = Val.companion<WorkerFailure>().build();
-
-/** What the worker answers: the findings, or why it has none. */
-// valof-lint-disable-next-line data-type-outside-valof -- byethrow's Result, sent as is
-export type Reply = R.Result<Finding[], WorkerFailure>;
+const START = new URL(
+  `data:text/javascript,${encodeURIComponent(`
+import { parentPort, workerData } from "node:worker_threads";
+import(workerData.script).catch((error) => {
+  const { port, signal } = workerData;
+  parentPort.on("message", () => {
+    port.postMessage({ type: "Failure", error: { message: "valof-lint: the worker did not start: " + String(error) } });
+    Atomics.store(signal, 0, 1);
+    Atomics.notify(signal, 0);
+  });
+});
+`)}`,
+);
 
 /**
  * The worker that lints, asked from a rule and blocked on until it answers.
@@ -219,29 +165,83 @@ export class LinterWorker {
   }
 }
 
+/** What the worker answers: the findings, or why it has none. */
+// valof-lint-disable-next-line data-type-outside-valof -- byethrow's Result, sent as is
+export type Reply = R.Result<Finding[], WorkerFailure>;
+
 /**
- * Starts the worker on its script, and answers every query with why when the script does not load.
- *
- * Without it, a script that fails to load leaves the caller waiting out its patience: the caller's
- * thread is blocked, so it cannot hear the worker's `error` event, and nothing else answers. The
- * failure is what `R.fail` makes, written out because this runs as source in the worker.
- *
- * A module rather than `eval`, because an `eval` worker skips the `--import` preloads the host was
- * started with, and so the loaders they register.
+ * What the plugin asks the worker: the findings of the whole project, as the host's buffer of one
+ * file has it.
  */
-const START = new URL(
-  `data:text/javascript,${encodeURIComponent(`
-import { parentPort, workerData } from "node:worker_threads";
-import(workerData.script).catch((error) => {
-  const { port, signal } = workerData;
-  parentPort.on("message", () => {
-    port.postMessage({ type: "Failure", error: { message: "valof-lint: the worker did not start: " + String(error) } });
-    Atomics.store(signal, 0, 1);
-    Atomics.notify(signal, 0);
-  });
-});
-`)}`,
-);
+export type Query = Val<
+  "Query",
+  {
+    /** The project files scanned together, absolute. */
+    project: Project;
+    /**
+     * The buffer of the file being linted, keyed by its path, where disk does not hold it or the
+     * project leaves the file out. Empty otherwise, so every file of a batch asks the same.
+     */
+    overlay: Record<string, string>;
+    /**
+     * The settings of `data-type-outside-valof`. It always runs here, because the host reports it
+     * only where the project turned it on.
+     */
+    model: DataTypeSettings;
+    /**
+     * Whether disk holds the buffer, so the worker may keep its scans for the next process.
+     * A file outside the project is passed as a buffer even when disk holds it.
+     */
+    saved: boolean;
+  }
+>;
+export const Query = Val.companion<Query>()
+  .implAssoc(({ seal }) => ({
+    /** What to ask about the file the host is linting. Reads the file, to compare the buffer. */
+    read: (
+      {
+        filename,
+        sourceCode: { text },
+        settings,
+      }: {
+        filename: string;
+        sourceCode: { text: string };
+        // A host may leave the settings out.
+        settings:
+          | {
+              valof?: {
+                "data-type-outside-valof"?: Parameters<typeof DataTypeSettings.create>[0];
+              };
+            }
+          | undefined;
+      },
+      project: Project,
+    ): Query => {
+      const file = resolve(filename);
+      const saved = readSaved(file) === text;
+      const listed = project.some((path) => path === file);
+
+      return seal({
+        project,
+        overlay: saved && listed ? {} : { [file]: text },
+        model: DataTypeSettings.create(settings?.valof?.["data-type-outside-valof"]),
+        saved,
+      });
+    },
+  }))
+  .impl(() => ({
+    /** The same project, buffer and settings give the same key. */
+    key: ({ project, overlay, model }): string =>
+      JSON.stringify([project, Object.entries(overlay), model]),
+  }))
+  .build();
+
+/**
+ * Why the worker has no findings: the message to throw. A message rather than the error, since an
+ * error's class does not survive the copy between threads.
+ */
+export type WorkerFailure = Val<"WorkerFailure", { message: string }>;
+export const WorkerFailure = Val.companion<WorkerFailure>().build();
 
 /** What disk holds of the file, or `undefined` where it holds nothing. */
 function readSaved(file: string): string | undefined {

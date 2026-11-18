@@ -14,6 +14,7 @@ import { Check } from "../check.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
 
 const DIRECTORY = join(ROOT, "docs/.generated/ts-compatibility");
+
 const SCRIPTS = join(DIRECTORY, "scripts");
 
 export class StalePinError extends ErrorFactory({

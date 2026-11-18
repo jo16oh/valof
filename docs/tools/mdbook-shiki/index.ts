@@ -22,6 +22,14 @@ async function main() {
   process.stdout.write(JSON.stringify(await preprocess(input)));
 }
 
+const DEFAULTS = {
+  lightTheme: "github-light",
+  darkTheme: "github-dark",
+  fallbackLanguage: "text",
+} satisfies Required<Omit<Options, "onWarning">>;
+
+const LANGUAGES = ["text", "bash", "javascript", "typescript"] satisfies Language[];
+
 type Language = BundledLanguage | "text";
 
 type Options = {
@@ -57,14 +65,6 @@ type Context = {
 };
 
 type PreprocessorInput = [Context, Book];
-
-const DEFAULTS = {
-  lightTheme: "github-light",
-  darkTheme: "github-dark",
-  fallbackLanguage: "text",
-} satisfies Required<Omit<Options, "onWarning">>;
-
-const LANGUAGES = ["text", "bash", "javascript", "typescript"] satisfies Language[];
 
 export async function createMarkdownHighlighter(options: Options = {}) {
   const settings = {
@@ -132,18 +132,6 @@ export async function createMarkdownHighlighter(options: Options = {}) {
   };
 }
 
-function transformChapters(section: BookItem[], transform: (markdown: string) => string): void {
-  for (const item of section) {
-    const chapter = item.Chapter;
-    if (!chapter) {
-      continue;
-    }
-
-    chapter.content = transform(chapter.content);
-    transformChapters(chapter.sub_items, transform);
-  }
-}
-
 export async function preprocess(
   input: PreprocessorInput,
   onWarning: (message: string) => void = console.error,
@@ -162,6 +150,18 @@ export async function preprocess(
     return book;
   } finally {
     markdownHighlighter.dispose();
+  }
+}
+
+function transformChapters(section: BookItem[], transform: (markdown: string) => string): void {
+  for (const item of section) {
+    const chapter = item.Chapter;
+    if (!chapter) {
+      continue;
+    }
+
+    chapter.content = transform(chapter.content);
+    transformChapters(chapter.sub_items, transform);
   }
 }
 

@@ -17,6 +17,21 @@ function main(): void {
 
 const TEMPLATE = fileURLToPath(new URL("index.hbs", import.meta.url));
 
+/** Tag directories, newest first. Anything else on the site is left out. */
+export function versions(names: string[]): string[] {
+  return names
+    .filter((name) => /^v\d+\.\d+\.\d+/.test(name))
+    .sort(compare)
+    .reverse();
+}
+
+export function render(names: string[]): string {
+  const sorted = versions(names);
+  // `latest/` is a copy of the newest release, so the newest non-prerelease names what it holds.
+  const latest = sorted.find((version) => !version.includes("-"));
+  return Handlebars.compile(readFileSync(TEMPLATE, "utf8"))({ versions: sorted, latest });
+}
+
 function compare(a: string, b: string): number {
   const parts = (name: string) => {
     const [core = "", pre] = name.slice(1).split("-", 2);
@@ -36,25 +51,6 @@ function compare(a: string, b: string): number {
   return comparePrerelease(left.pre, right.pre);
 }
 
-/** Tag directories, newest first. Anything else on the site is left out. */
-export function versions(names: string[]): string[] {
-  return names
-    .filter((name) => /^v\d+\.\d+\.\d+/.test(name))
-    .sort(compare)
-    .reverse();
-}
-
-export function render(names: string[]): string {
-  const sorted = versions(names);
-  // `latest/` is a copy of the newest release, so the newest non-prerelease names what it holds.
-  const latest = sorted.find((version) => !version.includes("-"));
-  return Handlebars.compile(readFileSync(TEMPLATE, "utf8"))({ versions: sorted, latest });
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  main();
-}
-
 /** Semver precedence: numbers by value and below words, and a shorter list below a longer one. */
 function comparePrerelease(a: string, b: string): number {
   const left = a.split(".");
@@ -70,4 +66,8 @@ function comparePrerelease(a: string, b: string): number {
     return x < y ? -1 : 1;
   }
   return left.length - right.length;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+  main();
 }

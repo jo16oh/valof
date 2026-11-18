@@ -18,6 +18,31 @@ import { UnimplementedTrait } from "./unimplemented-trait.ts";
 import { DataTypeSettings, type Options } from "../options.ts";
 
 /**
+ * Each rule under its own name, so a caller can name one without spelling its kind.
+ *
+ * {@link RULES} is what the runner reads. This is for naming a single one.
+ */
+export {
+  HiddenSharedStateInImpl,
+  DataTypeOutsideValof,
+  HiddenOptional,
+  DetachedVariant,
+  UnnecessaryAlias,
+  BrandMismatch,
+  BypassedCompanion,
+  CompanionMismatch,
+  DuplicateBrand,
+  IncompleteDisable,
+  SplitCompanion,
+  InferredValOf,
+  UnusedDisable,
+  UnusedMember,
+  UnimplementedTrait,
+};
+
+export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";
+
+/**
  * Every rule, in the order they run and `--help` lists them.
  *
  * The only enumeration. A rule carries its own kind, so listing it here says nothing twice, and
@@ -41,36 +66,11 @@ export const RULES = [
   Rule.dyn(UnusedDisable, UnusedDisable.create()),
 ];
 
-/**
- * Each rule under its own name, so a caller can name one without spelling its kind.
- *
- * {@link RULES} is what the runner reads. This is for naming a single one.
- */
-export {
-  HiddenSharedStateInImpl,
-  DataTypeOutsideValof,
-  HiddenOptional,
-  DetachedVariant,
-  UnnecessaryAlias,
-  BrandMismatch,
-  BypassedCompanion,
-  CompanionMismatch,
-  DuplicateBrand,
-  IncompleteDisable,
-  SplitCompanion,
-  InferredValOf,
-  UnusedDisable,
-  UnusedMember,
-  UnimplementedTrait,
-};
-
 /** What each rule is called, in a `--no-<kind>` flag and in a disable comment alike. */
 export const KINDS: readonly Kind[] = RULES.map(({ kind }) => kind);
 
 /** Every rule's kind, to check a name against. */
 export const ALL_KINDS = KindSet.create(KINDS);
-
-export { Context, Finding, Kind, KindSet, Rule } from "./rule.ts";
 
 /**
  * The rules a run uses: every rule on by default, and each opt-in rule `enable` names, with its

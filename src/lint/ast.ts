@@ -1,5 +1,7 @@
 import { Enum, Tag, Val, type Rec, type VariantOf } from "../index.ts";
 
+export type Identifier = VariantOf<Node, "Identifier">;
+
 /**
  * The ESTree nodes the linter reads, each with the fields it reads. Every other node is `Other`.
  *
@@ -73,7 +75,40 @@ export type Node = Enum<
 >;
 export const Node = Enum.companion<Node>().tag("type").build();
 
-export type Identifier = VariantOf<Node, "Identifier">;
+/** Where something sits, 1-based on both axes, the way an editor and every linter count. */
+export type Position = Val<"Position", { line: number; column: number }>;
+export const Position = Val.companion<Position>().build();
+
+/** Where each line of one file starts, so an offset finds its {@link Position}. */
+export type Lines = Val<"Lines", { starts: number[] }>;
+export const Lines = Val.companion<Lines>()
+  .implAssoc(({ seal }) => ({
+    /** Scans the source once for line breaks. */
+    from: (source: string): Lines => {
+      const starts = [0];
+      for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1)) {
+        starts.push(i + 1);
+      }
+      return seal({ starts });
+    },
+  }))
+  .impl(() => ({
+    /** The {@link Position} of a byte offset. */
+    at: ({ starts }, offset: number): Position => {
+      let low = 0;
+      let high = starts.length - 1;
+      while (low < high) {
+        const mid = (low + high + 1) >> 1;
+        if ((starts[mid] as number) <= offset) {
+          low = mid;
+        } else {
+          high = mid - 1;
+        }
+      }
+      return Position.seal({ line: low + 1, column: offset - (starts[low] as number) + 1 });
+    },
+  }))
+  .build();
 
 /** The type a property signature annotates: `{ k: T }` gives `T`. */
 export function annotationOf(member: Node): Node | null {
@@ -110,6 +145,40 @@ export function fromOxc(
     return node;
   };
   return convert(program);
+}
+
+/**
+ * Removes syntax-only parentheses around a type or an expression, however many were written.
+ * oxc-parser keeps them as nodes, ESLint's parsers drop them.
+ */
+export function unparenthesized(node: Node | null | undefined): Node | undefined {
+  let current = node ?? undefined;
+  while (current?.type === "TSParenthesizedType" || current?.type === "ParenthesizedExpression") {
+    current = current.type === "TSParenthesizedType" ? current.typeAnnotation : current.expression;
+  }
+  return current;
+}
+
+/** The name a key node contributes, for `k: v`, `"k": v`, `k(){}` and shorthand alike. */
+export function keyName(node: Node, computed: boolean): string | undefined {
+  // `[expr]: v` names nothing statically; `["k"]: v` is a literal and does.
+  if (node.type === "Identifier" && !computed) return node.name;
+  if (node.type === "Literal") return node.value ?? undefined;
+  return undefined;
+}
+
+/**
+ * The dotted name a call chain is rooted at: `Val.companion<X>().impl` gives `Val.companion`, and
+ * `valof.Val.companion<X>().implSeal(f)` gives `valof.Val.companion`. Type arguments and call
+ * parentheses carry no name, so they drop out.
+ */
+export function rootPath(node: Node): string[] | undefined {
+  if (node.type === "Identifier") return [node.name];
+  if (node.type === "CallExpression") return rootPath(node.callee);
+  if (node.type !== "MemberExpression") return undefined;
+  const left = rootPath(node.object);
+  const name = keyName(node.property, node.computed);
+  return left && name ? [...left, name] : left;
 }
 
 // `nocopy`: every payload below is a fresh object, and the nodes inside it are sealed already.
@@ -311,72 +380,3 @@ function isOxcNode(value: unknown): value is import("oxc-parser").Node {
     typeof value === "object" && value !== null && "type" in value && typeof value.type === "string"
   );
 }
-
-/**
- * Removes syntax-only parentheses around a type or an expression, however many were written.
- * oxc-parser keeps them as nodes, ESLint's parsers drop them.
- */
-export function unparenthesized(node: Node | null | undefined): Node | undefined {
-  let current = node ?? undefined;
-  while (current?.type === "TSParenthesizedType" || current?.type === "ParenthesizedExpression") {
-    current = current.type === "TSParenthesizedType" ? current.typeAnnotation : current.expression;
-  }
-  return current;
-}
-
-/** The name a key node contributes, for `k: v`, `"k": v`, `k(){}` and shorthand alike. */
-export function keyName(node: Node, computed: boolean): string | undefined {
-  // `[expr]: v` names nothing statically; `["k"]: v` is a literal and does.
-  if (node.type === "Identifier" && !computed) return node.name;
-  if (node.type === "Literal") return node.value ?? undefined;
-  return undefined;
-}
-
-/**
- * The dotted name a call chain is rooted at: `Val.companion<X>().impl` gives `Val.companion`, and
- * `valof.Val.companion<X>().implSeal(f)` gives `valof.Val.companion`. Type arguments and call
- * parentheses carry no name, so they drop out.
- */
-export function rootPath(node: Node): string[] | undefined {
-  if (node.type === "Identifier") return [node.name];
-  if (node.type === "CallExpression") return rootPath(node.callee);
-  if (node.type !== "MemberExpression") return undefined;
-  const left = rootPath(node.object);
-  const name = keyName(node.property, node.computed);
-  return left && name ? [...left, name] : left;
-}
-
-/** Where something sits, 1-based on both axes, the way an editor and every linter count. */
-export type Position = Val<"Position", { line: number; column: number }>;
-export const Position = Val.companion<Position>().build();
-
-/** Where each line of one file starts, so an offset finds its {@link Position}. */
-export type Lines = Val<"Lines", { starts: number[] }>;
-export const Lines = Val.companion<Lines>()
-  .implAssoc(({ seal }) => ({
-    /** Scans the source once for line breaks. */
-    from: (source: string): Lines => {
-      const starts = [0];
-      for (let i = source.indexOf("\n"); i !== -1; i = source.indexOf("\n", i + 1)) {
-        starts.push(i + 1);
-      }
-      return seal({ starts });
-    },
-  }))
-  .impl(() => ({
-    /** The {@link Position} of a byte offset. */
-    at: ({ starts }, offset: number): Position => {
-      let low = 0;
-      let high = starts.length - 1;
-      while (low < high) {
-        const mid = (low + high + 1) >> 1;
-        if ((starts[mid] as number) <= offset) {
-          low = mid;
-        } else {
-          high = mid - 1;
-        }
-      }
-      return Position.seal({ line: low + 1, column: offset - (starts[low] as number) + 1 });
-    },
-  }))
-  .build();

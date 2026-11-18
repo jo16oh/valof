@@ -1,10 +1,6 @@
 // The repository's own lint rules, which the published plugin does not carry.
 import type { RuleTester } from "oxlint/plugins-dev";
 
-type Rule = Extract<Parameters<RuleTester["run"]>[1], { create: unknown }>;
-type Context = Parameters<Rule["create"]>[0];
-type Body = Parameters<Context["sourceCode"]["getText"]>[0];
-
 /**
  * Braces on every `if`, `else` and loop body, except an `if` with no `else` whose body leaves
  * (`return`, `throw`, `continue` or `break`): a guard clause.
@@ -66,5 +62,11 @@ const plugin: { meta: { name: string }; rules: { braces: Rule } } = {
   meta: { name: "local" },
   rules: { braces },
 };
+
+type Rule = Extract<Parameters<RuleTester["run"]>[1], { create: unknown }>;
+
+type Context = Parameters<Rule["create"]>[0];
+
+type Body = Parameters<Context["sourceCode"]["getText"]>[0];
 
 export default plugin;

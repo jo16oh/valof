@@ -9,8 +9,6 @@ import { Patterns } from "../files.ts";
 import { RULES } from "../index.ts";
 import { LinterWorker, Query } from "./linter-worker.ts";
 
-export default valof();
-
 /**
  * The plugin, with the state its rules share.
  *
@@ -98,3 +96,5 @@ function valof(): {
     },
   };
 }
+
+export default valof();

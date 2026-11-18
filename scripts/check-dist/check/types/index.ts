@@ -17,6 +17,14 @@ import { tsc, version, type Tsc } from "../../../shared/typescript-lines.ts";
 
 const HERE = new URL("./", import.meta.url);
 
+export class FixtureError extends ErrorFactory({
+  name: "FixtureError",
+  message: ({ fixture, output }) => `the ${fixture} fixture does not compile\n${output}`,
+  fields: ErrorFactory.fields<{ fixture: string; output: string }>(),
+}) {}
+
+export type TypesError = FixtureError;
+
 /** The types check's budgets: instantiations for each fixture, bytes for the declarations. */
 export type TypesBudgets = Val<
   "TypesBudgets",
@@ -91,10 +99,6 @@ export const TypesDeclaration = Val.companion<TypesDeclaration>()
   }))
   .build();
 
-/** A fixture's counts over the baseline. */
-type FixtureCounts = Val<"FixtureCounts", { fixture: TypesFixture; counts: Counts }>;
-const FixtureCounts = Val.companion<FixtureCounts>().build();
-
 /** What the types check measured, against the budgets. */
 export type TypesReport = Val<
   "TypesReport",
@@ -151,14 +155,6 @@ export const TypesReport = Val.companion<TypesReport>()
     problems: ({ budgets }): string[] => budgets.filter(Budget.over).map(Budget.overLine),
   }))
   .build();
-
-export class FixtureError extends ErrorFactory({
-  name: "FixtureError",
-  message: ({ fixture, output }) => `the ${fixture} fixture does not compile\n${output}`,
-  fields: ErrorFactory.fields<{ fixture: string; output: string }>(),
-}) {}
-
-export type TypesError = FixtureError;
 
 export type TypesCheck = Val<
   "TypesCheck",
@@ -218,6 +214,10 @@ export const TypesCheck = Val.companion<TypesCheck>()
     },
   }))
   .build();
+
+/** A fixture's counts over the baseline. */
+type FixtureCounts = Val<"FixtureCounts", { fixture: TypesFixture; counts: Counts }>;
+const FixtureCounts = Val.companion<FixtureCounts>().build();
 
 async function measure(tsc: Tsc, name: string): R.ResultAsync<Counts, FixtureError> {
   const config = new URL(`.tsconfig.${name}.json`, HERE);

@@ -26,6 +26,36 @@ type CodeNode = {
   };
 };
 
+/** Shiki accepts either spelling, and the book writes ```ts. */
+export function isTypeScript(language: string): boolean {
+  return language === "ts" || language === "typescript";
+}
+
+export function codeBlocks(markdown: string): CodeBlock[] {
+  const blocks: CodeBlock[] = [];
+
+  for (const node of codeNodes(fromMarkdown(markdown))) {
+    const start = node.position?.start.offset;
+    const end = node.position?.end.offset;
+    if (start === undefined || end === undefined || !isFence(markdown, node)) {
+      continue;
+    }
+
+    const [language = "", ...attributes] = (node.lang ?? "").split(",").map((part) => part.trim());
+
+    blocks.push({
+      language,
+      attributes: attributes.filter(Boolean),
+      value: node.value,
+      line: node.position?.start.line ?? 0,
+      start,
+      end,
+    });
+  }
+
+  return blocks;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
@@ -61,34 +91,4 @@ function isFence(markdown: string, node: CodeNode): boolean {
   }
 
   return /^(?: {0,3})(?:`{3,}|~{3,})/.test(markdown.slice(start));
-}
-
-/** Shiki accepts either spelling, and the book writes ```ts. */
-export function isTypeScript(language: string): boolean {
-  return language === "ts" || language === "typescript";
-}
-
-export function codeBlocks(markdown: string): CodeBlock[] {
-  const blocks: CodeBlock[] = [];
-
-  for (const node of codeNodes(fromMarkdown(markdown))) {
-    const start = node.position?.start.offset;
-    const end = node.position?.end.offset;
-    if (start === undefined || end === undefined || !isFence(markdown, node)) {
-      continue;
-    }
-
-    const [language = "", ...attributes] = (node.lang ?? "").split(",").map((part) => part.trim());
-
-    blocks.push({
-      language,
-      attributes: attributes.filter(Boolean),
-      value: node.value,
-      line: node.position?.start.line ?? 0,
-      start,
-      end,
-    });
-  }
-
-  return blocks;
 }

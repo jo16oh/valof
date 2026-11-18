@@ -33,7 +33,9 @@ import { models, type Models } from "./models.ts";
 // The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
 // it into the walk that produced them.
 export { ImportMap } from "./bindings.ts";
+
 export type { ImportBinding, SymbolRef } from "./bindings.ts";
+
 export type {
   Alias,
   BrandClaim,
@@ -42,9 +44,37 @@ export type {
   ReAlias,
   TraitAlias,
 } from "./aliases.ts";
+
 export type { CompanionSite, Lift } from "./chains.ts";
+
 export { Directive, DirectiveMap } from "./directives.ts";
+
 export type { Model, Models, Shape, TypeUse } from "./models.ts";
+
+/** The names every `.impl` rejects. The type reports one, so it is not a member to report. */
+const RESERVED = reserved(["patch", "seal", "create"]);
+
+/** The steps that take the members, and which argument holds their function. */
+const MEMBER_STEPS: ReadonlyMap<string, number> = new Map([
+  ["impl", 0],
+  ["implTrait", 1],
+  ["implAssoc", 0],
+]);
+
+/** What a function body may declare: each is state the members share. */
+const DECLARATIONS = new Set(["VariableDeclaration", "FunctionDeclaration", "ClassDeclaration"]);
+
+/** An enum to read keys from. `AnyEnum` widens them to `string`. */
+type Sample = Enum<"Sample", { A: { a: 1 } }>;
+
+/** The {@link Reserved} names with no pattern. */
+type Unlisted<N extends string> = Reserved extends infer R
+  ? R extends unknown
+    ? Extract<N, R> extends never
+      ? R
+      : never
+    : never
+  : never;
 
 /** A member `.impl(() => ({…}))` registered, under the local name of its companion. */
 export type Member = Val<"Member", { at: Position; companion: string; member: string }>;
@@ -92,10 +122,6 @@ export type HiddenParameter = Val<
   }
 >;
 export const HiddenParameter = Val.companion<HiddenParameter>().build();
-
-/** A `Trait.dyn(Val, value)` box: the Trait, and the Val it holds. */
-type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
-const DynBox = Val.companion<DynBox>().build();
 
 /** A member read from a `Trait.dyn(Val, value)` box. */
 export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member: string }>;
@@ -231,18 +257,6 @@ export const Exports = Val.companion<Exports>()
   }))
   .build();
 
-/** An enum to read keys from. `AnyEnum` widens them to `string`. */
-type Sample = Enum<"Sample", { A: { a: 1 } }>;
-
-/** The {@link Reserved} names with no pattern. */
-type Unlisted<N extends string> = Reserved extends infer R
-  ? R extends unknown
-    ? Extract<N, R> extends never
-      ? R
-      : never
-    : never
-  : never;
-
 /**
  * Matches a whole name against the patterns. A {@link Reserved} name without a pattern, or a
  * pattern that is not one, is a type error.
@@ -255,8 +269,9 @@ export function reserved<const N extends readonly Reserved[]>(
   return new RegExp(`^(?:${patterns.join("|")})$`);
 }
 
-/** The names every `.impl` rejects. The type reports one, so it is not a member to report. */
-const RESERVED = reserved(["patch", "seal", "create"]);
+/** A `Trait.dyn(Val, value)` box: the Trait, and the Val it holds. */
+type DynBox = Val<"DynBox", { trait: SymbolRef; val: SymbolRef }>;
+const DynBox = Val.companion<DynBox>().build();
 
 /**
  * An enum's `.impl` rejects `match` as well, and a trait's rejects `dyn`. An enum's variant names
@@ -742,13 +757,6 @@ function stringOf(node: Node): string | undefined {
   return node.type === "Literal" ? (node.value ?? undefined) : undefined;
 }
 
-/** The steps that take the members, and which argument holds their function. */
-const MEMBER_STEPS: ReadonlyMap<string, number> = new Map([
-  ["impl", 0],
-  ["implTrait", 1],
-  ["implAssoc", 0],
-]);
-
 /** The function a member step on a companion chain takes, with the step's name. */
 function memberStep(
   node: Node,
@@ -760,9 +768,6 @@ function memberStep(
   if (step === null || index === undefined || !chainRoot(node.callee, bound)) return undefined;
   return { step, fn: node.arguments[index] };
 }
-
-/** What a function body may declare: each is state the members share. */
-const DECLARATIONS = new Set(["VariableDeclaration", "FunctionDeclaration", "ClassDeclaration"]);
 
 /**
  * A member step on a companion chain whose function declares something in its body, where the
