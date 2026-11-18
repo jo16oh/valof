@@ -3304,6 +3304,45 @@ describe("building", () => {
           .build();
         expect(Email.seal("a@b.com")).toBe("a@b.com");
       });
+
+      test("a payload narrower than `string` is exempt too", () => {
+        type Color = Val<"Color", "red" | "blue">;
+        const Color = Val.companion<Color>()
+          .implSeal((c: string, seal) => seal(c === "red" ? "red" : "blue"))
+          .build();
+        type Hex = Val<"Hex", `#${string}`>;
+        const Hex = Val.companion<Hex>()
+          .implSeal((h: string, seal) => seal(`#${h.replace(/^#/, "")}`))
+          .build();
+        expect(Color.seal("red")).toBe("red");
+        expect(Hex.seal("#fff")).toBe("#fff");
+      });
+
+      test("an array payload takes `readonly unknown[]`, and rejects `object`", () => {
+        type Scores = Val<"Scores", number[]>;
+        type Pair = Val<"Pair", [number, string]>;
+        const Scores = Val.companion<Scores>()
+          .implSeal((s: readonly unknown[], seal) => seal(s.map(Number)))
+          .build();
+        Val.companion<Pair>()
+          .implSeal((p: readonly unknown[], seal) => seal([Number(p[0]), String(p[1])]))
+          .build();
+        const builder = Val.companion<Scores>();
+        type Reading = (s: object, seal: (s: SeedOf<Scores>) => Scores) => Scores;
+        // `Record<string, unknown>` does not take an array, so the message names what does.
+        expectTypeOf<Parameters<typeof builder.implSeal<Reading>>[0]>().toEqualTypeOf<
+          Invalid<"type the parameter `readonly unknown[]`, so each value reads as `unknown`">
+        >();
+        expect(Scores.seal([1, 2])).toEqual([1, 2]);
+      });
+
+      test("an empty payload takes `object`, since it has no value to read", () => {
+        type Marker = Val<"SealMarker", {}>;
+        const Marker = Val.companion<Marker>()
+          .implSeal((m: object, seal) => seal(m as SeedOf<Marker>))
+          .build();
+        expect(Marker.seal({})).toEqual({});
+      });
     });
 
     describe("the seal's return", () => {
