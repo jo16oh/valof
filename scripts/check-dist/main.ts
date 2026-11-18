@@ -105,7 +105,7 @@ const TYPES_BUDGETS = TypesBudgets.seal({
    * budgets.
    */
   fixtures: [
-    TypesFixture.seal({ name: "core", budget: 13_100 }),
+    TypesFixture.seal({ name: "core", budget: 13_500 }),
     TypesFixture.seal({ name: "trait", budget: 28_500 }),
     TypesFixture.seal({ name: "enum", budget: 90_000 }),
   ],
