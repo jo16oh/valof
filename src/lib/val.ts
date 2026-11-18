@@ -43,7 +43,7 @@ import type {
 } from "./trait.ts";
 
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
-type Primitive = string | number | boolean | null;
+type Primitive = string | number | boolean | bigint | null;
 
 /** Type-only nominal identity. Private members disappear from `keyof` and object spreads. */
 declare class Phantom<K extends string, T> {
@@ -316,9 +316,7 @@ type ValidateValue<T, Root extends boolean = false> = [T] extends [Primitive]
               [MethodKeys<T>] extends [never]
               ? Invalid<"keys must be strings; a number or symbol key does not survive a JSON round trip">
               : Invalid<"not a plain value">
-        : [Extract<T, bigint>] extends [never]
-          ? Beside<T, Root>
-          : Invalid<"JSON.stringify throws on a bigint; use a decimal string">;
+        : Beside<T, Root>;
 
 /**
  * Checks a field that holds `null` or a primitive beside one other kind, which `patch` replaces
@@ -1523,7 +1521,7 @@ class Adopted extends Stamp {
 }
 
 const unsnapshotable = Symbol("unsnapshotable seal input");
-type SealSnapshot = Primitive | bigint | undefined | object | typeof unsnapshotable;
+type SealSnapshot = Primitive | undefined | object | typeof unsnapshotable;
 
 /**
  * Returns a plain, inert view of what a custom seal can observe. This is deliberately best-effort:
@@ -1540,7 +1538,7 @@ const snapshotSealInput = (input: unknown): SealSnapshot => {
     if (!isObject(value)) {
       return typeof value === "function" || typeof value === "symbol"
         ? unsnapshotable
-        : (value as Primitive | bigint | undefined);
+        : (value as Primitive | undefined);
     }
     // Sealed already, so frozen, and the same node before and after.
     if (Owned.has(value)) return value;
