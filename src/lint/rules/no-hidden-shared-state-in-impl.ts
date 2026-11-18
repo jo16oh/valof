@@ -3,7 +3,7 @@ import type { Scan } from "../scan/index.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 
 /** A step function that declares something beside the members, which every member shares unseen. */
-export type HiddenSharedStateInImpl = Val<"HiddenSharedStateInImpl", { kind: Kind }, Rule>;
+export type HiddenSharedStateInImpl = Val<"HiddenSharedStateInImpl", Record<never, never>, Rule>;
 export const HiddenSharedStateInImpl = Val.companion<HiddenSharedStateInImpl>()
   .implCreate(() => ({
     kind: Kind.seal("no-hidden-shared-state-in-impl"),

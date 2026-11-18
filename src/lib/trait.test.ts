@@ -35,14 +35,14 @@ const Greetable = Trait.companion<Greetable>()
   }))
   .build();
 
-type User = Val<"User", { id: string; name: string }, Greetable>;
+type User = Val<"User", { id: string }, Greetable>;
 const User = Val.companion<User>()
   .implTrait(Greetable, () => ({
     toWire: (u, sep) => `${u.id}${sep}${u.name}`,
   }))
   .build();
 
-type Admin = Val<"Admin", { name: string; level: number }, Greetable>;
+type Admin = Val<"Admin", { level: number }, Greetable>;
 const Admin = Val.companion<Admin>()
   .implTrait(Greetable, () => ({
     toWire: (a, sep) => `admin${sep}${a.name}`,
@@ -121,9 +121,9 @@ describe("Trait", () => {
       const Same = Trait.companion<Same>()
         .impl(() => ({ same: (s, other) => s.n === other.n }))
         .build();
-      type Meter = Val<"Meter", { n: number }, Same>;
+      type Meter = Val<"Meter", Record<never, never>, Same>;
       const Meter = Val.companion<Meter>().implTrait(Same).build();
-      type Gauge = Val<"Gauge", { n: number; unit: string }, Same>;
+      type Gauge = Val<"Gauge", { unit: string }, Same>;
       const Gauge = Val.companion<Gauge>().implTrait(Same).build();
       const meter = Val.of<Meter>({ n: 1 });
       const gauge = Val.of<Gauge>({ n: 1, unit: "kg" });
@@ -143,9 +143,9 @@ describe("Trait", () => {
       const Same = Trait.companion<Same>()
         .impl(() => ({ same: (s, other) => s.n === other.n }))
         .build();
-      type Meter = Val<"Meter", { n: number }, Same>;
+      type Meter = Val<"Meter", Record<never, never>, Same>;
       const Meter = Val.companion<Meter>().implTrait(Same).build();
-      type Gauge = Val<"Gauge", { n: number; unit: string }, Same>;
+      type Gauge = Val<"Gauge", { unit: string }, Same>;
       const Gauge = Val.companion<Gauge>().implTrait(Same).build();
       const meter = Val.of<Meter>({ n: 1 });
       const gauge = Val.of<Gauge>({ n: 1, unit: "kg" });
@@ -182,7 +182,7 @@ describe("Trait", () => {
       const Pong = Trait.companion<Pong>()
         .impl(() => ({ pong: (p) => p }))
         .build();
-      type Ball = Val<"Ball", { n: number }, Ping & Pong>;
+      type Ball = Val<"Ball", Record<never, never>, Ping & Pong>;
       const Ball = Val.companion<Ball>().implTrait(Ping).implTrait(Pong).build();
       const ball = Val.of<Ball>({ n: 1 });
       expect([Ball.ping(ball, [ball], () => {}), Ball.pong(ball, ball)]).toEqual([ball, ball]);
@@ -235,7 +235,7 @@ describe("Trait", () => {
       const Safe = Trait.companion<Safe>()
         .impl(() => ({ read: (s) => () => String(s.n) }))
         .build();
-      type Meter = Val<"Meter", { n: number }, Safe>;
+      type Meter = Val<"Meter", Record<never, never>, Safe>;
       const Meter = Val.companion<Meter>().implTrait(Safe).build();
       expect(Meter.read(Val.of<Meter>({ n: 1 }))?.()).toBe("1");
     });
@@ -287,7 +287,7 @@ describe("Trait", () => {
           index: (s) => new Map([["n", s.n]]),
         }))
         .build();
-      type Counter = Val<"Counter", { n: number }, Async>;
+      type Counter = Val<"Counter", Record<never, never>, Async>;
       const Counter = Val.companion<Counter>()
         .implTrait(Async, () => ({
           chain: (c) => {
@@ -441,7 +441,7 @@ describe("Trait", () => {
         shout: (g) => g.name.toUpperCase(),
       }));
       expectTypeOf(builder.dyn).toEqualTypeOf<CallBuildFirst>();
-      type Named = Val<"Named", { name: string }, Greetable>;
+      type Named = Val<"Named", Record<never, never>, Greetable>;
       Val.companion<Named>().implTrait(
         // @ts-expect-error pass the trait's companion, then the members it leaves open
         builder,
@@ -456,7 +456,7 @@ describe("Trait", () => {
       const Sized = Trait.companion<Sized>()
         .impl(() => ({ size: (s) => s.size * 2 }))
         .build();
-      type Crate = Val<"SizedCrate", { size: number }, Sized>;
+      type Crate = Val<"SizedCrate", Record<never, never>, Sized>;
       const Crate = Val.companion<Crate>().implTrait(Sized).build();
       const boxed = Crate.dyn<Sized>(Crate.seal({ size: 3 }));
       expect([boxed.size(), boxed.value.size]).toEqual([6, 3]);
@@ -481,7 +481,7 @@ describe("Trait", () => {
       const Stepping = Trait.companion<Stepping>()
         .impl(() => ({ build: (s) => s.name }))
         .build();
-      type Step = Val<"Step", { name: string }, Stepping>;
+      type Step = Val<"Step", Record<never, never>, Stepping>;
       const Step = Val.companion<Step>()
         .implTrait(Stepping, () => ({ impl: (s) => s.name.toUpperCase() }))
         .build();
@@ -498,7 +498,7 @@ describe("Trait", () => {
       const Kept = Trait.companion<Kept>()
         .impl(() => ({ __valof_shared: (k) => k.name, greet: (k) => `Hi, ${k.name}` }))
         .build();
-      type Keeper = Val<"Keeper", { name: string }, Kept>;
+      type Keeper = Val<"Keeper", Record<never, never>, Kept>;
       const Keeper = Val.companion<Keeper>().implTrait(Kept).build();
       const keeper = Keeper.seal({ name: "kay" });
       expect([
@@ -557,7 +557,7 @@ describe("Trait", () => {
           finals: (h) => h.name.toUpperCase(),
         }))
         .build();
-      type Note = Val<"Note", { name: string }, Held>;
+      type Note = Val<"Note", Record<never, never>, Held>;
       const Note = Val.companion<Note>().implTrait(Held).build();
       const n = Val.of<Note>({ name: "n" });
       expect([Note.defaults(n), Note.finals(n), Held.finals(n)]).toEqual(["n", "N", "N"]);
@@ -571,7 +571,7 @@ describe("Trait", () => {
     });
 
     test("an implementation cannot take the companion's own names", () => {
-      type Named = Val<"ExtraNamed", { name: string }, Greetable>;
+      type Named = Val<"ExtraNamed", Record<never, never>, Greetable>;
       Val.companion<Named>().implTrait(Greetable, () => ({
         toWire: (n, sep) => n.name + sep,
         // @ts-expect-error a key the trait does not declare would replace the companion's `seal`
@@ -603,7 +603,7 @@ describe("Trait", () => {
 
     test("takes several traits as one intersection", () => {
       type Weighed = Trait<"Weighed", { kg: number }, { heavy: (self: Self) => boolean }>;
-      type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;
+      type Crate = Val<"Crate", Record<never, never>, Greetable & Weighed>;
       expectTypeOf<Crate>().toExtend<Impl<Greetable & Weighed>>();
       expectTypeOf<Impl<Greetable & Weighed>>().toExtend<Impl<Greetable> & Impl<Weighed>>();
       expectTypeOf<Impl<Greetable> & Impl<Weighed>>().toExtend<Impl<Greetable & Weighed>>();
@@ -647,7 +647,7 @@ describe("dyn", () => {
     const Weighed = Trait.companion<Weighed>()
       .impl(() => ({ heavy: (w) => w.name.length > 3 }))
       .build();
-    type Crate = Val<"Crate", { name: string }, Weighed>;
+    type Crate = Val<"Crate", Record<never, never>, Weighed>;
     const Crate = Val.companion<Crate>().implTrait(Weighed).build();
     const crate = Crate.seal({ name: "crate" });
     // @ts-expect-error `Crate` does not declare `Greetable`
@@ -703,7 +703,7 @@ describe("dyn", () => {
     const Weighed = Trait.companion<Weighed>()
       .impl(() => ({ heavy: (w) => w.kg > 10 }))
       .build();
-    type Crate = Val<"Crate", { name: string; kg: number }, Greetable & Weighed>;
+    type Crate = Val<"Crate", Record<never, never>, Greetable & Weighed>;
     const Crate = Val.companion<Crate>()
       .implTrait(Greetable, () => ({ toWire: (c, sep) => `${c.name}${sep}${c.kg}` }))
       .implTrait(Weighed)
@@ -720,7 +720,7 @@ describe("dyn", () => {
     const Weighed = Trait.companion<Weighed>()
       .impl(() => ({ heavy: (w) => w.kg > 10 }))
       .build();
-    type Crate = Val<"BothCrate", { name: string; kg: number }, Greetable & Weighed>;
+    type Crate = Val<"BothCrate", Record<never, never>, Greetable & Weighed>;
     const Crate = Val.companion<Crate>()
       .implTrait(Greetable, () => ({ toWire: (c, sep) => `${c.name}${sep}${c.kg}` }))
       .implTrait(Weighed)
@@ -879,7 +879,7 @@ describe("data-first and data-last", () => {
   });
 
   test("so is an implementation leaving out a parameter the declaration requires", () => {
-    type Named = Val<"Named", { id: string; name: string }, Greetable>;
+    type Named = Val<"Named", { id: string }, Greetable>;
     expect(() =>
       Val.companion<Named>()
         .implTrait(Greetable, () => ({
@@ -907,7 +907,7 @@ describe("data-first and data-last", () => {
         }))
         .build(),
     ).toThrow(/first parameter/);
-    type Named = Val<"Named", { id: string; name: string }, Greetable>;
+    type Named = Val<"Named", { id: string }, Greetable>;
     expect(() =>
       Val.companion<Named>()
         .implTrait(Greetable, () => ({
@@ -933,7 +933,7 @@ describe("nesting", () => {
   test("a trait's shape may hold the Val that declares it", () => {
     type Branchy = Trait<"Branchy", { kids: Rec<Tree>[] }, { size: (self: Self) => number }>;
     const Branchy = Trait.companion<Branchy>().build();
-    type Tree = Val<"BranchyTree", { kids: Rec<Tree>[]; n: number }, Branchy>;
+    type Tree = Val<"BranchyTree", { n: number }, Branchy>;
     const Tree = Val.companion<Tree>()
       .implTrait(Branchy, () => ({ size: (t) => t.kids.length }))
       .build();
@@ -941,7 +941,7 @@ describe("nesting", () => {
     expect(Tree.dyn<Branchy>(Tree.seal({ kids: [leaf], n: 2 })).size()).toBe(1);
   });
 
-  type Team = Val<"Team", { id: string; name: string; lead: User }, Greetable>;
+  type Team = Val<"Team", { id: string; lead: User }, Greetable>;
   const Team = Val.companion<Team>()
     .implTrait(Greetable, () => ({
       toWire: (t, sep) => `${t.id}${sep}${t.lead.name}`,
@@ -1122,7 +1122,7 @@ describe("building", () => {
         }))
         .build();
 
-      type Plain = Val<"Plain", { name: string }, Greetable>;
+      type Plain = Val<"Plain", Record<never, never>, Greetable>;
       const Plain = Val.companion<Plain>()
         .implTrait(Loud, () => ({
           toWire: (p, sep) => `plain${sep}${p.name}`,
@@ -1164,7 +1164,7 @@ describe("building", () => {
         .impl(() => ({ shout: (g) => g.name.toUpperCase() }))
         .implAssoc(() => ({ version: () => 1 }))
         .build();
-      type Guest = Val<"AssocGuest", { name: string }, Greetable>;
+      type Guest = Val<"AssocGuest", Record<never, never>, Greetable>;
       const Guest = Val.companion<Guest>()
         .implTrait(Greeting, () => ({
           greet: (g) => g.name,

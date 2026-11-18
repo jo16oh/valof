@@ -5,13 +5,13 @@ const Rule = Trait.companion<Rule>().build();
 type Named = Trait<"Named", { kind: string }, { label: (self: Self) => string }>;
 const Named = Trait.companion<Named>().build();
 
-type A = Val<"A", { kind: "a" }, Rule & Named>;
+type A = Val<"A", Record<never, never>, Rule & Named>;
 const A = Val.companion<A>()
   .implTrait(Rule, () => ({ run: (a) => a.kind }))
   .implTrait(Named, () => ({ label: (a) => a.kind }))
   .build();
 
-type B = Val<"B", { kind: "b" }, Rule & Named>;
+type B = Val<"B", Record<never, never>, Rule & Named>;
 const B = Val.companion<B>()
   .implTrait(Rule, () => ({ run: (b) => b.kind }))
   .implTrait(Named, () => ({ label: (b) => b.kind }))

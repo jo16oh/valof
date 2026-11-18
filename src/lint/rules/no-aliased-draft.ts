@@ -3,7 +3,7 @@ import type { Scan } from "../scan/index.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 
 /** A recipe's draft used as a value rather than to reach a field. */
-export type AliasedDraft = Val<"AliasedDraft", { kind: Kind }, Rule>;
+export type AliasedDraft = Val<"AliasedDraft", Record<never, never>, Rule>;
 export const AliasedDraft = Val.companion<AliasedDraft>()
   .implCreate(() => ({
     kind: Kind.seal("no-aliased-draft"),

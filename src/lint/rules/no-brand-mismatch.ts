@@ -7,7 +7,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
  * `type X = Val<…>`, so the brand string is the type's name written a second time, and only a
  * rule keeps the two from drifting apart.
  */
-export type BrandMismatch = Val<"BrandMismatch", { kind: Kind }, Rule>;
+export type BrandMismatch = Val<"BrandMismatch", Record<never, never>, Rule>;
 export const BrandMismatch = Val.companion<BrandMismatch>()
   .implCreate(() => ({
     kind: Kind.seal("no-brand-mismatch"),

@@ -3,7 +3,7 @@ import { Exports, type Scan } from "../scan/index.ts";
 import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A type alias which is only another spelling for a Val, a Trait or an Enum. */
-export type UnnecessaryAlias = Val<"UnnecessaryAlias", { kind: Kind }, Rule>;
+export type UnnecessaryAlias = Val<"UnnecessaryAlias", Record<never, never>, Rule>;
 export const UnnecessaryAlias = Val.companion<UnnecessaryAlias>()
   .implCreate(() => ({
     kind: Kind.seal("no-unnecessary-alias"),

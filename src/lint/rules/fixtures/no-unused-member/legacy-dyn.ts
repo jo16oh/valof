@@ -3,7 +3,7 @@ import { Trait, Val, type Self } from "valof";
 type Rule = Trait<"Rule", { kind: string }, { run: (self: Self) => string; explain: (self: Self) => string }>;
 const Rule = Trait.companion<Rule>().build();
 
-type A = Val<"A", { kind: "a" }, Rule>;
+type A = Val<"A", Record<never, never>, Rule>;
 const A = Val.companion<A>()
   .implTrait(Rule, () => ({ run: (a) => a.kind, explain: (a) => a.kind }))
   .build();

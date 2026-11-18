@@ -6,6 +6,6 @@ const first = { greet: (u: User) => u.name };
 const second = { ...first };
 const overrides = { ...second };
 
-type User = Val<"User", { name: string }, Greetable>;
+type User = Val<"User", Record<never, never>, Greetable>;
 const User = Val.companion<User>().implTrait(Greetable, () => overrides).build();
 User.greet;

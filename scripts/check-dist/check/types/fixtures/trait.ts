@@ -33,11 +33,7 @@ const Sized = Trait.companion<Sized>()
   .impl(() => ({ area: (s) => s.size.w * s.size.h }))
   .build();
 
-type Room = Val<
-  "Room",
-  { id: string; name: string; size: { w: number; h: number } },
-  Named & Sized
->;
+type Room = Val<"Room", { id: string }, Named & Sized>;
 // Without `implCreate`, what `implTrait` passes is too small for the budget to catch inference
 // walking it.
 const Room = Val.companion<Room>()
@@ -58,14 +54,14 @@ const Room = Val.companion<Room>()
   }))
   .build();
 
-type Tag = Val<"Tag", { name: string; kind: string }, Named>;
+type Tag = Val<"Tag", { kind: string }, Named>;
 const Tag = Val.companion<Tag>()
   .implTrait(Named, () => ({
     label: (t, sep) => `${t.kind}${sep}${t.name}`,
   }))
   .build();
 
-type Point = Val<"Point", { name: string; size: { w: number; h: number } }, Named & Sized>;
+type Point = Val<"Point", Record<never, never>, Named & Sized>;
 const Point = Val.companion<Point>()
   .implTrait(Named, () => ({ label: (p, sep) => `${p.name}${sep}` }))
   .implTrait(Sized, () => ({ scaled: (p, by) => p.size.w * by }))
@@ -73,11 +69,7 @@ const Point = Val.companion<Point>()
 
 // A Val carrying a trait, nested in one that carries another: the payload check has to stop at
 // the brand rather than walk the trait's own shape.
-type Floor = Val<
-  "Floor",
-  { name: string; size: { w: number; h: number }; main: Room },
-  Named & Sized
->;
+type Floor = Val<"Floor", { main: Room }, Named & Sized>;
 const Floor = Val.companion<Floor>()
   .implTrait(Named, () => ({ label: (f, sep) => `${f.name}${sep}${f.main.id}` }))
   .implTrait(Sized, () => ({ scaled: (f, by) => f.size.h * by }))

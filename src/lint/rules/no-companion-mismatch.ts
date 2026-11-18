@@ -6,7 +6,7 @@ import { Kind, Finding, Rule } from "./rule.ts";
  * A companion bound to a name other than the type it is for. `const Account =
  * Val.companion<User>()` compiles, and every call site then reads `Account.greet(user)`.
  */
-export type CompanionMismatch = Val<"CompanionMismatch", { kind: Kind }, Rule>;
+export type CompanionMismatch = Val<"CompanionMismatch", Record<never, never>, Rule>;
 export const CompanionMismatch = Val.companion<CompanionMismatch>()
   .implCreate(() => ({
     kind: Kind.seal("no-companion-mismatch"),

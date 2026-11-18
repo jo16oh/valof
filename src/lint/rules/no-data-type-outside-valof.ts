@@ -51,8 +51,6 @@ const SAID: Readonly<
 export type DataTypeOutsideValof = Val<
   "DataTypeOutsideValof",
   {
-    kind: Kind;
-    optIn: true;
     classes: boolean;
     constraints: boolean;
     extraction: boolean;

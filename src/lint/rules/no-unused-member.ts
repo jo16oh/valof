@@ -4,7 +4,7 @@ import { ImportMap, Exports, KeySets, Keys, type Scan } from "../scan/index.ts";
 import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A companion member that nothing in the scanned files reads. */
-export type UnusedMember = Val<"UnusedMember", { kind: Kind }, Rule>;
+export type UnusedMember = Val<"UnusedMember", Record<never, never>, Rule>;
 export const UnusedMember = Val.companion<UnusedMember>()
   .implCreate(() => ({
     kind: Kind.seal("no-unused-member"),

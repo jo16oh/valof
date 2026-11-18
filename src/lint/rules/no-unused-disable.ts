@@ -7,7 +7,7 @@ import { Kind, Finding, KindSet, Rule, type Context } from "./rule.ts";
  * finding it was written for is gone, and what stays is a claim about the code that is no longer
  * true.
  */
-export type UnusedDisable = Val<"UnusedDisable", { kind: Kind }, Rule>;
+export type UnusedDisable = Val<"UnusedDisable", Record<never, never>, Rule>;
 export const UnusedDisable = Val.companion<UnusedDisable>()
   .implCreate(() => ({
     kind: Kind.seal("no-unused-disable"),

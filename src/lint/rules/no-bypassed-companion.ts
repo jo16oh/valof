@@ -3,7 +3,7 @@ import { Exports, type CompanionSite, type Scan } from "../scan/index.ts";
 import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A `Val.of<X>(…)` for a type that has a companion of its own. */
-export type BypassedCompanion = Val<"BypassedCompanion", { kind: Kind }, Rule>;
+export type BypassedCompanion = Val<"BypassedCompanion", Record<never, never>, Rule>;
 export const BypassedCompanion = Val.companion<BypassedCompanion>()
   .implCreate(() => ({
     kind: Kind.seal("no-bypassed-companion"),

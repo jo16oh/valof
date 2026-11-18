@@ -52,7 +52,6 @@ import {
   type Code,
   type Fits,
   type Unfit,
-  type Hollow,
   type DeepReadonly,
   type Grown,
   type Listed,
@@ -133,9 +132,9 @@ export type AnyEnum = AnyVal &
 type VariantKeys<D> = Extract<keyof D, string | number>;
 
 /** A variant's fields, with the ones its traits require. */
-// A key the payload declares is left out of the trait's fields, because reading it to reduce the
-// intersection would resolve a `Rec` to the enum being declared.
-type FieldsIn<P> = [P] extends [LooseTrait] ? Pick<P, keyof P> & Omit<FieldsOf<P>, keyof P> : P;
+type FieldsIn<P> = [P] extends [LooseTrait]
+  ? Unshared<Pick<P, keyof P>, KeysOf<FieldsOf<P>>> & FieldsOf<P>
+  : P;
 
 type VariantsIn<D> = { [N in VariantKeys<D>]: FieldsIn<D[N]> };
 
@@ -156,12 +155,12 @@ type Built<D> = Loose<D> extends true ? { "?": Record<never, never> } : D;
 type SharedArg<X> = Loose<X> extends true ? Record<never, never> : X;
 
 /** The fields every variant holds, with the ones the enum's traits require. */
-// An `Impl` stays whole, so that the payload rules see it and reject it.
-// `Held` lists the keys the variant declares, which the traits' fields leave out, as in `FieldsIn`.
-type SharedIn<X, Held extends PropertyKey = never> = ([X] extends [AnyImpl]
-  ? X
-  : Pick<X, keyof X>) &
-  ([TraitsIn<X>] extends [never] ? unknown : Omit<FieldsOf<TraitsIn<X>>, Held>);
+type SharedIn<X> = [TraitsIn<X>] extends [never]
+  ? SharedWritten<X>
+  : Unshared<SharedWritten<X>, KeysOf<FieldsOf<TraitsIn<X>>>> & FieldsOf<TraitsIn<X>>;
+
+/** The shared fields the declaration writes. An `Impl` stays whole, so the payload rules reject it. */
+type SharedWritten<X> = [X] extends [AnyImpl] ? X : Pick<X, keyof X>;
 
 type TraitsIn<X> = X extends LooseTrait ? X : never;
 
@@ -177,7 +176,7 @@ type TraitNames<Tr> = [Tr] extends [never] ? never : Tr extends AnyTrait ? Names
 type Fault<K extends string, D, X, S, Tr extends AnyTrait, Tg extends string> =
   | (IsOneLiteral<K> extends false ? "an enum's name must be one string literal" : never)
   | SharedFault<X, S, Tr, Tg>
-  | VariantFault<D, Tr, Tg>;
+  | VariantFault<D, Tr, Tg, SharedKeys<SharedArg<X>>>;
 
 /** The faults the third type argument alone carries. */
 type SharedFault<X, S, Tr extends AnyTrait, Tg extends string> =
@@ -195,15 +194,18 @@ type SharedFaults<X, S, Tr extends AnyTrait, Tg extends string> =
           ? "the tag cannot take the name of a shared field"
           : never
         : never)
+  | ([keyof X & KeysOf<FieldsOf<Tr>>] extends [never]
+      ? never
+      : `the shared fields cannot redeclare the trait's field ${Code<(keyof X & KeysOf<FieldsOf<Tr>>) & string>}; the trait already adds it`)
   | ("match" extends MemberNames<Tr> ? "a trait member cannot take the name `match`" : never);
 
 /** The faults of the variants, read against what the third type argument declares. */
-type VariantFault<D, Tr extends AnyTrait, Tg extends string> =
+type VariantFault<D, Tr extends AnyTrait, Tg extends string, Held extends PropertyKey> =
   Loose<D> extends true
     ? "an enum's variants cannot be `any` or `never`"
-    : VariantsFault<D, Tr, Tg>;
+    : VariantsFault<D, Tr, Tg, Held>;
 
-type VariantsFault<D, Tr extends AnyTrait, Tg extends string> =
+type VariantsFault<D, Tr extends AnyTrait, Tg extends string, Held extends PropertyKey> =
   | ([VariantKeys<D>] extends [never] ? "an enum needs a variant" : never)
   | {
       [N in VariantKeys<D>]: IsOneLiteral<`${N}`> extends false
@@ -220,14 +222,30 @@ type VariantsFault<D, Tr extends AnyTrait, Tg extends string> =
                   : IsOneLiteral<Tg> extends true
                     ? Tg extends keyof FieldsIn<D[N]>
                       ? "the tag cannot take the name of a field the payload holds"
-                      : VariantTraitFault<D[N], Tr>
-                    : VariantTraitFault<D[N], Tr>
+                      : SharedRedeclared<D[N], Tr, Held>
+                    : SharedRedeclared<D[N], Tr, Held>
               : "a variant's payload must be a record of fields";
     }[VariantKeys<D>]
   // The companion reads a member first, so the type would show the library's and run the member.
   | ([MemberNames<Tr> & VariantKeys<D>] extends [never]
       ? never
       : "a trait member cannot take a variant's name");
+
+// A narrower type belongs under a key of its own. It reads the keys alone, because reading a shared field that holds a `Rec` would resolve the enum being declared.
+type SharedRedeclared<P, Tr extends AnyTrait, Held extends PropertyKey> = [keyof P & Held] extends [
+  never,
+]
+  ? VariantTraitFault<P, Tr>
+  : `a variant cannot redeclare the shared field ${Code<(keyof P & Held) & string>}; give the variant's field another key`;
+
+// `P` without the keys in `Held`, where it declares them. A declaration that redeclares a field is rejected. This keeps one declaration of the field, because two would resolve each other where both
+// hold a `Rec`.
+type Unshared<P, Held extends PropertyKey> = [keyof P & Held] extends [never] ? P : Omit<P, Held>;
+
+/** The keys every variant holds: the shared fields and the ones the enum's traits require. */
+type SharedKeys<X> = keyof X | KeysOf<FieldsOf<TraitsIn<X>>>;
+
+type KeysOf<T> = T extends unknown ? keyof T : never;
 
 // `dyn` picks the implementation by the companion it is passed, so the enum's and the variant's
 // would answer the same call differently.
@@ -241,10 +259,16 @@ type VariantTraitFault<P, Tr extends AnyTrait> = [
 // and `never`, which satisfy every constraint. Each reads its argument through `infer`, as
 // `OneLiteral` does: passing it to a conditional in its own constraint is circular (TS2313).
 // The payload rules apply to each variant's fields and to the shared fields, as `Val`'s constraint
-// applies them to a payload.
+// applies them to a payload. The variants are read against the shared fields and the traits only where neither argument has a fault. Each argument reports its own fault.
 type DeclarableVariants<D, X> = [D] extends [infer V]
   ? [SharedArg<X>] extends [infer Y]
-    ? Faulted<VariantFault<V, TraitsIn<Y>, TagIn<Y>> | Disagreeing<V, Y>> & {
+    ? Faulted<
+        VariantFault<V, TraitsIn<Y>, TagIn<Y>, SharedKeys<Y>> extends infer F
+          ? [F | SharedFault<Y, SharedIn<Y>, TraitsIn<Y>, TagIn<Y>>] extends [never]
+            ? Disagreeing<V, Y>
+            : F
+          : never
+      > & {
         [N in VariantKeys<V>]: Checked<Written<V[N]>>;
       }
     : object
@@ -262,21 +286,21 @@ type Faulted<F> = [F] extends [never] ? object : Invalid<F & string>;
  */
 type Disagreeing<D, X> = {
   [N in VariantKeys<D>]: Disagreement<
-    FieldsIn<D[N]> & SharedIn<X, keyof FieldsIn<D[N]>>,
+    Written<D[N]> & SharedWritten<X>,
     Joined<TraitsIn<X>, TraitsIn<D[N]>>
   >;
 }[VariantKeys<D>];
 
-type Disagreement<T, Tr extends AnyTrait> = [Unfit<T> | Hollow<T>] extends [never]
+type Disagreement<T, Tr extends AnyTrait> = [Unfit<T>] extends [never]
   ? Fits<T, Tr> extends infer F
     ? F extends string
       ? F
       : never
     : never
-  : `no value fits ${Code<(Unfit<T> | Hollow<T>) & string>}`;
+  : `no value fits ${Code<Unfit<T> & string>}`;
 
 /** The fields a declaration writes, without the ones its traits add. An `Impl` stays whole, so the rules reject it. */
-type Written<P> = [P] extends [AnyImpl] ? P : [P] extends [AnyTrait] ? Pick<P, keyof P> : P;
+type Written<P> = [P] extends [AnyImpl] ? P : [P] extends [LooseTrait] ? Pick<P, keyof P> : P;
 
 /** Every trait's member names. `keyof` over their union would keep only the shared ones. */
 type MemberNames<Tr extends AnyTrait> =
@@ -316,10 +340,11 @@ type Enum<
 > = {
   [N in VariantKeys<Built<D>>]: UncheckedVal<
     Literal<`${K}.${N}`>,
-    FieldsIn<Built<D>[N]> &
-      SharedIn<SharedArg<X>, keyof FieldsIn<Built<D>[N]>> & {
-        [P in Literal<TagIn<SharedArg<X>>>]: N;
-      },
+    // Built as `VariantOf` builds it. The fields the traits add are left out, because the check would report them as redeclared.
+    Unshared<
+      FieldsIn<Unshared<Built<D>[N], SharedKeys<SharedArg<X>>>> & SharedIn<SharedArg<X>>,
+      KeysOf<FieldsOf<Joined<TraitsIn<SharedArg<X>>, TraitsIn<Built<D>[N]>>>>
+    > & { [P in Literal<TagIn<SharedArg<X>>>]: N },
     Joined<TraitsIn<SharedArg<X>>, TraitsIn<Built<D>[N]>>,
     true
   >;
@@ -377,7 +402,10 @@ type OwnTraits<E extends AnyEnum, N extends keyof VariantsOf<E>> = Extract<
 // intersection.
 export type VariantOf<E extends AnyEnum, N extends keyof VariantsOf<E>> = UncheckedVal<
   `${NameOf<E>}.${N & string}`,
-  VariantsOf<E>[N] & SharedOf<E> & { [P in TagOf<E>]: N & string },
+  Unshared<
+    VariantsOf<E>[N] & SharedOf<E>,
+    KeysOf<FieldsOf<Joined<DeclaredTraits<E>, OwnTraits<E, N>>>>
+  > & { [P in TagOf<E>]: N & string },
   Joined<DeclaredTraits<E>, OwnTraits<E, N>>,
   true
 > &

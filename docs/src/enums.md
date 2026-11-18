@@ -129,7 +129,8 @@ console.log(todo.id); // t1
 ```
 
 Every variant's `create` and seal require those fields. A value of the union type has them, so you
-can read them without narrowing it.
+can read them without narrowing it. A variant cannot declare a key that the shared fields declare.
+Give the variant's field another key.
 
 The third type argument also declares the [traits](traits.md) that the enum implements. See
 [Implement traits on an enum](traits.md#implement-traits-on-an-enum).

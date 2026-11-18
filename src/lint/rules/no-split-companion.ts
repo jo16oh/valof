@@ -3,7 +3,7 @@ import { ImportMap, type Scan } from "../scan/index.ts";
 import { Kind, Finding, Rule } from "./rule.ts";
 
 /** A companion written in one file for a type declared in another. */
-export type SplitCompanion = Val<"SplitCompanion", { kind: Kind }, Rule>;
+export type SplitCompanion = Val<"SplitCompanion", Record<never, never>, Rule>;
 export const SplitCompanion = Val.companion<SplitCompanion>()
   .implCreate(() => ({
     kind: Kind.seal("no-split-companion"),
