@@ -352,7 +352,13 @@ type Declarable<Shape, M extends Members> = {
                         ? Invalid<"a trait member cannot return Self">
                         : Omission<M[K]> extends string
                           ? Invalid<Omission<M[K]> & string>
-                          : M[K]
+                          : // `infer` reads a generic member with its type parameters filled in, which
+                            // the member itself does not accept back.
+                            [
+                                ((self: S, ...args: A) => R) & { readonly [FinalMark]: true },
+                              ] extends [M[K] & { readonly [FinalMark]: true }]
+                            ? M[K]
+                            : Invalid<"a trait member cannot be generic; a box binds each member once">
                     : Invalid<"a trait member must take `Self` as its first parameter">
                   : M[K];
 };
