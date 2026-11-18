@@ -123,6 +123,10 @@
       `Object.hasOwn`
     - **Cost.** core 12,892 → 12,917 instantiations. Comparing every key as read-only on every call, before the plain comparison, would have added 1,654 instantiations
 
+- [ ] **An exported seal of a Val that references itself bloats a user's `.d.ts`.** Exporting `Tree.seal` for a Val
+      holding `Rec<Tree>` emitted 511 kB, almost all of it the `nocopy` signature, with `SeedOf<Tree>` expanded in place
+      (export survey, 2026-11-18, TS 7.0.2). ts-compatibility's fixtures export no such seal. Not investigated yet
+
 - [x] ~~**valof-lint reports `Object.assign` on a draft.**~~ Closed, 2026-11-18: the `no-aliased-draft` rule and `PatchFn`'s parameter check. TypeScript types `Object.assign`'s source as anything, so
       `Object.assign(draft, data)` writes fields no type checked (§6.2 "A recipe assigns to a draft")
   - Plan (user, 2026-11-18): inside a recipe, the draft parameter is used only as the object of a member access. Report

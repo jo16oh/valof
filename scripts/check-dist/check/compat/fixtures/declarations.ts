@@ -7,20 +7,13 @@ import {
   Tag,
   Trait,
   Val,
-  type EnumBuilder,
-  type EnumCompanion,
   type Final,
   type Impl,
-  type Members,
   type Payload,
   type PrivateCreate,
   type PrivateSeal,
   type Rec,
   type Self,
-  type SharedOf,
-  type TagOf,
-  type TraitBuilder,
-  type TraitCompanion,
   type Unpatchable,
   type VariantsOf,
 } from "valof";
@@ -89,12 +82,7 @@ export const Greeting = Trait.companion<Greetable>()
   .build();
 
 // Written by name, so each import above fails once the root stops exporting it.
-export const shapeStart: EnumBuilder<Shape> = Enum.companion<Shape>();
-export const Plain: EnumCompanion<Shape> = Enum.companion<Shape>().build();
-export const greetableStart: TraitBuilder<Greetable> = Trait.companion<Greetable>();
-export const Blank: TraitCompanion<Greetable> = Greetable;
-export const members = { greet: (self: Self) => String(self) } satisfies Members;
-export type ShapeParts = [TagOf<Shape>, SharedOf<Shape>, VariantsOf<Shape>];
+export type ShapeVariants = VariantsOf<Shape>;
 
 // Types that reference themselves, with fields the union rules compare. Emitting and re-reading
 // their declarations raised TS2615 until `Meets` stopped opening a pair of `Rec`s.

@@ -198,3 +198,21 @@ output for `equals` on every TypeScript line.
 
 We found no other inferred type in a user's exports that references one of the three. Exporting
 `Enum.companion` itself does, but it already fails with TS4023 on `EnumKey`.
+
+## 18.7 The entry exports only the types a user writes, 2026-11-18
+
+The entry stopped exporting `Companion`, `CompanionBuilder`, `EnumBuilder`, `EnumCompanion`,
+`TraitBuilder`, `TraitCompanion`, `Members`, `NameOf`, `SharedOf`, `TagOf` and `SeedFor` (user).
+`Draft` was removed from the entry the same day (§6.2 "A recipe goes inline").
+
+**The builder and companion types were exported for a user's declaration output, which no longer
+needs them.** The comment in `index.ts` said that without a name TypeScript inlines the structure.
+Since §18.4 a user's `.d.ts` references them through `valof/internal/*` instead. A probe that dropped the
+six builder and companion types from the entry found the consumer's `.d.ts` 229 B longer, from the longer paths, with nothing
+inlined. ts-compatibility passes on every TypeScript line. Its fixture wrote four of them, and `Members`, `SharedOf` and `TagOf`, by name only to guard the
+exports. Those lines were removed with the exports.
+
+**The others only restate a declaration.** `NameOf`, `SharedOf` and `TagOf` return types the
+declaration already states. `Members` constrains the members a user writes inside `Trait<…>`. `SeedFor` is a variant's `create` input. A variant's seal input is
+`SeedOf<VariantOf<E, N>>`, written the way a Val's is, and `api.md` lists that type in place of `SeedFor`.
+`VariantsOf` stays, for `keyof VariantsOf<E>`.

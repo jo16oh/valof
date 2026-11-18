@@ -83,11 +83,6 @@ these members:
 | `Payload<T>`            | marks a type as meant for a payload, and checks it against the allowed-type rules |
 | `Rec<V>`                | a Val's reference to itself, in its own payload                                   |
 | `Val.Record<K, Key, V>` | a Val holding a value `V` under each key `Key`, as a plain object                 |
-| `CompanionBuilder<V>`   | a companion's builder, with the steps it can still take                           |
-| `Companion<V, M>`       | the companion `.build()` returns                                                  |
-
-You never write the builder and companion types, here or for an enum or a trait. They are exported
-so that your own `.d.ts` can reference them when you re-export a companion.
 
 ## Enum Companion Builder
 
@@ -154,17 +149,14 @@ argument. They apply to the enum and every variant. To configure a specific vari
 
 ## Enum Types
 
-| Type                            | Description                                         |
-| ------------------------------- | --------------------------------------------------- |
-| `Enum<K, D, X>`                 | a closed set of variants, as one union              |
-| `Tag<T>`                        | names the tag field, intersected into `X`           |
-| `VariantOf<E, N>`               | the type of one variant                             |
-| `SeedFor<E, N>`                 | what that variant's `create` takes                  |
-| `SealedPayload<E>`              | a tagged payload of one variant                     |
-| `VariantsOf<E>` / `SharedOf<E>` | the declared variants, and the shared fields        |
-| `NameOf<E>` / `TagOf<E>`        | the enum's name, and the tag field's name           |
-| `EnumBuilder<E>`                | an enum's builder, with the steps it can still take |
-| `EnumCompanion<E>`              | the enum's companion `.build()` returns             |
+| Type                      | Description                                 |
+| ------------------------- | ------------------------------------------- |
+| `Enum<K, D, X>`           | a closed set of variants, as one union      |
+| `Tag<T>`                  | names the tag field, intersected into `X`   |
+| `VariantOf<E, N>`         | the type of one variant                     |
+| `SeedOf<VariantOf<E, N>>` | the payload accepted by that variant's seal |
+| `SealedPayload<E>`        | a tagged payload of one variant             |
+| `VariantsOf<E>`           | the declared variants                       |
 
 ## Trait Companion Builder
 
@@ -193,6 +185,3 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 | `Self`               | the implementing Val, as a member's first parameter |
 | `Final<F>`           | marks a member no Val may replace                   |
 | `Dyn<Tr>`            | a boxed value, without its concrete type            |
-| `Members`            | the members a trait declares                        |
-| `TraitBuilder<Tr>`   | a trait's builder, with the steps it can still take |
-| `TraitCompanion<Tr>` | the trait's companion `.build()` returns            |
