@@ -9,3 +9,6 @@ export type Media = Enum<
 >;
 export type Page = Val<"Page", { meta: { authors: { names: readonly string[] | null }[] } }>;
 export type Span = Val<"Span", readonly [number, readonly number[]]>;
+export type Shelf = Val<"Shelf", { rows: (readonly string[])[]; pair: [x: readonly string[]] }>;
+export type Rest = Val<"Rest", [number, ...(readonly string[])[]]>;
+export type Gap = Val<"Gap", [(readonly number[])?]>;
