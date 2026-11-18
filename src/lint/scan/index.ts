@@ -194,6 +194,8 @@ export type Scan = Val<
     draftAliases: Position[];
     /** `patch` recipes declaring type parameters, whose draft the types do not check. */
     genericRecipes: Position[];
+    /** Rest elements that copy a `patch` recipe's draft. */
+    restDrafts: Position[];
     /** Keys read off a local name, each a set. */
     reads: KeySets;
     /** Keys read through a namespace, already named as the exporting module names them. */
@@ -354,6 +356,7 @@ function scan(
   const stepStates: StepState[] = [];
   const draftAliases: Position[] = [];
   const genericRecipes: Position[] = [];
+  const restDrafts: Position[] = [];
   const memberSources: SymbolRef[] = [];
   /** The boxes a read is followed from, which therefore do not escape. */
   const followed = new Set<Node>();
@@ -486,6 +489,10 @@ function scan(
         if (generic !== undefined) {
           genericRecipes.push(Lines.at(lines, generic));
         }
+        const rest = restDraft(node);
+        if (rest !== undefined) {
+          restDrafts.push(Lines.at(lines, rest));
+        }
         const lift = Lift.fromCall(node, file, bound, lines);
         if (lift) {
           lifts.push(lift);
@@ -617,6 +624,7 @@ function scan(
     stepStates,
     draftAliases,
     genericRecipes,
+    restDrafts,
     hiddenParameters: hidden(program, file, bound, lines),
     memberSources,
     reads: sets(reads),
@@ -906,6 +914,16 @@ function genericRecipe(node: Node): number | undefined {
     (one) => one.type === "Other" && one.nodeType === "TSTypeParameterDeclaration",
   );
   return recipe && generic && paramsOf(recipe).length ? recipe.start : undefined;
+}
+
+/** Where a `.patch(…, recipe)` call's recipe copies its draft with a rest element. */
+function restDraft(node: Node): number | undefined {
+  if (node.type !== "CallExpression" || node.callee.type !== "MemberExpression") return undefined;
+  if (keyName(node.callee.property, node.callee.computed) !== "patch") return undefined;
+  const draft = paramsOf(node.arguments.at(-1))[0];
+  if (draft?.type !== "ObjectPattern") return undefined;
+
+  return draft.properties.find((one) => one.type === "RestElement")?.start;
 }
 
 /** Whether an identifier is the object of a member access, a spread, or a name that is no reference. */

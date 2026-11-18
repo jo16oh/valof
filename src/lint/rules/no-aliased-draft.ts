@@ -8,7 +8,7 @@ export const AliasedDraft = Val.companion<AliasedDraft>()
   .implCreate(() => ({
     kind: Kind.seal("no-aliased-draft"),
     description:
-      "a recipe's draft passed to a function, bound to a name, or put in an array or an object; a recipe with type parameters",
+      "a recipe's draft passed to a function, bound to a name, put in an array or an object, or copied by a rest element; a recipe with type parameters",
     warns: false,
     optIn: false,
   }))
@@ -18,9 +18,10 @@ export const AliasedDraft = Val.companion<AliasedDraft>()
 /**
  * Reports each use of a recipe's draft other than a field access or a spread. Under another name,
  * the draft's type no longer keeps a key readonly, so a write could reach a key `patch` excludes.
+ * Also reports a rest element in the recipe's parameter, which copies the draft, so writes to it are lost.
  */
 function findings({ kind }: AliasedDraft, scans: readonly Scan[]): Finding[] {
-  return scans.flatMap(({ file, draftAliases, genericRecipes }) => [
+  return scans.flatMap(({ file, draftAliases, genericRecipes, restDrafts }) => [
     ...draftAliases.map((at) =>
       Finding.seal({
         kind,
@@ -28,6 +29,15 @@ function findings({ kind }: AliasedDraft, scans: readonly Scan[]): Finding[] {
         at,
         message:
           "a recipe uses its draft only to reach a field; branch on the Val you patch, or pass the field itself (`d.total`)",
+      }),
+    ),
+    ...restDrafts.map((at) =>
+      Finding.seal({
+        kind,
+        file,
+        at,
+        message:
+          "a rest element copies the draft, so a write to the copy changes nothing; write to the draft (`d.total`)",
       }),
     ),
     ...genericRecipes.map((at) =>
