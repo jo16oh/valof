@@ -26,7 +26,9 @@ rules as a payload, so a shape no Val could ever hold is an error where it is wr
 The third declares the functions. They become members of every companion that implements the trait,
 and they take the value first.
 
-`Self` stands for the implementing Val, and may appear only as a member's first parameter.
+`Self` stands for the implementing Val, and may appear only as a member's first parameter. A member
+cannot be generic, because a box gives each member one signature (see
+[Hold values of different types together](#hold-values-of-different-types-together)).
 
 ## Implement it on a Val
 
