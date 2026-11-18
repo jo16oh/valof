@@ -23,7 +23,7 @@ test("prints a finding's location and kind, and exits 1 with a summary", () => {
   const { status, stdout, stderr } = cli(under("*.ts"), under("finding.ts"));
   expect(stdout).toMatch(
     new RegExp(
-      `^src/lint/integration-tests/command/fixtures/finding\\.ts:4:3  ${UnusedMember.kind}  `,
+      `^src/lint/integration-tests/command/fixtures/finding\\.ts:4:3  ${UnusedMember.value.kind}  `,
     ),
   );
   expect(status).toBe(1);
@@ -39,7 +39,7 @@ test("exits 0 with a summary when it does not", () => {
 test("does not need TypeScript in the project it lints", () => {
   const { status, stdout } = cliWithoutTypeScript(under("*.ts"), under("finding.ts"));
   expect(status).toBe(1);
-  expect(stdout).toContain(`${UnusedMember.kind}  Id.shout is never read`);
+  expect(stdout).toContain(`${UnusedMember.value.kind}  Id.shout is never read`);
 });
 
 test("exits 2 when nothing matches the glob", () => {
@@ -52,7 +52,9 @@ test("names every rule and what it looks for, under --help and -h alike", () => 
   const { status, stdout } = cli("--help");
   expect(status).toBe(0);
   const lines = stdout.split("\n");
-  for (const { kind, description } of RULES) {
+  for (const {
+    value: { kind, description },
+  } of RULES) {
     expect(lines.some((line) => line.includes(kind) && line.includes(description))).toBe(true);
   }
   expect(cli("-h").stdout).toBe(stdout);
@@ -80,7 +82,7 @@ test("keeps its scans under node_modules/.cache, and reports the same findings w
     const first = cliKeepingIn(dir, "*.ts");
     expect(existsSync(join(dir, "node_modules", ".cache", "valof-lint", "scans.json"))).toBe(true);
     expect(cliKeepingIn(dir, "*.ts")).toEqual(first);
-    expect(first.stdout).toContain(`${UnusedMember.kind}  Id.shout is never read`);
+    expect(first.stdout).toContain(`${UnusedMember.value.kind}  Id.shout is never read`);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

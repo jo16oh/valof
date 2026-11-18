@@ -181,7 +181,7 @@ Members registered with `implAssoc` are not copied onto a Val by `implTrait`.
 
 | API                           | Description                                                                              |
 | ----------------------------- | ---------------------------------------------------------------------------------------- |
-| `Tr.dyn(companion, value)`    | boxes a value with one Val's implementation                                              |
+| `Tr.dyn(companion, value)`    | boxes a value with one Val's implementation, which the box's `value` returns             |
 | `Tr.[member](first, ...rest)` | runs a `Final` member registered with `.impl(f)`, or one registered with `.implAssoc(f)` |
 | `Tr.[member](...rest)(first)` | the same, with the first argument last, for a member taking more than one argument       |
 

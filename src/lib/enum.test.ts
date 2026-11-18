@@ -935,20 +935,6 @@ describe("traits", () => {
   });
 
   describe("names a member may not take", () => {
-    test("one a field of any variant holds", () => {
-      type Rad = Trait<"Rad", { id: string }, { r: (self: Self) => number }>;
-      type Round = Enum<
-        "Round",
-        { Circle: { r: number }; Square: { side: number } },
-        { id: string } & Rad
-      >;
-      const Rad = Trait.companion<Rad>().build();
-      Enum.companion<Round>()
-        // @ts-expect-error a member cannot take the name of a field the payload holds
-        .implTrait(Rad, () => ({ r: (c: { id: string }) => c.id.length }))
-        .build();
-    });
-
     test("one another trait already answers to", () => {
       type Sized = Trait<"Sized", { id: string }, { size: (self: Self) => number }>;
       const Sized = Trait.companion<Sized>()
@@ -1057,14 +1043,15 @@ describe("traits", () => {
         .build();
     });
 
-    test("its member may not take the name of a field the variant holds", () => {
+    test("its member may take the name of a field the variant holds", () => {
       type Paged = Trait<"Paged", Record<never, never>, { pages: (self: Self) => number }>;
       const Paged = Trait.companion<Paged>().build();
       type Shelf = Enum<"Shelf", { Book: { pages: number } & Paged; Pen: { ink: string } }>;
-      Enum.companion<Shelf>()
-        // @ts-expect-error a member cannot take the name of a field the payload holds
-        .Book.implTrait(Paged, () => ({ pages: (b) => b.pages }))
+      const Shelf = Enum.companion<Shelf>()
+        .Book.implTrait(Paged, () => ({ pages: (b) => b.pages * 2 }))
         .build();
+      const book = Shelf.Book.create({ pages: 10 });
+      expect([Paged.dyn(Shelf.Book, book).pages(), book.pages]).toEqual([20, 10]);
     });
 
     test("it ends the variant's gates, and holds its names against `impl`", () => {

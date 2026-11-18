@@ -36,7 +36,7 @@ function valof(): {
     // passes the same result to every rule of every file. What a rule adds is which findings it
     // reports: its own kind, in its own file.
     rules: Object.fromEntries(
-      RULES.map(({ kind, description }) => [
+      RULES.map(({ value: { kind, description } }) => [
         kind,
         {
           meta: {
@@ -85,8 +85,8 @@ function valof(): {
         // signature of `string` does not fit the rule map Oxlint's `defineConfig` declares, so
         // `extends: [valof.configs.recommended]` would not typecheck for a caller.
         rules: Object.fromEntries(
-          RULES.filter(({ optIn }) => !optIn).map(
-            ({ kind, warns }) => [`valof/${kind}`, warns ? "warn" : "error"] as const,
+          RULES.filter(({ value: { optIn } }) => !optIn).map(
+            ({ value: { kind, warns } }) => [`valof/${kind}`, warns ? "warn" : "error"] as const,
           ),
         ),
       },

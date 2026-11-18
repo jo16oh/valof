@@ -88,7 +88,7 @@ declare const room: Room;
 declare const tag: Tag;
 
 export const boxed: Dyn<Named>[] = [Named.dyn(Room, room), Named.dyn(Tag, tag)];
-export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()} ${Named.shout(b)}`);
+export const labels = boxed.map((b) => `${b.label(":")} ${b.greet()} ${Named.shout(b.value)}`);
 export const labelled = [Named.labelled(":", boxed), Named.labelled(boxed)(":")];
 // A final reaches every path a member does, and the trait namespace besides.
 export const shouted = [Room.shout(room), Named.shout(tag), Named.dyn(Tag, tag).shout()];

@@ -3872,7 +3872,7 @@ describe("building", () => {
         >();
       });
 
-      test("nor may a member take a name another trait requires as a field", () => {
+      test("but a member may take a name another trait requires as a field", () => {
         type Tagged = Trait<"Tagged", { tag: string }, { size: (self: Self) => number }>;
         const Tagged = Trait.companion<Tagged>()
           .impl(() => ({ size: (t) => t.tag.length }))
@@ -3882,15 +3882,11 @@ describe("building", () => {
           .impl(() => ({ tag: (l) => l.name }))
           .build();
         type Parcel = Val<"Parcel", { name: string; tag: string }, Tagged & Labelled>;
-        Val.companion<Parcel>()
-          .implTrait(Tagged)
-          // @ts-expect-error a member cannot take the name of a field the payload holds
-          .implTrait(Labelled)
-          .build();
-        // The directive above takes any error on the line, so the branch is named here.
-        expectTypeOf<
-          Takes<Parcel, Labelled, { size: unknown }, "ok">
-        >().toEqualTypeOf<"a member cannot take the name of a field the payload holds">();
+        // A field's name is free: the box holds the value apart from the members.
+        const Parcel = Val.companion<Parcel>().implTrait(Tagged).implTrait(Labelled).build();
+        const parcel = Parcel.seal({ name: "p", tag: "fragile" });
+        expect([Parcel.tag(parcel), Labelled.dyn(Parcel, parcel).tag()]).toEqual(["p", "p"]);
+        expectTypeOf<Takes<Parcel, Labelled, { size: unknown }, "ok">>().toEqualTypeOf<"ok">();
       });
 
       test("nor to the same final", () => {
@@ -4000,20 +3996,6 @@ describe("building", () => {
           .impl(() => ({ then: (m: Member) => m.name }))
           .build();
         expect(Thenable.then(member)).toBe("alice");
-      });
-
-      test("a member may not take a name the payload holds", () => {
-        type Loud = Trait<"Loud", { name: string }, { greet: (self: Self) => string }>;
-        const Loud = Trait.companion<Loud>()
-          .impl(() => ({ greet: (l) => l.name }))
-          .build();
-        type Sign = Val<"Sign", { name: string; greet: string }, Loud>;
-        Val.companion<Sign>()
-          .implTrait(
-            // @ts-expect-error a member cannot take the name of a field the payload holds
-            Loud,
-          )
-          .build();
       });
     });
   });

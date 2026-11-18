@@ -18,7 +18,7 @@ function dead(name: string): string {
 
 test("scans a file the buffer is the only copy of", async () => {
   const findings = await lint([], Options.create({ overlay: [[at("unsaved.ts"), dead("Id")]] }));
-  expect(findings.map(({ kind }) => kind)).toEqual([UnusedMember.kind]);
+  expect(findings.map(({ kind }) => kind)).toEqual([UnusedMember.value.kind]);
 });
 
 const SAVED = at("saved.ts");
@@ -28,7 +28,7 @@ test.each([
   ["an absolute path, the buffer by a relative one", SAVED, relative(process.cwd(), SAVED)],
 ])("reads the buffer over a file listed by %s", async (_, listed, key) => {
   const findings = await lint([listed], Options.create({ overlay: [[key, dead("Id")]] }));
-  expect(findings.map(({ kind }) => kind)).toEqual([UnusedMember.kind]);
+  expect(findings.map(({ kind }) => kind)).toEqual([UnusedMember.value.kind]);
 });
 
 test("reads an empty buffer as the file, not what disk holds", async () => {

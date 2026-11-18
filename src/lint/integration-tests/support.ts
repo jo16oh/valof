@@ -18,7 +18,7 @@ type Registered = (typeof RULES)[number];
 function registered(companion: { create: (settings: never) => { kind: string } }): Registered {
   // An opt-in rule's create takes its settings, and none of them changes the kind.
   const { kind } = companion.create({} as never);
-  const rule = RULES.find((one) => one.kind === kind);
+  const rule = RULES.find((one) => one.value.kind === kind);
   if (!rule) throw new Error(`no rule reports ${kind}`);
   return rule;
 }
@@ -51,7 +51,7 @@ export const UnusedMember = registered(Rules.UnusedMember);
 export type Reported = { rule: Registered; at: string };
 
 function reporting(kind: string): Registered {
-  const rule = RULES.find((one) => one.kind === kind);
+  const rule = RULES.find((one) => one.value.kind === kind);
   if (!rule) throw new Error(`no rule reports ${kind}`);
   return rule;
 }
@@ -98,7 +98,7 @@ export function fixtures(url: string): {
       files(fixture),
       LintOptions.create({
         overlay: overlay ?? [],
-        skip: skip.map(({ kind }) => kind),
+        skip: skip.map(({ value: { kind } }) => kind),
         ...(enable ? { enable } : {}),
       }),
     );

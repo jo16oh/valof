@@ -62,7 +62,7 @@ export const RULES = [
 ] as const;
 
 /** What each rule is called, in a `--no-<kind>` flag and in a disable comment alike. */
-export const KINDS: readonly Kind[] = RULES.map(({ kind }) => kind);
+export const KINDS: readonly Kind[] = RULES.map(({ value: { kind } }) => kind);
 
 /** Every rule's kind, to check a name against. */
 export const ALL_KINDS = KindSet.create(KINDS);
@@ -74,9 +74,9 @@ export const ALL_KINDS = KindSet.create(KINDS);
 export function compile(enable: Options["enable"]): Dyn<Rule>[] {
   const model = enable["data-type-outside-valof"];
   return RULES.flatMap((rule) =>
-    !rule.optIn
+    !rule.value.optIn
       ? [rule]
-      : rule.kind === "data-type-outside-valof" && model
+      : rule.value.kind === "data-type-outside-valof" && model
         ? [Rule.dyn(DataTypeOutsideValof, DataTypeOutsideValof.create(model))]
         : [],
   );
