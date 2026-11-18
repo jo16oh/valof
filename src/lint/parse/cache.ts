@@ -2,10 +2,8 @@ import type { FilePath } from "../shared/files.ts";
 import { Parser } from "./parser.ts";
 
 /**
- * Each file's syntax tree, kept for as long as its text stays the same.
- *
- * Parsing takes most of a run. A caller that runs over the same project again, as the plugin's
- * worker does, re-parses only the files whose text changed.
+ * Each file's syntax tree, kept for as long as its text stays the same, since parsing takes most of
+ * a run.
  */
 export class ParseCache {
   #trees = new Map<string, { source: string; parsed: ReturnType<Parser["exec"]> }>();

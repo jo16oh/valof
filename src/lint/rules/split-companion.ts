@@ -15,18 +15,13 @@ export const SplitCompanion = Val.companion<SplitCompanion>()
 
 /**
  * Reports every companion chain, of any root, whose type argument came from another module:
- * imported by name or reached through a namespace.
+ * imported by name or reached through a namespace. A declaration merge is file-local. Split over
+ * two files, the pair does not compile: TS2395 when both are exported, and TS2323 when the second
+ * file re-exports the type beside its companion. What is left is a companion under another name,
+ * which the companion-mismatch rule reports, or one nobody can import under the type's name.
  *
- * The merge is what the API is, and a merge is file-local. `type User` and `const User` in one
- * file give one `User` that is the type, the constructor and the namespace at once. Split over
- * two files, the same pair does not compile: TypeScript answers TS2395 when both are exported
- * and TS2323 when the second file re-exports the type beside its companion. What is left is a
- * companion under another name, which the companion-mismatch rule reports, or one nobody can
- * import under the type's name.
- *
- * An import is the whole test, so no type resolution is needed. A type declared here through a
- * helper of the user's own, `type Local = Imported`, is not seen: the name is local, and silence
- * is the safe direction.
+ * A type declared here as `type Local = Imported` is not seen, since the name is local. Missing it
+ * is safer than a false report.
  */
 function findings({ kind }: SplitCompanion, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];

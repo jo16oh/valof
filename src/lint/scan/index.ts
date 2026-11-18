@@ -36,8 +36,7 @@ import {
 import { directives, type Directive } from "./directives.ts";
 import { models, type Models } from "./models.ts";
 
-// The pieces a `Scan` is made of, so a rule reads them from the scan rather than reaching past
-// it into the walk that produced them.
+// The pieces a `Scan` is made of, for the rules to read off it.
 export { ImportMap } from "./bindings.ts";
 
 export type { ImportBinding, SymbolRef } from "./bindings.ts";
@@ -126,11 +125,9 @@ export type DynRead = Val<"DynRead", { trait: SymbolRef; val: SymbolRef; member:
 export const DynRead = Val.companion<DynRead>().build();
 
 /**
- * A key taken off a companion and held under a local name: `const { Circle } = Shape` and `const
- * Round = Shape.Circle` alike.
- *
- * Whether the companion is an enum's, and whether the key is a variant of it, is left to the
- * rule. Answering either needs the declarations of every file, and this walk reads one.
+ * A key taken off a companion and held under a local name: `const { Circle } = Shape` and
+ * `const Round = Shape.Circle` alike. Whether it is a variant is left to the rule, since that needs
+ * every file.
  */
 export type CompanionBinding = Val<
   "CompanionBinding",
@@ -148,12 +145,8 @@ export type CompanionBinding = Val<
 export const CompanionBinding = Val.companion<CompanionBinding>().build();
 
 /**
- * What one file says about itself.
- *
- * Syntactic facts, not any rule's input. Nothing here is named for the rule that happens to read
- * it today, and more than one may: `aliases` and `brands` come from the same pass over the same
- * declarations, and two rules take one each. A new rule needing something new is a reason to add
- * a fact here; it is not a reason for a fact to belong to it.
+ * What one file says about itself: syntactic facts, named for what they are rather than for the
+ * rule that reads them.
  */
 export type Scan = Val<
   "Scan",
@@ -210,12 +203,8 @@ export type Scan = Val<
 export const Scan = Val.companion<Scan>()
   .implAssoc(() => ({
     /**
-     * Walks one file once, for every rule.
-     *
-     * One walk rather than one per rule because the rules share their footing: {@link Bindings}
-     * resolves a name for all three, and the chain analysis that spots `.impl(() => ({…}))` is the
-     * same one that spots `.implSeal`. What comes back is material, not findings; deciding is the
-     * rules' job, and they see every file rather than this one.
+     * Walks one file once, for every rule. What comes back is material, not findings. The rules
+     * decide, and they see every file.
      */
     walk: scan,
   }))

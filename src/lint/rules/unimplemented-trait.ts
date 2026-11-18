@@ -13,13 +13,10 @@ export const UnimplementedTrait = Val.companion<UnimplementedTrait>()
   .build();
 
 /**
- * Reports a declared trait that no `implTrait` answers for.
- *
- * A Val's third argument carries traits and nothing else, so every reference there is one. An
- * enum's carries the shared fields and the tag's name as well, and a shared field written as an
- * alias of its own reads like a trait from the syntax. Those are reported only where the
- * reference resolves to a `Trait` declaration in the scanned files, which keeps a shared field
- * silent at the cost of missing a trait declared in a file nobody linted.
+ * Reports a declared trait that no `implTrait` answers for. A Val's third argument carries only
+ * traits. An enum's carries shared fields too, so a reference there is reported only where it
+ * resolves to a `Trait` declaration in the scanned files. A trait declared in a file nobody linted
+ * is then missed.
  */
 function findings({ kind }: UnimplementedTrait, scans: readonly Scan[]): Finding[] {
   const found: Finding[] = [];

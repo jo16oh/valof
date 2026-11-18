@@ -969,8 +969,7 @@ export declare class PrivateSeal {
  * Takes `create` off the companion, whether `.implCreate` registered it or an enum's variant has it
  * by default. `seal` and `patch` stay.
  *
- * For a type built through other functions alone. It shapes what the companion offers and guards
- * no invariant: a `create` passes the seal like every other gate.
+ * For a type built through other functions alone.
  *
  * ```ts
  * const Token = Val.companion<Token, [PrivateCreate]>().implCreate(generate).build();
@@ -1120,10 +1119,8 @@ export type Passes<Tr extends AnyTrait, G, I, S> =
  * What a step's function receives: `seal`, `create` where `.implCreate` registered one, and
  * `patch` for an object payload. `PrivateSeal` and `PrivateCreate` do not remove them here.
  *
- * Each step wraps it in `NoInfer` where it uses it. It holds no type parameter to infer, but
- * inference walks all of it anyway. In the `core` fixture of `check-dist --types`,
- * `impl(({ seal }) => …)` took 15,800 instantiations, and 6,700 with the wrapper. Wrapped inside
- * this alias, the parameter's hover shows the expanded type instead of `Supplied<…>`.
+ * Each step wraps it in `NoInfer` where it uses it. It holds no type parameter to infer, but unwrapped, inference walks all of it anyway and more than doubles the instantiations (notes §15.4). Wrapped
+ * inside this alias, the parameter's hover shows the expanded type instead of `Supplied<…>`.
  */
 type Supplied<V extends AnyVal, N, F, O extends Options> = CreateMethod<V, N, F> &
   SealMethod<V, F> &
@@ -1180,21 +1177,9 @@ export type CompanionBuilder<
          *
          * The function receives `seal`, `create` where `.implCreate` registered one, and `patch`
          * for an object payload. A member reaching the companion for anything else (a trait's
-         * member or a sibling) references it and annotates its return type. Referencing a
-         * declaration inside its own initializer is a circularity, which TypeScript reports as
-         * TS7023.
+         * member or a sibling) references it and annotates its return type.
          *
-         * A member can be called with the value first, `User.rename(u, "x")`, or last,
-         * `User.rename("x")(u)`. So can `patch` and a trait's member taking more than one
-         * argument. One taking only the value has no second form: `pipe(u, User.greet)`. A member
-         * cannot have an optional, a default or a rest parameter. Pass `undefined` where an
-         * argument has no value.
-         *
-         * Called with the value last, a generic member loses its type parameters. Each becomes its
-         * constraint, or `unknown` where none is declared. To keep them, wrap the member in a
-         * function that calls it with the value first: `pipe(u, (v) => User.pick(v, "name"))`.
-         *
-         * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
+         * A member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}. Called with the value last, a generic member loses its type parameters. To keep them, call it with the value first inside a function: `pipe(u, (v) => User.pick(v, "name"))`.
          */
         // A separate step because TypeScript cannot infer type arguments partially. A trait's
         // member is registered, so `.impl` may not register one over it: the type would keep the
@@ -1215,8 +1200,7 @@ export type CompanionBuilder<
      * step's member) references it and annotates its return type, as in `.impl`.
      *
      * A member can be called with its first argument first, or last: `Money.scaled(5, 2)` or
-     * `Money.scaled(2)(5)`. A member taking one argument or none has no second form. A member
-     * cannot have an optional, a default or a rest parameter.
+     * `Money.scaled(2)(5)`. A member taking one argument or none has no second form.
      */
     implAssoc: <M extends AssocMembers>(
       fns: (
@@ -1231,10 +1215,7 @@ export type CompanionBuilder<
      * A member the trait declared {@link Final} is not returned here. It arrives unchanged, and
      * nothing can override it.
      *
-     * A member taking more than one argument can be called with the value first or last. None can
-     * have an optional, a default or a rest parameter.
-     *
-     * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
+     * A member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}.
      */
     implTrait: <Tr extends LoneTrait<Tr>, G, I extends Implement<Tr, G, V>>(
       trait: Takes<V, Tr, T & A, Complete<Tr, G>>,
@@ -1463,7 +1444,7 @@ export const notFixedPoint = (): never => {
  * copying runs a payload's getters, which is someone else's code and can seal or unwrap.
  *
  * Values are frozen in development only. Breaking `readonly` takes a cast, and with nodes shared
- * that write lands in every value holding the node. Freezing measured at 25-30% of the copy's cost
+ * that write lands in every value holding the node. Freezing adds 25-30% to the copy (notes §7.1)
  * and buys nothing at run time, so production skips it.
  */
 const deepCopy = (owning: boolean) => {

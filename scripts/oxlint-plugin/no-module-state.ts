@@ -3,8 +3,8 @@ import type { Context, Rule } from "./rule.ts";
 /**
  * A module's top level holds no state: no `let` or `var`, no static field that can change, no
  * array, object, `Set` or `Map` the types let anyone change, and no instance of any other class
- * but `URL` or `RegExp`. State lives inside a function call, or in an instance of a class created where
- * it is used.
+ * but `URL` or `RegExp`. State lives inside a function call, or in an instance of a class created
+ * where it is used.
  */
 export const noModuleState: Readonly<Rule> = {
   meta: {

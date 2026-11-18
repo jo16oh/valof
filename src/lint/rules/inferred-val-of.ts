@@ -15,16 +15,9 @@ export const InferredValOf = Val.companion<InferredValOf>()
   .build();
 
 /**
- * Reports every `Val.of(…)` written without its type argument.
- *
- * The type argument is what makes a lift visible: `Val.of<User>(payload)` is greppable, and the
- * bypassed-companion rule reads that name to say what the lift went around. Without it, the same
- * lift reads as an ordinary call and neither a reader nor that rule sees it.
- *
- * No type is resolved. TypeScript infers the type from the target, so the form only compiles
- * where a target says what it is: `const u: User = Val.of(payload)` and a call passing one as an
- * argument. With nothing to infer from, the parameter resolves to `never` and the compiler
- * rejects the call before this rule is reached.
+ * Reports every `Val.of(…)` written without its type argument, which hides the lift from a reader
+ * and from the bypassed-companion rule. No type is resolved. The form compiles only where a target
+ * gives the type, and elsewhere the compiler rejects the call before this rule runs.
  */
 function findings({ kind }: InferredValOf, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, lifts }) =>

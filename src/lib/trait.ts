@@ -458,8 +458,7 @@ export interface TraitSteps<Tr extends LoneTrait<Tr>, G, A, Open> {
    * receives nothing.
    *
    * `implTrait` does not copy them onto a Val. A member reaching the companion references it and
-   * annotates its return type. A member taking more than one argument can be called with its first
-   * argument first, or last. None can have an optional, a default or a rest parameter.
+   * annotates its return type. A member taking more than one argument can be called with its first argument first, or last.
    */
   implAssoc: <M extends TraitAssoc<Tr>>(
     fns: () => Grown<keyof A, M> & LooseArity<M> & ThisType<undefined>,
@@ -474,14 +473,10 @@ export interface TraitImplStep<Tr extends LoneTrait<Tr>, G, A> extends TraitStep
    * `implTrait`, and may not replace one declared {@link Final}.
    *
    * It takes one call. A member calling a {@link Final} sibling references the companion and
-   * annotates its return type: referencing it inside its own initializer is a circularity
-   * TypeScript reports as TS7023, and the annotation cuts it. A member a Val may replace is
-   * not on the companion; see {@link TraitCompanion}.
+   * annotates its return type. A member a Val may replace is not on the companion; see
+   * {@link TraitCompanion}.
    *
-   * A member taking more than one argument can be called with the value first or last. None can
-   * have an optional, a default or a rest parameter.
-   *
-   * See {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | Call a member with the value last}.
+   * A member taking more than one argument can be called {@link https://jo16oh.github.io/valof/latest/adding-functions.html#call-a-member-with-the-value-last | with the value first or last}.
    */
   impl: <H extends Shared<Tr, H>>(
     fns: () => H & Arity<H> & ThisType<undefined>,

@@ -84,7 +84,7 @@ export default defineConfig({
     "vitest/valid-title": ["error", { ignoreTypeOfTestName: true }],
     // A type test asserts with `@ts-expect-error` and `expectTypeOf`, which the type check runs.
     "vitest/expect-expect": "off",
-    // Dropped on 2026-09-09, see "Fix tsconfig before adding rules" in `notes/design/14.19-oxlint.md`.
+    // Off for the reasons "Fix tsconfig before adding rules" in `notes/design/14.19-oxlint.md` gives.
     "no-shadow": "off",
     "no-useless-concat": "off",
     "unicorn/no-array-sort": "off",

@@ -18,12 +18,8 @@ export const DuplicateBrand = Val.companion<DuplicateBrand>()
   .build();
 
 /**
- * Reports every alias claiming a brand another alias also claims.
- *
- * Only top-level aliases are considered, since nothing else can be imported and assigned
- * elsewhere. `Val` is recognized however it was bound: renamed, imported for its type alone,
- * reached through a namespace, or re-exported from a barrel. Something else bound to the name
- * `Val` is left alone.
+ * Reports every alias claiming a brand another alias also claims. Only top-level aliases count,
+ * since nothing else can be imported. `Val` is recognized however it was bound.
  */
 function findings({ kind }: DuplicateBrand, scans: readonly Scan[]): Finding[] {
   const claims = new Map<string, Finding[]>();

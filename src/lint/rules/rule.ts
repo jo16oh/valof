@@ -4,10 +4,8 @@ import type { Scan } from "../scan/index.ts";
 import type { FilePath } from "../shared/files.ts";
 
 /**
- * What every rule reports: what it is, where to look, and what to say.
- *
- * The wording belongs to the rule, next to the `description` that names it. The command prints
- * `message` unchanged, so nothing outside a rule needs to know what else the rule read.
+ * What every rule reports: what it is, where to look, and what to say. The command prints `message`
+ * unchanged.
  */
 export type Finding = Val<
   "Finding",
@@ -60,11 +58,9 @@ export type Context = Val<
 export const Context = Val.companion<Context>().build();
 
 /**
- * One rule, whole: what it reports, how it reads in `--help`, and how it runs.
- *
- * Each rule is a Val implementing this trait, and its companion's `create` returns the value that
- * runs. Adding one is writing that Val and listing it in `RULES`; the runner has no branch per
- * rule.
+ * One rule, whole: what it reports, how it reads in `--help`, and how it runs. Each rule is a Val
+ * implementing this trait, listed in `RULES`, and its companion's `create` returns the value that
+ * runs.
  */
 export type Rule = Trait<
   "Rule",

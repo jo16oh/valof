@@ -1,7 +1,5 @@
 // Type-inference cost, measured against the published declarations the way a consumer sees them.
-//
-// `Instantiations` and `Types` are deterministic for a given compiler, so they carry the budget;
-// the times are printed and never checked.
+// The times vary between runs, so they are printed and never checked.
 import { readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
@@ -52,8 +50,6 @@ export const Counts = Val.companion<Counts>()
     },
   }))
   .impl(({ patch }) => ({
-    // Reported over the baseline, which is a constant each checker materialises at startup: 86
-    // types on 5.9, 341 on tsgo, whatever the lib. Subtracting it leaves what the library costs.
     above: (counts, baseline: Counts) =>
       patch(counts, {
         types: counts.types - baseline.types,
@@ -142,7 +138,6 @@ export const TypesReport = Val.companion<TypesReport>()
           ]),
         ),
         "",
-        // A reader meets this table years after the last person who chose what to put in it.
         "instantiations: type arguments applied, where a conditional running away shows.",
         "types: distinct types the checker made. printed only, and it tracks the first.",
         ...declarations.map(({ name, description }) => `${name}: ${description}`),

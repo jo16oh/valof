@@ -113,14 +113,10 @@ export const CompatCheck = Val.companion<CompatCheck>()
       const importers = current ? await copyScripts() : [];
 
       /**
-       * Each export of the book's blocks and the fixtures, compared with the type its declaration
-       * gives a consumer. A declaration can lose a type without an error. Up to 7.0, TypeScript
-       * truncates a type nested beyond the printer's depth limit to `/*elided*\/ any` (7.1 reports
-       * TS7056 instead, microsoft/TypeScript#64461).
-       *
-       * The scripts are only searched for `/*elided*\/`. TypeScript expands the aliases of other
-       * packages in their declarations, such as the base class of `ErrorFactory`, and the
-       * comparison counts that as a change.
+       * Each export, compared with the type its declaration gives a consumer. A declaration can lose
+       * a type without an error (notes §18.5). The scripts are searched only for `/*elided*\/`,
+       * because their declarations expand other packages' aliases, which the comparison counts as a
+       * change.
        */
       const read = SourceExports.read(DIRECTORY, [...blocks, ...fixtures]);
       if (R.isFailure(read)) return read;
@@ -152,10 +148,7 @@ export const CompatCheck = Val.companion<CompatCheck>()
   }))
   .build();
 
-/**
- * Installs `dist` the way npm installs it, so `exports` decides what a declaration may reference.
- * A path to `dist` would let it reach a module the package does not export.
- */
+/** Installs `dist` the way npm installs it, so `exports` decides what a declaration may reference. */
 async function install(): Promise<void> {
   await rm(DIRECTORY, { recursive: true, force: true });
   await mkdir(DIRECTORY, { recursive: true });
@@ -168,22 +161,18 @@ async function install(): Promise<void> {
 }
 
 /**
- * The book's blocks are the fixture: they are the API surface a reader writes, and they are
- * maintained as documentation rather than as a second copy of it.
- *
- * The ones that declare `// @errors` stay out. Which errors a compiler reports, and under which
- * code, moves between lines, and plain `tsc` has nowhere to put the expectation. `vp test` keeps
- * checking those against `src` (docs/tools/twoslash).
+ * The book's blocks, except those that declare `// @errors`. Plain `tsc` cannot check an expected
+ * error, and the code a compiler reports changes between TypeScript lines. `vp test` checks those
+ * blocks against `src` (docs/tools/twoslash).
  */
 function writeBlocks(): Promise<string[]> {
-  // A block that imports nothing is a script, and its declarations land in a global scope every
-  // other one shares: two blocks declaring `User` collide. `export {}` gives it a scope of its own
-  // without changing what is checked.
+  // A block that imports nothing is a script, and it shares one global scope with every other such
+  // block.
   const isolated = (code: string): string =>
     /^\s*(?:import|export)\b/m.test(code) ? code : `${code}\nexport {};\n`;
 
-  // Exported, so the declaration pass has something to emit. A companion's type is inferred, and
-  // an inferred type is what reaches for a name the library never published.
+  // Exported, so the declaration pass emits each inferred type, which is where a name the library
+  // never published appears.
   const exported = (code: string): string =>
     code.replaceAll(/^(const|type|function) /gm, "export $1 ");
 
@@ -211,10 +200,8 @@ async function copyFixtures(): Promise<string[]> {
 }
 
 /**
- * The blocks' `tsconfig.json`, and a second one that emits their declarations. Typechecking alone
- * does not reach this: an inferred type only has to be nameable when it is written to a `.d.ts`,
- * and TS4023 and TS4094 are what a consumer sees when it is not. Both have landed here before, on
- * the one line `export const Shape = Enum.companion<Shape>()`.
+ * The blocks' `tsconfig.json`, and a second one that emits their declarations, because an inferred type
+ * has to be nameable only in a `.d.ts` (TS4023, TS4094).
  */
 async function writeConfigs(): Promise<void> {
   await writeJson(join(DIRECTORY, "tsconfig.json"), {
@@ -244,13 +231,9 @@ async function writeConfigs(): Promise<void> {
 }
 
 /**
- * The scripts, which are written against the pinned commit, as code a user wrote. They read
- * against this `dist` only when the pin builds the same one; `release` fails otherwise, which a
- * release PR passes so the scripts catch up before a release.
- *
- * Copied, with a `package.json` that sends `#valof` to the installed package. The copy sits
- * inside the repository, so every other import still reaches its `node_modules`. Returns the
- * scripts that import valof.
+ * Copies the scripts, read as code a user wrote against the pinned commit, and sends their
+ * `#valof` to the installed package. The copy sits inside the repository, so every other import
+ * still reaches its `node_modules`. Returns the scripts that import valof.
  */
 async function copyScripts(): Promise<string[]> {
   const importers = await valofImporters();

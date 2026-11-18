@@ -18,24 +18,14 @@ export const CompanionMismatch = Val.companion<CompanionMismatch>()
 
 /**
  * Reports every companion chain bound to a name other than its type argument, and every variant
- * bound to a name other than its own.
+ * bound to a name other than its own. The type and its companion are one declaration merge under
+ * one name.
  *
- * The type and the companion share one name on purpose: `type User = Val<…>` and `const User =
- * Val.companion<User>()` are a declaration merge, so `User` is the type, the companion and the
- * namespace at once. Two names split that, and the reader has to know both to find either.
- *
- * Compared as written, so `import type { User as Account }` passes with `const Account =
- * Val.companion<Account>()`. The type belonging to another file is the split-companion
- * rule's finding, not this one's.
- *
- * The chain is where the name is required, not the `.impl` on it, so holding a builder in a
- * variable is reported: `const built = Val.companion<User>()` is already the companion for `User`
- * under a second name. Writing the chain as one `const User` is the fix.
- *
- * A variant carries the same requirement. `const { Circle } = Shape` and `const Circle =
- * Shape.Circle` keep the name the enum declared; `const Round = Shape.Circle` does not, and a
- * reader of `Round.create({ r: 2 })` cannot tell which enum declared it. Anything else taken off a
- * companion, `const x = config.value`, is no variant and is left alone.
+ * Names are compared as written, so `import type { User as Account }` passes with
+ * `const Account = Val.companion<Account>()`. A type from another file is the split-companion
+ * rule's finding. A builder held in a variable is reported, since the chain is already the
+ * companion. `const Round = Shape.Circle` is reported, because the name no longer says which enum
+ * declared it. `const x = config.value` is not a variant, so it is not reported.
  */
 function findings({ kind }: CompanionMismatch, scans: readonly Scan[]): Finding[] {
   const exports = Exports.from(scans);

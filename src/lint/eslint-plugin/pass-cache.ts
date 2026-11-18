@@ -2,10 +2,8 @@ import type { Finding } from "../rules/index.ts";
 
 /**
  * The findings of the file the host is linting, shared by its rules until the call stack empties.
- *
- * The host creates every rule for a file before it walks the file, so their `Program` handlers run
- * back to back. Asking the worker blocks the thread, so no other code runs between them. Asking
- * once per rule would stat the project once per rule.
+ * Asking once per rule would stat the project once per rule. The host runs a file's `Program`
+ * handlers back to back, and asking the worker blocks the thread, so nothing runs between them.
  */
 export class PassCache {
   #key: string | undefined;

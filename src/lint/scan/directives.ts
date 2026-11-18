@@ -15,12 +15,7 @@ export type Directive = Val<
     kinds: string[];
     /**
      * How it is written: `valof-lint-disable-next-line`, `-whole-file`, `-all-whole-file`, or
-     * `valof-lint-disable` alone.
-     *
-     * The scope is always in the spelling: a reader never has to know which one covers what. The
-     * `-all` slot sits before it, so a line-scoped `-all` has a place to go if it is ever wanted.
-     * `valof-lint-disable` on its own names no scope, which is the mistake this shape makes
-     * visible rather than guesses at.
+     * `valof-lint-disable` alone, which names no scope and is reported.
      */
     spelling: string;
   }
@@ -60,16 +55,12 @@ export const DirectiveMap = Val.companion<DirectiveMap>()
   .build();
 
 /**
- * Every directive in one file, at its own comment rather than the line it covers.
+ * Every directive in one file, at its own comment rather than the line it covers, since two rules
+ * ask about the directive itself.
  *
- * The whole comment block above a line is read, not only the comment touching it, so a
- * `valof-lint-disable-next-line` may sit among another linter's directives in any order. A block
- * is a run of own-line comments with no blank line and no code between them; a trailing comment
- * after code belongs to no block, and a blank line starts a new one. A whole-file directive
- * needs none of that: it is placed wherever its author put it.
- *
- * A directive keeps its own position because two rules ask about the directive itself rather
- * than about the line under it: one names no rule, another names one that reports nothing.
+ * A `valof-lint-disable-next-line` may sit anywhere in the comment block above its line: a run of
+ * own-line comments with no blank line or code between them. A whole-file directive may sit
+ * anywhere.
  */
 export function directives(
   comments: readonly { value: string; start: number; end: number }[],
@@ -146,11 +137,9 @@ type DirectiveComment = Val<
 const DirectiveComment = Val.companion<DirectiveComment>()
   .implAssoc(({ seal }) => ({
     /**
-     * What one comment carries, or `undefined` when it carries no directive.
-     *
-     * More than one name goes on a line, separated by a space or a comma alike, since a reader
-     * writing a list will reach for either. Nothing but a space may follow a spelling, so a
-     * misspelling such as `valof-lint-disable-nextline` silences nothing rather than a whole file.
+     * What one comment carries, or `undefined` when it carries no directive. Names are separated by a
+     * space or a comma. Nothing but a space may follow a spelling, so `valof-lint-disable-nextline`
+     * silences nothing.
      */
     parse: (text: string, at: Position): DirectiveComment | undefined => {
       const match =
@@ -173,12 +162,10 @@ const DirectiveComment = Val.companion<DirectiveComment>()
   .build();
 
 /**
- * What one directive silences, which is not always what it named.
- *
- * Naming no rule on a line means every kind there: a directive that silenced nothing would bury
- * the finding it was written to hold back. Naming none over a whole file means nothing at all,
- * since silencing would hide the report about the directive itself and leave nobody to hear it.
- * `valof-lint-disable-all-whole-file` is how a file is turned off, and it says so.
+ * What one directive silences. Naming no rule on a line means every kind there, since a directive
+ * that silenced nothing would bury the finding it was written to hold back. Naming none over a
+ * whole file means nothing, since silencing would hide the report about the directive itself.
+ * `valof-lint-disable-all-whole-file` turns a file off.
  */
 function effect({ spelling, kinds }: Directive): Silenced {
   if (spelling === "valof-lint-disable-all-whole-file") return Silenced.Every.create({});

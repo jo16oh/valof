@@ -1,12 +1,9 @@
 import { Directories, Patterns, type Project } from "../shared/files.ts";
 
 /**
- * Each project, globbed again only once a file is added to or deleted from it.
- *
- * The host walks the same project file by file, so the glob would otherwise run again for each. A
- * language server runs for as long as the editor is open, so a project globbed once would miss the
- * files added since, and fail to read those deleted. Statting the directories the files can be in
- * detects both.
+ * Each project, globbed again only once a file is added to or deleted from it, which statting its
+ * directories detects. A language server runs for as long as the editor is open, so a glob made
+ * once misses files added or deleted since.
  */
 export class ProjectCache {
   readonly #projects = new Map<

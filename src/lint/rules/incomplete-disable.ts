@@ -34,11 +34,8 @@ function missing({ spelling, kinds }: Directive): string | undefined {
 }
 
 /**
- * Reports every directive that left something out.
- *
- * A line directive goes on silencing what it silences. Reporting is the whole change: the line
- * below is already written the way its author wanted, and turning the directive off here would
- * bury the finding under the ones it was holding back.
+ * Reports every directive that left something out. A line directive keeps silencing what it
+ * silences, so this rule's finding is not buried under the findings the directive holds back.
  */
 function findings({ kind }: IncompleteDisable, scans: readonly Scan[]): Finding[] {
   return scans.flatMap(({ file, directives }) =>
