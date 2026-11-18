@@ -1856,6 +1856,33 @@ describe("patch", () => {
     });
   });
 
+  test("a recipe's parameter writes only what the draft does", () => {
+    type Ticket = Val<"Ticket", { id: string; n: number }>;
+    const Ticket = Val.companion<Ticket, [Unpatchable<"id">]>().build();
+    const ticket = Ticket.seal({ id: "t", n: 1 });
+    // @ts-expect-error a type of its own would write the key `patch` keeps readonly
+    Ticket.patch(ticket, (t: { id: string }) => {
+      t.id = "u";
+    });
+    // @ts-expect-error the same where `patch` takes the recipe first
+    Ticket.patch((t: { id: string }) => {
+      t.id = "u";
+    });
+    // oxlint-disable-next-line no-explicit-any -- the case under test
+    type Loose = any;
+    // @ts-expect-error nor may it widen to `any`, whose keys the payload lacks
+    Ticket.patch(ticket, (t: Loose) => {
+      t.id = "u";
+    });
+    const typed: Patch<SeedOf<Ticket>, "id"> = (t) => {
+      t.n = 2;
+    };
+    const fewer = (t: { n: number }) => {
+      t.n = 3;
+    };
+    expect([typed, fewer].map((f) => Ticket.patch(ticket, f).n)).toEqual([2, 3]);
+  });
+
   test("a plain object field holds no Val", () => {
     type Pin = Val<"Pin", { at: { x: number; y: number } }>;
     const Pin = Val.companion<Pin>().build();
