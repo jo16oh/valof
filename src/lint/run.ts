@@ -19,7 +19,7 @@ export async function run(
   files: readonly string[],
   options: Options = Options.create(),
   cache: ScanCache = new ScanCache(),
-): Promise<R.Result<Finding[], MissingParserError>> {
+): R.ResultAsync<Finding[], MissingParserError> {
   // Paths keep the spelling they came in with, since a finding prints it. An overlaid file the
   // caller did not list joins them, as itself.
   const toScan = [

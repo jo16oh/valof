@@ -31,10 +31,10 @@ export class ScanCache {
    * a file has to be walked, so a run that finds every scan kept never loads the parser.
    */
   async scan(
-    load: () => Promise<R.Result<Parser, MissingParserError>>,
+    load: () => R.ResultAsync<Parser, MissingParserError>,
     sources: readonly (readonly [FilePath, string])[],
     modules: Modules,
-  ): Promise<R.Result<Scan[], MissingParserError>> {
+  ): R.ResultAsync<Scan[], MissingParserError> {
     const kept = sources.map(([file, source]) => {
       const found = this.#scans.get(file);
       const scan = found?.source === source ? found.scan : this.#store?.find(file, source);
