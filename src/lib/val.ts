@@ -851,12 +851,13 @@ type Drafted<T> = T extends AnyVal | ReadonlyArray<unknown> ? T : T extends obje
  * `patch`, data-first and data-last. The recipe is a type parameter so its return type can be
  * read: an async recipe would write to its draft after `patch` returned.
  */
-export type PatchFn<V, R, P> = P extends (draft: infer D) => void
-  ? {
-      <F extends (draft: D) => unknown>(recipe: F & Sync<F>): (self: V) => R;
-      <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F>): R;
-    }
-  : never;
+export type PatchFn<V, R, T, X extends keyof T> =
+  Patch<T, X> extends (draft: infer D) => void
+    ? {
+        <F extends (draft: D) => unknown>(recipe: F & Sync<F> & Drafts<F, T, X>): (self: V) => R;
+        <F extends (draft: D) => unknown>(value: V, recipe: F & Sync<F> & Drafts<F, T, X>): R;
+      }
+    : never;
 
 // `never` is a recipe that only throws.
 type Sync<F> = F extends (...args: never[]) => infer T
@@ -868,6 +869,27 @@ type Sync<F> = F extends (...args: never[]) => infer T
         ? Invalid<"a recipe runs synchronously: await before `patch`, not inside the recipe">
         : Invalid<"a recipe assigns to its draft and returns nothing">
   : unknown;
+
+// A parameter typed to make a key writable that the draft keeps readonly or lacks, such as
+// `(d: { _tag?: string })`, would write that key. One holding fewer keys writes less, so it fits.
+type Drafts<F, T, X extends keyof T> = F extends (...args: infer A) => unknown
+  ? A extends []
+    ? unknown
+    : [Exclude<keyof A[0], keyof T> | Writable<Pick<A[0], X & keyof A[0]>>] extends [never]
+      ? unknown
+      : Invalid<"a recipe's parameter is the draft; leave its type to inference">
+  : unknown;
+
+// The keys a type lets a recipe assign to.
+type Writable<T> = {
+  [K in keyof T]-?: (<Y>() => Y extends Pick<T, K> ? 1 : 2) extends <Y>() => Y extends {
+    -readonly [Q in K]: T[Q];
+  }
+    ? 1
+    : 2
+    ? K
+    : never;
+}[keyof T];
 
 export type AnyFn = (...args: never[]) => unknown;
 
@@ -1127,7 +1149,7 @@ type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<SeedOf<V>>] ex
        * `patch` cannot bypass a smart constructor. Returns the value itself where the recipe
        * changed nothing. See {@link Patch}.
        */
-      patch: PatchFn<V, Constructed<V, F>, Patch<SeedOf<V>, UnpatchableKeys<O> & keyof SeedOf<V>>>;
+      patch: PatchFn<V, Constructed<V, F>, SeedOf<V>, UnpatchableKeys<O> & keyof SeedOf<V>>;
     };
 
 /**
