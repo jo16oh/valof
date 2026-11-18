@@ -159,6 +159,8 @@
   - **A variant's name is a string.** In `{ A; B; 404 }`, `VariantKeys` (`Extract<keyof D, string>`) silently dropped `404`,
     and `match` counted as exhaustive without `404`. If every name was a number, the enum became `never`, and the companion was still accepted.
     `VariantKeys` now includes `number`, and `Fault` rejects it with "a variant's name must be a string"
+    - **A symbol key was dropped the same way (type-hunt, 2026-11-18).** `{ A; B; [key]: … }` and `{ A; B; [Symbol.iterator]: … }` were
+      accepted by the declaration, by the companion, and by a `match` with no arm for the symbol key. `Fault` rejects a symbol key with the same message
   - **The name, the tag name and the shared fields cannot be unions.** A value of `Enum<"E" | "F", …>` is not assignable to `Val<"E.A", …>`.
     `Tag<"k" | "t">` was accepted with `.tag("k")` (`Tag<"k"> & Tag<"t">` was already rejected). For shared fields of
     `{ id } | { key }`, the `Pick` in `SharedIn` kept only the common keys, and `create({ n: 1 })` was accepted with neither `id` nor `key`.
