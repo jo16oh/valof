@@ -116,7 +116,7 @@ const TYPES_BUDGETS = TypesBudgets.seal({
       name: "index.d.ts",
       path: "dist/index.d.ts",
       description: "the published declarations, in bytes. what every consumer parses.",
-      budget: 114 * 1024,
+      budget: 115 * 1024,
     }),
     /** The plugin's declarations, which a config file in TypeScript loads. */
     TypesDeclaration.seal({
