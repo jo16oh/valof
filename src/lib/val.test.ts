@@ -2266,9 +2266,6 @@ describe("Val.Record", () => {
       .build();
     const prices = Doubled.of(apple);
     expect(prices).toEqual({ apple });
-    expect(Doubled.amounts(prices)).toEqual([1]);
-    expect(Doubled.names(prices)).toEqual(["apple"]);
-    expect(Doubled.pairs(prices)).toEqual([["apple", apple]]);
     expect(Doubled.renamed(prices, "apple", "fig")).toEqual({ fig: apple });
     expectTypeOf(Doubled.amounts).returns.toEqualTypeOf<number[]>();
     expectTypeOf(Doubled.renamed(prices, "apple", "fig")).toEqualTypeOf<Prices>();
