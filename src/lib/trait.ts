@@ -97,6 +97,18 @@ export type AnyTrait = TraitDeclaration<{
   readonly verdict: Readonly<Record<string, Members & Unrejected>> & Unrejected;
 }>;
 
+/**
+ * A trait, broken or not, told apart without reading its verdict. Checking a trait against
+ * {@link AnyTrait} computes the verdict, which reads the shape, and a `Rec` in the shape resolves
+ * the Val still being declared.
+ */
+export type LooseTrait = TraitDeclaration<{
+  readonly brands: Readonly<Record<string, Members>>;
+  readonly shape: unknown;
+  // oxlint-disable-next-line typescript/no-explicit-any -- any verdict, without computing it
+  readonly verdict: any;
+}>;
+
 // A broken declaration leaves an `Invalid` or a `Refused` in place of a trait's members. Both have
 // only a symbol key, which `Record<string, …>` does not check.
 type Unrejected = { readonly [InvalidKey]?: never; readonly [RefusedKey]?: never };
