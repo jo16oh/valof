@@ -1,7 +1,7 @@
 import { Result as R } from "@praha/byethrow";
 import { expect, test, vi } from "vite-plus/test";
 
-import { CompatCheck, CompatReport, LineResult } from "./index.ts";
+import { CompatCheck, CompatReport, LineResult, redirectImports } from "./index.ts";
 
 const pinned = vi.hoisted(() => ({ missing: false }));
 vi.mock(import("../../../pin-valof/index.ts"), async (original) => {
@@ -85,4 +85,15 @@ test("says whether it checked the scripts, or skipped them on a pin that builds 
     "    the declaration changes x",
   ]);
   expect(report()).toContain("  scripts skipped: valof 8d32b2a builds a different dist");
+});
+
+test("points a copied script's imports that leave `scripts/` back at the original files", () => {
+  const code = [
+    'import { output } from "../../../shared/repository.ts";',
+    'import { flow, pipe } from "../../../../src/shared/pipe/index.ts";',
+  ].join("\n");
+  expect(redirectImports(code, "check-dist/check/size/suite.ts").split("\n")).toEqual([
+    'import { output } from "../../../shared/repository.ts";',
+    'import { flow, pipe } from "../../../../../../../src/shared/pipe/index.ts";',
+  ]);
 });
