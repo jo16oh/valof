@@ -143,9 +143,7 @@ vp install              # install dependencies
 vp test                 # run the tests
 vp check                # format, lint, type check
 vp run build            # build
-vp run bundle-size      # measure what a user ships against its budget
-vp run type-perf        # measure the type cost: instantiations and the declaration size
-vp run ts-compatibility # type check the published .d.ts against every TypeScript line
+vp run check-dist       # bundle size, type cost, and a typecheck on every TypeScript line
 ```
 
 ## License

@@ -1121,9 +1121,9 @@ export type Passes<Tr extends AnyTrait, G, I, S> =
  * `patch` for an object payload. `PrivateSeal` and `PrivateCreate` do not remove them here.
  *
  * Each step wraps it in `NoInfer` where it uses it. It holds no type parameter to infer, but
- * inference walks all of it anyway. In the type-perf `core` fixture, `impl(({ seal }) => …)` took
- * 15,800 instantiations, and 6,700 with the wrapper. Wrapped inside this alias, the parameter's
- * hover shows the expanded type instead of `Supplied<…>`.
+ * inference walks all of it anyway. In the `core` fixture of `check-dist --types`,
+ * `impl(({ seal }) => …)` took 15,800 instantiations, and 6,700 with the wrapper. Wrapped inside
+ * this alias, the parameter's hover shows the expanded type instead of `Supplied<…>`.
  */
 type Supplied<V extends AnyVal, N, F, O extends Options> = CreateMethod<V, N, F> &
   SealMethod<V, F> &

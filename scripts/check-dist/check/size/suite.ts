@@ -2,20 +2,15 @@ import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { Val } from "#valof";
 import { Imports, type Bundle } from "./bundle.ts";
-import { flow } from "../../src/shared/pipe/index.ts";
-import {
-  BuildResult,
-  BundleSize,
-  type AddsNothingError,
-  type DevCodeKeptError,
-} from "./measure/index.ts";
+import { flow, pipe } from "../../../../src/shared/pipe/index.ts";
+import { Budget } from "../budget.ts";
+import { align } from "../report.ts";
+import { BuildResult, BundleSize } from "./measure/index.ts";
 import {
   measure,
-  pack,
   type CompileError,
   type MinifyError,
   type NoChunkError,
-  type PackError,
 } from "./measure/toolchain.ts";
 
 export class NoBaseError extends ErrorFactory({
@@ -23,15 +18,33 @@ export class NoBaseError extends ErrorFactory({
   message: "no bundle sets base",
 }) {}
 
-export type Report = Val<
-  "Report",
+export type MeasureError = NoBaseError | NoChunkError | CompileError | MinifyError;
+
+export type Measurement = Val<
+  "Measurement",
   {
     base: BuildResult;
     bundles: BundleSize[];
     separateBase: BuildResult[];
   }
 >;
-export const Report = Val.companion<Report>().build();
+export const Measurement = Val.companion<Measurement>()
+  .impl(() => ({
+    /** Each build's sizes, then each bundle's budget. */
+    render: ({ bundles, separateBase }): string =>
+      [
+        ...[...separateBase, ...bundles.map(({ build }) => build)].map(
+          (build) => `${BuildResult.render(build)}\n`,
+        ),
+        budgets(bundles),
+      ].join("\n"),
+    /** Each build that keeps development code, then each bundle that adds nothing (§16.2). */
+    problems: ({ base, bundles, separateBase }): string[] => [
+      ...[...separateBase, ...bundles.map(({ build }) => build)].flatMap(BuildResult.problems),
+      ...bundles.flatMap((size) => BundleSize.problems(size, base)),
+    ],
+  }))
+  .build();
 
 export type Suite = Val<"Suite", Bundle[]>;
 export const Suite = Val.companion<Suite>()
@@ -44,21 +57,7 @@ export const Suite = Val.companion<Suite>()
         ? R.succeed(others.reduce((merged, imports) => Imports.merge(merged, imports), first))
         : R.fail(new NoBaseError());
     },
-    measure: async (
-      suite: Suite,
-    ): R.ResultAsync<
-      Report,
-      | PackError
-      | NoBaseError
-      | NoChunkError
-      | CompileError
-      | MinifyError
-      | DevCodeKeptError
-      | AddsNothingError
-    > => {
-      const packed = await pack();
-      if (R.isFailure(packed)) return packed;
-
+    measure: async (suite: Suite): R.ResultAsync<Measurement, MeasureError> => {
       const baseImports = Suite.base(suite);
       if (R.isFailure(baseImports)) return baseImports;
 
@@ -82,20 +81,29 @@ export const Suite = Val.companion<Suite>()
       if (R.isFailure(base)) return base;
       const separateBase = base.value === only?.build ? [] : [base.value];
 
-      const kept = R.sequence(
-        [...separateBase, ...results.map(({ build }) => build)],
-        BuildResult.check,
-      );
-      if (R.isFailure(kept)) return kept;
-
       const bundles = results.map(({ bundle, build }) =>
         BundleSize.create(bundle, build, base.value),
       );
 
-      const added = R.sequence(bundles, (size) => BundleSize.check(size, base.value));
-      if (R.isFailure(added)) return added;
-
-      return R.succeed(Report.seal({ base: base.value, bundles, separateBase }));
+      return R.succeed(Measurement.seal({ base: base.value, bundles, separateBase }));
     },
   }))
   .build();
+
+function budgets(bundles: readonly BundleSize[]): string {
+  return pipe(
+    bundles.map((size) => {
+      const budget = BundleSize.budget(size);
+      return [
+        budget.name,
+        BundleSize.amount(size, budget.used),
+        BundleSize.amount(size, budget.limit),
+        Budget.left(budget),
+      ];
+    }),
+    (rows) => align(rows, ["left", "right", "right", "left"]),
+    (rows) =>
+      rows.map(([name, used, limit, left]) => `  ${name}  ${used} / ${limit}  ${left}`.trimEnd()),
+    (lines) => ["budget (production gzip)", ...lines].join("\n"),
+  );
+}

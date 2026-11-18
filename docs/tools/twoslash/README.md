@@ -4,14 +4,14 @@ Every ```ts block in `docs/src` and `README.md` is typechecked against `src`, on
 `vp test`. `mdbook test` does not do this: it runs Rust blocks only, so it passes on this book
 without reading a line of it.
 
-`vp run ts-compatibility` reuses these blocks: it writes them out and typechecks them against the
+`vp run check-dist --compat` reuses these blocks: it writes them out and typechecks them against the
 published `dist/index.d.ts` on every supported TypeScript line, so the same examples cover the
 emitted declarations as well (notes §10.1). Blocks that declare `// @errors` stay out of that run.
 
 The check here runs on TypeScript 5.9, installed as `typescript-5`. The compiler API lives in that
 package; the 7.0 one ships the native binary instead. The root `tsconfig.json` maps `typescript`
-there for the same reason: Twoslash's declarations import it by name. `vp run ts-compatibility` is
-what covers the newer lines, against the published declarations.
+there for the same reason: Twoslash's declarations import it by name. `vp run check-dist --compat`
+is what covers the newer lines, against the published declarations.
 
 ## Writing a block
 

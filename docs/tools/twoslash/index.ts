@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 import { createTwoslasher } from "twoslash/core";
 // The compiler API the repository builds with is the native port, which does not expose one, so
-// Twoslash gets its own. `vp run ts-compatibility` is what covers the newer lines. The root
+// Twoslash gets its own. `vp run check-dist --compat` is what covers the newer lines. The root
 // `tsconfig.json` aims the `typescript` that Twoslash's own declarations import here as well.
 import * as ts from "typescript-5";
 

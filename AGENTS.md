@@ -54,14 +54,12 @@ cannot narrow on it.
 
 ## Bundle Size and Type Cost
 
-Run `vp run bundle-size` after changing runtime code. Update the bundle-size claim in
-`docs/src/introduction.md` with
-`vp run replace-bundle-size-claims --write docs/src/introduction.md`. Leave the claims in
-`README.md` and `package.json` to `vp run bump-version`.
+Run `vp run check-dist` after changing runtime code or a type. `--size`, `--types` and `--compat`
+select the checks. With none, all three run. Update the bundle-size claim in
+`docs/src/introduction.md` with `vp run check-dist --size --write`. Leave the claims in `README.md`
+and `package.json` to `vp run bump-version`.
 
-Run `vp run type-perf` after changing a type.
-
-Neither `vp check` nor `vp test` runs `bundle-size` or `type-perf`.
+Neither `vp check` nor `vp test` runs `check-dist`.
 
 ## Testing
 
@@ -85,7 +83,7 @@ Do not skip the hook for the implementation commit.
    they need a note or emphasis, write it for users in a file outside the repo. Step 3 makes it the
    PR body.
 2. In a PR of its own, run `vp run pin-valof origin/main`, which points the scripts' `#valof` at
-   that commit, and fix the scripts where `vp check` or `vp run bundle-size` fails. Report what
+   that commit, and fix the scripts where `vp check` or `vp run check-dist` fails. Report what
    breaks, and where the new API is awkward to use in the scripts. If a problem is serious, stop the
    release and rework the design.
 3. Run `vp run bump-version --release <type> --yes`, where `<type>` is the release type I give, such

@@ -1,4 +1,4 @@
-// Core API under `vp run type-perf`. Deep payloads, tuples, records and every builder step,
+// Core API under `vp run check-dist --types`. Deep payloads, tuples, records and every builder step,
 // because those are where the recursive conditionals run.
 import { equals, Val, type Patch, type SeedOf, type Unpatchable } from "valof";
 
