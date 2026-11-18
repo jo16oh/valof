@@ -2249,13 +2249,29 @@ describe("Val.Record", () => {
     Val.Record.companion<Tags>().implCreate.noseal(() => listed);
   });
 
-  test("a member reaches `fromEntries` through what its step receives", () => {
+  test("a member reaches the record's members through what its step receives", () => {
     const Doubled = Val.Record.companion<Prices>()
+      .impl(({ set, delete: remove, has, keys, values, entries }) => ({
+        amounts: (p) => values(p).map((money) => money.amount),
+        names: (p) => keys(p),
+        pairs: (p) => entries(p),
+        renamed: (p, from: string, to: string) => {
+          const money = p[from];
+          return money && !has(p, to) ? remove(set(p, to, money), from) : p;
+        },
+      }))
       .implAssoc(({ fromEntries }) => ({
         of: (money: Money) => fromEntries([["apple", money]]),
       }))
       .build();
-    expect(Doubled.of(apple)).toEqual({ apple });
+    const prices = Doubled.of(apple);
+    expect(prices).toEqual({ apple });
+    expect(Doubled.amounts(prices)).toEqual([1]);
+    expect(Doubled.names(prices)).toEqual(["apple"]);
+    expect(Doubled.pairs(prices)).toEqual([["apple", apple]]);
+    expect(Doubled.renamed(prices, "apple", "fig")).toEqual({ fig: apple });
+    expectTypeOf(Doubled.amounts).returns.toEqualTypeOf<number[]>();
+    expectTypeOf(Doubled.renamed(prices, "apple", "fig")).toEqualTypeOf<Prices>();
     // @ts-expect-error a record's steps receive no `seal`
     Val.Record.companion<Prices>().implAssoc(({ seal }) => ({ sealed: () => seal }));
   });
