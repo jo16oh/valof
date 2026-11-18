@@ -53,17 +53,20 @@
     overflow), not a clear message. A check would cost bytes for a mistake the throw already stops
   - **Cost.** trait 25,699 → 26,345 instantiations, so its budget went from 26,000 to 27,000
 
-- [ ] **What the second type hunt (2026-11-18) left open, all present in 0.12.** Fixed in the PR that records them: `any`, `never` and
-      a missing type argument at `Trait.companion`, `Val.companion`, `Val.of` and `.dyn`; trait members that are optional,
-      symbol-keyed, `never` or take something other than `Self` first; `Unpatchable` naming no key and `VariantOptions` naming no variant; the message for `any` as a Val's traits; the message for a constant in `implAssoc`. Then:
+- [ ] **What the second type hunt (2026-11-18) left open, all present in 0.12.** Fixed in the PR that records them: a
+      missing type argument at `Trait.companion`, `Val.companion`, `Val.of` and `.dyn`; trait members that are optional,
+      symbol-keyed or take something other than `Self` first; the message for a constant in `implAssoc`. Then:
   - **`any` and `never` written as a type argument are outside the guarantees** (user, 2026-11-18; §1). `Impl<any>`,
-    `Dyn<never>`, `Val.Record<"R", any, V>` and the like stay accepted. A drafted constraint (`NotAny`) and a check
-    on the record's brand were dropped
+    `Dyn<never>`, `Val.Record<"R", any, V>` and the like stay accepted. The checks this PR first added for them were
+    removed: `Unpatchable<never>`, a `VariantOptions` naming no variant, a `never` member, `never` as the options,
+    `any` as a Val's traits, and `any` at `Trait.companion`, `Val.companion`, `Val.of` and `.dyn`. A drafted constraint
+    (`NotAny`) and a check on the record's brand were dropped. Checks from before stay, such as `Unpatchable<any>`
+    and an `any` member, until they are next touched
   - **Fixed later, in the same PR:**
     - **A field typed as a Val holding an object, intersected with a primitive** (`{ n: Spot & number }`), and an enum's
       shared field clashing that way with a variant's. The Val's check rejects it, and the enum's check reports that no value fits the field
     - **A union element in an options list** (`[Unpatchable<"id"> | PrivateSeal]`), for a Val's companion and an enum's
-    - **Cost:** core 12,948 → 13,012 instantiations, enum 51,727 → 51,880, `index.d.ts` 115.14 → 115.74 kB. The core
+    - **Cost:** core 12,948 → 13,002 instantiations, enum 51,727 → 51,833, `index.d.ts` 115.14 → 115.10 kB with the removals above. The core
       budget went from 13,000 to 13,100
   - **Not attempted:** an overloaded or generic trait member (no way to read either from the type), a class instance
     passed to `seal` (it throws), a union of two Vals passed to `equals` (the caller wrote the union), a `Rec` in a trait's
