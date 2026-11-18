@@ -25,6 +25,7 @@ import type {
   NamesOf,
   LoneTrait,
   FieldsOf,
+  LooseTrait,
   TraitHost,
   DynStep,
   ImplementedOf,
@@ -132,7 +133,9 @@ export type AnyEnum = AnyVal &
 type VariantKeys<D> = Extract<keyof D, string | number>;
 
 /** A variant's fields, with the ones its traits require. */
-type FieldsIn<P> = [P] extends [AnyTrait] ? Pick<P, keyof P> & FieldsOf<P> : P;
+// A key the payload declares is left out of the trait's fields, because reading it to reduce the
+// intersection would resolve a `Rec` to the enum being declared.
+type FieldsIn<P> = [P] extends [LooseTrait] ? Pick<P, keyof P> & Omit<FieldsOf<P>, keyof P> : P;
 
 type VariantsIn<D> = { [N in VariantKeys<D>]: FieldsIn<D[N]> };
 
@@ -154,10 +157,13 @@ type SharedArg<X> = Loose<X> extends true ? Record<never, never> : X;
 
 /** The fields every variant holds, with the ones the enum's traits require. */
 // An `Impl` stays whole, so that the payload rules see it and reject it.
-type SharedIn<X> = ([X] extends [AnyImpl] ? X : Pick<X, keyof X>) &
-  ([TraitsIn<X>] extends [never] ? unknown : FieldsOf<TraitsIn<X>>);
+// `Held` lists the keys the variant declares, which the traits' fields leave out, as in `FieldsIn`.
+type SharedIn<X, Held extends PropertyKey = never> = ([X] extends [AnyImpl]
+  ? X
+  : Pick<X, keyof X>) &
+  ([TraitsIn<X>] extends [never] ? unknown : Omit<FieldsOf<TraitsIn<X>>, Held>);
 
-type TraitsIn<X> = Extract<X, AnyTrait>;
+type TraitsIn<X> = X extends LooseTrait ? X : never;
 
 /** The traits the enum declares and the ones one variant declares, either of which may be none. */
 type Joined<A, B> = [A] extends [never] ? B : [B] extends [never] ? A : A & B;
@@ -256,7 +262,7 @@ type Faulted<F> = [F] extends [never] ? object : Invalid<F & string>;
  */
 type Disagreeing<D, X> = {
   [N in VariantKeys<D>]: Disagreement<
-    FieldsIn<D[N]> & SharedIn<X>,
+    FieldsIn<D[N]> & SharedIn<X, keyof FieldsIn<D[N]>>,
     Joined<TraitsIn<X>, TraitsIn<D[N]>>
   >;
 }[VariantKeys<D>];
@@ -310,7 +316,10 @@ type Enum<
 > = {
   [N in VariantKeys<Built<D>>]: UncheckedVal<
     Literal<`${K}.${N}`>,
-    FieldsIn<Built<D>[N]> & SharedIn<SharedArg<X>> & { [P in Literal<TagIn<SharedArg<X>>>]: N },
+    FieldsIn<Built<D>[N]> &
+      SharedIn<SharedArg<X>, keyof FieldsIn<Built<D>[N]>> & {
+        [P in Literal<TagIn<SharedArg<X>>>]: N;
+      },
     Joined<TraitsIn<SharedArg<X>>, TraitsIn<Built<D>[N]>>,
     true
   >;

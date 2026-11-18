@@ -8,6 +8,7 @@ import {
   type Final,
   type Impl,
   type Payload,
+  type Rec,
   type Self,
 } from "./index.ts";
 import { Shared } from "./keys.ts";
@@ -929,6 +930,17 @@ describe("data-first and data-last", () => {
 });
 
 describe("nesting", () => {
+  test("a trait's shape may hold the Val that declares it", () => {
+    type Branchy = Trait<"Branchy", { kids: Rec<Tree>[] }, { size: (self: Self) => number }>;
+    const Branchy = Trait.companion<Branchy>().build();
+    type Tree = Val<"BranchyTree", { kids: Rec<Tree>[]; n: number }, Branchy>;
+    const Tree = Val.companion<Tree>()
+      .implTrait(Branchy, () => ({ size: (t) => t.kids.length }))
+      .build();
+    const leaf = Tree.seal({ kids: [], n: 1 });
+    expect(Tree.dyn<Branchy>(Tree.seal({ kids: [leaf], n: 2 })).size()).toBe(1);
+  });
+
   type Team = Val<"Team", { id: string; name: string; lead: User }, Greetable>;
   const Team = Val.companion<Team>()
     .implTrait(Greetable, () => ({

@@ -4,4 +4,5 @@ import { Shared as Named } from "./traits/index.js";
 import * as traits from "./traits";
 
 type User = Val<"User", {}, Named & traits.Shared>;
+// @ts-expect-error -- the rejected import leaves a trait `any`, which the guarantees leave out
 const User = Val.companion<User>().implTrait(Named).build();
