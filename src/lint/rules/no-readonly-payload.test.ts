@@ -19,6 +19,7 @@ test("reports readonly in a Val's payload, a record's value, a variant, an enum'
       "12:43",
       "12:75",
       "13:45",
+      "14:56",
     ].map((at) => ({
       rule: ReadonlyPayload,
       at: `written.ts:${at}`,

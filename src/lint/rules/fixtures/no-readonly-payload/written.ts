@@ -11,3 +11,4 @@ export type Page = Val<"Page", { meta: { authors: { names: readonly string[] | n
 export type Span = Val<"Span", readonly [number, readonly number[]]>;
 export type Shelf = Val<"Shelf", { rows: (readonly string[])[]; pair: [x: readonly string[]] }>;
 export type Rest = Val<"Rest", [number, ...(readonly string[])[]]>;
+export type Named = Val<"Named", [n: number, ...rest: (readonly string[])[]]>;
