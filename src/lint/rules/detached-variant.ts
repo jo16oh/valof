@@ -1,6 +1,6 @@
 import { Val } from "../../lib/index.ts";
-import { Exports, type Scan } from "../scan/index.ts";
 import type { SymbolRef } from "../scan/bindings.ts";
+import { Exports, type Scan } from "../scan/index.ts";
 import { Finding, Kind, Rule } from "./rule.ts";
 
 /**

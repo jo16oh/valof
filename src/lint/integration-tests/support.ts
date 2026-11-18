@@ -4,10 +4,10 @@ import { fileURLToPath } from "node:url";
 
 import { Result as R } from "@praha/byethrow";
 
-import { Options as LintOptions } from "../shared/options.ts";
 import * as Rules from "../rules/index.ts";
 import { RULES, type Finding } from "../rules/index.ts";
 import { run } from "../run/index.ts";
+import { Options as LintOptions } from "../shared/options.ts";
 
 export { RULES };
 

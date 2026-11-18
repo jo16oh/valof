@@ -13,8 +13,8 @@ import { Result as R } from "@praha/byethrow";
 
 import { Val } from "../../lib/index.ts";
 import { pipe } from "../../shared/pipe/index.ts";
-import { Project } from "../shared/files.ts";
 import type { Finding } from "../rules/index.ts";
+import { Project } from "../shared/files.ts";
 import { DataTypeSettings } from "../shared/options.ts";
 
 /**

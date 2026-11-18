@@ -4,16 +4,17 @@
 // the times are printed and never checked.
 import { readFile, rm } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
-import { Val, type Dyn } from "#valof";
 
-import { Budget } from "../budget.ts";
-import { align, count, problemLines, Report } from "../report.ts";
-import { Check } from "../check.ts";
+import { Val, type Dyn } from "#valof";
 
 import { output, REPOSITORY, writeJson } from "../../../shared/repository.ts";
 import { tsc, version, type Tsc } from "../../../shared/typescript-lines.ts";
+import { Budget } from "../budget.ts";
+import { Check } from "../check.ts";
+import { align, count, problemLines, Report } from "../report.ts";
 
 const HERE = new URL("./", import.meta.url);
 

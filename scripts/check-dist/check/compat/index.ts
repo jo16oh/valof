@@ -3,14 +3,15 @@ import { join } from "node:path";
 
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
+
 import { Val, type Dyn } from "#valof";
 
 import { docBlocks } from "../../../../docs/tools/twoslash/index.ts";
 import { matches, pinned } from "../../../pin-valof/index.ts";
 import { output, ROOT, writeJson } from "../../../shared/repository.ts";
 import { tsc, version } from "../../../shared/typescript-lines.ts";
-import { problemLines, Report } from "../report.ts";
 import { Check } from "../check.ts";
+import { problemLines, Report } from "../report.ts";
 import { RoundTrip, SourceExports } from "./round-trip.ts";
 
 const DIRECTORY = join(ROOT, "docs/.generated/ts-compatibility");

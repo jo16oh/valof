@@ -1,3 +1,7 @@
+import type { Enum } from "../../lib/enum.ts";
+import { Val, type VariantOf } from "../../lib/index.ts";
+import type { Trait } from "../../lib/trait.ts";
+import type { AnyVal, CompanionBuilder } from "../../lib/val.ts";
 import {
   keyName,
   rootPath,
@@ -9,10 +13,6 @@ import {
   type Position,
 } from "../parse/ast.ts";
 import type { FilePath } from "../shared/files.ts";
-import type { Enum } from "../../lib/enum.ts";
-import type { Trait } from "../../lib/trait.ts";
-import type { AnyVal, CompanionBuilder } from "../../lib/val.ts";
-import { Val, type VariantOf } from "../../lib/index.ts";
 import { Bindings, type SymbolRef } from "./bindings.ts";
 
 /** The entry points a chain grows from. A rename in the library is a type error here. */

@@ -1,21 +1,21 @@
-import { HiddenSharedStateInImpl } from "./hidden-shared-state-in-impl.ts";
-import { DataTypeOutsideValof } from "./data-type-outside-valof.ts";
-import { HiddenOptional } from "./hidden-optional.ts";
-import { DetachedVariant } from "./detached-variant.ts";
-import { IncompleteDisable } from "./incomplete-disable.ts";
-import { BypassedCompanion } from "./bypassed-companion.ts";
-import { UnnecessaryAlias } from "./unnecessary-alias.ts";
-import { BrandMismatch } from "./brand-mismatch.ts";
-import { CompanionMismatch } from "./companion-mismatch.ts";
-import { DuplicateBrand } from "./duplicate-brand.ts";
 import type { Dyn } from "../../lib/index.ts";
+import { DataTypeSettings, type Options } from "../shared/options.ts";
+import { BrandMismatch } from "./brand-mismatch.ts";
+import { BypassedCompanion } from "./bypassed-companion.ts";
+import { CompanionMismatch } from "./companion-mismatch.ts";
+import { DataTypeOutsideValof } from "./data-type-outside-valof.ts";
+import { DetachedVariant } from "./detached-variant.ts";
+import { DuplicateBrand } from "./duplicate-brand.ts";
+import { HiddenOptional } from "./hidden-optional.ts";
+import { HiddenSharedStateInImpl } from "./hidden-shared-state-in-impl.ts";
+import { IncompleteDisable } from "./incomplete-disable.ts";
+import { InferredValOf } from "./inferred-val-of.ts";
 import { KindSet, Rule, type Kind } from "./rule.ts";
 import { SplitCompanion } from "./split-companion.ts";
-import { InferredValOf } from "./inferred-val-of.ts";
+import { UnimplementedTrait } from "./unimplemented-trait.ts";
+import { UnnecessaryAlias } from "./unnecessary-alias.ts";
 import { UnusedDisable } from "./unused-disable.ts";
 import { UnusedMember } from "./unused-member.ts";
-import { UnimplementedTrait } from "./unimplemented-trait.ts";
-import { DataTypeSettings, type Options } from "../shared/options.ts";
 
 /**
  * Each rule under its own name, so a caller can name one without spelling its kind.

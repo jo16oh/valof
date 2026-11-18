@@ -1,8 +1,9 @@
 import { Val } from "#valof";
-import { Imports, type Bundle } from "../bundle.ts";
+
 import { pipe } from "../../../../../src/shared/pipe/index.ts";
 import { Budget } from "../../budget.ts";
 import { align, bytes } from "../../report.ts";
+import { Imports, type Bundle } from "../bundle.ts";
 
 /** Production, then development. */
 export const MODES: readonly [Mode, Mode] = ["production", "development"];

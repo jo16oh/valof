@@ -1,4 +1,5 @@
 import { afterAll, describe, expect, test, vi } from "vite-plus/test";
+
 import type { Enum as EnumOf, Val as Value } from "./index.ts";
 
 const previousNodeEnv = vi.hoisted(() => {

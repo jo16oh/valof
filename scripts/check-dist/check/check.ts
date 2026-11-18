@@ -1,10 +1,11 @@
 import type { Result as R } from "@praha/byethrow";
+
 import { Trait, type Dyn, type Self } from "#valof";
 
 import type { CompatError } from "./compat/index.ts";
+import type { Report } from "./report.ts";
 import type { SizeError } from "./size/index.ts";
 import type { TypesError } from "./types/index.ts";
-import type { Report } from "./report.ts";
 
 /** What a check fails with where it cannot report, as on a measurement that breaks. */
 export type CheckError = SizeError | TypesError | CompatError;

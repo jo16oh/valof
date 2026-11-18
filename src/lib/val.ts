@@ -1,6 +1,26 @@
+import { createMembers, dual } from "./dual/index.ts";
+import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual/index.ts";
 // Type-only, so nothing from enum.ts crosses at run time. The phantom stays in enum.ts, beside
 // the declaration that carries it.
 import type { AnyEnum, NameOf } from "./enum.ts";
+import { development } from "./env.ts";
+import { Shared, Traits } from "./keys.ts";
+import type {
+  InvalidKey,
+  NoSeal,
+  PhantomBrand,
+  PhantomPayload,
+  PhantomTypes,
+  PrivateCreateKey,
+  PrivateSealKey,
+  RecKey,
+  RefusedKey,
+  Unbuilt,
+  UnpatchableKey,
+  UnpatchableTypes,
+  VerdictKey,
+} from "./keys.ts";
+import * as Val from "./namespace/val.ts";
 import type {
   AnyImpl,
   AnyTrait,
@@ -18,26 +38,6 @@ import type {
   TraitsOf,
   Unbound,
 } from "./trait.ts";
-import { createMembers, dual } from "./dual/index.ts";
-import { Shared, Traits } from "./keys.ts";
-import type {
-  InvalidKey,
-  NoSeal,
-  PhantomBrand,
-  PhantomPayload,
-  PhantomTypes,
-  PrivateCreateKey,
-  PrivateSealKey,
-  RecKey,
-  RefusedKey,
-  Unbuilt,
-  UnpatchableKey,
-  UnpatchableTypes,
-  VerdictKey,
-} from "./keys.ts";
-import type { Arity, Dual, Duals, LooseArity, Looses } from "./dual/index.ts";
-import { development } from "./env.ts";
-import * as Val from "./namespace/val.ts";
 
 /** Primitives allowed as values. `undefined` is deliberately excluded. */
 type Primitive = string | number | boolean | null;

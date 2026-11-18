@@ -2,16 +2,16 @@
 // the checker, and whether they typecheck on every TypeScript line.
 import { Result as R } from "@praha/byethrow";
 
-import { CompatCheck } from "./check/compat/index.ts";
-import { build } from "./prepare/build.ts";
 import { Check } from "./check/check.ts";
-import { run } from "./cli/run.ts";
-import { Selection } from "./cli/selection.ts";
+import { CompatCheck } from "./check/compat/index.ts";
 import { Bundle, Imports } from "./check/size/bundle.ts";
 import { ClaimedFile } from "./check/size/claims.ts";
 import { SizeCheck } from "./check/size/index.ts";
 import { Suite } from "./check/size/suite.ts";
 import { TypesBudgets, TypesCheck, TypesDeclaration, TypesFixture } from "./check/types/index.ts";
+import { run } from "./cli/run.ts";
+import { Selection } from "./cli/selection.ts";
+import { build } from "./prepare/build.ts";
 
 async function main(): Promise<void> {
   const selected = Selection.fromArgv(process.argv.slice(2));

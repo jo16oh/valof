@@ -1,8 +1,8 @@
 import { Result as R } from "@praha/byethrow";
 
-import type { FilePath } from "../shared/files.ts";
 import { ParseCache } from "../parse/cache.ts";
 import type { MissingParserError, Parser } from "../parse/parser.ts";
+import type { FilePath } from "../shared/files.ts";
 import { Modules } from "./bindings.ts";
 import { Scan } from "./index.ts";
 import type { ScanStore } from "./store.ts";

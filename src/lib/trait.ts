@@ -8,6 +8,7 @@ import {
 } from "./dual/index.ts";
 import { Shared, Traits } from "./keys.ts";
 import type { InvalidKey, RefusedKey, TraitBrands, TraitTypes } from "./keys.ts";
+import * as Trait from "./namespace/trait.ts";
 import {
   associated,
   isObject,
@@ -26,7 +27,6 @@ import {
   type Unfit,
   type UnionToIntersection,
 } from "./val.ts";
-import * as Trait from "./namespace/trait.ts";
 
 declare const SelfMark: unique symbol;
 

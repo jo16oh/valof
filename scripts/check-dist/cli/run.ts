@@ -1,4 +1,5 @@
 import { Result as R } from "@praha/byethrow";
+
 import type { Dyn } from "#valof";
 
 import type { Check } from "../check/check.ts";

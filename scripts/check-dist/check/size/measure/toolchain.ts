@@ -1,15 +1,18 @@
-import { gzipSync, brotliCompressSync, constants } from "node:zlib";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { gzipSync, brotliCompressSync, constants } from "node:zlib";
+
 import { Result as R } from "@praha/byethrow";
 import { ErrorFactory } from "@praha/error-factory";
 import { minifySync, build, type Rolldown } from "vite";
+
 import { Val } from "#valof";
-import { Imports } from "../bundle.ts";
+
 import { flow, pipe } from "../../../../../src/shared/pipe/index.ts";
 import { REPOSITORY } from "../../../../shared/repository.ts";
+import { Imports } from "../bundle.ts";
 import { Build, BuildResult, Sizes, type Mode } from "./index.ts";
 
 export class NoChunkError extends ErrorFactory({
