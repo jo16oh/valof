@@ -4,7 +4,7 @@ import { styleText, type InspectColor } from "node:util";
 
 import { Result as R } from "@praha/byethrow";
 
-import { Val } from "../index.ts";
+import { Val } from "../lib/index.ts";
 import { Arguments } from "./cli/arguments.ts";
 import { NoFilesMatchedError, type UsageError } from "./cli/errors.ts";
 import { Path, type FilePath } from "./shared/files.ts";

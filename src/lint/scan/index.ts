@@ -1,10 +1,10 @@
 import { normalize, resolve } from "node:path";
 
 import { pipe } from "../../shared/pipe/index.ts";
-import { Val } from "../../index.ts";
-import type { Enum, EnumCompanion } from "../../enum.ts";
-import type { AnyTrait, TraitCompanion } from "../../trait.ts";
-import type { Reserved } from "../../val.ts";
+import { Val } from "../../lib/index.ts";
+import type { Enum, EnumCompanion } from "../../lib/enum.ts";
+import type { AnyTrait, TraitCompanion } from "../../lib/trait.ts";
+import type { Reserved } from "../../lib/val.ts";
 import type { FilePath } from "../shared/files.ts";
 
 import {

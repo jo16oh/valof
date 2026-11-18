@@ -1,6 +1,6 @@
 import { resolve } from "node:path";
 
-import { Val } from "../../index.ts";
+import { Val } from "../../lib/index.ts";
 import { KindSet, type Kind } from "../rules/rule.ts";
 
 /** What `data-type-outside-valof` reports beyond what it always reports. */

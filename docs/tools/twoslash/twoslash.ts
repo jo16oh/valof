@@ -37,7 +37,7 @@ export class Twoslash {
       // Every subpath the book imports. Without them the checkout's own `package.json` answers,
       // which resolves through `dist`, and that is built here but not in a fresh clone.
       paths: {
-        valof: [join(ROOT, "src/index.ts")],
+        valof: [join(ROOT, "src/lib/index.ts")],
         "valof/eslint-plugin": [join(ROOT, "src/lint/eslint-plugin/index.ts")],
         remeda: [join(ROOT, "docs/tools/twoslash/stubs/remeda.d.ts")],
       },

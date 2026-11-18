@@ -1,4 +1,4 @@
-import { Val } from "../../index.ts";
+import { Val } from "../../lib/index.ts";
 import type { Scan } from "../scan/index.ts";
 import { Kind, Finding, KindSet, Rule, type Context } from "./rule.ts";
 

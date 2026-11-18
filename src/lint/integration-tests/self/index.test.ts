@@ -8,7 +8,7 @@ import { lint, ROOT } from "../support.ts";
 // The linter and the scripts use the library, so the linter's rules apply to them too.
 test("finds nothing in valof's own source and scripts", async () => {
   const files = globSync(["src/**/*.ts", "scripts/**/*.ts"], { cwd: ROOT, exclude: untested });
-  expect(files).toContain("src/val.ts");
+  expect(files).toContain("src/lib/val.ts");
   const findings = await lint(files.map((file) => ROOT + file));
   expect(findings.map(({ file, at: { line }, kind }) => `${file}:${line} ${kind}`)).toEqual([]);
 });

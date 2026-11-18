@@ -1,6 +1,6 @@
 import { Result as R } from "@praha/byethrow";
 
-import { Val } from "../../index.ts";
+import { Val } from "../../lib/index.ts";
 import { Path } from "../shared/files.ts";
 import {
   MissingPathError,

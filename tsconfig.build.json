@@ -3,8 +3,8 @@
   "compilerOptions": {
     "noEmit": false,
     "rewriteRelativeImportExtensions": true,
-    "rootDir": "src",
+    "rootDir": "src/lib",
     "outDir": "dist"
   },
-  "files": ["src/index.ts"]
+  "files": ["src/lib/index.ts"]
 }
