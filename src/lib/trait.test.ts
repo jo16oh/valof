@@ -764,7 +764,7 @@ describe("dyn", () => {
       expectTypeOf<VerdictOf<Trait<"Empty", { x: string }, never>>>().toEqualTypeOf<Fault>();
     });
 
-    // `any` and `never` satisfy the members' constraint, so the verdict alone reports them.
+    // `any` satisfies the members' constraint, so the verdict alone reports it.
     test("a member cannot be `any`", () => {
       type Fault = Invalid<"a trait member cannot be `any`; write its signature">;
       // oxlint-disable-next-line no-explicit-any -- the case under test
