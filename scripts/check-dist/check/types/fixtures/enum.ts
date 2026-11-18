@@ -8,7 +8,7 @@ import {
   Trait,
   Val,
   type Dyn,
-  type Patch,
+  type Draft,
   type SeedOf,
   type Self,
   type VariantOf,
@@ -72,7 +72,7 @@ type Frame = Val<"Frame", { id: string; shape: Shape; last: Event }>;
 const Frame = Val.companion<Frame>().build();
 
 declare const shape: Shape;
-declare const patch: Patch<SeedOf<Frame>>;
+declare const patch: (draft: Draft<SeedOf<Frame>>) => void;
 
 const circle = Shape.Circle.seal({ _tag: "Circle", id: "c", r: 2 });
 const click = Event.Click.create({ id: "e", x: 1, y: 2 }) as VariantOf<Event, "Click">;

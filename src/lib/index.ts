@@ -9,7 +9,6 @@ export { equals, Val } from "./val.ts";
 export type {
   Companion,
   CompanionBuilder,
-  Patch,
   Payload,
   PayloadOf,
   PrivateCreate,

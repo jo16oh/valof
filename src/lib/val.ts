@@ -831,9 +831,7 @@ type Nocopy<V extends AnyVal> = <const T extends SeedOf<V>>(value: T & NocopyArg
  * `(d) => { d.name = "b"; d.street.no = 2; }` sets two fields and leaves the rest. Only an
  * assignment changes the value, and each one is checked against its field's type.
  *
- * Taken over a payload rather than a Val, so a member calling `patch` can accept a subset of the
- * fields. `Patch<Omit<SeedOf<V>, "id">>` leaves a generated id out of the draft. `X` lists keys the
- * draft holds read-only, as `Patch<Fields, "id">` for an `Unpatchable` id.
+ * Internal: a recipe's type is inferred, and a recipe declared apart from the `patch` call types its parameter with {@link Draft}. `X` lists the keys the draft holds read-only, the `Unpatchable` ones.
  */
 export type Patch<T, X extends keyof T = never> = [T] extends [AnyVal]
   ? [T] extends [never]
@@ -1168,7 +1166,7 @@ type PatchMethod<V extends AnyVal, F, O extends Options> = [Patch<SeedOf<V>>] ex
       /**
        * Runs a recipe on a draft and seals the result, so it returns whatever the seal returns:
        * `patch` cannot bypass a smart constructor. Returns the value itself where the recipe
-       * changed nothing. See {@link Patch}.
+       * changed nothing. The recipe assigns to a {@link Draft} of the payload.
        */
       patch: PatchFn<V, Constructed<V, F>, SeedOf<V>, UnpatchableKeys<O> & keyof SeedOf<V>>;
     };

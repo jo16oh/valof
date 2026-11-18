@@ -69,7 +69,6 @@
       budget went from 13,000 to 13,100
     - **Not fixed, though probed, by decision (user, 2026-11-18):** a class instance passed to `seal` stays unchecked by
       the types (it throws at run time); a union of two Vals passed to `equals` is accepted (the caller wrote the union)
-    - **Not fixed yet, though probed:** `Patch<User>` written for a Val (reported where it is used)
     - **Fixed (2026-11-18):**
       - **A generic trait member is rejected,** as Rust keeps generic methods out of a `dyn` trait. `infer` reads the
         member with its type parameters filled in, and the member does not accept that type back. A constrained
@@ -80,6 +79,7 @@
         checked its traits against `AnyTrait` while being declared, which computes the trait's verdict and reads the
         shape. `Holding` and the enum's `FieldsIn` and `SharedIn` leave the payload's keys out of the shape's fields,
         and the enum tests against `LooseTrait`, whose verdict is not computed
+      - **`Patch` is internal.** A recipe's type is inferred; one declared apart from the `patch` call types its parameter with `Draft`
     - **Still open:** a variant and the enum's shared fields both writing a key that holds a `Rec` is circular, with or
       without a trait. Leaving the variant's keys out of the shared fields fixes it, but loses the check that a variant
       field contradicting a shared one is rejected. And with an enum-level trait, `Node.seal({ _tag: "Leaf", … })` is

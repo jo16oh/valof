@@ -2,7 +2,6 @@ import { describe, expect, expectTypeOf, test } from "vite-plus/test";
 
 import type { LooseArity } from "./dual/index.ts";
 import type {
-  Patch,
   Payload,
   PayloadOf,
   PrivateCreate,
@@ -15,8 +14,9 @@ import type {
 import { Enum, equals, Trait, Val, type Final, type Impl, type Self } from "./index.ts";
 import { Traits } from "./keys.ts";
 import type { VerdictOf as TraitVerdictOf } from "./trait.ts";
-// `AnyVal` and `BrandOf` are not published from the entry point.
+// `AnyVal`, `BrandOf` and `Patch` are not published from the entry point.
 import type {
+  Patch,
   Allowed,
   AnyVal,
   BrandOf,
@@ -1321,6 +1321,8 @@ describe("the entry point", () => {
     expectTypeOf<import("./index.ts").AnyEnum>();
     // @ts-expect-error the entry point does not export AnyTrait
     expectTypeOf<import("./index.ts").AnyTrait>();
+    // @ts-expect-error nor Patch: a recipe's type is inferred
+    expectTypeOf<import("./index.ts").Patch<{ id: string }>>();
   });
 });
 

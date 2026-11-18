@@ -1,6 +1,6 @@
 // Core API under `vp run check-dist --types`. Deep payloads, tuples, records and every builder step,
 // because those are where the recursive conditionals run.
-import { equals, Val, type Patch, type SeedOf, type Unpatchable } from "valof";
+import { equals, Val, type Draft, type SeedOf, type Unpatchable } from "valof";
 
 type City = Val<"City", { name: string; zip: string | undefined }>;
 const City = Val.companion<City>().build();
@@ -56,7 +56,7 @@ const Order = Val.companion<Order, [Unpatchable<"id">]>()
   .build();
 
 declare const order: Order;
-declare const patch: Patch<Omit<SeedOf<Order>, "id">>;
+declare const patch: (draft: Draft<Omit<SeedOf<Order>, "id">>) => void;
 
 export const derived = [
   // The draft stops at a nested Val, so the deep change runs inside `Address`.
