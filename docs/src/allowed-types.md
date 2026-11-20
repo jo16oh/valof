@@ -7,19 +7,19 @@ Only four things can be a payload:
 | Primitives | `string` / `number` / `boolean` / `bigint` / `null` (below the top level) |
 | Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                             |
 | Objects    | `{ k: allowed }`, with every key listed                                   |
-| Vals       | another Val, as `User`, or `User \| null` (below the top level)           |
+| Vals       | a Val, as `User` (below the top level)                                    |
 
 A record keyed by any string, such as `Record<string, Money>`, is not a payload. Declare a
 [`Val.Record`](patterns.md#map--set) for it.
 
-A field holding a Val may be a union only with `null`. [`equals`](utilities.md#equals) compares
-structurally, so in a field of `Dollar | Yen` it would find a `Dollar` of 1 equal to a `Yen` of 1.
-Declare an [enum](enums.md) of those types instead. Its tag distinguishes the variants. Any other
-field may hold `null` or a primitive beside one other kind, as `string[] | null` or
-`string | string[]`. A union of objects is rejected, and so is a field holding an
-[`Impl`](traits.md#implement-it-on-a-val). A tuple keeps its positions and its length. Valof treats
-one with a rest element (`[string, ...number[]]`) as an array instead, since a fixed length is what
-distinguishes the two.
+A field holding a Val may be a union only with `null`, as `User | null`.
+[`equals`](utilities.md#equals) compares structurally, so in a field of `Dollar | Yen` it would find
+a `Dollar` of 1 equal to a `Yen` of 1. Declare an [enum](enums.md) of those types instead. Its tag
+distinguishes the variants. Any other field may hold `null` or a primitive beside one other kind, as
+`string[] | null` or `string | string[]`. A union of objects is rejected, and so is a field holding
+an [`Impl`](traits.md#implement-it-on-a-val). A tuple keeps its positions and its length. Valof
+treats one with a rest element (`[string, ...number[]]`) as an array instead, since a fixed length
+is what distinguishes the two.
 
 Every key is required. Type a field that may hold nothing as `T | undefined` or `T | null`. The
 value keeps the key. Where a payload has many `T | undefined` fields that callers usually pass as
