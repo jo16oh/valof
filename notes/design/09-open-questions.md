@@ -1,5 +1,13 @@
 # 9. Open questions / to confirm
 
+- [x] ~~**Call a payload's key a "property", as JavaScript does.**~~ Closed, 2026-11-20: the docs keep "field" (user)
+  - **"Field" says the Val holds data alone.** A JavaScript property also covers methods and getters. A companion's functions are
+    its members, and a Val's keys are its fields, as in a Rust struct
+  - **The reader meets "field" in the type errors.** `a field cannot hold an \`Impl\`` and the others use it. The docs used it 72
+    times and "property" 6 times
+  - **What stays.** One error prints TypeScript's "Types of property 'm' are incompatible" above Valof's "a field cannot…". The
+    two words name the same key
+
 - [x] ~~**`patch` decided between merging and replacing by a node's mark.**~~ Closed, 2026-11-17. A function in a patch replaces,
       and an object merges (§6.2 "A function replaces")
   - **The mark said where a node came from, not what the field holds.** A cloned Val merged into a nested Val without passing the nested Val's seal.
