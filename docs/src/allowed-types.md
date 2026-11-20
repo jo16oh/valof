@@ -1,13 +1,19 @@
 # Allowed Types
 
-Only four things can be a payload:
+Only these can be a payload:
 
-|            |                                                                           |
-| ---------- | ------------------------------------------------------------------------- |
-| Primitives | `string` / `number` / `boolean` / `bigint` / `null` (below the top level) |
-| Arrays     | `allowed[]`, or a tuple: `[allowed, allowed]`                             |
-| Objects    | `{ k: allowed }`, with every key listed                                   |
-| Vals       | a Val, as `User` (below the top level)                                    |
+| Type                 | Allowed                         |
+| -------------------- | ------------------------------- |
+| `string`             | anywhere                        |
+| `number`             | anywhere                        |
+| `boolean`            | anywhere                        |
+| `bigint`             | anywhere                        |
+| `null`               | in a field or an element        |
+| `undefined`          | in a field                      |
+| `allowed[]`          | anywhere                        |
+| `[allowed, allowed]` | anywhere, as a tuple            |
+| `{ k: allowed }`     | anywhere, with every key listed |
+| a Val                | in a field or an element        |
 
 A record keyed by any string, such as `Record<string, Money>`, is not a payload. Declare a
 [`Val.Record`](patterns.md#map--set) for it.
