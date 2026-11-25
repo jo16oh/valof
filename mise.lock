@@ -73,6 +73,10 @@ url_api = "https://api.github.com/repos/marxin/mdbook-linkcheck2/releases/assets
 version = "0.5.4"
 backend = "aqua:rust-lang/mdBook"
 specifiers = ["0.5.4"]
+unsupported_platforms = [
+    "linux-arm64",
+    "linux-arm64-musl",
+]
 
 [tools.mdbook."platforms.linux-x64"]
 checksum = "sha256:3f28de05dafca9d0f2eab99c662116b0e37b89b1d96a08f8f430b9eeae958cd7"
