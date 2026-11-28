@@ -60,13 +60,13 @@
     "@praha/byethrow": "^0.13.0",
     "@praha/byethrow-oxlint": "^0.13.0",
     "@praha/error-factory": "^1.4.1",
-    "@types/node": "^26.6.6",
+    "@types/node": "^26.6.10",
     "bumpp": "^12.3.0",
     "eslint": "^10.15.0",
     "handlebars": "^4.7.10",
     "mdast-util-from-markdown": "^2.1.0",
-    "oxc-parser": "^0.158.0",
-    "oxlint": "1.93.0",
+    "oxc-parser": "^0.160.0",
+    "oxlint": "1.95.0",
     "shiki": "^4.6.0",
     "twoslash": "^0.3.9",
     "typescript": "^7.0.2",
@@ -87,7 +87,7 @@
   "devEngines": {
     "packageManager": {
       "name": "pnpm",
-      "version": "12.21.0",
+      "version": "12.23.0",
       "onFail": "download"
     }
   },
